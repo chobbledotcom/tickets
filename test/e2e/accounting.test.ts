@@ -69,7 +69,7 @@ import {
 } from "#test-utils";
 import { extractInputValue } from "#test-utils/csrf.ts";
 import { postListingSale, postModifierLeg } from "#test-utils/ledger.ts";
-import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
 import { insertModifier } from "#test-utils/modifiers.ts";
 
 // -- Ledger-truth helpers ------------------------------------------------- //
@@ -109,7 +109,7 @@ const sumOfAllBalances = async (): Promise<number> => {
 
 /** GET an owner page and return its HTML, asserting a 200. */
 const adminPageHtml = async (path: string): Promise<string> => {
-  const { response } = await adminGet(path);
+  const response = await adminGet(path);
   expect(response.status).toBe(200);
   return response.text();
 };
@@ -212,9 +212,8 @@ const mergePreview = async (
   targetId: number,
   sourceToken: string,
 ): Promise<{ version: string; bookingField: string }> => {
-  const page = await awaitTestRequest(
+  const page = await adminGet(
     `/admin/attendees/${targetId}/merge?token=${encodeURIComponent(sourceToken)}`,
-    { cookie: await testCookie() },
   );
   expect(page.status).toBe(200);
   const html = await page.text();
@@ -1450,9 +1449,8 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     expect(await incomeOf(listing.id)).toBe(0);
 
     // The preview shows the conflict row but NOT the money-decision UI.
-    const preview = await awaitTestRequest(
+    const preview = await adminGet(
       `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
-      { cookie: await testCookie() },
     );
     const previewHtml = await preview.text();
     expect(previewHtml).toContain('name="booking_');

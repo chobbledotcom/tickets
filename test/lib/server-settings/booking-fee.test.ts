@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import {
-  awaitTestRequest,
+  adminGet,
   describeAdminSettings,
   expectFlash,
   expectHtmlResponse,
@@ -79,16 +79,12 @@ describeAdminSettings(() => {
 
     test("settings page displays booking fee form when payment provider is set", async () => {
       await settings.update.paymentProvider("stripe");
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       await expectHtmlResponse(response, 200, "Booking Fee", "booking_fee");
     });
 
     test("settings page hides booking fee form when no payment provider", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       const html = await response.text();
       expect(html).not.toContain('id="settings-booking-fee"');
     });

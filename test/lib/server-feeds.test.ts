@@ -11,6 +11,7 @@ import {
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
+  expectHtml,
   mockRequest,
 } from "#test-utils";
 
@@ -173,10 +174,10 @@ describeWithEnv("feeds", { db: true }, () => {
         maxAttendees: 100,
         name: "Secret Listing",
       });
-      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
-      const body = await response.text();
-      expect(body).not.toContain("Secret Listing");
-      expect(body).not.toContain("BEGIN:VLISTING");
+      await expectHtml(
+        await handleRequest(mockRequest("/feeds/listings.ics")),
+        { notContains: ["Secret Listing", "BEGIN:VLISTING"] },
+      );
     });
 
     test("excludes purchase_only listings", async () => {
@@ -186,10 +187,10 @@ describeWithEnv("feeds", { db: true }, () => {
         name: "Raffle Tickets",
         purchaseOnly: true,
       });
-      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
-      const body = await response.text();
-      expect(body).not.toContain("Raffle Tickets");
-      expect(body).not.toContain("BEGIN:VLISTING");
+      await expectHtml(
+        await handleRequest(mockRequest("/feeds/listings.ics")),
+        { notContains: ["Raffle Tickets", "BEGIN:VLISTING"] },
+      );
     });
 
     test("escapes special characters in listing fields", async () => {
@@ -349,10 +350,10 @@ describeWithEnv("feeds", { db: true }, () => {
         maxAttendees: 100,
         name: "Secret Listing",
       });
-      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
-      const body = await response.text();
-      expect(body).not.toContain("Secret Listing");
-      expect(body).not.toContain("<item>");
+      await expectHtml(
+        await handleRequest(mockRequest("/feeds/listings.rss")),
+        { notContains: ["Secret Listing", "<item>"] },
+      );
     });
 
     test("excludes purchase_only listings", async () => {
@@ -362,10 +363,10 @@ describeWithEnv("feeds", { db: true }, () => {
         name: "Raffle Tickets",
         purchaseOnly: true,
       });
-      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
-      const body = await response.text();
-      expect(body).not.toContain("Raffle Tickets");
-      expect(body).not.toContain("<item>");
+      await expectHtml(
+        await handleRequest(mockRequest("/feeds/listings.rss")),
+        { notContains: ["Raffle Tickets", "<item>"] },
+      );
     });
 
     test("XML-escapes special characters", async () => {

@@ -9,6 +9,7 @@ import {
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
+  expectHtml,
   testRequiresAuth,
 } from "#test-utils";
 
@@ -34,7 +35,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
         "Alice",
         "Gala Night",
       );
-      const { response } = await adminGet("/admin/attendees");
+      const response = await adminGet("/admin/attendees");
       const html = await response.text();
       expect(html).not.toContain("<h1>Attendees</h1>");
     });
@@ -44,7 +45,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
       await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
       await createTestAttendeeDirect(listing.id, "Bob", "bob@example.com");
 
-      const { response } = await adminGet("/admin/attendees");
+      const response = await adminGet("/admin/attendees");
       const html = await response.text();
       // Bob registered last, so appears above Alice.
       expect(html.indexOf("Bob")).toBeLessThan(html.indexOf("Alice"));
@@ -55,7 +56,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
       await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
       await createTestAttendeeDirect(listing.id, "Bob", "bob@example.com");
 
-      const { response } = await adminGet("/admin/attendees?sort=oldest");
+      const response = await adminGet("/admin/attendees?sort=oldest");
       const html = await response.text();
       expect(html.indexOf("Alice")).toBeLessThan(html.indexOf("Bob"));
     });
@@ -66,14 +67,13 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
       await createTestAttendeeDirect(first.id, "AliceOne", "a1@example.com");
       await createTestAttendeeDirect(second.id, "BobTwo", "b2@example.com");
 
-      const { response } = await adminGet(
-        `/admin/attendees?listing=${first.id}`,
+      const html = await expectHtml(
+        await adminGet(`/admin/attendees?listing=${first.id}`),
+        {
+          contains: ["AliceOne", `selected value="${first.id}"`],
+          notContains: ["BobTwo"],
+        },
       );
-      const html = await response.text();
-      expect(html).toContain("AliceOne");
-      expect(html).not.toContain("BobTwo");
-      // The chosen listing stays selected in the filter dropdown.
-      expect(html).toContain(`selected value="${first.id}"`);
     });
 
     test("falls back to all listings for an unknown listing filter", async () => {
@@ -82,10 +82,9 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
       await createTestAttendeeDirect(first.id, "AliceOne", "a1@example.com");
       await createTestAttendeeDirect(second.id, "BobTwo", "b2@example.com");
 
-      const { response } = await adminGet("/admin/attendees?listing=999999");
-      const html = await response.text();
-      expect(html).toContain("AliceOne");
-      expect(html).toContain("BobTwo");
+      await expectHtml(await adminGet("/admin/attendees?listing=999999"), {
+        contains: ["AliceOne", "BobTwo"],
+      });
     });
 
     test("falls back to all listings for a malformed listing filter", async () => {
@@ -94,12 +93,10 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
       await createTestAttendeeDirect(first.id, "AliceOne", "a1@example.com");
       await createTestAttendeeDirect(second.id, "BobTwo", "b2@example.com");
 
-      const { response } = await adminGet(
-        `/admin/attendees?listing=${first.id}x`,
+      await expectHtml(
+        await adminGet(`/admin/attendees?listing=${first.id}x`),
+        { contains: ["AliceOne", "BobTwo"] },
       );
-      const html = await response.text();
-      expect(html).toContain("AliceOne");
-      expect(html).toContain("BobTwo");
     });
 
     test("flags a deactivated listing in the filter dropdown", async () => {
@@ -119,7 +116,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
       const listing = await makeListing("Gala Night");
       await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
 
-      const { response } = await adminGet("/admin/attendees?page=0");
+      const response = await adminGet("/admin/attendees?page=0");
       const html = await response.text();
       expect(html).toContain("Alice");
       // First page has no previous link.
@@ -144,7 +141,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
 
       // Page 0: newest PAGE_SIZE rows, a next link, no previous link.
       const first = await adminGet("/admin/attendees");
-      const firstHtml = await first.response.text();
+      const firstHtml = await first.text();
       expect(firstHtml).not.toContain("OldestPerson");
       expect(firstHtml).toContain('rel="next"');
       expect(firstHtml).toContain('href="/admin/attendees?page=1"');
@@ -152,7 +149,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
 
       // Page 1: the remaining oldest row, a previous link, no next link.
       const second = await adminGet("/admin/attendees?page=1");
-      const secondHtml = await second.response.text();
+      const secondHtml = await second.text();
       expect(secondHtml).toContain("OldestPerson");
       expect(secondHtml).toContain('rel="prev"');
       expect(secondHtml).not.toContain('rel="next"');
@@ -189,7 +186,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
 
     test("filters to standard listings (singular heading)", async () => {
       await seedTypes();
-      const { response } = await adminGet("/admin/attendees?type=standard");
+      const response = await adminGet("/admin/attendees?type=standard");
       const html = await response.text();
       expect(html).toContain("StdGoer");
       expect(html).not.toContain("DailyGoer");
@@ -201,7 +198,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
     test("filters to daily listings (plural heading)", async () => {
       const { daily } = await seedTypes();
       await createTestAttendeeDirect(daily.id, "DailyTwo", "d2@example.com");
-      const { response } = await adminGet("/admin/attendees?type=daily");
+      const response = await adminGet("/admin/attendees?type=daily");
       const html = await response.text();
       expect(html).toContain("DailyGoer");
       expect(html).toContain("DailyTwo");
@@ -212,9 +209,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
 
     test("filters to purchase-only listings", async () => {
       await seedTypes();
-      const { response } = await adminGet(
-        "/admin/attendees?type=purchase-only",
-      );
+      const response = await adminGet("/admin/attendees?type=purchase-only");
       const html = await response.text();
       expect(html).toContain("MerchBuyer");
       expect(html).not.toContain("StdGoer");
@@ -223,7 +218,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
 
     test("shows the type filter bar when several types exist", async () => {
       await seedTypes();
-      const { response } = await adminGet("/admin/attendees");
+      const response = await adminGet("/admin/attendees");
       const html = await response.text();
       expect(html).toContain("Showing:");
       expect(html).toContain('href="/admin/attendees?type=daily"');
@@ -233,14 +228,14 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
     test("hides the type filter bar when only one type exists", async () => {
       const listing = await makeListing("Solo");
       await createTestAttendeeDirect(listing.id, "Solo", "solo@example.com");
-      const { response } = await adminGet("/admin/attendees");
+      const response = await adminGet("/admin/attendees");
       const html = await response.text();
       expect(html).not.toContain("Showing:");
     });
 
     test("treats an unknown type as 'all'", async () => {
       await seedTypes();
-      const { response } = await adminGet("/admin/attendees?type=bogus");
+      const response = await adminGet("/admin/attendees?type=bogus");
       const html = await response.text();
       expect(html).toContain("StdGoer");
       expect(html).toContain("DailyGoer");
@@ -249,7 +244,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
 
     test("a specific listing filter overrides the type filter", async () => {
       const { standard } = await seedTypes();
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/attendees?type=daily&listing=${standard.id}`,
       );
       const html = await response.text();
@@ -260,7 +255,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
     test("shows nothing for a type with no listings", async () => {
       const listing = await makeListing("Only Standard");
       await createTestAttendeeDirect(listing.id, "Lonely", "l@example.com");
-      const { response } = await adminGet("/admin/attendees?type=daily");
+      const response = await adminGet("/admin/attendees?type=daily");
       const html = await response.text();
       expect(html).toContain("No attendees yet");
       expect(html).not.toContain("Lonely");
@@ -275,7 +270,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
       );
       await createSystemNote(attendee.id, "Refunded — follow up tomorrow.");
 
-      const { response } = await adminGet("/admin/attendees");
+      const response = await adminGet("/admin/attendees");
       const html = await response.text();
       // The decrypted system-note text renders inside the summary, and the
       // attendee's name links to their edit page — proving the notes-loading

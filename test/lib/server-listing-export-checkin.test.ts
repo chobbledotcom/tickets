@@ -34,7 +34,7 @@ describeWithEnv("server (listing export check-in filter)", { db: true }, () => {
 
   test("?checkin=in exports only checked-in attendees", async () => {
     const listing = await setup();
-    const { response } = await adminGet(
+    const response = await adminGet(
       `/admin/listing/${listing.id}/export?checkin=in`,
     );
     const csv = await response.text();
@@ -44,7 +44,7 @@ describeWithEnv("server (listing export check-in filter)", { db: true }, () => {
 
   test("?checkin=out exports only checked-out attendees", async () => {
     const listing = await setup();
-    const { response } = await adminGet(
+    const response = await adminGet(
       `/admin/listing/${listing.id}/export?checkin=out`,
     );
     const csv = await response.text();
@@ -54,7 +54,7 @@ describeWithEnv("server (listing export check-in filter)", { db: true }, () => {
 
   test("no check-in filter exports everyone", async () => {
     const listing = await setup();
-    const { response } = await adminGet(`/admin/listing/${listing.id}/export`);
+    const response = await adminGet(`/admin/listing/${listing.id}/export`);
     const csv = await response.text();
     expect(csv).toContain("AliceIn");
     expect(csv).toContain("BobOut");
@@ -113,7 +113,7 @@ describeWithEnv("server (listing export check-in filter)", { db: true }, () => {
 
   test("includes the decrypted free-text answer in the CSV export", async () => {
     const listing = await setupFreeText();
-    const { response } = await adminGet(`/admin/listing/${listing.id}/export`);
+    const response = await adminGet(`/admin/listing/${listing.id}/export`);
     const csv = await response.text();
     expect(csv).toContain("Dietary needs?");
     expect(csv).toContain("Coeliac");
@@ -121,7 +121,7 @@ describeWithEnv("server (listing export check-in filter)", { db: true }, () => {
 
   test("shows the decrypted free-text answer on the listing page", async () => {
     const listing = await setupFreeText();
-    const { response } = await adminGet(`/admin/listing/${listing.id}`);
+    const response = await adminGet(`/admin/listing/${listing.id}`);
     const html = await response.text();
     expect(html).toContain("Coeliac");
   });

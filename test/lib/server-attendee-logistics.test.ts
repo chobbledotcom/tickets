@@ -296,7 +296,7 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
       ),
     );
     const attendees = await getAttendeesRaw(listing.id);
-    const { response } = await adminGet(`/admin/attendees/${attendees[0]!.id}`);
+    const response = await adminGet(`/admin/attendees/${attendees[0]!.id}`);
     const html = await response.text();
     // The saved drop-off agent option is rendered selected.
     expect(html).toMatch(

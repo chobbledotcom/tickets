@@ -386,19 +386,7 @@ export const adminFormPost = async (
   return { cookie, csrfToken, response };
 };
 
-export const adminGet = async (
-  path: string,
-): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
-  const { cookie, csrfToken } = await getTestSession();
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
-  const response = await awaitTestRequest(path, { cookie });
-  return { cookie, csrfToken, response };
-};
-
-/** Like {@link adminGet} but returns only the Response — for the many call
- *  sites that don't need the cookie or CSRF token. Replaces the verbose
- *  `awaitTestRequest(path, { cookie: await testCookie() })` one-liner. */
-export const adminGetResponse = async (path: string): Promise<Response> => {
+export const adminGet = async (path: string): Promise<Response> => {
   const { cookie } = await getTestSession();
   const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   return awaitTestRequest(path, { cookie });

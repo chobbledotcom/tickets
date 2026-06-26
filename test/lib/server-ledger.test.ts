@@ -62,7 +62,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
 
   test("renders recent transfers with the listing name resolved as a link", async () => {
     await seededSale("Summer Concert", 2500);
-    const { response } = await adminGet("/admin/ledger");
+    const response = await adminGet("/admin/ledger");
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Ledger");
@@ -77,14 +77,14 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
   });
 
   test("shows the empty state when no transfers exist", async () => {
-    const { response } = await adminGet("/admin/ledger");
+    const response = await adminGet("/admin/ledger");
     const html = await response.text();
     expect(html).toContain("No transfers recorded yet");
   });
 
   test("shows the headline stats, both date pickers and the listing filter", async () => {
     await seededSale("Summer Concert", 2500);
-    const { response } = await adminGet("/admin/ledger");
+    const response = await adminGet("/admin/ledger");
     const html = await response.text();
     // The four business-wide totals, headed "All listings".
     expect(html).toContain("All listings");
@@ -103,7 +103,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     // hidden, so the only place "Card / bank" could appear — an external leg row —
     // is gone from the list page entirely.
     await seededSale("Gala", 2500);
-    const { response } = await adminGet("/admin/ledger");
+    const response = await adminGet("/admin/ledger");
     const html = await response.text();
     expect(html).toContain("sale");
     expect(html).not.toContain("Card / bank");
@@ -112,7 +112,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
   test("a from-date later than the only transfer empties the list and zeroes income", async () => {
     // The seeded sale occurs on 2026-06-21; filtering from the 22nd excludes it.
     await seededSale("Workshop", 2500);
-    const { response } = await adminGet("/admin/ledger?from=2026-06-22");
+    const response = await adminGet("/admin/ledger?from=2026-06-22");
     const html = await response.text();
     expect(html).toContain("No transfers recorded yet");
     // Income stat falls to zero outside the window.
@@ -121,7 +121,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
 
   test("scoping to a listing shows its revenue breakdown and preselects it", async () => {
     const { listingId } = await seededSale("Pottery", 2500);
-    const { response } = await adminGet(`/admin/ledger?listing=${listingId}`);
+    const response = await adminGet(`/admin/ledger?listing=${listingId}`);
     const html = await response.text();
     // The stats switch to the per-listing breakdown, headed by the listing name.
     expect(html).toContain("Gross ticket sales");
@@ -137,7 +137,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     // Two listings exercise the sort comparator and prove both appear as options.
     await seededSale("Zither Workshop", 2500);
     await seededSale("Accordion Night", 2500);
-    const { response } = await adminGet("/admin/ledger");
+    const response = await adminGet("/admin/ledger");
     const html = await response.text();
     expect(html).toContain("Zither Workshop");
     expect(html).toContain("Accordion Night");
@@ -149,7 +149,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
 
   test("an unknown listing id falls back to the all-listings view", async () => {
     await seededSale("Recital", 2500);
-    const { response } = await adminGet("/admin/ledger?listing=999999");
+    const response = await adminGet("/admin/ledger?listing=999999");
     expect(response.status).toBe(200);
     const html = await response.text();
     // Falls back to the business-wide totals rather than a listing breakdown.
@@ -159,7 +159,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
 
   test("ignores malformed from/to/listing/month params", async () => {
     await seededSale("Matinee", 2500);
-    const { response } = await adminGet(
+    const response = await adminGet(
       "/admin/ledger?from=garbage&to=alsobad&listing=abc&fromCal=nope",
     );
     expect(response.status).toBe(200);
@@ -172,7 +172,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
 
   test("honours a valid to-date bound and a paged from-month", async () => {
     await seededSale("Concerto", 2500);
-    const { response } = await adminGet(
+    const response = await adminGet(
       "/admin/ledger?to=2026-06-21&fromCal=2026-05",
     );
     expect(response.status).toBe(200);
@@ -204,7 +204,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
       });
     }
     await postTransfers(extras);
-    const { response } = await adminGet("/admin/ledger");
+    const response = await adminGet("/admin/ledger");
     return response.text();
   };
 
@@ -232,7 +232,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
 
   test("renders an account statement with a running balance", async () => {
     const { attendeeId } = await seededSale("Gala", 2500);
-    const { response } = await adminGet(`/admin/ledger/attendee/${attendeeId}`);
+    const response = await adminGet(`/admin/ledger/attendee/${attendeeId}`);
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Account statement");
@@ -246,7 +246,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
 
   test("renders a revenue listing's statement", async () => {
     const { listingId } = await seededSale("Workshop", 4000);
-    const { response } = await adminGet(`/admin/ledger/revenue/${listingId}`);
+    const response = await adminGet(`/admin/ledger/revenue/${listingId}`);
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Workshop");
@@ -264,7 +264,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
       name: "Booking surcharge",
     });
     await postModifierLeg({ delta: 500, modifierId: modifier.id });
-    const { response } = await adminGet("/admin/ledger");
+    const response = await adminGet("/admin/ledger");
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Booking surcharge");
@@ -273,7 +273,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
 
   test("falls back to 'Modifier #<id>' when no modifier row exists", async () => {
     await postModifierLeg({ delta: 500, modifierId: 1 });
-    const { response } = await adminGet("/admin/ledger/modifier/1");
+    const response = await adminGet("/admin/ledger/modifier/1");
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Account statement");
@@ -283,7 +283,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
 
   test("renders the singleton card/bank statement", async () => {
     await seededSale();
-    const { response } = await adminGet("/admin/ledger/external/world");
+    const response = await adminGet("/admin/ledger/external/world");
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Card / bank");
@@ -292,7 +292,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
   test("renders the booking-fee income statement", async () => {
     // A booking-fee leg lands on fee_income:booking via a real refund's reversal
     // is not needed — just assert the singleton page renders for the account.
-    const { response } = await adminGet("/admin/ledger/fee_income/booking");
+    const response = await adminGet("/admin/ledger/fee_income/booking");
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Booking fees");
@@ -307,7 +307,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
       thankYouUrl: "https://example.com",
     });
     await adjustListingIncome(listing.id, 1500);
-    const { response } = await adminGet("/admin/ledger/writeoff/default");
+    const response = await adminGet("/admin/ledger/writeoff/default");
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Account statement");
@@ -333,9 +333,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
       attendeeId: attendee.id,
       listingId: listing.id,
     });
-    const { response } = await adminGet(
-      `/admin/ledger/attendee/${attendee.id}`,
-    );
+    const response = await adminGet(`/admin/ledger/attendee/${attendee.id}`);
     const html = await response.text();
     expect(html).toContain("Grace Hopper");
     // A full refund nets to zero, so the final running balance is zero.
@@ -343,12 +341,12 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
   });
 
   test("404s on an unknown account type", async () => {
-    const { response } = await adminGet("/admin/ledger/nonsense/1");
+    const response = await adminGet("/admin/ledger/nonsense/1");
     expect(response.status).toBe(404);
   });
 
   test("404s on a non-positive row id", async () => {
-    const { response } = await adminGet("/admin/ledger/attendee/0");
+    const response = await adminGet("/admin/ledger/attendee/0");
     expect(response.status).toBe(404);
   });
 });

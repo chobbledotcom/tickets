@@ -10,8 +10,8 @@ import {
   RESET_PHRASE_MISMATCH_ERROR,
 } from "#templates/admin/database-reset.tsx";
 import {
+  adminGet,
   assertPublicHtml,
-  awaitTestRequest,
   createTestListing,
   describeWithEnv,
   expectFlash,
@@ -43,9 +43,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
     });
 
     test("returns 404 when demo mode is off even for authenticated admin", async () => {
-      const response = await awaitTestRequest("/demo/reset", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/demo/reset");
       expect(response.status).toBe(404);
     });
 
@@ -233,9 +231,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
 
   describe("shared form component", () => {
     test("admin settings page uses shared reset form", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const html = await expectHtmlResponse(response, 200, "Reset Database");
       expect(html).toContain(RESET_DATABASE_PHRASE);
       expect(html).toContain("confirm_phrase");

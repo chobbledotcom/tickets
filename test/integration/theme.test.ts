@@ -12,7 +12,7 @@ import {
 
 describeWithEnv("integration: theme settings", { db: true }, () => {
   test("default theme is light", async () => {
-    const { response } = await adminGet("/admin/settings");
+    const response = await adminGet("/admin/settings");
     const html = await response.text();
     expect(html).toContain('data-theme="light"');
   });
@@ -30,7 +30,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
   test("dark theme is reflected in HTML after changing", async () => {
     await adminFormPost("/admin/settings/theme", { theme: "dark" });
 
-    const { response } = await adminGet("/admin/settings");
+    const response = await adminGet("/admin/settings");
     const html = await response.text();
     expect(html).toContain('data-theme="dark"');
   });
@@ -48,13 +48,13 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
     await adminFormPost("/admin/settings/theme", { theme: "dark" });
     await adminFormPost("/admin/settings/theme", { theme: "light" });
 
-    const { response } = await adminGet("/admin/settings");
+    const response = await adminGet("/admin/settings");
     const html = await response.text();
     expect(html).toContain('data-theme="light"');
   });
 
   test("links are not underlined by default (no data-underline-links)", async () => {
-    const { response } = await adminGet("/admin/settings");
+    const response = await adminGet("/admin/settings");
     const html = await response.text();
     expect(html).not.toContain("data-underline-links");
   });
@@ -65,7 +65,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
       underline_links: "true",
     });
 
-    const { response } = await adminGet("/admin/settings");
+    const response = await adminGet("/admin/settings");
     const html = await response.text();
     expect(html).toContain("data-underline-links");
   });

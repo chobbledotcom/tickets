@@ -3,6 +3,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
+  adminGet,
   awaitTestRequest,
   describeWithEnv,
   expectHtmlResponse,
@@ -22,9 +23,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     testRequiresAuth("/admin/settings");
 
     test("shows settings page when authenticated", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       await expectHtmlResponse(response, 200, "Settings", "Change Password");
     });
 
@@ -82,9 +81,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("does not render the country form (locale is write-once, set at /setup)", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       const html = await response.text();
       // Country/locale can only be set during setup, then changed by an admin
       // editing the database — there is no editor on the settings page.
@@ -93,9 +90,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("each settings form has an id attribute", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       const html = await response.text();
       expect(html).toContain('id="settings-business-email"');
       expect(html).toContain('id="settings-payment-provider"');
@@ -107,9 +102,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("shows settings sub-navigation", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       const html = await response.text();
       expect(html).toContain('href="/admin/settings-advanced"');
       expect(html).toContain('href="/admin/backup"');
@@ -121,9 +114,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     testRequiresAuth("/admin/settings-advanced");
 
     test("shows advanced settings page when authenticated", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       await expectHtmlResponse(
         response,
         200,
@@ -133,34 +124,26 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("shows warning about careful changes", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
       expect(html).toContain("Be careful changing settings on this page");
     });
 
     test("renders with a payment provider configured", async () => {
       await settings.update.paymentProvider("square");
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       await expectHtmlResponse(response, 200, "Advanced Settings");
     });
 
     test("shows breadcrumb back to settings", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
       expect(html).toContain('href="/admin/settings"');
       expect(html).toContain("Settings");
     });
 
     test("each advanced settings form has an id attribute", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
       expect(html).toContain('id="settings-show-public-api"');
       expect(html).toContain('id="settings-apple-wallet"');
@@ -177,9 +160,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         HOST_EMAIL_PROVIDER: "resend",
       });
       try {
-        const response = await awaitTestRequest("/admin/settings-advanced", {
-          cookie: await testCookie(),
-        });
+        const response = await adminGet("/admin/settings-advanced");
         const html = await response.text();
         expect(html).toContain("Host Resend (noreply@example.com)");
         expect(html).not.toContain("None (disabled)");

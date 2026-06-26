@@ -24,6 +24,7 @@ import {
 } from "#shared/db/questions.ts";
 import {
   adminFormPost,
+  adminGet,
   awaitTestRequest,
   bookAttendee,
   buildAttendeeEditForm,
@@ -55,9 +56,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         maxAttendees: 100,
         name: "Pick Me",
       });
-      const response = await awaitTestRequest("/admin/attendees/new", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/attendees/new");
       const html = await expectHtmlResponse(
         response,
         200,
@@ -75,9 +74,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // The shared date range only affects daily listings, so a site with only
       // standard (fixed-date) listings never sees the Dates section.
       await createTestListing({ maxAttendees: 100, name: "Standard Only" });
-      const response = await awaitTestRequest("/admin/attendees/new", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/attendees/new");
       const html = await expectHtmlResponse(response, 200);
       expect(html).not.toContain('name="start_date"');
       expect(html).not.toContain('id="day_count"');
@@ -86,9 +83,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
     test("shows the optional date fields when a daily listing exists", async () => {
       await createDailyTestListing({ name: "Daily One" });
-      const response = await awaitTestRequest("/admin/attendees/new", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/attendees/new");
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain('name="start_date"');
       expect(html).toContain('id="day_count"');
@@ -99,18 +94,14 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     test("omits the 'Back without saving' link", async () => {
       // The browser back button is enough; the explicit link was removed.
       await createTestListing({ maxAttendees: 100, name: "Pick Me" });
-      const response = await awaitTestRequest("/admin/attendees/new", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/attendees/new");
       const html = await expectHtmlResponse(response, 200);
       expect(html).not.toContain("Back without saving");
     });
 
     test("shows the availability notice on a dateless create form", async () => {
       await createDailyTestListing({ name: "L" });
-      const response = await awaitTestRequest("/admin/attendees/new", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/attendees/new");
       const html = await expectHtmlResponse(
         response,
         200,
@@ -122,9 +113,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
     test("hides the availability notice when a date is pre-filled", async () => {
       const listing = await createDailyTestListing({ name: "D" });
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/attendees/new?select_${listing.id}=1&start_date=2026-07-01`,
-        { cookie: await testCookie() },
       );
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain("data-availability-notice hidden>");
@@ -133,9 +123,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     test("pre-fills listings selected from the calendar checker", async () => {
       const a = await createTestListing({ maxAttendees: 100, name: "Kayak" });
       const b = await createTestListing({ maxAttendees: 100, name: "Canoe" });
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/attendees/new?select_${a.id}=1&select_${b.id}=1`,
-        { cookie: await testCookie() },
       );
       const html = await expectHtmlResponse(response, 200);
       // Both chosen listings start at quantity 1.
@@ -147,9 +136,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // Nothing is booked yet, so an un-ticked toggle would hide every row.
       // Instead the form drops the toggle and shows every listing.
       await createTestListing({ maxAttendees: 100, name: "Pick Me" });
-      const response = await awaitTestRequest("/admin/attendees/new", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/attendees/new");
       const html = await expectHtmlResponse(response, 200);
       expect(html).not.toContain("Show all listings");
       expect(html).not.toContain('name="show_all"');
@@ -166,9 +153,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         name: "Kayak",
       });
       await createTestListing({ maxAttendees: 100, name: "Canoe" });
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/attendees/new?select_${picked.id}=1`,
-        { cookie: await testCookie() },
       );
       const html = await expectHtmlResponse(response, 200, "Show all listings");
       expect(html).toContain('name="show_all"');
@@ -179,9 +165,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
     test("pre-fills the shared start date from the deep link", async () => {
       const listing = await createDailyTestListing({ name: "Daily Pick" });
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/attendees/new?select_${listing.id}=1&start_date=2026-07-01`,
-        { cookie: await testCookie() },
       );
       const html = await expectHtmlResponse(response, 200);
       expect(html).toMatch(
@@ -192,9 +177,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
     test("leaves the start date blank when the deep link omits it", async () => {
       const listing = await createDailyTestListing({ name: "No Date Daily" });
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/attendees/new?select_${listing.id}=1`,
-        { cookie: await testCookie() },
       );
       const html = await expectHtmlResponse(response, 200);
       expect(html).toMatch(
@@ -205,10 +189,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
     test("falls back to all-zero quantities when no selection resolves", async () => {
       const listing = await createTestListing({ maxAttendees: 100, name: "Z" });
-      const response = await awaitTestRequest(
-        "/admin/attendees/new?select_999999=1",
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet("/admin/attendees/new?select_999999=1");
       const html = await expectHtmlResponse(response, 200);
       expect(html).toMatch(
         new RegExp(`name="qty_${listing.id}"[^>]*value="0"`),
@@ -229,10 +210,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
       const attendeeId = result.success ? result.attendees[0]!.id : 0;
 
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendeeId}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendeeId}`);
       const html = await response.text();
       // The shared day-count select preselects the booking's current 2-day span.
       expect(html).toContain('id="day_count"');
@@ -248,10 +226,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
       const result = await bookAttendee(listing);
       const attendeeId = result.success ? result.attendees[0]!.id : 0;
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendeeId}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendeeId}`);
       const html = await expectHtmlResponse(response, 200, "Show all listings");
       expect(html).toContain('name="show_all"');
       expect(html).not.toContain("listing-editor show-all-listings");
@@ -260,9 +235,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     test("preserves return_url as a hidden field when provided", async () => {
       await createTestListing({ maxAttendees: 100 });
       const returnUrl = "/admin/calendar";
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/attendees/new?return_url=${encodeURIComponent(returnUrl)}`,
-        { cookie: await testCookie() },
       );
       await expectHtmlResponse(response, 200, 'name="return_url"', returnUrl);
     });
@@ -586,9 +560,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       await markNoQuantity(attendee.id, listing.id, "Ghost");
 
       const html = await (
-        await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
-          cookie: await testCookie(),
-        })
+        await adminGet(`/admin/attendees/${attendee.id}`)
       ).text();
       // Alphabetical attribute order puts `checked` first when ticked.
       expect(html).toContain(
@@ -760,10 +732,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       if (!created.success) throw new Error("setup");
       const attendeeId = created.attendees[0]!.id;
 
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendeeId}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendeeId}`);
       const html = await expectHtmlResponse(
         response,
         200,
@@ -793,10 +762,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const { updateCheckedIn } = await import("#shared/db/attendees.ts");
       await updateCheckedIn(attendee.id, listing.id, true);
 
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}`);
       const html = await expectHtmlResponse(response, 200, "Bookings");
       // Assert the rendered badge markup, not just the words "Checked in",
       // so a mutant that drops the badge styling/element is still caught.
@@ -882,10 +848,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       if (!result.success) throw new Error("setup");
       const attendee = result.attendees[0]!;
 
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}`);
       const html = await response.text();
       expect(html).toContain("different start dates or lengths");
     });
@@ -915,10 +878,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       if (!result.success) throw new Error("setup");
       const attendee = result.attendees[0]!;
 
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}`);
       const html = await response.text();
       expect(html).not.toContain("different start dates or lengths");
     });
@@ -943,10 +903,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         name: "Over",
       });
       const attendeeId = result.success ? result.attendees[0]!.id : 0;
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendeeId}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendeeId}`);
       const html = await expectHtmlResponse(response, 200);
       // Per-listing warnings (singular + plural) and a top-of-page summary.
       expect(html).toContain(
@@ -968,10 +925,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         durationDays: 3,
       });
       const attendeeId = result.success ? result.attendees[0]!.id : 0;
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendeeId}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendeeId}`);
       const html = await expectHtmlResponse(response, 200);
       expect(html).not.toContain("Please double-check");
     });
@@ -1074,10 +1028,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       // The booking fills the listing, but it is the attendee's own row — the
       // self-excluding check means no overbooking warning.
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}`);
       const html = await expectHtmlResponse(response, 200);
       expect(html).not.toContain("is overbooked");
     });
@@ -1364,10 +1315,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       await db.execute("DELETE FROM listing_attendees WHERE attendee_id = ?", [
         attendee.id,
       ]);
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}`);
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Attendee: Orphan");
@@ -1606,9 +1554,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
 
     const getEdit = async (id: number): Promise<string> => {
-      const response = await awaitTestRequest(`/admin/attendees/${id}`, {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet(`/admin/attendees/${id}`);
       return expectHtmlResponse(response, 200, "Status &amp; Balance");
     };
 
@@ -1869,10 +1815,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
               ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob', last_activity = excluded.last_activity`,
       });
 
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}`);
       // The page renders AND keeps the /admin/history repair link for the bad
       // row — dropping the channel would hide the only way to fix it.
       expect(response.status).toBe(200);

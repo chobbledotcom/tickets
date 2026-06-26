@@ -50,10 +50,8 @@ export const assertAdminHtml = async (
   ...substrings: string[]
 ): Promise<string> => {
   const { adminGet } = await import("#test-utils/session.ts");
-  const { response } = await adminGet(path);
-  const html = await response.text();
-  for (const s of substrings) expect(html).toContain(s);
-  return html;
+  const response = await adminGet(path);
+  return expectHtml(response, { contains: substrings, status: 200 });
 };
 
 export const assertAdminHtmlWithCookie = async (
@@ -80,12 +78,24 @@ export const expectHtmlResponse = async (
   response: Response,
   status: number,
   ...substrings: string[]
+): Promise<string> => expectHtml(response, { contains: substrings, status });
+
+/** Assert an HTTP response's body HTML. Works with any request method —
+ *  `adminGet`, `handleRequest(mockRequest(...))`, direct handler calls —
+ *  because it takes the `Response` itself. Supports optional status check,
+ *  positive (`contains`) and negative (`notContains`) substring assertions. */
+export const expectHtml = async (
+  response: Response,
+  opts: {
+    status?: number;
+    contains?: string[];
+    notContains?: string[];
+  } = {},
 ): Promise<string> => {
-  expect(response.status).toBe(status);
+  if (opts.status !== undefined) expect(response.status).toBe(opts.status);
   const html = await response.text();
-  for (const s of substrings) {
-    expect(html).toContain(s);
-  }
+  for (const s of opts.contains ?? []) expect(html).toContain(s);
+  for (const s of opts.notContains ?? []) expect(html).not.toContain(s);
   return html;
 };
 
@@ -125,7 +135,7 @@ export const expectAdminRedirect = (response: Response): string =>
   expectRedirect(response, "/admin");
 
 /** Parse the `flash_*` cookie off a redirect response into its message fields. */
-const parseFlashCookie = (
+export const parseFlashCookie = (
   response: Response,
 ): ReturnType<typeof parseFlashValue> => {
   const cookies = response.headers.getSetCookie();

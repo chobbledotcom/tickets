@@ -6,8 +6,8 @@ import { listingsTable } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   adminFormPost,
+  adminGet,
   assertFormRedirect,
-  awaitTestRequest,
   createTestListing,
   describeWithEnv,
   expectFlash,
@@ -145,9 +145,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("advanced settings page shows reset database section", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const html = await expectHtmlResponse(response, 200, "Reset Database");
       expect(html).toContain(
         "The site will be fully reset and all data will be lost.",

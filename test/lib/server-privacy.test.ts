@@ -78,7 +78,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
     });
 
     test("renders the explainer and tools for the owner", async () => {
-      const { response } = await adminGet("/admin/privacy");
+      const response = await adminGet("/admin/privacy");
       await expectHtmlResponse(
         response,
         200,

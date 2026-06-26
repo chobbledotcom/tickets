@@ -33,7 +33,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     });
 
     test("shows backup page for owner", async () => {
-      const { response } = await adminGet("/admin/backup");
+      const response = await adminGet("/admin/backup");
       await expectHtmlResponse(
         response,
         200,
@@ -43,13 +43,13 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     });
 
     test("shows encryption key on page", async () => {
-      const { response } = await adminGet("/admin/backup");
+      const response = await adminGet("/admin/backup");
       const html = await response.text();
       expect(html).toContain("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
     });
 
     test("shows storage not configured when disabled", async () => {
-      const { response } = await adminGet("/admin/backup");
+      const response = await adminGet("/admin/backup");
       const html = await response.text();
       expect(html).toContain("Storage is not configured");
     });
@@ -91,7 +91,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         // A non-backup file sharing the folder must not appear in the list.
         await uploadRaw(new Uint8Array(0), `${backupDir()}backup-stale.tmp`);
         await adminFormPost("/admin/backup/create");
-        const { response } = await adminGet("/admin/backup");
+        const response = await adminGet("/admin/backup");
         const html = await response.text();
         expect(html).not.toContain("backup-stale.tmp");
         expect(html).toContain(".zip");
@@ -101,7 +101,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     test("shows the retention summary once a backup exists", async () => {
       await withLocalStorageEnabled(async () => {
         await adminFormPost("/admin/backup/create");
-        const { response } = await adminGet("/admin/backup");
+        const response = await adminGet("/admin/backup");
         const html = await response.text();
         expect(html).toContain("There is 1 backup");
         expect(html).toContain("Up to 30 are kept");
@@ -113,7 +113,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     testRequiresAuth("/admin/backup/download/backup-local-test.zip");
 
     test("returns 400 for invalid filename", async () => {
-      const { response } = await adminGet(
+      const response = await adminGet(
         "/admin/backup/download/not-a-backup.txt",
       );
       expect(response.status).toBe(400);
@@ -122,7 +122,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     test("returns 404 for missing file", async () => {
       await withLocalStorageEnabled(async () => {
         // Validly formatted leaf, but no such backup exists in this DB's folder.
-        const { response } = await adminGet(
+        const response = await adminGet(
           "/admin/backup/download/backup-2024-01-15T12-30-00-000Z.zip",
         );
         expect(response.status).toBe(404);
@@ -130,7 +130,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     });
 
     test("returns 400 for filename with path traversal", async () => {
-      const { response } = await adminGet(
+      const response = await adminGet(
         "/admin/backup/download/backup-local-..%2F..%2Fetc.zip",
       );
       expect(response.status).toBe(400);
@@ -139,13 +139,13 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     test("downloads existing backup as zip", async () => {
       await withLocalStorageEnabled(async () => {
         await adminFormPost("/admin/backup/create");
-        const { response: listResp } = await adminGet("/admin/backup");
+        const listResp = await adminGet("/admin/backup");
         const html = await listResp.text();
         const linkMatch = html.match(
           /\/admin\/backup\/download\/(backup-[^"]+\.zip)/,
         );
         expect(linkMatch).toBeTruthy();
-        const { response } = await adminGet(
+        const response = await adminGet(
           `/admin/backup/download/${linkMatch![1]}`,
         );
         expect(response.status).toBe(200);

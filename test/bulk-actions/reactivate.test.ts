@@ -7,6 +7,7 @@ import {
   createTestGroup,
   createTestListing,
   describeWithEnv,
+  expectHtml,
 } from "#test-utils";
 
 describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
@@ -19,16 +20,18 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
       });
       await listingsTable.update(listing.id, { active: false });
 
-      const { response } = await adminGet(
-        `/admin/groups/${group.id}/bulk-actions/reactivate`,
+      await expectHtml(
+        await adminGet(`/admin/groups/${group.id}/bulk-actions/reactivate`),
+        {
+          contains: [
+            "Reactivate Group",
+            'name="confirm_identifier"',
+            "reactivate 1 listing",
+          ],
+          notContains: ["reactivate 1 listings"],
+          status: 200,
+        },
       );
-      const html = await response.text();
-
-      expect(response.status).toBe(200);
-      expect(html).toContain("Reactivate Group");
-      expect(html).toContain('name="confirm_identifier"');
-      expect(html).toContain("reactivate 1 listing");
-      expect(html).not.toContain("reactivate 1 listings");
     });
 
     test("renders the reactivate form with a plural listing count", async () => {
@@ -38,17 +41,14 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
       await listingsTable.update(a.id, { active: false });
       await listingsTable.update(b.id, { active: false });
 
-      const { response } = await adminGet(
-        `/admin/groups/${group.id}/bulk-actions/reactivate`,
+      await expectHtml(
+        await adminGet(`/admin/groups/${group.id}/bulk-actions/reactivate`),
+        { contains: ["reactivate 2 listings"], status: 200 },
       );
-      const html = await response.text();
-
-      expect(response.status).toBe(200);
-      expect(html).toContain("reactivate 2 listings");
     });
 
     test("returns 404 when the group does not exist", async () => {
-      const { response } = await adminGet(
+      const response = await adminGet(
         "/admin/groups/999999/bulk-actions/reactivate",
       );
       expect(response.status).toBe(404);

@@ -13,6 +13,7 @@ import {
   createTestAttendeeWithToken,
   createTestListing,
   describeWithEnv,
+  expectHtml,
   expectHtmlResponse,
   getAttendeesRaw,
 } from "#test-utils";
@@ -322,11 +323,10 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
       "bob@test.com",
     );
 
-    const response = await awaitTestRequest(`/t/${token}`);
-    expect(response.status).toBe(200);
-    const body = await response.text();
-    expect(body).not.toContain("ticket-card-notice");
-    expect(body).not.toContain("Non-transferable");
+    await expectHtml(await awaitTestRequest(`/t/${token}`), {
+      notContains: ["ticket-card-notice", "Non-transferable"],
+      status: 200,
+    });
   });
 
   test("shows attachment download link when listing has attachment", async () => {
@@ -353,11 +353,10 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
       "bob@test.com",
     );
 
-    const response = await awaitTestRequest(`/t/${token}`);
-    expect(response.status).toBe(200);
-    const body = await response.text();
-    expect(body).not.toContain("attachment-link");
-    expect(body).not.toContain("Download:");
+    await expectHtml(await awaitTestRequest(`/t/${token}`), {
+      notContains: ["attachment-link", "Download:"],
+      status: 200,
+    });
   });
 
   test("returns 429 after hitting MAX_TOKEN_404S distinct invalid tokens", async () => {

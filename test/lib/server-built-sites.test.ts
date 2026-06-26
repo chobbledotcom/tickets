@@ -26,7 +26,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     testRequiresAuth("/admin/built-sites");
 
     test("shows empty built sites list", async () => {
-      const { response } = await adminGet("/admin/built-sites");
+      const response = await adminGet("/admin/built-sites");
       await expectHtmlResponse(
         response,
         200,
@@ -40,7 +40,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         bunnyUrl: "https://mysite.b-cdn.net",
         name: "My Site",
       });
-      const { response } = await adminGet("/admin/built-sites");
+      const response = await adminGet("/admin/built-sites");
       const html = await expectHtmlResponse(
         response,
         200,
@@ -57,13 +57,13 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
 
     test("shows Not assignable status for default sites", async () => {
       await createTestBuiltSite({ name: "Default Site" });
-      const { response } = await adminGet("/admin/built-sites");
+      const response = await adminGet("/admin/built-sites");
       await expectHtmlResponse(response, 200, "Not assignable");
     });
 
     test("shows Available status for assignable sites", async () => {
       await createTestBuiltSite({ assignable: true, name: "Ready Site" });
-      const { response } = await adminGet("/admin/built-sites");
+      const response = await adminGet("/admin/built-sites");
       await expectHtmlResponse(response, 200, "Available");
     });
 
@@ -82,7 +82,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       const sites = await getAllBuiltSites();
       await assignBuiltSite(sites[0]!.id, 42, 7);
 
-      const { response } = await adminGet("/admin/built-sites");
+      const response = await adminGet("/admin/built-sites");
       await expectHtmlResponse(response, 200, "Assigned (attendee #42)");
     });
 
@@ -99,7 +99,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         bunnyScriptId: "",
         name: "Site 3",
       });
-      const { response } = await adminGet("/admin/built-sites");
+      const response = await adminGet("/admin/built-sites");
       const body = await response.text();
       expect(body).toContain("1111|222");
       expect(body).not.toContain("1111|222|");
@@ -110,12 +110,12 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         bunnyScriptId: "",
         name: "No Script",
       });
-      const { response } = await adminGet("/admin/built-sites");
+      const response = await adminGet("/admin/built-sites");
       await expectHtmlResponse(response, 200);
     });
 
     test("warns when no qualifying renewal tier exists", async () => {
-      const { response } = await adminGet("/admin/built-sites");
+      const response = await adminGet("/admin/built-sites");
       const body = await response.text();
       expect(body).toContain("No renewal tier listing is configured");
     });
@@ -134,7 +134,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       await bookAttendee(tier, { quantity: 2 });
       await bookAttendee(tier, { quantity: 3 });
 
-      const { response } = await adminGet("/admin/built-sites");
+      const response = await adminGet("/admin/built-sites");
       const body = await response.text();
       expect(body).toContain("Listed Monthly Tier");
       // Sum of quantities, not the booking count.
@@ -147,7 +147,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     testRequiresAuth("/admin/built-sites/new");
 
     test("shows create built site form", async () => {
-      const { response } = await adminGet("/admin/built-sites/new");
+      const response = await adminGet("/admin/built-sites/new");
       await expectHtmlResponse(
         response,
         200,
@@ -250,7 +250,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         bunnyUrl: "https://editme.b-cdn.net",
         name: "Edit Me",
       });
-      const { response } = await adminGet(`/admin/built-sites/${site.id}/edit`);
+      const response = await adminGet(`/admin/built-sites/${site.id}/edit`);
       await expectHtmlResponse(
         response,
         200,
@@ -266,7 +266,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         bunnyScriptId: "8000",
         name: "Sections",
       });
-      const { response } = await adminGet(`/admin/built-sites/${site.id}/edit`);
+      const response = await adminGet(`/admin/built-sites/${site.id}/edit`);
       const html = await expectHtmlResponse(response, 200, "Edit Built Site");
       expect(html).toContain("Secrets");
       expect(html).toContain(`/admin/built-sites/${site.id}/delete`);
@@ -274,7 +274,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     });
 
     test("returns 404 for non-existent built site", async () => {
-      const { response } = await adminGet("/admin/built-sites/999/edit");
+      const response = await adminGet("/admin/built-sites/999/edit");
       expectStatus(404)(response);
     });
 
@@ -367,9 +367,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
 
     test("shows delete confirmation page", async () => {
       const site = await createTestBuiltSite({ name: "Delete Me" });
-      const { response } = await adminGet(
-        `/admin/built-sites/${site.id}/delete`,
-      );
+      const response = await adminGet(`/admin/built-sites/${site.id}/delete`);
       await expectHtmlResponse(
         response,
         200,
@@ -380,7 +378,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     });
 
     test("returns 404 for non-existent built site", async () => {
-      const { response } = await adminGet("/admin/built-sites/999/delete");
+      const response = await adminGet("/admin/built-sites/999/delete");
       expectStatus(404)(response);
     });
   });
@@ -454,7 +452,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     test("builds link visible when CAN_BUILD_SITES is true", async () => {
       Deno.env.set("CAN_BUILD_SITES", "true");
       try {
-        const { response } = await adminGet("/admin/built-sites");
+        const response = await adminGet("/admin/built-sites");
         const body = await response.text();
         expect(body).toContain("/admin/built-sites");
         // The nav link is labelled "Builds" (the page title stays "Built Sites").
@@ -466,7 +464,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
 
     test("built sites link hidden when CAN_BUILD_SITES is not set", async () => {
       Deno.env.delete("CAN_BUILD_SITES");
-      const { response } = await adminGet("/admin/built-sites");
+      const response = await adminGet("/admin/built-sites");
       const body = await response.text();
       expect(body).not.toContain('href="/admin/built-sites"');
     });
@@ -475,7 +473,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
   describe("activity logging", () => {
     test("logs built site creation", async () => {
       await createTestBuiltSite({ name: "Logged Site" });
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("Logged Site");
       expect(body).toContain("created");
@@ -484,7 +482,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     test("logs built site update", async () => {
       const site = await createTestBuiltSite({ name: "Before Update" });
       await updateTestBuiltSite(site.id, { name: "After Update" });
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("After Update");
       expect(body).toContain("updated");
@@ -493,7 +491,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     test("logs built site deletion", async () => {
       const site = await createTestBuiltSite({ name: "Deleted Site" });
       await deleteTestBuiltSite(site.id);
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("Deleted Site");
       expect(body).toContain("deleted");
@@ -546,7 +544,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
 
   describe("update channel", () => {
     test("create form offers the update-channel selector", async () => {
-      const { response } = await adminGet("/admin/built-sites/new");
+      const response = await adminGet("/admin/built-sites/new");
       await expectHtmlResponse(
         response,
         200,
@@ -612,7 +610,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
 
     test("the fleet list shows each site's channel", async () => {
       await createTestBuiltSite({ name: "Listed Site", updates: "beta" });
-      const { response } = await adminGet("/admin/built-sites");
+      const response = await adminGet("/admin/built-sites");
       const html = await expectHtmlResponse(response, 200, "Updates");
       expect(html).toContain("<td>beta</td>");
     });

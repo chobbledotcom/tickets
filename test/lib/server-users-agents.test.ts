@@ -11,12 +11,12 @@ import { getUserAgentIds } from "#shared/db/user-agents.ts";
 import { deleteUser, getUserByUsername } from "#shared/db/users.ts";
 import {
   adminFormPost,
-  awaitTestRequest,
+  adminGet,
   createTestAgentSession,
   describeWithEnv,
+  expectHtml,
   expectRedirect,
   mockRequest,
-  testCookie,
 } from "#test-utils";
 
 const inviteAgent = (username: string, agentId?: string) =>
@@ -58,14 +58,10 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
       username: "drivermanage",
     });
 
-    const response = await awaitTestRequest(`/admin/users/${userId}`, {
-      cookie: await testCookie(),
+    await expectHtml(await adminGet(`/admin/users/${userId}`), {
+      contains: ["drivermanage", "Van 1", `/admin/users/${userId}/agents`],
+      status: 200,
     });
-    expect(response.status).toBe(200);
-    const html = await response.text();
-    expect(html).toContain("drivermanage");
-    expect(html).toContain("Van 1");
-    expect(html).toContain(`/admin/users/${userId}/agents`);
   });
 
   test("the edit-agents page renders the agent's checkboxes", async () => {
@@ -77,13 +73,10 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
       username: "driveredit",
     });
 
-    const response = await awaitTestRequest(`/admin/users/${userId}/agents`, {
-      cookie: await testCookie(),
+    await expectHtml(await adminGet(`/admin/users/${userId}/agents`), {
+      contains: ["Assigned agents for driveredit", 'name="agent_ids"'],
+      status: 200,
     });
-    expect(response.status).toBe(200);
-    const html = await response.text();
-    expect(html).toContain("Assigned agents for driveredit");
-    expect(html).toContain('name="agent_ids"');
   });
 
   test("the edit-agents form saves the chosen agents", async () => {
@@ -103,16 +96,12 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
 
   test("editing agents for a non-agent user is rejected", async () => {
     // User 1 is the owner created during setup — not a delivery agent.
-    const response = await awaitTestRequest("/admin/users/1/agents", {
-      cookie: await testCookie(),
-    });
+    const response = await adminGet("/admin/users/1/agents");
     expect(response.status).toBe(400);
   });
 
   test("editing agents for a missing user is a 404", async () => {
-    const response = await awaitTestRequest("/admin/users/99999/agents", {
-      cookie: await testCookie(),
-    });
+    const response = await adminGet("/admin/users/99999/agents");
     expect(response.status).toBe(404);
   });
 
@@ -132,9 +121,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
       username: "listedagent",
     });
 
-    const response = await awaitTestRequest("/admin/users", {
-      cookie: await testCookie(),
-    });
+    const response = await adminGet("/admin/users");
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("listedagent");

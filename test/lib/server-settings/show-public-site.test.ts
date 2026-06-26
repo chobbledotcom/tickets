@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import {
-  awaitTestRequest,
+  adminGet,
   describeAdminSettings,
   expectFlash,
   expectHtmlResponse,
@@ -74,9 +74,7 @@ describeAdminSettings(() => {
     });
 
     test("settings page displays show public site section", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       await expectHtmlResponse(
         response,
         200,

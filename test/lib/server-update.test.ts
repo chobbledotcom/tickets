@@ -8,6 +8,7 @@ import { uploadRaw } from "#shared/storage.ts";
 import { setBuildTimestampForTest } from "#shared/update.ts";
 import {
   adminFormPost,
+  adminGet,
   awaitTestRequest,
   describeWithEnv,
   expectFlash,
@@ -107,9 +108,7 @@ const setLatestVersion = async (
 
 /** Fetch the /admin/update page HTML as the owner. */
 const getUpdatePageHtml = async (): Promise<string> => {
-  const response = await awaitTestRequest("/admin/update", {
-    cookie: await testCookie(),
-  });
+  const response = await adminGet("/admin/update");
   return response.text();
 };
 
@@ -134,9 +133,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
     testRequiresAuth("/admin/update");
 
     test("shows update page when authenticated", async () => {
-      const response = await awaitTestRequest("/admin/update", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/update");
       await expectHtmlResponse(
         response,
         200,
@@ -147,9 +144,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
     });
 
     test("shows Development build in dev mode", async () => {
-      const response = await awaitTestRequest("/admin/update", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/update");
       const html = await response.text();
       expect(html).toContain("Development build");
     });

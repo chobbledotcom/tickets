@@ -59,7 +59,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const deactivated = await createTestListing({ name: "Old Show" });
       await deactivateTestListing(deactivated.id);
 
-      const { response } = await adminGet("/admin/listings");
+      const response = await adminGet("/admin/listings");
       const html = await response.text();
       expect(response.status).toBe(200);
       expect(html).toContain('class="active" href="/admin/listings"');
@@ -75,7 +75,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     testRequiresAuth("/admin/listing/new");
 
     test("renders create listing form when authenticated", async () => {
-      const { response } = await adminGet("/admin/listing/new");
+      const response = await adminGet("/admin/listing/new");
       await expectHtmlResponse(
         response,
         200,
@@ -305,9 +305,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     testRequiresAuth("/admin/listing/1");
 
     test("returns 404 for non-existent listing", async () => {
-      const response = await awaitTestRequest("/admin/listing/999", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/listing/999");
       expect(response.status).toBe(404);
     });
 
@@ -385,7 +383,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
       const detail = await adminGet(`/admin/listing/${listing.id}`);
       await expectHtmlResponse(
-        detail.response,
+        detail,
         200,
         "Running total check",
         "expected <strong>1</strong>, got",
@@ -394,7 +392,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
       const edit = await adminGet(`/admin/listing/${listing.id}/edit`);
       await expectHtmlResponse(
-        edit.response,
+        edit,
         200,
         "Running totals",
         "expected <strong>1</strong>, got",
@@ -510,9 +508,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const response = await awaitTestRequest("/admin/listing/999/duplicate", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/listing/999/duplicate");
       expect(response.status).toBe(404);
     });
 
@@ -568,9 +564,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const response = await awaitTestRequest("/admin/listing/999/in", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/listing/999/in");
       expect(response.status).toBe(404);
     });
 
@@ -621,9 +615,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const response = await awaitTestRequest("/admin/listing/999/out", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/listing/999/out");
       expect(response.status).toBe(404);
     });
 
@@ -679,9 +671,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const response = await awaitTestRequest("/admin/listing/999/export", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/listing/999/export");
       expect(response.status).toBe(404);
     });
 
@@ -846,9 +836,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const response = await awaitTestRequest("/admin/listing/999/edit", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/listing/999/edit");
       expect(response.status).toBe(404);
     });
 
@@ -877,7 +865,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      const { response } = await adminGet("/admin/listing/1/edit");
+      const response = await adminGet("/admin/listing/1/edit");
       const html = await response.text();
       // The dedicated money-correction section, separate from the counts override.
       expect(html).toContain("Adjust income");
@@ -1025,7 +1013,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         tickets_count: 5,
       });
 
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/listings/recalculate/${listing.id}`,
       );
       await expectHtmlResponse(
@@ -1655,9 +1643,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const response = await awaitTestRequest("/admin/listing/999/deactivate", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/listing/999/deactivate");
       expect(response.status).toBe(404);
     });
 
@@ -1875,9 +1861,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const response = await awaitTestRequest("/admin/listing/999/delete", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/listing/999/delete");
       expect(response.status).toBe(404);
     });
 
@@ -2297,9 +2281,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         name: "Log Test",
       });
 
-      const response = await awaitTestRequest("/admin/log", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/log");
       await expectHtmlResponse(response, 200, "Log");
     });
 
@@ -2314,9 +2296,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         await logActivity(`Action ${i}`);
       }
 
-      const response = await awaitTestRequest("/admin/log", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/log");
       const html = await response.text();
       expect(html).toContain("Showing the most recent 200 entries");
     });
@@ -2349,9 +2329,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     testRequiresAuth("/admin/listing/1/log");
 
     test("returns 404 for non-existent listing", async () => {
-      const response = await awaitTestRequest("/admin/listing/999/log", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/listing/999/log");
       expect(response.status).toBe(404);
     });
 
@@ -2836,9 +2814,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const closesAt = future.toISOString().slice(0, 16);
       const listing = await createTestListing({ closesAt });
 
-      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet(`/admin/listing/${listing.id}`);
       await expectHtmlResponse(response, 200, "days from now");
     });
 
@@ -2847,9 +2823,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const closesAt = future.toISOString().slice(0, 16);
       const listing = await createTestListing({ closesAt });
 
-      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet(`/admin/listing/${listing.id}`);
       await expectHtmlResponse(response, 200, "hours from now");
     });
 
@@ -2858,9 +2832,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const closesAt = future.toISOString().slice(0, 16);
       const listing = await createTestListing({ closesAt });
 
-      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet(`/admin/listing/${listing.id}`);
       await expectHtmlResponse(response, 200, "minute");
     });
 
@@ -3416,9 +3388,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("shows date selector dropdown for daily listings", async () => {
       const listing = await createDailyListingWithAttendees();
 
-      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet(`/admin/listing/${listing.id}`);
       await expectHtmlResponse(
         response,
         200,
@@ -3432,9 +3402,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("shows Date column header for daily listings", async () => {
       const listing = await createDailyListingWithAttendees();
 
-      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet(`/admin/listing/${listing.id}`);
       const html = await response.text();
       expect(html).toContain("<th>Date</th>");
     });
@@ -3453,9 +3421,8 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const listing = await createDailyListingWithAttendees();
 
       // Filter to date1 — should show 2 attendees (User A and User B)
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/listing/${listing.id}?date=${validDate1}`,
-        { cookie: await testCookie() },
       );
       const html = await response.text();
       expect(html).toContain("User A");
@@ -3467,9 +3434,8 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const listing = await createDailyListingWithAttendees();
 
       // Filter to date2 — should show 1 attendee (User C)
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/listing/${listing.id}?date=${validDate2}`,
-        { cookie: await testCookie() },
       );
       const html = await response.text();
       expect(html).toContain("User C");
@@ -3479,9 +3445,8 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("shows per-date capacity when date filter is active", async () => {
       const listing = await createDailyListingWithAttendees();
 
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/listing/${listing.id}?date=${validDate1}`,
-        { cookie: await testCookie() },
       );
       const html = await response.text();
       // Should show "2 / 100" for the 2 attendees on date1
@@ -3492,9 +3457,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("shows total count without date filter", async () => {
       const listing = await createDailyListingWithAttendees();
 
-      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet(`/admin/listing/${listing.id}`);
       const html = await response.text();
       expect(html).toContain("(total)");
       expect(html).toContain("Capacity of");
@@ -3504,9 +3467,8 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const listing = await createDailyListingWithAttendees();
 
       // Filter to date1 + checked out — should show both since none are checked in
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/listing/${listing.id}/out?date=${validDate1}`,
-        { cookie: await testCookie() },
       );
       const html = await response.text();
       expect(html).toContain("User A");
@@ -3536,10 +3498,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("CSV export includes Date column for daily listings", async () => {
       const listing = await createDailyListingWithAttendees();
 
-      const response = await awaitTestRequest(
-        `/admin/listing/${listing.id}/export`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/listing/${listing.id}/export`);
       await expectHtmlResponse(response, 200, "Date,Name,Email");
     });
 
@@ -3563,9 +3522,8 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("CSV export filters by ?date= for daily listings", async () => {
       const listing = await createDailyListingWithAttendees();
 
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/listing/${listing.id}/export?date=${validDate2}`,
-        { cookie: await testCookie() },
       );
       const csv = await response.text();
       expect(csv).toContain("User C");
@@ -3575,9 +3533,8 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("CSV export filename includes date when filtered", async () => {
       const listing = await createDailyListingWithAttendees();
 
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/listing/${listing.id}/export?date=${validDate1}`,
-        { cookie: await testCookie() },
       );
       const disposition = response.headers.get("content-disposition") ?? "";
       expect(disposition).toContain(validDate1);
@@ -3587,9 +3544,8 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("Export CSV link includes ?date= when filter is active", async () => {
       const listing = await createDailyListingWithAttendees();
 
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/listing/${listing.id}?date=${validDate1}`,
-        { cookie: await testCookie() },
       );
       const html = await response.text();
       expect(html).toContain(
@@ -3600,9 +3556,8 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("filter links preserve ?date= query parameter", async () => {
       const listing = await createDailyListingWithAttendees();
 
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/listing/${listing.id}?date=${validDate1}`,
-        { cookie: await testCookie() },
       );
       const html = await response.text();
       expect(html).toContain(

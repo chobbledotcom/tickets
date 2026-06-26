@@ -43,7 +43,7 @@ describeWithEnv(
       test("shows the fallback message when SUPPORT_PAGE_TEXT is unset", async () => {
         const restore = setTestEnv({ SUPPORT_PAGE_TEXT: undefined });
         try {
-          const { response } = await adminGet("/admin/support");
+          const response = await adminGet("/admin/support");
           const html = await response.text();
           expect(response.status).toBe(200);
           expect(html).toContain("Your admin hasn't filled in");
@@ -58,7 +58,7 @@ describeWithEnv(
           SUPPORT_PAGE_TEXT: "# Help Center\\n\\nReach out anytime",
         });
         try {
-          const { response } = await adminGet("/admin/support");
+          const response = await adminGet("/admin/support");
           const html = await response.text();
           expect(html).toContain("<h1>Help Center</h1>");
           expect(html).toContain("Reach out anytime");
@@ -69,7 +69,7 @@ describeWithEnv(
       });
 
       test("renders no form (and no note) when no business email is set", async () => {
-        const { response } = await adminGet("/admin/support");
+        const response = await adminGet("/admin/support");
         const html = await response.text();
         // The page (support text) still renders, but the form section is empty.
         expect(response.status).toBe(200);
@@ -79,7 +79,7 @@ describeWithEnv(
 
       test("shows just a message box when a business email is set", async () => {
         await settings.update.businessEmail("owner@example.com");
-        const { response } = await adminGet("/admin/support");
+        const response = await adminGet("/admin/support");
         const html = await response.text();
         expect(html).toContain('action="/admin/support"');
         expect(html).toContain('name="message"');
@@ -88,7 +88,7 @@ describeWithEnv(
       });
 
       test("shows the Support link in the settings sub-nav", async () => {
-        const { response } = await adminGet("/admin/settings");
+        const response = await adminGet("/admin/settings");
         const html = await response.text();
         expect(html).toContain('href="/admin/support"');
       });
@@ -148,7 +148,7 @@ describeWithEnv(
         try {
           await adminFormPost("/admin/support", { message: "Please help me" });
           expect(settings.supportFormLastSubmitted).not.toBe("");
-          const { response } = await adminGet("/admin/support");
+          const response = await adminGet("/admin/support");
           const html = await response.text();
           // Notice sits inside the form with the time value in bold.
           expect(html).toContain("You last submitted this form <strong>");
@@ -233,7 +233,7 @@ describeWithEnv(
 
 describeWithEnv("server (admin support, disabled)", { db: true }, () => {
   test("GET 404s when ADMIN_EMAIL_ADDRESS is unset", async () => {
-    const { response } = await adminGet("/admin/support");
+    const response = await adminGet("/admin/support");
     expect(response.status).toBe(404);
   });
 
@@ -245,7 +245,7 @@ describeWithEnv("server (admin support, disabled)", { db: true }, () => {
   });
 
   test("hides the Support link in the settings sub-nav", async () => {
-    const { response } = await adminGet("/admin/settings");
+    const response = await adminGet("/admin/settings");
     const html = await response.text();
     expect(html).not.toContain('href="/admin/support"');
   });
