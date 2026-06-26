@@ -191,10 +191,18 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       ...overrides,
     });
 
-    test("retries a transient verify failure and then resolves", async () => {
+    test("retries a transient verify failure without re-running up()", async () => {
+      // Pure verify-lag: up() did its work, only verify()'s snapshot lagged.
+      // up() must NOT be re-run (it may recopy large tables), so a cheap verify
+      // retry alone resolves it.
+      let upCalls = 0;
       let attempts = 0;
       await applyMigrationWithRetry(
         fakeMigration({
+          up: () => {
+            upCalls++;
+            return Promise.resolve();
+          },
           verify: () => {
             attempts++;
             // Fail on the first two snapshots (stale schema), succeed on the third.
@@ -207,15 +215,18 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
         }),
       );
       expect(attempts).toBe(3);
+      // up() ran exactly once — the verify retries never re-applied it.
+      expect(upCalls).toBe(1);
     });
 
-    test("re-runs up() on retry so a migration whose up() skipped its index recovers", async () => {
+    test("re-applies up() once when verify keeps failing, so a skipped index recovers", async () => {
       // Reproduces the production failure: up()'s syncIndexes ran against a
       // primary snapshot that lagged the table it had just created in the same
       // up(), so it silently skipped the index. Retrying verify() ALONE — the
       // old behaviour — would have failed on every attempt because the index was
       // never created; only re-running up() (which now sees the table) creates
-      // it, which is why the failure cleared on the next request.
+      // it, which is why the failure cleared on the next request. up() is
+      // re-applied only after a full round of verify retries has failed.
       let upCalls = 0;
       let indexCreated = false;
       const migration = fakeMigration({
@@ -238,11 +249,12 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
       await applyMigrationWithRetry(migration);
 
+      // up() ran exactly twice — once initially, once to repair — never per retry.
       expect(upCalls).toBe(2);
       expect(indexCreated).toBe(true);
     });
 
-    test("rethrows the original error after exhausting every retry", async () => {
+    test("rethrows the original error after re-applying up() once and still failing", async () => {
       let upCalls = 0;
       let verifyAttempts = 0;
       await expect(
@@ -259,10 +271,11 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
           }),
         ),
       ).rejects.toThrow("genuine schema defect");
-      // up() and verify() both run once per attempt: one initial attempt plus
-      // one per backoff entry.
-      expect(upCalls).toBe(VERIFY_RETRY_BACKOFF_MS.length + 1);
-      expect(verifyAttempts).toBe(VERIFY_RETRY_BACKOFF_MS.length + 1);
+      // A genuine defect re-applies up() exactly once (the bounded repair), not
+      // once per retry.
+      expect(upCalls).toBe(2);
+      // Two verify rounds, each one initial attempt plus one per backoff entry.
+      expect(verifyAttempts).toBe(2 * (VERIFY_RETRY_BACKOFF_MS.length + 1));
     });
   });
 

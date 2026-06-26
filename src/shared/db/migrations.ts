@@ -344,63 +344,84 @@ const pendingMigrations = async (): Promise<Migration[]> => {
 };
 
 /**
- * Backoff (ms) before each re-attempt of a migration. Its length is the number
- * of retries, so four attempts in total.
+ * Backoff (ms) before each re-attempt of a migration's verify(). Its length is
+ * the number of retries, so four verify attempts per round.
  *
  * A migration applies DDL in up() and then verify() reads the live schema back
  * to confirm it landed. Reads are pinned to the primary (queryBatchPrimary,
  * "write" mode) to dodge replica lag, but a freshly-opened primary connection
  * can still briefly observe the pre-DDL schema — read-your-writes propagation
- * lag — so an object the migration just created reads as missing. That lag bites
- * in two distinct places, which is why the WHOLE migration (up() then verify()),
- * not verify() alone, is retried:
- *
- *  - verify()'s own snapshot lags the DDL — a column the ALTER just added reads
- *    as missing — and re-snapshotting moments later settles it. (Observed in
- *    production: a column-add migration failed verification on one request and
- *    passed on the retry moments later.)
- *  - up() itself silently skips work. up() syncs schema in phases —
- *    applySchemaChanges() creates a new table, then syncIndexes()/syncTriggers()
- *    each read a fresh snapshot to decide which of that table's indexes/triggers
- *    to create. When that snapshot lags the table-create from the earlier phase,
- *    syncIndexes() does not yet see the table and SKIPS its index. The index is
- *    never created, so retrying verify() alone fails on every attempt — only
- *    re-running up() (which now sees the table) creates it. This is the
- *    "missing index idx_system_notes_attendee_id, passed on the next request"
- *    failure: a whole new request re-ran up().
- *
- * up() is idempotent by construction — the runner already re-runs it on a later
- * request whenever a prior run died before recording its marker — so re-running
- * it here is safe, and cheap on the happy path (a second snapshot showing every
- * object already present). A genuine schema defect stays missing across every
- * attempt and still throws, so this never masks a real bug.
+ * lag — so an object the migration just created reads as missing. verify()
+ * re-snapshots on every call, so retrying after a short backoff lets the schema
+ * settle within the same request rather than 503-ing it. (Observed in
+ * production: a column-add migration failed verification on one request and
+ * passed on the retry moments later.) A genuine schema defect stays missing
+ * across every attempt and still throws, so this never masks a real bug.
  */
 export const VERIFY_RETRY_BACKOFF_MS = [50, 150, 350] as const;
 
 /**
- * Run a migration's up() then verify(), retrying the pair on a transient failure
- * (read-your-writes lag on the just-applied DDL — see VERIFY_RETRY_BACKOFF_MS)
- * on a fresh schema snapshot before giving up. Retrying up() too — not verify()
- * alone — is what lets an index a lagging snapshot caused up() to skip get
- * created within the same request instead of 503-ing it.
+ * Run a migration's verify(), retrying a transient failure (read-your-writes lag
+ * on the just-applied DDL) on a fresh schema snapshot before giving up. Cheap:
+ * every attempt only re-snapshots the live schema, never re-applies DDL.
  */
-export const applyMigrationWithRetry = (migration: Migration): Promise<void> =>
+const verifyWithRetry = (migration: Migration): Promise<void> =>
   retryWithBackoff(
-    async () => {
-      await migration.up();
-      await migration.verify();
-    },
+    () => migration.verify(),
     VERIFY_RETRY_BACKOFF_MS,
     (error, { attempt, willRetry }) => {
       if (!willRetry) return;
       logDebug(
         "Migration",
-        `migration ${migration.id} failed on attempt ${
+        `verify ${migration.id} failed on attempt ${
           attempt + 1
         }, retrying: ${error instanceof Error ? error.message : String(error)}`,
       );
     },
   );
+
+/**
+ * Apply a migration: run up(), then verify() with retries. If verify() never
+ * passes across a full round of (cheap, re-snapshot-only) retries, re-apply
+ * up() ONCE and verify again.
+ *
+ * The re-apply repairs the failure mode where up() itself silently skipped an
+ * object. up() syncs schema in phases — applySchemaChanges() creates a new
+ * table, then syncIndexes()/syncTriggers() read a FRESH snapshot to decide which
+ * of that table's indexes/triggers to create. When that snapshot lags the
+ * table-create from the earlier phase (the same read-your-writes lag above),
+ * syncIndexes() does not yet see the table and SKIPS its index, so verify() can
+ * never pass until up() runs again — the "missing index
+ * idx_system_notes_attendee_id, passed on the next request" failure, where a
+ * whole new request re-ran up().
+ *
+ * Deferring the re-apply until a full round of verify retries has failed is
+ * deliberate: a migration whose up() is NOT a cheap no-op after success — e.g.
+ * 2026-06-20_free_text_questions, which recopies attendee_answers /
+ * listing_questions / questions via recreateTable — must not be re-run on a pure
+ * verify-lag (where up() already did its work and only verify()'s snapshot
+ * lagged), which would recopy large tables and risk the edge request budget. So
+ * up() runs at most twice, never once per retry. up() is idempotent by
+ * construction — the runner already re-runs it on a later request whenever a
+ * prior run died before recording its marker.
+ */
+export const applyMigrationWithRetry = async (
+  migration: Migration,
+): Promise<void> => {
+  await migration.up();
+  try {
+    await verifyWithRetry(migration);
+  } catch (error) {
+    logDebug(
+      "Migration",
+      `verify ${migration.id} still failing after retries, re-applying up(): ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    await migration.up();
+    await verifyWithRetry(migration);
+  }
+};
 
 const runPendingMigrations = async (pending: Migration[]): Promise<void> => {
   for (const migration of pending) {
