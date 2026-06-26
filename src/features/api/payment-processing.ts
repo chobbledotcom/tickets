@@ -58,17 +58,17 @@ import {
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
+import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import {
   balanceEventGroup,
   settleAttendeeBalance,
 } from "#shared/db/attendees/balance.ts";
-import type { ChildAllocation } from "#shared/db/attendee-types.ts";
+import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import {
   createAttendeeAtomic,
   createBookingAtomic,
   ensureAllBookings,
 } from "#shared/db/attendees.ts";
-import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
@@ -504,6 +504,7 @@ export const extractIntent = (
   const parsedDayCount = Number.parseInt(metadata.day_count, 10);
   return {
     address: metadata.address,
+    allocations: parseAllocations(metadata.allocations),
     balanceAttendeeId: metadata.balance_attendee_id
       ? Number(metadata.balance_attendee_id)
       : undefined,
@@ -523,7 +524,6 @@ export const extractIntent = (
     siteTokenIndex: metadata.site_token_index || undefined,
     special_instructions: metadata.special_instructions,
     thankYouUrl: metadata.thank_you_url || undefined,
-    allocations: parseAllocations(metadata.allocations),
   };
 };
 

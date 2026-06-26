@@ -561,6 +561,7 @@ export const extractSessionMetadata = (
   return {
     _origin: get("_origin"),
     address: get("address"),
+    allocations: get("allocations"),
     answer_ids: get("answer_ids"),
     balance_attendee_id: get("balance_attendee_id"),
     date: get("date"),
@@ -576,6 +577,5 @@ export const extractSessionMetadata = (
     special_instructions: get("special_instructions"),
     text_answer_ids: get("text_answer_ids"),
     thank_you_url: get("thank_you_url"),
-    allocations: get("allocations"),
   };
 };

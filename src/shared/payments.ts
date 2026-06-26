@@ -7,9 +7,9 @@
  */
 
 import * as v from "valibot";
+import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
-import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
 

@@ -206,7 +206,12 @@ export const applyAttendeeAtomicEdit = async (
   // Step 2: Delete removed lines (identified by listing_id + start_at + parent_listing_id).
   for (const { booking } of removed) {
     statements.push({
-      args: [attendeeId, booking.listing_id, booking.start_at ?? null, booking.parent_listing_id],
+      args: [
+        attendeeId,
+        booking.listing_id,
+        booking.start_at ?? null,
+        booking.parent_listing_id,
+      ],
       sql: `DELETE FROM listing_attendees
             WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ?`,
     });
