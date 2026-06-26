@@ -9,6 +9,7 @@ import {
   dateSpec as date,
   dayCountSpec as dayCount,
   type FakeElement,
+  hiddenQuantitySpec as hiddenQuantity,
   installFakeDom,
   quantitySpec as quantity,
   restoreDocument,
@@ -234,6 +235,52 @@ describe("child date/span compatibility", () => {
     expect(byName(roots, "quantity_101").disabled).toBe(false);
     const sole = roots.find((r) => r.dataset.soleParent === "101")!;
     expect(sole.getAttribute("data-sole-incompatible")).toBe(null);
+  });
+
+  test("restores an auto-hidden sole-child parent quantity to 1 when the selection becomes compatible (Fix 5)", () => {
+    // A single-parent sole-child page auto-hides the parent quantity as a hidden
+    // value="1" input. An incompatible date disables+zeroes it; switching back to
+    // a compatible date must restore it to "1" — otherwise it re-enables at "0"
+    // with no visible control and the form submits no parent ticket.
+    const roots = installFakeDom([
+      date("2026-06-08"),
+      hiddenQuantity("101"),
+      childSelector("101"),
+      soleChild("101", "202", { dates: ["2026-06-01"] }),
+    ]);
+
+    initChildCompat();
+    // Incompatible date: the hidden parent quantity is disabled and zeroed.
+    expect(byName(roots, "quantity_101").disabled).toBe(true);
+    expect(byName(roots, "quantity_101").value).toBe("0");
+
+    // Switch to a date the sole child serves: parent re-enabled AND restored to 1.
+    byName(roots, "date").value = "2026-06-01";
+    byName(roots, "date").dispatch("change");
+
+    expect(byName(roots, "quantity_101").disabled).toBe(false);
+    expect(byName(roots, "quantity_101").value).toBe("1");
+  });
+
+  test("does not clobber a visible sole-child parent quantity when the selection becomes compatible (Fix 5)", () => {
+    // A visible quantity select that was zeroed when incompatible stays at the
+    // buyer's re-pickable "0" on re-enable (only the hidden auto-quantity, which
+    // the buyer can't re-pick, is restored).
+    const roots = installFakeDom([
+      date("2026-06-08"),
+      quantity("101", "2"),
+      childSelector("101"),
+      soleChild("101", "202", { dates: ["2026-06-01"] }),
+    ]);
+
+    initChildCompat();
+    expect(byName(roots, "quantity_101").value).toBe("0");
+
+    byName(roots, "date").value = "2026-06-01";
+    byName(roots, "date").dispatch("change");
+
+    expect(byName(roots, "quantity_101").disabled).toBe(false);
+    expect(byName(roots, "quantity_101").value).toBe("0");
   });
 
   test("leaves a date/span-constrained child enabled until a date and day-count are chosen", () => {

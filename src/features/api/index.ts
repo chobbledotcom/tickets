@@ -5,7 +5,7 @@
  * with the same data and validation as the web UI.
  */
 
-import { filter, pipe, sumOf } from "#fp";
+import { compact, filter, pipe, sumOf } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { classifyForDiscovery } from "#routes/public/discovery.ts";
 import { parseCustomPrice } from "#routes/public/ticket-form.ts";
@@ -63,6 +63,7 @@ import {
   parseNonNegativeInt,
   parsePositiveInt,
 } from "#shared/validation/number.ts";
+import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import {
   extractContact,
   mergeListingFields,
@@ -211,18 +212,29 @@ const mapParentChildren = async <T>(
 /** The public shape of each required child of a parent, for the detail endpoint.
  * Children carry their own price/inputs/availability so a client can pick a valid
  * one (and pay the right amount) before booking; a daily child reports its own
- * bookable start dates. Empty array for a non-parent listing. */
+ * bookable start dates. Empty array for a non-parent listing.
+ *
+ * An inactive (`active=0`) child is omitted (Fix 2): `toPublicListing` doesn't
+ * expose `active`, so an inactive child with spare capacity would otherwise read
+ * `isClosed:false` with a positive `maxPurchasable` while the booking fold
+ * rejects it (`childActive` in shared.tsx) — so the detail endpoint must not
+ * advertise a child the booking POST refuses, the same `active` predicate the
+ * availability endpoint (`buildChildAvailability`) already applies. */
 const buildChildPublicListings = async (
   parent: ListingWithCount,
 ): Promise<PublicListing[]> =>
-  (await mapParentChildren(parent, async (child) =>
-    toResolvedPublicListing(
-      child,
-      child.listing_type === "daily"
-        ? getAvailableDates(child, await getActiveHolidays())
-        : undefined,
-    ),
-  )) ?? [];
+  compact(
+    (await mapParentChildren(parent, async (child) =>
+      child.active
+        ? toResolvedPublicListing(
+            child,
+            child.listing_type === "daily"
+              ? getAvailableDates(child, await getActiveHolidays())
+              : undefined,
+          )
+        : null,
+    )) ?? [],
+  );
 
 // =============================================================================
 // Helpers
@@ -608,7 +620,8 @@ const parseApiChildSelections = (
  * `child_qty_*` / `child_price_*` form the shared fold reads, resolving each
  * submitted slug against the parent's actual children (repeated slugs sum).
  * Returns the populated form, or a 400 response naming a slug that is not a child
- * of this parent. */
+ * of this parent, or a 400 when repeated entries for one child disagree on the
+ * pay-more `customPrice` (Fix 4). */
 const buildParentFoldForm = (
   body: Record<string, unknown>,
   parentId: number,
@@ -617,6 +630,14 @@ const buildParentFoldForm = (
 ): FormParams | Response => {
   const form = toFormParams(body);
   const qtyByChild = new Map<number, number>();
+  // The fold stores ONE `child_price_*` per child for its whole quantity, so two
+  // entries for the same child specifying different `customPrice` values (or one
+  // specifying a price and another leaving it default) can't both be honoured —
+  // a `form.set` would silently let the last entry's price win and book every
+  // unit at it (Fix 4). Track each child's submitted price and reject a conflict
+  // with a 400 rather than charging the wrong amount; a single aggregated entry
+  // (or repeats agreeing on the price) is accepted.
+  const priceByChild = new Map<number, number | undefined>();
   for (const selection of selections) {
     const child = childBySlug.get(selection.slug);
     if (!child) {
@@ -626,6 +647,18 @@ const buildParentFoldForm = (
       );
     }
     const childId = child.listing.id;
+    if (
+      priceByChild.has(childId) &&
+      priceByChild.get(childId) !== selection.customPrice
+    ) {
+      return apiResponse(
+        {
+          error: `Conflicting prices for '${selection.slug}'. Send one entry per child with a single price.`,
+        },
+        400,
+      );
+    }
+    priceByChild.set(childId, selection.customPrice);
     qtyByChild.set(
       childId,
       (qtyByChild.get(childId) ?? 0) + selection.quantity,
@@ -662,12 +695,20 @@ type FoldedOrder = {
 /** Charge or create a folded parent+children order. Paid (with a provider): a
  * multi-item checkout session whose webhook creates and pairs the rows. Free (or
  * provider-less paid): all rows created atomically — all-or-nothing — with the
- * full value recorded as owed when no provider is configured. */
+ * full value recorded as owed when no provider is configured.
+ *
+ * `parentThankYouUrl` is the single parent's configured redirect: folding a child
+ * makes the order multi-listing, so the success handler's single-listing-id
+ * derivation would otherwise drop it. We carry it on the paid intent so the
+ * success page honours it (Fix 1) — mirroring the web folded-parent path
+ * (`ticket-submit.ts`), which sets `intent.thankYouUrl` only once a child was
+ * actually folded in. */
 const completeFoldedBooking = async (
   request: Request,
   contact: ContactInfo,
   date: string | null,
   fold: FoldedOrder,
+  parentThankYouUrl: string,
 ): Promise<Response> => {
   const items = buildRegistrationItems(
     fold.listings,
@@ -684,6 +725,13 @@ const completeFoldedBooking = async (
     date,
     items,
     ...(fold.hasCustomisable ? { dayCount: fold.dayCount } : {}),
+    // Carry the parent's thank-you URL only once a child was actually folded in
+    // (the order gained a listing): a multi-listing order can't recover it from
+    // the booked listing ids, while a degenerate single-listing fold still
+    // resolves the same URL by the success handler's default rule (Fix 1).
+    ...(parentThankYouUrl && fold.listings.length > 1
+      ? { thankYouUrl: parentThankYouUrl }
+      : {}),
   };
   if (isPaymentsEnabled() && total > 0) {
     // Reject a folded order whose parent or any child has exhausted capacity
@@ -731,6 +779,12 @@ const completeFoldedBooking = async (
   if (!reservation.success) {
     return apiResponse({ error: "Sorry, not enough spots available" }, 409);
   }
+  // Notify only after stock is committed, exactly like the standalone API booking
+  // (`processBooking`) and the web free path (`handleFreePath`) do after
+  // `createFreeReservation` (Fix 3): without this the folded free/provider-less
+  // parent booking silently skips the confirmation email, registration webhook,
+  // and activity log every other booking path fires.
+  await logAndNotifyRegistration(reservation.entries);
   const attendee = reservation.entries[0]!.attendee;
   return apiResponse({
     booking: {
@@ -821,7 +875,15 @@ const processParentApiBooking = async (
     fold.listings.some((e) => isPaidListing(e.listing)),
   );
   if (valResult instanceof Response) return valResult;
-  return completeFoldedBooking(request, extractContact(valResult), date, fold);
+  return completeFoldedBooking(
+    request,
+    extractContact(valResult),
+    date,
+    fold,
+    // The fold always starts from this single parent, so its configured
+    // thank-you URL is the one a folded order would otherwise drop (Fix 1).
+    listing.thank_you_url,
+  );
 };
 
 /** POST /api/listings/:slug/book — create a booking */

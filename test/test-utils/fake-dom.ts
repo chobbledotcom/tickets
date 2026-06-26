@@ -186,6 +186,18 @@ export const quantitySpec = (id: string, value: string): ElementSpec => ({
   value,
 });
 
+/** An auto-hidden parent quantity (`<input type="hidden" name="quantity_<id>"
+ * value="1">`), the shape a single-parent sole-child page renders when the
+ * quantity selector is suppressed (`hideQuantity`). Defaults to "1", matching the
+ * server template, so a test can assert it is restored after a compatible
+ * selection returns (Fix 5). */
+export const hiddenQuantitySpec = (id: string, value = "1"): ElementSpec => ({
+  name: `quantity_${id}`,
+  tag: "input",
+  type: "hidden",
+  value,
+});
+
 export const childSelectorSpec = (parentId: string): ElementSpec => ({
   class: "child-selector",
   data: { parentId },

@@ -734,6 +734,28 @@ describeWithEnv(
       expect(body.listing.children).toBeUndefined();
     });
 
+    test("API detail omits an inactive child from a parent's children (Fix 2)", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      // An inactive child with spare capacity would, unfiltered, read
+      // isClosed:false with a positive maxPurchasable while the booking fold
+      // rejects it (childActive) — so the detail endpoint must not advertise it,
+      // matching the availability endpoint that already reports it unavailable.
+      const { parent, children } = await makeParent({ children: [{}, {}] });
+      const okChild = children[0]!;
+      const inactiveChild = children[1]!;
+      const { execute } = await import("#shared/db/client.ts");
+      await execute("UPDATE listings SET active = 0 WHERE id = ?", [
+        inactiveChild.id,
+      ]);
+      const res = await apiGet(`/api/listings/${parent.slug}`);
+      const body = (await res.json()) as {
+        listing: { children?: { slug: string }[] };
+      };
+      const slugs = (body.listing.children ?? []).map((c) => c.slug);
+      expect(slugs).toEqual([okChild.slug]);
+    });
+
     test("API availability of a parent reports per-child availability", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
