@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import {
+  applyMigrationWithRetry,
   initDb,
   invalidateInitDbCache,
   MIGRATION_LOCK_TTL_MS,
@@ -11,7 +12,6 @@ import {
   resetDatabase,
   SCHEMA_HASH,
   VERIFY_RETRY_BACKOFF_MS,
-  verifyMigrationWithRetry,
 } from "#shared/db/migrations.ts";
 import { createSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -182,42 +182,87 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     });
   });
 
-  describe("verify retry on read-your-writes lag", () => {
-    const fakeMigration = (verify: () => Promise<void>): Migration => ({
-      description: "fake migration for verify-retry tests",
-      id: "fake-verify-retry",
+  describe("apply retry on read-your-writes lag", () => {
+    const fakeMigration = (overrides: Partial<Migration>): Migration => ({
+      description: "fake migration for apply-retry tests",
+      id: "fake-apply-retry",
       up: () => Promise.resolve(),
-      verify,
+      verify: () => Promise.resolve(),
+      ...overrides,
     });
 
     test("retries a transient verify failure and then resolves", async () => {
       let attempts = 0;
-      await verifyMigrationWithRetry(
-        fakeMigration(() => {
-          attempts++;
-          // Fail on the first two snapshots (stale schema), succeed on the third.
-          return attempts < 3
-            ? Promise.reject(
-                new Error("Migration verification failed: missing column(s)"),
-              )
-            : Promise.resolve();
+      await applyMigrationWithRetry(
+        fakeMigration({
+          verify: () => {
+            attempts++;
+            // Fail on the first two snapshots (stale schema), succeed on the third.
+            return attempts < 3
+              ? Promise.reject(
+                  new Error("Migration verification failed: missing column(s)"),
+                )
+              : Promise.resolve();
+          },
         }),
       );
       expect(attempts).toBe(3);
     });
 
-    test("rethrows after exhausting every retry", async () => {
-      let attempts = 0;
+    test("re-runs up() on retry so a migration whose up() skipped its index recovers", async () => {
+      // Reproduces the production failure: up()'s syncIndexes ran against a
+      // primary snapshot that lagged the table it had just created in the same
+      // up(), so it silently skipped the index. Retrying verify() ALONE — the
+      // old behaviour — would have failed on every attempt because the index was
+      // never created; only re-running up() (which now sees the table) creates
+      // it, which is why the failure cleared on the next request.
+      let upCalls = 0;
+      let indexCreated = false;
+      const migration = fakeMigration({
+        up: () => {
+          upCalls++;
+          // First up() skips the index (lagging snapshot); the second sees the
+          // table and creates it.
+          if (upCalls >= 2) indexCreated = true;
+          return Promise.resolve();
+        },
+        verify: () =>
+          indexCreated
+            ? Promise.resolve()
+            : Promise.reject(
+                new Error(
+                  "Migration verification failed: missing index idx_system_notes_attendee_id",
+                ),
+              ),
+      });
+
+      await applyMigrationWithRetry(migration);
+
+      expect(upCalls).toBe(2);
+      expect(indexCreated).toBe(true);
+    });
+
+    test("rethrows the original error after exhausting every retry", async () => {
+      let upCalls = 0;
+      let verifyAttempts = 0;
       await expect(
-        verifyMigrationWithRetry(
-          fakeMigration(() => {
-            attempts++;
-            return Promise.reject(new Error("genuine schema defect"));
+        applyMigrationWithRetry(
+          fakeMigration({
+            up: () => {
+              upCalls++;
+              return Promise.resolve();
+            },
+            verify: () => {
+              verifyAttempts++;
+              return Promise.reject(new Error("genuine schema defect"));
+            },
           }),
         ),
       ).rejects.toThrow("genuine schema defect");
-      // One initial attempt plus one per backoff entry.
-      expect(attempts).toBe(VERIFY_RETRY_BACKOFF_MS.length + 1);
+      // up() and verify() both run once per attempt: one initial attempt plus
+      // one per backoff entry.
+      expect(upCalls).toBe(VERIFY_RETRY_BACKOFF_MS.length + 1);
+      expect(verifyAttempts).toBe(VERIFY_RETRY_BACKOFF_MS.length + 1);
     });
   });
 

@@ -21,7 +21,7 @@ export type RetryContext = {
  * unchanged.
  *
  * Shared by the database write-lock retry ({@link retryOnDatabaseLock}) and the
- * migration verify retry ({@link verifyMigrationWithRetry}).
+ * migration apply retry ({@link applyMigrationWithRetry}).
  */
 export const retryWithBackoff = <T>(
   fn: () => Promise<T>,
