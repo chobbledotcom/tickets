@@ -9,10 +9,13 @@ import {
   createTestDbWithSetup,
   createTestInvite,
   createTestListing,
+  csrfTokenOrSignedFallback,
   deactivateTestListing,
   errorResponse,
+  expectCheckoutRedirect,
   expectRedirectWithFlash,
   expectStatus,
+  extractInputValue,
   generateTestListingName,
   getAdminLoginCsrfToken,
   getCsrfTokenFromCookie,
@@ -20,11 +23,15 @@ import {
   getPageCsrfToken,
   getSetupCsrfToken,
   getTicketCsrfToken,
+  hasCheckedInput,
+  hasInputWithValue,
+  hasSelectedOption,
   invalidateTestDbCache,
   loginAsAdmin,
   mockFormRequest,
   mockRequest,
   mockWebhookRequest,
+  normalizeSingleListingFields,
   randomString,
   rawListingRange,
   requireJoinCsrfToken,
@@ -33,6 +40,7 @@ import {
   resetTestSlugCounter,
   setupStripe,
   submitJoinForm,
+  submitMultiTicketForm,
   submitTicketForm,
   testRequest,
   testWithSetting,
@@ -305,6 +313,117 @@ describe("test-utils", () => {
       );
       expect(result).toBe("test-csrf-value");
     });
+
+    test("returns an empty stored CSRF token unchanged", async () => {
+      await createTestDb();
+      const { createSession } = await import("#shared/db/sessions.ts");
+      await createSession(
+        "empty-csrf-session",
+        "",
+        Date.now() + 60000,
+        null,
+        1,
+      );
+      const result = await getCsrfTokenFromCookie(
+        `${getSessionCookieName()}=empty-csrf-session`,
+      );
+      expect(result).toBe("");
+    });
+  });
+
+  describe("HTML form helpers", () => {
+    const html = [
+      '<input name="csrf_token" value="">',
+      '<input name="quantity_1" value="2">',
+      '<input name="quantity_2" value="3">',
+      '<input type="checkbox" name="features" value="email" checked>',
+      '<input type="checkbox" name="features" value="sms">',
+      '<input type="checkbox" name="other" value="email" checked>',
+      '<option value="draft">Draft</option>',
+      '<option value="published" selected>Published</option>',
+    ].join("");
+
+    test("extractInputValue returns the exact matching value", () => {
+      expect(extractInputValue(html, "csrf_token")).toBe("");
+      expect(extractInputValue(html, "quantity_1")).toBe("2");
+      expect(extractInputValue(html, "missing")).toBe(null);
+    });
+
+    test("hasInputWithValue requires the requested name and value", () => {
+      expect(hasInputWithValue(html, "quantity_1", "2")).toBe(true);
+      expect(hasInputWithValue(html, "quantity_1", "3")).toBe(false);
+      expect(hasInputWithValue(html, "quantity_3", "2")).toBe(false);
+    });
+
+    test("hasCheckedInput requires matching name, value, and checked state", () => {
+      expect(hasCheckedInput(html, "features", "email")).toBe(true);
+      expect(hasCheckedInput(html, "features", "sms")).toBe(false);
+      expect(hasCheckedInput(html, "other", "email")).toBe(true);
+      expect(hasCheckedInput(html, "missing", "email")).toBe(false);
+    });
+
+    test("hasSelectedOption requires matching value and selected state", () => {
+      expect(hasSelectedOption(html, "published")).toBe(true);
+      expect(hasSelectedOption(html, "draft")).toBe(false);
+      expect(hasSelectedOption(html, "missing")).toBe(false);
+    });
+
+    test("normalizeSingleListingFields maps generic ticket fields to the listing id", () => {
+      const result = normalizeSingleListingFields(
+        {
+          custom_price: "25.00",
+          email: "buyer@example.com",
+          name: "Buyer",
+          quantity: "3",
+        },
+        '<input name="quantity_42" value="1">',
+      );
+      expect(result).toEqual({
+        custom_price_42: "25.00",
+        email: "buyer@example.com",
+        name: "Buyer",
+        quantity_42: "3",
+      });
+    });
+
+    test("normalizeSingleListingFields defaults quantity and preserves explicit fields", () => {
+      const result = normalizeSingleListingFields(
+        {
+          custom_price: "5.00",
+          custom_price_42: "25.00",
+          email: "buyer@example.com",
+          name: "Buyer",
+          quantity: "4",
+          quantity_42: "2",
+        },
+        '<input name="quantity_42" value="1">',
+      );
+      expect(result).toEqual({
+        custom_price: "5.00",
+        custom_price_42: "25.00",
+        email: "buyer@example.com",
+        name: "Buyer",
+        quantity: "4",
+        quantity_42: "2",
+      });
+      expect(
+        normalizeSingleListingFields(
+          { email: "buyer@example.com", name: "Buyer" },
+          '<input name="quantity_42" value="1">',
+        ),
+      ).toEqual({
+        email: "buyer@example.com",
+        name: "Buyer",
+        quantity_42: "1",
+      });
+    });
+
+    test("csrfTokenOrSignedFallback keeps an empty token distinct from no token", async () => {
+      expect(
+        await csrfTokenOrSignedFallback('<input name="csrf_token" value="">'),
+      ).toBe("");
+      expect(await csrfTokenOrSignedFallback("<form></form>")).toMatch(/^s1\./);
+    });
   });
 
   describe("getAdminLoginCsrfToken", () => {
@@ -402,6 +521,94 @@ describe("test-utils", () => {
         name: "Test",
       });
       expect(response.status).toBe(404);
+    });
+
+    test("maps generic quantity onto the single listing field", async () => {
+      await createTestDbWithSetup();
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 5,
+      });
+      const response = await submitTicketForm(listing.slug, {
+        email: "quantity@example.com",
+        name: "Quantity User",
+        quantity: "3",
+      });
+      expect(response.status).toBe(302);
+
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const attendees = await getAttendeesRaw(listing.id);
+      expect(attendees).toHaveLength(1);
+      expect(attendees[0]!.quantity).toBe(3);
+    });
+
+    test("keeps an explicit single-listing quantity field over the generic field", async () => {
+      await createTestDbWithSetup();
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 5,
+      });
+      const response = await submitTicketForm(listing.slug, {
+        email: "explicit@example.com",
+        name: "Explicit Quantity",
+        quantity: "5",
+        [`quantity_${listing.id}`]: "2",
+      });
+      expect(response.status).toBe(302);
+
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const attendees = await getAttendeesRaw(listing.id);
+      expect(attendees).toHaveLength(1);
+      expect(attendees[0]!.quantity).toBe(2);
+    });
+
+    test("maps generic custom price onto the single listing field", async () => {
+      await createTestDbWithSetup();
+      await setupStripe();
+      const listing = await createTestListing({
+        canPayMore: true,
+        maxAttendees: 10,
+        maxQuantity: 5,
+        unitPrice: 1000,
+      });
+      const response = await submitTicketForm(listing.slug, {
+        custom_price: "25.00",
+        email: "custom-price@example.com",
+        name: "Custom Price",
+        quantity: "1",
+      });
+      expectCheckoutRedirect(response);
+    });
+
+    test("keeps an explicit custom price over the generic field", async () => {
+      await createTestDbWithSetup();
+      await setupStripe();
+      const listing = await createTestListing({
+        canPayMore: true,
+        maxAttendees: 10,
+        maxQuantity: 5,
+        unitPrice: 1000,
+      });
+      const response = await submitTicketForm(listing.slug, {
+        custom_price: "5.00",
+        [`custom_price_${listing.id}`]: "25.00",
+        email: "explicit-price@example.com",
+        name: "Explicit Price",
+        quantity: "1",
+      });
+      expectCheckoutRedirect(response);
+    });
+  });
+
+  describe("submitMultiTicketForm", () => {
+    test("throws when the ticket page has no CSRF token", async () => {
+      await createTestDbWithSetup();
+      await expect(
+        submitMultiTicketForm("missing-listing", {
+          email: "missing@example.com",
+          name: "Missing Listing",
+        }),
+      ).rejects.toThrow("No CSRF token found on ticket page");
     });
   });
 

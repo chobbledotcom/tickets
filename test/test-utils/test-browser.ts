@@ -69,7 +69,7 @@ type LinkMatch = { href: string; text: string };
 const findAllLinks = (html: string): LinkMatch[] =>
   regexCollect(/<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, html, (m) => ({
     href: decodeEntities(m[1]!),
-    text: stripTags(m[2]!),
+    text: decodeEntities(stripTags(m[2]!)),
   }));
 
 /** Find a link whose visible text contains the search string (case-insensitive) */
@@ -346,7 +346,8 @@ export class TestBrowser {
     path: string,
     options: RequestInit = {},
   ): Promise<Response> {
-    const req = this.buildRequest(toPath(path), options);
+    let currentPath = toPath(path);
+    const req = this.buildRequest(currentPath, options);
     let response = await this.send(req, `${options.method ?? "GET"} ${path}`);
 
     // Follow redirects (max 10 hops)
@@ -356,15 +357,14 @@ export class TestBrowser {
       const location = response.headers.get("location");
       if (!location) break;
       const nextPath = toPath(location);
+      currentPath = nextPath;
       response = await this.send(
         this.buildRequest(nextPath),
         `  -> redirect ${nextPath}`,
       );
     }
 
-    this.currentUrl = new URL(
-      response.url || `http://localhost${path}`,
-    ).pathname;
+    this.currentUrl = currentPath.split("?")[0]!;
     const finalLocation = response.headers.get("location");
     if (finalLocation && isRedirect(response.status)) {
       this.currentUrl = toPath(finalLocation).split("?")[0]!;
@@ -530,6 +530,7 @@ export class TestBrowser {
       formData.append(key, value);
     }
     for (const [key, value] of Object.entries(data)) {
+      formData.delete(key);
       formData.append(key, value);
     }
     formData.append(
