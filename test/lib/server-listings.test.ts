@@ -365,6 +365,35 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expect(html).toContain(`href="/admin/ledger?listing=${listing.id}"`);
     });
 
+    test("does not eagerly render the full revenue statement on listing detail pages", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Busy Listing",
+        thankYouUrl: "https://example.com",
+      });
+      const buyer = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ada",
+        "ada@example.com",
+      );
+      await postListingSale({
+        attendeeId: buyer.id,
+        gross: 5000,
+        listingId: listing.id,
+      });
+
+      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).toContain("Income &amp; ledger");
+      expect(html).toContain(`href="/admin/ledger?listing=${listing.id}"`);
+      expect(html).not.toContain('<section id="ledger">');
+      expect(html).not.toContain("Account statement");
+      expect(html).not.toContain("<th>Counterparty</th>");
+    });
+
     test("shows stored-total mismatches on listing detail and edit pages", async () => {
       const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
@@ -414,6 +443,66 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("/admin/listing/1/edit");
       expect(html).toContain(">Edit<");
+    });
+
+    test("only renders check-in messages with a name and in/out status", async () => {
+      const { listing } = await setupListingAndLogin({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const valid = await adminGet(
+        `/admin/listing/${listing.id}?checkin_name=Ada%20Lovelace&checkin_status=in`,
+      );
+      const validHtml = await valid.response.text();
+      expect(validHtml).toContain('id="message"');
+      expect(validHtml).toContain("Checked Ada Lovelace in");
+
+      for (const query of [
+        "checkin_name=Ada%20Lovelace",
+        "checkin_status=in",
+        "checkin_name=Ada%20Lovelace&checkin_status=sideways",
+      ]) {
+        const { response } = await adminGet(
+          `/admin/listing/${listing.id}?${query}`,
+        );
+        const html = await response.text();
+        expect(html).not.toContain('id="message"');
+        expect(html).not.toContain("Checked Ada Lovelace");
+      }
+    });
+
+    test("keeps the email action enabled when the date filter hides emailable attendees", async () => {
+      const visibleDate = addDays(todayInTz("UTC"), 1);
+      const hiddenDate = addDays(todayInTz("UTC"), 2);
+      const listing = await createTestListing({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        listingType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
+      await submitTicketForm(listing.slug, {
+        date: visibleDate,
+        email: "ada@example.com",
+        name: "Ada Lovelace",
+      });
+
+      const { response } = await adminGet(
+        `/admin/listing/${listing.id}?date=${hiddenDate}`,
+      );
+      const html = await response.text();
+      expect(html).not.toContain("Ada Lovelace");
+      expect(html).toContain(
+        `href="/admin/emails?listing=${listing.id}">Email</a>`,
+      );
+      expect(html).not.toContain("btn--disabled");
     });
 
     test("shows Group Attendees row when listing is in a capped group", async () => {

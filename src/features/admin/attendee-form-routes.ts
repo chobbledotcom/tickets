@@ -35,7 +35,7 @@ import {
   buildAttendeeLogisticsData,
   parseLogisticsPlan,
 } from "#routes/admin/attendee-logistics.ts";
-import { loadLedgerNames } from "#routes/admin/ledger.ts";
+import { loadAccountLedger } from "#routes/admin/ledger.ts";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -47,7 +47,6 @@ import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
@@ -93,7 +92,6 @@ import { settings } from "#shared/db/settings.ts";
 import { getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { statementFor } from "#shared/ledger/project.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   parseSelectedListingIds,
@@ -232,15 +230,8 @@ const ATTENDEE_LOG_LIMIT = 1000;
  * names (the shared ledger loader, so names resolve exactly as /admin/ledger). */
 const loadAttendeeLedger = async (
   attendeeId: number,
-): Promise<AttendeeLedgerData> => {
-  const account = attendeeAccount(attendeeId);
-  const transfers = await transfersByAccount(account);
-  return {
-    account,
-    lines: statementFor(account)(transfers),
-    names: await loadLedgerNames(transfers),
-  };
-};
+): Promise<AttendeeLedgerData> =>
+  loadAccountLedger(attendeeAccount(attendeeId));
 
 /** The ledger panel exposes money movements (payment/refund/writeoff legs), so
  * it is owner-only — matching the standalone `/admin/ledger*` routes
