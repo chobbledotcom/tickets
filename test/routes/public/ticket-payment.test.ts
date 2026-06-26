@@ -8,6 +8,8 @@ import {
   computeSharedDates,
   createFreeReservation,
   foldChild,
+  foldSelectedChildren,
+  loadChildrenByParentId,
   MODIFIER_SOLD_OUT_MESSAGE,
   resolveChildSelections,
   resolveDayCount,
@@ -48,6 +50,7 @@ import {
   describeWithEnv,
   testListingWithCount,
 } from "#test-utils";
+import { makeParent } from "#test-utils/parents.ts";
 
 /** Wrap a listing-with-count as a selected cart line. */
 const line = (listing: ListingWithCount, qty = 1) => ({ listing, qty });
@@ -705,6 +708,109 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       expect(dates).toContain(addDays(todayInTz("UTC"), 3));
     });
   });
+
+  describe("foldSelectedChildren — allocations", () => {
+    /** Minimal TicketCtx stub for foldSelectedChildren tests. */
+    const stubCtx = (
+      listings: TicketListing[],
+      childrenByParentId: import("#routes/public/types.ts").ChildrenByParentId,
+    ): import("#routes/public/types.ts").TicketCtx => ({
+      addOns: [],
+      childDatesById: new Map(),
+      childrenByParentId,
+      dates: [],
+      listings,
+      questionListingMap: new Map(),
+      questions: [],
+      slugs: [],
+      terms: "",
+    });
+
+    test("single parent with one child records one allocation entry", async () => {
+      const { parent, child } = await makeParent({
+        children: [{ maxAttendees: 10, maxQuantity: 10 }],
+        parent: { maxAttendees: 10, maxQuantity: 10 },
+      });
+      const parentListing = await ticketListingFor(parent.id);
+      const childListing = await ticketListingFor(child.id);
+      const childrenByParentId = await loadChildrenByParentId([parentListing]);
+      const ctx = stubCtx([parentListing], childrenByParentId);
+      const form = new FormParams({
+        [`child_qty_${parent.id}_${child.id}`]: "1",
+      });
+      const fold = await foldSelectedChildren(ctx, form, {
+        customPrices: new Map(),
+        date: null,
+        dayCount: 1,
+        hasCustomisable: false,
+        quantities: new Map([[parent.id, 1]]),
+      });
+      expect(fold.ok).toBe(true);
+      if (!fold.ok) return;
+      expect(fold.allocations).toHaveLength(1);
+      expect(fold.allocations[0]).toEqual({
+        childId: child.id,
+        parentId: parent.id,
+        qty: 1,
+      });
+    });
+
+    test("same child under two parents produces two allocation entries", async () => {
+      // Two parents each requiring the same child (qty 1 each).
+      // The fold sums the child to qty 2 but records two distinct allocations.
+      const child = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "shared-child",
+      });
+      // Both parents are wired directly to the shared child.
+      const { setChildIds } = await import("#shared/db/listing-parents.ts");
+      const parentA = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "parentA",
+      });
+      await setChildIds(parentA.id, [child.id]);
+      const parentB = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "parentB",
+      });
+      await setChildIds(parentB.id, [child.id]);
+
+      const parentAListing = await ticketListingFor(parentA.id);
+      const parentBListing = await ticketListingFor(parentB.id);
+      const childrenByParentId = await loadChildrenByParentId([
+        parentAListing,
+        parentBListing,
+      ]);
+      const ctx = stubCtx([parentAListing, parentBListing], childrenByParentId);
+      const form = new FormParams({
+        [`child_qty_${parentA.id}_${child.id}`]: "1",
+        [`child_qty_${parentB.id}_${child.id}`]: "1",
+      });
+      const fold = await foldSelectedChildren(ctx, form, {
+        customPrices: new Map(),
+        date: null,
+        dayCount: 1,
+        hasCustomisable: false,
+        quantities: new Map([
+          [parentA.id, 1],
+          [parentB.id, 1],
+        ]),
+      });
+      expect(fold.ok).toBe(true);
+      if (!fold.ok) return;
+      // Two allocations: one per (child, parent) pair.
+      expect(fold.allocations).toHaveLength(2);
+      const parentIds = fold.allocations.map((a) => a.parentId);
+      expect(parentIds).toContain(parentA.id);
+      expect(parentIds).toContain(parentB.id);
+      // Every allocation is for the shared child with qty 1.
+      expect(fold.allocations.every((a) => a.childId === child.id)).toBe(true);
+      expect(fold.allocations.every((a) => a.qty === 1)).toBe(true);
+    });
+  });
 });
 
 // Pure (no DB) property tests over the per-parent fold algebra. Mutation testing
@@ -834,6 +940,8 @@ describe("fold selection algebra (property-based)", () => {
         (max, qtys) => {
           const child = tl(1, { max_attendees: max, max_quantity: max });
           const state = {
+            allocations:
+              [] as import("#shared/db/attendee-types.ts").ChildAllocation[],
             customisableDuration: null,
             customPrices: new Map<number, number>(),
             listings: [] as TicketListing[],
@@ -842,7 +950,7 @@ describe("fold selection algebra (property-based)", () => {
           };
           let running = 0;
           for (const q of qtys) {
-            const error = foldChild(state, child, q, 1, undefined);
+            const error = foldChild(state, child, q, 1, PARENT_ID, undefined);
             running += q;
             if (running <= max) {
               if (error !== null) return false; // must accept up to the cap

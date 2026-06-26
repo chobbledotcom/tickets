@@ -164,8 +164,8 @@ export const applyAttendeeAtomicEdit = async (
     return { reason: "no_lines", success: false };
   }
 
-  // Reject duplicate (listingId, date) pairs up front — two desired lines on the
-  // same slot would collide on the listing_attendees unique index.
+  // Reject duplicate (listingId, date, parentListingId) pairs up front — two
+  // desired lines on the same slot would collide on the unique index.
   if (hasDuplicateBookingSlot(desired)) {
     return { reason: "capacity_exceeded", success: false };
   }

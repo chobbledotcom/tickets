@@ -15,9 +15,11 @@ import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import type {
+  ChildAllocation,
   CreateAttendeeResult,
   LineBooking,
 } from "#shared/db/attendee-types.ts";
+import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import {
   checkBatchAvailability,
   createAttendeeAtomic,
@@ -361,6 +363,7 @@ type FoldedOrder = {
 type FoldState = FoldedOrder & {
   /** The one duration every customisable line must share, or null if none yet. */
   customisableDuration: number | null;
+  allocations: ChildAllocation[];
 };
 
 export type FoldChildrenResult =
@@ -371,6 +374,7 @@ export type FoldChildrenResult =
        * is customisable. Drives the folded order's `dayCount` so a fixed parent's
        * customisable child is priced for the inherited duration, not one day. */
       dayCount: number;
+      allocations: ChildAllocation[];
     })
   | { ok: false; error: string };
 
@@ -496,7 +500,11 @@ const recordDuration = (state: FoldState, duration: number): string | null => {
  * (`childQty`, not the parent quantity): sum that quantity across parents/units,
  * reconcile the customisable duration and pay-more price, and re-validate the
  * summed quantity against the child's max-purchasable cap (reject, never clamp).
+ * Records a per-(child, parent) allocation so `expandChildAllocations` can later
+ * produce one `listing_attendees` row per allocation instead of one summed row.
  * Returns null on success or an error message.
+ *
+ * @param parentId - The id of the parent listing that required this child choice.
  *
  * Exported for direct unit/property testing of the summing/capacity rule. */
 export const foldChild = (
@@ -504,6 +512,7 @@ export const foldChild = (
   child: TicketListing,
   childQty: number,
   duration: number,
+  parentId: number,
   price: number | undefined,
 ): string | null => {
   const childId = child.listing.id;
@@ -535,6 +544,7 @@ export const foldChild = (
   if (!state.listings.some((e) => e.listing.id === childId)) {
     state.listings.push(child);
   }
+  state.allocations.push({ childId, parentId, qty: childQty });
   return null;
 };
 
@@ -562,7 +572,14 @@ const foldParent = (
   for (const { child, qty } of selections) {
     const price = childCustomPrice(parent.listing.id, child, form);
     if (price && typeof price === "object") return price.error;
-    const error = foldChild(state, child, qty, duration, price);
+    const error = foldChild(
+      state,
+      child,
+      qty,
+      duration,
+      parent.listing.id,
+      price,
+    );
     if (error) return error;
   }
   return null;
@@ -592,6 +609,7 @@ export const foldSelectedChildren = async (
   },
 ): Promise<FoldChildrenResult> => {
   const state: FoldState = {
+    allocations: [],
     customisableDuration: null,
     customPrices: new Map(base.customPrices),
     listings: [...ctx.listings],
@@ -626,6 +644,7 @@ export const foldSelectedChildren = async (
   }
 
   return {
+    allocations: state.allocations,
     customPrices: state.customPrices,
     dayCount: state.customisableDuration ?? base.dayCount,
     hasCustomisable:
@@ -652,6 +671,11 @@ type FreeReservationParams = {
    *  no money to record). Lets a zero-total free booking record the same
    *  sale/discount/balance legs a paid one would. */
   ledgerOrder: PricedOrder | null;
+  /** Per-(child, parent) allocations from the fold: when present,
+   * `createFreeReservation` expands each child booking into one row per
+   * allocation instead of one summed row, giving each row its real
+   * `parentListingId`. Absent for legacy/no-parent orders. */
+  allocations?: ChildAllocation[];
 };
 
 type FreeReservationResult =
@@ -685,6 +709,7 @@ export const createFreeReservation = async ({
   remainingBalance = 0,
   modifierUsages,
   ledgerOrder,
+  allocations,
 }: FreeReservationParams): Promise<FreeReservationResult> => {
   const selected = listingsWithQuantity(listings, quantities);
   const bookings = buildBookings(selected, date, dayCount).map((booking) => ({
@@ -693,6 +718,18 @@ export const createFreeReservation = async ({
       ? { pricePaid: paidByListingId.get(booking.listingId)! }
       : {}),
   }));
+  // Expand summed child bookings into per-parent rows when allocations are
+  // provided (Stage B free-path provenance): each allocation becomes its own
+  // listing_attendees row with the real parentListingId, so the DB records
+  // which parent each child unit came from. The slot dedup
+  // (hasDuplicateBookingSlot) permits same-child/different-parent rows because
+  // it keys on (listingId, date, parentListingId). The expanded list replaces
+  // the summed list for the create call; ensureAllBookings' count uses the
+  // expanded length.
+  const finalBookings =
+    allocations && allocations.length > 0
+      ? expandChildAllocations(bookings, allocations)
+      : bookings;
   // When there are legs to post or stock to consume, commit the booking, its
   // modifier stock, and its sale legs as ONE batch (exactly as the paid webhook
   // does) — never an interactive transaction held open across a read-per-leg. The
@@ -703,7 +740,12 @@ export const createFreeReservation = async ({
   // a single capacity-checked batch (createAttendeeAtomic) — concurrent free
   // submissions never contend on the one connection.
   const statusId = await getPublicStatusId();
-  const input = { ...contact, bookings, remainingBalance, statusId };
+  const input = {
+    ...contact,
+    bookings: finalBookings,
+    remainingBalance,
+    statusId,
+  };
   const result =
     ledgerOrder !== null || modifierUsages.length > 0
       ? await createBookingAtomic(
@@ -719,7 +761,7 @@ export const createFreeReservation = async ({
     return { error: MODIFIER_SOLD_OUT_MESSAGE, success: false };
   }
 
-  const check = await ensureAllBookings(result, bookings.length, "public");
+  const check = await ensureAllBookings(result, finalBookings.length, "public");
   if (!check.ok) {
     return {
       error: formatAtomicError(check.reason, selected[0]!.listing.name),
@@ -732,9 +774,10 @@ export const createFreeReservation = async ({
     { success: true }
   >;
 
-  const entries: EmailEntry[] = attendees.map((attendee, i) => ({
+  const listingById = new Map(listings.map((l) => [l.listing.id, l.listing]));
+  const entries: EmailEntry[] = attendees.map((attendee) => ({
     attendee,
-    listing: selected[i]!.listing,
+    listing: listingById.get(attendee.listing_id)!,
   }));
   return {
     entries,

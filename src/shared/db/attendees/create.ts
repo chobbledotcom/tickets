@@ -327,8 +327,8 @@ const prepareAttendeeWrite = async (
     allowOverbook = false,
   } = input;
   // Reject empty orders, negative quantities (a negative row skews capacity
-  // sums), and duplicate (listing_id, date) slots (the unique index would drop
-  // one insert and half-fulfil the cart).
+  // sums), and duplicate (listing_id, date, parentListingId) slots (the unique
+  // index would drop one insert and half-fulfil the cart).
   if (
     rawBookings.length === 0 ||
     rawBookings.some((b) => (b.quantity ?? 1) < 0) ||

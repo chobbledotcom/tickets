@@ -370,7 +370,10 @@ describeWithEnv(
       expect((await getAttendeesRaw(childA.id)).length).toBe(0);
     });
 
-    test("a shared child under two parents sums its quantity into one line", async () => {
+    test("a shared child under two parents produces one row per parent", async () => {
+      // Stage B: expandChildAllocations splits the fold into per-parent rows so
+      // each row carries its true parentListingId rather than collapsing into one
+      // summed row that loses the per-parent provenance.
       const parentA = await createTestListing({
         maxQuantity: 5,
         name: "Base A",
@@ -396,8 +399,10 @@ describeWithEnv(
       });
       expectReserved(res);
       const childRows = await getAttendeesRaw(child.id);
-      expect(childRows.length).toBe(1);
-      expect(childRows[0]?.quantity).toBe(5);
+      // Two rows: one for parentA (qty 2) and one for parentB (qty 3).
+      expect(childRows.length).toBe(2);
+      const totalQty = childRows.reduce((acc, r) => acc + r.quantity, 0);
+      expect(totalQty).toBe(5);
     });
 
     test("a shared child over its capacity when summed is rejected (not clamped)", async () => {

@@ -5,6 +5,19 @@
 import type { BookingSource } from "#shared/db/contact-preferences.ts";
 import type { Attendee, ContactFields, ContactInfo } from "#shared/types.ts";
 
+/** Per-(child, parent) unit allocation from the booking fold: the quantity of
+ * `childId` chosen under `parentId` in one order. An order where the same child
+ * appears under two parents has two entries (distinct parentIds); the summed
+ * `qty` over all entries for one child equals that child's `quantities` map
+ * value.
+ * Used by `expandChildAllocations` to produce one `listing_attendees` row per
+ * entry instead of one summed row. */
+export type ChildAllocation = {
+  childId: number;
+  parentId: number;
+  qty: number;
+};
+
 /** Aggregated statistics for active listings */
 export type ActiveListingStats = {
   income: number;

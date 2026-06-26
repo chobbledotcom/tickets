@@ -24,6 +24,7 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
+import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { getGroupRemainingByListingId } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
@@ -356,6 +357,7 @@ const handleFreePath = async (
      * its folded children still redirects to the parent's configured URL. */
     thankYouUrl?: string | null;
     ledgerOrder: PricedOrder | null;
+    allocations?: ChildAllocation[];
   },
 ): Promise<Response> => {
   const {
@@ -369,8 +371,10 @@ const handleFreePath = async (
     paymentBreakdown,
     thankYouUrl,
     ledgerOrder,
+    allocations,
   } = params;
   const result = await createFreeReservation({
+    allocations,
     contact,
     date,
     dayCount,
@@ -540,6 +544,7 @@ type PrepareResult =
       ok: true;
       pricingParams: SubmissionPricingParams;
       pricedOrder: PricedOrder;
+      allocations: ChildAllocation[];
     }
   | { ok: false; error: string };
 
@@ -663,7 +668,12 @@ const prepareOrder = async (
     reservationAmount,
   };
   const { pricedOrder } = await priceSubmissionBeforeContact(pricingParams);
-  return { ok: true, pricedOrder, pricingParams };
+  return {
+    allocations: fold.allocations,
+    ok: true,
+    pricedOrder,
+    pricingParams,
+  };
 };
 
 /** Process submitted form after CSRF and demo overrides. */
@@ -677,6 +687,7 @@ const processSubmission = async (
   const prepared = await prepareOrder(ctx, form);
   if (!prepared.ok) return errorResponse(prepared.error);
   const { pricingParams, pricedOrder } = prepared;
+  const { allocations } = prepared;
   const { date, dayCount, hasCustomisable, info, quantities } = pricingParams;
   // The folded ctx carries the page listings plus the selected children, so it
   // drives contact-field requirements, availability, and reservation creation.
@@ -763,6 +774,7 @@ const processSubmission = async (
     ? finalPricedOrder
     : owedOrderForLedger(priceCheckout({ ...breakdownIntent, feeSubtotal: 0 }));
   return handleFreePath({
+    allocations,
     contact,
     ctx: foldedCtx,
     date,

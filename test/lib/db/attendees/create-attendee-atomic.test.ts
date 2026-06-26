@@ -404,6 +404,27 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       name: "Ok",
     });
     expect(ok.success).toBe(true);
+    // Same (listing, date) but different parentListingId — two child rows for
+    // the same child under two parents — are distinct slots and are accepted.
+    const same = await createAttendeeAtomic({
+      bookings: [
+        {
+          date: "2026-05-01",
+          listingId: listing.id,
+          parentListingId: 10,
+          quantity: 1,
+        },
+        {
+          date: "2026-05-01",
+          listingId: listing.id,
+          parentListingId: 20,
+          quantity: 1,
+        },
+      ],
+      email: "same@example.com",
+      name: "Same",
+    });
+    expect(same.success).toBe(true);
   });
 
   test("intra-cart group cap: a sibling insert earlier in the same batch counts (no oversell)", async () => {
