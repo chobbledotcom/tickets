@@ -56,7 +56,6 @@ import {
   availableDayCounts,
   type ContactInfo,
   dayPriceFor,
-  type Holiday,
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
@@ -392,16 +391,15 @@ const buildChildAvailability = (
   parent: ListingWithCount,
   date: string | undefined,
   quantity: number,
-  holidays?: Holiday[],
 ): Promise<{ slug: string; available: boolean }[] | null> =>
   mapParentChildren(parent, async (child) => {
-    const childDateAvail =
-      child.listing_type !== "daily" ||
-      !date ||
-      getBookableStartDates(
+    let childDateAvail = true;
+    if (child.listing_type === "daily" && date) {
+      childDateAvail = getBookableStartDates(
         child,
-        holidays ?? (await getActiveHolidays()),
+        await getActiveHolidays(),
       ).includes(date);
+    }
     return {
       available:
         child.active &&
@@ -438,9 +436,8 @@ const handleCheckAvailability = withActiveListing(async (request, listing) => {
   // same `constrainParentDailyDates` union the detail endpoint uses; a date no
   // required child can serve for the inherited span is unavailable. For a
   // non-parent daily listing (no child edges) this is a no-op.
-  let holidays: Holiday[] | undefined;
   if (listing.listing_type === "daily" && date) {
-    holidays = await getActiveHolidays();
+    const holidays = await getActiveHolidays();
     const childServableDates = await constrainParentDailyDates(
       listing,
       getAvailableDates(listing, holidays),
@@ -464,7 +461,6 @@ const handleCheckAvailability = withActiveListing(async (request, listing) => {
     listing,
     date,
     quantity,
-    holidays,
   );
   return apiResponse(
     childAvailability === null
