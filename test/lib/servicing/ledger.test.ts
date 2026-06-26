@@ -43,7 +43,6 @@ import {
   createServicingHold,
   createTestAttendeeDirect,
   createTestListing,
-  createTestServicingEvent,
   deleteServicingEvent,
   describeWithEnv,
   editServiceCost,
