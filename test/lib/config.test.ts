@@ -4,6 +4,7 @@ import {
   getBookingFee,
   getBotpoisonPublicKey,
   getBotpoisonSecretKey,
+  getDefaultDbProvider,
   getEffectiveDomain,
   getEmbedHosts,
   isBotpoisonEnabled,
@@ -338,5 +339,28 @@ describe("isTursoEnabled", () => {
       TURSO_ORGANIZATION: "org",
     });
     expect(isTursoEnabled()).toBe(false);
+  });
+});
+
+describe("getDefaultDbProvider", () => {
+  let restoreEnv: (() => void) | undefined;
+  afterEach(() => {
+    restoreEnv?.();
+    restoreEnv = undefined;
+  });
+
+  test("returns bunny when DEFAULT_DB_HOST is not set", () => {
+    restoreEnv = setTestEnv({ DEFAULT_DB_HOST: undefined });
+    expect(getDefaultDbProvider()).toBe("bunny");
+  });
+
+  test("returns turso when DEFAULT_DB_HOST is turso", () => {
+    restoreEnv = setTestEnv({ DEFAULT_DB_HOST: "turso" });
+    expect(getDefaultDbProvider()).toBe("turso");
+  });
+
+  test("returns bunny when DEFAULT_DB_HOST is set to an unrecognised value", () => {
+    restoreEnv = setTestEnv({ DEFAULT_DB_HOST: "bunny" });
+    expect(getDefaultDbProvider()).toBe("bunny");
   });
 });

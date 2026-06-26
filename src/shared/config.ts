@@ -172,6 +172,10 @@ export const getDenoDeployToken = (): string => requireEnv("DENO_DEPLOY_TOKEN");
 export const getDenoDeployOrgId = (): string =>
   requireEnv("DENO_DEPLOY_ORG_ID");
 
+/** Get the default database provider from DEFAULT_DB_HOST env var. Returns "turso" when set to "turso", "bunny" otherwise. */
+export const getDefaultDbProvider = (): "bunny" | "turso" =>
+  getEnv("DEFAULT_DB_HOST") === "turso" ? "turso" : "bunny";
+
 /** Check if Turso hosted database provider is enabled (requires TURSO_API_TOKEN, TURSO_ORGANIZATION, TURSO_GROUP). */
 export const isTursoEnabled = (): boolean =>
   !!getEnv("TURSO_API_TOKEN") &&

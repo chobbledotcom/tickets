@@ -20,6 +20,7 @@
 
 import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
+import { getDefaultDbProvider } from "#shared/config.ts";
 import { toBase64 } from "#shared/crypto/utils.ts";
 import type { DbProvider, HostingProvider } from "#shared/db/built-sites.ts";
 import { denoHostingProvider } from "#shared/deno-deploy-api.ts";
@@ -196,12 +197,12 @@ const getDbCredentials = async (
   if (input.dbUrl) {
     return {
       credentials: { dbToken: input.dbToken ?? "", dbUrl: input.dbUrl },
-      dbProvider: input.dbProvider ?? "bunny",
+      dbProvider: input.dbProvider ?? getDefaultDbProvider(),
       ok: true,
     };
   }
 
-  const provider = input.dbProvider ?? "bunny";
+  const provider = input.dbProvider ?? getDefaultDbProvider();
   const dbResult = await builderApi.createDatabase(input.siteName, provider);
   if (!dbResult.ok) return dbResult;
   return {
