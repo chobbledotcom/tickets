@@ -223,9 +223,9 @@ export const applyAttendeeAtomicEdit = async (
   // target row. Capacity-checked + guarded unless the caller opted into
   // overbooking, in which case the update is unconditional.
   for (const line of updates) {
-    const existingRow = existingByKey.get(line.key);
-    const oldStartAt = existingRow?.start_at ?? null;
-    const oldParentListingId = existingRow?.parent_listing_id ?? 0;
+    const existingRow = existingByKey.get(line.key)!;
+    const oldStartAt = existingRow.start_at;
+    const oldParentListingId = existingRow.parent_listing_id;
     const { startAt, endAt } = dateToStartEnd(line.date, line.durationDays);
     const pin = [attendeeId, line.listingId, oldStartAt, oldParentListingId];
     const setClause = `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?${noQuantityResetColumns(line.quantity)}

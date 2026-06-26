@@ -161,20 +161,6 @@ describeWithEnv(
   "db > attendees > applyAttendeeAtomicEdit",
   { db: true },
   () => {
-    test("update with a key that misses existingByKey falls back to null/0 defaults", async () => {
-      // When a line has exists:true but a key not in the existing-row map, the code
-      // falls back to oldStartAt=null and oldParentListingId=0. For a standard
-      // non-dated booking those defaults match the actual row, so the edit succeeds.
-      const { listing, attendee, blob } = await bookOnNewListing(
-        { maxAttendees: 10 },
-        { name: "X", quantity: 1 },
-      );
-      const update = await applyAttendeeAtomicEdit(attendee.id, blob, [
-        keepLine(listing.id, "no-such-key"),
-      ]);
-      expect(update.success).toBe(true);
-    });
-
     test("updates PII on a single-line attendee without touching the line", async () => {
       const { listing, attendee, blob, existing } = await bookOnNewListing(
         { maxAttendees: 10 },
