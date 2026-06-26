@@ -163,4 +163,18 @@ describe("db > attendees > expandChildAllocations", () => {
     expect(result[0]!.orderToken).toBeTruthy();
     expect(result[0]!.parentListingId ?? 0).toBe(0);
   });
+
+  test("booking without explicit quantity defaults to 1 for price split", () => {
+    // A ListingBooking whose quantity is absent; the ?? 1 guard must treat it
+    // as 1 so price-paid proportioning doesn't divide by undefined.
+    const noQty: import("#shared/db/attendee-types.ts").ListingBooking = {
+      listingId: 20,
+      pricePaid: 60,
+    };
+    const result = expandChildAllocations([noQty], [alloc(20, 10, 1)]);
+    expect(result).toHaveLength(1);
+    // qty from alloc; pricePaid = 60 * 1 / 1 = 60.
+    expect(result[0]!.quantity).toBe(1);
+    expect(result[0]!.pricePaid).toBe(60);
+  });
 });
