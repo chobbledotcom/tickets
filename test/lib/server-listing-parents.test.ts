@@ -1002,9 +1002,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
 
     const { adminGet } = await import("#test-utils");
-    const response = await adminGet(
-      `/admin/listing/${thatPage.id}/deactivate`,
-    );
+    const response = await adminGet(`/admin/listing/${thatPage.id}/deactivate`);
     const body = await response.text();
     // Renders the confirmation page (200), not a 302 back to itself.
     expect(response.status).toBe(200);
