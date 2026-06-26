@@ -101,7 +101,6 @@ const metricFailure = (
 const COVERAGE_EXCLUSIONS = [
   "scripts/compact-test-reporter.ts",
   "src/shared/db/migrations.ts",
-  "test/test-utils/",
 ];
 
 /** Extract source path info from an lcov record, or null if excluded. */
