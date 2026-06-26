@@ -212,7 +212,6 @@ async function doAuthenticatedFormRequest<T>(
       session.cookie,
     ),
   );
-  response.body?.cancel();
   if (response.status !== 302) {
     throw new Error(`Failed to ${errorContext}: ${response.status}`);
   }
@@ -236,7 +235,6 @@ async function doAuthenticatedMultipartFormRequest<T>(
       session.cookie,
     ),
   );
-  response.body?.cancel();
   if (response.status !== 302) {
     throw new Error(`Failed to ${errorContext}: ${response.status}`);
   }
@@ -345,16 +343,13 @@ export const createTestAttendee = async (
     .getSetCookie()
     .find((c) => c.startsWith("flash_"));
   if (flashCookie) {
-    const cookiePart = flashCookie.split(";")[0] ?? "";
+    const cookiePart = flashCookie.split(";")[0]!;
     const value = cookiePart.split("=").slice(1).join("=");
     const parsed = parseFlashValue(value);
     if (parsed.error) {
-      response.body?.cancel();
       throw new Error(`Failed to create attendee: ${parsed.error}`);
     }
   }
-
-  response.body?.cancel();
 
   const afterAttendees = await getAttendeesRaw(listingId);
   return afterAttendees[0] as Attendee;
@@ -893,7 +888,6 @@ export const createTestInvite = async (
       cookie,
     ),
   );
-  inviteResponse.body?.cancel();
   const location = inviteResponse.headers.get("location") ?? "";
   const url = new URL(location, "http://localhost");
   const inviteLink = url.searchParams.get("invite") ?? "";
