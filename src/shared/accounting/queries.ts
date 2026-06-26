@@ -85,10 +85,10 @@ export const recentTransfers = (limit: number): Promise<Transfer[]> =>
 
 /** Legs shown on the operator-facing ledger list. Routine checkout cash
  * plumbing ("Card / bank → <attendee>" and its refund mirror) stays hidden, but
- * owner-entered manual rows remain visible even when they record an external
- * payment or cost. */
+ * owner-entered manual rows and service cost legs remain visible even when they
+ * record an external cost. */
 const VISIBLE_TRANSFER_SCOPE =
-  "(source_type != 'external' AND dest_type != 'external' OR kind LIKE 'manual\\_%' ESCAPE '\\')";
+  "(source_type != 'external' AND dest_type != 'external' OR kind LIKE 'manual\\_%' ESCAPE '\\' OR kind = 'service_cost')";
 
 /** A revenue-account scope (the listing's own legs, as source or destination)
  *  for the by-listing filter, with its bound args. Empty for "all listings". */

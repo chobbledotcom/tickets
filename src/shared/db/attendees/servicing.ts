@@ -34,6 +34,7 @@ import {
 import { queryAll, queryOne, withTransaction } from "#shared/db/client.ts";
 import {
   type AttendeeAnswerSet,
+  getAttendeeAnswersBatch,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -309,7 +310,7 @@ const getServicingEventRows = (today?: string): Promise<ServicingRow[]> => {
   const upcomingClause =
     today === undefined
       ? ""
-      : "AND COALESCE(DATE(ea.start_at), SUBSTR(a.created, 1, 10)) >= ?";
+      : "AND (ea.start_at IS NULL OR DATE(ea.start_at) >= ?)";
   return queryAll<ServicingRow>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
        FROM attendees a
@@ -392,15 +393,16 @@ const desiredLinesFromExisting = (
     };
   });
 
-/** Restore a service event's name + bookings to `before` after a post-edit side
- *  effect fails, so the edit doesn't land half-applied (new bookings/name with
- *  the prior answers). `existingBefore` is the pre-edit booking rows. Overbooks
+/** Restore a service event's name, bookings, and answers to their pre-edit
+ *  state after a post-edit side effect fails. `existingBefore` is the pre-edit
+ *  booking rows; `answersBefore` is the pre-edit answer set. Overbooks
  *  unconditionally: the prior bookings fit before the edit, so restoring them
  *  must not itself strand on the capacity guard. */
 const restoreServicingState = async (
   id: number,
   before: ServicingEvent,
   existingBefore: ExistingLine[],
+  answersBefore: AttendeeAnswerSet,
 ): Promise<void> => {
   const restoredPiiBlob = await encryptPiiBlob(
     buildPiiBlob({
@@ -420,6 +422,7 @@ const restoreServicingState = async (
     desiredLinesFromExisting(existingBefore),
     true,
   );
+  await saveAttendeeAnswers(new Map([[id, answersBefore]]));
 };
 
 export const updateServicingEvent = async (
@@ -429,7 +432,13 @@ export const updateServicingEvent = async (
   const name = assertServicingEditInput(input);
   const current = await getServicingEvent(id);
   if (!current) throw new Error("servicing event not found");
-  const existingBefore = await loadExistingLines(id);
+  const [existingBefore, answersBeforeMap] = await Promise.all([
+    loadExistingLines(id),
+    getAttendeeAnswersBatch([id], { texts: false }),
+  ]);
+  const answersBefore: AttendeeAnswerSet = {
+    answerIds: answersBeforeMap.get(id) ?? [],
+  };
   const encryptedPiiBlob = await encryptPiiBlob(
     buildPiiBlob({
       address: "",
@@ -451,11 +460,11 @@ export const updateServicingEvent = async (
   if (!editResult.success) throw new Error(editResult.reason);
   // The booking + name edit is committed by the atomic edit; the answer save is
   // a separate batch. If it fails, compensate by restoring the pre-edit state
-  // so the edit doesn't land half-applied (new bookings/name, prior answers).
+  // (name, bookings, and answers) so the edit doesn't land half-applied.
   try {
     await saveServicingAnswers(id, input.questionAnswers);
   } catch (error) {
-    await restoreServicingState(id, current, existingBefore);
+    await restoreServicingState(id, current, existingBefore, answersBefore);
     throw error;
   }
   return (await getServicingEvent(id))!;
@@ -627,17 +636,19 @@ const loadCostRow = async (costId: number): Promise<CostRow> => {
 const costListingId = (row: CostRow): number =>
   Number(row.source_type === "cost" ? row.source_id : row.dest_id);
 
-/** True when `costId` is an existing `service_cost` transfer whose listing is
- *  held by `servicingId`. Backs the cost-edit route's stale-form 404 guard: a
- *  missing or unrelated cost id (one belonging to another service event) must
- *  not reach the ledger as an unhandled 500. */
+/** True when `costId` is a `service_cost` transfer recorded against
+ *  `servicingId`. Queries the `service_costs` join table directly so a cost
+ *  belonging to a *different* service event on the same listing cannot slip
+ *  through the listing-membership check. */
 export const costBelongsToServicing = async (
   costId: number,
   servicingId: number,
 ): Promise<boolean> => {
-  const row = await getCostRow(costId);
-  if (!row) return false;
-  return servicingHoldsListing(servicingId, costListingId(row));
+  const row = await queryOne<{ n: number }>(
+    "SELECT 1 AS n FROM service_costs WHERE transfer_id = ? AND servicing_attendee_id = ?",
+    [costId, servicingId],
+  );
+  return row !== null;
 };
 
 export const editServiceCost = async (
@@ -657,7 +668,34 @@ export const editServiceCost = async (
   if (servicingId !== undefined) {
     await assertServicingHoldsListing(servicingId, listingId);
   }
-  const delta = update.amount - original.amount;
+  // Compute the current effective amount: original + all prior adjustments.
+  // A delta against the original would double-count prior edits — each edit
+  // posts the full distance from original, so a second edit would reuse the
+  // same base and overshoot.
+  const adjMemo = `${ADJ_MEMO_PREFIX}${costId}`;
+  const adjLegs = await queryAll<{
+    source_type: string;
+    amount: number;
+    memo: string;
+  }>(
+    "SELECT source_type, amount, memo FROM transfers WHERE kind = 'service_cost' AND " +
+      "((source_type = 'cost' AND source_id = ?) OR (dest_type = 'cost' AND dest_id = ?))",
+    [String(listingId), String(listingId)],
+  );
+  // Pre-decrypt all memos (async), then accumulate synchronously so V8 block
+  // coverage can instrument both branches of the signed-amount ternary.
+  const decryptedMemos = await Promise.all(
+    adjLegs.map((leg) => decrypt(leg.memo)),
+  );
+  const signedAdjTotal = adjLegs.reduce(
+    (sum, leg, i) =>
+      decryptedMemos[i] !== adjMemo
+        ? sum
+        : sum + (leg.source_type === "cost" ? leg.amount : -leg.amount),
+    0,
+  );
+  const currentAmount = original.amount + signedAdjTotal;
+  const delta = update.amount - currentAmount;
   if (delta === 0) return;
   const amount = Math.abs(delta);
   const cost = costAccount(listingId);
@@ -671,7 +709,7 @@ export const editServiceCost = async (
         update.amount,
       ]),
       kind: "service_cost",
-      memo: await encrypt(`edit service cost ${costId}`),
+      memo: await encrypt(`${ADJ_MEMO_PREFIX}${costId}`),
       occurredAt: nowIso(),
       reference: await legReference([
         "service_cost_edit",
@@ -695,7 +733,12 @@ export type ServicingCostRecord = {
   memo: string;
 };
 
-const EDIT_COST_MEMO = /^edit service cost (\d+)$/;
+/** Machine-generated memo written into adjustment legs so they can be
+ *  attributed back to their original cost. The `\x00` prefix makes it
+ *  impossible to collide with a free-text operator memo (form input cannot
+ *  contain NUL bytes). */
+const ADJ_MEMO_PREFIX = "\x00svc_adj:";
+const EDIT_COST_MEMO = new RegExp(`^${ADJ_MEMO_PREFIX}(\\d+)$`);
 
 /**
  * The service-cost records recorded against one service event, each with its
@@ -748,17 +791,19 @@ export const getServicingCosts = async (
       (adjustmentsByOriginal.get(originalId) ?? 0) + signedDelta,
     );
   }
-  return Promise.all(
+  const results: ServicingCostRecord[] = [];
+  await Promise.all(
     records.map(async (r) => {
       const original = decoded.find((leg) => leg.id === r.transfer_id)!;
-      return {
+      results.push({
         amount:
           original.amount + (adjustmentsByOriginal.get(r.transfer_id) ?? 0),
         date: r.occurred_at,
         id: r.transfer_id,
         listingId: r.listing_id,
         memo: await decrypt(r.memo!),
-      };
+      });
     }),
   );
+  return results;
 };

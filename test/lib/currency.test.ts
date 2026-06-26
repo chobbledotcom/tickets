@@ -190,6 +190,26 @@ describe("currency", () => {
         expect(parsePositiveMinorUnits("99999999999999999")).toBeNull();
       },
     );
+
+    testWithSetting(
+      "returns null for a comma-separated amount (e.g. '1,000')",
+      { currency: "GBP" },
+      () => {
+        // Number.parseFloat("1,000") silently parses as 1 — the stricter
+        // full-string numeric regex now rejects it.
+        expect(parsePositiveMinorUnits("1,000")).toBeNull();
+        expect(parsePositiveMinorUnits("1,000.00")).toBeNull();
+      },
+    );
+
+    testWithSetting(
+      "returns null for a trailing-letter amount (e.g. '12.34abc')",
+      { currency: "GBP" },
+      () => {
+        // Number.parseFloat("12.34abc") silently parses as 12.34 — rejected.
+        expect(parsePositiveMinorUnits("12.34abc")).toBeNull();
+      },
+    );
   });
 
   describe("validatePrice", () => {

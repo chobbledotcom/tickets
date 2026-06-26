@@ -81,16 +81,15 @@ type TestListingInput = Parameters<typeof createTestListing>[0];
 const resolveTestListing = async (
   input: TestListingInput = {},
 ): Promise<Listing> => {
-  const listingInput = input ?? {};
   const existingListings = await getAllListings();
-  if (listingInput.name) {
+  if (input.name) {
     const existing = existingListings.find(
-      (listing: ListingWithCount) => listing.name === listingInput.name,
+      (listing: ListingWithCount) => listing.name === input.name,
     );
     if (existing) return existing;
   }
   if (existingListings.length === 1) return existingListings[0]!;
-  return createTestListing(listingInput);
+  return createTestListing(input);
 };
 
 /** The canonical "one listing + one servicing hold on it" fixture. Returns
@@ -144,26 +143,22 @@ export const kindOf = async (id: number): Promise<string | null> => {
   return row?.kind ?? null;
 };
 
-/** The `ticket_token_index` for an attendee row, or null when the id is gone. */
-export const tokenIndexOf = async (id: number): Promise<string | null> => {
-  const row = await queryOne<{ idx: string }>(
+/** The `ticket_token_index` for an attendee row. */
+export const tokenIndexOf = async (id: number): Promise<string> =>
+  (await queryOne<{ idx: string }>(
     "SELECT ticket_token_index AS idx FROM attendees WHERE id = ?",
     [id],
-  );
-  return row?.idx ?? null;
-};
+  ))!.idx;
 
 /** Count rows in a child table referencing this attendee id. */
 export const childRowCount = async (
   table: string,
   attendeeId: number,
 ): Promise<number> =>
-  (
-    await queryOne<{ count: number }>(
-      `SELECT COUNT(*) AS count FROM ${table} WHERE attendee_id = ?`,
-      [attendeeId],
-    )
-  )?.count ?? 0;
+  (await queryOne<{ count: number }>(
+    `SELECT COUNT(*) AS count FROM ${table} WHERE attendee_id = ?`,
+    [attendeeId],
+  ))!.count;
 
 // ─── Decryption + assertion helpers ────────────────────────────────────────
 
@@ -191,7 +186,7 @@ export const decryptFirstServicingAttendee = async (
   const { decryptAttendeeOrNull } = await import("#shared/db/attendees.ts");
   const pk = await getTestPrivateKey();
   const rows = await servicingRowsForListing(listingId);
-  return rows.length > 0 ? decryptAttendeeOrNull(rows[0]!, pk) : null;
+  return decryptAttendeeOrNull(rows[0]!, pk);
 };
 
 /** Assert every customer-only contact field on a decrypted attendee is the
@@ -253,6 +248,12 @@ export const expectServicingLink = (body: string, id: number): void => {
   expect(body).not.toContain(`/admin/attendees/${id}`);
 };
 
+/** Assert a POST response is a 302 redirect to a location containing `path`. */
+export const assertRedirectTo = (response: Response, path: string): void => {
+  expect(response.status).toBe(302);
+  expect(response.headers.get("location")).toContain(path);
+};
+
 /** POST an admin form as the logged-in test owner and return the response
  *  (for status/body assertions). Replaces the per-test `handleRequest` +
  *  `mockFormRequest` + `getTestSession` dance. */
@@ -292,18 +293,10 @@ export const createHoldInBrowser = async (
   await submitServicingCreateForm(browser, { listingId, name });
 };
 
-/** Find the first `/admin/servicing/:id` link on the current page. */
-export const findServicingLink = (browser: TestBrowser): string => {
-  const currentPath = browser.currentUrl.match(/^\/admin\/servicing\/\d+/)?.[0];
-  if (currentPath) return currentPath;
-  const link = browser.links.find((l) => l.href.includes("/admin/servicing/"));
-  if (link) return link.href;
-  const formAction = browser.currentHtml.match(
-    /action="(\/admin\/servicing\/\d+)/,
-  )?.[1];
-  if (formAction) return formAction;
-  throw new Error("no /admin/servicing/ link on the current page");
-};
+/** Find the `/admin/servicing/:id` path for the current e2e browser page.
+ *  Called after `setupBrowserWithHold`, which always lands on that path. */
+export const findServicingLink = (browser: TestBrowser): string =>
+  browser.currentUrl.match(/^\/admin\/servicing\/\d+/)![0];
 
 /** Submit the standard servicing create form: name + quantity on listing id
  *  `quantity_${listingId}` + a single-day `start_date`. Mirrors the operator
@@ -327,18 +320,6 @@ export const submitServicingCreateForm = async (
     },
     "Create Service Event",
   );
-};
-
-/** Build the booking-line shape a servicing event carries (mirror of
- *  `ListingBooking` so tests don't import the type ad hoc). */
-export const servicingBooking = (
-  listingId: number,
-  quantity: number,
-  date?: string,
-): ListingBooking => {
-  const booking: ListingBooking = { listingId, quantity };
-  if (date !== undefined) booking.date = date;
-  return booking;
 };
 
 // ─── Compound assertion helpers (curried where the shape is shared) ─────────
@@ -396,15 +377,18 @@ export const expectRejects = async (
   promise: Promise<unknown>,
   pattern?: RegExp,
 ): Promise<void> => {
+  let error: unknown;
+  let resolved = true;
   try {
     await promise;
-  } catch (error) {
-    if (pattern !== undefined) {
-      expect((error as Error).message).toMatch(pattern);
-    }
-    return;
+  } catch (err) {
+    error = err;
+    resolved = false;
   }
-  throw new Error("expected the promise to reject, but it resolved");
+  expect(resolved, "expected promise to reject, but it resolved").toBe(false);
+  if (pattern !== undefined) {
+    expect((error as Error).message).toMatch(pattern);
+  }
 };
 
 /** Create two daily listings — the multi-booking fixture shared by §3 (create),

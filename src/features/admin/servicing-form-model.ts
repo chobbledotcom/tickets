@@ -8,6 +8,7 @@
 
 import {
   DAY_COUNT_FIELD,
+  isBookedLine,
   type ParsedAttendeeForm,
   parseAttendeeForm,
   QTY_PREFIX,
@@ -19,6 +20,7 @@ import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms.tsx";
 import type { ListingWithCount } from "#shared/types.ts";
+import { isIsoDate } from "#shared/validation/date.ts";
 
 export type ServicingCreateInput = {
   bookings: ListingBooking[];
@@ -80,11 +82,19 @@ export const parseServicingForm = (
 
 export const normalizeServicingForSave = (
   parsed: ParsedAttendeeForm,
-): ServicingCreateInput => ({
-  bookings: toCreateInput(parsed).bookings,
-  kind: SERVICING_KIND,
-  name: parsed.name.trim(),
-});
+): ServicingCreateInput => {
+  const hasDailyBooking = parsed.lines.some(
+    (line) => isBookedLine(line) && line.listing?.listing_type === "daily",
+  );
+  if (hasDailyBooking && !isIsoDate(parsed.startDate)) {
+    throw new Error("A start date is required for the booked daily listings");
+  }
+  return {
+    bookings: toCreateInput(parsed).bookings.filter((b) => b.quantity! > 0),
+    kind: SERVICING_KIND,
+    name: parsed.name.trim(),
+  };
+};
 
 export const toServicingCreateInput = (
   parsed: ParsedAttendeeForm,

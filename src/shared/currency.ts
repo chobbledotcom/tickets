@@ -59,7 +59,11 @@ export const toMajorUnits = (minorUnits: number): string => {
 export const parsePositiveMinorUnits = (raw: string): number | null => {
   const trimmed = raw.trim();
   if (!trimmed) return null;
-  const parsed = Number.parseFloat(trimmed);
+  // Reject inputs with any non-numeric characters (commas, letters, etc.) so
+  // "1,000" doesn't silently parse as 1. Number() requires the full string to
+  // be a valid number, unlike parseFloat which accepts a leading-numeric prefix.
+  if (!/^\d+(\.\d+)?$/.test(trimmed)) return null;
+  const parsed = Number(trimmed);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   const amount = toMinorUnits(parsed);
   if (!Number.isSafeInteger(amount) || amount <= 0) return null;

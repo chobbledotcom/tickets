@@ -251,7 +251,10 @@ describe("servicing §0 — servicing skips order/status/balance resolution", ()
     expect((out as Record<string, unknown>).remainingBalance ?? 0).toBe(0);
   });
 
-  test("quantity-0 sentinel lines are passed to create validation", () => {
+  test("quantity-0 sentinel lines are stripped from servicing saves (not passed to creation)", () => {
+    // normalizeServicingForSave filters zero-quantity bookings so an operator
+    // leaving a listing unchecked on the form doesn't generate a 0-qty slot.
+    // The lower-level validation's 'capacity slot' guard never sees these.
     const out = normalizeServicingForSave({
       ...parsedShape,
       lines: [
@@ -270,8 +273,6 @@ describe("servicing §0 — servicing skips order/status/balance resolution", ()
         },
       ],
     } as never);
-    expect(out.bookings).toEqual([
-      { date: null, durationDays: undefined, listingId: 1, quantity: 0 },
-    ]);
+    expect(out.bookings).toEqual([]);
   });
 });

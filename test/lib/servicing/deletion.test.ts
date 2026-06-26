@@ -32,6 +32,7 @@ import {
   expectRejects,
   getServicingEvent,
   kindOf,
+  recordServiceCost,
   servicingRowsForListing,
 } from "#test-utils";
 
@@ -86,6 +87,28 @@ describeWithEnv("servicing §15 — deletion & orphan purge", { db: true }, () =
     await orphanServicingEvent(id);
     expect(await kindOf(id)).toBe(SERVICING_KIND);
     expect(await countOrphanedAttendees(nowIso())).toBeGreaterThanOrEqual(1);
+  });
+
+  test("deleting a servicing event also clears its service_costs rows", async () => {
+    const { id, listing } = await createServicingHold({ quantity: 2 });
+    await recordServiceCost({
+      amount: 9000,
+      listingId: listing.id,
+      memo: "Boiler part",
+      occurredAt: "2026-07-01T00:00:00.000Z",
+      servicingId: id,
+    });
+    const before = await getDb().execute({
+      args: [id],
+      sql: "SELECT COUNT(*) AS n FROM service_costs WHERE servicing_attendee_id = ?",
+    });
+    expect(Number(before.rows[0]?.n ?? 0)).toBe(1);
+    await deleteServicingEvent(id);
+    const after = await getDb().execute({
+      args: [id],
+      sql: "SELECT COUNT(*) AS n FROM service_costs WHERE servicing_attendee_id = ?",
+    });
+    expect(Number(after.rows[0]?.n ?? 0)).toBe(0);
   });
 
   test("deleting a missing servicing event reports not found", async () => {

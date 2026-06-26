@@ -9,9 +9,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#shared/db/attendees/capacity.ts";
+import { getDb } from "#shared/db/client.ts";
 import {
   createDailyTestListing,
   createServicingHold,
+  createTestListing,
   createTestServicingEvent,
   describeWithEnv,
   renderAdminPage,
@@ -87,5 +89,23 @@ describeWithEnv("servicing edge cases — date boundaries", { db: true }, () => 
     });
     const body = await renderAdminPage("/admin/");
     expect(body).not.toContain("Ancient Service");
+  });
+
+  test("an undated servicing event always appears in upcoming regardless of created date", async () => {
+    // Old filter: COALESCE(DATE(ea.start_at), SUBSTR(a.created, 1, 10)) >= ?
+    // Ages out undated events whose `created` timestamp falls before today.
+    // Fix: (ea.start_at IS NULL OR DATE(ea.start_at) >= ?) — no date = always upcoming.
+    const listing = await createTestListing({ maxAttendees: 10, name: "L" });
+    const { id } = await createTestServicingEvent({
+      bookings: [{ listingId: listing.id, quantity: 1 }],
+      name: "Undated Service",
+    });
+    // Backdate the created timestamp far into the past.
+    await getDb().execute({
+      args: ["2000-01-01T00:00:00.000Z", id],
+      sql: "UPDATE attendees SET created = ? WHERE id = ?",
+    });
+    const body = await renderAdminPage("/admin/");
+    expect(body).toContain("Undated Service");
   });
 });

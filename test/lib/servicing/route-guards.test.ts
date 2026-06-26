@@ -140,5 +140,41 @@ describeWithEnv(
       const { costOf } = await import("#shared/accounting/projection.ts");
       expect(await costOf(heldListing.id)).toBe(9000);
     });
+
+    test("POST /admin/servicing/:id/cost/:costId 404s for a cost from a different event on the SAME listing", async () => {
+      // Regression guard: two events that both hold the same listing. A cost
+      // recorded against event A must not be editable through event B's route,
+      // even though B also holds the listing. The old listing-membership check
+      // would pass for B; the direct service_costs table lookup does not.
+      const sharedListing = await createTestListing({
+        maxAttendees: 20,
+        name: "Shared Listing",
+      });
+      const eventA = await createTestServicingEvent({
+        bookings: [{ listingId: sharedListing.id, quantity: 1 }],
+        name: "Event A",
+      });
+      const eventB = await createTestServicingEvent({
+        bookings: [{ listingId: sharedListing.id, quantity: 1 }],
+        name: "Event B",
+      });
+      const costId = await recordServiceCost({
+        amount: 9000,
+        listingId: sharedListing.id,
+        memo: "Shared listing cost",
+        occurredAt: "2026-07-01T00:00:00.000Z",
+        servicingId: eventA.id,
+      });
+      // Attempting to edit event A's cost through event B's route must 404.
+      const response = await adminPost(
+        `/admin/servicing/${eventB.id}/cost/${costId}`,
+        { amount: "60.00" },
+      );
+      expect(response.status).toBe(404);
+      response.body?.cancel();
+      // The cost is unchanged.
+      const { costOf } = await import("#shared/accounting/projection.ts");
+      expect(await costOf(sharedListing.id)).toBe(9000);
+    });
   },
 );

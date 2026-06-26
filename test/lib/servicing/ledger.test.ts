@@ -39,9 +39,11 @@ import { queryAll } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
 import {
   adminPost,
+  createDailyTestListing,
   createServicingHold,
   createTestAttendeeDirect,
   createTestListing,
+  createTestServicingEvent,
   deleteServicingEvent,
   describeWithEnv,
   editServiceCost,
@@ -518,5 +520,72 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     for (const r of rows) {
       expect(r.memo ?? "").not.toContain("07700 900000");
     }
+  });
+
+  test("a second sequential edit uses the current adjusted amount, not the original", async () => {
+    // Bug: editServiceCost computed delta against the original leg amount,
+    // ignoring prior adjustments. A second edit would double-count the first
+    // adjustment, undershooting the target.
+    // Record £90, edit to £60 (delta −30), then edit again to £50 (delta −10).
+    const { id, listing } = await createServicingHold();
+    const costId = await recordBoilerCost(id, listing.id); // £90
+    await editServiceCost(costId, { amount: 6000 }); // → £60; delta −30
+    await editServiceCost(costId, { amount: 5000 }); // → £50; delta should be −10
+    expect(await costOf(listing.id)).toBe(5000);
+  });
+
+  test("a sequential edit after an increase accumulates the positive adjustment leg correctly", async () => {
+    // Covers the source_type==='cost' branch in the adjLegs accumulator: when
+    // the first edit is an increase (delta > 0) the posted adjustment leg has
+    // source_type='cost', so the accumulator must ADD its amount (not negate).
+    // Record £90, increase to £120 (delta +30), then edit to £100 (delta −20).
+    const { id, listing } = await createServicingHold();
+    const costId = await recordBoilerCost(id, listing.id); // £90
+    await editServiceCost(costId, { amount: 12000 }); // → £120; delta +30
+    await editServiceCost(costId, { amount: 10000 }); // → £100; delta should be −20
+    expect(await costOf(listing.id)).toBe(10000);
+  });
+
+  test("the cost route dates the cost leg to the service event date, not the submit time", async () => {
+    // The route must set occurredAt from the event's booking date, not the
+    // server clock — otherwise cost legs are dated when the form was submitted,
+    // not when the work was done.
+    const listing = await createDailyTestListing({
+      maxAttendees: 5,
+      name: "L",
+    });
+    const { id } = await createTestServicingEvent({
+      bookings: [{ date: "2026-07-01", listingId: listing.id, quantity: 1 }],
+      name: "Dated Service",
+    });
+    await adminPost(`/admin/servicing/${id}`, {
+      amount: "90.00",
+      memo: "Boiler part",
+      target_listing_id: String(listing.id),
+    });
+    const legs = await transfersOfKind("service_cost");
+    expect(legs.length).toBe(1);
+    expect(legs[0]!.occurredAt).toBe("2026-07-01T00:00:00.000Z");
+  });
+
+  test("an operator memo matching the old internal adjustment pattern is not misidentified as an adjustment", async () => {
+    // Old machine memo: 'edit service cost <id>'. If an operator records a cost
+    // with that exact text, the adjustment reader must not count it as an
+    // internal delta (the new machine memo is NUL-prefixed: \x00svc_adj:<id>).
+    const { id, listing } = await createServicingHold();
+    const costId = await recordServiceCost({
+      amount: 9000,
+      listingId: listing.id,
+      memo: `edit service cost ${id}`,
+      occurredAt: SERVICE_DATE,
+      servicingId: id,
+    });
+    await editServiceCost(costId, { amount: 6000 }); // correct delta = −3000
+    expect(await costOf(listing.id)).toBe(6000);
+    const { getServicingCosts } = await import(
+      "#shared/db/attendees/servicing.ts"
+    );
+    const costs = await getServicingCosts(id);
+    expect(costs[0]!.amount).toBe(6000);
   });
 });

@@ -634,13 +634,18 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
       name: "Validation Room",
     });
 
-    await expect(
-      adminPost("/admin/servicing/new", {
-        name: "No Quantity Service",
-        [`${NO_QUANTITY_PREFIX}${listing.id}`]: "1",
-        [`${QTY_PREFIX}${listing.id}`]: "9",
-      }),
-    ).rejects.toThrow("capacity slot");
+    // A no-quantity form submission: the route catches the validation error
+    // and redirects back to the create form (not a 500).
+    const noQtyResponse = await adminPost("/admin/servicing/new", {
+      name: "No Quantity Service",
+      [`${NO_QUANTITY_PREFIX}${listing.id}`]: "1",
+      [`${QTY_PREFIX}${listing.id}`]: "9",
+    });
+    expect(noQtyResponse.status).toBe(302);
+    expect(noQtyResponse.headers.get("location")).toContain(
+      "/admin/servicing/new",
+    );
+    noQtyResponse.body?.cancel();
 
     await expect(
       createTestServicingEvent({

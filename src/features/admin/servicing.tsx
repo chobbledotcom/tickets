@@ -469,6 +469,7 @@ const COST_AMOUNT_LABEL = "cost amount";
 const handleCostPost = async (
   id: number,
   form: FormParams,
+  event: ServicingEvent,
 ): Promise<Response | null> => {
   if (!form.has("amount")) return null;
   const amount = parsePositiveMinorUnits(form.getString("amount"));
@@ -487,11 +488,15 @@ const handleCostPost = async (
       false,
     );
   }
+  const serviceDate = event.bookings[0]?.date;
+  const occurredAt = serviceDate
+    ? `${serviceDate}T00:00:00.000Z`
+    : new Date().toISOString();
   await recordServiceCost({
     amount,
     listingId,
     memo: form.getString("memo"),
-    occurredAt: new Date().toISOString(),
+    occurredAt,
     reference: form.getString("cost_idempotency_key") || undefined,
     servicingId: id,
   });
@@ -506,12 +511,16 @@ const handleServicingNewPost: TypedRouteHandler<"POST /admin/servicing/new"> = (
   request,
 ) =>
   withAuth(request, AUTH_FORM, async (_session, form) => {
-    const event = await createServicingEvent(await parseCreateInput(form));
-    return redirect(
-      `/admin/servicing/${event.id}`,
-      `Created ${event.name}`,
-      true,
-    );
+    try {
+      const event = await createServicingEvent(await parseCreateInput(form));
+      return redirect(
+        `/admin/servicing/${event.id}`,
+        `Created ${event.name}`,
+        true,
+      );
+    } catch (err) {
+      return redirect("/admin/servicing/new", (err as Error).message, false);
+    }
   });
 
 const handleServicingPost: TypedRouteHandler<"POST /admin/servicing/:id"> = (
@@ -519,18 +528,23 @@ const handleServicingPost: TypedRouteHandler<"POST /admin/servicing/:id"> = (
   { id },
 ) =>
   withAuth(request, AUTH_FORM, async (_session, form) => {
-    if (!(await getServicingEvent(id))) return notFoundResponse();
-    const costResponse = await handleCostPost(id, form);
+    const event = await getServicingEvent(id);
+    if (!event) return notFoundResponse();
+    const costResponse = await handleCostPost(id, form, event);
     if (costResponse) return costResponse;
-    const updated = await updateServicingEvent(
-      id,
-      await parseCreateInput(form),
-    );
-    return redirect(
-      `/admin/servicing/${updated.id}`,
-      `Updated ${updated.name}`,
-      true,
-    );
+    try {
+      const updated = await updateServicingEvent(
+        id,
+        await parseCreateInput(form),
+      );
+      return redirect(
+        `/admin/servicing/${updated.id}`,
+        `Updated ${updated.name}`,
+        true,
+      );
+    } catch (err) {
+      return redirect(`/admin/servicing/${id}`, (err as Error).message, false);
+    }
   });
 
 const handleServicingDeletePost: TypedRouteHandler<
@@ -547,12 +561,16 @@ const handleServicingDuplicatePost: TypedRouteHandler<
 > = (request, { id }) =>
   withAuth(request, AUTH_FORM, async () => {
     if (!(await getServicingEvent(id))) return notFoundResponse();
-    const copy = await duplicateServicingEvent(id);
-    return redirect(
-      `/admin/servicing/${copy.id}`,
-      `Duplicated ${copy.name}`,
-      true,
-    );
+    try {
+      const copy = await duplicateServicingEvent(id);
+      return redirect(
+        `/admin/servicing/${copy.id}`,
+        `Duplicated ${copy.name}`,
+        true,
+      );
+    } catch (err) {
+      return redirect(`/admin/servicing/${id}`, (err as Error).message, false);
+    }
   });
 
 const handleServicingCostPost: TypedRouteHandler<
