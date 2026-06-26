@@ -1,10 +1,16 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import {
+  deployLatestReleaseToDeno,
+  deployRelease,
   formatBuildDate,
   isNewerVersion,
   setBuildTimestampForTest,
 } from "#shared/update.ts";
+import { stubReleaseFetch } from "#test-utils/mocks.ts";
 
 describe("update", () => {
   afterEach(() => {
@@ -55,5 +61,58 @@ describe("update", () => {
     test("returns Development build for empty string", () => {
       expect(formatBuildDate("")).toBe("Development build");
     });
+  });
+});
+
+describe("deployRelease", () => {
+  test("downloads an asset URL and deploys to a Bunny script", async () => {
+    const fetchStub = stub(globalThis, "fetch", () =>
+      Promise.resolve(new Response("console.log('asset')", { status: 200 })),
+    );
+    const deployStub = stub(bunnyCdnApi, "deployScriptCode", () =>
+      Promise.resolve({ ok: true as const }),
+    );
+    try {
+      await deployRelease("https://example.com/asset.ts", "9001");
+      expect(deployStub.calls).toHaveLength(1);
+    } finally {
+      deployStub.restore();
+      fetchStub.restore();
+    }
+  });
+
+  test("throws when the deploy fails", async () => {
+    const fetchStub = stub(globalThis, "fetch", () =>
+      Promise.resolve(new Response("code", { status: 200 })),
+    );
+    const deployStub = stub(bunnyCdnApi, "deployScriptCode", () =>
+      Promise.resolve({ error: "upload failed", ok: false as const }),
+    );
+    try {
+      await expect(
+        deployRelease("https://example.com/asset.ts"),
+      ).rejects.toThrow("upload failed");
+    } finally {
+      deployStub.restore();
+      fetchStub.restore();
+    }
+  });
+});
+
+describe("deployLatestReleaseToDeno", () => {
+  test("fetches the latest release and deploys it to a Deno app", async () => {
+    const fetchStub = stubReleaseFetch();
+    const deployStub = stub(denoDeployApi, "deployCode", () =>
+      Promise.resolve({ hostname: "https://app.deno.dev", ok: true as const }),
+    );
+    try {
+      const release = await deployLatestReleaseToDeno("app_123");
+      expect(release.tagName).toBe("v2099-01-01-120000");
+      expect(deployStub.calls).toHaveLength(1);
+      expect(deployStub.calls[0]!.args[0]).toBe("app_123");
+    } finally {
+      deployStub.restore();
+      fetchStub.restore();
+    }
   });
 });

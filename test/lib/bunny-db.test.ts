@@ -2,11 +2,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
-  bunnyDbApi,
+  bunnyDbProvider as bunnyDbApi,
   EUROPEAN_REGIONS,
   STORAGE_REGION,
 } from "#shared/bunny-db.ts";
 import { describeWithEnv, withMocks } from "#test-utils";
+import { testCreateDatabaseReturnsErrorOn403 } from "#test-utils/builder-mocks.ts";
 
 describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
   const dbCreateFetch = (dbId: string, fallback: (url: string) => Response) =>
@@ -192,19 +193,7 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
   });
 
   test("createDatabase returns error when create endpoint fails", async () => {
-    await withMocks(
-      () =>
-        stub(globalThis, "fetch", () =>
-          Promise.resolve(new Response("Forbidden", { status: 403 })),
-        ),
-      async () => {
-        const result = await bunnyDbApi.createDatabase("Bad");
-        expect(result.ok).toBe(false);
-        if (!result.ok) {
-          expect(result.error).toContain("Create database failed (403)");
-        }
-      },
-    );
+    await testCreateDatabaseReturnsErrorOn403(bunnyDbApi);
   });
 
   test("createDatabase returns error when get database endpoint fails with JSON Message", async () => {

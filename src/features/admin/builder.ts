@@ -14,6 +14,11 @@ import {
 import { defineRoutes } from "#routes/router.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { builderApi } from "#shared/builder.ts";
+import {
+  isBunnyDbEnabled,
+  isDenoDeployEnabled,
+  isTursoEnabled,
+} from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllBuiltSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -35,13 +40,13 @@ const toDisplay = (
   sites: Awaited<ReturnType<typeof getAllBuiltSites>>,
 ): BuiltSiteDisplay[] =>
   sites.map((s) => ({
-    bunnyUrl: s.bunnyUrl,
     created: new Date(s.created).toLocaleDateString("en-GB", {
       day: "numeric",
       month: "short",
       year: "numeric",
     }),
     name: s.name,
+    siteUrl: s.siteUrl,
   }));
 
 /** GET /admin/builder — show builder form and built sites list */
@@ -67,14 +72,33 @@ export const builderForm = defineForm({
       type: "text" as const,
     },
     {
-      hint: "Leave blank to auto-provision a new Bunny database",
+      label: "Hosting Provider",
+      name: "hosting_provider",
+      options: [
+        { label: "Bunny Edge Scripting", value: "bunny" },
+        { label: "Deno Deploy", value: "deno" },
+      ] as const,
+      type: "select" as const,
+    },
+    {
+      label: "Database Provider",
+      name: "db_provider",
+      options: [
+        { label: "Bunny DB (auto-provision)", value: "bunny" },
+        { label: "Turso (auto-provision)", value: "turso" },
+        { label: "Manual (enter URL below)", value: "manual" },
+      ] as const,
+      type: "select" as const,
+    },
+    {
+      hint: "Leave blank to auto-provision a database",
       label: "Database URL",
       name: "db_url",
       placeholder: "libsql://your-db.turso.io",
       type: "url" as const,
     },
     {
-      hint: "Leave blank to auto-provision a new Bunny database",
+      hint: "Leave blank to auto-provision a database",
       label: "Database Token",
       name: "db_token",
       placeholder: "Token for the database",
@@ -83,6 +107,20 @@ export const builderForm = defineForm({
   ] as const,
   id: "builder",
 });
+
+/** Return an error message when a DB provider isn't configured, else null. */
+const dbProviderConfigError = (
+  providerVal: string | null | undefined,
+  dbUrl: string | null | undefined,
+): string | null => {
+  if (providerVal === "bunny" && !isBunnyDbEnabled())
+    return "Bunny database is not configured";
+  if (providerVal === "turso" && !isTursoEnabled())
+    return "Turso is not configured";
+  if (providerVal === "manual" && !dbUrl)
+    return "Database URL is required when using manual provider";
+  return null;
+};
 
 const builderPost = createAuthedFormRoute({
   auth: OWNER_FORM,
@@ -102,10 +140,28 @@ const builderPost = createAuthedFormRoute({
       }
     }
 
+    const hostingProvider =
+      values.hosting_provider === "deno"
+        ? ("deno" as const)
+        : ("bunny" as const);
+
+    if (hostingProvider === "deno" && !isDenoDeployEnabled()) {
+      return errorRedirect(BUILDER_PATH, "Deno Deploy is not configured");
+    }
+
+    const dbProviderVal = values.db_provider;
+    const dbProvider =
+      dbProviderVal === "turso" ? ("turso" as const) : ("bunny" as const);
+
+    const dbError = dbProviderConfigError(dbProviderVal, values.db_url);
+    if (dbError) return errorRedirect(BUILDER_PATH, dbError);
+
     const result = await settings.withCurrentTask("builder", () =>
       builderApi.buildSite({
+        dbProvider: dbProviderVal === "manual" ? undefined : dbProvider,
         dbToken: values.db_token ?? undefined,
         dbUrl: values.db_url ?? undefined,
+        hostingProvider,
         siteName: values.site_name,
       }),
     );
@@ -121,7 +177,10 @@ const builderPost = createAuthedFormRoute({
       buildResult.dbUrl,
       buildResult.dbToken,
       form.getString("assignable") === "1",
-      String(buildResult.scriptId),
+      buildResult.hostingId,
+      undefined,
+      buildResult.hostingProvider,
+      buildResult.dbProvider,
     );
     await logActivity(`Built new site: ${values.site_name}`);
 

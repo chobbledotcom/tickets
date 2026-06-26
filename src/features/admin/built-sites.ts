@@ -39,7 +39,10 @@ import {
   loadSiteSecretsStatus,
 } from "#shared/site-secrets.ts";
 import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
-import { deployLatestReleaseToScript } from "#shared/update.ts";
+import {
+  deployLatestReleaseToDeno,
+  deployLatestReleaseToScript,
+} from "#shared/update.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import {
   adminBuiltSiteDeletePage,
@@ -61,13 +64,23 @@ const extractBuiltSiteInput = (
   // validateForm always sets the select's value (a string, "" when omitted), so
   // no nullish fallback is needed — a non-tier string just isn't carried below.
   const updates = String(values.updates);
+  const hostingProvider =
+    String(values.hosting_provider) === "deno"
+      ? ("deno" as const)
+      : ("bunny" as const);
+  const dbProvider =
+    String(values.db_provider) === "turso"
+      ? ("turso" as const)
+      : ("bunny" as const);
   return {
     assignable: values.assignable === "1",
-    bunnyScriptId: String(values.bunny_script_id),
-    bunnyUrl: String(values.bunny_url),
+    dbProvider,
     dbToken: String(values.db_token),
     dbUrl: String(values.db_url),
+    hostingId: String(values.hosting_id),
+    hostingProvider,
     name: String(values.name),
+    siteUrl: String(values.site_url),
     ...(isUpdateTier(updates) ? { updates } : {}),
   };
 };
@@ -186,26 +199,13 @@ const handleEditGet = (request: Request, params: RouteParams) =>
     );
   });
 
-/** POST /admin/built-sites/:id/update — deploy the latest release to the site.
- *
- * Runs the exact self-update path (fetch latest GitHub release, upload + publish
- * its asset) but targets the site's own Bunny script instead of this host's. */
-const handleUpdateSite = ownerPost(async (site, _form, id) => {
-  if (!getEnv("BUNNY_API_KEY")) {
-    return editError(
-      id,
-      "BUNNY_API_KEY is not configured on this host, so sites can't be updated.",
-    );
-  }
-  if (!site.bunnyScriptId) {
-    return editError(
-      id,
-      "This site has no Bunny script ID, so it can't be updated.",
-    );
-  }
-  // The site migrates on its next request after deploy, so require a recent
-  // backup of *this site's* database (taken to our storage by the upgrade
-  // workflow) before pushing a new version.
+type EditResult = Awaited<ReturnType<typeof editError>>;
+
+const runSiteUpdate = async (
+  site: BuiltSite,
+  id: number,
+  deploy: () => Promise<{ tagName: string; name: string }>,
+): Promise<EditResult> => {
   if (!(await hasRecentBackup(undefined, dbName(site.dbUrl)))) {
     return editError(
       id,
@@ -213,9 +213,7 @@ const handleUpdateSite = ownerPost(async (site, _form, id) => {
     );
   }
   try {
-    const result = await settings.withCurrentTask("update", () =>
-      deployLatestReleaseToScript(site.bunnyScriptId),
-    );
+    const result = await settings.withCurrentTask("update", deploy);
     if (!result.ok) return editError(id, result.error);
     await logActivity(
       `Updated built site '${site.name}' to ${result.value.name} (${result.value.tagName})`,
@@ -227,6 +225,47 @@ const handleUpdateSite = ownerPost(async (site, _form, id) => {
   } catch (e) {
     return editError(id, `Update failed: ${(e as Error).message}`);
   }
+};
+
+/** POST /admin/built-sites/:id/update — deploy the latest release to the site. */
+const handleUpdateSite = ownerPost(async (site, _form, id) => {
+  if (site.hostingProvider === "deno") {
+    if (!getEnv("DENO_DEPLOY_TOKEN")) {
+      return editError(
+        id,
+        "DENO_DEPLOY_TOKEN is not configured on this host, so Deno sites can't be updated.",
+      );
+    }
+    if (!site.hostingId) {
+      return editError(
+        id,
+        "This site has no Deno app ID, so it can't be updated.",
+      );
+    }
+    return runSiteUpdate(site, id, () =>
+      deployLatestReleaseToDeno(site.hostingId),
+    );
+  }
+
+  // Bunny path
+  if (!getEnv("BUNNY_API_KEY")) {
+    return editError(
+      id,
+      "BUNNY_API_KEY is not configured on this host, so sites can't be updated.",
+    );
+  }
+  if (!site.hostingId) {
+    return editError(
+      id,
+      "This site has no hosting ID, so it can't be updated.",
+    );
+  }
+  // The site migrates on its next request after deploy, so require a recent
+  // backup of *this site's* database (taken to our storage by the upgrade
+  // workflow) before pushing a new version.
+  return runSiteUpdate(site, id, () =>
+    deployLatestReleaseToScript(site.hostingId),
+  );
 });
 
 /** POST /admin/built-sites/:id/rotate-renewal-token */
@@ -263,7 +302,9 @@ const handleAddSecrets = ownerPost(async (site, _form, id) => {
   if (result.added.length === 0) {
     return editSuccess(id, "No missing secrets — nothing to set");
   }
-  const summary = `${result.added.length} missing secret(s): ${result.added.join(", ")}`;
+  const summary = `${result.added.length} missing secret(s): ${result.added.join(
+    ", ",
+  )}`;
   await logActivity(`Set ${summary} on '${site.name}'`);
   return editSuccess(id, `Set ${summary}`);
 });

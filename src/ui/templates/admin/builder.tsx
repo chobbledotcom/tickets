@@ -4,6 +4,7 @@
 
 import { t } from "#i18n";
 import { builderForm } from "#routes/admin/builder.ts";
+import { getDefaultDbProvider } from "#shared/config.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
@@ -13,7 +14,7 @@ import { Layout } from "#templates/layout.tsx";
 
 export type BuiltSiteDisplay = {
   name: string;
-  bunnyUrl: string;
+  siteUrl: string;
   created: string;
 };
 
@@ -25,7 +26,7 @@ const BuilderForm = (): JSX.Element => (
       <p>{t("builder.create_description")}</p>
     </div>
     <CsrfForm action="/admin/builder" id="builder-form">
-      <Raw html={builderForm.render()} />
+      <Raw html={builderForm.render({ db_provider: getDefaultDbProvider() })} />
       <fieldset>
         <label>
           <input name="assignable" type="checkbox" value="1" />
@@ -65,8 +66,8 @@ const BuiltSitesTable = ({
             <tr>
               <td>{site.name}</td>
               <td>
-                <a href={site.bunnyUrl} rel="noopener" target="_blank">
-                  {site.bunnyUrl}
+                <a href={site.siteUrl} rel="noopener" target="_blank">
+                  {site.siteUrl}
                 </a>
               </td>
               <td>{site.created}</td>

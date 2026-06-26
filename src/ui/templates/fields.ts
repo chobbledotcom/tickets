@@ -632,9 +632,9 @@ export const getBuiltSiteFields = (): Field[] => [
     type: "text",
   },
   {
-    label: t("fields.built_site.bunny_url"),
-    name: "bunny_url",
-    placeholder: t("fields.built_site.bunny_url_placeholder"),
+    label: t("fields.built_site.site_url"),
+    name: "site_url",
+    placeholder: t("fields.built_site.site_url_placeholder"),
     required: true,
     type: "url",
     validate: validateHttpsDomainUrl,
@@ -652,10 +652,28 @@ export const getBuiltSiteFields = (): Field[] => [
     type: "password",
   },
   {
-    label: t("fields.built_site.bunny_script_id"),
-    name: "bunny_script_id",
-    placeholder: t("fields.built_site.bunny_script_id_placeholder"),
+    label: t("fields.built_site.hosting_id"),
+    name: "hosting_id",
+    placeholder: t("fields.built_site.hosting_id_placeholder"),
     type: "text",
+  },
+  {
+    label: t("fields.built_site.hosting_provider"),
+    name: "hosting_provider",
+    options: [
+      { label: "Bunny", value: "bunny" },
+      { label: "Deno Deploy", value: "deno" },
+    ],
+    type: "select",
+  },
+  {
+    label: t("fields.built_site.db_provider"),
+    name: "db_provider",
+    options: [
+      { label: "Bunny DB", value: "bunny" },
+      { label: "Turso", value: "turso" },
+    ],
+    type: "select",
   },
   {
     hint: t("fields.built_site.assignable_hint"),

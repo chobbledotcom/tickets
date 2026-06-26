@@ -263,7 +263,7 @@ describeWithEnv("renewals", { db: true }, () => {
     "applyRenewalsForEntries pushes READ_ONLY_FROM, logs activity, persists cutoff",
     withRenewalTest({ quantity: 2 }, async ({ baseDate, secretStub, site }) => {
       const { scriptId, secretValue } = expectReadOnlyFromPush(secretStub);
-      expect(scriptId).toBe(Number(site.bunnyScriptId));
+      expect(scriptId).toBe(Number(site.hostingId));
       expect(secretValue).toBe(addMonthsIso(baseDate, 2));
       await expectReadOnlyFrom(site, addMonthsIso(baseDate, 2));
 

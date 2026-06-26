@@ -11,9 +11,10 @@ import {
   getBunnyDnsZoneId,
   getBunnyScriptId,
 } from "#shared/config.ts";
-import { type FetchResult, fetchText } from "#shared/fetch.ts";
+import { type FetchResult, fetchText, parseApiError } from "#shared/fetch.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { delay } from "#shared/now.ts";
+import type { HostingProviderApi } from "#shared/provider-types.ts";
 
 const BUNNY_API_BASE = "https://api.bunny.net";
 
@@ -112,26 +113,24 @@ const getCdnHostnameImpl = (): Promise<CdnHostnameResult> =>
 const okOrError = (response: FetchResult, label: string): BunnyApiResult =>
   response.ok ? { ok: true } : parseBunnyError(response, label);
 
+/** Extract the Bunny-specific ErrorKey from a raw response body, if present. */
+const extractBunnyErrorKey = (text: string): string | undefined => {
+  try {
+    const json = JSON.parse(text) as { ErrorKey?: string };
+    return json.ErrorKey;
+  } catch {
+    return undefined;
+  }
+};
+
 /** Parse a Bunny API error response into a BunnyApiResult. */
 export const parseBunnyError = (
   response: FetchResult,
   label: string,
-): BunnyApiResult & { ok: false } => {
-  let message = response.text;
-  let errorKey: string | undefined;
-  try {
-    const json = JSON.parse(response.text);
-    if (json.Message) message = json.Message;
-    if (json.ErrorKey) errorKey = json.ErrorKey;
-  } catch {
-    /* use raw text */
-  }
-  return {
-    error: `${label} failed (${response.status}): ${message}`,
-    errorKey,
-    ok: false,
-  };
-};
+): BunnyApiResult & { ok: false } => ({
+  ...parseApiError(response, label, ["Message"]),
+  errorKey: extractBunnyErrorKey(response.text),
+});
 
 /** POST to a Bunny CDN pull zone endpoint with JSON body. */
 const pullZonePost = async (
@@ -571,6 +570,58 @@ const deployScriptCodeImpl = async (
   }
 
   return publishScript(scriptId, "Publish script");
+};
+
+// ---------------------------------------------------------------------------
+// Hosting provider interface implementation (site builder + secrets backfill)
+// ---------------------------------------------------------------------------
+
+export const bunnyHostingProvider: HostingProviderApi = {
+  configEnvVar: "BUNNY_API_KEY",
+  async createSite(name, code, secrets) {
+    const createResult = await bunnyCdnApi.createEdgeScript(name, code);
+    if (!createResult.ok) return createResult;
+    const { scriptId, pullZoneId, defaultHostname } = createResult;
+    const pzResult = await bunnyCdnApi.updatePullZone(pullZoneId, {
+      DisableCookies: false,
+    });
+    if (!pzResult.ok) return pzResult;
+    const allSecrets: [string, string][] = [
+      ...secrets,
+      ["BUNNY_SCRIPT_ID", String(scriptId)],
+    ];
+    for (const [secretName, secretValue] of allSecrets) {
+      const r = await bunnyCdnApi.setEdgeScriptSecret(
+        scriptId,
+        secretName,
+        secretValue,
+      );
+      if (!r.ok)
+        return {
+          error: `Failed to set secrets: ${r.error}`,
+          ok: false as const,
+        };
+    }
+    const publishResult = await bunnyCdnApi.publishEdgeScript(scriptId);
+    if (!publishResult.ok) return publishResult;
+    return { defaultHostname, hostingId: String(scriptId), ok: true as const };
+  },
+  async getSecretNames(hostingId) {
+    const result = await bunnyCdnApi.listEdgeScriptSecrets(Number(hostingId));
+    return result.ok
+      ? { names: result.secrets.map((s) => s.Name), ok: true as const }
+      : result;
+  },
+  async setSecrets(hostingId, secrets) {
+    const scriptId = Number(hostingId);
+    if (Number.isNaN(scriptId))
+      return { error: "No hostingId", ok: false as const };
+    for (const [name, value] of secrets) {
+      const r = await bunnyCdnApi.setEdgeScriptSecret(scriptId, name, value);
+      if (!r.ok) return r;
+    }
+    return { ok: true as const };
+  },
 };
 
 /** Stubbable API for testing */

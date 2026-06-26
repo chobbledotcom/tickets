@@ -3,7 +3,7 @@
   "built_sites.list_title": "Built Sites",
   "built_sites.build_new_site": "Build New Site",
   "built_sites.no_built_sites": "No built sites recorded.",
-  "built_sites.table_bunny_url": "Bunny URL",
+  "built_sites.table_site_url": "Site URL",
   "built_sites.table_updates": "Updates",
   "built_sites.table_read_only": "Read-only from",
   "built_sites.status_assigned": "Assigned (attendee #{id, number})",
@@ -59,6 +59,6 @@
   "built_sites.update_up_to_date": "This site is on the latest known release.",
   "built_sites.update_button": "Update this site",
   "built_sites.update_confirm": "Deploy the latest release to this site now?",
-  "built_sites.update_unavailable": "Automatic update needs BUNNY_API_KEY on this host and a Bunny script ID on this site.",
+  "built_sites.update_unavailable": "Automatic update needs the provider API key on this host (BUNNY_API_KEY or DENO_DEPLOY_TOKEN) and a hosting ID on this site.",
   "built_sites.delete_label": "Site name"
 }

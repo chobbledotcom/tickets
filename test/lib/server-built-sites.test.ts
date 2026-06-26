@@ -38,8 +38,8 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
 
     test("shows built sites in table when present", async () => {
       const site = await createTestBuiltSite({
-        bunnyUrl: "https://mysite.b-cdn.net",
         name: "My Site",
+        siteUrl: "https://mysite.b-cdn.net",
       });
       const response = await adminGet("/admin/built-sites");
       const html = await expectHtmlResponse(
@@ -89,15 +89,15 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
 
     test("displays script IDs separated by pipes below the table", async () => {
       await createTestBuiltSite({
-        bunnyScriptId: "1111",
+        hostingId: "1111",
         name: "Site 1",
       });
       await createTestBuiltSite({
-        bunnyScriptId: "222",
+        hostingId: "222",
         name: "Site 2",
       });
       await createTestBuiltSite({
-        bunnyScriptId: "",
+        hostingId: "",
         name: "Site 3",
       });
       const response = await adminGet("/admin/built-sites");
@@ -108,7 +108,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
 
     test("displays empty string when no script IDs present", async () => {
       await createTestBuiltSite({
-        bunnyScriptId: "",
+        hostingId: "",
         name: "No Script",
       });
       const response = await adminGet("/admin/built-sites");
@@ -154,10 +154,10 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         200,
         "Add Built Site",
         "Site Name",
-        "Bunny URL",
+        "Site URL",
         "Database URL",
         "Database Token",
-        "Bunny Script ID",
+        "Hosting ID",
       );
     });
   });
@@ -165,25 +165,25 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
   describe("POST /admin/built-sites", () => {
     testRequiresAuth("/admin/built-sites", {
       body: {
-        bunny_url: "https://test.b-cdn.net",
         name: "Test",
+        site_url: "https://test.b-cdn.net",
       },
       method: "POST",
     });
 
     test("creates built site and redirects", async () => {
       const site = await createTestBuiltSite({
-        bunnyUrl: "https://new.b-cdn.net",
         name: "New Site",
+        siteUrl: "https://new.b-cdn.net",
       });
       expect(site.name).toBe("New Site");
-      expect(site.bunnyUrl).toBe("https://new.b-cdn.net");
+      expect(site.siteUrl).toBe("https://new.b-cdn.net");
     });
 
     test("creates built site without db credentials", async () => {
       const { response } = await adminFormPost("/admin/built-sites", {
-        bunny_url: "https://nodb.b-cdn.net",
         name: "No DB Site",
+        site_url: "https://nodb.b-cdn.net",
       });
       await expectFlashRedirect(
         "/admin/built-sites",
@@ -193,8 +193,8 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
 
     test("rejects missing name", async () => {
       const { response } = await adminFormPost("/admin/built-sites", {
-        bunny_url: "https://test.b-cdn.net",
         name: "",
+        site_url: "https://test.b-cdn.net",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -204,29 +204,29 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       );
     });
 
-    test("rejects missing bunny_url", async () => {
+    test("rejects missing site_url", async () => {
       const { response } = await adminFormPost("/admin/built-sites", {
-        bunny_url: "",
         name: "Test",
+        site_url: "",
       });
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Bunny URL is required"),
+        expect.stringContaining("Site URL is required"),
         false,
       );
     });
 
     test("rejects http, localhost and IP bunny URLs", async () => {
-      for (const bunnyUrl of [
+      for (const siteUrl of [
         "http://test.b-cdn.net",
         "https://localhost",
         "https://1.1.1.1",
         "https://[::1]/",
       ]) {
         const { response } = await adminFormPost("/admin/built-sites", {
-          bunny_url: bunnyUrl,
           name: "Test",
+          site_url: siteUrl,
         });
         expect(response.status).toBe(302);
         expectFlash(
@@ -235,6 +235,24 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
           false,
         );
       }
+    });
+
+    test("stores deno hosting_provider when submitted", async () => {
+      const site = await createTestBuiltSite({
+        hostingProvider: "deno",
+        name: "Deno Hosted",
+        siteUrl: "https://app.deno.dev",
+      });
+      expect(site.hostingProvider).toBe("deno");
+    });
+
+    test("stores turso db_provider when submitted", async () => {
+      const site = await createTestBuiltSite({
+        dbProvider: "turso",
+        name: "Turso DB Site",
+        siteUrl: "https://turso-site.b-cdn.net",
+      });
+      expect(site.dbProvider).toBe("turso");
     });
   });
 
@@ -247,9 +265,9 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
 
     test("shows edit form with pre-filled values", async () => {
       const site = await createTestBuiltSite({
-        bunnyScriptId: "54321",
-        bunnyUrl: "https://editme.b-cdn.net",
+        hostingId: "54321",
         name: "Edit Me",
+        siteUrl: "https://editme.b-cdn.net",
       });
       const response = await adminGet(`/admin/built-sites/${site.id}/edit`);
       await expectHtmlResponse(
@@ -264,7 +282,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
 
     test("renders the Secrets and Delete sections", async () => {
       const site = await createTestBuiltSite({
-        bunnyScriptId: "8000",
+        hostingId: "8000",
         name: "Sections",
       });
       const response = await adminGet(`/admin/built-sites/${site.id}/edit`);
@@ -305,8 +323,8 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
   describe("POST /admin/built-sites/:id/edit", () => {
     testRequiresAuth("/admin/built-sites/1/edit", {
       body: {
-        bunny_url: "https://updated.b-cdn.net",
         name: "Updated",
+        site_url: "https://updated.b-cdn.net",
       },
       method: "POST",
       setup: async () => {
@@ -324,19 +342,19 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
 
     test("updates bunny script id", async () => {
       const site = await createTestBuiltSite({
-        bunnyScriptId: "111",
+        hostingId: "111",
         name: "ScriptIdSite",
       });
       const updated = await updateTestBuiltSite(site.id, {
-        bunnyScriptId: "999",
+        hostingId: "999",
       });
-      expect(updated.bunnyScriptId).toBe("999");
+      expect(updated.hostingId).toBe("999");
     });
 
     test("returns 404 for non-existent built site", async () => {
       const { response } = await adminFormPost("/admin/built-sites/999/edit", {
-        bunny_url: "https://test.b-cdn.net",
         name: "Test",
+        site_url: "https://test.b-cdn.net",
       });
       expectStatus(404)(response);
     });
@@ -346,8 +364,8 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/edit`,
         {
-          bunny_url: "https://test.b-cdn.net",
           name: "",
+          site_url: "https://test.b-cdn.net",
         },
       );
       expect(response.status).toBe(302);
@@ -497,10 +515,10 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       );
       const values = builtSiteToFieldValues();
       expect(values.name).toBe("");
-      expect(values.bunny_url).toBe("");
+      expect(values.site_url).toBe("");
       expect(values.db_url).toBe("");
       expect(values.db_token).toBe("");
-      expect(values.bunny_script_id).toBe("");
+      expect(values.hosting_id).toBe("");
       expect(values.assignable).toBe("");
     });
 
@@ -509,18 +527,18 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         "#templates/admin/built-sites.tsx"
       );
       const site = testBuiltSite({
-        bunnyScriptId: "42",
-        bunnyUrl: "https://test.b-cdn.net",
         dbToken: "tok123",
         dbUrl: "libsql://test.turso.io",
+        hostingId: "42",
         name: "Test",
+        siteUrl: "https://test.b-cdn.net",
       });
       const values = builtSiteToFieldValues(site);
       expect(values.name).toBe("Test");
-      expect(values.bunny_url).toBe("https://test.b-cdn.net");
+      expect(values.site_url).toBe("https://test.b-cdn.net");
       expect(values.db_url).toBe("libsql://test.turso.io");
       expect(values.db_token).toBe("tok123");
-      expect(values.bunny_script_id).toBe("42");
+      expect(values.hosting_id).toBe("42");
       expect(values.assignable).toBe("");
     });
 
@@ -575,7 +593,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       // the channel to the default — the route only carries a recognised value.
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/edit`,
-        { bunny_url: site.bunnyUrl, name: "Keep Beta Renamed" },
+        { name: "Keep Beta Renamed", site_url: site.siteUrl },
       );
       expect(response.status).toBe(302);
       const { builtSitesCrudTable } = await import("#shared/db/built-sites.ts");
@@ -586,8 +604,8 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
 
     test("rejects an unknown channel value", async () => {
       const { response } = await adminFormPost("/admin/built-sites", {
-        bunny_url: "https://chan.b-cdn.net",
         name: "Bad Channel",
+        site_url: "https://chan.b-cdn.net",
         updates: "stable",
       });
       expect(response.status).toBe(302);
@@ -611,8 +629,8 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
   describe("edit/delete error fallback", () => {
     test("returns 404 when built site not found during edit error", async () => {
       const { response } = await adminFormPost("/admin/built-sites/999/edit", {
-        bunny_url: "https://test.b-cdn.net",
         name: "",
+        site_url: "https://test.b-cdn.net",
       });
       expectStatus(404)(response);
     });
