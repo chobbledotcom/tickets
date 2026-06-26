@@ -104,6 +104,9 @@ export const getBunnyApiKey = (): string => requireEnv("BUNNY_API_KEY");
 export const isBunnyDnsEnabled = (): boolean =>
   !!getEnv("BUNNY_API_KEY") && !!getEnv("BUNNY_DNS_ZONE_ID");
 
+/** Check if the Bunny hosted database provider is enabled (requires BUNNY_API_KEY). */
+export const isBunnyDbEnabled = (): boolean => !!getEnv("BUNNY_API_KEY");
+
 /** Get the Bunny DNS zone ID from environment */
 export const getBunnyDnsZoneId = (): string => requireEnv("BUNNY_DNS_ZONE_ID");
 

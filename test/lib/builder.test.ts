@@ -4,7 +4,7 @@ import { stub } from "@std/testing/mock";
 import { builderApi } from "#shared/builder.ts";
 import { bunnyDbProvider as bunnyDbApi } from "#shared/bunny-db.ts";
 import { tursoDbProvider as tursoApi } from "#shared/turso-api.ts";
-import { describeWithEnv, withMocks } from "#test-utils";
+import { describeWithEnv, setTestEnv, withMocks } from "#test-utils";
 import {
   expectBuildError,
   expectSecret,
@@ -398,5 +398,34 @@ describeWithEnv(
           }
         },
       ));
+
+    test("buildSite on Deno does not include Bunny DNS secrets in env vars", () => {
+      const restore = setTestEnv({
+        BUNNY_API_KEY: "host-bunny-key",
+        BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
+        BUNNY_DNS_ZONE_ID: "zone-123",
+      });
+      try {
+        return withMocks(
+          () => stubDenoBuilderApis(),
+          async ({ setEnvStub }) => {
+            const result = await builderApi.buildSite({
+              dbToken: "tok",
+              dbUrl: "libsql://test.turso.io",
+              hostingProvider: "deno",
+              siteName: "Deno Site",
+            });
+            expect(result.ok).toBe(true);
+            const secrets = setEnvStub.calls[0]!.args[1] as [string, string][];
+            const names = secrets.map(([name]) => name);
+            expect(names).not.toContain("BUNNY_API_KEY");
+            expect(names).not.toContain("BUNNY_DNS_ZONE_ID");
+            expect(names).not.toContain("BUNNY_DNS_SUBDOMAIN_SUFFIX");
+          },
+        );
+      } finally {
+        restore();
+      }
+    });
   },
 );

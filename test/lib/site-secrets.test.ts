@@ -86,6 +86,55 @@ describeWithEnv(
 );
 
 describeWithEnv(
+  "collectHostSecrets (Deno provider)",
+  {
+    env: {
+      BUNNY_API_KEY: "host-key",
+      BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
+      BUNNY_DNS_ZONE_ID: "zone-1",
+      NTFY_URL: "https://ntfy.example.com/t",
+    },
+  },
+  () => {
+    test("excludes Bunny-only secrets for a Deno hosting provider", () => {
+      const names = collectHostSecrets("deno").map(([name]) => name);
+      expect(names).toContain("NTFY_URL");
+      expect(names).not.toContain("BUNNY_API_KEY");
+      expect(names).not.toContain("BUNNY_DNS_ZONE_ID");
+      expect(names).not.toContain("BUNNY_DNS_SUBDOMAIN_SUFFIX");
+    });
+
+    test("includes Bunny-only secrets for a Bunny hosting provider", () => {
+      const names = collectHostSecrets("bunny").map(([name]) => name);
+      expect(names).toContain("BUNNY_API_KEY");
+      expect(names).toContain("BUNNY_DNS_ZONE_ID");
+      expect(names).toContain("BUNNY_DNS_SUBDOMAIN_SUFFIX");
+    });
+  },
+);
+
+describeWithEnv(
+  "expectedSiteSecrets (Deno site, Bunny env vars set)",
+  {
+    env: {
+      BUNNY_API_KEY: "host-key",
+      BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
+      BUNNY_DNS_ZONE_ID: "zone-1",
+    },
+  },
+  () => {
+    test("excludes Bunny DNS secrets for a Deno-hosted site", () => {
+      const names = expectedNamesFor(
+        buildSite({ hostingId: "app_abc", hostingProvider: "deno" }),
+      );
+      expect(names).not.toContain("BUNNY_API_KEY");
+      expect(names).not.toContain("BUNNY_DNS_ZONE_ID");
+      expect(names).not.toContain("BUNNY_DNS_SUBDOMAIN_SUFFIX");
+    });
+  },
+);
+
+describeWithEnv(
   "expectedSiteSecrets",
   { env: { NTFY_URL: "https://ntfy.example.com/t" } },
   () => {
@@ -95,6 +144,13 @@ describeWithEnv(
       expect(pairs).toContainEqual(["DB_TOKEN", "tok-123"]);
       expect(pairs).toContainEqual(["BUNNY_SCRIPT_ID", "555"]);
       expect(pairs).toContainEqual(["NTFY_URL", "https://ntfy.example.com/t"]);
+    });
+
+    test("does not include BUNNY_SCRIPT_ID for a Deno-hosted site", () => {
+      const names = expectedNamesFor(
+        buildSite({ hostingId: "app_abc", hostingProvider: "deno" }),
+      );
+      expect(names).not.toContain("BUNNY_SCRIPT_ID");
     });
 
     test("never includes DB_ENCRYPTION_KEY (it cannot be reproduced)", () => {

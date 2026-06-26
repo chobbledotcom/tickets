@@ -14,7 +14,11 @@ import {
 import { defineRoutes } from "#routes/router.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { builderApi } from "#shared/builder.ts";
-import { isDenoDeployEnabled, isTursoEnabled } from "#shared/config.ts";
+import {
+  isBunnyDbEnabled,
+  isDenoDeployEnabled,
+  isTursoEnabled,
+} from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllBuiltSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -104,6 +108,20 @@ export const builderForm = defineForm({
   id: "builder",
 });
 
+/** Return an error message when a DB provider isn't configured, else null. */
+const dbProviderConfigError = (
+  providerVal: string | null | undefined,
+  dbUrl: string | null | undefined,
+): string | null => {
+  if (providerVal === "bunny" && !isBunnyDbEnabled())
+    return "Bunny database is not configured";
+  if (providerVal === "turso" && !isTursoEnabled())
+    return "Turso is not configured";
+  if (providerVal === "manual" && !dbUrl)
+    return "Database URL is required when using manual provider";
+  return null;
+};
+
 const builderPost = createAuthedFormRoute({
   auth: OWNER_FORM,
   form: builderForm,
@@ -135,16 +153,8 @@ const builderPost = createAuthedFormRoute({
     const dbProvider =
       dbProviderVal === "turso" ? ("turso" as const) : ("bunny" as const);
 
-    if (dbProvider === "turso" && !isTursoEnabled()) {
-      return errorRedirect(BUILDER_PATH, "Turso is not configured");
-    }
-
-    if (dbProviderVal === "manual" && !values.db_url) {
-      return errorRedirect(
-        BUILDER_PATH,
-        "Database URL is required when using manual provider",
-      );
-    }
+    const dbError = dbProviderConfigError(dbProviderVal, values.db_url);
+    if (dbError) return errorRedirect(BUILDER_PATH, dbError);
 
     const result = await settings.withCurrentTask("builder", () =>
       builderApi.buildSite({

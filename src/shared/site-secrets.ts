@@ -36,7 +36,7 @@ export const expectedSiteSecrets = (site: BuiltSite): [string, string][] => {
   if (site.hostingProvider !== "deno" && site.hostingId) {
     base.push(["BUNNY_SCRIPT_ID", site.hostingId]);
   }
-  return [...base, ...collectHostSecrets()];
+  return [...base, ...collectHostSecrets(site.hostingProvider)];
 };
 
 /** Pick the host-level infrastructure credential names out of a name list, so

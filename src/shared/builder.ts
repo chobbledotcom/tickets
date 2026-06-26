@@ -39,7 +39,7 @@ import { fetchLatestRelease } from "#shared/update.ts";
  * stays aware. Keeping sensitivity here, on the single source list, stops it
  * drifting from a hand-maintained parallel list.
  */
-type HostSecret = { name: string; hostInfra?: boolean };
+type HostSecret = { name: string; hostInfra?: boolean; bunnyOnly?: boolean };
 
 const HOST_SECRETS: readonly HostSecret[] = [
   { name: "NTFY_URL" },
@@ -50,9 +50,9 @@ const HOST_SECRETS: readonly HostSecret[] = [
   { name: "HOST_EMAIL_PROVIDER" },
   { hostInfra: true, name: "HOST_EMAIL_API_KEY" },
   { name: "HOST_EMAIL_FROM_ADDRESS" },
-  { hostInfra: true, name: "BUNNY_API_KEY" },
-  { hostInfra: true, name: "BUNNY_DNS_ZONE_ID" },
-  { name: "BUNNY_DNS_SUBDOMAIN_SUFFIX" },
+  { bunnyOnly: true, hostInfra: true, name: "BUNNY_API_KEY" },
+  { bunnyOnly: true, hostInfra: true, name: "BUNNY_DNS_ZONE_ID" },
+  { bunnyOnly: true, name: "BUNNY_DNS_SUBDOMAIN_SUFFIX" },
   { name: "APPLE_WALLET_PASS_TYPE_ID" },
   { name: "APPLE_WALLET_TEAM_ID" },
   { hostInfra: true, name: "APPLE_WALLET_SIGNING_CERT" },
@@ -129,12 +129,18 @@ export const testDbConnection = async (
  * Collect the host-environment secrets that are currently set, as [name, value]
  * pairs. These are copied onto every freshly built site, and backfilled onto
  * existing sites that are missing them (see #shared/site-secrets.ts).
+ * Secrets tagged `bunnyOnly` are excluded for non-Bunny hosting providers
+ * (e.g. Deno sites have no Bunny script ID, so `isBunnyDnsEnabled()` must
+ * stay false to avoid surfacing a DNS form that would fail at runtime).
  */
-export const collectHostSecrets = (): [string, string][] => {
+export const collectHostSecrets = (
+  hostingProvider: HostingProvider = "bunny",
+): [string, string][] => {
   const secrets: [string, string][] = [];
-  for (const key of HOST_SECRET_KEYS) {
-    const value = getEnv(key);
-    if (value) secrets.push([key, value]);
+  for (const { name, bunnyOnly } of HOST_SECRETS) {
+    if (bunnyOnly && hostingProvider !== "bunny") continue;
+    const value = getEnv(name);
+    if (value) secrets.push([name, value]);
   }
   return secrets;
 };
@@ -220,7 +226,7 @@ const buildSiteOnProvider = async (
   const encryptionKey = builderApi.generateEncryptionKey();
   const secrets: [string, string][] = [
     ...buildBaseSecrets(dbCredentials, encryptionKey),
-    ...collectHostSecrets(),
+    ...collectHostSecrets(hostingProvider),
   ];
   const result = await resolveHostingProvider(hostingProvider).createSite(
     fullName,

@@ -180,6 +180,24 @@ describeWithEnv(
       }
     });
 
+    test("POST /admin/builder returns error when Bunny DB is not configured", async () => {
+      const restoreEnv = setTestEnv({ BUNNY_API_KEY: undefined });
+      try {
+        const { response } = await adminFormPost("/admin/builder", {
+          db_provider: "bunny",
+          site_name: "Bunny DB Site",
+        });
+        expectRedirect(response, "/admin/builder");
+        expectFlash(
+          response,
+          expect.stringContaining("Bunny database is not configured"),
+          false,
+        );
+      } finally {
+        restoreEnv();
+      }
+    });
+
     test("POST /admin/builder returns error when Turso is not configured", async () => {
       const restoreEnv = setTestEnv({
         TURSO_API_TOKEN: undefined,
