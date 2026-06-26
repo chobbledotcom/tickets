@@ -163,9 +163,11 @@ export const N_PLUS_ONE_THRESHOLD = 25;
  * chatty writes onto it. Set above the largest legitimate interactive
  * transaction; anything that grows with input size (a big attendee merge, a
  * per-leg ledger post) must prepare its reads outside the lock and apply its
- * writes as one batch instead.
+ * writes as one batch instead. The current high-water mark is recreateTable
+ * on attendee_answers: 8 DROP TRIGGER + 5 rebuild + 6 CREATE INDEX +
+ * 8 CREATE TRIGGER = 27 statements; the threshold sits above that.
  */
-export const TRANSACTION_ROUNDTRIP_THRESHOLD = 20;
+export const TRANSACTION_ROUNDTRIP_THRESHOLD = 30;
 
 /**
  * When true, an N+1 violation is reported via the error log instead of thrown.
