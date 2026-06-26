@@ -3,8 +3,11 @@
  *
  * The trigger-maintained split (`booked_quantity` counts servicing, `tickets_count`
  * doesn't) is tested in §10 for the INSERT path. These cover the UPDATE, the
- * mixed-kind listing (production reality), the edit-to-zero edge, and
- * corruption — each a path where the split can silently rot.
+ * mixed-kind listing (production reality), and the edit-to-zero edge — each a
+ * path where the split can silently rot. (A NULL-kind "corrupted" row was
+ * previously pinned here too, but the 2026-06-26_attendees_kind_not_null
+ * migration made `attendees.kind` a real NOT NULL invariant, so such a row can
+ * no longer be inserted and the recompute no longer needs to defend against it.)
  */
 // jscpd:ignore-start
 import { expect } from "@std/expect";
@@ -88,33 +91,6 @@ describeWithEnv(
       const after = await reloadAggregates(listing.id);
       expect(after?.attendee_count).toBe(4);
       expect(after?.tickets_count).toBe(1);
-    });
-
-    test("a corrupted row with kind=NULL is counted into booked_quantity but not tickets_count", async () => {
-      // A NULL-kind row (impossible per the CHECK constraint, but the test
-      // pins the recompute's behaviour if the constraint is ever bypassed):
-      // booked_quantity sums every quantity > 0 row regardless of kind, while
-      // tickets_count's kind='attendee' predicate excludes NULL.
-      const listing = await createTestListing({ maxAttendees: 10, name: "L" });
-      await createServicingHold({ listing: { name: "L" }, quantity: 2 });
-      // Manually corrupt a row: insert an attendee with kind=NULL + a booking.
-      const tokenIdx = `corrupt-${crypto.randomUUID()}`;
-      const attendeeRes = await getDb().execute({
-        args: [tokenIdx],
-        sql: "INSERT INTO attendees (created, ticket_token_index, pii_blob, kind) VALUES ('2026-01-01T00:00:00Z', ?, '', NULL)",
-      });
-      const corruptId = Number(attendeeRes.lastInsertRowid);
-      await getDb().execute({
-        args: [listing.id, corruptId, 5],
-        sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity, start_at, end_at) VALUES (?, ?, ?, '2026-07-01T00:00:00Z', '2026-07-02T00:00:00Z')",
-      });
-      const recalc = await getListingAggregateRecalculation(
-        (await reloadAggregates(listing.id))!,
-      );
-      // booked_quantity counts both (2 + 5 = 7); tickets_count excludes both
-      // (servicing is kind='servicing', the corrupt row is kind=NULL).
-      expect(recalc.booked_quantity.recalculated).toBe(7);
-      expect(recalc.tickets_count.recalculated).toBe(0);
     });
 
     test("editing a servicing hold's quantity to 0 (if allowed) drops booked_quantity by the original", async () => {

@@ -1,5 +1,29 @@
 # Servicing Events — Planning Doc
 
+> **Historical planning document.** The implementation in
+> `src/shared/db/attendees/servicing.ts`, `src/features/admin/servicing.tsx`,
+> `src/shared/accounting/projection.ts`, and the `test/lib/servicing/` suite is
+> the source of truth. Key divergences from this plan (checked 2026-06-27):
+> - `attendees.kind` is a real `NOT NULL` constraint (migration
+>   `2026-06-26_attendees_kind_not_null`), not the nullable `CHECK (… IS NULL …)`
+>   shape the plan proposed.
+> - Service costs are first-class editable records backed by a `service_costs`
+>   table (migration `2026-06-27_service_costs`), with a per-event cost list on
+>   `/admin/servicing/:id` — not just a Record Cost form. Cost posts carry a
+>   per-form idempotency key so a double-submit doesn't double-post.
+> - The dashboard's upcoming service-events block renders as a compact `<ul>`
+>   list (one entry per event, grouping multi-listing holds), not a table
+>   renderer reuse. `/admin/servicing` renders one row per event with joined
+>   listing names.
+> - `profitOf` reads recognised (gross) income via the same subquery as
+>   `listingProfitSubquery`, not the net revenue balance — so a refund doesn't
+>   diverge the pure projection from the listing row.
+> - The calendar CSV includes servicing rows with a "Type" column
+>   (`Service event` / `Attendee`) and omits their dead `/t/` ticket URL.
+> - Servicing create/update compensates on side-effect failure (deletes the
+>   attendee / restores the pre-edit state) rather than wrapping in one
+>   transaction, since edge-runtime batches don't nest reliably.
+
 ## Goal
 
 Let an operator block out **quantities of a listing for specific times** by

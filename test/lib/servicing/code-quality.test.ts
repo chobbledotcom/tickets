@@ -70,9 +70,11 @@ describe("servicing §20 — servicing query readers reuse the shared SELECT con
     );
     const src = await readFile(servicingReaderPath);
     // The shared column list is imported and the kind predicate filters it —
-    // not a copy-pasted column list.
+    // not a copy-pasted column list. The kind is bound as a SERVICING_KIND
+    // parameter (not a hard-coded SQL string) so the value can't drift from
+    // the constant.
     expect(src).toContain("ATTENDEE_JOIN_SELECT");
-    expect(src).toMatch(/kind\s*=\s*['"]servicing['"]/);
+    expect(src).toContain("SERVICING_KIND");
     // And it does NOT hand-list the attendee columns (a copy-paste giveaway).
     expect(src).not.toMatch(/a\.pii_blob,\s*a\.status_id/);
   });

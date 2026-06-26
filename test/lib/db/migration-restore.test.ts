@@ -291,10 +291,12 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
     // backfill (data-only), the seven column-drop migrations (drop_transfers_
     // currency, drop_listing_income, drop_listing_attendee_refunded,
     // drop_listing_attendee_price_paid, drop_attendees_price_paid,
-    // drop_attendees_remaining_balance and drop_modifiers_total_revenue), and the
+    // drop_attendees_remaining_balance and drop_modifiers_total_revenue), the
     // ticket-count-no-quantity trigger rewrite (it drops and re-syncs the
-    // aggregate triggers from SCHEMA, owning no additive objects to rebuild).
-    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 12);
+    // aggregate triggers from SCHEMA, owning no additive objects to rebuild), and
+    // the attendees.kind NOT NULL tightening (an empty-`requires` constraint
+    // rebuild owning no additive objects to drop/restore).
+    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 13);
   });
 
   for (const migration of additiveMigrations) {

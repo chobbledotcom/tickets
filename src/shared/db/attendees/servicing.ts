@@ -1,7 +1,7 @@
 import { costAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { encrypt } from "#shared/crypto/encryption.ts";
+import { postTransfers, postTransfersTx } from "#shared/accounting/store.ts";
+import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import type {
   AttendeeInput,
@@ -12,6 +12,7 @@ import type {
 } from "#shared/db/attendee-types.ts";
 import {
   applyAttendeeAtomicEdit,
+  type ExistingLine,
   loadExistingLines,
 } from "#shared/db/attendees/atomic-update.ts";
 import { dateToStartEnd } from "#shared/db/attendees/capacity.ts";
@@ -30,7 +31,7 @@ import {
   ATTENDEE_JOIN_SELECT,
   ATTENDEE_LEFT_JOIN_SELECT,
 } from "#shared/db/attendees/queries.ts";
-import { queryAll, queryOne } from "#shared/db/client.ts";
+import { queryAll, queryOne, withTransaction } from "#shared/db/client.ts";
 import {
   type AttendeeAnswerSet,
   saveAttendeeAnswers,
@@ -61,12 +62,29 @@ export type ServicingEvent = {
   bookings: ListingBooking[];
 };
 
-export type UpcomingServicingEvent = {
+/** One booking line of a service event (a `listing_attendees` slot the event
+ *  holds). The listing *name* is resolved at render time against the cached
+ *  listings, so the reader carries only the id. */
+export type ServicingBookingSummary = {
+  listingId: number;
+  quantity: number;
+};
+
+/**
+ * A service event summarised for the `/admin/servicing` list and the dashboard's
+ * upcoming-events block: one per attendee (service event), with its booked
+ * listing lines collected into `bookings` and a total quantity. Previously the
+ * reader returned one row per `listing_attendees` booking line, so a
+ * multi-listing hold appeared multiple times in the list and on the dashboard;
+ * grouping by attendee gives one summary per event.
+ */
+export type ServicingEventSummary = {
+  bookings: ServicingBookingSummary[];
+  /** Earliest booking date (rows are read date-then-id ordered). */
   date: string | null;
   id: number;
-  listingId: number;
   name: string;
-  quantity: number;
+  totalQuantity: number;
 };
 
 type ServicingRow = Attendee & { kind: string };
@@ -208,17 +226,17 @@ export const getServicingEvent = async (
     `SELECT ${ATTENDEE_JOIN_SELECT}, a.kind
        FROM attendees a
        JOIN listing_attendees ea ON ea.attendee_id = a.id
-      WHERE a.id = ? AND a.kind = 'servicing'
+      WHERE a.id = ? AND a.kind = ?
       ORDER BY ea.start_at, ea.listing_id`,
-    [id],
+    [id, SERVICING_KIND],
   );
   if (rows.length > 0) return rowsToServicingEvent(rows);
   const orphan = await queryOne<ServicingRow>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}, a.kind
        FROM attendees a
        LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-      WHERE a.id = ? AND a.kind = 'servicing'`,
-    [id],
+      WHERE a.id = ? AND a.kind = ?`,
+    [id, SERVICING_KIND],
   );
   return orphan ? rowsToServicingEvent([orphan]) : null;
 };
@@ -232,28 +250,56 @@ export const createServicingEvent = async (
     input.bookings.length,
   );
   const id = createResult.attendees[0]!.id;
-  await saveServicingAnswers(id, input.questionAnswers);
-  await logActivity(
-    `Service event '${name}' created`,
-    input.bookings[0]!.listingId,
-    id,
-  );
+  // The attendee + bookings are committed by the atomic create; the remaining
+  // side effects (answers, activity log) are a separate batch. Nested batches
+  // aren't safe on the edge runtime, so a single outer transaction can't hold
+  // them together — instead compensate: if a side effect fails, delete the
+  // attendee so no half-saved service event (bookings without answers) remains.
+  try {
+    await saveServicingAnswers(id, input.questionAnswers);
+    await logActivity(
+      `Service event '${name}' created`,
+      input.bookings[0]!.listingId,
+      id,
+    );
+  } catch (error) {
+    await deleteAttendee(id);
+    throw error;
+  }
   return (await getServicingEvent(id))!;
 };
 
-const servicingEventRowsToSummaries = (
+const servicingEventRowsToSummaries = async (
   rows: ServicingRow[],
   privateKey: CryptoKey,
-): Promise<UpcomingServicingEvent[]> => {
+): Promise<ServicingEventSummary[]> => {
+  // Group booking lines by their parent service event (attendee id), so a
+  // multi-listing hold renders as ONE summary (its listings collected inside)
+  // instead of one row per booking line. Rows are ordered by date then attendee
+  // id, so the first row of each group is that event's earliest booking line,
+  // keeping the summaries in upcoming order.
+  const byAttendee = new Map<number, ServicingRow[]>();
+  for (const row of rows) {
+    const group = byAttendee.get(row.id) ?? [];
+    group.push(row);
+    byAttendee.set(row.id, group);
+  }
   return Promise.all(
-    rows.map(async (row) => {
-      const attendee = await decryptAttendeeFields(row, privateKey);
-      return {
-        date: row.date,
-        id: row.id,
+    [...byAttendee.values()].map(async (group) => {
+      const attendee = await decryptAttendeeFields(group[0]!, privateKey);
+      const bookings: ServicingBookingSummary[] = group.map((row) => ({
         listingId: row.listing_id,
-        name: attendee.name,
         quantity: row.quantity,
+      }));
+      return {
+        bookings,
+        date: group[0]!.date,
+        id: attendee.id,
+        name: attendee.name,
+        totalQuantity: bookings.reduce(
+          (sum, booking) => sum + booking.quantity,
+          0,
+        ),
       };
     }),
   );
@@ -278,7 +324,7 @@ const getServicingEventRows = (today?: string): Promise<ServicingRow[]> => {
 
 export const getAllServicingEvents = async (
   privateKey: CryptoKey,
-): Promise<UpcomingServicingEvent[]> => {
+): Promise<ServicingEventSummary[]> => {
   const rows = await getServicingEventRows();
   return servicingEventRowsToSummaries(rows, privateKey);
 };
@@ -286,7 +332,7 @@ export const getAllServicingEvents = async (
 export const getUpcomingServicingEvents = async (
   privateKey: CryptoKey,
   today: string,
-): Promise<UpcomingServicingEvent[]> => {
+): Promise<ServicingEventSummary[]> => {
   const rows = await getServicingEventRows(today);
   return servicingEventRowsToSummaries(rows, privateKey);
 };
@@ -326,6 +372,56 @@ const desiredLines = (
   });
 };
 
+/** Rebuild the desired-line set from an attendee's current booking rows. Used to
+ *  restore the prior state when a post-edit side effect fails — every line
+ *  carries its existing key + slot so {@link applyAttendeeAtomicEdit} treats
+ *  them as a preserve-style re-apply. */
+const desiredLinesFromExisting = (
+  existing: ExistingLine[],
+): DesiredListingLine[] =>
+  existing.map(({ key, booking }) => {
+    let date: string | null = null;
+    if (booking.start_at) date = booking.start_at.slice(0, 10);
+    return {
+      date,
+      durationDays: durationDaysFromRow(booking) ?? 1,
+      exists: true,
+      key,
+      listingId: booking.listing_id,
+      quantity: booking.quantity,
+    };
+  });
+
+/** Restore a service event's name + bookings to `before` after a post-edit side
+ *  effect fails, so the edit doesn't land half-applied (new bookings/name with
+ *  the prior answers). `existingBefore` is the pre-edit booking rows. Overbooks
+ *  unconditionally: the prior bookings fit before the edit, so restoring them
+ *  must not itself strand on the capacity guard. */
+const restoreServicingState = async (
+  id: number,
+  before: ServicingEvent,
+  existingBefore: ExistingLine[],
+): Promise<void> => {
+  const restoredPiiBlob = await encryptPiiBlob(
+    buildPiiBlob({
+      address: "",
+      email: "",
+      name: before.name,
+      payment_id: "",
+      phone: "",
+      special_instructions: "",
+      ticket_token: before.ticketToken,
+    }),
+    settings.publicKey,
+  );
+  await applyAttendeeAtomicEdit(
+    id,
+    restoredPiiBlob,
+    desiredLinesFromExisting(existingBefore),
+    true,
+  );
+};
+
 export const updateServicingEvent = async (
   id: number,
   input: ServicingEventInput,
@@ -333,6 +429,7 @@ export const updateServicingEvent = async (
   const name = assertServicingEditInput(input);
   const current = await getServicingEvent(id);
   if (!current) throw new Error("servicing event not found");
+  const existingBefore = await loadExistingLines(id);
   const encryptedPiiBlob = await encryptPiiBlob(
     buildPiiBlob({
       address: "",
@@ -348,11 +445,19 @@ export const updateServicingEvent = async (
   const editResult = await applyAttendeeAtomicEdit(
     id,
     encryptedPiiBlob,
-    desiredLines(input, await loadExistingLines(id)),
+    desiredLines(input, existingBefore),
     input.allowOverbook ?? false,
   );
   if (!editResult.success) throw new Error(editResult.reason);
-  await saveServicingAnswers(id, input.questionAnswers);
+  // The booking + name edit is committed by the atomic edit; the answer save is
+  // a separate batch. If it fails, compensate by restoring the pre-edit state
+  // so the edit doesn't land half-applied (new bookings/name, prior answers).
+  try {
+    await saveServicingAnswers(id, input.questionAnswers);
+  } catch (error) {
+    await restoreServicingState(id, current, existingBefore);
+    throw error;
+  }
   return (await getServicingEvent(id))!;
 };
 
@@ -388,21 +493,33 @@ export type RecordServiceCostInput = {
   reference?: string;
 };
 
-const assertServicingHoldsListing = async (
+/** True when the servicing event holds `listingId` (has a `listing_attendees`
+ *  booking for it). Backs the route's pre-post form-validation as well as
+ *  {@link assertServicingHoldsListing}'s throw. */
+export const servicingHoldsListing = async (
   servicingId: number,
   listingId: number,
-): Promise<void> => {
+): Promise<boolean> => {
   const row = await queryOne<{ one: number }>(
     `SELECT 1 AS one
        FROM attendees AS attendee
        JOIN listing_attendees AS booking ON booking.attendee_id = attendee.id
       WHERE attendee.id = ?
-        AND attendee.kind = 'servicing'
+        AND attendee.kind = ?
         AND booking.listing_id = ?
       LIMIT 1`,
-    [servicingId, listingId],
+    [servicingId, SERVICING_KIND, listingId],
   );
-  if (!row) throw new Error("service cost must target a held listing");
+  return row !== null;
+};
+
+const assertServicingHoldsListing = async (
+  servicingId: number,
+  listingId: number,
+): Promise<void> => {
+  if (!(await servicingHoldsListing(servicingId, listingId))) {
+    throw new Error("service cost must target a held listing");
+  }
 };
 
 const costReferenceParts = (input: RecordServiceCostInput) =>
@@ -436,7 +553,39 @@ export const recordServiceCost = async (
   }
   await assertServicingHoldsListing(input.servicingId, input.listingId);
   const transfer = await serviceCostTransfer(input);
-  await postTransfers([transfer]);
+  const encryptedMemo = transfer.memo!;
+  // Idempotent on the transfer reference: the cost form carries a per-render
+  // idempotency key the route passes as `reference`, so a browser retry /
+  // double-click of the same form re-posts the same reference. Short-circuit
+  // and return the already-recorded cost id *before* re-posting — a fresh
+  // per-request `occurredAt` would otherwise trip the ledger's replay-equality
+  // guard ("stored leg differs in occurredAt") and surface a 500.
+  const existing = await queryOne<{ id: number }>(
+    "SELECT id FROM transfers WHERE reference = ?",
+    [transfer.reference],
+  );
+  if (existing) return existing.id;
+  // Post the cost leg AND its first-class `service_costs` record in one
+  // transaction, so the per-event cost list can never miss a posted cost (a
+  // leg without a service_costs row would count in costOf but be unlistable).
+  // The service_costs INSERT is OR IGNORE on the unique transfer_id, so a
+  // concurrent double-submit that wins the postTransfers race is a no-op here.
+  await withTransaction(async (tx) => {
+    await postTransfersTx(tx, [transfer]);
+    await tx.execute({
+      args: [
+        input.servicingId,
+        input.listingId,
+        input.occurredAt,
+        encryptedMemo,
+        nowIso(),
+      ],
+      sql:
+        "INSERT OR IGNORE INTO service_costs " +
+        "(servicing_attendee_id, listing_id, transfer_id, occurred_at, memo, created) " +
+        "VALUES (?, ?, last_insert_rowid(), ?, ?, ?)",
+    });
+  });
   const row = await queryOne<{ id: number }>(
     "SELECT id FROM transfers WHERE reference = ?",
     [transfer.reference],
@@ -451,17 +600,44 @@ type CostRow = {
   dest_type: string;
   dest_id: string;
   amount: number;
+  memo?: string;
 };
 
-const loadCostRow = async (costId: number): Promise<CostRow> => {
-  const row = await queryOne<CostRow>(
-    `SELECT id, source_type, source_id, dest_type, dest_id, amount
+const COST_ROW_SELECT =
+  "id, source_type, source_id, dest_type, dest_id, amount";
+
+const getCostRow = async (costId: number): Promise<CostRow | null> =>
+  queryOne<CostRow>(
+    `SELECT ${COST_ROW_SELECT}
        FROM transfers
       WHERE id = ? AND kind = 'service_cost'`,
     [costId],
   );
+
+const loadCostRow = async (costId: number): Promise<CostRow> => {
+  const row = await getCostRow(costId);
   if (!row) throw new Error("service cost not found");
   return row;
+};
+
+/** The listing id a `service_cost` transfer attributes its cost to: the cost
+ *  account is `source` for a `cost:L → world` leg and `destination` for a
+ *  `world → cost:L` reduction leg, so the listing id is on whichever side is
+ *  the `cost` account. */
+const costListingId = (row: CostRow): number =>
+  Number(row.source_type === "cost" ? row.source_id : row.dest_id);
+
+/** True when `costId` is an existing `service_cost` transfer whose listing is
+ *  held by `servicingId`. Backs the cost-edit route's stale-form 404 guard: a
+ *  missing or unrelated cost id (one belonging to another service event) must
+ *  not reach the ledger as an unhandled 500. */
+export const costBelongsToServicing = async (
+  costId: number,
+  servicingId: number,
+): Promise<boolean> => {
+  const row = await getCostRow(costId);
+  if (!row) return false;
+  return servicingHoldsListing(servicingId, costListingId(row));
 };
 
 export const editServiceCost = async (
@@ -469,10 +645,15 @@ export const editServiceCost = async (
   update: { amount: number },
   servicingId?: number,
 ): Promise<void> => {
+  // Mirror recordServiceCost's guard: the target amount must be a positive
+  // safe integer of minor units, so an edit can't post a negative or fractional
+  // cost adjustment against the listing's profit. The route validates first and
+  // returns a form error; this is the defence-in-depth data-layer check.
+  if (!Number.isSafeInteger(update.amount) || update.amount <= 0) {
+    throw new Error("service cost amount must be a positive integer");
+  }
   const original = await loadCostRow(costId);
-  const listingId = Number(
-    original.source_type === "cost" ? original.source_id : original.dest_id,
-  );
+  const listingId = costListingId(original);
   if (servicingId !== undefined) {
     await assertServicingHoldsListing(servicingId, listingId);
   }
@@ -500,4 +681,84 @@ export const editServiceCost = async (
       source: delta > 0 ? cost : WORLD,
     },
   ]);
+};
+
+/** A derived, operator-facing service-cost record for `/admin/servicing/:id`'s
+ *  cost list: the original cost leg's id (the edit route target), its current
+ *  amount (original ± adjustment legs), the service date, the listing it was
+ *  attributed to, and the decrypted operator memo. */
+export type ServicingCostRecord = {
+  amount: number;
+  date: string;
+  id: number;
+  listingId: number;
+  memo: string;
+};
+
+const EDIT_COST_MEMO = /^edit service cost (\d+)$/;
+
+/**
+ * The service-cost records recorded against one service event, each with its
+ * CURRENT amount derived from the append-only ledger: the original `cost:L`
+ * leg (linked via `service_costs.transfer_id`) plus every `service_cost`
+ * adjustment leg whose memo names that original (`edit service cost {id}`).
+ * Members are stored PII-free / owner-key-encrypted, so the memo decrypts with
+ * the global key here for display.
+ */
+export const getServicingCosts = async (
+  servicingId: number,
+): Promise<ServicingCostRecord[]> => {
+  const records = await queryAll<{
+    transfer_id: number;
+    listing_id: number;
+    occurred_at: string;
+    memo: string;
+  }>(
+    "SELECT transfer_id, listing_id, occurred_at, memo FROM service_costs WHERE servicing_attendee_id = ? ORDER BY occurred_at, transfer_id",
+    [servicingId],
+  );
+  if (records.length === 0) return [];
+  const listingIds = [...new Set(records.map((r) => r.listing_id))];
+  const placeholders = listingIds.map(() => "?").join(", ");
+  const legs = await queryAll<CostRow>(
+    `SELECT id, source_type, source_id, dest_type, dest_id, amount, memo FROM transfers WHERE kind = 'service_cost' AND ((source_type = 'cost' AND source_id IN (${placeholders})) OR (dest_type = 'cost' AND dest_id IN (${placeholders}))) ORDER BY id`,
+    [...listingIds.map(String), ...listingIds.map(String)],
+  );
+  const decoded = await Promise.all(
+    legs.map(async (leg) => ({
+      amount: leg.amount,
+      id: leg.id,
+      isIncrease: leg.source_type === "cost",
+      memoText: await decrypt(leg.memo!),
+    })),
+  );
+  const adjustmentsByOriginal = new Map<number, number>();
+  for (const leg of decoded) {
+    const match = leg.memoText.match(EDIT_COST_MEMO);
+    if (!match) continue;
+    const originalId = Number(match[1]);
+    let signedDelta: number;
+    if (leg.isIncrease) {
+      signedDelta = leg.amount;
+    } else {
+      signedDelta = -leg.amount;
+    }
+    adjustmentsByOriginal.set(
+      originalId,
+      (adjustmentsByOriginal.get(originalId) ?? 0) + signedDelta,
+    );
+  }
+  return Promise.all(
+    records.map(async (r) => {
+      const original = decoded.find((leg) => leg.id === r.transfer_id)!;
+      return {
+        amount:
+          original.amount + (adjustmentsByOriginal.get(r.transfer_id) ?? 0),
+        date: r.occurred_at,
+        id: r.transfer_id,
+        listingId: r.listing_id,
+        memo: await decrypt(r.memo!),
+      };
+    }),
+  );
 };

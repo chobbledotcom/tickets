@@ -17,17 +17,25 @@ import {
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import { toMinorUnits } from "#shared/currency.ts";
+import {
+  formatCurrency,
+  parsePositiveMinorUnits,
+  toMajorUnits,
+} from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import {
+  costBelongsToServicing,
   createServicingEvent,
   deleteServicingEvent,
   duplicateServicingEvent,
   editServiceCost,
   getAllServicingEvents,
+  getServicingCosts,
   getServicingEvent,
   recordServiceCost,
+  type ServicingCostRecord,
   type ServicingEvent,
+  servicingHoldsListing,
   updateServicingEvent,
 } from "#shared/db/attendees/servicing.ts";
 import { getAllListings } from "#shared/db/listings.ts";
@@ -47,6 +55,7 @@ import {
 } from "#shared/order-select.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { ListingWithCount } from "#shared/types.ts";
+import { parsePositiveIntId } from "#shared/validation/number.ts";
 import { EditQuestions } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
@@ -69,6 +78,36 @@ const listingsByIdMap = (
 
 const activeListings = (listings: ListingWithCount[]): ListingWithCount[] =>
   listings.filter((listing) => listing.active);
+
+/**
+ * The listings an edit page must render bookings for: every active listing
+ * (the operator can move capacity onto any of them) PLUS every listing the
+ * event already holds, even when that listing has since been deactivated — so
+ * the held line still renders its quantity input and saving the form preserves
+ * it instead of silently dropping the hold. A listing the event holds that has
+ * been deleted entirely (no record left) can't render a row, so its id is
+ * returned separately for a "will be removed on save" indicator — making the
+ * repair explicit rather than a silent drop.
+ */
+const editPageListings = (
+  allListings: ListingWithCount[],
+  event: ServicingEvent,
+): { deletedHolds: number[]; listings: ListingWithCount[] } => {
+  const byId = listingsByIdMap(allListings);
+  const heldIds = new Set(event.bookings.map((booking) => booking.listingId));
+  const listings = [...activeListings(allListings)];
+  // Add any held-but-inactive listings so the held line still renders (with an
+  // "(inactive)" marker) and is preserved on save. Active held listings are
+  // already in `listings` from `activeListings`; inactive ones were filtered out,
+  // so they're added here.
+  for (const listing of allListings) {
+    if (!listing.active && heldIds.has(listing.id)) {
+      listings.push(listing);
+    }
+  }
+  const deletedHolds = [...heldIds].filter((id) => !byId.has(id));
+  return { deletedHolds, listings };
+};
 
 const firstBookingDate = (
   event: ServicingEvent | null,
@@ -96,14 +135,18 @@ const listingRows = (
   }
   let rows = "";
   for (const listing of listings) {
-    rows += `<tr><td>${listing.name}</td><td><input min="0" name="quantity_${listing.id}" type="number" value="${formQuantities.get(listing.id)!}"></td></tr>`;
+    const inactiveMarker = listing.active ? "" : " <em>(inactive)</em>";
+    rows += `<tr><td>${escapeHtml(listing.name)}${inactiveMarker}</td><td><input min="0" name="quantity_${listing.id}" type="number" value="${formQuantities.get(listing.id)!}"></td></tr>`;
   }
   return rows;
 };
 
 const costListingOptions = (listings: ListingWithCount[]): string =>
   listings
-    .map((listing) => `<option value="${listing.id}">${listing.name}</option>`)
+    .map(
+      (listing) =>
+        `<option value="${listing.id}">${escapeHtml(listing.name)}</option>`,
+    )
     .join("");
 
 const selectedQuestionIds = (
@@ -112,6 +155,8 @@ const selectedQuestionIds = (
 ): number[] => data?.attendeeAnswerMap.get(eventId) ?? [];
 
 const renderServicingPage = ({
+  costs = [],
+  deletedHolds = [],
   event,
   listings,
   prefill = emptyPrefill(),
@@ -120,6 +165,8 @@ const renderServicingPage = ({
   selectedTextAnswers,
   session,
 }: {
+  costs?: ServicingCostRecord[];
+  deletedHolds?: number[];
   event: ServicingEvent | null;
   listings: ListingWithCount[];
   prefill?: ServicingPrefill;
@@ -130,6 +177,9 @@ const renderServicingPage = ({
 }): string => {
   const title = event ? event.name : "New service event";
   const rows = listingRows(listings, event, prefill);
+  const listingNames = new Map(
+    listings.map((listing) => [listing.id, listing.name]),
+  );
   const action = event
     ? `/admin/servicing/${event.id}`
     : "/admin/servicing/new";
@@ -141,6 +191,12 @@ const renderServicingPage = ({
       <AdminNav active="/admin/servicing" session={session} />
       <h1>{title}</h1>
       <Raw html={renderServicingHiddenIndicator()} />
+      {deletedHolds.length > 0 && (
+        <p class="warning">
+          {deletedHolds.length} held listing(s) no longer exist and will be
+          removed from this service event when you save.
+        </p>
+      )}
       <CsrfForm action={action} id={SERVICING_FORM_ID}>
         <Raw
           html={renderFields(buildServicingFieldSchema(), {
@@ -182,6 +238,11 @@ const renderServicingPage = ({
             <button type="submit">Delete Service Event</button>
           </CsrfForm>
           <CsrfForm action={`/admin/servicing/${event.id}`}>
+            <input
+              name="cost_idempotency_key"
+              type="hidden"
+              value={crypto.randomUUID()}
+            />
             <label>
               Amount
               <input name="amount" step="0.01" type="number" />
@@ -198,6 +259,45 @@ const renderServicingPage = ({
             </label>
             <button type="submit">Record Cost</button>
           </CsrfForm>
+          {costs.length > 0 && (
+            <div class="table-scroll">
+              <h2>Recorded costs</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Listing</th>
+                    <th>Date</th>
+                    <th>Amount</th>
+                    <th>Memo</th>
+                    <th>Edit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {costs.map((cost) => (
+                    <tr>
+                      <td>{listingNames.get(cost.listingId)}</td>
+                      <td>{formatDateLabel(cost.date.slice(0, 10))}</td>
+                      <td>{formatCurrency(cost.amount)}</td>
+                      <td>{cost.memo}</td>
+                      <td>
+                        <CsrfForm
+                          action={`/admin/servicing/${event.id}/cost/${cost.id}`}
+                        >
+                          <input
+                            name="amount"
+                            step="0.01"
+                            type="number"
+                            value={toMajorUnits(cost.amount)}
+                          />
+                          <button type="submit">Edit</button>
+                        </CsrfForm>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
     </Layout>,
@@ -213,9 +313,15 @@ const serviceEventListRows = (
   );
   let rows = "";
   for (const event of events) {
+    // One row per service event: a multi-listing hold's listings are joined
+    // inside the Listing cell, and its quantity is the event total — not one
+    // row per booking line.
     const date = event.date === null ? "" : formatDateLabel(event.date);
-    const listing = listingNames.get(event.listingId) ?? "";
-    rows += `<tr class="servicing-event" data-servicing="true"><td><a href="/admin/servicing/${event.id}">${escapeHtml(event.name)}</a></td><td>${date}</td><td>${escapeHtml(listing)}</td><td>${event.quantity}</td></tr>`;
+    const listingsCell = event.bookings
+      .map((booking) => escapeHtml(listingNames.get(booking.listingId) ?? ""))
+      .filter(Boolean)
+      .join(", ");
+    rows += `<tr class="servicing-event" data-servicing="true"><td><a href="/admin/servicing/${event.id}">${escapeHtml(event.name)}</a></td><td>${date}</td><td>${listingsCell}</td><td>${event.totalQuantity}</td></tr>`;
   }
   return rows;
 };
@@ -239,7 +345,7 @@ const renderServicingList = async (session: AuthSession): Promise<string> => {
             <tr>
               <th>Name</th>
               <th>Date</th>
-              <th>Listing</th>
+              <th>Listings</th>
               <th>Quantity</th>
             </tr>
           </thead>
@@ -294,7 +400,10 @@ const loadEditPage = async (
   const event = await getServicingEvent(id);
   if (!event) return null;
   const privateKey = await requireRequestPrivateKey();
-  const listings = activeListings(await getAllListings());
+  const { deletedHolds, listings } = editPageListings(
+    await getAllListings(),
+    event,
+  );
   const listingIds = event.bookings.map((booking) => booking.listingId);
   const questionData = await loadAttendeeQuestionData(
     listingIds,
@@ -302,6 +411,8 @@ const loadEditPage = async (
     privateKey,
   );
   return renderServicingPage({
+    costs: await getServicingCosts(id),
+    deletedHolds,
     event,
     listings,
     questionData,
@@ -353,17 +464,35 @@ const parseCreateInput = async (form: FormParams) => {
   };
 };
 
+const COST_AMOUNT_LABEL = "cost amount";
+
 const handleCostPost = async (
   id: number,
   form: FormParams,
 ): Promise<Response | null> => {
   if (!form.has("amount")) return null;
-  const amount = toMinorUnits(Number(form.getString("amount")));
+  const amount = parsePositiveMinorUnits(form.getString("amount"));
+  const listingId = parsePositiveIntId(form.getString("target_listing_id"));
+  if (amount === null || listingId === null) {
+    return redirect(
+      `/admin/servicing/${id}`,
+      `Please enter a valid positive ${COST_AMOUNT_LABEL} and target listing.`,
+      false,
+    );
+  }
+  if (!(await servicingHoldsListing(id, listingId))) {
+    return redirect(
+      `/admin/servicing/${id}`,
+      "The service event does not hold that listing.",
+      false,
+    );
+  }
   await recordServiceCost({
     amount,
-    listingId: Number(form.getString("target_listing_id")),
+    listingId,
     memo: form.getString("memo"),
     occurredAt: new Date().toISOString(),
+    reference: form.getString("cost_idempotency_key") || undefined,
     servicingId: id,
   });
   return redirect(
@@ -408,6 +537,7 @@ const handleServicingDeletePost: TypedRouteHandler<
   "POST /admin/servicing/:id/delete"
 > = (request, { id }) =>
   withAuth(request, AUTH_FORM, async () => {
+    if (!(await getServicingEvent(id))) return notFoundResponse();
     await deleteServicingEvent(id);
     return redirect("/admin/", "Deleted service event", true);
   });
@@ -416,6 +546,7 @@ const handleServicingDuplicatePost: TypedRouteHandler<
   "POST /admin/servicing/:id/duplicate"
 > = (request, { id }) =>
   withAuth(request, AUTH_FORM, async () => {
+    if (!(await getServicingEvent(id))) return notFoundResponse();
     const copy = await duplicateServicingEvent(id);
     return redirect(
       `/admin/servicing/${copy.id}`,
@@ -429,7 +560,17 @@ const handleServicingCostPost: TypedRouteHandler<
 > = (request, { id, costId }) =>
   withAuth(request, AUTH_FORM, async (_session, form) => {
     if (!(await getServicingEvent(id))) return notFoundResponse();
-    const amount = toMinorUnits(Number(form.getString("amount")));
+    const amount = parsePositiveMinorUnits(form.getString("amount"));
+    if (amount === null) {
+      return redirect(
+        `/admin/servicing/${id}`,
+        `Please enter a valid positive ${COST_AMOUNT_LABEL}.`,
+        false,
+      );
+    }
+    if (!(await costBelongsToServicing(costId, id))) {
+      return notFoundResponse();
+    }
     await editServiceCost(costId, { amount }, id);
     return redirect(`/admin/servicing/${id}`, "Updated service cost", true);
   });

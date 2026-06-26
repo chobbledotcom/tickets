@@ -1,5 +1,14 @@
 # Servicing Events — Test Inventory
 
+> **Historical planning document.** The test files in `test/lib/servicing/` are
+> the source of truth; this inventory was the pre-implementation plan. The
+> implementation has diverged in several places (see `servicing.md`'s status
+> note): service costs are first-class `service_costs` records, the dashboard
+> renders service events as a `<ul>` (not a table reuse), multi-listing holds
+> group into one summary, and the calendar CSV carries a "Type" column. Treat
+> the section numbers below as an index into the test files, not as a current
+> spec.
+
 A named list of tests to write for the servicing-events feature, each with what
 it must prove. Built from `servicing.md` so every behaviour and every
 review/self-review risk has an explicit test before implementation begins.

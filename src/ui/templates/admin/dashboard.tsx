@@ -15,7 +15,7 @@ import {
 } from "#shared/columns/listing-columns.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import type { UpcomingServicingEvent } from "#shared/db/attendees/servicing.ts";
+import type { ServicingEventSummary } from "#shared/db/attendees/servicing.ts";
 import type { ActiveListingStats } from "#shared/db/attendees.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Flash } from "#shared/forms.tsx";
@@ -194,20 +194,18 @@ const upcomingHolidaysSection = (holidays: Holiday[]): string =>
     </details>,
   );
 
-const upcomingServicingSection = (
-  events: UpcomingServicingEvent[],
-  listings: ListingWithCount[],
-): string => {
-  const listingNames = new Map(
-    listings.map((listing) => [listing.id, listing.name]),
-  );
+const upcomingServicingSection = (events: ServicingEventSummary[]): string => {
+  // One `<li>` per service event (not per booking line), so a multi-listing hold
+  // appears once. The compact details carry the listing count rather than every
+  // name — the listing names are listed in the `/admin/servicing` table.
   const rows = pipe(
-    map((event: UpcomingServicingEvent) => {
-      const listing = listingNames.get(event.listingId);
+    map((event: ServicingEventSummary) => {
+      const listingCount = event.bookings.length;
+      const listingLabel = `${listingCount} listing${listingCount === 1 ? "" : "s"}`;
       const details = [
         event.date ? new Date(event.date).toLocaleDateString() : "",
-        listing ?? "",
-        `${event.quantity}`,
+        listingLabel,
+        `${event.totalQuantity}`,
       ].filter(Boolean);
       return `<li><a href="/admin/servicing/${event.id}">${escapeHtml(
         event.name,
@@ -308,7 +306,7 @@ export const adminDashboardPage = (
   listingColumnTemplate?: string,
   activeType: ListingFilter = "all",
   upcomingHolidays: Holiday[] = [],
-  upcomingServicingEvents: UpcomingServicingEvent[] = [],
+  upcomingServicingEvents: ServicingEventSummary[] = [],
 ): string => {
   const { columnKeys, filters } = resolveColumnLayout(
     listingColumnTemplate ?? "",
@@ -358,9 +356,7 @@ export const adminDashboardPage = (
       )}
 
       {upcomingServicingEvents.length > 0 && (
-        <Raw
-          html={upcomingServicingSection(upcomingServicingEvents, listings)}
-        />
+        <Raw html={upcomingServicingSection(upcomingServicingEvents)} />
       )}
 
       {activeListings.length >= 2 && (

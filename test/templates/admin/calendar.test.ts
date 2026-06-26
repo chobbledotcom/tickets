@@ -263,7 +263,7 @@ describe("generateCalendarCsv", () => {
   test("generates CSV header for empty attendees (no Listing Date/Location columns)", () => {
     const csv = generateCalendarCsv([]);
     expect(csv).toBe(
-      "Listing,Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
+      "Listing,Type,Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
     );
   });
 
@@ -271,8 +271,8 @@ describe("generateCalendarCsv", () => {
     const attendees = [calendarAttendee()];
     const csv = generateCalendarCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[0]).toContain("Listing,Date,Name");
-    expect(lines[1]).toMatch(/^Daily Listing,2026-03-15,/);
+    expect(lines[0]).toContain("Listing,Type,Date,Name");
+    expect(lines[1]).toMatch(/^Daily Listing,Attendee,2026-03-15,/);
   });
 
   test("shows an inclusive date range for multi-day bookings", () => {
@@ -281,7 +281,9 @@ describe("generateCalendarCsv", () => {
     const attendees = [calendarAttendee({ end_date: "2026-03-18" })];
     const csv = generateCalendarCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[1]).toMatch(/^Daily Listing,2026-03-15 to 2026-03-17,/);
+    expect(lines[1]).toMatch(
+      /^Daily Listing,Attendee,2026-03-15 to 2026-03-17,/,
+    );
   });
 
   test("includes Listing Date column when some attendees have listing dates", () => {
@@ -290,7 +292,7 @@ describe("generateCalendarCsv", () => {
     ];
     const csv = generateCalendarCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[0]).toContain("Listing,Listing Date,Date,Name");
+    expect(lines[0]).toContain("Listing,Type,Listing Date,Date,Name");
     // The UTC ISO listing datetime is shown as a date + time in the tz
     // (14:00 UTC = 15:00 BST in the default Europe/London timezone).
     expect(lines[1]).toContain("2026-06-15 15:00");
@@ -301,7 +303,7 @@ describe("generateCalendarCsv", () => {
     const attendees = [calendarAttendee({ listingLocation: "Village Hall" })];
     const csv = generateCalendarCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[0]).toContain("Listing,Listing Location,Date,Name");
+    expect(lines[0]).toContain("Listing,Type,Listing Location,Date,Name");
     expect(lines[1]).toContain("Village Hall");
   });
 
@@ -358,7 +360,7 @@ describe("generateCalendarCsv", () => {
     const attendees = [calendarAttendee({ date: null })];
     const csv = generateCalendarCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[1]).toMatch(/^Daily Listing,,/);
+    expect(lines[1]).toMatch(/^Daily Listing,Attendee,,/);
   });
 });
 

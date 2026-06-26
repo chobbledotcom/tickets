@@ -69,6 +69,8 @@ import transfersTimeIntMigration from "./migrations/2026-06-22_transfers_time_in
 import systemNotesMigration from "./migrations/2026-06-23_system_notes.ts";
 import ticketCountNoQuantityMigration from "./migrations/2026-06-23_ticket_count_no_quantity.ts";
 import attendeesKindMigration from "./migrations/2026-06-24_attendees_kind.ts";
+import attendeesKindNotNullMigration from "./migrations/2026-06-26_attendees_kind_not_null.ts";
+import serviceCostsMigration from "./migrations/2026-06-27_service_costs.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -239,6 +241,8 @@ export const MIGRATIONS: Migration[] = [
   // income-free bodies: re-counts tickets_count as quantity > 0 only.
   ticketCountNoQuantityMigration,
   attendeesKindMigration,
+  attendeesKindNotNullMigration,
+  serviceCostsMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

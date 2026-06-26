@@ -23,8 +23,11 @@ import {
   assertServicingId404sEverywhere,
   createRealAttendee,
   createServicingHold,
+  createTestListing,
+  createTestServicingEvent,
   describeWithEnv,
   getTestSession,
+  recordServiceCost,
 } from "#test-utils";
 
 // jscpd:ignore-end
@@ -65,6 +68,77 @@ describeWithEnv(
       );
       expect(response.status).toBe(404);
       response.body?.cancel();
+    });
+  },
+);
+
+describeWithEnv(
+  "servicing §9 — mutation routes fail closed (404) for stale ids",
+  { db: true },
+  () => {
+    test("POST /admin/servicing/:id/delete 404s for a missing service event id", async () => {
+      const response = await adminPost("/admin/servicing/999999/delete", {});
+      expect(response.status).toBe(404);
+      response.body?.cancel();
+    });
+
+    test("POST /admin/servicing/:id/duplicate 404s for a missing service event id", async () => {
+      const response = await adminPost("/admin/servicing/999999/duplicate", {});
+      expect(response.status).toBe(404);
+      response.body?.cancel();
+    });
+
+    test("POST /admin/servicing/:id/cost/:costId 404s for a missing cost id", async () => {
+      const { id, listing } = await createServicingHold();
+      const response = await adminPost(`/admin/servicing/${id}/cost/999999`, {
+        amount: "60.00",
+      });
+      expect(response.status).toBe(404);
+      response.body?.cancel();
+      // No cost leg was posted for the phantom cost id.
+      const { allTransfers } = await import("#shared/accounting/queries.ts");
+      expect(
+        (await allTransfers()).filter((t) => t.kind === "service_cost").length,
+      ).toBe(0);
+      const { costOf } = await import("#shared/accounting/projection.ts");
+      expect(await costOf(listing.id)).toBe(0);
+    });
+
+    test("POST /admin/servicing/:id/cost/:costId 404s for a cost belonging to another event", async () => {
+      const heldListing = await createTestListing({
+        maxAttendees: 10,
+        name: "Held Listing",
+      });
+      const otherListing = await createTestListing({
+        maxAttendees: 10,
+        name: "Other Listing",
+      });
+      const held = await createTestServicingEvent({
+        bookings: [{ listingId: heldListing.id, quantity: 1 }],
+        name: "Held",
+      });
+      const other = await createTestServicingEvent({
+        bookings: [{ listingId: otherListing.id, quantity: 1 }],
+        name: "Other",
+      });
+      const costId = await recordServiceCost({
+        amount: 9000,
+        listingId: heldListing.id,
+        memo: "Boiler part",
+        occurredAt: "2026-07-01T00:00:00.000Z",
+        servicingId: held.id,
+      });
+      // The cost belongs to `held`, but it is posted through `other`'s route —
+      // the cost's listing is not held by `other`, so it 404s instead of
+      // silently editing a cost from a different event.
+      const response = await adminPost(
+        `/admin/servicing/${other.id}/cost/${costId}`,
+        { amount: "60.00" },
+      );
+      expect(response.status).toBe(404);
+      response.body?.cancel();
+      const { costOf } = await import("#shared/accounting/projection.ts");
+      expect(await costOf(heldListing.id)).toBe(9000);
     });
   },
 );

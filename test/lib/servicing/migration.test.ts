@@ -38,6 +38,7 @@ import {
 // jscpd:ignore-end
 
 const MIGRATION_ID = "2026-06-24_attendees_kind";
+const NOT_NULL_MIGRATION_ID = "2026-06-26_attendees_kind_not_null";
 const attendeesTable = SCHEMA.find(([name]) => name === "attendees")![1];
 
 const indexExists = async (name: string): Promise<boolean> => {
@@ -63,6 +64,12 @@ describe("servicing §1 — schema declares the kind column + index", () => {
     const [, type] = kindCol!;
     expect(type).toMatch(/NOT NULL/);
     expect(type).toContain(ATTENDEE_KIND);
+    // Guards the wishful `/* NOT NULL */` comment hack: the invariant must be a
+    // real constraint, not a comment, and the `IS NULL` escape (which left
+    // NULL-kind rows that consumed capacity as neither attendee nor servicing)
+    // must be gone from the CHECK.
+    expect(type).not.toContain("/* NOT NULL */");
+    expect(type).not.toContain("IS NULL");
   });
 
   test("the attendees schema declares idx_attendees_kind", () => {
@@ -147,3 +154,76 @@ describe("servicing §1 — schema and migration stay in sync", () => {
     expect(requires?.indexes).toContain("idx_attendees_kind");
   });
 });
+
+describe("servicing §1 — the NOT NULL tightening migration is registered", () => {
+  test("the 2026-06-26_attendees_kind_not_null migration is appended to MIGRATIONS", () => {
+    expect(MIGRATIONS.some((m) => m.id === NOT_NULL_MIGRATION_ID)).toBe(true);
+  });
+
+  test("the NOT NULL migration runs after the kind migration (column exists to tighten)", () => {
+    const ids = MIGRATIONS.map((m) => m.id);
+    const kindIdx = ids.indexOf(MIGRATION_ID);
+    const notNullIdx = ids.indexOf(NOT_NULL_MIGRATION_ID);
+    expect(kindIdx).toBeGreaterThanOrEqual(0);
+    expect(notNullIdx).toBeGreaterThan(kindIdx);
+  });
+});
+
+describeWithEnv(
+  "servicing §1 — kind is a real NOT NULL invariant (no limbo rows)",
+  { db: true },
+  () => {
+    const kindNotNull = async (): Promise<number> => {
+      const result = await getDb().execute("PRAGMA table_info(attendees)");
+      const row = result.rows.find((r) => r.name === "kind");
+      return Number(row?.notnull ?? 0);
+    };
+
+    const limboCount = async (): Promise<number> => {
+      const result = await getDb().execute(
+        "SELECT COUNT(*) AS count FROM attendees WHERE kind IS NULL",
+      );
+      return Number(result.rows[0]?.count ?? 0);
+    };
+
+    test("PRAGMA table_info(attendees).notnull === 1 for the kind column", async () => {
+      expect(await kindNotNull()).toBe(1);
+    });
+
+    test("INSERT of a NULL-kind row is rejected by the constraint (no limbo row)", async () => {
+      await expect(
+        getDb().execute({
+          args: ["limbo"],
+          sql:
+            "INSERT INTO attendees (created, ticket_token_index, pii_blob, kind) " +
+            "VALUES ('2026-01-01T00:00:00Z', ?, '', NULL)",
+        }),
+      ).rejects.toThrow();
+      expect(await limboCount()).toBe(0);
+    });
+
+    test("UPDATE setting kind = NULL is rejected by the constraint", async () => {
+      const listing = await createTestListing();
+      const { attendee } = await createTestAttendeeDirect(
+        listing.id,
+        "Real",
+        "x@example.com",
+      );
+      await expect(
+        getDb().execute({
+          args: [attendee.id],
+          sql: "UPDATE attendees SET kind = NULL WHERE id = ?",
+        }),
+      ).rejects.toThrow();
+      expect(await kindOf(attendee.id)).toBe(ATTENDEE_KIND);
+    });
+
+    test("the NOT NULL migration is idempotent on an already-NOT NULL database", async () => {
+      const migration = MIGRATIONS.find((m) => m.id === NOT_NULL_MIGRATION_ID)!;
+      expect(await kindNotNull()).toBe(1);
+      await migration.up();
+      expect(await kindNotNull()).toBe(1);
+      expect(await limboCount()).toBe(0);
+    });
+  },
+);

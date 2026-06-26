@@ -129,6 +129,47 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     expect(await profitOf(listing.id)).toBe(11000);
   });
 
+  test("profitOf matches the listing row profit after a refund (gross, not net)", async () => {
+    // The listing row projects profit as recognised (gross) income − costs
+    // (listingProfitSubquery). profitOf previously read the NET revenue balance
+    // (`accountBalance(revenue) − cost`), so after a refund — which lowers the
+    // net balance but not recognised income — it diverged from the listing row.
+    // It now uses recognised income, matching the SQL and the revenue breakdown.
+    const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
+    const listing = await createTestListing({ maxAttendees: 10, name: "L" });
+    const { attendee } = await createTestAttendeeDirect(
+      listing.id,
+      "Customer",
+      "c@example.com",
+    );
+    // A £200 sale, fully refunded: gross income 200 (sale credit), net 0.
+    await postAttendeeRefund({
+      attendeeId: attendee.id,
+      gross: 20000,
+      listingId: listing.id,
+    });
+    // A £90 servicing cost on the same listing.
+    const { id } = await createServicingHold({ listing: { name: "L" } });
+    await recordBoilerCost(id, listing.id);
+
+    const {
+      getListingWithCount,
+      invalidateListingsCache,
+      listingRevenueBreakdown,
+    } = await import("#shared/db/listings.ts");
+    invalidateListingsCache();
+    const row = await getListingWithCount(listing.id);
+    const breakdown = await listingRevenueBreakdown(listing.id);
+
+    // Recognised income is gross (£200) — the refund drops the net balance to 0
+    // but does NOT lower recognised income or the listing's profit.
+    expect(breakdown.recognisedIncome).toBe(20000);
+    expect(breakdown.netBalance).toBe(0);
+    expect(await costOf(listing.id)).toBe(9000);
+    expect(await profitOf(listing.id)).toBe(11000); // 200 − 90
+    expect(row?.profit).toBe(11000); // SQL listingProfitSubquery (the listing row)
+  });
+
   test("listing detail surfaces service costs and profit", async () => {
     const { listing } = await createServicingHold();
     const { attendee } = await createTestAttendeeDirect(
@@ -176,6 +217,31 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     expect(await costOf(listing.id)).toBe(9000);
   });
 
+  test("a double-submit of the cost form records only one cost (idempotency key)", async () => {
+    // The cost form carries a per-render idempotency key the route passes as
+    // the ledger reference, so a browser retry / double-click of the same form
+    // posts the cost once — not twice — even though each POST generates a fresh
+    // occurredAt. A genuinely separate submission (fresh key) still posts.
+    const { id, listing } = await createServicingHold();
+    const postCost = (idempotencyKey: string) =>
+      adminPost(`/admin/servicing/${id}`, {
+        amount: "90.00",
+        cost_idempotency_key: idempotencyKey,
+        memo: "Boiler part",
+        target_listing_id: String(listing.id),
+      });
+    const key = crypto.randomUUID();
+    await postCost(key);
+    const retried = await postCost(key); // same form, double-submit
+    expect(retried.status).toBe(302);
+    expect((await transfersOfKind("service_cost")).length).toBe(1);
+    expect(await costOf(listing.id)).toBe(9000);
+    // A separate submission (fresh key) posts a second, independent cost.
+    await postCost(crypto.randomUUID());
+    expect((await transfersOfKind("service_cost")).length).toBe(2);
+    expect(await costOf(listing.id)).toBe(18000);
+  });
+
   test("editing a cost posts a correcting adjustment, never mutates a row", async () => {
     const { id, listing } = await createServicingHold();
     const costId = await recordBoilerCost(id, listing.id);
@@ -205,6 +271,13 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     expect(await costOf(listing.id)).toBe(12000);
     const legs = await transfersByAccount(costAccount(listing.id));
     expect(legs.map((leg) => leg.amount).toSorted()).toEqual([3000, 9000]);
+    // The cost list's getServicingCosts derives the current amount from the
+    // original leg + the increase adjustment (isIncrease=true path).
+    const { getServicingCosts } = await import(
+      "#shared/db/attendees/servicing.ts"
+    );
+    const costs = await getServicingCosts(id);
+    expect(costs[0]!.amount).toBe(12000);
   });
 
   test("editing a prior cost-reduction leg resolves the listing from the destination account", async () => {
@@ -244,6 +317,70 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
       `/admin/servicing/${id}`,
     );
     expect(await costOf(listing.id)).toBe(6000);
+  });
+
+  test("invalid create cost amounts write no service_cost transfer (form error, not 500)", async () => {
+    // Empty, negative, non-numeric, and zero amounts must be rejected at the
+    // route as a form-error redirect, never reach the ledger, and never 500.
+    const { id, listing } = await createServicingHold();
+    const before = (await transfersOfKind("service_cost")).length;
+    for (const amount of ["", "-5", "abc", "0"]) {
+      const response = await adminPost(`/admin/servicing/${id}`, {
+        amount,
+        memo: "Bad",
+        target_listing_id: String(listing.id),
+      });
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(
+        `/admin/servicing/${id}`,
+      );
+      expect((await transfersOfKind("service_cost")).length).toBe(before);
+    }
+    expect(await costOf(listing.id)).toBe(0);
+  });
+
+  test("an invalid create target_listing_id writes no service_cost transfer", async () => {
+    const { id, listing } = await createServicingHold();
+    const before = (await transfersOfKind("service_cost")).length;
+    for (const target of ["", "abc", "0", "-3"]) {
+      const response = await adminPost(`/admin/servicing/${id}`, {
+        amount: "90.00",
+        memo: "Bad",
+        target_listing_id: target,
+      });
+      expect(response.status).toBe(302);
+      expect((await transfersOfKind("service_cost")).length).toBe(before);
+    }
+    // listing.id is a positive int but the event does not hold a different
+    // listing, so the allocation rule still blocks it (form error, no 500).
+    const other = await createTestListing({ maxAttendees: 10, name: "Other" });
+    const response = await adminPost(`/admin/servicing/${id}`, {
+      amount: "90.00",
+      memo: "Bad",
+      target_listing_id: String(other.id),
+    });
+    expect(response.status).toBe(302);
+    expect((await transfersOfKind("service_cost")).length).toBe(before);
+    expect(await costOf(listing.id)).toBe(0);
+  });
+
+  test("invalid edit cost amounts write no service_cost transfer (form error, not 500)", async () => {
+    const { id, listing } = await createServicingHold();
+    const costId = await recordBoilerCost(id, listing.id);
+    const before = (await transfersOfKind("service_cost")).length;
+    for (const amount of ["", "-5", "abc", "0"]) {
+      const response = await adminPost(
+        `/admin/servicing/${id}/cost/${costId}`,
+        { amount },
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(
+        `/admin/servicing/${id}`,
+      );
+      expect((await transfersOfKind("service_cost")).length).toBe(before);
+    }
+    // The original £90 cost is untouched — no delta leg landed.
+    expect(await costOf(listing.id)).toBe(9000);
   });
 
   test("deleting a servicing event leaves its cost legs as append-only history", async () => {
@@ -310,6 +447,62 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
       editServiceCost(999_999, { amount: 1000 }),
       /not found/,
     );
+  });
+
+  test("editServiceCost rejects non-positive and non-integer target amounts (defence-in-depth)", async () => {
+    const { id, listing } = await createServicingHold();
+    const costId = await recordBoilerCost(id, listing.id);
+    for (const amount of [0, -1, 1.5]) {
+      await expectRejects(
+        editServiceCost(costId, { amount }),
+        /positive integer/,
+      );
+    }
+  });
+
+  test("the servicing edit page lists recorded costs with amount, listing, memo, and edit controls", async () => {
+    const { id, listing } = await createServicingHold();
+    await recordServiceCost({
+      amount: 9000,
+      listingId: listing.id,
+      memo: "Boiler part",
+      occurredAt: "2026-07-01T00:00:00.000Z",
+      servicingId: id,
+    });
+    const body = await renderAdminPage(`/admin/servicing/${id}`);
+    expect(body).toContain("Recorded costs");
+    expect(body).toContain(formatCurrency(9000));
+    expect(body).toContain("Boiler part");
+    expect(body).toContain(listing.name);
+    // The edit form targets the cost route with the cost's id.
+    expect(body).toContain(`/admin/servicing/${id}/cost/`);
+  });
+
+  test("editing a recorded cost updates the listed amount", async () => {
+    const { id, listing } = await createServicingHold();
+    const costId = await recordServiceCost({
+      amount: 9000,
+      listingId: listing.id,
+      memo: "Boiler part",
+      occurredAt: "2026-07-01T00:00:00.000Z",
+      servicingId: id,
+    });
+    await editServiceCost(costId, { amount: 6000 }, id);
+    // Directly exercise the reader so the adjustment's branches are covered:
+    // the original leg is an increase (base = amount), and the edit's adjustment
+    // leg is a reduction (delta = -amount), so the net reads £60.
+    const { getServicingCosts } = await import(
+      "#shared/db/attendees/servicing.ts"
+    );
+    const costs = await getServicingCosts(id);
+    expect(costs).toHaveLength(1);
+    expect(costs[0]!.amount).toBe(6000);
+    expect(costs[0]!.id).toBe(costId);
+    expect(costs[0]!.memo).toBe("Boiler part");
+    // The rendered page also shows the adjusted amount.
+    const body = await renderAdminPage(`/admin/servicing/${id}`);
+    expect(body).toContain(formatCurrency(6000));
+    expect(body).not.toContain(formatCurrency(9000));
   });
 
   test("cost memos are stored encrypted, never plaintext PII in transfers", async () => {

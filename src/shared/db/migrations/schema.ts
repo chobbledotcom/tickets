@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Add an attendees.kind discriminator for customer attendees vs servicing holds, indexed for kind-filtered readers; servicing rows consume capacity but are excluded from tickets_count and customer-facing attendee surfaces.";
+  "Add a service_costs table backing first-class, per-event service-cost records on /admin/servicing/:id (the append-only ledger carries no servicing-event id on its legs, so this table scopes a service event's cost list); tighten attendees.kind to NOT NULL.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -275,7 +275,7 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["created", "TEXT NOT NULL"],
         [
           "kind",
-          `TEXT DEFAULT '${ATTENDEE_KIND}' CHECK (kind IS NULL OR kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}')) /* NOT NULL */`,
+          `TEXT NOT NULL DEFAULT '${ATTENDEE_KIND}' CHECK (kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}'))`,
         ],
         ["checked_in", "TEXT NOT NULL DEFAULT ''"],
         ["ticket_token_index", "TEXT"],
@@ -879,6 +879,39 @@ export const SCHEMA: [name: string, table: Table][] = [
         {
           columns: ["reverses_id"],
           name: "idx_transfers_reverses_id",
+          unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
+    // First-class service-cost records: one row per `recordServiceCost` call,
+    // linking the cost's ledger leg to the servicing event that recorded it.
+    // The transfers ledger is append-only and carries no servicing-event id on
+    // its legs, so this table is what scopes `/admin/servicing/:id`'s cost list
+    // to one event. `transfer_id` is the original `service_cost` leg; edits post
+    // adjustment legs keyed to it by memo, and `getServicingCosts` derives each
+    // record's current amount from the leg + its adjustments.
+    "service_costs",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["servicing_attendee_id", "INTEGER NOT NULL"],
+        ["listing_id", "INTEGER NOT NULL"],
+        ["transfer_id", "INTEGER NOT NULL"],
+        ["occurred_at", "TEXT NOT NULL"],
+        ["memo", "TEXT NOT NULL DEFAULT ''"],
+        ["created", "TEXT NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["servicing_attendee_id"],
+          name: "idx_service_costs_servicing",
+        },
+        {
+          columns: ["transfer_id"],
+          name: "idx_service_costs_transfer",
           unique: true,
         },
       ],

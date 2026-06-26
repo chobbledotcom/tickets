@@ -1,22 +1,14 @@
 /**
- * Servicing §17 — admin homepage: upcoming service events table (reuse).
+ * Servicing §17 — admin homepage: upcoming service events block.
  *
  * The admin dashboard lists upcoming service events beside active listings,
- * each linking to its servicing page. The block reuses the **same** renderer
- * as the listings table (`renderListingsTableSection` / `ListingsTableBlock`)
- * — not a parallel copy — which is what keeps jscpd at 0% (§20). Past-dated
- * holds are excluded, matching the listings behaviour.
- *
- * Implementation contract (test-first):
- *   - `#templates/admin/dashboard.tsx` exports `renderListingsTableSection` so
- *     the upcoming-service-events block calls it (and `ListingsTableBlock`)
- *     with service-event rows shaped like `ListingWithCount` plus a servicing
- *     link column. A `getUpcomingServicingEvents()` reader supplies the rows.
+ * each linking to its servicing page, as a compact `<ul>` block (not a
+ * parallel table renderer). Past-dated holds are excluded, matching the
+ * listings behaviour.
  */
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
-import { renderListingsTableSection } from "#templates/admin/dashboard.tsx";
+import { it as test } from "@std/testing/bdd";
 import {
   createDailyTestListing,
   createServicingHold,
@@ -25,30 +17,8 @@ import {
   expectServicingLink,
   renderAdminPage,
 } from "#test-utils";
-import { testListingWithCount } from "#test-utils/factories.ts";
 
 // jscpd:ignore-end
-
-const COLUMN_KEYS = ["name", "date", "quantity"];
-const emptyFilters = (): Map<string, string> => new Map();
-
-describe("servicing §17 — service events table reuses the shared listings-table renderer", () => {
-  test("feeding equivalent rows to the shared renderer yields identical markup structure", () => {
-    const rows = [testListingWithCount({ id: 1, name: "Boiler Service" })];
-    const listingsMarkup = renderListingsTableSection(
-      rows,
-      COLUMN_KEYS,
-      emptyFilters(),
-    );
-    const serviceMarkup = renderListingsTableSection(
-      rows,
-      COLUMN_KEYS,
-      emptyFilters(),
-    );
-    expect(serviceMarkup).toBe(listingsMarkup);
-    expect(serviceMarkup).toContain("Boiler Service");
-  });
-});
 
 describeWithEnv(
   "servicing §17 — admin homepage service events table",
@@ -89,6 +59,63 @@ describeWithEnv(
       const body = await renderAdminPage("/admin/servicing");
       expect(body).toContain("No service events yet");
       expect(body).not.toContain('class="servicing-event"');
+    });
+
+    test("a multi-listing hold groups into one row (not one per booking line)", async () => {
+      // Previously the reader returned one row per `listing_attendees` booking
+      // line, so a multi-listing hold appeared multiple times in the list and on
+      // the dashboard. Grouping by service event gives one summary per event,
+      // with the held listings joined inside the Listings cell and the quantity
+      // being the event total.
+      const roomA = await createDailyTestListing({
+        maxAttendees: 10,
+        name: "Room A",
+      });
+      const roomB = await createDailyTestListing({
+        maxAttendees: 10,
+        name: "Room B",
+      });
+      const { id } = await createTestServicingEvent({
+        bookings: [
+          { date: "2099-07-01", listingId: roomA.id, quantity: 2 },
+          { date: "2099-07-01", listingId: roomB.id, quantity: 1 },
+        ],
+        name: "Annual Inspection",
+      });
+      const body = await renderAdminPage("/admin/servicing");
+      expectServicingLink(body, id);
+      expect(body).toContain("Annual Inspection");
+      // Both listings appear in one row's Listings cell, quantity is the total.
+      expect(body).toContain("Room A, Room B");
+      expect(body).toContain("<td>3</td>");
+      // Exactly one row for the event (the old shape would have rendered two).
+      expect((body.match(/class="servicing-event"/g) ?? []).length).toBe(1);
+    });
+
+    test("the dashboard groups a multi-listing hold into one upcoming entry", async () => {
+      const roomA = await createDailyTestListing({
+        maxAttendees: 10,
+        name: "Room A",
+      });
+      const roomB = await createDailyTestListing({
+        maxAttendees: 10,
+        name: "Room B",
+      });
+      const { id } = await createTestServicingEvent({
+        bookings: [
+          { date: "2099-07-01", listingId: roomA.id, quantity: 2 },
+          { date: "2099-07-01", listingId: roomB.id, quantity: 1 },
+        ],
+        name: "Annual Inspection",
+      });
+      const body = await renderAdminPage("/admin/");
+      expectServicingLink(body, id);
+      expect(body).toContain("Annual Inspection");
+      expect(body).toContain("2 listings");
+      // Exactly one link to the event (the old per-line shape would have two).
+      expect(
+        (body.match(new RegExp(`/admin/servicing/${id}`, "g")) ?? []).length,
+      ).toBe(1);
     });
 
     test("the servicing create page pre-fills listings selected from the calendar checker", async () => {

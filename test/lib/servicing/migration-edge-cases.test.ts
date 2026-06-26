@@ -59,31 +59,61 @@ describeWithEnv(
   "servicing edge cases — migration partial state",
   { db: true },
   () => {
-    const migration = MIGRATIONS.find((m) => m.id === MIGRATION_ID)!;
+    const notNullMigration = MIGRATIONS.find(
+      (m) => m.id === "2026-06-26_attendees_kind_not_null",
+    )!;
 
-    test("the migration backfills pre-existing kind=NULL rows to ATTENDEE_KIND", async () => {
-      // A partial run crashed after adding the column but before the backfill:
-      // some rows have kind=NULL. The migration must fill them all.
-      const listing = await createTestListing();
-      const { getDb: db } = await import("#shared/db/client.ts");
-      const res = await db().execute({
-        args: [`partial-${crypto.randomUUID()}`, listing.id],
-        sql: "INSERT INTO attendees (created, ticket_token_index, pii_blob, kind) VALUES ('2026-01-01T00:00:00Z', ?, '', NULL)",
+    test("the schema's CHECK constraint rejects a NULL kind at INSERT (no limbo row can exist)", async () => {
+      // The kind column is now a real NOT NULL invariant: a NULL-kind row —
+      // which would consume booked_capacity while counting as neither attendee
+      // nor servicing — cannot be created. The CHECK constraint is the defence.
+      await expect(
+        getDb().execute({
+          args: ["limbo"],
+          sql:
+            "INSERT INTO attendees (created, ticket_token_index, pii_blob, kind) " +
+            "VALUES ('2026-01-01T00:00:00Z', ?, '', NULL)",
+        }),
+      ).rejects.toThrow();
+      const rows = await getDb().execute({
+        args: [ATTENDEE_KIND],
+        sql: "SELECT kind FROM attendees WHERE kind IS NULL OR kind <> ?",
+      });
+      expect(rows.rows.length).toBe(0);
+    });
+
+    test("the 2026-06-26 migration repairs a legacy nullable-kind table (NULL rows → ATTENDEE_KIND)", async () => {
+      // A pre-2026-06-26 database carried the nullable `CHECK (kind IS NULL OR
+      // kind IN (...))` shape, so a NULL-kind "limbo" row could land. Bend the
+      // live attendees table back into that legacy nullable shape, seed a NULL
+      // row, then run the NOT NULL migration: it rebuilds the table from SCHEMA
+      // and the copy-time COALESCE(kind, 'attendee') repairs the row.
+      const attendeesColumns = SCHEMA.find(([name]) => name === "attendees")![1]
+        .columns;
+      const legacyCols = attendeesColumns
+        .map(([col, type]) =>
+          col === "kind"
+            ? `kind TEXT CHECK (kind IS NULL OR kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}'))`
+            : `${col} ${type}`,
+        )
+        .join(", ");
+      await getDb().execute("DROP TABLE attendees");
+      await getDb().execute(`CREATE TABLE attendees (${legacyCols})`);
+      const res = await getDb().execute({
+        args: ["limbo"],
+        sql:
+          "INSERT INTO attendees (created, ticket_token_index, pii_blob, kind) " +
+          "VALUES ('2026-01-01T00:00:00Z', ?, '', NULL)",
       });
       const id = Number(res.lastInsertRowid);
-      // Corrupt: set kind back to NULL (the CHECK constraint may block this;
-      // if it does, the test passes trivially — the constraint is the defence).
-      try {
-        await db().execute({
-          args: [id],
-          sql: "UPDATE attendees SET kind = NULL WHERE id = ?",
-        });
-      } catch {
-        // The CHECK constraint blocks NULL — that's the correct defence.
-        return;
-      }
-      await migration.up();
+      expect(await kindOf(id)).toBeNull();
+
+      await notNullMigration.up();
+
       expect(await kindOf(id)).toBe(ATTENDEE_KIND);
+      const notnull = await getDb().execute("PRAGMA table_info(attendees)");
+      const kindRow = notnull.rows.find((r) => r.name === "kind");
+      expect(Number(kindRow?.notnull ?? 0)).toBe(1);
     });
 
     test("a backup taken before the migration restores onto a post-migration DB with kind intact", async () => {

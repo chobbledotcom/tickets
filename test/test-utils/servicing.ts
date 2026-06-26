@@ -12,16 +12,16 @@
  * The test-utils path is on jscpd's ignore list, so the helpers themselves
  * don't trip the 0% duplication threshold; the test files call them by name.
  *
- * Implementation contract (test-first — code not yet written): the production
- * APIs these delegate to (`createServicingEvent`, `deleteServicingEvent`,
- * `updateServicingEvent`, `duplicateServicingEvent`, `getServicingEvent`,
- * `recordServiceCost`, `editServiceCost`, `costOf`, `profitOf`,
- * `costAccount`) are defined by `src/shared/db/attendees/servicing.ts` and
- * `src/shared/accounting/*` — see each test file's header for the contract.
+ * Production API surface these helpers delegate to (`createServicingEvent`,
+ * `deleteServicingEvent`, `updateServicingEvent`, `duplicateServicingEvent`,
+ * `getServicingEvent`, `recordServiceCost`, `editServiceCost`, `costOf`,
+ * `profitOf`, `costAccount`) — defined by `src/shared/db/attendees/servicing.ts`
+ * and `src/shared/accounting/*`; see each test file's header for the contract.
  */
 
 import { expect } from "@std/expect";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
+import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { ATTENDEE_JOIN_SELECT } from "#shared/db/attendees.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings.ts";
@@ -31,7 +31,7 @@ import { createTestListing } from "#test-utils/db-helpers.ts";
 import { getTestSession, withTestSession } from "#test-utils/session.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
-// ─── Production API re-exports (test-first — see contract above) ────────────
+// ─── Production API re-exports (see contract above) ────────────────────────
 
 import {
   buildDuplicateServicingInput,
@@ -184,9 +184,9 @@ export const servicingRowsForListing = (
        FROM attendees a
        JOIN listing_attendees ea ON ea.attendee_id = a.id
       WHERE ea.listing_id = ?
-        AND a.kind = 'servicing'
+        AND a.kind = ?
       ORDER BY a.id`,
-    [listingId],
+    [listingId, SERVICING_KIND],
   );
 
 /** Decrypt the first attendee row booked against `listingId`. Used to assert

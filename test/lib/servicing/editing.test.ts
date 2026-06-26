@@ -17,6 +17,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import {
+  adminPost,
   createDailyListingPair,
   createDailyTestListing,
   createServicingHold,
@@ -25,6 +26,7 @@ import {
   expectRejects,
   getServicingEvent,
   kindOf,
+  renderAdminPage,
   servicingRowsForListing,
   tokenIndexOf,
   updateServicingEvent,
@@ -115,3 +117,75 @@ describeWithEnv("servicing §4 — editing", { db: true }, () => {
     ).toEqual(["2026-07-01", "2026-07-02"]);
   });
 });
+
+describeWithEnv(
+  "servicing §4 — inactive/deleted held listings stay visible on the edit form",
+  { db: true },
+  () => {
+    test("an inactive held listing still renders (with a marker) and is preserved on save", async () => {
+      // The edit page used `activeListings` only, so a listing deactivated after
+      // the hold was created vanished from the form — and saving the form then
+      // silently dropped the hold. The edit page must include held listings
+      // regardless of active state, mark them inactive, and preserve them.
+      const { deactivateTestListing } = await import("#test-utils");
+      const listing = await createDailyTestListing({
+        maxAttendees: 10,
+        name: "Boiler Room",
+      });
+      const { id } = await createServicingHold({
+        date: "2099-07-01",
+        listing: { maxAttendees: 10, name: "Boiler Room" },
+        quantity: 2,
+      });
+      await deactivateTestListing(listing.id);
+
+      const body = await renderAdminPage(`/admin/servicing/${id}`);
+      expect(body).toContain("Boiler Room");
+      expect(body).toContain("(inactive)");
+      expect(body).toMatch(
+        new RegExp(`name="quantity_${listing.id}"[^>]*value="2"`),
+      );
+
+      // Saving the form (preserving the held quantity) must keep the hold — it
+      // is not silently dropped because the listing is inactive.
+      const response = await adminPost(`/admin/servicing/${id}`, {
+        [`quantity_${listing.id}`]: "2",
+        day_count: "1",
+        name: "Boiler Service",
+        start_date: "2099-07-01",
+      });
+      expect(response.status).toBe(302);
+      const after = await getServicingEvent(id);
+      expect(
+        after?.bookings.find((b) => b.listingId === listing.id)?.quantity,
+      ).toBe(2);
+    });
+
+    test("a held listing that has been deleted shows a removal indicator", async () => {
+      // A booking row left pointing at a deleted listing (an orphaned hold, e.g.
+      // from a partial failure or direct DB edit) must not be silently hidden:
+      // the edit page surfaces a "will be removed on save" indicator so the
+      // operator sees the repair instead of a form that quietly drops it.
+      const { getDb } = await import("#shared/db/client.ts");
+      const listing = await createDailyTestListing({
+        maxAttendees: 10,
+        name: "Doomed Room",
+      });
+      const { id } = await createServicingHold({
+        date: "2099-07-01",
+        listing: { maxAttendees: 10, name: "Doomed Room" },
+        quantity: 3,
+      });
+      // Delete the listing row directly, leaving the booking link in place —
+      // the inconsistent state the indicator is for.
+      await getDb().execute({
+        args: [listing.id],
+        sql: "DELETE FROM listings WHERE id = ?",
+      });
+
+      const body = await renderAdminPage(`/admin/servicing/${id}`);
+      expect(body).toContain("no longer exist");
+      expect(body).toContain("will be removed");
+    });
+  },
+);

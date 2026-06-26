@@ -128,27 +128,26 @@ describe("adminDashboardPage", () => {
       [],
       [
         {
+          bookings: [{ listingId: 7, quantity: 2 }],
           date: "2099-07-01",
           id: 42,
-          listingId: 7,
           name: "Boiler Service",
-          quantity: 2,
+          totalQuantity: 2,
         },
         {
+          bookings: [{ listingId: 999, quantity: 1 }],
           date: null,
           id: 43,
-          listingId: 999,
           name: "Unassigned Service",
-          quantity: 1,
+          totalQuantity: 1,
         },
       ],
     );
     expect(html).toContain("Upcoming service events</summary>");
     expect(html).toContain('href="/admin/servicing/42"');
     expect(html).toContain("Boiler Service");
-    expect(html).toContain("Room A");
     expect(html).toContain("2099");
-    expect(html).toContain("Room A · 2");
+    expect(html).toContain("1 listing · 2");
     expect(html).toContain('href="/admin/servicing/43"');
     expect(html).toContain("Unassigned Service");
   });
