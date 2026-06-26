@@ -171,6 +171,11 @@ describeWithEnv(
       expect(await remaining(listing.id, "2026-05-02")).toBe(2);
     });
 
+    test("standard listings with a date skip daily-loop capacity rules", async () => {
+      const listing = await createTestListing({ maxAttendees: 8 });
+      expect(await remaining(listing.id, "2026-02-10")).toBe(8);
+    });
+
     test("resolves several listings in one call", async () => {
       const standard = await createTestListing({ maxAttendees: 5 });
       const daily = await createDailyTestListing({ maxAttendees: 3 });
