@@ -23,6 +23,7 @@ import { MIGRATIONS } from "#shared/db/migrations.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 import { postListingSale } from "#test-utils/ledger.ts";
+import { readListingAggregates as aggregates } from "./migration-test-helpers.ts";
 
 describe("LISTING_AGGREGATE_WRITE_COLUMNS matches the trigger SQL", () => {
   test("the UPDATE trigger fires on exactly the columns in LISTING_AGGREGATE_WRITE_COLUMNS", () => {
@@ -91,18 +92,6 @@ describeWithEnv(
     type Aggregates = {
       booked_quantity: number;
       tickets_count: number;
-    };
-
-    const aggregates = async (listingId: number): Promise<Aggregates> => {
-      const result = await getDb().execute({
-        args: [listingId],
-        sql: "SELECT booked_quantity, tickets_count FROM listings WHERE id = ?",
-      });
-      const row = result.rows[0]!;
-      return {
-        booked_quantity: Number(row.booked_quantity),
-        tickets_count: Number(row.tickets_count),
-      };
     };
 
     const insertAttendee = (

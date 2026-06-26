@@ -13,6 +13,7 @@ import {
 } from "#shared/db/modifiers.ts";
 import { describeWithEnv, insertModifierUsage } from "#test-utils";
 import { postModifierLeg } from "#test-utils/ledger.ts";
+import { readModifierAggregates as aggregates } from "./migration-test-helpers.ts";
 
 /**
  * The modifiers count columns (total_uses, usage_count) are maintained by
@@ -46,18 +47,6 @@ describeWithEnv(
         direction: "charge",
         name: "Add-on",
       });
-
-    const aggregates = async (modifierId: number): Promise<Aggregates> => {
-      const result = await getDb().execute({
-        args: [modifierId],
-        sql: "SELECT total_uses, usage_count FROM modifiers WHERE id = ?",
-      });
-      const row = result.rows[0]!;
-      return {
-        total_uses: Number(row.total_uses),
-        usage_count: Number(row.usage_count),
-      };
-    };
 
     /** total_revenue as the table read projects it (from the ledger). */
     const projectedRevenue = async (modifierId: number): Promise<number> =>

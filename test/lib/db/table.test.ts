@@ -3,6 +3,32 @@ import { it as test } from "@std/testing/bdd";
 import { listingsTable } from "#shared/db/listings.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 
+const enc = (v: string) => Promise.resolve(`enc:${v}`);
+const dec = (v: string) => Promise.resolve(v.replace("enc:", ""));
+
+type EncryptedColumnLike = {
+  write?: (v: string) => Promise<string | null> | string | null;
+  read?: (v: string) => Promise<string | null> | string | null;
+};
+const assertEncRoundTrip = async (def: EncryptedColumnLike) => {
+  expect(await def.write?.("hello")).toBe("enc:hello");
+  expect(await def.read?.("enc:hello")).toBe("hello");
+};
+
+type TableModule = typeof import("#shared/db/table.ts");
+const buildListingsTestTable = <TInput>(
+  col: TableModule["col"],
+  defineTable: TableModule["defineTable"],
+) =>
+  defineTable<{ id: number; name: string }, TInput>({
+    name: "listings",
+    primaryKey: "id",
+    schema: {
+      id: col.generated<number>(),
+      name: col.simple<string>(),
+    },
+  });
+
 describeWithEnv("db > table utilities", { db: true }, () => {
   test("toCamelCase converts snake_case to camelCase", async () => {
     const { toCamelCase } = await import("#shared/db/table.ts");
@@ -60,23 +86,16 @@ describeWithEnv("db > table utilities", { db: true }, () => {
 
   test("col.encrypted creates column with encrypt/decrypt transforms", async () => {
     const { col } = await import("#shared/db/table.ts");
-    const encrypt = (v: string) => Promise.resolve(`enc:${v}`);
-    const decrypt = (v: string) => Promise.resolve(v.replace("enc:", ""));
-    const def = col.encrypted(encrypt, decrypt);
-    expect(await def.write?.("hello")).toBe("enc:hello");
-    expect(await def.read?.("enc:hello")).toBe("hello");
+    await assertEncRoundTrip(col.encrypted(enc, dec));
   });
 
   test("col.encryptedText passes through empty strings without encrypting", async () => {
     const { col } = await import("#shared/db/table.ts");
-    const encrypt = (v: string) => Promise.resolve(`enc:${v}`);
-    const decrypt = (v: string) => Promise.resolve(v.replace("enc:", ""));
-    const def = col.encryptedText(encrypt, decrypt);
+    const def = col.encryptedText(enc, dec);
     expect(def.default?.()).toBe("");
     expect(await def.write?.("")).toBe("");
     expect(await def.read?.("")).toBe("");
-    expect(await def.write?.("hello")).toBe("enc:hello");
-    expect(await def.read?.("enc:hello")).toBe("hello");
+    await assertEncRoundTrip(def);
   });
 
   test("col.encryptedNullable wrapping simple column has no transforms", async () => {
@@ -88,28 +107,18 @@ describeWithEnv("db > table utilities", { db: true }, () => {
 
   test("col.encryptedNullable handles null values", async () => {
     const { col } = await import("#shared/db/table.ts");
-    const encrypt = (v: string) => Promise.resolve(`enc:${v}`);
-    const decrypt = (v: string) => Promise.resolve(v.replace("enc:", ""));
-    const def = col.encryptedNullable(col.encrypted(encrypt, decrypt));
+    const def = col.encryptedNullable(col.encrypted(enc, dec));
     expect(await def.write?.(null)).toBe(null);
     expect(await def.read?.(null)).toBe(null);
-    expect(await def.write?.("hello")).toBe("enc:hello");
-    expect(await def.read?.("enc:hello")).toBe("hello");
+    await assertEncRoundTrip(def);
   });
 
   test("defineTable.findAll returns all rows", async () => {
     const { col, defineTable } = await import("#shared/db/table.ts");
-
-    type TestRow = { id: number; name: string };
-    type TestInput = { name: string };
-    const testTable = defineTable<TestRow, TestInput>({
-      name: "listings",
-      primaryKey: "id",
-      schema: {
-        id: col.generated<number>(),
-        name: col.simple<string>(),
-      },
-    });
+    const testTable = buildListingsTestTable<{ name: string }>(
+      col,
+      defineTable,
+    );
 
     await createTestListing({
       maxAttendees: 10,
@@ -134,16 +143,10 @@ describeWithEnv("db > table utilities", { db: true }, () => {
       thankYouUrl: "https://example.com",
     });
 
-    type TestRow = { id: number; name: string };
-    type TestInput = { name?: string };
-    const testTable = defineTable<TestRow, TestInput>({
-      name: "listings",
-      primaryKey: "id",
-      schema: {
-        id: col.generated<number>(),
-        name: col.simple<string>(),
-      },
-    });
+    const testTable = buildListingsTestTable<{ name?: string }>(
+      col,
+      defineTable,
+    );
 
     const result = await testTable.update(listing.id, {});
     expect(result).not.toBeNull();

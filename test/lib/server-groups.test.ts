@@ -48,7 +48,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     });
 
     test("shows empty list when no groups exist", async () => {
-      const { response } = await adminGet("/admin/groups");
+      const response = await adminGet("/admin/groups");
       await expectHtmlResponse(response, 200, "Groups", "No groups configured");
     });
 
@@ -58,7 +58,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: "group-one",
       });
 
-      const { response } = await adminGet("/admin/groups");
+      const response = await adminGet("/admin/groups");
       // The name links to the group detail page; edit/delete live there now,
       // not inline in the list table.
       await expectHtmlResponse(
@@ -82,7 +82,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     });
 
     test("shows create group form without slug field", async () => {
-      const { response } = await adminGet("/admin/groups/new");
+      const response = await adminGet("/admin/groups/new");
       const html = await expectHtmlResponse(
         response,
         200,
@@ -183,7 +183,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: "editable",
         termsAndConditions: "Original terms",
       });
-      const { response } = await adminGet(`/admin/groups/${group.id}/edit`);
+      const response = await adminGet(`/admin/groups/${group.id}/edit`);
       await expectHtmlResponse(
         response,
         200,
@@ -201,13 +201,13 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Hidden Editable",
         slug: "hidden-editable",
       });
-      const { response } = await adminGet(`/admin/groups/${group.id}/edit`);
+      const response = await adminGet(`/admin/groups/${group.id}/edit`);
       const html = await expectHtmlResponse(response, 200, "Edit Group");
       expect(html).toContain("checked");
     });
 
     test("returns 404 for non-existent group", async () => {
-      const { response } = await adminGet("/admin/groups/999/edit");
+      const response = await adminGet("/admin/groups/999/edit");
       expectStatus(404)(response);
     });
   });
@@ -313,7 +313,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Delete Me",
         slug: "delete-me",
       });
-      const { response } = await adminGet(`/admin/groups/${group.id}/delete`);
+      const response = await adminGet(`/admin/groups/${group.id}/delete`);
       await expectHtmlResponse(
         response,
         200,
@@ -324,7 +324,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent group", async () => {
-      const { response } = await adminGet("/admin/groups/999/delete");
+      const response = await adminGet("/admin/groups/999/delete");
       expectStatus(404)(response);
     });
   });
@@ -449,7 +449,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent group", async () => {
-      const { response } = await adminGet("/admin/groups/999");
+      const response = await adminGet("/admin/groups/999");
       expectStatus(404)(response);
     });
 
@@ -463,7 +463,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Grouped Listing",
       });
 
-      const { response } = await adminGet(`/admin/groups/${group.id}`);
+      const response = await adminGet(`/admin/groups/${group.id}`);
       await expectHtmlResponse(
         response,
         200,
@@ -490,7 +490,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Hidden Detail",
         slug: "hidden-detail",
       });
-      const { response } = await adminGet(`/admin/groups/${group.id}`);
+      const response = await adminGet(`/admin/groups/${group.id}`);
       await expectHtmlResponse(
         response,
         200,
@@ -504,7 +504,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Visible Detail",
         slug: "visible-detail",
       });
-      const { response } = await adminGet(`/admin/groups/${group.id}`);
+      const response = await adminGet(`/admin/groups/${group.id}`);
       const html = await response.text();
       expect(html).not.toContain("not shown in public listings list");
     });
@@ -514,7 +514,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Empty Group",
         slug: "empty-group",
       });
-      const { response } = await adminGet(`/admin/groups/${group.id}`);
+      const response = await adminGet(`/admin/groups/${group.id}`);
       await expectHtmlResponse(response, 200, "No listings in this group");
     });
 
@@ -525,7 +525,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       });
       const ungrouped = await createTestListing({ name: "Ungrouped Listing" });
 
-      const { response } = await adminGet(`/admin/groups/${group.id}`);
+      const response = await adminGet(`/admin/groups/${group.id}`);
       await expectHtmlResponse(
         response,
         200,
@@ -542,7 +542,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       });
       await createTestListing({ groupId: group.id, name: "Already Grouped" });
 
-      const { response } = await adminGet(`/admin/groups/${group.id}`);
+      const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).not.toContain("Add Listings to Group");
@@ -566,7 +566,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
       await createTestAttendee(listing.id, listing.slug, "Bob", "bob@test.com");
 
-      const { response } = await adminGet(`/admin/groups/${group.id}`);
+      const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).toContain("Attendees");
@@ -597,7 +597,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         tickets_count: 1,
       });
 
-      const { response } = await adminGet(`/admin/groups/${group.id}`);
+      const response = await adminGet(`/admin/groups/${group.id}`);
       await expectHtmlResponse(
         response,
         200,
@@ -632,7 +632,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "bob@multi.com",
       );
 
-      const { response } = await adminGet(`/admin/groups/${group.id}`);
+      const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).toContain("Attendees Checked In");
@@ -659,7 +659,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "charlie@test.com",
       );
 
-      const { response } = await adminGet(`/admin/groups/${group.id}`);
+      const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).toContain("Charlie");
@@ -696,7 +696,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       });
       await setListingQuestions(listing.id, [q.id]);
 
-      const { response } = await adminGet(`/admin/groups/${group.id}`);
+      const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).toContain("<th>Color</th>");
@@ -721,7 +721,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "donor@test.com",
       );
 
-      const { response } = await adminGet(`/admin/groups/${group.id}`);
+      const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).toContain("Total Revenue");
@@ -742,7 +742,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     };
 
     const getGroupPageHtml = async (groupId: number): Promise<string> => {
-      const { response } = await adminGet(`/admin/groups/${groupId}`);
+      const response = await adminGet(`/admin/groups/${groupId}`);
       expectStatus(200)(response);
       return response.text();
     };

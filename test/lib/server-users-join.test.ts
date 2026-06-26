@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { getSessionCookieName } from "#shared/cookies.ts";
 import { createInvitedUser, getUserByUsername } from "#shared/db/users.ts";
 import {
   assertPublicHtml,
   createTestInvite,
   describeWithEnv,
+  expectAdminLoginSuccess,
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirectWithFlash,
@@ -28,11 +28,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           username: TEST_ADMIN_USERNAME,
         }),
       );
-      await expectFlashRedirect("/admin", "Logged in")(response);
-      const sessionCookie = response.headers
-        .getSetCookie()
-        .find((c) => c.startsWith(`${getSessionCookieName()}=`));
-      expect(sessionCookie).toBeDefined();
+      await expectAdminLoginSuccess(response);
     });
 
     test("login with wrong username returns 401", async () => {

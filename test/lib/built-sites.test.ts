@@ -242,6 +242,16 @@ describeWithEnv("built-sites", { db: true }, () => {
   });
 
   describe("builtSitesCrudTable", () => {
+    const insertOriginalSite = () =>
+      builtSitesCrudTable.insert({
+        assignable: false,
+        bunnyScriptId: "",
+        bunnyUrl: "original.bunny.run",
+        dbToken: "",
+        dbUrl: "",
+        name: "Original",
+      });
+
     test("findAll returns all built sites", async () => {
       await insertBuiltSite("Site A", "a.bunny.run");
       await insertBuiltSite("Site B", "b.bunny.run");
@@ -330,14 +340,7 @@ describeWithEnv("built-sites", { db: true }, () => {
     });
 
     test("update preserves existing name when only bunnyUrl provided", async () => {
-      const site = await builtSitesCrudTable.insert({
-        assignable: false,
-        bunnyScriptId: "",
-        bunnyUrl: "original.bunny.run",
-        dbToken: "",
-        dbUrl: "",
-        name: "Original",
-      });
+      const site = await insertOriginalSite();
       const updated = await builtSitesCrudTable.update(site.id, {
         bunnyUrl: "new.bunny.run",
       });
@@ -346,14 +349,7 @@ describeWithEnv("built-sites", { db: true }, () => {
     });
 
     test("update preserves existing bunnyUrl when only name provided", async () => {
-      const site = await builtSitesCrudTable.insert({
-        assignable: false,
-        bunnyScriptId: "",
-        bunnyUrl: "original.bunny.run",
-        dbToken: "",
-        dbUrl: "",
-        name: "Original",
-      });
+      const site = await insertOriginalSite();
       const updated = await builtSitesCrudTable.update(site.id, {
         name: "Updated",
       });

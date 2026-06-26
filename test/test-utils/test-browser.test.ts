@@ -319,26 +319,35 @@ describe("TestBrowser forms", () => {
     expect(host).toBe("localhost");
   });
 
-  it("logs request details when debug mode is enabled", async () => {
+  const captureConsoleLog = async (
+    fn: (browser: TestBrowser) => Promise<void>,
+  ): Promise<{ browser: TestBrowser; messages: string[] }> => {
     const browser = new TestBrowser();
-    browser.debug = true;
     const messages: string[] = [];
     const originalLog = console.log;
     console.log = (...args: unknown[]) => {
       messages.push(args.join(" "));
     };
     try {
+      await fn(browser);
+    } finally {
+      console.log = originalLog;
+    }
+    return { browser, messages };
+  };
+
+  it("logs request details when debug mode is enabled", async () => {
+    const { browser, messages } = await captureConsoleLog(async (b) => {
+      b.debug = true;
       useHandler(
-        browser,
+        b,
         () =>
           new Response("ok", {
             headers: new Headers([["set-cookie", "debug=yes; Path=/"]]),
           }),
       );
-      await browser.visit("/debug");
-    } finally {
-      console.log = originalLog;
-    }
+      await b.visit("/debug");
+    });
 
     expect(messages).toEqual([
       "[browser] GET /debug -> 200 cookies: debug=yes",
@@ -346,36 +355,20 @@ describe("TestBrowser forms", () => {
   });
 
   it("logs without a cookie suffix when no cookies are set", async () => {
-    const browser = new TestBrowser();
-    browser.debug = true;
-    const messages: string[] = [];
-    const originalLog = console.log;
-    console.log = (...args: unknown[]) => {
-      messages.push(args.join(" "));
-    };
-    try {
-      useHandler(browser, () => new Response("ok"));
-      await browser.visit("/debug-empty");
-    } finally {
-      console.log = originalLog;
-    }
+    const { browser, messages } = await captureConsoleLog(async (b) => {
+      b.debug = true;
+      useHandler(b, () => new Response("ok"));
+      await b.visit("/debug-empty");
+    });
 
     expect(messages).toEqual(["[browser] GET /debug-empty -> 200"]);
   });
 
   it("does not log request details by default", async () => {
-    const browser = new TestBrowser();
-    const messages: string[] = [];
-    const originalLog = console.log;
-    console.log = (...args: unknown[]) => {
-      messages.push(args.join(" "));
-    };
-    try {
-      useHandler(browser, () => new Response("ok"));
-      await browser.visit("/quiet");
-    } finally {
-      console.log = originalLog;
-    }
+    const { messages } = await captureConsoleLog(async (b) => {
+      useHandler(b, () => new Response("ok"));
+      await b.visit("/quiet");
+    });
 
     expect(messages).toEqual([]);
   });
@@ -465,13 +458,21 @@ describe("TestBrowser forms", () => {
     );
   });
 
-  it("skips disabled matching buttons and submits the form without button data", async () => {
+  const setupFormSubmit = (): {
+    browser: TestBrowser;
+    getParams: () => URLSearchParams;
+  } => {
     const browser = new TestBrowser();
     let posted = "";
     useHandler(browser, async (request) => {
       posted = await request.text();
       return new Response("saved");
     });
+    return { browser, getParams: () => new URLSearchParams(posted) };
+  };
+
+  it("skips disabled matching buttons and submits the form without button data", async () => {
+    const { browser, getParams } = setupFormSubmit();
     browser.currentHtml = `
       <form action="/disabled-button">
         <input name="title" value="Draft">
@@ -481,7 +482,7 @@ describe("TestBrowser forms", () => {
 
     await browser.submitForm({}, "Publish");
 
-    const params = new URLSearchParams(posted);
+    const params = getParams();
     expect(params.get("title")).toBe("Draft");
     expect(params.has("action")).toBe(false);
   });
@@ -512,12 +513,7 @@ describe("TestBrowser forms", () => {
   });
 
   it("does not submit nameless button values", async () => {
-    const browser = new TestBrowser();
-    let posted = "";
-    useHandler(browser, async (request) => {
-      posted = await request.text();
-      return new Response("saved");
-    });
+    const { browser, getParams } = setupFormSubmit();
     browser.currentHtml = `
       <form action="/save">
         <input name="title" value="Draft">
@@ -527,7 +523,7 @@ describe("TestBrowser forms", () => {
 
     await browser.submitForm({}, "Publish");
 
-    const params = new URLSearchParams(posted);
+    const params = getParams();
     expect(params.get("title")).toBe("Draft");
     expect(params.has("undefined")).toBe(false);
   });

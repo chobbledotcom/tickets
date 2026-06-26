@@ -110,9 +110,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       const { listing: listingB, token: tokenB } =
         await createTestAttendeeWithToken("Carol", "carol@test.com");
 
-      const response = await awaitTestRequest(`/checkin/${tokenA}+${tokenB}`, {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet(`/checkin/${tokenA}+${tokenB}`);
       expect(response.status).toBe(200);
 
       const body = await response.text();
@@ -121,7 +119,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
     });
 
     test("returns 404 for invalid tokens when authenticated", async () => {
-      const { response } = await adminGet("/checkin/bad-token");
+      const response = await adminGet("/checkin/bad-token");
       expect(response.status).toBe(404);
     });
 
@@ -135,7 +133,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
         args: [listing.id],
         sql: "DELETE FROM listing_attendees WHERE listing_id = ?",
       });
-      const { response } = await adminGet(`/checkin/${token}`);
+      const response = await adminGet(`/checkin/${token}`);
       expect(response.status).toBe(404);
     });
 
@@ -185,9 +183,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
         date,
       );
 
-      const response = await awaitTestRequest(`/checkin/${token}`, {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet(`/checkin/${token}`);
       expect(response.status).toBe(200);
 
       const body = await response.text();
@@ -207,9 +203,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
         "alice@test.com",
       );
 
-      const response = await awaitTestRequest(`/checkin/${tokenA}+${tokenB}`, {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet(`/checkin/${tokenA}+${tokenB}`);
       const body = await response.text();
       expect(body).toContain("<th>Date</th>");
       expect(body).toContain(formatDateLabel(date));
@@ -225,7 +219,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       });
       if (!result.success) throw new Error("Failed to create attendee");
 
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/checkin/${result.attendees[0]!.ticket_token}`,
       );
       const body = await response.text();

@@ -16,6 +16,17 @@ const AGENTS: LogisticsAgent[] = [
   { id: 2, name: "Van 2" },
 ];
 
+/** The agent-user fixture used by both "shows assigned agent names" and
+ *  "shows a placeholder when no agents" tests — only `agentNames` varies. */
+const agentUser = (agentNames: string[]): DisplayUser => ({
+  adminLevel: "agent",
+  agentNames,
+  hasDataKey: true,
+  id: 4,
+  inviteExpired: false,
+  username: "driver",
+});
+
 beforeAll(async () => {
   setupTestEncryptionKey();
   await signCsrfToken();
@@ -68,16 +79,7 @@ describe("adminUserAgentsPage", () => {
 
 describe("adminUsersPage agent rows", () => {
   test("shows assigned agent names and links to the manage page for agent users", () => {
-    const users: DisplayUser[] = [
-      {
-        adminLevel: "agent",
-        agentNames: ["Van 1", "Van 2"],
-        hasDataKey: true,
-        id: 4,
-        inviteExpired: false,
-        username: "driver",
-      },
-    ];
+    const users: DisplayUser[] = [agentUser(["Van 1", "Van 2"])];
     const html = adminUsersPage(users, SESSION, {
       currentUserId: 1,
       inviteLink: "",
@@ -89,16 +91,7 @@ describe("adminUsersPage agent rows", () => {
   });
 
   test("shows a placeholder when an agent user has no agents", () => {
-    const users: DisplayUser[] = [
-      {
-        adminLevel: "agent",
-        agentNames: [],
-        hasDataKey: true,
-        id: 4,
-        inviteExpired: false,
-        username: "driver",
-      },
-    ];
+    const users: DisplayUser[] = [agentUser([])];
     const html = adminUsersPage(users, SESSION, {
       currentUserId: 1,
       inviteLink: "",

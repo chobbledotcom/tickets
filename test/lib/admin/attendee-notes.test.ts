@@ -14,7 +14,7 @@ import {
 describeWithEnv("admin > attendee notes routes", { db: true }, () => {
   test("GET renders the add-note form for an existing attendee", async () => {
     const { attendee } = await setupAdminTest();
-    const { response } = await adminGet(`/admin/attendee/${attendee.id}/note`);
+    const response = await adminGet(`/admin/attendee/${attendee.id}/note`);
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain(`action="/admin/attendee/${attendee.id}/note"`);
@@ -23,7 +23,7 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
 
   test("GET on a missing attendee is a 404", async () => {
     await setupAdminTest();
-    const { response } = await adminGet("/admin/attendee/999999/note");
+    const response = await adminGet("/admin/attendee/999999/note");
     expect(response.status).toBe(404);
   });
 
@@ -74,7 +74,7 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     });
     const [row] = await getNoteRows([attendee.id]);
 
-    const { response } = await adminGet(
+    const response = await adminGet(
       `/admin/attendee/${attendee.id}/note/${row!.id}/delete`,
     );
     expect(response.status).toBe(200);
@@ -87,7 +87,7 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
 
   test("GET delete on a missing note is a 404", async () => {
     const { attendee } = await setupAdminTest();
-    const { response } = await adminGet(
+    const response = await adminGet(
       `/admin/attendee/${attendee.id}/note/424242/delete`,
     );
     expect(response.status).toBe(404);

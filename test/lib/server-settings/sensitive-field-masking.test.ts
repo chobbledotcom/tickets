@@ -7,7 +7,7 @@ import { MASK_SENTINEL, settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import {
-  awaitTestRequest,
+  adminGet,
   describeWithEnv,
   expectFlash,
   mockFormRequest,
@@ -47,7 +47,7 @@ const withStripeWebhook = (body: () => Promise<void>): Promise<void> =>
 
 /** Assert the page at `path` masks `secret` behind the sentinel. */
 const expectMaskedAt = async (path: string, secret: string): Promise<void> => {
-  const response = await awaitTestRequest(path, { cookie: await testCookie() });
+  const response = await adminGet(path);
   const html = await response.text();
   expect(html).toContain(MASK_SENTINEL);
   expect(html).not.toContain(secret);

@@ -56,10 +56,29 @@ const queuedLog = async (attendeeId: number) =>
   );
 
 describeWithEnv("admin sms", { db: true }, () => {
+  /** Stub the SMS gateway fetch, POST the form with `message`, assert 302,
+   *  and restore the stub. Collapses the shared `okFetch` + `adminFormPost`
+   *  + `expect(302)` + `finally restore` scaffold. */
+  const postSmsAndAssertRedirect = async (
+    form: Record<string, string>,
+    message: string,
+  ): Promise<void> => {
+    const fetchStub = okFetch();
+    try {
+      const { response } = await adminFormPost("/admin/sms", {
+        ...form,
+        message,
+      });
+      expect(response.status).toBe(302);
+    } finally {
+      fetchStub.restore();
+    }
+  };
+
   it("GET without a target shows the queue count", async () => {
     await recordSmsMessage({ attendeeId: 1, listingId: 1, providerId: "a" });
     await recordSmsMessage({ attendeeId: 1, listingId: 1, providerId: "b" });
-    const { response } = await adminGet("/admin/sms");
+    const response = await adminGet("/admin/sms");
     const html = await response.text();
 
     expect(response.status).toBe(200);
@@ -70,7 +89,7 @@ describeWithEnv("admin sms", { db: true }, () => {
   it("GET shows the compose form when configured", async () => {
     await configureGateway();
     const { smsUrl } = await setup();
-    const { response } = await adminGet(smsUrl);
+    const response = await adminGet(smsUrl);
     const html = await response.text();
 
     expect(response.status).toBe(200);
@@ -81,7 +100,7 @@ describeWithEnv("admin sms", { db: true }, () => {
 
   it("GET warns and hides the form when not configured", async () => {
     const { smsUrl } = await setup();
-    const { response } = await adminGet(smsUrl);
+    const response = await adminGet(smsUrl);
     const html = await response.text();
 
     expect(html).toContain("not configured");
@@ -91,7 +110,7 @@ describeWithEnv("admin sms", { db: true }, () => {
   it("GET shows '(none on file)' and no form when the attendee has no phone", async () => {
     await configureGateway();
     const { smsUrl } = await setup("");
-    const { response } = await adminGet(smsUrl);
+    const response = await adminGet(smsUrl);
     const html = await response.text();
 
     expect(html).toContain("(none on file)");
@@ -99,14 +118,14 @@ describeWithEnv("admin sms", { db: true }, () => {
   });
 
   it("GET returns 404 for an unknown attendee", async () => {
-    const { response } = await adminGet("/admin/sms?listing=1&attendee=999");
+    const response = await adminGet("/admin/sms?listing=1&attendee=999");
     expect(response.status).toBe(404);
   });
 
   it("GET treats malformed target ids as no target", async () => {
     await configureGateway();
     await setup();
-    const { response } = await adminGet("/admin/sms?listing=1x&attendee=1");
+    const response = await adminGet("/admin/sms?listing=1x&attendee=1");
     const html = await response.text();
 
     expect(response.status).toBe(200);
@@ -117,16 +136,7 @@ describeWithEnv("admin sms", { db: true }, () => {
   it("POST queues a text: records the id→attendee map and logs it", async () => {
     await configureGateway();
     const { attendee, form } = await setup();
-    const fetchStub = okFetch();
-    try {
-      const { response } = await adminFormPost("/admin/sms", {
-        ...form,
-        message: "Hello Jane",
-      });
-      expect(response.status).toBe(302);
-    } finally {
-      fetchStub.restore();
-    }
+    await postSmsAndAssertRedirect(form, "Hello Jane");
 
     const row = await getSmsMessageByProviderId("msg-9");
     expect(row).not.toBeNull();
@@ -158,16 +168,7 @@ describeWithEnv("admin sms", { db: true }, () => {
       sql: `INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (?, 'corrupt-blob')
             ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob'`,
     });
-    const fetchStub = okFetch();
-    try {
-      const { response } = await adminFormPost("/admin/sms", {
-        ...form,
-        message: "Hello Jane",
-      });
-      expect(response.status).toBe(302);
-    } finally {
-      fetchStub.restore();
-    }
+    await postSmsAndAssertRedirect(form, "Hello Jane");
 
     // The gateway accepted the text, so the id→attendee map is recorded and the
     // send is logged as queued; the stats failure must not surface as a "could
@@ -256,7 +257,7 @@ describeWithEnv("admin sms", { db: true }, () => {
       fetchStub.restore();
     }
 
-    const { response } = await adminGet(smsUrl);
+    const response = await adminGet(smsUrl);
     const html = await response.text();
     expect(html).toContain("History line");
   });
@@ -276,7 +277,7 @@ describeWithEnv("admin sms", { db: true }, () => {
     // Remove the passphrase so the gateway reads as unconfigured
     await settings.update.smsGatewayPassphrase("");
 
-    const { response } = await adminGet(smsUrl);
+    const response = await adminGet(smsUrl);
     const html = await response.text();
     expect(html).toContain("not configured");
     expect(html).toContain("Earlier message");

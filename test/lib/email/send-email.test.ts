@@ -18,6 +18,13 @@ const minimalMsg: EmailMessage = {
   to: validEmail("a@b.com"),
 };
 
+const plainMsg: EmailMessage = {
+  html: "<p>Hi</p>",
+  subject: "Test",
+  text: "Hi",
+  to: validEmail("user@test.com"),
+};
+
 const sendWithProvider = (
   provider: EmailConfig["provider"],
   msg: EmailMessage = minimalMsg,
@@ -51,6 +58,17 @@ const sendEmailExpectingError = async (
 describe("sendEmail", () => {
   const fetch = useFetchStub();
   const mailgunBasicAuth = `Basic ${btoa("api:re_test_key")}`;
+
+  const expectMailgunRequest = (expectedUrl: string) => {
+    expect(fetch.callCount()).toBe(1);
+    const [url] = fetch.getFetchArgs();
+    expect(url).toBe(expectedUrl);
+    expect(fetch.getFetchHeaders().Authorization).toBe(mailgunBasicAuth);
+    const body = fetch.getFetchFormBody();
+    expect(body.get("from")).toBe("tickets@example.com");
+    expect(body.get("to")).toBe("user@test.com");
+    return body;
+  };
 
   test("sends via Resend with correct URL, headers, and body", async () => {
     const msg: EmailMessage = {
@@ -138,21 +156,14 @@ describe("sendEmail", () => {
 
   test("sends via Mailgun (US) with correct URL, headers, and FormData body", async () => {
     await sendWithProvider("mailgun-us", {
-      html: "<p>Hi</p>",
+      ...plainMsg,
       replyTo: validEmail("reply@test.com"),
-      subject: "Test",
-      text: "Hi",
-      to: validEmail("user@test.com"),
     });
 
-    expect(fetch.callCount()).toBe(1);
-    const [url] = fetch.getFetchArgs();
-    expect(url).toBe("https://api.mailgun.net/v3/example.com/messages");
-    expect(fetch.getFetchHeaders().Authorization).toBe(mailgunBasicAuth);
     expect(fetch.getFetchHeaders()).not.toHaveProperty("Content-Type");
-    const body = fetch.getFetchFormBody();
-    expect(body.get("from")).toBe("tickets@example.com");
-    expect(body.get("to")).toBe("user@test.com");
+    const body = expectMailgunRequest(
+      "https://api.mailgun.net/v3/example.com/messages",
+    );
     expect(body.get("subject")).toBe("Test");
     expect(body.get("html")).toBe("<p>Hi</p>");
     expect(body.get("text")).toBe("Hi");
@@ -160,20 +171,9 @@ describe("sendEmail", () => {
   });
 
   test("sends via Mailgun (EU) with EU API endpoint", async () => {
-    await sendWithProvider("mailgun-eu", {
-      html: "<p>Hi</p>",
-      subject: "Test",
-      text: "Hi",
-      to: validEmail("user@test.com"),
-    });
+    await sendWithProvider("mailgun-eu", plainMsg);
 
-    expect(fetch.callCount()).toBe(1);
-    const [url] = fetch.getFetchArgs();
-    expect(url).toBe("https://api.eu.mailgun.net/v3/example.com/messages");
-    expect(fetch.getFetchHeaders().Authorization).toBe(mailgunBasicAuth);
-    const body = fetch.getFetchFormBody();
-    expect(body.get("from")).toBe("tickets@example.com");
-    expect(body.get("to")).toBe("user@test.com");
+    expectMailgunRequest("https://api.eu.mailgun.net/v3/example.com/messages");
   });
 
   test("sends via Mailgun without h:Reply-To when not provided", async () => {

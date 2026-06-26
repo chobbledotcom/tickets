@@ -50,6 +50,16 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
     );
   }
 
+  const clearWrappedPrivateKey = async () => {
+    const { getDb: getDbFn } = await import("#shared/db/client.ts");
+    const { settings: s } = await import("#shared/db/settings.ts");
+    await getDbFn().execute({
+      args: [],
+      sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
+    });
+    s.invalidateCache();
+  };
+
   describe("security headers", () => {
     describe("X-Frame-Options", () => {
       test("home page has X-Frame-Options: DENY", async () => {
@@ -345,13 +355,7 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
     });
 
     test("returns null when wrappedPrivateKey is not set in DB", async () => {
-      const { getDb: getDbFn } = await import("#shared/db/client.ts");
-      const { settings: s } = await import("#shared/db/settings.ts");
-      await getDbFn().execute({
-        args: [],
-        sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
-      });
-      s.invalidateCache();
+      await clearWrappedPrivateKey();
 
       const { getSessionPrivateKey } = await import(
         "#shared/session-private-key.ts"
@@ -377,6 +381,14 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
 
   describe("routes/utils.ts (redirect)", () => {
     const withRequestContext = <T>(fn: () => T): T => runWithRequestId(fn);
+
+    const createFlashRedirect = () => {
+      const response = redirect("/admin/settings", "Saved", true);
+      const location = expectRedirect(response);
+      const url = new URL(location, "http://localhost");
+      const flashId = url.searchParams.get("flash");
+      return { flashId, response };
+    };
 
     test("creates success redirect without form ID", () =>
       withRequestContext(() => {
@@ -445,23 +457,17 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
 
     test("uses request ID as flash key in redirect URL", () =>
       withRequestContext(() => {
-        const response = redirect("/admin/settings", "Saved", true);
-        const location = expectRedirect(response);
-        const url = new URL(location, "http://localhost");
-        const flashId = url.searchParams.get("flash");
+        const { flashId } = createFlashRedirect();
         expect(flashId).toBeDefined();
         expect(flashId!.length).toBe(4);
       }));
 
     test("keys flash cookie by the flash ID in the URL", () =>
       withRequestContext(() => {
-        const response = redirect("/admin/settings", "Saved", true);
-        const location = expectRedirect(response);
-        const url = new URL(location, "http://localhost");
-        const flashId = url.searchParams.get("flash")!;
+        const { response, flashId } = createFlashRedirect();
         const cookies = response.headers.getSetCookie();
         const flashCookie = cookies.find((c) =>
-          c.startsWith(`flash_${flashId}=`),
+          c.startsWith(`flash_${flashId!}=`),
         );
         expect(flashCookie).toBeDefined();
       }));
@@ -850,14 +856,7 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
     });
 
     test("SessionKeyError clears cookie and redirects to /admin", async () => {
-      const { getDb: getDbFn } = await import("#shared/db/client.ts");
-      const { settings: s } = await import("#shared/db/settings.ts");
-
-      await getDbFn().execute({
-        args: [],
-        sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
-      });
-      s.invalidateCache();
+      await clearWrappedPrivateKey();
 
       await withExpectedError(async () => {
         const response = await handleRequest(

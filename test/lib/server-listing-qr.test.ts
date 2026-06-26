@@ -14,6 +14,14 @@ import {
 } from "#test-utils";
 
 describeWithEnv("ticket QR code", { db: true }, () => {
+  const expectQrCode = async (response: Response) => {
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/svg+xml");
+    const body = await response.text();
+    expect(body).toContain("<svg");
+    return body;
+  };
+
   describe("GET /ticket/:slug/qr", () => {
     test("returns SVG content type for valid listing", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
@@ -47,10 +55,7 @@ describeWithEnv("ticket QR code", { db: true }, () => {
       const listing = await createTestListing({ maxAttendees: 50 });
       const request = mockRequest(`/ticket/${listing.slug}/qr`);
       const response = await handleTicketQrGet(request, { slug: listing.slug });
-      expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toBe("image/svg+xml");
-      const body = await response.text();
-      expect(body).toContain("<svg");
+      await expectQrCode(response);
     });
 
     test("returns 404 for missing listing", async () => {
@@ -68,10 +73,7 @@ describeWithEnv("ticket QR code", { db: true }, () => {
       const response = await handleRequest(
         mockRequest(`/ticket/${group.slug}/qr`),
       );
-      expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toBe("image/svg+xml");
-      const body = await response.text();
-      expect(body).toContain("<svg");
+      const body = await expectQrCode(response);
       expect(body).toContain("</svg>");
     });
 
@@ -81,10 +83,7 @@ describeWithEnv("ticket QR code", { db: true }, () => {
       const response = await handleTicketQrGet(request, {
         slug: group.slug,
       });
-      expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toBe("image/svg+xml");
-      const body = await response.text();
-      expect(body).toContain("<svg");
+      await expectQrCode(response);
     });
   });
 });

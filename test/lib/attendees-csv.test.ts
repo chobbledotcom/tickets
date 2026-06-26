@@ -5,7 +5,11 @@ import {
   generateAttendeesCsv,
 } from "#routes/admin/attendees-csv.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { setupTestEncryptionKey, testAttendee } from "#test-utils";
+import {
+  expectTestAttendeeCsvColumns,
+  setupTestEncryptionKey,
+  testAttendee,
+} from "#test-utils";
 
 beforeAll(async () => {
   setupTestEncryptionKey();
@@ -29,9 +33,7 @@ describe("generateAttendeesCsv", () => {
     expect(lines[0]).toBe(
       "Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
     );
-    expect(lines[1]).toContain("John Doe");
-    expect(lines[1]).toContain("john@example.com");
-    expect(lines[1]).toContain(",2,");
+    expectTestAttendeeCsvColumns(lines[1], 2);
     expect(lines[1]).toContain("2024-01-15T10:30:00.000Z");
   });
 

@@ -11,6 +11,7 @@ import {
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import type { DatePickerDate } from "#templates/date-picker.tsx";
 import {
+  expectTestAttendeeCsvColumns,
   selectOptionLabels,
   setupTestEncryptionKey,
   testAttendee,
@@ -330,9 +331,7 @@ describe("generateCalendarCsv", () => {
     ];
     const csv = generateCalendarCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[1]).toContain("John Doe");
-    expect(lines[1]).toContain("john@example.com");
-    expect(lines[1]).toContain(",2,");
+    expectTestAttendeeCsvColumns(lines[1], 2);
     expect(lines[1]).toContain("20.00");
     expect(lines[1]).toContain("pi_abc");
     expect(lines[1]).toContain(",Yes,");

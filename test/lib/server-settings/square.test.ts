@@ -4,11 +4,12 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
+import type { SquareConnectionTestResult } from "#shared/square.ts";
 import { squareApi } from "#shared/square.ts";
 import {
   adminFormPost,
+  adminGet,
   assertJson,
-  awaitTestRequest,
   describeWithEnv,
   expectFlash,
   expectHtmlResponse,
@@ -107,9 +108,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("settings page shows Square is not configured initially", async () => {
       await settings.update.paymentProvider("square");
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       const html = await response.text();
       expect(response.status).toBe(200);
       expect(html).toContain("No Square access token is configured");
@@ -124,9 +123,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       });
 
       // Check the settings page shows it's configured
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       const html = await response.text();
       expect(html).toContain("A Square access token is currently configured");
       expect(html).toContain("square-test-btn");
@@ -195,97 +192,71 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
-    test("returns JSON result when access token is not configured", async () => {
-      await withMocks(
-        () =>
-          stub(squareApi, "testSquareConnection", () =>
-            Promise.resolve({
-              accessToken: {
-                error: "No Square access token configured",
-                valid: false,
-              },
-              location: { configured: false },
-              ok: false,
-              webhook: { configured: false },
-            }),
-          ),
-        async () => {
-          const { response } = await adminFormPost(
-            "/admin/settings/square/test",
-          );
-          expect(response.headers.get("content-type")).toBe(
-            "application/json; charset=utf-8",
-          );
-          await assertJson(Promise.resolve(response), 200, (json) => {
-            expect(json.ok).toBe(false);
-            expect(json.accessToken.valid).toBe(false);
-            expect(json.accessToken.error).toContain(
-              "No Square access token configured",
+    const connectionTestCases: ReadonlyArray<{
+      name: string;
+      mockResult: SquareConnectionTestResult;
+    }> = [
+      {
+        mockResult: {
+          accessToken: {
+            error: "No Square access token configured",
+            valid: false,
+          },
+          location: { configured: false },
+          ok: false,
+          webhook: { configured: false },
+        },
+        name: "returns JSON result when access token is not configured",
+      },
+      {
+        mockResult: {
+          accessToken: { mode: "sandbox", valid: true },
+          location: {
+            configured: true,
+            locationId: "L_test_123",
+            name: "Test Location",
+            status: "ACTIVE",
+          },
+          ok: true,
+          webhook: { configured: true },
+        },
+        name: "returns success when all checks pass",
+      },
+      {
+        mockResult: {
+          accessToken: { mode: "sandbox", valid: true },
+          location: {
+            configured: false,
+            error: "No location ID configured",
+          },
+          ok: false,
+          webhook: { configured: true },
+        },
+        name: "returns partial failure when token valid but location missing",
+      },
+    ];
+
+    for (const tc of connectionTestCases) {
+      test(tc.name, async () => {
+        await withMocks(
+          () =>
+            stub(squareApi, "testSquareConnection", () =>
+              Promise.resolve(tc.mockResult),
+            ),
+          async () => {
+            const { response } = await adminFormPost(
+              "/admin/settings/square/test",
             );
-          });
-        },
-      );
-    });
-
-    test("returns success when all checks pass", async () => {
-      await withMocks(
-        () =>
-          stub(squareApi, "testSquareConnection", () =>
-            Promise.resolve({
-              accessToken: { mode: "sandbox", valid: true },
-              location: {
-                configured: true,
-                locationId: "L_test_123",
-                name: "Test Location",
-                status: "ACTIVE",
-              },
-              ok: true,
-              webhook: { configured: true },
-            }),
-          ),
-        async () => {
-          const { response } = await adminFormPost(
-            "/admin/settings/square/test",
-          );
-          await assertJson(Promise.resolve(response), 200, (json) => {
-            expect(json.ok).toBe(true);
-            expect(json.accessToken.valid).toBe(true);
-            expect(json.accessToken.mode).toBe("sandbox");
-            expect(json.location.configured).toBe(true);
-            expect(json.location.name).toBe("Test Location");
-            expect(json.webhook.configured).toBe(true);
-          });
-        },
-      );
-    });
-
-    test("returns partial failure when token valid but location missing", async () => {
-      await withMocks(
-        () =>
-          stub(squareApi, "testSquareConnection", () =>
-            Promise.resolve({
-              accessToken: { mode: "sandbox", valid: true },
-              location: {
-                configured: false,
-                error: "No location ID configured",
-              },
-              ok: false,
-              webhook: { configured: true },
-            }),
-          ),
-        async () => {
-          const { response } = await adminFormPost(
-            "/admin/settings/square/test",
-          );
-          await assertJson(Promise.resolve(response), 200, (json) => {
-            expect(json.ok).toBe(false);
-            expect(json.accessToken.valid).toBe(true);
-            expect(json.location.configured).toBe(false);
-            expect(json.location.error).toContain("No location ID configured");
-          });
-        },
-      );
-    });
+            expect(response.headers.get("content-type")).toBe(
+              "application/json; charset=utf-8",
+            );
+            await assertJson(Promise.resolve(response), 200, (json) =>
+              expect(json).toEqual(tc.mockResult),
+            );
+          },
+        );
+      });
+    }
   });
 
   describe("templates/admin/settings.tsx (Square webhook coverage)", () => {

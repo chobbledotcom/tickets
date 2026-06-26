@@ -6,7 +6,7 @@ import { invalidateUsersCache } from "#shared/db/users.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   adminFormPost,
-  awaitTestRequest,
+  adminGet,
   describeWithEnv,
   expectFlash,
   expectHtmlResponse,
@@ -117,9 +117,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(sessionCookie).toContain("Max-Age=0");
 
       // Verify old session is invalidated
-      const dashboardResponse = await awaitTestRequest("/admin/", {
-        cookie: await testCookie(),
-      });
+      const dashboardResponse = await adminGet("/admin/");
       const html = await dashboardResponse.text();
       expect(html).toContain("Login"); // Should show login, not dashboard
 

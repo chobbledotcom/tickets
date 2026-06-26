@@ -8,6 +8,7 @@ import { uploadRaw } from "#shared/storage.ts";
 import { setBuildTimestampForTest } from "#shared/update.ts";
 import {
   adminFormPost,
+  adminGet,
   awaitTestRequest,
   describeWithEnv,
   expectFlash,
@@ -16,24 +17,11 @@ import {
   FLASH_TEST_ID,
   flashCookieHeader,
   setTestEnv,
+  stubReleaseFetch,
   testCookie,
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
-
-/** GitHub release API response for a valid release */
-const MOCK_RELEASE = {
-  assets: [
-    {
-      browser_download_url:
-        "https://github.com/chobbledotcom/tickets/releases/download/v2099-01-01-120000/bunny-script.ts",
-      name: "bunny-script.ts",
-    },
-  ],
-  name: "2099-01-01 - Big Update",
-  published_at: "2099-01-01T12:00:00Z",
-  tag_name: "v2099-01-01-120000",
-};
 
 /** GitHub release API response with no assets */
 const MOCK_RELEASE_NO_ASSET = {
@@ -62,22 +50,6 @@ const setupForDeploy = async () => {
   await seedRecentBackup();
 };
 
-/** Stub `fetch` so releases/latest yields MOCK_RELEASE; other URLs (the asset
- *  download) are handled by onDownload (default: a successful updated bundle). */
-const releaseFetch = (
-  onDownload: () => Response = () =>
-    new Response("console.log('updated')", { status: 200 }),
-) =>
-  stub(globalThis, "fetch", (input: string | URL | Request) => {
-    const url = String(input);
-    if (url.includes("releases/latest")) {
-      return Promise.resolve(
-        new Response(JSON.stringify(MOCK_RELEASE), { status: 200 }),
-      );
-    }
-    return Promise.resolve(onDownload());
-  });
-
 /** deployScriptCode + release-fetch stubs for an /admin/update deploy. */
 const deployMocks = (
   opts: {
@@ -88,7 +60,7 @@ const deployMocks = (
   deployStub: stub(bunnyCdnApi, "deployScriptCode", () =>
     Promise.resolve(opts.deployResult ?? { ok: true as const }),
   ),
-  fetchStub: releaseFetch(opts.download),
+  fetchStub: stubReleaseFetch(opts.download),
 });
 
 const stubSuccessfulDeploy = () => deployMocks();
@@ -107,9 +79,7 @@ const setLatestVersion = async (
 
 /** Fetch the /admin/update page HTML as the owner. */
 const getUpdatePageHtml = async (): Promise<string> => {
-  const response = await awaitTestRequest("/admin/update", {
-    cookie: await testCookie(),
-  });
+  const response = await adminGet("/admin/update");
   return response.text();
 };
 
@@ -134,9 +104,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
     testRequiresAuth("/admin/update");
 
     test("shows update page when authenticated", async () => {
-      const response = await awaitTestRequest("/admin/update", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/update");
       await expectHtmlResponse(
         response,
         200,
@@ -147,9 +115,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
     });
 
     test("shows Development build in dev mode", async () => {
-      const response = await awaitTestRequest("/admin/update", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/update");
       const html = await response.text();
       expect(html).toContain("Development build");
     });
@@ -194,14 +160,14 @@ describeWithEnv("server (admin update)", { db: true }, () => {
 
   describe("POST /admin/update/check", () => {
     test("stores latest version and redirects on success", async () => {
-      await withMocks(releaseFetch, async () => {
+      await withMocks(stubReleaseFetch, async () => {
         const { response } = await adminFormPost("/admin/update/check");
         expectRedirect(response, "/admin/update");
       });
     });
 
     test("stores tag name in settings after check", async () => {
-      await withMocks(releaseFetch, async () => {
+      await withMocks(stubReleaseFetch, async () => {
         await adminFormPost("/admin/update/check");
         settings.invalidateCache();
         await settings.loadKeys(ALL_SETTINGS_KEYS);
@@ -214,7 +180,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
 
     test("reports update available when release is newer", async () => {
       simulateProductionBuild();
-      await withMocks(releaseFetch, async () => {
+      await withMocks(stubReleaseFetch, async () => {
         const { response } = await adminFormPost("/admin/update/check");
         expectFlash(response, expect.stringContaining("Update available"));
       });
@@ -222,7 +188,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
 
     test("reports up to date when release is older", async () => {
       setBuildTimestampForTest("2099-12-31T23:59:59Z");
-      await withMocks(releaseFetch, async () => {
+      await withMocks(stubReleaseFetch, async () => {
         const { response } = await adminFormPost("/admin/update/check");
         expectFlash(response, expect.stringContaining("latest version"));
       });
@@ -370,7 +336,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
       settings.invalidateCache();
       await settings.loadKeys(ALL_SETTINGS_KEYS);
 
-      await withMocks(releaseFetch, async () => {
+      await withMocks(stubReleaseFetch, async () => {
         const { response } = await adminFormPost("/admin/update");
         expectFlash(
           response,
