@@ -391,6 +391,21 @@ export const expectRejects = async (
   }
 };
 
+/** The "one daily listing + one dated servicing event" fixture shared by
+ *  validation §14 (update-catch) and ledger §22 (occurredAt routing). */
+export const createDatedServicingScenario = async (): Promise<{
+  id: number;
+  listing: Listing;
+}> => {
+  const { createDailyTestListing } = await import("#test-utils/db-helpers.ts");
+  const listing = await createDailyTestListing({ maxAttendees: 5, name: "L" });
+  const { id } = await createTestServicingEvent({
+    bookings: [{ date: "2026-07-01", listingId: listing.id, quantity: 1 }],
+    name: "Dated Service",
+  });
+  return { id, listing };
+};
+
 /** Create two daily listings — the multi-booking fixture shared by §3 (create),
  *  §4 (edit), and §18 (duplicate). */
 export const createDailyListingPair = async (

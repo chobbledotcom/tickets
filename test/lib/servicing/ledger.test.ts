@@ -39,7 +39,7 @@ import { queryAll } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
 import {
   adminPost,
-  createDailyTestListing,
+  createDatedServicingScenario,
   createServicingHold,
   createTestAttendeeDirect,
   createTestListing,
@@ -550,14 +550,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     // The route must set occurredAt from the event's booking date, not the
     // server clock — otherwise cost legs are dated when the form was submitted,
     // not when the work was done.
-    const listing = await createDailyTestListing({
-      maxAttendees: 5,
-      name: "L",
-    });
-    const { id } = await createTestServicingEvent({
-      bookings: [{ date: "2026-07-01", listingId: listing.id, quantity: 1 }],
-      name: "Dated Service",
-    });
+    const { id, listing } = await createDatedServicingScenario();
     await adminPost(`/admin/servicing/${id}`, {
       amount: "90.00",
       memo: "Boiler part",
