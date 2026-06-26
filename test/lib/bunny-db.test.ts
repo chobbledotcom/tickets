@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
-  bunnyDbApi,
+  bunnyDbProvider as bunnyDbApi,
   EUROPEAN_REGIONS,
   STORAGE_REGION,
 } from "#shared/bunny-db.ts";

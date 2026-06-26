@@ -201,12 +201,12 @@ describeWithEnv("backup", { db: true }, () => {
       }
     });
 
-    test("extracts name from https:// URL", () => {
+    test("uses full first segment for Turso URLs (db-name and org are both unique identity)", () => {
       const restore = setTestEnv({
-        DB_URL: "https://abc123-my-site.turso.io",
+        DB_URL: "https://my-site-myorg.turso.io",
       });
       try {
-        expect(dbName()).toBe("my-site");
+        expect(dbName()).toBe("my-site-myorg");
       } finally {
         restore();
       }
@@ -250,8 +250,8 @@ describeWithEnv("backup", { db: true }, () => {
     });
 
     test("scopes to a named database when given one", () => {
-      expect(backupDir(dbName("libsql://01-client-acme.turso.io"))).toBe(
-        "client-acme/",
+      expect(backupDir(dbName("libsql://client-acme-myorg.turso.io"))).toBe(
+        "client-acme-myorg/",
       );
     });
 

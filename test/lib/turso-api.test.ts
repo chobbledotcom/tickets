@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { slugifyForTurso, tursoApi } from "#shared/turso-api.ts";
+import {
+  slugifyForTurso,
+  tursoDbProvider as tursoApi,
+} from "#shared/turso-api.ts";
 import { describeWithEnv, withMocks } from "#test-utils";
 
 const TURSO_ENV = {

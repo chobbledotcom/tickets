@@ -14,6 +14,7 @@ import {
   slugifyForProvider,
 } from "#shared/config.ts";
 import { type ApiResult, fetchText, parseApiError } from "#shared/fetch.ts";
+import type { DatabaseProviderApi } from "#shared/provider-types.ts";
 
 const TURSO_API_BASE = "https://api.turso.tech";
 
@@ -96,7 +97,6 @@ const createDatabaseImpl = async (
   return { dbId, dbToken: tokenData.jwt, dbUrl, ok: true };
 };
 
-/** Stubbable API for testing */
-export const tursoApi = {
+export const tursoDbProvider: DatabaseProviderApi = {
   createDatabase: createDatabaseImpl,
 };

@@ -18,15 +18,15 @@
  * 4. Deploy the code
  */
 
-import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { bunnyDbApi } from "#shared/bunny-db.ts";
+import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
+import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { toBase64 } from "#shared/crypto/utils.ts";
 import type { DbProvider, HostingProvider } from "#shared/db/built-sites.ts";
-import { denoDeployApi, slugifyForDeno } from "#shared/deno-deploy-api.ts";
+import { denoHostingProvider } from "#shared/deno-deploy-api.ts";
 import { getEnv } from "#shared/env.ts";
 import { fetchText } from "#shared/fetch.ts";
 import { withSiteDb } from "#shared/site-db.ts";
-import { tursoApi } from "#shared/turso-api.ts";
+import { tursoDbProvider } from "#shared/turso-api.ts";
 import { fetchLatestRelease } from "#shared/update.ts";
 
 /**
@@ -138,19 +138,6 @@ export const collectHostSecrets = (): [string, string][] => {
   return secrets;
 };
 
-/** Set multiple secrets on a Bunny edge script, collecting errors */
-const setBunnySecrets = async (
-  scriptId: number,
-  secrets: [name: string, value: string][],
-): Promise<string[]> => {
-  const errors: string[] = [];
-  for (const [name, value] of secrets) {
-    const result = await bunnyCdnApi.setEdgeScriptSecret(scriptId, name, value);
-    if (!result.ok) errors.push(result.error);
-  }
-  return errors;
-};
-
 /** Build the base per-site secrets: DB credentials and encryption key. */
 const buildBaseSecrets = (
   dbCredentials: BuildSiteCredentials,
@@ -230,59 +217,21 @@ const buildSiteOnProvider = async (
 ): Promise<BuildSiteResult> => {
   const fullName = `Tickets - ${input.siteName}`;
   const encryptionKey = builderApi.generateEncryptionKey();
-
-  if (hostingProvider === "deno") {
-    const createResult = await denoDeployApi.createApp(
-      slugifyForDeno(fullName),
-    );
-    if (!createResult.ok) return createResult;
-    const setResult = await denoDeployApi.setEnvVars(createResult.appId, [
-      ...buildBaseSecrets(dbCredentials, encryptionKey),
-      ...collectHostSecrets(),
-    ]);
-    if (!setResult.ok) {
-      return { error: `Failed to set secrets: ${setResult.error}`, ok: false };
-    }
-    const deployResult = await denoDeployApi.deployCode(
-      createResult.appId,
-      code,
-    );
-    if (!deployResult.ok) return deployResult;
-    return {
-      dbProvider,
-      dbToken: dbCredentials.dbToken,
-      dbUrl: dbCredentials.dbUrl,
-      defaultHostname: deployResult.hostname,
-      hostingId: createResult.appId,
-      hostingProvider: "deno",
-      ok: true,
-    };
-  }
-
-  const createResult = await bunnyCdnApi.createEdgeScript(fullName, code);
-  if (!createResult.ok) return createResult;
-  const { scriptId, pullZoneId, defaultHostname } = createResult;
-  const pzResult = await bunnyCdnApi.updatePullZone(pullZoneId, {
-    DisableCookies: false,
-  });
-  if (!pzResult.ok) return pzResult;
-  const secretErrors = await setBunnySecrets(scriptId, [
+  const secrets: [string, string][] = [
     ...buildBaseSecrets(dbCredentials, encryptionKey),
-    ["BUNNY_SCRIPT_ID", String(scriptId)],
     ...collectHostSecrets(),
-  ]);
-  if (secretErrors.length > 0) {
-    return { error: `Failed to set secrets: ${secretErrors[0]}`, ok: false };
-  }
-  const publishResult = await bunnyCdnApi.publishEdgeScript(scriptId);
-  if (!publishResult.ok) return publishResult;
+  ];
+  const provider =
+    hostingProvider === "deno" ? denoHostingProvider : bunnyHostingProvider;
+  const result = await provider.createSite(fullName, code, secrets);
+  if (!result.ok) return result;
   return {
     dbProvider,
     dbToken: dbCredentials.dbToken,
     dbUrl: dbCredentials.dbUrl,
-    defaultHostname,
-    hostingId: String(scriptId),
-    hostingProvider: "bunny",
+    defaultHostname: result.defaultHostname,
+    hostingId: result.hostingId,
+    hostingProvider,
     ok: true,
   };
 };
@@ -315,8 +264,8 @@ export const buildSite = async (
 
 /** Dispatch database creation to the selected provider. */
 function createDatabase(name: string, provider: DbProvider = "bunny") {
-  if (provider === "turso") return tursoApi.createDatabase(name);
-  return bunnyDbApi.createDatabase(name);
+  if (provider === "turso") return tursoDbProvider.createDatabase(name);
+  return bunnyDbProvider.createDatabase(name);
 }
 
 /** Stubbable API for testing */

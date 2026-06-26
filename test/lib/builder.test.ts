@@ -3,9 +3,9 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { bunnyDbApi } from "#shared/bunny-db.ts";
+import { bunnyDbProvider as bunnyDbApi } from "#shared/bunny-db.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
-import { tursoApi } from "#shared/turso-api.ts";
+import { tursoDbProvider as tursoApi } from "#shared/turso-api.ts";
 import { describeWithEnv, withMocks } from "#test-utils";
 import {
   expectBuildError,

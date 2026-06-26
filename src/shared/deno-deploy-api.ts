@@ -12,6 +12,7 @@ import {
   slugifyForProvider,
 } from "#shared/config.ts";
 import { type ApiResult, fetchText, parseApiError } from "#shared/fetch.ts";
+import type { HostingProviderApi } from "#shared/provider-types.ts";
 
 const DENO_API_BASE = "https://api.deno.com/v2";
 
@@ -85,33 +86,20 @@ const fetchAppEnvVars = async (
 };
 
 /**
- * Set (or merge) environment variables on a Deno Deploy app.
- * GETs the existing env vars first, merges in the new ones, then PATCHes —
- * so existing variables not in `secrets` are preserved.
+ * Set environment variables on a Deno Deploy app.
+ * PATCHes only the supplied secrets — the Deno API deep-merges by key, so
+ * existing vars not in `secrets` are preserved without re-sending them.
+ * (Re-sending existing secrets risks clearing them: the GET response masks
+ * secret values, so a round-trip GET→merge→PATCH would PATCH with empty values.)
  */
-const setEnvVarsImpl = async (
-  appId: string,
-  secrets: [string, string][],
-): Promise<ApiResult<Record<never, never>>> => {
-  // 1. Fetch existing env vars so we don't overwrite unrelated ones
-  const appResult = await fetchAppEnvVars(appId);
-  if (!appResult.ok) return appResult;
-  const existing = appResult.envVars;
-
-  // 2. Merge: new secrets override any existing key with the same name
-  const merged = { ...existing };
-  for (const [key, value] of secrets) {
-    merged[key] = { is_secret: true, value };
-  }
-
-  const envVarsArray = Object.entries(merged).map(([key, entry]) => ({
+const setEnvVarsImpl = async (appId: string, secrets: [string, string][]) => {
+  const envVarsArray = secrets.map(([key, value]) => ({
     contexts: ["production"],
     key,
-    secret: entry.is_secret,
-    value: entry.value,
+    secret: true,
+    value,
   }));
 
-  // 3. PATCH the app with the merged set
   const patchRes = await fetchText(
     `${DENO_API_BASE}/apps/${encodeURIComponent(appId)}`,
     {
@@ -122,7 +110,7 @@ const setEnvVarsImpl = async (
   );
 
   if (!patchRes.ok) return parseApiError(patchRes, "Set app env vars");
-  return { ok: true };
+  return { ok: true as const };
 };
 
 /**
@@ -176,4 +164,34 @@ export const denoDeployApi = {
   deployCode: deployCodeImpl,
   getEnvVarNames: getEnvVarNamesImpl,
   setEnvVars: setEnvVarsImpl,
+};
+
+const createDenoSiteImpl = async (
+  name: string,
+  code: string,
+  secrets: [string, string][],
+) => {
+  const createResult = await denoDeployApi.createApp(slugifyForDeno(name));
+  if (!createResult.ok) return createResult;
+  const setResult = await denoDeployApi.setEnvVars(createResult.appId, secrets);
+  if (!setResult.ok) {
+    return {
+      error: `Failed to set secrets: ${setResult.error}`,
+      ok: false as const,
+    };
+  }
+  const deployResult = await denoDeployApi.deployCode(createResult.appId, code);
+  if (!deployResult.ok) return deployResult;
+  return {
+    defaultHostname: deployResult.hostname,
+    hostingId: createResult.appId,
+    ok: true as const,
+  };
+};
+
+export const denoHostingProvider: HostingProviderApi = {
+  createSite: createDenoSiteImpl,
+  getSecretNames: (hostingId) => denoDeployApi.getEnvVarNames(hostingId),
+  setSecrets: (hostingId, secrets) =>
+    denoDeployApi.setEnvVars(hostingId, secrets),
 };

@@ -16,10 +16,11 @@
  */
 
 import { collectHostSecrets, HOST_INFRA_SECRET_KEYS } from "#shared/builder.ts";
-import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
 import type { BuiltSite } from "#shared/db/built-sites.ts";
-import { denoDeployApi } from "#shared/deno-deploy-api.ts";
+import { denoHostingProvider } from "#shared/deno-deploy-api.ts";
 import { getEnv } from "#shared/env.ts";
+import type { HostingProviderApi } from "#shared/provider-types.ts";
 
 /**
  * The secrets we would copy to a freshly built site, recomputed for an existing
@@ -88,20 +89,20 @@ const secretsPrecondition = (site: BuiltSite): SecretsPrecondition => {
   return { hostingId: site.hostingId, ok: true };
 };
 
+const resolveHostingProvider = (
+  hostingProvider: BuiltSite["hostingProvider"],
+): HostingProviderApi =>
+  hostingProvider === "deno" ? denoHostingProvider : bunnyHostingProvider;
+
 /** Fetch the live secret names for a site, resilient to network/parse errors. */
 const listSecretNames = async (
   site: BuiltSite,
   hostingId: string,
 ): Promise<{ ok: true; names: string[] } | { ok: false; error: string }> => {
   try {
-    if (site.hostingProvider === "deno") {
-      return denoDeployApi.getEnvVarNames(hostingId);
-    }
-    const scriptId = Number(hostingId);
-    const result = await bunnyCdnApi.listEdgeScriptSecrets(scriptId);
-    return result.ok
-      ? { names: result.secrets.map((s) => s.Name), ok: true }
-      : result;
+    return await resolveHostingProvider(site.hostingProvider).getSecretNames(
+      hostingId,
+    );
   } catch (e) {
     return {
       error: `Failed to list secrets: ${(e as Error).message}`,
@@ -179,21 +180,10 @@ export const addMissingSiteSecrets = async (
 
   if (toAdd.length === 0) return { added: [], ok: true };
 
-  if (site.hostingProvider === "deno") {
-    const result = await denoDeployApi.setEnvVars(hostingId, toAdd);
-    if (!result.ok) return result;
-    return { added: toAdd.map(([name]) => name), ok: true };
-  }
-
-  const scriptId = Number(hostingId);
-  const added: string[] = [];
-  const errors: string[] = [];
-  for (const [name, value] of toAdd) {
-    const result = await bunnyCdnApi.setEdgeScriptSecret(scriptId, name, value);
-    if (result.ok) added.push(name);
-    else errors.push(result.error);
-  }
-  return errors.length > 0
-    ? { error: errors[0]!, ok: false }
-    : { added, ok: true };
+  const result = await resolveHostingProvider(site.hostingProvider).setSecrets(
+    hostingId,
+    toAdd,
+  );
+  if (!result.ok) return result;
+  return { added: toAdd.map(([name]) => name), ok: true };
 };

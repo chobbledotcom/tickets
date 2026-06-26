@@ -104,15 +104,20 @@ export const isRemoteDatabase = (): boolean => {
 /**
  * Extract a short database name from DB_URL for use in backup filenames.
  * e.g. "libsql://01KFXB...-tickets-spencer.lite.bunnydb.net/" → "tickets-spencer"
+ * For Turso URLs the full first hostname segment is used as-is (it is already
+ * the unique database identity: "{db-name}-{org}.turso.io").
  * Falls back to "local" for non-remote or unparseable URLs.
  */
 export const dbName = (url: string = requireEnv("DB_URL")): string => {
   if (!URL.canParse(url)) return "local";
 
   const host = new URL(url).hostname;
-  // "01KFXB...-tickets-spencer.lite.bunnydb.net" → "01KFXB...-tickets-spencer"
   const first = host.split(".")[0]!;
-  // Drop the leading ID chunk (before first hyphen)
+
+  // Turso hostnames: {db-name}-{org}.turso.io — the full first segment is unique
+  if (host.endsWith(".turso.io")) return first;
+
+  // Bunny DB hostnames: {uuid}-{name}.lite.bunnydb.net — drop the UUID prefix
   const dashIdx = first.indexOf("-");
   if (dashIdx === -1) return first;
   return first.slice(dashIdx + 1);

@@ -14,6 +14,7 @@ import {
 import { type FetchResult, fetchText, parseApiError } from "#shared/fetch.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { delay } from "#shared/now.ts";
+import type { HostingProviderApi } from "#shared/provider-types.ts";
 
 const BUNNY_API_BASE = "https://api.bunny.net";
 
@@ -569,6 +570,55 @@ const deployScriptCodeImpl = async (
   }
 
   return publishScript(scriptId, "Publish script");
+};
+
+// ---------------------------------------------------------------------------
+// Hosting provider interface implementation (site builder + secrets backfill)
+// ---------------------------------------------------------------------------
+
+export const bunnyHostingProvider: HostingProviderApi = {
+  async createSite(name, code, secrets) {
+    const createResult = await bunnyCdnApi.createEdgeScript(name, code);
+    if (!createResult.ok) return createResult;
+    const { scriptId, pullZoneId, defaultHostname } = createResult;
+    const pzResult = await bunnyCdnApi.updatePullZone(pullZoneId, {
+      DisableCookies: false,
+    });
+    if (!pzResult.ok) return pzResult;
+    const allSecrets: [string, string][] = [
+      ...secrets,
+      ["BUNNY_SCRIPT_ID", String(scriptId)],
+    ];
+    for (const [secretName, secretValue] of allSecrets) {
+      const r = await bunnyCdnApi.setEdgeScriptSecret(
+        scriptId,
+        secretName,
+        secretValue,
+      );
+      if (!r.ok)
+        return {
+          error: `Failed to set secrets: ${r.error}`,
+          ok: false as const,
+        };
+    }
+    const publishResult = await bunnyCdnApi.publishEdgeScript(scriptId);
+    if (!publishResult.ok) return publishResult;
+    return { defaultHostname, hostingId: String(scriptId), ok: true as const };
+  },
+  async getSecretNames(hostingId) {
+    const result = await bunnyCdnApi.listEdgeScriptSecrets(Number(hostingId));
+    return result.ok
+      ? { names: result.secrets.map((s) => s.Name), ok: true as const }
+      : result;
+  },
+  async setSecrets(hostingId, secrets) {
+    const scriptId = Number(hostingId);
+    for (const [name, value] of secrets) {
+      const r = await bunnyCdnApi.setEdgeScriptSecret(scriptId, name, value);
+      if (!r.ok) return r;
+    }
+    return { ok: true as const };
+  },
 };
 
 /** Stubbable API for testing */

@@ -9,6 +9,7 @@
 import { parseBunnyError } from "#shared/bunny-cdn.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
 import { type ApiResult, fetchText } from "#shared/fetch.ts";
+import type { DatabaseProviderApi } from "#shared/provider-types.ts";
 
 const DB_API_BASE = "https://api.bunny.net/database";
 
@@ -123,7 +124,6 @@ const createDatabaseImpl = async (
   return { dbId, dbToken: tokenData.token, dbUrl, ok: true };
 };
 
-/** Stubbable API for testing */
-export const bunnyDbApi = {
+export const bunnyDbProvider: DatabaseProviderApi = {
   createDatabase: createDatabaseImpl,
 };

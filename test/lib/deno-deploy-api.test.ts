@@ -131,8 +131,10 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
 
   // ── setEnvVars ─────────────────────────────────────────────────────────────
 
-  test("setEnvVars GETs existing vars then PATCHes merged set", async () => {
-    const calls: { method?: string; url: string; body?: unknown }[] = [];
+  test("setEnvVars PATCHes only the supplied vars (no GET)", async () => {
+    let patchUrl: string | undefined;
+    let patchBody: unknown;
+    let callCount = 0;
 
     await withMocks(
       () =>
@@ -140,28 +142,9 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
           globalThis,
           "fetch",
           (input: string | URL | Request, init?: RequestInit) => {
-            const url = String(input);
-            const method = init?.method ?? "GET";
-            const body = init?.body
-              ? JSON.parse(init.body as string)
-              : undefined;
-            calls.push({ body, method, url });
-
-            if (method === "GET" || !method) {
-              return Promise.resolve(
-                new Response(
-                  JSON.stringify({
-                    env_vars: {
-                      EXISTING_VAR: { is_secret: false, value: "old-value" },
-                    },
-                    id: "app_ev",
-                    slug: "env-app",
-                  }),
-                  { status: 200 },
-                ),
-              );
-            }
-
+            callCount++;
+            patchUrl = String(input);
+            patchBody = JSON.parse(init?.body as string);
             return Promise.resolve(
               new Response(JSON.stringify({ id: "app_ev", slug: "env-app" }), {
                 status: 200,
@@ -174,72 +157,10 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
           ["NEW_VAR", "new-value"],
         ]);
         expect(result.ok).toBe(true);
-
-        const getCall = calls.find((c) => c.method === "GET" || !c.method);
-        expect(getCall?.url).toContain("/apps/app_ev");
-
-        const patchCall = calls.find((c) => c.method === "PATCH");
-        expect(patchCall).toBeDefined();
-        expect(patchCall?.url).toContain("/apps/app_ev");
-
-        const envVars = (patchCall?.body as { env_vars: unknown[] }).env_vars;
-        const keys = (envVars as { key: string }[]).map((e) => e.key);
-        expect(keys).toContain("EXISTING_VAR");
-        expect(keys).toContain("NEW_VAR");
-      },
-    );
-  });
-
-  test("setEnvVars new values override existing ones with same key", async () => {
-    let patchBody: { env_vars: { key: string; value: string }[] } | undefined;
-
-    await withMocks(
-      () =>
-        stub(
-          globalThis,
-          "fetch",
-          (input: string | URL | Request, init?: RequestInit) => {
-            const method = init?.method ?? "GET";
-
-            if (method === "PATCH") {
-              patchBody = JSON.parse(init?.body as string);
-              return Promise.resolve(
-                new Response(JSON.stringify({ id: "app_ov" }), { status: 200 }),
-              );
-            }
-
-            return Promise.resolve(
-              new Response(
-                JSON.stringify({
-                  env_vars: { MY_VAR: { is_secret: true, value: "original" } },
-                  id: "app_ov",
-                }),
-                { status: 200 },
-              ),
-            );
-          },
-        ),
-      async () => {
-        await denoDeployApi.setEnvVars("app_ov", [["MY_VAR", "updated"]]);
-
-        const myVar = patchBody?.env_vars.find((e) => e.key === "MY_VAR");
-        expect(myVar?.value).toBe("updated");
-      },
-    );
-  });
-
-  test("setEnvVars returns error when GET fails", async () => {
-    await withMocks(
-      () =>
-        stub(globalThis, "fetch", () =>
-          Promise.resolve(new Response("Not Found", { status: 404 })),
-        ),
-      async () => {
-        const result = await denoDeployApi.setEnvVars("app_bad", [["X", "y"]]);
-        expect(result.ok).toBe(false);
-        if (!result.ok) {
-          expect(result.error).toContain("Get app failed (404)");
-        }
+        expect(callCount).toBe(1);
+        expect(patchUrl).toContain("/apps/app_ev");
+        const envVars = (patchBody as { env_vars: { key: string }[] }).env_vars;
+        expect(envVars.map((e) => e.key)).toContain("NEW_VAR");
       },
     );
   });
@@ -247,25 +168,12 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
   test("setEnvVars returns error when PATCH fails", async () => {
     await withMocks(
       () =>
-        stub(
-          globalThis,
-          "fetch",
-          (input: string | URL | Request, init?: RequestInit) => {
-            const method = init?.method ?? "GET";
-            if (method === "PATCH") {
-              return Promise.resolve(
-                new Response(
-                  JSON.stringify({ error: "invalid env var name" }),
-                  { status: 422 },
-                ),
-              );
-            }
-            return Promise.resolve(
-              new Response(JSON.stringify({ env_vars: {}, id: "app_pe" }), {
-                status: 200,
-              }),
-            );
-          },
+        stub(globalThis, "fetch", () =>
+          Promise.resolve(
+            new Response(JSON.stringify({ error: "invalid env var name" }), {
+              status: 422,
+            }),
+          ),
         ),
       async () => {
         const result = await denoDeployApi.setEnvVars("app_pe", [
