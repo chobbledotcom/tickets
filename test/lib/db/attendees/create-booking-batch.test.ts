@@ -8,8 +8,16 @@ import {
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
-import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
-import { createBookingAtomic, getAttendeesRaw } from "#shared/db/attendees.ts";
+import type {
+  ModifierApplication,
+  PricedLine,
+  PricedOrder,
+} from "#shared/checkout-pricing.ts";
+import {
+  type BookingBatchPlan,
+  createBookingAtomic,
+  getAttendeesRaw,
+} from "#shared/db/attendees.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
@@ -65,6 +73,52 @@ const paidInput = (listingId: number, pricePaid: number) => ({
   paymentId: `pi_${listingId}`,
 });
 
+const buildPlan = async (opts: {
+  eventId: string;
+  lines: PricedLine[];
+  fullSubtotal?: number;
+  total?: number;
+  usages?: ModifierApplication[];
+  sessionId?: string;
+}): Promise<{ pricedOrder: PricedOrder; plan: BookingBatchPlan }> => {
+  if (opts.sessionId) await reserveSession(opts.sessionId);
+  const usages = opts.usages ?? [];
+  const pricedOrder = order({
+    fullSubtotal: opts.fullSubtotal ?? 0,
+    lines: opts.lines,
+    modifierApplications: usages,
+    total: opts.total ?? 0,
+  });
+  const plan = await bookingBatchPlan(
+    usages,
+    { eventId: opts.eventId, occurredAt: OCCURRED_AT, pricedOrder },
+    opts.sessionId,
+  );
+  return { plan, pricedOrder };
+};
+
+const expectNothingWritten = async (
+  listingId: number,
+  transferCount: number,
+): Promise<void> => {
+  expect((await getAttendeesRaw(listingId)).length).toBe(0);
+  expect((await allTransfers()).length).toBe(transferCount);
+};
+
+const expectCapacityExceeded = async (
+  plan: Awaited<ReturnType<typeof bookingBatchPlan>>,
+  listingId: number,
+  pricePaid: number,
+  transferCount: number,
+): Promise<void> => {
+  const result = await createBookingAtomic(
+    paidInput(listingId, pricePaid),
+    plan,
+  );
+  expect(result).toEqual({ reason: "capacity_exceeded", success: false });
+  await expectNothingWritten(listingId, transferCount);
+};
+
 describeWithEnv("db > createBookingAtomic", { db: true }, () => {
   test("posts legs, consumes modifier stock, and finalizes the session in one batch", async () => {
     const listing = await createTestListing({
@@ -78,18 +132,14 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       name: "Add-on",
       stock: 5,
     });
-    await reserveSession("sess_batch_ok");
-    const pricedOrder = order({
+    const { plan } = await buildPlan({
+      eventId: "sess_batch_ok",
       fullSubtotal: 600,
       lines: [line(listing.id, 500, 1)],
-      modifierApplications: [surcharge(m.id, 100)],
+      sessionId: "sess_batch_ok",
       total: 600,
+      usages: [surcharge(m.id, 100)],
     });
-    const plan = await bookingBatchPlan(
-      [surcharge(m.id, 100)],
-      { eventId: "sess_batch_ok", occurredAt: OCCURRED_AT, pricedOrder },
-      "sess_batch_ok",
-    );
 
     const result = await createBookingAtomic(paidInput(listing.id, 600), plan);
 
@@ -121,25 +171,20 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       name: "Sold out add-on",
       stock: 0,
     });
-    await reserveSession("sess_batch_soldout");
-    const pricedOrder = order({
+    const { plan } = await buildPlan({
+      eventId: "sess_batch_soldout",
       fullSubtotal: 600,
       lines: [line(listing.id, 500, 1)],
-      modifierApplications: [surcharge(m.id, 100)],
+      sessionId: "sess_batch_soldout",
       total: 600,
+      usages: [surcharge(m.id, 100)],
     });
-    const plan = await bookingBatchPlan(
-      [surcharge(m.id, 100)],
-      { eventId: "sess_batch_soldout", occurredAt: OCCURRED_AT, pricedOrder },
-      "sess_batch_soldout",
-    );
 
     const result = await createBookingAtomic(paidInput(listing.id, 600), plan);
 
     expect(result).toBe("sold-out");
     // Nothing landed: no attendee, no legs, no stock, session left unresolved.
-    expect((await getAttendeesRaw(listing.id)).length).toBe(0);
-    expect((await allTransfers()).length).toBe(0);
+    await expectNothingWritten(listing.id, 0);
     expect(await modifierUsedQuantities([m.id])).toEqual(new Map());
     expect((await isSessionProcessed("sess_batch_soldout"))!.attendee_id).toBe(
       null,
@@ -151,30 +196,21 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       maxAttendees: 0,
       unitPrice: 500,
     });
-    const pricedOrder = order({
+    const { plan } = await buildPlan({
+      eventId: "sess_batch_full",
       fullSubtotal: 500,
       lines: [line(listing.id, 500, 1)],
       total: 500,
     });
-    const plan = await bookingBatchPlan([], {
-      eventId: "sess_batch_full",
-      occurredAt: OCCURRED_AT,
-      pricedOrder,
-    });
 
-    const result = await createBookingAtomic(paidInput(listing.id, 500), plan);
-
-    expect(result).toEqual({ reason: "capacity_exceeded", success: false });
-    expect((await getAttendeesRaw(listing.id)).length).toBe(0);
-    expect((await allTransfers()).length).toBe(0);
+    await expectCapacityExceeded(plan, listing.id, 500, 0);
   });
 
   test("creates the attendee with no legs, stamp, or finalize for an empty plan", async () => {
     const listing = await createTestListing({ maxAttendees: 5, unitPrice: 0 });
-    const plan = await bookingBatchPlan([], {
+    const { plan } = await buildPlan({
       eventId: "free-1",
-      occurredAt: OCCURRED_AT,
-      pricedOrder: order({ lines: [line(listing.id, 0, 1)] }),
+      lines: [line(listing.id, 0, 1)],
     });
     // A zero-everything order maps to no legs at all.
     expect(plan.legs.length).toBe(0);
@@ -221,22 +257,16 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       surcharge(plenty.id, 100),
       surcharge(999_999, 100),
     ];
-    const pricedOrder = order({
+    const { plan } = await buildPlan({
+      eventId: "sess_cap_with_stock",
       fullSubtotal: 800,
       lines: [line(listing.id, 500, 1)],
-      modifierApplications: usages,
       total: 800,
+      usages,
     });
-    const plan = await bookingBatchPlan(usages, {
-      eventId: "sess_cap_with_stock",
-      occurredAt: OCCURRED_AT,
-      pricedOrder,
-    });
-
-    const result = await createBookingAtomic(paidInput(listing.id, 800), plan);
 
     // The event is full, but no modifier sold out, so it's a capacity failure.
-    expect(result).toEqual({ reason: "capacity_exceeded", success: false });
+    await expectCapacityExceeded(plan, listing.id, 800, 0);
   });
 
   test("refuses to create a booking when the payment event already has ledger legs", async () => {
@@ -244,28 +274,16 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       maxAttendees: 5,
       unitPrice: 500,
     });
-    await reserveSession("sess_batch_existing_ledger");
-    const pricedOrder = order({
+    const { plan } = await buildPlan({
+      eventId: "sess_batch_existing_ledger",
       fullSubtotal: 500,
       lines: [line(listing.id, 500, 1)],
+      sessionId: "sess_batch_existing_ledger",
       total: 500,
     });
-    const plan = await bookingBatchPlan(
-      [],
-      {
-        eventId: "sess_batch_existing_ledger",
-        occurredAt: OCCURRED_AT,
-        pricedOrder,
-      },
-      "sess_batch_existing_ledger",
-    );
     await postTransfers(plan.legs);
 
-    const result = await createBookingAtomic(paidInput(listing.id, 500), plan);
-
-    expect(result).toEqual({ reason: "capacity_exceeded", success: false });
-    expect((await getAttendeesRaw(listing.id)).length).toBe(0);
-    expect((await allTransfers()).length).toBe(plan.legs.length);
+    await expectCapacityExceeded(plan, listing.id, 500, plan.legs.length);
     expect(
       (await isSessionProcessed("sess_batch_existing_ledger"))!.attendee_id,
     ).toBe(null);
@@ -274,17 +292,13 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
   test("posts no legs and does not finalize when a multi-listing cart only partly lands", async () => {
     const open = await createTestListing({ maxAttendees: 5, unitPrice: 500 });
     const full = await createTestListing({ maxAttendees: 0, unitPrice: 500 });
-    await reserveSession("sess_batch_partial");
-    const pricedOrder = order({
+    const { plan } = await buildPlan({
+      eventId: "sess_batch_partial",
       fullSubtotal: 1000,
       lines: [line(open.id, 500, 1), line(full.id, 500, 1)],
+      sessionId: "sess_batch_partial",
       total: 1000,
     });
-    const plan = await bookingBatchPlan(
-      [],
-      { eventId: "sess_batch_partial", occurredAt: OCCURRED_AT, pricedOrder },
-      "sess_batch_partial",
-    );
 
     const result = await createBookingAtomic(
       {

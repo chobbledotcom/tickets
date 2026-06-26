@@ -14,7 +14,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { parseFlashValue } from "#shared/cookies.ts";
-import { getDb, insert, queryOne } from "#shared/db/client.ts";
+import { queryOne } from "#shared/db/client.ts";
 import {
   hashEmail,
   hashPhone,
@@ -26,35 +26,30 @@ import {
   adminFormPost,
   adminGet,
   assertAdminHtml,
+  attendeeExists as attendeeExistsHelper,
   awaitTestRequest,
   createTestManagerSession,
   describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
   expectStatus,
+  insertOrphanAttendee,
   testRequiresAuth,
 } from "#test-utils";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const oldIso = (): string => new Date(nowMs() - 365 * DAY_MS).toISOString();
 
-/** Insert an attendee with no listing booking (an orphan), returning its id. */
+/** Insert an orphan attendee with `createdIso`. */
 const insertOrphan = async (createdIso: string): Promise<number> => {
-  const result = await getDb().execute(
-    insert("attendees", {
-      created: createdIso,
-      pii_blob: "",
-      ticket_token_index: `priv-orphan-${crypto.randomUUID()}`,
-    }),
+  const daysAgo = Math.round(
+    (nowMs() - new Date(createdIso).getTime()) / DAY_MS,
   );
-  return Number(result.lastInsertRowid);
+  return insertOrphanAttendee(daysAgo, "priv-orphan");
 };
 
 const attendeeExists = async (id: number): Promise<boolean> =>
-  (await queryOne<{ one: number }>(
-    "SELECT 1 AS one FROM attendees WHERE id = ?",
-    [id],
-  )) !== null;
+  attendeeExistsHelper(id);
 
 const preferenceExists = async (hash: string): Promise<boolean> =>
   (await queryOne<{ one: number }>(
@@ -83,7 +78,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
     });
 
     test("renders the explainer and tools for the owner", async () => {
-      const { response } = await adminGet("/admin/privacy");
+      const response = await adminGet("/admin/privacy");
       await expectHtmlResponse(
         response,
         200,

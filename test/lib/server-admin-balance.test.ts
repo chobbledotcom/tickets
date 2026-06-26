@@ -8,6 +8,7 @@ import {
   adminGet,
   createTestListing,
   describeWithEnv,
+  expectHtml,
   setupStripe,
   testRequiresAuth,
 } from "#test-utils";
@@ -68,9 +69,7 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
     const attendeeId = await reservedAttendee();
     await logActivity("Deposit received", null, attendeeId);
 
-    const { response } = await adminGet(
-      `/admin/attendees/${attendeeId}/balance`,
-    );
+    const response = await adminGet(`/admin/attendees/${attendeeId}/balance`);
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Reservation balance");
@@ -86,26 +85,24 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
     // A reservation status, but no payment provider — the /pay POST would
     // dead-end, so the customer link must not be offered.
     const attendeeId = await reservedAttendee();
-    const { response } = await adminGet(
-      `/admin/attendees/${attendeeId}/balance`,
-    );
-    const html = await response.text();
-    expect(html).toContain("Balance outstanding");
-    expect(html).not.toContain("/pay/");
-    expect(html).toContain("collect the balance directly from the customer");
+    await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/balance`), {
+      contains: [
+        "Balance outstanding",
+        "collect the balance directly from the customer",
+      ],
+      notContains: ["/pay/"],
+    });
   });
 
   test("returns 404 for a missing attendee", async () => {
-    const { response } = await adminGet("/admin/attendees/9999/balance");
+    const response = await adminGet("/admin/attendees/9999/balance");
     expect(response.status).toBe(404);
   });
 
   test("shows a fully-paid state once the balance is settled", async () => {
     const attendeeId = await reservedAttendee();
     await settleAttendeeBalance(attendeeId, 1500, settle());
-    const { response } = await adminGet(
-      `/admin/attendees/${attendeeId}/balance`,
-    );
+    const response = await adminGet(`/admin/attendees/${attendeeId}/balance`);
     const html = await response.text();
     expect(html).toContain("This booking is fully paid");
     // No payment link when nothing is outstanding.
@@ -118,18 +115,14 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
       thankYouUrl: "https://example.com",
     });
     const attendeeId = await owedAttendee(listing.id, null, 1500);
-    const { response } = await adminGet(
-      `/admin/attendees/${attendeeId}/balance`,
-    );
-    expect(response.status).toBe(200);
-    const html = await response.text();
-    expect(html).toContain("Balance outstanding");
-    // No reservation status, so no deposit line is shown.
-    expect(html).not.toContain("Reservation deposit");
-    // The online /pay link only serves reservations, so it is withheld here;
-    // the balance is collected offline instead.
-    expect(html).not.toContain("/pay/");
-    expect(html).toContain("collect the balance directly from the customer");
+    await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/balance`), {
+      contains: [
+        "Balance outstanding",
+        "collect the balance directly from the customer",
+      ],
+      notContains: ["Reservation deposit", "/pay/"],
+      status: 200,
+    });
   });
 
   test("withholds the payment link for a non-reservation status with a balance", async () => {
@@ -146,13 +139,13 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
     });
     // A provider-less owed booking: full value owed, nothing paid up front.
     const attendeeId = await owedAttendee(listing.id, confirmed.id, 1500, 0);
-    const { response } = await adminGet(
-      `/admin/attendees/${attendeeId}/balance`,
-    );
-    const html = await response.text();
-    expect(html).toContain("Balance outstanding");
-    expect(html).not.toContain("/pay/");
-    expect(html).toContain("collect the balance directly from the customer");
+    await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/balance`), {
+      contains: [
+        "Balance outstanding",
+        "collect the balance directly from the customer",
+      ],
+      notContains: ["/pay/"],
+    });
   });
 
   test("the attendee page links to the balance panel when a balance is due", async () => {
@@ -184,7 +177,7 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
       gross: 1600,
       listingId: listing.id,
     });
-    const { response } = await adminGet(`/admin/attendees/${attendeeId}`);
+    const response = await adminGet(`/admin/attendees/${attendeeId}`);
     const html = await response.text();
     expect(html).toContain("Balance outstanding");
     expect(html).toContain(`/admin/attendees/${attendeeId}/balance`);

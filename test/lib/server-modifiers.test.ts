@@ -68,7 +68,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     });
 
     test("shows empty list when no modifiers exist", async () => {
-      const { response } = await adminGet("/admin/modifiers");
+      const response = await adminGet("/admin/modifiers");
       await expectHtmlResponse(
         response,
         200,
@@ -79,14 +79,14 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
 
     test("lists modifiers with their rule summary", async () => {
       await adminFormPost("/admin/modifiers", createData({ name: "Loyalty" }));
-      const { response } = await adminGet("/admin/modifiers");
+      const response = await adminGet("/admin/modifiers");
       await expectHtmlResponse(response, 200, "Loyalty", "Discount · 10%");
     });
   });
 
   describe("GET /admin/modifiers/new", () => {
     test("shows the create form", async () => {
-      const { response } = await adminGet("/admin/modifiers/new");
+      const response = await adminGet("/admin/modifiers/new");
       await expectHtmlResponse(response, 200, "Add Modifier", "Direction");
     });
   });
@@ -279,7 +279,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     test("shows the edit form with current values", async () => {
       await adminFormPost("/admin/modifiers", createData({ name: "Editable" }));
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(response, 200, "Edit Modifier", "Editable");
     });
 
@@ -289,19 +289,19 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         createData({ min_subtotal: "50" }),
       );
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(response, 200, 'value="50"');
     });
 
     test("shows the stock limit on the edit form", async () => {
       await adminFormPost("/admin/modifiers", createData({ stock: "7" }));
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(response, 200, 'value="7"');
     });
 
     test("returns 404 for a missing modifier", async () => {
-      const { response } = await adminGet("/admin/modifiers/999/edit");
+      const response = await adminGet("/admin/modifiers/999/edit");
       expectStatus(404)(response);
     });
 
@@ -311,7 +311,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         createData({ name: "Surcharge" }),
       );
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       const html = await response.text();
       expect(html).toContain("Adjust revenue");
       expect(html).toContain(`action="/admin/modifiers/${id}/revenue"`);
@@ -325,7 +325,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         createData({ name: "Helmet hire" }),
       );
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       const html = await response.text();
       expect(html).toContain("Account statement");
       expect(html).toContain("Add entry");
@@ -560,7 +560,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         usage_count: 5,
       });
 
-      const { response } = await adminGet(`/admin/modifiers/recalculate/${id}`);
+      const response = await adminGet(`/admin/modifiers/recalculate/${id}`);
       await expectHtmlResponse(
         response,
         200,
@@ -646,7 +646,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     test("shows the delete confirmation page", async () => {
       await adminFormPost("/admin/modifiers", createData({ name: "Doomed" }));
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/delete`);
+      const response = await adminGet(`/admin/modifiers/${id}/delete`);
       await expectHtmlResponse(response, 200, "Delete Modifier", "Doomed");
     });
 
@@ -700,7 +700,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         createData({ name: "Scoped", scope: "listings" }),
       );
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(
         response,
         200,
@@ -717,7 +717,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         createData({ name: "GS", scope: "groups" }),
       );
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(
         response,
         200,
@@ -801,7 +801,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         createData({ name: "Tier", trigger: "answer" }),
       );
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(
         response,
         200,
@@ -841,7 +841,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     test("the edit page omits the answer editor for a non-answer modifier", async () => {
       await adminFormPost("/admin/modifiers", createData());
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       const html = await response.text();
       expect(html).not.toContain("Linked answers");
     });

@@ -7,6 +7,7 @@ import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import {
+  adminGet,
   assertAdminHtml,
   awaitTestRequest,
   createPaidAttendeeWithoutLedger,
@@ -762,9 +763,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
   describe("listing page UI", () => {
     /** Create an listing with an attendee and return the admin listing page HTML */
     const getListingPageHtml = async (listingId: number): Promise<string> => {
-      const response = await awaitTestRequest(`/admin/listing/${listingId}`, {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet(`/admin/listing/${listingId}`);
       expect(response.status).toBe(200);
       return response.text();
     };
@@ -778,9 +777,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         "pi_ui_1",
       );
 
-      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet(`/admin/listing/${listing.id}`);
       // The per-attendee refund link moved to the attendee edit page; the
       // listing page keeps the listing-wide Refund All action.
       await expectHtmlResponse(response, 200, "Refund All");
@@ -813,10 +810,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         "paid@example.com",
         "pi_edit_1",
       );
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}`);
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/refund`,
@@ -831,10 +825,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         "No Payment User",
         "nopay@example.com",
       );
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}`);
       const html = await expectHtmlResponse(response, 200);
       expect(html).not.toContain(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/refund`,

@@ -11,6 +11,7 @@ import {
   awaitTestRequest,
   createTestAgentSession,
   describeWithEnv,
+  expectAdminLoginSuccess,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
@@ -91,11 +92,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       const response = await handleRequest(
         await mockAdminLoginRequest({ password, username: "testadmin" }),
       );
-      await expectFlashRedirect("/admin", "Logged in")(response);
-      const sessionCookie = response.headers
-        .getSetCookie()
-        .find((c) => c.startsWith(`${getSessionCookieName()}=`));
-      expect(sessionCookie).toBeDefined();
+      await expectAdminLoginSuccess(response);
     });
 
     test("rejects login when CSRF token is missing from form", async () => {

@@ -14,7 +14,7 @@ import {
 } from "#shared/accounting/mappers.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv, rejectionMessage } from "#test-utils";
 
 // balanceOf ignores id, so a constant id keeps these as plain value assertions.
 const asTransfer = (t: TransferInput): Transfer => ({
@@ -33,16 +33,6 @@ const facts = (overrides: Partial<BookingFacts> = {}): BookingFacts => ({
   occurredAt: "2026-06-21T00:00:00.000Z",
   ...overrides,
 });
-
-/** Run a promise expected to reject and return the thrown message. */
-const rejectionMessage = async (promise: Promise<unknown>): Promise<string> => {
-  try {
-    await promise;
-  } catch (error) {
-    return (error as Error).message;
-  }
-  return "";
-};
 
 describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
   describe("mapBooking", () => {
@@ -233,6 +223,15 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
         )
       ).map(asTransfer);
 
+    const refundAndAll = async (
+      order: Transfer[],
+    ): Promise<{ refund: Transfer[]; all: Transfer[] }> => {
+      const refund = (
+        await mapRefund({ occurredAt: REFUND_AT, orderLegs: order })
+      ).map(asTransfer);
+      return { all: [...order, ...refund], refund };
+    };
+
     test("reverses every leg so revenue, the attendee and cash return to zero", async () => {
       const order = await bookingOrder({
         amountPaid: 7850,
@@ -246,10 +245,7 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
           { delta: 200, modifierId: 11 },
         ],
       });
-      const refund = (
-        await mapRefund({ occurredAt: REFUND_AT, orderLegs: order })
-      ).map(asTransfer);
-      const all = [...order, ...refund];
+      const { all } = await refundAndAll(order);
       expect(balanceOf(revenueAccount(1))(all)).toBe(0);
       expect(balanceOf(revenueAccount(2))(all)).toBe(0);
       expect(balanceOf(modifierAccount(10))(all)).toBe(0);
@@ -264,10 +260,7 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
         amountPaid: 2000,
         lines: [{ gross: 10000, listingId: 1 }],
       });
-      const refund = (
-        await mapRefund({ occurredAt: REFUND_AT, orderLegs: order })
-      ).map(asTransfer);
-      const all = [...order, ...refund];
+      const { all, refund } = await refundAndAll(order);
       expect(balanceOf(revenueAccount(1))(all)).toBe(0);
       expect(balanceOf(attendeeAccount(3))(all)).toBe(0); // owes nothing now
       const cash = refund.filter((l) => l.kind === "refund_cash");

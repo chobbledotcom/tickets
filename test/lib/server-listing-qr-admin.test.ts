@@ -38,7 +38,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
     });
 
     test("returns 404 when the listing does not exist", async () => {
-      const { response } = await adminGet("/admin/listing/99999/qr");
+      const response = await adminGet("/admin/listing/99999/qr");
       expect(response.status).toBe(404);
       response.body?.cancel();
     });
@@ -48,7 +48,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
         maxAttendees: 10,
         unitPrice: 500,
       });
-      const { response } = await adminGet(`/admin/listing/${listing.id}/qr`);
+      const response = await adminGet(`/admin/listing/${listing.id}/qr`);
       expect(response.status).toBe(200);
       const body = await response.text();
       expect(body).toContain('name="customer_name"');
@@ -68,19 +68,15 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
         maxAttendees: 10,
         unitPrice: 500,
       });
-      const { response: r1 } = await adminGet(
-        `/admin/listing/${noFields.id}/qr`,
-      );
-      const { response: r2 } = await adminGet(
-        `/admin/listing/${withFields.id}/qr`,
-      );
+      const r1 = await adminGet(`/admin/listing/${noFields.id}/qr`);
+      const r2 = await adminGet(`/admin/listing/${withFields.id}/qr`);
       expect(await r1.text()).toContain('class="success-text"');
       expect(await r2.text()).toContain('class="danger-text"');
     });
 
     test("shows a date selector for daily listings", async () => {
       const listing = await createDailyTestListing({ unitPrice: 500 });
-      const { response } = await adminGet(`/admin/listing/${listing.id}/qr`);
+      const response = await adminGet(`/admin/listing/${listing.id}/qr`);
       const body = await response.text();
       expect(body).toContain('name="date"');
     });
@@ -93,7 +89,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
         maximumDaysAfter: 60,
         minimumDaysBefore: 0,
       });
-      const { response } = await adminGet(`/admin/listing/${listing.id}/qr`);
+      const response = await adminGet(`/admin/listing/${listing.id}/qr`);
       const body = await response.text();
       expect(body).toContain('name="date"');
       // A date one day before the window edge supports a single day even though
@@ -139,7 +135,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
         maxAttendees: 10,
         unitPrice: 500,
       });
-      const { response } = await adminGet(`/admin/listing/${listing.id}/qr`);
+      const response = await adminGet(`/admin/listing/${listing.id}/qr`);
       const body = await response.text();
       expect(body).not.toContain('name="date"');
     });
@@ -372,7 +368,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
     });
 
     test("returns 404 when the listing does not exist", async () => {
-      const { response } = await adminGet(
+      const response = await adminGet(
         "/admin/listing/99999/qr.json?quantity=1",
       );
       expect(response.status).toBe(404);
@@ -385,7 +381,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
         maxQuantity: 5,
         unitPrice: 500,
       });
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/listing/${listing.id}/qr.json?customer_name=Ada&value=7.50&quantity=2`,
       );
       expect(response.status).toBe(200);
@@ -414,7 +410,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
         maxQuantity: 2,
         unitPrice: 500,
       });
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/listing/${listing.id}/qr.json?quantity=99`,
       );
       expect(response.status).toBe(400);
@@ -438,8 +434,8 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
       const second = await adminGet(
         `/admin/listing/${listing.id}/qr.json?customer_name=Ada&value=5.00&quantity=1`,
       );
-      const a = (await first.response.json()) as { url: string };
-      const b = (await second.response.json()) as { url: string };
+      const a = (await first.json()) as { url: string };
+      const b = (await second.json()) as { url: string };
       expect(a.url).not.toBe(b.url);
     });
   });

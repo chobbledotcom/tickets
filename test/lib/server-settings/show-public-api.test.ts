@@ -4,7 +4,7 @@ import { handleRequest } from "#routes";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   adminFormPost,
-  awaitTestRequest,
+  adminGet,
   describeWithEnv,
   expectFlash,
   expectHtmlResponse,
@@ -76,9 +76,7 @@ describeWithEnv(
       });
 
       test("advanced settings page displays enable public API section", async () => {
-        const response = await awaitTestRequest("/admin/settings-advanced", {
-          cookie: await testCookie(),
-        });
+        const response = await adminGet("/admin/settings-advanced");
         await expectHtmlResponse(
           response,
           200,

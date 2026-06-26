@@ -12,7 +12,7 @@ import {
   supportNagLabel,
   supportSubject,
 } from "#shared/support.ts";
-import { emailTestSandbox, validEmail } from "#test-utils";
+import { emailTestSandbox, expectSendNoop, validEmail } from "#test-utils";
 
 const ADMIN_ENV = { ADMIN_EMAIL_ADDRESS: "host@support.test" };
 
@@ -160,23 +160,17 @@ describe("sendSupportMessage", () => {
 
   test("returns false and sends nothing when ADMIN_EMAIL_ADDRESS is unset", async () => {
     sandbox.setEnv({ ADMIN_EMAIL_ADDRESS: undefined });
-    sandbox.stubFetch(() => Promise.reject(new Error("should not be called")));
-    expect(await sendSupportMessage("Help")).toBe(false);
-    expect(sandbox.fetchStub?.calls.length).toBe(0);
+    await expectSendNoop(sandbox, () => sendSupportMessage("Help"));
   });
 
   test("returns false and sends nothing when no business email is set", async () => {
     settings.setForTest({ business_email: "" });
-    sandbox.stubFetch(() => Promise.reject(new Error("should not be called")));
-    expect(await sendSupportMessage("Help")).toBe(false);
-    expect(sandbox.fetchStub?.calls.length).toBe(0);
+    await expectSendNoop(sandbox, () => sendSupportMessage("Help"));
   });
 
   test("returns false when no email provider is configured", async () => {
     setHostEmailConfigForTest(null);
-    sandbox.stubFetch(() => Promise.reject(new Error("should not be called")));
-    expect(await sendSupportMessage("Help")).toBe(false);
-    expect(sandbox.fetchStub?.calls.length).toBe(0);
+    await expectSendNoop(sandbox, () => sendSupportMessage("Help"));
   });
 
   test("delivers to the admin address, from the site's business email", async () => {

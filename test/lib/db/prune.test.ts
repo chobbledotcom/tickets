@@ -265,6 +265,18 @@ const setAllLastPruned = async (value: string): Promise<void> => {
   await settings.update.lastPrunedOrphans(value);
 };
 
+const expectFreshPrunedTimestampAfterRun = async (
+  getLastPruned: () => string,
+): Promise<void> => {
+  const before = nowMs();
+
+  await maybeRunPrunes();
+
+  const ts = Number.parseInt(getLastPruned(), 10);
+  expect(ts).toBeGreaterThanOrEqual(before);
+  expect(ts).toBeLessThanOrEqual(nowMs());
+};
+
 describeWithEnv("db > prune", { db: true }, () => {
   describe("prunePayments", () => {
     test("deletes finalized payments older than retention window", async () => {
@@ -564,90 +576,52 @@ describeWithEnv("db > prune", { db: true }, () => {
   describe("maybeRunPrunes scheduler", () => {
     test("records fresh payments timestamp after running", async () => {
       await clearAllLastPruned();
-      const before = nowMs();
-
-      await maybeRunPrunes();
-
-      const ts = Number.parseInt(settings.lastPrunedPayments, 10);
-      expect(ts).toBeGreaterThanOrEqual(before);
-      expect(ts).toBeLessThanOrEqual(nowMs());
+      await expectFreshPrunedTimestampAfterRun(
+        () => settings.lastPrunedPayments,
+      );
     });
 
     test("records fresh sessions timestamp after running", async () => {
       await clearAllLastPruned();
-      const before = nowMs();
-
-      await maybeRunPrunes();
-
-      const ts = Number.parseInt(settings.lastPrunedSessions, 10);
-      expect(ts).toBeGreaterThanOrEqual(before);
-      expect(ts).toBeLessThanOrEqual(nowMs());
+      await expectFreshPrunedTimestampAfterRun(
+        () => settings.lastPrunedSessions,
+      );
     });
 
     test("records fresh sumup timestamp after running", async () => {
       await clearAllLastPruned();
-      const before = nowMs();
-
-      await maybeRunPrunes();
-
-      const ts = Number.parseInt(settings.lastPrunedSumup, 10);
-      expect(ts).toBeGreaterThanOrEqual(before);
-      expect(ts).toBeLessThanOrEqual(nowMs());
+      await expectFreshPrunedTimestampAfterRun(() => settings.lastPrunedSumup);
     });
 
     test("records fresh strings timestamp after running", async () => {
       await clearAllLastPruned();
-      const before = nowMs();
-
-      await maybeRunPrunes();
-
-      const ts = Number.parseInt(settings.lastPrunedStrings, 10);
-      expect(ts).toBeGreaterThanOrEqual(before);
-      expect(ts).toBeLessThanOrEqual(nowMs());
+      await expectFreshPrunedTimestampAfterRun(
+        () => settings.lastPrunedStrings,
+      );
     });
 
     test("records fresh logins timestamp after running", async () => {
       await clearAllLastPruned();
-      const before = nowMs();
-
-      await maybeRunPrunes();
-
-      const ts = Number.parseInt(settings.lastPrunedLogins, 10);
-      expect(ts).toBeGreaterThanOrEqual(before);
-      expect(ts).toBeLessThanOrEqual(nowMs());
+      await expectFreshPrunedTimestampAfterRun(() => settings.lastPrunedLogins);
     });
 
     test("records fresh tokens timestamp after running", async () => {
       await clearAllLastPruned();
-      const before = nowMs();
-
-      await maybeRunPrunes();
-
-      const ts = Number.parseInt(settings.lastPrunedTokens, 10);
-      expect(ts).toBeGreaterThanOrEqual(before);
-      expect(ts).toBeLessThanOrEqual(nowMs());
+      await expectFreshPrunedTimestampAfterRun(() => settings.lastPrunedTokens);
     });
 
     test("records fresh contacts timestamp after running", async () => {
       await clearAllLastPruned();
-      const before = nowMs();
-
-      await maybeRunPrunes();
-
-      const ts = Number.parseInt(settings.lastPrunedContacts, 10);
-      expect(ts).toBeGreaterThanOrEqual(before);
-      expect(ts).toBeLessThanOrEqual(nowMs());
+      await expectFreshPrunedTimestampAfterRun(
+        () => settings.lastPrunedContacts,
+      );
     });
 
     test("records fresh invites timestamp after running", async () => {
       await clearAllLastPruned();
-      const before = nowMs();
-
-      await maybeRunPrunes();
-
-      const ts = Number.parseInt(settings.lastPrunedInvites, 10);
-      expect(ts).toBeGreaterThanOrEqual(before);
-      expect(ts).toBeLessThanOrEqual(nowMs());
+      await expectFreshPrunedTimestampAfterRun(
+        () => settings.lastPrunedInvites,
+      );
     });
 
     test("skips tasks not yet due since last run", async () => {
@@ -693,13 +667,9 @@ describeWithEnv("db > prune", { db: true }, () => {
 
     test("treats an invalid last-pruned value as never-run", async () => {
       await settings.update.lastPrunedPayments("not-a-number");
-      const before = nowMs();
-
-      await maybeRunPrunes();
-
-      const ts = Number.parseInt(settings.lastPrunedPayments, 10);
-      expect(ts).toBeGreaterThanOrEqual(before);
-      expect(ts).toBeLessThanOrEqual(nowMs());
+      await expectFreshPrunedTimestampAfterRun(
+        () => settings.lastPrunedPayments,
+      );
     });
 
     test("concurrent calls leave the DB in a consistent state", async () => {

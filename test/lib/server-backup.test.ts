@@ -33,7 +33,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     });
 
     test("shows backup page for owner", async () => {
-      const { response } = await adminGet("/admin/backup");
+      const response = await adminGet("/admin/backup");
       await expectHtmlResponse(
         response,
         200,
@@ -43,13 +43,13 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     });
 
     test("shows encryption key on page", async () => {
-      const { response } = await adminGet("/admin/backup");
+      const response = await adminGet("/admin/backup");
       const html = await response.text();
       expect(html).toContain("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
     });
 
     test("shows storage not configured when disabled", async () => {
-      const { response } = await adminGet("/admin/backup");
+      const response = await adminGet("/admin/backup");
       const html = await response.text();
       expect(html).toContain("Storage is not configured");
     });
@@ -91,7 +91,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         // A non-backup file sharing the folder must not appear in the list.
         await uploadRaw(new Uint8Array(0), `${backupDir()}backup-stale.tmp`);
         await adminFormPost("/admin/backup/create");
-        const { response } = await adminGet("/admin/backup");
+        const response = await adminGet("/admin/backup");
         const html = await response.text();
         expect(html).not.toContain("backup-stale.tmp");
         expect(html).toContain(".zip");
@@ -101,7 +101,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     test("shows the retention summary once a backup exists", async () => {
       await withLocalStorageEnabled(async () => {
         await adminFormPost("/admin/backup/create");
-        const { response } = await adminGet("/admin/backup");
+        const response = await adminGet("/admin/backup");
         const html = await response.text();
         expect(html).toContain("There is 1 backup");
         expect(html).toContain("Up to 30 are kept");
@@ -113,7 +113,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     testRequiresAuth("/admin/backup/download/backup-local-test.zip");
 
     test("returns 400 for invalid filename", async () => {
-      const { response } = await adminGet(
+      const response = await adminGet(
         "/admin/backup/download/not-a-backup.txt",
       );
       expect(response.status).toBe(400);
@@ -122,7 +122,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     test("returns 404 for missing file", async () => {
       await withLocalStorageEnabled(async () => {
         // Validly formatted leaf, but no such backup exists in this DB's folder.
-        const { response } = await adminGet(
+        const response = await adminGet(
           "/admin/backup/download/backup-2024-01-15T12-30-00-000Z.zip",
         );
         expect(response.status).toBe(404);
@@ -130,7 +130,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     });
 
     test("returns 400 for filename with path traversal", async () => {
-      const { response } = await adminGet(
+      const response = await adminGet(
         "/admin/backup/download/backup-local-..%2F..%2Fetc.zip",
       );
       expect(response.status).toBe(400);
@@ -139,13 +139,13 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     test("downloads existing backup as zip", async () => {
       await withLocalStorageEnabled(async () => {
         await adminFormPost("/admin/backup/create");
-        const { response: listResp } = await adminGet("/admin/backup");
+        const listResp = await adminGet("/admin/backup");
         const html = await listResp.text();
         const linkMatch = html.match(
           /\/admin\/backup\/download\/(backup-[^"]+\.zip)/,
         );
         expect(linkMatch).toBeTruthy();
-        const { response } = await adminGet(
+        const response = await adminGet(
           `/admin/backup/download/${linkMatch![1]}`,
         );
         expect(response.status).toBe(200);
@@ -160,23 +160,34 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       method: "POST",
     });
 
+    /** POST a restore upload with `csrfToken` + optional file fields, returning
+     *  the response. Collapses the repeated FormData + Request scaffold. */
+    const postRestore = async (
+      cookie: string,
+      csrfToken: string,
+      files: Record<string, File> = {},
+    ): Promise<Response> => {
+      const formData = new FormData();
+      formData.append("csrf_token", csrfToken);
+      for (const [name, file] of Object.entries(files)) {
+        formData.append(name, file);
+      }
+      return handleRequest(
+        new Request("http://localhost/admin/backup/restore", {
+          body: formData,
+          headers: { cookie, host: "localhost" },
+          method: "POST",
+        }),
+      );
+    };
+
     test("shows confirm page after uploading valid zip", async () => {
       await withLocalStorageEnabled(async () => {
         const zipData = await createBackupZip();
         const { cookie, csrfToken } = await getTestSession();
-        const formData = new FormData();
-        formData.append("csrf_token", csrfToken);
-        formData.append(
-          "backup_file",
-          new File([zipData.buffer as ArrayBuffer], "backup.zip"),
-        );
-        const response = await handleRequest(
-          new Request("http://localhost/admin/backup/restore", {
-            body: formData,
-            headers: { cookie, host: "localhost" },
-            method: "POST",
-          }),
-        );
+        const response = await postRestore(cookie, csrfToken, {
+          backup_file: new File([zipData.buffer as ArrayBuffer], "backup.zip"),
+        });
         expect(response.status).toBe(200);
         const html = await response.text();
         expect(html).toContain("Confirm Database Restore");
@@ -198,19 +209,9 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           "settings.sql": new Uint8Array(0),
         });
         const { cookie, csrfToken } = await getTestSession();
-        const formData = new FormData();
-        formData.append("csrf_token", csrfToken);
-        formData.append(
-          "backup_file",
-          new File([fakeZip.buffer as ArrayBuffer], "backup.zip"),
-        );
-        const response = await handleRequest(
-          new Request("http://localhost/admin/backup/restore", {
-            body: formData,
-            headers: { cookie, host: "localhost" },
-            method: "POST",
-          }),
-        );
+        const response = await postRestore(cookie, csrfToken, {
+          backup_file: new File([fakeZip.buffer as ArrayBuffer], "backup.zip"),
+        });
         const html = await response.text();
         expect(html).toContain("Schema mismatch");
       });
@@ -219,15 +220,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     test("rejects missing file field", async () => {
       await withLocalStorageEnabled(async () => {
         const { cookie, csrfToken } = await getTestSession();
-        const formData = new FormData();
-        formData.append("csrf_token", csrfToken);
-        const response = await handleRequest(
-          new Request("http://localhost/admin/backup/restore", {
-            body: formData,
-            headers: { cookie, host: "localhost" },
-            method: "POST",
-          }),
-        );
+        const response = await postRestore(cookie, csrfToken);
         expect(response.status).toBe(302);
       });
     });
@@ -235,19 +228,9 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     test("rejects invalid zip file", async () => {
       await withLocalStorageEnabled(async () => {
         const { cookie, csrfToken } = await getTestSession();
-        const formData = new FormData();
-        formData.append("csrf_token", csrfToken);
-        formData.append(
-          "backup_file",
-          new File([new ArrayBuffer(100)], "bad.zip"),
-        );
-        const response = await handleRequest(
-          new Request("http://localhost/admin/backup/restore", {
-            body: formData,
-            headers: { cookie, host: "localhost" },
-            method: "POST",
-          }),
-        );
+        const response = await postRestore(cookie, csrfToken, {
+          backup_file: new File([new ArrayBuffer(100)], "bad.zip"),
+        });
         expect(response.status).toBe(302);
       });
     });

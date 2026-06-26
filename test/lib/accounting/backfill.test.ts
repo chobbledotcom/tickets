@@ -21,7 +21,7 @@ import {
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
-import type { Transfer } from "#shared/ledger/types.ts";
+import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 import {
   seedPreDropLedgerColumns,
@@ -86,16 +86,70 @@ const postLiveBooking = async (
 const refundCashOf = (legs: Transfer[]): Transfer[] =>
   legs.filter((leg) => leg.kind === "refund_cash");
 
+const seedBooking = async (pricePaid: number = 5000) => {
+  const listing = await createTestListing({ maxAttendees: 5 });
+  const attendee = await historicalBooking([
+    { listingId: listing.id, pricePaid },
+  ]);
+  return { attendee, listing };
+};
+
+const seedTwoListingOrder = async () => {
+  const first = await createTestListing({ maxAttendees: 5 });
+  const second = await createTestListing({ maxAttendees: 5 });
+  const attendee = await historicalBooking([
+    { listingId: first.id, pricePaid: 3000 },
+    { listingId: second.id, pricePaid: 2000 },
+  ]);
+  return { attendee, first, second };
+};
+
+const expectBalances = async (
+  expected: ReadonlyArray<readonly [AccountRef, number]>,
+): Promise<void> => {
+  for (const [account, balance] of expected) {
+    expect(await accountBalance(account)).toBe(balance);
+  }
+};
+
+const expectRefundCash = async (
+  attendeeId: number,
+  amount: number = 5000,
+): Promise<Transfer[]> => {
+  const cash = refundCashOf(
+    await transfersByAccount(attendeeAccount(attendeeId)),
+  );
+  expect(cash.length).toBe(1);
+  expect(cash[0]!.amount).toBe(amount);
+  return cash;
+};
+
+const expectRowStampedWithSaleEventGroup = async (
+  attendeeId: number,
+  sale: Transfer,
+): Promise<void> => {
+  const row = (
+    await getDb().execute({
+      args: [attendeeId],
+      sql: "SELECT ledger_event_group FROM listing_attendees WHERE attendee_id = ?",
+    })
+  ).rows[0]!;
+  expect(String(row.ledger_event_group)).toBe(sale.eventGroup);
+};
+
+const expectBackfillWritesNothing = async (): Promise<void> => {
+  const before = (await allTransfers()).length;
+  await backfillTransfers();
+  expect((await allTransfers()).length).toBe(before);
+};
+
 describeWithEnv("accounting > backfill", { db: true }, () => {
   // The backfill reads listing_attendees.refunded, which a later migration drops;
   // restore it so each test exercises the schema the migration runs against.
   beforeEach(seedPreDropLedgerColumns);
 
   test("reconstructs sale + payment for a paid booking", async () => {
-    const listing = await createTestListing({ maxAttendees: 5 });
-    const attendee = await historicalBooking([
-      { listingId: listing.id, pricePaid: 5000 },
-    ]);
+    const { listing, attendee } = await seedBooking();
     expect((await allTransfers()).length).toBe(0); // no legs yet
 
     await backfillTransfers();
@@ -127,32 +181,18 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
   test("stamps each row's ledger_event_group with its booking event group", async () => {
     // The per-row amount-paid projection keys on ledger_event_group, so the
     // backfill must stamp it with the order's booking event group (the sale leg's).
-    const listing = await createTestListing({ maxAttendees: 5 });
-    const attendee = await historicalBooking([
-      { listingId: listing.id, pricePaid: 5000 },
-    ]);
+    const { attendee } = await seedBooking();
     await backfillTransfers();
 
     const sale = (await transfersByAccount(attendeeAccount(attendee.id))).find(
       (leg) => leg.kind === "sale",
     )!;
     expect(sale.eventGroup).not.toBe("");
-    const row = (
-      await getDb().execute({
-        args: [attendee.id],
-        sql: "SELECT ledger_event_group FROM listing_attendees WHERE attendee_id = ?",
-      })
-    ).rows[0]!;
-    expect(String(row.ledger_event_group)).toBe(sale.eventGroup);
+    await expectRowStampedWithSaleEventGroup(attendee.id, sale);
   });
 
   test("groups a multi-listing booking into one order (sales + one payment)", async () => {
-    const first = await createTestListing({ maxAttendees: 5 });
-    const second = await createTestListing({ maxAttendees: 5 });
-    const attendee = await historicalBooking([
-      { listingId: first.id, pricePaid: 3000 },
-      { listingId: second.id, pricePaid: 2000 },
-    ]);
+    const { first, second, attendee } = await seedTwoListingOrder();
 
     await backfillTransfers();
 
@@ -167,30 +207,22 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
   });
 
   test("is idempotent — a second run writes nothing", async () => {
-    const listing = await createTestListing({ maxAttendees: 5 });
-    await historicalBooking([{ listingId: listing.id, pricePaid: 5000 }]);
+    await seedBooking();
     await backfillTransfers();
-    const after = (await allTransfers()).length;
-    await backfillTransfers();
-    expect((await allTransfers()).length).toBe(after);
+    await expectBackfillWritesNothing();
   });
 
   test("reverses a fully-refunded booking back to zero revenue", async () => {
-    const listing = await createTestListing({ maxAttendees: 5 });
-    const attendee = await historicalBooking([
-      { listingId: listing.id, pricePaid: 5000 },
-    ]);
+    const { listing, attendee } = await seedBooking();
     await flagRefunded(attendee.id, listing.id);
 
     await backfillTransfers();
 
-    expect(await accountBalance(revenueAccount(listing.id))).toBe(0); // reversed
-    expect(await accountBalance(attendeeAccount(attendee.id))).toBe(0);
-    const cash = refundCashOf(
-      await transfersByAccount(attendeeAccount(attendee.id)),
-    );
-    expect(cash.length).toBe(1);
-    expect(cash[0]!.amount).toBe(5000);
+    await expectBalances([
+      [revenueAccount(listing.id), 0], // reversed
+      [attendeeAccount(attendee.id), 0],
+    ]);
+    const cash = await expectRefundCash(attendee.id);
     expect(cash[0]!.destination).toEqual(WORLD);
   });
 
@@ -198,41 +230,29 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
     // A multi-listing order is one provider payment; refunding it returns the
     // whole payment, but a historical refund flagged only the listing the admin
     // acted on. Any flagged line therefore means the whole order was refunded.
-    const first = await createTestListing({ maxAttendees: 5 });
-    const second = await createTestListing({ maxAttendees: 5 });
-    const attendee = await historicalBooking([
-      { listingId: first.id, pricePaid: 3000 },
-      { listingId: second.id, pricePaid: 2000 },
-    ]);
+    const { first, second, attendee } = await seedTwoListingOrder();
     await flagRefunded(attendee.id, first.id); // one line flagged → whole order
 
     await backfillTransfers();
 
-    expect(await accountBalance(revenueAccount(first.id))).toBe(0); // reversed
-    expect(await accountBalance(revenueAccount(second.id))).toBe(0); // reversed
-    expect(await accountBalance(attendeeAccount(attendee.id))).toBe(0);
-    const cash = refundCashOf(
-      await transfersByAccount(attendeeAccount(attendee.id)),
-    );
-    expect(cash.length).toBe(1);
-    expect(cash[0]!.amount).toBe(5000); // the whole payment returned
+    await expectBalances([
+      [revenueAccount(first.id), 0], // reversed
+      [revenueAccount(second.id), 0], // reversed
+      [attendeeAccount(attendee.id), 0],
+    ]);
+    await expectRefundCash(attendee.id); // the whole payment returned
   });
 
   test("skips an attendee that already carries ledger legs (no double-post)", async () => {
-    const listing = await createTestListing({ maxAttendees: 5 });
-    const attendee = await historicalBooking([
-      { listingId: listing.id, pricePaid: 5000 },
-    ]);
+    const { listing, attendee } = await seedBooking();
     // The live dual-write path already recorded this booking under its own event.
     await postLiveBooking({
       attendeeId: attendee.id,
       lines: [{ gross: 5000, listingId: listing.id }],
     });
-    const before = (await allTransfers()).length;
 
-    await backfillTransfers();
+    await expectBackfillWritesNothing();
 
-    expect((await allTransfers()).length).toBe(before); // nothing re-posted
     const legs = await transfersByAccount(attendeeAccount(attendee.id));
     const groups = new Set(legs.map((leg) => leg.eventGroup));
     expect(groups.size).toBe(1); // only the live booking group, no backfill group
@@ -240,13 +260,7 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
     // row→event link from the existing sale leg, so the per-row amount-paid
     // projection resolves even though no legs were re-posted.
     const sale = legs.find((leg) => leg.kind === "sale")!;
-    const row = (
-      await getDb().execute({
-        args: [attendee.id],
-        sql: "SELECT ledger_event_group FROM listing_attendees WHERE attendee_id = ?",
-      })
-    ).rows[0]!;
-    expect(String(row.ledger_event_group)).toBe(sale.eventGroup);
+    await expectRowStampedWithSaleEventGroup(attendee.id, sale);
   });
 
   test("posts a page of attendees in a bounded number of round-trips", async () => {
@@ -275,17 +289,13 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
   });
 
   test("skips rows with no payment", async () => {
-    const listing = await createTestListing({ maxAttendees: 5 });
-    await historicalBooking([{ listingId: listing.id, pricePaid: 0 }]);
+    await seedBooking(0);
     await backfillTransfers();
     expect((await allTransfers()).length).toBe(0);
   });
 
   test("throws on an unparseable booking time rather than guessing", async () => {
-    const listing = await createTestListing({ maxAttendees: 5 });
-    const attendee = await historicalBooking([
-      { listingId: listing.id, pricePaid: 5000 },
-    ]);
+    const { attendee } = await seedBooking();
     await getDb().execute({
       args: [attendee.id],
       sql: "UPDATE attendees SET created = 'not a date' WHERE id = ?",

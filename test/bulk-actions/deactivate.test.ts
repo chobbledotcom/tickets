@@ -31,7 +31,7 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       const group = await createTestGroup({ name: "To Deactivate" });
       await createTestListing({ groupId: group.id, name: "Listing" });
 
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/groups/${group.id}/bulk-actions/deactivate`,
       );
       const html = await response.text();
@@ -48,7 +48,7 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       await createTestListing({ groupId: group.id, name: "A" });
       await createTestListing({ groupId: group.id, name: "B" });
 
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/groups/${group.id}/bulk-actions/deactivate`,
       );
       const html = await response.text();
@@ -58,7 +58,7 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
     });
 
     test("returns 404 when the group does not exist", async () => {
-      const { response } = await adminGet(
+      const response = await adminGet(
         "/admin/groups/999999/bulk-actions/deactivate",
       );
       expect(response.status).toBe(404);
