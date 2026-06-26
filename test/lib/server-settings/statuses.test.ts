@@ -27,7 +27,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     testRequiresAuth(PATH);
 
     test("lists the seeded default status", async () => {
-      const { response } = await adminGet(PATH);
+      const response = await adminGet(PATH);
       await expectHtmlResponse(
         response,
         200,
@@ -44,7 +44,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
         reservationAmount: "10%",
         sortOrder: 1,
       });
-      const { response } = await adminGet(PATH);
+      const response = await adminGet(PATH);
       const html = await response.text();
       // Seed badges + the reservation badge.
       expect(html).toContain("Public default");
@@ -58,7 +58,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
 
   describe("GET /admin/settings/statuses/new", () => {
     test("renders the create form", async () => {
-      const { response } = await adminGet(`${PATH}/new`);
+      const response = await adminGet(`${PATH}/new`);
       await expectHtmlResponse(response, 200, "Add Attendee Status", "Name");
     });
   });
@@ -169,7 +169,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
 
     test("renders the edit form for an existing status", async () => {
       const seed = await seedStatus();
-      const { response } = await adminGet(`${PATH}/${seed.id}/edit`);
+      const response = await adminGet(`${PATH}/${seed.id}/edit`);
       // The edit page hosts the delete control (the list table no longer does).
       await expectHtmlResponse(
         response,
@@ -185,7 +185,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
         name: "Reserved",
         reservationAmount: "25%",
       });
-      const { response } = await adminGet(`${PATH}/${reserved.id}/edit`);
+      const response = await adminGet(`${PATH}/${reserved.id}/edit`);
       const html = await response.text();
       // The reservation checkbox is checked and the amount is pre-filled.
       expect(html).toContain('value="25%"');
@@ -230,7 +230,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
 
     test("renders the typed-name confirmation page", async () => {
       const seed = await seedStatus();
-      const { response } = await adminGet(`${PATH}/${seed.id}/delete`);
+      const response = await adminGet(`${PATH}/${seed.id}/delete`);
       await expectHtmlResponse(
         response,
         200,
@@ -241,7 +241,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     });
 
     test("returns 404 for a missing status", async () => {
-      const { response } = await adminGet(`${PATH}/9999/delete`);
+      const response = await adminGet(`${PATH}/9999/delete`);
       expect(response.status).toBe(404);
     });
   });

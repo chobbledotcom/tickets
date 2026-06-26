@@ -5,6 +5,7 @@ import { type BuildSiteInput, builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import {
+  type BuiltSite,
   getAllBuiltSites,
   getAssignableBuiltSites,
   insertBuiltSite,
@@ -113,6 +114,38 @@ describeWithEnv(
     // deno-lint-ignore no-explicit-any
     let fetchStub: any;
     let secretStub: ReturnType<typeof stubEdgeSecretSuccess>;
+
+    const assignAndCollectThreeSites = async (): Promise<BuiltSite[]> => {
+      await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
+      const sites = await getAllBuiltSites();
+      const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
+      expect(assigned).toHaveLength(3);
+      return assigned;
+    };
+
+    const expectFlagPushOutcome = async (
+      site: string,
+      expected: string,
+    ): Promise<BuiltSite> => {
+      const all = await getAllBuiltSites();
+      const found = all.find((s) => s.name === site)!;
+      expect(found.renewalTokenIndex).not.toBeNull();
+      expect(found.readOnlyFrom).toBeTruthy();
+      expect(found.readOnlyFrom.slice(0, 10)).toBe(expected);
+      return found;
+    };
+
+    const expectLastEmailBody = (expected: Record<string, unknown>) => {
+      expect(fetchStub.calls.length).toBe(1);
+      const body = JSON.parse(fetchStub.calls[0].args[1].body) as Record<
+        string,
+        unknown
+      >;
+      for (const [key, value] of Object.entries(expected)) {
+        expect(body[key]).toBe(value);
+      }
+      return body;
+    };
 
     beforeEach(async () => {
       fetchStub = stub(globalThis, "fetch", () =>
@@ -226,11 +259,8 @@ describeWithEnv(
           builtNames.push(input.siteName);
         });
         try {
-          await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
+          await assignAndCollectThreeSites();
 
-          const sites = await getAllBuiltSites();
-          const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
-          expect(assigned).toHaveLength(3);
           expect(buildStub.calls.length).toBe(2);
           expect(fetchStub.calls.length).toBe(1);
         } finally {
@@ -272,9 +302,7 @@ describeWithEnv(
 
         await assignAndNotifyBuiltSites([siteEntry()]);
 
-        expect(fetchStub.calls.length).toBe(1);
-        const body = JSON.parse(fetchStub.calls[0].args[1].body);
-        expect(body.subject).toBe("Your new site is ready");
+        expectLastEmailBody({ subject: "Your new site is ready" });
       });
 
       test("email links to the assigned site's /setup/ page", async () => {
@@ -312,9 +340,7 @@ describeWithEnv(
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
         await assignAndNotifyBuiltSites([siteEntry()]);
 
-        expect(fetchStub.calls.length).toBe(1);
-        const body = JSON.parse(fetchStub.calls[0].args[1].body);
-        expect(body.reply_to).toBe("biz@example.com");
+        expectLastEmailBody({ reply_to: "biz@example.com" });
       });
 
       test("skips email when no email config", async () => {
@@ -370,16 +396,11 @@ describeWithEnv(
 
         await assignAndNotifyBuiltSites([siteEntry({ initialSiteMonths: 3 })]);
 
-        const sites = await getAllBuiltSites();
-        const assigned = sites.find((s) => s.name === "Site A")!;
-        expect(assigned.renewalTokenIndex).not.toBeNull();
-        expect(assigned.readOnlyFrom).toBeTruthy();
+        const expectedCutoff = addMonthsIso(nowIso(), 3).slice(0, 10);
+        const assigned = await expectFlagPushOutcome("Site A", expectedCutoff);
 
         expect(assigned.renewalToken).not.toBeNull();
         expect(assigned.renewalToken!.length).toBeGreaterThanOrEqual(32);
-
-        const expectedCutoff = addMonthsIso(nowIso(), 3).slice(0, 10);
-        expect(assigned.readOnlyFrom.slice(0, 10)).toBe(expectedCutoff);
 
         const secretCalls = secretStub.calls.map((c) => c.args);
         const secretNames = secretCalls.map((c) => c[1]);
@@ -480,10 +501,10 @@ describeWithEnv(
 
         await assignAndNotifyBuiltSites([siteEntry()]);
 
-        const sites = await getAllBuiltSites();
-        const assigned = sites.find((s) => s.name === "Site A")!;
-        expect(assigned.renewalTokenIndex).not.toBeNull();
-        expect(assigned.readOnlyFrom).toBeTruthy();
+        await expectFlagPushOutcome(
+          "Site A",
+          addMonthsIso(nowIso(), 3).slice(0, 10),
+        );
       });
 
       test("with quantity=3, three independent tokens and secret pushes are created", async () => {
@@ -494,11 +515,7 @@ describeWithEnv(
 
         const buildStub = stubBuildSiteSuccess();
         try {
-          await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
-
-          const sites = await getAllBuiltSites();
-          const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
-          expect(assigned).toHaveLength(3);
+          const assigned = await assignAndCollectThreeSites();
 
           const tokens = assigned.map((s) => s.renewalToken);
           const nonNullTokens = tokens.filter((t): t is string => t !== null);

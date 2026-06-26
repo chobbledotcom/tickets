@@ -122,7 +122,7 @@ const scanPostWithHeaders = (
 
 /** Get scanner page body text for a given listing */
 const getScannerBody = async (listingId: number) => {
-  const { response } = await adminGet(`/admin/listing/${listingId}/scanner`);
+  const response = await adminGet(`/admin/listing/${listingId}/scanner`);
   return await response.text();
 };
 
@@ -258,9 +258,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
   describe("GET /admin/listing/:id/scanner", () => {
     test("renders scanner page when authenticated", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const { response } = await adminGet(
-        `/admin/listing/${listing.id}/scanner`,
-      );
+      const response = await adminGet(`/admin/listing/${listing.id}/scanner`);
 
       await expectHtmlResponse(
         response,
@@ -286,7 +284,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const { response } = await adminGet("/admin/listing/99999/scanner");
+      const response = await adminGet("/admin/listing/99999/scanner");
       expect(response.status).toBe(404);
     });
 
@@ -669,7 +667,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
   describe("listing page scanner link", () => {
     test("listing admin page has scanner link", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const { response } = await adminGet(`/admin/listing/${listing.id}`);
+      const response = await adminGet(`/admin/listing/${listing.id}`);
       const body = await response.text();
       expect(body).toContain(`/admin/listing/${listing.id}/scanner`);
       expect(body).toContain("Scanner");
@@ -678,7 +676,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
 
   describe("GET /admin/guide", () => {
     test("renders guide page when authenticated", async () => {
-      const { response } = await adminGet("/admin/guide");
+      const response = await adminGet("/admin/guide");
       await expectHtmlResponse(
         response,
         200,
@@ -697,7 +695,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("documents modifiers and price values", async () => {
-      const { response } = await adminGet("/admin/guide");
+      const response = await adminGet("/admin/guide");
       const body = await response.text();
 
       expect(body).toContain('id="modifiers"');
@@ -708,7 +706,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("footer contains guide link", async () => {
-      const { response } = await adminGet("/admin/guide");
+      const response = await adminGet("/admin/guide");
       const body = await response.text();
       expect(body).toMatch(
         /<a[^>]*\bhref="\/admin\/guide"[^>]*>\s*Guide\s*<\/a>/,

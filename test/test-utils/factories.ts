@@ -378,3 +378,14 @@ export const sizeQuestionAnswerData = (): AttendeeQuestionData => ({
     }),
   ],
 });
+
+export const unselectedAnswerQuestionData = (): AttendeeQuestionData => ({
+  attendeeAnswerMap: new Map(),
+  questions: [
+    testQuestion({
+      answers: [testAnswer({ id: 10, text: "A" })],
+      id: 1,
+      text: "Q?",
+    }),
+  ],
+});

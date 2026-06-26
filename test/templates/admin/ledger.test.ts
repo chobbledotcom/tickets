@@ -464,8 +464,8 @@ describe("AccountStatementTable", () => {
     expect(html).toContain("No transfers recorded yet");
   });
 
-  test("links manual statement deltas to the edit page when a return URL is supplied", () => {
-    const html = String(
+  const renderStatement = (returnUrl?: string): string =>
+    String(
       AccountStatementTable({
         account: acct,
         lines: statementFor(acct)([
@@ -477,29 +477,19 @@ describe("AccountStatementTable", () => {
           }),
         ]),
         names: names(),
-        returnUrl: "/admin/attendees/1",
+        ...(returnUrl ? { returnUrl } : {}),
       }),
     );
+
+  test("links manual statement deltas to the edit page when a return URL is supplied", () => {
+    const html = renderStatement("/admin/attendees/1");
     expect(html).toContain(
       'href="/admin/ledger/entries/1/edit?return_url=%2Fadmin%2Fattendees%2F1"',
     );
   });
 
   test("does not link manual statement deltas without a return URL", () => {
-    const html = String(
-      AccountStatementTable({
-        account: acct,
-        lines: statementFor(acct)([
-          transfer({
-            destination: account("attendee", 1),
-            id: 1,
-            kind: MANUAL_ATTENDEE_PAYMENT,
-            source: account("external", "world"),
-          }),
-        ]),
-        names: names(),
-      }),
-    );
+    const html = renderStatement();
     expect(html).not.toContain("/admin/ledger/entries/1/edit");
     expect(html).toContain(`-${formatCurrency(5000)}`);
   });

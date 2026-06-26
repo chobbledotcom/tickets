@@ -21,7 +21,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     testRequiresAuth("/admin/guide");
 
     test("renders guide page when authenticated", async () => {
-      const { response } = await adminGet("/admin/guide");
+      const response = await adminGet("/admin/guide");
       await expectHtmlResponse(response, 200, "Guide");
     });
 
@@ -315,7 +315,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains Google Wallet section", async () => {
-      const { response } = await adminGet("/admin/guide");
+      const response = await adminGet("/admin/guide");
       const html = await response.text();
       expect(html).toContain("Google Wallet");
       expect(html).toContain("Add to Google Wallet");
@@ -325,7 +325,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("shows default Google Wallet setup when no host config", async () => {
-      const { response } = await adminGet("/admin/guide");
+      const response = await adminGet("/admin/guide");
       const html = await response.text();
       expect(html).toContain("You need three values from");
       expect(html).not.toContain(
@@ -340,7 +340,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         serviceAccountKey: "pem-key-data",
       });
       try {
-        const { response } = await adminGet("/admin/guide");
+        const response = await adminGet("/admin/guide");
         const html = await response.text();
         expect(html).toContain(
           "already configured by your server administrator",
@@ -353,7 +353,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("hides built sites section when builder is disabled", async () => {
-      const { response } = await adminGet("/admin/guide");
+      const response = await adminGet("/admin/guide");
       const html = await response.text();
       expect(html).not.toContain('id="built-sites"');
     });
@@ -489,7 +489,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
   describe("guide section structure", () => {
     const guideHtml = async (): Promise<string> => {
-      const { response } = await adminGet("/admin/guide");
+      const response = await adminGet("/admin/guide");
       return response.text();
     };
 

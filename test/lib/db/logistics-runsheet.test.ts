@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { beforeEach, it as test } from "@std/testing/bdd";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import {
   type DeliveryLegKind,
@@ -60,196 +60,198 @@ const makeBooking = async (opts: {
   return { attendeeId, listingId };
 };
 
-describeWithEnv("db getAgentRunSheet", { db: true }, () => {
-  let van: number;
-  let other: number;
-  beforeEach(async () => {
-    van = (await logisticsAgentsTable.insert({ name: "Van" })).id;
-    other = (await logisticsAgentsTable.insert({ name: "Other" })).id;
-  });
-
-  test("returns [] for no agent ids", async () => {
-    expect(await getAgentRunSheet([], [D1])).toEqual([]);
-  });
-
-  test("returns [] for no dates", async () => {
-    expect(await getAgentRunSheet([van], [])).toEqual([]);
-  });
-
-  test("yields a drop-off leg for the start agent on a matching date", async () => {
-    const { attendeeId, listingId } = await makeBooking({
-      endAgentId: null,
-      endDate: D3,
-      startAgentId: van,
-      startDate: D1,
-      startTime: "09:00",
-    });
-    const legs = await getAgentRunSheet([van], [D1, D2]);
-    expect(legs).toEqual([
-      {
-        agentId: van,
-        attendeeId,
-        date: D1,
-        done: false,
-        kind: "start",
-        listingId,
-        time: "09:00",
-      },
-    ]);
-  });
-
-  test("yields a collection leg for the end agent on a matching date", async () => {
-    // end_at = D3 (exclusive), so the collection's run-sheet date is D2.
-    const { attendeeId, listingId } = await makeBooking({
-      endAgentId: van,
-      endDate: D3,
-      endTime: "17:00",
-      startAgentId: other,
-      startDate: D1,
-    });
-    const legs = await getAgentRunSheet([van], [D1, D2]);
-    expect(legs).toEqual([
-      {
-        agentId: van,
-        attendeeId,
-        date: D2,
-        done: false,
-        kind: "end",
-        listingId,
-        time: "17:00",
-      },
-    ]);
-  });
-
-  test("yields both legs when one agent does drop-off and collection", async () => {
-    await makeBooking({
-      endAgentId: van,
-      endDate: D2,
-      startAgentId: van,
-      startDate: D1,
-    });
-    const legs = await getAgentRunSheet([van], [D1, D2]);
-    expect(legs.map((l) => l.kind).sort()).toEqual(["end", "start"]);
-  });
-
-  test("excludes legs whose date is outside the window", async () => {
-    // Drop-off on D3 and collection on D3 (end_at = D4), both past [D1, D2].
-    await makeBooking({
-      endAgentId: van,
-      endDate: D4,
-      startAgentId: van,
-      startDate: D3,
-    });
-    expect(await getAgentRunSheet([van], [D1, D2])).toEqual([]);
-  });
-
-  test("excludes legs for agents not in the set", async () => {
-    await makeBooking({
-      endAgentId: other,
-      endDate: D2,
-      startAgentId: other,
-      startDate: D1,
-    });
-    expect(await getAgentRunSheet([van], [D1, D2])).toEqual([]);
-  });
-
-  test("ignores a collection leg when the booking has no end date", async () => {
-    const { attendeeId, listingId } = await makeBooking({
-      endAgentId: van,
-      endDate: D1,
-      startAgentId: van,
-      startDate: D1,
-    });
-    // Null out end_at so the collection leg's date is null even though its
-    // agent is in the set.
-    await getDb().execute({
-      args: [attendeeId, listingId],
-      sql: "UPDATE listing_attendees SET end_at = NULL WHERE attendee_id = ? AND listing_id = ?",
-    });
-    const legs = await getAgentRunSheet([van], [D1]);
-    expect(legs.map((l) => l.kind)).toEqual(["start"]);
-  });
-
-  test("reflects the done flags", async () => {
-    await makeBooking({
-      endAgentId: van,
-      endDate: D2,
-      endDone: false,
-      startAgentId: van,
-      startDate: D1,
-      startDone: true,
-    });
-    const legs = await getAgentRunSheet([van], [D1, D2]);
-    const start = legs.find((l) => l.kind === "start");
-    const end = legs.find((l) => l.kind === "end");
-    expect(start?.done).toBe(true);
-    expect(end?.done).toBe(false);
-  });
+const insertVanAndOther = async (): Promise<{
+  van: number;
+  other: number;
+}> => ({
+  other: (await logisticsAgentsTable.insert({ name: "Other" })).id,
+  van: (await logisticsAgentsTable.insert({ name: "Van" })).id,
 });
 
-describeWithEnv("db setLegDone", { db: true }, () => {
+describeWithEnv("db logistics run-sheet", { db: true }, () => {
   let van: number;
   let other: number;
   beforeEach(async () => {
-    van = (await logisticsAgentsTable.insert({ name: "Van" })).id;
-    other = (await logisticsAgentsTable.insert({ name: "Other" })).id;
+    ({ van, other } = await insertVanAndOther());
   });
 
-  test("returns false for no agent ids", async () => {
-    expect(await setLegDone(1, 1, "start", true, [])).toBe(false);
-  });
-
-  test("marks the start leg done for the owning agent", async () => {
-    const { attendeeId, listingId } = await makeBooking({
-      endAgentId: null,
-      endDate: D2,
-      startAgentId: van,
-      startDate: D1,
+  describe("getAgentRunSheet", () => {
+    test("returns [] for no agent ids", async () => {
+      expect(await getAgentRunSheet([], [D1])).toEqual([]);
     });
-    const ok = await setLegDone(attendeeId, listingId, "start", true, [van]);
-    expect(ok).toBe(true);
-    const legs = await getAgentRunSheet([van], [D1]);
-    expect(legs[0]?.done).toBe(true);
+
+    test("returns [] for no dates", async () => {
+      expect(await getAgentRunSheet([van], [])).toEqual([]);
+    });
+
+    test("yields a drop-off leg for the start agent on a matching date", async () => {
+      const { attendeeId, listingId } = await makeBooking({
+        endAgentId: null,
+        endDate: D3,
+        startAgentId: van,
+        startDate: D1,
+        startTime: "09:00",
+      });
+      const legs = await getAgentRunSheet([van], [D1, D2]);
+      expect(legs).toEqual([
+        {
+          agentId: van,
+          attendeeId,
+          date: D1,
+          done: false,
+          kind: "start",
+          listingId,
+          time: "09:00",
+        },
+      ]);
+    });
+
+    test("yields a collection leg for the end agent on a matching date", async () => {
+      // end_at = D3 (exclusive), so the collection's run-sheet date is D2.
+      const { attendeeId, listingId } = await makeBooking({
+        endAgentId: van,
+        endDate: D3,
+        endTime: "17:00",
+        startAgentId: other,
+        startDate: D1,
+      });
+      const legs = await getAgentRunSheet([van], [D1, D2]);
+      expect(legs).toEqual([
+        {
+          agentId: van,
+          attendeeId,
+          date: D2,
+          done: false,
+          kind: "end",
+          listingId,
+          time: "17:00",
+        },
+      ]);
+    });
+
+    test("yields both legs when one agent does drop-off and collection", async () => {
+      await makeBooking({
+        endAgentId: van,
+        endDate: D2,
+        startAgentId: van,
+        startDate: D1,
+      });
+      const legs = await getAgentRunSheet([van], [D1, D2]);
+      expect(legs.map((l) => l.kind).sort()).toEqual(["end", "start"]);
+    });
+
+    test("excludes legs whose date is outside the window", async () => {
+      // Drop-off on D3 and collection on D3 (end_at = D4), both past [D1, D2].
+      await makeBooking({
+        endAgentId: van,
+        endDate: D4,
+        startAgentId: van,
+        startDate: D3,
+      });
+      expect(await getAgentRunSheet([van], [D1, D2])).toEqual([]);
+    });
+
+    test("excludes legs for agents not in the set", async () => {
+      await makeBooking({
+        endAgentId: other,
+        endDate: D2,
+        startAgentId: other,
+        startDate: D1,
+      });
+      expect(await getAgentRunSheet([van], [D1, D2])).toEqual([]);
+    });
+
+    test("ignores a collection leg when the booking has no end date", async () => {
+      const { attendeeId, listingId } = await makeBooking({
+        endAgentId: van,
+        endDate: D1,
+        startAgentId: van,
+        startDate: D1,
+      });
+      // Null out end_at so the collection leg's date is null even though its
+      // agent is in the set.
+      await getDb().execute({
+        args: [attendeeId, listingId],
+        sql: "UPDATE listing_attendees SET end_at = NULL WHERE attendee_id = ? AND listing_id = ?",
+      });
+      const legs = await getAgentRunSheet([van], [D1]);
+      expect(legs.map((l) => l.kind)).toEqual(["start"]);
+    });
+
+    test("reflects the done flags", async () => {
+      await makeBooking({
+        endAgentId: van,
+        endDate: D2,
+        endDone: false,
+        startAgentId: van,
+        startDate: D1,
+        startDone: true,
+      });
+      const legs = await getAgentRunSheet([van], [D1, D2]);
+      const start = legs.find((l) => l.kind === "start");
+      const end = legs.find((l) => l.kind === "end");
+      expect(start?.done).toBe(true);
+      expect(end?.done).toBe(false);
+    });
   });
 
-  test("marks the end leg done independently of the start leg", async () => {
-    // end_at = D2 so the collection's run-sheet date is D1, same as drop-off.
-    const { attendeeId, listingId } = await makeBooking({
-      endAgentId: van,
-      endDate: D2,
-      startAgentId: van,
-      startDate: D1,
+  describe("setLegDone", () => {
+    test("returns false for no agent ids", async () => {
+      expect(await setLegDone(1, 1, "start", true, [])).toBe(false);
     });
-    await setLegDone(attendeeId, listingId, "end", true, [van]);
-    const legs = await getAgentRunSheet([van], [D1]);
-    expect(legs.find((l) => l.kind === "start")?.done).toBe(false);
-    expect(legs.find((l) => l.kind === "end")?.done).toBe(true);
-  });
 
-  test("can unmark a leg", async () => {
-    const { attendeeId, listingId } = await makeBooking({
-      endAgentId: null,
-      endDate: D2,
-      startAgentId: van,
-      startDate: D1,
-      startDone: true,
+    test("marks the start leg done for the owning agent", async () => {
+      const { attendeeId, listingId } = await makeBooking({
+        endAgentId: null,
+        endDate: D2,
+        startAgentId: van,
+        startDate: D1,
+      });
+      const ok = await setLegDone(attendeeId, listingId, "start", true, [van]);
+      expect(ok).toBe(true);
+      const legs = await getAgentRunSheet([van], [D1]);
+      expect(legs[0]?.done).toBe(true);
     });
-    await setLegDone(attendeeId, listingId, "start", false, [van]);
-    const legs = await getAgentRunSheet([van], [D1]);
-    expect(legs[0]?.done).toBe(false);
-  });
 
-  test("refuses to update a leg owned by another agent", async () => {
-    const { attendeeId, listingId } = await makeBooking({
-      endAgentId: null,
-      endDate: D2,
-      startAgentId: other,
-      startDate: D1,
+    test("marks the end leg done independently of the start leg", async () => {
+      // end_at = D2 so the collection's run-sheet date is D1, same as drop-off.
+      const { attendeeId, listingId } = await makeBooking({
+        endAgentId: van,
+        endDate: D2,
+        startAgentId: van,
+        startDate: D1,
+      });
+      await setLegDone(attendeeId, listingId, "end", true, [van]);
+      const legs = await getAgentRunSheet([van], [D1]);
+      expect(legs.find((l) => l.kind === "start")?.done).toBe(false);
+      expect(legs.find((l) => l.kind === "end")?.done).toBe(true);
     });
-    const kind: DeliveryLegKind = "start";
-    const ok = await setLegDone(attendeeId, listingId, kind, true, [van]);
-    expect(ok).toBe(false);
-    const legs = await getAgentRunSheet([other], [D1]);
-    expect(legs[0]?.done).toBe(false);
+
+    test("can unmark a leg", async () => {
+      const { attendeeId, listingId } = await makeBooking({
+        endAgentId: null,
+        endDate: D2,
+        startAgentId: van,
+        startDate: D1,
+        startDone: true,
+      });
+      await setLegDone(attendeeId, listingId, "start", false, [van]);
+      const legs = await getAgentRunSheet([van], [D1]);
+      expect(legs[0]?.done).toBe(false);
+    });
+
+    test("refuses to update a leg owned by another agent", async () => {
+      const { attendeeId, listingId } = await makeBooking({
+        endAgentId: null,
+        endDate: D2,
+        startAgentId: other,
+        startDate: D1,
+      });
+      const kind: DeliveryLegKind = "start";
+      const ok = await setLegDone(attendeeId, listingId, kind, true, [van]);
+      expect(ok).toBe(false);
+      const legs = await getAgentRunSheet([other], [D1]);
+      expect(legs[0]?.done).toBe(false);
+    });
   });
 });

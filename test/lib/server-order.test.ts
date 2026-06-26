@@ -19,6 +19,17 @@ const selectOrder = (ids: number[]): Promise<Response> => {
   return handleRequest(mockRequest(`/order?${query}`));
 };
 
+const enablePublicOrder = (): void => {
+  beforeEach(async () => {
+    await settings.update.showPublicSite(true);
+    await settings.update.orderEnabled(true);
+  });
+  afterEach(async () => {
+    await settings.update.showPublicSite(false);
+    await settings.update.orderEnabled(false);
+  });
+};
+
 describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
   describe("availability guard", () => {
     test("redirects to admin login when the public site is disabled", async () => {
@@ -35,14 +46,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
   });
 
   describe("GET /order (gallery)", () => {
-    beforeEach(async () => {
-      await settings.update.showPublicSite(true);
-      await settings.update.orderEnabled(true);
-    });
-    afterEach(async () => {
-      await settings.update.showPublicSite(false);
-      await settings.update.orderEnabled(false);
-    });
+    enablePublicOrder();
 
     test("shows a selectable grid of every bookable listing", async () => {
       const standard = await createTestListing({ name: "Branded Mug" });
@@ -136,14 +140,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
   });
 
   describe("GET /order with a selection (redirect into the booking page)", () => {
-    beforeEach(async () => {
-      await settings.update.showPublicSite(true);
-      await settings.update.orderEnabled(true);
-    });
-    afterEach(async () => {
-      await settings.update.showPublicSite(false);
-      await settings.update.orderEnabled(false);
-    });
+    enablePublicOrder();
 
     test("redirects one selected item into its pre-filled booking page", async () => {
       const item = await createTestListing({ maxQuantity: 5, name: "Widget" });

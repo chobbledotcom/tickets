@@ -17,9 +17,7 @@ describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
       await createTestListing({ groupId: group.id, name: "Listing A" });
       await createTestListing({ groupId: group.id, name: "Listing B" });
 
-      const { response } = await adminGet(
-        `/admin/groups/${group.id}/bulk-actions`,
-      );
+      const response = await adminGet(`/admin/groups/${group.id}/bulk-actions`);
       const html = await response.text();
 
       expect(response.status).toBe(200);
@@ -36,9 +34,7 @@ describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
       const group = await createTestGroup({ name: "Solo Group" });
       await createTestListing({ groupId: group.id, name: "Only Listing" });
 
-      const { response } = await adminGet(
-        `/admin/groups/${group.id}/bulk-actions`,
-      );
+      const response = await adminGet(`/admin/groups/${group.id}/bulk-actions`);
       const html = await response.text();
 
       expect(html).toContain("all 1 listing");
@@ -47,7 +43,7 @@ describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
     });
 
     test("returns 404 for a non-existent group", async () => {
-      const { response } = await adminGet("/admin/groups/999999/bulk-actions");
+      const response = await adminGet("/admin/groups/999999/bulk-actions");
       expect(response.status).toBe(404);
     });
 
@@ -68,9 +64,7 @@ describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
       group: { id: number },
       visible: ("deactivate" | "reactivate")[],
     ): Promise<void> => {
-      const { response } = await adminGet(
-        `/admin/groups/${group.id}/bulk-actions`,
-      );
+      const response = await adminGet(`/admin/groups/${group.id}/bulk-actions`);
       const html = await response.text();
       for (const action of ["deactivate", "reactivate"] as const) {
         const href = `/admin/groups/${group.id}/bulk-actions/${action}`;
@@ -115,9 +109,7 @@ describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
     test("hides both deactivate and reactivate for an empty group", async () => {
       const group = await createTestGroup({ name: "Empty Group" });
 
-      const { response } = await adminGet(
-        `/admin/groups/${group.id}/bulk-actions`,
-      );
+      const response = await adminGet(`/admin/groups/${group.id}/bulk-actions`);
       const html = await response.text();
 
       expect(html).not.toContain(

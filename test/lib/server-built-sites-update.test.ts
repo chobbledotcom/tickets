@@ -14,6 +14,7 @@ import {
   expectFlashRedirect,
   getAllActivityLog,
   setTestEnv,
+  stubReleaseFetch,
   testCookie,
 } from "#test-utils";
 
@@ -23,33 +24,6 @@ const SITE_DB_URL = "libsql://01ABC-client-site.lite.bunnydb.net";
 /** Seed a fresh backup for the given site so the pre-update gate passes. */
 const seedSiteBackup = (dbUrl: string): Promise<string> =>
   uploadRaw(new Uint8Array([1]), backupKey(backupTimestamp(), dbName(dbUrl)));
-
-const MOCK_RELEASE = {
-  assets: [
-    {
-      browser_download_url:
-        "https://github.com/chobbledotcom/tickets/releases/download/v2099-01-01-120000/bunny-script.ts",
-      name: "bunny-script.ts",
-    },
-  ],
-  name: "2099-01-01 - Big Update",
-  published_at: "2099-01-01T12:00:00Z",
-  tag_name: "v2099-01-01-120000",
-};
-
-/** Stub the GitHub release fetch + asset download. */
-const stubReleaseFetch = () =>
-  stub(globalThis, "fetch", (input: string | URL | Request) => {
-    const url = String(input);
-    if (url.includes("releases/latest")) {
-      return Promise.resolve(
-        new Response(JSON.stringify(MOCK_RELEASE), { status: 200 }),
-      );
-    }
-    return Promise.resolve(
-      new Response("console.log('updated')", { status: 200 }),
-    );
-  });
 
 describeWithEnv("POST /admin/built-sites/:id/update", { db: true }, () => {
   let storageTmp: string;

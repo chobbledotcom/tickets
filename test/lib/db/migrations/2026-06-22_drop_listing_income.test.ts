@@ -9,7 +9,10 @@ import {
   createTestListing,
   describeWithEnv,
 } from "#test-utils";
-import { runAggregateColumnDropTests } from "../migration-test-helpers.ts";
+import {
+  readListingAggregates as listingAggregates,
+  runAggregateColumnDropTests,
+} from "../migration-test-helpers.ts";
 
 // This migration's up() touches only the three below — recreateTable and
 // syncTriggers do the trigger/structure rebuild; getDb is real by default.
@@ -26,20 +29,6 @@ const contribution = (sign: "+" | "-", row: "NEW" | "OLD"): string =>
      tickets_count = tickets_count ${sign} 1,
      income = income ${sign} ${row}.price_paid
    WHERE id = ${row}.listing_id;`;
-
-const listingAggregates = async (
-  listingId: number,
-): Promise<Record<string, number>> => {
-  const result = await getDb().execute({
-    args: [listingId],
-    sql: "SELECT booked_quantity, tickets_count FROM listings WHERE id = ?",
-  });
-  const row = result.rows[0]!;
-  return {
-    booked_quantity: Number(row.booked_quantity),
-    tickets_count: Number(row.tickets_count),
-  };
-};
 
 describeWithEnv(
   "db > migrations > 2026-06-22_drop_listing_income",

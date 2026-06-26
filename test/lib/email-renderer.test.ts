@@ -18,6 +18,22 @@ import {
   useSetting,
 } from "#test-utils";
 
+/** Reload settings + build template data from one entry and render the
+ *  confirmation email. Collapses the shared `invalidateCache` + `loadKeys` +
+ *  `buildTemplateData` + `renderEmailContent` sequence repeated across the
+ *  custom-template tests. */
+const renderConfirmation = async (): Promise<{
+  data: TemplateData;
+  result: Awaited<ReturnType<typeof renderEmailContent>>;
+}> => {
+  settings.invalidateCache();
+  await settings.loadKeys(ALL_SETTINGS_KEYS);
+  const entries = [makeEntry()];
+  const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+  const result = await renderEmailContent("confirmation", data);
+  return { data, result };
+};
+
 describeWithEnv("email-renderer", { db: true }, () => {
   useSetting({ currency: "GBP" });
   beforeEach(resetEngine);
@@ -327,16 +343,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
         "text",
         "Custom text for {{ attendee.name }}",
       );
-      settings.invalidateCache();
-      await settings.loadKeys(ALL_SETTINGS_KEYS);
-
-      const entries = [makeEntry()];
-      const data = buildTemplateData(
-        entries,
-        "GBP",
-        "https://example.com/t/ABC",
-      );
-      const result = await renderEmailContent("confirmation", data);
+      const { result } = await renderConfirmation();
 
       expect(result.subject).toBe("Custom: Test Listing");
       expect(result.html).toBe("<b>Custom HTML for Jane Doe</b>");
@@ -516,16 +523,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
         "Custom Subject: {{ listing_names }}",
       );
       // html and text remain default
-      settings.invalidateCache();
-      await settings.loadKeys(ALL_SETTINGS_KEYS);
-
-      const entries = [makeEntry()];
-      const data = buildTemplateData(
-        entries,
-        "GBP",
-        "https://example.com/t/ABC",
-      );
-      const result = await renderEmailContent("confirmation", data);
+      const { result } = await renderConfirmation();
 
       expect(result.subject).toBe("Custom Subject: Test Listing");
       // html and text should still use defaults
@@ -586,16 +584,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
       await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       await settings.update.email.template("confirmation", "subject", "");
-      settings.invalidateCache();
-      await settings.loadKeys(ALL_SETTINGS_KEYS);
-
-      const entries = [makeEntry()];
-      const data = buildTemplateData(
-        entries,
-        "GBP",
-        "https://example.com/t/ABC",
-      );
-      const result = await renderEmailContent("confirmation", data);
+      const { result } = await renderConfirmation();
 
       expect(result.subject).toContain("Test Listing");
     });

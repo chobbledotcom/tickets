@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import {
   applyMigrationWithRetry,
@@ -19,13 +18,30 @@ import { settings } from "#shared/db/settings.ts";
 import {
   createTestListing,
   describeWithEnv,
+  expectNtfyNotification,
   invalidateTestDbCache,
   setTestEnv,
+  stubNtfyFetch,
   TEST_ADMIN_PASSWORD,
 } from "#test-utils";
 import { markCurrentSchemaMigrationPending } from "./migration-test-helpers.ts";
 
 describeWithEnv("db > migration runtime", { db: true }, () => {
+  const TEST_DB_URL = "libsql://abc-tickets-spencer.lite.bunnydb.net";
+
+  const restoreLockTest = async (
+    fetchStub: ReturnType<typeof stubNtfyFetch>["fetchStub"],
+    restore: ReturnType<typeof stubNtfyFetch>["restore"],
+  ) => {
+    fetchStub.restore();
+    restore();
+    await getDb().execute("DELETE FROM settings WHERE key = 'migration_lock'");
+    await getDb().execute({
+      args: [SCHEMA_HASH],
+      sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+    });
+  };
+
   describe("migration behaviour", () => {
     test("migrates an existing database without taking an inline backup", async () => {
       const tmpDir = Deno.makeTempDirSync();
@@ -55,13 +71,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     });
 
     test("sends ntfy notification with DB_URL when migration lock is held", async () => {
-      const restoreNtfy = setTestEnv({
-        DB_URL: "libsql://abc-tickets-spencer.lite.bunnydb.net",
-        NTFY_URL: "https://ntfy.sh/test-topic",
-      });
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
-      );
+      const { fetchStub, restore } = stubNtfyFetch({ DB_URL: TEST_DB_URL });
       try {
         await getDb().execute(
           "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
@@ -74,23 +84,9 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
         await expect(initDb()).rejects.toThrow("migration_lock held");
 
-        const ntfyCall = fetchStub.calls.find(
-          (c) => c.args[0] === "https://ntfy.sh/test-topic",
-        );
-        expect(ntfyCall).toBeDefined();
-        expect((ntfyCall!.args[1] as RequestInit).body).toBe(
-          "E_DB_MIGRATION_LOCK libsql://abc-tickets-spencer.lite.bunnydb.net",
-        );
+        expectNtfyNotification(fetchStub, `E_DB_MIGRATION_LOCK ${TEST_DB_URL}`);
       } finally {
-        fetchStub.restore();
-        restoreNtfy();
-        await getDb().execute(
-          "DELETE FROM settings WHERE key = 'migration_lock'",
-        );
-        await getDb().execute({
-          args: [SCHEMA_HASH],
-          sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-        });
+        await restoreLockTest(fetchStub, restore);
       }
     });
   });
@@ -103,10 +99,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       });
 
     test("fails fast when a concurrent migration holds the lock", async () => {
-      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
-      );
+      const { fetchStub, restore } = stubNtfyFetch();
       try {
         await getDb().execute(
           "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
@@ -118,20 +111,9 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
         invalidateInitDbCache();
         await expect(initDb()).rejects.toThrow("migration_lock held");
 
-        const ntfyCall = fetchStub.calls.find(
-          (c) => c.args[0] === "https://ntfy.sh/test-topic",
-        );
-        expect(ntfyCall).toBeDefined();
+        expectNtfyNotification(fetchStub);
       } finally {
-        fetchStub.restore();
-        restore();
-        await getDb().execute(
-          "DELETE FROM settings WHERE key = 'migration_lock'",
-        );
-        await getDb().execute({
-          args: [SCHEMA_HASH],
-          sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-        });
+        await restoreLockTest(fetchStub, restore);
       }
     });
 

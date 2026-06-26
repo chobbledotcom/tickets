@@ -4,11 +4,10 @@ import { stub } from "@std/testing/mock";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   adminFormPost,
-  awaitTestRequest,
+  adminGet,
   describeWithEnv,
   expectFlash,
   getAllActivityLog,
-  testCookie,
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
@@ -106,9 +105,7 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
     });
 
     test("advanced settings page displays email configuration section", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
       expect(html).toContain('id="settings-email"');
       expect(html).toContain("email_provider");
@@ -234,9 +231,7 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
       await settings.update.email.provider("resend");
       await settings.update.email.fromAddress("from@test.com");
 
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
       expect(html).toContain('value="resend"');
       expect(html).toContain("Send Test Email");

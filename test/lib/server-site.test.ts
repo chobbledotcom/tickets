@@ -5,6 +5,7 @@ import { MAX_WEBSITE_TITLE_LENGTH, settings } from "#shared/db/settings.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   adminFormPost,
+  adminGet,
   awaitTestRequest,
   describeWithEnv,
   expectFlash,
@@ -30,9 +31,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     testRequiresAuth("/admin/site");
 
     test("shows homepage editor when authenticated", async () => {
-      const response = await awaitTestRequest("/admin/site", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/site");
       await expectHtmlResponse(
         response,
         200,
@@ -46,9 +45,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     test("displays existing values", async () => {
       await settings.update.websiteTitle("My Listings");
       await settings.update.homepageText("Welcome!");
-      const response = await awaitTestRequest("/admin/site", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/site");
       const html = await response.text();
       expect(html).toContain("My Listings");
       expect(html).toContain("Welcome!");
@@ -158,9 +155,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     testRequiresAuth("/admin/site/contact");
 
     test("shows contact editor when authenticated", async () => {
-      const response = await awaitTestRequest("/admin/site/contact", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/site/contact");
       await expectHtmlResponse(
         response,
         200,
@@ -171,9 +166,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
 
     test("shows the contact form toggle even without Botpoison", async () => {
-      const response = await awaitTestRequest("/admin/site/contact", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/site/contact");
       const html = await response.text();
       expect(html).toContain("contact_form_enabled");
       expect(html).toContain("Enable contact form");
@@ -182,9 +175,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
 
     test("displays existing contact text", async () => {
       await settings.update.contactPageText("Call us!");
-      const response = await awaitTestRequest("/admin/site/contact", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/site/contact");
       const html = await response.text();
       expect(html).toContain("Call us!");
     });
@@ -274,9 +265,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     testRequiresAuth("/admin/site/order");
 
     test("shows order editor when authenticated", async () => {
-      const response = await awaitTestRequest("/admin/site/order", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/site/order");
       await expectHtmlResponse(
         response,
         200,
@@ -288,9 +277,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
 
     test("warns when there are no bookable listings", async () => {
-      const response = await awaitTestRequest("/admin/site/order", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/site/order");
       const html = await response.text();
       expect(html).toContain("no bookable listings");
     });
@@ -299,9 +286,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       const { createTestListing } = await import("#test-utils");
       await createTestListing({ name: "Mug", purchaseOnly: true });
       await createTestListing({ name: "Regular Ticket" });
-      const response = await awaitTestRequest("/admin/site/order", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/site/order");
       const html = await response.text();
       expect(html).toContain("2 listings will be shown");
       expect(html).not.toContain("no bookable listings");
@@ -310,27 +295,21 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     test("uses the singular for a single listing", async () => {
       const { createTestListing } = await import("#test-utils");
       await createTestListing({ name: "Solo" });
-      const response = await awaitTestRequest("/admin/site/order", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/site/order");
       const html = await response.text();
       expect(html).toContain("1 listing will be shown");
     });
 
     test("displays existing intro text", async () => {
       await settings.update.orderIntroText("Pick your items");
-      const response = await awaitTestRequest("/admin/site/order", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/site/order");
       const html = await response.text();
       expect(html).toContain("Pick your items");
     });
 
     test("reflects the enabled state in the checkbox", async () => {
       await settings.update.orderEnabled(true);
-      const response = await awaitTestRequest("/admin/site/order", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/site/order");
       const html = await response.text();
       expect(hasCheckedInput(html, "order_enabled", "true")).toBe(true);
     });
@@ -428,17 +407,13 @@ describeWithEnv("server (admin site)", { db: true }, () => {
   describe("admin nav", () => {
     test("shows Site link when public site is enabled", async () => {
       await settings.update.showPublicSite(true);
-      const response = await awaitTestRequest("/admin/site", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/site");
       const html = await response.text();
       expect(html).toContain('href="/admin/site"');
     });
 
     test("hides Site link when public site is disabled", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       const html = await response.text();
       expect(html).not.toContain('href="/admin/site"');
     });
@@ -457,9 +432,7 @@ describeWithEnv(
   () => {
     describe("GET /admin/site/contact with Botpoison configured", () => {
       test("shows the contact form toggle", async () => {
-        const response = await awaitTestRequest("/admin/site/contact", {
-          cookie: await testCookie(),
-        });
+        const response = await adminGet("/admin/site/contact");
         await expectHtmlResponse(
           response,
           200,
@@ -470,35 +443,27 @@ describeWithEnv(
       });
 
       test("notes that Botpoison spam protection is active", async () => {
-        const response = await awaitTestRequest("/admin/site/contact", {
-          cookie: await testCookie(),
-        });
+        const response = await adminGet("/admin/site/contact");
         const html = await response.text();
         expect(html).toContain("Botpoison is active");
       });
 
       test("warns when no business email is set", async () => {
-        const response = await awaitTestRequest("/admin/site/contact", {
-          cookie: await testCookie(),
-        });
+        const response = await adminGet("/admin/site/contact");
         const html = await response.text();
         expect(html).toContain("Set a business email");
       });
 
       test("hides the business-email warning once one is set", async () => {
         await settings.update.businessEmail("owner@example.com");
-        const response = await awaitTestRequest("/admin/site/contact", {
-          cookie: await testCookie(),
-        });
+        const response = await adminGet("/admin/site/contact");
         const html = await response.text();
         expect(html).not.toContain("Set a business email");
       });
 
       test("reflects the enabled state in the checkbox", async () => {
         await settings.update.contactFormEnabled(true);
-        const response = await awaitTestRequest("/admin/site/contact", {
-          cookie: await testCookie(),
-        });
+        const response = await adminGet("/admin/site/contact");
         const html = await response.text();
         expect(hasCheckedInput(html, "contact_form_enabled", "true")).toBe(
           true,
@@ -506,9 +471,7 @@ describeWithEnv(
       });
 
       test("leaves the checkbox unchecked when disabled", async () => {
-        const response = await awaitTestRequest("/admin/site/contact", {
-          cookie: await testCookie(),
-        });
+        const response = await adminGet("/admin/site/contact");
         const html = await response.text();
         expect(hasCheckedInput(html, "contact_form_enabled", "true")).toBe(
           false,

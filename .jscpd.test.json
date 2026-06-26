@@ -1,0 +1,25 @@
+{
+  "threshold": 0,
+  "_comment": "0% duplication threshold for test/",
+  "reporters": [
+    "console",
+    "json"
+  ],
+  "output": ".jscpd-report-test",
+  "ignore": [
+    "**/node_modules/**",
+    "**/package-lock.json",
+    "**/deno.lock"
+  ],
+  "format": [
+    "typescript"
+  ],
+  "absolute": false,
+  "gitignore": true,
+  "exitCode": 1,
+  "minLines": 1,
+  "minTokens": 50,
+  "path": [
+    "test"
+  ]
+}

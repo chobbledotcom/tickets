@@ -13,29 +13,10 @@ import {
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
+  jsonRequest,
   PublicListingSchema,
   setupStripe,
 } from "#test-utils";
-
-/** Create a JSON API request */
-const apiRequest = (
-  path: string,
-  options: {
-    method?: string;
-    body?: Record<string, unknown>;
-  } = {},
-): Request => {
-  const { method = "GET", body } = options;
-  const headers: Record<string, string> = { host: "localhost" };
-  const init: RequestInit = { headers, method };
-
-  if (body) {
-    headers["content-type"] = "application/json";
-    init.body = JSON.stringify(body);
-  }
-
-  return new Request(`http://localhost${path}`, init);
-};
 
 /** Parse JSON response */
 const jsonBody = (response: Response): Promise<Record<string, unknown>> =>
@@ -67,7 +48,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
     response: Response;
     listings: Record<string, unknown>[];
   }> => {
-    const response = await handleRequest(apiRequest("/api/listings"));
+    const response = await handleRequest(jsonRequest("/api/listings"));
     const body = await jsonBody(response);
     return { listings: body.listings as Record<string, unknown>[], response };
   };
@@ -76,7 +57,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
   const fetchListingBySlug = async (
     slug: string,
   ): Promise<{ response: Response; body: Record<string, unknown> }> => {
-    const response = await handleRequest(apiRequest(`/api/listings/${slug}`));
+    const response = await handleRequest(jsonRequest(`/api/listings/${slug}`));
     const body = await jsonBody(response);
     return { body, response };
   };
@@ -98,7 +79,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
     },
   ): Promise<{ response: Response; body: BookResponseBody }> => {
     const response = await handleRequest(
-      apiRequest(`/api/listings/${slug}/book`, {
+      jsonRequest(`/api/listings/${slug}/book`, {
         body: bookingBody,
         method: "POST",
       }),
@@ -133,7 +114,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
   ): Promise<{ response: Response; body: Record<string, unknown> }> => {
     const qs = query ? `?${query}` : "";
     const response = await handleRequest(
-      apiRequest(`/api/listings/${slug}/availability${qs}`),
+      jsonRequest(`/api/listings/${slug}/availability${qs}`),
     );
     const body = await jsonBody(response);
     return { body, response };
@@ -859,7 +840,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
   describe("OPTIONS /api/*", () => {
     test("returns 204 with CORS headers for listings", async () => {
       const response = await handleRequest(
-        apiRequest("/api/listings", { method: "OPTIONS" }),
+        jsonRequest("/api/listings", { method: "OPTIONS" }),
       );
       expect(response.status).toBe(204);
       expectCorsHeaders(response);
@@ -873,7 +854,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
 
     test("returns 204 for listing slug path", async () => {
       const response = await handleRequest(
-        apiRequest("/api/listings/test-slug", { method: "OPTIONS" }),
+        jsonRequest("/api/listings/test-slug", { method: "OPTIONS" }),
       );
       expect(response.status).toBe(204);
       expectCorsHeaders(response);
@@ -881,7 +862,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
 
     test("returns 204 for availability path", async () => {
       const response = await handleRequest(
-        apiRequest("/api/listings/test-slug/availability", {
+        jsonRequest("/api/listings/test-slug/availability", {
           method: "OPTIONS",
         }),
       );
@@ -891,7 +872,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
 
     test("returns 204 for book path", async () => {
       const response = await handleRequest(
-        apiRequest("/api/listings/test-slug/book", { method: "OPTIONS" }),
+        jsonRequest("/api/listings/test-slug/book", { method: "OPTIONS" }),
       );
       expect(response.status).toBe(204);
       expectCorsHeaders(response);
@@ -901,7 +882,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
   describe("API disabled", () => {
     test("returns 404 when public API setting is disabled", async () => {
       await settings.update.showPublicApi(false);
-      const response = await handleRequest(apiRequest("/api/listings"));
+      const response = await handleRequest(jsonRequest("/api/listings"));
       expect(response.status).toBe(404);
     });
   });

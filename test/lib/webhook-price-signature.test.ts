@@ -180,14 +180,18 @@ const runFailedRefund = async (
 
 /** Assert the webhook kept the booking as a quantity-0 placeholder (with a system
  *  note) and refused with the generic "saved your details" message. */
+const expectStoredRefundRecord = async (listingId: number): Promise<void> => {
+  const [attendee] = await getAttendeesRaw(listingId);
+  expect(attendee?.quantity).toBe(0);
+  expect(await getNoteRows([attendee!.id])).toHaveLength(1);
+};
+
 const expectStoredRefund = async (listingId: number): Promise<void> => {
   await assertJson(webhookRequest(), 200, (json) => {
     expect(json.processed).toBe(false);
     expect(json.error).toContain("saved your details");
   });
-  const [attendee] = await getAttendeesRaw(listingId);
-  expect(attendee?.quantity).toBe(0);
-  expect(await getNoteRows([attendee!.id])).toHaveLength(1);
+  await expectStoredRefundRecord(listingId);
 };
 
 /** Assert the webhook acknowledges (200) and silently ignores the session. */
@@ -208,6 +212,18 @@ const expectProcessed = async (listingId: number): Promise<void> => {
     expect(json.processed).toBe(true);
   });
   expect((await getAttendeesRaw(listingId)).length).toBe(1);
+};
+
+const expectReplayOutcome = async (
+  session: Parameters<typeof runWebhook>[0],
+  { processed, refundCalls }: { processed: boolean; refundCalls: number },
+): Promise<void> => {
+  await runWebhook(session, async (refund) => {
+    await assertJson(webhookRequest(), 200, (json) => {
+      expect(json.processed).toBe(processed);
+    });
+    expect(refund.calls.length).toBe(refundCalls);
+  });
 };
 
 describeWithEnv("webhook signed price oracle", { db: true }, () => {
@@ -271,12 +287,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     // are still 49 free seats, so capacity is not the blocker — only the existing
     // ledger legs are. It must recover the booking, never refund the live ticket
     // nor keep a quantity-0 ghost.
-    await runWebhook(session, async (refund) => {
-      await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.processed).toBe(true);
-      });
-      expect(refund.calls.length).toBe(0);
-    });
+    await expectReplayOutcome(session, { processed: true, refundCalls: 0 });
 
     // The original booking is intact: one attendee at full quantity, no new or
     // reversing ledger legs, and the idempotency row re-finalized back to it.
@@ -312,12 +323,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     // preflight this hit paidPricingRefund and refunded the live ticket (P1).
     await listingsTable.update(listing.id, { unitPrice: 1500 });
 
-    await runWebhook(session, async (refund) => {
-      await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.processed).toBe(true);
-      });
-      expect(refund.calls.length).toBe(0);
-    });
+    await expectReplayOutcome(session, { processed: true, refundCalls: 0 });
     // The original booking is recovered — no refund, no duplicate.
     expect((await getAttendeesRaw(listing.id)).map((a) => a.id)).toEqual([
       original!.id,
@@ -361,34 +367,30 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     const listing = await setupWithListing();
     // Signed at 1000 but the provider reports a 1200 charge — a mismatch. The
     // payment is ours (signed), so the booking is kept (not dropped into limbo).
-    await runWebhook(
+    await expectReplayOutcome(
       {
         amount_total: 1200,
         id: "cs_signed_mismatch",
         metadata: signedMeta(1000, { items: singleItem(listing.id, 1, 1000) }),
       },
-      async (refund) => {
-        await expectStoredRefund(listing.id);
-        expect(refund.calls.length).toBe(1);
-      },
+      { processed: false, refundCalls: 1 },
     );
+    await expectStoredRefundRecord(listing.id);
   });
 
   test("a re-derivation that diverges from the signed total is stored and refunded", async () => {
     const listing = await setupWithListing();
     // Signed and charged at 999, but the item re-prices to 1000 — a price edit
     // between checkout and webhook. The booking is kept, refunded, and flagged.
-    await runWebhook(
+    await expectReplayOutcome(
       {
         amount_total: 999,
         id: "cs_signed_diverge",
         metadata: signedMeta(999, { items: singleItem(listing.id, 1, 1000) }),
       },
-      async (refund) => {
-        await expectStoredRefund(listing.id);
-        expect(refund.calls.length).toBe(1);
-      },
+      { processed: false, refundCalls: 1 },
     );
+    await expectStoredRefundRecord(listing.id);
   });
 
   test("a divergence from a dropped modifier ref is stored and refunded", async () => {
@@ -411,47 +413,41 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
   test("stores the booking, reverses the ledger with the reason code, and flags it", async () => {
     const listing = await setupWithListing();
     // Signed and charged at 999, but the live price is 1000 — a mid-checkout edit.
-    await runWebhook(
+    await expectReplayOutcome(
       {
         amount_total: 999,
         id: "cs_ledger_reversal",
         metadata: signedMeta(999, { items: singleItem(listing.id, 1, 1000) }),
       },
-      async () => {
-        await assertJson(webhookRequest(), 200, (json) => {
-          expect(json.processed).toBe(false);
-        });
-        const [attendee] = await getAttendeesRaw(listing.id);
-        expect(attendee).toBeDefined();
-        // Stored as a quantity-0 placeholder: it consumes no capacity and is not
-        // a ticket, just a kept record of a refunded booking.
-        expect(attendee!.quantity).toBe(0);
-
-        // The ledger holds ONLY the cash round-trip — a `payment` we received and
-        // a `refund_cash` returning it, stamped with the PII-free reason code — so
-        // the attendee nets back to zero. Crucially there is NO `sale` leg: the
-        // booking was never honoured, so no revenue is recognised and the
-        // quantity-0 line's projected price_paid stays 0 (the no-quantity invariant).
-        const account = attendeeAccount(attendee!.id);
-        const legs = await transfersByAccount(account);
-        const refundCash = legs.find((leg) => leg.kind === "refund_cash");
-        expect(refundCash?.memo).toBe("price_changed");
-        expect(balanceOf(account)(legs)).toBe(0);
-        expect(legs.some((leg) => leg.kind === "payment")).toBe(true);
-        expect(legs.some((leg) => leg.kind === "sale")).toBe(false);
-
-        // The system note names the reason (PII-free) and links to the ledger.
-        const notes = await getNotesForAttendee(
-          attendee!.id,
-          await getTestPrivateKey(),
-        );
-        expect(notes).toHaveLength(1);
-        expect(notes[0]!.note).toContain("price changed");
-        expect(notes[0]!.note).toContain(
-          `/admin/ledger/attendee/${attendee!.id}`,
-        );
-      },
+      { processed: false, refundCalls: 1 },
     );
+    const [attendee] = await getAttendeesRaw(listing.id);
+    expect(attendee).toBeDefined();
+    // Stored as a quantity-0 placeholder: it consumes no capacity and is not
+    // a ticket, just a kept record of a refunded booking.
+    expect(attendee!.quantity).toBe(0);
+
+    // The ledger holds ONLY the cash round-trip — a `payment` we received and
+    // a `refund_cash` returning it, stamped with the PII-free reason code — so
+    // the attendee nets back to zero. Crucially there is NO `sale` leg: the
+    // booking was never honoured, so no revenue is recognised and the
+    // quantity-0 line's projected price_paid stays 0 (the no-quantity invariant).
+    const account = attendeeAccount(attendee!.id);
+    const legs = await transfersByAccount(account);
+    const refundCash = legs.find((leg) => leg.kind === "refund_cash");
+    expect(refundCash?.memo).toBe("price_changed");
+    expect(balanceOf(account)(legs)).toBe(0);
+    expect(legs.some((leg) => leg.kind === "payment")).toBe(true);
+    expect(legs.some((leg) => leg.kind === "sale")).toBe(false);
+
+    // The system note names the reason (PII-free) and links to the ledger.
+    const notes = await getNotesForAttendee(
+      attendee!.id,
+      await getTestPrivateKey(),
+    );
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.note).toContain("price changed");
+    expect(notes[0]!.note).toContain(`/admin/ledger/attendee/${attendee!.id}`);
   });
 
   // ---- session-state invariants (regression: the finalize/store-refund seam) -
@@ -464,26 +460,22 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
 
   test("a stored-refunded booking leaves the session unfinalized with a terminal refund", async () => {
     const listing = await setupWithListing();
-    await runWebhook(
+    await expectReplayOutcome(
       {
         amount_total: 999,
         id: "cs_unfinalized",
         metadata: signedMeta(999, { items: singleItem(listing.id, 1, 1000) }),
       },
-      async () => {
-        await assertJson(webhookRequest(), 200, (json) => {
-          expect(json.processed).toBe(false);
-        });
-        // The booking exists in the diary…
-        expect((await getAttendeesRaw(listing.id)).length).toBe(1);
-        // …but the session is NOT finalized: attendee_id stays null and the refund
-        // is the terminal outcome. If a change finalizes it, a replay would wrongly
-        // hand the customer a ticket — so pin both fields.
-        const record = await isSessionProcessed("cs_unfinalized");
-        expect(record?.attendee_id).toBeNull();
-        expect(record?.failure_data).not.toBe("");
-      },
+      { processed: false, refundCalls: 1 },
     );
+    // The booking exists in the diary…
+    expect((await getAttendeesRaw(listing.id)).length).toBe(1);
+    // …but the session is NOT finalized: attendee_id stays null and the refund
+    // is the terminal outcome. If a change finalizes it, a replay would wrongly
+    // hand the customer a ticket — so pin both fields.
+    const record = await isSessionProcessed("cs_unfinalized");
+    expect(record?.attendee_id).toBeNull();
+    expect(record?.failure_data).not.toBe("");
   });
 
   test("a redelivery of a stored-refunded booking replays the refund — no re-create, no re-refund, no ticket", async () => {
