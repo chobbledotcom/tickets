@@ -344,10 +344,14 @@ export const toAdminListing = ({
  * three cases apart so a client typo can never silently wipe existing edges:
  * - `{ skip: true }` — the parents feature is off or the field is omitted, so
  *   the API leaves the listing's existing edges untouched;
- * - `{ error }` — the field is present but not an array (a string, object, …),
- *   reported as a 400 with the edges left intact;
- * - `{ childIds }` — a real array, narrowed to its numeric ids (non-numbers
- *   dropped), ready for {@link writeChildEdges}.
+ * - `{ error }` — the field is present but malformed: not an array (a string,
+ *   object, …), or an array containing any entry that is not a positive integer
+ *   listing id (e.g. a JSON client sending `["7"]`). Both are reported as a 400
+ *   with the edges left intact — failing closed, so a typo can never silently
+ *   wipe a gated parent's edges down to an empty replacement;
+ * - `{ childIds }` — a real array of positive integer ids, ready for
+ *   {@link writeChildEdges} (self-edges and unknown ids are still dropped
+ *   downstream by {@link validateChildEdges}).
  */
 type SubmittedChildIds =
   | { skip: true }
@@ -364,7 +368,17 @@ const submittedChildIds = (
   if (!Array.isArray(raw)) {
     return { error: "child_listing_ids must be an array of listing ids" };
   }
-  return { childIds: raw.filter((id): id is number => typeof id === "number") };
+  // Fail closed on any non-positive-integer entry (a stringified id, float, …)
+  // rather than filtering it out: silently dropping it could shrink the array to
+  // empty and turn a gated parent into a standalone listing.
+  if (
+    !raw.every((id) => typeof id === "number" && Number.isInteger(id) && id > 0)
+  ) {
+    return {
+      error: "child_listing_ids must contain only positive integer listing ids",
+    };
+  }
+  return { childIds: raw };
 };
 
 /** A placeholder id for a not-yet-created parent: listing ids are positive

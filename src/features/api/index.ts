@@ -13,6 +13,7 @@ import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-list
 import {
   anyChildListing,
   buildRegistrationItems,
+  checkAvailability,
   constrainParentDailyDates,
   createFreeReservation,
   foldSelectedChildren,
@@ -369,19 +370,26 @@ const handleGetListing = withActiveListing(async (_request, listing) => {
 
 /** Per-child availability for a parent's required children at a date/quantity, or
  * null when the listing is not a parent. A daily child takes the parent's date;
- * a standard child is date-less. */
+ * a standard child is date-less. An inactive (`active=0`) or registration-closed
+ * child reports `available: false` regardless of spare capacity (Fix 1): the
+ * booking fold rejects it (`childActive`/`childOpen` in shared.tsx), so reusing
+ * the same `active` + `isRegistrationClosed` predicates the fold uses keeps the
+ * availability endpoint from advertising a child the booking POST would refuse. */
 const buildChildAvailability = (
   parent: ListingWithCount,
   date: string | undefined,
   quantity: number,
 ): Promise<{ slug: string; available: boolean }[] | null> =>
   mapParentChildren(parent, async (child) => ({
-    available: await hasAvailableSpots(
-      child.id,
-      quantity,
-      child.listing_type === "daily" ? (date ?? null) : null,
-      child.duration_days,
-    ),
+    available:
+      child.active &&
+      !isRegistrationClosed(child) &&
+      (await hasAvailableSpots(
+        child.id,
+        quantity,
+        child.listing_type === "daily" ? (date ?? null) : null,
+        child.duration_days,
+      )),
     slug: child.slug,
   }));
 
@@ -538,6 +546,28 @@ const resolveQuantityAndDate = async (
   return date instanceof Response ? date : { date, quantity };
 };
 
+/** Resolve a pay-more listing's submitted `customPrice` (from the JSON body's
+ * `customPrice` field): the validated price for a `can_pay_more` listing,
+ * `undefined` for a fixed-price one (nothing to parse), or a 400 response when
+ * the submitted price is out of range. Shared by the standalone booking path and
+ * the parent-booking path (which seeds the fold's customPrices with it, Fix 4) so
+ * the two never parse the pay-more price differently. */
+const resolveCustomPrice = (
+  listing: ListingWithCount,
+  form: FormParams,
+): number | undefined | Response => {
+  if (!listing.can_pay_more) return undefined;
+  const priceResult = parseCustomPrice(
+    form,
+    "customPrice",
+    listing.unit_price,
+    listing.max_price,
+  );
+  return priceResult.ok
+    ? priceResult.price
+    : apiResponse({ error: priceResult.error }, 400);
+};
+
 /** One child selection in a parent booking body: a child slug and how many of
  * the parent's units take it (the chosen quantities total the parent quantity),
  * with an optional pay-more price. */
@@ -618,12 +648,15 @@ const foldedOrderTotal = (items: CheckoutItem[]): number =>
   sumOf((item: CheckoutItem) => item.unitPrice * item.quantity)(items);
 
 /** The folded multi-item order a completed parent booking creates: the expanded
- * listing set + quantity/custom-price maps + the resolved shared day count. */
+ * listing set + quantity/custom-price maps + the resolved shared day count, plus
+ * whether any line is customisable (so the checkout intent carries the folded
+ * `dayCount` for the webhook to reprice by, Fix 3). */
 type FoldedOrder = {
   listings: TicketListing[];
   quantities: Map<number, number>;
   customPrices: Map<number, number>;
   dayCount: number;
+  hasCustomisable: boolean;
 };
 
 /** Charge or create a folded parent+children order. Paid (with a provider): a
@@ -643,8 +676,29 @@ const completeFoldedBooking = async (
     fold.dayCount,
   );
   const total = foldedOrderTotal(items);
-  const intent: CheckoutIntent = { ...contact, date, items };
+  // Carry the chosen span only when a folded line is customisable, so the webhook
+  // reprices and dates the booking by day count rather than defaulting to 1 (Fix
+  // 3) — mirroring the web path's conditional `dayCount` on its intent.
+  const intent: CheckoutIntent = {
+    ...contact,
+    date,
+    items,
+    ...(fold.hasCustomisable ? { dayCount: fold.dayCount } : {}),
+  };
   if (isPaymentsEnabled() && total > 0) {
+    // Reject a folded order whose parent or any child has exhausted capacity
+    // before creating a checkout session (Fix 5): the web paid path runs the same
+    // `checkAvailability` preflight, so without it the API would hand back a
+    // checkout URL for a sold-out order the webhook then can't create.
+    const available = await checkAvailability(
+      fold.listings,
+      fold.quantities,
+      date,
+      fold.dayCount,
+    );
+    if (!available) {
+      return apiResponse({ error: "Sorry, not enough spots available" }, 409);
+    }
     const provider = (await getActivePaymentProvider())!;
     const baseUrl = getBaseUrl(request);
     const result = await provider.createCheckoutSession(intent, baseUrl);
@@ -738,8 +792,19 @@ const processParentApiBooking = async (
   const form = buildParentFoldForm(body, listing.id, childBySlug, selections);
   if (form instanceof Response) return form;
 
+  // A pay-more PARENT carries its own custom price (Fix 4): without seeding it the
+  // fold prices the parent at its `unit_price` and undercharges. Resolve it the
+  // same way the standalone path does and seed the fold's customPrices map; a
+  // fixed-price parent contributes nothing here.
+  const parentCustomPrice = resolveCustomPrice(listing, form);
+  if (parentCustomPrice instanceof Response) return parentCustomPrice;
+  const customPrices = new Map<number, number>();
+  if (parentCustomPrice !== undefined) {
+    customPrices.set(listing.id, parentCustomPrice);
+  }
+
   const fold = await foldSelectedChildren(ctx, form, {
-    customPrices: new Map(),
+    customPrices,
     date,
     dayCount: 1,
     hasCustomisable: false,
@@ -818,19 +883,8 @@ const handleBook = withActiveListing(async (request, listing, server) => {
   const values = valResult;
 
   // Parse custom price for pay-more listings
-  let customUnitPrice: number | undefined;
-  if (listing.can_pay_more) {
-    const priceResult = parseCustomPrice(
-      form,
-      "customPrice",
-      listing.unit_price,
-      listing.max_price,
-    );
-    if (!priceResult.ok) {
-      return apiResponse({ error: priceResult.error }, 400);
-    }
-    customUnitPrice = priceResult.price;
-  }
+  const customUnitPrice = resolveCustomPrice(listing, form);
+  if (customUnitPrice instanceof Response) return customUnitPrice;
 
   const contact = extractContact(values);
   return bookingResultToResponse(

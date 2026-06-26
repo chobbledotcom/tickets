@@ -501,12 +501,36 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect(await getChildIds(parent.id)).toEqual([second.id]);
   });
 
-  test("admin API drops non-numeric and unknown child ids", async () => {
+  test("admin API rejects a non-numeric child id entry without clearing edges", async () => {
+    // A JSON client sending a stringified id (e.g. `"oops"`, or `"7"`) must fail
+    // closed with a 400 — never be silently filtered out, which could shrink the
+    // array to empty and turn a gated parent into a standalone listing.
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({ name: "Add-on" });
+    await postChildren(parent.id, [child.id]);
+    await assertJson(
+      apiRequest(`/api/admin/listings/${parent.id}`, {
+        body: { child_listing_ids: [child.id, "oops"] },
+        method: "PUT",
+      }),
+      400,
+      (json) => {
+        expect(json.error).toBe(
+          "child_listing_ids must contain only positive integer listing ids",
+        );
+      },
+    );
+    expect(await getChildIds(parent.id)).toEqual([child.id]);
+  });
+
+  test("admin API keeps known ids and drops an unknown NUMERIC child id", async () => {
+    // An unknown numeric id is still a positive integer, so the array is accepted
+    // (200) and validateChildEdges drops the unknown id downstream.
     const parent = await createTestListing({ name: "Base unit" });
     const child = await createTestListing({ name: "Add-on" });
     await assertJson(
       apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { child_listing_ids: [child.id, "oops", parent.id + 9999] },
+        body: { child_listing_ids: [child.id, parent.id + 9999] },
         method: "PUT",
       }),
       200,

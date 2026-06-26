@@ -449,6 +449,194 @@ describeWithEnv(
       expect((await getAttendeesRaw(listing.id)).length).toBe(1);
     });
 
+    test("a paid API parent booking with a parent customPrice charges that price (Fix 4)", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      // The PARENT is pay-more; the request's `customPrice` must be parsed and
+      // folded onto the parent line, so the checkout item is charged at the
+      // chosen £30, not its £10 unit price (which would undercharge).
+      const { setupStripe } = await import("#test-utils");
+      const { stub } = await import("@std/testing/mock");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      await setupStripe();
+
+      const { parent } = await makeParent({
+        children: [{ maxAttendees: 50, unitPrice: 0 }],
+        parent: {
+          canPayMore: true,
+          maxAttendees: 50,
+          maxPrice: 5000,
+          unitPrice: 1000,
+        },
+      });
+
+      let capturedIntent:
+        | import("#shared/payments.ts").CheckoutIntent
+        | undefined;
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        (intent: import("#shared/payments.ts").CheckoutIntent) => {
+          capturedIntent = intent;
+          return Promise.resolve({
+            checkoutUrl: "https://stripe.test/checkout",
+            sessionId: "cs_parent_custom_price",
+          });
+        },
+      );
+
+      try {
+        const res = await apiBook(parent.slug, { customPrice: "30.00" });
+        expect(res.status).toBe(200);
+        const parentItem = capturedIntent?.items.find(
+          (i) => i.listingId === parent.id,
+        );
+        expect(parentItem?.unitPrice).toBe(3000);
+      } finally {
+        mockCreate.restore();
+      }
+    });
+
+    test("an API parent booking rejects an out-of-range parent customPrice (Fix 4)", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      // The pay-more parent's submitted price exceeds its max_price, so the
+      // parent custom-price parse fails and the booking is rejected with a 400 —
+      // never silently falling back to the unit price.
+      const { parent } = await makeParent({
+        children: [{ maxAttendees: 50, unitPrice: 0 }],
+        parent: {
+          canPayMore: true,
+          maxAttendees: 50,
+          maxPrice: 5000,
+          unitPrice: 1000,
+        },
+      });
+      const res = await apiBook(parent.slug, { customPrice: "100.00" });
+      expect(res.status).toBe(400);
+    });
+
+    test("a paid API parent booking carries the folded dayCount for a customisable child (Fix 3)", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      // The parent is a FIXED 3-day daily listing (not customisable, so bookable
+      // through the API), and its child is customisable. Folding the child flips
+      // the order to customisable, so the intent must carry dayCount=3 and the
+      // child must be priced for the inherited 3-day span (£30) — without it the
+      // webhook reprices the child at a 1-day span (£10) and refunds the gap.
+      const { setupStripe } = await import("#test-utils");
+      const { stub } = await import("@std/testing/mock");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      await setupStripe();
+
+      const { parent, child } = await makeParent({
+        children: [
+          {
+            customisableDays: true,
+            dayPrices: { 1: 1000, 3: 3000 },
+            durationDays: 3,
+            maxPrice: 0,
+            unitPrice: 0,
+          },
+        ],
+        parent: { daily: true, durationDays: 3 },
+      });
+
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const date = getBookableStartDates(
+        (await getListingWithCount(parent.id))!,
+        await getActiveHolidays(),
+      )[0]!;
+
+      let capturedIntent:
+        | import("#shared/payments.ts").CheckoutIntent
+        | undefined;
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        (intent: import("#shared/payments.ts").CheckoutIntent) => {
+          capturedIntent = intent;
+          return Promise.resolve({
+            checkoutUrl: "https://stripe.test/checkout",
+            sessionId: "cs_api_custom_child",
+          });
+        },
+      );
+
+      try {
+        const res = await apiBook(parent.slug, {
+          children: [{ quantity: 1, slug: child.slug }],
+          date,
+        });
+        expect(res.status).toBe(200);
+        expect(capturedIntent?.dayCount).toBe(3);
+        const childItem = capturedIntent?.items.find(
+          (i) => i.listingId === child.id,
+        );
+        expect(childItem?.unitPrice).toBe(3000);
+      } finally {
+        mockCreate.restore();
+      }
+    });
+
+    test("a paid API parent booking for a sold-out folded order returns 409 (Fix 5)", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      // The paid path must run the folded checkAvailability preflight before
+      // creating the session. A 1-capacity daily child passes the date-LESS fold
+      // (a daily child's date-less aggregate is judged per-date downstream) but is
+      // full on the chosen date, so the date-aware preflight rejects it: the
+      // booking must return 409 instead of handing back a checkout URL.
+      const { setupStripe, bookAttendee } = await import("#test-utils");
+      const { stub } = await import("@std/testing/mock");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      await setupStripe();
+
+      const { parent, child } = await makeParent({
+        children: [{ daily: true, maxAttendees: 1, unitPrice: 1000 }],
+        parent: { daily: true, unitPrice: 1000 },
+      });
+      const date = getBookableStartDates(
+        (await getListingWithCount(parent.id))!,
+        await getActiveHolidays(),
+      )[0]!;
+      // Fill the child's only spot on that date so the folded order is sold out.
+      await bookAttendee(child, { date, quantity: 1 });
+
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        () =>
+          Promise.resolve({
+            checkoutUrl: "https://stripe.test/checkout",
+            sessionId: "cs_should_not_be_reached",
+          }),
+      );
+
+      try {
+        const res = await apiBook(parent.slug, {
+          children: [{ quantity: 1, slug: child.slug }],
+          date,
+        });
+        expect(res.status).toBe(409);
+        // The preflight rejected before the provider was ever called.
+        expect(mockCreate.calls.length).toBe(0);
+      } finally {
+        mockCreate.restore();
+      }
+    });
+
     test("GET /api/listings omits a child listing", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
@@ -562,6 +750,59 @@ describeWithEnv(
         expect.arrayContaining([
           { available: true, slug: okChild.slug },
           { available: false, slug: fullChild.slug },
+        ]),
+      );
+    });
+
+    test("API availability reports an inactive child unavailable (Fix 1)", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      // A second active child keeps the parent itself bookable, so the response
+      // carries the per-child availability array. The inactive child has spare
+      // capacity but the booking fold rejects it (childActive), so it must report
+      // `available: false` rather than advertising spots the booking POST refuses.
+      const { parent, children } = await makeParent({ children: [{}, {}] });
+      const okChild = children[0]!;
+      const inactiveChild = children[1]!;
+      const { execute } = await import("#shared/db/client.ts");
+      await execute("UPDATE listings SET active = 0 WHERE id = ?", [
+        inactiveChild.id,
+      ]);
+      const res = await apiGet(`/api/listings/${parent.slug}/availability`);
+      const body = (await res.json()) as {
+        children?: { slug: string; available: boolean }[];
+      };
+      expect(body.children).toEqual(
+        expect.arrayContaining([
+          { available: true, slug: okChild.slug },
+          { available: false, slug: inactiveChild.slug },
+        ]),
+      );
+    });
+
+    test("API availability reports a registration-closed child unavailable (Fix 1)", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      // The second child's registration has closed (closes_at in the past); like
+      // the inactive case it has spare capacity but the fold rejects it
+      // (childOpen), so it must report `available: false`.
+      const { parent, children } = await makeParent({ children: [{}, {}] });
+      const okChild = children[0]!;
+      const closedChild = children[1]!;
+      const { execute } = await import("#shared/db/client.ts");
+      const { writeClosesAt } = await import("#shared/db/listings.ts");
+      await execute("UPDATE listings SET closes_at = ? WHERE id = ?", [
+        await writeClosesAt("2000-01-01T00:00:00.000Z"),
+        closedChild.id,
+      ]);
+      const res = await apiGet(`/api/listings/${parent.slug}/availability`);
+      const body = (await res.json()) as {
+        children?: { slug: string; available: boolean }[];
+      };
+      expect(body.children).toEqual(
+        expect.arrayContaining([
+          { available: true, slug: okChild.slug },
+          { available: false, slug: closedChild.slug },
         ]),
       );
     });
