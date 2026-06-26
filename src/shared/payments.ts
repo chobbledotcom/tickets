@@ -9,6 +9,7 @@
 import * as v from "valibot";
 import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
+import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
 
@@ -93,6 +94,11 @@ export type BookingIntent = ContactInfo &
      * configured `thank_you_url` folds a child: the booking then has >1 unique
      * listing id, so the success page would otherwise drop the parent's URL. */
     thankYouUrl?: string;
+    /** Per-(child, parent) allocation map from the fold, carried through the
+     * signed metadata so `createAttendeeForSession` can expand each child
+     * booking into one `listing_attendees` row per parent with the correct
+     * `parent_listing_id`. Absent for legacy/no-parent orders. */
+    allocations?: ChildAllocation[];
   };
 
 /** Registration intent for checkout (one or more listings) */
@@ -124,6 +130,10 @@ export type CheckoutIntent = ContactInfo &
      * makes the booking multi-listing and would otherwise drop it). The success
      * page prefers this over the single-unique-listing-id derivation. */
     thankYouUrl?: string;
+    /** Per-(child, parent) allocation map, carried into the signed metadata so
+     * the webhook can expand summed child bookings into per-parent rows (Stage C).
+     * Absent for orders with no folded children. */
+    allocations?: ChildAllocation[];
   };
 
 /** Result of creating a checkout session.
@@ -178,6 +188,10 @@ export type SessionMetadata = {
   /** Explicit thank-you redirect a parent booking carries so a folded child
    * doesn't drop it ("" when the default single-listing derivation applies). */
   thank_you_url: string;
+  /** JSON-encoded ChildAllocation[] from the fold, carried through the paid
+   * round-trip so the webhook can expand child bookings into per-parent rows
+   * (Stage C). "" when no children were folded. */
+  allocations: string;
   /** The agreed order total (minor units) the buyer was charged, packed with a
    * server HMAC over the price/booking fields as `total.sig` in a single key —
    * one entry rather than two, to stay within providers' metadata-entry caps

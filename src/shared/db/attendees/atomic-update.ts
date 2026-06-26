@@ -126,9 +126,11 @@ export const loadExistingLines = async (
 };
 
 /** Build the canonical line key from a stored booking row (matches the
- * `${listingId}|${startAt}` identity carried by the form's hidden key field). */
+ * `${listingId}|${startAt}|${parentListingId}` identity carried by the
+ * form's hidden key field). Including parent_listing_id distinguishes the two
+ * rows produced when the same child is booked under two different parents. */
 export const lineKeyFromBooking = (booking: ListingAttendeeRow): string =>
-  `${booking.listing_id}|${booking.start_at ?? ""}`;
+  `${booking.listing_id}|${booking.start_at ?? ""}|${booking.parent_listing_id}`;
 
 /**
  * Read-only preflight: returns true when every desired line fits, using the
@@ -201,25 +203,28 @@ export const applyAttendeeAtomicEdit = async (
     sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
   });
 
-  // Step 2: Delete removed lines (identified by listing_id + old start_at).
+  // Step 2: Delete removed lines (identified by listing_id + start_at + parent_listing_id).
   for (const { booking } of removed) {
     statements.push({
-      args: [attendeeId, booking.listing_id, booking.start_at ?? null],
+      args: [attendeeId, booking.listing_id, booking.start_at ?? null, booking.parent_listing_id],
       sql: `DELETE FROM listing_attendees
-            WHERE attendee_id = ? AND listing_id = ? AND start_at IS ?`,
+            WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ?`,
     });
   }
 
   // Step 3: Update existing lines. The WHERE pins the row by its *old* start_at
-  // so an attendee holding two rows for the same daily listing on different
-  // dates updates only the one. Capacity-checked + guarded unless the caller
-  // opted into overbooking, in which case the update is unconditional.
+  // and parent_listing_id so an attendee holding two rows for the same daily
+  // listing on different dates (or under different parents) updates only the
+  // target row. Capacity-checked + guarded unless the caller opted into
+  // overbooking, in which case the update is unconditional.
   for (const line of updates) {
-    const oldStartAt = existingByKey.get(line.key)?.start_at ?? null;
+    const existingRow = existingByKey.get(line.key);
+    const oldStartAt = existingRow?.start_at ?? null;
+    const oldParentListingId = existingRow?.parent_listing_id ?? 0;
     const { startAt, endAt } = dateToStartEnd(line.date, line.durationDays);
-    const pin = [attendeeId, line.listingId, oldStartAt];
+    const pin = [attendeeId, line.listingId, oldStartAt, oldParentListingId];
     const setClause = `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?${noQuantityResetColumns(line.quantity)}
-            WHERE attendee_id = ? AND listing_id = ? AND start_at IS ?`;
+            WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ?`;
     if (allowOverbook) {
       statements.push({
         args: [line.quantity, startAt, endAt, ...pin],

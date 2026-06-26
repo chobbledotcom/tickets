@@ -62,11 +62,13 @@ import {
   balanceEventGroup,
   settleAttendeeBalance,
 } from "#shared/db/attendees/balance.ts";
+import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import {
   createAttendeeAtomic,
   createBookingAtomic,
   ensureAllBookings,
 } from "#shared/db/attendees.ts";
+import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
@@ -485,6 +487,9 @@ const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
 const parseModifierRefs = (json: string): ModifierRef[] =>
   json ? (JSON.parse(json) as ModifierRef[]) : [];
 
+const parseAllocations = (json: string): ChildAllocation[] | undefined =>
+  json ? (JSON.parse(json) as ChildAllocation[]) : undefined;
+
 /**
  * Extract booking intent from session metadata.
  * Converts date from metadata's "" convention to null for domain use.
@@ -518,6 +523,7 @@ export const extractIntent = (
     siteTokenIndex: metadata.site_token_index || undefined,
     special_instructions: metadata.special_instructions,
     thankYouUrl: metadata.thank_you_url || undefined,
+    allocations: parseAllocations(metadata.allocations),
   };
 };
 
@@ -928,12 +934,21 @@ const createAttendeeForSession = async (
   pricedOrder: PricedOrder,
 ): Promise<HonourResult> => {
   const linePaidByListing = paidByListing(pricedOrder);
-  const bookings = validatedItems.map(({ item, listing }) => ({
+  const rawBookings = validatedItems.map(({ item, listing }) => ({
     listingId: item.e,
     pricePaid: linePaidByListing.get(item.e)!,
     quantity: item.q,
     ...bookingDateFields(listing, intent.date, intent.dayCount),
   }));
+  // Expand summed child bookings into per-parent rows when allocations were
+  // carried through the signed metadata (Stage C paid-path provenance): each
+  // allocation becomes its own listing_attendees row with the correct
+  // parentListingId and proportional pricePaid, mirroring the free-path behaviour
+  // in createFreeReservation.
+  const bookings =
+    intent.allocations && intent.allocations.length > 0
+      ? expandChildAllocations(rawBookings, intent.allocations)
+      : rawBookings;
   const fullTotal = pricedOrder.fullSubtotal;
   const depositTotal = orderLineTotal(pricedOrder);
   const remainingBalance =

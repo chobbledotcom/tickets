@@ -320,6 +320,7 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "reservationAmount"
       | "modifiers"
       | "thankYouUrl"
+      | "allocations"
     >
   >;
 
@@ -347,6 +348,9 @@ export const buildMetadata = (
     ? { modifiers: JSON.stringify(intent.modifiers) }
     : {}),
   ...(intent.thankYouUrl ? { thank_you_url: intent.thankYouUrl } : {}),
+  ...(intent.allocations?.length
+    ? { allocations: JSON.stringify(intent.allocations) }
+    : {}),
 });
 
 /**
@@ -572,5 +576,6 @@ export const extractSessionMetadata = (
     special_instructions: get("special_instructions"),
     text_answer_ids: get("text_answer_ids"),
     thank_you_url: get("thank_you_url"),
+    allocations: get("allocations"),
   };
 };

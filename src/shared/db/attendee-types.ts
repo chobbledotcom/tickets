@@ -166,8 +166,9 @@ export type UpdateAttendeePIIInput = {
  * (which applies it) so the shape is defined once.
  */
 export type DesiredListingLine = {
-  /** Stable identity of the existing row (`${listingId}|${startAt}`). Empty
-   * string for newly-added lines. */
+  /** Stable identity of the existing row
+   * (`${listingId}|${startAt}|${parentListingId}`). Empty string for
+   * newly-added lines. */
   key: string;
   listingId: number;
   quantity: number;

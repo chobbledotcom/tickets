@@ -744,6 +744,9 @@ const processSubmission = async (
     if (thankYouUrl && foldedCtx.listings.length > ctx.listings.length) {
       intent.thankYouUrl = thankYouUrl;
     }
+    if (allocations.length > 0) {
+      intent.allocations = allocations;
+    }
     return handlePaidPath(request, {
       ctx: foldedCtx,
       date,
