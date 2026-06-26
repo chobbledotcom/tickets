@@ -657,36 +657,54 @@ const childFromPrice = (
   return prices.length === 0 ? null : Math.min(...prices);
 };
 
-/** The price shown in a child option's label. A customisable child is priced by
- * the inherited duration, NOT its `unit_price` (0 for a free-input customisable
- * listing, which would advertise "free" while checkout charges the day price): the
- * fixed inherited day price under a fixed-duration parent, or "from <min day
- * price>" under a customisable parent (no single duration yet, so the minimum over
- * the parent∩child spans). A fixed-price child shows its `unit_price` unchanged.
- * Omitted when the child has no price for the inherited / overlapping span
- * (defensive — admin blocks such edges). */
+/** The numeric price shown for a child under a parent, in minor units, or null
+ * when the child has no price for the inherited / overlapping span (defensive —
+ * admin blocks such edges). A customisable child is priced by the inherited
+ * duration, NOT its `unit_price` (0 for a free-input customisable listing, which
+ * would advertise "free" while checkout charges the day price): the fixed
+ * inherited day price under a fixed-duration parent, or the minimum day price over
+ * the parent∩child spans under a customisable parent. A fixed-price child returns
+ * its `unit_price` unchanged. The single source of truth both the label below and
+ * the render-time "all free" check consume. */
+const childPriceMinor = (
+  child: ListingWithCount,
+  parent: ListingWithCount,
+): number | null => {
+  if (!child.customisable_days) return child.unit_price;
+  const duration = parentRenderDuration(parent);
+  // Customisable parent, no single duration yet: price by the cheapest span the
+  // parent can actually offer (parent∩child counts).
+  // A fixed-duration parent prices the child at the inherited duration;
+  // `dayPriceFor` returns null for an out-of-range span ⇒ null (admin blocks an
+  // unpriced inherited span).
+  return duration === null
+    ? childFromPrice(child, parent)
+    : dayPriceFor(child, duration);
+};
+
+/** The price label shown in a child option's label: `(£X)` for a fixed/inherited
+ * price, or `from £X` for a customisable child under a customisable parent (no
+ * single render-time duration yet). Omitted (empty) when the child has no price for
+ * the inherited / overlapping span, or — when `showZero` is false — when the price
+ * is exactly £0. The block hides every child's price when ALL bookable children are
+ * free, so a solo free child shows no "(£0)" and an all-free selector drops every
+ * price; one paid sibling among free children keeps all prices (including the £0
+ * ones) so the buyer can compare. */
 const childPriceLabel = (
   child: ListingWithCount,
   parent: ListingWithCount,
+  showZero = true,
 ): string => {
-  if (!child.customisable_days) {
-    return `(${formatCurrency(child.unit_price)})`;
-  }
-  const duration = parentRenderDuration(parent);
-  if (duration === null) {
-    // Customisable parent, no single duration yet: price by the cheapest span the
-    // parent can actually offer (parent∩child counts).
-    const price = childFromPrice(child, parent);
-    if (price === null) return "";
+  const price = childPriceMinor(child, parent);
+  if (price === null) return "";
+  if (price === 0 && !showZero) return "";
+  // A customisable child under a customisable parent (no single duration yet)
+  // advertises "from <min day price>"; every other case shows the fixed price.
+  if (child.customisable_days && parentRenderDuration(parent) === null) {
     return t("public.ticket.child_from_price", {
       price: formatCurrency(price),
     });
   }
-  // A fixed-duration parent prices the child at the inherited duration.
-  // `dayPriceFor` returns null for an out-of-range span ⇒ no price (defensive —
-  // admin blocks an unpriced inherited span).
-  const price = dayPriceFor(child, duration);
-  if (price === null) return "";
   return `(${formatCurrency(price)})`;
 };
 
@@ -746,6 +764,7 @@ const renderChildOption = (
   child: TicketListing,
   childCap: number,
   childDatesById: ReadonlyMap<string, ChildSpanDates>,
+  showZero: boolean,
 ): string => {
   const parentId = parent.id;
   const { listing } = child;
@@ -761,7 +780,7 @@ const renderChildOption = (
         )
       : "";
   const label = bookable
-    ? `${escapeHtml(listing.name)} ${childPriceLabel(listing, parent)}`.trim()
+    ? `${escapeHtml(listing.name)} ${childPriceLabel(listing, parent, showZero)}`.trim()
     : escapeHtml(t("public.ticket.child_unavailable", { name: listing.name }));
   const select = bookable
     ? `<select name="${selectName}" data-child-qty="${listing.id}"${childCompatAttrs(
@@ -781,21 +800,28 @@ const renderChildOption = (
  * auto-fills the sole child to the parent's quantity Q whenever nothing was
  * submitted, so emitting a fixed quantity would over-submit and the fold would
  * reject it as "too many" when Q is below that cap (parents.md Fix 1). Instead show
- * an "Includes <child> — one per booking" note plus the child's price, and — for a
- * pay-more sole child — its (non-required) price input, which the fold reads for
- * the auto-selected child. No-JS safe: nothing posts a quantity for it.
+ * just the child's name plus its (non-zero) price, and — for a pay-more sole child
+ * — its (non-required) price input, which the fold reads for the auto-selected
+ * child. No-JS safe: nothing posts a quantity for it.
+ *
+ * The buyer makes no choice for a sole child, so it carries no "choose an option"
+ * prompt (that lives on the parent's `<legend>`, suppressed for a sole child — see
+ * {@link renderChildBlock}). A HIDDEN child shows nothing visible — the operator
+ * hid it from public view — but keeps its data markers and pay-more price input so
+ * the fold and the compat/required client scripts still drive off them (Fix 1).
  *
  * The informational marker ALSO carries the same date/span compatibility
  * attributes a selectable child option does ({@link childCompatAttrs}) so on a
  * group/multi-listing page (where the date/day-count controls aren't globally
  * constrained to the child's calendar) the client script can tell the auto-selected
  * sole child can't serve the chosen date/span and flag/disable the parent — rather
- * than showing "Includes …" and letting the buyer hit the submit-side
- * `child_sold_out` rejection (parents.md Fix 1). */
+ * than letting the buyer hit the submit-side `child_sold_out` rejection (parents.md
+ * Fix 1). */
 const renderSoleChildOption = (
   parent: ListingWithCount,
   child: TicketListing,
   childDatesById: ReadonlyMap<string, ChildSpanDates>,
+  showZero: boolean,
 ): string => {
   const parentId = parent.id;
   const { listing } = child;
@@ -807,8 +833,10 @@ const renderSoleChildOption = (
         false,
       )
     : "";
-  const label =
-    `${escapeHtml(t("public.ticket.child_includes", { name: listing.name }))} ${childPriceLabel(listing, parent)}`.trim();
+  const visible = !listing.hidden;
+  const namePart = visible ? escapeHtml(listing.name) : "";
+  const pricePart = visible ? childPriceLabel(listing, parent, showZero) : "";
+  const label = `${namePart} ${pricePart}`.trim();
   return `<p class="child-option child-sole" data-sole-parent="${parentId}" data-sole-child="${listing.id}"${childCompatAttrs(
     parentId,
     child,
@@ -836,12 +864,23 @@ const renderChildBlock = (
   // The parent's effective max is the per-parent total ceiling; each child select is
   // additionally capped by its own parent+child order capacity (below).
   const total = childCappedMax(parentInfo, ctx);
+  // A SOLE bookable child is auto-selected by the fold (informational), so the buyer
+  // makes no choice: suppress the "choose an option" legend and the "choose N in
+  // total" guidance (Fix 1) and let the child option show its name directly.
+  const sole = bookable.length === 1;
+  // Hide prices across the WHOLE block when every bookable child is free (£0): a
+  // solo free child shows no "(£0)", and an all-free multi-child selector drops every
+  // price; one paid sibling among free children keeps all prices (including the £0
+  // ones) so the buyer can still compare.
+  const showZero = !bookable.every(
+    (child) => childPriceMinor(child.listing, parent) === 0,
+  );
   const isSole = (child: TicketListing): boolean =>
     bookable.length === 1 && bookable[0]!.listing.id === child.listing.id;
   const options = children
     .map((child) =>
       isSole(child)
-        ? renderSoleChildOption(parent, child, ctx.childDatesById)
+        ? renderSoleChildOption(parent, child, ctx.childDatesById, showZero)
         : renderChildOption(
             parent,
             child,
@@ -856,6 +895,7 @@ const renderChildBlock = (
                 )
               : 0,
             ctx.childDatesById,
+            showZero,
           ),
     )
     .join("");
@@ -878,19 +918,19 @@ const renderChildBlock = (
     .join("");
   // The "choose N in total" note + live hint guide the per-unit selection. At no-JS
   // render the parent quantity isn't chosen yet, so the note seeds with the parent's
-  // effective max; JS recomputes it live against the parent select. A SOLE bookable
-  // child is auto-selected (informational), so the note is suppressed — nothing for
-  // the buyer to choose (Fix 1).
-  const note =
-    bookable.length === 1
-      ? ""
-      : `<p class="child-total-note" data-child-total="${parentId}">` +
-        `${escapeHtml(t("public.ticket.choose_total", { count: total }))} ` +
-        `<span class="child-total-hint" data-child-hint="${parentId}"></span></p>`;
+  // effective max; JS recomputes it live against the parent select. Suppressed for a
+  // sole auto-selected child — nothing for the buyer to choose (Fix 1).
+  const note = sole
+    ? ""
+    : `<p class="child-total-note" data-child-total="${parentId}">` +
+      `${escapeHtml(t("public.ticket.choose_total", { count: total }))} ` +
+      `<span class="child-total-hint" data-child-hint="${parentId}"></span></p>`;
+  const legend = sole
+    ? ""
+    : `<legend>${escapeHtml(t("public.ticket.choose_option", { name: parent.name }))}</legend>`;
   return (
     `<fieldset class="child-selector" data-parent-id="${parentId}">` +
-    `<legend>${escapeHtml(t("public.ticket.choose_option", { name: parent.name }))}</legend>` +
-    `${note}${options}${questionsHtml}</fieldset>`
+    `${legend}${note}${options}${questionsHtml}</fieldset>`
   );
 };
 

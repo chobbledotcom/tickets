@@ -1738,9 +1738,100 @@ describeWithEnv(
       // No quantity field of any kind (hidden or select) is emitted for the sole
       // child, so nothing is posted for it and the fold's auto-fill assigns Q.
       expect(html).not.toContain(`name="child_qty_${parent.id}_${child.id}"`);
-      // It is shown informationally instead.
+      // It is shown informationally instead: its name renders (just the name — no
+      // "Includes … — one per booking" framing) with no "choose an option" legend.
       expect(html).toContain(`data-sole-child="${child.id}"`);
-      expect(html).toContain("Includes Add-on");
+      expect(html).toContain("Add-on");
+      expect(html).not.toContain("Includes");
+      expect(html).not.toContain("one per booking");
+      expect(html).not.toContain("Choose an option for");
+      // A free sole child (unit_price 0) shows no "(£0)" price either.
+      expect(html).not.toContain("(£0");
+    });
+
+    test("a sole paid child shows just its name and price, with no legend", async () => {
+      // The buyer makes no choice for a sole child, so the "Choose an option for
+      // {parent}" legend is suppressed and the child shows only its name plus its
+      // (non-zero) price — never the old "Includes … — one per booking" framing.
+      const { parent, child } = await makeParent({
+        children: [{ name: "Paid add-on", unitPrice: 1000 }],
+      });
+
+      const html = await bookingPageHtml(parent.slug);
+      expect(html).toContain(`data-sole-child="${child.id}"`);
+      expect(html).toContain("Paid add-on");
+      expect(html).toContain("(£10");
+      expect(html).not.toContain("Includes");
+      expect(html).not.toContain("one per booking");
+      expect(html).not.toContain("Choose an option for");
+    });
+
+    test("a sole hidden child renders no name or price label but keeps its markers and price input", async () => {
+      // A hidden listing the operator has chosen not to surface publicly: the
+      // auto-selected sole child still folds in (invariant I12), so its data
+      // marker and pay-more price input stay in the DOM for the fold/compat
+      // scripts — but nothing identifying (name or price label) is shown.
+      const { parent, child } = await makeParent({
+        children: [
+          {
+            canPayMore: true,
+            hidden: true,
+            maxPrice: 5000,
+            name: "Hidden add-on",
+            unitPrice: 1500,
+          },
+        ],
+      });
+
+      const html = await bookingPageHtml(parent.slug);
+      // Functional markers + price input remain so the fold and client scripts
+      // still drive off them.
+      expect(html).toContain(`data-sole-child="${child.id}"`);
+      expect(html).toContain(`name="child_price_${parent.id}_${child.id}"`);
+      // Nothing visible identifies the hidden child.
+      expect(html).not.toContain("Hidden add-on");
+      expect(html).not.toContain("Includes");
+      expect(html).not.toContain("Choose an option for");
+    });
+
+    test("a multi-child selector hides every price when all bookable children are free", async () => {
+      // When every option is £0 there is nothing to compare, so every price label
+      // is dropped — but the legend and the per-child quantity selects remain (a
+      // genuine choice still exists).
+      const { parent, children } = await makeParent({
+        children: [
+          { name: "Free A", unitPrice: 0 },
+          { name: "Free B", unitPrice: 0 },
+        ],
+      });
+      const [childA, childB] = [children[0]!, children[1]!];
+
+      const html = await bookingPageHtml(parent.slug);
+      expect(html).toContain("Choose an option for Parent");
+      expect(html).toContain("Free A");
+      expect(html).toContain("Free B");
+      expect(html).toContain(`name="child_qty_${parent.id}_${childA.id}"`);
+      expect(html).toContain(`name="child_qty_${parent.id}_${childB.id}"`);
+      expect(html).not.toContain("(£0");
+    });
+
+    test("a multi-child selector shows every price (including £0) when one sibling is paid", async () => {
+      // One paid sibling among free children keeps all prices visible — including
+      // the £0 one — so the buyer can compare the free option against the paid one.
+      const { parent } = await makeParent({
+        children: [
+          { name: "Free A", unitPrice: 0 },
+          { name: "Paid B", unitPrice: 1000 },
+        ],
+      });
+
+      const html = await bookingPageHtml(parent.slug);
+      expect(html).toContain("Choose an option for Parent");
+      expect(html).toContain("Free A");
+      expect(html).toContain("Paid B");
+      // The free sibling's £0 price is shown alongside the paid one's £10.
+      expect(html).toContain("(£0");
+      expect(html).toContain("(£10");
     });
 
     test("a daily parent offers only dates its only child can serve", async () => {
