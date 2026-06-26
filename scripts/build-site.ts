@@ -54,6 +54,6 @@ if (!result.ok) {
 
 console.log("Site built successfully:");
 console.log(`  hostname:  https://${result.defaultHostname}`);
-console.log(`  scriptId:  ${result.scriptId}`);
+console.log(`  hostingId: ${result.hostingId}`);
 console.log(`  dbUrl:     ${result.dbUrl}`);
 console.log(`  dbToken:   ${result.dbToken}`);
