@@ -105,7 +105,10 @@ describeWithEnv(
     test("updating a servicing event with a daily listing but no start_date redirects back with an error (update catch block)", async () => {
       // Exercises the try/catch in handleServicingPost: normalizeServicingForSave
       // throws when a daily listing is booked but start_date is absent.
-      const listing = await createDailyTestListing({ maxAttendees: 5, name: "L" });
+      const listing = await createDailyTestListing({
+        maxAttendees: 5,
+        name: "L",
+      });
       const { id } = await createTestServicingEvent({
         bookings: [{ date: "2026-07-01", listingId: listing.id, quantity: 1 }],
         name: "Dated Service",
