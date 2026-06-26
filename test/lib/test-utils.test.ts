@@ -21,8 +21,12 @@ import {
   emailTestSandbox,
   errorResponse,
   expectCheckoutRedirect,
+  expectFetchSilent,
+  expectHtmlEscaped,
   expectInvalidForm,
+  expectNtfyNotification,
   expectRedirectWithFlash,
+  expectSendNoop,
   expectStatus,
   extractInputValue,
   generateTestListingName,
@@ -46,10 +50,13 @@ import {
   mockRequest,
   mockWebhookRequest,
   normalizeSingleListingFields,
+  okResponse,
   openAttendeeEditor,
   priceFormValue,
   randomString,
   rawListingRange,
+  rejectedFetch,
+  rejectionMessage,
   requireJoinCsrfToken,
   resetDb,
   resetTestSession,
@@ -58,6 +65,7 @@ import {
   setTestSession,
   setupAndLogin,
   setupStripe,
+  stubNtfyFetch,
   submitJoinForm,
   submitMultiTicketForm,
   submitTicketForm,
@@ -90,6 +98,80 @@ describe("test-utils", () => {
     resetDb();
   });
 
+  const expectFormPostWithBody = async (
+    request: Request,
+    ...bodyContains: string[]
+  ): Promise<void> => {
+    expect(request.method).toBe("POST");
+    expect(request.headers.get("content-type")).toBe(
+      "application/x-www-form-urlencoded",
+    );
+    const body = await request.text();
+    for (const expected of bodyContains) {
+      expect(body).toContain(expected);
+    }
+  };
+
+  describe("rejectionMessage", () => {
+    test("returns the thrown error's message", async () => {
+      const msg = await rejectionMessage(Promise.reject(new Error("kaboom")));
+      expect(msg).toBe("kaboom");
+    });
+
+    test("returns empty string when the promise resolves", async () => {
+      const msg = await rejectionMessage(Promise.resolve("ok"));
+      expect(msg).toBe("");
+    });
+  });
+
+  describe("expectHtmlEscaped", () => {
+    test("passes when script tags are escaped", () => {
+      expectHtmlEscaped("hello &lt;script&gt;alert(1)&lt;/script&gt;");
+    });
+  });
+
+  describe("expectSendNoop", () => {
+    test("stubs fetch, asserts false return and zero calls", async () => {
+      const sandbox = emailTestSandbox();
+      await expectSendNoop(sandbox, () => Promise.resolve(false));
+      sandbox.teardown();
+    });
+  });
+
+  describe("rejectedFetch", () => {
+    test("rejects with a descriptive error", async () => {
+      await expect(rejectedFetch()).rejects.toThrow("should not be called");
+    });
+  });
+
+  describe("expectFetchSilent", () => {
+    test("stubs fetch and asserts zero calls when body does not fetch", async () => {
+      await expectFetchSilent(() => Promise.resolve());
+    });
+  });
+
+  describe("okResponse", () => {
+    test("resolves with a 200 Response", async () => {
+      const response = await okResponse();
+      expect(response.status).toBe(200);
+    });
+  });
+
+  describe("stubNtfyFetch", () => {
+    test("stubs globalThis.fetch and sets NTFY_URL env", async () => {
+      const { fetchStub, restore } = stubNtfyFetch();
+      try {
+        await globalThis.fetch("https://ntfy.sh/test-topic", {
+          body: "hello",
+          method: "POST",
+        });
+        expectNtfyNotification(fetchStub, "hello");
+      } finally {
+        fetchStub.restore();
+        restore();
+      }
+    });
+  });
   describe("internal caches", () => {
     test("start with no cached setup users", () => {
       invalidateTestDbCache();
@@ -186,14 +268,11 @@ describe("test-utils", () => {
         email: "john@example.com",
         name: "John",
       });
-      expect(request.method).toBe("POST");
-      expect(request.headers.get("content-type")).toBe(
-        "application/x-www-form-urlencoded",
+      await expectFormPostWithBody(
+        request,
+        "name=John",
+        "email=john%40example.com",
       );
-
-      const body = await request.text();
-      expect(body).toContain("name=John");
-      expect(body).toContain("email=john%40example.com");
     });
 
     test("includes cookie when provided", () => {
@@ -245,13 +324,11 @@ describe("test-utils", () => {
       const request = testRequest("/admin/login", null, {
         data: { password: "secret", username: "admin" },
       });
-      expect(request.method).toBe("POST");
-      expect(request.headers.get("content-type")).toBe(
-        "application/x-www-form-urlencoded",
+      await expectFormPostWithBody(
+        request,
+        "username=admin",
+        "password=secret",
       );
-      const body = await request.text();
-      expect(body).toContain("username=admin");
-      expect(body).toContain("password=secret");
     });
 
     test("combines token with form data", async () => {

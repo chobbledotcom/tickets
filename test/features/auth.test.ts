@@ -13,6 +13,16 @@ import {
 // AdminSession.settingsNagItems population
 // ---------------------------------------------------------------------------
 
+const getOwnerSession = async () => {
+  const cookie = await testCookie();
+  const request = new Request("http://localhost/admin/", {
+    headers: { cookie },
+  });
+  const session = await getAuthenticatedSession(request);
+  expect(session).not.toBeNull();
+  return session!;
+};
+
 describeWithEnv("AuthSession.settingsNagItems", { db: true }, () => {
   let restoreEnv: (() => void) | undefined;
 
@@ -23,17 +33,12 @@ describeWithEnv("AuthSession.settingsNagItems", { db: true }, () => {
 
   test("owner session includes settingsNagItems computed via getSettingsNagItemsForOwner", async () => {
     restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
-    const cookie = await testCookie();
-    const request = new Request("http://localhost/admin/", {
-      headers: { cookie },
-    });
-    const session = await getAuthenticatedSession(request);
-    expect(session).not.toBeNull();
-    expect(session!.adminLevel).toBe("owner");
-    expect(session!.settingsNagItems).toBeDefined();
-    expect(Array.isArray(session!.settingsNagItems)).toBe(true);
+    const session = await getOwnerSession();
+    expect(session.adminLevel).toBe("owner");
+    expect(session.settingsNagItems).toBeDefined();
+    expect(Array.isArray(session.settingsNagItems)).toBe(true);
     expect(
-      session!.settingsNagItems!.every(
+      session.settingsNagItems!.every(
         (i) =>
           typeof i.id === "string" &&
           typeof i.label === "string" &&
@@ -56,14 +61,9 @@ describeWithEnv("AuthSession.settingsNagItems", { db: true }, () => {
   test("settingsNagItems includes superuser nag when conditions are met", async () => {
     restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
     settings.setForTest({ superuser_choice: "" });
-    const cookie = await testCookie();
-    const request = new Request("http://localhost/admin/", {
-      headers: { cookie },
-    });
-    const session = await getAuthenticatedSession(request);
-    expect(session).not.toBeNull();
-    expect(session!.settingsNagItems).toBeDefined();
-    const hasSuperuser = session!.settingsNagItems!.some(
+    const session = await getOwnerSession();
+    expect(session.settingsNagItems).toBeDefined();
+    const hasSuperuser = session.settingsNagItems!.some(
       (i) => i.id === "superuser",
     );
     expect(hasSuperuser).toBe(true);
@@ -72,14 +72,9 @@ describeWithEnv("AuthSession.settingsNagItems", { db: true }, () => {
   test("settingsNagItems does NOT include superuser nag when choice is already 'self-managed'", async () => {
     restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
     settings.setForTest({ superuser_choice: "self-managed" });
-    const cookie = await testCookie();
-    const request = new Request("http://localhost/admin/", {
-      headers: { cookie },
-    });
-    const session = await getAuthenticatedSession(request);
-    expect(session).not.toBeNull();
-    expect(session!.settingsNagItems).toBeDefined();
-    expect(session!.settingsNagItems!.some((i) => i.id === "superuser")).toBe(
+    const session = await getOwnerSession();
+    expect(session.settingsNagItems).toBeDefined();
+    expect(session.settingsNagItems!.some((i) => i.id === "superuser")).toBe(
       false,
     );
   });

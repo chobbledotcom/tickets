@@ -29,6 +29,24 @@ const newAttendee = async (): Promise<{
   return { attendeeId: attendee.id, listingId: listing.id };
 };
 
+const setupDropoffAndCollection = async (split: boolean) => {
+  const drop = await logisticsAgentsTable.insert({ name: "Drop" });
+  const coll = await logisticsAgentsTable.insert({ name: "Coll" });
+  const { attendeeId, listingId } = await newAttendee();
+  const assignment = {
+    endAgentId: coll.id,
+    endTime: "17:00",
+    startAgentId: drop.id,
+    startTime: "09:00",
+  };
+  await setLogisticsAssignments(
+    attendeeId,
+    split,
+    new Map([[listingId, assignment]]),
+  );
+  return { assignment, attendeeId, coll, drop, listingId };
+};
+
 describeWithEnv("db logistics agents", { db: true }, () => {
   test("bookingAssignmentKey joins attendee and listing ids", () => {
     expect(bookingAssignmentKey(3, 7)).toBe("3|7");
@@ -53,33 +71,11 @@ describeWithEnv("db logistics agents", { db: true }, () => {
 
 describeWithEnv("db logistics assignments", { db: true }, () => {
   test("persists and reads per-listing agents + times + split flag", async () => {
-    const drop = await logisticsAgentsTable.insert({ name: "Drop" });
-    const coll = await logisticsAgentsTable.insert({ name: "Coll" });
-    const { attendeeId, listingId } = await newAttendee();
-
-    await setLogisticsAssignments(
-      attendeeId,
-      true,
-      new Map([
-        [
-          listingId,
-          {
-            endAgentId: coll.id,
-            endTime: "17:00",
-            startAgentId: drop.id,
-            startTime: "09:00",
-          },
-        ],
-      ]),
-    );
+    const { assignment, attendeeId, listingId } =
+      await setupDropoffAndCollection(true);
 
     const got = await getLogisticsAssignments(attendeeId);
-    expect(got.get(listingId)).toEqual({
-      endAgentId: coll.id,
-      endTime: "17:00",
-      startAgentId: drop.id,
-      startTime: "09:00",
-    });
+    expect(got.get(listingId)).toEqual(assignment);
   });
 
   test("getLogisticsAssignmentsForAttendees returns [] for no ids", async () => {
@@ -119,34 +115,13 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
   });
 
   test("clearLogisticsAgentReferences nulls agents but keeps times", async () => {
-    const drop = await logisticsAgentsTable.insert({ name: "Drop" });
-    const coll = await logisticsAgentsTable.insert({ name: "Coll" });
-    const { attendeeId, listingId } = await newAttendee();
-    await setLogisticsAssignments(
-      attendeeId,
-      false,
-      new Map([
-        [
-          listingId,
-          {
-            endAgentId: coll.id,
-            endTime: "17:00",
-            startAgentId: drop.id,
-            startTime: "09:00",
-          },
-        ],
-      ]),
-    );
+    const { assignment, attendeeId, drop, listingId } =
+      await setupDropoffAndCollection(false);
 
     await clearLogisticsAgentReferences(drop.id);
 
     const got = await getLogisticsAssignments(attendeeId);
     // Drop reference cleared, the (different) end agent and times are untouched.
-    expect(got.get(listingId)).toEqual({
-      endAgentId: coll.id,
-      endTime: "17:00",
-      startAgentId: null,
-      startTime: "09:00",
-    });
+    expect(got.get(listingId)).toEqual({ ...assignment, startAgentId: null });
   });
 });

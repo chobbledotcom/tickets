@@ -24,6 +24,7 @@ const stubDbOk = () =>
 
 import {
   adminFormPost,
+  adminGet,
   awaitTestRequest,
   describeWithEnv,
   expectFlash,
@@ -129,9 +130,7 @@ describeWithEnv(
     testRequiresAuth("/admin/builder");
 
     test("GET /admin/builder shows builder page when authenticated", async () => {
-      const response = await awaitTestRequest("/admin/builder", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/builder");
       await expectHtmlResponse(
         response,
         200,
@@ -145,9 +144,7 @@ describeWithEnv(
     });
 
     test("GET /admin/builder shows empty sites message", async () => {
-      const response = await awaitTestRequest("/admin/builder", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/builder");
       const html = await response.text();
       expect(html).toContain("No sites have been built yet");
     });
@@ -357,9 +354,7 @@ describeWithEnv(
         });
       });
 
-      const response = await awaitTestRequest("/admin/builder", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/builder");
       const html = await response.text();
       expect(html).toContain("Table Test Site");
       expect(html).toContain("test-42.b-cdn.net");

@@ -23,7 +23,12 @@ import {
 } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
-import { testListing, testWithSetting, useSetting } from "#test-utils";
+import {
+  testHoliday,
+  testListing,
+  testWithSetting,
+  useSetting,
+} from "#test-utils";
 
 const today = () => todayInTz("UTC");
 
@@ -226,6 +231,17 @@ describe("dates", () => {
   });
 
   describe("getAvailableDates", () => {
+    /** A daily listing with a 5-day duration, full week, wide date range —
+     *  the fixture two duration-override tests share. */
+    const dailyOverrideListing = () =>
+      testListing({
+        bookable_days: [...VALID_DAY_NAMES],
+        duration_days: 5,
+        listing_type: "daily",
+        maximum_days_after: 14,
+        minimum_days_before: 0,
+      });
+
     test("returns dates filtered by bookable days", () => {
       const listing = testListing({
         bookable_days: ["Monday"],
@@ -360,15 +376,13 @@ describe("dates", () => {
       // duration_days is the max (5), but a customisable listing's date list is
       // built for a single day so every individually-bookable start appears.
       const holidayDay = addDays(today(), 2);
-      const listing = testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        duration_days: 5,
-        listing_type: "daily",
-        maximum_days_after: 14,
-        minimum_days_before: 0,
-      });
+      const listing = dailyOverrideListing();
       const holidays = [
-        { end_date: holidayDay, id: 1, name: "H", start_date: holidayDay },
+        testHoliday({
+          end_date: holidayDay,
+          name: "H",
+          start_date: holidayDay,
+        }),
       ];
       // With the listing's own duration (5), the day+1 start spans the holiday
       // and is excluded; with an override of 1 it is offered.
@@ -385,15 +399,13 @@ describe("dates", () => {
       // distinct from omitting it (which falls back to duration_days). This is
       // the `??` (not `||`) contract: `0 ?? duration_days` keeps the 0.
       const holidayDay = addDays(today(), 2);
-      const listing = testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        duration_days: 5,
-        listing_type: "daily",
-        maximum_days_after: 14,
-        minimum_days_before: 0,
-      });
+      const listing = dailyOverrideListing();
       const holidays = [
-        { end_date: holidayDay, id: 1, name: "H", start_date: holidayDay },
+        testHoliday({
+          end_date: holidayDay,
+          name: "H",
+          start_date: holidayDay,
+        }),
       ];
       // Override 0 → 1-day span, so the day+1 start clears the day+2 holiday and
       // is offered. Were 0 mistaken for "absent" it would use duration_days (5),

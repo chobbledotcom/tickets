@@ -1,9 +1,10 @@
+import { expect } from "@std/expect";
 import { beforeEach } from "@std/testing/bdd";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { decryptAttendees, getAttendeesRaw } from "#shared/db/attendees.ts";
 import type { BuiltSiteFormInput } from "#shared/db/built-sites.ts";
 import type { GroupInput } from "#shared/db/groups.ts";
 import type { HolidayInput } from "#shared/db/holidays.ts";
@@ -20,6 +21,7 @@ import type {
   Listing,
   ListingWithCount,
 } from "#shared/types.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { testListingInput } from "#test-utils/factories.ts";
 import type { BookAttendeeOpts } from "#test-utils/internal.ts";
 
@@ -195,18 +197,22 @@ const formatOptional = (update: string | undefined, existing: string): string =>
 const formatPrice = (update: number | undefined, existing: number): string =>
   update !== undefined ? toMajorUnits(update) : toMajorUnits(existing);
 
-async function doAuthenticatedFormRequest<T>(
+async function doAuthenticatedRequest<T>(
   path: string,
   formData: Record<string, string>,
+  buildRequest: (
+    path: string,
+    data: Record<string, string>,
+    cookie: string,
+  ) => Request,
   onSuccess: () => Promise<T>,
   errorContext: string,
 ): Promise<T> {
   const { getTestSession } = await import("#test-utils/session.ts");
   const { handleRequest } = await import("#routes");
-  const { mockFormRequest } = await import("#test-utils/mocks.ts");
   const session = await getTestSession();
   const response = await handleRequest(
-    mockFormRequest(
+    buildRequest(
       path,
       { ...formData, csrf_token: session.csrfToken },
       session.cookie,
@@ -218,28 +224,37 @@ async function doAuthenticatedFormRequest<T>(
   return onSuccess();
 }
 
-async function doAuthenticatedMultipartFormRequest<T>(
+const doAuthenticatedFormRequest = async <T>(
   path: string,
   formData: Record<string, string>,
   onSuccess: () => Promise<T>,
   errorContext: string,
-): Promise<T> {
-  const { getTestSession } = await import("#test-utils/session.ts");
-  const { handleRequest } = await import("#routes");
-  const { mockMultipartRequest } = await import("#test-utils/mocks.ts");
-  const session = await getTestSession();
-  const response = await handleRequest(
-    mockMultipartRequest(
-      path,
-      { ...formData, csrf_token: session.csrfToken },
-      session.cookie,
-    ),
+): Promise<T> => {
+  const { mockFormRequest } = await import("#test-utils/mocks.ts");
+  return doAuthenticatedRequest(
+    path,
+    formData,
+    mockFormRequest,
+    onSuccess,
+    errorContext,
   );
-  if (response.status !== 302) {
-    throw new Error(`Failed to ${errorContext}: ${response.status}`);
-  }
-  return onSuccess();
-}
+};
+
+const doAuthenticatedMultipartFormRequest = async <T>(
+  path: string,
+  formData: Record<string, string>,
+  onSuccess: () => Promise<T>,
+  errorContext: string,
+): Promise<T> => {
+  const { mockMultipartRequest } = await import("#test-utils/mocks.ts");
+  return doAuthenticatedRequest(
+    path,
+    formData,
+    mockMultipartRequest,
+    onSuccess,
+    errorContext,
+  );
+};
 
 export const createTestListing = (
   overrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
@@ -380,9 +395,7 @@ export const createListingWithAttendeeAndLogistics = async (
  *  one attendee ("Test User" / "test@example.com") created in `beforeEach`,
  *  returning a holder whose `.attendeeId` is the current test's attendee id.
  *  Used by the locking and staleness test suites that share this exact setup. */
-export const useProcessedPaymentsAttendee = (): {
-  attendeeId: number;
-} => {
+export const useProcessedPaymentsAttendee = (): { attendeeId: number } => {
   const holder = { attendeeId: 0 as number };
   beforeEach(async () => {
     const listing = await createTestListing();
@@ -395,6 +408,41 @@ export const useProcessedPaymentsAttendee = (): {
     holder.attendeeId = attendee.id;
   });
   return holder;
+};
+
+/** Insert an attendee with no listing booking (an orphan) created `daysAgo`
+ *  ago. Returns its numeric id. The `tokenPrefix` distinguishes orphans from
+ *  different test suites — `priv-orphan-…` for privacy, `sched-orphan-…` for
+ *  scheduled, `prune-orphan-…` for prune — so the ticket_token_index is
+ *  unique even when two suites insert orphans against the same test DB. */
+export const insertOrphanAttendee = async (
+  daysAgo: number,
+  tokenPrefix: string,
+): Promise<number> => {
+  const { getDb, insert } = await import("#shared/db/client.ts");
+  const { nowMs } = await import("#shared/now.ts");
+  const dayMs = 24 * 60 * 60 * 1000;
+  const created = new Date(nowMs() - daysAgo * dayMs).toISOString();
+  const result = await getDb().execute(
+    insert("attendees", {
+      created,
+      pii_blob: "",
+      ticket_token_index: `${tokenPrefix}-${crypto.randomUUID()}`,
+    }) as never,
+  );
+  return Number(result.lastInsertRowid);
+};
+
+/** Check whether an attendee row exists by id. Returns true when the row is
+ *  present, false when it has been purged. */
+export const attendeeExists = async (id: number): Promise<boolean> => {
+  const { queryOne } = await import("#shared/db/client.ts");
+  return (
+    (await queryOne<{ one: number }>(
+      "SELECT 1 AS one FROM attendees WHERE id = ?",
+      [id],
+    )) !== null
+  );
 };
 
 export const createTestAttendeeDirect = async (
@@ -912,4 +960,14 @@ export const getEmbeddableTicketResponse = async (): Promise<Response> => {
     thankYouUrl: "https://example.com",
   });
   return handleRequest(mockRequest(`/ticket/${listing.slug}`));
+};
+
+export const decryptFirstAttendee = async (
+  listingId: number,
+): Promise<Attendee> => {
+  const privateKey = await getTestPrivateKey();
+  const raw = await getAttendeesRaw(listingId);
+  const attendees = await decryptAttendees(raw, privateKey);
+  expect(attendees.length).toBe(1);
+  return attendees[0]!;
 };

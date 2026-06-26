@@ -279,13 +279,17 @@ describe("query-log", () => {
     // Reset to the default (throw) after any test that switches modes.
     afterEach(() => setN1GuardNotifyOnly(null));
 
+    const readSelectOne = async (count: number): Promise<unknown> => {
+      let last: unknown;
+      for (let i = 0; i < count; i++) {
+        last = await trackQuery("SELECT 1", () => Promise.resolve("ok"));
+      }
+      return last;
+    };
+
     test("allows a read to repeat up to the threshold", async () => {
       await runWithQueryLogContext(async () => {
-        let last: unknown;
-        for (let i = 0; i < N_PLUS_ONE_THRESHOLD; i++) {
-          last = await trackQuery("SELECT 1", () => Promise.resolve("ok"));
-        }
-        expect(last).toBe("ok");
+        expect(await readSelectOne(N_PLUS_ONE_THRESHOLD)).toBe("ok");
       });
     });
 
@@ -324,11 +328,7 @@ describe("query-log", () => {
     });
 
     test("does not enforce outside a request scope", async () => {
-      let last: unknown;
-      for (let i = 0; i <= N_PLUS_ONE_THRESHOLD; i++) {
-        last = await trackQuery("SELECT 1", () => Promise.resolve("ok"));
-      }
-      expect(last).toBe("ok");
+      expect(await readSelectOne(N_PLUS_ONE_THRESHOLD + 1)).toBe("ok");
     });
 
     test("notify mode reports the violation instead of throwing", async () => {
@@ -336,11 +336,7 @@ describe("query-log", () => {
       setN1GuardNotifyOnly(true);
       try {
         await runWithQueryLogContext(async () => {
-          let last: unknown;
-          for (let i = 0; i <= N_PLUS_ONE_THRESHOLD; i++) {
-            last = await trackQuery("SELECT 1", () => Promise.resolve("ok"));
-          }
-          expect(last).toBe("ok");
+          expect(await readSelectOne(N_PLUS_ONE_THRESHOLD + 1)).toBe("ok");
         });
         // Let the fire-and-forget dynamic import + logError settle.
         await new Promise((resolve) => setTimeout(resolve, 0));

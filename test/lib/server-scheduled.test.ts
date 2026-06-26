@@ -13,32 +13,30 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { insertBuiltSite } from "#shared/db/built-sites.ts";
-import { getDb, insert, queryOne } from "#shared/db/client.ts";
-import { nowMs } from "#shared/now.ts";
-import { describeWithEnv, mockRequest } from "#test-utils";
+import { queryOne } from "#shared/db/client.ts";
+import {
+  attendeeExists,
+  describeWithEnv,
+  expectFetchSilent,
+  insertOrphanAttendee,
+  mockRequest,
+} from "#test-utils";
 
 /** GET or POST /scheduled. */
 const scheduled = (method: "GET" | "POST"): Promise<Response> =>
   handleRequest(mockRequest("/scheduled", { method }));
 
-/** Insert an orphaned attendee created `days` ago (no listing booking). */
-const insertOldOrphan = async (days: number): Promise<number> => {
-  const created = new Date(nowMs() - days * 24 * 60 * 60 * 1000).toISOString();
-  const result = await getDb().execute(
-    insert("attendees", {
-      created,
-      pii_blob: "",
-      ticket_token_index: `sched-orphan-${crypto.randomUUID()}`,
-    }),
-  );
-  return Number(result.lastInsertRowid);
+/** POST /scheduled and assert `poked` is null and no fetch was made. */
+const expectPostScheduledPokesNothing = async (): Promise<void> => {
+  await expectFetchSilent(async () => {
+    const response = await scheduled("POST");
+    expect((await response.json()).poked).toBe(null);
+  });
 };
 
-const attendeeExists = async (id: number): Promise<boolean> =>
-  (await queryOne<{ one: number }>(
-    "SELECT 1 AS one FROM attendees WHERE id = ?",
-    [id],
-  )) !== null;
+/** Insert an orphaned attendee created `days` ago (no listing booking). */
+const insertOldOrphan = (days: number): Promise<number> =>
+  insertOrphanAttendee(days, "sched-orphan");
 
 const lastPrunedOf = async (siteId: number): Promise<string> =>
   (
@@ -115,16 +113,7 @@ describeWithEnv(
     });
 
     test("reports poked null when the builder has no built sites", async () => {
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response("ok")),
-      );
-      try {
-        const response = await scheduled("POST");
-        expect((await response.json()).poked).toBe(null);
-        expect(fetchStub.calls.length).toBe(0);
-      } finally {
-        fetchStub.restore();
-      }
+      await expectPostScheduledPokesNothing();
     });
 
     test("reports an error when the built site is unreachable", async () => {
@@ -146,15 +135,6 @@ describeWithEnv(
 describeWithEnv("server (scheduled tasks): not a builder", { db: true }, () => {
   test("POST does not poke built sites when not a builder", async () => {
     await insertBuiltSite("Client", "client.b-cdn.net");
-    const fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response("ok")),
-    );
-    try {
-      const response = await scheduled("POST");
-      expect((await response.json()).poked).toBe(null);
-      expect(fetchStub.calls.length).toBe(0);
-    } finally {
-      fetchStub.restore();
-    }
+    await expectPostScheduledPokesNothing();
   });
 });

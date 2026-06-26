@@ -11,6 +11,45 @@ export const expectStatus =
     return response;
   };
 
+export const expectDatabaseResetRedirect = (response: Response): Response => {
+  expectRedirectWithFlash("/setup/", "Database reset")(response);
+  const sessionCookie = response.headers
+    .getSetCookie()
+    .find((c) => c.startsWith(`${getSessionCookieName()}=`));
+  expect(sessionCookie).toContain("Max-Age=0");
+  return response;
+};
+
+export const expectAdminLoginSuccess = async (
+  response: Response,
+): Promise<void> => {
+  await expectFlashRedirect("/admin", "Logged in")(response);
+  const sessionCookie = response.headers
+    .getSetCookie()
+    .find((c) => c.startsWith(`${getSessionCookieName()}=`));
+  expect(sessionCookie).toBeDefined();
+};
+
+export const expectActivityLogShows = async (
+  name: string,
+  verb: string,
+): Promise<void> => {
+  const { adminGet } = await import("#test-utils/session.ts");
+  const response = await adminGet("/admin/log");
+  const body = await response.text();
+  expect(body).toContain(name);
+  expect(body).toContain(verb);
+};
+
+export const expectTestAttendeeCsvColumns = (
+  row: string | undefined,
+  quantity = 1,
+): void => {
+  expect(row).toContain("John Doe");
+  expect(row).toContain("john@example.com");
+  expect(row).toContain(`,${quantity},`);
+};
+
 export const expectJsonResponse =
   // deno-lint-ignore no-explicit-any
     <T = any>(status: number, assertions?: (body: T) => void) =>
@@ -50,10 +89,8 @@ export const assertAdminHtml = async (
   ...substrings: string[]
 ): Promise<string> => {
   const { adminGet } = await import("#test-utils/session.ts");
-  const { response } = await adminGet(path);
-  const html = await response.text();
-  for (const s of substrings) expect(html).toContain(s);
-  return html;
+  const response = await adminGet(path);
+  return expectHtml(response, { contains: substrings, status: 200 });
 };
 
 export const assertAdminHtmlWithCookie = async (
@@ -80,12 +117,24 @@ export const expectHtmlResponse = async (
   response: Response,
   status: number,
   ...substrings: string[]
+): Promise<string> => expectHtml(response, { contains: substrings, status });
+
+/** Assert an HTTP response's body HTML. Works with any request method —
+ *  `adminGet`, `handleRequest(mockRequest(...))`, direct handler calls —
+ *  because it takes the `Response` itself. Supports optional status check,
+ *  positive (`contains`) and negative (`notContains`) substring assertions. */
+export const expectHtml = async (
+  response: Response,
+  opts: {
+    status?: number;
+    contains?: string[];
+    notContains?: string[];
+  } = {},
 ): Promise<string> => {
-  expect(response.status).toBe(status);
+  if (opts.status !== undefined) expect(response.status).toBe(opts.status);
   const html = await response.text();
-  for (const s of substrings) {
-    expect(html).toContain(s);
-  }
+  for (const s of opts.contains ?? []) expect(html).toContain(s);
+  for (const s of opts.notContains ?? []) expect(html).not.toContain(s);
   return html;
 };
 
@@ -125,7 +174,7 @@ export const expectAdminRedirect = (response: Response): string =>
   expectRedirect(response, "/admin");
 
 /** Parse the `flash_*` cookie off a redirect response into its message fields. */
-const parseFlashCookie = (
+export const parseFlashCookie = (
   response: Response,
 ): ReturnType<typeof parseFlashValue> => {
   const cookies = response.headers.getSetCookie();
@@ -304,6 +353,40 @@ export const expectResultNotFound = <
 
 export const getHeader = (response: Response, name: string): string =>
   response.headers.get(name)!;
+
+/** Assert `fn` throws an error of `errorClass` and (optionally) whose message
+ *  matches `pattern`. Runs `fn` twice — once per assertion — so only use for
+ *  idempotent predicates (validators, pure checks), not stateful operations. */
+// deno-lint-ignore no-explicit-any
+export const expectThrows = <E extends Error>(
+  fn: () => unknown,
+  errorClass: any,
+  pattern?: RegExp,
+): void => {
+  expect(fn).toThrow(errorClass);
+  if (pattern !== undefined) expect(fn).toThrow(pattern);
+};
+
+/** Await `promise` expecting it to reject, and return the thrown error's
+ *  message string. Useful when you need to assert on a substring of the
+ *  message (Deno's `rejects.toThrow` doesn't return the message). */
+export const rejectionMessage = async (
+  promise: Promise<unknown>,
+): Promise<string> => {
+  try {
+    await promise;
+  } catch (error) {
+    return (error as Error).message;
+  }
+  return "";
+};
+
+/** Assert that HTML content is properly escaped — `<script>` shows as
+ *  `&lt;script&gt;`. */
+export const expectHtmlEscaped = (html: string): void => {
+  expect(html).not.toContain("<script>");
+  expect(html).toContain("&lt;script&gt;");
+};
 
 export const matchGroup = (
   text: string,

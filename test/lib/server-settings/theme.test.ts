@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import {
-  awaitTestRequest,
+  adminGet,
   describeAdminSettings,
   expectFlash,
   expectHtmlResponse,
@@ -98,9 +98,7 @@ describeAdminSettings(() => {
       // Set theme to dark
       await settings.update.theme("dark");
 
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       expect(response.status).toBe(200);
       const html = await response.text();
       // Check that dark radio button is checked
@@ -133,9 +131,7 @@ describeAdminSettings(() => {
     test("settings page checks the underline-links box when enabled", async () => {
       await settings.update.underlineLinks(true);
 
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       const html = await response.text();
       const checkboxMatch = html.match(
         /<input[^>]*name="underline_links"[^>]*>/,

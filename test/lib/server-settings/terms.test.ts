@@ -6,7 +6,7 @@ import { setDemoModeForTest } from "#shared/demo.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   adminFormPost,
-  awaitTestRequest,
+  adminGet,
   describeWithEnv,
   expectFlash,
   expectHtmlResponse,
@@ -109,9 +109,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("settings page shows terms and conditions section", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       await expectHtmlResponse(
         response,
         200,
@@ -123,9 +121,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("settings page shows current terms when configured", async () => {
       await settings.update.terms("You must be 18 or older.");
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       await expectHtmlResponse(response, 200, "You must be 18 or older.");
     });
   });

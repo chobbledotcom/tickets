@@ -5,7 +5,7 @@ import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   adminFormPost,
-  awaitTestRequest,
+  adminGet,
   describeWithEnv,
   expectErrorFlash,
   expectFlash,
@@ -45,9 +45,7 @@ const postSubdomain = async (subdomain: string): Promise<Response> =>
 
 /** Fetch the /admin/settings-advanced page HTML as the owner. */
 const advancedPageHtml = async (): Promise<string> => {
-  const response = await awaitTestRequest("/admin/settings-advanced", {
-    cookie: await testCookie(),
-  });
+  const response = await adminGet("/admin/settings-advanced");
   return response.text();
 };
 

@@ -9,6 +9,7 @@ import {
   createTestHoliday,
   deleteTestHoliday,
   describeWithEnv,
+  expectActivityLogShows,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
@@ -90,7 +91,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
 
     test("shows empty holidays list", async () => {
-      const { response } = await adminGet("/admin/holidays");
+      const response = await adminGet("/admin/holidays");
       await expectHtmlResponse(
         response,
         200,
@@ -105,7 +106,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         name: "Christmas",
         startDate: "2026-12-25",
       });
-      const { response } = await adminGet("/admin/holidays");
+      const response = await adminGet("/admin/holidays");
       // The name links to the edit page; delete now lives on that edit page,
       // not inline in the list table.
       await expectHtmlResponse(
@@ -123,7 +124,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     testRequiresAuth("/admin/holidays/new");
 
     test("shows create holiday form", async () => {
-      const { response } = await adminGet("/admin/holidays/new");
+      const response = await adminGet("/admin/holidays/new");
       await expectHtmlResponse(
         response,
         200,
@@ -247,7 +248,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         name: "Christmas",
         startDate: "2026-12-25",
       });
-      const { response } = await adminGet(`/admin/holidays/${holiday.id}/edit`);
+      const response = await adminGet(`/admin/holidays/${holiday.id}/edit`);
       await expectHtmlResponse(
         response,
         200,
@@ -261,7 +262,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent holiday", async () => {
-      const { response } = await adminGet("/admin/holidays/999/edit");
+      const response = await adminGet("/admin/holidays/999/edit");
       expectStatus(404)(response);
     });
   });
@@ -343,9 +344,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
     test("shows delete confirmation page", async () => {
       const holiday = await createTestHoliday({ name: "Christmas" });
-      const { response } = await adminGet(
-        `/admin/holidays/${holiday.id}/delete`,
-      );
+      const response = await adminGet(`/admin/holidays/${holiday.id}/delete`);
       await expectHtmlResponse(
         response,
         200,
@@ -356,7 +355,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent holiday", async () => {
-      const { response } = await adminGet("/admin/holidays/999/delete");
+      const response = await adminGet("/admin/holidays/999/delete");
       expectStatus(404)(response);
     });
   });
@@ -424,7 +423,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
   describe("nav link", () => {
     test("holidays link visible to owners", async () => {
-      const { response } = await adminGet("/admin/holidays");
+      const response = await adminGet("/admin/holidays");
       const body = await response.text();
       expect(body).toContain("/admin/holidays");
       expect(body).toContain("Holidays");
@@ -434,28 +433,19 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
   describe("activity logging", () => {
     test("logs holiday creation", async () => {
       await createTestHoliday({ name: "Logged Holiday" });
-      const { response } = await adminGet("/admin/log");
-      const body = await response.text();
-      expect(body).toContain("Logged Holiday");
-      expect(body).toContain("created");
+      await expectActivityLogShows("Logged Holiday", "created");
     });
 
     test("logs holiday update", async () => {
       const holiday = await createTestHoliday({ name: "Before Update" });
-      await updateTestHoliday(holiday.id, { name: "After Update" });
-      const { response } = await adminGet("/admin/log");
-      const body = await response.text();
-      expect(body).toContain("After Update");
-      expect(body).toContain("updated");
+      await updateTestHoliday(holiday.id, { name: "Updated Holiday" });
+      await expectActivityLogShows("Updated Holiday", "updated");
     });
 
     test("logs holiday deletion", async () => {
       const holiday = await createTestHoliday({ name: "Deleted Holiday" });
       await deleteTestHoliday(holiday.id);
-      const { response } = await adminGet("/admin/log");
-      const body = await response.text();
-      expect(body).toContain("Deleted Holiday");
-      expect(body).toContain("deleted");
+      await expectActivityLogShows("Deleted Holiday", "deleted");
     });
   });
 

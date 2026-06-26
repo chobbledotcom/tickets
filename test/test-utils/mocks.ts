@@ -1,10 +1,12 @@
+import { expect } from "@std/expect";
 import { afterEach, beforeEach } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { type Stub, stub } from "@std/testing/mock";
 import { bracket } from "#fp";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
+import { setTestEnv } from "#test-utils/env.ts";
 import type { TestRequestOptions } from "#test-utils/internal.ts";
 
 export const mockRequestWithHost = (
@@ -248,6 +250,32 @@ export const installRecordingFetch = (
   };
 };
 
+/** Stub `globalThis.fetch` to a 200-OK, run `body`, then assert on the
+ *  recorded calls (default: zero calls were made). Returns the stub's calls
+ *  for custom assertions. Unifies the "stub fetch then assert it wasn't
+ *  called" scaffold from the scheduled-tasks and migration-error tests. */
+export function okResponse(): Promise<Response> {
+  return Promise.resolve(new Response("ok"));
+}
+
+export const expectFetchSilent = async (
+  body: () => Promise<void>,
+  assert?: (calls: ReturnType<typeof stub>["calls"]) => void,
+): Promise<void> => {
+  const fetchStub = stub(globalThis, "fetch", okResponse);
+  try {
+    await body();
+    (
+      assert ??
+      ((calls) => {
+        expect(calls.length).toBe(0);
+      })
+    )(fetchStub.calls);
+  } finally {
+    fetchStub.restore();
+  }
+};
+
 /** Run `body` under the standard test zone config with a fetch mock that
  * answers every Bunny storage URL via `respond` (other URLs fall through). */
 export const withBunnyStorageStub = (
@@ -366,33 +394,28 @@ export const withStorageMock = (
     }),
   );
 
-export const withCdnProxy = (
-  respond: () => Response,
+const withCdnFetch = (
+  handle: (url: string) => Promise<Response> | null,
   fn: () => Promise<void>,
 ): Promise<void> =>
   runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, () =>
     withFetchMock(async (originalFetch) => {
       installUrlHandler(originalFetch, (url) =>
-        url.includes("storage.bunnycdn.com")
-          ? Promise.resolve(respond())
-          : null,
+        url.includes("storage.bunnycdn.com") ? handle(url) : null,
       );
       await fn();
     }),
   );
 
+export const withCdnProxy = (
+  respond: () => Response,
+  fn: () => Promise<void>,
+): Promise<void> => withCdnFetch(() => Promise.resolve(respond()), fn);
+
 export const withCdnRejecting = (
   error: Error,
   fn: () => Promise<void>,
-): Promise<void> =>
-  runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, () =>
-    withFetchMock(async (originalFetch) => {
-      installUrlHandler(originalFetch, (url) =>
-        url.includes("storage.bunnycdn.com") ? Promise.reject(error) : null,
-      );
-      await fn();
-    }),
-  );
+): Promise<void> => withCdnFetch(() => Promise.reject(error), fn);
 
 export const withStorageDisabled = <T>(fn: () => T): T =>
   runWithStorageConfig({ localPath: "", zoneKey: "", zoneName: "" }, fn);
@@ -428,6 +451,33 @@ export const stubFetchStatus = (status: number, body: BodyInit | null = null) =>
   stub(globalThis, "fetch", () =>
     Promise.resolve(new Response(body, { status })),
   );
+
+export const MOCK_RELEASE = {
+  assets: [
+    {
+      browser_download_url:
+        "https://github.com/chobbledotcom/tickets/releases/download/v2099-01-01-120000/bunny-script.ts",
+      name: "bunny-script.ts",
+    },
+  ],
+  name: "2099-01-01 - Big Update",
+  published_at: "2099-01-01T12:00:00Z",
+  tag_name: "v2099-01-01-120000",
+} as const;
+
+export const stubReleaseFetch = (
+  onDownload: () => Response = () =>
+    new Response("console.log('updated')", { status: 200 }),
+) =>
+  stub(globalThis, "fetch", (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("releases/latest")) {
+      return Promise.resolve(
+        new Response(JSON.stringify(MOCK_RELEASE), { status: 200 }),
+      );
+    }
+    return Promise.resolve(onDownload());
+  });
 
 export const stubFetchRecorder = (responseInit?: ResponseInit) => {
   const calls: import("#test-utils/internal.ts").FetchCall[] = [];
@@ -524,4 +574,30 @@ export const randomString = (length: number): string => {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
+};
+
+const NTFY_TEST_TOPIC = "https://ntfy.sh/test-topic";
+
+export function okEmptyResponse(): Promise<Response> {
+  return Promise.resolve(new Response());
+}
+
+export const stubNtfyFetch = (
+  env: Record<string, string | undefined> = {},
+): { fetchStub: Stub; restore: () => void } => {
+  const restore = setTestEnv({ NTFY_URL: NTFY_TEST_TOPIC, ...env });
+  const fetchStub = stub(globalThis, "fetch", okEmptyResponse);
+  return { fetchStub, restore };
+};
+
+export const expectNtfyNotification = (
+  fetchStub: Stub,
+  expectedBody?: string,
+): ReturnType<typeof fetchStub.calls.find> => {
+  const ntfyCall = fetchStub.calls.find((c) => c.args[0] === NTFY_TEST_TOPIC);
+  expect(ntfyCall).toBeDefined();
+  if (expectedBody !== undefined) {
+    expect((ntfyCall!.args[1] as RequestInit).body).toBe(expectedBody);
+  }
+  return ntfyCall;
 };

@@ -7,7 +7,10 @@ import {
 } from "#routes/admin/calendar-csv.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { bookingAssignmentKey } from "#shared/db/logistics.ts";
+import {
+  bookingAssignmentKey,
+  type LogisticsAssignment,
+} from "#shared/db/logistics.ts";
 import { appleMapsUrl, googleMapsUrl } from "#shared/maps.ts";
 import { setupTestEncryptionKey, testAttendee } from "#test-utils";
 
@@ -19,6 +22,25 @@ const calAttendee = (
   listingLocation: "",
   listingName: "Bouncy Castle",
   ...over,
+});
+
+/** The standard logistics context: agent 5 = "Van A", assigned to
+ *  attendee 7 / listing 1 as the start agent. Used by the "adds columns",
+ *  "omits map links when no address", and "tolerates missing assignment"
+ *  tests. */
+const vanALogistics = (
+  assignments?: Map<string, LogisticsAssignment>,
+): CalendarLogisticsCsv => ({
+  agentNames: new Map([[5, "Van A"]]),
+  assignments:
+    assignments ??
+    new Map([
+      [
+        bookingAssignmentKey(7, 1),
+        { endAgentId: null, endTime: "", startAgentId: 5, startTime: "" },
+      ],
+    ]),
+  listingIds: new Set([1]),
 });
 
 describe("generateCalendarCsv logistics columns", () => {
@@ -86,17 +108,7 @@ describe("generateCalendarCsv logistics columns", () => {
       listing_id: 2,
       listingName: "Workshop",
     });
-    const logistics: CalendarLogisticsCsv = {
-      agentNames: new Map([[5, "Van A"]]),
-      assignments: new Map([
-        [
-          bookingAssignmentKey(7, 1),
-          { endAgentId: null, endTime: "", startAgentId: 5, startTime: "" },
-        ],
-      ]),
-      listingIds: new Set([1]),
-    };
-    const csv = generateCalendarCsv([logisticsRow, plainRow], logistics);
+    const csv = generateCalendarCsv([logisticsRow, plainRow], vanALogistics());
     const lines = csv.split("\n");
     // The non-logistics row ends with the six empty logistics columns.
     expect(lines.find((l) => l.startsWith("Workshop"))).toMatch(/,,,,,,$/);
@@ -125,17 +137,7 @@ describe("generateCalendarCsv logistics columns", () => {
 
   test("omits map links when a logistics booking has no address", () => {
     const att = calAttendee({ address: "", id: 7, listing_id: 1 });
-    const logistics: CalendarLogisticsCsv = {
-      agentNames: new Map([[5, "Van A"]]),
-      assignments: new Map([
-        [
-          bookingAssignmentKey(7, 1),
-          { endAgentId: null, endTime: "", startAgentId: 5, startTime: "" },
-        ],
-      ]),
-      listingIds: new Set([1]),
-    };
-    const csv = generateCalendarCsv([att], logistics);
+    const csv = generateCalendarCsv([att], vanALogistics());
     expect(csv).toContain("Start Agent");
     expect(csv).toContain("Van A");
     expect(csv).not.toContain("maps.apple.com");
