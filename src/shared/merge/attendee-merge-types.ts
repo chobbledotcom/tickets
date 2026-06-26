@@ -69,6 +69,7 @@ export type BookingConflictClass =
 export type AttendeeMergeDiffBookingItem = {
   listingId: number;
   startAt: string | null;
+  parentListingId: number;
   sourceBooking: ListingAttendeeRow;
   targetBooking: ListingAttendeeRow | null;
   conflictClass: BookingConflictClass;
@@ -103,10 +104,10 @@ export type AttendeeMergeDecisionPii = Record<string, MergeValueChoice>;
 /** Per-question decision */
 export type AttendeeMergeDecisionAnswers = Record<string, MergeAnswerChoice>;
 
-/** Per-booking decision (keyed by "listingId:startAt") */
+/** Per-booking decision (keyed by "listingId:startAt:parentListingId") */
 export type AttendeeMergeDecisionBookings = Record<string, MergeBookingChoice>;
 
-/** Per-conflict money decision (keyed by "listingId:startAt"), required when the
+/** Per-conflict money decision (keyed by "listingId:startAt:parentListingId"), required when the
  *  booking the operator discards carries money (decision 17). */
 export type AttendeeMergeDecisionMoney = Record<string, MergeMoneyChoice>;
 

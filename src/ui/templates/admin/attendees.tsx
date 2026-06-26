@@ -441,7 +441,7 @@ const MergeBookingsDecisionTable = ({
           </thead>
           <tbody>
             {diff.bookingItems.map((item) => {
-              const key = bookingKey(item.listingId, item.startAt);
+              const key = bookingKey(item.listingId, item.startAt, item.parentListingId);
               const name = `booking_${key}`;
               const dateStr = item.startAt
                 ? formatDateRangeLabel(item.startAt, item.sourceBooking.end_at)

@@ -869,24 +869,30 @@ export const provisionTestBuiltSite = async (
 export const createTestBuiltSite = (
   overrides: Partial<BuiltSiteFormInput> = {},
 ): Promise<import("#shared/db/built-sites.ts").BuiltSite> => {
+  const dbProvider = overrides.dbProvider ?? "bunny";
+  const hostingProvider = overrides.hostingProvider ?? "bunny";
   const input: BuiltSiteFormInput = {
     assignable: overrides.assignable ?? false,
-    bunnyScriptId: overrides.bunnyScriptId ?? "",
-    bunnyUrl: overrides.bunnyUrl ?? "https://test.b-cdn.net",
+    dbProvider,
     dbToken: overrides.dbToken ?? "",
     dbUrl: overrides.dbUrl ?? "",
+    hostingId: overrides.hostingId ?? "",
+    hostingProvider,
     name: overrides.name ?? "Test Site",
+    siteUrl: overrides.siteUrl ?? "https://test.b-cdn.net",
     ...(overrides.updates ? { updates: overrides.updates } : {}),
   };
 
   return doAuthenticatedFormRequest(
     "/admin/built-sites",
     {
-      bunny_script_id: input.bunnyScriptId,
-      bunny_url: input.bunnyUrl,
+      db_provider: dbProvider,
       db_token: input.dbToken,
       db_url: input.dbUrl,
+      hosting_id: input.hostingId,
+      hosting_provider: hostingProvider,
       name: input.name,
+      site_url: input.siteUrl,
       ...(input.assignable ? { assignable: "1" } : {}),
       ...(input.updates ? { updates: input.updates } : {}),
     },
@@ -914,11 +920,11 @@ export const updateTestBuiltSite = async (
   return doAuthenticatedFormRequest(
     `/admin/built-sites/${siteId}/edit`,
     {
-      bunny_script_id: updates.bunnyScriptId ?? existing.bunnyScriptId,
-      bunny_url: updates.bunnyUrl ?? existing.bunnyUrl,
       db_token: updates.dbToken ?? existing.dbToken,
       db_url: updates.dbUrl ?? existing.dbUrl,
+      hosting_id: updates.hostingId ?? existing.hostingId,
       name: updates.name ?? existing.name,
+      site_url: updates.siteUrl ?? existing.siteUrl,
       updates: updates.updates ?? existing.updates,
       ...(assignable ? { assignable: "1" } : {}),
     },

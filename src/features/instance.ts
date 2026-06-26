@@ -71,13 +71,19 @@ const handleSiteCredentials = async (request: Request): Promise<Response> => {
 
   const sites = await getAllBuiltSites();
   const credentials: SiteCredentials[] = sites
-    .filter((site) => site.bunnyScriptId && site.dbUrl && site.dbToken)
+    .filter(
+      (site) =>
+        site.hostingId &&
+        site.hostingProvider === "bunny" &&
+        site.dbUrl &&
+        site.dbToken,
+    )
     .filter((site) => siteAcceptsDeployTier(site.updates, deployTier))
     .map((site) => ({
       dbToken: site.dbToken,
       dbUrl: site.dbUrl,
       name: site.name,
-      scriptId: site.bunnyScriptId,
+      scriptId: site.hostingId,
     }));
 
   // Echo the applied tier so a caller can confirm the server actually filtered:

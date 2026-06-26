@@ -61,9 +61,9 @@ describeWithEnv(
       await setLatestRelease(LATEST_TAG);
       stubSiteDb(await seedSiteDb("2026-01-01T00:00:00Z"));
       const site = await createTestBuiltSite({
-        bunnyScriptId: "8001",
         dbToken: "ro",
         dbUrl: "libsql://site",
+        hostingId: "8001",
         name: "Behind Site",
       });
 
@@ -72,8 +72,8 @@ describeWithEnv(
       expect(state.siteVersionLabel).toContain("2026");
       expect(state.updateAvailable).toBe(true);
       expect(state.upToDate).toBe(false);
-      expect(state.bunnyConfigured).toBe(true);
-      expect(state.hasScriptId).toBe(true);
+      expect(state.providerConfigured).toBe(true);
+      expect(state.hasHostingId).toBe(true);
       expect(state.siteVersionError).toBeNull();
     });
 
@@ -81,9 +81,9 @@ describeWithEnv(
       await setLatestRelease(LATEST_TAG);
       stubSiteDb(await seedSiteDb("2100-01-01T00:00:00Z"));
       const site = await createTestBuiltSite({
-        bunnyScriptId: "8002",
         dbToken: "ro",
         dbUrl: "libsql://site",
+        hostingId: "8002",
         name: "Current Site",
       });
 
@@ -103,7 +103,7 @@ describeWithEnv(
       expect(state.siteVersionError).toBeNull();
       expect(state.updateAvailable).toBe(false);
       expect(state.upToDate).toBe(false);
-      expect(state.hasScriptId).toBe(false);
+      expect(state.hasHostingId).toBe(false);
     });
 
     test("surfaces a read error when the site's database is unreachable", async () => {
@@ -137,6 +137,42 @@ describeWithEnv(
       expect(state.siteVersionLabel).toContain("2026");
       expect(state.updateAvailable).toBe(false);
       expect(state.upToDate).toBe(false);
+    });
+  },
+);
+
+describeWithEnv(
+  "loadBuiltSiteUpdateState (Deno site)",
+  { db: true, env: { DENO_DEPLOY_TOKEN: "tok123" } },
+  () => {
+    let createStub: Stub | null;
+
+    afterEach(() => {
+      createStub?.restore();
+      createStub = null;
+      settings.clearTestOverrides();
+    });
+
+    const stubSiteDb = (client: Client): void => {
+      createStub = stub(siteDbApi, "createClient", () => client);
+    };
+
+    test("reports providerConfigured true for a Deno site when DENO_DEPLOY_TOKEN is set", async () => {
+      await setLatestRelease(LATEST_TAG);
+      stubSiteDb(await seedSiteDb("2026-01-01T00:00:00Z"));
+      const site = await createTestBuiltSite({
+        dbToken: "ro",
+        dbUrl: "libsql://site",
+        hostingId: "app_abc123",
+        hostingProvider: "deno",
+        name: "Deno Update Site",
+      });
+
+      const state = await loadBuiltSiteUpdateState(site);
+
+      expect(state.providerConfigured).toBe(true);
+      expect(state.hasHostingId).toBe(true);
+      expect(state.updateAvailable).toBe(true);
     });
   },
 );

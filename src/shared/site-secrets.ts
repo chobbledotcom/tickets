@@ -4,8 +4,9 @@
  * A freshly built site has the full set of secrets copied onto it (see
  * builder.ts). Host secrets, however, accumulate over time — a site built
  * before, say, the Google Wallet keys were configured will be missing them.
- * This module diffs a site's live secrets (read from the Bunny API) against the
- * set we would copy today, and can backfill the ones that are missing.
+ * This module diffs a site's live secrets (read from the hosting provider API)
+ * against the set we would copy today, and can backfill the ones that are
+ * missing.
  *
  * It never overwrites a secret that already exists on the site: a value may
  * have been changed deliberately. DB_ENCRYPTION_KEY in particular is excluded
@@ -14,8 +15,11 @@
  * would orphan the site's existing encrypted data.
  */
 
-import { collectHostSecrets, HOST_INFRA_SECRET_KEYS } from "#shared/builder.ts";
-import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import {
+  collectHostSecrets,
+  HOST_INFRA_SECRET_KEYS,
+  resolveHostingProvider,
+} from "#shared/builder.ts";
 import type { BuiltSite } from "#shared/db/built-sites.ts";
 import { getEnv } from "#shared/env.ts";
 
@@ -29,8 +33,10 @@ export const expectedSiteSecrets = (site: BuiltSite): [string, string][] => {
   const base: [string, string][] = [];
   if (site.dbUrl) base.push(["DB_URL", site.dbUrl]);
   if (site.dbToken) base.push(["DB_TOKEN", site.dbToken]);
-  if (site.bunnyScriptId) base.push(["BUNNY_SCRIPT_ID", site.bunnyScriptId]);
-  return [...base, ...collectHostSecrets()];
+  if (site.hostingProvider !== "deno" && site.hostingId) {
+    base.push(["BUNNY_SCRIPT_ID", site.hostingId]);
+  }
+  return [...base, ...collectHostSecrets(site.hostingProvider)];
 };
 
 /** Pick the host-level infrastructure credential names out of a name list, so
@@ -43,9 +49,9 @@ export const hostInfraSecretNames = (names: string[]): string[] =>
 export type SiteSecretsView =
   | {
       ok: true;
-      /** Every secret name currently set on the edge script. */
+      /** Every secret name currently set on the hosting provider. */
       present: string[];
-      /** Expected secret names that are not present on the edge script. */
+      /** Expected secret names that are not present. */
       missing: string[];
       /** All names we would copy to a fresh build of this site. */
       expected: string[];
@@ -53,36 +59,36 @@ export type SiteSecretsView =
   | { ok: false; error: string };
 
 type SecretsPrecondition =
-  | { ok: true; scriptId: number }
+  | { ok: true; hostingId: string }
   | { ok: false; error: string };
 
-/** A site can only be inspected when it has a script id and the host has an API key. */
+/** A site can only be inspected when it has a hosting ID and the host has the relevant API key. */
 const secretsPrecondition = (site: BuiltSite): SecretsPrecondition => {
-  const scriptId = Number(site.bunnyScriptId);
-  if (!scriptId) {
+  if (!site.hostingId) {
     return {
-      error: "This site has no Bunny script ID, so its secrets can't be read.",
+      error: "This site has no hosting ID, so its secrets can't be read.",
       ok: false,
     };
   }
-  if (!getEnv("BUNNY_API_KEY")) {
+  const { configEnvVar } = resolveHostingProvider(site.hostingProvider);
+  if (!getEnv(configEnvVar)) {
     return {
-      error:
-        "BUNNY_API_KEY is not configured on this host, so site secrets can't be read.",
+      error: `${configEnvVar} is not configured on this host, so site secrets can't be read.`,
       ok: false,
     };
   }
-  return { ok: true, scriptId };
+  return { hostingId: site.hostingId, ok: true };
 };
 
-/** Fetch the live secret names for a script, resilient to network/parse errors. */
+/** Fetch the live secret names for a site, resilient to network/parse errors. */
 const listSecretNames = async (
-  scriptId: number,
+  site: BuiltSite,
+  hostingId: string,
 ): Promise<{ ok: true; names: string[] } | { ok: false; error: string }> => {
   try {
-    const result = await bunnyCdnApi.listEdgeScriptSecrets(scriptId);
-    if (!result.ok) return { error: result.error, ok: false };
-    return { names: result.secrets.map((s) => s.Name), ok: true };
+    return await resolveHostingProvider(site.hostingProvider).getSecretNames(
+      hostingId,
+    );
   } catch (e) {
     return {
       error: `Failed to list secrets: ${(e as Error).message}`,
@@ -92,7 +98,7 @@ const listSecretNames = async (
 };
 
 type ResolvedSiteSecrets = {
-  scriptId: number;
+  hostingId: string;
   names: string[];
   present: Set<string>;
 };
@@ -108,13 +114,13 @@ const resolveSiteSecrets = async (
 > => {
   const pre = secretsPrecondition(site);
   if (!pre.ok) return pre;
-  const listed = await listSecretNames(pre.scriptId);
+  const listed = await listSecretNames(site, pre.hostingId);
   if (!listed.ok) return listed;
   return {
     data: {
+      hostingId: pre.hostingId,
       names: listed.names,
       present: new Set(listed.names),
-      scriptId: pre.scriptId,
     },
     ok: true,
   };
@@ -154,23 +160,22 @@ export type AddMissingSecretsResult =
  */
 export const addMissingSiteSecrets = async (
   site: BuiltSite,
-): Promise<AddMissingSecretsResult> =>
-  withResolvedSite(site, async ({ present, scriptId }) => {
-    const toAdd = expectedSiteSecrets(site).filter(
-      ([name]) => !present.has(name),
-    );
-    const added: string[] = [];
-    const errors: string[] = [];
-    for (const [name, value] of toAdd) {
-      const result = await bunnyCdnApi.setEdgeScriptSecret(
-        scriptId,
-        name,
-        value,
-      );
-      if (result.ok) added.push(name);
-      else errors.push(result.error);
-    }
-    return errors.length > 0
-      ? { error: errors[0]!, ok: false as const }
-      : { added, ok: true as const };
-  });
+): Promise<AddMissingSecretsResult> => {
+  // Re-verify against the live list in case more secrets exist by now.
+  const resolved = await resolveSiteSecrets(site);
+  if (!resolved.ok) return resolved;
+
+  const { present, hostingId } = resolved.data;
+  const toAdd = expectedSiteSecrets(site).filter(
+    ([name]) => !present.has(name),
+  );
+
+  if (toAdd.length === 0) return { added: [], ok: true };
+
+  const result = await resolveHostingProvider(site.hostingProvider).setSecrets(
+    hostingId,
+    toAdd,
+  );
+  if (!result.ok) return result;
+  return { added: toAdd.map(([name]) => name), ok: true };
+};

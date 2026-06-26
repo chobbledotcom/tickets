@@ -49,19 +49,29 @@ export const siteAcceptsDeployTier = (
 /** Encrypted site-data blob version */
 const SITE_DATA_BLOB_VERSION = 1;
 
+/** Hosting provider for a built site. */
+export type HostingProvider = "bunny" | "deno";
+
+/** Database provider for a built site. */
+export type DbProvider = "bunny" | "turso";
+
 /** Encrypted site data blob shape */
 export interface SiteDataBlob {
   /** Database URL (optional, absent in older blobs) */
   d?: string;
+  /** Database provider (optional, defaults to "bunny" for backward compat) */
+  dp?: DbProvider;
+  /** Hosting provider (optional, defaults to "bunny" for backward compat) */
+  hp?: HostingProvider;
   /** Site name */
   n: string;
   /** Renewal token (optional, present when renewal access exists) */
   rt?: string;
-  /** Bunny edge script ID (optional, absent in older blobs) */
+  /** Hosting ID — Bunny script ID or Deno app ID (optional, absent in older blobs) */
   s?: string;
   /** Database token (optional, absent in older blobs) */
   t?: string;
-  /** Bunny URL (default hostname) */
+  /** Site URL (default hostname) */
   u: string;
   v: typeof SITE_DATA_BLOB_VERSION;
 }
@@ -99,17 +109,20 @@ export interface BuiltSite {
   assignable: boolean;
   assignedAttendeeId: number | null;
   assignedListingId: number | null;
-  bunnyScriptId: string;
-  bunnyUrl: string;
   created: string;
+  dbProvider: DbProvider;
   dbToken: string;
   dbUrl: string;
+  hostingId: string;
+  hostingProvider: HostingProvider;
   id: number;
   name: string;
   readOnlyFrom: string;
   /** Plain renewal token from the site-data blob when renewal access exists. Null when not provisioned. */
   renewalToken: string | null;
   renewalTokenIndex: string | null;
+  /** Site URL (default hostname for this site). */
+  siteUrl: string;
   /** Release channel this site opts into (see {@link UPDATE_TIERS}). */
   updates: UpdateTier;
 }
@@ -118,8 +131,12 @@ export interface BuiltSite {
  * inserts (e.g. auto-assignment) omit it and fall back to DEFAULT_UPDATE_TIER. */
 export type BuiltSiteFormInput = Pick<
   BuiltSite,
-  "name" | "bunnyUrl" | "dbUrl" | "dbToken" | "bunnyScriptId" | "assignable"
-> & { updates?: UpdateTier };
+  "name" | "siteUrl" | "dbUrl" | "dbToken" | "hostingId" | "assignable"
+> & {
+  updates?: UpdateTier;
+  hostingProvider?: HostingProvider;
+  dbProvider?: DbProvider;
+};
 
 const idCol = col.generated<number>();
 const createdCol = col.withDefault(() => nowIso());
@@ -227,7 +244,14 @@ const rawBuiltSitesTable = defineTable<BuiltSiteRow, BuiltSiteInput>({
 
 type BuiltSiteBlobFields = Pick<
   BuiltSite,
-  "bunnyScriptId" | "bunnyUrl" | "dbToken" | "dbUrl" | "name" | "renewalToken"
+  | "hostingId"
+  | "siteUrl"
+  | "dbToken"
+  | "dbUrl"
+  | "name"
+  | "renewalToken"
+  | "hostingProvider"
+  | "dbProvider"
 >;
 
 type BuiltSiteBlobInput = Omit<BuiltSiteBlobFields, "renewalToken"> & {
@@ -245,9 +269,9 @@ const builtSiteBlobColumns = [
   {
     blobKey: "u",
     defaultValue: "",
-    formDbKey: "bunny_url",
+    formDbKey: "site_url",
     required: true,
-    siteKey: "bunnyUrl",
+    siteKey: "siteUrl",
   },
   {
     blobKey: "d",
@@ -266,9 +290,23 @@ const builtSiteBlobColumns = [
   {
     blobKey: "s",
     defaultValue: "",
-    formDbKey: "bunny_script_id",
+    formDbKey: "hosting_id",
     required: false,
-    siteKey: "bunnyScriptId",
+    siteKey: "hostingId",
+  },
+  {
+    blobKey: "hp",
+    defaultValue: "bunny" as HostingProvider,
+    formDbKey: "hosting_provider",
+    required: false,
+    siteKey: "hostingProvider",
+  },
+  {
+    blobKey: "dp",
+    defaultValue: "bunny" as DbProvider,
+    formDbKey: "db_provider",
+    required: false,
+    siteKey: "dbProvider",
   },
   {
     blobKey: "rt",
@@ -485,7 +523,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
 
 /** Normalize a site's bunny URL to its absolute origin — scheme + host only,
  * with any path, query, hash, or trailing slash dropped — so callers can safely
- * append a path. bunnyUrl may be stored as a bare hostname, so a default scheme
+ * append a path. siteUrl may be stored as a bare hostname, so a default scheme
  * is added first (scheme detection is case-insensitive, so an `HTTPS://` URL
  * isn't mistaken for a hostname); `new URL(...).origin` then collapses anything
  * past the host and lower-cases the scheme. */
@@ -509,7 +547,7 @@ export const siteBaseUrl = (siteUrl: string): string => {
  */
 export const claimNextBuiltSiteForPrune = async (): Promise<{
   id: number;
-  bunnyUrl: string;
+  siteUrl: string;
 } | null> => {
   const row = await queryOne<{ id: number; site_data: string }>(
     `UPDATE built_sites AS builtSite SET last_pruned = ?
@@ -522,28 +560,32 @@ export const claimNextBuiltSiteForPrune = async (): Promise<{
     [nowIso()],
   );
   if (!row) return null;
-  const bunnyUrl = parseSiteDataBlob(await decrypt(row.site_data)).u;
-  return { bunnyUrl, id: row.id };
+  const siteUrl = parseSiteDataBlob(await decrypt(row.site_data)).u;
+  return { id: row.id, siteUrl };
 };
 
 /** Insert a new built site record */
 export const insertBuiltSite = (
   name: string,
-  bunnyUrl: string,
+  siteUrl: string,
   dbUrl = "",
   dbToken = "",
   assignable = false,
-  bunnyScriptId = "",
+  hostingId = "",
   updates: UpdateTier = DEFAULT_UPDATE_TIER,
+  hostingProvider: HostingProvider = "bunny",
+  dbProvider: DbProvider = "bunny",
 ): Promise<BuiltSiteRow> =>
   builtSitesTable.insert(
     toRawInput({
       assignable,
-      bunnyScriptId,
-      bunnyUrl,
+      dbProvider,
       dbToken,
       dbUrl,
+      hostingId,
+      hostingProvider,
       name,
+      siteUrl,
       updates,
     }),
   );

@@ -29,8 +29,8 @@ describe("adminBuilderPage", () => {
 
   test("renders sites table with data", () => {
     const sites: BuiltSiteDisplay[] = [
-      { bunnyUrl: "alpha.b-cdn.net", created: "1 Jan 2026", name: "Alpha" },
-      { bunnyUrl: "beta.b-cdn.net", created: "2 Jan 2026", name: "Beta" },
+      { created: "1 Jan 2026", name: "Alpha", siteUrl: "alpha.b-cdn.net" },
+      { created: "2 Jan 2026", name: "Beta", siteUrl: "beta.b-cdn.net" },
     ];
     const html = adminBuilderPage(SESSION, sites);
     expect(html).toContain("Alpha");
@@ -44,9 +44,9 @@ describe("adminBuilderPage", () => {
   test("renders sites as clickable links", () => {
     const sites: BuiltSiteDisplay[] = [
       {
-        bunnyUrl: "https://test.b-cdn.net",
         created: "1 Jan 2026",
         name: "Test",
+        siteUrl: "https://test.b-cdn.net",
       },
     ];
     const html = adminBuilderPage(SESSION, sites);

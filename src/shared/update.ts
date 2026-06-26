@@ -10,6 +10,7 @@ import { lazyRef } from "#fp";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import { deployScriptCode } from "#shared/bunny-cdn.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
+import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { logDebug } from "#shared/logger.ts";
 
 /** GitHub repo URL — update here if the repo moves */
@@ -211,6 +212,30 @@ export const fetchLatestRelease = async (): Promise<ReleaseInfo> => {
   };
 };
 
+/** Download a release asset URL and return the source code text. */
+const downloadReleaseAsset = async (assetUrl: string): Promise<string> => {
+  const assetResponse = await fetch(assetUrl);
+  if (!assetResponse.ok) {
+    throw new Error(
+      `Failed to download release asset: ${assetResponse.status}`,
+    );
+  }
+  return assetResponse.text();
+};
+
+/** Fetch the latest release and download its asset, throwing on any failure. */
+const fetchAndDownloadRelease = async (): Promise<{
+  release: ReleaseInfo;
+  code: string;
+}> => {
+  const release = await fetchLatestRelease();
+  if (!release.assetUrl) {
+    throw new Error("Release has no downloadable asset");
+  }
+  const code = await downloadReleaseAsset(release.assetUrl);
+  return { code, release };
+};
+
 /**
  * Download a release asset from GitHub and deploy it to a Bunny edge script.
  * Defaults to this host's own script; pass `scriptId` to deploy the same
@@ -220,18 +245,23 @@ export const deployRelease = async (
   assetUrl: string,
   scriptId?: number | string,
 ): Promise<void> => {
-  const assetResponse = await fetch(assetUrl);
-  if (!assetResponse.ok) {
-    throw new Error(
-      `Failed to download release asset: ${assetResponse.status}`,
-    );
-  }
-  const code = await assetResponse.text();
-
+  const code = await downloadReleaseAsset(assetUrl);
   const result = await deployScriptCode(code, scriptId);
   if (!result.ok) {
     throw new Error(result.error);
   }
+};
+
+/** Fetch, download, and deploy the latest release via `deploy`, throwing on any failure. */
+const deployLatest = async (
+  deploy: (
+    code: string,
+  ) => Promise<{ ok: false; error: string } | { ok: true }>,
+): Promise<ReleaseInfo> => {
+  const { code, release } = await fetchAndDownloadRelease();
+  const result = await deploy(code);
+  if (!result.ok) throw new Error(result.error);
+  return release;
 };
 
 /**
@@ -240,13 +270,17 @@ export const deployRelease = async (
  * runs; pass `scriptId` to run it against a built site's script instead.
  * Throws on any failure (no release asset, download, or deploy error).
  */
-export const deployLatestReleaseToScript = async (
+export const deployLatestReleaseToScript = (
   scriptId?: number | string,
-): Promise<ReleaseInfo> => {
-  const release = await fetchLatestRelease();
-  if (!release.assetUrl) {
-    throw new Error("Release has no downloadable asset");
-  }
-  await deployRelease(release.assetUrl, scriptId);
-  return release;
-};
+): Promise<ReleaseInfo> =>
+  deployLatest((code) => deployScriptCode(code, scriptId));
+
+/**
+ * Fetch the latest GitHub release and deploy its asset to a Deno Deploy app,
+ * returning the release on success.
+ * Throws on any failure (no release asset, download, or deploy error).
+ */
+export const deployLatestReleaseToDeno = (
+  appId: string,
+): Promise<ReleaseInfo> =>
+  deployLatest((code) => denoDeployApi.deployCode(appId, code));

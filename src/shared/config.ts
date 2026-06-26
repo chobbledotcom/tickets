@@ -104,6 +104,9 @@ export const getBunnyApiKey = (): string => requireEnv("BUNNY_API_KEY");
 export const isBunnyDnsEnabled = (): boolean =>
   !!getEnv("BUNNY_API_KEY") && !!getEnv("BUNNY_DNS_ZONE_ID");
 
+/** Check if the Bunny hosted database provider is enabled (requires BUNNY_API_KEY). */
+export const isBunnyDbEnabled = (): boolean => !!getEnv("BUNNY_API_KEY");
+
 /** Get the Bunny DNS zone ID from environment */
 export const getBunnyDnsZoneId = (): string => requireEnv("BUNNY_DNS_ZONE_ID");
 
@@ -157,3 +160,47 @@ export const isInstanceApiEnabled = (): boolean =>
 
 /** The shared secret authorizing the inter-instance site-credentials endpoint. */
 export const getMainInstanceKey = (): string => requireEnv("MAIN_INSTANCE_KEY");
+
+/** Check if Deno Deploy hosting is enabled (requires DENO_DEPLOY_TOKEN and DENO_DEPLOY_ORG_ID). */
+export const isDenoDeployEnabled = (): boolean =>
+  !!getEnv("DENO_DEPLOY_TOKEN") && !!getEnv("DENO_DEPLOY_ORG_ID");
+
+/** Get the Deno Deploy API token from environment. */
+export const getDenoDeployToken = (): string => requireEnv("DENO_DEPLOY_TOKEN");
+
+/** Get the Deno Deploy organization ID from environment. */
+export const getDenoDeployOrgId = (): string =>
+  requireEnv("DENO_DEPLOY_ORG_ID");
+
+/** Get the default database provider from DEFAULT_DB_HOST env var. Returns "turso" when set to "turso", "bunny" otherwise. */
+export const getDefaultDbProvider = (): "bunny" | "turso" =>
+  getEnv("DEFAULT_DB_HOST") === "turso" ? "turso" : "bunny";
+
+/** Check if Turso hosted database provider is enabled (requires TURSO_API_TOKEN, TURSO_ORGANIZATION, TURSO_GROUP). */
+export const isTursoEnabled = (): boolean =>
+  !!getEnv("TURSO_API_TOKEN") &&
+  !!getEnv("TURSO_ORGANIZATION") &&
+  !!getEnv("TURSO_GROUP");
+
+/** Get the Turso API token from environment. */
+export const getTursoApiToken = (): string => requireEnv("TURSO_API_TOKEN");
+
+/** Get the Turso organization name from environment. */
+export const getTursoOrganization = (): string =>
+  requireEnv("TURSO_ORGANIZATION");
+
+/** Get the Turso database group from environment. */
+export const getTursoGroup = (): string => requireEnv("TURSO_GROUP");
+
+/**
+ * Sanitize a site name into a valid provider resource slug.
+ * Lowercase letters, numbers, hyphens only; no leading/trailing hyphens.
+ */
+export const slugifyForProvider = (name: string, maxLength: number): string =>
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, maxLength)
+    .replace(/-+$/, "");

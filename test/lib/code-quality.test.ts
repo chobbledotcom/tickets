@@ -195,6 +195,9 @@ const ALLOWED_TEST_HOOKS: string[] = [
   // Override BUILD_TIMESTAMP / BUILD_COMMIT in tests (compile-time constants can't be changed otherwise)
   "shared/update.ts:setBuildTimestampForTest",
   "shared/update.ts:setBuildCommitForTest",
+  // Lower-level deploy primitive: exposed so unit tests can test asset-URL → deploy in isolation
+  // without going through the full fetchAndDownloadRelease path used by deployLatestReleaseToScript.
+  "shared/update.ts:deployRelease",
   // Route maps used by API documentation tests (production uses via dynamic import / createRouter)
   "features/api/index.ts:apiRoutes",
   "features/admin/api.ts:adminApiRoutes",
