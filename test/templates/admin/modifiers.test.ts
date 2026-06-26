@@ -2,7 +2,9 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { account } from "#shared/ledger/account.ts";
 import type { Modifier } from "#shared/types.ts";
+import { emptyLedgerNames } from "#templates/admin/ledger.tsx";
 import {
   adminModifierDeletePage,
   adminModifierEditPage,
@@ -152,6 +154,30 @@ describe("adminModifierEditPage", () => {
     expect(html).toContain('action="/admin/modifiers/1/revenue"');
     expect(html).toContain('name="total_revenue"');
     expect(html).toContain("correcting entry to the money ledger");
+  });
+
+  test("shows a modifier ledger add-entry action when the account exists", () => {
+    const html = adminModifierEditPage(
+      mod({ id: 1, name: "Helmet hire" }),
+      SESSION,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        account: account("modifier", 1),
+        lines: [],
+        names: {
+          ...emptyLedgerNames(),
+          modifiers: new Map([[1, "Helmet hire"]]),
+        },
+      },
+    );
+    expect(html).toContain("<section>");
+    expect(html).toContain("Add entry");
+    expect(html).toContain(
+      'href="/admin/ledger/modifier/1/add?return_url=%2Fadmin%2Fmodifiers%2F1%2Fedit"',
+    );
   });
 });
 

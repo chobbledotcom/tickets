@@ -15,8 +15,17 @@
 
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
+import {
+  isManualLedgerTransfer,
+  type ManualLedgerEntryOption,
+  type ManualLedgerEntryType,
+  manualEntrySpecByType,
+  manualLedgerEntryOptionsFor,
+} from "#shared/accounting/manual-entries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
+import { isReadOnly } from "#shared/env.ts";
+import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw, type SafeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { sameAccount } from "#shared/ledger/account.ts";
 import type { StatementLine } from "#shared/ledger/project.ts";
@@ -27,7 +36,11 @@ import {
   renderDetailRows,
 } from "#templates/admin/detail-rows.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import { GuideLink } from "#templates/components/actions.tsx";
+import {
+  ActionButton,
+  GuideLink,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -126,6 +139,39 @@ const accountCell = (
   return href === undefined ? text : <a href={href}>{text}</a>;
 };
 
+/** A path-safe return URL is threaded into edit/add forms so mutations can send
+ * the operator back to the exact statement or filtered ledger they came from. */
+const withReturnUrl = (href: string, returnUrl: string): string =>
+  `${href}?return_url=${encodeURIComponent(returnUrl)}`;
+
+export const ledgerEntryEditHref = (
+  transferId: number,
+  returnUrl: string,
+): string =>
+  withReturnUrl(`/admin/ledger/entries/${transferId}/edit`, returnUrl);
+
+export const ledgerEntryAddHref = (
+  account: AccountRef,
+  returnUrl: string,
+): string =>
+  withReturnUrl(`/admin/ledger/${account.type}/${account.id}/add`, returnUrl);
+
+const canAddLedgerEntry = (account: AccountRef, names: LedgerNames): boolean =>
+  !isReadOnly() &&
+  manualLedgerEntryOptionsFor(account).length > 0 &&
+  resolveAccountLabel(account, names).href !== undefined;
+
+const amountCell = (
+  transfer: Transfer,
+  label: string,
+  returnUrl?: string,
+): JSX.Element | string =>
+  !returnUrl || isReadOnly() || !isManualLedgerTransfer(transfer) ? (
+    label
+  ) : (
+    <a href={ledgerEntryEditHref(transfer.id, returnUrl)}>{label}</a>
+  );
+
 /** A transfer's kind, or an em dash when it carries none. */
 const kindLabel = (transfer: Transfer): string => transfer.kind ?? "—";
 
@@ -133,9 +179,11 @@ const kindLabel = (transfer: Transfer): string => transfer.kind ?? "—";
 const LedgerRow = ({
   transfer,
   names,
+  returnUrl,
 }: {
   transfer: Transfer;
   names: LedgerNames;
+  returnUrl?: string;
 }): string =>
   String(
     <tr>
@@ -145,16 +193,22 @@ const LedgerRow = ({
         {accountCell(transfer.source, names)} &rarr;{" "}
         {accountCell(transfer.destination, names)}
       </td>
-      <td class={colClass("amount")}>{formatCurrency(transfer.amount)}</td>
+      <td class={colClass("amount")}>
+        {amountCell(transfer, formatCurrency(transfer.amount), returnUrl)}
+      </td>
     </tr>,
   );
 
 /** The historical transfer rows, or a single empty-state row spanning the table
  * when there are none — mirroring the activity log's empty row. */
-const ledgerRows = (transfers: Transfer[], names: LedgerNames): string =>
+const ledgerRows = (
+  transfers: Transfer[],
+  names: LedgerNames,
+  returnUrl?: string,
+): string =>
   transfers.length > 0
     ? pipe(
-        map((transfer: Transfer) => LedgerRow({ names, transfer })),
+        map((transfer: Transfer) => LedgerRow({ names, returnUrl, transfer })),
         joinStrings,
       )(transfers)
     : `<tr><td colspan="4">${t("admin.ledger.empty")}</td></tr>`;
@@ -166,9 +220,11 @@ const ledgerRows = (transfers: Transfer[], names: LedgerNames): string =>
 export const LedgerTable = ({
   transfers,
   names,
+  returnUrl,
 }: {
   transfers: Transfer[];
   names: LedgerNames;
+  returnUrl?: string;
 }): JSX.Element => (
   <div class="table-scroll">
     <table>
@@ -181,7 +237,187 @@ export const LedgerTable = ({
         </tr>
       </thead>
       <tbody>
-        <Raw html={ledgerRows(transfers, names)} />
+        <Raw html={ledgerRows(transfers, names, returnUrl)} />
+      </tbody>
+    </table>
+  </div>
+);
+
+const humanAccount = (transfer: Transfer, type: string): AccountRef | null => {
+  if (transfer.source.type === type) return transfer.source;
+  if (transfer.destination.type === type) return transfer.destination;
+  return null;
+};
+
+const sentenceWithAccount = (
+  key: string,
+  account: AccountRef | null,
+  names: LedgerNames,
+): JSX.Element =>
+  account ? (
+    <>
+      {t(key)} {accountCell(account, names)}
+    </>
+  ) : (
+    <span>{t(key)}</span>
+  );
+
+const fallbackHumanDescription = (
+  transfer: Transfer,
+  names: LedgerNames,
+): JSX.Element => (
+  <>
+    {t("admin.ledger.human.transfer_from")}{" "}
+    {accountCell(transfer.source, names)} {t("admin.ledger.human.transfer_to")}{" "}
+    {accountCell(transfer.destination, names)}
+  </>
+);
+
+const saleDescription = (
+  transfer: Transfer,
+  names: LedgerNames,
+): JSX.Element => (
+  <>
+    {accountCell(transfer.source, names)} {t("admin.ledger.human.booked")}{" "}
+    {accountCell(transfer.destination, names)}
+  </>
+);
+
+const adjustmentDescription = (
+  transfer: Transfer,
+  names: LedgerNames,
+): JSX.Element => {
+  if (
+    transfer.source.type === "attendee" &&
+    transfer.destination.type === "writeoff"
+  ) {
+    return sentenceWithAccount(
+      "admin.ledger.human.manual_attendee_charge",
+      transfer.source,
+      names,
+    );
+  }
+  if (
+    transfer.source.type === "writeoff" &&
+    transfer.destination.type === "attendee"
+  ) {
+    return sentenceWithAccount(
+      "admin.ledger.human.manual_attendee_writeoff",
+      transfer.destination,
+      names,
+    );
+  }
+  if (transfer.source.type === "writeoff") {
+    return sentenceWithAccount(
+      "admin.ledger.human.adjustment_increase",
+      transfer.destination,
+      names,
+    );
+  }
+  if (transfer.destination.type === "writeoff") {
+    return sentenceWithAccount(
+      "admin.ledger.human.adjustment_reduce",
+      transfer.source,
+      names,
+    );
+  }
+  return fallbackHumanDescription(transfer, names);
+};
+
+const humanDescription = (
+  transfer: Transfer,
+  names: LedgerNames,
+): JSX.Element => {
+  switch (transfer.kind) {
+    case "sale":
+      return saleDescription(transfer, names);
+    case "payment":
+      return sentenceWithAccount(
+        "admin.ledger.human.payment",
+        humanAccount(transfer, "attendee"),
+        names,
+      );
+    case "refund_cash":
+      return sentenceWithAccount(
+        "admin.ledger.human.refund_cash",
+        humanAccount(transfer, "attendee"),
+        names,
+      );
+    case "refund_sale":
+      return sentenceWithAccount(
+        "admin.ledger.human.refund_sale",
+        humanAccount(transfer, "revenue"),
+        names,
+      );
+    case "fee":
+      return <>{t("admin.ledger.human.fee")}</>;
+    case "refund_fee":
+      return <>{t("admin.ledger.human.refund_fee")}</>;
+    case "adjustment":
+      return adjustmentDescription(transfer, names);
+    default: {
+      const spec =
+        manualEntrySpecByType[transfer.kind as ManualLedgerEntryType];
+      if (!spec) return fallbackHumanDescription(transfer, names);
+      return sentenceWithAccount(
+        spec.descriptionKey,
+        humanAccount(transfer, spec.accountType),
+        names,
+      );
+    }
+  }
+};
+
+const HumanLedgerRow = ({
+  transfer,
+  names,
+  returnUrl,
+}: {
+  transfer: Transfer;
+  names: LedgerNames;
+  returnUrl?: string;
+}): JSX.Element => (
+  <tr>
+    <td>{formatDatetimeShort(transfer.occurredAt)}</td>
+    <td>{humanDescription(transfer, names)}</td>
+    <td class={colClass("amount")}>
+      {amountCell(transfer, formatCurrency(transfer.amount), returnUrl)}
+    </td>
+  </tr>
+);
+
+export const HumanLedgerTable = ({
+  transfers,
+  names,
+  returnUrl,
+}: {
+  transfers: Transfer[];
+  names: LedgerNames;
+  returnUrl?: string;
+}): JSX.Element => (
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>{t("admin.ledger.col.time")}</th>
+          <th>{t("admin.ledger.col.activity")}</th>
+          <th class={colClass("amount")}>{t("admin.ledger.col.amount")}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {transfers.length > 0 ? (
+          transfers.map((transfer) => (
+            <HumanLedgerRow
+              names={names}
+              returnUrl={returnUrl}
+              transfer={transfer}
+            />
+          ))
+        ) : (
+          <tr>
+            <td colspan="3">{t("admin.ledger.empty")}</td>
+          </tr>
+        )}
       </tbody>
     </table>
   </div>
@@ -223,10 +459,12 @@ const StatementRow = ({
   line,
   account,
   names,
+  returnUrl,
 }: {
   line: StatementLine;
   account: AccountRef;
   names: LedgerNames;
+  returnUrl?: string;
 }): string =>
   String(
     <tr>
@@ -234,7 +472,11 @@ const StatementRow = ({
       <td>{kindLabel(line.transfer)}</td>
       <td>{accountCell(counterparty(line, account), names)}</td>
       <td class={colClass("amount")}>
-        {signedAmount(shownFigure(line.signed, account))}
+        {amountCell(
+          line.transfer,
+          signedAmount(shownFigure(line.signed, account)),
+          returnUrl,
+        )}
       </td>
       <td class={colClass("amount")}>
         {formatCurrency(shownFigure(line.running, account))}
@@ -248,10 +490,13 @@ const statementRows = (
   lines: StatementLine[],
   account: AccountRef,
   names: LedgerNames,
+  returnUrl?: string,
 ): string =>
   lines.length > 0
     ? pipe(
-        map((line: StatementLine) => StatementRow({ account, line, names })),
+        map((line: StatementLine) =>
+          StatementRow({ account, line, names, returnUrl }),
+        ),
         joinStrings,
       )(lines)
     : `<tr><td colspan="5">${t("admin.ledger.empty")}</td></tr>`;
@@ -265,10 +510,12 @@ export const AccountStatementTable = ({
   account,
   lines,
   names,
+  returnUrl,
 }: {
   account: AccountRef;
   lines: StatementLine[];
   names: LedgerNames;
+  returnUrl?: string;
 }): JSX.Element => (
   <div class="table-scroll">
     <table>
@@ -282,7 +529,7 @@ export const AccountStatementTable = ({
         </tr>
       </thead>
       <tbody>
-        <Raw html={statementRows(lines, account, names)} />
+        <Raw html={statementRows(lines, account, names, returnUrl)} />
       </tbody>
     </table>
   </div>
@@ -320,6 +567,41 @@ export const AccountStatementHeading = ({
   );
 };
 
+export type AccountLedgerData = {
+  account: AccountRef;
+  lines: StatementLine[];
+  names: LedgerNames;
+};
+
+const AccountStatementActions = ({
+  account,
+  names,
+  fullLedgerHref,
+  returnUrl,
+}: {
+  account: AccountRef;
+  names: LedgerNames;
+  fullLedgerHref?: string;
+  returnUrl: string;
+}): JSX.Element | null => {
+  const showAdd = canAddLedgerEntry(account, names);
+  if (!showAdd && !fullLedgerHref) return null;
+  return (
+    <p class="table-action-btns">
+      {showAdd && (
+        <ActionButton href={ledgerEntryAddHref(account, returnUrl)} icon="plus">
+          {t("admin.ledger.add.link")}
+        </ActionButton>
+      )}
+      {fullLedgerHref && (
+        <ActionButton href={fullLedgerHref}>
+          {t("attendee_detail.view_full_ledger")}
+        </ActionButton>
+      )}
+    </p>
+  );
+};
+
 /**
  * The full per-account statement section (heading + table), reused by the
  * standalone statement page and the embedded attendee panel so both render the
@@ -329,15 +611,30 @@ export const AccountStatementSection = ({
   account,
   lines,
   names,
+  returnUrl,
+  fullLedgerHref,
 }: {
   account: AccountRef;
   lines: StatementLine[];
   names: LedgerNames;
+  returnUrl: string;
+  fullLedgerHref?: string;
 }): JSX.Element => (
-  <>
+  <div class="table-controls">
     <AccountStatementHeading account={account} lines={lines} names={names} />
-    <AccountStatementTable account={account} lines={lines} names={names} />
-  </>
+    <AccountStatementActions
+      account={account}
+      fullLedgerHref={fullLedgerHref}
+      names={names}
+      returnUrl={returnUrl}
+    />
+    <AccountStatementTable
+      account={account}
+      lines={lines}
+      names={names}
+      returnUrl={returnUrl}
+    />
+  </div>
 );
 
 /** The whole filter state the ledger page round-trips through the query string:
@@ -349,7 +646,10 @@ export type LedgerFilterState = {
   listingId: number | null;
   fromMonth: string | null;
   toMonth: string | null;
+  view: LedgerViewMode;
 };
+
+export type LedgerViewMode = "human" | "dual";
 
 /** One option for the by-listing filter select. */
 export type LedgerListingOption = { id: number; name: string };
@@ -367,6 +667,7 @@ export type LedgerPageData = {
   dates: DatePickerDate[];
   today: string;
   listings: LedgerListingOption[];
+  returnUrl: string;
 };
 
 /** Build a `/admin/ledger` URL from the current filters plus an override of any
@@ -384,6 +685,7 @@ const ledgerHref = (
   if (merged.listingId !== null) {
     params.set("listing", String(merged.listingId));
   }
+  if (merged.view === "dual") params.set("view", "dual");
   if (merged.fromMonth) params.set("fromCal", merged.fromMonth);
   if (merged.toMonth) params.set("toCal", merged.toMonth);
   const qs = params.toString();
@@ -449,8 +751,8 @@ const RangeField = ({
 /** The by-listing filter: a nav-select preselected to the current scope ("All
  *  listings" or one listing), each option navigating to the scoped ledger. */
 const ListingFilter = ({ data }: { data: LedgerPageData }): SafeHtml => (
-  <p class="table-header-actions">
-    {t("admin.ledger.filter.listing")}:{" "}
+  <p class="table-action-btns">
+    {t("admin.ledger.filter.listing")}:
     <select aria-label={t("admin.ledger.filter.listing")} data-nav-select>
       <option
         selected={data.filters.listingId === null}
@@ -469,6 +771,26 @@ const ListingFilter = ({ data }: { data: LedgerPageData }): SafeHtml => (
         ),
       )(data.listings)}
     </select>
+  </p>
+);
+
+const LedgerViewToggle = ({ data }: { data: LedgerPageData }): SafeHtml => (
+  <p class="table-action-btns">
+    {data.filters.view === "human" ? (
+      <>
+        <strong>{t("admin.ledger.view.human")}</strong>
+        <a href={ledgerHref(data.filters, { view: "dual" })}>
+          {t("admin.ledger.view.dual")}
+        </a>
+      </>
+    ) : (
+      <>
+        <a href={ledgerHref(data.filters, { view: "human" })}>
+          {t("admin.ledger.view.human")}
+        </a>
+        <strong>{t("admin.ledger.view.dual")}</strong>
+      </>
+    )}
   </p>
 );
 
@@ -506,14 +828,31 @@ export const adminLedgerPage = (
         </GuideLink>
       </p>
       <LedgerStats data={data} />
-      <div class="ledger-date-range">
-        {map(
-          (side: RangeSide): SafeHtml => <RangeField data={data} side={side} />,
-        )(RANGE_SIDES)}
+      <div class="table-controls">
+        <div class="ledger-date-range">
+          {map(
+            (side: RangeSide): SafeHtml => (
+              <RangeField data={data} side={side} />
+            ),
+          )(RANGE_SIDES)}
+        </div>
+        <ListingFilter data={data} />
+        <LedgerViewToggle data={data} />
+        {data.filters.view === "dual" ? (
+          <LedgerTable
+            names={data.names}
+            returnUrl={data.returnUrl}
+            transfers={data.transfers}
+          />
+        ) : (
+          <HumanLedgerTable
+            names={data.names}
+            returnUrl={data.returnUrl}
+            transfers={data.transfers}
+          />
+        )}
+        {data.truncated && <p>{t("admin.ledger.recent")}</p>}
       </div>
-      <ListingFilter data={data} />
-      <LedgerTable names={data.names} transfers={data.transfers} />
-      {data.truncated && <p>{t("admin.ledger.recent")}</p>}
     </Layout>,
   );
 
@@ -531,6 +870,160 @@ export const adminAccountStatementPage = (
   String(
     <Layout title={t("admin.ledger.statement_heading")}>
       <AdminNav active="/admin/ledger" session={session} />
-      <AccountStatementSection account={account} lines={lines} names={names} />
+      <AccountStatementSection
+        account={account}
+        lines={lines}
+        names={names}
+        returnUrl={`/admin/ledger/${account.type}/${account.id}`}
+      />
+    </Layout>,
+  );
+
+export type LedgerEntryFormValues = {
+  amount: string;
+  occurredAt: string;
+  entryType?: string;
+};
+
+export type LedgerEntryAddOption = ManualLedgerEntryOption & {
+  label: string;
+  hint: string;
+};
+
+const LedgerEntryFields = ({
+  values,
+}: {
+  values: LedgerEntryFormValues;
+}): JSX.Element => (
+  <>
+    <label>
+      {t("admin.ledger.form.amount")}
+      <input
+        inputmode="decimal"
+        min="0"
+        name="amount"
+        required
+        step="0.01"
+        type="number"
+        value={values.amount}
+      />
+    </label>
+    <label>
+      {t("admin.ledger.form.occurred_at")}
+      <input
+        name="occurred_at"
+        required
+        type="datetime-local"
+        value={values.occurredAt}
+      />
+    </label>
+  </>
+);
+
+export const adminLedgerEntryAddPage = ({
+  account,
+  names,
+  options,
+  values,
+  returnUrl,
+  session,
+  error,
+}: {
+  account: AccountRef;
+  names: LedgerNames;
+  options: LedgerEntryAddOption[];
+  values: LedgerEntryFormValues;
+  returnUrl: string;
+  session: AdminSession;
+  error?: string;
+}): string =>
+  String(
+    <Layout title={t("admin.ledger.add.heading")}>
+      <AdminNav active="/admin/ledger" session={session} />
+      <CsrfForm action={`/admin/ledger/${account.type}/${account.id}/add`}>
+        <h1>{t("admin.ledger.add.heading")}</h1>
+        <Flash error={error} />
+        <p>
+          {t("admin.ledger.add.account")}{" "}
+          <strong>{accountLabelText(account, names)}</strong>
+        </p>
+        <input name="return_url" type="hidden" value={returnUrl} />
+        <label>
+          {t("admin.ledger.add.type")}
+          <select name="entry_type" required>
+            {options.map((option) => (
+              <option
+                selected={values.entryType === option.type}
+                value={option.type}
+              >
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <ul>
+          {options.map((option) => (
+            <li>
+              <strong>{option.label}:</strong> {option.hint}
+            </li>
+          ))}
+        </ul>
+        <LedgerEntryFields values={values} />
+        <SubmitButton icon="plus">{t("admin.ledger.add.submit")}</SubmitButton>
+        <p>
+          <ActionButton href={returnUrl} variant="secondary">
+            {t("common.cancel")}
+          </ActionButton>
+        </p>
+      </CsrfForm>
+    </Layout>,
+  );
+
+export const adminLedgerEntryEditPage = ({
+  transfer,
+  names,
+  values,
+  returnUrl,
+  session,
+  error,
+}: {
+  transfer: Transfer;
+  names: LedgerNames;
+  values: LedgerEntryFormValues;
+  returnUrl: string;
+  session: AdminSession;
+  error?: string;
+}): string =>
+  String(
+    <Layout title={t("admin.ledger.edit.heading")}>
+      <AdminNav active="/admin/ledger" session={session} />
+      <h1>{t("admin.ledger.edit.heading")}</h1>
+      <Flash error={error} />
+      <p>{humanDescription(transfer, names)}</p>
+      <CsrfForm action={`/admin/ledger/entries/${transfer.id}/edit`}>
+        <input name="return_url" type="hidden" value={returnUrl} />
+        <LedgerEntryFields values={values} />
+        <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
+      </CsrfForm>
+      <ConfirmForm
+        action={`/admin/ledger/entries/${transfer.id}/delete`}
+        buttonText={t("admin.ledger.delete.submit")}
+        label={t("admin.ledger.delete.label")}
+        name={formatCurrency(transfer.amount)}
+        returnUrl={returnUrl}
+      >
+        <h2>{t("admin.ledger.delete.heading")}</h2>
+        <p>{t("admin.ledger.delete.warning")}</p>
+        <p>
+          {t("admin.ledger.delete.confirm_prompt", {
+            amount: formatCurrency(transfer.amount),
+          })}
+        </p>
+      </ConfirmForm>
+      <p>
+        <ActionButton href={returnUrl} variant="secondary">
+          {t("common.cancel")}
+        </ActionButton>
+      </p>
     </Layout>,
   );
