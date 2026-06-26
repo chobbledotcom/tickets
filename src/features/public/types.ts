@@ -21,50 +21,6 @@ import type {
  * slugs). See parents.md "Public: the booking-page gate". */
 export type ChildrenByParentId = Map<number, TicketListing[]>;
 
-/** Shared rendering context for ticket pages */
-export type TicketCtx = {
-  slugs: string[];
-  listings: TicketListing[];
-  dates: string[];
-  terms: string;
-  questions: QuestionWithAnswers[];
-  questionListingMap: QuestionListingMap;
-  /** Parent→children relationship for the page's listings (see
-   * {@link ChildrenByParentId}). */
-  childrenByParentId: ChildrenByParentId;
-  /** Each DAILY child's holiday-aware serveable start dates, keyed by the
-   * (parent, child) PAIR (`childDateKey`) so the same child required by two
-   * parents carries each parent's own dates (Fix 4). Threaded into the render so
-   * each child control carries `data-child-dates` for the client compatibility
-   * script (Codex 430). Non-daily children are omitted (no date constraint).
-   * Per selectable parent span ({@link ChildSpanDates}, Fix 4). */
-  childDatesById: Map<string, ChildSpanDates>;
-  /** Each listing id → its capped group's remaining spots, set on the render path
-   * so a parent sharing a capped group with its child clamps its quantity by the
-   * combined parent+child demand (invariant I7, Fix 3). Omitted on submit/quote
-   * (the fold's authoritative date-specific check runs there instead). */
-  groupRemainingByListingId?: ReadonlyMap<number, number>;
-  baseUrl?: string;
-  groupName?: string;
-  groupDescription?: string;
-  prefill?: BookingPrefill;
-  /** Override the form action and error redirect URL (e.g. `/renew/?t=...`).
-   * Defaults to `/ticket/<slugs>` when unset. */
-  actionUrl?: string;
-  /** When set, threaded into paid/free registration completion so renewals can
-   * bump a built site's READ_ONLY_FROM after successful reservation. */
-  siteToken?: string;
-  /** Whether a promo-code field should be offered (any active code modifier). */
-  promoCodesEnabled?: boolean;
-  /** Opt-in add-ons offered for the page's listings (empty when none apply). */
-  addOns: AddOnOption[];
-};
-
-/** Possibly-async response handler */
-export type AsyncHandler<T extends unknown[]> = (
-  ...args: T
-) => Response | Promise<Response>;
-
 /** Ticket shared context shape */
 export type TicketSharedContext = {
   dates: string[];
@@ -88,6 +44,24 @@ export type TicketSharedContext = {
   /** Opt-in add-ons offered for the page's listings (empty when none apply). */
   addOns: AddOnOption[];
 };
+
+/** Shared rendering context for ticket pages */
+export type TicketCtx = TicketSharedContext & {
+  slugs: string[];
+  listings: TicketListing[];
+  /** Each listing id → its capped group's remaining spots, set on the render path
+   * so a parent sharing a capped group with its child clamps its quantity by the
+   * combined parent+child demand (invariant I7, Fix 3). Omitted on submit/quote
+   * (the fold's authoritative date-specific check runs there instead). */
+  groupRemainingByListingId?: ReadonlyMap<number, number>;
+  baseUrl?: string;
+  prefill?: BookingPrefill;
+};
+
+/** Possibly-async response handler */
+export type AsyncHandler<T extends unknown[]> = (
+  ...args: T
+) => Response | Promise<Response>;
 
 /** Shared context provider for ticket pages */
 export type TicketContextProvider = (

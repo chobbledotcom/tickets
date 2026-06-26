@@ -63,14 +63,18 @@ const handleDemoResetGet = (request: Request): Response | Promise<Response> =>
     return htmlResponse(demoResetPage());
   });
 
+export const deleteStorageAndResetDatabase = async (): Promise<void> => {
+  if (isStorageEnabled()) {
+    await deleteAllListingStorageFiles(await getAllListings());
+  }
+  await resetDatabase();
+};
+
 const resetRoute = createFormRoute({
   form: demoResetForm,
   onInvalid: ({ error }) => errorRedirect("/demo/reset", error),
   onValid: async () => {
-    if (isStorageEnabled()) {
-      await deleteAllListingStorageFiles(await getAllListings());
-    }
-    await resetDatabase();
+    await deleteStorageAndResetDatabase();
     return redirect("/setup/", t("success.database_reset"), true, {
       cookie: clearSessionCookie(),
     });

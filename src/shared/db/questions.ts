@@ -429,6 +429,11 @@ export const setListingQuestions = async (
   await executeBatch(statements);
 };
 
+export const findAnswerById = (
+  question: QuestionWithAnswers,
+  answerId: number,
+): Answer | undefined => question.answers.find((a) => a.id === answerId);
+
 /** Read and validate one question's submitted answer from form data.
  * `"missing"` = no value; `"invalid"` = the value isn't one of the question's
  * options (or, when `activeOnly`, is a deactivated option); otherwise the
@@ -445,7 +450,7 @@ export const readQuestionAnswer = (
   const raw = form.get(`question_${question.id}`);
   if (!raw) return { status: "missing" };
   const answerId = Number.parseInt(raw, 10);
-  const answer = question.answers.find((a) => a.id === answerId);
+  const answer = findAnswerById(question, answerId);
   if (!answer || (activeOnly && !answer.active)) {
     return { status: "invalid" };
   }
@@ -788,7 +793,7 @@ export const saveAttendeeAnswers = async (
     ]).filter((answer) => liveTextQuestionIds.has(answer.questionId));
     if (resolvedTextAnswerIds.length > 0) {
       const placeholders = resolvedTextAnswerIds
-        .map(() => "(?, ?, ?)")
+        .map(() => "(?, ?,?)")
         .join(", ");
       statements.push({
         args: resolvedTextAnswerIds.flatMap((answer) => [

@@ -11,7 +11,7 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { type Column, CSV } from "#shared/csv/index.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
-import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import type { AttendeeQuestionData } from "#shared/db/questions.ts";
 import { DEFAULT_TIMEZONE, formatDatetimeShortInTz } from "#shared/timezone.ts";
 import type { Attendee } from "#shared/types.ts";
 
@@ -22,13 +22,7 @@ export type CsvListingInfo = {
 };
 
 /** Custom-question data optionally appended to an attendee export. */
-export type CsvQuestionData = {
-  questions: QuestionWithAnswers[];
-  attendeeAnswerMap: Map<number, number[]>;
-  /** attendeeId → (questionId → decrypted free-text answer), for free_text
-   * question columns. Absent when text answers were not loaded. */
-  textAnswerMap?: Map<number, Map<number, string>>;
-};
+export type CsvQuestionData = AttendeeQuestionData;
 
 /** Price in minor units as a decimal string in the configured currency. */
 const formatPrice = (pricePaid: string): string =>

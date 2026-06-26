@@ -9,14 +9,18 @@
  * HMAC input: "qr-book:{slug}:{payloadB64url}"
  */
 
+// jscpd:ignore-start
 import {
   buildSignedToken,
   decodeTokenPayload,
   encodeTokenPayload,
+  isExpiredNow,
   isTokenObject,
   verifySignedToken,
 } from "#shared/crypto/signed-token.ts";
 import { nowMs } from "#shared/now.ts";
+
+// jscpd:ignore-end
 
 const PREFIX = "qr1.";
 const DOMAIN = "qr-book:";
@@ -108,10 +112,7 @@ export const verifyQrBookToken = async (
   const payload = decodePayload(encoded);
   if (!payload) return null;
 
-  const nowS = Math.floor(nowMs() / 1000);
-  // Reject expired and future-dated tokens (60s clock skew tolerance)
-  if (payload.e < nowS) return null;
-  if (payload.e - nowS > QR_TOKEN_MAX_AGE_S + 60) return null;
+  if (isExpiredNow(payload.e, QR_TOKEN_MAX_AGE_S)) return null;
 
   return payload;
 };

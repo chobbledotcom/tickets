@@ -975,15 +975,9 @@ const createAttendeeForSession = async (
 
   const result = await createBookingAtomic(
     {
-      address: intent.address,
+      ...(await attendeeBaseFields(session, intent)),
       bookings,
-      email: intent.email,
-      name: intent.name,
-      paymentId: session.paymentReference,
-      phone: intent.phone,
       remainingBalance,
-      special_instructions: intent.special_instructions,
-      statusId: await getPublicStatusId(),
     },
     plan,
   );
@@ -1122,6 +1116,21 @@ type PlaceholderBookings = Parameters<
   typeof createAttendeeAtomic
 >[0]["bookings"];
 
+type SessionProcessorOptions = { storeTokens?: boolean };
+
+const attendeeBaseFields = async (
+  session: ValidatedPaymentSession,
+  intent: BookingIntent,
+) => ({
+  address: intent.address,
+  email: intent.email,
+  name: intent.name,
+  paymentId: session.paymentReference,
+  phone: intent.phone,
+  special_instructions: intent.special_instructions,
+  statusId: await getPublicStatusId(),
+});
+
 /**
  * Keep a signed-by-us booking we can't honour rather than dropping it into limbo:
  * store it as a quantity-0 placeholder (overbook-tolerant, so capacity — or a
@@ -1149,15 +1158,9 @@ const storeRefundedBooking = async (
   // stock, so it always writes the row — trust it. (If the PII can't encrypt the
   // whole system is broken; we don't defend against that.)
   const stored = await createAttendeeAtomic({
-    address: intent.address,
+    ...(await attendeeBaseFields(session, intent)),
     allowOverbook: true,
     bookings,
-    email: intent.email,
-    name: intent.name,
-    paymentId: session.paymentReference,
-    phone: intent.phone,
-    special_instructions: intent.special_instructions,
-    statusId: await getPublicStatusId(),
   });
   const attendeeId = (stored as Extract<typeof stored, { success: true }>)
     .attendees[0]!.id;
@@ -1308,7 +1311,7 @@ const replayBalanceFromLedger = async (
 const processReservedSession = async (
   sessionId: string,
   data: ValidatedSession,
-  options?: { storeTokens?: boolean },
+  options?: SessionProcessorOptions,
 ): Promise<PaymentResult> => {
   const { session, intent, verdict } = data;
   const signedListingId = intent.items[0]!.e;
@@ -1450,7 +1453,7 @@ const processReservedSession = async (
 export const processPaymentSession = async (
   sessionId: string,
   data: ValidatedSession,
-  options?: { storeTokens?: boolean },
+  options?: SessionProcessorOptions,
 ): Promise<PaymentResult> => {
   // Phase 1: Reserve the session (claim the lock)
   const reservation = await reserveSession(sessionId);

@@ -81,6 +81,135 @@ const orderRowsFor = async (
   );
 };
 
+/** Quick booking with email "a@b.com"/name "Ada" — validation tests. */
+const adaBook = (
+  parent: Listing,
+  date: string,
+  extra: Record<string, string>,
+) =>
+  postBooking(parent.slug, {
+    date,
+    email: "a@b.com",
+    name: "Ada",
+    ...extra,
+  });
+
+/** Build the parent-qty form field for a booking or calculate call. */
+const parentField = (p: Listing, qty: string) => ({
+  [`quantity_${p.id}`]: qty,
+});
+
+/** Build a child-qty form field for a booking or calculate call. */
+const childField = (p: Listing, c: Listing, qty: string) => ({
+  [`child_qty_${p.id}_${c.id}`]: qty,
+});
+
+/** "Ada Lovelace" booking; asserts reserved. */
+const adaLoveBook = async (
+  parent: Listing,
+  date: string,
+  extra: Record<string, string>,
+) => {
+  const res = await postBooking(parent.slug, {
+    date,
+    email: "ada@example.com",
+    name: "Ada Lovelace",
+    ...extra,
+  });
+  expectReserved(res);
+  return res;
+};
+
+/** Asserts a "choose 1 more" rejection: 302, flash, no attendee row written. */
+const assertChoose1More = async (res: Response, parent: Listing) => {
+  expect(res.status).toBe(302);
+  expectFlash(res, `Choose 1 more add-on for ${parent.name}.`, false);
+  expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+};
+
+/** Asserts one attendee row per child with qty 1; returns rows for extra checks. */
+const assertOneEachPersisted = async (childA: Listing, childB: Listing) => {
+  const rowsA = await getAttendeesRaw(childA.id);
+  const rowsB = await getAttendeesRaw(childB.id);
+  expect(rowsA.length).toBe(1);
+  expect(rowsA[0]?.quantity).toBe(1);
+  expect(rowsB.length).toBe(1);
+  expect(rowsB[0]?.quantity).toBe(1);
+  return { rowsA, rowsB };
+};
+
+/** Book 2 parents with 1 of each child (Ada Lovelace, asserts reserved). */
+const bookOneOfEach = (
+  parent: Listing,
+  childA: Listing,
+  childB: Listing,
+  date: string,
+) =>
+  adaLoveBook(parent, date, {
+    ...parentField(parent, "2"),
+    ...childField(parent, childA, "1"),
+    ...childField(parent, childB, "1"),
+  });
+
+/** Book 2 parents with 2 of childA only (Ada Lovelace, asserts reserved). */
+const bookTwoOfOne = (parent: Listing, childA: Listing, date: string) =>
+  adaLoveBook(parent, date, {
+    ...parentField(parent, "2"),
+    ...childField(parent, childA, "2"),
+  });
+
+/** Set up parent+two children, book one of each — shared by ordering/detail tests. */
+const setupAndBookOneOfEach = async () => {
+  const { parent, childA, childB, date } = await setupParentWithTwoChildren();
+  await bookOneOfEach(parent, childA, childB, date);
+  return { childA, childB, date, parent };
+};
+
+/** Set up parent+two children, book two of childA — shared by two-of-one tests. */
+const setupAndBookTwoOfOne = async () => {
+  const { parent, childA, childB, date } = await setupParentWithTwoChildren();
+  await bookTwoOfOne(parent, childA, date);
+  return { childA, childB, date, parent };
+};
+
+/** Set up parent+two children and pre-compute the base adaBook fields (2×childA).
+ * Returns the entities and baseFields so callers can call adaBook with extra fields. */
+const setupTwoChildrenBase = async () => {
+  const { parent, childA, childB, date } = await setupParentWithTwoChildren();
+  const baseFields = {
+    ...parentField(parent, "2"),
+    ...childField(parent, childA, "2"),
+  };
+  return { baseFields, childA, childB, date, parent };
+};
+
+/** A standalone free daily listing plus its first bookable date, already booked. */
+const setupStandalone = async (): Promise<{
+  standalone: Listing;
+  date: string;
+}> => {
+  const standalone = await createDailyTestListing({
+    maxAttendees: 10,
+    maxQuantity: 3,
+    name: "Plain listing",
+    thankYouUrl: "",
+    unitPrice: 0,
+  });
+  const { getBookableStartDates } = await import("#shared/dates.ts");
+  const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+  const { getListingWithCount } = await import("#shared/db/listings.ts");
+  const row = (await getListingWithCount(standalone.id))!;
+  const date = getBookableStartDates(row, await getActiveHolidays())[0]!;
+  const res = await postBooking(standalone.slug, {
+    date,
+    email: "ada@example.com",
+    name: "Ada Lovelace",
+    [`quantity_${standalone.id}`]: "1",
+  });
+  expectReserved(res);
+  return { date, standalone };
+};
+
 describeWithEnv(
   "server > parents end-to-end booking journey",
   { db: true, triggers: true },
@@ -102,26 +231,16 @@ describeWithEnv(
 
     test("parent qty 1 with no child chosen is rejected (choose 1 more)", async () => {
       const { parent, date } = await setupParentWithTwoChildren();
-      const res = await postBooking(parent.slug, {
-        date,
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-      });
-      expect(res.status).toBe(302);
-      expectFlash(res, "Choose 1 more add-on for Daily base unit.", false);
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+      const res = await adaBook(parent, date, parentField(parent, "1"));
+      await assertChoose1More(res, parent);
     });
 
     test("parent qty 1 with one child unit is accepted", async () => {
       const { parent, childA, childB, date } =
         await setupParentWithTwoChildren();
-      const res = await postBooking(parent.slug, {
-        date,
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-        [`child_qty_${parent.id}_${childA.id}`]: "1",
+      const res = await adaBook(parent, date, {
+        ...parentField(parent, "1"),
+        ...childField(parent, childA, "1"),
       });
       expectReserved(res);
       const rowsA = await getAttendeesRaw(childA.id);
@@ -131,15 +250,9 @@ describeWithEnv(
     });
 
     test("parent qty 2 with two of one child is accepted and folds a single line", async () => {
-      const { parent, childA, childB, date } =
-        await setupParentWithTwoChildren();
-      const res = await postBooking(parent.slug, {
-        date,
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "2",
-        [`child_qty_${parent.id}_${childA.id}`]: "2",
-      });
+      const { parent, childA, childB, date, baseFields } =
+        await setupTwoChildrenBase();
+      const res = await adaBook(parent, date, baseFields);
       expectReserved(res);
       const rowsA = await getAttendeesRaw(childA.id);
       expect(rowsA.length).toBe(1);
@@ -151,47 +264,29 @@ describeWithEnv(
     test("parent qty 2 with one of each child is accepted and folds two lines", async () => {
       const { parent, childA, childB, date } =
         await setupParentWithTwoChildren();
-      const res = await postBooking(parent.slug, {
-        date,
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "2",
-        [`child_qty_${parent.id}_${childA.id}`]: "1",
-        [`child_qty_${parent.id}_${childB.id}`]: "1",
+      const res = await adaBook(parent, date, {
+        ...parentField(parent, "2"),
+        ...childField(parent, childA, "1"),
+        ...childField(parent, childB, "1"),
       });
       expectReserved(res);
-      const rowsA = await getAttendeesRaw(childA.id);
-      const rowsB = await getAttendeesRaw(childB.id);
-      expect(rowsA.length).toBe(1);
-      expect(rowsA[0]?.quantity).toBe(1);
-      expect(rowsB.length).toBe(1);
-      expect(rowsB[0]?.quantity).toBe(1);
+      await assertOneEachPersisted(childA, childB);
     });
 
     test("parent qty 2 with only one child unit is rejected (too few)", async () => {
       const { parent, childA, date } = await setupParentWithTwoChildren();
-      const res = await postBooking(parent.slug, {
-        date,
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "2",
-        [`child_qty_${parent.id}_${childA.id}`]: "1",
+      const res = await adaBook(parent, date, {
+        ...parentField(parent, "2"),
+        ...childField(parent, childA, "1"),
       });
-      expect(res.status).toBe(302);
-      expectFlash(res, "Choose 1 more add-on for Daily base unit.", false);
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+      await assertChoose1More(res, parent);
     });
 
     test("parent qty 2 with three child units is rejected (too many)", async () => {
-      const { parent, childA, childB, date } =
-        await setupParentWithTwoChildren();
-      const res = await postBooking(parent.slug, {
-        date,
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "2",
-        [`child_qty_${parent.id}_${childA.id}`]: "2",
-        [`child_qty_${parent.id}_${childB.id}`]: "1",
+      const { parent, childB, date, baseFields } = await setupTwoChildrenBase();
+      const res = await adaBook(parent, date, {
+        ...baseFields,
+        ...childField(parent, childB, "1"),
       });
       expect(res.status).toBe(302);
       expectFlash(
@@ -209,9 +304,9 @@ describeWithEnv(
       // children's distinct prices in a single one-of-each order.
       const fragment = await postCalculate(parent.slug, {
         date,
-        [`quantity_${parent.id}`]: "2",
-        [`child_qty_${parent.id}_${childA.id}`]: "1",
-        [`child_qty_${parent.id}_${childB.id}`]: "1",
+        ...parentField(parent, "2"),
+        ...childField(parent, childA, "1"),
+        ...childField(parent, childB, "1"),
       });
       expect(fragment).toContain("£120");
 
@@ -220,58 +315,34 @@ describeWithEnv(
       // totals £65 — so swapping the two children's prices would change both.
       const alphaOnly = await postCalculate(parent.slug, {
         date,
-        [`quantity_${parent.id}`]: "1",
-        [`child_qty_${parent.id}_${childA.id}`]: "1",
+        ...parentField(parent, "1"),
+        ...childField(parent, childA, "1"),
       });
       expect(alphaOnly).toContain("£55");
       const betaOnly = await postCalculate(parent.slug, {
         date,
-        [`quantity_${parent.id}`]: "1",
-        [`child_qty_${parent.id}_${childB.id}`]: "1",
+        ...parentField(parent, "1"),
+        ...childField(parent, childB, "1"),
       });
       expect(betaOnly).toContain("£65");
     });
 
     test("a one-of-each booking persists parent qty 2 and each child qty 1 on the parent's date", async () => {
-      const { parent, childA, childB, date } =
-        await setupParentWithTwoChildren();
-      const res = await postBooking(parent.slug, {
-        date,
-        email: "ada@example.com",
-        name: "Ada Lovelace",
-        [`quantity_${parent.id}`]: "2",
-        [`child_qty_${parent.id}_${childA.id}`]: "1",
-        [`child_qty_${parent.id}_${childB.id}`]: "1",
-      });
-      expectReserved(res);
+      const { parent, childA, childB, date } = await setupAndBookOneOfEach();
 
       const parentRows = await getAttendeesRaw(parent.id);
       expect(parentRows.length).toBe(1);
       expect(parentRows[0]?.quantity).toBe(2);
       expect(parentRows[0]?.date).toBe(date);
 
-      const rowsA = await getAttendeesRaw(childA.id);
-      const rowsB = await getAttendeesRaw(childB.id);
-      expect(rowsA.length).toBe(1);
-      expect(rowsA[0]?.quantity).toBe(1);
+      const { rowsA, rowsB } = await assertOneEachPersisted(childA, childB);
       // The daily child inherits the parent's date (invariant I4).
       expect(rowsA[0]?.date).toBe(date);
-      expect(rowsB.length).toBe(1);
-      expect(rowsB[0]?.quantity).toBe(1);
       expect(rowsB[0]?.date).toBe(date);
     });
 
     test("a two-of-one booking persists child Alpha qty 2 and no child Beta line", async () => {
-      const { parent, childA, childB, date } =
-        await setupParentWithTwoChildren();
-      const res = await postBooking(parent.slug, {
-        date,
-        email: "ada@example.com",
-        name: "Ada Lovelace",
-        [`quantity_${parent.id}`]: "2",
-        [`child_qty_${parent.id}_${childA.id}`]: "2",
-      });
-      expectReserved(res);
+      const { parent, childA, childB, date } = await setupAndBookTwoOfOne();
 
       const rowsA = await getAttendeesRaw(childA.id);
       expect(rowsA.length).toBe(1);
@@ -280,17 +351,7 @@ describeWithEnv(
     });
 
     test("admin attendee pages show the booking and each chosen child quantity", async () => {
-      const { parent, childA, childB, date } =
-        await setupParentWithTwoChildren();
-      const res = await postBooking(parent.slug, {
-        date,
-        email: "ada@example.com",
-        name: "Ada Lovelace",
-        [`quantity_${parent.id}`]: "2",
-        [`child_qty_${parent.id}_${childA.id}`]: "1",
-        [`child_qty_${parent.id}_${childB.id}`]: "1",
-      });
-      expectReserved(res);
+      const { parent, childA, childB, date } = await setupAndBookOneOfEach();
 
       const { adminGet } = await import("#test-utils");
 
@@ -323,17 +384,7 @@ describeWithEnv(
     });
 
     test("a one-of-each booking shares one order token and records each child's parent", async () => {
-      const { parent, childA, childB, date } =
-        await setupParentWithTwoChildren();
-      const res = await postBooking(parent.slug, {
-        date,
-        email: "ada@example.com",
-        name: "Ada Lovelace",
-        [`quantity_${parent.id}`]: "2",
-        [`child_qty_${parent.id}_${childA.id}`]: "1",
-        [`child_qty_${parent.id}_${childB.id}`]: "1",
-      });
-      expectReserved(res);
+      const { parent, childA, childB, date } = await setupAndBookOneOfEach();
 
       const parentRow = (await orderRowsFor(parent.id))[0]!;
       const rowA = (await orderRowsFor(childA.id))[0]!;
@@ -351,15 +402,7 @@ describeWithEnv(
     });
 
     test("a two-of-one booking records both units of the child under the parent", async () => {
-      const { parent, childA, date } = await setupParentWithTwoChildren();
-      const res = await postBooking(parent.slug, {
-        date,
-        email: "ada@example.com",
-        name: "Ada Lovelace",
-        [`quantity_${parent.id}`]: "2",
-        [`child_qty_${parent.id}_${childA.id}`]: "2",
-      });
-      expectReserved(res);
+      const { parent, childA, date } = await setupAndBookTwoOfOne();
 
       const rowsA = await orderRowsFor(childA.id);
       const parentRows = await orderRowsFor(parent.id);
@@ -372,26 +415,7 @@ describeWithEnv(
     });
 
     test("a standalone booking has an empty order token and no parent", async () => {
-      const standalone = await createDailyTestListing({
-        maxAttendees: 10,
-        maxQuantity: 3,
-        name: "Plain listing",
-        thankYouUrl: "",
-        unitPrice: 0,
-      });
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-      const row = (await getListingWithCount(standalone.id))!;
-      const date = getBookableStartDates(row, await getActiveHolidays())[0]!;
-
-      const res = await postBooking(standalone.slug, {
-        date,
-        email: "ada@example.com",
-        name: "Ada Lovelace",
-        [`quantity_${standalone.id}`]: "1",
-      });
-      expectReserved(res);
+      const { standalone, date } = await setupStandalone();
 
       const rows = await orderRowsFor(standalone.id);
       expect(rows.length).toBe(1);
@@ -400,17 +424,7 @@ describeWithEnv(
     });
 
     test("the admin attendee detail page labels each child under its parent", async () => {
-      const { parent, childA, childB, date } =
-        await setupParentWithTwoChildren();
-      const res = await postBooking(parent.slug, {
-        date,
-        email: "ada@example.com",
-        name: "Ada Lovelace",
-        [`quantity_${parent.id}`]: "2",
-        [`child_qty_${parent.id}_${childA.id}`]: "1",
-        [`child_qty_${parent.id}_${childB.id}`]: "1",
-      });
-      expectReserved(res);
+      const { parent, childA, childB, date } = await setupAndBookOneOfEach();
 
       const { adminGet } = await import("#test-utils");
       const { getAttendeesRaw: rawFor } = await import(
@@ -429,25 +443,7 @@ describeWithEnv(
     });
 
     test("a standalone booking's attendee detail page shows no add-on annotation", async () => {
-      const standalone = await createDailyTestListing({
-        maxAttendees: 10,
-        maxQuantity: 3,
-        name: "Plain listing",
-        thankYouUrl: "",
-        unitPrice: 0,
-      });
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-      const row = (await getListingWithCount(standalone.id))!;
-      const date = getBookableStartDates(row, await getActiveHolidays())[0]!;
-      const res = await postBooking(standalone.slug, {
-        date,
-        email: "ada@example.com",
-        name: "Ada Lovelace",
-        [`quantity_${standalone.id}`]: "1",
-      });
-      expectReserved(res);
+      const { standalone, date } = await setupStandalone();
 
       const { adminGet } = await import("#test-utils");
       const { getAttendeesRaw: rawFor } = await import(
@@ -461,17 +457,7 @@ describeWithEnv(
     });
 
     test("the admin calendar shows the parent and inherited-date child bookings on the parent's date", async () => {
-      const { parent, childA, childB, date } =
-        await setupParentWithTwoChildren();
-      const res = await postBooking(parent.slug, {
-        date,
-        email: "ada@example.com",
-        name: "Ada Lovelace",
-        [`quantity_${parent.id}`]: "2",
-        [`child_qty_${parent.id}_${childA.id}`]: "1",
-        [`child_qty_${parent.id}_${childB.id}`]: "1",
-      });
-      expectReserved(res);
+      const { parent, childA, childB, date } = await setupAndBookOneOfEach();
 
       const { adminGet } = await import("#test-utils");
       const calendar = await adminGet(`/admin/calendar?date=${date}`);

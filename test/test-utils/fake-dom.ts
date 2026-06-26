@@ -333,3 +333,7 @@ export const restoreDocument = (): void => {
     value: originalDocument,
   });
 };
+
+/** Find a {@link FakeElement} in `roots` by its `name` attribute. */
+export const byName = (roots: FakeElement[], name: string): FakeElement =>
+  roots.find((root) => root.attrs.get("name") === name)!;

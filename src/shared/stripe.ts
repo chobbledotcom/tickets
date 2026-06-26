@@ -23,6 +23,7 @@ import {
   createWithClient,
   enforceMetadataLimits,
   errorMessage,
+  parseWebhookPayload,
   STRIPE_METADATA_MAX_ENTRIES,
   STRIPE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
@@ -575,17 +576,7 @@ export const verifyWebhookSignature = async (
     return { error: "Signature verification failed", valid: false };
   }
 
-  // Parse and return the listing
-  try {
-    const listing = JSON.parse(payload) as StripeWebhookEvent;
-    return { listing, valid: true };
-  } catch (err) {
-    logError({
-      code: ErrorCode.STRIPE_SIGNATURE,
-      detail: `invalid JSON: ${err}`,
-    });
-    return { error: "Invalid JSON payload", valid: false };
-  }
+  return parseWebhookPayload(payload, ErrorCode.STRIPE_SIGNATURE);
 };
 
 /**

@@ -126,12 +126,12 @@ const setSecrets = async (
   scriptId: number,
   secrets: [name: string, value: string][],
 ): Promise<string[]> => {
-  const errors: string[] = [];
-  for (const [name, value] of secrets) {
-    const result = await bunnyCdnApi.setEdgeScriptSecret(scriptId, name, value);
-    if (!result.ok) errors.push(result.error);
-  }
-  return errors;
+  const results = await Promise.all(
+    secrets.map(([name, value]) =>
+      bunnyCdnApi.setEdgeScriptSecret(scriptId, name, value),
+    ),
+  );
+  return results.flatMap((result) => (result.ok ? [] : [result.error]));
 };
 
 /** Source the bundle code from input or the latest GitHub release. */

@@ -2,7 +2,9 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { initChildCompat } from "#src/ui/client/admin/child-compat.ts";
 import { initChildRequired } from "#src/ui/client/admin/child-required.ts";
+// jscpd:ignore-start
 import {
+  byName,
   childPriceSpec as childPrice,
   childQtySpec as childQty,
   childSelectorSpec as childSelector,
@@ -16,8 +18,29 @@ import {
   soleChildSpec as soleChild,
 } from "#test-utils/fake-dom.ts";
 
-const byName = (roots: FakeElement[], name: string): FakeElement =>
-  roots.find((root) => root.attrs.get("name") === name)!;
+// jscpd:ignore-end
+
+const twoChildDateSetup = () =>
+  installFakeDom([
+    date("2026-06-08"),
+    quantity("101", "2"),
+    childSelector("101"),
+    childQty("101", "202", "1", false, { dates: ["2026-06-01", "2026-06-08"] }),
+    childQty("101", "303", "1", false, { dates: ["2026-06-01"] }),
+  ]);
+
+const soleSetup = (hidden = false) =>
+  installFakeDom([
+    date("2026-06-08"),
+    hidden ? hiddenQuantity("101") : quantity("101", "2"),
+    childSelector("101"),
+    soleChild("101", "202", { dates: ["2026-06-01"] }),
+  ]);
+
+const switchDate = (roots: FakeElement[], val: string): void => {
+  byName(roots, "date").value = val;
+  byName(roots, "date").dispatch("change");
+};
 
 describe("child date/span compatibility", () => {
   afterEach(restoreDocument);
@@ -28,16 +51,8 @@ describe("child date/span compatibility", () => {
   });
 
   test("disables and zeroes a child the selected date can't serve, keeping a compatible sibling enabled", () => {
-    const roots = installFakeDom([
-      date("2026-06-08"),
-      quantity("101", "2"),
-      childSelector("101"),
-      // Child A serves the selected date; child B serves only an earlier date.
-      childQty("101", "202", "1", false, {
-        dates: ["2026-06-01", "2026-06-08"],
-      }),
-      childQty("101", "303", "1", false, { dates: ["2026-06-01"] }),
-    ]);
+    // Child A serves the selected date; child B serves only an earlier date.
+    const roots = twoChildDateSetup();
 
     initChildCompat();
 
@@ -65,22 +80,13 @@ describe("child date/span compatibility", () => {
   });
 
   test("re-enables a child when the buyer switches to a date both children support", () => {
-    const roots = installFakeDom([
-      date("2026-06-08"),
-      quantity("101", "2"),
-      childSelector("101"),
-      childQty("101", "202", "1", false, {
-        dates: ["2026-06-01", "2026-06-08"],
-      }),
-      childQty("101", "303", "1", false, { dates: ["2026-06-01"] }),
-    ]);
+    const roots = twoChildDateSetup();
 
     initChildCompat();
     expect(byName(roots, "child_qty_101_303").disabled).toBe(true);
 
     // Switch to a date both children serve; the previously-disabled child returns.
-    byName(roots, "date").value = "2026-06-01";
-    byName(roots, "date").dispatch("change");
+    switchDate(roots, "2026-06-01");
 
     expect(byName(roots, "child_qty_101_303").disabled).toBe(false);
   });
@@ -202,12 +208,7 @@ describe("child date/span compatibility", () => {
     // is surfaced on the PARENT: when the selected date can't be served the
     // parent's quantity is disabled+zeroed and the sole block flagged, rather
     // than showing "Includes …" and failing at submit.
-    const roots = installFakeDom([
-      date("2026-06-08"),
-      quantity("101", "2"),
-      childSelector("101"),
-      soleChild("101", "202", { dates: ["2026-06-01"] }),
-    ]);
+    const roots = soleSetup();
 
     initChildCompat();
 
@@ -218,19 +219,13 @@ describe("child date/span compatibility", () => {
   });
 
   test("re-enables the parent and clears the flag when the sole child can serve the selection (Fix 1)", () => {
-    const roots = installFakeDom([
-      date("2026-06-08"),
-      quantity("101", "2"),
-      childSelector("101"),
-      soleChild("101", "202", { dates: ["2026-06-01"] }),
-    ]);
+    const roots = soleSetup();
 
     initChildCompat();
     expect(byName(roots, "quantity_101").disabled).toBe(true);
 
     // Switch to a date the sole child serves: parent re-enabled, flag cleared.
-    byName(roots, "date").value = "2026-06-01";
-    byName(roots, "date").dispatch("change");
+    switchDate(roots, "2026-06-01");
 
     expect(byName(roots, "quantity_101").disabled).toBe(false);
     const sole = roots.find((r) => r.dataset.soleParent === "101")!;
@@ -242,12 +237,7 @@ describe("child date/span compatibility", () => {
     // value="1" input. An incompatible date disables+zeroes it; switching back to
     // a compatible date must restore it to "1" — otherwise it re-enables at "0"
     // with no visible control and the form submits no parent ticket.
-    const roots = installFakeDom([
-      date("2026-06-08"),
-      hiddenQuantity("101"),
-      childSelector("101"),
-      soleChild("101", "202", { dates: ["2026-06-01"] }),
-    ]);
+    const roots = soleSetup(true);
 
     initChildCompat();
     // Incompatible date: the hidden parent quantity is disabled and zeroed.
@@ -255,8 +245,7 @@ describe("child date/span compatibility", () => {
     expect(byName(roots, "quantity_101").value).toBe("0");
 
     // Switch to a date the sole child serves: parent re-enabled AND restored to 1.
-    byName(roots, "date").value = "2026-06-01";
-    byName(roots, "date").dispatch("change");
+    switchDate(roots, "2026-06-01");
 
     expect(byName(roots, "quantity_101").disabled).toBe(false);
     expect(byName(roots, "quantity_101").value).toBe("1");
@@ -267,12 +256,7 @@ describe("child date/span compatibility", () => {
     // on the quantity input — without the dispatch they do not re-run when
     // switching back to a compatible selection, leaving required price or
     // custom questions hidden/non-required until the server rejects the submit.
-    const roots = installFakeDom([
-      date("2026-06-08"),
-      hiddenQuantity("101"),
-      childSelector("101"),
-      soleChild("101", "202", { dates: ["2026-06-01"] }),
-    ]);
+    const roots = soleSetup(true);
 
     initChildCompat();
 
@@ -282,8 +266,7 @@ describe("child date/span compatibility", () => {
     });
 
     // Switch to the compatible date — should restore value AND fire change.
-    byName(roots, "date").value = "2026-06-01";
-    byName(roots, "date").dispatch("change");
+    switchDate(roots, "2026-06-01");
 
     expect(byName(roots, "quantity_101").value).toBe("1");
     expect(changeCount).toBe(1);
@@ -293,18 +276,12 @@ describe("child date/span compatibility", () => {
     // A visible quantity select that was zeroed when incompatible stays at the
     // buyer's re-pickable "0" on re-enable (only the hidden auto-quantity, which
     // the buyer can't re-pick, is restored).
-    const roots = installFakeDom([
-      date("2026-06-08"),
-      quantity("101", "2"),
-      childSelector("101"),
-      soleChild("101", "202", { dates: ["2026-06-01"] }),
-    ]);
+    const roots = soleSetup();
 
     initChildCompat();
     expect(byName(roots, "quantity_101").value).toBe("0");
 
-    byName(roots, "date").value = "2026-06-01";
-    byName(roots, "date").dispatch("change");
+    switchDate(roots, "2026-06-01");
 
     expect(byName(roots, "quantity_101").disabled).toBe(false);
     expect(byName(roots, "quantity_101").value).toBe("0");

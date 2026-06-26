@@ -6,9 +6,9 @@
  * or network. LiquidJS parses templates to an AST (no eval/new Function).
  */
 
-import { Liquid } from "liquidjs";
+import type { Liquid } from "liquidjs";
 import { lazyRef, map } from "#fp";
-import { formatCurrency } from "#shared/currency.ts";
+import { createBaseLiquidEngine } from "#shared/currency.ts";
 import {
   addDays,
   formatDateLabel,
@@ -28,9 +28,7 @@ import { listingNames } from "#templates/email/shared.ts";
 
 /** Create a configured Liquid engine with custom filters */
 const createEngine = (): Liquid => {
-  const engine = new Liquid({ strictFilters: true, strictVariables: false });
-
-  engine.registerFilter("currency", (v: string | number) => formatCurrency(v));
+  const engine = createBaseLiquidEngine();
 
   engine.registerFilter(
     "pluralize",

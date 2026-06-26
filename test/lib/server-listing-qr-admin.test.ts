@@ -29,6 +29,30 @@ const extractToken = (html: string): string | null => {
   return match ? decodeURIComponent(match[1]!) : null;
 };
 
+/** Parent with a Monday-only child: computes bookable start dates for each.
+ * Shared by two tests that exercise the child-date-constrained QR flow. */
+const setupParentWithMondayChild = async () => {
+  const { setChildIds } = await import("#shared/db/listing-parents.ts");
+  const { getBookableStartDates } = await import("#shared/dates.ts");
+  const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+  const { getListingWithCount } = await import("#shared/db/listings.ts");
+  const parent = await createDailyTestListing({ unitPrice: 500 });
+  const child = await createDailyTestListing({
+    bookableDays: ["Monday"],
+    unitPrice: 500,
+  });
+  await setChildIds(parent.id, [child.id]);
+  const holidays = await getActiveHolidays();
+  const parentDates = getBookableStartDates(
+    (await getListingWithCount(parent.id))!,
+    holidays,
+  );
+  const childDates = new Set(
+    getBookableStartDates((await getListingWithCount(child.id))!, holidays),
+  );
+  return { child, childDates, parent, parentDates };
+};
+
 describeWithEnv("admin listing-qr route", { db: true }, () => {
   describe("GET /admin/listing/:id/qr", () => {
     testRequiresAuth("/admin/listing/1/qr", {
@@ -102,25 +126,8 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
       // bookable only on Mondays. The QR form's date choices must be constrained
       // to dates a required child can serve, so an admin can't mint a QR for a
       // date the (child-constrained) scanned booking form would reject (Fix 2).
-      const { setChildIds } = await import("#shared/db/listing-parents.ts");
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-      const parent = await createDailyTestListing({ unitPrice: 500 });
-      const child = await createDailyTestListing({
-        bookableDays: ["Monday"],
-        unitPrice: 500,
-      });
-      await setChildIds(parent.id, [child.id]);
-
-      const holidays = await getActiveHolidays();
-      const parentDates = getBookableStartDates(
-        (await getListingWithCount(parent.id))!,
-        holidays,
-      );
-      const childDates = new Set(
-        getBookableStartDates((await getListingWithCount(child.id))!, holidays),
-      );
+      const { parent, parentDates, childDates } =
+        await setupParentWithMondayChild();
       const servable = parentDates.find((d) => childDates.has(d))!;
       const unservable = parentDates.find((d) => !childDates.has(d))!;
 
@@ -235,24 +242,8 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
     test("rejects a daily date no required child can serve (Fix 2)", async () => {
       // Posting a raw date the dropdown wouldn't offer (a date no required child
       // can serve) is rejected by the validator, not just hidden from the form.
-      const { setChildIds } = await import("#shared/db/listing-parents.ts");
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-      const parent = await createDailyTestListing({ unitPrice: 500 });
-      const child = await createDailyTestListing({
-        bookableDays: ["Monday"],
-        unitPrice: 500,
-      });
-      await setChildIds(parent.id, [child.id]);
-      const holidays = await getActiveHolidays();
-      const parentDates = getBookableStartDates(
-        (await getListingWithCount(parent.id))!,
-        holidays,
-      );
-      const childDates = new Set(
-        getBookableStartDates((await getListingWithCount(child.id))!, holidays),
-      );
+      const { parent, parentDates, childDates } =
+        await setupParentWithMondayChild();
       const unservable = parentDates.find((d) => !childDates.has(d))!;
       const { response } = await adminFormPost(
         `/admin/listing/${parent.id}/qr`,

@@ -16,6 +16,7 @@ import {
   checkAvailability,
   constrainParentDailyDates,
   createFreeReservation,
+  type FoldChildrenResult,
   foldSelectedChildren,
   getTicketContext,
   parentRequiresChild,
@@ -305,6 +306,35 @@ const listingDiscoveryState = async (
   };
 };
 
+/** Guard the detail/availability endpoints against a child listing: returns a
+ * 404 response when the listing is a child (not standalone-bookable, invariant
+ * I3), or `{ isSoldOutParent }` to proceed. Shared by the detail and
+ * availability handlers so the child-rejection logic is never duplicated. */
+const guardChildListing = async (
+  listing: ListingWithCount,
+): Promise<{ isSoldOutParent: boolean } | Response> => {
+  const { isChild, isSoldOutParent } = await listingDiscoveryState(listing);
+  if (isChild) return apiResponse(LISTING_NOT_FOUND, 404);
+  return { isSoldOutParent };
+};
+
+/** Combines withActiveListing and guardChildListing: resolves the listing by
+ * slug, rejects child listings with a 404 (invariant I3), then calls the
+ * handler with the listing and its isSoldOutParent flag. */
+const withGuardedListing = (
+  handler: (
+    request: Request,
+    listing: ListingWithCount,
+    isSoldOutParent: boolean,
+    server?: ServerContext,
+  ) => Promise<Response>,
+) =>
+  withActiveListing(async (request, listing, server) => {
+    const guard = await guardChildListing(listing);
+    if (guard instanceof Response) return guard;
+    return handler(request, listing, guard.isSoldOutParent, server);
+  });
+
 // =============================================================================
 // Handlers
 // =============================================================================
@@ -343,42 +373,39 @@ const handleListListings = async (): Promise<Response> => {
 };
 
 /** GET /api/listings/:slug — single listing detail */
-const handleGetListing = withActiveListing(async (_request, listing) => {
-  const { isChild, isSoldOutParent } = await listingDiscoveryState(listing);
-  // A child is not standalone-bookable (invariant I3), so its detail endpoint is
-  // a 404 — the same not-bookable outcome the web booking page gives a child
-  // slug (Fix 2).
-  if (isChild) return apiResponse(LISTING_NOT_FOUND, 404);
-  let availableDates: string[] | undefined;
-  if (listing.listing_type === "daily") {
-    const holidays = await getActiveHolidays();
-    // A daily parent's API dates must match what the web selector offers: a date
-    // no required child can serve (for the inherited span) is removed from the
-    // parent's own calendar, so the API never advertises a date the fold rejects
-    // (Fix 4). For a non-parent daily listing this is a no-op.
-    availableDates = await constrainParentDailyDates(
-      listing,
-      getAvailableDates(listing, holidays),
-      holidays,
-    );
-  }
-  const [publicListing, children] = await Promise.all([
-    toResolvedPublicListing(listing, availableDates),
-    buildChildPublicListings(listing),
-  ]);
-  // A parent advertises its required children so a client can choose a valid one
-  // (slug, price, inputs, dates) before the booking POST.
-  const withChildren =
-    children.length > 0 ? { ...publicListing, children } : publicListing;
-  // A parent with no bookable child is sold out (invariant I6); the route
-  // listing's own capacity ignores its children, so project the discovery
-  // sold-out outcome onto the response rather than advertising it as bookable.
-  return apiResponse({
-    listing: isSoldOutParent
-      ? { ...withChildren, isSoldOut: true, maxPurchasable: 0 }
-      : withChildren,
-  });
-});
+const handleGetListing = withGuardedListing(
+  async (_request, listing, isSoldOutParent) => {
+    let availableDates: string[] | undefined;
+    if (listing.listing_type === "daily") {
+      const holidays = await getActiveHolidays();
+      // A daily parent's API dates must match what the web selector offers: a date
+      // no required child can serve (for the inherited span) is removed from the
+      // parent's own calendar, so the API never advertises a date the fold rejects
+      // (Fix 4). For a non-parent daily listing this is a no-op.
+      availableDates = await constrainParentDailyDates(
+        listing,
+        getAvailableDates(listing, holidays),
+        holidays,
+      );
+    }
+    const [publicListing, children] = await Promise.all([
+      toResolvedPublicListing(listing, availableDates),
+      buildChildPublicListings(listing),
+    ]);
+    // A parent advertises its required children so a client can choose a valid one
+    // (slug, price, inputs, dates) before the booking POST.
+    const withChildren =
+      children.length > 0 ? { ...publicListing, children } : publicListing;
+    // A parent with no bookable child is sold out (invariant I6); the route
+    // listing's own capacity ignores its children, so project the discovery
+    // sold-out outcome onto the response rather than advertising it as bookable.
+    return apiResponse({
+      listing: isSoldOutParent
+        ? { ...withChildren, isSoldOut: true, maxPurchasable: 0 }
+        : withChildren,
+    });
+  },
+);
 
 /** Per-child availability for a parent's required children at a date/quantity, or
  * null when the listing is not a parent. A daily child takes the parent's date;
@@ -416,58 +443,56 @@ const buildChildAvailability = (
   });
 
 /** GET /api/listings/:slug/availability — check if spots are available */
-const handleCheckAvailability = withActiveListing(async (request, listing) => {
-  const { isChild, isSoldOutParent } = await listingDiscoveryState(listing);
-  // A child is not standalone-bookable (invariant I3) — 404, consistent with the
-  // detail endpoint and the web booking page (Fix 2).
-  if (isChild) return apiResponse(LISTING_NOT_FOUND, 404);
-  // A parent with no bookable child is sold out (invariant I6): its own capacity
-  // ignores its children, so report it unavailable rather than letting the
-  // route listing's standalone spots advertise it as bookable.
-  if (isSoldOutParent) return apiResponse({ available: false });
-  const url = new URL(request.url);
-  const quantity =
-    parseNonNegativeInt(url.searchParams.get("quantity") ?? "1") ?? 1;
-  const date = url.searchParams.get("date") || undefined;
-  // A daily parent's availability must honour the child-date union (Fix 1): the
-  // route listing's own capacity ignores its children, so it could answer
-  // `available: true` for a date the (child-constrained) detail endpoint omits
-  // and the booking fold then rejects. Constrain the requested date through the
-  // same `constrainParentDailyDates` union the detail endpoint uses; a date no
-  // required child can serve for the inherited span is unavailable. For a
-  // non-parent daily listing (no child edges) this is a no-op.
-  if (listing.listing_type === "daily" && date) {
-    const holidays = await getActiveHolidays();
-    const childServableDates = await constrainParentDailyDates(
-      listing,
-      getAvailableDates(listing, holidays),
-      holidays,
-    );
-    if (!childServableDates.includes(date)) {
-      return apiResponse({ available: false });
+const handleCheckAvailability = withGuardedListing(
+  async (request, listing, isSoldOutParent) => {
+    // A parent with no bookable child is sold out (invariant I6): its own capacity
+    // ignores its children, so report it unavailable rather than letting the
+    // route listing's standalone spots advertise it as bookable.
+    if (isSoldOutParent) return apiResponse({ available: false });
+    const url = new URL(request.url);
+    const quantity =
+      parseNonNegativeInt(url.searchParams.get("quantity") ?? "1") ?? 1;
+    const date = url.searchParams.get("date") || undefined;
+    // A daily parent's availability must honour the child-date union (Fix 1): the
+    // route listing's own capacity ignores its children, so it could answer
+    // `available: true` for a date the (child-constrained) detail endpoint omits
+    // and the booking fold then rejects. Constrain the requested date through the
+    // same `constrainParentDailyDates` union the detail endpoint uses; a date no
+    // required child can serve for the inherited span is unavailable. For a
+    // non-parent daily listing (no child edges) this is a no-op.
+    if (listing.listing_type === "daily" && date) {
+      const holidays = await getActiveHolidays();
+      const childServableDates = await constrainParentDailyDates(
+        listing,
+        getAvailableDates(listing, holidays),
+        holidays,
+      );
+      if (!childServableDates.includes(date)) {
+        return apiResponse({ available: false });
+      }
     }
-  }
-  const available = await hasAvailableSpots(
-    listing.id,
-    quantity,
-    date,
-    listing.duration_days,
-  );
-  // For a parent, also report each required child's availability for the chosen
-  // date/quantity (a daily child inherits the parent's date; a standard child is
-  // date-less), so a client can pick a child that can actually serve the booking
-  // rather than discovering it only when the booking POST rejects it.
-  const childAvailability = await buildChildAvailability(
-    listing,
-    date,
-    quantity,
-  );
-  return apiResponse(
-    childAvailability === null
-      ? { available }
-      : { available, children: childAvailability },
-  );
-});
+    const available = await hasAvailableSpots(
+      listing.id,
+      quantity,
+      date,
+      listing.duration_days,
+    );
+    // For a parent, also report each required child's availability for the chosen
+    // date/quantity (a daily child inherits the parent's date; a standard child is
+    // date-less), so a client can pick a child that can actually serve the booking
+    // rather than discovering it only when the booking POST rejects it.
+    const childAvailability = await buildChildAvailability(
+      listing,
+      date,
+      quantity,
+    );
+    return apiResponse(
+      childAvailability === null
+        ? { available }
+        : { available, children: childAvailability },
+    );
+  },
+);
 
 /** Convert JSON body fields to FormParams for validation compatibility */
 const toFormParams = (body: Record<string, unknown>): FormParams =>
@@ -690,18 +715,6 @@ const buildParentFoldForm = (
 const foldedOrderTotal = (items: CheckoutItem[]): number =>
   sumOf((item: CheckoutItem) => item.unitPrice * item.quantity)(items);
 
-/** The folded multi-item order a completed parent booking creates: the expanded
- * listing set + quantity/custom-price maps + the resolved shared day count, plus
- * whether any line is customisable (so the checkout intent carries the folded
- * `dayCount` for the webhook to reprice by, Fix 3). */
-type FoldedOrder = {
-  listings: TicketListing[];
-  quantities: Map<number, number>;
-  customPrices: Map<number, number>;
-  dayCount: number;
-  hasCustomisable: boolean;
-};
-
 /** Charge or create a folded parent+children order. Paid (with a provider): a
  * multi-item checkout session whose webhook creates and pairs the rows. Free (or
  * provider-less paid): all rows created atomically — all-or-nothing — with the
@@ -717,7 +730,7 @@ const completeFoldedBooking = async (
   request: Request,
   contact: ContactInfo,
   date: string | null,
-  fold: FoldedOrder,
+  fold: Extract<FoldChildrenResult, { ok: true }>,
   parentThankYouUrl: string,
 ): Promise<Response> => {
   const items = buildRegistrationItems(

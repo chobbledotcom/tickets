@@ -30,6 +30,7 @@
     "jsr:@std/testing@^1.0.17": "1.0.17",
     "jsr:@std/yaml@1": "1.1.1",
     "npm:@biomejs/biome@*": "2.4.8",
+    "npm:@biomejs/biome@2.4.8": "2.4.8",
     "npm:@botpoison/browser@~0.1.30": "0.1.30",
     "npm:@bunny.net/edgescript-sdk@~0.12.1": "0.12.1",
     "npm:@bunny.net/storage-sdk@~0.3.1": "0.3.1",

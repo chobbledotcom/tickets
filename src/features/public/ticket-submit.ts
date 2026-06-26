@@ -803,9 +803,15 @@ const processSubmission = async (
   });
 };
 
+const withTicketCsrfForm = (
+  request: Request,
+  onError: (message: string) => Response,
+  onForm: (form: FormParams) => Promise<Response>,
+): Promise<Response> => withCsrfForm(request, onError, onForm);
+
 /** Handle POST for ticket registration */
 const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
-  withCsrfForm(
+  withTicketCsrfForm(
     request,
     // CSRF failures redirect with a flash (the token expired or was tampered
     // with — the page reloads with a fresh token). Field-level validation
@@ -882,7 +888,7 @@ const renderQuote = async (
  * strips them before sending and the server ignores any that arrive.
  */
 const calculateTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
-  withCsrfForm(
+  withTicketCsrfForm(
     request,
     (message) => htmlResponse(orderSummaryMessage(message), 403),
     (form) => renderQuote(ctx, form),

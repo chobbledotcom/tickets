@@ -726,6 +726,19 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       terms: "",
     });
 
+    const doFold = (
+      ctx: import("#routes/public/types.ts").TicketCtx,
+      form: FormParams,
+      quantities: Map<number, number>,
+    ) =>
+      foldSelectedChildren(ctx, form, {
+        customPrices: new Map(),
+        date: null,
+        dayCount: 1,
+        hasCustomisable: false,
+        quantities,
+      });
+
     test("single parent with one child records one allocation entry", async () => {
       const { parent, child } = await makeParent({
         children: [{ maxAttendees: 10, maxQuantity: 10 }],
@@ -738,13 +751,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       const form = new FormParams({
         [`child_qty_${parent.id}_${child.id}`]: "1",
       });
-      const fold = await foldSelectedChildren(ctx, form, {
-        customPrices: new Map(),
-        date: null,
-        dayCount: 1,
-        hasCustomisable: false,
-        quantities: new Map([[parent.id, 1]]),
-      });
+      const fold = await doFold(ctx, form, new Map([[parent.id, 1]]));
       expect(fold.ok).toBe(true);
       if (!fold.ok) return;
       expect(fold.allocations).toHaveLength(1);
@@ -789,16 +796,14 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         [`child_qty_${parentA.id}_${child.id}`]: "1",
         [`child_qty_${parentB.id}_${child.id}`]: "1",
       });
-      const fold = await foldSelectedChildren(ctx, form, {
-        customPrices: new Map(),
-        date: null,
-        dayCount: 1,
-        hasCustomisable: false,
-        quantities: new Map([
+      const fold = await doFold(
+        ctx,
+        form,
+        new Map([
           [parentA.id, 1],
           [parentB.id, 1],
         ]),
-      });
+      );
       expect(fold.ok).toBe(true);
       if (!fold.ok) return;
       // Two allocations: one per (child, parent) pair.

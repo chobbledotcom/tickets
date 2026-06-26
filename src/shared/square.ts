@@ -28,6 +28,7 @@ import {
   errorMessage,
   PaymentUserError,
   packMetadata,
+  parseWebhookPayload,
   SQUARE_METADATA_MAX_ENTRIES,
   SQUARE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
@@ -858,13 +859,7 @@ export const verifyWebhookSignature = async (
     return { error: "Signature verification failed", valid: false };
   }
 
-  try {
-    const listing = JSON.parse(payload) as WebhookEvent;
-    return { listing, valid: true };
-  } catch {
-    logError({ code: ErrorCode.SQUARE_SIGNATURE, detail: "invalid JSON" });
-    return { error: "Invalid JSON payload", valid: false };
-  }
+  return parseWebhookPayload(payload, ErrorCode.SQUARE_SIGNATURE);
 };
 
 /**

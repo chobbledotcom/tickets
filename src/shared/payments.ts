@@ -69,9 +69,29 @@ export type ListingAnswerRefs = {
   listingTextAnswerIds?: Record<string, TextAnswerRef[]>;
 };
 
+/** Fields shared between BookingIntent and CheckoutIntent that carry
+ * deposit, redirect, and child-allocation metadata through the checkout. */
+type CheckoutMetaFields = {
+  /** When set, this session settles a reserved attendee's outstanding balance
+   * (rather than creating a new attendee). */
+  balanceAttendeeId?: number;
+  /** Reservation amount string (e.g. "10%") — present when the items are
+   * deposit-priced so the webhook can re-derive the deposit and the balance. */
+  reservationAmount?: string;
+  /** Explicit thank-you redirect carried through the paid round-trip, so a
+   * single parent's configured `thank_you_url` survives folding a child (which
+   * makes the booking multi-listing and would otherwise drop it). */
+  thankYouUrl?: string;
+  /** Per-(child, parent) allocation map from the fold, carried through the
+   * signed metadata so the webhook can expand child bookings into per-parent
+   * rows. Absent for legacy/no-parent orders. */
+  allocations?: ChildAllocation[];
+};
+
 /** Processed booking intent extracted from payment session metadata */
 export type BookingIntent = ContactInfo &
-  ListingAnswerRefs & {
+  ListingAnswerRefs &
+  CheckoutMetaFields & {
     date: string | null;
     /** Visitor-chosen day count for "customisable days" listings (shared across
      * the checkout). Absent when no selected listing is customisable. */
@@ -83,27 +103,12 @@ export type BookingIntent = ContactInfo &
     /** HMAC index of the site renewal token. The plain token never reaches the
      * payment provider, so a compromised provider cannot use it at /renew. */
     siteTokenIndex?: string;
-    /** When set, this session settles a reserved attendee's outstanding balance
-     * (rather than creating a new attendee). */
-    balanceAttendeeId?: number;
-    /** Reservation amount snapshot — present when the items are deposit-priced,
-     * so the webhook can re-derive the deposit and the remaining balance. */
-    reservationAmount?: string;
-    /** Explicit thank-you redirect to prefer over the derive-from-single-listing
-     * rule. Set when a single parent (whose page had one listing) with a
-     * configured `thank_you_url` folds a child: the booking then has >1 unique
-     * listing id, so the success page would otherwise drop the parent's URL. */
-    thankYouUrl?: string;
-    /** Per-(child, parent) allocation map from the fold, carried through the
-     * signed metadata so `createAttendeeForSession` can expand each child
-     * booking into one `listing_attendees` row per parent with the correct
-     * `parent_listing_id`. Absent for legacy/no-parent orders. */
-    allocations?: ChildAllocation[];
   };
 
 /** Registration intent for checkout (one or more listings) */
 export type CheckoutIntent = ContactInfo &
-  ListingAnswerRefs & {
+  ListingAnswerRefs &
+  CheckoutMetaFields & {
     date: string | null;
     /** Visitor-chosen day count for "customisable days" listings (shared across
      * the checkout). Absent when no selected listing is customisable. */
@@ -115,25 +120,10 @@ export type CheckoutIntent = ContactInfo &
     /** Plain site renewal token from /renew. Hashed before storage in provider
      * metadata; never stored at the provider in plaintext. */
     siteToken?: string;
-    /** Settle this attendee's outstanding balance instead of creating an attendee. */
-    balanceAttendeeId?: number;
     /** Override the subtotal the booking fee is calculated on (defaults to the
      * item subtotal). Used so a deposit charges the fee on the full order, and a
      * balance payment charges no fee (the fee was collected up front). */
     feeSubtotal?: number;
-    /** Reservation-amount mini-language string (e.g. "10%"). When set, each line
-     * is charged the per-unit deposit instead of its full price, while metadata
-     * still records the full price so the webhook can compute the balance owed. */
-    reservationAmount?: string;
-    /** Explicit thank-you redirect carried through the paid round-trip, so a
-     * single parent's configured `thank_you_url` survives folding a child (which
-     * makes the booking multi-listing and would otherwise drop it). The success
-     * page prefers this over the single-unique-listing-id derivation. */
-    thankYouUrl?: string;
-    /** Per-(child, parent) allocation map, carried into the signed metadata so
-     * the webhook can expand summed child bookings into per-parent rows (Stage C).
-     * Absent for orders with no folded children. */
-    allocations?: ChildAllocation[];
   };
 
 /** Result of creating a checkout session.

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { initChildRequired } from "#src/ui/client/admin/child-required.ts";
 import {
+  byName,
   childSelectorSpec as childSelector,
   type FakeElement,
   childHintSpec as hint,
@@ -13,11 +14,18 @@ import {
   soleChildSpec as soleChild,
 } from "#test-utils/fake-dom.ts";
 
-const byName = (roots: FakeElement[], name: string): FakeElement =>
-  roots.find((root) => root.attrs.get("name") === name)!;
-
 const byHint = (roots: FakeElement[], parentId: string): FakeElement =>
   roots.find((root) => root.dataset.childHint === parentId)!;
+
+const twoChoiceSetup = () =>
+  installFakeDom([
+    quantity("101", "2"),
+    childSelector("101"),
+    qty("101", "202", "2"),
+    qty("101", "303", "0"),
+    priceInput("101", "202"),
+    priceInput("101", "303"),
+  ]);
 
 describe("child required toggling", () => {
   afterEach(restoreDocument);
@@ -29,14 +37,7 @@ describe("child required toggling", () => {
   });
 
   test("requires only the price inputs of children with a positive quantity for an in-cart parent", () => {
-    const roots = installFakeDom([
-      quantity("101", "2"),
-      childSelector("101"),
-      qty("101", "202", "2"),
-      qty("101", "303", "0"),
-      priceInput("101", "202"),
-      priceInput("101", "303"),
-    ]);
+    const roots = twoChoiceSetup();
 
     initChildRequired();
 
@@ -59,14 +60,7 @@ describe("child required toggling", () => {
   });
 
   test("re-requires the new price input when the buyer redistributes the quantities", () => {
-    const roots = installFakeDom([
-      quantity("101", "2"),
-      childSelector("101"),
-      qty("101", "202", "2"),
-      qty("101", "303", "0"),
-      priceInput("101", "202"),
-      priceInput("101", "303"),
-    ]);
+    const roots = twoChoiceSetup();
 
     initChildRequired();
     expect(byName(roots, "child_price_101_202").required).toBe(true);

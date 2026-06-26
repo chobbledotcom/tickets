@@ -19,6 +19,20 @@ import {
   patchModifier,
 } from "#test-utils";
 
+/** A group member child wired as a child of an outside (non-member) parent.
+ * The group name varies between tests; everything else is identical. */
+const makeExternalBundle = async (groupName: string) => {
+  const group = await createTestGroup({ name: groupName });
+  const outsideParent = await createTestListing({ name: "External base" });
+  const child = await createTestListing({
+    groupId: group.id,
+    name: "Bundled add-on",
+  });
+  const { setChildIds } = await import("#shared/db/listing-parents.ts");
+  await setChildIds(outsideParent.id, [child.id]);
+  return { child, group, outsideParent };
+};
+
 /** Set a parent's required children directly (mirrors the admin children form). */
 const setChildren = async (
   parentId: number,
@@ -312,13 +326,8 @@ describeWithEnv(
       // group recreates `P -> C'` and re-validates P's full child set, which now
       // dead-ends on the add-on. The error must be collected and surfaced as a
       // warning rather than silently leaving a broken edge.
-      const group = await createTestGroup({ name: "Incoming bundle" });
-      const outsideParent = await createTestListing({ name: "External base" });
-      const child = await createTestListing({
-        groupId: group.id,
-        name: "Bundled add-on",
-      });
-      await setChildren(outsideParent.id, [child.id]);
+      const { child, group, outsideParent } =
+        await makeExternalBundle("Incoming bundle");
       // Add-on reachable only through the suppressed child — a dead end from the
       // external parent's page.
       await optInAddOnScopedTo("Child-only extra", [child.id]);
@@ -371,13 +380,7 @@ describeWithEnv(
       // from a child) instead of letting it be booked standalone.
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicSite(true);
-      const group = await createTestGroup({ name: "Outside-parent bundle" });
-      const outsideParent = await createTestListing({ name: "External base" });
-      const child = await createTestListing({
-        groupId: group.id,
-        name: "Bundled add-on",
-      });
-      await setChildren(outsideParent.id, [child.id]);
+      const { group } = await makeExternalBundle("Outside-parent bundle");
 
       const copies = await duplicateGroup(group.id, "Outside-parent bundle 2");
       const childCopy = copies.find((l) => l.name === "Bundled add-on")!;

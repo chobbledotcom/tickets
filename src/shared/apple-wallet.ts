@@ -21,28 +21,24 @@ import { WALLET_ICONS } from "#shared/wallet-icons.ts";
 // load native crypto — causing "Dynamic require of 'crypto' is not supported".
 forge.options.usePureJavaScript = true;
 
-/** Data needed to generate a pass — maps to existing ticket/listing data */
-export type PassData = {
-  /** Unique token identifying this ticket */
+/** Shared wallet pass data common to both Apple and Google Wallet */
+export type WalletPassData = {
   serialNumber: string;
-  /** Platform/domain name shown on the pass header */
   organizationName: string;
-  /** VoiceOver accessibility description for the pass */
-  description: string;
-  /** Listing name displayed in the primary field */
   listingName: string;
-  /** ISO 8601 date used for relevantDate and secondary field */
   listingDate: string;
-  /** Venue shown in secondary field */
   listingLocation: string;
-  /** Selected date for daily/recurring listings (null for one-off listings) */
   attendeeDate: string | null;
-  /** Ticket quantity and price (in minor units, e.g. pence) */
   quantity: number;
   pricePaid: number;
   currencyCode: string;
-  /** Full URL encoded in the QR barcode */
   checkinUrl: string;
+};
+
+/** Data needed to generate a pass — maps to existing ticket/listing data */
+export type PassData = WalletPassData & {
+  /** VoiceOver accessibility description for the pass */
+  description: string;
   /** Base URL for Apple Wallet web service (e.g. https://example.com) */
   webServiceURL: string;
   /** Optional pass colors (CSS rgb() format) */

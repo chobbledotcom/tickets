@@ -298,36 +298,62 @@ export const defineCrudApi = <
       ? config.sideEffect.validate(input, body, existing)
       : { value: undefined as Prepared };
 
+  /** Validate the prepared side effect, then write the row either transactionally
+   * (when a side effect is present) or with a plain statement. Returns an error
+   * response on side-effect rejection, or the logged JSON response on success. */
+  const checkAndWrite = async (
+    input: Input,
+    body: Record<string, unknown>,
+    existing: FullRow | null,
+    getStatement: () => Promise<{ args: InValue[]; sql: string }>,
+    plainWrite: () => Promise<Row>,
+    existingId: number | null,
+    action: string,
+    status: number,
+  ): Promise<Response> => {
+    const prepared = await prepareSideEffect(input, body, existing);
+    if ("error" in prepared) return apiErrorResponse(prepared.error);
+    if (config.sideEffect) {
+      const statement = await getStatement();
+      const fullRow = await writeWithSideEffect(
+        statement,
+        existingId,
+        prepared.value,
+      );
+      return respondWithRow(fullRow, action, status);
+    }
+    const row = await plainWrite();
+    return respondWithRow(row as unknown as FullRow, action, status);
+  };
+
+  /** Validate raw input against config.validate, then invoke fn with the typed
+   * result on success; returns the validation error response on failure. */
+  const withValidated = async (
+    raw: ParseResult<Input> | Promise<ParseResult<Input>>,
+    id: number | undefined,
+    fn: (input: Input) => Promise<Response>,
+  ): Promise<Response> => {
+    const result = await parseAndValidate(raw, config.validate, id);
+    if (!result.ok) return result.response;
+    return fn(result.input);
+  };
+
   /** Create */
   const handleCreate: RouteHandlerFn = (request) =>
-    withAuth(request, policy, async (_session, body) => {
-      const result = await parseAndValidate(
-        config.toCreateInput(body),
-        config.validate,
-      );
-      if (!result.ok) return result.response;
-
-      // Validate body-only side effects BEFORE the row write so a rejected edge
-      // leaves no orphan listing row (Fix 4). No `existing` on create.
-      const prepared = await prepareSideEffect(result.input, body, null);
-      if ("error" in prepared) return apiErrorResponse(prepared.error);
-
-      // With a side effect, insert the row and persist it in one transaction so a
-      // failed edge write rolls the row back; otherwise the plain single insert.
-      if (config.sideEffect) {
-        // A side-effect resource is built with createTable, which provides the
-        // statement builders the transactional write needs.
-        const statement = await table.insertStatement!(result.input);
-        const fullRow = await writeWithSideEffect(
-          statement,
+    withAuth(request, policy, (_session, body) =>
+      withValidated(config.toCreateInput(body), undefined, (input) =>
+        checkAndWrite(
+          input,
+          body,
           null,
-          prepared.value,
-        );
-        return respondWithRow(fullRow, "created", 201);
-      }
-      const row = await table.insert(result.input);
-      return respondWithRow(row as unknown as FullRow, "created", 201);
-    });
+          () => table.insertStatement!(input),
+          () => table.insert(input),
+          null,
+          "created",
+          201,
+        ),
+      ),
+    );
 
   // Build the route param name from the singular (e.g. "Holiday" → "holidayId")
   const paramName = `${singular.toLowerCase()}Id`;
@@ -361,34 +387,20 @@ export const defineCrudApi = <
   );
 
   /** Update */
-  const handleUpdate = entityRoute(async (existing, _session, body, id) => {
-    const result = await parseAndValidate(
-      config.toUpdateInput(body, existing),
-      config.validate,
-      id,
-    );
-    if (!result.ok) return result.response;
-
-    // Validate body-only side effects BEFORE the row write so a rejected edge
-    // leaves the existing row (e.g. its name) unchanged (Fix 4).
-    const prepared = await prepareSideEffect(result.input, body, existing);
-    if ("error" in prepared) return apiErrorResponse(prepared.error);
-
-    // With a side effect, update the row and persist it in one transaction so a
-    // failed edge write rolls the field change back too; a null statement is a
-    // no-field-change update (edges still replaced). Otherwise the plain update.
-    if (config.sideEffect) {
-      const statement = await table.updateStatement!(existing.id, result.input);
-      const fullRow = await writeWithSideEffect(
-        statement,
+  const handleUpdate = entityRoute((existing, _session, body, id) =>
+    withValidated(config.toUpdateInput(body, existing), id, (input) =>
+      checkAndWrite(
+        input,
+        body,
+        existing,
+        () => table.updateStatement!(existing.id, input),
+        () => table.update(existing.id, input) as Promise<Row>,
         existing.id,
-        prepared.value,
-      );
-      return respondWithRow(fullRow, "updated", 200);
-    }
-    const row = (await table.update(existing.id, result.input))!;
-    return respondWithRow(row as unknown as FullRow, "updated", 200);
-  });
+        "updated",
+        200,
+      ),
+    ),
+  );
 
   /** Delete */
   const handleDelete = entityRoute(async (existing, _session, body) => {

@@ -22,6 +22,8 @@ import type {
   ModifierRef,
   SessionMetadata,
   ValidatedPaymentSession,
+  WebhookEvent,
+  WebhookVerifyResult,
 } from "#shared/payments.ts";
 import type { ContactInfo } from "#shared/types.ts";
 
@@ -578,4 +580,17 @@ export const extractSessionMetadata = (
     text_answer_ids: get("text_answer_ids"),
     thank_you_url: get("thank_you_url"),
   };
+};
+
+export const parseWebhookPayload = (
+  payload: string,
+  errorCode: ErrorCodeType,
+): WebhookVerifyResult => {
+  try {
+    const listing = JSON.parse(payload) as WebhookEvent;
+    return { listing, valid: true };
+  } catch (err) {
+    logError({ code: errorCode, detail: `invalid JSON: ${err}` });
+    return { error: "Invalid JSON payload", valid: false };
+  }
 };
