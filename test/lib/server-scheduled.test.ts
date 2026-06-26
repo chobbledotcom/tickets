@@ -25,6 +25,22 @@ import {
 const scheduled = (method: "GET" | "POST"): Promise<Response> =>
   handleRequest(mockRequest("/scheduled", { method }));
 
+/** Stub fetch as a 200-OK, POST /scheduled, assert `poked` is null and the
+ *  stub was never called. Collapses the shared fetch-stub + try/finally
+ *  scaffold shared by the "not a builder" and "builder has no sites" tests. */
+const expectPostScheduledPokesNothing = async (): Promise<void> => {
+  const fetchStub = stub(globalThis, "fetch", () =>
+    Promise.resolve(new Response("ok")),
+  );
+  try {
+    const response = await scheduled("POST");
+    expect((await response.json()).poked).toBe(null);
+    expect(fetchStub.calls.length).toBe(0);
+  } finally {
+    fetchStub.restore();
+  }
+};
+
 /** Insert an orphaned attendee created `days` ago (no listing booking). */
 const insertOldOrphan = (days: number): Promise<number> =>
   insertOrphanAttendee(days, "sched-orphan");
@@ -104,16 +120,7 @@ describeWithEnv(
     });
 
     test("reports poked null when the builder has no built sites", async () => {
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response("ok")),
-      );
-      try {
-        const response = await scheduled("POST");
-        expect((await response.json()).poked).toBe(null);
-        expect(fetchStub.calls.length).toBe(0);
-      } finally {
-        fetchStub.restore();
-      }
+      await expectPostScheduledPokesNothing();
     });
 
     test("reports an error when the built site is unreachable", async () => {
@@ -135,15 +142,6 @@ describeWithEnv(
 describeWithEnv("server (scheduled tasks): not a builder", { db: true }, () => {
   test("POST does not poke built sites when not a builder", async () => {
     await insertBuiltSite("Client", "client.b-cdn.net");
-    const fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response("ok")),
-    );
-    try {
-      const response = await scheduled("POST");
-      expect((await response.json()).poked).toBe(null);
-      expect(fetchStub.calls.length).toBe(0);
-    } finally {
-      fetchStub.restore();
-    }
+    await expectPostScheduledPokesNothing();
   });
 });
