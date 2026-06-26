@@ -97,11 +97,13 @@ const buildSiteForAssignment = async (): Promise<BuiltSite | null> => {
   }
   return builtSitesCrudTable.insert({
     assignable: true,
-    bunnyScriptId: String(result.scriptId),
-    bunnyUrl: result.defaultHostname,
+    dbProvider: result.dbProvider,
     dbToken: result.dbToken,
     dbUrl: result.dbUrl,
+    hostingId: result.hostingId,
+    hostingProvider: result.hostingProvider,
     name,
+    siteUrl: result.defaultHostname,
   });
 };
 
@@ -209,13 +211,28 @@ const logRenewalCdnError = (errorContext: string, error: string): void => {
   sendNtfyError("CDN_REQUEST");
 };
 
-/** Push a subset of site secrets to the edge script. Pure I/O — no DB writes. */
+/** Push a subset of site secrets to the hosting provider. Pure I/O — no DB writes. */
 const pushSiteSecrets = async (
   site: BuiltSite,
   secrets: { readOnlyFrom?: string; renewalUrl?: string },
 ): Promise<CdnPushResult> => {
-  const scriptId = Number(site.bunnyScriptId);
-  if (!scriptId) return { error: "No bunnyScriptId", ok: false };
+  if (!site.hostingId) return { error: "No hostingId", ok: false };
+
+  if (site.hostingProvider === "deno") {
+    const { denoDeployApi } = await import("#shared/deno-deploy-api.ts");
+    const pairs: [string, string][] = [];
+    if (secrets.renewalUrl !== undefined) {
+      pairs.push(["RENEWAL_URL", secrets.renewalUrl]);
+    }
+    if (secrets.readOnlyFrom !== undefined) {
+      pairs.push(["READ_ONLY_FROM", secrets.readOnlyFrom]);
+    }
+    return denoDeployApi.setEnvVars(site.hostingId, pairs);
+  }
+
+  // Bunny path
+  const scriptId = Number(site.hostingId);
+  if (!scriptId) return { error: "No hostingId", ok: false };
 
   if (secrets.renewalUrl !== undefined) {
     const r = await bunnyCdnApi.setEdgeScriptSecret(
@@ -332,7 +349,7 @@ const assignSiteWithRenewal = async ({
     listing.initial_site_months,
     `Failed to push initial renewal secrets for site ${site.id}`,
   );
-  return { listingName: listing.name, siteUrl: site.bunnyUrl };
+  return { listingName: listing.name, siteUrl: site.siteUrl };
 };
 
 /** Assign built sites to entries that need them. Returns assigned URLs. */
@@ -380,7 +397,7 @@ const assignSitesForEntries = async (
   return assignments;
 };
 
-/** Absolute /setup/ link for a site — bunnyUrl may be a bare hostname. */
+/** Absolute /setup/ link for a site — siteUrl may be a bare hostname. */
 const siteSetupUrl = (siteUrl: string): string =>
   `${siteBaseUrl(siteUrl)}/setup/`;
 

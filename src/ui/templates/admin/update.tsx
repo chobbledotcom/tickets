@@ -17,7 +17,7 @@ export type UpdatePageState = {
   latestVersion: string;
   latestVersionName: string;
   updateAvailable: boolean;
-  bunnyConfigured: boolean;
+  providerConfigured: boolean;
 };
 
 /** Current build info section */
@@ -65,7 +65,7 @@ const UpdateAvailable = ({
         />
       </p>
     </div>
-    {state.bunnyConfigured ? (
+    {state.providerConfigured ? (
       <CsrfForm action="/admin/update" class="no-bg" id="update-deploy">
         <SubmitButton icon="rotate-ccw">{t("update.update_now")}</SubmitButton>
       </CsrfForm>

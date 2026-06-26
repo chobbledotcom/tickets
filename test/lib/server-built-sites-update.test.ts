@@ -5,6 +5,7 @@ import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { backupKey, backupTimestamp, dbName } from "#shared/db/backup.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
+import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { uploadRaw } from "#shared/storage.ts";
 import {
   adminFormPost,
@@ -73,8 +74,8 @@ describeWithEnv("POST /admin/built-sites/:id/update", { db: true }, () => {
 
   test("deploys the latest release to the site's own script", async () => {
     const site = await createTestBuiltSite({
-      bunnyScriptId: "8500",
       dbUrl: SITE_DB_URL,
+      hostingId: "8500",
       name: "Update Me",
     });
     await seedSiteBackup(SITE_DB_URL);
@@ -113,15 +114,15 @@ describeWithEnv("POST /admin/built-sites/:id/update", { db: true }, () => {
     );
     await expectFlashRedirect(
       `/admin/built-sites/${site.id}/edit`,
-      expect.stringContaining("no Bunny script ID"),
+      expect.stringContaining("no hosting ID"),
       false,
     )(response);
   });
 
   test("surfaces a deploy failure", async () => {
     const site = await createTestBuiltSite({
-      bunnyScriptId: "8501",
       dbUrl: SITE_DB_URL,
+      hostingId: "8501",
       name: "Deploy Fails",
     });
     await seedSiteBackup(SITE_DB_URL);
@@ -146,8 +147,8 @@ describeWithEnv("POST /admin/built-sites/:id/update", { db: true }, () => {
 
   test("refuses to start when another task is in progress", async () => {
     const site = await createTestBuiltSite({
-      bunnyScriptId: "8502",
       dbUrl: SITE_DB_URL,
+      hostingId: "8502",
       name: "Busy Host",
     });
     await seedSiteBackup(SITE_DB_URL);
@@ -172,8 +173,8 @@ describeWithEnv("POST /admin/built-sites/:id/update", { db: true }, () => {
 
   test("blocks the update when the site has no backup in the last hour", async () => {
     const site = await createTestBuiltSite({
-      bunnyScriptId: "8504",
       dbUrl: SITE_DB_URL,
+      hostingId: "8504",
       name: "No Backup",
     });
     // No backup is seeded for this site, so the gate refuses the update.
@@ -196,7 +197,7 @@ describeWithEnv("POST /admin/built-sites/:id/update", { db: true }, () => {
 
   test("requires a CSRF token", async () => {
     const site = await createTestBuiltSite({
-      bunnyScriptId: "8503",
+      hostingId: "8503",
       name: "CSRF Update",
     });
     const cookie = await testCookie();
@@ -220,7 +221,7 @@ describeWithEnv(
   () => {
     test("errors when the host has no Bunny API key", async () => {
       const site = await createTestBuiltSite({
-        bunnyScriptId: "8600",
+        hostingId: "8600",
         name: "No Host Key",
       });
       const { response } = await adminFormPost(
@@ -229,6 +230,96 @@ describeWithEnv(
       await expectFlashRedirect(
         `/admin/built-sites/${site.id}/edit`,
         expect.stringContaining("BUNNY_API_KEY is not configured"),
+        false,
+      )(response);
+    });
+  },
+);
+
+describeWithEnv(
+  "POST /admin/built-sites/:id/update (Deno site)",
+  { db: true, env: { DENO_DEPLOY_TOKEN: "tok123" } },
+  () => {
+    let storageTmp: string;
+    let restoreStorage: () => void;
+
+    beforeEach(() => {
+      storageTmp = Deno.makeTempDirSync();
+      restoreStorage = setTestEnv({ LOCAL_STORAGE_PATH: storageTmp });
+    });
+
+    afterEach(() => {
+      restoreStorage?.();
+      if (storageTmp) Deno.removeSync(storageTmp, { recursive: true });
+    });
+
+    test("errors when the Deno site has no hostingId", async () => {
+      const site = await createTestBuiltSite({
+        hostingProvider: "deno",
+        name: "No Deno App",
+      });
+      const { response } = await adminFormPost(
+        `/admin/built-sites/${site.id}/update`,
+      );
+      await expectFlashRedirect(
+        `/admin/built-sites/${site.id}/edit`,
+        expect.stringContaining("no Deno app ID"),
+        false,
+      )(response);
+    });
+
+    test("deploys to a Deno app when all conditions are met", async () => {
+      const site = await createTestBuiltSite({
+        dbUrl: SITE_DB_URL,
+        hostingId: "app_deno_8700",
+        hostingProvider: "deno",
+        name: "Deno Deploy Site",
+      });
+      await seedSiteBackup(SITE_DB_URL);
+      const fetchStub = stubReleaseFetch();
+      const deployStub = stub(denoDeployApi, "deployCode", () =>
+        Promise.resolve({
+          hostname: "https://app.deno.dev",
+          ok: true as const,
+        }),
+      );
+      const getEnvVarNamesStub = stub(denoDeployApi, "getEnvVarNames", () =>
+        Promise.resolve({ names: [], ok: true as const }),
+      );
+      try {
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/update`,
+        );
+        await expectFlashRedirect(
+          `/admin/built-sites/${site.id}/edit`,
+          expect.stringContaining("Updated"),
+        )(response);
+        expect(deployStub.calls[0]!.args[0]).toBe("app_deno_8700");
+      } finally {
+        deployStub.restore();
+        fetchStub.restore();
+        getEnvVarNamesStub.restore();
+      }
+    });
+  },
+);
+
+describeWithEnv(
+  "POST /admin/built-sites/:id/update (Deno site, no token)",
+  { db: true, env: { DENO_DEPLOY_TOKEN: undefined } },
+  () => {
+    test("errors when DENO_DEPLOY_TOKEN is not configured", async () => {
+      const site = await createTestBuiltSite({
+        hostingId: "app_deno_9000",
+        hostingProvider: "deno",
+        name: "No Token Deno",
+      });
+      const { response } = await adminFormPost(
+        `/admin/built-sites/${site.id}/update`,
+      );
+      await expectFlashRedirect(
+        `/admin/built-sites/${site.id}/edit`,
+        expect.stringContaining("DENO_DEPLOY_TOKEN is not configured"),
         false,
       )(response);
     });

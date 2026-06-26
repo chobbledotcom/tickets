@@ -1,22 +1,32 @@
 /**
- * Site builder — creates new Tickets instances via the Bunny API.
+ * Site builder — creates new Tickets instances via Bunny or Deno Deploy APIs.
  *
- * Flow:
+ * Flow (Bunny hosting):
  * 1. Fetch latest release code from GitHub
- * 1b. Auto-provision a Bunny database if dbUrl/dbToken not supplied
+ * 1b. Auto-provision a database (Bunny or Turso) if dbUrl/dbToken not supplied
  * 2. Create a new Bunny edge script with the code
  * 3. Enable cookies on the linked pull zone (DisableCookies: false)
  * 4. Set secrets: DB credentials, generated DB_ENCRYPTION_KEY,
- *    and host secrets copied from the host environment
+ *    BUNNY_SCRIPT_ID, and host secrets copied from the host environment
  * 5. Publish the script
+ *
+ * Flow (Deno Deploy hosting):
+ * 1. Fetch latest release code from GitHub
+ * 1b. Auto-provision a database (Bunny or Turso) if dbUrl/dbToken not supplied
+ * 2. Create a new Deno Deploy app
+ * 3. Set env vars: DB credentials, DB_ENCRYPTION_KEY, and host secrets
+ * 4. Deploy the code
  */
 
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { bunnyDbApi, type CreateDatabaseResult } from "#shared/bunny-db.ts";
+import { bunnyDbApi } from "#shared/bunny-db.ts";
 import { toBase64 } from "#shared/crypto/utils.ts";
+import type { DbProvider, HostingProvider } from "#shared/db/built-sites.ts";
+import { denoDeployApi, slugifyForDeno } from "#shared/deno-deploy-api.ts";
 import { getEnv } from "#shared/env.ts";
 import { fetchText } from "#shared/fetch.ts";
 import { withSiteDb } from "#shared/site-db.ts";
+import { tursoApi } from "#shared/turso-api.ts";
 import { fetchLatestRelease } from "#shared/update.ts";
 
 /**
@@ -66,9 +76,9 @@ export const HOST_INFRA_SECRET_KEYS: readonly string[] = HOST_SECRETS.filter(
 
 export type BuildSiteInput = {
   siteName: string;
-  /** Leave blank to auto-provision a new Bunny database via the API. */
+  /** Leave blank to auto-provision a new database via the API. */
   dbUrl?: string;
-  /** Leave blank to auto-provision a new Bunny database via the API. */
+  /** Leave blank to auto-provision a new database via the API. */
   dbToken?: string;
   /**
    * Pre-built bundle source to deploy. When omitted, the latest GitHub
@@ -76,19 +86,26 @@ export type BuildSiteInput = {
    * passes a freshly-built local bundle here.
    */
   code?: string;
+  /** Hosting provider — defaults to "bunny". */
+  hostingProvider?: HostingProvider;
+  /** Database provider (when auto-provisioning) — defaults to "bunny". */
+  dbProvider?: DbProvider;
 };
 
 export type BuildSiteResult =
   | {
       ok: true;
-      scriptId: number;
+      /** Provider-specific identifier: Bunny script ID (as string) or Deno app ID. */
+      hostingId: string;
       defaultHostname: string;
       dbUrl: string;
       dbToken: string;
+      hostingProvider: HostingProvider;
+      dbProvider: DbProvider;
     }
   | { ok: false; error: string };
 
-type BuildSiteCredentials = Pick<CreateDatabaseResult, "dbUrl" | "dbToken">;
+type BuildSiteCredentials = { dbUrl: string; dbToken: string };
 
 /** Generate a random 32-byte base64 encryption key */
 export const generateEncryptionKey = (): string => {
@@ -122,7 +139,7 @@ export const collectHostSecrets = (): [string, string][] => {
 };
 
 /** Set multiple secrets on a Bunny edge script, collecting errors */
-const setSecrets = async (
+const setBunnySecrets = async (
   scriptId: number,
   secrets: [name: string, value: string][],
 ): Promise<string[]> => {
@@ -133,6 +150,16 @@ const setSecrets = async (
   }
   return errors;
 };
+
+/** Build the base per-site secrets: DB credentials and encryption key. */
+const buildBaseSecrets = (
+  dbCredentials: BuildSiteCredentials,
+  encryptionKey: string,
+): [string, string][] => [
+  ["DB_URL", dbCredentials.dbUrl],
+  ["DB_TOKEN", dbCredentials.dbToken],
+  ["DB_ENCRYPTION_KEY", encryptionKey],
+];
 
 /** Source the bundle code from input or the latest GitHub release. */
 const getBuildCode = async (
@@ -161,97 +188,141 @@ const getBuildCode = async (
   }
 };
 
-/** Use supplied DB credentials or provision a new Bunny database. */
+/** Use supplied DB credentials or provision a new database via the selected provider. */
 const getDbCredentials = async (
   input: BuildSiteInput,
 ): Promise<
-  { ok: true; credentials: BuildSiteCredentials } | { ok: false; error: string }
+  | {
+      ok: true;
+      credentials: BuildSiteCredentials;
+      dbProvider: DbProvider;
+    }
+  | { ok: false; error: string }
 > => {
   if (input.dbUrl) {
     return {
       credentials: { dbToken: input.dbToken ?? "", dbUrl: input.dbUrl },
+      dbProvider: input.dbProvider ?? "bunny",
       ok: true,
     };
   }
 
-  const dbResult = await builderApi.createDatabase(input.siteName);
+  const provider = input.dbProvider ?? "bunny";
+  const dbResult = await builderApi.createDatabase(input.siteName, provider);
   if (!dbResult.ok) return dbResult;
   return {
     credentials: { dbToken: dbResult.dbToken, dbUrl: dbResult.dbUrl },
+    dbProvider: provider,
     ok: true,
   };
 };
 
 /**
- * Build a new site: create edge script, configure secrets, publish.
+ * Build a new site on the selected hosting provider: Bunny Edge Scripting or
+ * Deno Deploy. Configures secrets/env-vars and deploys the code.
  */
-export const buildSite = async (
+const buildSiteOnProvider = async (
   input: BuildSiteInput,
+  code: string,
+  dbCredentials: BuildSiteCredentials,
+  dbProvider: DbProvider,
+  hostingProvider: HostingProvider,
 ): Promise<BuildSiteResult> => {
   const fullName = `Tickets - ${input.siteName}`;
+  const encryptionKey = builderApi.generateEncryptionKey();
 
-  // 1. Source the bundle code: caller-supplied or latest GitHub release
-  const codeResult = await getBuildCode(input);
-  if (!codeResult.ok) return codeResult;
+  if (hostingProvider === "deno") {
+    const createResult = await denoDeployApi.createApp(
+      slugifyForDeno(fullName),
+    );
+    if (!createResult.ok) return createResult;
+    const setResult = await denoDeployApi.setEnvVars(createResult.appId, [
+      ...buildBaseSecrets(dbCredentials, encryptionKey),
+      ...collectHostSecrets(),
+    ]);
+    if (!setResult.ok) {
+      return { error: `Failed to set secrets: ${setResult.error}`, ok: false };
+    }
+    const deployResult = await denoDeployApi.deployCode(
+      createResult.appId,
+      code,
+    );
+    if (!deployResult.ok) return deployResult;
+    return {
+      dbProvider,
+      dbToken: dbCredentials.dbToken,
+      dbUrl: dbCredentials.dbUrl,
+      defaultHostname: deployResult.hostname,
+      hostingId: createResult.appId,
+      hostingProvider: "deno",
+      ok: true,
+    };
+  }
 
-  // 1b. Auto-provision database if credentials not supplied
-  const credentialsResult = await getDbCredentials(input);
-  if (!credentialsResult.ok) return credentialsResult;
-  const dbCredentials = credentialsResult.credentials;
-
-  // 2. Create edge script
-  const createResult = await bunnyCdnApi.createEdgeScript(
-    fullName,
-    codeResult.code,
-  );
+  const createResult = await bunnyCdnApi.createEdgeScript(fullName, code);
   if (!createResult.ok) return createResult;
-
   const { scriptId, pullZoneId, defaultHostname } = createResult;
-
-  // 3. Enable cookies on the linked pull zone
   const pzResult = await bunnyCdnApi.updatePullZone(pullZoneId, {
     DisableCookies: false,
   });
   if (!pzResult.ok) return pzResult;
-
-  // 4. Generate encryption key
-  const encryptionKey = builderApi.generateEncryptionKey();
-
-  // 5. Set secrets: base credentials plus any host secrets that are set
-  const secrets: [string, string][] = [
-    ["DB_URL", dbCredentials.dbUrl],
-    ["DB_TOKEN", dbCredentials.dbToken],
-    ["DB_ENCRYPTION_KEY", encryptionKey],
+  const secretErrors = await setBunnySecrets(scriptId, [
+    ...buildBaseSecrets(dbCredentials, encryptionKey),
     ["BUNNY_SCRIPT_ID", String(scriptId)],
     ...collectHostSecrets(),
-  ];
-
-  // Renewal-related secrets (READ_ONLY_FROM, RENEWAL_URL) are pushed later by
-  // site-assignment.ts after the site row has been created — the builder
-  // itself stays renewal-agnostic.
-
-  const secretErrors = await setSecrets(scriptId, secrets);
+  ]);
   if (secretErrors.length > 0) {
     return { error: `Failed to set secrets: ${secretErrors[0]}`, ok: false };
   }
-
-  // 6. Publish
   const publishResult = await bunnyCdnApi.publishEdgeScript(scriptId);
   if (!publishResult.ok) return publishResult;
-
   return {
+    dbProvider,
     dbToken: dbCredentials.dbToken,
     dbUrl: dbCredentials.dbUrl,
     defaultHostname,
+    hostingId: String(scriptId),
+    hostingProvider: "bunny",
     ok: true,
-    scriptId,
   };
 };
+
+/**
+ * Build a new site: provision database if needed, create hosting, configure
+ * secrets, deploy.
+ */
+export const buildSite = async (
+  input: BuildSiteInput,
+): Promise<BuildSiteResult> => {
+  // 1. Source the bundle code: caller-supplied or latest GitHub release
+  const codeResult = await getBuildCode(input);
+  if (!codeResult.ok) return codeResult;
+
+  // 2. Auto-provision database if credentials not supplied
+  const credentialsResult = await getDbCredentials(input);
+  if (!credentialsResult.ok) return credentialsResult;
+  const { credentials: dbCredentials, dbProvider } = credentialsResult;
+
+  // 3. Build on the selected hosting provider
+  return buildSiteOnProvider(
+    input,
+    codeResult.code,
+    dbCredentials,
+    dbProvider,
+    input.hostingProvider ?? "bunny",
+  );
+};
+
+/** Dispatch database creation to the selected provider. */
+function createDatabase(name: string, provider: DbProvider = "bunny") {
+  if (provider === "turso") return tursoApi.createDatabase(name);
+  return bunnyDbApi.createDatabase(name);
+}
 
 /** Stubbable API for testing */
 export const builderApi = {
   buildSite,
-  createDatabase: bunnyDbApi.createDatabase,
+  createDatabase,
   generateEncryptionKey,
   testDbConnection,
 };

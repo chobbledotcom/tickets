@@ -2,6 +2,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { builderApi } from "#shared/builder.ts";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { bunnyDbApi } from "#shared/bunny-db.ts";
+import { denoDeployApi } from "#shared/deno-deploy-api.ts";
+import { tursoApi } from "#shared/turso-api.ts";
 import { describeWithEnv, withMocks } from "#test-utils";
 import {
   expectBuildError,
@@ -175,7 +179,7 @@ describeWithEnv(
 
           expect(result.ok).toBe(true);
           if (result.ok) {
-            expect(result.scriptId).toBe(42);
+            expect(result.hostingId).toBe("42");
             expect(result.defaultHostname).toBe("https://test-42.b-cdn.net");
           }
 
@@ -254,5 +258,235 @@ describeWithEnv(
         expect(createDbStub.calls.length).toBe(0);
         expectSecret(secretsFrom(secretStub), "DB_TOKEN", "");
       }));
+
+    test("buildSite succeeds on Deno Deploy hosting", () =>
+      withMocks(
+        () => ({
+          createAppStub: stub(denoDeployApi, "createApp", () =>
+            Promise.resolve({
+              appId: "app_abc123",
+              ok: true as const,
+              slug: "tickets-test",
+            }),
+          ),
+          deployStub: stub(denoDeployApi, "deployCode", () =>
+            Promise.resolve({
+              hostname: "https://tickets-test.deno.dev",
+              ok: true as const,
+            }),
+          ),
+          encKeyStub: stub(
+            builderApi,
+            "generateEncryptionKey",
+            () => "dGVzdGtleQ==",
+          ),
+          fetchStub: stubBuilderFetch(),
+          setEnvStub: stub(denoDeployApi, "setEnvVars", () =>
+            Promise.resolve({ ok: true as const }),
+          ),
+        }),
+        async ({ deployStub }) => {
+          const result = await builderApi.buildSite({
+            dbToken: "tok",
+            dbUrl: "libsql://test.turso.io",
+            hostingProvider: "deno",
+            siteName: "Test",
+          });
+          expect(result.ok).toBe(true);
+          if (result.ok) {
+            expect(result.hostingProvider).toBe("deno");
+            expect(result.hostingId).toBe("app_abc123");
+            expect(result.defaultHostname).toBe(
+              "https://tickets-test.deno.dev",
+            );
+          }
+          expect(deployStub.calls).toHaveLength(1);
+        },
+      ));
+
+    test("buildSite returns error when Deno app creation fails", () =>
+      withMocks(
+        () => ({
+          encKeyStub: stub(
+            builderApi,
+            "generateEncryptionKey",
+            () => "dGVzdGtleQ==",
+          ),
+          fetchStub: stubBuilderFetch(),
+          stub: stub(denoDeployApi, "createApp", () =>
+            Promise.resolve({
+              error: "Create app failed (500): Error",
+              ok: false as const,
+            }),
+          ),
+        }),
+        async () => {
+          const result = await builderApi.buildSite({
+            dbToken: "tok",
+            dbUrl: "libsql://test.io",
+            hostingProvider: "deno",
+            siteName: "Fail",
+          });
+          expectBuildError(result, "Create app failed");
+        },
+      ));
+
+    test("buildSite returns error when Deno setEnvVars fails", () =>
+      withMocks(
+        () => ({
+          createAppStub: stub(denoDeployApi, "createApp", () =>
+            Promise.resolve({
+              appId: "app_abc",
+              ok: true as const,
+              slug: "app",
+            }),
+          ),
+          encKeyStub: stub(
+            builderApi,
+            "generateEncryptionKey",
+            () => "dGVzdGtleQ==",
+          ),
+          fetchStub: stubBuilderFetch(),
+          setEnvStub: stub(denoDeployApi, "setEnvVars", () =>
+            Promise.resolve({
+              error: "Set env failed (403)",
+              ok: false as const,
+            }),
+          ),
+        }),
+        async () => {
+          const result = await builderApi.buildSite({
+            dbToken: "tok",
+            dbUrl: "libsql://test.io",
+            hostingProvider: "deno",
+            siteName: "Fail",
+          });
+          expectBuildError(result, "Failed to set secrets");
+        },
+      ));
+
+    test("buildSite returns error when Deno deployCode fails", () =>
+      withMocks(
+        () => ({
+          createAppStub: stub(denoDeployApi, "createApp", () =>
+            Promise.resolve({
+              appId: "app_abc",
+              ok: true as const,
+              slug: "app",
+            }),
+          ),
+          deployStub: stub(denoDeployApi, "deployCode", () =>
+            Promise.resolve({
+              error: "Deploy failed (500)",
+              ok: false as const,
+            }),
+          ),
+          encKeyStub: stub(
+            builderApi,
+            "generateEncryptionKey",
+            () => "dGVzdGtleQ==",
+          ),
+          fetchStub: stubBuilderFetch(),
+          setEnvStub: stub(denoDeployApi, "setEnvVars", () =>
+            Promise.resolve({ ok: true as const }),
+          ),
+        }),
+        async () => {
+          const result = await builderApi.buildSite({
+            dbToken: "tok",
+            dbUrl: "libsql://test.io",
+            hostingProvider: "deno",
+            siteName: "Fail",
+          });
+          expectBuildError(result, "Deploy failed");
+        },
+      ));
+
+    test("createDatabase dispatches to tursoApi when provider is turso", () =>
+      withMocks(
+        () =>
+          stub(tursoApi, "createDatabase", () =>
+            Promise.resolve({
+              dbId: "turso_db_123",
+              dbToken: "turso-token",
+              dbUrl: "libsql://turso.io",
+              ok: true as const,
+            }),
+          ),
+        async (tursoStub) => {
+          const result = await builderApi.createDatabase("My Site", "turso");
+          expect(result.ok).toBe(true);
+          if (result.ok) expect(result.dbUrl).toContain("turso.io");
+          expect(tursoStub.calls).toHaveLength(1);
+        },
+      ));
+
+    test("createDatabase dispatches to bunnyDbApi when provider is bunny", () =>
+      withMocks(
+        () =>
+          stub(bunnyDbApi, "createDatabase", () =>
+            Promise.resolve({
+              dbId: "bunny_db_456",
+              dbToken: "bunny-token",
+              dbUrl: "libsql://bunny.io",
+              ok: true as const,
+            }),
+          ),
+        async (bunnyStub) => {
+          const result = await builderApi.createDatabase("My Site", "bunny");
+          expect(result.ok).toBe(true);
+          if (result.ok) expect(result.dbUrl).toContain("bunny.io");
+          expect(bunnyStub.calls).toHaveLength(1);
+        },
+      ));
+
+    test("buildSite auto-creates turso database when dbProvider is turso", () =>
+      withMocks(
+        () => ({
+          createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
+            Promise.resolve({
+              defaultHostname: "https://test-42.b-cdn.net",
+              ok: true as const,
+              pullZoneId: 99,
+              scriptId: 42,
+            }),
+          ),
+          encKeyStub: stub(
+            builderApi,
+            "generateEncryptionKey",
+            () => "dGVzdGtleQ==",
+          ),
+          fetchStub: stubBuilderFetch(),
+          publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
+            Promise.resolve({ ok: true as const }),
+          ),
+          secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+            Promise.resolve({ ok: true as const }),
+          ),
+          tursoStub: stub(tursoApi, "createDatabase", () =>
+            Promise.resolve({
+              dbId: "turso_auto",
+              dbToken: "turso-tok",
+              dbUrl: "libsql://auto.turso.io",
+              ok: true as const,
+            }),
+          ),
+          updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
+            Promise.resolve({ ok: true as const }),
+          ),
+        }),
+        async ({ tursoStub }) => {
+          const result = await builderApi.buildSite({
+            dbProvider: "turso",
+            siteName: "Turso Auto",
+          });
+          expect(result.ok).toBe(true);
+          expect(tursoStub.calls).toHaveLength(1);
+          if (result.ok) {
+            expect(result.dbProvider).toBe("turso");
+            expect(result.dbUrl).toBe("libsql://auto.turso.io");
+          }
+        },
+      ));
   },
 );

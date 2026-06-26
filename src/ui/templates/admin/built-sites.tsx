@@ -95,9 +95,9 @@ export const adminBuiltSitesPage = (
   successMessage?: string,
   renewalTiers: ListingWithCount[] = [],
 ): string => {
-  const scriptIds = sites
-    .filter((site) => site.bunnyScriptId)
-    .map((site) => site.bunnyScriptId)
+  const hostingIds = sites
+    .filter((site) => site.hostingId && site.hostingProvider === "bunny")
+    .map((site) => site.hostingId)
     .join("|");
 
   return String(
@@ -121,7 +121,7 @@ export const adminBuiltSitesPage = (
               <thead>
                 <tr>
                   <th>{t("common.name")}</th>
-                  <th>{t("built_sites.table_bunny_url")}</th>
+                  <th>{t("built_sites.table_site_url")}</th>
                   <th>{t("common.status")}</th>
                   <th>{t("built_sites.table_updates")}</th>
                   <th>{t("built_sites.table_read_only")}</th>
@@ -136,8 +136,8 @@ export const adminBuiltSitesPage = (
                       </a>
                     </td>
                     <td>
-                      <a href={site.bunnyUrl} rel="noopener" target="_blank">
-                        {site.bunnyUrl}
+                      <a href={site.siteUrl} rel="noopener" target="_blank">
+                        {site.siteUrl}
                       </a>
                     </td>
                     <td>
@@ -156,7 +156,7 @@ export const adminBuiltSitesPage = (
               </tbody>
             </table>
           </div>
-          <p>{scriptIds}</p>
+          <p>{hostingIds}</p>
         </div>
       )}
       <RenewalTierSummary tiers={renewalTiers} />
@@ -171,11 +171,13 @@ export const builtSiteToFieldValues = (
   site?: BuiltSite,
 ): Record<string, string | number | null> => ({
   assignable: booleanToCheckbox(!!site?.assignable),
-  bunny_script_id: site?.bunnyScriptId ?? "",
-  bunny_url: site?.bunnyUrl ?? "",
+  db_provider: site?.dbProvider ?? "bunny",
   db_token: site?.dbToken ?? "",
   db_url: site?.dbUrl ?? "",
+  hosting_id: site?.hostingId ?? "",
+  hosting_provider: site?.hostingProvider ?? "bunny",
   name: site?.name ?? "",
+  site_url: site?.siteUrl ?? "",
   updates: site?.updates ?? DEFAULT_UPDATE_TIER,
 });
 
@@ -457,7 +459,7 @@ const UpdatePanel = ({
     ) : state.upToDate ? (
       <output class="success">{t("built_sites.update_up_to_date")}</output>
     ) : null}
-    {state.bunnyConfigured && state.hasScriptId ? (
+    {state.providerConfigured && state.hasHostingId ? (
       <SiteActionForm action="update" siteId={site.id}>
         <button
           onclick={`return confirm('${t("built_sites.update_confirm")}')`}

@@ -272,7 +272,7 @@ describeWithEnv("renewals", { db: true }, () => {
         string,
         string,
       ];
-      expect(scriptId).toBe(Number(site.bunnyScriptId));
+      expect(scriptId).toBe(Number(site.hostingId));
       expect(secretName).toBe("READ_ONLY_FROM");
       expect(secretValue).toBe(addMonthsIso(baseDate, 2));
 

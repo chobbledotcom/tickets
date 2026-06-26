@@ -249,10 +249,10 @@ describe("adminBuiltSiteEditPage — secrets panel", () => {
 describe("adminBuiltSiteEditPage — update panel", () => {
   const site = testBuiltSite({ id: 42, name: "Panel Site" });
   const baseState = {
-    bunnyConfigured: true,
-    hasScriptId: true,
+    hasHostingId: true,
     latestVersion: "v2099-01-01-120000",
     latestVersionName: "2099-01-01 - Big Update",
+    providerConfigured: true,
     siteVersionError: null as string | null,
     siteVersionLabel: "Thu, 01 Jan 2026 00:00:00 UTC" as string | null,
     updateAvailable: true,
@@ -304,11 +304,11 @@ describe("adminBuiltSiteEditPage — update panel", () => {
 
   test("explains when automatic update is unavailable", () => {
     const html = render({
-      bunnyConfigured: false,
+      providerConfigured: false,
       updateAvailable: false,
       upToDate: false,
     });
-    expect(html).toContain("Automatic update needs BUNNY_API_KEY");
+    expect(html).toContain("Automatic update needs the provider API key");
     expect(html).not.toContain("Update this site");
   });
 });

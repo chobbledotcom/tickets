@@ -2010,7 +2010,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           (c) => (c.args[1] as string) === "READ_ONLY_FROM",
         );
         expect(readOnlyCall).toBeDefined();
-        expect(readOnlyCall!.args[0]).toBe(Number(seedSite.bunnyScriptId));
+        expect(readOnlyCall!.args[0]).toBe(Number(seedSite.hostingId));
       } finally {
         mockRetrieve.restore();
         secretStub.restore();

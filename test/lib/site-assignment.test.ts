@@ -9,6 +9,7 @@ import {
   getAssignableBuiltSites,
   insertBuiltSite,
 } from "#shared/db/built-sites.ts";
+import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import {
   resetHostEmailConfig,
   setHostEmailConfigForTest,
@@ -36,11 +37,13 @@ const stubBuildSiteSuccess = (onCall?: (input: BuildSiteInput) => void) => {
     counter++;
     onCall?.(input);
     return Promise.resolve({
+      dbProvider: "bunny" as const,
       dbToken: `token-${counter}`,
       dbUrl: `libsql://auto-${counter}.test`,
       defaultHostname: `auto-${counter}.b-cdn.net`,
+      hostingId: String(1000 + counter),
+      hostingProvider: "bunny" as const,
       ok: true as const,
-      scriptId: 1000 + counter,
     });
   });
 };
@@ -207,7 +210,7 @@ describeWithEnv(
 
           const sites = await getAllBuiltSites();
           expect(sites).toHaveLength(1);
-          expect(sites[0]!.bunnyUrl).toBe("auto-1.b-cdn.net");
+          expect(sites[0]!.siteUrl).toBe("auto-1.b-cdn.net");
           expect(sites[0]!.assignedAttendeeId).not.toBeNull();
           expect(buildStub.calls.length).toBe(1);
           expect(fetchStub.calls.length).toBe(1);
@@ -524,7 +527,7 @@ describeWithEnv(
         await insertBuiltSite("Site B", "b.test.net", "", "", true, "1002");
 
         const assignableSites = await getAssignableBuiltSites();
-        const failScriptId = Number(assignableSites[0]!.bunnyScriptId);
+        const failScriptId = Number(assignableSites[0]!.hostingId);
 
         secretStub.restore();
         const failStub = stub(
@@ -551,10 +554,10 @@ describeWithEnv(
           expect(assigned).toHaveLength(3);
 
           const failedSite = assigned.find(
-            (s) => Number(s.bunnyScriptId) === failScriptId,
+            (s) => Number(s.hostingId) === failScriptId,
           );
           const succeededSites = assigned.filter(
-            (s) => Number(s.bunnyScriptId) !== failScriptId,
+            (s) => Number(s.hostingId) !== failScriptId,
           );
 
           expect(failedSite!.readOnlyFrom).toBe("");
@@ -689,6 +692,87 @@ describe("validateSiteAssignmentConfig without builder", () => {
     } finally {
       restore();
     }
+  });
+});
+
+describeWithEnv(
+  "syncReadOnlyFrom (Deno site)",
+  { db: true, env: { DENO_DEPLOY_TOKEN: "tok123" } },
+  () => {
+    test("pushes secrets via denoDeployApi.setEnvVars for a Deno site", async () => {
+      await insertBuiltSite(
+        "Deno Sync",
+        "https://app.deno.dev",
+        "",
+        "",
+        false,
+        "app_deno_123",
+        "release",
+        "deno",
+      );
+      const site = (await getAllBuiltSites()).find(
+        (s) => s.name === "Deno Sync",
+      )!;
+
+      const setStub = stub(denoDeployApi, "setEnvVars", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+      try {
+        const result = await syncReadOnlyFrom(site, addMonthsIso(nowIso(), 3));
+        expect(result.ok).toBe(true);
+        expect(setStub.calls).toHaveLength(1);
+        const pairs = setStub.calls[0]!.args[1] as [string, string][];
+        expect(pairs.some(([k]) => k === "READ_ONLY_FROM")).toBe(true);
+      } finally {
+        setStub.restore();
+      }
+    });
+
+    test("pushes both READ_ONLY_FROM and RENEWAL_URL when renewalUrl is provided", async () => {
+      await insertBuiltSite(
+        "Deno Sync Both",
+        "https://app.deno.dev",
+        "",
+        "",
+        false,
+        "app_deno_456",
+        "release",
+        "deno",
+      );
+      const site = (await getAllBuiltSites()).find(
+        (s) => s.name === "Deno Sync Both",
+      )!;
+
+      const setStub = stub(denoDeployApi, "setEnvVars", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+      try {
+        const result = await syncReadOnlyFrom(
+          site,
+          addMonthsIso(nowIso(), 3),
+          "https://example.com/renew/token123",
+        );
+        expect(result.ok).toBe(true);
+        const pairs = setStub.calls[0]!.args[1] as [string, string][];
+        expect(pairs.some(([k]) => k === "READ_ONLY_FROM")).toBe(true);
+        expect(pairs.some(([k]) => k === "RENEWAL_URL")).toBe(true);
+      } finally {
+        setStub.restore();
+      }
+    });
+  },
+);
+
+describe("syncReadOnlyFrom with non-numeric bunny hostingId", () => {
+  test("returns error when bunny hostingId is not a valid number", async () => {
+    const { testBuiltSite } = await import("#test-utils");
+    const site = testBuiltSite({
+      hostingId: "not-a-number",
+      hostingProvider: "bunny",
+    });
+    const result = await syncReadOnlyFrom(site, "2099-01-01T00:00:00Z");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("No hostingId");
   });
 });
 

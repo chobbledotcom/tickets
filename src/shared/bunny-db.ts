@@ -8,7 +8,7 @@
 
 import { parseBunnyError } from "#shared/bunny-cdn.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
-import { fetchText } from "#shared/fetch.ts";
+import { type ApiResult, fetchText } from "#shared/fetch.ts";
 
 const DB_API_BASE = "https://api.bunny.net/database";
 
@@ -36,8 +36,6 @@ export const EUROPEAN_REGIONS = [
   "SE",
   "UK",
 ];
-
-type DbApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
 
 interface CreateDbResponse {
   db_id: string;
@@ -73,7 +71,7 @@ const dbApiHeaders = (): Record<string, string> => ({
  */
 const createDatabaseImpl = async (
   name: string,
-): Promise<DbApiResult<CreateDatabaseResult>> => {
+): Promise<ApiResult<CreateDatabaseResult>> => {
   // 1. Create the database with all European nodes as primaries and replicas
   const createRes = await fetchText(`${DB_API_BASE}/v2/databases`, {
     body: JSON.stringify({

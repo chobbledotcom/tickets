@@ -13,7 +13,7 @@ import { Layout } from "#templates/layout.tsx";
 
 export type BuiltSiteDisplay = {
   name: string;
-  bunnyUrl: string;
+  siteUrl: string;
   created: string;
 };
 
@@ -65,8 +65,8 @@ const BuiltSitesTable = ({
             <tr>
               <td>{site.name}</td>
               <td>
-                <a href={site.bunnyUrl} rel="noopener" target="_blank">
-                  {site.bunnyUrl}
+                <a href={site.siteUrl} rel="noopener" target="_blank">
+                  {site.siteUrl}
                 </a>
               </td>
               <td>{site.created}</td>

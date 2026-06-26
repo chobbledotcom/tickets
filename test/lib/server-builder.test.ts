@@ -190,6 +190,49 @@ describeWithEnv(
       );
     });
 
+    test("POST /admin/builder returns error when Deno Deploy is not configured", async () => {
+      const restoreEnv = setTestEnv({
+        DENO_DEPLOY_ORG_ID: undefined,
+        DENO_DEPLOY_TOKEN: undefined,
+      });
+      try {
+        const { response } = await adminFormPost("/admin/builder", {
+          hosting_provider: "deno",
+          site_name: "Deno Site",
+        });
+        expectRedirect(response, "/admin/builder");
+        expectFlash(
+          response,
+          expect.stringContaining("Deno Deploy is not configured"),
+          false,
+        );
+      } finally {
+        restoreEnv();
+      }
+    });
+
+    test("POST /admin/builder returns error when Turso is not configured", async () => {
+      const restoreEnv = setTestEnv({
+        TURSO_API_TOKEN: undefined,
+        TURSO_GROUP: undefined,
+        TURSO_ORGANIZATION: undefined,
+      });
+      try {
+        const { response } = await adminFormPost("/admin/builder", {
+          db_provider: "turso",
+          site_name: "Turso Site",
+        });
+        expectRedirect(response, "/admin/builder");
+        expectFlash(
+          response,
+          expect.stringContaining("Turso is not configured"),
+          false,
+        );
+      } finally {
+        restoreEnv();
+      }
+    });
+
     test("POST /admin/builder returns error when db connection fails with provided URL", async () => {
       await withMocks(
         () =>
@@ -248,10 +291,10 @@ describeWithEnv(
         const sites = await getAllBuiltSites();
         expect(sites).toHaveLength(1);
         expect(sites[0]!.name).toBe("My Test Site");
-        expect(sites[0]!.bunnyUrl).toBe("https://test-42.b-cdn.net");
+        expect(sites[0]!.siteUrl).toBe("https://test-42.b-cdn.net");
         expect(sites[0]!.dbUrl).toBe("libsql://test.turso.io");
         expect(sites[0]!.dbToken).toBe("token123");
-        expect(sites[0]!.bunnyScriptId).toBe("42");
+        expect(sites[0]!.hostingId).toBe("42");
         expect(sites[0]!.assignable).toBe(false);
       });
     });
@@ -330,11 +373,13 @@ describeWithEnv(
         () => ({
           buildStub: stub(builderApi, "buildSite", () =>
             Promise.resolve({
+              dbProvider: "bunny" as const,
               dbToken: "tok",
               dbUrl: "libsql://test.io",
               defaultHostname: "https://test.b-cdn.net",
+              hostingId: "1",
+              hostingProvider: "bunny" as const,
               ok: true as const,
-              scriptId: 1,
             }),
           ),
           dbTestStub: stubDbOk(),
@@ -363,6 +408,123 @@ describeWithEnv(
       const html = await response.text();
       expect(html).toContain("Table Test Site");
       expect(html).toContain("test-42.b-cdn.net");
+    });
+
+    test("POST /admin/builder passes deno hosting_provider to buildSite", async () => {
+      let capturedInput: Parameters<typeof builderApi.buildSite>[0] | null =
+        null;
+      const restoreEnv = setTestEnv({
+        DENO_DEPLOY_ORG_ID: "test-org",
+        DENO_DEPLOY_TOKEN: "test-token",
+      });
+      try {
+        await withMocks(
+          () => ({
+            buildStub: stub(builderApi, "buildSite", (input) => {
+              capturedInput = input;
+              return Promise.resolve({
+                dbProvider: "bunny" as const,
+                dbToken: "tok",
+                dbUrl: "libsql://test.io",
+                defaultHostname: "https://app.deno.dev",
+                hostingId: "app_123",
+                hostingProvider: "deno" as const,
+                ok: true as const,
+              });
+            }),
+            dbTestStub: stub(builderApi, "testDbConnection", () =>
+              Promise.resolve({ ok: true as const }),
+            ),
+          }),
+          async () => {
+            const { response } = await adminFormPost("/admin/builder", {
+              db_token: "tok",
+              db_url: "libsql://test.io",
+              hosting_provider: "deno",
+              site_name: "Deno Site",
+            });
+            expectRedirect(response, "/admin/builder");
+            expect(capturedInput?.hostingProvider).toBe("deno");
+          },
+        );
+      } finally {
+        restoreEnv();
+      }
+    });
+
+    test("POST /admin/builder passes turso db_provider to buildSite", async () => {
+      let capturedInput: Parameters<typeof builderApi.buildSite>[0] | null =
+        null;
+      const restoreEnv = setTestEnv({
+        TURSO_API_TOKEN: "test-token",
+        TURSO_GROUP: "test-group",
+        TURSO_ORGANIZATION: "test-org",
+      });
+      try {
+        await withMocks(
+          () => ({
+            buildStub: stub(builderApi, "buildSite", (input) => {
+              capturedInput = input;
+              return Promise.resolve({
+                dbProvider: "turso" as const,
+                dbToken: "tok",
+                dbUrl: "libsql://test.turso.io",
+                defaultHostname: "https://test-42.b-cdn.net",
+                hostingId: "42",
+                hostingProvider: "bunny" as const,
+                ok: true as const,
+              });
+            }),
+            dbTestStub: stub(builderApi, "testDbConnection", () =>
+              Promise.resolve({ ok: true as const }),
+            ),
+          }),
+          async () => {
+            const { response } = await adminFormPost("/admin/builder", {
+              db_provider: "turso",
+              db_token: "tok",
+              db_url: "libsql://test.turso.io",
+              site_name: "Turso Site",
+            });
+            expectRedirect(response, "/admin/builder");
+            expect(capturedInput?.dbProvider).toBe("turso");
+          },
+        );
+      } finally {
+        restoreEnv();
+      }
+    });
+
+    test("POST /admin/builder passes undefined dbProvider when db_provider is manual", async () => {
+      let capturedInput: Parameters<typeof builderApi.buildSite>[0] | null =
+        null;
+      await withMocks(
+        () => ({
+          buildStub: stub(builderApi, "buildSite", (input) => {
+            capturedInput = input;
+            return Promise.resolve({
+              dbProvider: "bunny" as const,
+              dbToken: "tok",
+              dbUrl: "libsql://auto.io",
+              defaultHostname: "https://test-42.b-cdn.net",
+              hostingId: "42",
+              hostingProvider: "bunny" as const,
+              ok: true as const,
+            });
+          }),
+          dbTestStub: stub(builderApi, "testDbConnection", () =>
+            Promise.resolve({ ok: true as const }),
+          ),
+        }),
+        async () => {
+          await adminFormPost("/admin/builder", {
+            db_provider: "manual",
+            db_url: "libsql://test.io",
+            site_name: "Manual DB Site",
+          });
+          expect(capturedInput?.dbProvider).toBeUndefined();
+        },
+      );
     });
   },
 );

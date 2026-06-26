@@ -7,7 +7,9 @@ import {
   getEffectiveDomain,
   getEmbedHosts,
   isBotpoisonEnabled,
+  isDenoDeployEnabled,
   isPaymentsEnabled,
+  isTursoEnabled,
   loadEffectiveDomain,
   resetEffectiveDomain,
   seedEffectiveDomainHost,
@@ -260,5 +262,81 @@ describe("Botpoison config", () => {
       BOTPOISON_SECRET_KEY: "sk_live_abc",
     });
     expect(isBotpoisonEnabled()).toBe(false);
+  });
+});
+
+describe("isDenoDeployEnabled", () => {
+  let restoreEnv: (() => void) | undefined;
+  afterEach(() => {
+    restoreEnv?.();
+    restoreEnv = undefined;
+  });
+
+  test("returns true when both DENO_DEPLOY_TOKEN and DENO_DEPLOY_ORG_ID are set", () => {
+    restoreEnv = setTestEnv({
+      DENO_DEPLOY_ORG_ID: "org123",
+      DENO_DEPLOY_TOKEN: "tok123",
+    });
+    expect(isDenoDeployEnabled()).toBe(true);
+  });
+
+  test("returns false when DENO_DEPLOY_TOKEN is missing", () => {
+    restoreEnv = setTestEnv({
+      DENO_DEPLOY_ORG_ID: "org123",
+      DENO_DEPLOY_TOKEN: undefined,
+    });
+    expect(isDenoDeployEnabled()).toBe(false);
+  });
+
+  test("returns false when DENO_DEPLOY_ORG_ID is missing", () => {
+    restoreEnv = setTestEnv({
+      DENO_DEPLOY_ORG_ID: undefined,
+      DENO_DEPLOY_TOKEN: "tok123",
+    });
+    expect(isDenoDeployEnabled()).toBe(false);
+  });
+});
+
+describe("isTursoEnabled", () => {
+  let restoreEnv: (() => void) | undefined;
+  afterEach(() => {
+    restoreEnv?.();
+    restoreEnv = undefined;
+  });
+
+  test("returns true when all Turso env vars are set", () => {
+    restoreEnv = setTestEnv({
+      TURSO_API_TOKEN: "tok",
+      TURSO_GROUP: "grp",
+      TURSO_ORGANIZATION: "org",
+    });
+    expect(isTursoEnabled()).toBe(true);
+  });
+
+  test("returns false when TURSO_API_TOKEN is missing", () => {
+    restoreEnv = setTestEnv({
+      TURSO_API_TOKEN: undefined,
+      TURSO_GROUP: "grp",
+      TURSO_ORGANIZATION: "org",
+    });
+    expect(isTursoEnabled()).toBe(false);
+  });
+
+  test("returns false when TURSO_ORGANIZATION is missing", () => {
+    restoreEnv = setTestEnv({
+      TURSO_API_TOKEN: "tok",
+      TURSO_GROUP: "grp",
+      TURSO_ORGANIZATION: undefined,
+    });
+    expect(isTursoEnabled()).toBe(false);
+  });
+
+  test("returns false when TURSO_GROUP is missing", () => {
+    restoreEnv = setTestEnv({
+      TURSO_API_TOKEN: "tok",
+      TURSO_GROUP: undefined,
+      TURSO_ORGANIZATION: "org",
+    });
+    expect(isTursoEnabled()).toBe(false);
   });
 });
