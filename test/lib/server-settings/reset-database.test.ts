@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { getSessionCookieName } from "#shared/cookies.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
@@ -10,9 +9,9 @@ import {
   assertFormRedirect,
   createTestListing,
   describeWithEnv,
+  expectDatabaseResetRedirect,
   expectFlash,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   invalidateTestDbCache,
   mockFormRequest,
   setupListingAndLogin,
@@ -137,11 +136,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       // Should redirect to setup page with session cleared
-      expectRedirectWithFlash("/setup/", "Database reset")(response);
-      const sessionCookie = response.headers
-        .getSetCookie()
-        .find((c) => c.startsWith(`${getSessionCookieName()}=`));
-      expect(sessionCookie).toContain("Max-Age=0");
+      expectDatabaseResetRedirect(response);
     });
 
     test("advanced settings page shows reset database section", async () => {

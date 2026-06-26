@@ -68,21 +68,25 @@ const editFormData = async (
   };
 };
 
+const submitEditFile =
+  (fieldName: string) =>
+  async (
+    listingId: number,
+    cookie: string,
+    csrfToken: string,
+    file: { name: string; data: Uint8Array; contentType: string },
+  ): Promise<Response> => {
+    const fields = await editFormData(listingId, csrfToken);
+    return handleRequest(
+      mockMultipartRequest(`/admin/listing/${listingId}/edit`, fields, cookie, {
+        fieldName,
+        ...file,
+      }),
+    );
+  };
+
 /** Submit an edit-form multipart request with an image file attached */
-const submitEditImage = async (
-  listingId: number,
-  cookie: string,
-  csrfToken: string,
-  file: { name: string; data: Uint8Array; contentType: string },
-): Promise<Response> => {
-  const fields = await editFormData(listingId, csrfToken);
-  return handleRequest(
-    mockMultipartRequest(`/admin/listing/${listingId}/edit`, fields, cookie, {
-      fieldName: "image",
-      ...file,
-    }),
-  );
-};
+const submitEditImage = submitEditFile("image");
 
 /** Submit a JPEG image via the edit form (most common upload case) */
 const submitEditJpeg = (
@@ -213,20 +217,7 @@ const submitListingDelete = (
   );
 
 /** Submit an edit form with an attachment file */
-const submitEditAttachment = async (
-  listingId: number,
-  cookie: string,
-  csrfToken: string,
-  file: { name: string; data: Uint8Array; contentType: string },
-): Promise<Response> => {
-  const fields = await editFormData(listingId, csrfToken);
-  return handleRequest(
-    mockMultipartRequest(`/admin/listing/${listingId}/edit`, fields, cookie, {
-      fieldName: "attachment",
-      ...file,
-    }),
-  );
-};
+const submitEditAttachment = submitEditFile("attachment");
 
 const submitEditGuidePdf = (
   listingId: number,

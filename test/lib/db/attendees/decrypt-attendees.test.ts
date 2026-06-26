@@ -6,19 +6,12 @@ import {
   bookAttendee,
   createTestAttendee,
   createTestListing,
+  decryptFirstAttendee,
   describeWithEnv,
   getTestPrivateKey,
 } from "#test-utils";
 
 describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
-  const decryptFirstAttendee = async (listingId: number) => {
-    const privateKey = await getTestPrivateKey();
-    const raw = await getAttendeesRaw(listingId);
-    const attendees = await decryptAttendees(raw, privateKey);
-    expect(attendees.length).toBe(1);
-    return attendees[0]!;
-  };
-
   test("returns empty array when no attendees", async () => {
     const listing = await createTestListing({
       maxAttendees: 50,

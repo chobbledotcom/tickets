@@ -306,14 +306,8 @@ export const createTestApiKeyFull = async (
 };
 
 export const getTestDataKeyForApiKey = async (): Promise<CryptoKey> => {
-  const { unwrapKeyWithToken } = await import("#shared/crypto/keys.ts");
-  const cookie = await testCookie();
-  const sessionMatch = cookie.match(
-    new RegExp(`${getSessionCookieName()}=([^;]+)`),
-  );
-  const token = sessionMatch![1]!;
-  const session = await getSession(token);
-  return unwrapKeyWithToken(session!.wrapped_data_key!, token);
+  const { getTestDataKey } = await import("#test-utils/crypto.ts");
+  return getTestDataKey();
 };
 
 export const requestAsApiKey = (

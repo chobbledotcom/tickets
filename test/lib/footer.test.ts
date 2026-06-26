@@ -12,7 +12,7 @@ import {
   markAdminFooter,
   renderAdminFooter,
 } from "#templates/admin/footer.tsx";
-import { setupTestEncryptionKey } from "#test-utils";
+import { expectHtmlEscaped, setupTestEncryptionKey } from "#test-utils";
 
 beforeAll(async () => {
   // The footer's logout form embeds the current CSRF token, which is HMAC
@@ -41,11 +41,6 @@ describe("debugDetailsHtml", () => {
     { durationMs: 30, sql: "SELECT 1", startedAtMs: 0 },
     { durationMs: 30, sql: "SELECT 2", startedAtMs: 5 },
   ];
-
-  const expectNoScriptTag = (html: string): void => {
-    expect(html).not.toContain("<script>");
-    expect(html).toContain("&lt;script&gt;");
-  };
 
   const bareHtml = renderDebug({ renderTimeMs: 10 });
   const sequentialHtml = renderDebug({
@@ -94,7 +89,7 @@ describe("debugDetailsHtml", () => {
       ],
       renderTimeMs: 10,
     });
-    expectNoScriptTag(html);
+    expectHtmlEscaped(html);
   });
 
   test("renders empty query list gracefully", () => {
@@ -197,7 +192,7 @@ describe("debugDetailsHtml", () => {
       cacheStats: [{ entries: 1, name: "<script>" }],
       renderTimeMs: 10,
     });
-    expectNoScriptTag(html);
+    expectHtmlEscaped(html);
   });
 
   test("shows app uptime in whole seconds in the summary", () => {

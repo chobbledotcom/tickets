@@ -15,6 +15,7 @@ import {
   testAnswer,
   testAttendee,
   testQuestion,
+  unselectedAnswerQuestionData,
 } from "#test-utils";
 
 describe("detail-rows", () => {
@@ -120,16 +121,7 @@ describe("detail-rows", () => {
     });
 
     test("shows zero for answers with no selections", () => {
-      const rows = buildAnswerSummaryRows({
-        attendeeAnswerMap: new Map(),
-        questions: [
-          testQuestion({
-            answers: [testAnswer({ id: 10, text: "A" })],
-            id: 1,
-            text: "Q?",
-          }),
-        ],
-      });
+      const rows = buildAnswerSummaryRows(unselectedAnswerQuestionData());
       expect(rows).toEqual([{ key: "Q?", value: "A (0)" }]);
     });
   });

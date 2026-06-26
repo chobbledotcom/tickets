@@ -51,6 +51,32 @@ const expectExcludesClosedRegistration = async (
   expect(body).not.toContain(absentTag);
 };
 
+const feedExclusionTests = (feedPath: string, emptyMarker: string) => {
+  test("excludes hidden listings", async () => {
+    await settings.update.showPublicSite(true);
+    await createTestListing({
+      hidden: true,
+      maxAttendees: 100,
+      name: "Secret Listing",
+    });
+    await expectHtml(await handleRequest(mockRequest(feedPath)), {
+      notContains: ["Secret Listing", emptyMarker],
+    });
+  });
+
+  test("excludes purchase_only listings", async () => {
+    await settings.update.showPublicSite(true);
+    await createTestListing({
+      maxAttendees: 100,
+      name: "Raffle Tickets",
+      purchaseOnly: true,
+    });
+    await expectHtml(await handleRequest(mockRequest(feedPath)), {
+      notContains: ["Raffle Tickets", emptyMarker],
+    });
+  });
+};
+
 const expectCalendarFeed = async (
   request: Request,
   opts: { contains?: string[]; notContains?: string[] } = {},
@@ -182,31 +208,7 @@ describeWithEnv("feeds", { db: true }, () => {
       );
     });
 
-    test("excludes hidden listings", async () => {
-      await settings.update.showPublicSite(true);
-      await createTestListing({
-        hidden: true,
-        maxAttendees: 100,
-        name: "Secret Listing",
-      });
-      await expectHtml(
-        await handleRequest(mockRequest("/feeds/listings.ics")),
-        { notContains: ["Secret Listing", "BEGIN:VLISTING"] },
-      );
-    });
-
-    test("excludes purchase_only listings", async () => {
-      await settings.update.showPublicSite(true);
-      await createTestListing({
-        maxAttendees: 100,
-        name: "Raffle Tickets",
-        purchaseOnly: true,
-      });
-      await expectHtml(
-        await handleRequest(mockRequest("/feeds/listings.ics")),
-        { notContains: ["Raffle Tickets", "BEGIN:VLISTING"] },
-      );
-    });
+    feedExclusionTests("/feeds/listings.ics", "BEGIN:VLISTING");
 
     test("escapes special characters in listing fields", async () => {
       await settings.update.showPublicSite(true);
@@ -358,31 +360,7 @@ describeWithEnv("feeds", { db: true }, () => {
       await expectExcludesClosedRegistration("/feeds/listings.rss", "<item>");
     });
 
-    test("excludes hidden listings", async () => {
-      await settings.update.showPublicSite(true);
-      await createTestListing({
-        hidden: true,
-        maxAttendees: 100,
-        name: "Secret Listing",
-      });
-      await expectHtml(
-        await handleRequest(mockRequest("/feeds/listings.rss")),
-        { notContains: ["Secret Listing", "<item>"] },
-      );
-    });
-
-    test("excludes purchase_only listings", async () => {
-      await settings.update.showPublicSite(true);
-      await createTestListing({
-        maxAttendees: 100,
-        name: "Raffle Tickets",
-        purchaseOnly: true,
-      });
-      await expectHtml(
-        await handleRequest(mockRequest("/feeds/listings.rss")),
-        { notContains: ["Raffle Tickets", "<item>"] },
-      );
-    });
+    feedExclusionTests("/feeds/listings.rss", "<item>");
 
     test("XML-escapes special characters", async () => {
       await settings.update.showPublicSite(true);

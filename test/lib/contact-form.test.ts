@@ -8,7 +8,7 @@ import {
 } from "#shared/contact-form.ts";
 import { settings } from "#shared/db/settings.ts";
 import { setHostEmailConfigForTest } from "#shared/email.ts";
-import { emailTestSandbox, validEmail } from "#test-utils";
+import { emailTestSandbox, expectSendNoop, validEmail } from "#test-utils";
 
 const BOTH_KEYS = {
   BOTPOISON_PUBLIC_KEY: "pk_test_public",
@@ -88,17 +88,11 @@ describe("sendContactMessage", () => {
     });
   };
 
-  const expectSendBlockedAndFetchUntouched = async (): Promise<void> => {
-    sandbox.stubFetch(() => Promise.reject(new Error("should not be called")));
-    expect(
-      await sendContactMessage(validEmail("visitor@example.com"), "Hi"),
-    ).toBe(false);
-    expect(sandbox.fetchStub?.calls.length).toBe(0);
-  };
-
   test("returns false and sends nothing when no email provider is set", async () => {
     settings.setForTest({ business_email: "owner@example.com" });
-    await expectSendBlockedAndFetchUntouched();
+    await expectSendNoop(sandbox, () =>
+      sendContactMessage(validEmail("visitor@example.com"), "Hi"),
+    );
   });
 
   test("returns false when no business email is set", async () => {
@@ -108,7 +102,9 @@ describe("sendContactMessage", () => {
       email_from_address: "sender@example.com",
       email_provider: "resend",
     });
-    await expectSendBlockedAndFetchUntouched();
+    await expectSendNoop(sandbox, () =>
+      sendContactMessage(validEmail("visitor@example.com"), "Hi"),
+    );
   });
 
   test("delivers to the business email with the sender as Reply-To", async () => {

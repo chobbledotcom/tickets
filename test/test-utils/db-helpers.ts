@@ -1,9 +1,10 @@
+import { expect } from "@std/expect";
 import { beforeEach } from "@std/testing/bdd";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { decryptAttendees, getAttendeesRaw } from "#shared/db/attendees.ts";
 import type { BuiltSiteFormInput } from "#shared/db/built-sites.ts";
 import type { GroupInput } from "#shared/db/groups.ts";
 import type { HolidayInput } from "#shared/db/holidays.ts";
@@ -20,6 +21,7 @@ import type {
   Listing,
   ListingWithCount,
 } from "#shared/types.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { testListingInput } from "#test-utils/factories.ts";
 import type { BookAttendeeOpts } from "#test-utils/internal.ts";
 
@@ -195,18 +197,22 @@ const formatOptional = (update: string | undefined, existing: string): string =>
 const formatPrice = (update: number | undefined, existing: number): string =>
   update !== undefined ? toMajorUnits(update) : toMajorUnits(existing);
 
-async function doAuthenticatedFormRequest<T>(
+async function doAuthenticatedRequest<T>(
   path: string,
   formData: Record<string, string>,
+  buildRequest: (
+    path: string,
+    data: Record<string, string>,
+    cookie: string,
+  ) => Request,
   onSuccess: () => Promise<T>,
   errorContext: string,
 ): Promise<T> {
   const { getTestSession } = await import("#test-utils/session.ts");
   const { handleRequest } = await import("#routes");
-  const { mockFormRequest } = await import("#test-utils/mocks.ts");
   const session = await getTestSession();
   const response = await handleRequest(
-    mockFormRequest(
+    buildRequest(
       path,
       { ...formData, csrf_token: session.csrfToken },
       session.cookie,
@@ -219,29 +225,37 @@ async function doAuthenticatedFormRequest<T>(
   return onSuccess();
 }
 
-async function doAuthenticatedMultipartFormRequest<T>(
+const doAuthenticatedFormRequest = async <T>(
   path: string,
   formData: Record<string, string>,
   onSuccess: () => Promise<T>,
   errorContext: string,
-): Promise<T> {
-  const { getTestSession } = await import("#test-utils/session.ts");
-  const { handleRequest } = await import("#routes");
-  const { mockMultipartRequest } = await import("#test-utils/mocks.ts");
-  const session = await getTestSession();
-  const response = await handleRequest(
-    mockMultipartRequest(
-      path,
-      { ...formData, csrf_token: session.csrfToken },
-      session.cookie,
-    ),
+): Promise<T> => {
+  const { mockFormRequest } = await import("#test-utils/mocks.ts");
+  return doAuthenticatedRequest(
+    path,
+    formData,
+    mockFormRequest,
+    onSuccess,
+    errorContext,
   );
-  response.body?.cancel();
-  if (response.status !== 302) {
-    throw new Error(`Failed to ${errorContext}: ${response.status}`);
-  }
-  return onSuccess();
-}
+};
+
+const doAuthenticatedMultipartFormRequest = async <T>(
+  path: string,
+  formData: Record<string, string>,
+  onSuccess: () => Promise<T>,
+  errorContext: string,
+): Promise<T> => {
+  const { mockMultipartRequest } = await import("#test-utils/mocks.ts");
+  return doAuthenticatedRequest(
+    path,
+    formData,
+    mockMultipartRequest,
+    onSuccess,
+    errorContext,
+  );
+};
 
 export const createTestListing = (
   overrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
@@ -431,6 +445,21 @@ export const attendeeExists = async (id: number): Promise<boolean> => {
     (await queryOne<{ one: number }>(
       "SELECT 1 AS one FROM attendees WHERE id = ?",
       [id],
+    )) !== null
+  );
+};
+
+/** Check whether a row exists in `table` where `column` = `value`. */
+export const rowExists = async (
+  table: string,
+  column: string,
+  value: string | number,
+): Promise<boolean> => {
+  const { queryOne } = await import("#shared/db/client.ts");
+  return (
+    (await queryOne<{ one: number }>(
+      `SELECT 1 AS one FROM ${table} WHERE ${column} = ?`,
+      [value],
     )) !== null
   );
 };
@@ -947,4 +976,14 @@ export const getEmbeddableTicketResponse = async (): Promise<Response> => {
     thankYouUrl: "https://example.com",
   });
   return handleRequest(mockRequest(`/ticket/${listing.slug}`));
+};
+
+export const decryptFirstAttendee = async (
+  listingId: number,
+): Promise<Attendee> => {
+  const privateKey = await getTestPrivateKey();
+  const raw = await getAttendeesRaw(listingId);
+  const attendees = await decryptAttendees(raw, privateKey);
+  expect(attendees.length).toBe(1);
+  return attendees[0]!;
 };

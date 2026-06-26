@@ -11,6 +11,45 @@ export const expectStatus =
     return response;
   };
 
+export const expectDatabaseResetRedirect = (response: Response): Response => {
+  expectRedirectWithFlash("/setup/", "Database reset")(response);
+  const sessionCookie = response.headers
+    .getSetCookie()
+    .find((c) => c.startsWith(`${getSessionCookieName()}=`));
+  expect(sessionCookie).toContain("Max-Age=0");
+  return response;
+};
+
+export const expectAdminLoginSuccess = async (
+  response: Response,
+): Promise<void> => {
+  await expectFlashRedirect("/admin", "Logged in")(response);
+  const sessionCookie = response.headers
+    .getSetCookie()
+    .find((c) => c.startsWith(`${getSessionCookieName()}=`));
+  expect(sessionCookie).toBeDefined();
+};
+
+export const expectActivityLogShows = async (
+  name: string,
+  verb: string,
+): Promise<void> => {
+  const { adminGet } = await import("#test-utils/session.ts");
+  const response = await adminGet("/admin/log");
+  const body = await response.text();
+  expect(body).toContain(name);
+  expect(body).toContain(verb);
+};
+
+export const expectTestAttendeeCsvColumns = (
+  row: string | undefined,
+  quantity = 1,
+): void => {
+  expect(row).toContain("John Doe");
+  expect(row).toContain("john@example.com");
+  expect(row).toContain(`,${quantity},`);
+};
+
 export const expectJsonResponse =
   // deno-lint-ignore no-explicit-any
     <T = any>(status: number, assertions?: (body: T) => void) =>
@@ -326,6 +365,27 @@ export const expectThrows = <E extends Error>(
 ): void => {
   expect(fn).toThrow(errorClass);
   if (pattern !== undefined) expect(fn).toThrow(pattern);
+};
+
+/** Await `promise` expecting it to reject, and return the thrown error's
+ *  message string. Useful when you need to assert on a substring of the
+ *  message (Deno's `rejects.toThrow` doesn't return the message). */
+export const rejectionMessage = async (
+  promise: Promise<unknown>,
+): Promise<string> => {
+  try {
+    await promise;
+  } catch (error) {
+    return (error as Error).message;
+  }
+  return "";
+};
+
+/** Assert that HTML content is properly escaped — `<script>` shows as
+ *  `&lt;script&gt;`. */
+export const expectHtmlEscaped = (html: string): void => {
+  expect(html).not.toContain("<script>");
+  expect(html).toContain("&lt;script&gt;");
 };
 
 export const matchGroup = (

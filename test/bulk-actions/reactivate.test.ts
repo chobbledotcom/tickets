@@ -11,6 +11,15 @@ import {
 } from "#test-utils";
 
 describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
+  const createInactiveListGroup = async (name: string) => {
+    const group = await createTestGroup({ name });
+    const a = await createTestListing({ groupId: group.id, name: "A" });
+    const b = await createTestListing({ groupId: group.id, name: "B" });
+    await listingsTable.update(a.id, { active: false });
+    await listingsTable.update(b.id, { active: false });
+    return { a, b, group };
+  };
+
   describe("GET /admin/groups/:id/bulk-actions/reactivate", () => {
     test("renders the reactivate confirmation form with a singular listing count", async () => {
       const group = await createTestGroup({ name: "Solo Off" });
@@ -35,11 +44,7 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
     });
 
     test("renders the reactivate form with a plural listing count", async () => {
-      const group = await createTestGroup({ name: "Many Off" });
-      const a = await createTestListing({ groupId: group.id, name: "A" });
-      const b = await createTestListing({ groupId: group.id, name: "B" });
-      await listingsTable.update(a.id, { active: false });
-      await listingsTable.update(b.id, { active: false });
+      const { group } = await createInactiveListGroup("Many Off");
 
       await expectHtml(
         await adminGet(`/admin/groups/${group.id}/bulk-actions/reactivate`),
@@ -57,11 +62,7 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
 
   describe("POST /admin/groups/:id/bulk-actions/reactivate", () => {
     test("reactivates every listing in the group when the name is confirmed", async () => {
-      const group = await createTestGroup({ name: "Bring Back" });
-      const a = await createTestListing({ groupId: group.id, name: "A" });
-      const b = await createTestListing({ groupId: group.id, name: "B" });
-      await listingsTable.update(a.id, { active: false });
-      await listingsTable.update(b.id, { active: false });
+      const { group, a, b } = await createInactiveListGroup("Bring Back");
 
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/bulk-actions/reactivate`,

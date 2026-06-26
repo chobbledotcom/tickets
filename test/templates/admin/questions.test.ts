@@ -20,6 +20,7 @@ import {
   testAnswer,
   testListingWithCount,
   testQuestion,
+  unselectedAnswerQuestionData,
 } from "#test-utils";
 
 const TEST_LISTINGS = [
@@ -654,16 +655,7 @@ describe("buildAnswerSummaryRows", () => {
   });
 
   test("shows zero for answers with no selections", () => {
-    const html = buildAnswerSummaryRows({
-      attendeeAnswerMap: new Map(),
-      questions: [
-        testQuestion({
-          answers: [testAnswer({ id: 10, text: "A" })],
-          id: 1,
-          text: "Q?",
-        }),
-      ],
-    });
+    const html = buildAnswerSummaryRows(unselectedAnswerQuestionData());
     expect(html).toContain("A (0)");
   });
 });

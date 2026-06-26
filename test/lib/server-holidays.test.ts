@@ -9,6 +9,7 @@ import {
   createTestHoliday,
   deleteTestHoliday,
   describeWithEnv,
+  expectActivityLogShows,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
@@ -432,28 +433,19 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
   describe("activity logging", () => {
     test("logs holiday creation", async () => {
       await createTestHoliday({ name: "Logged Holiday" });
-      const response = await adminGet("/admin/log");
-      const body = await response.text();
-      expect(body).toContain("Logged Holiday");
-      expect(body).toContain("created");
+      await expectActivityLogShows("Logged Holiday", "created");
     });
 
     test("logs holiday update", async () => {
       const holiday = await createTestHoliday({ name: "Before Update" });
-      await updateTestHoliday(holiday.id, { name: "After Update" });
-      const response = await adminGet("/admin/log");
-      const body = await response.text();
-      expect(body).toContain("After Update");
-      expect(body).toContain("updated");
+      await updateTestHoliday(holiday.id, { name: "Updated Holiday" });
+      await expectActivityLogShows("Updated Holiday", "updated");
     });
 
     test("logs holiday deletion", async () => {
       const holiday = await createTestHoliday({ name: "Deleted Holiday" });
       await deleteTestHoliday(holiday.id);
-      const response = await adminGet("/admin/log");
-      const body = await response.text();
-      expect(body).toContain("Deleted Holiday");
-      expect(body).toContain("deleted");
+      await expectActivityLogShows("Deleted Holiday", "deleted");
     });
   });
 

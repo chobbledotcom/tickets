@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { getSessionCookieName } from "#shared/cookies.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
@@ -14,6 +13,7 @@ import {
   assertPublicHtml,
   createTestListing,
   describeWithEnv,
+  expectDatabaseResetRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
@@ -160,11 +160,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
         confirm_phrase: RESET_DATABASE_PHRASE,
       });
 
-      expectRedirectWithFlash("/setup/", "Database reset")(response);
-      const sessionCookie = response.headers
-        .getSetCookie()
-        .find((c) => c.startsWith(`${getSessionCookieName()}=`));
-      expect(sessionCookie).toContain("Max-Age=0");
+      expectDatabaseResetRedirect(response);
       invalidateTestDbCache();
     });
 

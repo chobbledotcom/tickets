@@ -22,7 +22,7 @@ import {
 import {
   describeWithEnv,
   invalidateTestDbCache,
-  setTestEnv,
+  stubNtfyFetch,
 } from "#test-utils";
 import {
   markCurrentSchemaMigrationPending,
@@ -79,10 +79,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       client: Client,
       body: () => Promise<void>,
     ): Promise<void> => {
-      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
-      );
+      const { fetchStub, restore } = stubNtfyFetch();
       setDb(client);
       try {
         await body();

@@ -14,7 +14,7 @@ import {
 } from "#shared/accounting/mappers.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv, rejectionMessage } from "#test-utils";
 
 // balanceOf ignores id, so a constant id keeps these as plain value assertions.
 const asTransfer = (t: TransferInput): Transfer => ({
@@ -33,16 +33,6 @@ const facts = (overrides: Partial<BookingFacts> = {}): BookingFacts => ({
   occurredAt: "2026-06-21T00:00:00.000Z",
   ...overrides,
 });
-
-/** Run a promise expected to reject and return the thrown message. */
-const rejectionMessage = async (promise: Promise<unknown>): Promise<string> => {
-  try {
-    await promise;
-  } catch (error) {
-    return (error as Error).message;
-  }
-  return "";
-};
 
 describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
   describe("mapBooking", () => {

@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { type Stub, stub } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import {
   initDb,
@@ -18,31 +17,28 @@ import { settings } from "#shared/db/settings.ts";
 import {
   createTestListing,
   describeWithEnv,
+  expectNtfyNotification,
   invalidateTestDbCache,
   setTestEnv,
+  stubNtfyFetch,
   TEST_ADMIN_PASSWORD,
 } from "#test-utils";
 import { markCurrentSchemaMigrationPending } from "./migration-test-helpers.ts";
 
 describeWithEnv("db > migration runtime", { db: true }, () => {
-  const NTFY_TEST_TOPIC = "https://ntfy.sh/test-topic";
   const TEST_DB_URL = "libsql://abc-tickets-spencer.lite.bunnydb.net";
 
-  const stubNtfyFetch = (env: Record<string, string | undefined> = {}) => {
-    const restore = setTestEnv({ NTFY_URL: NTFY_TEST_TOPIC, ...env });
-    const fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response()),
-    );
-    return { fetchStub, restore };
-  };
-
-  const expectNtfyNotification = (fetchStub: Stub, expectedBody?: string) => {
-    const ntfyCall = fetchStub.calls.find((c) => c.args[0] === NTFY_TEST_TOPIC);
-    expect(ntfyCall).toBeDefined();
-    if (expectedBody !== undefined) {
-      expect((ntfyCall!.args[1] as RequestInit).body).toBe(expectedBody);
-    }
-    return ntfyCall;
+  const restoreLockTest = async (
+    fetchStub: ReturnType<typeof stubNtfyFetch>["fetchStub"],
+    restore: ReturnType<typeof stubNtfyFetch>["restore"],
+  ) => {
+    fetchStub.restore();
+    restore();
+    await getDb().execute("DELETE FROM settings WHERE key = 'migration_lock'");
+    await getDb().execute({
+      args: [SCHEMA_HASH],
+      sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+    });
   };
 
   describe("migration behaviour", () => {
@@ -89,15 +85,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
         expectNtfyNotification(fetchStub, `E_DB_MIGRATION_LOCK ${TEST_DB_URL}`);
       } finally {
-        fetchStub.restore();
-        restore();
-        await getDb().execute(
-          "DELETE FROM settings WHERE key = 'migration_lock'",
-        );
-        await getDb().execute({
-          args: [SCHEMA_HASH],
-          sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-        });
+        await restoreLockTest(fetchStub, restore);
       }
     });
   });
@@ -124,15 +112,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
         expectNtfyNotification(fetchStub);
       } finally {
-        fetchStub.restore();
-        restore();
-        await getDb().execute(
-          "DELETE FROM settings WHERE key = 'migration_lock'",
-        );
-        await getDb().execute({
-          args: [SCHEMA_HASH],
-          sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-        });
+        await restoreLockTest(fetchStub, restore);
       }
     });
 

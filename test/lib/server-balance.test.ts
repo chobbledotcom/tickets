@@ -16,13 +16,11 @@ import {
   getAttendeeBalanceState,
   settleAttendeeBalance,
 } from "#shared/db/attendees/balance.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { execute, getDb } from "#shared/db/client.ts";
 import { prunePayments } from "#shared/db/prune.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
-  createTestListing,
   describeWithEnv,
   mockFormRequest,
   mockRequest,
@@ -31,6 +29,7 @@ import {
   testCsrfToken,
   webhookMeta,
 } from "#test-utils";
+import { createReservedAttendee } from "#test-utils/balance.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 /** A settle identity (session id + business time) for settleAttendeeBalance. */
@@ -74,36 +73,13 @@ const insertBareAttendee = async (
 };
 
 /** Create a reserved attendee with an outstanding balance and a paid listing. */
-const createReserved = async (remainingBalance: number) => {
-  const listing = await createTestListing({
-    maxAttendees: 10,
-    name: "Workshop Ticket",
-    thankYouUrl: "https://example.com",
-  });
-  const reservation = await attendeeStatusesTable.insert({
-    isReservation: true,
-    name: "Reserved",
-    reservationAmount: "10%",
-  });
-  const result = await createAttendeeAtomic({
-    bookings: [{ listingId: listing.id, pricePaid: 100, quantity: 2 }],
-    email: "guest@example.com",
-    name: "Guest",
-    remainingBalance,
-    statusId: reservation.id,
-  });
-  if (!result.success) throw new Error("setup failed");
-  const attendeeId = result.attendees[0]!.id;
-  // Owe `remainingBalance` in the ledger: gross sale (deposit + remaining) plus
-  // the £1 deposit payment, so balanceOf nets to −remainingBalance.
-  await postListingSale({
-    amountPaid: 100,
-    attendeeId,
-    gross: 100 + remainingBalance,
-    listingId: listing.id,
-  });
-  return attendeeId;
-};
+const createReserved = async (remainingBalance: number): Promise<number> =>
+  (
+    await createReservedAttendee(remainingBalance, {
+      listingName: "Workshop Ticket",
+      quantity: 2,
+    })
+  ).attendeeId;
 
 /**
  * A signed Stripe balance-payment checkout session for `attendeeId`.

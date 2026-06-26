@@ -7,6 +7,7 @@ import {
   createTestBuiltSite,
   deleteTestBuiltSite,
   describeWithEnv,
+  expectActivityLogShows,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
@@ -473,28 +474,19 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
   describe("activity logging", () => {
     test("logs built site creation", async () => {
       await createTestBuiltSite({ name: "Logged Site" });
-      const response = await adminGet("/admin/log");
-      const body = await response.text();
-      expect(body).toContain("Logged Site");
-      expect(body).toContain("created");
+      await expectActivityLogShows("Logged Site", "created");
     });
 
     test("logs built site update", async () => {
       const site = await createTestBuiltSite({ name: "Before Update" });
-      await updateTestBuiltSite(site.id, { name: "After Update" });
-      const response = await adminGet("/admin/log");
-      const body = await response.text();
-      expect(body).toContain("After Update");
-      expect(body).toContain("updated");
+      await updateTestBuiltSite(site.id, { name: "Updated Site" });
+      await expectActivityLogShows("Updated Site", "updated");
     });
 
     test("logs built site deletion", async () => {
       const site = await createTestBuiltSite({ name: "Deleted Site" });
       await deleteTestBuiltSite(site.id);
-      const response = await adminGet("/admin/log");
-      const body = await response.text();
-      expect(body).toContain("Deleted Site");
-      expect(body).toContain("deleted");
+      await expectActivityLogShows("Deleted Site", "deleted");
     });
   });
 

@@ -12,7 +12,7 @@ import {
   supportNagLabel,
   supportSubject,
 } from "#shared/support.ts";
-import { emailTestSandbox, validEmail } from "#test-utils";
+import { emailTestSandbox, expectSendNoop, validEmail } from "#test-utils";
 
 const ADMIN_ENV = { ADMIN_EMAIL_ADDRESS: "host@support.test" };
 
@@ -158,29 +158,19 @@ describe("sendSupportMessage", () => {
 
   afterEach(sandbox.teardown);
 
-  const expectSendNoop = async (reason: string): Promise<void> => {
-    sandbox.stubFetch(() =>
-      Promise.reject(
-        new Error(`sendSupportMessage should be a noop when ${reason}`),
-      ),
-    );
-    expect(await sendSupportMessage("Help")).toBe(false);
-    expect(sandbox.fetchStub?.calls.length).toBe(0);
-  };
-
   test("returns false and sends nothing when ADMIN_EMAIL_ADDRESS is unset", async () => {
     sandbox.setEnv({ ADMIN_EMAIL_ADDRESS: undefined });
-    await expectSendNoop("ADMIN_EMAIL_ADDRESS is unset");
+    await expectSendNoop(sandbox, () => sendSupportMessage("Help"));
   });
 
   test("returns false and sends nothing when no business email is set", async () => {
     settings.setForTest({ business_email: "" });
-    await expectSendNoop("no business email is set");
+    await expectSendNoop(sandbox, () => sendSupportMessage("Help"));
   });
 
   test("returns false when no email provider is configured", async () => {
     setHostEmailConfigForTest(null);
-    await expectSendNoop("no email provider is configured");
+    await expectSendNoop(sandbox, () => sendSupportMessage("Help"));
   });
 
   test("delivers to the admin address, from the site's business email", async () => {

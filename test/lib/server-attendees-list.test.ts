@@ -21,6 +21,24 @@ const makeListing = (name: string, maxAttendees = 100) =>
     thankYouUrl: "https://example.com",
   });
 
+const seedListingFilterPair = async () => {
+  const first = await makeListing("First Listing");
+  const second = await makeListing("Second Listing");
+  await createTestAttendeeDirect(first.id, "AliceOne", "a1@example.com");
+  await createTestAttendeeDirect(second.id, "BobTwo", "b2@example.com");
+  return { first, second };
+};
+
+const expectFallsBackToAllListings = async (
+  listingParam: (firstId: number) => string,
+) => {
+  const { first } = await seedListingFilterPair();
+  await expectHtml(
+    await adminGet(`/admin/attendees?listing=${listingParam(first.id)}`),
+    { contains: ["AliceOne", "BobTwo"] },
+  );
+};
+
 describeWithEnv("server (admin attendees list)", { db: true }, () => {
   describe("GET /admin/attendees", () => {
     testRequiresAuth("/admin/attendees");
@@ -62,10 +80,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
     });
 
     test("filters the table to a single listing", async () => {
-      const first = await makeListing("First Listing");
-      const second = await makeListing("Second Listing");
-      await createTestAttendeeDirect(first.id, "AliceOne", "a1@example.com");
-      await createTestAttendeeDirect(second.id, "BobTwo", "b2@example.com");
+      const { first } = await seedListingFilterPair();
 
       const html = await expectHtml(
         await adminGet(`/admin/attendees?listing=${first.id}`),
@@ -77,26 +92,11 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
     });
 
     test("falls back to all listings for an unknown listing filter", async () => {
-      const first = await makeListing("First Listing");
-      const second = await makeListing("Second Listing");
-      await createTestAttendeeDirect(first.id, "AliceOne", "a1@example.com");
-      await createTestAttendeeDirect(second.id, "BobTwo", "b2@example.com");
-
-      await expectHtml(await adminGet("/admin/attendees?listing=999999"), {
-        contains: ["AliceOne", "BobTwo"],
-      });
+      await expectFallsBackToAllListings(() => "999999");
     });
 
     test("falls back to all listings for a malformed listing filter", async () => {
-      const first = await makeListing("First Listing");
-      const second = await makeListing("Second Listing");
-      await createTestAttendeeDirect(first.id, "AliceOne", "a1@example.com");
-      await createTestAttendeeDirect(second.id, "BobTwo", "b2@example.com");
-
-      await expectHtml(
-        await adminGet(`/admin/attendees?listing=${first.id}x`),
-        { contains: ["AliceOne", "BobTwo"] },
-      );
+      await expectFallsBackToAllListings((id) => `${id}x`);
     });
 
     test("flags a deactivated listing in the filter dropdown", async () => {
