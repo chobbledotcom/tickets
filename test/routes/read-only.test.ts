@@ -253,6 +253,7 @@ describeWithEnv(
     const safePostPaths = [
       "/admin/logout",
       "/renew",
+      "/pay/some-token",
       "/payment/webhook",
       "/v1/devices/abc/registrations/pass.com/tok",
       "/v1/log",
@@ -262,9 +263,13 @@ describeWithEnv(
       "/contact",
       "/admin/support",
       "/instance/site-credentials",
+      "/scheduled",
+      "/admin/backup/create",
+      "/checkin/abc123+def456",
       "/admin/listing/42/attendee/99/checkin",
       "/admin/listing/42/scan",
       "/admin/attendees/99/refresh-payment",
+      "/admin/deliveries/mark",
     ];
     for (const path of safePostPaths) {
       test(`POST ${path} is not blocked by read-only guard`, async () => {

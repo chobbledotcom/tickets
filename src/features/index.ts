@@ -483,17 +483,20 @@ const isMutatingMethod = (method: string): boolean =>
  *
  * Categories:
  *  - Auth: login / logout
- *  - Billing lifecycle: renewal, payment webhook
+ *  - Billing lifecycle: renewal, balance payment, payment webhook
  *  - Apple Wallet protocol stubs (/v1/*) — must return 200/201, not redirect
  *  - Inbound webhooks: SMS
  *  - Public / owner messaging: join, unsubscribe, contact, admin support
  *  - Inter-instance machine endpoint: site credentials
- *  - On-site ops: check-in, scan, refresh-payment
+ *  - Scheduled maintenance cron (builder fleet pruning)
+ *  - Admin maintenance: backup creation (read-only DB dump)
+ *  - On-site ops: check-in (token and admin), scan, refresh-payment, deliveries
  */
 const READ_ONLY_SAFE_PATHS = [
   /^\/admin\/login$/,
   /^\/admin\/logout$/,
   /^\/renew$/,
+  /^\/pay\/[^/]+$/,
   /^\/payment\/webhook$/,
   /^\/v1\/devices\/[^/]+\/registrations\/[^/]+\/[^/]+$/,
   /^\/v1\/log$/,
@@ -503,9 +506,13 @@ const READ_ONLY_SAFE_PATHS = [
   /^\/contact$/,
   /^\/admin\/support$/,
   /^\/instance\/site-credentials$/,
+  /^\/scheduled$/,
+  /^\/admin\/backup\/create$/,
+  /^\/checkin\/[^/]+$/,
   /^\/admin\/listing\/\d+\/attendee\/\d+\/checkin$/,
   /^\/admin\/listing\/\d+\/scan$/,
   /^\/admin\/attendees\/\d+\/refresh-payment$/,
+  /^\/admin\/deliveries\/mark$/,
 ];
 
 /**
