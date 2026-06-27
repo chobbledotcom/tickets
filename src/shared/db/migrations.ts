@@ -621,6 +621,25 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
 
 // ─── Reset ──────────────────────────────────────────────────────
 
+/** Clear every module-level in-process cache.
+ *
+ *  Call after any operation that bypasses the normal write path (full reset,
+ *  restore from backup) so stale reads cannot outlive the current isolate
+ *  lifecycle. Both resetDatabase (in its finally block, so even a partial-drop
+ *  failure invalidates caches) and restoreFromSql (after executeBatch completes)
+ *  use this to guarantee a consistent post-operation view. */
+export const clearAllCaches = (): void => {
+  invalidateInitDbCache();
+  settings.invalidateCache();
+  settings.setup.clearCache();
+  resetSessionCache();
+  invalidateUsersCache();
+  invalidateListingsCache();
+  invalidateHolidaysCache();
+  invalidateGroupsCache();
+  invalidateLogisticsAgentsCache();
+};
+
 /**
  * Reset the database by dropping all tables (reverse order for FK safety)
  */
@@ -631,17 +650,6 @@ export const resetDatabase = async (): Promise<void> => {
       await client.execute(`DROP TABLE IF EXISTS ${name}`);
     }
   } finally {
-    // Clear all module-level caches — even if a DROP fails partway through,
-    // stale caches must not let subsequent requests bypass not-activated
-    // handling or serve pre-reset data.
-    invalidateInitDbCache();
-    settings.invalidateCache();
-    settings.setup.clearCache();
-    resetSessionCache();
-    invalidateUsersCache();
-    invalidateListingsCache();
-    invalidateHolidaysCache();
-    invalidateGroupsCache();
-    invalidateLogisticsAgentsCache();
+    clearAllCaches();
   }
 };

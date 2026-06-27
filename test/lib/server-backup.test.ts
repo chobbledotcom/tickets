@@ -10,6 +10,7 @@ import {
   adminFormPost,
   adminGet,
   awaitTestRequest,
+  createTestHoliday,
   createTestListing,
   createTestManagerSession,
   describeWithEnv,
@@ -473,6 +474,67 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         // Temp file should be cleaned up regardless
         const data = await downloadRaw("restore-pending-fail.zip");
         expect(data).toBeNull();
+      });
+    });
+
+    test("restore clears all entity caches including holidays", async () => {
+      await withLocalStorageEnabled(async () => {
+        const { getAllHolidays } = await import("#shared/db/holidays.ts");
+
+        // Snapshot before creating any holidays — backup has no holidays
+        const zipData = await createBackupZip();
+        await uploadRaw(zipData, "restore-pending-caches.zip");
+
+        // Create a holiday after the backup so it exists in the cache but
+        // will be absent from the restored DB
+        await createTestHoliday({ name: "Cache Test Holiday" });
+        const before = await getAllHolidays();
+        expect(before.some((h) => h.name === "Cache Test Holiday")).toBe(true);
+
+        // Restore from the pre-holiday snapshot
+        const { response } = await adminFormPost(
+          "/admin/backup/restore/confirm",
+          {
+            backup_filename: "restore-pending-caches.zip",
+            confirm_identifier: RESTORE_CONFIRM_PHRASE,
+          },
+        );
+        expect(response.status).toBe(302);
+
+        // The holidays cache must be cleared: the holiday is gone from the DB
+        // and must not be served from a stale cache entry
+        const after = await getAllHolidays();
+        expect(after.some((h) => h.name === "Cache Test Holiday")).toBe(false);
+      });
+    });
+
+    test("restore clears session cache so pre-restore sessions are re-validated", async () => {
+      await withLocalStorageEnabled(async () => {
+        // Snapshot before the manager session is created
+        const zipData = await createBackupZip();
+        await uploadRaw(zipData, "restore-pending-sessions.zip");
+
+        // Create a manager session after the backup — it will not be in the
+        // restored DB, so it must also be evicted from the session cache
+        const managerCookie = await createTestManagerSession(
+          "cache-test-mgr",
+          "cache-test-manager",
+        );
+
+        // Restore from the pre-manager snapshot
+        await adminFormPost("/admin/backup/restore/confirm", {
+          backup_filename: "restore-pending-sessions.zip",
+          confirm_identifier: RESTORE_CONFIRM_PHRASE,
+        });
+
+        // After restore the manager token is absent from the DB and the
+        // session cache has been cleared, so using it must fail auth.
+        // /admin/backup returns 403 for authenticated managers and 302 for
+        // unauthenticated requests; a 302 here proves the session was rejected.
+        const response = await awaitTestRequest("/admin/backup", {
+          cookie: managerCookie,
+        });
+        expect(response.status).toBe(302); // redirected to login (not 403)
       });
     });
   });
