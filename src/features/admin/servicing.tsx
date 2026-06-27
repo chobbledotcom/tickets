@@ -5,7 +5,6 @@
 import {
   buildServicingFieldSchema,
   parseServicingForm,
-  renderServicingHiddenIndicator,
   toServicingCreateInput,
 } from "#routes/admin/servicing-form-model.ts";
 import {
@@ -40,11 +39,8 @@ import {
 } from "#shared/db/attendees/servicing.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
-  getAttendeeTextAnswers,
   getQuestionsWithListingIds,
-  loadAttendeeQuestionData,
   parseQuestionAnswers,
-  type QuestionWithAnswers,
 } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
@@ -56,8 +52,8 @@ import {
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
-import { EditQuestions } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 const SERVICING_FORM_ID = "servicing-form";
@@ -149,20 +145,12 @@ const costListingOptions = (listings: ListingWithCount[]): string =>
     )
     .join("");
 
-const selectedQuestionIds = (
-  data: Awaited<ReturnType<typeof loadAttendeeQuestionData>>,
-  eventId: number,
-): number[] => data?.attendeeAnswerMap.get(eventId) ?? [];
-
 const renderServicingPage = ({
   costs = [],
   deletedHolds = [],
   event,
   listings,
   prefill = emptyPrefill(),
-  questionData,
-  questions,
-  selectedTextAnswers,
   session,
 }: {
   costs?: ServicingCostRecord[];
@@ -170,9 +158,6 @@ const renderServicingPage = ({
   event: ServicingEvent | null;
   listings: ListingWithCount[];
   prefill?: ServicingPrefill;
-  questionData?: Awaited<ReturnType<typeof loadAttendeeQuestionData>>;
-  questions: QuestionWithAnswers[];
-  selectedTextAnswers: Map<number, string>;
   session: AuthSession;
 }): string => {
   const title = event ? event.name : "New service event";
@@ -183,14 +168,10 @@ const renderServicingPage = ({
   const action = event
     ? `/admin/servicing/${event.id}`
     : "/admin/servicing/new";
-  const selectedAnswers = event
-    ? selectedQuestionIds(questionData, event.id)
-    : [];
   return String(
     <Layout title={title}>
       <AdminNav active="/admin/servicing" session={session} />
       <h1>{title}</h1>
-      <Raw html={renderServicingHiddenIndicator()} />
       {deletedHolds.length > 0 && (
         <p class="warning">
           {deletedHolds.length} held listing(s) no longer exist and will be
@@ -218,24 +199,19 @@ const renderServicingPage = ({
             </tbody>
           </table>
         </div>
-        {questions.length > 0 && (
-          <EditQuestions
-            questions={questions}
-            selectedAnswerIds={selectedAnswers}
-            selectedTextAnswers={selectedTextAnswers}
-          />
-        )}
-        <button type="submit">
+        <SubmitButton icon={event ? "save" : "plus"}>
           {event ? "Save Service Event" : "Create Service Event"}
-        </button>
+        </SubmitButton>
       </CsrfForm>
       {event && (
         <>
           <CsrfForm action={`/admin/servicing/${event.id}/duplicate`}>
-            <button type="submit">Duplicate</button>
+            <SubmitButton icon="rotate-ccw">Duplicate</SubmitButton>
           </CsrfForm>
           <CsrfForm action={`/admin/servicing/${event.id}/delete`}>
-            <button type="submit">Delete Service Event</button>
+            <SubmitButton class="danger" icon="trash-2">
+              Delete Service Event
+            </SubmitButton>
           </CsrfForm>
           <CsrfForm action={`/admin/servicing/${event.id}`}>
             <input
@@ -257,7 +233,7 @@ const renderServicingPage = ({
                 <Raw html={costListingOptions(listings)} />
               </select>
             </label>
-            <button type="submit">Record Cost</button>
+            <SubmitButton icon="plus">Record Cost</SubmitButton>
           </CsrfForm>
           {costs.length > 0 && (
             <div class="table-scroll">
@@ -289,7 +265,7 @@ const renderServicingPage = ({
                             type="number"
                             value={toMajorUnits(cost.amount)}
                           />
-                          <button type="submit">Edit</button>
+                          <SubmitButton icon="save">Edit</SubmitButton>
                         </CsrfForm>
                       </td>
                     </tr>
@@ -337,7 +313,9 @@ const renderServicingList = async (session: AuthSession): Promise<string> => {
       <AdminNav active="/admin/servicing" session={session} />
       <h1>Servicing</h1>
       <p>
-        <a href="/admin/servicing/new">New service event</a>
+        <ActionButton href="/admin/servicing/new" icon="plus">
+          New service event
+        </ActionButton>
       </p>
       <div class="table-scroll">
         <table>
@@ -364,12 +342,6 @@ const renderServicingList = async (session: AuthSession): Promise<string> => {
   );
 };
 
-const loadCreateQuestions = async (
-  listings: ListingWithCount[],
-): Promise<QuestionWithAnswers[]> =>
-  (await getQuestionsWithListingIds(listings.map((listing) => listing.id)))
-    .questions;
-
 const createPrefillFromRequest = (request: Request): ServicingPrefill => {
   const params = new URL(request.url).searchParams;
   return {
@@ -387,8 +359,6 @@ const renderCreate = async (
     event: null,
     listings,
     prefill: createPrefillFromRequest(request),
-    questions: await loadCreateQuestions(listings),
-    selectedTextAnswers: new Map(),
     session,
   });
 };
@@ -399,25 +369,15 @@ const loadEditPage = async (
 ): Promise<string | null> => {
   const event = await getServicingEvent(id);
   if (!event) return null;
-  const privateKey = await requireRequestPrivateKey();
   const { deletedHolds, listings } = editPageListings(
     await getAllListings(),
     event,
-  );
-  const listingIds = event.bookings.map((booking) => booking.listingId);
-  const questionData = await loadAttendeeQuestionData(
-    listingIds,
-    [id],
-    privateKey,
   );
   return renderServicingPage({
     costs: await getServicingCosts(id),
     deletedHolds,
     event,
     listings,
-    questionData,
-    questions: questionData?.questions ?? [],
-    selectedTextAnswers: await getAttendeeTextAnswers(id, privateKey),
     session,
   });
 };

@@ -22,9 +22,7 @@ import {
   awaitTestRequest,
   createServicingHold,
   createTestAttendeeWithToken,
-  createTestListing,
   describeWithEnv,
-  renderAdminPage,
 } from "#test-utils";
 
 // jscpd:ignore-end
@@ -107,25 +105,6 @@ describeWithEnv(
         "real@example.com",
       );
       expect(await getAttendeePiiBlobForToken(token)).not.toBeNull();
-    });
-  },
-);
-
-describeWithEnv(
-  "servicing §5 — servicing form shows hidden state as locked",
-  { db: true },
-  () => {
-    test("the servicing create page renders a checked, disabled hidden indicator", async () => {
-      // The hidden-from-public indicator is the §0 `renderServicingHiddenIndicator`
-      // snippet rendered inside the create page. Assert against the rendered page
-      // so the route wires the snippet (not just that the snippet exists).
-      await createTestListing({ name: "Servicing Target" });
-      const body = await renderAdminPage("/admin/servicing/new");
-      expect(/checked\b/i.test(body)).toBe(true);
-      const inputTags = body.match(/<input\b[^>]*>/gi) ?? [];
-      const hiddenControl = inputTags.find((t) => /hidden/i.test(t));
-      expect(hiddenControl).toBeDefined();
-      expect(/disabled\b/i.test(hiddenControl!)).toBe(true);
     });
   },
 );

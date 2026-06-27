@@ -21,7 +21,6 @@ import {
   createServicingHold,
   createTestListing,
   describeWithEnv,
-  renderAdminPage,
   updateServicingEvent,
 } from "#test-utils";
 
@@ -88,14 +87,9 @@ describeWithEnv("servicing §11 — custom questions", { db: true }, () => {
     });
   });
 
-  test("editing a servicing event loads and saves its answers", async () => {
+  test("editing a servicing event saves its answers", async () => {
     const { id, listing, answerId, questionId } =
       await listingWithAnsweredHold();
-    // Reopen via the edit page: the existing answer renders as a selected input.
-    const editBody = await renderAdminPage(`/admin/servicing/${id}`);
-    expect(editBody).toContain("Boiler model?");
-    expect(editBody).toContain("checked");
-
     // Save an edit with the answer still selected: it persists (no answer drop).
     await updateServicingEvent(id, {
       bookings: [{ listingId: listing.id, quantity: 1 }],

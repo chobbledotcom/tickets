@@ -57,9 +57,6 @@ export const buildServicingFieldSchema = (): Field[] => [
   },
 ];
 
-export const renderServicingHiddenIndicator = (): string =>
-  '<label><input type="checkbox" name="hidden_from_public" checked disabled> Hidden from public</label>';
-
 const withQuantityAliases = (form: FormParams): FormParams => {
   const normalized = new FormParams(form.toString());
   for (const [field, value] of form.entries()) {
