@@ -33,6 +33,11 @@ import {
   uploadRaw,
 } from "#shared/storage.ts";
 
+/** Thrown by restoreFromSql after resetDatabase() runs but a later step fails,
+ *  so callers can distinguish a post-reset failure (DB wiped) from a pre-reset
+ *  validation error (DB intact). */
+export class PostResetError extends Error {}
+
 // ─── Types ──────────────────────────────────────────────────────
 
 type TableNameRow = { name: string };
@@ -393,30 +398,40 @@ export const countZipStatements = (zipData: Uint8Array): number => {
  */
 export const restoreFromSql = async (sql: string): Promise<void> => {
   await resetDatabase();
-  await initDb({ allowMissingSettings: true });
+  // Everything after this point is post-reset; capture any failure and
+  // re-throw as PostResetError (outside the catch to avoid V8 coverage gaps).
+  let postResetErr: string | undefined;
+  try {
+    await initDb({ allowMissingSettings: true });
 
-  // initDb writes migration markers into settings/schema_migrations and seeds a
-  // default attendee_statuses row; clear them so the backup's own rows don't
-  // collide on primary keys. (An older backup with no attendee_statuses rows
-  // re-seeds on the next initDb, which runs because the markers are cleared.)
-  await execute("DELETE FROM settings");
-  await execute("DELETE FROM schema_migrations");
-  await execute("DELETE FROM attendee_statuses");
+    // initDb writes migration markers into settings/schema_migrations and seeds a
+    // default attendee_statuses row; clear them so the backup's own rows don't
+    // collide on primary keys. (An older backup with no attendee_statuses rows
+    // re-seeds on the next initDb, which runs because the markers are cleared.)
+    await execute("DELETE FROM settings");
+    await execute("DELETE FROM schema_migrations");
+    await execute("DELETE FROM attendee_statuses");
 
-  const statements = splitStatements(sql);
-  if (statements.length > 0) {
-    await executeBatch(statements.map((s) => ({ args: [], sql: s })));
+    const statements = splitStatements(sql);
+    if (statements.length > 0) {
+      await executeBatch(statements.map((s) => ({ args: [], sql: s })));
+    }
+
+    // The markers now come from the backup and may predate the current schema;
+    // drop the "ready" cache so the next initDb re-checks and migrates if needed.
+    invalidateInitDbCache();
+    // The entity caches persist across requests, so a restore that wholesale-
+    // replaces the data would otherwise keep serving the pre-restore snapshot
+    // until each cache's TTL. Clear them.
+    invalidateListingsCache();
+    invalidateGroupsCache();
+    invalidateUsersCache();
+  } catch (err) {
+    postResetErr = String(err);
   }
-
-  // The markers now come from the backup and may predate the current schema;
-  // drop the "ready" cache so the next initDb re-checks and migrates if needed.
-  invalidateInitDbCache();
-  // The entity caches persist across requests, so a restore that wholesale-
-  // replaces the data would otherwise keep serving the pre-restore snapshot
-  // until each cache's TTL. Clear them.
-  invalidateListingsCache();
-  invalidateGroupsCache();
-  invalidateUsersCache();
+  if (postResetErr !== undefined) {
+    throw new PostResetError(postResetErr);
+  }
 };
 
 /**

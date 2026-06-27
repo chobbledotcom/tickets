@@ -24,6 +24,7 @@ import {
   isBackupLeaf,
   isBackupPath,
   isRemoteDatabase,
+  PostResetError,
   parseBackupTime,
   readManifest,
   restoreFromZip,
@@ -50,9 +51,9 @@ import {
 
 const RESTORE_PENDING_PREFIX = "restore-pending-";
 
-/** Thrown by restoreFromZip so onError can tell apart a mid-restore failure
- *  (sessions wiped — must redirect to login) from a pre-restore validation
- *  error (sessions intact — redirect back to the backup page). */
+/** Thrown by the restore execute block so onError can send post-reset failures
+ *  (sessions and settings wiped) to /setup/, while pre-restore validation errors
+ *  (DB intact) stay on /admin/backup. */
 class PostResetRestoreError extends Error {}
 
 /** A full git commit SHA (40 lowercase hex) — what restore-deploy requires and
@@ -254,16 +255,22 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
       // finally cleanup — V8's coverage source maps don't reliably track
       // `throw` inside catch blocks for async functions.
       let restoreErr: string | undefined;
+      let isPostReset = false;
       try {
         await restoreFromZip(data);
       } catch (err) {
         restoreErr = String(err);
+        // PostResetError means resetDatabase() already ran; route to /setup/.
+        // Any other error (e.g. unzipSync on invalid bytes) leaves the DB intact;
+        // route back to /admin/backup.
+        isPostReset = err instanceof PostResetError;
       } finally {
         // Clean up the temp file whether restore succeeds or fails
         await Promise.allSettled([deleteFile(filename)]);
       }
       if (restoreErr !== undefined) {
-        throw new PostResetRestoreError(restoreErr);
+        if (isPostReset) throw new PostResetRestoreError(restoreErr);
+        throw new Error(restoreErr);
       }
     },
     // The restored data carries the commit the site was running when the backup
@@ -280,11 +287,13 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
         ? `Database restored from backup. It was running commit ${commit} — run the restore-deploy workflow with that commit to restore the code to this point in time.`
         : "Database restored from backup";
     },
-    // Post-reset failures go to /admin/login (sessions are wiped, so the backup
-    // page would lose the flash). Pre-restore validation errors stay on /admin/backup.
+    // Post-reset failures go to /setup/ (sessions and settings are wiped, so
+    // /admin/login would hit the not-activated gate and lose the flash; /setup/
+    // renders flash.error directly without needing initialised settings).
+    // Pre-restore validation errors stay on /admin/backup.
     onError: (error) =>
       error instanceof PostResetRestoreError
-        ? redirect("/admin/login", error.message, false, {
+        ? redirect("/setup/", error.message, false, {
             cookie: clearSessionCookie(),
           })
         : errorRedirect("/admin/backup", error.message),

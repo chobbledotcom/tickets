@@ -404,10 +404,11 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       });
     });
 
-    test("routes restoreFromZip failure to login page", async () => {
+    test("routes pre-reset restore failure to backup page", async () => {
       await withLocalStorageEnabled(async () => {
         // Upload raw non-zip bytes — restoreFromZip throws from unzipSync
-        // (PostResetRestoreError) and onError redirects to /admin/login.
+        // before any DB reset, so the session is intact and onError redirects
+        // back to /admin/backup.
         await uploadRaw(
           new Uint8Array([0, 1, 2, 3]),
           "restore-pending-badzip.zip",
@@ -420,7 +421,31 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           },
         );
         await expectFlashRedirect(
-          "/admin/login",
+          "/admin/backup",
+          expect.any(String),
+          false,
+        )(response);
+      });
+    });
+
+    test("routes post-reset restore failure to setup page", async () => {
+      await withLocalStorageEnabled(async () => {
+        // A valid zip whose SQL is invalid reaches restoreFromSql, which runs
+        // resetDatabase() before executeBatch fails — sessions and settings are
+        // wiped, so onError must send to /setup/ (not /admin/login or /admin/backup).
+        const badSqlZip = zipSync({
+          "settings.sql": new TextEncoder().encode("INVALID SQL SYNTAX;"),
+        });
+        await uploadRaw(badSqlZip, "restore-pending-badsql.zip");
+        const { response } = await adminFormPost(
+          "/admin/backup/restore/confirm",
+          {
+            backup_filename: "restore-pending-badsql.zip",
+            confirm_identifier: RESTORE_CONFIRM_PHRASE,
+          },
+        );
+        await expectFlashRedirect(
+          "/setup/",
           expect.any(String),
           false,
         )(response);
