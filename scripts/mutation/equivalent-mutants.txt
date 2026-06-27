@@ -123,16 +123,3 @@ test/test-utils/test-browser.ts:249:27  ?? → ||  # button attribute capture fa
 test/test-utils/test-browser.ts:256:49  ?? → ||  # button value fallback is "", so empty value and absent value agree
 test/test-utils/test-browser.ts:351:58  ?? → ||  # RequestInit.method is omitted or a non-empty method string in every caller
 test/test-utils/test-browser.ts:414:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined
-
-# listing-templates: inference reads dimensions off same-typed operands, so
-# strict-vs-loose equality is indistinguishable, and the find() fallback only
-# ever sees a truthy template object or undefined.
-src/shared/listing-templates.ts:126:29  === → ==   # listing_type === "daily": string === string literal
-src/shared/listing-templates.ts:127:21  !== → !=   # date !== "": string !== string
-src/shared/listing-templates.ts:142:18  === → ==   # signature.daily === dimensions.daily: boolean === boolean
-src/shared/listing-templates.ts:143:25  === → ==   # purchaseable === purchaseable: boolean === boolean
-src/shared/listing-templates.ts:144:22  === → ==   # logistics === logistics: boolean === boolean
-src/shared/listing-templates.ts:145:19  === → ==   # signature.dated === undefined: (boolean|undefined) === undefined
-src/shared/listing-templates.ts:145:52  === → ==   # signature.dated === dimensions.dated: boolean === boolean (short-circuited when undefined)
-src/shared/listing-templates.ts:157:4  ?? → ||   # find(): ListingTemplate|undefined; a found template is truthy, undefined ?? null === undefined || null
-src/shared/listing-templates.ts:181:19  === → ==   # chosenTemplateId === ONE_OFF_TEMPLATE_ID: (string|null) vs non-empty string; null only loosely equals null/undefined
