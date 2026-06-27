@@ -337,13 +337,18 @@ The same handler, given `?template=<id>`, renders the blank create form but:
   - **The one-off event is the exception: its signature includes `dated=true`,
     which can't be pre-seeded with a sensible value.** A date isn't a boolean to
     flip — it's the operator's actual event date — so the seed can't supply it.
-    For this template the create form therefore makes `date` **required** (it's
-    inherent: "a one-off event *has* a date"), so a saved one-off always carries
-    `date !== ""` and re-infers correctly. The "unchanged submit round-trips"
-    promise holds for the other four templates unconditionally; for the one-off it
-    holds *given* the required date the operator must enter (a blank-date submit is
-    rejected by validation before it can save a `dated=false` row, so it never
-    silently reopens as Custom).
+    For this template the create form marks `date` **required** in the markup
+    (it's inherent: "a one-off event *has* a date"), and — the load-bearing part —
+    the **server** rejects a blank `date` whenever the *submitted fields* infer to
+    the one-off shape (see the validation note in "Files this touches"). So a saved
+    one-off always carries `date !== ""` and re-infers correctly. Crucially the
+    server check keys off the submitted dimensions via `inferTemplate`, **not** the
+    `?template` id: an operator who opens Customise and changes the shape to a
+    daily/digital/etc. listing (which needs no date) is creating a different valid
+    type and must not be blocked. The "unchanged submit round-trips" promise holds
+    for the other four templates unconditionally; for the one-off it holds *given*
+    the required date — a blank-date one-off-shaped submit is rejected before it
+    can save a `dated=false` row, so it never silently reopens as Custom.
 - shows only the template's `shown` config groups, with Customise collapsed — i.e.
   it renders **exactly as if a blank listing had been inferred as that type**. No
   new code path: feed the chosen template into the same "which fields are visible"
@@ -399,13 +404,31 @@ the error path re-render the **same seeded/collapsed form** with the submitted
 values + error. The id is read only to pick the render shape; it is **never
 written to the listing row**.
 
+**Submitted values must override the seed on the error re-render — including
+cleared/empty fields.** The error render is *not* "re-apply the seed, then layer
+values"; the seed only supplies what the operator never touched. If they unticked
+a seeded box (a Delivered item where they cleared `address`, a Weekly where they
+changed the seeded days), naively re-applying the seed would re-check it, because
+`renderFields`' precedence lets an explicit non-empty value beat a captured POST
+value. So the error path must overlay the **submitted** values over the seed and
+honour empty strings/absent checkboxes as deliberate clears — i.e. the seed is the
+base layer only for fields the POST body doesn't mention at all. (Mechanically:
+seed first, then overwrite with the full submitted field set, treating "checkbox
+group present in POST but with this box unchecked" as an explicit empty.)
+
 The param is **never persisted**. On a successful submit it's an ordinary create;
 the created listing has no stored type, and reopening it re-infers from its saved
 fields.
 
 This also means **duplicate** (`adminDuplicateListingPage`, `listings.tsx:1861`)
-needs no picker: it pre-fills from an existing listing, so it just runs inference
-on that listing like the edit page.
+needs no picker: it pre-fills from an existing listing and runs inference on that
+listing like the edit page. **But its create-error path needs the same treatment
+as the seeded form** — a duplicate also POSTs to `/admin/listing` with no
+`template`, so a validation failure must not fall through to the bare picker.
+Re-render the duplicate's form from the **submitted** values (inferring the
+collapse state from those values, exactly as the edit page infers from a stored
+row), so the operator keeps their in-progress duplicate + error rather than losing
+it. "Needs no picker" covers the error path too, not just the initial GET.
 
 ---
 
@@ -421,10 +444,18 @@ on that listing like the edit page.
 | Copy | i18n files | Picker card titles/blurbs, the "Customise" label, per-type hints. |
 
 No migration, no DB-schema change, no change to any stored field. The **one**
-server-side addition is a template-specific **required-`date` validation for the
-one-off template** (the create handler must reject a blank `date` when the chosen
-`?template` is the one-off, so it can't save a `dated=false` row that reopens as
-Custom — see §5). Everything else in `listings-form.ts` validation is unchanged.
+server-side addition is a **required-`date` validation that fires only when the
+*submitted fields* infer to the one-off shape** — i.e. reject a blank `date` when
+the POST body has `listing_type=standard`, `purchase_only` off, `uses_logistics`
+off (the one-off signature), so that exact shape can't save a `dated=false` row
+that reopens as Custom. **Key it on the submitted dimensions, not the `?template`
+id.** Customise exposes the full form, so an operator who starts from the one-off
+card, opens Customise, and changes the submitted shape to something else (e.g.
+`listing_type=daily`, or `purchase_only=1`) is creating a *different* valid type
+that doesn't need a date — keying the check to the original `?template` would
+wrongly block that. Run the same `inferTemplate` over the submitted values and
+require `date` only when it returns the one-off. Everything else in
+`listings-form.ts` validation is unchanged.
 The detail page (`adminListingPage`) is unaffected — this is otherwise an
 edit/create-form change only, though a future nicety could surface the inferred
 type label on the detail page too (out of scope here).
@@ -519,9 +550,11 @@ not survive.
    item"), or stay purely an edit-form affordance? Showing it makes the inference
    visible/debuggable to operators (the "malleable software" preference) but is
    extra surface.
-5. **Naming.** "Weekly event ticket" is really "daily/recurring, free" — it isn't
-   necessarily weekly. Is "Weekly event" the label you want operators to see, or
-   something like "Recurring event"?
+5. **Naming.** "Weekly event ticket" is really the "daily/recurring, check-in,
+   no-logistics" shape — it isn't necessarily *weekly*, and it says nothing about
+   price (pricing is orthogonal, so a recurring event can be paid and still be this
+   type; the card label/blurb must not imply "free"). Is "Weekly event" the label
+   you want operators to see, or something like "Recurring event"?
 6. **Customise granularity.** One master Customise toggle that reveals *all*
    hidden groups at once (simplest), or per-group reveals? Recommendation: one
    toggle — it matches the single Advanced `<details>` today and keeps the CSS
