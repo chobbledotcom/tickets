@@ -1695,6 +1695,13 @@ form.listing-form--templated.listing-form--hide-date:not(:has(#customise-listing
   }
 }
 
+form.listing-form--templated.listing-form--no-daily:not(:has(#customise-listing:checked)) {
+  label:has([name="customisable_days"]),
+  #day-prices {
+    display: none;
+  }
+}
+
 // Hide the max price field unless "Allow Pay More" is checked.
 @include reveal-when-checked("can_pay_more", 'label:has([name="max_price"])');
 

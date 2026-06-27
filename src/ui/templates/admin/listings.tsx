@@ -1721,6 +1721,7 @@ const listingFormClass = (template: ListingTemplate): string =>
     "listing-form--templated",
     template.signature.daily !== undefined ? "listing-form--hide-type" : "",
     template.signature.dated === false ? "listing-form--hide-date" : "",
+    template.signature.daily === false ? "listing-form--no-daily" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -2042,7 +2043,7 @@ export const adminListingNewPage = (
           groups={groups}
           imagePreview=""
           isTemplated={!!template}
-          selectedGroupId={0}
+          selectedGroupId={Number(submitted?.group_id) || 0}
           values={submitted ?? seeds}
         />
         <SubmitButton icon="plus">

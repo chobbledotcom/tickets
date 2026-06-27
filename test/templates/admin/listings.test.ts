@@ -982,6 +982,28 @@ describe("adminListingNewPage", () => {
     expect(html).toContain("listing-form--templated");
   });
 
+  test("applies listing-form--no-daily class for non-daily templates", () => {
+    const html = adminListingNewPage([], TEST_SESSION, {
+      templateId: "one-off-event",
+    });
+    expect(html).toContain("listing-form--no-daily");
+  });
+
+  test("does not apply listing-form--no-daily for templates without a fixed non-daily type", () => {
+    const html = adminListingNewPage([], TEST_SESSION, {
+      templateId: "hireable-item",
+    });
+    expect(html).not.toContain("listing-form--no-daily");
+  });
+
+  test("preserves submitted group_id on error re-render", () => {
+    const groups = [testGroup({ id: 3, name: "Group Three" })];
+    const html = adminListingNewPage(groups, TEST_SESSION, {
+      values: { group_id: "3" },
+    });
+    expect(hasSelectedOption(html, "3")).toBe(true);
+  });
+
   test("carries custom sentinel through as template_id hidden input", () => {
     const html = adminListingNewPage([], TEST_SESSION, {
       templateId: "custom",
