@@ -7,7 +7,7 @@ import * as BunnySDK from "@bunny.net/edgescript-sdk";
 import { once } from "#fp";
 import { handleRequest } from "#routes";
 import { temporaryErrorResponse } from "#routes/response.ts";
-import { validateEncryptionKey } from "#shared/crypto/encryption.ts";
+import { validateBootChecks } from "#shared/boot-checks.ts";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import {
   ErrorCode,
@@ -18,7 +18,7 @@ import {
 import { initSentry } from "#shared/sentry.ts";
 
 const initialize = once((): void => {
-  validateEncryptionKey();
+  validateBootChecks();
   // Start Sentry error reporting (no-op unless SENTRY_URL is configured).
   initSentry();
   // In production a request must never be killed by the N+1 guard: report it

@@ -15,8 +15,9 @@
  * whole fleet, exactly as before. An unrecognised tier is a 400.
  *
  * Security posture:
- * - Disabled unless MAIN_INSTANCE_KEY is set (a plain instance never exposes it,
- *   and a disabled builder returns 404 rather than advertising the route).
+ * - Disabled unless MAIN_INSTANCE_KEY is set (a plain instance returns 404
+ *   rather than advertising the route); boot checks fail fast if a configured
+ *   key is blank or too short.
  * - The bearer key is compared in constant time.
  * - Only the per-site READ-ONLY db token is returned — no write access, and the
  *   per-site DB_ENCRYPTION_KEY is never stored here, so field-level PII stays
