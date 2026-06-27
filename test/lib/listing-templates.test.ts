@@ -1,5 +1,5 @@
-import { describe, test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { describe, test } from "@std/testing/bdd";
 import {
   type Dimensions,
   dimensionsOf,
@@ -20,8 +20,8 @@ const src = (
   purchaseable: boolean,
   logistics: boolean,
 ) => ({
-  listing_type: (daily ? "daily" : "standard") as "daily" | "standard",
   date: dated ? "2024-06-01T10:00:00Z" : "",
+  listing_type: (daily ? "daily" : "standard") as "daily" | "standard",
   purchase_only: purchaseable,
   uses_logistics: logistics,
 });
@@ -55,8 +55,12 @@ describe("dimensionsOf", () => {
   });
 
   test("maps purchase_only to purchaseable", () => {
-    expect(dimensionsOf(src(false, false, true, false)).purchaseable).toBe(true);
-    expect(dimensionsOf(src(false, false, false, false)).purchaseable).toBe(false);
+    expect(dimensionsOf(src(false, false, true, false)).purchaseable).toBe(
+      true,
+    );
+    expect(dimensionsOf(src(false, false, false, false)).purchaseable).toBe(
+      false,
+    );
   });
 
   test("maps uses_logistics to logistics", () => {
@@ -105,9 +109,9 @@ describe("inferTemplate — all 16 dimension combos", () => {
     const [daily, dated, purchaseable, logistics] = combo;
     const label = `(daily=${daily}, dated=${dated}, purch=${purchaseable}, logis=${logistics})`;
     test(`${label} → ${expected ?? "null (Custom)"}`, () => {
-      expect(inferTemplate(src(daily, dated, purchaseable, logistics))?.id ?? null).toBe(
-        expected,
-      );
+      expect(
+        inferTemplate(src(daily, dated, purchaseable, logistics))?.id ?? null,
+      ).toBe(expected);
     });
   }
 });
@@ -118,7 +122,8 @@ describe("inferTemplate — mutual exclusivity", () => {
       const [daily, dated, purchaseable, logistics] = combo;
       const matches = LISTING_TEMPLATES.filter(
         (tmpl) =>
-          inferTemplate(src(daily, dated, purchaseable, logistics))?.id === tmpl.id,
+          inferTemplate(src(daily, dated, purchaseable, logistics))?.id ===
+          tmpl.id,
       );
       expect(matches.length).toBeLessThanOrEqual(1);
     }
@@ -132,15 +137,27 @@ describe("inferTemplate — mutual exclusivity", () => {
 
 describe("inferTemplate — dated asymmetry for daily types", () => {
   test("weekly-event matches daily=true regardless of dated", () => {
-    expect(inferTemplate(src(true, false, false, false))?.id).toBe("weekly-event");
-    expect(inferTemplate(src(true, true, false, false))?.id).toBe("weekly-event");
+    expect(inferTemplate(src(true, false, false, false))?.id).toBe(
+      "weekly-event",
+    );
+    expect(inferTemplate(src(true, true, false, false))?.id).toBe(
+      "weekly-event",
+    );
   });
 
   test("hireable-item matches regardless of both daily and dated", () => {
-    expect(inferTemplate(src(false, false, true, true))?.id).toBe("hireable-item");
-    expect(inferTemplate(src(false, true, true, true))?.id).toBe("hireable-item");
-    expect(inferTemplate(src(true, false, true, true))?.id).toBe("hireable-item");
-    expect(inferTemplate(src(true, true, true, true))?.id).toBe("hireable-item");
+    expect(inferTemplate(src(false, false, true, true))?.id).toBe(
+      "hireable-item",
+    );
+    expect(inferTemplate(src(false, true, true, true))?.id).toBe(
+      "hireable-item",
+    );
+    expect(inferTemplate(src(true, false, true, true))?.id).toBe(
+      "hireable-item",
+    );
+    expect(inferTemplate(src(true, true, true, true))?.id).toBe(
+      "hireable-item",
+    );
   });
 });
 
@@ -153,9 +170,9 @@ describe("inferTemplate — price is not a dimension", () => {
     expect(inferTemplate({ ...base, unit_price: 0 } as typeof base)?.id).toBe(
       "one-off-event",
     );
-    expect(inferTemplate({ ...base, unit_price: 1000 } as typeof base)?.id).toBe(
-      "one-off-event",
-    );
+    expect(
+      inferTemplate({ ...base, unit_price: 1000 } as typeof base)?.id,
+    ).toBe("one-off-event");
   });
 });
 
@@ -166,7 +183,9 @@ describe("inferTemplate — template flags", () => {
   });
 
   test("only hireable-item requires logistics", () => {
-    const logisticsRequired = LISTING_TEMPLATES.filter((t) => t.requiresLogistics);
+    const logisticsRequired = LISTING_TEMPLATES.filter(
+      (t) => t.requiresLogistics,
+    );
     expect(logisticsRequired.map((t) => t.id)).toEqual(["hireable-item"]);
   });
 

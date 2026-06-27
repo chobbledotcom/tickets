@@ -33,11 +33,7 @@ import {
   renderFields,
 } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
-import {
-  inferTemplate,
-  LISTING_TEMPLATES,
-  type ListingTemplate,
-} from "#shared/listing-templates.ts";
+import { inferTemplate, LISTING_TEMPLATES } from "#shared/listing-templates.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { utcToLocalInput } from "#shared/timezone.ts";
 import {
@@ -1691,16 +1687,16 @@ const TEMPLATE_SEEDS: Record<string, FieldValues> = {
     purchase_only: "1",
     uses_logistics: "1",
   },
-  "online-digital": {
-    fields: "email",
-    listing_type: "standard",
-    purchase_only: "1",
-    uses_logistics: "",
-  },
   "one-off-event": {
     fields: "email",
     listing_type: "standard",
     purchase_only: "",
+    uses_logistics: "",
+  },
+  "online-digital": {
+    fields: "email",
+    listing_type: "standard",
+    purchase_only: "1",
     uses_logistics: "",
   },
   "weekly-event": {
@@ -1714,6 +1710,15 @@ const TEMPLATE_SEEDS: Record<string, FieldValues> = {
     uses_logistics: "",
   },
 };
+
+/** CSS class string for a form whose dimension fields are template-controlled. */
+const listingFormClass = (template: ReturnType<typeof inferTemplate>): string =>
+  [
+    "listing-form--templated",
+    template?.signature.daily !== undefined ? "listing-form--hide-type" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
 /**
  * Type-picker landing page for GET /admin/listing/new (no ?template param).
@@ -1729,7 +1734,10 @@ export const adminListingPickerPage = (session: AdminSession): string =>
         {LISTING_TEMPLATES.filter(
           (tmpl) => !tmpl.requiresLogistics || settings.hasLogistics,
         ).map((tmpl) => (
-          <a class="listing-type-card" href={`/admin/listing/new?template=${tmpl.id}`}>
+          <a
+            class="listing-type-card"
+            href={`/admin/listing/new?template=${tmpl.id}`}
+          >
             <strong>{t(tmpl.label)}</strong>
             <span>{t(tmpl.description)}</span>
           </a>
@@ -1744,7 +1752,9 @@ export const adminListingPickerPage = (session: AdminSession): string =>
         )}
         <a class="listing-type-card" href="/admin/listing/new?template=custom">
           <strong>{t("listings_table.listing_type_picker_custom")}</strong>
-          <span>{t("listings_table.listing_type_picker_custom_description")}</span>
+          <span>
+            {t("listings_table.listing_type_picker_custom_description")}
+          </span>
         </a>
       </div>
     </Layout>,
@@ -1969,7 +1979,11 @@ const ListingFormSections = ({
 export const adminListingNewPage = (
   groups: Group[],
   session: AdminSession,
-  opts?: { customiseOpen?: boolean; error?: string; templateId?: string | null },
+  opts?: {
+    customiseOpen?: boolean;
+    error?: string;
+    templateId?: string | null;
+  },
 ): string => {
   const { error, templateId, customiseOpen = false } = opts ?? {};
   const storageEnabled = isStorageEnabled();
@@ -1988,21 +2002,13 @@ export const adminListingNewPage = (
   ];
   const template = LISTING_TEMPLATES.find((t) => t.id === templateId) ?? null;
   const seeds = templateId ? (TEMPLATE_SEEDS[templateId] ?? {}) : {};
-  const formClass = [
-    "listing-form--templated",
-    template && template.signature.daily !== undefined
-      ? "listing-form--hide-type"
-      : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
   return String(
     <Layout title={t("listings_table.add_listing")}>
       <AdminNav active="/admin/" session={session} />
 
       <CsrfForm
         action="/admin/listing"
-        class={template ? formClass : undefined}
+        class={template ? listingFormClass(template) : undefined}
         enctype="multipart/form-data"
       >
         <h1>{t("listings_table.add_listing")}</h1>
@@ -2054,15 +2060,6 @@ export const adminDuplicateListingPage = (
     ...(storageEnabled ? [getImageField(), getAttachmentField()] : []),
   ];
   const template = inferTemplate(listing);
-  const formClass = [
-    "listing-form--templated",
-    template && template.signature.daily !== undefined
-      ? "listing-form--hide-type"
-      : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
   return String(
     <Layout
       title={t("listings_table.duplicate_listing_title", {
@@ -2080,7 +2077,7 @@ export const adminDuplicateListingPage = (
       </div>
       <CsrfForm
         action="/admin/listing"
-        class={template ? formClass : undefined}
+        class={template ? listingFormClass(template) : undefined}
         enctype="multipart/form-data"
       >
         <input
@@ -2240,14 +2237,6 @@ export const adminListingEditPage = (
       : "";
   const durationWarning = String(<DurationWarning listing={listing} />);
   const template = inferTemplate(listing);
-  const formClass = [
-    "listing-form--templated",
-    template && template.signature.daily !== undefined
-      ? "listing-form--hide-type"
-      : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
   return String(
     <Layout
       title={t("listings_table.edit_listing_title", { name: listing.name })}
@@ -2261,7 +2250,7 @@ export const adminListingEditPage = (
       )}
       <CsrfForm
         action={`/admin/listing/${listing.id}/edit`}
-        class={template ? formClass : undefined}
+        class={template ? listingFormClass(template) : undefined}
         enctype="multipart/form-data"
         id="listing-edit-form"
       >

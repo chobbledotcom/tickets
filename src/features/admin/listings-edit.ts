@@ -28,8 +28,8 @@ import {
   type ListingAggregateValues,
   updateListingAggregateValues,
 } from "#shared/db/listings.ts";
-import { applyDemoOverrides, LISTING_DEMO_FIELDS } from "#shared/demo.ts";
 import { settings } from "#shared/db/settings.ts";
+import { applyDemoOverrides, LISTING_DEMO_FIELDS } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   dimensionsOf,
@@ -81,23 +81,26 @@ export const handleNewListingGet: TypedRouteHandler<
     if (!templateParam) {
       return htmlResponse(adminListingPickerPage(session));
     }
-    const template = LISTING_TEMPLATES.find((t) => t.id === templateParam) ?? null;
+    const template =
+      LISTING_TEMPLATES.find((t) => t.id === templateParam) ?? null;
     // Logistics-requiring templates are unavailable when the feature is disabled.
     if (template?.requiresLogistics && !settings.hasLogistics) {
       return htmlResponse(adminListingPickerPage(session));
     }
     const groups = await getAllGroups();
     return htmlResponse(
-      adminListingNewPage(groups, session, { templateId: template?.id ?? "custom" }),
+      adminListingNewPage(groups, session, {
+        templateId: template?.id ?? "custom",
+      }),
     );
   });
 
 /** Build a DimensionSource from submitted form params. */
 const formToDimensionSource = (form: FormParams) => ({
+  date: form.getString("date_date") || "",
   listing_type: isListingType(form.getString("listing_type"))
     ? (form.getString("listing_type") as "standard" | "daily")
     : ("standard" as const),
-  date: form.getString("date_date") || "",
   purchase_only: form.getString("purchase_only") === "1",
   uses_logistics: form.getString("uses_logistics") === "1",
 });

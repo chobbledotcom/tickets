@@ -54,7 +54,12 @@ export const LISTING_TEMPLATES: readonly ListingTemplate[] = [
     label: "listings_table.template_one_off_event",
     requiresDate: true,
     requiresLogistics: false,
-    signature: { daily: false, dated: true, logistics: false, purchaseable: false },
+    signature: {
+      daily: false,
+      dated: true,
+      logistics: false,
+      purchaseable: false,
+    },
   },
   {
     description: "listings_table.template_weekly_event_description",
@@ -70,7 +75,12 @@ export const LISTING_TEMPLATES: readonly ListingTemplate[] = [
     label: "listings_table.template_online_digital",
     requiresDate: false,
     requiresLogistics: false,
-    signature: { daily: false, dated: false, logistics: false, purchaseable: true },
+    signature: {
+      daily: false,
+      dated: false,
+      logistics: false,
+      purchaseable: true,
+    },
   },
   {
     description: "listings_table.template_hireable_item_description",
@@ -114,7 +124,9 @@ const matchesSignature = (
   return true;
 };
 
-export const inferTemplate = (source: DimensionSource): ListingTemplate | null =>
+export const inferTemplate = (
+  source: DimensionSource,
+): ListingTemplate | null =>
   LISTING_TEMPLATES.find((tmpl) =>
     matchesSignature(tmpl.signature, dimensionsOf(source)),
   ) ?? null;
