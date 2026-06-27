@@ -202,11 +202,16 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
   describe("bookingKey", () => {
     test("formats key with start_at", () => {
-      expect(bookingKey(1, "2026-05-01")).toBe("1:2026-05-01");
+      expect(bookingKey(1, "2026-05-01", 0)).toBe("1:2026-05-01:0");
     });
 
     test("formats key with null start_at", () => {
-      expect(bookingKey(1, null)).toBe("1:null");
+      expect(bookingKey(1, null, 0)).toBe("1:null:0");
+    });
+
+    test("distinguishes rows by parent_listing_id", () => {
+      expect(bookingKey(5, null, 1)).toBe("5:null:1");
+      expect(bookingKey(5, null, 2)).toBe("5:null:2");
     });
   });
 
@@ -765,6 +770,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           {
             conflictClass: "moveable",
             listingId: 5,
+            parentListingId: 0,
             sourceBooking: {
               attachment_downloads: 0,
               checked_in: 0,
@@ -814,6 +820,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           {
             conflictClass: "conflicting_metadata",
             listingId: 5,
+            parentListingId: 0,
             sourceBooking: {
               attachment_downloads: 0,
               checked_in: 0,
@@ -852,7 +859,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       };
       const decision: AttendeeMergeDecisionInput = {
         answers: {},
-        bookings: { "5:null": "take_source" },
+        bookings: { "5:null:0": "take_source" },
         money: {},
         pii: {},
         version: "v1",
@@ -874,6 +881,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           {
             conflictClass: "moveable",
             listingId: 5,
+            parentListingId: 0,
             sourceBooking: {
               attachment_downloads: 0,
               checked_in: 0,
@@ -925,6 +933,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           {
             conflictClass: "duplicate",
             listingId: 5,
+            parentListingId: 0,
             sourceBooking: {
               attachment_downloads: 0,
               checked_in: 0,
@@ -963,7 +972,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       };
       const decision: AttendeeMergeDecisionInput = {
         answers: { "10": "source" },
-        bookings: { "5:null": "keep_target" },
+        bookings: { "5:null:0": "keep_target" },
         money: {},
         pii: { name: "target" },
         version: "v1",
@@ -1000,6 +1009,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         {
           conflictClass: "duplicate",
           listingId: 5,
+          parentListingId: 0,
           sourceBooking: bookingRow(),
           sourceSaleAmount,
           startAt: null,
@@ -1018,7 +1028,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       booking: "keep_target" | "take_source" = "keep_target",
     ): AttendeeMergeDecisionInput => ({
       answers: {},
-      bookings: { "5:null": booking },
+      bookings: { "5:null:0": booking },
       money,
       pii: {},
       version: "v1",
@@ -1040,7 +1050,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     test("accepts a discarded paid booking once a money choice is given", () => {
       const result = validateAttendeeMergeDecision(
         moneyConflictDiff(5000, 5000),
-        decisionWith({ "5:null": "credit" }),
+        decisionWith({ "5:null:0": "credit" }),
       );
       expect(result.valid).toBe(true);
     });
@@ -1759,7 +1769,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       expect(diff.bookingItems[0]!.conflictClass).toBe("duplicate");
 
-      const key = bookingKey(listing.id, null);
+      const key = bookingKey(listing.id, null, 0);
       const result = await applyAttendeeMerge({
         decision: {
           answers: {},
@@ -1842,7 +1852,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       expect(diff.bookingItems[0]!.conflictClass).toBe("conflicting_metadata");
 
-      const key = bookingKey(listing.id, null);
+      const key = bookingKey(listing.id, null, 0);
       const result = await applyAttendeeMerge({
         decision: {
           answers: {},
