@@ -38,10 +38,6 @@ import {
   updateServicingEvent,
 } from "#shared/db/attendees/servicing.ts";
 import { getAllListings } from "#shared/db/listings.ts";
-import {
-  getQuestionsWithListingIds,
-  parseQuestionAnswers,
-} from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -411,17 +407,7 @@ const handleServicingGet: TypedRouteHandler<"GET /admin/servicing/:id"> = (
 const parseCreateInput = async (form: FormParams) => {
   const listings = await getAllListings();
   const parsed = parseServicingForm(form, listingsByIdMap(listings));
-  const input = toServicingCreateInput(parsed);
-  const questions = await getQuestionsWithListingIds(
-    input.bookings.map((booking) => booking.listingId),
-  );
-  return {
-    ...input,
-    questionAnswers: parseQuestionAnswers({ optional: true })(
-      form,
-      questions.questions,
-    ),
-  };
+  return toServicingCreateInput(parsed);
 };
 
 const COST_AMOUNT_LABEL = "cost amount";

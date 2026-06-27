@@ -100,4 +100,21 @@ describeWithEnv("servicing §11 — custom questions", { db: true }, () => {
     expect(rows.length).toBe(1);
     expect(rows[0]?.answer_id).toBe(answerId);
   });
+
+  test("saving a servicing event without questionAnswers preserves existing answers", async () => {
+    // Regression: the admin form no longer renders question fields, so
+    // updateServicingEvent receives no questionAnswers. Previously this wiped
+    // all stored answers because saveAttendeeAnswers deletes before re-inserting.
+    const { id, listing, answerId, questionId } =
+      await listingWithAnsweredHold();
+    // Omit questionAnswers entirely — simulates a form POST with no question fields.
+    await updateServicingEvent(id, {
+      bookings: [{ listingId: listing.id, quantity: 1 }],
+      name: "Boiler Service Updated",
+    });
+    const rows = await answersFor(id);
+    expect(rows.length).toBe(1);
+    expect(rows[0]?.answer_id).toBe(answerId);
+    expect(rows[0]?.question_id).toBe(questionId);
+  });
 });
