@@ -39,11 +39,11 @@ and every stored field stay exactly as they are.
 
 Three pieces already in the codebase make this almost entirely additive:
 
-- **Type is already derivable.** `isPaidListing(listing)`
-  (`src/shared/types.ts:130`) answers "purchaseable?"; `listing_type === "daily"`
-  answers "daily?"; `uses_logistics` answers "has logistics?"; a non-empty `date`
-  answers "has a fixed date?". The four booleans the five types are defined by are
-  all readable today with no new columns.
+- **Type is already derivable.** `purchase_only` (the "No check-in" box) answers
+  "purchaseable?"; `listing_type === "daily"` answers "daily?"; `uses_logistics`
+  answers "has logistics?"; a non-empty `date` answers "has a fixed date?". The
+  four booleans the five types are defined by are all stored fields readable today
+  with no new columns.
 
 - **Conditional visibility is already pure CSS.** The form hides daily-only
   fields, the day-prices block, the max-price field, etc. entirely through
@@ -70,22 +70,27 @@ toggle. No migration, no data-layer change.
 
 Each type is a fixed point in four dimensions:
 
-| Dimension   | Source field(s)                          | Meaning                                  |
-| ----------- | ---------------------------------------- | ---------------------------------------- |
-| `daily`     | `listing_type === "daily"`               | recurring per-date booking vs single     |
-| `dated`     | `date` non-empty                         | has one fixed calendar date/time         |
-| `paid`      | `isPaidListing(listing)`                 | has a price / pay-what-you-want / day prices |
-| `logistics` | `uses_logistics`                         | delivery/collection agents assigned      |
+| Dimension      | Source field(s)            | Meaning                                  |
+| -------------- | -------------------------- | ---------------------------------------- |
+| `daily`        | `listing_type === "daily"` | recurring per-date booking vs single     |
+| `dated`        | `date` non-empty           | has one fixed calendar date/time         |
+| `purchaseable` | `purchase_only`            | the **"No check-in"** box — a pure e-ticket / purchase with no door check-in, vs an event you scan people into |
+| `logistics`    | `uses_logistics`           | delivery/collection agents assigned      |
+
+**Price is *not* a dimension.** "Purchaseable" here means the existing
+`purchase_only` toggle ("No check-in mode", `schema.ts` / the `purchase_only`
+field at `fields.ts:538`), **not** whether the listing has a price. A listing of
+any type can have a price; pricing stays an orthogonal, always-available field.
 
 The initial five types, as their dimension signatures:
 
-| # | Type                  | `daily` | `dated` | `paid` | `logistics` |
-| - | --------------------- | ------- | ------- | ------ | ----------- |
-| 1 | One-off event ticket  | no      | **yes** | no     | no          |
-| 2 | Weekly event ticket   | **yes** | —       | no     | no          |
-| 3 | Online digital ticket | no      | no      | **yes**| no          |
-| 4 | Delivered item        | no      | no      | **yes**| **yes**     |
-| 5 | Bookable item         | **yes** | —       | **yes**| **yes**     |
+| # | Type                  | `daily` | `dated` | `purchaseable` | `logistics` |
+| - | --------------------- | ------- | ------- | -------------- | ----------- |
+| 1 | One-off event ticket  | no      | **yes** | no             | no          |
+| 2 | Weekly event ticket   | **yes** | —       | no             | no          |
+| 3 | Online digital ticket | no      | no      | **yes**        | no          |
+| 4 | Delivered item        | no      | no      | **yes**        | **yes**     |
+| 5 | Bookable item         | **yes** | —       | **yes**        | **yes**     |
 
 `—` = not part of the signature: a daily listing books a date *per booking* and
 ignores the listing-level `date` field (the CSS already hides `date` for daily
@@ -97,53 +102,68 @@ These signatures are pairwise disjoint, so a listing maps to **at most one**
 type — which is exactly the "types must be mutually exclusive, but that's fine"
 constraint. Reading the table:
 
-- Standard (`daily=no`) splits cleanly by `(dated, paid, logistics)` into types
-  1, 3, 4.
-- Daily (`daily=yes`) splits cleanly by `paid` (with `logistics` tracking it)
-  into types 2, 5.
+- Standard (`daily=no`) splits cleanly by `(dated, purchaseable, logistics)` into
+  types 1, 3, 4.
+- Daily (`daily=yes`) splits cleanly by `purchaseable` (with `logistics` tracking
+  it) into types 2, 5.
 
 Not every combination is named, and that is deliberate (see "The Custom
-fallback").
+fallback"). Because `purchaseable` is a stored boolean (`purchase_only`) rather
+than a derived "has a price" predicate, each type's signature is **fully
+determined by four real stored fields the seed can set directly** — there is no
+"did the operator also enter a price?" ambiguity (see the create-seed note in §5).
 
 ### What each type shows vs. hides by default
 
-The inferred type fixes the four dimensions, so the inputs that *set* those
-dimensions — and their dependent fields — are the ones hidden behind Customise.
-Grouping the existing fields:
+The inferred type fixes the four dimensions, so the **toggles that set those
+dimensions** are hidden behind Customise (the type already decided them), while
+the **configuration each type still needs** stays visible. Three kinds of field:
 
-- **`DAILY` group** — `listing_type`, `bookable_days`, `minimum_days_before`,
-  `maximum_days_after`, `duration_days`, `customisable_days`, the day-prices
-  fieldset. (Relevant only to daily types.)
-- **`DATE` field** — `date`. (Relevant only to the one-off event.)
-- **`PRICING` group** — `unit_price`, `can_pay_more`, `max_price`. (Relevant only
-  to paid types.)
-- **`LOGISTICS` field** — `uses_logistics`. (Relevant only to logistics types.)
-- **Always shown** — `name`, `description`, `location`, `max_attendees`,
-  `max_quantity`, `fields` (contact), `closes_at`, image/attachment.
+- **Dimension toggles — hidden once a type is set** (the type fixes them):
+  - `listing_type` (daily vs standard),
+  - `purchase_only` (the "No check-in" box — the `purchaseable` dimension),
+  - `uses_logistics` (the `logistics` dimension).
+- **Type-dependent configuration — shown only when its type needs it:**
+  - **`DAILY` group** — `bookable_days`, `minimum_days_before`,
+    `maximum_days_after`, `duration_days`, `customisable_days`, the day-prices
+    fieldset. Shown for daily types (2, 5) — the operator still picks *which*
+    days, the booking window, and durations.
+  - **`DATE` field** — `date`. Shown only for the one-off event (type 1).
+- **Orthogonal — always shown for every type:** `name`, `description`,
+  `location`, `max_attendees`, `max_quantity`, `fields` (contact), `closes_at`,
+  **pricing** (`unit_price`, `can_pay_more`, `max_price`), image/attachment.
+  Pricing is here, not in a group: price is independent of the four dimensions,
+  so any type may have one.
 - **Always behind Customise/Advanced** — `thank_you_url`, `webhook_url`,
-  `non_transferable`, `purchase_only`, `hidden`, `slug`, builder fields. (These
-  are already the rarely-touched fields; they fold into the same Customise
-  region rather than a second separate one.)
+  `non_transferable`, `hidden`, `slug`, builder fields. These already live in the
+  Advanced `<details>` (`non_transferable`/`hidden` are in the Options section
+  today, the rest in Advanced); they fold into the same Customise region.
+  **They keep the non-default surfacing rule (§3):** a listing that is `hidden`,
+  `non_transferable`, or has a configured webhook renders with that field visible
+  (Customise expanded), so collapsing never buries state an operator set — exactly
+  as `advancedSectionHasValues` already forces the Advanced section open today.
 
-| Type                  | Shown by default (beyond "always")        | Hidden behind Customise         |
-| --------------------- | ----------------------------------------- | ------------------------------- |
-| One-off event ticket  | `DATE`                                    | `DAILY`, `PRICING`, `LOGISTICS` |
-| Weekly event ticket   | `DAILY`                                   | `DATE`, `PRICING`, `LOGISTICS`  |
-| Online digital ticket | `PRICING`                                 | `DAILY`, `DATE`, `LOGISTICS`    |
-| Delivered item        | `PRICING`, `LOGISTICS`                    | `DAILY`, `DATE`                 |
-| Bookable item         | `DAILY`, `PRICING`, `LOGISTICS`           | `DATE`                          |
+| Type                  | Shown beyond "always"     | Hidden toggles + groups                          |
+| --------------------- | ------------------------- | ------------------------------------------------ |
+| One-off event ticket  | `DATE`                    | all 3 toggles, `DAILY`                            |
+| Weekly event ticket   | `DAILY`                   | all 3 toggles, `DATE`                             |
+| Online digital ticket | —                         | all 3 toggles, `DAILY`, `DATE`                    |
+| Delivered item        | —                         | all 3 toggles, `DAILY`, `DATE`                    |
+| Bookable item         | `DAILY`                   | all 3 toggles, `DATE`                             |
 
-(The contact-fields hint matters for Delivered item — `address` is the field an
-operator most wants there — but the contact group is always shown, so no special
-casing; just default-check the relevant boxes in the template seed, below.)
+(Online digital and Delivered item differ only in the hidden `uses_logistics`
+toggle, so they show the same fields — the type is still distinct because the
+seed sets `uses_logistics` differently. The contact-fields box matters for
+Delivered item — `address` — but contact fields are always shown, so the template
+seed just default-ticks the right boxes; see §5.)
 
 ---
 
 ## The Custom fallback
 
-A listing whose `(daily, dated, paid, logistics)` does not match any of the five
-signatures (e.g. a *standard, dated, paid* event — a real in-person ticket you
-sell — or a *daily, free, logistics* hold) is **Custom**: no type matched, so we
+A listing whose `(daily, dated, purchaseable, logistics)` does not match any of
+the five signatures (e.g. a *standard, no-date, check-in, logistics* item, or a
+*daily, check-in, no-logistics* listing) is **Custom**: no type matched, so we
 hide nothing and render the full form with Customise already expanded. The picker
 page offers an explicit **"Custom / advanced"** option that does the same on
 create. This keeps the five types small and opinionated without ever trapping a
@@ -166,7 +186,7 @@ each. Sketch:
 
 ```ts
 // src/shared/listing-templates.ts
-export type FieldGroup = "DAILY" | "DATE" | "PRICING" | "LOGISTICS";
+export type FieldGroup = "DAILY" | "DATE";   // the only type-dependent config groups
 
 export type ListingTemplate = {
   id: string;                 // "one-off-event", "weekly-event", …
@@ -174,10 +194,15 @@ export type ListingTemplate = {
   description: string;       // picker card blurb (i18n key)
   // The dimension signature used BOTH to match an existing listing and to seed a
   // new one. `dated` omitted (—) where not part of the signature.
-  signature: { daily: boolean; dated?: boolean; paid: boolean; logistics: boolean };
-  shown: readonly FieldGroup[];   // groups revealed by default; the rest are hidden
+  signature: { daily: boolean; dated?: boolean; purchaseable: boolean; logistics: boolean };
+  shown: readonly FieldGroup[];   // config groups revealed by default; dimension toggles always hidden
   // Field values a freshly-picked template pre-fills on the blank create form.
-  seed: Partial<FieldValues>;     // e.g. { listing_type: "daily" } or { fields: "email,address" }
+  // CRITICAL: the seed sets EVERY dimension field so the saved row re-infers as
+  // this template — listing_type, purchase_only, uses_logistics, and (type 1) date.
+  seed: Partial<FieldValues>;     // e.g. { listing_type: "daily", purchase_only: "1", uses_logistics: "1" }
+  // Whether this template needs the logistics feature (logistics:true ⇒ only
+  // offered/usable when settings.hasLogistics; see §5).
+  requiresLogistics: boolean;
 };
 
 export const LISTING_TEMPLATES: readonly ListingTemplate[] = [ /* the 5 */ ];
@@ -198,41 +223,58 @@ export const inferTemplate = (l: Listing): ListingTemplate | null =>
 const dimensionsOf = (l: Listing) => ({
   daily: l.listing_type === "daily",
   dated: l.date !== "",
-  paid: isPaidListing(l),
+  purchaseable: l.purchase_only,        // the "No check-in" box, not a price check
   logistics: l.uses_logistics,
 });
 ```
 
-`matchesSignature` ignores `dated` when the signature omits it (daily types).
-Reuse the existing `isPaidListing` rather than re-deriving "paid".
+`matchesSignature` ignores `dated` when the signature omits it (daily types). All
+four dimensions read directly off stored boolean/enum fields — no derived "has a
+price" predicate, so inference can never disagree with what the seed wrote.
 
 ### 3. Override detection (edit path)
 
-For the inferred template, a field group is *hidden* unless one of its fields
-holds a non-default value. Generalise `advancedSectionHasValues`: a group is
-**forced visible** when any field in it differs from its blank/default. Concretely
-a "One-off event" that somehow has `unit_price > 0` keeps `PRICING` shown (and
-Customise expanded), so the operator sees the price that makes it atypical instead
-of it silently hiding. This is the rule from point 4 of the Goal, implemented as
-"start Customise open + reveal the overridden group."
+For the inferred template, a *normally-hidden* field is **forced visible** when it
+holds a non-default value — generalising `advancedSectionHasValues`. Concretely a
+"One-off event" that has a configured `webhook_url`, or is `hidden`/
+`non_transferable`, keeps that field shown (and Customise expanded), so collapsing
+never buries state an operator set. This is point 4 of the Goal: "start Customise
+open + reveal the overridden field."
 
-Defaults to compare against come from the schema defaults already in
-`schema.ts:66-127` (e.g. `unit_price` null/0, `uses_logistics` 0, `date` `''`).
+**Compare against *effective* form defaults, not raw schema defaults.** A few
+fields render with a non-zero default that create-parsing persists even when the
+controlling toggle is off — notably `max_price`, which shows `100.00`
+(`fields.ts:493`) and is stored even when `can_pay_more` is unchecked, while the
+schema default is `0`. Comparing to the schema default would flag ordinary
+listings as "overridden" and pop Customise open on nearly everything. So the
+override check must use each field's *form* default (and ignore `max_price`
+entirely unless `can_pay_more` is set). Note this only affects fields that *can*
+be hidden — pricing is always shown (§ above), so `max_price` doesn't drive a
+template override anyway, but the principle holds for whichever fields the
+Customise region collapses.
 
 ### 4. The Customise toggle (CSS, no JS)
 
-Add a single `Customise` checkbox to the form. Each hideable section gets a class
-(`listing-section--pricing`, `--logistics`, `--date`, reusing the existing
-`--daily`), and the SCSS hides those sections **unless** Customise is checked,
-extending the existing `hidden-in-form` mixin. The server decides the checkbox's
-initial `checked` state and which section classes are present/hidden based on the
-inferred template + overrides; from there the pure-CSS `:has()` reveal does the
-rest live as the operator toggles it. This mirrors `.listing-advanced` and the
-`hidden-when-selected` rules already in `style.scss:1637-1676`.
+Add a single `Customise` checkbox to the form. Each hideable section/field gets a
+class (`listing-section--daily`, `--date`, and the dimension-toggle wrappers), and
+the SCSS hides those **unless** Customise is checked, extending the existing
+`hidden-in-form` mixin. The server decides the checkbox's initial `checked` state
+and which classes are present based on the inferred template + overrides; from
+there the pure-CSS `:has()` reveal does the rest as the operator toggles it. This
+mirrors `.listing-advanced` and the `hidden-when-selected` rules already in
+`style.scss:1637-1676`.
 
-Because the daily-vs-standard and pay-more reveals are *already* CSS-driven by the
-form's own selects, those keep working inside the revealed form unchanged — the
-Customise toggle is an outer layer, not a replacement.
+**Customise must win over the existing daily/date hiding rules.** The current CSS
+hides the `date` label whenever `listing_type=daily` is selected
+(`style.scss:1663`) and hides `duration_days` for standard-without-customisable
+(`:1657`). Those rules are unconditional, so an override that wants to *surface*
+`date` on a daily listing (a daily row that somehow has a listing-level date set)
+would still be hidden by the older selector. The new rules must therefore be
+**layered so a checked Customise state overrides** the daily/date/duration hides —
+e.g. scope those existing hides with `:not(:has(<customise-checkbox>:checked))`,
+so expanding Customise reveals everything regardless of the daily/standard
+selection. Without this layering the override rule is silently defeated for the
+date and duration fields.
 
 ### 5. The type-picker create page
 
@@ -247,20 +289,55 @@ GET /admin/listing/new?template=<id>      // e.g. ?template=delivered-item
 
 The same handler, given `?template=<id>`, renders the blank create form but:
 
-- applies the template's `seed` values (`listing_type`, default contact fields,
-  etc.) as the form's initial `values`,
-- shows only the template's `shown` groups, with Customise collapsed — i.e. it
-  renders **exactly as if a blank listing had been inferred as that type**. No new
-  code path: feed the chosen template into the same "which groups are visible"
+- applies the template's `seed` values as the form's initial `values`. **The seed
+  must set every dimension field the signature pins** — `listing_type`,
+  `purchase_only`, `uses_logistics`, and (one-off only) leave `date` for the
+  operator — so that submitting the form unchanged saves a row that re-infers as
+  this exact template. Because the dimensions are stored booleans the seed writes
+  directly (not a derived "has a price"), there's no "operator forgot to add a
+  price → reopens as Custom" trap: an Online digital ticket persists
+  `purchase_only=1` and re-infers correctly whether or not a price was entered.
+- shows only the template's `shown` config groups, with Customise collapsed — i.e.
+  it renders **exactly as if a blank listing had been inferred as that type**. No
+  new code path: feed the chosen template into the same "which fields are visible"
   logic the edit page uses (with no overrides, since the form is blank).
-- `?template` absent or unknown, or `?template=custom`, → the current full form
-  with Customise expanded (today's behaviour, preserved).
 
-The param is **never persisted**. On submit it's an ordinary
-`POST /admin/listing`; the created listing has no stored type, and reopening it
-re-infers from its saved fields. (A "One-off event" picked at create that the
-operator then gives a price to will simply re-infer as Custom next time — correct,
-because that's no longer one of the five shapes.)
+**Routing of the GET (resolving the picker/form ambiguity):**
+
+| URL | Renders |
+| --- | --- |
+| `GET /admin/listing/new` (no `?template`) | the **card picker** |
+| `GET /admin/listing/new?template=<known id>` | the seeded, Customise-collapsed form |
+| `GET /admin/listing/new?template=custom` | the full form, Customise expanded |
+| `GET /admin/listing/new?template=<unknown>` | treat as `custom` (full form) |
+
+So the bare `/new` URL is always the picker; the full default form is reached only
+via the explicit Custom card. (Earlier draft wording said an absent param renders
+the full form — that contradicts the picker and is corrected here.)
+
+**Logistics-gated templates.** When `settings.hasLogistics` is false, the create
+form omits `logisticsField` and create-parsing won't persist `uses_logistics`
+(`listings.tsx:1824`), so Delivered item and Bookable item could not save their
+`logistics=yes` signature — they'd reopen as a different/Custom type. So the
+picker **hides** (or disables, with an explanatory note) any template whose
+`requiresLogistics` is true unless logistics is enabled, and the seeded-form
+handler rejects such a `?template` the same way. Symmetric to how the form already
+only renders logistics when the feature is on.
+
+**Carry the template through POST validation errors.** The seeded form posts to
+the ordinary `POST /admin/listing`, whose error path currently re-renders via
+`adminListingNewPage(groups, session, result.error)` (`listings-edit.ts:77`) with
+no idea which card was chosen — so a validation failure would drop the operator
+back to the picker/full form, losing the seeded/collapsed context and their
+entered values. Carry the chosen template id through the submit (a hidden
+`template` input in the form, or a `?template=<id>` on the POST action) and have
+the error path re-render the **same seeded/collapsed form** with the submitted
+values + error. The id is read only to pick the render shape; it is **never
+written to the listing row**.
+
+The param is **never persisted**. On a successful submit it's an ordinary create;
+the created listing has no stored type, and reopening it re-infers from its saved
+fields.
 
 This also means **duplicate** (`adminDuplicateListingPage`, `listings.tsx:1861`)
 needs no picker: it pre-fills from an existing listing, so it just runs inference
@@ -273,10 +350,10 @@ on that listing like the edit page.
 | Concern | File | Change |
 | --- | --- | --- |
 | Template table + inference + override helper | `src/shared/listing-templates.ts` (new) | The `LISTING_TEMPLATES` schema, `inferTemplate`, `dimensionsOf`, group-override detection. |
-| Reuse "paid" / dimensions | `src/shared/types.ts` | None — `isPaidListing` already exported; consume it. |
-| Form sectioning | `src/ui/templates/admin/listings.tsx` | Tag each hideable `<fieldset>` with a group class; drive section visibility + the Customise checkbox's initial state from the inferred template (edit/duplicate) or the `?template` seed (create); generalise `advancedSectionHasValues` into a per-group override check. |
-| Create page → picker | `src/features/admin/listings-edit.ts` + `listings.tsx` (`adminListingNewPage`) | Render the picker from `LISTING_TEMPLATES` when no `?template`; render a seeded/collapsed blank form when `?template=<id>`. |
-| Customise CSS | `src/ui/static/style.scss` | New section classes + a `reveal-when-checked`-style rule keyed off the Customise checkbox, alongside the existing `hidden-when-selected` block. |
+| Dimensions source | `src/shared/types.ts` / schema | None — `purchase_only`, `listing_type`, `uses_logistics`, `date` are all stored fields read directly. |
+| Form sectioning | `src/ui/templates/admin/listings.tsx` | Tag each hideable field/`<fieldset>` with a class; drive visibility + the Customise checkbox's initial state from the inferred template (edit/duplicate) or the `?template` seed (create); generalise `advancedSectionHasValues` into a per-field override check using *form* defaults. |
+| Create page → picker | `src/features/admin/listings-edit.ts` + `listings.tsx` (`adminListingNewPage`) | Picker when no `?template`; seeded/collapsed form for a known `?template`; gate `requiresLogistics` templates on `settings.hasLogistics`; carry the template id through POST error re-renders. |
+| Customise CSS | `src/ui/static/style.scss` | New classes + a Customise-checkbox reveal, **layered to override** the existing daily/date/duration hides (scope those with `:not(:has(customise:checked))`). |
 | Copy | i18n files | Picker card titles/blurbs, the "Customise" label, per-type hints. |
 
 No migration. No change to `listings-form.ts`, validation, the DB schema, or any
@@ -289,24 +366,36 @@ type label on the detail page too (out of scope here).
 ## Testing (per AGENTS.md)
 
 - **Inference is total and exclusive.** Table-driven test over all 16
-  `(daily, dated, paid, logistics)` combinations: each of the five signatures
-  maps to its one type, every other combination maps to `null` (Custom). This is
-  the headline invariant — prove no listing ever matches two types.
-- **Override surfaces a hidden field.** A listing whose inferred type hides
-  `PRICING` but that has `unit_price > 0` renders with the pricing section visible
-  and Customise expanded (assert on the rendered markup / the visibility flags,
-  not internals). One test per group (DAILY/DATE/PRICING/LOGISTICS).
+  `(daily, dated, purchaseable, logistics)` combinations: each of the five
+  signatures maps to its one type, every other combination maps to `null`
+  (Custom). This is the headline invariant — prove no listing ever matches two
+  types. Include a *price does not affect type* case: the same `(standard, dated,
+  not-purchase-only, no-logistics)` listing infers One-off event whether
+  `unit_price` is 0 or non-zero.
+- **Override surfaces a hidden field.** A listing whose inferred type collapses a
+  field but that holds a non-default value (e.g. `hidden`, `non_transferable`, or
+  a `webhook_url`) renders with that field visible and Customise expanded (assert
+  on rendered markup / visibility flags). Include the `max_price=100.00`-with-
+  `can_pay_more`-off case to prove the *form-default* comparison does **not** flag
+  it as an override.
 - **Picker → seeded form.** `GET /admin/listing/new?template=delivered-item`
-  renders a blank form pre-seeded with `listing_type=standard`, pricing +
-  logistics shown, daily + date hidden; `?template=custom` and an unknown value
-  both render the full form. Assert the seeds and which sections are present.
-- **Round-trips as a normal create.** A form submitted from a seeded picker form
-  creates a listing with the expected stored fields and **no** type column (there
-  is none); reopening it re-infers the same type.
+  renders a blank form pre-seeded with `listing_type=standard`, `purchase_only=1`,
+  `uses_logistics=1`, daily + date hidden, Customise collapsed; `?template=custom`
+  and an unknown value render the full form; **bare `/new` renders the picker**.
+- **Logistics gating.** With `settings.hasLogistics=false`, the picker omits
+  Delivered item + Bookable item, and `?template=delivered-item` does not render a
+  seeded form that can't be saved.
+- **Template survives a POST error.** A seeded `delivered-item` submit that fails
+  validation re-renders the *same* seeded/collapsed form with the entered values
+  and the error — not the picker or the default full form.
+- **Round-trips as a normal create.** A form submitted unchanged from each seeded
+  picker form creates a listing with the dimension fields set, and reopening it
+  re-infers the **same** template (the key regression against the "reopens as
+  Custom" failure mode).
 - **CSS reveal is behavioural, not JS.** The Customise checkbox reveals hidden
-  sections via `:has()` — covered by the existing form-render tests asserting the
-  classes/markup are present (the visual reveal is CSS, like the daily/pay-more
-  reveals today).
+  sections via `:has()`, and a checked Customise overrides the daily/date hides —
+  covered by form-render tests asserting the classes/markup and the
+  `:not(:has(...))` layering are present.
 - Negative paths unchanged: existing listing validation tests still pass — this
   layer adds no new server-side acceptance.
 
@@ -319,11 +408,12 @@ not survive.
 
 ## Open questions / decisions for the operator
 
-1. **Standard + paid + dated.** A genuine in-person *paid* event with a fixed
-   date (sell tickets to a gig on the 14th) doesn't match any of the five — it
-   falls to Custom. Is that acceptable, or should there be a sixth "Paid event
-   ticket" type? The five as given deliberately make "event = free, item = paid";
-   confirm that's the intended split.
+1. **Unnamed combinations.** With `purchaseable = purchase_only` (not price), the
+   uncovered shapes are e.g. *standard + no-date + check-in + logistics* or
+   *daily + check-in + no-logistics*. These fall to Custom. Is that acceptable, or
+   does any deserve its own named type? (Pricing is orthogonal now, so a paid
+   in-person dated event is just a One-off event ticket — that earlier gap is
+   gone.)
 2. **Closes_at / registration deadline.** Currently always shown. It's arguably
    irrelevant to a Delivered item or Online digital ticket. Keep it always-shown
    for simplicity, or fold it into a group too?
