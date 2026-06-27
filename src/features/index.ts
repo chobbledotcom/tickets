@@ -471,27 +471,41 @@ const READ_ONLY_GET_PATTERNS = [
   /^\/admin\/ledger\/entries\/\d+\/edit$/,
 ];
 
-/** Paths that should be blocked when POSTed in read-only mode */
-const READ_ONLY_POST_PATTERNS = [
-  /^\/ticket\//,
-  /^\/admin\/listing$/,
-  /^\/admin\/listing\/\d+\/edit$/,
-  /^\/admin\/listing\/\d+\/children$/,
-  /^\/admin\/groups$/,
-  /^\/admin\/groups\/\d+\/edit$/,
-  /^\/admin\/groups\/\d+\/add-listings$/,
-  /^\/admin\/listing\/\d+\/attendee$/,
-  /^\/admin\/attendees\/new$/,
-  // The unified attendee edit posts a writeoff balance correction to the money
-  // ledger (decision 14), so it mutates and must be blocked read-only. The `$`
-  // keeps it from matching the `/merge`, `/refresh-payment` sub-routes.
-  /^\/admin\/attendees\/\d+$/,
-  // Decision-14 income/revenue corrections post writeoff adjustment legs.
-  /^\/admin\/listing\/\d+\/income$/,
-  /^\/admin\/modifiers\/\d+\/revenue$/,
-  /^\/admin\/ledger\/[^/]+\/[^/]+\/add$/,
-  /^\/admin\/ledger\/entries\/\d+\/edit$/,
-  /^\/admin\/ledger\/entries\/\d+\/delete$/,
+const isMutatingMethod = (method: string): boolean =>
+  method === "DELETE" ||
+  method === "PATCH" ||
+  method === "POST" ||
+  method === "PUT";
+
+/**
+ * Paths that remain writable in read-only mode (default-deny allowlist).
+ * Any POST/PUT/PATCH/DELETE not matching one of these patterns is blocked.
+ *
+ * Categories:
+ *  - Auth: login / logout
+ *  - Billing lifecycle: renewal, payment webhook
+ *  - Apple Wallet protocol stubs (/v1/*) — must return 200/201, not redirect
+ *  - Inbound webhooks: SMS
+ *  - Public / owner messaging: join, unsubscribe, contact, admin support
+ *  - Inter-instance machine endpoint: site credentials
+ *  - On-site ops: check-in, scan, refresh-payment
+ */
+const READ_ONLY_SAFE_PATHS = [
+  /^\/admin\/login$/,
+  /^\/admin\/logout$/,
+  /^\/renew$/,
+  /^\/payment\/webhook$/,
+  /^\/v1\/devices\/[^/]+\/registrations\/[^/]+\/[^/]+$/,
+  /^\/v1\/log$/,
+  /^\/sms\/webhook$/,
+  /^\/join\/[^/]+$/,
+  /^\/unsubscribe$/,
+  /^\/contact$/,
+  /^\/admin\/support$/,
+  /^\/instance\/site-credentials$/,
+  /^\/admin\/listing\/\d+\/attendee\/\d+\/checkin$/,
+  /^\/admin\/listing\/\d+\/scan$/,
+  /^\/admin\/attendees\/\d+\/refresh-payment$/,
 ];
 
 /**
@@ -501,23 +515,22 @@ const READ_ONLY_POST_PATTERNS = [
 const readOnlyGuard = (path: string, method: string): Response | null => {
   if (!isReadOnly()) return null;
 
-  // Block all JSON API mutations (POST/PUT/DELETE on /api/*)
-  if (path.startsWith("/api/") && method !== "GET" && method !== "OPTIONS") {
+  // Block all JSON API mutations (POST/PUT/PATCH/DELETE on /api/*)
+  if (path.startsWith("/api/") && isMutatingMethod(method)) {
     return jsonResponse({ error: READ_ONLY_MESSAGE }, 403);
   }
 
-  // Block GET pages for create/edit forms
+  // Block GET pages for create/edit forms (cosmetic blocklist)
   if (method === "GET") {
     for (const pattern of READ_ONLY_GET_PATTERNS) {
       if (pattern.test(path)) return redirectResponse("/read-only");
     }
   }
 
-  // Block form POSTs for create/edit actions
-  if (method === "POST") {
-    for (const pattern of READ_ONLY_POST_PATTERNS) {
-      if (pattern.test(path)) return redirectResponse("/read-only");
-    }
+  // Default-deny: block all mutating requests not on the safe list
+  if (isMutatingMethod(method)) {
+    if (READ_ONLY_SAFE_PATHS.some((p) => p.test(path))) return null;
+    return redirectResponse("/read-only");
   }
 
   return null;
