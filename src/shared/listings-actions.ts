@@ -10,13 +10,24 @@ import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { groupsTable, validateGroupListingType } from "#shared/db/groups.ts";
 import {
+  edgeIncompatibilityAfterChange,
+  firstTouchingEdgeError,
+  getChildListingIds,
+} from "#shared/db/listing-parents.ts";
+import {
   computeSlugIndex,
   deleteListing,
+  getAllListings,
   getListingWithCount,
   isSlugTaken,
   type ListingInput,
   listingsTable,
 } from "#shared/db/listings.ts";
+import {
+  childOnlyAddOnNameForListings,
+  firstChildUnreachableAddOnForListings,
+} from "#shared/db/modifier-resolve.ts";
+import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { generateUniqueSlug } from "#shared/slug.ts";
 import { deleteListingStorageFiles } from "#shared/storage.ts";
 import {
@@ -42,11 +53,15 @@ const validateMaxPrice = (input: ListingInput): string | null => {
     : null;
 };
 
-/** Validate selected group existence and listing type compatibility. */
-const validateListingGroup = async (
+/** An async listing check that may depend on the update target's id (undefined
+ * on create), returning a user-facing error or null. */
+type ListingUpdateCheck = (
   input: ListingInput,
   existingId: number | undefined,
-): Promise<string | null> => {
+) => Promise<string | null>;
+
+/** Validate selected group existence and listing type compatibility. */
+const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
   if (!input.groupId || input.groupId === 0) return null;
 
   const group = await groupsTable.findById(input.groupId);
@@ -90,6 +105,122 @@ const validateRenewalConfig = (input: ListingInput): string | null => {
   return null;
 };
 
+/** Project a (possibly partial) listing form input onto the edge-compatibility
+ * shape for the row it would become, defaulting each optional field as the form
+ * layer does. */
+export const listingInputToEdge = (
+  input: ListingInput,
+  id: number,
+): EdgeListing => ({
+  customisable_days: input.customisableDays ?? false,
+  day_prices: input.dayPrices ?? {},
+  duration_days: normalizeDurationDays(input.durationDays ?? 1),
+  id,
+  listing_type: input.listingType ?? "standard",
+  months_per_unit: input.monthsPerUnit ?? 0,
+  name: input.name,
+});
+
+/** The first child-only add-on the listing's edges would orphan under its
+ * would-be `group_id`, or null. Reuses the same reachability helper the edge/
+ * modifier saves use, resolved against an in-memory listing set with this
+ * listing's group move applied (the live `modifier_groups`→`listings` join can't
+ * see the pending change — parents.md Fix 4). The listing is checked both as a
+ * parent (its children, against its own page id `[id]`) and as a child (under
+ * each parent's page id `[parentId]`). */
+const orphanedAddOnAfterChange = async (
+  id: number,
+  wouldBeGroupId: number,
+): Promise<string | null> => {
+  // Apply this listing's would-be group_id to the in-memory listing set, so a
+  // group-scoped add-on resolves against the move the save is about to make.
+  // (Built eagerly; the shared traversal short-circuits before `check` runs when
+  // the listing has no edges, so a no-edge save reads it but never queries scopes.)
+  const allListings = (await getAllListings()).map((listing) =>
+    listing.id === id ? { ...listing, group_id: wouldBeGroupId } : listing,
+  );
+  // Each touching edge is a (suppressed child, parent page id) pair: as a parent
+  // of each child the page is self (`id`) and the suppressed child is the other
+  // endpoint; as a child under each parent the page is the parent and self is the
+  // suppressed child.
+  return firstTouchingEdgeError(id, async ({ self, otherId }) => {
+    const childId = self === "parent" ? otherId : id;
+    const pageId = self === "parent" ? id : otherId;
+    const addOn = await childOnlyAddOnNameForListings(
+      childId,
+      [pageId],
+      allListings,
+    );
+    return addOn
+      ? t("listings_table.children_err_child_addon_save", { addon: addOn })
+      : null;
+  });
+};
+
+/**
+ * Block a DEACTIVATION (of one listing, or a whole group at once) that would
+ * leave a child-scoped opt-in add-on a dead end — reachable only through a
+ * suppressed child once the would-be-inactive listings stop serving a public
+ * page (parents.md Fix 5; generalised to a SET for the group-bulk path).
+ *
+ * The edge-touching re-check ({@link orphanedAddOnAfterChange}) only walks edges
+ * that touch a listing, so it MISSES the case here: a deactivated listing may
+ * have no parent/child edge of its own — it is just an ordinary page whose scope
+ * happens to include a child-scoped add-on, keeping that add-on reachable. So
+ * re-run the reachability for EVERY active opt-in add-on against an in-memory
+ * listing set with ALL the target listings marked inactive AT ONCE (so an add-on
+ * rescued only by several group members going inactive together is still caught);
+ * if any add-on is then reachable only through a suppressed child, block the
+ * deactivation. Contained: only opt-in add-ons are scanned (the shared
+ * {@link firstChildUnreachableAddOnForListings} core), never unrelated modifiers.
+ *
+ * Callers only invoke this for DEACTIVATION — activating or leaving a listing
+ * active can only ADD reachable pages, never orphan an add-on.
+ */
+export const deactivationOrphanedAddOnError = async (
+  inactiveIds: ReadonlySet<number>,
+): Promise<string | null> => {
+  const allListings = await getAllListings();
+  // Apply the would-be inactive state of every target listing to the in-memory set.
+  const wouldBe = allListings.map((listing) =>
+    inactiveIds.has(listing.id) ? { ...listing, active: false } : listing,
+  );
+  const childIds = await getChildListingIds(allListings.map((l) => l.id));
+  return firstChildUnreachableAddOnForListings(wouldBe, childIds);
+};
+
+const deactivationOrphanedAddOn = async (
+  input: ListingInput,
+  existingId: number,
+): Promise<string | null> => {
+  if (input.active !== false) return null;
+  return deactivationOrphanedAddOnError(new Set([existingId]));
+};
+
+/**
+ * On an update, re-validate every parent/child edge touching this listing
+ * against its would-be field values *and* its would-be `group_id`, so a
+ * type/duration/renewal change can't leave a persisted edge the booking gate
+ * can't honour, and a group change can't orphan a group-scoped add-on that the
+ * edge's child suppresses (Fix 4). Also re-check add-on reachability when the
+ * save DEACTIVATES this listing (Fix 5 — the edge-touching walk above misses a
+ * no-edge page that is the only one rescuing a child-scoped add-on). No-op for
+ * creates (no edges yet, and a fresh listing rescues nothing).
+ */
+const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
+  if (existingId === undefined) return null;
+  const fieldError = await edgeIncompatibilityAfterChange(
+    listingInputToEdge(input, existingId),
+  );
+  if (fieldError) return fieldError;
+  const orphanError = await orphanedAddOnAfterChange(
+    existingId,
+    input.groupId ?? 0,
+  );
+  if (orphanError) return orphanError;
+  return deactivationOrphanedAddOn(input, existingId);
+};
+
 /** Validate listing input (slug uniqueness on update, group, max price, listing type) */
 export const validateListingInput = async (
   input: ListingInput,
@@ -107,6 +238,11 @@ export const validateListingInput = async (
   if (customisableError) return customisableError;
   const groupError = await validateListingGroup(input, existingId);
   if (groupError) return groupError;
+  // A type/duration/renewal edit can break an existing parent/child edge the
+  // booking gate then can't date or price — re-check every touching edge against
+  // the would-be fields and block the save (web form and admin JSON API alike).
+  const edgeError = await validateListingEdges(input, existingId);
+  if (edgeError) return edgeError;
 
   return (
     validateSafeServerFetchUrl(
@@ -120,6 +256,26 @@ export const validateListingInput = async (
     validateRenewalConfig(input)
   );
 };
+
+/**
+ * Block a DELETE that would leave a child-scoped opt-in add-on a dead end —
+ * reachable only through a suppressed child once the deleted listing stops
+ * serving a public page (parents.md Fix 2). The delete path prunes the listing's
+ * parent/child edges but otherwise bypasses the reachability guard the
+ * deactivate paths run, so deleting the only active non-child page in a
+ * child-scoped add-on's scope would orphan it.
+ *
+ * A deleted listing no longer serves a page (exactly like a deactivated one), so
+ * this reuses the same shared guard ({@link deactivationOrphanedAddOnError}) with
+ * the deleted id in the would-be-removed set — the booking-page reachability is
+ * computed against the active, non-child listings, and a deleted listing drops
+ * out of that set just as a deactivated one does. Returns the error to surface,
+ * or null when the delete is safe.
+ */
+export const deleteOrphanedAddOnError = (
+  listingId: number,
+): Promise<string | null> =>
+  deactivationOrphanedAddOnError(new Set([listingId]));
 
 /**
  * Delete an listing: clean up images/attachments, remove from DB, log activity.
@@ -158,17 +314,36 @@ export const buildDuplicateListingInput = async (
 });
 
 /**
+ * The outcome of {@link toggleListingActive}: the updated listing, an
+ * already-in-state no-op, or a guard error (a deactivation that would orphan a
+ * child-scoped add-on). Callers map each case to their own response shape.
+ */
+export type ToggleActiveResult =
+  | { updated: ListingWithCount }
+  | { noChange: true }
+  | { error: string };
+
+/**
  * Toggle listing active state, log activity, and return the updated listing.
- * Returns null if the listing is already in the target state.
+ *
+ * A DEACTIVATION runs the same orphaned-add-on guard the HTML deactivate route
+ * uses ({@link deactivationOrphanedAddOnError}), so the JSON API toggle can't
+ * orphan a child-scoped add-on the HTML route would block. Reactivation is
+ * unguarded (it only ADDS a reachable page). Returns `{ noChange }` when the
+ * listing is already in the target state.
  */
 export const toggleListingActive = async (
   listingId: number,
   listing: ListingWithCount,
   active: boolean,
-): Promise<ListingWithCount | null> => {
-  if (listing.active === active) return null;
+): Promise<ToggleActiveResult> => {
+  if (listing.active === active) return { noChange: true };
+  if (!active) {
+    const error = await deactivationOrphanedAddOnError(new Set([listingId]));
+    if (error) return { error };
+  }
   await listingsTable.update(listingId, { active });
   const verb = active ? "reactivated" : "deactivated";
   await logActivity(`Listing '${listing.name}' ${verb}`, listingId);
-  return (await getListingWithCount(listingId))!;
+  return { updated: (await getListingWithCount(listingId))! };
 };

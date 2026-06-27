@@ -279,6 +279,23 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       );
     });
 
+    test("suppresses the CTA of a group with no active members on listings page", async () => {
+      // A group with no active (standalone-bookable) member has no valid
+      // `/ticket/<group>` entry point (its group page 404s), so its Book CTA must
+      // be suppressed on /listings rather than advertise a dead link (Fix 6).
+      await settings.update.showPublicSite(true);
+      const group = await createTestGroup({
+        name: "Empty Group",
+        slug: "empty-group",
+      });
+      // A standalone listing keeps the page non-empty so this proves the GROUP
+      // CTA is suppressed (not merely the empty-page fallback).
+      await createTestListing({ maxAttendees: 50, name: "Standalone Listing" });
+      const html = await assertPublicHtml("/listings", "Standalone Listing");
+      expect(html).not.toContain(`href="/ticket/${group.slug}"`);
+      expect(html).not.toContain("Empty Group");
+    });
+
     test("shows group description on listings page", async () => {
       await settings.update.showPublicSite(true);
       const group = await createTestGroup({

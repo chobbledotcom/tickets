@@ -8,6 +8,7 @@
  * derived from two reference dates.
  */
 
+import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
 import {
   generateUniqueGroupSlug,
@@ -30,7 +31,10 @@ import {
 } from "#shared/db/groups.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
+import {
+  buildDuplicateListingInput,
+  deactivationOrphanedAddOnError,
+} from "#shared/listings-actions.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import {
@@ -39,6 +43,7 @@ import {
   adminDuplicateGroupPage,
   adminReactivateGroupPage,
 } from "#templates/admin/bulk-actions.tsx";
+import { remapDuplicatedGroupEdges } from "./listings-parents.ts";
 
 /** Render a bulk-actions sub-page for an authenticated group detail view. */
 const groupListingsPage =
@@ -81,6 +86,23 @@ const groupTogglePost = (opts: { active: boolean; action: string }) =>
     mismatchRedirect: (group) =>
       `/admin/groups/${group.id}/bulk-actions/${opts.action}`,
     onConfirm: async ({ context: group }) => {
+      // A bulk DEACTIVATE marks every group member inactive at once, which can
+      // orphan a child-scoped opt-in add-on rescued only by those members'
+      // pages. Run the same shared guard the single-listing/API paths use,
+      // with all members' ids marked inactive together, and block before the
+      // batch UPDATE (parents.md Fix 5). Reactivation can only add pages.
+      if (!opts.active) {
+        const members = await getListingsByGroupId(group.id);
+        const error = await deactivationOrphanedAddOnError(
+          new Set(members.map((listing) => listing.id)),
+        );
+        if (error) {
+          return errorRedirect(
+            `/admin/groups/${group.id}/bulk-actions/${opts.action}`,
+            error,
+          );
+        }
+      }
       const affected = await setGroupListingsActive(group.id, opts.active);
       await logActivity(
         `Group '${group.name}' ${opts.action}d (${affected} listing(s))`,
@@ -131,6 +153,7 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
     termsAndConditions: group.terms_and_conditions,
   });
 
+  const idMap = new Map<number, number>();
   for (const listing of listings) {
     const input = await buildDuplicateListingInput(listing, {
       closesAt: shiftUtcIsoByDays(listing.closes_at ?? "", dayOffset),
@@ -138,18 +161,31 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
       groupId: newGroup.id,
       name: applyNameReplacement(listing.name, nameFind, nameReplace),
     });
-    await listingsTable.insert(input);
+    const created = await listingsTable.insert(input);
+    idMap.set(listing.id, created.id);
   }
+  // A cloned parent whose remapped edge set fails re-validation is left gateless
+  // rather than written; surface those as a warning flash (mirroring the
+  // single-listing duplicate's "but: …" behaviour) instead of silently
+  // reporting success while producing a gateless standalone clone (Fix 5).
+  const edgeErrors = await remapDuplicatedGroupEdges(idMap);
 
   await logActivity(
     `Group '${group.name}' duplicated to '${newGroup.name}' with ${listings.length} listing(s)`,
   );
 
-  return redirect(
-    `/admin/groups/${newGroup.id}`,
-    `Duplicated '${group.name}' to '${newGroup.name}' (${listings.length} listing(s))`,
-    true,
-  );
+  const success = `Duplicated '${group.name}' to '${newGroup.name}' (${listings.length} listing(s))`;
+  if (edgeErrors.length > 0) {
+    return redirect(
+      `/admin/groups/${newGroup.id}`,
+      t("listings_table.group_duplicate_children_dropped", {
+        reason: edgeErrors.join("; "),
+        success,
+      }),
+      false,
+    );
+  }
+  return redirect(`/admin/groups/${newGroup.id}`, success, true);
 });
 
 /** Bulk actions routes */

@@ -19,11 +19,19 @@ const listingTier = (listing: Listing): number => {
   return listing.date === "" ? 0 : 1;
 };
 
-/** Tier 1: dated standard — sort by date ASC, then name */
-const compareDatedStandard = (a: Listing, b: Listing): number => {
-  const cmp = a.date.localeCompare(b.date);
+const compareDateThenName = (
+  dateA: string,
+  dateB: string,
+  a: Listing,
+  b: Listing,
+): number => {
+  const cmp = dateA.localeCompare(dateB);
   return cmp !== 0 ? cmp : a.name.localeCompare(b.name);
 };
+
+/** Tier 1: dated standard — sort by date ASC, then name */
+const compareDatedStandard = (a: Listing, b: Listing): number =>
+  compareDateThenName(a.date, b.date, a, b);
 
 /** Tier 2: daily — sort by next bookable date ASC, then name */
 const compareDaily = (
@@ -36,8 +44,7 @@ const compareDaily = (
   if (dateA === "" && dateB === "") return a.name.localeCompare(b.name);
   if (dateA === "") return 1;
   if (dateB === "") return -1;
-  const cmp = dateA.localeCompare(dateB);
-  return cmp !== 0 ? cmp : a.name.localeCompare(b.name);
+  return compareDateThenName(dateA, dateB, a, b);
 };
 
 /**

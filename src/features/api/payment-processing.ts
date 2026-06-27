@@ -58,10 +58,12 @@ import {
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
+import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import {
   balanceEventGroup,
   settleAttendeeBalance,
 } from "#shared/db/attendees/balance.ts";
+import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import {
   createAttendeeAtomic,
   createBookingAtomic,
@@ -485,6 +487,9 @@ const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
 const parseModifierRefs = (json: string): ModifierRef[] =>
   json ? (JSON.parse(json) as ModifierRef[]) : [];
 
+const parseAllocations = (json: string): ChildAllocation[] | undefined =>
+  json ? (JSON.parse(json) as ChildAllocation[]) : undefined;
+
 /**
  * Extract booking intent from session metadata.
  * Converts date from metadata's "" convention to null for domain use.
@@ -499,6 +504,7 @@ export const extractIntent = (
   const parsedDayCount = Number.parseInt(metadata.day_count, 10);
   return {
     address: metadata.address,
+    allocations: parseAllocations(metadata.allocations),
     balanceAttendeeId: metadata.balance_attendee_id
       ? Number(metadata.balance_attendee_id)
       : undefined,
@@ -517,6 +523,7 @@ export const extractIntent = (
     reservationAmount: metadata.reservation_amount || undefined,
     siteTokenIndex: metadata.site_token_index || undefined,
     special_instructions: metadata.special_instructions,
+    thankYouUrl: metadata.thank_you_url || undefined,
   };
 };
 
@@ -927,12 +934,21 @@ const createAttendeeForSession = async (
   pricedOrder: PricedOrder,
 ): Promise<HonourResult> => {
   const linePaidByListing = paidByListing(pricedOrder);
-  const bookings = validatedItems.map(({ item, listing }) => ({
+  const rawBookings = validatedItems.map(({ item, listing }) => ({
     listingId: item.e,
     pricePaid: linePaidByListing.get(item.e)!,
     quantity: item.q,
     ...bookingDateFields(listing, intent.date, intent.dayCount),
   }));
+  // Expand summed child bookings into per-parent rows when allocations were
+  // carried through the signed metadata (Stage C paid-path provenance): each
+  // allocation becomes its own listing_attendees row with the correct
+  // parentListingId and proportional pricePaid, mirroring the free-path behaviour
+  // in createFreeReservation.
+  const bookings =
+    intent.allocations && intent.allocations.length > 0
+      ? expandChildAllocations(rawBookings, intent.allocations)
+      : rawBookings;
   const fullTotal = pricedOrder.fullSubtotal;
   const depositTotal = orderLineTotal(pricedOrder);
   const remainingBalance =
@@ -959,15 +975,9 @@ const createAttendeeForSession = async (
 
   const result = await createBookingAtomic(
     {
-      address: intent.address,
+      ...(await attendeeBaseFields(session, intent)),
       bookings,
-      email: intent.email,
-      name: intent.name,
-      paymentId: session.paymentReference,
-      phone: intent.phone,
       remainingBalance,
-      special_instructions: intent.special_instructions,
-      statusId: await getPublicStatusId(),
     },
     plan,
   );
@@ -1106,6 +1116,21 @@ type PlaceholderBookings = Parameters<
   typeof createAttendeeAtomic
 >[0]["bookings"];
 
+type SessionProcessorOptions = { storeTokens?: boolean };
+
+const attendeeBaseFields = async (
+  session: ValidatedPaymentSession,
+  intent: BookingIntent,
+) => ({
+  address: intent.address,
+  email: intent.email,
+  name: intent.name,
+  paymentId: session.paymentReference,
+  phone: intent.phone,
+  special_instructions: intent.special_instructions,
+  statusId: await getPublicStatusId(),
+});
+
 /**
  * Keep a signed-by-us booking we can't honour rather than dropping it into limbo:
  * store it as a quantity-0 placeholder (overbook-tolerant, so capacity — or a
@@ -1133,15 +1158,9 @@ const storeRefundedBooking = async (
   // stock, so it always writes the row — trust it. (If the PII can't encrypt the
   // whole system is broken; we don't defend against that.)
   const stored = await createAttendeeAtomic({
-    address: intent.address,
+    ...(await attendeeBaseFields(session, intent)),
     allowOverbook: true,
     bookings,
-    email: intent.email,
-    name: intent.name,
-    paymentId: session.paymentReference,
-    phone: intent.phone,
-    special_instructions: intent.special_instructions,
-    statusId: await getPublicStatusId(),
   });
   const attendeeId = (stored as Extract<typeof stored, { success: true }>)
     .attendees[0]!.id;
@@ -1292,7 +1311,7 @@ const replayBalanceFromLedger = async (
 const processReservedSession = async (
   sessionId: string,
   data: ValidatedSession,
-  options?: { storeTokens?: boolean },
+  options?: SessionProcessorOptions,
 ): Promise<PaymentResult> => {
   const { session, intent, verdict } = data;
   const signedListingId = intent.items[0]!.e;
@@ -1434,7 +1453,7 @@ const processReservedSession = async (
 export const processPaymentSession = async (
   sessionId: string,
   data: ValidatedSession,
-  options?: { storeTokens?: boolean },
+  options?: SessionProcessorOptions,
 ): Promise<PaymentResult> => {
   // Phase 1: Reserve the session (claim the lock)
   const reservation = await reserveSession(sessionId);

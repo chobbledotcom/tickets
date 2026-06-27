@@ -1,10 +1,48 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ListingInput } from "#shared/db/listings.ts";
-import { validateListingInput } from "#shared/listings-actions.ts";
+import {
+  listingInputToEdge,
+  validateListingInput,
+} from "#shared/listings-actions.ts";
 import { setupTestEncryptionKey, testListingInput } from "#test-utils";
 
 setupTestEncryptionKey();
+
+describe("listingInputToEdge", () => {
+  test("defaults every optional field for a sparse input", () => {
+    const sparse = { name: "Bare" } as unknown as ListingInput;
+    expect(listingInputToEdge(sparse, 7)).toEqual({
+      customisable_days: false,
+      day_prices: {},
+      duration_days: 1,
+      id: 7,
+      listing_type: "standard",
+      months_per_unit: 0,
+      name: "Bare",
+    });
+  });
+
+  test("carries through populated fields", () => {
+    const input = {
+      customisableDays: true,
+      dayPrices: { 1: 100, 2: 200 },
+      durationDays: 2,
+      listingType: "daily",
+      monthsPerUnit: 12,
+      name: "Full",
+    } as unknown as ListingInput;
+    expect(listingInputToEdge(input, 3)).toEqual({
+      customisable_days: true,
+      day_prices: { 1: 100, 2: 200 },
+      duration_days: 2,
+      id: 3,
+      listing_type: "daily",
+      months_per_unit: 12,
+      name: "Full",
+    });
+  });
+});
 
 describe("validateListingInput", () => {
   test("rejects assignBuiltSite with initialSiteMonths <= 0", async () => {

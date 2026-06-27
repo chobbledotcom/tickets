@@ -75,6 +75,7 @@ import {
   hashPhone,
   toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
+import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
   type LogisticsAssignment,
@@ -303,27 +304,58 @@ const overbookMessage = (line: AttendeeFormLine): string =>
   } is overbooked — there isn't capacity for ${line.quantity} on these dates.`;
 
 /**
- * Over-duration + overbooking warnings for every booked line, keyed by listing
- * id plus a flat list for the top-of-page summary. Both are allowed for admin
- * saves, so they surface as warnings, not errors. The capacity side is one
- * batched query for the whole form, not one per line.
+ * Incomplete-parent warnings, keyed by parent listing id: a booked line that is
+ * a parent (has required-child edges) whose required child is NOT also booked on
+ * this attendee. The manual add/edit form books plain lines and never folds a
+ * child the way the public booking flow enforces, so an operator who books a
+ * parent alone — or opens an attendee already in that state — would otherwise
+ * have a booking the gate considers incomplete. The message names the children
+ * to add so it is obvious and easily fixed (usability #6). Reuses the
+ * relationship accessor; no-op (no query) when no booked line is a parent.
+ */
+const incompleteParentWarnings = async (
+  booked: AttendeeFormLine[],
+): Promise<Map<number, string>> => {
+  const bookedIds = new Set(booked.map((line) => line.listingId));
+  const childrenByParent = await getChildrenForParents([...bookedIds]);
+  const warnings = new Map<number, string>();
+  for (const line of booked) {
+    // getChildrenForParents only returns listings that ARE parents (≥1 child).
+    const children = childrenByParent.get(line.listingId);
+    if (!children || children.some((child) => bookedIds.has(child.id)))
+      continue;
+    warnings.set(
+      line.listingId,
+      `${line.listing!.name} requires one of its child listings to be booked too (${children
+        .map((child) => child.name)
+        .join(", ")}) — public bookings choose one automatically; add it here.`,
+    );
+  }
+  return warnings;
+};
+
+/**
+ * Over-duration + overbooking + incomplete-parent warnings for every booked
+ * line, keyed by listing id plus a flat list for the top-of-page summary. All
+ * are allowed for admin saves, so they surface as warnings, not errors. The
+ * capacity side is one batched query for the whole form, not one per line.
  */
 const computeWarnings = async (
   parsed: ParsedAttendeeForm,
   excludeAttendeeId: number | undefined,
 ): Promise<{ byListing: Map<number, string[]>; top: string[] }> => {
   const booked = parsed.lines.filter(isBookedLine);
-  const overbooked = await overbookedListingIds(
-    booked,
-    parsed,
-    excludeAttendeeId,
-  );
+  const [overbooked, incompleteParents] = await Promise.all([
+    overbookedListingIds(booked, parsed, excludeAttendeeId),
+    incompleteParentWarnings(booked),
+  ]);
   const byListing = new Map<number, string[]>();
   const top: string[] = [];
   for (const line of booked) {
     const warns = compact([
       overDurationWarning(line, parsed.dayCount),
       overbooked.has(line.listingId) ? overbookMessage(line) : null,
+      incompleteParents.get(line.listingId) ?? null,
     ]);
     if (warns.length > 0) {
       byListing.set(line.listingId, warns);

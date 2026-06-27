@@ -42,8 +42,10 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-20_answer_active",
         "2026-06-20_contact_booking_counts",
         "2026-06-20_user_kek_v2",
+        "2026-06-21_listing_parents",
         "2026-06-21_transfers",
         "2026-06-22_transfers_time_int",
+        "2026-06-23_attendee_order_parent",
         "2026-06-22_drop_transfers_currency",
         "2026-06-22_listing_attendee_ledger_event_group",
         "2026-06-22_backfill_transfers",
@@ -61,7 +63,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-26_attendees_kind_not_null",
         "2026-06-27_service_costs",
       ],
-      schemaHash: "14t50y0",
+      schemaHash: "eg14ic",
     });
   });
 });

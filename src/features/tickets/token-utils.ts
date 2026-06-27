@@ -6,6 +6,7 @@ import { compact, unique } from "#fp";
 import { notFoundResponse, rateLimitedResponse } from "#routes/response.ts";
 import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
 import { getClientIp } from "#routes/url.ts";
+import type { WalletPassData } from "#shared/apple-wallet.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
   type AttendeeWithBookings,
@@ -28,24 +29,12 @@ import {
   type ListingWithCount,
 } from "#shared/types.ts";
 
+export type { WalletPassData };
+
 /** Attendee paired with its listing */
 export type TokenEntry = {
   attendee: Attendee;
   listing: ListingWithCount;
-};
-
-/** Shared wallet pass data common to both Apple and Google Wallet */
-export type WalletPassData = {
-  serialNumber: string;
-  organizationName: string;
-  listingName: string;
-  listingDate: string;
-  listingLocation: string;
-  attendeeDate: string | null;
-  quantity: number;
-  pricePaid: number;
-  currencyCode: string;
-  checkinUrl: string;
 };
 
 /** Cache wallet responses for 1 hour on CDN, 5 minutes in browser */

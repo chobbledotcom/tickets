@@ -165,6 +165,21 @@ export type ConfirmedHandlerConfig<T, TSession = AuthSession> = {
     id: number,
     session: TSession,
   ) => Response | null | Promise<Response | null>;
+  /**
+   * Optional guard producing a user-facing error message (or null when the
+   * action is allowed). Unlike {@link preValidate} — which returns a full
+   * Response and runs identically on the GET and the POST — this distinguishes
+   * the two requests so the confirmation GET never redirects to itself
+   * (parents.md Fix 1): the GET **renders** the confirmation page *with* the
+   * error (still 200), while the POST **blocks** the action with an error
+   * redirect back to the confirmation page. Runs after the entity loads, so it
+   * can reason about the loaded model's id.
+   */
+  guardError?: (
+    model: T,
+    id: number,
+    session: TSession,
+  ) => Promise<string | null>;
   /** Optional custom not-found handler (defaults to 404 page) */
   onNotFound?: (id: number, session: TSession) => Response | Promise<Response>;
 };
@@ -227,14 +242,23 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
     return model ?? notFound(id, session);
   };
 
+  const guardError = (model: T, id: number, session: TSession) =>
+    config.guardError ? config.guardError(model, id, session) : null;
+
   const get = (request: Request, id: number): Promise<Response> =>
     requireSession(request, async (session) => {
       const rejection = await validate(id, session);
       if (rejection) return rejection;
       const result = await loadOrNotFound(id, session);
       if (result instanceof Response) return result;
+      // A guard error is rendered into the confirmation page (200), never a
+      // redirect — so the GET can't loop back to itself (Fix 1). A flash error
+      // from a prior POST block takes precedence when present.
       const flash = getFlash();
-      return htmlResponse(await config.render(result, session, flash.error));
+      const error = flash.error ?? (await guardError(result, id, session));
+      return htmlResponse(
+        await config.render(result, session, error ?? undefined),
+      );
     });
 
   const post = (request: Request, id: number): Promise<Response> =>
@@ -244,6 +268,11 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
 
       const rejection = await validate(id, session);
       if (rejection) return rejection;
+
+      // The POST blocks a guarded action with an error redirect back to the
+      // confirmation page (where the GET will then render the error).
+      const guard = await guardError(result, id, session);
+      if (guard) return errorRedirect(confirmPath(id), guard);
 
       const expected = await config.identifier(result);
       const error = verifyOrRedirect(

@@ -116,7 +116,7 @@ export const LISTING_ATTENDEE_ROW_COLS = `listing_id, start_at, end_at, quantity
   "attendee_id",
   "listing_id",
   "ledger_event_group",
-)}, ledger_event_group, attachment_downloads`;
+)}, ledger_event_group, attachment_downloads, order_token, parent_listing_id`;
 
 /**
  * Get attendees for an listing without decrypting PII
@@ -490,6 +490,8 @@ export const getAttendeesByTokens = async (
       end_at: row.end_at,
       ledger_event_group: row.ledger_event_group,
       listing_id: row.listing_id,
+      order_token: row.order_token,
+      parent_listing_id: row.parent_listing_id,
       price_paid: row.price_paid,
       quantity: row.quantity,
       refunded: row.refunded,

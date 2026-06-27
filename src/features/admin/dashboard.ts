@@ -23,6 +23,7 @@ import {
   getNewestAttendeesRaw,
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { getChildListingIds } from "#shared/db/listing-parents.ts";
 import { getAllListings, getListingNamesByIds } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -90,10 +91,12 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       const sortedListings = sortListings(listings, holidays);
       const stats = await getActiveListingStats(sortedListings);
       const activeType = listingTypeFromRequest(request);
-      const upcomingServicingEvents = await getUpcomingServicingEvents(
-        privateKey,
-        todayInTz(settings.timezone),
-      );
+      // Children are excluded from the multi-booking link builder (no booking
+      // can start from a child).
+      const [childIds, upcomingServicingEvents] = await Promise.all([
+        getChildListingIds(sortedListings.map((l) => l.id)),
+        getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
+      ]);
       return htmlResponse(
         adminDashboardPage(
           sortedListings,
@@ -105,6 +108,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           settings.listingColumnOrder,
           activeType,
           holidays,
+          childIds,
           upcomingServicingEvents,
         ),
       );

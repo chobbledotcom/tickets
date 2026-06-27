@@ -43,6 +43,8 @@ const bookingRow = (
   end_at: null,
   ledger_event_group: "",
   listing_id: 1,
+  order_token: "",
+  parent_listing_id: 0,
   price_paid: 0,
   quantity: 1,
   refunded: 0,
@@ -91,11 +93,23 @@ describe("attendeeBookingsFromLines", () => {
         listingActive: false,
         listingId: 7,
         listingName: "Kayak",
+        parentListingId: 0,
         quantity: 3,
         refunded: true,
         startAt: "2026-06-01T00:00:00Z",
       },
     ]);
+  });
+
+  test("carries a folded child row's parent listing id onto the summary", () => {
+    const bookings = attendeeBookingsFromLines([
+      line({
+        existingBooking: bookingRow({ listing_id: 8, parent_listing_id: 7 }),
+        listing: testListingWithCount({ id: 8, name: "Add-on" }),
+        listingId: 8,
+      }),
+    ]);
+    expect(bookings[0]!.parentListingId).toBe(7);
   });
 
   test("keeps only the lines that carry a saved booking", () => {

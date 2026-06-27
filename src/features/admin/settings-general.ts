@@ -5,7 +5,10 @@
  */
 
 import { t } from "#i18n";
-import { demoResetForm } from "#routes/admin/database-reset.ts";
+import {
+  deleteStorageAndResetDatabase,
+  demoResetForm,
+} from "#routes/admin/database-reset.ts";
 import {
   advancedSettingsRoute,
   settingsClearable,
@@ -17,18 +20,12 @@ import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
 import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAllListings } from "#shared/db/listings.ts";
-import { resetDatabase } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
 import { applyDemoOverrides, TERMS_DEMO_FIELDS } from "#shared/demo.ts";
 import { parseEmbedHosts, validateEmbedHosts } from "#shared/embed-hosts.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { PaymentProviderType } from "#shared/payments.ts";
 import { ok } from "#shared/response.ts";
-import {
-  deleteAllListingStorageFiles,
-  isStorageEnabled,
-} from "#shared/storage.ts";
 import type { Theme } from "#shared/types.ts";
 import { isValidEmail, updateBusinessEmail } from "#shared/validation/email.ts";
 
@@ -212,10 +209,7 @@ export const handleResetDatabasePost = advancedSettingsRoute(
     }
 
     await logActivity("Database reset initiated");
-    if (isStorageEnabled()) {
-      await deleteAllListingStorageFiles(await getAllListings());
-    }
-    await resetDatabase();
+    await deleteStorageAndResetDatabase();
 
     // Redirect to setup page since the database is now empty
     return ok("/setup/", t("success.database_reset"), {

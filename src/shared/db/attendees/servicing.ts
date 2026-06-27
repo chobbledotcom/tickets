@@ -200,6 +200,8 @@ const rowsToServicingEvent = async (
           end_at: row.end_date ? `${row.end_date}T00:00:00.000Z` : null,
           ledger_event_group: "",
           listing_id: row.listing_id,
+          order_token: "",
+          parent_listing_id: 0,
           price_paid: Number(row.price_paid),
           quantity: row.quantity,
           refunded: Number(row.refunded),

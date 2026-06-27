@@ -13,12 +13,14 @@ import {
   listingAttendeesLoader,
 } from "#routes/admin/actions.ts";
 import type { AuthSession } from "#routes/auth.ts";
+import { anyChildListing } from "#routes/public/ticket-payment.ts";
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity.ts";
 import { groupsTable } from "#shared/db/groups.ts";
+import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import {
   getListingAggregateRecalculation,
   listingRevenueBreakdown,
@@ -195,6 +197,8 @@ const renderListingPage = async (
             questionData,
             groupContext,
             recalc,
+            isChild,
+            childrenByParent,
             revenueBreakdown,
             systemNotes,
           ] = await Promise.all([
@@ -203,6 +207,12 @@ const renderListingPage = async (
             loadListingQuestionData(listing.id, attendeeIds),
             loadGroupContext(listing, dateFilter),
             getListingAggregateRecalculation(listing),
+            // A child has no standalone share/QR affordance (invariant I3);
+            // `anyChildListing` no-ops (no query) when the feature is off.
+            anyChildListing([listing.id]),
+            // A parent's required children — names the quick add-attendee warning
+            // lists. Empty map (no key) when this listing isn't a parent.
+            getChildrenForParents([listing.id]),
             listingRevenueBreakdown(listing.id),
             loadNotesForAttendees(attendeeIds, requireRequestPrivateKey),
           ]);
@@ -214,12 +224,16 @@ const renderListingPage = async (
               attendees: filteredByDate,
               availableDates,
               checkinMessage: getCheckinMessage(request),
+              childNames: (childrenByParent.get(listing.id) ?? []).map(
+                (child) => child.name,
+              ),
               dateFilter,
               errorMessage: flash.error,
               groupContext,
               // Emailing a listing targets every attendee across all dates, so
               // gate the action on the full set, not the date-filtered view.
               hasEmailableAttendees: attendees.some((a) => a.email !== ""),
+              isChild,
               listing,
               phonePrefix,
               questionData,

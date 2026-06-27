@@ -5,6 +5,7 @@
  * and currency symbols. Reads the currency code directly from settings.
  */
 
+import { Liquid } from "liquidjs";
 import { settings } from "#shared/db/settings.ts";
 
 /** Get the number of decimal places for a currency code */
@@ -105,4 +106,11 @@ export const validatePrice = (
     return { error: "Price exceeds the maximum allowed", ok: false };
   }
   return { ok: true, price: priceMinor };
+};
+
+/** Create a Liquid engine pre-configured with strict mode and the currency filter */
+export const createBaseLiquidEngine = (): Liquid => {
+  const engine = new Liquid({ strictFilters: true, strictVariables: false });
+  engine.registerFilter("currency", (v: string | number) => formatCurrency(v));
+  return engine;
 };

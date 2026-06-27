@@ -17,6 +17,7 @@ import {
   expectHtmlResponse,
   expectRedirect,
   followRedirect,
+  makeParent,
   mockRequest,
   setupStripe,
   signMeta,
@@ -264,6 +265,41 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         },
         resetStripeClient,
       );
+    });
+  });
+
+  // A handled post-payment failure reserves the session, then refunds/returns.
+  // The reservation must record the terminal outcome so an immediate retry
+  // (redirect refresh or webhook re-delivery) replays the SAME result instead
+  // of re-refunding or getting stuck behind the "being processed" lock.
+  describe("GET /payment/success — idempotent replay of handled failures", () => {
+    /** Stub retrieveCheckoutSession to a fixed paid session + a refund spy.
+     * Synchronous so withMocks can read .restore off the returned stubs. */
+    const stubPaidSession = (
+      stripeApi: typeof import("#shared/stripe.ts").stripeApi,
+      stub: typeof import("@std/testing/mock").stub,
+      sessionId: string,
+      metadata: Record<string, string>,
+      amountTotal: number,
+    ) => ({
+      mockRefund: stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_replay" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >),
+      ),
+      mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: amountTotal,
+          id: sessionId,
+          // Sign at amountTotal (as production checkout does) so the session
+          // classifies as trusted — an unsigned session would be ignored.
+          metadata: signMeta(metadata, amountTotal),
+          payment_intent: `pi_${sessionId}`,
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      ),
     });
   });
 
@@ -1219,6 +1255,115 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           const record = await isSessionProcessed("cs_test_paid");
           expect(record?.ticket_tokens).toBe("");
+        },
+      );
+    });
+
+    /** A parent with a configured thank-you URL folding one required paid child,
+     * whose signed checkout metadata carries that explicit thank_you_url and two
+     * listing ids. Returns the `withMocks` stub factory for the given provider
+     * session id + payment intent — the scaffolding both thank-you-URL tests
+     * share (they differ only in what they assert about the rendered page). */
+    const parentThanksStub = async (
+      sessionId: string,
+      paymentIntent: string,
+    ) => {
+      const { stub } = await import("@std/testing/mock");
+      const { stripeApi } = await import("#shared/stripe.ts");
+      await setupStripe();
+
+      const { parent, child } = await makeParent({
+        children: [{ maxAttendees: 50, unitPrice: 1000 }],
+        parent: {
+          maxAttendees: 50,
+          thankYouUrl: "https://example.com/thanks-parent",
+          unitPrice: 1000,
+        },
+      });
+
+      const items = JSON.stringify([
+        { e: parent.id, p: 1000, q: 1 },
+        { e: child.id, p: 1000, q: 1 },
+      ]);
+
+      return () =>
+        stub(stripeApi, "retrieveCheckoutSession", () =>
+          Promise.resolve({
+            amount_total: 2000,
+            id: sessionId,
+            metadata: signMeta(
+              {
+                email: "john@example.com",
+                items,
+                name: "John",
+                thank_you_url: "https://example.com/thanks-parent",
+              },
+              2000,
+            ),
+            payment_intent: paymentIntent,
+            payment_status: "paid",
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+        );
+    };
+
+    test("a parent's thank-you URL survives a folded paid child (multi-listing)", async () => {
+      // A single parent with a configured thank_you_url folds a required paid
+      // child, so the completed booking has TWO unique listing ids. The default
+      // success rule drops thank_you_url for multi-listing orders; the explicit
+      // intent value (carried in the signed metadata) must still win (Codex 742).
+      await withMocks(
+        await parentThanksStub("cs_parent_thanks", "pi_parent_thanks"),
+        async () => {
+          const response = await handleRequest(
+            mockRequest("/payment/success?session_id=cs_parent_thanks"),
+          );
+          // The explicit URL renders the success page directly with the parent's
+          // thank-you URL, even though two listings were booked.
+          await expectHtmlResponse(
+            response,
+            200,
+            "Thank you for your order",
+            "https://example.com/thanks-parent",
+          );
+        },
+      );
+    });
+
+    test("a parent's direct-render booking keeps its ticket URL on reload", async () => {
+      // The explicit-thank-you (parent) booking renders the success page directly
+      // from session_id (no token in the URL). Re-hitting the same provider
+      // callback lands on the already-processed branch; the ticket token must be
+      // persisted so that reload still renders a non-null ticket URL (and the
+      // parent's thank-you URL), instead of losing the buyer's ticket link.
+      await withMocks(
+        await parentThanksStub("cs_parent_reload", "pi_parent_reload"),
+        async () => {
+          // First hit finalizes and renders directly with the ticket URL.
+          const first = await handleRequest(
+            mockRequest("/payment/success?session_id=cs_parent_reload"),
+          );
+          const firstHtml = await expectHtmlResponse(
+            first,
+            200,
+            "Thank you for your order",
+            "https://example.com/thanks-parent",
+          );
+          expect(firstHtml).toContain("/t/");
+
+          // Reload hits the already-processed branch; the persisted token still
+          // yields a non-null ticket URL and the parent's thank-you URL.
+          const reload = await handleRequest(
+            mockRequest("/payment/success?session_id=cs_parent_reload"),
+          );
+          const reloadHtml = await expectHtmlResponse(
+            reload,
+            200,
+            "Thank you for your order",
+            "https://example.com/thanks-parent",
+          );
+          expect(reloadHtml).toContain("/t/");
         },
       );
     });

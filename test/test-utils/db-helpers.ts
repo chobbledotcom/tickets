@@ -170,7 +170,7 @@ const buildUpdateStringFields = (
   webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
 });
 
-const buildUpdateListingForm = (
+export const buildUpdateListingForm = (
   updates: Partial<ListingInput>,
   existing: ListingWithCount,
 ): Record<string, string> => {
@@ -269,6 +269,29 @@ export const createTestListing = (
       return listings[0] as Listing;
     },
     "create listing",
+  );
+};
+
+/**
+ * Duplicate a listing the way the admin duplicate form does: POST a valid create
+ * body to `/admin/listing` carrying the hidden `duplicated_from` field, then
+ * return the newly created copy. Mirrors the real flow (the create handler reads
+ * `duplicated_from` to copy the source parent's child edges).
+ */
+export const duplicateTestListing = (
+  sourceId: number,
+  overrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
+): Promise<Listing> => {
+  const input = testListingInput(overrides);
+  return doAuthenticatedMultipartFormRequest(
+    "/admin/listing",
+    { ...buildCreateListingForm(input), duplicated_from: String(sourceId) },
+    async () => {
+      const { getAllListings } = await import("#shared/db/listings.ts");
+      const listings = await getAllListings();
+      return listings[0] as Listing;
+    },
+    "duplicate listing",
   );
 };
 

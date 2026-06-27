@@ -13,6 +13,9 @@ import {
   hasRequiredSessionMetadata,
   PaymentUserError,
   packMetadata,
+  SQUARE_METADATA_MAX_ENTRIES,
+  SQUARE_METADATA_MAX_VALUE_LENGTH,
+  STRIPE_METADATA_MAX_VALUE_LENGTH,
   safeAsync,
   singleListingAnswerIds,
   toBookingItems,
@@ -63,6 +66,21 @@ describe("payment-helpers", () => {
       expect(JSON.parse(extracted.modifiers)).toEqual([{ i: 7, q: 2 }]);
     });
 
+    test("buildMetadata carries an explicit thank-you URL and round-trips it", () => {
+      const metadata = buildMetadata({
+        date: null,
+        email: "a@example.com",
+        items: [{ e: 1, p: 1000, q: 1 }],
+        name: "Alice",
+        thankYouUrl: "https://example.com/thanks-parent",
+      });
+      expect(metadata.thank_you_url).toBe("https://example.com/thanks-parent");
+      expect(
+        extractSessionMetadata(metadata as unknown as SessionMetadata)
+          .thank_you_url,
+      ).toBe("https://example.com/thanks-parent");
+    });
+
     test("buildMetadata omits modifiers when none apply", () => {
       const metadata = buildMetadata({
         date: null,
@@ -75,6 +93,24 @@ describe("payment-helpers", () => {
         extractSessionMetadata(metadata as unknown as SessionMetadata)
           .modifiers,
       ).toBe("");
+    });
+
+    test("buildMetadata serializes allocations and round-trips them", () => {
+      const allocations = [{ childId: 2, parentId: 1, qty: 1 }];
+      const metadata = buildMetadata({
+        allocations,
+        date: null,
+        email: "a@example.com",
+        items: [{ e: 2, p: 1000, q: 1 }],
+        name: "Alice",
+      });
+      expect(JSON.parse(metadata.allocations!)).toEqual(allocations);
+      expect(
+        JSON.parse(
+          extractSessionMetadata(metadata as unknown as SessionMetadata)
+            .allocations,
+        ),
+      ).toEqual(allocations);
     });
   });
 
@@ -699,6 +735,20 @@ describe("payment-helpers", () => {
       );
       expect(enforceMetadataLimits(manyKeys, 500)).toEqual(manyKeys);
     });
+
+    test("leaves a too-long thank_you_url untouched (capping moved pre-sign)", () => {
+      // enforceMetadataLimits no longer strips thank_you_url: that is done in
+      // buildItemsMetadata before signing so the proof and metadata stay
+      // consistent (parents.md Fix 1). An over-cap URL passing through here is
+      // unchanged (it never reaches here over-cap in production).
+      const metadata = {
+        email: "j@x.com",
+        items: '[{"e":1,"q":1,"p":0}]',
+        name: "John",
+        thank_you_url: `https://example.com/${"x".repeat(255)}`,
+      };
+      expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
+    });
   });
 
   describe("metadata packing codec", () => {
@@ -821,6 +871,7 @@ describeWithEnv(
       const metadata = await buildItemsMetadata(
         baseIntent("plain-token-xyz"),
         0,
+        STRIPE_METADATA_MAX_VALUE_LENGTH,
       );
       const expected = await hmacHash("plain-token-xyz");
       // site_token_index is packed into `b` on the wire; the webhook recovers it
@@ -835,6 +886,7 @@ describeWithEnv(
       const metadata = await buildItemsMetadata(
         baseIntent("plain-token-xyz"),
         0,
+        STRIPE_METADATA_MAX_VALUE_LENGTH,
       );
       for (const value of Object.values(metadata)) {
         expect(value.includes("plain-token-xyz")).toBe(false);
@@ -842,7 +894,11 @@ describeWithEnv(
     });
 
     test("omits site_token_index when siteToken is absent", async () => {
-      const metadata = await buildItemsMetadata(baseIntent(), 0);
+      const metadata = await buildItemsMetadata(
+        baseIntent(),
+        0,
+        STRIPE_METADATA_MAX_VALUE_LENGTH,
+      );
       expect("site_token_index" in metadata).toBe(false);
     });
   },
@@ -870,7 +926,13 @@ describeWithEnv(
     test("the signed proof verifies against the unpacked metadata", async () => {
       const total = priceCheckout(intent).total;
       // Apply the Square packing step over the signed metadata.
-      const wire = packMetadata(await buildItemsMetadata(intent, total));
+      const wire = packMetadata(
+        await buildItemsMetadata(
+          intent,
+          total,
+          SQUARE_METADATA_MAX_VALUE_LENGTH,
+        ),
+      );
       // Small fields (phone, date, …) are packed on the wire.
       expect("phone" in wire).toBe(false);
       expect(typeof wire.b).toBe("string");
@@ -892,6 +954,166 @@ describeWithEnv(
           sig,
         ),
       ).toBe(false);
+    });
+  },
+);
+
+// parents.md Fix 1: a folded paid parent's thank_you_url is capped/omitted
+// BEFORE the metadata is signed, so the signed payload and the emitted metadata
+// stay identical and the webhook never sees a tampered session for an honest
+// over-cap URL.
+describeWithEnv(
+  "buildItemsMetadata caps thank_you_url before signing",
+  { encryptionKey: true },
+  () => {
+    const intentWithUrl = (thankYouUrl: string): CheckoutIntent => ({
+      address: "",
+      date: "2026-07-01",
+      email: "buyer@example.com",
+      items: [
+        { listingId: 1, name: "Base", quantity: 1, slug: "b", unitPrice: 1000 },
+      ],
+      name: "Buyer",
+      phone: "",
+      special_instructions: "",
+      thankYouUrl,
+    });
+
+    const proofParts = (metadata: Record<string, string>) => {
+      const proof = metadata.price_proof!;
+      const dot = proof.indexOf(".");
+      return {
+        sig: proof.slice(dot + 1),
+        total: Number(proof.slice(0, dot)),
+      };
+    };
+
+    test("omits an over-cap URL and the proof still verifies (not tampered)", async () => {
+      const longUrl = `https://example.com/${"x".repeat(
+        SQUARE_METADATA_MAX_VALUE_LENGTH,
+      )}`;
+      const intent = intentWithUrl(longUrl);
+      const total = priceCheckout(intent).total;
+      const metadata = await buildItemsMetadata(
+        intent,
+        total,
+        SQUARE_METADATA_MAX_VALUE_LENGTH,
+      );
+      // The over-cap URL is dropped from the emitted metadata...
+      expect("thank_you_url" in metadata).toBe(false);
+      // ...and the proof — signed over that same URL-less payload — verifies, so
+      // the webhook classifies the session as legitimate, not tampered.
+      const { sig, total: signedTotal } = proofParts(metadata);
+      expect(
+        await verifyPrice(
+          extractSessionMetadata(metadata as unknown as SessionMetadata),
+          signedTotal,
+          sig,
+        ),
+      ).toBe(true);
+    });
+
+    test("omits a short URL that would exceed the provider entry cap, proof still verifies", async () => {
+      // An order whose packed Square metadata already sits at the 10-entry cap
+      // (4 base + packed `b` + address + special_instructions + answer_ids +
+      // modifiers = 9, then + price_proof = 10) plus a *short* thank-you URL
+      // would reach 11 entries — over Square's cap. The URL is the last-priority
+      // optional field, so it is dropped before signing.
+      const intent: CheckoutIntent = {
+        address: "12 Some Street, Town",
+        date: "2026-07-01",
+        email: "buyer@example.com",
+        items: [
+          {
+            listingId: 1,
+            name: "Base",
+            quantity: 1,
+            slug: "b",
+            unitPrice: 1000,
+          },
+        ],
+        listingAnswerIds: { "1": [10, 20] },
+        modifiers: [
+          {
+            id: 5,
+            kind: "fixed",
+            listingIds: null,
+            name: "Extra",
+            quantity: 1,
+            trigger: "automatic",
+            value: 500,
+          },
+        ],
+        name: "Buyer",
+        phone: "07700900000",
+        special_instructions: "Leave at door",
+        thankYouUrl: "https://example.com/thanks",
+      };
+      const total = priceCheckout(intent).total;
+      const metadata = await buildItemsMetadata(
+        intent,
+        total,
+        SQUARE_METADATA_MAX_VALUE_LENGTH,
+        SQUARE_METADATA_MAX_ENTRIES,
+      );
+      // The short URL is dropped because keeping it would overflow the cap...
+      expect("thank_you_url" in metadata).toBe(false);
+      // ...and the wire (after Square packs the small fields) is within the cap.
+      const wire = packMetadata(metadata);
+      expect(Object.keys(wire).length).toBeLessThanOrEqual(
+        SQUARE_METADATA_MAX_ENTRIES,
+      );
+      // The proof signed over the URL-less payload still verifies.
+      const { sig, total: signedTotal } = proofParts(metadata);
+      expect(
+        await verifyPrice(
+          extractSessionMetadata(wire as unknown as SessionMetadata),
+          signedTotal,
+          sig,
+        ),
+      ).toBe(true);
+    });
+
+    test("keeps a short URL under the entry cap when there is room", async () => {
+      // A minimal order has plenty of entry headroom, so a short URL is kept
+      // even under Square's tight 10-entry cap.
+      const intent = intentWithUrl("https://example.com/thanks");
+      const total = priceCheckout(intent).total;
+      const metadata = await buildItemsMetadata(
+        intent,
+        total,
+        SQUARE_METADATA_MAX_VALUE_LENGTH,
+        SQUARE_METADATA_MAX_ENTRIES,
+      );
+      expect(metadata.thank_you_url).toBe("https://example.com/thanks");
+    });
+
+    test("carries a within-cap URL and the proof verifies with it present", async () => {
+      const url = "https://example.com/thanks";
+      const intent = intentWithUrl(url);
+      const total = priceCheckout(intent).total;
+      const metadata = await buildItemsMetadata(
+        intent,
+        total,
+        SQUARE_METADATA_MAX_VALUE_LENGTH,
+      );
+      expect(metadata.thank_you_url).toBe(url);
+      const { sig, total: signedTotal } = proofParts(metadata);
+      const extracted = extractSessionMetadata(
+        metadata as unknown as SessionMetadata,
+      );
+      expect(extracted.thank_you_url).toBe(url);
+      expect(await verifyPrice(extracted, signedTotal, sig)).toBe(true);
+      // Stripe's larger cap also retains it.
+      expect(
+        (
+          await buildItemsMetadata(
+            intent,
+            total,
+            STRIPE_METADATA_MAX_VALUE_LENGTH,
+          )
+        ).thank_you_url,
+      ).toBe(url);
     });
   },
 );

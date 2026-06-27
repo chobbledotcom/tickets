@@ -62,6 +62,7 @@ import contactBookingCountsMigration from "./migrations/2026-06-20_contact_booki
 import freeTextQuestionsMigration from "./migrations/2026-06-20_free_text_questions.ts";
 import stringCreatedMigration from "./migrations/2026-06-20_string_created.ts";
 import userKekV2Migration from "./migrations/2026-06-20_user_kek_v2.ts";
+import listingParentsMigration from "./migrations/2026-06-21_listing_parents.ts";
 import transfersMigration from "./migrations/2026-06-21_transfers.ts";
 import backfillTransfersMigration from "./migrations/2026-06-22_backfill_transfers.ts";
 import dropAttendeesPricePaidMigration from "./migrations/2026-06-22_drop_attendees_price_paid.ts";
@@ -73,6 +74,7 @@ import dropModifiersTotalRevenueMigration from "./migrations/2026-06-22_drop_mod
 import dropTransfersCurrencyMigration from "./migrations/2026-06-22_drop_transfers_currency.ts";
 import listingAttendeeLedgerEventGroupMigration from "./migrations/2026-06-22_listing_attendee_ledger_event_group.ts";
 import transfersTimeIntMigration from "./migrations/2026-06-22_transfers_time_int.ts";
+import attendeeOrderParentMigration from "./migrations/2026-06-23_attendee_order_parent.ts";
 import systemNotesMigration from "./migrations/2026-06-23_system_notes.ts";
 import ticketCountNoQuantityMigration from "./migrations/2026-06-23_ticket_count_no_quantity.ts";
 import attendeesKindMigration from "./migrations/2026-06-24_attendees_kind.ts";
@@ -234,8 +236,13 @@ export const MIGRATIONS: Migration[] = [
   answerActiveMigration,
   contactBookingCountsMigration,
   userKekV2Migration,
+  listingParentsMigration,
   transfersMigration,
   transfersTimeIntMigration,
+  // Adds order_token + parent_listing_id to listing_attendees. Ordered BEFORE the
+  // ledger migrations that REBUILD listing_attendees, so those rebuilds (which
+  // copy from the current SCHEMA — already carrying these columns) find them.
+  attendeeOrderParentMigration,
   dropTransfersCurrencyMigration,
   listingAttendeeLedgerEventGroupMigration,
   backfillTransfersMigration,

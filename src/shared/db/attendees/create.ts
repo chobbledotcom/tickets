@@ -16,6 +16,7 @@ import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
 import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
+import { annotateOrderParents } from "#shared/db/attendees/order-parents.ts";
 import {
   contactFields,
   encryptAttendeeFields,
@@ -323,25 +324,32 @@ const prepareAttendeeWrite = async (
   | { ok: false; failure: Extract<CreateAttendeeResult, { success: false }> }
 > => {
   const {
-    bookings,
+    bookings: rawBookings,
     paymentId = "",
     statusId = null,
     remainingBalance = 0,
     allowOverbook = false,
   } = input;
   // Reject empty orders, negative quantities (a negative row skews capacity
-  // sums), and duplicate (listing_id, date) slots (the unique index would drop
-  // one insert and half-fulfil the cart).
+  // sums), and duplicate (listing_id, date, parentListingId) slots (the unique
+  // index would drop one insert and half-fulfil the cart).
   if (
-    bookings.length === 0 ||
-    bookings.some((b) => (b.quantity ?? 1) < 0) ||
-    hasDuplicateBookingSlot(bookings)
+    rawBookings.length === 0 ||
+    rawBookings.some((b) => (b.quantity ?? 1) < 0) ||
+    hasDuplicateBookingSlot(rawBookings)
   ) {
     return {
       failure: { reason: "capacity_exceeded", success: false },
       ok: false,
     };
   }
+
+  // Tag the order's rows with a shared token and each chosen child's parent,
+  // recomputed from the persisted parent/child edges (additive metadata only —
+  // pricing, capacity and availability are untouched). One choke point for every
+  // create caller (public free/paid webhook, admin manual add), so the free and
+  // paid paths persist the pairing identically without a round-trip change.
+  const bookings = await annotateOrderParents(rawBookings);
 
   // Use first booking's pricePaid for encryption (PII blob is shared)
   const enc = await encryptAttendeeFields({

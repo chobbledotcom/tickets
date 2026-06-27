@@ -15,8 +15,8 @@
 
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
 # cases where x can't be such a value, or F equals the only one it can be.
-src/shared/checkout-pricing.ts:84:35  ?? → ||    # Map<number,number> sum: 0 ?? 0 === 0 || 0
-src/shared/checkout-pricing.ts:332:41  ?? → ||   # intent.modifiers: an array is always truthy
+src/shared/checkout-pricing.ts:85:35  ?? → ||    # Map<number,number> sum: 0 ?? 0 === 0 || 0
+src/shared/checkout-pricing.ts:334:41  ?? → ||   # intent.modifiers: an array is always truthy
 src/shared/logistics-filter.ts:22:35  ?? → ||    # raw: string|null, only falsy string "" === fallback ""
 src/shared/site-assignment.ts:192:57  ?? → ||    # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
 src/shared/site-assignment.ts:370:34  ?? → ||    # available[idx]: object|undefined, never falsy non-null
@@ -42,11 +42,30 @@ src/shared/accounting/rows.ts:74:17  ?? → ||    # insertStatement kind: string
 src/shared/accounting/rows.ts:75:17  ?? → ||    # insertStatement memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/accounting/rows.ts:181:58  ?? → ||   # selectById (await …)[0]: Transfer|undefined — a Transfer object is always truthy
 
+# Parent/child fold (ticket-payment.ts).
+src/features/public/ticket-payment.ts:391:34  && → ||   # childQtyField: both callers gate on `qty > 0`, so a clamped-0 and a passed-through negative are indistinguishable; only `>= 0` differs and no `> 0` consumer can see it
+src/features/public/ticket-payment.ts:505:48  ?? → ||   # quantities Map<number,number>: absent→undefined or a positive sum; 0??0===0||0
+src/features/public/ticket-payment.ts:599:55  = → +=    # customisableDuration is null here (just initialised); null += n === n
+src/features/public/ticket-payment.ts:605:61  ?? → ||   # parentQty: absent or a count; next line `<= 0 continue` makes 0/undefined identical, 0??0===0||0
+src/features/public/ticket-payment.ts:609:13  ??= → =   # holidays cache refetch: getActiveHolidays is idempotent; = only repeats the same fetch
+src/features/public/ticket-payment.ts:625:41  ?? → ||   # customisableDuration: null or a duration ≥1, never falsy-non-null
+src/features/public/ticket-payment.ts:874:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined, arrays always truthy
+
+# Parent/child curried atoms (shared.tsx).
+src/ui/templates/public/shared.tsx:169:41  ?? → ||   # span: null or a duration ≥1, never falsy-non-null; null??1===null||1
+
+# Parent/child per-unit render (reservations.tsx).
+src/ui/templates/public/reservations.tsx:548:12  ! → ∅   # childQuestionsToRender: the `rendered` dedup (pre-seeded with page questions, plus each child's own) makes which child triggers a question's render unobservable — the same single identical control results; a question in ctx.questions is always owned by a page listing or a child
+src/ui/templates/public/reservations.tsx:1264:50  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
+
+# Parent/child relationship DB (listing-parents.ts).
+src/shared/db/listing-parents.ts:118:21  ?? → ||   # result.get(key): ListingWithCount[]|undefined, arrays always truthy; ?? and || agree
+
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is
 # always already ascending — and `sort((a,b) => a/b)` is identity on an
 # already-ascending array, so swapping the comparator changes nothing.
-src/shared/checkout-pricing.ts:176:16  - → /     # toUnits gives ascending lineIdx; a/b is identity on sorted input
+src/shared/checkout-pricing.ts:177:16  - → /     # toUnits gives ascending lineIdx; a/b is identity on sorted input
 
 # The ledger listing filter only becomes visible after it is matched against the
 # cached positive listing ids loaded from the DB. Returning a non-positive safe
@@ -61,6 +80,17 @@ src/features/admin/attendee-form-model.ts:320:53  ?? → ||   # existingByKey.ge
 src/features/admin/attendee-form-model.ts:321:36  ?? → ||   # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts:373:66  ?? → ||   # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
 src/features/tickets/token-utils.ts:222:44  ?? → ||   # (attendees[i]?.bookings ?? []): ListingAttendeeRow[]|undefined — an array is always truthy, undefined→[] either way
+
+# Ticket form parsing (ticket-form.ts): `?? → ||` where the operand is an array,
+# an object, a Map.get number (only falsy-non-null is 0, 0??0===0||0), or a
+# string that is never the empty string — so the two operators always agree.
+src/features/public/ticket-form.ts:57:50  ?? → ||   # questionListingMap.get(): number[]|undefined — arrays always truthy
+src/features/public/ticket-form.ts:128:14  ?? → ||   # (existing ?? []).map: TextAnswer[]|undefined — arrays always truthy
+src/features/public/ticket-form.ts:142:44  ?? → ||   # listingAnswerIds[key]: number[]|undefined — arrays always truthy
+src/features/public/ticket-form.ts:143:48  ?? → ||   # listingTextAnswers[key]: TextAnswer[]|undefined — arrays always truthy
+src/features/public/ticket-form.ts:145:56  ?? → ||   # answersByAttendee.get(): AttendeeAnswerSet|undefined — objects always truthy
+src/features/public/ticket-form.ts:182:28  ?? → ||   # ctx.actionUrl: string|undefined, only ever a real URL or undefined (never ""), so ?? and || agree
+src/features/public/ticket-form.ts:213:36  ?? → ||   # quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
 
 # largest-remainder: option hooks are functions when present, so they are
 # truthy; undefined falls through to the same default under `??` and `||`.

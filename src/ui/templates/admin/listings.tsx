@@ -514,6 +514,15 @@ export type AdminListingPageOptions = {
   /** Whether any of the listing's attendees (across all dates) have an email
    * address — gates the owner-only "Email" action. */
   hasEmailableAttendees?: boolean;
+  /** Whether this listing is a child of another listing. A child has no
+   * standalone booking entry point (invariant I3), so the per-listing share
+   * generators (public URL / embed snippets / QR) are suppressed and the booking
+   * QR menu action is hidden — they would only publish a dead-end link. */
+  isChild?: boolean;
+  /** The names of this listing's required children when it is a parent (empty
+   * otherwise). Surfaces a warning on the quick add-attendee form: a manual add
+   * books the parent alone, where public bookings fold a chosen child. */
+  childNames?: string[];
   /** Decrypted notes for the listed attendees (empty when none) — surfaced as a
    * red expandable above the attendee table. */
   systemNotes?: SystemNote[];
@@ -525,11 +534,13 @@ const ListingActionNav = ({
   hasPaidListing,
   isOwner,
   hasEmailableAttendees,
+  isChild,
 }: {
   listing: ListingWithCount;
   hasPaidListing: boolean;
   isOwner: boolean;
   hasEmailableAttendees: boolean;
+  isChild: boolean;
 }): JSX.Element => {
   const readOnly = isReadOnly();
   return (
@@ -564,7 +575,7 @@ const ListingActionNav = ({
             {t("terms.questions")}
           </a>
         </li>
-        {!readOnly && (
+        {!readOnly && !isChild && (
           <li>
             <a href={`/admin/listing/${listing.id}/qr`}>
               {t("listings_table.booking_qr")}
@@ -847,6 +858,7 @@ const ListingDetailsTable = ({
   completeQuantitySum,
   groupContext,
   sharedRowsHtml,
+  isChild,
 }: {
   listing: ListingWithCount;
   aggregateRecalculation?: ListingAggregateRecalculation;
@@ -861,6 +873,7 @@ const ListingDetailsTable = ({
   completeQuantitySum: number;
   groupContext: GroupContext | undefined;
   sharedRowsHtml: string;
+  isChild: boolean;
 }): JSX.Element => (
   <article>
     <div class="table-scroll">
@@ -941,30 +954,41 @@ const ListingDetailsTable = ({
               )}
             </td>
           </tr>
-          <tr>
-            <th>
-              <label for={`embed-toggle-${listing.id}`}>
-                {t("common.public_url")}
-                <span class="embed-toggle-badge">embed</span>
-              </label>
-            </th>
-            <td>
-              <input
-                class="visually-hidden listing-embed-toggle"
-                id={`embed-toggle-${listing.id}`}
-                type="checkbox"
-              />
-              <a href={ticketUrl}>
-                {`${allowedDomain}/ticket/${listing.slug}`}
-              </a>
-              <small>
-                {" "}
-                (
-                <a href={`/ticket/${listing.slug}/qr`}>{t("common.qr_code")}</a>
-                )
-              </small>
-            </td>
-          </tr>
+          {isChild ? (
+            <tr>
+              <th>{t("common.public_url")}</th>
+              <td>
+                <em>{t("listings_table.child_share_suppressed")}</em>
+              </td>
+            </tr>
+          ) : (
+            <tr>
+              <th>
+                <label for={`embed-toggle-${listing.id}`}>
+                  {t("common.public_url")}
+                  <span class="embed-toggle-badge">embed</span>
+                </label>
+              </th>
+              <td>
+                <input
+                  class="visually-hidden listing-embed-toggle"
+                  id={`embed-toggle-${listing.id}`}
+                  type="checkbox"
+                />
+                <a href={ticketUrl}>
+                  {`${allowedDomain}/ticket/${listing.slug}`}
+                </a>
+                <small>
+                  {" "}
+                  (
+                  <a href={`/ticket/${listing.slug}/qr`}>
+                    {t("common.qr_code")}
+                  </a>
+                  )
+                </small>
+              </td>
+            </tr>
+          )}
           {listing.thank_you_url && (
             <tr>
               <th>
@@ -1001,38 +1025,42 @@ const ListingDetailsTable = ({
               </td>
             </tr>
           )}
-          <tr class="listing-embed-row">
-            <th>
-              <label for={`embed-script-${listing.id}`}>
-                {t("common.embed_script")}
-              </label>
-            </th>
-            <td>
-              <input
-                data-select-on-click
-                id={`embed-script-${listing.id}`}
-                readonly
-                type="text"
-                value={embedScriptCode}
-              />
-            </td>
-          </tr>
-          <tr class="listing-embed-row">
-            <th>
-              <label for={`embed-iframe-${listing.id}`}>
-                {t("common.embed_iframe")}
-              </label>
-            </th>
-            <td>
-              <input
-                data-select-on-click
-                id={`embed-iframe-${listing.id}`}
-                readonly
-                type="text"
-                value={embedIframeCode}
-              />
-            </td>
-          </tr>
+          {!isChild && (
+            <tr class="listing-embed-row">
+              <th>
+                <label for={`embed-script-${listing.id}`}>
+                  {t("common.embed_script")}
+                </label>
+              </th>
+              <td>
+                <input
+                  data-select-on-click
+                  id={`embed-script-${listing.id}`}
+                  readonly
+                  type="text"
+                  value={embedScriptCode}
+                />
+              </td>
+            </tr>
+          )}
+          {!isChild && (
+            <tr class="listing-embed-row">
+              <th>
+                <label for={`embed-iframe-${listing.id}`}>
+                  {t("common.embed_iframe")}
+                </label>
+              </th>
+              <td>
+                <input
+                  data-select-on-click
+                  id={`embed-iframe-${listing.id}`}
+                  readonly
+                  type="text"
+                  value={embedIframeCode}
+                />
+              </td>
+            </tr>
+          )}
           <AttendeesSummaryRow
             adjustedCount={adjustedCount}
             completeQuantitySum={completeQuantitySum}
@@ -1216,11 +1244,20 @@ const FailedPaymentsSection = ({
 /** Add attendee form article (only rendered in writable mode) */
 const AddAttendeeSection = ({
   listing,
+  childNames = [],
 }: {
   listing: ListingWithCount;
+  childNames?: string[];
 }): JSX.Element => (
   <article>
     <h2 id="add-attendee">{t("listings_table.add_attendee")}</h2>
+    {childNames.length > 0 && (
+      <p class="notice">
+        {t("listings_table.add_attendee_parent_warning", {
+          children: childNames.join(", "),
+        })}
+      </p>
+    )}
     <CsrfForm action={`/admin/listing/${listing.id}/attendee`}>
       <Raw
         html={renderFields(
@@ -1298,6 +1335,8 @@ export const adminListingPage = ({
   revenueBreakdown,
   ledger,
   hasEmailableAttendees = false,
+  isChild = false,
+  childNames = [],
   systemNotes = [],
 }: AdminListingPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${listing.slug}`;
@@ -1348,6 +1387,7 @@ export const adminListingPage = ({
       <ListingActionNav
         hasEmailableAttendees={hasEmailableAttendees}
         hasPaidListing={hasPaidListing}
+        isChild={isChild}
         isOwner={session.adminLevel === "owner"}
         listing={listing}
       />
@@ -1368,6 +1408,7 @@ export const adminListingPage = ({
         embedIframeCode={embedIframeCode}
         embedScriptCode={embedScriptCode}
         groupContext={groupContext}
+        isChild={isChild}
         isDaily={isDaily}
         listing={listing}
         sharedRowsHtml={renderDetailRows(sharedRows)}
@@ -1406,7 +1447,9 @@ export const adminListingPage = ({
           listingId={listing.id}
         />
       )}
-      {!isReadOnly() && <AddAttendeeSection listing={listing} />}
+      {!isReadOnly() && (
+        <AddAttendeeSection childNames={childNames} listing={listing} />
+      )}
     </Layout>,
   );
 };
@@ -1738,6 +1781,7 @@ const ListingFormSections = ({
   durationWarning,
   imagePreview,
   advancedOpen,
+  childOfNote = "",
 }: {
   fields: Field[];
   values: FieldValues;
@@ -1750,6 +1794,9 @@ const ListingFormSections = ({
   /** Pre-rendered edit-only current-image preview ("" otherwise). */
   imagePreview: string;
   advancedOpen: boolean;
+  /** Inline "inherited from the parent" note shown on the date/duration sections
+   * when the listing is itself a child ("" otherwise — e.g. on create). */
+  childOfNote?: string;
 }): JSX.Element => {
   const fieldMap = new Map<string, Field>(fields.map((f) => [f.name, f]));
   const sec = (names: readonly string[]): string =>
@@ -1778,6 +1825,7 @@ const ListingFormSections = ({
       <fieldset class="listing-section listing-section--daily">
         <legend>{t("listings_table.daily_scheduling")}</legend>
         <div class="stack">
+          {childOfNote && <p class="muted small">{childOfNote}</p>}
           <Raw html={sec(DAILY_FIELDS)} />
         </div>
       </fieldset>
@@ -1785,6 +1833,7 @@ const ListingFormSections = ({
       <fieldset class="listing-section">
         <legend>{t("listings_table.booking_duration_day_prices")}</legend>
         <div class="stack">
+          {childOfNote && <p class="muted small">{childOfNote}</p>}
           <Raw html={sec(["duration_days"])} />
           {durationWarning && <Raw html={durationWarning} />}
           <Raw html={sec(["customisable_days"])} />
@@ -1896,6 +1945,11 @@ export const adminDuplicateListingPage = (
         </p>
       </div>
       <CsrfForm action="/admin/listing" enctype="multipart/form-data">
+        <input
+          name="duplicated_from"
+          type="hidden"
+          value={String(listing.id)}
+        />
         <ListingFormSections
           advancedOpen={advancedSectionHasValues(listing, builderEnabled)}
           dayPricesListing={listing}
@@ -1917,6 +1971,93 @@ export const adminDuplicateListingPage = (
 /**
  * Admin listing edit page
  */
+/** The "required children" editor shown on a listing's edit page when the
+ * parent/child feature is enabled. Editing on the parent: tick the listings a
+ * buyer must choose one of when booking this one. */
+/** One selectable child candidate: the listing and why it can't be a child of
+ * the one being edited (null when it can). Mirrors `ChildCandidate` from
+ * `listings-parents.ts`, kept decoupled from the feature layer like the rest of
+ * this template's view types. */
+type ChildCandidate = {
+  listing: ListingWithCount;
+  ineligibleReason: string | null;
+};
+
+const ChildCandidateLabel = ({
+  candidate,
+  checked,
+}: {
+  candidate: ChildCandidate;
+  checked: boolean;
+}) => {
+  // An ineligible candidate is disabled so the operator can't tick an edge the
+  // save would reject. A currently-ticked edge is always eligible — the listing
+  // save blocks any field/structure change that would break a live edge — so a
+  // disabled candidate is never also checked.
+  const disabled = candidate.ineligibleReason !== null;
+  return (
+    <label>
+      <input
+        checked={checked || undefined}
+        disabled={disabled || undefined}
+        name="child_listing_ids"
+        type="checkbox"
+        value={String(candidate.listing.id)}
+      />
+      {` ${candidate.listing.name}`}
+      {candidate.ineligibleReason !== null && (
+        <span class="muted small"> — {candidate.ineligibleReason}</span>
+      )}
+    </label>
+  );
+};
+
+const ListingChildrenSection = ({
+  listingId,
+  candidates,
+  childIds,
+  offeredUnder,
+}: {
+  listingId: number;
+  candidates: ChildCandidate[];
+  childIds: ReadonlySet<number>;
+  offeredUnder: ListingWithCount[];
+}) => (
+  <details class="listing-advanced listing-children" open>
+    <summary>{t("listings_table.advanced_settings")}</summary>
+    <div class="stack">
+      <h2>{t("listings_table.children_legend")}</h2>
+      <p>{t("listings_table.children_help")}</p>
+      {offeredUnder.length > 0 && (
+        <p>
+          {t("listings_table.children_offered_under", {
+            names: offeredUnder.map((p) => p.name).join(", "),
+          })}
+        </p>
+      )}
+      {candidates.length === 0 ? (
+        <p>
+          <em>{t("listings_table.children_none")}</em>
+        </p>
+      ) : (
+        <CsrfForm action={`/admin/listing/${listingId}/children`}>
+          <fieldset class="checkboxes">
+            {map((candidate: ChildCandidate) => (
+              <ChildCandidateLabel
+                candidate={candidate}
+                checked={childIds.has(candidate.listing.id)}
+              />
+            ))(candidates)}
+          </fieldset>
+          <SubmitButton icon="save">
+            {t("listings_table.children_save")}
+          </SubmitButton>
+        </CsrfForm>
+      )}
+    </div>
+  </details>
+);
+
 export const adminListingEditPage = (
   listing: ListingWithCount,
   groups: Group[],
@@ -1924,7 +2065,18 @@ export const adminListingEditPage = (
   error?: string,
   aggregateRecalculation?: ListingAggregateRecalculation,
   success?: string,
+  parents?: {
+    candidates: ChildCandidate[];
+    childIds: ReadonlySet<number>;
+    offeredUnder: ListingWithCount[];
+  },
 ): string => {
+  // A listing offered as a child inherits its parent's booking date/duration, so
+  // its own date/duration settings have no effect when chosen as a child. Surface
+  // that with a top banner and an inline note on the affected sections (#3).
+  const offeredUnder = parents?.offeredUnder ?? [];
+  const childOfNames =
+    offeredUnder.length > 0 ? offeredUnder.map((p) => p.name).join(", ") : null;
   const storageEnabled = isStorageEnabled();
   const builderEnabled = isBuilderEnabled();
   // Slug is editable only here (auto-generated on create), so it lives in the
@@ -1953,6 +2105,11 @@ export const adminListingEditPage = (
     >
       <AdminNav active="/admin/" session={session} />
       <Flash error={error} success={success} />
+      {childOfNames !== null && (
+        <p class="notice listing-child-banner">
+          {t("listings_table.child_banner", { names: childOfNames })}
+        </p>
+      )}
       <CsrfForm
         action={`/admin/listing/${listing.id}/edit`}
         enctype="multipart/form-data"
@@ -1961,6 +2118,11 @@ export const adminListingEditPage = (
         <ListingFormSections
           advancedOpen={
             advancedSectionHasValues(listing, builderEnabled) || !!error
+          }
+          childOfNote={
+            childOfNames !== null
+              ? t("listings_table.child_field_inherited")
+              : ""
           }
           dayPricesListing={listing}
           durationWarning={durationWarning}
@@ -1999,6 +2161,14 @@ export const adminListingEditPage = (
             </SubmitButton>
           </CsrfForm>
         </div>
+      )}
+      {parents && (
+        <ListingChildrenSection
+          candidates={parents.candidates}
+          childIds={parents.childIds}
+          listingId={listing.id}
+          offeredUnder={parents.offeredUnder}
+        />
       )}
     </Layout>,
   );

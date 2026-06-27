@@ -150,6 +150,9 @@ export interface Table<Row, Input> {
 
   /** Insert a new row, returns the created row */
   insert: (input: Input) => Promise<Row>;
+  /** Build the INSERT statement without executing it (for transactional callers).
+   * Optional: only resources with a CRUD side effect need it; façade tables omit it. */
+  insertStatement?: (input: Input) => Promise<{ sql: string; args: InValue[] }>;
   name: string;
   primaryKey: keyof Row & string;
 
@@ -169,6 +172,12 @@ export interface Table<Row, Input> {
 
   /** Update a row by primary key, returns updated row or null if not found */
   update: (id: InValue, input: Partial<Input>) => Promise<Row | null>;
+  /** Build the UPDATE statement without executing it (input must provide ≥1
+   * column). Optional: see {@link insertStatement}. */
+  updateStatement?: (
+    id: InValue,
+    input: Partial<Input>,
+  ) => Promise<{ sql: string; args: InValue[] }>;
 }
 
 /** Get value for a column with default applied */
@@ -280,14 +289,35 @@ export const defineTable = <Row, Input = Row>(config: {
     return null;
   };
 
-  // Insert implementation
-  const insert = async (input: Input): Promise<Row> => {
+  // Get columns that were provided in input
+  const getProvidedColumns = (input: Partial<Input>): string[] =>
+    filter((col: string) => (inputKeyMap[col] as string) in (input as object))(
+      inputColumns,
+    );
+
+  /** Build the INSERT statement plus the resolved db values. Shared by
+   * {@link insert} and {@link insertStatement} so the column/arg derivation
+   * lives in one place. */
+  const buildInsert = async (
+    input: Input,
+  ): Promise<{
+    args: InValue[];
+    dbValues: Record<string, InValue>;
+    sql: string;
+  }> => {
     const dbValues = await toDbValues(input);
     const columns = Object.keys(dbValues);
-    // Safe: columns are Object.keys(dbValues), so all values exist
-    const args: InValue[] = columns.map((col) => dbValues[col] as InValue);
+    return {
+      args: columns.map((col) => dbValues[col] as InValue),
+      dbValues,
+      sql: buildInsertSql(name, columns),
+    };
+  };
 
-    const result = await execute(buildInsertSql(name, columns), args);
+  // Insert implementation
+  const insert = async (input: Input): Promise<Row> => {
+    const { args, dbValues, sql } = await buildInsert(input);
+    const result = await execute(sql, args);
 
     const initialRow = schema[primaryKey].generated
       ? { [primaryKey]: Number(result.lastInsertRowid) }
@@ -299,35 +329,39 @@ export const defineTable = <Row, Input = Row>(config: {
     }, initialRow)(inputColumns) as Row;
   };
 
-  // Get columns that were provided in input
-  const getProvidedColumns = (input: Partial<Input>): string[] =>
-    filter((col: string) => (inputKeyMap[col] as string) in (input as object))(
-      inputColumns,
-    );
+  /** Build the INSERT statement without executing it — for callers that run the
+   * write inside their own transaction (e.g. the CRUD side-effect path, which
+   * inserts the row and its relationship edges atomically). */
+  const insertStatement = async (
+    input: Input,
+  ): Promise<{ sql: string; args: InValue[] }> => {
+    const { args, sql } = await buildInsert(input);
+    return { args, sql };
+  };
+
+  /** Build the UPDATE statement for `input` (which must provide ≥1 column — the
+   * CRUD side-effect path passes a fully-merged input). For transactional callers
+   * and reused by {@link update}. */
+  const updateStatement = async (
+    id: InValue,
+    input: Partial<Input>,
+  ): Promise<{ sql: string; args: InValue[] }> => {
+    const dbValues = await toDbValues(input);
+    const providedColumns = getProvidedColumns(input);
+    return {
+      args: [...providedColumns.map((col) => dbValues[col] as InValue), id],
+      sql: buildUpdateSql(name, providedColumns, primaryKey),
+    };
+  };
 
   // Update implementation - uses RETURNING * to avoid a second round trip
   const update = async (
     id: InValue,
     input: Partial<Input>,
   ): Promise<Row | null> => {
-    const dbValues = await toDbValues(input);
-    const providedColumns = getProvidedColumns(input);
-
-    if (providedColumns.length === 0) {
-      return findById(id);
-    }
-
-    // Safe: providedColumns only includes columns from toDbValues result
-    const args: InValue[] = [
-      ...providedColumns.map((col) => dbValues[col] as InValue),
-      id,
-    ];
-
-    const row = await queryOne<Row>(
-      buildUpdateSql(name, providedColumns, primaryKey),
-      args,
-    );
-
+    if (getProvidedColumns(input).length === 0) return findById(id);
+    const { args, sql } = await updateStatement(id, input);
+    const row = await queryOne<Row>(sql, args);
     return row ? fromDb(row) : null;
   };
 
@@ -377,12 +411,14 @@ export const defineTable = <Row, Input = Row>(config: {
     fromDb,
     inputKeyMap,
     insert,
+    insertStatement,
     name,
     primaryKey,
     rowToInput,
     schema,
     toDbValues,
     update,
+    updateStatement,
   };
 };
 

@@ -102,6 +102,9 @@ export type AttendeeBooking = {
   endAt: string | null;
   checkedIn: boolean;
   refunded: boolean;
+  /** The parent listing this booking was chosen under as an add-on (a folded
+   * child), or 0 when it is an ordinary standalone booking. */
+  parentListingId: number;
 };
 
 /** The full parsed form — attendee fields, the shared range, and line items. */
@@ -220,6 +223,7 @@ export const attendeeBookingsFromLines = (
       listingActive: listing.active,
       listingId: line.listingId,
       listingName: listing.name,
+      parentListingId: booking.parent_listing_id,
       quantity: booking.quantity,
       refunded: Boolean(booking.refunded),
       startAt: booking.start_at,

@@ -140,19 +140,34 @@ const handleDeleteIncomplete = attendeeFormAction(
   },
 );
 
+/** Return a redirect response when the attendee has no active booking line, or null otherwise. */
+const redirectIfNoActiveBookingLine = async (
+  attendeeId: number,
+  listingId: number,
+  url: string,
+  message: string,
+  opts?: Parameters<typeof redirect>[3],
+): Promise<Response | null> => {
+  if (!(await hasActiveBookingLine(attendeeId, listingId))) {
+    return redirect(url, message, false, opts);
+  }
+  return null;
+};
+
 /** Handle POST /admin/listing/:listingId/attendee/:attendeeId/checkin */
 const handleAttendeeCheckin = attendeeFormAction(
   async (data, _session, form, listingId, attendeeId) => {
     // Refuse on a no-quantity ghost row (checked against the exact (attendee,
     // listing) pair, since data.attendee is an arbitrary left-joined sibling) —
     // updateCheckedIn would no-op anyway, but this keeps the message honest.
-    if (!(await hasActiveBookingLine(attendeeId, listingId))) {
-      return redirect(
-        form.getString("return_url") || `/admin/listing/${listingId}`,
-        "Cannot check in a no-quantity line",
-        false,
-      );
-    }
+    const noLineRedirect = await redirectIfNoActiveBookingLine(
+      attendeeId,
+      listingId,
+      form.getString("return_url") || `/admin/listing/${listingId}`,
+      "Cannot check in a no-quantity line",
+    );
+    if (noLineRedirect) return noLineRedirect;
+
     const wasCheckedIn = data.attendee.checked_in;
     const nowCheckedIn = !wasCheckedIn;
 
@@ -297,14 +312,15 @@ const handleResendNotification = verifiedAttendeeForm(
     // Refuse on a no-quantity ghost row: this listing-scoped route builds the
     // customer email/webhook from the supplied listing, so it must not fire for
     // a non-booking (nor retarget to a real line on another listing).
-    if (!(await hasActiveBookingLine(attendeeId, listingId))) {
-      return redirect(
-        `/admin/listing/${listingId}`,
-        "Cannot re-send a notification for a no-quantity line",
-        false,
-        { form },
-      );
-    }
+    const noLineRedirect = await redirectIfNoActiveBookingLine(
+      attendeeId,
+      listingId,
+      `/admin/listing/${listingId}`,
+      "Cannot re-send a notification for a no-quantity line",
+      { form },
+    );
+    if (noLineRedirect) return noLineRedirect;
+
     await Promise.all([
       logAndNotifyRegistration([
         { attendee: data.attendee, listing: data.listing },

@@ -4,8 +4,13 @@ import {
   buildListingAnswerMap,
   buildListingTextAnswerMap,
   groupListingAnswerSets,
+  parseAddOnSelections,
+  parseQuantities,
 } from "#routes/public/ticket-form.ts";
+import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import { FormParams } from "#shared/form-data.ts";
+import type { TicketListing } from "#templates/public.tsx";
 
 const question = (
   id: number,
@@ -81,6 +86,24 @@ describe("ticket form answer grouping", () => {
       answerIds: [],
       textAnswers: [{ questionId: 2, text: "Vegan" }],
     });
+  });
+
+  test("accumulates multiple choice answers on one listing, in question order", () => {
+    // Two active radio questions both assigned to listing 101. The parser yields
+    // one submitted answer id per active choice question, in question order; both
+    // must land in 101's bucket — the second must not overwrite the first (the
+    // per-listing bucket is created once, then appended), and the answer index
+    // must advance so each question reads its own submitted id.
+    const choiceMap = buildListingAnswerMap(
+      [question(1, "radio"), question(2, "radio")],
+      [11, 22],
+      new Map([
+        [1, [101]],
+        [2, [101]],
+      ]),
+      new Set([101]),
+    );
+    expect(choiceMap).toEqual({ "101": [11, 22] });
   });
 
   test("skips an inactive-only choice question so answer ids stay aligned", () => {
@@ -161,5 +184,76 @@ describe("ticket form answer grouping", () => {
     expect(grouped.get(501)).toEqual({ answerIds: [10] });
     // Listing 202 asked nothing, so its attendee is left out entirely.
     expect(grouped.has(902)).toBe(false);
+  });
+});
+
+describe("parseAddOnSelections", () => {
+  const addOn = (id: number, maxQuantity: number): AddOnOption => ({
+    id,
+    maxQuantity,
+    name: `Add-on ${id}`,
+    priceLabel: "+£5",
+    requiresPayment: false,
+  });
+  const form = (record: Record<string, string>): FormParams =>
+    new FormParams(new URLSearchParams(record));
+
+  test("reads each selected add-on's quantity, clamped to its ceiling", () => {
+    const result = parseAddOnSelections(form({ addon_5: "2", addon_6: "99" }), [
+      addOn(5, 10),
+      addOn(6, 3),
+    ]);
+    expect(result).toEqual(
+      new Map([
+        [5, 2],
+        [6, 3],
+      ]),
+    );
+  });
+
+  test("drops zero, missing, and not-offered add-ons", () => {
+    // 5 is selected zero, 6 is offered but absent from the form, and addon_7 has
+    // a value but isn't an offered add-on — none of them produce a selection.
+    const result = parseAddOnSelections(form({ addon_5: "0", addon_7: "4" }), [
+      addOn(5, 10),
+      addOn(6, 10),
+    ]);
+    expect(result).toEqual(new Map());
+  });
+});
+
+describe("parseQuantities", () => {
+  // Cast a minimal cart line — parseQuantities only reads these four fields, and
+  // we deliberately set maxPurchasable > 0 on the unbookable lines (which
+  // buildTicketListing would force to 0) to prove the skip stands on its own.
+  const tl = (
+    id: number,
+    over: { isSoldOut?: boolean; isClosed?: boolean; maxPurchasable?: number },
+  ): TicketListing =>
+    ({
+      isClosed: false,
+      isSoldOut: false,
+      listing: { id },
+      maxPurchasable: 10,
+      ...over,
+    }) as unknown as TicketListing;
+
+  test("skips sold-out and closed listings even when they report capacity", () => {
+    // The guard skips a listing that is sold out OR closed — it must never be
+    // relaxed to require both, or an unbookable listing with stale capacity would
+    // book.
+    const form = new FormParams(
+      new URLSearchParams({
+        quantity_1: "3",
+        quantity_2: "4",
+        quantity_3: "2",
+      }),
+    );
+    const result = parseQuantities(form, [
+      tl(1, { isClosed: true, maxPurchasable: 5 }),
+      tl(2, { isSoldOut: true, maxPurchasable: 5 }),
+      tl(3, { maxPurchasable: 5 }),
+    ]);
+    expect(result).toEqual(new Map([[3, 2]]));
   });
 });

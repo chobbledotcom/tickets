@@ -9,6 +9,7 @@
  */
 
 import { unique } from "#fp";
+import { t } from "#i18n";
 import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
@@ -20,6 +21,7 @@ import {
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import {
   getActiveModifiers,
+  getModifierGroupIdsByModifierId,
   getModifierGroupListingIdsByModifierId,
   getModifierListingIdsByModifierId,
   modifierIdsByAnswerId,
@@ -29,8 +31,8 @@ import type {
   ModifierRef,
   ModifierSpec,
 } from "#shared/payments.ts";
-import { normalizeCode } from "#shared/price-modifier.ts";
-import type { Modifier } from "#shared/types.ts";
+import { type ModifierTrigger, normalizeCode } from "#shared/price-modifier.ts";
+import type { ListingWithCount, Modifier } from "#shared/types.ts";
 
 /** The signed pricing value the engine applies, from a modifier's stored
  * magnitude + direction. Multipliers ignore direction (the factor encodes it);
@@ -44,9 +46,22 @@ const signedValue = (modifier: Modifier): number => {
   return modifier.direction === "discount" ? -magnitude : magnitude;
 };
 
-/** Batched listing scopes for modifiers: null = whole order, array = scoped. */
+/** Resolve the listing ids each "groups"-scoped modifier covers. The default
+ * resolves the group→listing membership live (the DB join); the would-be variant
+ * (parents.md Fix 4) passes a resolver that expands against in-memory listings. */
+type GroupScopeResolver = (
+  groupScopedIds: number[],
+) => Promise<Map<number, number[]>>;
+
+const liveGroupScopeResolver: GroupScopeResolver =
+  getModifierGroupListingIdsByModifierId;
+
+/** Batched listing scopes for modifiers: null = whole order, array = scoped.
+ * `resolveGroupScopes` chooses how a "groups"-scoped modifier's member listing
+ * ids are resolved (live join by default; in-memory for the would-be check). */
 const listingIdsByModifierId = async (
   modifiers: Modifier[],
+  resolveGroupScopes: GroupScopeResolver = liveGroupScopeResolver,
 ): Promise<Map<number, number[] | null>> => {
   const scopes = new Map<number, number[] | null>();
   const listingScoped = modifiers.filter((m) => m.scope === "listings");
@@ -56,7 +71,7 @@ const listingIdsByModifierId = async (
   }
   const [listingLinks, groupLinks] = await Promise.all([
     getModifierListingIdsByModifierId(listingScoped.map((m) => m.id)),
-    getModifierGroupListingIdsByModifierId(groupScoped.map((m) => m.id)),
+    resolveGroupScopes(groupScoped.map((m) => m.id)),
   ]);
   // Each lookup seeds an entry for every id it was given, so these maps cover
   // exactly the scoped modifiers — copy their links straight in.
@@ -162,6 +177,43 @@ const scopeCoversListing = (
   listingId: number,
 ): boolean =>
   scope === null || (Array.isArray(scope) && scope.includes(listingId));
+
+/** Whether a resolved listing scope is reachable from a page's listing ids:
+ * a whole-order scope (null) always is; a listing set must share an id. Shared
+ * by the add-on listing and the child-reachability hard block. */
+const scopeReachesPage = (
+  scope: number[] | null,
+  pageIds: Set<number>,
+): boolean => scope === null || scope.some((id) => pageIds.has(id));
+
+/**
+ * The single reachability test shared by both child-scoped-add-on hard blocks
+ * (the parent's edge save and a modifier's own scope/trigger save), so they can
+ * never diverge. An opt-in add-on is a dead end exactly when its resolved scope
+ * is a **listing set** (a whole-order scope, `null`, is reachable everywhere)
+ * that **names at least one suppressed child** yet **does not reach any of the
+ * pages that would actually load it** — so no direct `/ticket/<listing>` page
+ * (which loads add-ons from only that listing's own id) and no group page can
+ * ever offer it.
+ *
+ * Callers supply the two id sets that define "reachable" from their own side:
+ * - the **edge save** treats the new child as the only `suppressed` id and the
+ *   parent's own page id as the only `reachable` one;
+ * - the **modifier save** treats every existing child as `suppressed` and every
+ *   active non-child listing as `reachable` (each has its own bookable page; an
+ *   inactive listing serves no public page, so it can't rescue the add-on).
+ */
+const scopeIsChildDeadEnd = (
+  scope: number[] | null,
+  suppressed: Set<number>,
+  reachable: Set<number>,
+): boolean => {
+  if (scope === null) return false;
+  return (
+    scope.some((id) => suppressed.has(id)) &&
+    !scopeReachesPage(scope, reachable)
+  );
+};
 
 /**
  * Total quantity each "answer"-triggered modifier is requested for, respecting
@@ -368,6 +420,26 @@ const addOnPriceLabel = (modifier: Modifier): string => {
 const addOnCanRequirePayment = (modifier: Modifier): boolean =>
   modifier.calc_kind === "fixed" && signedValue(modifier) > 0;
 
+/** Active opt-in ("optional") add-on modifiers paired with their resolved
+ * listing scopes (null = whole order), the shared starting point for the add-on
+ * listing and the child-reachability hard block. `resolveGroupScopes` chooses how
+ * group scopes resolve (live join by default; in-memory for the would-be Fix 4
+ * check). */
+const optionalAddOnsWithScopes = async (
+  resolveGroupScopes?: GroupScopeResolver,
+): Promise<{
+  optional: Modifier[];
+  scopes: Map<number, number[] | null>;
+}> => {
+  const optional = (await getActiveModifiers()).filter(
+    (m) => m.trigger === "optional",
+  );
+  return {
+    optional,
+    scopes: await listingIdsByModifierId(optional, resolveGroupScopes),
+  };
+};
+
 /**
  * The opt-in add-ons offered for a page's listings: active "optional"
  * modifiers whose scope covers the whole order or overlaps the page, with
@@ -376,15 +448,11 @@ const addOnCanRequirePayment = (modifier: Modifier): boolean =>
 export const getOptionalAddOns = async (
   pageListingIds: number[],
 ): Promise<AddOnOption[]> => {
-  const optional = (await getActiveModifiers()).filter(
-    (m) => m.trigger === "optional",
-  );
+  const { optional, scopes } = await optionalAddOnsWithScopes();
   const pageIds = new Set(pageListingIds);
-  const scopes = await listingIdsByModifierId(optional);
-  const scoped = optional.filter((modifier) => {
-    const listingIds = scopes.get(modifier.id)!;
-    return listingIds === null || listingIds.some((id) => pageIds.has(id));
-  });
+  const scoped = optional.filter((modifier) =>
+    scopeReachesPage(scopes.get(modifier.id)!, pageIds),
+  );
   const used = await modifierUsedQuantities(
     scoped.filter((m) => m.stock !== null).map((m) => m.id),
   );
@@ -401,6 +469,190 @@ export const getOptionalAddOns = async (
       priceLabel: addOnPriceLabel(modifier),
       requiresPayment: addOnCanRequirePayment(modifier),
     }));
+};
+
+/**
+ * The name of an active opt-in add-on that would become **unreachable** if
+ * `childId` were made a child of a parent whose own booking page loads add-ons
+ * from `parentPageListingIds`, or null when none would.
+ *
+ * A direct `/ticket/<parent>` page loads add-ons from **only the parent's own
+ * listing id** (`getTicketContext` → `getOptionalAddOns([parent.id])`), never
+ * its group siblings — a sibling-scoped modifier loads only on that sibling's
+ * own page/group page. So `parentPageListingIds` is the parent's *actual* page
+ * id set (`[parent.id]`), not the wider group: an add-on scoped to
+ * {child, parent-sibling} but not the parent is a dead end the direct parent
+ * page can't reach, and must block.
+ *
+ * v1 doesn't support child-scoped add-ons: a child is never one of a parent
+ * page's listing ids, so `getOptionalAddOns(pageListingIds)` never loads an
+ * add-on whose entire reachable scope is suppressed children. The test is
+ * **reachability**, not "the child appears in the scope": an add-on scoped to
+ * the child *and also* to the parent (or to a group containing the parent) still
+ * loads via the parent's page ids and must NOT block the edge. (See parents.md,
+ * the "Optional add-ons" fold-checklist bullet.)
+ */
+export const childOnlyAddOnName = async (
+  childId: number,
+  parentPageListingIds: readonly number[],
+): Promise<string | null> =>
+  childOnlyAddOnNameWithScopes(
+    await optionalAddOnsWithScopes(),
+    childId,
+    parentPageListingIds,
+  );
+
+/** The reachability loop shared by the live-scope {@link childOnlyAddOnName} and
+ * the would-be-scope {@link childOnlyAddOnNameForListings} (a listing save that
+ * changes `group_id`): the name of the first active opt-in add-on whose resolved
+ * scope dead-ends through `childId` for a parent page of `parentPageListingIds`,
+ * or null. */
+const childOnlyAddOnNameWithScopes = (
+  {
+    optional,
+    scopes,
+  }: { optional: Modifier[]; scopes: Map<number, number[] | null> },
+  childId: number,
+  parentPageListingIds: readonly number[],
+): string | null => {
+  const suppressed = new Set([childId]);
+  const reachable = new Set(parentPageListingIds);
+  const blocking = optional.find((modifier) =>
+    scopeIsChildDeadEnd(scopes.get(modifier.id)!, suppressed, reachable),
+  );
+  return blocking?.name ?? null;
+};
+
+/** The ids of the supplied listings whose `group_id` is in `groupIds` — the
+ * in-memory expansion of a "groups"-scoped modifier (or any group → its member
+ * listings resolution). Shared so the live and would-be scope resolutions agree. */
+export const listingIdsInGroups = (
+  groupIds: number[],
+  allListings: Pick<ListingWithCount, "id" | "group_id">[],
+): number[] => {
+  const groups = new Set(groupIds);
+  return allListings
+    .filter((listing) => groups.has(listing.group_id))
+    .map((listing) => listing.id);
+};
+
+/**
+ * A {@link GroupScopeResolver} that expands each group-scoped modifier against
+ * an **in-memory** listing set, so a caller can test reachability under a
+ * listing's *would-be* `group_id` (which the live `modifier_groups`→`listings`
+ * join wouldn't yet reflect — parents.md Fix 4). Fetches each modifier's linked
+ * group ids, then maps them to the supplied listings' ids via
+ * {@link listingIdsInGroups}.
+ */
+const inMemoryGroupScopeResolver =
+  (
+    allListings: Pick<ListingWithCount, "id" | "group_id">[],
+  ): GroupScopeResolver =>
+  async (groupScopedIds) => {
+    const groupLinks = await getModifierGroupIdsByModifierId(groupScopedIds);
+    return new Map(
+      [...groupLinks].map(([id, groupIds]) => [
+        id,
+        listingIdsInGroups(groupIds, allListings),
+      ]),
+    );
+  };
+
+/**
+ * Like {@link childOnlyAddOnName}, but resolving add-on scopes against the
+ * supplied **in-memory** listings (with the saved listing's would-be `group_id`
+ * already applied), so a listing save that moves a parent out of the group a
+ * child-only add-on is scoped to is caught before it orphans the add-on
+ * (parents.md Fix 4).
+ */
+export const childOnlyAddOnNameForListings = async (
+  childId: number,
+  parentPageListingIds: readonly number[],
+  allListings: Pick<ListingWithCount, "id" | "group_id">[],
+): Promise<string | null> =>
+  childOnlyAddOnNameWithScopes(
+    await optionalAddOnsWithScopes(inMemoryGroupScopeResolver(allListings)),
+    childId,
+    parentPageListingIds,
+  );
+
+/** The post-save shape of an opt-in add-on whose child-reachability must hold:
+ * its trigger/active state and its **already-resolved** listing scope (null =
+ * whole order; for a group scope, every listing in the linked groups). */
+export type AddOnReachabilityCheck = {
+  active: boolean;
+  trigger: ModifierTrigger;
+  name: string;
+  scope: number[] | null;
+};
+
+/**
+ * The error to show when saving an opt-in add-on (created, or its
+ * scope/trigger/active edited) would leave it reachable **only** through a
+ * suppressed child listing — the modifier-side mirror of {@link childOnlyAddOnName},
+ * sharing one reachability core ({@link scopeIsChildDeadEnd}) so the edge-save
+ * and modifier-save blocks can't drift, or null when the save is allowed.
+ *
+ * Only an **active, opt-in** add-on is gated: an inactive or non-`optional`
+ * modifier never loads on a booking page, so it can't dead-end. The resolved
+ * scope is treated as reachable from each listing in `reachablePageIds` — the
+ * **active, non-child** listings, since only those serve a public booking page
+ * that loads add-ons — and a dead end only when it names a child but reaches
+ * none of those pages.
+ */
+export const childUnreachableAddOnError = (
+  candidate: AddOnReachabilityCheck,
+  childListingIds: Set<number>,
+  reachablePageIds: Set<number>,
+): string | null => {
+  if (!candidate.active || candidate.trigger !== "optional") return null;
+  return scopeIsChildDeadEnd(candidate.scope, childListingIds, reachablePageIds)
+    ? t("modifiers.err_child_only_addon", { name: candidate.name })
+    : null;
+};
+
+/**
+ * The name of the first **active opt-in add-on** that would be left a dead end
+ * (reachable only through a suppressed child) given an **in-memory** listing set,
+ * or null when every add-on still has a live page that can offer it. Used by a
+ * listing save that flips `active` to re-check reachability for the *whole* set
+ * of add-ons — not just edges touching the saved listing (parents.md Fix 5): a
+ * plain non-child page that is the only thing rescuing a child-scoped add-on has
+ * no edge of its own, so the edge-touching traversal would miss it.
+ *
+ * `allListings` carries the save's would-be state (the deactivated listing
+ * marked inactive). `childListingIds` are the suppressed children; the reachable
+ * pages are the **active, non-child** listings in `allListings` (only those
+ * serve a public booking page that loads add-ons), so deactivating the sole such
+ * page drops it from the reachable set and surfaces the dead end. Group scopes
+ * resolve against `allListings` so a group-scoped add-on reflects the same set.
+ */
+export const firstChildUnreachableAddOnForListings = async (
+  allListings: Pick<ListingWithCount, "id" | "group_id" | "active">[],
+  childListingIds: Set<number>,
+): Promise<string | null> => {
+  const { optional, scopes } = await optionalAddOnsWithScopes(
+    inMemoryGroupScopeResolver(allListings),
+  );
+  const reachablePageIds = new Set(
+    allListings
+      .filter((listing) => listing.active && !childListingIds.has(listing.id))
+      .map((listing) => listing.id),
+  );
+  for (const modifier of optional) {
+    const error = childUnreachableAddOnError(
+      {
+        active: modifier.active,
+        name: modifier.name,
+        scope: scopes.get(modifier.id)!,
+        trigger: modifier.trigger,
+      },
+      childListingIds,
+      reachablePageIds,
+    );
+    if (error) return error;
+  }
+  return null;
 };
 
 /**

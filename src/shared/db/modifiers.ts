@@ -269,6 +269,16 @@ export const getModifierGroupIds = (modifierId: number): Promise<number[]> =>
     [modifierId],
   );
 
+/** Group ids linked to each group-scoped modifier id (batched), so a caller can
+ * resolve a modifier's group scope against *in-memory* listings (e.g. a listing
+ * save's would-be `group_id`) instead of the live join. Seeds an entry for every
+ * id it was given. */
+export const getModifierGroupIdsByModifierId = modifierScopeListingIdsLookup(
+  (placeholders) =>
+    `SELECT modifier_id, group_id AS listing_id FROM modifier_groups
+     WHERE modifier_id IN (${placeholders})`,
+);
+
 /** Answer ids an "answer"-triggered modifier is linked to (for the admin
  * editor) — i.e. the answers whose modifier_id points at this modifier. */
 export const getModifierAnswerIds = (modifierId: number): Promise<number[]> =>

@@ -26,6 +26,7 @@ import {
   listingDelete,
   listingReactivate,
 } from "./listings-lifecycle.ts";
+import { handleAdminListingChildren } from "./listings-parents.ts";
 import {
   handleListingRecalculateGet,
   handleListingRecalculatePost,
@@ -59,6 +60,7 @@ export const listingsRoutes = {
     "GET /admin/listings/recalculate/:listingId": handleListingRecalculateGet,
     "POST /admin/listing": handleCreateListing,
     "POST /admin/listing/:id/attachment/delete": handleAttachmentDelete,
+    "POST /admin/listing/:id/children": handleAdminListingChildren,
     "POST /admin/listing/:id/delete": handleAdminListingDelete,
     "POST /admin/listing/:id/edit": handleAdminListingEditPost,
     "POST /admin/listing/:id/image/delete": handleImageDelete,

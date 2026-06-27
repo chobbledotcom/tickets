@@ -12,6 +12,8 @@ import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
+import type { TxScope } from "#shared/db/client.ts";
+import { setChildIdsTx } from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,
   getAllListings,
@@ -20,7 +22,9 @@ import {
   listingsTable,
 } from "#shared/db/listings.ts";
 import {
+  deleteOrphanedAddOnError,
   generateUniqueListingSlug,
+  listingInputToEdge,
   performListingDelete,
   toggleListingActive,
   validateListingInput,
@@ -41,6 +45,7 @@ import type {
   ListingType,
   ListingWithCount,
 } from "#shared/types.ts";
+import { validateChildEdges } from "./listings-parents.ts";
 
 // =============================================================================
 // Published API types — the contract for callers
@@ -73,6 +78,11 @@ export type CreateListingBody = {
   /** Day count → price (minor units), e.g. { "1": 1000, "2": 1800 }. */
   day_prices?: Record<number, number>;
   hidden?: boolean;
+  /** Listing ids the buyer must choose one of when this listing is booked (the
+   * required-child gate). Only honoured when the parents feature is enabled;
+   * self-edges and unknown ids are dropped, and the same nesting/field/add-on
+   * validation as the edit form runs before the edges are written. */
+  child_listing_ids?: number[];
 };
 
 /** JSON body accepted by PUT /api/admin/listings/:listingId (all fields optional) */
@@ -295,6 +305,11 @@ const handleDeleteListing: RouteHandlerFn = (request, { listingId }) =>
       "Listing name",
     );
     if (error) return apiErrorResponse(error);
+    // Same orphaned-add-on guard the HTML delete uses (parents.md Fix 2): reject
+    // a delete that would leave a child-scoped add-on reachable only through a
+    // suppressed child, with the same 400 + error as the deactivate API.
+    const orphanError = await deleteOrphanedAddOnError(listing.id);
+    if (orphanError) return apiErrorResponse(orphanError);
     await performListingDelete(listing);
     return jsonResponse({ status: "ok" });
   });
@@ -306,13 +321,16 @@ const handleToggleActive = (
   active: boolean,
 ): Promise<Response> =>
   withListing(request, listingId, async (listing) => {
-    const updated = await toggleListingActive(listingId, listing, active);
-    if (!updated) {
+    const result = await toggleListingActive(listingId, listing, active);
+    if ("noChange" in result) {
       return apiErrorResponse(
         `Listing is already ${active ? "active" : "deactivated"}`,
       );
     }
-    return jsonResponse({ listing: toAdminListing(updated) });
+    // A deactivation that would orphan a child-scoped add-on is rejected with
+    // the same 400 + error the HTML deactivate route gives (parents.md Fix 5).
+    if ("error" in result) return apiErrorResponse(result.error);
+    return jsonResponse({ listing: toAdminListing(result.updated) });
   });
 
 /** Strip slug_index from listing row, producing the admin API shape */
@@ -321,33 +339,142 @@ export const toAdminListing = ({
   ...rest
 }: ListingWithCount): AdminListing => rest;
 
-const listingApiRoutes = defineCrudApi<Listing, ListingInput, ListingWithCount>(
-  {
-    extraRoutes: {
-      "DELETE /api/admin/listings/:listingId": handleDeleteListing,
-      "POST /api/admin/listings/:listingId/deactivate": (
-        request,
-        { listingId },
-      ) => handleToggleActive(request, listingId as number, false),
-      "POST /api/admin/listings/:listingId/reactivate": (
-        request,
-        { listingId },
-      ) => handleToggleActive(request, listingId as number, true),
-    },
-    getAll: getAllListings,
-    linkActivityToRow: true,
-    listExtras: (session) => ({ admin_level: session.adminLevel }),
-    lookup: getListingWithCount,
-    name: "listings",
-    nameField: "name",
-    singular: "Listing",
-    stripKeys: ["slug_index"],
-    table: listingsTable,
-    toCreateInput: bodyToCreateInput,
-    toUpdateInput: bodyToUpdateInput,
-    validate: validateListingInput,
+/**
+ * Interpret the optional `child_listing_ids` field on a write body, telling
+ * three cases apart so a client typo can never silently wipe existing edges:
+ * - `{ skip: true }` — the parents feature is off or the field is omitted, so
+ *   the API leaves the listing's existing edges untouched;
+ * - `{ error }` — the field is present but malformed: not an array (a string,
+ *   object, …), or an array containing any entry that is not a positive integer
+ *   listing id (e.g. a JSON client sending `["7"]`). Both are reported as a 400
+ *   with the edges left intact — failing closed, so a typo can never silently
+ *   wipe a gated parent's edges down to an empty replacement;
+ * - `{ childIds }` — a real array of positive integer ids, ready for
+ *   {@link writeChildEdges} (self-edges and unknown ids are still dropped
+ *   downstream by {@link validateChildEdges}).
+ */
+type SubmittedChildIds =
+  | { skip: true }
+  | { error: string }
+  | { childIds: number[] };
+
+const submittedChildIds = (
+  body: Record<string, unknown>,
+): SubmittedChildIds => {
+  if (body.child_listing_ids === undefined) {
+    return { skip: true };
+  }
+  const raw = body.child_listing_ids;
+  if (!Array.isArray(raw)) {
+    return { error: "child_listing_ids must be an array of listing ids" };
+  }
+  // Fail closed on any non-positive-integer entry (a stringified id, float, …)
+  // rather than filtering it out: silently dropping it could shrink the array to
+  // empty and turn a gated parent into a standalone listing.
+  if (
+    !raw.every((id) => typeof id === "number" && Number.isInteger(id) && id > 0)
+  ) {
+    return {
+      error: "child_listing_ids must contain only positive integer listing ids",
+    };
+  }
+  return { childIds: raw };
+};
+
+/** A placeholder id for a not-yet-created parent: listing ids are positive
+ * autoincrement, so no real listing (and so no real edge) can reference this,
+ * making the pre-create child-edge validation behave exactly as for a parent
+ * that doesn't exist yet (Fix 4). */
+const UNCREATED_PARENT_ID = -1;
+
+/** The prepared child-edge side effect to persist after the row write:
+ * `null` = leave existing edges untouched (field omitted / feature off); an
+ * array = replace the parent's edges with these cleaned ids. */
+type PreparedChildEdges = number[] | null;
+
+/**
+ * Validate a write's `child_listing_ids` against the would-be parent BEFORE the
+ * row is written (Fix 4 atomicity): a rejected edge returns `{ error }` (the
+ * whole write is skipped, leaving no partial row create/rename); otherwise it
+ * yields the cleaned ids to write once the row exists. The would-be
+ * {@link EdgeListing} comes from the parsed input (the *fully merged*
+ * ListingInput — `bodyToUpdateInput` folds in the existing defaults, so its
+ * fields are the authoritative post-save values) via the shared
+ * {@link listingInputToEdge}; on create there is no row yet, so a placeholder id
+ * stands in. `null` value when the field is omitted / the parents feature is off
+ * (existing edges left intact); a present-but-malformed field is rejected.
+ */
+const prepareChildEdges = async (
+  input: ListingInput,
+  body: Record<string, unknown>,
+  existing: ListingWithCount | null,
+): Promise<{ error: string } | { value: PreparedChildEdges }> => {
+  const submitted = submittedChildIds(body);
+  if ("skip" in submitted) return { value: null };
+  if ("error" in submitted) return submitted;
+  // Resolve add-on reachability against the POST-SAVE listing set: apply the
+  // submitted `group_id` to the parent in an in-memory listing set so a parent
+  // created/moved into the same group as a child's group-scoped add-on is judged
+  // by its would-be group, not the live table that ignores `group_id` (Fix 4).
+  // On create the row doesn't exist yet, so the would-be group still applies to
+  // the placeholder id (no live group membership to mislead the check).
+  const result = await validateChildEdges(
+    listingInputToEdge(input, existing?.id ?? UNCREATED_PARENT_ID),
+    submitted.childIds,
+    { wouldBeGroupId: input.groupId ?? 0 },
+  );
+  return result.ok ? { value: result.childIds } : { error: result.error };
+};
+
+/** Write the prepared child edges on the open write transaction (Fix 4): a no-op
+ * when `null` (field omitted), otherwise replaces the parent's edges with the
+ * cleaned ids validated before the write — atomically with the listing row. */
+const persistChildEdges = async (
+  tx: TxScope,
+  listingId: number,
+  value: PreparedChildEdges,
+): Promise<void> => {
+  if (value !== null) await setChildIdsTx(tx, listingId, value);
+};
+
+const listingApiRoutes = defineCrudApi<
+  Listing,
+  ListingInput,
+  ListingWithCount,
+  PreparedChildEdges
+>({
+  extraRoutes: {
+    "DELETE /api/admin/listings/:listingId": handleDeleteListing,
+    "POST /api/admin/listings/:listingId/deactivate": (
+      request,
+      { listingId },
+    ) => handleToggleActive(request, listingId as number, false),
+    "POST /api/admin/listings/:listingId/reactivate": (
+      request,
+      { listingId },
+    ) => handleToggleActive(request, listingId as number, true),
   },
-);
+  getAll: getAllListings,
+  linkActivityToRow: true,
+  listExtras: (session) => ({ admin_level: session.adminLevel }),
+  lookup: getListingWithCount,
+  name: "listings",
+  nameField: "name",
+  // The required-child gate is an atomic side effect (Fix 4): validate the
+  // would-be edges BEFORE the row write (a rejected edge skips the whole write,
+  // leaving no orphan create / no persisted rename), then write them AFTER the
+  // row exists with its real id.
+  sideEffect: {
+    persist: persistChildEdges,
+    validate: prepareChildEdges,
+  },
+  singular: "Listing",
+  stripKeys: ["slug_index"],
+  table: listingsTable,
+  toCreateInput: bodyToCreateInput,
+  toUpdateInput: bodyToUpdateInput,
+  validate: validateListingInput,
+});
 
 export const adminApiRoutes = {
   ...holidayApiRoutes,

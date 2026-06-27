@@ -116,6 +116,53 @@ export const getGroupRemainingByListingId = async (
   return result;
 };
 
+/**
+ * Per-listing STATIC group cap (`groups.max_attendees`), date-INDEPENDENT.
+ *
+ * Unlike {@link getGroupRemainingByListingId} this never drops daily listings:
+ * the static cap is a structural fact (how many can EVER sit in the group),
+ * not a per-date count. Date-less surfaces use it to reject a parent+child
+ * share that can never satisfy the combined minimum order (a parent and its
+ * required child co-grouped consume `PARENT_CHILD_GROUP_UNITS` spots), even
+ * for a daily child whose per-date remaining is unknown without a date.
+ * Listings whose group is ungrouped or uncapped are omitted.
+ */
+export const getGroupStaticCapByListingId = async (
+  listings: ListingForGroupLookup[],
+): Promise<RemainingMap> => {
+  const ids = uniquePositiveGroupIds(listings.map((e) => e.group_id));
+  if (ids.length === 0) return new Map();
+  const rows = await queryAll<{ group_id: number; max_attendees: number }>(
+    `SELECT id AS group_id, max_attendees FROM groups
+     WHERE id IN (${inPlaceholders(ids)}) AND max_attendees > 0`,
+    ids,
+  );
+  const capByGroup = new Map(rows.map((r) => [r.group_id, r.max_attendees]));
+  const result: RemainingMap = new Map();
+  for (const listing of listings) {
+    const cap = capByGroup.get(listing.group_id);
+    if (cap !== undefined) result.set(listing.id, cap);
+  }
+  return result;
+};
+
+/** Both shared-group capacity facts for a set of listings in one call: the
+ * date-less `remaining` ({@link getGroupRemainingByListingId}) and the
+ * date-independent `staticCap` ({@link getGroupStaticCapByListingId}). The
+ * single fetch every date-less parent/child surface (discovery + the booking
+ * page's sold-out projection) uses, so they pull the same two maps the
+ * {@link SharedGroupCapacity} vocabulary reasons over rather than each wiring up
+ * the pair by hand. */
+export const getSharedGroupCapacities = async (
+  listings: ListingForGroupLookup[],
+): Promise<{ remaining: RemainingMap; staticCap: RemainingMap }> => {
+  const [remaining, staticCap] = await Promise.all([
+    getGroupRemainingByListingId(listings),
+    getGroupStaticCapByListingId(listings),
+  ]);
+  return { remaining, staticCap };
+};
+
 const listingForCapacity = async (
   listingOrId: ListingForGroupLookup | number,
 ): Promise<ListingForGroupLookup | null> =>
@@ -161,15 +208,18 @@ export const buildCapacityCheckedInsert = (
     quantity: qty = 1,
     date = null,
     durationDays = 1,
+    orderToken = "",
+    parentListingId = 0,
   } = booking;
   const { startAt, endAt } = dateToStartEnd(date, durationDays);
   const args: InValue[] = [listingId];
   if (attendeeIdArg !== undefined) args.push(attendeeIdArg);
-  args.push(startAt, endAt, qty);
+  args.push(startAt, endAt, qty, orderToken, parentListingId);
   // price_paid is no longer stored — a booking row's amount paid projects from
   // its ledger sale leg (posted by the booking poster from booking.pricePaid).
-  const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity)
-          SELECT ?, ${attendeeIdExpr}, ?, ?, ?`;
+  // The order token + parent listing still persist for the parent/child gate.
+  const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id)
+          SELECT ?, ${attendeeIdExpr}, ?, ?, ?, ?, ?`;
   if (allowOverbook) return { args, sql: insertSelect };
 
   const condition = buildCapacityCondition(

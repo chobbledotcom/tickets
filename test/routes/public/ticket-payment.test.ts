@@ -1,12 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import fc from "fast-check";
 import { parseQuantityValue } from "#routes/public/ticket-form.ts";
 import {
   bookingDateFields,
   buildRegistrationItems,
   computeSharedDates,
   createFreeReservation,
+  foldChild,
+  foldSelectedChildren,
+  loadChildrenByParentId,
   MODIFIER_SOLD_OUT_MESSAGE,
+  resolveChildSelections,
   resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
 import {
@@ -45,6 +50,7 @@ import {
   describeWithEnv,
   testListingWithCount,
 } from "#test-utils";
+import { makeParent } from "#test-utils/parents.ts";
 
 /** Wrap a listing-with-count as a selected cart line. */
 const line = (listing: ListingWithCount, qty = 1) => ({ listing, qty });
@@ -258,6 +264,102 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       expect(result.success).toBe(true);
       expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(1);
       expect((await getAttendeesRaw(e2.id))[0]!.quantity).toBe(2);
+    });
+  });
+
+  describe("concurrent parent/child reservations (capacity races)", () => {
+    // A folded parent/child cart reaches the reservation layer as a multi-line
+    // order (the parent line plus its chosen children). These prove the
+    // all-or-nothing atomic reservation holds when two such carts collide on a
+    // shared bottleneck — the loser must roll back fully, never leaving a parent
+    // booked without the child it required.
+    const freeCart = async (
+      parentId: number,
+      childId: number,
+      email: string,
+    ): Promise<{ success: boolean }> => {
+      const listings = await Promise.all([
+        ticketListingFor(parentId),
+        ticketListingFor(childId),
+      ]);
+      return createFreeReservation({
+        contact: { ...contact, email },
+        date: null,
+        ledgerOrder: null,
+        listings,
+        modifierUsages: [],
+        quantities: new Map([
+          [parentId, 1],
+          [childId, 1],
+        ]),
+      });
+    };
+
+    test("two carts racing for the last shared-child spot: only one wins, the loser's parent rolls back", async () => {
+      // parentA and parentB both fold the SAME child, which has a single spot.
+      const parentA = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "race-parent-a",
+      });
+      const parentB = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "race-parent-b",
+      });
+      const child = await createTestListing({
+        maxAttendees: 1,
+        maxQuantity: 1,
+        name: "race-shared-child",
+      });
+
+      const [a, b] = await Promise.all([
+        freeCart(parentA.id, child.id, "racea@example.com"),
+        freeCart(parentB.id, child.id, "raceb@example.com"),
+      ]);
+
+      // Exactly one reservation wins the single child spot.
+      expect([a.success, b.success].filter(Boolean).length).toBe(1);
+      expect((await getAttendeesRaw(child.id)).length).toBe(1);
+      // The winner's parent is booked; the loser's parent is fully rolled back,
+      // so no parent is left holding a booking without its required child.
+      const winner = a.success ? parentA.id : parentB.id;
+      const loser = a.success ? parentB.id : parentA.id;
+      expect((await getAttendeesRaw(winner)).length).toBe(1);
+      expect((await getAttendeesRaw(loser)).length).toBe(0);
+    });
+
+    test("parent+child sharing a capped group consume two group spots; a concurrent second order is refused", async () => {
+      // Parent and child share a group with only two spots, so one parent+child
+      // order (one spot each, PARENT_CHILD_GROUP_UNITS) fills the group exactly.
+      const group = await createTestGroup({
+        maxAttendees: 2,
+        name: "pc-group",
+        slug: "pc-group",
+      });
+      const parent = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "pc-parent",
+      });
+      const child = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "pc-child",
+      });
+
+      const [a, b] = await Promise.all([
+        freeCart(parent.id, child.id, "group1@example.com"),
+        freeCart(parent.id, child.id, "group2@example.com"),
+      ]);
+
+      // The group holds two spots; one parent+child order fills both, so exactly
+      // one order wins and the other is refused in full.
+      expect([a.success, b.success].filter(Boolean).length).toBe(1);
+      expect((await getAttendeesRaw(parent.id)).length).toBe(1);
+      expect((await getAttendeesRaw(child.id)).length).toBe(1);
     });
   });
 
@@ -605,5 +707,268 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       // offered as a start because availability is computed for a single day.
       expect(dates).toContain(addDays(todayInTz("UTC"), 3));
     });
+  });
+
+  describe("foldSelectedChildren — allocations", () => {
+    /** Minimal TicketCtx stub for foldSelectedChildren tests. */
+    const stubCtx = (
+      listings: TicketListing[],
+      childrenByParentId: import("#routes/public/types.ts").ChildrenByParentId,
+    ): import("#routes/public/types.ts").TicketCtx => ({
+      addOns: [],
+      childDatesById: new Map(),
+      childrenByParentId,
+      dates: [],
+      listings,
+      questionListingMap: new Map(),
+      questions: [],
+      slugs: [],
+      terms: "",
+    });
+
+    const doFold = (
+      ctx: import("#routes/public/types.ts").TicketCtx,
+      form: FormParams,
+      quantities: Map<number, number>,
+    ) =>
+      foldSelectedChildren(ctx, form, {
+        customPrices: new Map(),
+        date: null,
+        dayCount: 1,
+        hasCustomisable: false,
+        quantities,
+      });
+
+    test("single parent with one child records one allocation entry", async () => {
+      const { parent, child } = await makeParent({
+        children: [{ maxAttendees: 10, maxQuantity: 10 }],
+        parent: { maxAttendees: 10, maxQuantity: 10 },
+      });
+      const parentListing = await ticketListingFor(parent.id);
+      const childListing = await ticketListingFor(child.id);
+      const childrenByParentId = await loadChildrenByParentId([parentListing]);
+      const ctx = stubCtx([parentListing], childrenByParentId);
+      const form = new FormParams({
+        [`child_qty_${parent.id}_${child.id}`]: "1",
+      });
+      const fold = await doFold(ctx, form, new Map([[parent.id, 1]]));
+      expect(fold.ok).toBe(true);
+      if (!fold.ok) return;
+      expect(fold.allocations).toHaveLength(1);
+      expect(fold.allocations[0]).toEqual({
+        childId: child.id,
+        parentId: parent.id,
+        qty: 1,
+      });
+    });
+
+    test("same child under two parents produces two allocation entries", async () => {
+      // Two parents each requiring the same child (qty 1 each).
+      // The fold sums the child to qty 2 but records two distinct allocations.
+      const child = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "shared-child",
+      });
+      // Both parents are wired directly to the shared child.
+      const { setChildIds } = await import("#shared/db/listing-parents.ts");
+      const parentA = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "parentA",
+      });
+      await setChildIds(parentA.id, [child.id]);
+      const parentB = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "parentB",
+      });
+      await setChildIds(parentB.id, [child.id]);
+
+      const parentAListing = await ticketListingFor(parentA.id);
+      const parentBListing = await ticketListingFor(parentB.id);
+      const childrenByParentId = await loadChildrenByParentId([
+        parentAListing,
+        parentBListing,
+      ]);
+      const ctx = stubCtx([parentAListing, parentBListing], childrenByParentId);
+      const form = new FormParams({
+        [`child_qty_${parentA.id}_${child.id}`]: "1",
+        [`child_qty_${parentB.id}_${child.id}`]: "1",
+      });
+      const fold = await doFold(
+        ctx,
+        form,
+        new Map([
+          [parentA.id, 1],
+          [parentB.id, 1],
+        ]),
+      );
+      expect(fold.ok).toBe(true);
+      if (!fold.ok) return;
+      // Two allocations: one per (child, parent) pair.
+      expect(fold.allocations).toHaveLength(2);
+      const parentIds = fold.allocations.map((a) => a.parentId);
+      expect(parentIds).toContain(parentA.id);
+      expect(parentIds).toContain(parentB.id);
+      // Every allocation is for the shared child with qty 1.
+      expect(fold.allocations.every((a) => a.childId === child.id)).toBe(true);
+      expect(fold.allocations.every((a) => a.qty === 1)).toBe(true);
+    });
+  });
+});
+
+// Pure (no DB) property tests over the per-parent fold algebra. Mutation testing
+// confirmed the example-based fold suite is tight; these explore the input space
+// the examples can't enumerate, pinning the core invariants directly.
+describe("fold selection algebra (property-based)", () => {
+  const PARENT_ID = 100;
+
+  /** A bookable, high-capacity standard listing wrapped as a cart line. */
+  const tl = (
+    id: number,
+    over: Partial<ListingWithCount> = {},
+  ): TicketListing =>
+    buildTicketListing(
+      testListingWithCount({
+        id,
+        listing_type: "standard",
+        max_attendees: 1000,
+        max_quantity: 1000,
+        name: `L${id}`,
+        ...over,
+      }),
+      false,
+      undefined,
+    );
+
+  const formFrom = (record: Record<string, string>): FormParams =>
+    new FormParams(new URLSearchParams(record));
+
+  test("resolveChildSelections accepts iff the chosen quantities sum to exactly the parent quantity", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ max: 10, min: 1 }),
+        fc.array(fc.integer({ max: 12, min: 0 }), {
+          maxLength: 4,
+          minLength: 1,
+        }),
+        (parentQty, qtys) => {
+          const parent = tl(PARENT_ID);
+          const children = qtys.map((_, i) => tl(i + 1));
+          const record: Record<string, string> = {};
+          qtys.forEach((q, i) => {
+            record[`child_qty_${PARENT_ID}_${i + 1}`] = String(q);
+          });
+          const result = resolveChildSelections(
+            parent,
+            children,
+            parentQty,
+            formFrom(record),
+          );
+          const total = qtys.reduce((a, b) => a + b, 0);
+          // A sole child with nothing submitted auto-fills the whole parent qty.
+          const autoSelect = total === 0 && children.length === 1;
+          if (total === parentQty || autoSelect) {
+            if (!Array.isArray(result)) return false;
+            const sum = result.reduce((acc, s) => acc + s.qty, 0);
+            return sum === parentQty && result.every((s) => s.qty > 0);
+          }
+          return !Array.isArray(result);
+        },
+      ),
+    );
+  });
+
+  test("resolveChildSelections rejects any positive quantity on a child not bookable under the parent", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ max: 10, min: 1 }),
+        fc.integer({ max: 50, min: 1 }),
+        fc.integer({ max: 5, min: 1 }),
+        (parentQty, strangerOffset, strangerQty) => {
+          const parent = tl(PARENT_ID);
+          const child = tl(1);
+          // A valid sole-child selection summing to the parent quantity, PLUS a
+          // positive quantity on a stranger id absent from the bookable set (a
+          // sibling that sold out/closed between render and submit). The stranger
+          // is never silently dropped — the whole submission is rejected.
+          const strangerId = 1000 + strangerOffset;
+          const record = {
+            [`child_qty_${PARENT_ID}_1`]: String(parentQty),
+            [`child_qty_${PARENT_ID}_${strangerId}`]: String(strangerQty),
+          };
+          const result = resolveChildSelections(
+            parent,
+            [child],
+            parentQty,
+            formFrom(record),
+          );
+          return !Array.isArray(result);
+        },
+      ),
+    );
+  });
+
+  test("resolveChildSelections parses child quantities strictly, not via parseInt truncation", () => {
+    // A tampered quantity is "none chosen" (0), never a truncated/garbage-parsed
+    // number: child 1's strict "2" alone equals the parent quantity, so the order
+    // is accepted and the malformed children are absent. The old parseInt parser
+    // would read "2.9"->2 and "1abc"->1, inflating the total past 2 and wrongly
+    // rejecting (or, on a sole child, booking a phantom quantity).
+    const parent = tl(PARENT_ID);
+    const result = resolveChildSelections(
+      parent,
+      [tl(1), tl(2), tl(3)],
+      2,
+      formFrom({
+        [`child_qty_${PARENT_ID}_1`]: "2",
+        [`child_qty_${PARENT_ID}_2`]: "2.9",
+        [`child_qty_${PARENT_ID}_3`]: "1abc",
+      }),
+    );
+    expect(Array.isArray(result)).toBe(true);
+    if (Array.isArray(result)) {
+      expect(result.map((s) => s.child.listing.id)).toEqual([1]);
+      expect(result.reduce((acc, s) => acc + s.qty, 0)).toBe(2);
+    }
+  });
+
+  test("foldChild sums across folds and rejects (never clamps) above max-purchasable", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ max: 20, min: 1 }),
+        fc.array(fc.integer({ max: 8, min: 1 }), {
+          maxLength: 6,
+          minLength: 1,
+        }),
+        (max, qtys) => {
+          const child = tl(1, { max_attendees: max, max_quantity: max });
+          const state = {
+            allocations:
+              [] as import("#shared/db/attendee-types.ts").ChildAllocation[],
+            customisableDuration: null,
+            customPrices: new Map<number, number>(),
+            listings: [] as TicketListing[],
+            quantities: new Map<number, number>(),
+            selectedListingIds: new Set<number>(),
+          };
+          let running = 0;
+          for (const q of qtys) {
+            const error = foldChild(state, child, q, 1, PARENT_ID, undefined);
+            running += q;
+            if (running <= max) {
+              if (error !== null) return false; // must accept up to the cap
+              if (state.quantities.get(1) !== running) return false; // exact sum
+            } else {
+              // First fold past the cap: rejected, and the over-cap quantity was
+              // never written (the state mutation happens after the cap check).
+              return error !== null && state.quantities.get(1) !== running;
+            }
+          }
+          return true;
+        },
+      ),
+    );
   });
 });

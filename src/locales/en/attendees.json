@@ -20,6 +20,8 @@
   "attendee_detail.ledger": "Ledger",
   "attendee_detail.view_full_ledger": "View full ledger",
   "attendee_detail.total": "Total",
+  "attendee_detail.addon_under": "Add-on chosen under {parent}",
+  "attendee_detail.includes_addon": "Includes add-on: {children}",
   "attendee_form.checked_in": "Checked in",
   "attendee_form.refunded": "Refunded",
   "attendee_form.select_listing": "Select listing…",

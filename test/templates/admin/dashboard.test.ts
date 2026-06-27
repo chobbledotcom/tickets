@@ -126,6 +126,7 @@ describe("adminDashboardPage", () => {
       undefined,
       "all",
       [],
+      new Set<number>(),
       [
         {
           bookings: [{ listingId: 7, quantity: 2 }],

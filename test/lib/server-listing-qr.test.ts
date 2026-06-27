@@ -70,6 +70,9 @@ describeWithEnv("ticket QR code", { db: true }, () => {
   describe("group QR code", () => {
     test("returns SVG QR code for valid group slug", async () => {
       const group = await createTestGroup();
+      // The group needs a standalone-bookable member, or its booking page (and so
+      // its QR) 404s as a dead link (Fix 3).
+      await createTestListing({ groupId: group.id, name: "Member" });
       const response = await handleRequest(
         mockRequest(`/ticket/${group.slug}/qr`),
       );
@@ -79,6 +82,7 @@ describeWithEnv("ticket QR code", { db: true }, () => {
 
     test("handleTicketQrGet returns QR code for group slug", async () => {
       const group = await createTestGroup();
+      await createTestListing({ groupId: group.id, name: "Member" });
       const request = mockRequest(`/ticket/${group.slug}/qr`);
       const response = await handleTicketQrGet(request, {
         slug: group.slug,

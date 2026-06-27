@@ -126,22 +126,28 @@ const resolveSiteSecrets = async (
   };
 };
 
+const withResolvedSite = async <S>(
+  site: BuiltSite,
+  fn: (data: ResolvedSiteSecrets) => Promise<S>,
+): Promise<S | { ok: false; error: string }> => {
+  const resolved = await resolveSiteSecrets(site);
+  if (!resolved.ok) return resolved;
+  return fn(resolved.data);
+};
+
 /** Inspect a site's live secrets and diff them against the expected set. */
 export const loadSiteSecretsStatus = async (
   site: BuiltSite,
-): Promise<SiteSecretsView> => {
-  const resolved = await resolveSiteSecrets(site);
-  if (!resolved.ok) return resolved;
-
-  const { names, present } = resolved.data;
-  const expected = expectedSiteSecrets(site).map(([name]) => name);
-  return {
-    expected,
-    missing: expected.filter((name) => !present.has(name)),
-    ok: true,
-    present: names,
-  };
-};
+): Promise<SiteSecretsView> =>
+  withResolvedSite(site, async ({ names, present }) => {
+    const expected = expectedSiteSecrets(site).map(([name]) => name);
+    return {
+      expected,
+      missing: expected.filter((name) => !present.has(name)),
+      ok: true as const,
+      present: names,
+    };
+  });
 
 /** Outcome of backfilling a site's missing secrets. */
 export type AddMissingSecretsResult =

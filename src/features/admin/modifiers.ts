@@ -26,7 +26,12 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllGroups } from "#shared/db/groups.ts";
+import { getChildListingIds } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
+import {
+  childUnreachableAddOnError,
+  listingIdsInGroups,
+} from "#shared/db/modifier-resolve.ts";
 import {
   adjustModifierRevenue,
   getAllModifiers,
@@ -62,7 +67,7 @@ import {
   validateCalcValue,
 } from "#shared/price-modifier.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
-import type { Modifier } from "#shared/types.ts";
+import type { ListingWithCount, Modifier } from "#shared/types.ts";
 import {
   type AnswerLinks,
   adminModifierDeletePage,
@@ -113,9 +118,106 @@ const extractModifierAggregateValues = (
   usage_count: values.usage_count,
 });
 
+/** Resolve an opt-in add-on's would-be listing scope to ids the booking page
+ * would actually load it from: `"listings"` keeps its directly-linked ids,
+ * `"groups"` expands to every listing in the linked groups (matching the booking
+ * page's resolution), and a whole-order scope is `null` (reachable everywhere). */
+const resolveAddOnScope = (
+  scope: ModifierScope | undefined,
+  listingIds: number[],
+  groupIds: number[],
+  allListings: ListingWithCount[],
+): number[] | null => {
+  if (scope === "listings") return listingIds;
+  if (scope === "groups") return listingIdsInGroups(groupIds, allListings);
+  return null;
+};
+
+/** The post-save trigger/active/scope of an opt-in add-on, with its would-be
+ * links (submitted ids on a scope save, stored ids on a field edit/create). A
+ * missing `scope` is whole-order, like the stored default. */
+type AddOnSaveCandidate = {
+  active: boolean;
+  trigger: ModifierTrigger;
+  name: string;
+  scope: ModifierScope | undefined;
+  listingIds: number[];
+  groupIds: number[];
+};
+
+/**
+ * The error to block an opt-in add-on save (scope/trigger/active edit or scope
+ * links) that would leave the add-on reachable **only** through a suppressed
+ * child listing, or null when allowed. Resolves the would-be scope to listing
+ * ids, then defers to the shared reachability core
+ * ({@link childUnreachableAddOnError}) so this modifier-side block and the
+ * parent-edge block can't diverge.
+ */
+const childAddOnSaveError = async (
+  candidate: AddOnSaveCandidate,
+): Promise<string | null> => {
+  const allListings = await getAllListings();
+  const allIds = allListings.map((listing) => listing.id);
+  const childIds = await getChildListingIds(allIds);
+  // Only an ACTIVE non-child listing can serve a booking page (public ticket
+  // contexts load active listings only — `withActiveListings`), so an inactive
+  // non-child listing must NOT count as a reachable page that rescues a
+  // child-only add-on from being a dead end.
+  const reachableIds = new Set(
+    allListings
+      .filter((listing) => listing.active && !childIds.has(listing.id))
+      .map((listing) => listing.id),
+  );
+  return childUnreachableAddOnError(
+    {
+      active: candidate.active,
+      name: candidate.name,
+      scope: resolveAddOnScope(
+        candidate.scope,
+        candidate.listingIds,
+        candidate.groupIds,
+        allListings,
+      ),
+      trigger: candidate.trigger,
+    },
+    childIds,
+    reachableIds,
+  );
+};
+
+/** The child-reachability error for a create/edit through the modifier resource:
+ * its trigger/active/scope come from the submitted input, while its links are the
+ * stored ones (a field edit never touches them; a create has none yet). Skipped
+ * unless the input is a complete opt-in add-on. */
+const childAddOnInputError = async (
+  input: ModifierInput,
+  id: number | undefined,
+): Promise<string | null> => {
+  if (input.trigger !== "optional" || input.active !== true) return null;
+  // Resolve from the stored links (an edit doesn't change them; a create has
+  // none). `resolveAddOnScope` keeps only the set matching the input's scope.
+  const [listingIds, groupIds] = await Promise.all([
+    id === undefined ? [] : getModifierListingIds(id),
+    id === undefined ? [] : getModifierGroupIds(id),
+  ]);
+  return childAddOnSaveError({
+    active: true,
+    groupIds,
+    listingIds,
+    name: input.name,
+    scope: input.scope,
+    trigger: "optional",
+  });
+};
+
 /** Validate a modifier's kind, direction, trigger, scope, and value (the select
- * options can be bypassed by a crafted POST, so re-check membership here). */
-const validateModifier = (input: ModifierInput): Promise<string | null> => {
+ * options can be bypassed by a crafted POST, so re-check membership here), then
+ * — when the parents feature is on — block an opt-in add-on whose would-be scope
+ * is reachable only through a suppressed child listing. */
+const validateModifier = (
+  input: ModifierInput,
+  id?: number,
+): Promise<string | null> => {
   if (!isCalcKind(input.calcKind)) {
     return Promise.resolve("Invalid modifier type");
   }
@@ -144,7 +246,9 @@ const validateModifier = (input: ModifierInput): Promise<string | null> => {
   if (isOptionalAddOn && requiresPreviousBookings) {
     return Promise.resolve("Optional add-ons cannot require previous bookings");
   }
-  return Promise.resolve(validateCalcValue(input.calcKind, input.calcValue));
+  const valueError = validateCalcValue(input.calcKind, input.calcValue);
+  if (valueError) return Promise.resolve(valueError);
+  return childAddOnInputError(input, id);
 };
 
 const modifiersResource = defineNamedResource<
@@ -358,15 +462,20 @@ const selectedIds = (form: FormParams, field: string): number[] =>
 
 /** Run a modifier-link save (scope or answer) for the loaded modifier, then
  * redirect back to its edit page with a flash. Shared by the scope and answer
- * link forms so the auth/load/redirect boilerplate lives once. */
+ * link forms so the auth/load/redirect boilerplate lives once. An optional
+ * `guard` runs before the write and, when it returns a message, blocks the save
+ * with that error instead (e.g. the child-only add-on reachability check). */
 const saveModifierLinks = (
   request: Request,
   id: number,
   save: (modifier: Modifier, form: FormParams) => Promise<unknown>,
   message: string,
+  guard?: (modifier: Modifier, form: FormParams) => Promise<string | null>,
 ): Promise<Response> =>
   createAuthedHandler<{ id: number }, Modifier>({
     handle: async ({ context: modifier, form }) => {
+      const error = guard ? await guard(modifier, form) : null;
+      if (error) return errorRedirect(`/admin/modifiers/${id}/edit`, error);
       await save(modifier, form);
       return redirect(`/admin/modifiers/${modifier.id}/edit`, message, true);
     },
@@ -387,11 +496,35 @@ const writeScopeLinks = (
   return Promise.resolve();
 };
 
-/** POST handler that saves a scoped modifier's listing/group links. */
+/** Block a scope-links save that would leave an opt-in add-on reachable only
+ * through a suppressed child (parents feature on), from the submitted links. */
+const scopeLinksChildGuard = (
+  modifier: Modifier,
+  form: FormParams,
+): Promise<string | null> =>
+  childAddOnSaveError({
+    active: modifier.active,
+    groupIds: selectedIds(form, "group_ids"),
+    listingIds: selectedIds(form, "listing_ids"),
+    name: modifier.name,
+    scope: modifier.scope,
+    trigger: modifier.trigger,
+  });
+
+/** POST handler that saves a scoped modifier's listing/group links — blocked
+ * when the new scope would leave an opt-in add-on reachable only through a
+ * suppressed child (parents feature on). */
 const handleScopeLinks: TypedRouteHandler<"POST /admin/modifiers/:id/links"> = (
   request,
   { id },
-) => saveModifierLinks(request, id, writeScopeLinks, "Scope updated");
+) =>
+  saveModifierLinks(
+    request,
+    id,
+    writeScopeLinks,
+    "Scope updated",
+    scopeLinksChildGuard,
+  );
 
 /** POST handler that saves an answer-triggered modifier's answer links. */
 const handleAnswerLinks: TypedRouteHandler<

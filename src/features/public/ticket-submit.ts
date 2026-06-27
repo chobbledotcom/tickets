@@ -7,6 +7,7 @@ import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import {
   errorRedirect,
   htmlResponse,
+  notFoundResponse,
   redirectResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
@@ -23,6 +24,9 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
+import type { ChildAllocation } from "#shared/db/attendee-types.ts";
+import { getSharedGroupCapacities } from "#shared/db/attendees.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   answerModifierQuantities,
   buyerVisits,
@@ -57,6 +61,7 @@ import {
   type TicketListing,
   type TicketPrefill,
 } from "#templates/public.tsx";
+import { applyBookingPageParentSoldOut } from "./discovery.ts";
 import {
   buildListingAnswerMap,
   buildListingTextAnswerMap,
@@ -76,6 +81,8 @@ import {
   buildRegistrationItems,
   checkAvailability,
   createFreeReservation,
+  dropChildListings,
+  foldSelectedChildren,
   getTicketContext,
   handlePaymentFlow,
   resolveDayCount,
@@ -346,7 +353,11 @@ const handleFreePath = async (
   params: PathParams & {
     modifierUsages: ModifierApplication[];
     paymentBreakdown?: TicketPaymentBreakdown;
+    /** Pre-fold single-parent thank-you URL, kept across the fold so a parent +
+     * its folded children still redirects to the parent's configured URL. */
+    thankYouUrl?: string | null;
     ledgerOrder: PricedOrder | null;
+    allocations?: ChildAllocation[];
   },
 ): Promise<Response> => {
   const {
@@ -358,9 +369,12 @@ const handleFreePath = async (
     info,
     modifierUsages,
     paymentBreakdown,
+    thankYouUrl,
     ledgerOrder,
+    allocations,
   } = params;
   const result = await createFreeReservation({
+    allocations,
     contact,
     date,
     dayCount,
@@ -405,10 +419,10 @@ const handleFreePath = async (
     );
   }
 
-  if (ctx.listings.length === 1) {
-    const thankYouUrl = ctx.listings[0]!.listing.thank_you_url;
-    if (thankYouUrl) return redirectResponse(thankYouUrl);
-  }
+  // The caller resolves the redirect from the pre-fold listing set (a single
+  // listing's — or a single parent + its folded children's — thank-you URL), so
+  // folding a child never drops it.
+  if (thankYouUrl) return redirectResponse(thankYouUrl);
   const token = encodeURIComponent(result.token);
   return redirectResponse(`/ticket/reserved?tokens=${token}`);
 };
@@ -530,6 +544,7 @@ type PrepareResult =
       ok: true;
       pricingParams: SubmissionPricingParams;
       pricedOrder: PricedOrder;
+      allocations: ChildAllocation[];
     }
   | { ok: false; error: string };
 
@@ -548,21 +563,64 @@ const prepareOrder = async (
   const stateError = validateFormState(form, ctx);
   if (stateError) return { error: stateError, ok: false };
 
-  const quantities = parseQuantities(form, ctx.listings);
-  const totalQuantity = sum(Array.from(quantities.values()));
+  const pageQuantities = parseQuantities(form, ctx.listings);
+  const totalQuantity = sum(Array.from(pageQuantities.values()));
   if (totalQuantity === 0) {
     return { error: "Please select at least one ticket", ok: false };
   }
 
-  const selected = listingsWithQuantity(ctx.listings, quantities);
-  const selectedListingIds = new Set(quantities.keys());
+  // Resolve the order's date and day-count *before* folding children, so the
+  // child bookability filter and inherited durations evaluate against the real
+  // values (parents.md "Server-side validation" step 2).
+  let date: string | null = null;
+  if (ctx.dates.length > 0) {
+    date = validateSubmittedDate(form, ctx.dates);
+    if (!date) return { error: "Please select a valid date", ok: false };
+  }
+
+  const pageSelected = listingsWithQuantity(ctx.listings, pageQuantities);
+  const baseHasCustomisable = pageSelected.some(
+    ({ listing }) => listing.customisable_days,
+  );
+  const dayResult = await resolveDayCount(pageSelected, form, date);
+  if ("error" in dayResult) return { error: dayResult.error, ok: false };
+
+  // Parse the page listings' pay-more prices, then apply any signed QR override
+  // — both scoped to page listings only, never folded children (the override
+  // must not reach a child line; parents.md QR entry point).
+  const customPricesResult = parseCustomPrices(form, ctx, pageQuantities);
+  if (typeof customPricesResult === "string") {
+    return { error: customPricesResult, ok: false };
+  }
+  await applyQrTokenOverride(form, ctx, customPricesResult);
+
+  // Fold each in-cart parent's selected child into the order: expand the listing
+  // set + quantity/custom-price maps + selected ids, so every per-listing path
+  // below sees children as ordinary lines (parents.md fold checklist).
+  const fold = await foldSelectedChildren(ctx, form, {
+    customPrices: customPricesResult,
+    date,
+    dayCount: dayResult.dayCount,
+    hasCustomisable: baseHasCustomisable,
+    quantities: pageQuantities,
+  });
+  if (!fold.ok) return { error: fold.error, ok: false };
+  const { hasCustomisable, dayCount, quantities } = fold;
+  const selectedListingIds = fold.selectedListingIds;
+  // A folded ctx carrying the expanded listing set drives availability, item
+  // building, contact fields and free-reservation creation downstream; the
+  // questionListingMap already includes child questions (loaded in
+  // getTicketContext).
+  const foldedCtx: TicketCtx = { ...ctx, listings: fold.listings };
+
+  const selected = listingsWithQuantity(foldedCtx.listings, quantities);
   const siteAssignmentCheck = await validateSiteAssignmentConfig(selected);
   if (!siteAssignmentCheck.ok) {
     return { error: siteAssignmentCheck.message, ok: false };
   }
 
-  const activeQuestions = ctx.questions.filter((q) => {
-    const listingIds = ctx.questionListingMap.get(q.id);
+  const activeQuestions = foldedCtx.questions.filter((q) => {
+    const listingIds = foldedCtx.questionListingMap.get(q.id);
     return !listingIds || listingIds.some((eid) => selectedListingIds.has(eid));
   });
   const answersResult = parseQuestionAnswers({ optional: false })(
@@ -571,30 +629,10 @@ const prepareOrder = async (
   );
   if (!answersResult.ok) return { error: answersResult.error, ok: false };
 
-  let date: string | null = null;
-  if (ctx.dates.length > 0) {
-    date = validateSubmittedDate(form, ctx.dates);
-    if (!date) return { error: "Please select a valid date", ok: false };
-  }
-
-  const hasCustomisable = selected.some(
-    ({ listing }) => listing.customisable_days,
-  );
-  const dayResult = await resolveDayCount(selected, form, date);
-  if ("error" in dayResult) return { error: dayResult.error, ok: false };
-  const dayCount = dayResult.dayCount;
-
-  const customPricesResult = parseCustomPrices(form, ctx, quantities);
-  if (typeof customPricesResult === "string") {
-    return { error: customPricesResult, ok: false };
-  }
-
-  await applyQrTokenOverride(form, ctx, customPricesResult);
-
   const items = buildRegistrationItems(
-    ctx.listings,
+    foldedCtx.listings,
     quantities,
-    customPricesResult,
+    fold.customPrices,
     dayCount,
   );
 
@@ -612,14 +650,14 @@ const prepareOrder = async (
   // Resolve the answer-triggered modifier quantities once (scope-aware); these
   // feed both the pricing resolve and the sold-out check further down.
   const answerQuantities = await answerModifierQuantities(
-    computeListingAnswerMap(ctx, info),
+    computeListingAnswerMap(foldedCtx, info),
     quantities,
   );
 
   const pricingParams: SubmissionPricingParams = {
     addOns,
     answerQuantities,
-    ctx,
+    ctx: foldedCtx,
     date,
     dayCount,
     hasCustomisable,
@@ -630,7 +668,12 @@ const prepareOrder = async (
     reservationAmount,
   };
   const { pricedOrder } = await priceSubmissionBeforeContact(pricingParams);
-  return { ok: true, pricedOrder, pricingParams };
+  return {
+    allocations: fold.allocations,
+    ok: true,
+    pricedOrder,
+    pricingParams,
+  };
 };
 
 /** Process submitted form after CSRF and demo overrides. */
@@ -644,11 +687,20 @@ const processSubmission = async (
   const prepared = await prepareOrder(ctx, form);
   if (!prepared.ok) return errorResponse(prepared.error);
   const { pricingParams, pricedOrder } = prepared;
+  const { allocations } = prepared;
   const { date, dayCount, hasCustomisable, info, quantities } = pricingParams;
+  // The folded ctx carries the page listings plus the selected children, so it
+  // drives contact-field requirements, availability, and reservation creation.
+  // The original page ctx still determines the thank-you redirect so folding a
+  // child doesn't drop a single parent's configured URL (parents.md fold
+  // checklist, thank-you item).
+  const foldedCtx = pricingParams.ctx;
+  const thankYouUrl =
+    ctx.listings.length === 1 ? ctx.listings[0]!.listing.thank_you_url : null;
 
   const paymentsEnabled = isPaymentsEnabled();
   const requiresPaidFields = pricedOrder.total > 0;
-  const validated = validateTicketFields(form, ctx, requiresPaidFields);
+  const validated = validateTicketFields(form, foldedCtx, requiresPaidFields);
   if (validated instanceof Response) return validated;
   let contact = extractContact(validated);
   let {
@@ -658,7 +710,7 @@ const processSubmission = async (
   } = await priceSubmissionWithContact(contact, pricingParams);
   const paidUpgradeValidation = validatePaymentUpgrade(
     form,
-    ctx,
+    foldedCtx,
     requiresPaidFields,
     finalPricedOrder.total > 0,
   );
@@ -682,8 +734,21 @@ const processSubmission = async (
   const finalRequiresPayment = paymentsEnabled && finalRequiresPaidFields;
 
   if (finalRequiresPayment) {
+    // Carry a single parent's configured thank-you URL through the paid round-trip.
+    // Folding a required child makes the booking multi-listing, so the webhook's
+    // single-unique-listing-id derivation would otherwise drop the parent's URL
+    // (parents.md fold checklist, thank-you item). Setting it explicitly on the
+    // intent lets the success page prefer it over that derivation. Only needed
+    // once a child was actually folded (the order gained a listing); a genuine
+    // single-listing order still resolves the same URL by the default rule.
+    if (thankYouUrl && foldedCtx.listings.length > ctx.listings.length) {
+      intent.thankYouUrl = thankYouUrl;
+    }
+    if (allocations.length > 0) {
+      intent.allocations = allocations;
+    }
     return handlePaidPath(request, {
-      ctx,
+      ctx: foldedCtx,
       date,
       dayCount,
       info,
@@ -712,8 +777,9 @@ const processSubmission = async (
     ? finalPricedOrder
     : owedOrderForLedger(priceCheckout({ ...breakdownIntent, feeSubtotal: 0 }));
   return handleFreePath({
+    allocations,
     contact,
-    ctx,
+    ctx: foldedCtx,
     date,
     dayCount,
     hasCustomisable,
@@ -733,12 +799,19 @@ const processSubmission = async (
     modifierUsages: finalPricedOrder.modifierApplications,
     paymentBreakdown: ticketPaymentBreakdown(breakdownIntent),
     quantities,
+    thankYouUrl,
   });
 };
 
+const withTicketCsrfForm = (
+  request: Request,
+  onError: (message: string) => Response,
+  onForm: (form: FormParams) => Promise<Response>,
+): Promise<Response> => withCsrfForm(request, onError, onForm);
+
 /** Handle POST for ticket registration */
 const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
-  withCsrfForm(
+  withTicketCsrfForm(
     request,
     // CSRF failures redirect with a flash (the token expired or was tampered
     // with — the page reloads with a fresh token). Field-level validation
@@ -774,9 +847,11 @@ const renderQuote = async (
   const soldOut = await checkSoldOutTiers(pricingParams, 0);
   if (soldOut) return htmlResponse(orderSummaryMessage(soldOut));
   // Reject a cart that has exhausted capacity (e.g. a dated daily listing whose
-  // capped group is full for the chosen day), as the booking submit would.
+  // capped group is full for the chosen day), as the booking submit would. The
+  // folded ctx (page listings ∪ selected children) drives the check so a quote
+  // reflects the children's capacity too.
   const available = await checkAvailability(
-    ctx.listings,
+    pricingParams.ctx.listings,
     pricingParams.quantities,
     pricingParams.date,
     pricingParams.dayCount,
@@ -813,7 +888,7 @@ const renderQuote = async (
  * strips them before sending and the server ignores any that arrive.
  */
 const calculateTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
-  withCsrfForm(
+  withTicketCsrfForm(
     request,
     (message) => htmlResponse(orderSummaryMessage(message), 403),
     (form) => renderQuote(ctx, form),
@@ -860,6 +935,39 @@ const buildTicketCtx = async ({
   };
 };
 
+/** The render-only view of the context: a parent whose children are all
+ * unavailable is projected to sold-out so the GET page shows it sold out (no
+ * Book control) instead of a normal form that would only fail at submit (Codex
+ * 914). Bookability uses the combined parent+child group demand (invariant I7),
+ * so the children's group-remaining is fetched (date-less, like discovery — the
+ * authoritative date-specific check is the fold at submit). The submit/quote
+ * paths keep the un-projected `ctx` so the fold's authoritative child rejection
+ * still runs with its clear error. */
+const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
+  const children = [...ctx.childrenByParentId.values()]
+    .flat()
+    .map((child) => child.listing);
+  const [childCaps, holidays] = await Promise.all([
+    getSharedGroupCapacities(children),
+    getActiveHolidays(),
+  ]);
+  return {
+    ...ctx,
+    // The same children's group-remaining drives the per-parent quantity clamp:
+    // a parent sharing a capped group with its child offers only
+    // floor(groupRemaining / 2) orders (invariant I7, Fix 3). Carried on the
+    // render ctx so `childCappedMax` sees it; submit/quote keep it unset.
+    groupRemainingByListingId: childCaps.remaining,
+    listings: applyBookingPageParentSoldOut(
+      ctx.listings,
+      ctx.childrenByParentId,
+      childCaps.remaining,
+      childCaps.staticCap,
+      holidays,
+    ),
+  };
+};
+
 /** Handle ticket GET/POST orchestrator: render on GET, quote when in calculate
  * mode, otherwise submit. */
 export const handleTicket = async (args: BookingRequest): Promise<Response> => {
@@ -867,13 +975,14 @@ export const handleTicket = async (args: BookingRequest): Promise<Response> => {
   const ctx = await buildTicketCtx(args);
   const response =
     request.method === "GET"
-      ? ticketResponse(ctx)(applyFlash(request).error)
+      ? ticketResponse(await renderCtx(ctx))(applyFlash(request).error)
       : mode === "calculate"
         ? await calculateTicket(request, ctx)
         : await submitTicket(request, ctx);
   return applyHiddenNoindex(
     response,
-    listings.some((e) => e.listing.hidden),
+    listings.some((e) => e.listing.hidden) ||
+      [...ctx.childrenByParentId.values()].flat().some((c) => c.listing.hidden),
   );
 };
 
@@ -945,7 +1054,23 @@ export const renderTicketFlow =
     } = {},
   ) =>
   async (listings: ListingWithCount[]): Promise<Response> => {
-    const activeListings = await buildTicketListingsWithGroupCapacity(listings);
+    // Indirect entry points (group/order pages, renewals) load their listings
+    // from membership / a saved cart rather than explicit URL slugs, so a child
+    // member would otherwise render as a standalone, selectable quantity row a
+    // buyer could book alone — bypassing the slug guard, which only rejects
+    // DIRECT child slugs. Drop children here so they never appear as standalone
+    // rows; their parents stay and re-fold them via `childrenByParentId`
+    // (Fix 3, parents.md "strip child rows from indirect pages").
+    const withoutChildren = await dropChildListings(listings);
+    // When dropping children leaves nothing, every member was a child — a booking
+    // can never start from a child (invariant I3), so the page has nothing
+    // standalone-bookable. Render 404 rather than a 200 empty booking page (Fix 6,
+    // parents.md "indirect page with only children must 404"). Every production
+    // caller (group/order/renewal) already hands a non-empty set, so this fires
+    // exactly for the all-children case.
+    if (withoutChildren.length === 0) return notFoundResponse();
+    const activeListings =
+      await buildTicketListingsWithGroupCapacity(withoutChildren);
     return handleTicket({
       getContext: async (e) => ({
         ...(await getTicketContext(e, options.group)),

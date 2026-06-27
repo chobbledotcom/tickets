@@ -38,6 +38,7 @@ import {
   assignNextQuestionSortOrder,
   deleteAnswer,
   deleteQuestion,
+  findAnswerById,
   getAllQuestionListingIds,
   getAllQuestionsWithAnswers,
   getAnswerAggregateRecalculation,
@@ -296,7 +297,7 @@ const loadQuestionAndAnswer = async ({
 }: AnswerRouteParams): Promise<AnswerContext | null> => {
   const question = await getQuestionWithAnswers(id);
   if (!question) return null;
-  const answer = question.answers.find((a) => a.id === answerId);
+  const answer = findAnswerById(question, answerId);
   if (!answer) return null;
   return { answer, question };
 };

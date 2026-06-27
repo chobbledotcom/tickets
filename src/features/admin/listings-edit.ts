@@ -19,6 +19,7 @@ import {
   recomputeListingBookingRanges,
 } from "#shared/db/attendees.ts";
 import { getAllGroups } from "#shared/db/groups.ts";
+import { getChildIds } from "#shared/db/listing-parents.ts";
 import {
   adjustListingIncome,
   getListingAggregateRecalculation,
@@ -28,6 +29,7 @@ import {
   updateListingAggregateValues,
 } from "#shared/db/listings.ts";
 import { applyDemoOverrides, LISTING_DEMO_FIELDS } from "#shared/demo.ts";
+import type { FormParams } from "#shared/form-data.ts";
 import type {
   AdminSession,
   Group,
@@ -47,6 +49,10 @@ import {
   buildUpdateListingResource,
   extractListingAggregateValues,
 } from "./listings-form.ts";
+import {
+  copyDuplicatedChildEdges,
+  loadListingParentsSection,
+} from "./listings-parents.ts";
 import { processUploadsAndRedirect } from "./listings-uploads.ts";
 import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 /* jscpd:ignore-end */
@@ -61,6 +67,38 @@ export const handleNewListingGet: TypedRouteHandler<
     const groups = await getAllGroups();
     return htmlResponse(adminListingNewPage(groups, session));
   });
+
+/**
+ * After creating a listing from the duplicate form, copy the source parent's
+ * required-child edges onto the new copy so a duplicated parent keeps its
+ * required-child gate (the children themselves are not duplicated — the copy
+ * references the same existing child listings). Reads the source id from the
+ * hidden `duplicated_from` field; a plain create (no source) is a no-op, as is a
+ * source with no children or the flag being off ({@link copyDuplicatedChildEdges}).
+ *
+ * Returns a **warning** message when the gate could NOT be copied (the edges
+ * failed re-validation on the copy — e.g. the child carries an opt-in add-on
+ * reachable only through the source parent, so it would dead-end from the new
+ * one). Surfacing this instead of swallowing it (Fix 1) prevents a silent
+ * "success" that leaves the copy a gateless standalone bookable listing; the copy
+ * is kept but the operator is told its required children weren't carried over.
+ * Returns null when the edges copied cleanly (or there were none to copy).
+ */
+const copyEdgesFromDuplicateSource = async (
+  form: FormParams,
+  newId: number,
+): Promise<string | null> => {
+  const sourceId = form.getOptionalInt("duplicated_from");
+  if (sourceId === null) return null;
+  const childIds = await getChildIds(sourceId);
+  if (childIds.length === 0) return null;
+  // The copy was just created in this request, so it always loads.
+  const newListing = (await getListingWithCount(newId))!;
+  const error = await copyDuplicatedChildEdges(newListing, childIds);
+  return error
+    ? t("listings_table.duplicate_children_dropped", { reason: error })
+    : null;
+};
 
 /**
  * Handle POST /admin/listing (create listing)
@@ -80,11 +118,18 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
       );
     }
     await logActivity(`Listing '${result.row.name}' created`, result.row);
+    const childWarning = await copyEdgesFromDuplicateSource(
+      form,
+      result.row.id,
+    );
     return processUploadsAndRedirect(
       formData,
       result.row.id,
       "/admin",
       t("success.listing_created"),
+      undefined,
+      undefined,
+      childWarning,
     );
   });
 
@@ -139,18 +184,25 @@ export const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listi
   );
 
 /** Handle GET /admin/listing/:id/edit */
-export const handleAdminListingEditGet: TypedRouteHandler<"GET /admin/listing/:id/edit"> =
-  listingAndGroupsPage((ctx, session, request) => {
-    const flash = applyFlash(request);
-    return adminListingEditPage(
-      ctx.listing,
-      ctx.groups,
-      session,
-      flash.error,
-      ctx.aggregateRecalculation,
-      flash.success,
-    );
-  });
+export const handleAdminListingEditGet: TypedRouteHandler<
+  "GET /admin/listing/:id/edit"
+> = (request, params) =>
+  requireSessionOr(request, (session) =>
+    withEntityFromParam(params.id, getListingAndGroups, async (ctx) => {
+      const flash = applyFlash(request);
+      return htmlResponse(
+        adminListingEditPage(
+          ctx.listing,
+          ctx.groups,
+          session,
+          flash.error,
+          ctx.aggregateRecalculation,
+          flash.success,
+          await loadListingParentsSection(ctx.listing),
+        ),
+      );
+    }),
+  );
 
 /**
  * If a daily listing's duration changed on edit, recompute booking ranges and
@@ -203,6 +255,8 @@ const renderListingEditError = async (
           session,
           error,
           ctx.aggregateRecalculation,
+          undefined,
+          await loadListingParentsSection(ctx.listing),
         ),
         400,
       )

@@ -56,7 +56,13 @@ import {
   enableQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
-import { CONFIG_KEYS, SNAPSHOT_KEYS, settings } from "#shared/db/settings.ts";
+import {
+  CONFIG_KEYS,
+  EMAIL_BODY_KEYS,
+  PRUNE_KEYS,
+  SNAPSHOT_KEYS,
+  settings,
+} from "#shared/db/settings.ts";
 import {
   assertSettingsReadsDeclared,
   runWithSettingsAudit,
@@ -270,15 +276,10 @@ const INFRA_SETTINGS: readonly string[] = [
   CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
   CONFIG_KEYS.LAST_PRUNED_SESSIONS,
   CONFIG_KEYS.LAST_PRUNED_SUMUP,
-  CONFIG_KEYS.LAST_PRUNED_STRINGS,
-  CONFIG_KEYS.LAST_PRUNED_LOGINS,
-  CONFIG_KEYS.LAST_PRUNED_TOKENS,
-  CONFIG_KEYS.LAST_PRUNED_CONTACTS,
-  CONFIG_KEYS.LAST_PRUNED_INVITES,
   // The orphaned-attendee auto-purge runs from the same fire-and-forget
   // scheduler, so its enable flag, retention age, and last-run stamp must be
   // readable on every request.
-  CONFIG_KEYS.LAST_PRUNED_ORPHANS,
+  ...PRUNE_KEYS,
   CONFIG_KEYS.AUTO_PURGE_ORPHANS,
   CONFIG_KEYS.ORPHAN_PURGE_RETENTION,
   // The activity-log backfill runs from the same fire-and-forget scheduler and
@@ -327,14 +328,7 @@ const PAYMENT_SETTINGS: readonly string[] = [
 const EMAIL_SETTINGS: readonly string[] = [
   CONFIG_KEYS.BUSINESS_EMAIL,
   CONFIG_KEYS.EMAIL_PROVIDER,
-  CONFIG_KEYS.EMAIL_API_KEY,
-  CONFIG_KEYS.EMAIL_FROM_ADDRESS,
-  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
-  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
-  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT,
-  CONFIG_KEYS.EMAIL_TPL_ADMIN_SUBJECT,
-  CONFIG_KEYS.EMAIL_TPL_ADMIN_HTML,
-  CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT,
+  ...EMAIL_BODY_KEYS,
 ];
 
 /** Apple Wallet pass generation reads all five cert/identifier keys. */
@@ -482,6 +476,7 @@ const READ_ONLY_POST_PATTERNS = [
   /^\/ticket\//,
   /^\/admin\/listing$/,
   /^\/admin\/listing\/\d+\/edit$/,
+  /^\/admin\/listing\/\d+\/children$/,
   /^\/admin\/groups$/,
   /^\/admin\/groups\/\d+\/edit$/,
   /^\/admin\/groups\/\d+\/add-listings$/,

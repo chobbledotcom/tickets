@@ -67,13 +67,16 @@ const PII_FIELDS: {
 /** Attendee answer map: questionId -> { answerId, answerText } */
 type AnswerMap = Map<number, { answerId: number; answerText: string }>;
 
-/** Unique key for a booking: "listingId:startAt" */
-export const bookingKey = (listingId: number, startAt: string | null): string =>
-  `${listingId}:${startAt ?? "null"}`;
+/** Unique key for a booking: "listingId:startAt:parentListingId" */
+export const bookingKey = (
+  listingId: number,
+  startAt: string | null,
+  parentListingId: number,
+): string => `${listingId}:${startAt ?? "null"}:${parentListingId}`;
 
 /** Booking key for a diff item */
 const itemBookingKey = (item: AttendeeMergeDiffBookingItem): string =>
-  bookingKey(item.listingId, item.startAt);
+  bookingKey(item.listingId, item.startAt, item.parentListingId);
 
 /** The NON-moveable conflict booking items paired with their decision key
  *  ("listingId:startAt") — the rows the operator must decide on. The single place
@@ -122,7 +125,7 @@ const joinAnswerEntries = joinMapped(
 );
 
 const joinBookingKeys = joinMapped((b: ListingAttendeeRow) =>
-  bookingKey(b.listing_id, b.start_at),
+  bookingKey(b.listing_id, b.start_at, b.parent_listing_id),
 );
 
 /** Compute a simple version string from diff inputs for stale-preview detection */
@@ -305,14 +308,16 @@ const buildBookingDiffItems = (
   const targetByKey = new Map(
     map(
       (b: ListingAttendeeRow) =>
-        [bookingKey(b.listing_id, b.start_at), b] as const,
+        [bookingKey(b.listing_id, b.start_at, b.parent_listing_id), b] as const,
     )(targetBookings),
   );
 
   return mapParallel(
     async (sb: ListingAttendeeRow): Promise<AttendeeMergeDiffBookingItem> => {
       const tb =
-        targetByKey.get(bookingKey(sb.listing_id, sb.start_at)) ?? null;
+        targetByKey.get(
+          bookingKey(sb.listing_id, sb.start_at, sb.parent_listing_id),
+        ) ?? null;
       const conflictClass = classifyBooking(sb, tb);
       // A moveable booking moves with its own money (no decision, no
       // double-count); only a conflict needs the amounts at stake.
@@ -335,6 +340,7 @@ const buildBookingDiffItems = (
       return {
         conflictClass,
         listingId: sb.listing_id,
+        parentListingId: sb.parent_listing_id,
         sourceBooking: sb,
         sourceSaleAmount,
         startAt: sb.start_at,
@@ -569,6 +575,8 @@ const bookingInsertStatement = (
     end_at: booking.end_at,
     ledger_event_group: booking.ledger_event_group,
     listing_id: booking.listing_id,
+    order_token: booking.order_token,
+    parent_listing_id: booking.parent_listing_id,
     quantity: booking.quantity,
     start_at: booking.start_at,
   }) as BatchStatement;
@@ -603,10 +611,17 @@ const applyBookingDecisions = (
     } else if (choice === "take_source" && item.targetBooking) {
       // Replace target booking with source booking
       deleteTargetBookingStatements.push({
-        args: [targetId, item.listingId, item.startAt, item.startAt],
+        args: [
+          targetId,
+          item.listingId,
+          item.startAt,
+          item.startAt,
+          item.parentListingId,
+        ],
         sql: `DELETE FROM listing_attendees
               WHERE attendee_id = ? AND listing_id = ?
-              AND (start_at IS ? OR start_at = ?)`,
+              AND (start_at IS ? OR start_at = ?)
+              AND parent_listing_id = ?`,
       });
       insertStatements.push(
         bookingInsertStatement(targetId, item.sourceBooking),

@@ -12,6 +12,7 @@ import { htmlResponse } from "#routes/response.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingForListing } from "#shared/db/attendees/capacity.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { getChildIds } from "#shared/db/listing-parents.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { listingSupportsDirectCheckout } from "#shared/qr.ts";
@@ -23,7 +24,11 @@ import {
   qrBookErrorPage,
   type TicketPrefill,
 } from "#templates/public.tsx";
-import { getTicketContext, runCheckoutFlow } from "./ticket-payment.ts";
+import {
+  anyChildListing,
+  getTicketContext,
+  runCheckoutFlow,
+} from "./ticket-payment.ts";
 import { handleTicket } from "./ticket-submit.ts";
 
 const errorResponse = (slug: string, status: number): Response =>
@@ -116,6 +121,13 @@ const skipToCheckout = (
   );
 };
 
+/** Whether the scanned parent has any required child, so its QR must NOT skip
+ * straight to checkout (which would build parent-only metadata that omits the
+ * required child). Falling back to the form runs `prepareOrder`, which folds the
+ * child in (parents.md QR entry-point). */
+const parentHasChildren = async (listing: ListingWithCount): Promise<boolean> =>
+  (await getChildIds(listing.id)).length > 0;
+
 /** Once the token is verified and the listing loaded, render or redirect */
 const dispatchVerified = async (
   request: Request,
@@ -130,7 +142,10 @@ const dispatchVerified = async (
   ) {
     return errorResponse(slug, 400);
   }
-  if (await canSkipToCheckout(listing, payload)) {
+  if (
+    !(await parentHasChildren(listing)) &&
+    (await canSkipToCheckout(listing, payload))
+  ) {
     return skipToCheckout(request, listing, payload);
   }
   const ticketListing = buildTicketListing(
@@ -160,5 +175,8 @@ export const handleQrBookGet = async (
   if (!payload) return errorResponse(slug, 400);
   const listing = await getListingWithCountBySlug(slug);
   if (!listing?.active) return errorResponse(slug, 404);
+  // A booking can never start from a child (invariant I3): a signed QR for a
+  // child would otherwise skip straight to checkout for it alone.
+  if (await anyChildListing([listing.id])) return errorResponse(slug, 404);
   return dispatchVerified(request, slug, token, payload, listing);
 };

@@ -9,17 +9,18 @@
  * Format: bal1.{payloadB64url}.{hmacB64url}  ·  HMAC input: "balance:{payload}"
  */
 
-/* jscpd:ignore-start */
+// jscpd:ignore-start
 import {
   buildSignedToken,
   decodeTokenPayload,
   encodeTokenPayload,
+  isExpiredNow,
   isTokenObject,
   verifySignedToken,
 } from "#shared/crypto/signed-token.ts";
 import { nowMs } from "#shared/now.ts";
 
-/* jscpd:ignore-end */
+// jscpd:ignore-end
 
 const PREFIX = "bal1.";
 const DOMAIN = "balance:";
@@ -72,10 +73,7 @@ export const verifyBalanceToken = async (
   }
   const payload = parsed as unknown as BalancePayload;
 
-  const nowS = Math.floor(nowMs() / 1000);
-  // Reject expired and absurdly future-dated tokens (60s clock-skew tolerance).
-  if (payload.e < nowS) return null;
-  if (payload.e - nowS > BALANCE_LINK_MAX_AGE_S + 60) return null;
+  if (isExpiredNow(payload.e, BALANCE_LINK_MAX_AGE_S)) return null;
 
   return payload;
 };

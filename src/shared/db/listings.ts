@@ -463,8 +463,9 @@ export const isSlugTaken = async (
  * Delete a listing and its own bookings in a single database round-trip.
  *
  * Only the deleted listing's rows are touched: its `listing_attendees` links,
- * its `listing_questions` assignments, its `activity_log` entries, and the
- * listing itself. Attendees are deliberately left alone — an attendee booked
+ * its `listing_questions` assignments, its `listing_parents` edges (on either
+ * side), its `activity_log` entries, and the listing itself. Attendees are
+ * deliberately left alone — an attendee booked
  * onto another listing keeps that booking (and all of its answers/payments)
  * completely untouched, and an attendee left with no bookings is simply
  * orphaned rather than purged. This scoping guarantees that deleting one
@@ -487,6 +488,11 @@ export const deleteListing = async (listingId: number): Promise<void> => {
     {
       args: [listingId],
       sql: "DELETE FROM listing_questions WHERE listing_id = ?",
+    },
+    {
+      // Remove this listing from both sides of every parent/child edge.
+      args: [listingId, listingId],
+      sql: "DELETE FROM listing_parents WHERE parent_listing_id = ? OR child_listing_id = ?",
     },
     { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
     { args: [listingId], sql: "DELETE FROM listings WHERE id = ?" },
@@ -541,6 +547,11 @@ export const invalidateListingsCache = (): void => {
  */
 export const getAllListings = (): Promise<ListingWithCount[]> =>
   listingsCache.getAll();
+
+/** All listings keyed by id (built from the cached `getAllListings`). */
+export const getListingsById = async (): Promise<
+  Map<number, ListingWithCount>
+> => new Map((await getAllListings()).map((l) => [l.id, l]));
 
 /** Bounded id → name lookup for the given listings: selects and decrypts only
  * their names, rather than loading the whole listings cache like getAllListings.

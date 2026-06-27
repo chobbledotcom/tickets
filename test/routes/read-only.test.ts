@@ -118,6 +118,7 @@ describeWithEnv(
       { path: "/admin/listing/42/attendee" },
       { path: "/admin/attendees/new" },
       { body: "listing_ids=1", path: "/admin/groups/5/add-listings" },
+      { body: "child_listing_ids=1", path: "/admin/listing/42/children" },
     ];
     for (const { body, path } of postRedirectCases) {
       test(`POST ${path} redirects to /read-only`, async () => {

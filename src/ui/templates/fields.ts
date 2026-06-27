@@ -21,7 +21,11 @@ import {
   parseListingFields,
   withRequiredEmail,
 } from "#shared/listing-fields.ts";
-import { normalizeSlug, validateSlug } from "#shared/slug.ts";
+import {
+  firstIssueMessage,
+  normalizeSlug,
+  validateSlug,
+} from "#shared/slug.ts";
 import { isValidDatetime } from "#shared/timezone.ts";
 import {
   type AdminLevel,
@@ -223,10 +227,8 @@ const UsernameSchema = v.pipe(
   ),
 );
 
-export const validateUsername = (value: string): string | null => {
-  const result = v.safeParse(UsernameSchema, value, { abortPipeEarly: true });
-  return result.success ? null : result.issues[0].message;
-};
+export const validateUsername = (value: string): string | null =>
+  firstIssueMessage(UsernameSchema, value);
 
 /** Base username field shared across login and invite forms */
 const getUsernameFieldBase = (): Field => ({
@@ -306,6 +308,18 @@ const validateDescription = (value: string): string | null =>
     ? null
     : t("fields.validation.description_max", { max: MAX_TEXTAREA_LENGTH });
 
+const buildDescriptionField = (hint: string, hintHtml?: string): Field => ({
+  hint,
+  ...(hintHtml !== undefined && { hintHtml }),
+  label: t("fields.listing.description"),
+  markdown: true,
+  maxlength: MAX_TEXTAREA_LENGTH,
+  name: "description",
+  placeholder: t("fields.listing.description_placeholder"),
+  type: "textarea",
+  validate: validateDescription,
+});
+
 /** Validate a datetime value is parseable */
 const validateDatetime = (value: string): string | null =>
   isValidDatetime(value) ? null : t("fields.validation.datetime");
@@ -362,17 +376,10 @@ export const getListingFields = (): Field[] => [
     type: "select",
     validate: validateListingType,
   },
-  {
-    hint: t("fields.listing.description_hint_field"),
-    hintHtml: FORMATTING_HINT,
-    label: t("fields.listing.description"),
-    markdown: true,
-    maxlength: MAX_TEXTAREA_LENGTH,
-    name: "description",
-    placeholder: t("fields.listing.description_placeholder"),
-    type: "textarea",
-    validate: validateDescription,
-  },
+  buildDescriptionField(
+    t("fields.listing.description_hint_field"),
+    FORMATTING_HINT,
+  ),
   {
     hint: t("fields.listing.date_hint"),
     label: t("fields.listing.date"),
@@ -755,17 +762,8 @@ const getGroupMaxAttendeesField = (): Field => ({
 });
 
 /** Group description field */
-const getGroupDescriptionField = (): Field => ({
-  hint: t("fields.group.description_hint"),
-  hintHtml: FORMATTING_HINT,
-  label: t("fields.listing.description"),
-  markdown: true,
-  maxlength: MAX_TEXTAREA_LENGTH,
-  name: "description",
-  placeholder: t("fields.listing.description_placeholder"),
-  type: "textarea",
-  validate: validateDescription,
-});
+const getGroupDescriptionField = (): Field =>
+  buildDescriptionField(t("fields.group.description_hint"), FORMATTING_HINT);
 
 /** Group form fields for creation (no slug - auto-generated) */
 export const getGroupCreateFields = (): Field[] => {

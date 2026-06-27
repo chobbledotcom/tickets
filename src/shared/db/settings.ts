@@ -159,8 +159,7 @@ export const CONFIG_KEYS = {
   WRAPPED_PRIVATE_KEY: "wrapped_private_key",
 } as const;
 
-export const MASK_SENTINEL =
-  "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
+export const MASK_SENTINEL = "••••••••••••";
 export const isMaskSentinel = (value: string): boolean =>
   value === MASK_SENTINEL;
 
@@ -287,6 +286,26 @@ const TEMPLATE_KEYS: Record<TemplateKeyMap, StringSettingKey> = {
 // String setting keys — plaintext and encrypted
 // ---------------------------------------------------------------------------
 
+export const PRUNE_KEYS = [
+  CONFIG_KEYS.LAST_PRUNED_STRINGS,
+  CONFIG_KEYS.LAST_PRUNED_LOGINS,
+  CONFIG_KEYS.LAST_PRUNED_TOKENS,
+  CONFIG_KEYS.LAST_PRUNED_CONTACTS,
+  CONFIG_KEYS.LAST_PRUNED_INVITES,
+  CONFIG_KEYS.LAST_PRUNED_ORPHANS,
+] as const;
+
+export const EMAIL_BODY_KEYS = [
+  CONFIG_KEYS.EMAIL_API_KEY,
+  CONFIG_KEYS.EMAIL_FROM_ADDRESS,
+  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
+  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
+  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT,
+  CONFIG_KEYS.EMAIL_TPL_ADMIN_SUBJECT,
+  CONFIG_KEYS.EMAIL_TPL_ADMIN_HTML,
+  CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT,
+] as const;
+
 /** Plaintext string config keys (stored unencrypted, default ""). */
 const PLAINTEXT_KEYS = [
   CONFIG_KEYS.TERMS_AND_CONDITIONS,
@@ -309,13 +328,8 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
   CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
   CONFIG_KEYS.LAST_PRUNED_SESSIONS,
-  CONFIG_KEYS.LAST_PRUNED_STRINGS,
   CONFIG_KEYS.LAST_PRUNED_SUMUP,
-  CONFIG_KEYS.LAST_PRUNED_LOGINS,
-  CONFIG_KEYS.LAST_PRUNED_TOKENS,
-  CONFIG_KEYS.LAST_PRUNED_CONTACTS,
-  CONFIG_KEYS.LAST_PRUNED_INVITES,
-  CONFIG_KEYS.LAST_PRUNED_ORPHANS,
+  ...PRUNE_KEYS,
   CONFIG_KEYS.SMS_GATEWAY_BASE_URL,
   CONFIG_KEYS.ACTIVITY_LOG_BACKFILL_DONE,
   CONFIG_KEYS.LAST_ACTIVITY_LOG_BACKFILL,
@@ -335,14 +349,7 @@ const ENCRYPTED_KEYS = [
   CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY,
   CONFIG_KEYS.SUMUP_API_KEY,
   CONFIG_KEYS.EMBED_HOSTS,
-  CONFIG_KEYS.EMAIL_API_KEY,
-  CONFIG_KEYS.EMAIL_FROM_ADDRESS,
-  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
-  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
-  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT,
-  CONFIG_KEYS.EMAIL_TPL_ADMIN_SUBJECT,
-  CONFIG_KEYS.EMAIL_TPL_ADMIN_HTML,
-  CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT,
+  ...EMAIL_BODY_KEYS,
   CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID,
   CONFIG_KEYS.APPLE_WALLET_TEAM_ID,
   CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT,
@@ -692,6 +699,15 @@ const boolUpdate = <K extends BoolSettingKey>(configKey: string, field: K) =>
 type BoolSettingKey = {
   [K in keyof SettingsData]: SettingsData[K] extends boolean ? K : never;
 }[keyof SettingsData];
+
+/** Factory: write the current ISO timestamp to a config key and mirror into the snapshot. */
+const timestampUpdate =
+  <K extends keyof SettingsData>(configKey: string, field: K) =>
+  async (): Promise<void> => {
+    const ts = new Date().toISOString();
+    await writeRaw(configKey, ts);
+    setSnapshotField(field, ts as SettingsData[K]);
+  };
 
 // ---------------------------------------------------------------------------
 // Snapshot builder — called by loadKeys()
@@ -1292,11 +1308,10 @@ const settingsBase = {
       CONFIG_KEYS.CONTACT_FORM_ENABLED,
       "contact_form_enabled",
     ),
-    customDomainLastValidated: async (): Promise<void> => {
-      const ts = new Date().toISOString();
-      await writeRaw(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED, ts);
-      data.custom_domain_last_validated = ts;
-    },
+    customDomainLastValidated: timestampUpdate(
+      CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
+      "custom_domain_last_validated",
+    ),
 
     // --- Email writes ---
     email: {
@@ -1376,11 +1391,10 @@ const settingsBase = {
     superuserChoice: plaintextUpdate(CONFIG_KEYS.SUPERUSER_CHOICE) as (
       v: SuperuserChoice,
     ) => Promise<void>,
-    supportFormLastSubmitted: async (): Promise<void> => {
-      const ts = new Date().toISOString();
-      await writeRaw(CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED, ts);
-      data.support_form_last_submitted = ts;
-    },
+    supportFormLastSubmitted: timestampUpdate(
+      CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED,
+      "support_form_last_submitted",
+    ),
     theme: rawUpdate(CONFIG_KEYS.THEME, "theme") as (v: Theme) => Promise<void>,
     underlineLinks: boolUpdate(CONFIG_KEYS.UNDERLINE_LINKS, "underline_links"),
   },

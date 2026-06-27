@@ -28,6 +28,7 @@ import {
   errorMessage,
   PaymentUserError,
   packMetadata,
+  parseWebhookPayload,
   SQUARE_METADATA_MAX_ENTRIES,
   SQUARE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
@@ -577,7 +578,14 @@ export const squareApi: {
     const order = priceCheckout(intent);
 
     const prep = await preparePaymentLink(
-      packMetadata(await buildItemsMetadata(intent, order.total)),
+      packMetadata(
+        await buildItemsMetadata(
+          intent,
+          order.total,
+          SQUARE_METADATA_MAX_VALUE_LENGTH,
+          SQUARE_METADATA_MAX_ENTRIES,
+        ),
+      ),
       `payment link for ${intent.items.length} listing(s)`,
     );
     if (!prep) return null;
@@ -851,13 +859,7 @@ export const verifyWebhookSignature = async (
     return { error: "Signature verification failed", valid: false };
   }
 
-  try {
-    const listing = JSON.parse(payload) as WebhookEvent;
-    return { listing, valid: true };
-  } catch {
-    logError({ code: ErrorCode.SQUARE_SIGNATURE, detail: "invalid JSON" });
-    return { error: "Invalid JSON payload", valid: false };
-  }
+  return parseWebhookPayload(payload, ErrorCode.SQUARE_SIGNATURE);
 };
 
 /**

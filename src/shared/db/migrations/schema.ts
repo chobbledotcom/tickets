@@ -332,13 +332,30 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["end_time", "TEXT NOT NULL DEFAULT ''"],
         ["start_done", "INTEGER NOT NULL DEFAULT 0"],
         ["end_done", "INTEGER NOT NULL DEFAULT 0"],
+        // A per-booking token shared by every attendee row created in one
+        // checkout (a parent and its chosen children), so the admin can group an
+        // order's rows. Empty for legacy rows and bookings with no parent.
+        ["order_token", "TEXT NOT NULL DEFAULT ''"],
+        // For a folded child row, the parent listing the buyer chose it under
+        // (0 = not a folded child). A child summed across two parents records the
+        // first — the common case is one parent → one child.
+        ["parent_listing_id", "INTEGER NOT NULL DEFAULT 0"],
       ],
       // FKs omitted — libsql's FK enforcement causes issues during table
       // recreation migrations. Referential integrity is enforced by application
       // logic and the indexes below.
       indexes: [
         {
-          columns: ["listing_id", "attendee_id", "start_at"],
+          // Includes parent_listing_id so the SAME child chosen under two
+          // parents is two distinct booking rows (one per parent, faithful
+          // provenance) rather than colliding into one folded row. A non-child
+          // line has parent_listing_id 0, so its slot is unchanged.
+          columns: [
+            "listing_id",
+            "attendee_id",
+            "start_at",
+            "parent_listing_id",
+          ],
           name: "idx_listing_attendees_listing_attendee_start",
           unique: true,
         },
@@ -512,6 +529,29 @@ export const SCHEMA: [name: string, table: Table][] = [
           unique: true,
         },
         { columns: ["listing_id"], name: "idx_modifier_listings_listing" },
+      ],
+    },
+  ],
+
+  [
+    // Child→parent edges between listings: a row means child_listing_id is a
+    // chooseable child of parent_listing_id. No FKs (house style); the app keeps
+    // it consistent and deleteListing prunes both sides. The unique pair index
+    // also serves the hot parent→children lookup (parent prefix); the extra
+    // single index serves the child→parents lookup.
+    "listing_parents",
+    {
+      columns: [
+        ["parent_listing_id", "INTEGER NOT NULL"],
+        ["child_listing_id", "INTEGER NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["parent_listing_id", "child_listing_id"],
+          name: "idx_listing_parents_pair",
+          unique: true,
+        },
+        { columns: ["child_listing_id"], name: "idx_listing_parents_child" },
       ],
     },
   ],

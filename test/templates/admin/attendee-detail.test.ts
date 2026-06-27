@@ -30,6 +30,7 @@ const booking = (
   listingActive: true,
   listingId: 1,
   listingName: "Test Listing",
+  parentListingId: 0,
   quantity: 1,
   refunded: false,
   startAt: null,
@@ -210,6 +211,50 @@ describe("AttendeeBookingsTable", () => {
     expect(renderBookings([booking({ listingActive: true })])).not.toContain(
       "(Inactive)",
     );
+  });
+
+  test("annotates a folded child row with the parent it was chosen under", () => {
+    // The child's parentListingId points at the parent, which is booked in the
+    // same order — so its name resolves from the sibling row.
+    const html = renderBookings([
+      booking({ listingId: 7, listingName: "Base unit" }),
+      booking({
+        listingId: 8,
+        listingName: "Add-on",
+        parentListingId: 7,
+      }),
+    ]);
+    expect(html).toContain("Add-on chosen under Base unit");
+  });
+
+  test("a plain booking shows no add-on annotation", () => {
+    const html = renderBookings([
+      booking({ listingId: 7, listingName: "Base unit" }),
+    ]);
+    expect(html).not.toContain("Add-on chosen under");
+    expect(html).not.toContain("Includes add-on");
+  });
+
+  test("annotates a parent row with the add-on children folded under it (#5)", () => {
+    // The reverse of "chosen under": the parent row lists every child booked
+    // against it in this order, so the relationship reads both ways.
+    const html = renderBookings([
+      booking({ listingId: 7, listingName: "Base unit" }),
+      booking({ listingId: 8, listingName: "Paddle", parentListingId: 7 }),
+      booking({ listingId: 9, listingName: "Helmet", parentListingId: 7 }),
+    ]);
+    expect(html).toContain("Includes add-on: Paddle, Helmet");
+    // The children still show their own "chosen under" annotation.
+    expect(html).toContain("Add-on chosen under Base unit");
+  });
+
+  test("falls back to the parent id when its row is absent from the order", () => {
+    // Defensive: a child whose parent row is not in this attendee's set still
+    // labels the pairing rather than dropping it silently.
+    const html = renderBookings([
+      booking({ listingId: 8, listingName: "Add-on", parentListingId: 7 }),
+    ]);
+    expect(html).toContain("Add-on chosen under #7");
   });
 
   test("falls back to an em dash when a booking has no status", () => {
