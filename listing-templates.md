@@ -337,18 +337,17 @@ The same handler, given `?template=<id>`, renders the blank create form but:
   - **The one-off event is the exception: its signature includes `dated=true`,
     which can't be pre-seeded with a sensible value.** A date isn't a boolean to
     flip — it's the operator's actual event date — so the seed can't supply it.
-    For this template the create form marks `date` **required** in the markup
-    (it's inherent: "a one-off event *has* a date"), and — the load-bearing part —
-    the **server** rejects a blank `date` whenever the *submitted fields* infer to
-    the one-off shape (see the validation note in "Files this touches"). So a saved
-    one-off always carries `date !== ""` and re-infers correctly. Crucially the
-    server check keys off the submitted dimensions via `inferTemplate`, **not** the
-    `?template` id: an operator who opens Customise and changes the shape to a
-    daily/digital/etc. listing (which needs no date) is creating a different valid
-    type and must not be blocked. The "unchanged submit round-trips" promise holds
-    for the other four templates unconditionally; for the one-off it holds *given*
-    the required date — a blank-date one-off-shaped submit is rejected before it
-    can save a `dated=false` row, so it never silently reopens as Custom.
+    Instead a saved one-off must carry a non-empty `date`, enforced **server-side
+    only** — *not* a static HTML `required` attribute. (A static `required` would
+    block the documented flow where the operator opens Customise, changes the shape
+    to daily/digital, and leaves `date` blank — the browser would reject the submit
+    before the server sees it, and a pure-CSS/no-JS form can't conditionally toggle
+    `required`.) The exact server rule is subtle — it needs **both** the carried
+    template context **and** the submitted non-date dimensions (see the validation
+    note in "Files this touches" for the precise predicate). The "unchanged submit
+    round-trips" promise holds for the other four templates unconditionally; for
+    the one-off it holds *given* the required date — a one-off submit with a blank
+    date is rejected before it can save a `dated=false` row that reopens as Custom.
 - shows only the template's `shown` config groups, with Customise collapsed — i.e.
   it renders **exactly as if a blank listing had been inferred as that type**. No
   new code path: feed the chosen template into the same "which fields are visible"
@@ -444,18 +443,30 @@ it. "Needs no picker" covers the error path too, not just the initial GET.
 | Copy | i18n files | Picker card titles/blurbs, the "Customise" label, per-type hints. |
 
 No migration, no DB-schema change, no change to any stored field. The **one**
-server-side addition is a **required-`date` validation that fires only when the
-*submitted fields* infer to the one-off shape** — i.e. reject a blank `date` when
-the POST body has `listing_type=standard`, `purchase_only` off, `uses_logistics`
-off (the one-off signature), so that exact shape can't save a `dated=false` row
-that reopens as Custom. **Key it on the submitted dimensions, not the `?template`
-id.** Customise exposes the full form, so an operator who starts from the one-off
-card, opens Customise, and changes the submitted shape to something else (e.g.
-`listing_type=daily`, or `purchase_only=1`) is creating a *different* valid type
-that doesn't need a date — keying the check to the original `?template` would
-wrongly block that. Run the same `inferTemplate` over the submitted values and
-require `date` only when it returns the one-off. Everything else in
-`listings-form.ts` validation is unchanged.
+server-side addition is a conditional **required-`date` validation**. Getting its
+predicate exactly right took a couple of passes — the obvious formulations are all
+wrong, so spelling it out:
+
+- **Reject a blank `date` iff (chosen template id == one-off) AND (the submitted
+  *non-date* dimensions still match the one-off's: `listing_type=standard`,
+  `purchase_only` off, `uses_logistics` off).** It's the **conjunction** of the
+  carried template context and the submitted non-date shape.
+- Why not a static HTML `required`? It would block the Customise-changed-shape flow
+  client-side, and a pure-CSS form can't conditionally remove it (§5). Server-side
+  only.
+- Why not key on the `?template` id alone? An operator who opens Customise and
+  changes the shape (now daily, or `purchase_only=1`) is creating a *different*
+  valid type that needs no date — the id alone would wrongly block them. Hence the
+  AND with the submitted non-date dims.
+- Why not `inferTemplate` over the submitted body alone? That's **vacuous**: with a
+  blank `date` the body has `dated=false`, so it infers Custom/`null`, *never* the
+  one-off — the check would never fire. (This was a real bug in an earlier draft.)
+- Why not the submitted non-date dims alone? Then the **Custom** card couldn't save
+  the legitimate unnamed shape `standard + blank-date + check-in + no-logistics`
+  (it posts exactly those non-date dims). The template-id context is what
+  distinguishes "one-off attempt, forgot the date" from "deliberate Custom".
+
+Everything else in `listings-form.ts` validation is unchanged.
 The detail page (`adminListingPage`) is unaffected — this is otherwise an
 edit/create-form change only, though a future nicety could surface the inferred
 type label on the detail page too (out of scope here).
