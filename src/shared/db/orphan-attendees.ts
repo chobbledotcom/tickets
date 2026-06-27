@@ -71,6 +71,12 @@ export const purgeOrphanedAttendees = async (
       args: [cutoffIso],
       sql: `DELETE FROM ${table} WHERE attendee_id IN (${ORPHAN_IDS})`,
     })),
+    // service_costs uses servicing_attendee_id (not attendee_id), so it cannot
+    // be in ORPHAN_DEPENDENT_TABLES; handle it separately to match deleteAttendee.
+    {
+      args: [cutoffIso],
+      sql: `DELETE FROM service_costs WHERE servicing_attendee_id IN (${ORPHAN_IDS})`,
+    },
     {
       args: [cutoffIso],
       sql: `DELETE FROM attendees WHERE id IN (${ORPHAN_IDS})`,

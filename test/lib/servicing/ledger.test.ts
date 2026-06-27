@@ -33,7 +33,9 @@ import {
   accountBalance,
   allTransfers,
   transfersByAccount,
+  visibleTransfers,
 } from "#shared/accounting/queries.ts";
+import { emptyRange } from "#shared/accounting/range.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
@@ -558,6 +560,28 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     const legs = await transfersOfKind("service_cost");
     expect(legs.length).toBe(1);
     expect(legs[0]!.occurredAt).toBe("2026-07-01T00:00:00.000Z");
+  });
+
+  test("service_cost legs appear in the listing-filtered visible ledger", async () => {
+    // Verifies that revenueLegScope includes cost-account legs so operators can
+    // see service costs when they filter the ledger by listing.
+    const { id, listing } = await createServicingHold();
+    await recordBoilerCost(id, listing.id); // £90
+    const legs = await visibleTransfers(emptyRange, listing.id, 100);
+    expect(legs.some((t) => t.kind === "service_cost")).toBe(true);
+  });
+
+  test("editing back to a previously-used target amount after an intermediate edit applies the correct delta", async () => {
+    // 90→60 (−30), 60→70 (+10), 70→60 (−10): the third edit re-targets £60.
+    // If the event key omits currentAmount, the third edit's eventGroup and
+    // reference hash-collide with the first edit's (same costId + same target),
+    // causing assertEventMatches to throw a LedgerConflictError.
+    const { id, listing } = await createServicingHold();
+    const costId = await recordBoilerCost(id, listing.id); // £90
+    await editServiceCost(costId, { amount: 6000 }); // → £60; delta −30
+    await editServiceCost(costId, { amount: 7000 }); // → £70; delta +10
+    await editServiceCost(costId, { amount: 6000 }); // → £60; delta must be −10
+    expect(await costOf(listing.id)).toBe(6000);
   });
 
   test("an operator memo matching the old internal adjustment pattern is not misidentified as an adjustment", async () => {

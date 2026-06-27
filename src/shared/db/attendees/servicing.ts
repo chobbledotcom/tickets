@@ -577,8 +577,10 @@ export const recordServiceCost = async (
   // Post the cost leg AND its first-class `service_costs` record in one
   // transaction, so the per-event cost list can never miss a posted cost (a
   // leg without a service_costs row would count in costOf but be unlistable).
-  // The service_costs INSERT is OR IGNORE on the unique transfer_id, so a
-  // concurrent double-submit that wins the postTransfers race is a no-op here.
+  // Use INSERT … SELECT to derive transfer_id by reference lookup rather than
+  // last_insert_rowid(): if a concurrent request committed the same transfer
+  // first, postTransfersTx returns early (no INSERT), leaving last_insert_rowid
+  // stale; the SELECT always resolves to the correct row regardless.
   await withTransaction(async (tx) => {
     await postTransfersTx(tx, [transfer]);
     await tx.execute({
@@ -588,11 +590,12 @@ export const recordServiceCost = async (
         input.occurredAt,
         encryptedMemo,
         nowIso(),
+        transfer.reference,
       ],
       sql:
         "INSERT OR IGNORE INTO service_costs " +
         "(servicing_attendee_id, listing_id, transfer_id, occurred_at, memo, created) " +
-        "VALUES (?, ?, last_insert_rowid(), ?, ?, ?)",
+        "SELECT ?, ?, id, ?, ?, ? FROM transfers WHERE reference = ?",
     });
   });
   const row = await queryOne<{ id: number }>(
@@ -706,6 +709,7 @@ export const editServiceCost = async (
       eventGroup: await eventGroup([
         "service_cost_edit",
         costId,
+        currentAmount,
         update.amount,
       ]),
       kind: "service_cost",
@@ -714,6 +718,7 @@ export const editServiceCost = async (
       reference: await legReference([
         "service_cost_edit",
         costId,
+        currentAmount,
         update.amount,
       ]),
       source: delta > 0 ? cost : WORLD,
