@@ -123,6 +123,8 @@ export type ActionHandlerConfig<TSession = AuthSession> = {
   successRedirect: string | ((session: TSession, form: FormParams) => string);
   /** Optional custom error mapping (falls back to errorRedirect with message) */
   onError?: ErrorMapper;
+  /** Extra Set-Cookie header to append to the success redirect (e.g. clearSessionCookie()) */
+  cookie?: string;
   /** Secret to redact from the activity log (e.g. API key shown in flash but not logged) */
   redactedSecret?:
     | string
@@ -175,6 +177,11 @@ export const createActionHandler = <TSession = AuthSession>(
         ? await value(session, form)
         : value;
 
+  // Build success redirect opts once, outside the nested callback, to avoid
+  // raising cognitive complexity of the deeply-nested async handler.
+  const successOpts =
+    config.cookie !== undefined ? { cookie: config.cookie } : undefined;
+
   return (request: Request) =>
     withAuth(request, policy, async (session, body) => {
       const form = body as FormParams;
@@ -211,6 +218,6 @@ export const createActionHandler = <TSession = AuthSession>(
         session as TSession,
         form,
       );
-      return redirect(redirectUrl, msg, true);
+      return redirect(redirectUrl, msg, true, successOpts);
     });
 };

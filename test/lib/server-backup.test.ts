@@ -312,7 +312,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           },
         );
         await expectFlashRedirect(
-          "/admin/backup",
+          "/admin/login",
           "Database restored from backup",
         )(response);
 
@@ -345,7 +345,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
             },
           );
           await expectFlashRedirect(
-            "/admin/backup",
+            "/admin/login",
             `Database restored from backup. It was running commit ${fullSha} — run the restore-deploy workflow with that commit to restore the code to this point in time.`,
           )(response);
         } finally {
@@ -374,7 +374,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
             },
           );
           await expectFlashRedirect(
-            "/admin/backup",
+            "/admin/login",
             "Database restored from backup",
           )(response);
         } finally {

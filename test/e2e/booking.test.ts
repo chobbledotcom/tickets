@@ -242,10 +242,10 @@ describe("e2e: full booking flow", () => {
         { confirm_identifier: RESTORE_CONFIRM_PHRASE },
         "Restore Database",
       );
-      // After restore, sessions are wiped (resetDatabase clears the session
-      // cache), so the session from the post-reset login is gone. The browser
-      // gets redirected to login before the flash can render. The flash message
-      // itself is already covered by the server-backup unit tests.
+      // The restore handler clears the session cookie and redirects to
+      // /admin/login, so the flash appears on the login page even though the
+      // operator's post-reset session is no longer valid.
+      expect(browser.containsText("Database restored from backup")).toBe(true);
       invalidateAllCaches();
 
       // 23. Log in again (restore wiped sessions)
