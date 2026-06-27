@@ -90,6 +90,7 @@ import {
   getSlugField,
   listingAggregateFields,
   logisticsField,
+  VALID_DAY_NAMES,
 } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { renderListingImage } from "#templates/public.tsx";
@@ -1674,8 +1675,11 @@ const getListingFieldsWithAutofocus = (): Field[] =>
 // Listing template picker and seeded-form seeds
 // ---------------------------------------------------------------------------
 
-const ALL_BOOKABLE_DAYS =
-  "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday";
+// Derived from the canonical day-name list (fields.ts) rather than a literal so
+// the seed always matches the checkbox-group options and the dates.ts matcher —
+// these are internal canonical identifiers compared by string equality, not
+// translated strings, so there's a single source of truth to track if they change.
+const ALL_BOOKABLE_DAYS = VALID_DAY_NAMES.join(",");
 
 /** Seed values applied to a blank create form when a template is chosen.
  *  Sets every dimension field the signature pins, plus visible daily defaults
@@ -1684,7 +1688,7 @@ const TEMPLATE_SEEDS: Record<string, FieldValues> = {
   "hireable-item": {
     bookable_days: ALL_BOOKABLE_DAYS,
     duration_days: "1",
-    fields: "email,address",
+    fields: "email,phone,address",
     listing_type: "daily",
     maximum_days_after: "90",
     minimum_days_before: "1",

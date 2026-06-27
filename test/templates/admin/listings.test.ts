@@ -982,6 +982,32 @@ describe("adminListingNewPage", () => {
     expect(html).toContain("listing-form--templated");
   });
 
+  test("seeds the hireable-item contact fields with phone for delivery contact", () => {
+    const html = adminListingNewPage([], TEST_SESSION, {
+      templateId: "hireable-item",
+    });
+    expect(html).toContain('name="fields" value="email" checked');
+    expect(html).toContain('name="fields" value="phone" checked');
+    expect(html).toContain('name="fields" value="address" checked');
+  });
+
+  test("seeds every weekday into the hireable-item bookable_days", () => {
+    const html = adminListingNewPage([], TEST_SESSION, {
+      templateId: "hireable-item",
+    });
+    for (const day of [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ]) {
+      expect(html).toContain(`name="bookable_days" value="${day}" checked`);
+    }
+  });
+
   test("applies listing-form--no-daily class for non-daily templates", () => {
     const html = adminListingNewPage([], TEST_SESSION, {
       templateId: "one-off-event",
