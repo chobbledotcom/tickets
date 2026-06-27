@@ -33,7 +33,11 @@ import {
   renderFields,
 } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
-import { inferTemplate, LISTING_TEMPLATES } from "#shared/listing-templates.ts";
+import {
+  inferTemplate,
+  LISTING_TEMPLATES,
+  type ListingTemplate,
+} from "#shared/listing-templates.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { utcToLocalInput } from "#shared/timezone.ts";
 import {
@@ -1712,11 +1716,11 @@ const TEMPLATE_SEEDS: Record<string, FieldValues> = {
 };
 
 /** CSS class string for a form whose dimension fields are template-controlled. */
-const listingFormClass = (template: ReturnType<typeof inferTemplate>): string =>
+const listingFormClass = (template: ListingTemplate): string =>
   [
     "listing-form--templated",
-    template?.signature.daily !== undefined ? "listing-form--hide-type" : "",
-    template?.signature.dated === false ? "listing-form--hide-date" : "",
+    template.signature.daily !== undefined ? "listing-form--hide-type" : "",
+    template.signature.dated === false ? "listing-form--hide-date" : "",
   ]
     .filter(Boolean)
     .join(" ");

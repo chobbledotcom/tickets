@@ -973,6 +973,14 @@ describe("adminListingNewPage", () => {
     });
     expect(html).toContain("listing-form--hide-type");
   });
+
+  test("does not apply listing-form--hide-type for templates with no fixed listing_type", () => {
+    const html = adminListingNewPage([], TEST_SESSION, {
+      templateId: "hireable-item",
+    });
+    expect(html).not.toContain("listing-form--hide-type");
+    expect(html).toContain("listing-form--templated");
+  });
 });
 
 describe("adminListingPage export button", () => {
