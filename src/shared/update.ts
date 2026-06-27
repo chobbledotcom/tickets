@@ -146,8 +146,9 @@ const syncCommitMarker = async (
 ): Promise<void> => {
   if (commit) return recordSettingMarker(CURRENT_SCRIPT_COMMIT_KEY, commit);
   if (!version) return;
-  await execute("DELETE FROM settings WHERE key = ?", [
+  await execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [
     CURRENT_SCRIPT_COMMIT_KEY,
+    "",
   ]);
 };
 
