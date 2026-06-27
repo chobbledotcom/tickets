@@ -1156,6 +1156,32 @@ describeWithEnv(
       expect(res.status).toBe(404);
     });
 
+    test("a group QR 404s when its only standalone member is a no-bookable-child parent", async () => {
+      // The group's only non-child member is a parent whose required child is
+      // sold out, so /ticket/<group> renders no bookable quantity. The QR
+      // encodes that dead page, so it must 404 — the SAME gate as the /listings
+      // CTA (a parent projected sold out is not a bookable member).
+      const group = await createTestGroup({ name: "Sold-out-parent QR group" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        name: "Base in group",
+      });
+      const child = await createTestListing({
+        maxAttendees: 1,
+        name: "Sold-out add-on",
+      });
+      await createTestAttendee(child.id, child.slug, "Buyer", "b@x.com");
+      await setChildIds(parent.id, [child.id]);
+      const { handleRequest } = await import("#routes");
+      const res = await handleRequest(
+        new Request(`http://localhost/ticket/${group.slug}/qr`, {
+          headers: { host: "localhost" },
+        }),
+      );
+      res.body?.cancel();
+      expect(res.status).toBe(404);
+    });
+
     test("an ordinary group's QR still renders (Fix 3)", async () => {
       const group = await createTestGroup({ name: "Plain QR group" });
       await createTestListing({ groupId: group.id, name: "A" });

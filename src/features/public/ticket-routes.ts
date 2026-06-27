@@ -15,9 +15,10 @@ import { getListingWithCountBySlug } from "#shared/db/listings.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";
+import { groupHasBookableMember } from "./discovery.ts";
 import { handleGroupTicketBySlug } from "./groups.ts";
 import { handleQrBookGet } from "./qr-book.ts";
-import { anyChildListing, dropChildListings } from "./ticket-payment.ts";
+import { anyChildListing } from "./ticket-payment.ts";
 import { handleBySlugs } from "./ticket-submit.ts";
 import { parseSlugs } from "./types.ts";
 
@@ -94,16 +95,17 @@ export const handleTicketQrGet = async (
 
   const slugIndex = await computeGroupSlugIndex(slug);
   const group = await getGroupBySlugIndex(slugIndex);
-  // A group QR encodes `/ticket/<group>`, which drops child members (a booking
-  // can never start from a child, invariant I3) and 404s when nothing
-  // standalone-bookable is left (`renderTicketFlow`). So a group whose only
-  // active members are children would mint a guaranteed-dead share link.
-  // Apply the same post-child-filter emptiness check here before returning the
-  // QR (Fix 3) so the QR 404s exactly when the page it points at would.
+  // A group QR encodes `/ticket/<group>`, which renders no bookable quantity
+  // when the group has no standalone-bookable member — every member is a child
+  // (a booking can never start from a child, invariant I3) or a parent projected
+  // sold out (its required children all unavailable). Use the SAME gate as the
+  // `/listings` group CTA (Fix 3 + sold-out parents) so the QR 404s exactly when
+  // the page it points at would offer nothing to book.
   if (group) {
     const members = await getActiveListingsByGroupId(group.id);
-    const bookable = await dropChildListings(members);
-    return bookable.length === 0 ? notFoundResponse() : qrResponse(slug);
+    return (await groupHasBookableMember(members))
+      ? qrResponse(slug)
+      : notFoundResponse();
   }
 
   return notFoundResponse();

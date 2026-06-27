@@ -33,34 +33,25 @@ import {
   type PublicPageType,
   publicSitePage,
 } from "#templates/public.tsx";
-import { applyParentSoldOut, classifyForDiscovery } from "./discovery.ts";
+import {
+  applyParentSoldOut,
+  classifyForDiscovery,
+  groupHasBookableMember,
+} from "./discovery.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /** Active+visible filter for public listing listings */
 const isPublicListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
 
-/** Whether a group has at least one active member that is actually bookable
- * standalone — i.e. neither a child (no `/ticket/<child>` entry point — Fix 6)
- * NOR a parent the discovery classifier projects sold out (a parent whose
- * required children are all unavailable). A group whose only non-child member is
- * such a sold-out parent has no completable `/ticket/<group>` booking — the
- * group page renders that parent sold out — so its `/listings` Book CTA must be
- * suppressed rather than advertise a dead link. Reuses the single discovery
- * classifier so this matches the sold-out projection the group page applies. */
-const groupHasBookableMember = async (group: Group): Promise<boolean> => {
-  const members = await getActiveListingsByGroupId(group.id);
-  if (members.length === 0) return false;
-  const { childIds, soldOutParentIds } = await classifyForDiscovery(members);
-  return members.some(
-    (m) => !childIds.has(m.id) && !soldOutParentIds.has(m.id),
-  );
-};
-
-/** Load non-hidden groups that have a bookable (non-child) member (for public
- * listing). A child-only group's group page 404s, so its CTA is suppressed. */
+/** Load non-hidden groups that have a member that is actually bookable
+ * standalone (see {@link groupHasBookableMember}) — a child-only group's page
+ * 404s and a sold-out-parent-only group's page renders no bookable quantity, so
+ * either way its `/listings` Book CTA is suppressed rather than a dead link. */
 const loadPublicGroups = async (): Promise<Group[]> => {
   const groups = (await getAllGroups()).filter((g) => !g.hidden);
-  const bookable = await mapParallel(groupHasBookableMember)(groups);
+  const bookable = await mapParallel(async (g: Group) =>
+    groupHasBookableMember(await getActiveListingsByGroupId(g.id)),
+  )(groups);
   return groups.filter((_, i) => bookable[i]);
 };
 

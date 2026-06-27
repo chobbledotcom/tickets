@@ -33,6 +33,7 @@ import {
   getParentsForChildren,
 } from "#shared/db/listing-parents.ts";
 import {
+  availableDayCounts,
   type Holiday,
   type ListingWithCount,
   sharedGroupCapacity,
@@ -44,7 +45,6 @@ import {
   childOpen,
   combinedGroupDemandFits,
   fixedParentSpan,
-  selectableChild,
   type TicketListing,
 } from "#templates/public.tsx";
 
@@ -88,14 +88,31 @@ export type DiscoveryClassification = {
 const childBookable = (
   child: TicketListing,
   holidays: Holiday[],
-  parentFixedSpan: number | null,
+  parentSpans: (number | null)[],
   parentDates: ReadonlySet<string> | null,
 ): boolean =>
-  selectableChild([
-    childActive,
-    childOpen,
-    childCalendarOrInStockForSpan(holidays, parentFixedSpan, parentDates),
-  ])(child);
+  childActive(child) &&
+  childOpen(child) &&
+  // A daily child counts as bookable when it can serve ANY span the parent
+  // actually offers (the buyer picks one) — not merely a one-day start. A
+  // customisable parent that only prices longer runs offers no 1-day booking,
+  // so a one-day fallback would advertise a child it can never fold (Codex).
+  parentSpans.some((span) =>
+    childCalendarOrInStockForSpan(holidays, span, parentDates)(child),
+  );
+
+/** The daily spans a parent could fold a child into at the till — the spans the
+ * date-less sold-out projection must test a daily child against. A CUSTOMISABLE
+ * daily parent offers each of its priced day counts (a child is bookable if it
+ * serves ANY one — the buyer picks the span); a parent pricing no day count
+ * offers no bookable span at all, so the empty set leaves every child unbookable
+ * (the parent reads sold out). A FIXED daily parent inherits its single
+ * `duration_days`; a non-daily parent imposes no daily span (its single
+ * {@link fixedParentSpan} stands, and a standard child ignores span anyway). */
+const parentOfferedSpans = (parent: ListingWithCount): (number | null)[] =>
+  parent.listing_type === "daily" && parent.customisable_days
+    ? availableDayCounts(parent)
+    : [fixedParentSpan(parent)];
 
 /** Whether a *parent* can currently offer its children as add-ons (Fix 1): its own
  * row must be active AND not sold out AND not registration-closed. An inactive/sold
@@ -147,7 +164,7 @@ const childBookableForParent = (
   childBookable(
     buildTicketListing(child, isRegistrationClosed(child), groupRemaining),
     holidays,
-    fixedParentSpan(parent),
+    parentOfferedSpans(parent),
     // A daily child must be bookable on a date the PARENT can serve, not merely on
     // its own calendar (Fix 5): else disjoint weekdays leave the parent advertised
     // while `getTicketContext`'s date union renders no valid date. A non-daily
@@ -238,6 +255,26 @@ export const classifyForDiscovery = async (
     if (!anyBookable) soldOutParentIds.add(parentId);
   }
   return { addOnChildIds, childIds, soldOutParentIds };
+};
+
+/**
+ * Whether a group has an active member that is actually bookable standalone:
+ * neither a child (a booking can never start from a child, invariant I3) NOR a
+ * parent the classifier projects sold out (its required children all
+ * unavailable). The single gate behind both the `/listings` group Book CTA
+ * (pages.ts) and the group QR (`/ticket/<group>/qr`, ticket-routes.ts), so the
+ * two surfaces can't drift: a group `/ticket/<group>` would render with no
+ * bookable quantity never advertises a Book link or mints a QR pointing at it.
+ * Callers pass the group's already-loaded active members.
+ */
+export const groupHasBookableMember = async (
+  members: readonly ListingWithCount[],
+): Promise<boolean> => {
+  if (members.length === 0) return false;
+  const { childIds, soldOutParentIds } = await classifyForDiscovery(members);
+  return members.some(
+    (m) => !childIds.has(m.id) && !soldOutParentIds.has(m.id),
+  );
 };
 
 /** Force a {@link TicketListing} into the sold-out state (no Book CTA, no

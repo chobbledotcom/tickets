@@ -319,6 +319,43 @@ describeWithEnv(
         await assertBookable(parent.slug);
       });
 
+      test("a customisable parent offering only a 2-day span is sold out when its child serves no 2-day run", async () => {
+        // The parent is CUSTOMISABLE but only prices a 2-day booking, so it has
+        // NO one-day option. Its only child is a daily add-on bookable on
+        // Mondays alone — it has a one-day Monday start but no Mon–Tue run. A
+        // one-day fallback would advertise the parent; discovery must test the
+        // child against the parent's REAL offered span (2), so it reads sold out.
+        const { parent } = await makeParent({
+          children: [
+            { bookableDays: ["Monday"], daily: true, name: "Monday add-on" },
+          ],
+          parent: {
+            customisableDays: true,
+            daily: true,
+            dayPrices: { 2: 2000 },
+            durationDays: 2,
+            name: "2-day customisable base",
+          },
+        });
+        await assertSoldOut(parent.slug);
+      });
+
+      test("a customisable parent offering only a 2-day span stays bookable when its child serves a 2-day run", async () => {
+        // Same 2-day-only customisable parent, but the child is bookable every
+        // day, so a Mon–Tue 2-day run is valid — the parent keeps its Book link.
+        const { parent } = await makeParent({
+          children: [{ daily: true, name: "Any-day add-on" }],
+          parent: {
+            customisableDays: true,
+            daily: true,
+            dayPrices: { 2: 2000 },
+            durationDays: 2,
+            name: "2-day customisable base",
+          },
+        });
+        await assertBookable(parent.slug);
+      });
+
       test("a fixed multi-day daily parent whose only child can't fit the span is sold out", async () => {
         // The parent is a FIXED 3-day daily listing, so its children inherit a
         // 3-day span at the till. Its only child is a customisable daily add-on
