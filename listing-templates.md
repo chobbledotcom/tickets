@@ -399,9 +399,26 @@ no idea which card was chosen — so a validation failure would drop the operato
 back to the picker/full form, losing the seeded/collapsed context and their
 entered values. Carry the chosen template id through the submit (a hidden
 `template` input in the form, or a `?template=<id>` on the POST action) and have
-the error path re-render the **same seeded/collapsed form** with the submitted
-values + error. The id is read only to pick the render shape; it is **never
-written to the listing row**.
+the error path re-render with the submitted values + error. The id is read only
+to pick the render shape; it is **never written to the listing row**. Two
+subtleties:
+
+- **Carry the `custom` sentinel too, not only the five real ids.** The explicit
+  Custom card's full form also posts to the same endpoint; if only real
+  `LISTING_TEMPLATES` ids are preserved, a Custom-card validation failure has no
+  context and the new bare-`/new` behaviour would render the *picker* instead of
+  the submitted full form. So `template=custom` must round-trip through the error
+  path and re-render the full (expanded) form.
+- **Recompute the render shape from the *submitted* dimensions, don't blindly
+  re-show the original card's collapse.** If the operator opened Customise and
+  changed the shape before the error (started One-off, switched `listing_type` to
+  daily, then missed a required field), re-rendering the *original* seeded/
+  collapsed One-off would hide the DAILY controls they just filled — even though
+  the server now treats the changed shape as a valid daily listing. So the error
+  render must run inference over the submitted dimensions: re-render collapsed to
+  the carried template only when the submitted shape still matches it, and
+  otherwise infer/expand from the submitted dimensions (or simply force Customise
+  open) so every field the operator touched stays visible.
 
 **Submitted values must override the seed on the error re-render — including
 cleared/empty fields.** The error render is *not* "re-apply the seed, then layer
@@ -411,9 +428,18 @@ changed the seeded days), naively re-applying the seed would re-check it, becaus
 `renderFields`' precedence lets an explicit non-empty value beat a captured POST
 value. So the error path must overlay the **submitted** values over the seed and
 honour empty strings/absent checkboxes as deliberate clears — i.e. the seed is the
-base layer only for fields the POST body doesn't mention at all. (Mechanically:
-seed first, then overwrite with the full submitted field set, treating "checkbox
-group present in POST but with this box unchecked" as an explicit empty.)
+base layer only for fields the POST body doesn't mention at all.
+
+There's a real HTML-forms gotcha here: **a checkbox group that the operator clears
+entirely submits *no key at all*** — identical, in the raw POST body, to a field
+that simply wasn't on the form. So "no key ⇒ field untouched ⇒ use the seed"
+cannot, on its own, tell an intentional all-clear (operator unticked every
+`address`/every bookable day) from an absent field. The mechanism must therefore
+make "this group was present and the operator cleared it" representable — e.g. a
+hidden `<input name="<group>__present" value="1">` companion per seeded checkbox
+group (or a submitted-field manifest). The overlay rule then becomes: a group with
+its present-marker set but no checked values is an **explicit empty** (don't seed);
+only a group whose marker is absent falls back to the seed.
 
 The param is **never persisted**. On a successful submit it's an ordinary create;
 the created listing has no stored type, and reopening it re-infers from its saved
