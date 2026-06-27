@@ -68,6 +68,7 @@ describeWithEnv(
           createTestServicingEvent({
             bookings: [{ listingId: listing.id, quantity: 2 }],
             name: "Doomed Service",
+            questionAnswers: [],
           }),
           /answer save boom/,
         );
@@ -101,6 +102,7 @@ describeWithEnv(
               { date: "2099-07-01", listingId: listing.id, quantity: 5 },
             ],
             name: "Changed",
+            questionAnswers: [],
           }),
           /answer save boom/,
         );
@@ -132,6 +134,7 @@ describeWithEnv(
           updateServicingEvent(event.id, {
             bookings: [{ listingId: listing.id, quantity: 1 }],
             name: "Changed",
+            questionAnswers: [],
           }),
           /answer save boom/,
         );

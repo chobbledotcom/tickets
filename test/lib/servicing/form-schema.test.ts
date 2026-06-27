@@ -19,8 +19,7 @@
  *
  * Implementation contract (test-first):
  *   - `#routes/admin/servicing-form-model.ts` exports `buildServicingFieldSchema`,
- *     `renderServicingHiddenIndicator`, `parseServicingForm`,
- *     `toServicingCreateInput`, `normalizeServicingForSave`,
+ *     `parseServicingForm`, `toServicingCreateInput`, `normalizeServicingForSave`,
  *     `ServicingCreateInput`.
  *   - `#routes/admin/attendee-form-model.ts` must export `validateAttendeeBlock`
  *     (add `export` to the existing private const).
@@ -40,7 +39,6 @@ import {
   buildServicingFieldSchema,
   normalizeServicingForSave,
   parseServicingForm,
-  renderServicingHiddenIndicator,
   toServicingCreateInput,
 } from "#routes/admin/servicing-form-model.ts";
 import { FormParams } from "#shared/form-data.ts";
@@ -90,28 +88,6 @@ describe("servicing §0 — servicing field schema omits contact/payment fields"
       (EXCLUDED_FIELD_NAMES as readonly string[]).includes(f.name),
     );
     expect(contactFields).toEqual([]);
-  });
-});
-
-describe("servicing §0 — servicing field schema marks hidden-from-public as locked", () => {
-  test("the rendered hidden-from-public indicator is checked and disabled", () => {
-    const markup = renderServicingHiddenIndicator();
-    // A disabled checked checkbox — the operator can see the state, the form
-    // cannot change it. The kind, not the template, owns that state (§19).
-    expect(/checked\b/i.test(markup)).toBe(true);
-    expect(/disabled\b/i.test(markup)).toBe(true);
-  });
-
-  test("a mutant that renders an editable control (no `disabled`) fails", () => {
-    const markup = renderServicingHiddenIndicator();
-    // There must be no enabled checkbox input — every hidden control is
-    // locked. We assert the markup contains at least one input and that all
-    // `input` tags in the snippet carry `disabled`.
-    const inputTags = markup.match(/<input\b[^>]*>/gi) ?? [];
-    expect(inputTags.length).toBeGreaterThan(0);
-    for (const tag of inputTags) {
-      expect(/disabled\b/i.test(tag)).toBe(true);
-    }
   });
 });
 

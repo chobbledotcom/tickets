@@ -21,7 +21,6 @@ import {
   createServicingHold,
   createTestListing,
   describeWithEnv,
-  renderAdminPage,
   updateServicingEvent,
 } from "#test-utils";
 
@@ -88,14 +87,9 @@ describeWithEnv("servicing §11 — custom questions", { db: true }, () => {
     });
   });
 
-  test("editing a servicing event loads and saves its answers", async () => {
+  test("editing a servicing event saves its answers", async () => {
     const { id, listing, answerId, questionId } =
       await listingWithAnsweredHold();
-    // Reopen via the edit page: the existing answer renders as a selected input.
-    const editBody = await renderAdminPage(`/admin/servicing/${id}`);
-    expect(editBody).toContain("Boiler model?");
-    expect(editBody).toContain("checked");
-
     // Save an edit with the answer still selected: it persists (no answer drop).
     await updateServicingEvent(id, {
       bookings: [{ listingId: listing.id, quantity: 1 }],
@@ -105,5 +99,22 @@ describeWithEnv("servicing §11 — custom questions", { db: true }, () => {
     const rows = await answersFor(id);
     expect(rows.length).toBe(1);
     expect(rows[0]?.answer_id).toBe(answerId);
+  });
+
+  test("saving a servicing event without questionAnswers preserves existing answers", async () => {
+    // Regression: the admin form no longer renders question fields, so
+    // updateServicingEvent receives no questionAnswers. Previously this wiped
+    // all stored answers because saveAttendeeAnswers deletes before re-inserting.
+    const { id, listing, answerId, questionId } =
+      await listingWithAnsweredHold();
+    // Omit questionAnswers entirely — simulates a form POST with no question fields.
+    await updateServicingEvent(id, {
+      bookings: [{ listingId: listing.id, quantity: 1 }],
+      name: "Boiler Service Updated",
+    });
+    const rows = await answersFor(id);
+    expect(rows.length).toBe(1);
+    expect(rows[0]?.answer_id).toBe(answerId);
+    expect(rows[0]?.question_id).toBe(questionId);
   });
 });

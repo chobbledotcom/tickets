@@ -52,7 +52,7 @@ export type ServicingEventInput = {
   bookings: ListingBooking[];
   allowOverbook?: boolean;
   kind?: typeof SERVICING_KIND;
-  questionAnswers?: ServicingQuestionAnswer[] | AttendeeAnswerSet;
+  questionAnswers?: ServicingQuestionAnswer[];
 };
 
 export type ServicingEvent = {
@@ -153,20 +153,15 @@ const normalizedCreateInput = (
   statusId: null,
 });
 
-const answerSet = (
-  answers: ServicingEventInput["questionAnswers"],
-): AttendeeAnswerSet => {
-  if (!answers) return { answerIds: [] };
-  return Array.isArray(answers)
-    ? { answerIds: answers.map((answer) => answer.answerId) }
-    : answers;
-};
-
 const saveServicingAnswers = (
   attendeeId: number,
   answers: ServicingEventInput["questionAnswers"],
 ): Promise<void> =>
-  saveAttendeeAnswers(new Map([[attendeeId, answerSet(answers)]]));
+  answers === undefined
+    ? Promise.resolve()
+    : saveAttendeeAnswers(
+        new Map([[attendeeId, { answerIds: answers.map((a) => a.answerId) }]]),
+      );
 
 const durationDaysFromRow = (row: ListingAttendeeRow): number | undefined => {
   if (!row.start_at || !row.end_at) return undefined;
