@@ -261,7 +261,7 @@ describe("adminListingNewPage Advanced section", () => {
   });
 
   test("opens when re-rendered with an error", () => {
-    const html = adminListingNewPage([], TEST_SESSION, "Something went wrong");
+    const html = adminListingNewPage([], TEST_SESSION, { error: "Something went wrong" });
     expect(html).toContain('<details class="listing-advanced" open>');
   });
 });
@@ -959,7 +959,7 @@ describe("adminListingNewPage", () => {
   });
 
   test("renders error when provided", () => {
-    const html = adminListingNewPage([], TEST_SESSION, "Something went wrong");
+    const html = adminListingNewPage([], TEST_SESSION, { error: "Something went wrong" });
     expect(html).toContain("Something went wrong");
   });
 });

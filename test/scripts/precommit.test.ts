@@ -215,7 +215,7 @@ describe("precommit merge conflict warning", () => {
 
   test("runs commands and captures output", async () => {
     await expect(
-      runCommand(["deno", "eval", "console.log('merge-warning')"]),
+      runCommand([Deno.execPath(), "eval", "console.log('merge-warning')"]),
     ).resolves.toEqual({
       code: 0,
       stderr: "",
@@ -229,7 +229,9 @@ describe("precommit merge conflict warning", () => {
   });
 
   test("runs interactive commands", async () => {
-    await expect(runInteractiveCommand(["deno", "eval", ""])).resolves.toEqual({
+    await expect(
+      runInteractiveCommand([Deno.execPath(), "eval", ""]),
+    ).resolves.toEqual({
       code: 0,
       stderr: "",
       stdout: "",

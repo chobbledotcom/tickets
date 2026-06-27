@@ -74,8 +74,18 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
   describe("GET /admin/listing/new", () => {
     testRequiresAuth("/admin/listing/new");
 
-    test("renders create listing form when authenticated", async () => {
+    test("renders type picker when authenticated (no template param)", async () => {
       const response = await adminGet("/admin/listing/new");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Add Listing",
+        "Choose a listing type",
+      );
+    });
+
+    test("renders create listing form with template=custom", async () => {
+      const response = await adminGet("/admin/listing/new?template=custom");
       await expectHtmlResponse(
         response,
         200,

@@ -29,17 +29,26 @@ import {
   updateListingAggregateValues,
 } from "#shared/db/listings.ts";
 import { applyDemoOverrides, LISTING_DEMO_FIELDS } from "#shared/demo.ts";
+import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import {
+  dimensionsOf,
+  inferTemplate,
+  LISTING_TEMPLATES,
+  submissionRequiresDate,
+} from "#shared/listing-templates.ts";
 import type {
   AdminSession,
   Group,
   Listing,
   ListingWithCount,
 } from "#shared/types.ts";
+import { isListingType } from "#shared/types.ts";
 import {
   adminDuplicateListingPage,
   adminListingEditPage,
   adminListingNewPage,
+  adminListingPickerPage,
 } from "#templates/admin/listings.tsx";
 import type { ListingAggregateFormValues } from "#templates/fields.ts";
 import { listingAggregateFields } from "#templates/fields.ts";
@@ -58,15 +67,53 @@ import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 /* jscpd:ignore-end */
 
 /**
- * Handle GET /admin/listing/new (show create listing form)
+ * Handle GET /admin/listing/new (show picker or create form)
+ *
+ * No ?template param → show the type-picker card page.
+ * ?template=<known-id> → show the seeded, Customise-collapsed create form.
+ * ?template=custom or unknown value → show the full form with Customise open.
  */
 export const handleNewListingGet: TypedRouteHandler<
   "GET /admin/listing/new"
 > = (request) =>
   requireSessionOr(request, async (session) => {
+    const templateParam = new URL(request.url).searchParams.get("template");
+    if (!templateParam) {
+      return htmlResponse(adminListingPickerPage(session));
+    }
+    const template = LISTING_TEMPLATES.find((t) => t.id === templateParam) ?? null;
+    // Logistics-requiring templates are unavailable when the feature is disabled.
+    if (template?.requiresLogistics && !settings.hasLogistics) {
+      return htmlResponse(adminListingPickerPage(session));
+    }
     const groups = await getAllGroups();
-    return htmlResponse(adminListingNewPage(groups, session));
+    return htmlResponse(
+      adminListingNewPage(groups, session, { templateId: template?.id ?? "custom" }),
+    );
   });
+
+/** Build a DimensionSource from submitted form params. */
+const formToDimensionSource = (form: FormParams) => ({
+  listing_type: isListingType(form.getString("listing_type"))
+    ? (form.getString("listing_type") as "standard" | "daily")
+    : ("standard" as const),
+  date: form.getString("date_date") || "",
+  purchase_only: form.getString("purchase_only") === "1",
+  uses_logistics: form.getString("uses_logistics") === "1",
+});
+
+/**
+ * Resolve the effective template id for a POST error re-render.
+ *
+ * Uses the carried `template_id` hidden field when present; falls back to
+ * inferring a template from the submitted dimensions so a duplicate form
+ * (which has no template_id) re-renders with the right collapse state.
+ */
+const resolveErrorTemplateId = (form: FormParams): string | null => {
+  const carried = form.getString("template_id");
+  if (carried) return carried;
+  return inferTemplate(formToDimensionSource(form))?.id ?? null;
+};
 
 /**
  * After creating a listing from the duplicate form, copy the source parent's
@@ -100,6 +147,23 @@ const copyEdgesFromDuplicateSource = async (
     : null;
 };
 
+const renderCreateListingError = async (
+  session: AdminSession,
+  form: FormParams,
+  error: string,
+  templateId: string | null,
+): Promise<Response> => {
+  const groups = await getAllGroups();
+  return htmlResponse(
+    adminListingNewPage(groups, session, {
+      customiseOpen: form.getString("customise") === "1",
+      error,
+      templateId,
+    }),
+    400,
+  );
+};
+
 /**
  * Handle POST /admin/listing (create listing)
  */
@@ -109,12 +173,30 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
   withAuth(request, AUTH_MULTIPART, async (session, formData) => {
     const form = formDataToParams(formData);
     applyDemoOverrides(form, LISTING_DEMO_FIELDS);
+
+    // Template-specific date validation: reject a blank date when the operator
+    // chose the one-off-event template and hasn't changed the non-date dims.
+    const chosenTemplateId = form.getString("template_id") || null;
+    const submittedDims = dimensionsOf(formToDimensionSource(form));
+    if (
+      submissionRequiresDate(chosenTemplateId, submittedDims) &&
+      !form.getString("date_date")
+    ) {
+      return renderCreateListingError(
+        session,
+        form,
+        t("listings_table.date_required_for_one_off"),
+        chosenTemplateId,
+      );
+    }
+
     const result = await buildCreateListingResource(form).create(form);
     if (!result.ok) {
-      const groups = await getAllGroups();
-      return htmlResponse(
-        adminListingNewPage(groups, session, result.error),
-        400,
+      return renderCreateListingError(
+        session,
+        form,
+        result.error,
+        resolveErrorTemplateId(form),
       );
     }
     await logActivity(`Listing '${result.row.name}' created`, result.row);

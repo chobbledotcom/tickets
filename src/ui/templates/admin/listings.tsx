@@ -33,6 +33,11 @@ import {
   renderFields,
 } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
+import {
+  inferTemplate,
+  LISTING_TEMPLATES,
+  type ListingTemplate,
+} from "#shared/listing-templates.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { utcToLocalInput } from "#shared/timezone.ts";
 import {
@@ -1666,6 +1671,86 @@ const getListingFieldsWithAutofocus = (): Field[] =>
   )(getListingFields());
 
 // ---------------------------------------------------------------------------
+// Listing template picker and seeded-form seeds
+// ---------------------------------------------------------------------------
+
+const ALL_BOOKABLE_DAYS =
+  "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday";
+
+/** Seed values applied to a blank create form when a template is chosen.
+ *  Sets every dimension field the signature pins, plus visible daily defaults
+ *  so the rendered form matches what an unchanged submit would persist. */
+const TEMPLATE_SEEDS: Record<string, FieldValues> = {
+  "hireable-item": {
+    bookable_days: ALL_BOOKABLE_DAYS,
+    duration_days: "1",
+    fields: "email,address",
+    listing_type: "daily",
+    maximum_days_after: "90",
+    minimum_days_before: "1",
+    purchase_only: "1",
+    uses_logistics: "1",
+  },
+  "online-digital": {
+    fields: "email",
+    listing_type: "standard",
+    purchase_only: "1",
+    uses_logistics: "",
+  },
+  "one-off-event": {
+    fields: "email",
+    listing_type: "standard",
+    purchase_only: "",
+    uses_logistics: "",
+  },
+  "weekly-event": {
+    bookable_days: ALL_BOOKABLE_DAYS,
+    duration_days: "1",
+    fields: "email",
+    listing_type: "daily",
+    maximum_days_after: "90",
+    minimum_days_before: "1",
+    purchase_only: "",
+    uses_logistics: "",
+  },
+};
+
+/**
+ * Type-picker landing page for GET /admin/listing/new (no ?template param).
+ * Renders a card for each template plus a Custom/advanced option.
+ */
+export const adminListingPickerPage = (session: AdminSession): string =>
+  String(
+    <Layout title={t("listings_table.add_listing")}>
+      <AdminNav active="/admin/" session={session} />
+      <h1>{t("listings_table.listing_type_picker_heading")}</h1>
+      <p>{t("listings_table.listing_type_picker_subheading")}</p>
+      <div class="listing-type-picker">
+        {LISTING_TEMPLATES.filter(
+          (tmpl) => !tmpl.requiresLogistics || settings.hasLogistics,
+        ).map((tmpl) => (
+          <a class="listing-type-card" href={`/admin/listing/new?template=${tmpl.id}`}>
+            <strong>{t(tmpl.label)}</strong>
+            <span>{t(tmpl.description)}</span>
+          </a>
+        ))}
+        {LISTING_TEMPLATES.some(
+          (tmpl) => tmpl.requiresLogistics && !settings.hasLogistics,
+        ) && (
+          <div class="listing-type-card listing-type-card--disabled">
+            <strong>{t("listings_table.template_hireable_item")}</strong>
+            <span>{t("listings_table.template_requires_logistics")}</span>
+          </div>
+        )}
+        <a class="listing-type-card" href="/admin/listing/new?template=custom">
+          <strong>{t("listings_table.listing_type_picker_custom")}</strong>
+          <span>{t("listings_table.listing_type_picker_custom_description")}</span>
+        </a>
+      </div>
+    </Layout>,
+  );
+
+// ---------------------------------------------------------------------------
 // Sectioned listing form
 //
 // The listing form is grouped into labelled <fieldset> sections plus a
@@ -1782,6 +1867,8 @@ const ListingFormSections = ({
   imagePreview,
   advancedOpen,
   childOfNote = "",
+  customiseOpen,
+  isTemplated,
 }: {
   fields: Field[];
   values: FieldValues;
@@ -1797,12 +1884,30 @@ const ListingFormSections = ({
   /** Inline "inherited from the parent" note shown on the date/duration sections
    * when the listing is itself a child ("" otherwise — e.g. on create). */
   childOfNote?: string;
+  /** Whether the Customise toggle is initially expanded. */
+  customiseOpen: boolean;
+  /** True when a named template is active and dimension toggles should be hideable. */
+  isTemplated: boolean;
 }): JSX.Element => {
   const fieldMap = new Map<string, Field>(fields.map((f) => [f.name, f]));
   const sec = (names: readonly string[]): string =>
     renderFields(mapNotNullish((n: string) => fieldMap.get(n))(names), values);
   return (
     <>
+      {isTemplated && (
+        <label class="listing-customise-toggle">
+          <input
+            checked={customiseOpen}
+            id="customise-listing"
+            name="customise"
+            type="checkbox"
+            value="1"
+          />
+          {t("listings_table.customise")}{" "}
+          <small>{t("listings_table.customise_hint")}</small>
+        </label>
+      )}
+
       <fieldset class="listing-section">
         <legend>{t("listings_table.basics")}</legend>
         <div class="stack">
@@ -1864,8 +1969,9 @@ const ListingFormSections = ({
 export const adminListingNewPage = (
   groups: Group[],
   session: AdminSession,
-  error?: string,
+  opts?: { customiseOpen?: boolean; error?: string; templateId?: string | null },
 ): string => {
+  const { error, templateId, customiseOpen = false } = opts ?? {};
   const storageEnabled = isStorageEnabled();
   const builderEnabled = isBuilderEnabled();
   const fields = [
@@ -1880,21 +1986,40 @@ export const adminListingNewPage = (
       : []),
     ...(storageEnabled ? [getImageField(), getAttachmentField()] : []),
   ];
+  const template = LISTING_TEMPLATES.find((t) => t.id === templateId) ?? null;
+  const seeds = templateId ? (TEMPLATE_SEEDS[templateId] ?? {}) : {};
+  const formClass = [
+    "listing-form--templated",
+    template && template.signature.daily !== undefined
+      ? "listing-form--hide-type"
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return String(
     <Layout title={t("listings_table.add_listing")}>
       <AdminNav active="/admin/" session={session} />
 
-      <CsrfForm action="/admin/listing" enctype="multipart/form-data">
+      <CsrfForm
+        action="/admin/listing"
+        class={template ? formClass : undefined}
+        enctype="multipart/form-data"
+      >
         <h1>{t("listings_table.add_listing")}</h1>
         <Flash error={error} />
+        {template && (
+          <input name="template_id" type="hidden" value={template.id} />
+        )}
         <ListingFormSections
           advancedOpen={!!error}
+          customiseOpen={customiseOpen}
           durationWarning=""
           fields={fields}
           groups={groups}
           imagePreview=""
+          isTemplated={!!template}
           selectedGroupId={0}
-          values={{}}
+          values={seeds}
         />
         <SubmitButton icon="plus">
           {t("listings_table.create_listing")}
@@ -1928,6 +2053,15 @@ export const adminDuplicateListingPage = (
       : []),
     ...(storageEnabled ? [getImageField(), getAttachmentField()] : []),
   ];
+  const template = inferTemplate(listing);
+  const formClass = [
+    "listing-form--templated",
+    template && template.signature.daily !== undefined
+      ? "listing-form--hide-type"
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return String(
     <Layout
@@ -1944,7 +2078,11 @@ export const adminDuplicateListingPage = (
           })}
         </p>
       </div>
-      <CsrfForm action="/admin/listing" enctype="multipart/form-data">
+      <CsrfForm
+        action="/admin/listing"
+        class={template ? formClass : undefined}
+        enctype="multipart/form-data"
+      >
         <input
           name="duplicated_from"
           type="hidden"
@@ -1952,11 +2090,13 @@ export const adminDuplicateListingPage = (
         />
         <ListingFormSections
           advancedOpen={advancedSectionHasValues(listing, builderEnabled)}
+          customiseOpen={false}
           dayPricesListing={listing}
           durationWarning=""
           fields={dupFields}
           groups={groups}
           imagePreview=""
+          isTemplated={!!template}
           selectedGroupId={listing.group_id}
           values={values}
         />
@@ -2099,6 +2239,15 @@ export const adminListingEditPage = (
       ? renderListingImage(listing, "listing-image-full")
       : "";
   const durationWarning = String(<DurationWarning listing={listing} />);
+  const template = inferTemplate(listing);
+  const formClass = [
+    "listing-form--templated",
+    template && template.signature.daily !== undefined
+      ? "listing-form--hide-type"
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return String(
     <Layout
       title={t("listings_table.edit_listing_title", { name: listing.name })}
@@ -2112,6 +2261,7 @@ export const adminListingEditPage = (
       )}
       <CsrfForm
         action={`/admin/listing/${listing.id}/edit`}
+        class={template ? formClass : undefined}
         enctype="multipart/form-data"
         id="listing-edit-form"
       >
@@ -2124,11 +2274,13 @@ export const adminListingEditPage = (
               ? t("listings_table.child_field_inherited")
               : ""
           }
+          customiseOpen={!!error}
           dayPricesListing={listing}
           durationWarning={durationWarning}
           fields={fields}
           groups={groups}
           imagePreview={imagePreview}
+          isTemplated={!!template}
           selectedGroupId={listing.group_id}
           values={listingToFieldValues(listing)}
         />

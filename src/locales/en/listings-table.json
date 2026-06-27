@@ -148,5 +148,21 @@
   "listings_table.children_err_child_daily": "'{name}' is a daily listing, so it can only be a child of another daily listing.",
   "listings_table.children_err_child_duration": "'{name}' can't be booked for the same length as its parent — adjust its duration or day prices to match.",
   "listings_table.duplicate_children_dropped": "Listing duplicated, but its required children weren't copied: {reason}",
-  "listings_table.group_duplicate_children_dropped": "{success}, but a cloned listing's required children weren't copied: {reason}"
+  "listings_table.group_duplicate_children_dropped": "{success}, but a cloned listing's required children weren't copied: {reason}",
+  "listings_table.listing_type_picker_heading": "Choose a listing type",
+  "listings_table.listing_type_picker_subheading": "Pick a type to get a focused form. You can still customise every field after choosing.",
+  "listings_table.listing_type_picker_custom": "Custom / advanced",
+  "listings_table.listing_type_picker_custom_description": "Show the full form with all options",
+  "listings_table.customise": "Customise",
+  "listings_table.customise_hint": "Show all options including the listing type and purchase/logistics toggles",
+  "listings_table.template_one_off_event": "One-off event",
+  "listings_table.template_one_off_event_description": "A single in-person event on a fixed date — attendees scan in at the door",
+  "listings_table.template_weekly_event": "Weekly event",
+  "listings_table.template_weekly_event_description": "A recurring event where each booking picks its own date from your available days",
+  "listings_table.template_online_digital": "Online / digital",
+  "listings_table.template_online_digital_description": "A purchase or digital ticket with no door check-in required",
+  "listings_table.template_hireable_item": "Hireable item",
+  "listings_table.template_hireable_item_description": "Equipment or items for hire, dispatched and collected via logistics agents",
+  "listings_table.template_requires_logistics": "Requires logistics (disabled)",
+  "listings_table.date_required_for_one_off": "A date is required for one-off events — please enter the event date"
 }

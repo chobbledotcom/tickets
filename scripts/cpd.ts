@@ -13,7 +13,7 @@
 
 import { bold, red, yellow } from "./precommit/colors.ts";
 
-const { code } = await new Deno.Command("deno", {
+const { code } = await new Deno.Command(Deno.execPath(), {
   args: ["run", "-A", "npm:jscpd", ...Deno.args],
 }).spawn().status;
 
