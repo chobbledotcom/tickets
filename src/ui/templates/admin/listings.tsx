@@ -2024,8 +2024,15 @@ export const adminListingNewPage = (
       >
         <h1>{t("listings_table.add_listing")}</h1>
         <Flash error={error} />
-        {template && (
-          <input name="template_id" type="hidden" value={template.id} />
+        {templateId && (
+          <input name="template_id" type="hidden" value={templateId} />
+        )}
+        {!!submitted?.duplicated_from && (
+          <input
+            name="duplicated_from"
+            type="hidden"
+            value={String(submitted.duplicated_from)}
+          />
         )}
         <ListingFormSections
           advancedOpen={!!error}

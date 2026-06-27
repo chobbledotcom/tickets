@@ -981,6 +981,27 @@ describe("adminListingNewPage", () => {
     expect(html).not.toContain("listing-form--hide-type");
     expect(html).toContain("listing-form--templated");
   });
+
+  test("carries custom sentinel through as template_id hidden input", () => {
+    const html = adminListingNewPage([], TEST_SESSION, {
+      templateId: "custom",
+    });
+    expect(html).toContain('name="template_id"');
+    expect(html).toContain('value="custom"');
+  });
+
+  test("carries duplicated_from hidden input when present in submitted values", () => {
+    const html = adminListingNewPage([], TEST_SESSION, {
+      values: { duplicated_from: "42" },
+    });
+    expect(html).toContain('name="duplicated_from"');
+    expect(html).toContain('value="42"');
+  });
+
+  test("does not render duplicated_from input when not in submitted values", () => {
+    const html = adminListingNewPage([], TEST_SESSION, { values: {} });
+    expect(html).not.toContain('name="duplicated_from"');
+  });
 });
 
 describe("adminListingPage export button", () => {
