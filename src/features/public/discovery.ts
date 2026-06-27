@@ -24,7 +24,7 @@ import { isRegistrationClosed } from "#routes/format.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import {
   getGroupRemainingByListingId,
-  getGroupStaticCapByListingId,
+  getSharedGroupCapacities,
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
@@ -191,13 +191,12 @@ export const classifyForDiscovery = async (
     ...parentsByChild.keys(),
   ]);
   const everyParent = [...parentsByChild.values()].flat();
-  const [groupRemaining, groupStaticCap, parentGroupRemaining, holidays] =
-    await Promise.all([
-      getGroupRemainingByListingId([...everyChild, ...displayedChildren]),
-      getGroupStaticCapByListingId([...everyChild, ...displayedChildren]),
-      getGroupRemainingByListingId(everyParent),
-      getActiveHolidays(),
-    ]);
+  const [childCaps, parentGroupRemaining, holidays] = await Promise.all([
+    getSharedGroupCapacities([...everyChild, ...displayedChildren]),
+    getGroupRemainingByListingId(everyParent),
+    getActiveHolidays(),
+  ]);
+  const { remaining: groupRemaining, staticCap: groupStaticCap } = childCaps;
   // A child is an add-on only when at least one parent is itself bookable AND can
   // offer THIS child given the *combined* parent+child group demand (invariant I7,
   // Fix 5). Using only `parentBookable` (the parent's own row) would mark a child

@@ -146,6 +146,23 @@ export const getGroupStaticCapByListingId = async (
   return result;
 };
 
+/** Both shared-group capacity facts for a set of listings in one call: the
+ * date-less `remaining` ({@link getGroupRemainingByListingId}) and the
+ * date-independent `staticCap` ({@link getGroupStaticCapByListingId}). The
+ * single fetch every date-less parent/child surface (discovery + the booking
+ * page's sold-out projection) uses, so they pull the same two maps the
+ * {@link SharedGroupCapacity} vocabulary reasons over rather than each wiring up
+ * the pair by hand. */
+export const getSharedGroupCapacities = async (
+  listings: ListingForGroupLookup[],
+): Promise<{ remaining: RemainingMap; staticCap: RemainingMap }> => {
+  const [remaining, staticCap] = await Promise.all([
+    getGroupRemainingByListingId(listings),
+    getGroupStaticCapByListingId(listings),
+  ]);
+  return { remaining, staticCap };
+};
+
 const listingForCapacity = async (
   listingOrId: ListingForGroupLookup | number,
 ): Promise<ListingForGroupLookup | null> =>

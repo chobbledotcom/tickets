@@ -25,10 +25,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
-import {
-  getGroupRemainingByListingId,
-  getGroupStaticCapByListingId,
-} from "#shared/db/attendees.ts";
+import { getSharedGroupCapacities } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   answerModifierQuantities,
@@ -950,9 +947,8 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
   const children = [...ctx.childrenByParentId.values()]
     .flat()
     .map((child) => child.listing);
-  const [groupRemaining, groupStaticCap, holidays] = await Promise.all([
-    getGroupRemainingByListingId(children),
-    getGroupStaticCapByListingId(children),
+  const [childCaps, holidays] = await Promise.all([
+    getSharedGroupCapacities(children),
     getActiveHolidays(),
   ]);
   return {
@@ -961,12 +957,12 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
     // a parent sharing a capped group with its child offers only
     // floor(groupRemaining / 2) orders (invariant I7, Fix 3). Carried on the
     // render ctx so `childCappedMax` sees it; submit/quote keep it unset.
-    groupRemainingByListingId: groupRemaining,
+    groupRemainingByListingId: childCaps.remaining,
     listings: applyBookingPageParentSoldOut(
       ctx.listings,
       ctx.childrenByParentId,
-      groupRemaining,
-      groupStaticCap,
+      childCaps.remaining,
+      childCaps.staticCap,
       holidays,
     ),
   };
