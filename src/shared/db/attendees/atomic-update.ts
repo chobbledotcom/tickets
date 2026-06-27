@@ -179,7 +179,10 @@ const oldPinOf = (
   existingByKey: Map<string, ListingAttendeeRow>,
 ): { startAt: string | null; parentListingId: number } => {
   const row = existingByKey.get(line.key);
-  return { startAt: row?.start_at ?? null, parentListingId: row?.parent_listing_id ?? 0 };
+  return {
+    parentListingId: row?.parent_listing_id ?? 0,
+    startAt: row?.start_at ?? null,
+  };
 };
 
 /** The UPDATE statement for one existing line. Unconditional (no capacity
