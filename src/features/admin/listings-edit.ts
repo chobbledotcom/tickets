@@ -178,9 +178,17 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
     const form = formDataToParams(formData);
     applyDemoOverrides(form, LISTING_DEMO_FIELDS);
 
+    // Mirror the GET gate: reject logistics templates when the feature is off.
+    // Guards against a form opened while logistics was enabled, or a crafted POST.
+    const chosenTemplateId = form.getString("template_id") || null;
+    const chosenTemplate =
+      LISTING_TEMPLATES.find((t) => t.id === chosenTemplateId) ?? null;
+    if (chosenTemplate?.requiresLogistics && !settings.hasLogistics) {
+      return htmlResponse(adminListingPickerPage(session));
+    }
+
     // Template-specific date validation: reject a blank date when the operator
     // chose the one-off-event template and hasn't changed the non-date dims.
-    const chosenTemplateId = form.getString("template_id") || null;
     const submittedDims = dimensionsOf(formToDimensionSource(form));
     if (
       submissionRequiresDate(chosenTemplateId, submittedDims) &&

@@ -132,6 +132,30 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       multipart: true,
     });
 
+    test("redirects to picker when posting a logistics template with logistics disabled", async () => {
+      settings.setForTest({ has_logistics: false });
+      const response = await handleRequest(
+        mockMultipartRequest(
+          "/admin/listing",
+          {
+            csrf_token: await testCsrfToken(),
+            max_attendees: "100",
+            max_quantity: "1",
+            name: "Hireable",
+            template_id: "hireable-item",
+            thank_you_url: "https://example.com",
+          },
+          await testCookie(),
+        ),
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Add Listing",
+        "Choose a listing type",
+      );
+    });
+
     test("returns date required error for one-off-event template with no date", async () => {
       const response = await handleRequest(
         mockMultipartRequest(
