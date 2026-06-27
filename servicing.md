@@ -78,11 +78,17 @@ replay.
   `reference: form.getString("cost_idempotency_key") || undefined`).
 
 **Fix.** Treat a reference hit as an idempotent replay **only after** verifying
-the stored leg's amount + listing (and `service_costs` row's `occurred_at` /
-`servicing_attendee_id`) match the submitted payload. On a mismatch, return a
-form error rather than a false success. Regression test: post the same
-idempotency key twice with a changed amount and assert the second submit either
-errors or records the change — never silently succeeds while storing nothing.
+the stored leg matches the **whole** submitted payload — amount, listing,
+`occurred_at`, `servicing_attendee_id`, **and the memo**. The cost form also
+submits `memo`, and the first request's encrypted memo is what gets stored in
+both `transfers` and `service_costs`; a replay check that compares only
+amount/listing/date/servicing would still report success while silently
+preserving the old memo when an operator reuses the key and changes only the
+memo. On any mismatch, return a form error rather than a false success.
+Regression tests: post the same idempotency key twice with (a) a changed amount
+and (b) a changed memo only, and assert the second submit either errors or
+records the change — never silently succeeds while storing nothing/the stale
+value.
 
 ---
 
@@ -181,22 +187,44 @@ mode too. The blocklist fails **open**.
 
 **Inversion.** In read-only mode, block every mutating method
 (`POST`/`PUT`/`DELETE`/`PATCH`) by default and keep a small explicit
-`READ_ONLY_SAFE_POST` allowlist for the genuinely-safe exceptions (auth:
-`/admin/login`, `/admin/logout`). A newly added write route is then blocked the
-moment it exists; the only way to fail is to *forget to allowlist a safe POST*,
-which fails **closed** (an over-blocked safe route is a visible, harmless
-nuisance, not a silent data-mutation hole).
+`READ_ONLY_SAFE` allowlist for the genuinely-safe exceptions. A newly added
+write route is then blocked the moment it exists; the only way to fail is to
+*forget to allowlist a safe route*, which fails **closed** (an over-blocked safe
+route is a visible, harmless nuisance, not a silent data-mutation hole).
+
+**The allowlist is not just login/logout — enumerate it first.** Read-only mode
+is the state a *lapsed* site sits in, and the operator must still be able to pay
+to leave it, so the safe set must include the renewal and payment paths or the
+inversion locks the operator out permanently. Audit the registry before
+flipping; the known non-auth exceptions are:
+
+- `POST /admin/login`, `POST /admin/logout` — auth.
+- `POST /renew` (`src/features/index.ts` — `handleRenewalPost`) — the renewal
+  checkout a read-only site deliberately exposes; blocking it strands the
+  operator with a renewal page they can't submit.
+- `POST /payment/webhook` (`src/features/api/webhooks.ts` —
+  `handlePaymentWebhook`) — the payment-provider callback that completes the
+  renewal; it is unauthenticated and must never be gated on site state.
+
+Each of these needs an explicit allowlist entry **and** a read-only test
+asserting it still reaches its handler, added in the same change that flips the
+guard.
 
 **Two implementation tiers, smallest blast radius first:**
 
 1. *Minimal inversion (recommended first step).* Replace
-   `READ_ONLY_POST_PATTERNS` with `READ_ONLY_SAFE_POST` and flip the match: in
-   read-only mode a POST that does **not** match the safe list redirects to
-   `/read-only`. Keep the existing pre-routing, path-based structure — only the
-   polarity changes. This instantly closes servicing **and** the other latent
-   gaps above. The GET-form list (`READ_ONLY_GET_PATTERNS`) stays a blocklist:
-   it is cosmetic (a writable form rendered read-only is harmless because its
-   POST is now blocked), so it doesn't need inverting.
+   `READ_ONLY_POST_PATTERNS` with the `READ_ONLY_SAFE` allowlist and flip the
+   match: in read-only mode any **mutating-method** request (POST/PUT/PATCH/**and
+   DELETE**) that does **not** match the safe list redirects to `/read-only`.
+   The method set must include DELETE — the registry has real DELETE mutations
+   (`DELETE /admin/listing/:id/delete`,
+   `DELETE /admin/listing/:listingId/attendee/:attendeeId/delete`) that a
+   POST-only flip would leave writable. Keep the existing pre-routing, path-based
+   structure — only the polarity and the method set change. This instantly closes
+   servicing **and** the other latent gaps above. The GET-form list
+   (`READ_ONLY_GET_PATTERNS`) stays a blocklist: it is cosmetic (a writable form
+   rendered read-only is harmless because its mutating POST/DELETE is now
+   blocked), so it doesn't need inverting.
 
 2. *Registry-driven (fuller refactor).* Resolve the route first, then consult the
    matched route definition's method rather than regex-matching the path —
@@ -231,17 +259,34 @@ asserts finite + safe-integer + `minValue(1)`.
 existing `validation/number.ts`, `validation/email.ts`, `validation/date.ts`
 modules and their `parseXxx` → null-on-invalid / `isValidXxx` convention):
 
-- A canonical positive-money parser (`parsePositiveMinorUnits`) and a
-  range-checked variant to replace `validatePrice`, both built on one
-  currency-aware schema.
+- **Two schemas sharing one currency-aware decimal pattern, not one.** Money in
+  this app is not uniformly positive: most fields (service costs, prices) are
+  strictly positive (`minValue(1)`), but the owner-correction targets in
+  `src/features/admin/money-adjust.ts` deliberately accept finite **negative and
+  zero** values, because a modifier's net revenue can legitimately be negative.
+  Naïvely migrating every site onto the ledger's positive `minValue(1)` schema
+  would break those adjustment forms. Provide a positive
+  `parsePositiveMinorUnits` **and** a signed/zero-capable `parseMoneyMinor` for
+  correction targets, both built on the same `ledgerAmountPattern` decimal check
+  (the negative case allows a leading `-`).
 - Because decimal places depend on `settings.currency` at parse time, the
   pattern must be built **per parse** (as `ledgerAmountPattern` does), not frozen
   as a module constant.
 - Migrate every money call site (service costs, prices, QR overrides, modifier
-  subtotal, manual balance/ledger adjustments) onto it, and delete the ad-hoc
-  `toMinorUnits(Number.parseFloat(...))` parses.
+  subtotal, manual balance/ledger adjustments) onto the matching schema, and
+  delete the ad-hoc `toMinorUnits(Number.parseFloat(...))` parses.
+- **Fix the browser input metadata too, or valid amounts can't be typed.** The
+  money inputs hard-code `step="0.01"` in five templates (`servicing.tsx`,
+  `ui/templates/admin/ledger.tsx`, `listings.tsx`, `modifiers.tsx`,
+  `attendee-form.tsx`), so native form validation rejects a valid 3-decimal
+  amount (KWD `1.005`) before the parser ever runs, and advertises cents on a
+  zero-decimal currency (JPY). Derive the input `step` (and `min` for the
+  positive vs signed cases) from `getDecimalPlaces(settings.currency)` in the
+  same refactor so the control accepts exactly what the shared schema does.
 
 This fixes the service-cost fractional bug **and** the `validatePrice` prefix bug
-in one place, and stops the next money field from re-introducing either. Pair it
-with table-driven tests over `{1.005 GBP, 1.23 JPY, "1,000", "12.34abc",
-"  10.50  ", negative, zero}` so the invariant is locked across currencies.
+in one place, keeps the signed correction forms working, and stops the next money
+field from re-introducing any of these. Pair it with table-driven tests over
+`{1.005 GBP, 1.23 JPY, "1,000", "12.34abc", "  10.50  ", negative, zero}` against
+both schemas (positive rejects negative/zero; signed accepts them) so the
+invariants are locked across currencies.
