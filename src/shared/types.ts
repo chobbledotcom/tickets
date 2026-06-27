@@ -265,6 +265,40 @@ export const sharedGroupRemaining = (
     ? childGroupRemaining
     : undefined;
 
+/**
+ * The capacity a parent and one of its children share, as two orthogonal facts:
+ * - `staticCap` — the group's structural ceiling (`groups.max_attendees`),
+ *   date-INDEPENDENT. A share whose static cap is below
+ *   {@link PARENT_CHILD_GROUP_UNITS} can NEVER fit a parent+child order, on any
+ *   date — so date-less surfaces can mark it sold out without a date.
+ * - `remaining` — the group's currently-free spots in the caller's context
+ *   (date-less cumulative for standard listings; per-date when a date is known;
+ *   `undefined` when not computable, e.g. a daily child with no submitted date).
+ *
+ * Both are `undefined` when the parent and child do not share a capped group.
+ * This is the single capacity vocabulary the bookability evaluator reasons over,
+ * so every surface answers "does the combined demand fit?" the same way.
+ */
+export type SharedGroupCapacity = {
+  staticCap: number | undefined;
+  remaining: number | undefined;
+};
+
+/**
+ * Build the {@link SharedGroupCapacity} for a parent/child pair. When they are
+ * not co-grouped there is no shared cap (both facts `undefined`); otherwise the
+ * child's own group entries are the shared group's (they are the same group).
+ */
+export const sharedGroupCapacity = (
+  parentGroupId: number,
+  childGroupId: number,
+  childStaticCap: number | undefined,
+  childRemaining: number | undefined,
+): SharedGroupCapacity =>
+  parentGroupId === childGroupId
+    ? { remaining: childRemaining, staticCap: childStaticCap }
+    : { remaining: undefined, staticCap: undefined };
+
 export interface Listing {
   active: boolean;
   assign_built_site: boolean;

@@ -10,7 +10,7 @@ import {
   type ListingWithCount,
   normalizeDurationDays,
   PARENT_CHILD_GROUP_UNITS,
-  sharedGroupRemaining,
+  type SharedGroupCapacity,
 } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
@@ -235,24 +235,15 @@ export const childDateOk =
 
 /** The *combined* one-parent-plus-one-child minimum order fits the capacity the
  * two share (invariant I7): co-grouped in a capped group they consume
- * {@link PARENT_CHILD_GROUP_UNITS} spots, so a single remaining spot is not
- * enough; otherwise the per-row check already stands. The single source of truth
- * for the "does the combined demand fit?" question — discovery's sold-out
- * projection (`combinedDemandFits`) and the render quantity clamp
- * (`childOrderCap`) both reason about this same shared-group remaining.
- * `groupRemaining` is the child's group-remaining entry. */
-export const combinedGroupDemandFits = (
-  parentGroupId: number,
-  childGroupId: number,
-  groupRemaining: number | undefined,
-): boolean => {
-  const shared = sharedGroupRemaining(
-    parentGroupId,
-    childGroupId,
-    groupRemaining,
-  );
-  return shared === undefined || shared >= PARENT_CHILD_GROUP_UNITS;
-};
+ * {@link PARENT_CHILD_GROUP_UNITS} spots, so the share must clear that minimum
+ * on BOTH facts of {@link SharedGroupCapacity} — its structural ceiling
+ * (`staticCap`, so a group too small to EVER hold parent+child is rejected even
+ * date-less, when a daily child's per-date `remaining` is unknown) and its
+ * currently-free `remaining` (when known). Either fact `undefined` means "no
+ * constraint from this fact"; not co-grouped ⇒ both `undefined` ⇒ always fits. */
+export const combinedGroupDemandFits = (cap: SharedGroupCapacity): boolean =>
+  (cap.staticCap === undefined || cap.staticCap >= PARENT_CHILD_GROUP_UNITS) &&
+  (cap.remaining === undefined || cap.remaining >= PARENT_CHILD_GROUP_UNITS);
 
 /** Combine a list of child-availability atoms into one predicate that ANDs them
  * all. Callers compose exactly the atoms their site needs (via {@link

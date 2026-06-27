@@ -8,6 +8,7 @@ import {
   apiGet,
   apiListingSlugs,
   createDailyTestListing,
+  createTestAttendee,
   createTestGroup,
   createTestListing,
   describeWithEnv,
@@ -1100,6 +1101,35 @@ describeWithEnv(
       await makeParent({ children: [{ groupId: group.id }] });
       // The group page itself 404s (asserted above); the /listings CTA pointing
       // at it must be suppressed so it never advertises a dead link.
+      const { handleRequest } = await import("#routes");
+      const listings = await handleRequest(
+        new Request("http://localhost/listings", {
+          headers: { host: "localhost" },
+        }),
+      );
+      const listingsBody = await listings.text();
+      expect(listingsBody).not.toContain(`href="/ticket/${group.slug}"`);
+    });
+
+    test("a group whose only non-child member is a no-bookable-child parent suppresses its /listings CTA", async () => {
+      // The group's only member is a PARENT (not a child) whose required child
+      // is sold out, so the group page projects that parent sold out and offers
+      // no bookable quantity. The /listings Book CTA to /ticket/<group> must be
+      // suppressed too — counting the parent as a "bookable member" because it
+      // isn't a child would advertise an uncompletable booking.
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicSite(true);
+      const group = await createTestGroup({ name: "Sold-out-parent group" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        name: "Base in group",
+      });
+      const child = await createTestListing({
+        maxAttendees: 1,
+        name: "Sold-out add-on",
+      });
+      await createTestAttendee(child.id, child.slug, "Buyer", "b@x.com");
+      await setChildIds(parent.id, [child.id]);
       const { handleRequest } = await import("#routes");
       const listings = await handleRequest(
         new Request("http://localhost/listings", {

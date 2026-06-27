@@ -20,7 +20,6 @@ import {
 } from "#shared/contact-form.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getActiveListingsByGroupId, getAllGroups } from "#shared/db/groups.ts";
-import { getChildListingIds } from "#shared/db/listing-parents.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
@@ -40,16 +39,21 @@ import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 /** Active+visible filter for public listing listings */
 const isPublicListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
 
-/** Whether a group has at least one active member that is NOT a child — i.e. a
- * standalone-bookable member. A group whose only active members are children has
- * no valid `/ticket/<group>` entry point (every member is dropped as a child,
- * which 404s — Fix 6), so its Book CTA on /listings must be suppressed rather
- * than advertise a dead link. */
+/** Whether a group has at least one active member that is actually bookable
+ * standalone — i.e. neither a child (no `/ticket/<child>` entry point — Fix 6)
+ * NOR a parent the discovery classifier projects sold out (a parent whose
+ * required children are all unavailable). A group whose only non-child member is
+ * such a sold-out parent has no completable `/ticket/<group>` booking — the
+ * group page renders that parent sold out — so its `/listings` Book CTA must be
+ * suppressed rather than advertise a dead link. Reuses the single discovery
+ * classifier so this matches the sold-out projection the group page applies. */
 const groupHasBookableMember = async (group: Group): Promise<boolean> => {
   const members = await getActiveListingsByGroupId(group.id);
   if (members.length === 0) return false;
-  const childIds = await getChildListingIds(members.map((m) => m.id));
-  return members.some((m) => !childIds.has(m.id));
+  const { childIds, soldOutParentIds } = await classifyForDiscovery(members);
+  return members.some(
+    (m) => !childIds.has(m.id) && !soldOutParentIds.has(m.id),
+  );
 };
 
 /** Load non-hidden groups that have a bookable (non-child) member (for public

@@ -292,6 +292,33 @@ describeWithEnv(
         await assertBookable(parent.slug);
       });
 
+      test("a daily parent + daily child sharing a 1-cap group is sold out date-less (static cap)", async () => {
+        // A daily child's per-date group-remaining is unknown without a
+        // submitted date, so the dynamic combined-demand check cannot see the
+        // shortage. But a group whose STATIC cap is below the parent+child
+        // minimum (two spots) can NEVER hold the pair on any date, so discovery
+        // must read the parent sold out from the static cap alone — otherwise it
+        // advertises a booking the submit fold always rejects.
+        const { parent } = await makeParent({
+          children: [{ daily: true, name: "Daily add-on" }],
+          group: { maxAttendees: 1, name: "Tiny pool" },
+          parent: { daily: true, name: "Base unit" },
+        });
+        await assertSoldOut(parent.slug);
+      });
+
+      test("a daily parent + daily child sharing a 2-cap group stays bookable date-less", async () => {
+        // Static cap 2 meets the parent+child minimum; a daily child's per-date
+        // remaining is deferred to the submit fold — so discovery keeps the Book
+        // link rather than over-suppressing on a group that can hold the pair.
+        const { parent } = await makeParent({
+          children: [{ daily: true, name: "Daily add-on" }],
+          group: { maxAttendees: 2, name: "Pool" },
+          parent: { daily: true, name: "Base unit" },
+        });
+        await assertBookable(parent.slug);
+      });
+
       test("a fixed multi-day daily parent whose only child can't fit the span is sold out", async () => {
         // The parent is a FIXED 3-day daily listing, so its children inherit a
         // 3-day span at the till. Its only child is a customisable daily add-on

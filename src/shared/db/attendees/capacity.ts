@@ -116,6 +116,36 @@ export const getGroupRemainingByListingId = async (
   return result;
 };
 
+/**
+ * Per-listing STATIC group cap (`groups.max_attendees`), date-INDEPENDENT.
+ *
+ * Unlike {@link getGroupRemainingByListingId} this never drops daily listings:
+ * the static cap is a structural fact (how many can EVER sit in the group),
+ * not a per-date count. Date-less surfaces use it to reject a parent+child
+ * share that can never satisfy the combined minimum order (a parent and its
+ * required child co-grouped consume `PARENT_CHILD_GROUP_UNITS` spots), even
+ * for a daily child whose per-date remaining is unknown without a date.
+ * Listings whose group is ungrouped or uncapped are omitted.
+ */
+export const getGroupStaticCapByListingId = async (
+  listings: ListingForGroupLookup[],
+): Promise<RemainingMap> => {
+  const ids = uniquePositiveGroupIds(listings.map((e) => e.group_id));
+  if (ids.length === 0) return new Map();
+  const rows = await queryAll<{ group_id: number; max_attendees: number }>(
+    `SELECT id AS group_id, max_attendees FROM groups
+     WHERE id IN (${inPlaceholders(ids)}) AND max_attendees > 0`,
+    ids,
+  );
+  const capByGroup = new Map(rows.map((r) => [r.group_id, r.max_attendees]));
+  const result: RemainingMap = new Map();
+  for (const listing of listings) {
+    const cap = capByGroup.get(listing.group_id);
+    if (cap !== undefined) result.set(listing.id, cap);
+  }
+  return result;
+};
+
 const listingForCapacity = async (
   listingOrId: ListingForGroupLookup | number,
 ): Promise<ListingForGroupLookup | null> =>

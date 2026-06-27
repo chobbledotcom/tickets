@@ -46,6 +46,7 @@ export {
   getGroupRemainingByGroupId,
   getGroupRemainingByListingId,
   getGroupRemainingForListing,
+  getGroupStaticCapByListingId,
   getListingRemainingForRange,
   type ListingCapacityRow,
 } from "#shared/db/attendees/capacity.ts";

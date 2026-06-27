@@ -25,7 +25,10 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
-import { getGroupRemainingByListingId } from "#shared/db/attendees.ts";
+import {
+  getGroupRemainingByListingId,
+  getGroupStaticCapByListingId,
+} from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   answerModifierQuantities,
@@ -947,8 +950,9 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
   const children = [...ctx.childrenByParentId.values()]
     .flat()
     .map((child) => child.listing);
-  const [groupRemaining, holidays] = await Promise.all([
+  const [groupRemaining, groupStaticCap, holidays] = await Promise.all([
     getGroupRemainingByListingId(children),
+    getGroupStaticCapByListingId(children),
     getActiveHolidays(),
   ]);
   return {
@@ -962,6 +966,7 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
       ctx.listings,
       ctx.childrenByParentId,
       groupRemaining,
+      groupStaticCap,
       holidays,
     ),
   };
