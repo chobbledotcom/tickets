@@ -143,6 +143,8 @@ export type ActionHandlerConfig<TSession = AuthSession> = {
   successRedirect: string | ((session: TSession, form: FormParams) => string);
   /** Optional custom error mapping (falls back to errorRedirect with message) */
   onError?: ErrorMapper;
+  /** Thunk returning a Set-Cookie header for the success redirect, evaluated per request (e.g. clearSessionCookie) */
+  cookie?: () => string;
   /** Secret to redact from the activity log (e.g. API key shown in flash but not logged) */
   redactedSecret?:
     | string
@@ -195,8 +197,11 @@ export const createActionHandler = <TSession = AuthSession>(
         ? await value(session, form)
         : value;
 
-  return (request: Request) =>
-    withAuth(request, policy, async (session, body) => {
+  return (request: Request) => {
+    // Evaluate the cookie thunk per request so domain-dependent state (e.g.
+    // __Host- prefix) is resolved at request time, not module load time.
+    const successOpts = config.cookie ? { cookie: config.cookie() } : undefined;
+    return withAuth(request, policy, async (session, body) => {
       const form = body as FormParams;
       try {
         await config.execute(session as TSession, form);
@@ -231,6 +236,7 @@ export const createActionHandler = <TSession = AuthSession>(
         session as TSession,
         form,
       );
-      return redirect(redirectUrl, msg, true);
+      return redirect(redirectUrl, msg, true, successOpts);
     });
+  };
 };

@@ -12,18 +12,15 @@
 
 import { unzipSync, zipSync } from "fflate";
 import { chunk, compact } from "#fp";
-import { execute, executeBatch, queryAll } from "#shared/db/client.ts";
-import { invalidateGroupsCache } from "#shared/db/groups.ts";
-import { invalidateListingsCache } from "#shared/db/listings.ts";
+import { executeBatch, queryAll } from "#shared/db/client.ts";
 import {
+  clearAllCaches,
   initDb,
-  invalidateInitDbCache,
   LATEST_UPDATE,
   resetDatabase,
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
 } from "#shared/db/migrations.ts";
-import { invalidateUsersCache } from "#shared/db/users.ts";
 import { requireEnv } from "#shared/env.ts";
 import { MAX_BACKUPS, readLimit } from "#shared/limits.ts";
 import {
@@ -32,6 +29,11 @@ import {
   listFiles,
   uploadRaw,
 } from "#shared/storage.ts";
+
+/** Thrown by restoreFromSql after resetDatabase() runs but a later step fails,
+ *  so callers can distinguish a post-reset failure (DB wiped) from a pre-reset
+ *  validation error (DB intact). */
+export class PostResetError extends Error {}
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -397,31 +399,37 @@ export const countZipStatements = (zipData: Uint8Array): number => {
  * statements in a single transaction via executeBatch.
  */
 export const restoreFromSql = async (sql: string): Promise<void> => {
-  await resetDatabase();
-  await initDb({ allowMissingSettings: true });
+  // Capture any failure and re-throw as PostResetError outside the catch to
+  // avoid V8 coverage gaps on `throw` inside catch blocks for async functions.
+  // resetDatabase() is inside the try so that partial-drop failures (e.g. the
+  // sessions table already removed) are also routed as post-reset errors.
+  let postResetErr: string | undefined;
+  try {
+    await resetDatabase();
+    await initDb({ allowMissingSettings: true });
 
-  // initDb writes migration markers into settings/schema_migrations and seeds a
-  // default attendee_statuses row; clear them so the backup's own rows don't
-  // collide on primary keys. (An older backup with no attendee_statuses rows
-  // re-seeds on the next initDb, which runs because the markers are cleared.)
-  await execute("DELETE FROM settings");
-  await execute("DELETE FROM schema_migrations");
-  await execute("DELETE FROM attendee_statuses");
+    // Roll the seed-data deletes into the same executeBatch transaction as the
+    // import so that a failed import rolls the deletes back too, leaving the DB
+    // in the clean post-initDb state rather than a mix of empty seed tables and
+    // partially applied backup rows.
+    await executeBatch([
+      { args: [], sql: "DELETE FROM settings" },
+      { args: [], sql: "DELETE FROM schema_migrations" },
+      { args: [], sql: "DELETE FROM attendee_statuses" },
+      ...splitStatements(sql).map((s) => ({ args: [], sql: s })),
+    ]);
 
-  const statements = splitStatements(sql);
-  if (statements.length > 0) {
-    await executeBatch(statements.map((s) => ({ args: [], sql: s })));
+    // Clear all module-level caches — the backup may carry different data for
+    // every table, so any warm cache is now stale. clearAllCaches() covers the
+    // same set as resetDatabase()'s finally block, including caches (holidays,
+    // logistics-agents, sessions, settings) that a partial list would miss.
+    clearAllCaches();
+  } catch (err) {
+    postResetErr = String(err);
   }
-
-  // The markers now come from the backup and may predate the current schema;
-  // drop the "ready" cache so the next initDb re-checks and migrates if needed.
-  invalidateInitDbCache();
-  // The entity caches persist across requests, so a restore that wholesale-
-  // replaces the data would otherwise keep serving the pre-restore snapshot
-  // until each cache's TTL. Clear them.
-  invalidateListingsCache();
-  invalidateGroupsCache();
-  invalidateUsersCache();
+  if (postResetErr !== undefined) {
+    throw new PostResetError(postResetErr);
+  }
 };
 
 /**

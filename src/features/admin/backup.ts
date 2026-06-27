@@ -10,8 +10,11 @@ import { createActionHandler } from "#routes/admin/actions.ts";
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { OWNER_MULTIPART, requireOwnerOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse, redirect } from "#routes/response.ts";
+/* jscpd:ignore-start */
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+/* jscpd:ignore-end */
+import { clearSessionCookie } from "#shared/cookies.ts";
 import { getEncryptionKeyString } from "#shared/crypto/encryption.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
 import {
@@ -21,6 +24,7 @@ import {
   isBackupLeaf,
   isBackupPath,
   isRemoteDatabase,
+  PostResetError,
   parseBackupTime,
   readManifest,
   restoreFromZip,
@@ -46,6 +50,11 @@ import {
 } from "#templates/admin/backup.tsx";
 
 const RESTORE_PENDING_PREFIX = "restore-pending-";
+
+/** Thrown by the restore execute block so onError can send post-reset failures
+ *  (sessions and settings wiped) to /setup/, while pre-restore validation errors
+ *  (DB intact) stay on /admin/backup. */
+class PostResetRestoreError extends Error {}
 
 /** A full git commit SHA (40 lowercase hex) — what restore-deploy requires and
  *  the only shape we echo back from restored (possibly untrusted) settings. */
@@ -211,6 +220,11 @@ const handleBackupRestore: TypedRouteHandler<"POST /admin/backup/restore"> = (
 const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/confirm"> =
   createActionHandler({
     auth: "owner",
+    // After restore, the operator's current session is no longer valid (the
+    // backup pre-dates it). Redirect to /admin/login and clear the session
+    // cookie so the flash appears on the login page instead of being consumed
+    // by an intermediate auth-redirect that the operator never sees.
+    cookie: clearSessionCookie,
     execute: async (_session, form) => {
       const filename = form.getString("backup_filename");
       if (
@@ -237,11 +251,26 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
         );
       }
 
+      // Capture any restoreFromZip error so we can throw *after* the
+      // finally cleanup — V8's coverage source maps don't reliably track
+      // `throw` inside catch blocks for async functions.
+      let restoreErr: string | undefined;
+      let isPostReset = false;
       try {
         await restoreFromZip(data);
+      } catch (err) {
+        restoreErr = String(err);
+        // PostResetError means resetDatabase() already ran; route to /setup/.
+        // Any other error (e.g. unzipSync on invalid bytes) leaves the DB intact;
+        // route back to /admin/backup.
+        isPostReset = err instanceof PostResetError;
       } finally {
         // Clean up the temp file whether restore succeeds or fails
         await Promise.allSettled([deleteFile(filename)]);
+      }
+      if (restoreErr !== undefined) {
+        if (isPostReset) throw new PostResetRestoreError(restoreErr);
+        throw new Error(restoreErr);
       }
     },
     // The restored data carries the commit the site was running when the backup
@@ -258,7 +287,17 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
         ? `Database restored from backup. It was running commit ${commit} — run the restore-deploy workflow with that commit to restore the code to this point in time.`
         : "Database restored from backup";
     },
-    successRedirect: "/admin/backup",
+    // Post-reset failures go to /setup/ (sessions and settings are wiped, so
+    // /admin/login would hit the not-activated gate and lose the flash; /setup/
+    // renders flash.error directly without needing initialised settings).
+    // Pre-restore validation errors stay on /admin/backup.
+    onError: (error) =>
+      error instanceof PostResetRestoreError
+        ? redirect("/setup/", error.message, false, {
+            cookie: clearSessionCookie(),
+          })
+        : errorRedirect("/admin/backup", error.message),
+    successRedirect: "/admin/login",
   });
 
 /** Backup routes */

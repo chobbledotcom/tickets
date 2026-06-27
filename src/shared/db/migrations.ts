@@ -15,6 +15,13 @@ import type { Client } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { getDb } from "#shared/db/client.ts";
+import { invalidateGroupsCache } from "#shared/db/groups.ts";
+import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
+import { invalidateListingsCache } from "#shared/db/listings.ts";
+import { invalidateLogisticsAgentsCache } from "#shared/db/logistics-agents.ts";
+import { resetSessionCache } from "#shared/db/sessions.ts";
+import { settings } from "#shared/db/settings.ts";
+import { invalidateUsersCache } from "#shared/db/users.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -620,13 +627,35 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
 
 // ─── Reset ──────────────────────────────────────────────────────
 
+/** Clear every module-level in-process cache.
+ *
+ *  Call after any operation that bypasses the normal write path (full reset,
+ *  restore from backup) so stale reads cannot outlive the current isolate
+ *  lifecycle. Both resetDatabase (in its finally block, so even a partial-drop
+ *  failure invalidates caches) and restoreFromSql (after executeBatch completes)
+ *  use this to guarantee a consistent post-operation view. */
+export const clearAllCaches = (): void => {
+  invalidateInitDbCache();
+  settings.invalidateCache();
+  settings.setup.clearCache();
+  resetSessionCache();
+  invalidateUsersCache();
+  invalidateListingsCache();
+  invalidateHolidaysCache();
+  invalidateGroupsCache();
+  invalidateLogisticsAgentsCache();
+};
+
 /**
  * Reset the database by dropping all tables (reverse order for FK safety)
  */
 export const resetDatabase = async (): Promise<void> => {
-  invalidateInitDbCache();
   const client = getDb();
-  for (const [name] of [...SCHEMA].reverse()) {
-    await client.execute(`DROP TABLE IF EXISTS ${name}`);
+  try {
+    for (const [name] of [...SCHEMA].reverse()) {
+      await client.execute(`DROP TABLE IF EXISTS ${name}`);
+    }
+  } finally {
+    clearAllCaches();
   }
 };

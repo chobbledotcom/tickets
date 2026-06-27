@@ -242,6 +242,9 @@ describe("e2e: full booking flow", () => {
         { confirm_identifier: RESTORE_CONFIRM_PHRASE },
         "Restore Database",
       );
+      // The restore handler clears the session cookie and redirects to
+      // /admin/login, so the flash appears on the login page even though the
+      // operator's post-reset session is no longer valid.
       expect(browser.containsText("Database restored from backup")).toBe(true);
       invalidateAllCaches();
 

@@ -20,6 +20,7 @@ import {
   describeWithEnv,
   expectNtfyNotification,
   invalidateTestDbCache,
+  resetTestSession,
   setTestEnv,
   stubNtfyFetch,
   TEST_ADMIN_PASSWORD,
@@ -331,6 +332,10 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     test("can reinitialize database after reset", async () => {
       await resetDatabase();
       invalidateTestDbCache();
+      // resetDatabase() now clears the session cache, so the pre-reset session
+      // cookie is no longer valid. Clear the test session so getTestSession()
+      // falls through to a fresh login after setup completes.
+      resetTestSession();
       await initDb({ allowMissingSettings: true });
 
       await settings.setup.complete("testadmin", TEST_ADMIN_PASSWORD, "USD");
