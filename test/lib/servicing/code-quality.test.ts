@@ -93,7 +93,7 @@ describe("servicing §20 — precommit duplication check stays at 0%", () => {
     // Meta-guard: the feature must land without tripping jscpd's 0% threshold.
     // Skipped in plain `deno test` runs that don't have the toolchain pinned;
     // the precommit script runs it for real.
-    const command = new Deno.Command("deno", {
+    const command = new Deno.Command(Deno.execPath(), {
       args: ["task", "cpd"],
       stderr: "inherit",
       stdout: "piped",

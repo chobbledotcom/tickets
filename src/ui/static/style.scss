@@ -1670,6 +1670,38 @@ label.terms-agree {
 // right beneath the checkbox that controls them.
 @include reveal-when-checked("customisable_days", "#day-prices");
 
+// ---------------------------------------------------------------------------
+// Listing template mode: hide dimension toggles while the Customise checkbox
+// is unchecked. The .listing-form--templated class is set when a named template
+// is active; .listing-form--hide-type is added when the template pins listing_type.
+// ---------------------------------------------------------------------------
+
+form.listing-form--templated:not(:has(#customise-listing:checked)) {
+  label:has(input[name="purchase_only"]),
+  label:has(input[name="uses_logistics"]) {
+    display: none;
+  }
+}
+
+form.listing-form--templated.listing-form--hide-type:not(:has(#customise-listing:checked)) {
+  label:has(select[name="listing_type"]) {
+    display: none;
+  }
+}
+
+form.listing-form--templated.listing-form--hide-date:not(:has(#customise-listing:checked)) {
+  label:has([name="date_date"]) {
+    display: none;
+  }
+}
+
+form.listing-form--templated.listing-form--no-daily:not(:has(#customise-listing:checked)) {
+  label:has([name="customisable_days"]),
+  #day-prices {
+    display: none;
+  }
+}
+
 // Hide the max price field unless "Allow Pay More" is checked.
 @include reveal-when-checked("can_pay_more", 'label:has([name="max_price"])');
 
@@ -1728,6 +1760,40 @@ label.terms-agree {
 .listing-image-preview {
   max-width: 300px;
   border-radius: 4px;
+}
+
+/* Listing type picker */
+.listing-type-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-m);
+  margin-block: var(--space-m);
+}
+
+.listing-type-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+  padding: var(--space-m);
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: 4px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.listing-type-card:hover {
+  border-color: var(--color-link);
+}
+
+.listing-type-card--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Customise toggle in listing forms */
+.listing-customise-toggle {
+  display: block;
+  margin-block: var(--space-m);
 }
 
 /* Header image */

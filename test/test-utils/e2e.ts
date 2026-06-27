@@ -94,8 +94,7 @@ export const createListing = async (
   browser: TestBrowser,
   fields: Record<string, string> & { name: string },
 ): Promise<string> => {
-  await browser.visit("/admin/");
-  await browser.clickLink("Add Listing");
+  await browser.visit("/admin/listing/new?template=custom");
   await browser.submitForm(
     { max_attendees: "50", max_quantity: "5", ...fields },
     "Create Listing",

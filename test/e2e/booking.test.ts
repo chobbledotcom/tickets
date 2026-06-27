@@ -32,9 +32,10 @@ describe("e2e: full booking flow", () => {
     // 1-4. Set up the fresh install and log in to the admin dashboard.
     await setupAndLogin(browser);
 
-    // 5. Create an listing
+    // 5. Create a listing via the template picker (Custom / advanced)
     await browser.clickLink("Add Listing");
-    expect(browser.currentHtml).toContain("Add Listing");
+    expect(browser.currentHtml).toContain("Choose a listing type");
+    await browser.clickLink("Custom / advanced");
 
     await browser.submitForm(
       {

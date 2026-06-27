@@ -21,16 +21,16 @@ describeWithEnv("server (listing logistics field)", { db: true }, () => {
     settings.setForTest({ has_logistics: true });
     const listing = await createTestListing({ name: "Original" });
 
-    const newForm = await adminGet("/admin/listing/new");
+    const newForm = await adminGet("/admin/listing/new?template=custom");
     expect(await newForm.text()).toContain('name="uses_logistics"');
 
     const dupForm = await adminGet(`/admin/listing/${listing.id}/duplicate`);
     expect(await dupForm.text()).toContain('name="uses_logistics"');
   });
 
-  test("the new form omits the Delivered field when logistics is off", async () => {
+  test("the new form omits the logistics field when logistics is off", async () => {
     settings.setForTest({ has_logistics: false });
-    const newForm = await adminGet("/admin/listing/new");
+    const newForm = await adminGet("/admin/listing/new?template=custom");
     expect(await newForm.text()).not.toContain('name="uses_logistics"');
   });
 
