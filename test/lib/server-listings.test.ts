@@ -12,6 +12,7 @@ import {
   listingsTable,
   updateListingAggregateValues,
 } from "#shared/db/listings.ts";
+import { settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import { nowMs } from "#shared/now.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
@@ -93,6 +94,31 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         'action="/admin/listing"',
       );
     });
+
+    test("renders create listing form with a named template param", async () => {
+      const response = await adminGet(
+        "/admin/listing/new?template=one-off-event",
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Add Listing",
+        'action="/admin/listing"',
+      );
+    });
+
+    test("redirects to picker when a logistics template is requested but logistics is disabled", async () => {
+      settings.setForTest({ has_logistics: false });
+      const response = await adminGet(
+        "/admin/listing/new?template=hireable-item",
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Add Listing",
+        "Choose a listing type",
+      );
+    });
   });
 
   describe("POST /admin/listing", () => {
@@ -104,6 +130,47 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         thank_you_url: "https://example.com",
       },
       multipart: true,
+    });
+
+    test("returns date required error for one-off-event template with no date", async () => {
+      const response = await handleRequest(
+        mockMultipartRequest(
+          "/admin/listing",
+          {
+            csrf_token: await testCsrfToken(),
+            listing_type: "standard",
+            max_attendees: "100",
+            max_quantity: "1",
+            name: "My Event",
+            purchase_only: "",
+            template_id: "one-off-event",
+            thank_you_url: "https://example.com",
+            uses_logistics: "",
+          },
+          await testCookie(),
+        ),
+      );
+      expect(response.status).toBe(400);
+      expect(await response.text()).toContain("date is required");
+    });
+
+    test("re-renders with carried template_id when create validation fails", async () => {
+      const response = await handleRequest(
+        mockMultipartRequest(
+          "/admin/listing",
+          {
+            csrf_token: await testCsrfToken(),
+            max_attendees: "100",
+            max_quantity: "1",
+            template_id: "online-digital",
+            thank_you_url: "https://example.com",
+            // name omitted → validation error
+          },
+          await testCookie(),
+        ),
+      );
+      expect(response.status).toBe(400);
+      expect(await response.text()).toContain('value="online-digital"');
     });
 
     test("creates listing when authenticated", async () => {

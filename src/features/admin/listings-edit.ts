@@ -162,6 +162,7 @@ const renderCreateListingError = async (
       customiseOpen: form.getString("customise") === "1",
       error,
       templateId,
+      values: Object.fromEntries(form.entries()),
     }),
     400,
   );

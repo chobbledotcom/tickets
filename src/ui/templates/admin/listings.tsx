@@ -1716,6 +1716,7 @@ const listingFormClass = (template: ReturnType<typeof inferTemplate>): string =>
   [
     "listing-form--templated",
     template?.signature.daily !== undefined ? "listing-form--hide-type" : "",
+    template?.signature.dated === false ? "listing-form--hide-date" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -1983,9 +1984,15 @@ export const adminListingNewPage = (
     customiseOpen?: boolean;
     error?: string;
     templateId?: string | null;
+    values?: FieldValues;
   },
 ): string => {
-  const { error, templateId, customiseOpen = false } = opts ?? {};
+  const {
+    error,
+    templateId,
+    customiseOpen = false,
+    values: submitted,
+  } = opts ?? {};
   const storageEnabled = isStorageEnabled();
   const builderEnabled = isBuilderEnabled();
   const fields = [
@@ -2025,7 +2032,7 @@ export const adminListingNewPage = (
           imagePreview=""
           isTemplated={!!template}
           selectedGroupId={0}
-          values={seeds}
+          values={submitted ?? seeds}
         />
         <SubmitButton icon="plus">
           {t("listings_table.create_listing")}

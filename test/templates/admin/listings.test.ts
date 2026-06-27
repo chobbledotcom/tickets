@@ -966,6 +966,13 @@ describe("adminListingNewPage", () => {
     });
     expect(html).toContain("Something went wrong");
   });
+
+  test("applies listing-form--hide-type class for templates with a fixed listing_type", () => {
+    const html = adminListingNewPage([], TEST_SESSION, {
+      templateId: "weekly-event",
+    });
+    expect(html).toContain("listing-form--hide-type");
+  });
 });
 
 describe("adminListingPage export button", () => {
