@@ -192,29 +192,39 @@ write route is then blocked the moment it exists; the only way to fail is to
 *forget to allowlist a safe route*, which fails **closed** (an over-blocked safe
 route is a visible, harmless nuisance, not a silent data-mutation hole).
 
-**The allowlist is not just login/logout — enumerate it first.** Read-only mode
-is the state a *lapsed* site sits in, and the operator must still be able to pay
-to leave it, so the safe set must include the renewal and payment paths or the
-inversion locks the operator out permanently. Audit the registry before
-flipping; the known non-auth exceptions are:
+**The allowlist is broad and must be derived from the registry, not hand-listed
+here.** Read-only mode is the state a *lapsed* site sits in, so a surprising
+number of mutating routes must stay reachable — not just auth. The categories
+below are the ones found so far, but treat this as **illustrative, not
+authoritative**: the implementer must audit *every* mutating route in the
+registry and classify it keep-safe vs block, because an under-built allowlist
+fails closed in a user-visible way (a real, safe action starts redirecting to
+`/read-only`). The repeated "you missed one" findings on this very list are the
+point — a hand-maintained enumeration is the brittleness being fixed, which is
+itself the argument for the registry-driven tier below (a per-route
+`readOnly: "allow"` flag co-located with the route can't drift out of sync).
 
-- `POST /admin/login`, `POST /admin/logout` — auth.
-- `POST /renew` (`src/features/index.ts` — `handleRenewalPost`) — the renewal
-  checkout a read-only site deliberately exposes; blocking it strands the
-  operator with a renewal page they can't submit.
-- `POST /payment/webhook` (`src/features/api/webhooks.ts` —
-  `handlePaymentWebhook`) — the payment-provider callback that completes the
-  renewal; it is unauthenticated and must never be gated on site state.
-- `POST /unsubscribe` (`src/features/index.ts` — `handleUnsubscribePost`,
-  handler in `src/features/public/unsubscribe.ts`) — a public, no-login route
-  that changes a recipient's marketing-preference state (and can delete their
-  contact record). A lapsed site must still let recipients unsubscribe, so it
-  stays reachable; the existing blocklist leaves it writable and the allowlist
-  must keep it so.
+Safe-set categories found so far (each needs an allowlist entry **and** a
+read-only test asserting it still reaches its handler / returns its protocol
+status, in the same change that flips the guard):
 
-Each of these needs an explicit allowlist entry **and** a read-only test
-asserting it still reaches its handler, added in the same change that flips the
-guard.
+- **Auth** — `POST /admin/login`, `POST /admin/logout`.
+- **Billing / lifecycle** — `POST /renew` (`handleRenewalPost`) and
+  `POST /payment/webhook` (`handlePaymentWebhook`, `src/features/api/webhooks.ts`,
+  unauthenticated). These are how an operator *leaves* read-only mode; blocking
+  them is a permanent lockout.
+- **Wallet protocol callbacks** — `POST /v1/devices/:device/registrations/...`,
+  `DELETE /v1/devices/:device/registrations/...`, and `POST /v1/log`
+  (`src/features/wallet/webservice.ts`). Apple Wallet device clients call these
+  and expect 200/201 protocol responses; a 302 to `/read-only` breaks pass
+  add/remove on a read-only site.
+- **Public / owner messaging** — `POST /contact` (public contact form via
+  `contactPrefixHandler` → `handlePublicContactSubmit`), `POST /admin/support`
+  (owner-only support channel — the in-app path most likely to *resolve* a
+  read-only/billing problem, so blocking it is self-defeating), and
+  `POST /unsubscribe` (`handleUnsubscribePost`, public/no-login marketing
+  preference + contact-deletion). Each is currently reachable under read-only
+  mode, so the allowlist must preserve that behaviour.
 
 **Two implementation tiers, smallest blast radius first:**
 
@@ -272,25 +282,37 @@ modules and their `parseXxx` → null-on-invalid / `isValidXxx` convention):
 
 - **A small bound-parameterised family sharing one currency-aware decimal
   pattern, not a single schema.** Money in this app spans three bounds, so a lone
-  positive `minValue(1)` parser is wrong for most sites:
+  positive `minValue(1)` parser is wrong for most sites. The axes are
+  **bound** (positive / non-negative / signed) *and* **blank handling**
+  (required vs optional) — and crucially blank ≠ zero for the optional fields:
   - *Strictly positive* (`minValue(1)`) — service costs, and amounts that must be
     non-zero.
-  - *Non-negative / zero-or-blank* (`minValue(0)`, blank ⇒ 0) — the common case:
-    listing `unit_price` defaults to `0` for free listings
-    (`src/shared/db/listings.ts:213`), QR price overrides use `minPrice: 0` for
-    fixed-price listings (`src/features/admin/listing-qr.ts:99`), and modifier
-    `min_subtotal` defaults to `0` (`src/shared/db/modifiers.ts:73`). Migrating
-    these onto a `minValue(1)` schema would start rejecting free tickets and
-    zero-threshold modifiers.
+  - *Non-negative, required* (`minValue(0)`, blank ⇒ `0`) — fields where an
+    explicit zero is a real value: listing `unit_price` defaults to `0` for free
+    listings (`src/shared/db/listings.ts:213`) and modifier `min_subtotal`
+    defaults to `0` (`src/shared/db/modifiers.ts:73`). A `minValue(1)` schema
+    would reject free tickets and zero-threshold modifiers.
+  - *Optional override* (non-negative when present, blank ⇒ **unset, not `0`**) —
+    fields that distinguish "no value" from "zero". The QR price override only
+    sets `valueMinor` when the input is non-empty and `buildQrBookPayload` stores
+    a `v: -1` sentinel for "no override" (`src/features/admin/listing-qr.ts:149`),
+    and `parseDayPricesFromForm` **skips** blank `day_price_N` rows so that
+    duration isn't offered (`src/features/admin/listings-form.ts:57`). A parser
+    that coerces blank ⇒ `0` would turn a blank fixed-price QR into a signed
+    free-ticket override and a skipped day-price into a real £0 price. These must
+    parse to `null`/skip on blank, validating the value with the non-negative
+    rule only when present.
   - *Signed* (negatives + zero) — the owner-correction targets in
     `src/features/admin/money-adjust.ts`, because a modifier's net revenue can
     legitimately be negative.
 
-  Build all three from one `ledgerAmountPattern` decimal check (the signed
-  variant allows a leading `-`), e.g. a `moneyMinorSchema({ min })` builder plus
-  named `parsePositiveMinorUnits` / `parseNonNegativeMinorUnits` /
-  `parseMoneyMinor` wrappers. Pick the variant per call site; the decimal/format
-  validation is shared, only the bound differs.
+  Build all four from one `ledgerAmountPattern` decimal check (the signed
+  variant allows a leading `-`), e.g. a `moneyMinorSchema({ min })` core plus
+  named `parsePositiveMinorUnits` / `parseNonNegativeMinorUnits` (required) /
+  `parseOptionalMinorUnits` (blank ⇒ `null`) / `parseMoneyMinor` (signed)
+  wrappers. Pick the variant per call site; the decimal/format validation is
+  shared, only the bound and blank-handling differ. **Do not collapse "unset"
+  into a real zero** — that is its own regression class.
 - Because decimal places depend on `settings.currency` at parse time, the
   pattern must be built **per parse** (as `ledgerAmountPattern` does), not frozen
   as a module constant.
@@ -322,9 +344,11 @@ modules and their `parseXxx` → null-on-invalid / `isValidXxx` convention):
   so each control accepts exactly what its shared schema does.
 
 This fixes the service-cost fractional bug **and** the `validatePrice` prefix bug
-in one place, keeps the zero-valued and signed forms working, and stops the next
-money field from re-introducing any of these. Pair it with table-driven tests
-over `{1.005 GBP, 1.23 JPY, "1,000", "12.34abc", "  10.50  ", negative, zero,
-blank}` against each variant (positive rejects negative/zero/blank; non-negative
-accepts zero/blank, rejects negative; signed accepts all finite) so the
-invariants are locked across currencies and bounds.
+in one place, keeps the zero-valued, optional-override, and signed forms working,
+and stops the next money field from re-introducing any of these. Pair it with
+table-driven tests over `{1.005 GBP, 1.23 JPY, "1,000", "12.34abc", "  10.50  ",
+negative, zero, blank}` against each variant — positive rejects
+negative/zero/blank; non-negative-required accepts zero, blank ⇒ `0`, rejects
+negative; **optional accepts the same values but blank ⇒ `null` (never `0`)**;
+signed accepts all finite — so the invariants are locked across currencies,
+bounds, and blank-handling.
