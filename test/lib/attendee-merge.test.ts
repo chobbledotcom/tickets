@@ -654,6 +654,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           {
             conflictClass: "conflicting_metadata",
             listingId: 5,
+            parentListingId: 0,
             sourceBooking: {
               attachment_downloads: 0,
               checked_in: 0,
@@ -711,6 +712,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           {
             conflictClass: "duplicate",
             listingId: 7,
+            parentListingId: 0,
             sourceBooking: {
               attachment_downloads: 0,
               checked_in: 0,
