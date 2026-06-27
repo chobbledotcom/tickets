@@ -404,6 +404,29 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       });
     });
 
+    test("routes restoreFromZip failure to login page", async () => {
+      await withLocalStorageEnabled(async () => {
+        // Upload raw non-zip bytes — restoreFromZip throws from unzipSync
+        // (PostResetRestoreError) and onError redirects to /admin/login.
+        await uploadRaw(
+          new Uint8Array([0, 1, 2, 3]),
+          "restore-pending-badzip.zip",
+        );
+        const { response } = await adminFormPost(
+          "/admin/backup/restore/confirm",
+          {
+            backup_filename: "restore-pending-badzip.zip",
+            confirm_identifier: RESTORE_CONFIRM_PHRASE,
+          },
+        );
+        await expectFlashRedirect(
+          "/admin/login",
+          expect.any(String),
+          false,
+        )(response);
+      });
+    });
+
     test("cleans up temp file even on restore failure", async () => {
       await withLocalStorageEnabled(async () => {
         // Upload an invalid zip (valid zip format but contains bad SQL)

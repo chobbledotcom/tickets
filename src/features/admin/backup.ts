@@ -50,6 +50,11 @@ import {
 
 const RESTORE_PENDING_PREFIX = "restore-pending-";
 
+/** Thrown by restoreFromZip so onError can tell apart a mid-restore failure
+ *  (sessions wiped — must redirect to login) from a pre-restore validation
+ *  error (sessions intact — redirect back to the backup page). */
+class PostResetRestoreError extends Error {}
+
 /** A full git commit SHA (40 lowercase hex) — what restore-deploy requires and
  *  the only shape we echo back from restored (possibly untrusted) settings. */
 const FULL_COMMIT_SHA = /^[0-9a-f]{40}$/;
@@ -218,7 +223,7 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
     // backup pre-dates it). Redirect to /admin/login and clear the session
     // cookie so the flash appears on the login page instead of being consumed
     // by an intermediate auth-redirect that the operator never sees.
-    cookie: clearSessionCookie(),
+    cookie: clearSessionCookie,
     execute: async (_session, form) => {
       const filename = form.getString("backup_filename");
       if (
@@ -245,11 +250,20 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
         );
       }
 
+      // Capture any restoreFromZip error so we can throw *after* the
+      // finally cleanup — V8's coverage source maps don't reliably track
+      // `throw` inside catch blocks for async functions.
+      let restoreErr: string | undefined;
       try {
         await restoreFromZip(data);
+      } catch (err) {
+        restoreErr = String(err);
       } finally {
         // Clean up the temp file whether restore succeeds or fails
         await Promise.allSettled([deleteFile(filename)]);
+      }
+      if (restoreErr !== undefined) {
+        throw new PostResetRestoreError(restoreErr);
       }
     },
     // The restored data carries the commit the site was running when the backup
@@ -266,9 +280,14 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
         ? `Database restored from backup. It was running commit ${commit} — run the restore-deploy workflow with that commit to restore the code to this point in time.`
         : "Database restored from backup";
     },
-    // Validation failures (bad filename, wrong phrase, file not found) are
-    // operator mistakes, not completed restores — keep those on the backup page.
-    onError: (error) => errorRedirect("/admin/backup", error.message),
+    // Post-reset failures go to /admin/login (sessions are wiped, so the backup
+    // page would lose the flash). Pre-restore validation errors stay on /admin/backup.
+    onError: (error) =>
+      error instanceof PostResetRestoreError
+        ? redirect("/admin/login", error.message, false, {
+            cookie: clearSessionCookie(),
+          })
+        : errorRedirect("/admin/backup", error.message),
     successRedirect: "/admin/login",
   });
 
