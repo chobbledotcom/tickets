@@ -211,7 +211,7 @@ describeWithEnv(
       expect(res.status).not.toBe(302);
     });
 
-    test("POST /admin/login is not blocked (unrelated POST)", async () => {
+    test("POST /admin/login is not blocked (safe list)", async () => {
       const res = await handleRequest(
         mockRequest("/admin/login", {
           body: "password=test",
@@ -222,13 +222,89 @@ describeWithEnv(
       expect(res.headers.get("location")).not.toBe("/read-only");
     });
 
-    test("POST /read-only returns 404", async () => {
+    // Default-deny: routes not on the safe list are now blocked even when they
+    // were not explicitly listed in the old blocklist.
+    const newlyBlockedPostPaths = [
+      "/admin/servicing/new",
+      "/admin/settings/email",
+      "/admin/users",
+    ];
+    for (const path of newlyBlockedPostPaths) {
+      test(`POST ${path} is blocked by default-deny`, async () => {
+        expectReadOnlyRedirect(await postForm(path));
+      });
+    }
+
+    // DELETE mutations (non-API) are now blocked by default-deny.
+    const deleteBlockedPaths = [
+      "/admin/listing/1/delete",
+      "/admin/listing/1/attendee/2/delete",
+    ];
+    for (const path of deleteBlockedPaths) {
+      test(`DELETE ${path} is blocked by default-deny`, async () => {
+        expectReadOnlyRedirect(
+          await handleRequest(mockRequest(path, { method: "DELETE" })),
+        );
+      });
+    }
+
+    // Safe-list routes must pass through the guard even in read-only mode.
+    // The response may be 4xx (no auth / bad payload) but must not be 302 → /read-only.
+    const safePostPaths = [
+      "/admin/logout",
+      "/renew",
+      "/pay/some-token",
+      "/payment/webhook",
+      "/v1/devices/abc/registrations/pass.com/tok",
+      "/v1/log",
+      "/sms/webhook",
+      "/join/some-code",
+      "/unsubscribe",
+      "/contact",
+      "/admin/support",
+      "/instance/site-credentials",
+      "/scheduled",
+      "/admin/backup/create",
+      "/checkin/abc123+def456",
+      "/admin/listing/42/attendee/99/checkin",
+      "/admin/listing/42/scan",
+      "/admin/attendees/99/refresh-payment",
+      "/admin/deliveries/mark",
+    ];
+    for (const path of safePostPaths) {
+      test(`POST ${path} is not blocked by read-only guard`, async () => {
+        const res = await postForm(path);
+        expect(res.headers.get("location")).not.toBe("/read-only");
+      });
+    }
+
+    test("DELETE /v1/devices/abc/registrations/pass.com/tok is not blocked (wallet protocol)", async () => {
+      const res = await handleRequest(
+        mockRequest("/v1/devices/abc/registrations/pass.com/tok", {
+          method: "DELETE",
+        }),
+      );
+      expect(res.headers.get("location")).not.toBe("/read-only");
+    });
+
+    // POST /read-only is not on the safe list, so the default-deny guard
+    // blocks it with a redirect (same as any other unguarded mutation).
+    test("POST /read-only is blocked by default-deny guard", async () => {
       const res = await handleRequest(
         mockRequest("/read-only", {
           body: "test=1",
           headers: { "content-type": "application/x-www-form-urlencoded" },
           method: "POST",
         }),
+      );
+      expectReadOnlyRedirect(res);
+    });
+
+    // HEAD is not a mutating method, so it passes the guard and reaches the
+    // /read-only prefix handler, which only handles GET — returning null → 404.
+    test("HEAD /read-only returns 404 (handler only handles GET)", async () => {
+      const res = await handleRequest(
+        mockRequest("/read-only", { method: "HEAD" }),
       );
       expect(res.status).toBe(404);
     });
