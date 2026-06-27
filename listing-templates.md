@@ -447,10 +447,12 @@ Two corollaries, so this marker isn't only a re-render concern:
   error re-render.** Today create-parsing treats a missing `bookable_days` as the
   DB default (all days) and `validateBookableDays` only runs on a non-empty value,
   so a deliberate all-clear would silently save as *all days*. With the marker, the
-  server can tell "operator cleared every day" from "field absent" and act on it —
-  fail closed (reject an empty bookable-days daily listing) or persist the empty
-  set — instead of silently substituting the default. The marker is a general
-  submitted-field signal, consumed uniformly by parse/validate/re-render.
+  server can tell "operator cleared every day" from "field absent" and route the
+  all-clear into the **existing `validateBookableDays` "days required" error**
+  (`fields.ts`) — i.e. **fail validation and re-render the submitted empty group**,
+  not persist an empty bookable-days daily listing (which `validateBookableDays`
+  already forbids) and not silently substitute the all-days default. The marker is
+  a general submitted-field signal, consumed uniformly by parse/validate/re-render.
 - **Preserve the dynamic `day_price_*` inputs on the error re-render.** The
   customisable-days flow's per-day price inputs (`day_price_1`, `day_price_2`, …)
   and their row count are **not** part of `FieldValues`, and `renderDayPricesFieldset`
@@ -475,6 +477,17 @@ Re-render the duplicate's form from the **submitted** values (inferring the
 collapse state from those values, exactly as the edit page infers from a stored
 row), so the operator keeps their in-progress duplicate + error rather than losing
 it. "Needs no picker" covers the error path too, not just the initial GET.
+
+**The edit POST error path needs the same submitted-shape treatment.**
+`handleAdminListingEditPost` re-renders a failed update via `renderListingEditError`
+(`listings-edit.ts`), which today would drive the Customise collapse from the
+**stored** listing. But an operator who opens Customise on an existing listing,
+changes a hidden dimension (`listing_type`/`purchase_only`/`uses_logistics`), and
+then hits *another* validation error would see the page collapse back to the
+stored template — hiding or re-checking the dimension they just submitted. So the
+edit error render must infer the collapse state from the **submitted** values (and
+force Customise open when they no longer match the stored shape), identical to the
+create/duplicate error rule above — not from the stored row.
 
 ---
 
