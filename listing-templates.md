@@ -166,7 +166,7 @@ seed just default-ticks the right boxes; see §5.)
 
 A listing whose `(daily, dated, purchaseable, logistics)` does not match any of
 the five signatures (e.g. a *standard, no-date, check-in, logistics* item, or a
-*daily, check-in, no-logistics* listing) is **Custom**: no type matched, so we
+*daily, purchaseable, no-logistics* listing) is **Custom**: no type matched, so we
 hide nothing and render the full form with Customise already expanded. The picker
 page offers an explicit **"Custom / advanced"** option that does the same on
 create. This keeps the five types small and opinionated without ever trapping a
@@ -200,12 +200,18 @@ export type ListingTemplate = {
   signature: { daily: boolean; dated?: boolean; purchaseable: boolean; logistics: boolean };
   shown: readonly FieldGroup[];   // config groups revealed by default; dimension toggles always hidden
   // Field values a freshly-picked template pre-fills on the blank create form.
-  // CRITICAL: the seed sets EVERY dimension field so the saved row re-infers as
-  // this template — listing_type, purchase_only, uses_logistics, and (type 1) date.
+  // CRITICAL: the seed sets every dimension field that is a stored boolean/enum —
+  // listing_type, purchase_only, uses_logistics — so the saved row re-infers as
+  // this template. It does NOT seed `date`: the one-off's `dated=true` can't be
+  // pre-filled with a sensible value, so that template instead makes `date`
+  // *required* (see §5 and the validation note in "Files this touches").
   seed: Partial<FieldValues>;     // e.g. { listing_type: "daily", purchase_only: "1", uses_logistics: "1" }
   // Whether this template needs the logistics feature (logistics:true ⇒ only
   // offered/usable when settings.hasLogistics; see §5).
   requiresLogistics: boolean;
+  // Whether the create form must require a `date` for this template (one-off only)
+  // — the only template-specific validation this feature adds.
+  requiresDate: boolean;
 };
 
 export const LISTING_TEMPLATES: readonly ListingTemplate[] = [ /* the 5 */ ];
@@ -388,8 +394,12 @@ on that listing like the edit page.
 | Customise CSS | `src/ui/static/style.scss` | New classes + a Customise-checkbox reveal, **layered to override** the existing daily/date/duration hides (scope those with `:not(:has(customise:checked))`). |
 | Copy | i18n files | Picker card titles/blurbs, the "Customise" label, per-type hints. |
 
-No migration. No change to `listings-form.ts`, validation, the DB schema, or any
-stored field. The detail page (`adminListingPage`) is unaffected — this is an
+No migration, no DB-schema change, no change to any stored field. The **one**
+server-side addition is a template-specific **required-`date` validation for the
+one-off template** (the create handler must reject a blank `date` when the chosen
+`?template` is the one-off, so it can't save a `dated=false` row that reopens as
+Custom — see §5). Everything else in `listings-form.ts` validation is unchanged.
+The detail page (`adminListingPage`) is unaffected — this is otherwise an
 edit/create-form change only, though a future nicety could surface the inferred
 type label on the detail page too (out of scope here).
 
@@ -455,17 +465,23 @@ not survive.
 ## Open questions / decisions for the operator
 
 1. **Unnamed combinations.** With `purchaseable = purchase_only` (not price), the
-   uncovered shapes are e.g. *standard + no-date + check-in + logistics* or
-   *daily + check-in + no-logistics*. These fall to Custom. Is that acceptable, or
-   does any deserve its own named type? (Pricing is orthogonal now, so a paid
+   9 uncovered shapes (of 16) that fall to Custom include e.g. *standard + no-date
+   + check-in + logistics*, *daily + purchaseable + no-logistics*, and *standard +
+   dated + purchaseable* (a dated item you sell). Is Custom acceptable for these,
+   or does any deserve its own named type? (Pricing is orthogonal now, so a paid
    in-person dated event is just a One-off event ticket — that earlier gap is
-   gone.)
+   gone. Note *daily + check-in + no-logistics* is **not** uncovered — that is the
+   Weekly event ticket.)
 2. **Closes_at / registration deadline.** Currently always shown. It's arguably
    irrelevant to a Delivered item or Online digital ticket. Keep it always-shown
    for simplicity, or fold it into a group too?
-3. **Contact-field seeds.** Delivered item wants `address`; Online digital wants
-   only `email`. Should the template `seed` pre-tick those contact boxes (and the
-   operator can change them), or leave contact fields untouched at defaults?
+3. **Contact-field seeds (resolved as a default; flag if you disagree).** To avoid
+   a Delivered item silently not collecting a delivery address, the plan **decides**
+   the Delivered item seed ticks `address` (alongside `email`) rather than leaving
+   it to the operator to notice — consistent with the §"what each type shows" note.
+   Online digital seeds `email` only. The seed is still operator-editable on the
+   form; the question for you is only whether these *default* tick-sets are right,
+   not whether to seed at all.
 4. **Surfacing the inferred type.** Should the inferred type label show on the
    listing **detail** page and the listings table (read-only, "Type: Bookable
    item"), or stay purely an edit-form affordance? Showing it makes the inference
