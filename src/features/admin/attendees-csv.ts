@@ -11,6 +11,7 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { type Column, CSV } from "#shared/csv/index.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
+import { isServicing } from "#shared/db/attendees/kind.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { DEFAULT_TIMEZONE, formatDatetimeShortInTz } from "#shared/timezone.ts";
 import type { Attendee } from "#shared/types.ts";
@@ -77,8 +78,12 @@ export const standardAttendeeColumns = (domain: string): Column<Attendee>[] => [
     header: t("csv.col.ticket_url"),
     // Blank for a no-quantity sentinel row: its /t URL renders the attendee's
     // other real bookings (or 404s), so it isn't this row's customer ticket.
+    // Also blank for a servicing hold: its token route `/t/:token` 404s (kind
+    // filter), so the URL would be a dead link an operator can't follow.
     value: (a) =>
-      a.quantity === 0 ? "" : `https://${domain}/t/${a.ticket_token}`,
+      a.quantity === 0 || isServicing(a.kind)
+        ? ""
+        : `https://${domain}/t/${a.ticket_token}`,
   },
 ];
 

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   formatCurrency,
   getDecimalPlaces,
+  parsePositiveMinorUnits,
   toMajorUnits,
   toMinorUnits,
   validatePrice,
@@ -153,6 +154,62 @@ describe("currency", () => {
     testWithSetting("converts KWD (3 decimals)", { currency: "KWD" }, () => {
       expect(toMajorUnits(1050)).toBe("1.050");
     });
+  });
+
+  describe("parsePositiveMinorUnits", () => {
+    testWithSetting(
+      "parses a valid positive amount",
+      { currency: "GBP" },
+      () => {
+        expect(parsePositiveMinorUnits("90.00")).toBe(9000);
+      },
+    );
+
+    testWithSetting("returns null for empty", { currency: "GBP" }, () => {
+      expect(parsePositiveMinorUnits("")).toBeNull();
+    });
+
+    testWithSetting("returns null for negative", { currency: "GBP" }, () => {
+      expect(parsePositiveMinorUnits("-5")).toBeNull();
+    });
+
+    testWithSetting("returns null for non-numeric", { currency: "GBP" }, () => {
+      expect(parsePositiveMinorUnits("abc")).toBeNull();
+    });
+
+    testWithSetting("returns null for zero", { currency: "GBP" }, () => {
+      expect(parsePositiveMinorUnits("0")).toBeNull();
+    });
+
+    testWithSetting(
+      "returns null for an amount that exceeds safe integer minor units",
+      { currency: "GBP" },
+      () => {
+        // A huge major-unit amount whose minor-unit representation exceeds
+        // Number.MAX_SAFE_INTEGER — the guard rejects it.
+        expect(parsePositiveMinorUnits("99999999999999999")).toBeNull();
+      },
+    );
+
+    testWithSetting(
+      "returns null for a comma-separated amount (e.g. '1,000')",
+      { currency: "GBP" },
+      () => {
+        // Number.parseFloat("1,000") silently parses as 1 — the stricter
+        // full-string numeric regex now rejects it.
+        expect(parsePositiveMinorUnits("1,000")).toBeNull();
+        expect(parsePositiveMinorUnits("1,000.00")).toBeNull();
+      },
+    );
+
+    testWithSetting(
+      "returns null for a trailing-letter amount (e.g. '12.34abc')",
+      { currency: "GBP" },
+      () => {
+        // Number.parseFloat("12.34abc") silently parses as 12.34 — rejected.
+        expect(parsePositiveMinorUnits("12.34abc")).toBeNull();
+      },
+    );
   });
 
   describe("validatePrice", () => {

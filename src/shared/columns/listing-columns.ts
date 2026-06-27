@@ -58,6 +58,20 @@ const revenue: ListingCol = {
   rawValue: (e) => e.income,
 };
 
+const cost: ListingCol = {
+  cell: (e) => formatCurrency(e.cost),
+  description: "Total servicing costs recorded for this listing",
+  label: "Costs",
+  rawValue: (e) => e.cost,
+};
+
+const profit: ListingCol = {
+  cell: (e) => formatCurrency(e.profit),
+  description: "Revenue less servicing costs for this listing",
+  label: "Profit",
+  rawValue: (e) => e.profit,
+};
+
 const created: ListingCol = {
   cell: (e) => new Date(e.created).toLocaleDateString(),
   description: "Date the listing was created",
@@ -101,12 +115,14 @@ const renewal: ListingCol = {
 /** All available listing table columns */
 export const LISTING_TABLE_COLUMNS: ColumnGenerators<ListingWithCount> = {
   attendees,
+  cost,
   created,
   date,
   description,
   location,
   name,
   price,
+  profit,
   renewal,
   revenue,
   status,
@@ -121,5 +137,7 @@ export const LISTING_DEFAULT_ORDER = [
   "attendees",
   "tickets",
   "revenue",
+  "cost",
+  "profit",
   "created",
 ] as const;

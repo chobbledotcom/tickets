@@ -32,6 +32,16 @@ describeWithEnv("AdminNav", {}, () => {
     }
   });
 
+  test("AdminNav links to servicing for owners and managers", () => {
+    for (const adminLevel of ["owner", "manager"] as const) {
+      const html = String(
+        AdminNav({ active: "/admin/", session: { adminLevel } }),
+      );
+      expect(html).toContain('href="/admin/servicing"');
+      expect(html).toContain("Servicing");
+    }
+  });
+
   test("AdminNav shows the Ledger link to owners but not managers", () => {
     const ownerHtml = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
@@ -62,6 +72,16 @@ describeWithEnv("AdminNav", {}, () => {
       }),
     );
     expect(html).toContain('class="active" href="/admin/attendees"');
+  });
+
+  test("AdminNav marks the servicing link active on servicing pages", () => {
+    const html = String(
+      AdminNav({
+        active: "/admin/servicing",
+        session: { adminLevel: "owner" },
+      }),
+    );
+    expect(html).toContain('class="active" href="/admin/servicing"');
   });
 
   test("AdminNav does NOT render SettingsNagBanner for non-owner sessions", () => {

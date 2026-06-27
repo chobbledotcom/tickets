@@ -79,6 +79,7 @@ export {
   attendeeIdByLedgerEventGroup,
   getAllAttendeePiiBlobs,
   getAttendee,
+  getAttendeeKindsByIds,
   getAttendeeNamesByIds,
   getAttendeePiiBlobsForListings,
   getAttendeeRaw,

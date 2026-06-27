@@ -11,6 +11,7 @@ import type { AttendeeRouteParams } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   ATTENDEE_LEFT_JOIN_SELECT,
   decryptAttendeeOrNull,
@@ -52,8 +53,8 @@ const loadMergeTarget = async (
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
      LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-     WHERE a.id = ?`,
-    [attendeeId],
+     WHERE a.id = ? AND a.kind = ?`,
+    [attendeeId, ATTENDEE_KIND],
   );
   return decryptAttendeeOrNull(raw, pk);
 };

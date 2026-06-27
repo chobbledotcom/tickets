@@ -1,5 +1,7 @@
 /** Declarative database schema and schema hash. */
 
+import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
+
 // ─── Types ──────────────────────────────────────────────────────
 
 export type Column = [name: string, type: string];
@@ -32,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Add idx_listing_attendees_ledger_event_group so the ledger-replay owner lookup (attendeeIdByLedgerEventGroup: SELECT attendee_id FROM listing_attendees WHERE ledger_event_group = ?) resolves via an index seek instead of a full-table scan of every booking ever made.";
+  "Add built_sites.updates for tiered client deploys, index listing_attendees.ledger_event_group for ledger owner lookups, tighten attendees.kind to a strict attendee/servicing invariant, and add service_costs for per-event servicing cost records.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -271,6 +273,10 @@ export const SCHEMA: [name: string, table: Table][] = [
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["created", "TEXT NOT NULL"],
+        [
+          "kind",
+          `TEXT NOT NULL DEFAULT '${ATTENDEE_KIND}' CHECK (kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}'))`,
+        ],
         ["checked_in", "TEXT NOT NULL DEFAULT ''"],
         ["ticket_token_index", "TEXT"],
         ["pii_blob", "TEXT NOT NULL DEFAULT ''"],
@@ -282,6 +288,10 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["phone_index", "TEXT NOT NULL DEFAULT ''"],
       ],
       indexes: [
+        {
+          columns: ["kind"],
+          name: "idx_attendees_kind",
+        },
         {
           columns: ["ticket_token_index"],
           name: "idx_attendees_ticket_token_index",
@@ -894,6 +904,39 @@ export const SCHEMA: [name: string, table: Table][] = [
       ],
     },
   ],
+
+  [
+    // First-class service-cost records: one row per `recordServiceCost` call,
+    // linking the cost's ledger leg to the servicing event that recorded it.
+    // The transfers ledger is append-only and carries no servicing-event id on
+    // its legs, so this table is what scopes `/admin/servicing/:id`'s cost list
+    // to one event. `transfer_id` is the original `service_cost` leg; edits post
+    // adjustment legs keyed to it by memo, and `getServicingCosts` derives each
+    // record's current amount from the leg + its adjustments.
+    "service_costs",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["servicing_attendee_id", "INTEGER NOT NULL"],
+        ["listing_id", "INTEGER NOT NULL"],
+        ["transfer_id", "INTEGER NOT NULL"],
+        ["occurred_at", "TEXT NOT NULL"],
+        ["memo", "TEXT NOT NULL DEFAULT ''"],
+        ["created", "TEXT NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["servicing_attendee_id"],
+          name: "idx_service_costs_servicing",
+        },
+        {
+          columns: ["transfer_id"],
+          name: "idx_service_costs_transfer",
+          unique: true,
+        },
+      ],
+    },
+  ],
 ];
 
 /**
@@ -921,7 +964,20 @@ export const LISTING_AGGREGATE_WRITE_COLUMNS = [
  * the schema-sync backfill, and the hold-delete restore in attendees/delete.ts.
  * A guard test asserts the predicate appears at every one of those sites.
  */
-export const TICKET_COUNTS_PREDICATE = "quantity > 0";
+export const TICKET_COUNTS_PREDICATE = `quantity > 0 AND kind = '${ATTENDEE_KIND}'`;
+
+/** Predicate wrapper for contexts that have a listing_attendees row but need
+ * the attendee kind. Missing attendee rows are treated as legacy attendee rows
+ * so raw trigger tests and old FK-less data keep their historical ticket count. */
+export const ticketCountPredicateFor = (
+  quantityExpr: string,
+  attendeeIdExpr: string,
+): string =>
+  `EXISTS (SELECT 1 FROM (SELECT ${quantityExpr} AS quantity, ` +
+  `CASE WHEN EXISTS (SELECT 1 FROM attendees AS attendee WHERE attendee.id = ${attendeeIdExpr}) ` +
+  `THEN (SELECT attendee.kind FROM attendees AS attendee WHERE attendee.id = ${attendeeIdExpr}) ` +
+  `ELSE '${ATTENDEE_KIND}' END AS kind) ` +
+  `WHERE ${TICKET_COUNTS_PREDICATE})`;
 
 /**
  * tickets_count as a COALESCE(SUM(CASE …)) over {@link TICKET_COUNTS_PREDICATE},
@@ -930,7 +986,10 @@ export const TICKET_COUNTS_PREDICATE = "quantity > 0";
  * 0), so an empty listing would otherwise report bogus drift against a stored 0.
  */
 export const ticketCountSumExpr = (): string =>
-  `COALESCE(SUM(CASE WHEN ${TICKET_COUNTS_PREDICATE} THEN 1 ELSE 0 END), 0)`;
+  `COALESCE(SUM(CASE WHEN ${ticketCountPredicateFor(
+    "quantity",
+    "attendee_id",
+  )} THEN 1 ELSE 0 END), 0)`;
 
 /**
  * The per-row delta a listing-aggregate trigger adds to / subtracts from
@@ -938,7 +997,10 @@ export const ticketCountSumExpr = (): string =>
  * toggling a line 0↔n nets out correctly via the OLD/NEW deltas.
  */
 const ticketCountTriggerDelta = (row: "NEW" | "OLD"): string =>
-  `CASE WHEN ${row}.${TICKET_COUNTS_PREDICATE} THEN 1 ELSE 0 END`;
+  `CASE WHEN ${ticketCountPredicateFor(
+    `${row}.quantity`,
+    `${row}.attendee_id`,
+  )} THEN 1 ELSE 0 END`;
 
 /**
  * Triggers that keep the listing count aggregates (booked_quantity,

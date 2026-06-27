@@ -14,6 +14,7 @@ import type {
   AttendeeWithBookings,
   ListingAttendeeRow,
 } from "#shared/db/attendee-types.ts";
+import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   decryptAttendeeFields,
   decryptPiiBlob,
@@ -78,7 +79,7 @@ export const remainingBalanceFromLedger = (attendeeIdExpr: string): string =>
  * All PII is read from the encrypted pii_blob; per-listing status lives on
  * listing_attendees. `remaining_balance` projects from the ledger like the others.
  */
-const ATTENDEE_COLS = `a.id, a.created, a.ticket_token_index, a.pii_blob, a.status_id, ${remainingBalanceFromLedger(
+const ATTENDEE_COLS = `a.id, a.created, a.kind, a.ticket_token_index, a.pii_blob, a.status_id, ${remainingBalanceFromLedger(
   "a.id",
 )}, a.split_logistics_agents`;
 
@@ -126,7 +127,7 @@ export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
     `SELECT ${ATTENDEE_JOIN_SELECT}
      FROM attendees a
      JOIN listing_attendees ea ON ea.attendee_id = a.id
-     WHERE ea.listing_id = ?
+     WHERE ea.listing_id = ? AND a.kind = '${ATTENDEE_KIND}'
      ORDER BY a.created DESC`,
     [listingId],
   );
@@ -144,6 +145,7 @@ export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
      LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
+     WHERE a.kind = '${ATTENDEE_KIND}'
      ORDER BY a.id DESC LIMIT ?`,
     [limit],
   );
@@ -193,8 +195,10 @@ export const getAttendeesPage = async ({
   // text, so neither is user-controlled — only the bound args are.
   const dir = sort === "oldest" ? "ASC" : "DESC";
   const where = listingIds
-    ? `WHERE ea.listing_id IN (${inPlaceholders(listingIds)})`
-    : "";
+    ? `WHERE a.kind = '${ATTENDEE_KIND}' AND ea.listing_id IN (${inPlaceholders(
+        listingIds,
+      )})`
+    : `WHERE a.kind = '${ATTENDEE_KIND}'`;
   const limit = ATTENDEES_PAGE_SIZE + 1;
   const offset = page * ATTENDEES_PAGE_SIZE;
   const args = listingIds ? [...listingIds, limit, offset] : [limit, offset];
@@ -222,7 +226,8 @@ export const getAllAttendeePiiBlobs = async (): Promise<string[]> => {
   // placeholder) isn't emailed — its ticket URL would 404.
   const rows = await queryAll<{ pii_blob: string }>(
     `SELECT pii_blob FROM attendees
-     WHERE EXISTS (
+     WHERE kind = '${ATTENDEE_KIND}'
+       AND EXISTS (
        SELECT 1 FROM listing_attendees
        WHERE attendee_id = attendees.id AND quantity > 0
      )`,
@@ -243,7 +248,8 @@ export const getAttendeePiiBlobsForListings = async (
     // quantity > 0: only attendees with a real line on these listings — a
     // no-quantity sentinel line doesn't make someone an "attendee of X".
     `SELECT pii_blob FROM attendees
-     WHERE id IN (
+     WHERE kind = '${ATTENDEE_KIND}'
+       AND id IN (
        SELECT DISTINCT attendee_id FROM listing_attendees
        WHERE listing_id IN (${inPlaceholders(listingIds)}) AND quantity > 0
      )`,
@@ -269,6 +275,7 @@ export const getAttendeePiiBlobForToken = async (
   const row = await queryOne<{ pii_blob: string }>(
     `SELECT pii_blob FROM attendees
      WHERE ticket_token_index = ?
+       AND kind = '${ATTENDEE_KIND}'
        AND EXISTS (
          SELECT 1 FROM listing_attendees
          WHERE attendee_id = attendees.id AND quantity > 0
@@ -355,7 +362,7 @@ export const getAttendeeRaw = (id: number): Promise<Attendee | null> => {
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
      LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-     WHERE a.id = ?`,
+     WHERE a.id = ? AND a.kind = '${ATTENDEE_KIND}'`,
     [id],
   );
 };
@@ -372,7 +379,7 @@ export const getAttendeesByIds = (ids: number[]): Promise<Attendee[]> => {
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
      LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-     WHERE a.id IN (${inPlaceholders(ids)})`,
+     WHERE a.kind = '${ATTENDEE_KIND}' AND a.id IN (${inPlaceholders(ids)})`,
     ids,
   );
 };
@@ -394,6 +401,20 @@ export const getAttendeeNamesByIds = (
     ids,
     async (raw: string) => (await decryptPiiBlob(raw, privateKey, false)).name,
   );
+
+/** Bounded id → kind lookup for attendee-linked admin surfaces. Empty ids ⇒
+ * empty map. Unknown/deleted ids are omitted. */
+export const getAttendeeKindsByIds = async (
+  ids: number[],
+): Promise<Map<number, string>> => {
+  if (ids.length === 0) return new Map();
+  const rows = await queryAll<{ id: number; kind: string }>(
+    `SELECT id, kind FROM attendees
+     WHERE id IN (${inPlaceholders(ids)})`,
+    ids,
+  );
+  return new Map(rows.map((row) => [row.id, row.kind]));
+};
 
 /**
  * Get an attendee by ID (decrypted)
@@ -426,18 +447,19 @@ export const getAttendeesByTokens = async (
   type AttendeeBase = {
     id: number;
     created: string;
+    kind: string;
     ticket_token_index: string;
     pii_blob: string;
     status_id: number | null;
     remaining_balance: number;
   };
   const attendeeRows = await queryAll<AttendeeBase>(
-    `SELECT id, created, ticket_token_index, pii_blob, status_id, ${remainingBalanceFromLedger(
+    `SELECT id, created, kind, ticket_token_index, pii_blob, status_id, ${remainingBalanceFromLedger(
       "attendees.id",
     )}
      FROM attendees WHERE ticket_token_index IN (${inPlaceholders(
        tokenIndexes,
-     )})`,
+     )}) AND kind = '${ATTENDEE_KIND}'`,
     tokenIndexes,
   );
 
@@ -483,6 +505,7 @@ export const getAttendeesByTokens = async (
       bookings: bookingsByAttendee.get(row.id) ?? [],
       created: row.created,
       id: row.id,
+      kind: row.kind,
       pii_blob: row.pii_blob,
       remaining_balance: row.remaining_balance,
       status_id: row.status_id,

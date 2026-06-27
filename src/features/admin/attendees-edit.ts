@@ -14,6 +14,7 @@ import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
+import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   ATTENDEE_LEFT_JOIN_SELECT,
   decryptAttendeeOrNull,
@@ -44,7 +45,7 @@ const loadRefreshContext = async (
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
      LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-     WHERE a.id = ?`,
+     WHERE a.id = ? AND a.kind = '${ATTENDEE_KIND}'`,
     [attendeeId],
   );
   if (!attendeeRaw) return null;

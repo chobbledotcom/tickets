@@ -48,6 +48,7 @@ export const listingsRoutes = {
   ...defineRoutes({
     "DELETE /admin/listing/:id/delete": handleAdminListingDelete,
     "GET /admin/listing/:id": handleAdminListingGet,
+    "GET /admin/listing/:id/attendees.csv": handleAdminListingExport,
     "GET /admin/listing/:id/duplicate": handleAdminListingDuplicateGet,
     "GET /admin/listing/:id/edit": handleAdminListingEditGet,
     "GET /admin/listing/:id/export": handleAdminListingExport,

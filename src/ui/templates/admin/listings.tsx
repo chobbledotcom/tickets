@@ -390,10 +390,10 @@ const BreakdownRow = ({
  */
 const ListingIncomeLedgerSection = ({
   breakdown,
-  listingId,
+  listing,
 }: {
   breakdown: ListingRevenueBreakdown;
-  listingId: number;
+  listing: ListingWithCount;
 }): JSX.Element => (
   <article id="income-ledger">
     <fieldset class="listing-section">
@@ -423,6 +423,15 @@ const ListingIncomeLedgerSection = ({
               subtotal
             />
             <BreakdownRow
+              amount={formatCurrency(listing.cost)}
+              label={t("listings_table.income_ledger_costs")}
+            />
+            <BreakdownRow
+              amount={formatCurrency(listing.profit)}
+              label={t("listings_table.income_ledger_profit")}
+              subtotal
+            />
+            <BreakdownRow
               amount={signedCurrency(-breakdown.refunds)}
               label={t("listings_table.income_ledger_refunds")}
             />
@@ -444,7 +453,7 @@ const ListingIncomeLedgerSection = ({
         <small>{t("listings_table.income_ledger_recognised_note")}</small>
       </p>
       <p class="actions">
-        <ActionButton href={`/admin/ledger?listing=${listingId}`}>
+        <ActionButton href={`/admin/ledger?listing=${listing.id}`}>
           {t("listings_table.income_ledger_view_full")}
         </ActionButton>
       </p>
@@ -1367,7 +1376,7 @@ export const adminListingPage = ({
       {revenueBreakdown && (
         <ListingIncomeLedgerSection
           breakdown={revenueBreakdown}
-          listingId={listing.id}
+          listing={listing}
         />
       )}
       {ledger && (

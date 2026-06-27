@@ -94,8 +94,8 @@ import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
-  parseSelectedListingIds,
-  START_DATE_FIELD,
+  selectedListingQuantities,
+  selectedStartDate,
 } from "#shared/order-select.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -473,14 +473,10 @@ export const handleAttendeeNewGet: TypedRouteHandler<
   requireSessionOr(request, async (session) => {
     const renderListings = await getRenderListings([]);
     const params = new URL(request.url).searchParams;
-    const preselectedQty = new Map(
-      parseSelectedListingIds(params).map((id) => [id, 1]),
-    );
-    const startParam = params.get(START_DATE_FIELD) ?? "";
     const parsed = buildCreateForm(
       renderListings,
-      preselectedQty,
-      isIsoDate(startParam) ? startParam : "",
+      selectedListingQuantities(params),
+      selectedStartDate(params),
     );
     const data = await buildTemplateData("create", parsed, null, {
       returnUrl: getSearchParam(request, "return_url"),

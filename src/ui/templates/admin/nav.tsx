@@ -93,6 +93,7 @@ const topLevelItems = (session: AdminSession): NavItem[] =>
     { href: "/admin/", label: t("nav.public.home") },
     { href: "/admin/listings", label: t("terms.listings") },
     { href: "/admin/calendar", label: t("nav.calendar") },
+    { href: "/admin/servicing", label: t("nav.servicing") },
     { href: "/admin/attendees", label: t("terms.attendees") },
     session.adminLevel === "owner"
       ? { href: "/admin/users", label: t("terms.users") }
