@@ -441,6 +441,27 @@ group (or a submitted-field manifest). The overlay rule then becomes: a group wi
 its present-marker set but no checked values is an **explicit empty** (don't seed);
 only a group whose marker is absent falls back to the seed.
 
+Two corollaries, so this marker isn't only a re-render concern:
+
+- **The present-marker must feed *validation and create-parsing too*, not just the
+  error re-render.** Today create-parsing treats a missing `bookable_days` as the
+  DB default (all days) and `validateBookableDays` only runs on a non-empty value,
+  so a deliberate all-clear would silently save as *all days*. With the marker, the
+  server can tell "operator cleared every day" from "field absent" and act on it —
+  fail closed (reject an empty bookable-days daily listing) or persist the empty
+  set — instead of silently substituting the default. The marker is a general
+  submitted-field signal, consumed uniformly by parse/validate/re-render.
+- **Preserve the dynamic `day_price_*` inputs on the error re-render.** The
+  customisable-days flow's per-day price inputs (`day_price_1`, `day_price_2`, …)
+  and their row count are **not** part of `FieldValues`, and `renderDayPricesFieldset`
+  (`listings.tsx:1430`) rebuilds rows only from a *stored* listing — so an overlay
+  that only re-applies template seeds + normal fields would drop the prices an
+  operator typed before the error (and the row count implied by their
+  `duration_days`). The error re-render must therefore rebuild the day-prices
+  fieldset from the **submitted** `day_price_*` values + submitted `duration_days`,
+  not from a stored listing (which doesn't exist yet on create), so customisable
+  pricing survives a failed submit.
+
 The param is **never persisted**. On a successful submit it's an ordinary create;
 the created listing has no stored type, and reopening it re-infers from its saved
 fields.
