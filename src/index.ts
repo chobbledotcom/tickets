@@ -3,12 +3,12 @@
  */
 
 import { handleRequest } from "#routes/index.ts";
-import { validateEncryptionKey } from "#shared/crypto/encryption.ts";
+import { validateBootChecks } from "#shared/boot-checks.ts";
 import { logDebug } from "#shared/logger.ts";
 import { initSentry } from "#shared/sentry.ts";
 
 const startServer = (port = 3000): void => {
-  validateEncryptionKey();
+  validateBootChecks();
   initSentry();
   logDebug("Setup", `Server starting on http://localhost:${port}`);
 
