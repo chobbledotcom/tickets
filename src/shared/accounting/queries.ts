@@ -85,23 +85,32 @@ export const recentTransfers = (limit: number): Promise<Transfer[]> =>
 
 /** Legs shown on the operator-facing ledger list. Routine checkout cash
  * plumbing ("Card / bank → <attendee>" and its refund mirror) stays hidden, but
- * owner-entered manual rows remain visible even when they record an external
- * payment or cost. */
+ * owner-entered manual rows and service cost legs remain visible even when they
+ * record an external cost. */
 const VISIBLE_TRANSFER_SCOPE =
-  "(source_type != 'external' AND dest_type != 'external' OR kind LIKE 'manual\\_%' ESCAPE '\\')";
+  "(source_type != 'external' AND dest_type != 'external' OR kind LIKE 'manual\\_%' ESCAPE '\\' OR kind = 'service_cost')";
 
-/** A revenue-account scope (the listing's own legs, as source or destination)
- *  for the by-listing filter, with its bound args. Empty for "all listings". */
+/** A listing-account scope (revenue OR cost legs touching this listing's
+ *  accounts) for the by-listing filter, with its bound args. Empty for "all
+ *  listings". Cost legs use source_type/dest_type='cost' rather than 'revenue',
+ *  so both types are included so service-cost legs appear in the listing view. */
 const revenueLegScope = (
   listingId: number | null,
 ): { clause: string; args: InValue[] } =>
   listingId === null
     ? { args: [], clause: "" }
     : {
-        args: [String(listingId), String(listingId)],
+        args: [
+          String(listingId),
+          String(listingId),
+          String(listingId),
+          String(listingId),
+        ],
         clause:
           " AND (dest_type = 'revenue' AND dest_id = ?" +
-          " OR source_type = 'revenue' AND source_id = ?)",
+          " OR source_type = 'revenue' AND source_id = ?" +
+          " OR source_type = 'cost' AND source_id = ?" +
+          " OR dest_type = 'cost' AND dest_id = ?)",
       };
 
 /**

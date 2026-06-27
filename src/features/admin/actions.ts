@@ -20,6 +20,7 @@ import {
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   decryptAttendees,
+  getAttendeeKindsByIds,
   getAttendeeNamesByIds,
 } from "#shared/db/attendees.ts";
 import { getListingWithAttendeesRaw } from "#shared/db/listings.ts";
@@ -62,6 +63,25 @@ export const loadAttendeeNames = async (
   if (attendeeIds.length === 0) return new Map();
   const key = await requireRequestPrivateKey();
   return getAttendeeNamesByIds(attendeeIds, key);
+};
+
+export type AttendeeLinkRefs = {
+  kinds: Map<number, string>;
+  names: Map<number, string>;
+};
+
+export const loadAttendeeLinkRefs = async (
+  attendeeIds: number[],
+): Promise<AttendeeLinkRefs> => {
+  if (attendeeIds.length === 0) {
+    return { kinds: new Map(), names: new Map() };
+  }
+  const key = await requireRequestPrivateKey();
+  const [names, kinds] = await Promise.all([
+    getAttendeeNamesByIds(attendeeIds, key),
+    getAttendeeKindsByIds(attendeeIds),
+  ]);
+  return { kinds, names };
 };
 
 /** Handler that receives a decrypted listing with its attendees */

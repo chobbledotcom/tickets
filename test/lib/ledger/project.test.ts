@@ -4,7 +4,9 @@ import { account, accountKey } from "#shared/ledger/account.ts";
 import {
   allBalances,
   balanceOf,
+  costProjection,
   inPeriod,
+  profitProjection,
   statementFor,
   sumOfKind,
 } from "#shared/ledger/project.ts";
@@ -74,6 +76,26 @@ describe("sumOfKind", () => {
     expect(sumOfKind("refund_cash")(ts)).toBe(2800);
     // A kind absent from the slice sums to zero, not to the legs it excludes.
     expect(sumOfKind("sale")(ts)).toBe(0);
+  });
+});
+
+describe("listing cost/profit projections", () => {
+  it("reports positive servicing cost and subtracts it from gross revenue", () => {
+    const listingId = 45;
+    const ts = [
+      makeTransfer({
+        amount: 20000,
+        destination: account("revenue", listingId),
+        source: attendee,
+      }),
+      makeTransfer({
+        amount: 9000,
+        destination: world,
+        source: account("cost", listingId),
+      }),
+    ];
+    expect(costProjection(listingId)(ts)).toBe(9000);
+    expect(profitProjection(listingId)(ts)).toBe(11000);
   });
 });
 

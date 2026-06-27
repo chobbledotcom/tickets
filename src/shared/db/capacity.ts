@@ -203,7 +203,7 @@ const buildDayCapacitySql = (
 
   const sql = `(
     ${listingCount.sql}
-  ) + ? <= (SELECT max_attendees FROM listings WHERE id = ?)
+  ) + ? <= (SELECT max_attendees FROM listings WHERE id = ? AND active = 1)
   AND (
     SELECT CASE
       WHEN listing.group_id = 0 THEN 1
@@ -213,7 +213,7 @@ const buildDayCapacitySql = (
     END
     FROM listings AS listing
     LEFT JOIN groups g ON g.id = listing.group_id
-    WHERE listing.id = ?
+    WHERE listing.id = ? AND listing.active = 1
   ) = 1`;
 
   return {

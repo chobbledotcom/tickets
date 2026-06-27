@@ -148,6 +148,65 @@ const allLinesFit = async (
   return fits.every((ok) => ok);
 };
 
+/** True when a desired line preserves an existing booking unchanged (same slot,
+ *  date range, and quantity) — a no-op that adds no capacity, so the capacity
+ *  guard's `active = 1` subquery must not strand it on a deactivated listing.
+ *  A line that keeps the same key but moves its date or changes quantity IS
+ *  changed and must be capacity-checked. */
+const isUnchangedLine = (
+  line: AtomicDesiredLine,
+  existingByKey: Map<string, ListingAttendeeRow>,
+): boolean => {
+  const existing = existingByKey.get(line.key);
+  if (!existing || existing.quantity !== line.quantity) return false;
+  const { startAt, endAt } = dateToStartEnd(line.date, line.durationDays);
+  return existing.start_at === startAt && existing.end_at === endAt;
+};
+
+/** The lines whose capacity impact must be preflight-checked: new or
+ *  quantity-changed lines, excluding unchanged preserves. */
+const changedLinesForPreflight = (
+  desired: AtomicDesiredLine[],
+  existingByKey: Map<string, ListingAttendeeRow>,
+): AtomicDesiredLine[] =>
+  desired.filter((line) => !isUnchangedLine(line, existingByKey));
+
+/** The existing row's start_at and parent_listing_id for the UPDATE pin, so an
+ *  attendee holding two rows for the same daily listing on different dates or
+ *  under different parents updates only the target row. */
+const oldPinOf = (
+  line: AtomicDesiredLine,
+  existingByKey: Map<string, ListingAttendeeRow>,
+): { startAt: string | null; parentListingId: number } => {
+  const row = existingByKey.get(line.key);
+  return { startAt: row?.start_at ?? null, parentListingId: row?.parent_listing_id ?? 0 };
+};
+
+/** The UPDATE statement for one existing line. Unconditional (no capacity
+ *  guard) when the caller opted into overbooking OR the line is an unchanged
+ *  no-op preserve; capacity-checked + guarded otherwise. */
+const updateStatementFor = (
+  line: AtomicDesiredLine,
+  attendeeId: number,
+  oldStartAt: string | null,
+  oldParentListingId: number,
+  skipCapacityGuard: boolean,
+): { args: InValue[]; sql: string } => {
+  const { startAt, endAt } = dateToStartEnd(line.date, line.durationDays);
+  const pin = [attendeeId, line.listingId, oldStartAt, oldParentListingId];
+  const setClause =
+    `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?${noQuantityResetColumns(line.quantity)}` +
+    " WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ?";
+  if (skipCapacityGuard) {
+    return { args: [line.quantity, startAt, endAt, ...pin], sql: setClause };
+  }
+  const condition = lineCapacityCondition(line, attendeeId);
+  return {
+    args: [line.quantity, startAt, endAt, ...pin, ...condition.args],
+    sql: `${setClause}\n              AND ${condition.sql}`,
+  };
+};
+
 /**
  * Apply a desired final-state line set to an existing attendee atomically.
  *
@@ -172,17 +231,18 @@ export const applyAttendeeAtomicEdit = async (
     return { reason: "capacity_exceeded", success: false };
   }
 
-  // Preflight: reject (without writing anything) when any line can't fit. The
-  // common over-capacity case never touches the DB; the per-line CAPACITY_GUARD
-  // in the batch below still rolls the whole edit back if a concurrent booking
-  // wins the race between this check and the commit. Skipped entirely when the
-  // caller has opted into overbooking (admin manual edit).
-  if (!allowOverbook && !(await allLinesFit(attendeeId, desired))) {
-    return { reason: "capacity_exceeded", success: false };
-  }
-
   const existing = await loadExistingLines(attendeeId);
   const existingByKey = new Map(existing.map((e) => [e.key, e.booking]));
+
+  // Preflight: reject (without writing anything) when any *changed* line can't
+  // fit. Unchanged lines (no-op preserves) are excluded — see
+  // {@link isUnchangedLine}. Skipped entirely when overbooking.
+  if (!allowOverbook) {
+    const changed = changedLinesForPreflight(desired, existingByKey);
+    if (changed.length > 0 && !(await allLinesFit(attendeeId, changed))) {
+      return { reason: "capacity_exceeded", success: false };
+    }
+  }
 
   // Diff: removed / updated / new
   const desiredKeys = new Set(desired.map((line) => line.key));
@@ -217,32 +277,25 @@ export const applyAttendeeAtomicEdit = async (
     });
   }
 
-  // Step 3: Update existing lines. The WHERE pins the row by its *old* start_at
-  // and parent_listing_id so an attendee holding two rows for the same daily
-  // listing on different dates (or under different parents) updates only the
-  // target row. Capacity-checked + guarded unless the caller opted into
-  // overbooking, in which case the update is unconditional.
+  // Step 3: Update existing lines, capacity-checked + guarded unless
+  // overbooking or the line is an unchanged preserve (skipping the capacity
+  // re-check so a deactivated listing's hold isn't stranded). The WHERE pins
+  // by old start_at AND parent_listing_id so two rows for the same daily
+  // listing under different parents update only the target row.
   for (const line of updates) {
-    const existingRow = existingByKey.get(line.key)!;
-    const oldStartAt = existingRow.start_at;
-    const oldParentListingId = existingRow.parent_listing_id;
-    const { startAt, endAt } = dateToStartEnd(line.date, line.durationDays);
-    const pin = [attendeeId, line.listingId, oldStartAt, oldParentListingId];
-    const setClause = `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?${noQuantityResetColumns(line.quantity)}
-            WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ?`;
-    if (allowOverbook) {
-      statements.push({
-        args: [line.quantity, startAt, endAt, ...pin],
-        sql: setClause,
-      });
-      continue;
-    }
-    const condition = lineCapacityCondition(line, attendeeId);
-    statements.push({
-      args: [line.quantity, startAt, endAt, ...pin, ...condition.args],
-      sql: `${setClause}\n              AND ${condition.sql}`,
-    });
-    statements.push(CAPACITY_GUARD);
+    const skipGuard = allowOverbook || isUnchangedLine(line, existingByKey);
+    const { startAt: oldStartAt, parentListingId: oldParentListingId } =
+      oldPinOf(line, existingByKey);
+    statements.push(
+      updateStatementFor(
+        line,
+        attendeeId,
+        oldStartAt,
+        oldParentListingId,
+        skipGuard,
+      ),
+    );
+    if (!skipGuard) statements.push(CAPACITY_GUARD);
   }
 
   // Step 4: Insert new lines (capacity-checked + guarded unless overbooking).

@@ -6,6 +6,7 @@ import {
   generateCalendarCsv,
 } from "#routes/admin/calendar-csv.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import {
   bookingAssignmentKey,
   type LogisticsAssignment,
@@ -140,5 +141,62 @@ describe("generateCalendarCsv logistics columns", () => {
     expect(csv).toContain("Start Agent");
     expect(csv).toContain("Van A");
     expect(csv).not.toContain("maps.apple.com");
+  });
+});
+
+describe("generateCalendarCsv servicing policy", () => {
+  beforeAll(() => {
+    setupTestEncryptionKey();
+    signCsrfToken();
+  });
+
+  test("marks servicing rows as 'Service event' and omits their dead /t/ ticket URL", () => {
+    // The calendar includes servicing holds (operator decision), so the CSV
+    // includes them too — but marked by a Type column and with no followable
+    // ticket URL: a servicing token's `/t/:token` 404s (kind filter), and a dead
+    // link must never be rendered. A real attendee keeps its ticket URL.
+    const service = calAttendee({
+      id: 1,
+      kind: SERVICING_KIND,
+      listing_id: 1,
+      listingName: "Boiler Room",
+      name: "Boiler Service",
+      ticket_token: "svc-token",
+    });
+    const attendee = calAttendee({
+      id: 2,
+      listing_id: 1,
+      listingName: "Boiler Room",
+      name: "Jane Doe",
+      ticket_token: "att-token",
+    });
+    const csv = generateCalendarCsv([service, attendee]);
+    expect(csv).toContain("Type");
+    expect(csv).toContain("Service event");
+    expect(csv).toContain("Attendee");
+    // The servicing row's dead ticket URL is omitted; the attendee's is kept.
+    expect(csv).not.toContain("/t/svc-token");
+    expect(csv).toContain("/t/att-token");
+  });
+
+  test("keeps a servicing row as 'Service event' on a logistics listing", () => {
+    const service = calAttendee({
+      id: 1,
+      kind: SERVICING_KIND,
+      listing_id: 1,
+      listingName: "Logistics Room",
+      name: "Deep Clean",
+      ticket_token: "svc-tok",
+    });
+    const logistics: CalendarLogisticsCsv = {
+      agentNames: new Map([[5, "Van A"]]),
+      assignments: new Map(),
+      listingIds: new Set([1]),
+    };
+    const csv = generateCalendarCsv([service], logistics);
+    // Logistics columns render (listing 1 uses logistics), but the servicing
+    // row is still labelled "Service event" — a hold, not a logisticable booking.
+    expect(csv).toContain("Service event");
+    expect(csv).toContain("Start Agent");
   });
 });

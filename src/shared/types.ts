@@ -326,6 +326,7 @@ export interface Attendee extends ContactInfo {
   checked_in: boolean;
   created: string;
   date: string | null;
+  kind: string;
   /** Exclusive end of the booked range (YYYY-MM-DD, the midnight after the last
    * booked day), derived from `listing_attendees.end_at`. Null for date-less
    * (standard) bookings. Lets render paths show each booking's true span — which
@@ -480,8 +481,12 @@ export interface Modifier {
 
 export interface ListingWithCount extends Listing {
   attendee_count: number;
-  /** Trigger-maintained SUM(price_paid) over this listing's bookings, in minor units. */
+  /** Projected servicing costs posted against this listing, in minor units. */
+  cost: number;
+  /** Projected recognised income over this listing's ledger rows, in minor units. */
   income: number;
+  /** Projected recognised income minus servicing cost, in minor units. */
+  profit: number;
   /** Trigger-maintained COUNT of this listing's booking rows. */
   tickets_count: number;
 }

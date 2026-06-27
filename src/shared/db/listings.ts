@@ -6,6 +6,7 @@ import type { InValue, ResultSet } from "@libsql/client";
 import { mapParallel, reduce, sort, unique } from "#fp";
 import { inOwnTx, ledgerTx } from "#shared/accounting/ledger-tx.ts";
 import {
+  accountBalanceSubquery,
   creditsLessWriteoffDebits,
   revenueBreakdownColumns,
   revenueBreakdownScope,
@@ -19,10 +20,11 @@ import {
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { addDays } from "#shared/dates.ts";
+import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import {
   ATTENDEE_JOIN_SELECT,
   ATTENDEE_LEFT_JOIN_SELECT,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/queries.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
 import {
   execute,
@@ -43,6 +45,7 @@ import {
 import {
   LISTING_AGGREGATE_WRITE_COLUMNS,
   TICKET_COUNTS_PREDICATE,
+  ticketCountPredicateFor,
   ticketCountSumExpr,
 } from "#shared/db/migrations/schema.ts";
 import { nameMapByIds } from "#shared/db/query.ts";
@@ -229,6 +232,22 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
 export const listingIncomeSubquery = (idExpr: string): string =>
   `${creditsLessWriteoffDebits("revenue", idExpr)} AS income`;
 
+const listingCostSubquery = (idExpr: string): string =>
+  `-${accountBalanceSubquery("cost", idExpr)} AS cost`;
+
+const listingProfitSubquery = (idExpr: string): string =>
+  `(${creditsLessWriteoffDebits("revenue", idExpr)} + ${accountBalanceSubquery(
+    "cost",
+    idExpr,
+  )}) AS profit`;
+
+const listingMoneySubqueries = (idExpr: string): string =>
+  [
+    listingIncomeSubquery(idExpr),
+    listingCostSubquery(idExpr),
+    listingProfitSubquery(idExpr),
+  ].join(", ");
+
 /**
  * A transparent breakdown of a listing's `revenue:<id>` account, deriving BOTH
  * the reported figure and the live ledger balance from the same running totals so
@@ -314,7 +333,7 @@ export const listingRevenueBreakdown = async (
  * `booked_quantity` column (maintained by triggers on listing_attendees), so
  * this no longer joins or scans the attendee rows. */
 export const LISTING_COUNT_SELECT = `SELECT listing.*, listing.booked_quantity AS attendee_count,
-       ${listingIncomeSubquery("listing.id")}
+       ${listingMoneySubqueries("listing.id")}
      FROM listings AS listing`;
 
 /** GROUP BY clause that pairs with {@link LISTING_COUNT_SELECT}. Empty now that
@@ -338,7 +357,9 @@ export const decryptListingWithCount = async (
   return {
     ...listing,
     attendee_count: row.attendee_count,
+    cost: Number(row.cost),
     income: Number(row.income),
+    profit: Number(row.profit),
     tickets_count: Number(row.tickets_count),
   };
 };
@@ -479,12 +500,14 @@ export const deleteListing = async (listingId: number): Promise<void> => {
 };
 
 /** The aggregate columns a listing-load row carries: `booked_quantity` and
- *  `tickets_count` are trigger-maintained columns on `listings`; `income` is
- *  projected from the ledger by {@link listingIncomeSubquery}, which every loader
- *  must select alongside `listings.*` (the column itself is gone). */
+ *  `tickets_count` are trigger-maintained columns on `listings`; money fields are
+ *  projected from the ledger by {@link listingMoneySubqueries}, which every
+ *  loader must select alongside `listings.*` (the columns themselves are gone). */
 type ListingAggregateColumns = {
   booked_quantity: number;
+  cost: number;
   income: number;
+  profit: number;
   tickets_count: number;
 };
 
@@ -634,7 +657,10 @@ export const adjustListingIncome = inOwnTx(ledgerTx.correct.income);
 export const aggregateResetSql: Record<ListingAggregateField, string> = {
   booked_quantity:
     "booked_quantity = COALESCE((SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = ?), 0)",
-  tickets_count: `tickets_count = (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = ? AND ${TICKET_COUNTS_PREDICATE})`,
+  tickets_count: `tickets_count = (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = ? AND ${ticketCountPredicateFor(
+    "quantity",
+    "attendee_id",
+  )})`,
 };
 
 /** Reset selected listing aggregate columns from actual attendee rows. */
@@ -663,14 +689,14 @@ export const getListingWithAttendeesRaw = async (
   const [listingResult, attendeesResult] = await queryBatch([
     {
       args: [id],
-      sql: `SELECT listings.*, ${listingIncomeSubquery("listings.id")} FROM listings WHERE id = ?`,
+      sql: `SELECT listings.*, ${listingMoneySubqueries("listings.id")} FROM listings WHERE id = ?`,
     },
     {
       args: [id],
       sql: `SELECT ${ATTENDEE_JOIN_SELECT}
             FROM attendees a
             JOIN listing_attendees ea ON ea.attendee_id = a.id
-            WHERE ea.listing_id = ?
+            WHERE ea.listing_id = ? AND a.kind = '${ATTENDEE_KIND}'
             ORDER BY a.created DESC`,
     },
   ]);
@@ -748,19 +774,45 @@ export const getDailyListingAttendeesByDate = (
  * never applied unconditionally to this shared helper — so a record/detail
  * caller can't accidentally lose its ghost rows.
  */
+type ListingAttendeeKindScope = "attendees" | "attendees-and-servicing";
+
+type ListingAttendeeFilter = {
+  activeOnly?: boolean;
+  kindScope?: ListingAttendeeKindScope;
+};
+
+const listingAttendeeFilter = (
+  filter: boolean | ListingAttendeeFilter = false,
+): Required<ListingAttendeeFilter> =>
+  typeof filter === "boolean"
+    ? { activeOnly: filter, kindScope: "attendees" }
+    : {
+        activeOnly: filter.activeOnly ?? false,
+        kindScope: filter.kindScope ?? "attendees",
+      };
+
+const attendeeKindClause = (kindScope: ListingAttendeeKindScope): string =>
+  kindScope === "attendees-and-servicing"
+    ? `a.kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}')`
+    : `a.kind = '${ATTENDEE_KIND}'`;
+
 export const getAttendeesByListingIds = (
   listingIds: number[],
-  activeOnly = false,
-): Promise<Attendee[]> =>
-  queryAll<Attendee>(
+  filter: boolean | ListingAttendeeFilter = false,
+): Promise<Attendee[]> => {
+  if (listingIds.length === 0) return Promise.resolve([]);
+  const { activeOnly, kindScope } = listingAttendeeFilter(filter);
+  return queryAll<Attendee>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
      FROM attendees a
      JOIN listing_attendees ea ON ea.attendee_id = a.id
      WHERE ea.listing_id IN (${inPlaceholders(listingIds)})
+       AND ${attendeeKindClause(kindScope)}
        ${activeOnly ? "AND ea.quantity > 0" : ""}
      ORDER BY a.created DESC`,
     listingIds,
   );
+};
 
 /** Result type for listing + single attendee query */
 export type ListingWithAttendeeRaw = {
@@ -780,14 +832,14 @@ export const getListingWithAttendeeRaw = async (
   const [listingResult, attendeeResult] = await queryBatch([
     {
       args: [listingId],
-      sql: `SELECT listings.*, ${listingIncomeSubquery("listings.id")} FROM listings WHERE id = ?`,
+      sql: `SELECT listings.*, ${listingMoneySubqueries("listings.id")} FROM listings WHERE id = ?`,
     },
     {
       args: [attendeeId],
       sql: `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
             FROM attendees a
             LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-            WHERE a.id = ?`,
+            WHERE a.id = ? AND a.kind = '${ATTENDEE_KIND}'`,
     },
   ]);
 

@@ -404,11 +404,12 @@ describeWithEnv(
         const csv = await response.text();
         const lines = csv.split("\n");
         expect(lines[0]).toBe(
-          "Listing,Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
+          "Listing,Type,Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
         );
         expect(lines[1]).toContain(listing.name);
         expect(lines[1]).toContain(date);
         expect(lines[1]).toContain("User A");
+        expect(lines[1]).toContain("Attendee");
       });
 
       test("includes attendees from multiple listings", async () => {
@@ -434,7 +435,7 @@ describeWithEnv(
         const csv = await response.text();
         const lines = csv.split("\n");
         expect(lines).toHaveLength(1);
-        expect(lines[0]).toContain("Listing,Date,Name");
+        expect(lines[0]).toContain("Listing,Type,Date,Name");
       });
 
       test("includes standard listing attendees in CSV export", async () => {
@@ -486,6 +487,8 @@ describeWithEnv(
         expect(html).toContain("Avail Listing");
         expect(html).toContain("5/5");
         expect(html).toContain('action="/admin/attendees/new"');
+        expect(html).toContain('formaction="/admin/servicing/new"');
+        expect(html).toContain("Create Service Event");
         expect(html).toContain(`name="select_${listing.id}"`);
       });
 

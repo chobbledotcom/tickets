@@ -6,6 +6,7 @@
  */
 
 import { filter, sumOf } from "#fp";
+import { costAccount, revenueAccount } from "#shared/accounting/accounts.ts";
 import { instantToEpochMs, isInstant } from "#shared/validation/timestamp.ts";
 import { accountKey, sameAccount } from "./account.ts";
 import type { AccountRef, Transfer } from "./types.ts";
@@ -34,6 +35,19 @@ export const balanceOf =
   (acct: AccountRef) =>
   (transfers: Transfer[]): number =>
     allBalances(transfers).get(accountKey(acct)) ?? 0;
+
+/** Positive cost total for one listing. Cost legs source `cost:<listingId>`. */
+export const costProjection =
+  (listingId: number) =>
+  (transfers: Transfer[]): number =>
+    -balanceOf(costAccount(listingId))(transfers);
+
+/** Gross listing revenue less servicing costs. */
+export const profitProjection =
+  (listingId: number) =>
+  (transfers: Transfer[]): number =>
+    balanceOf(revenueAccount(listingId))(transfers) -
+    costProjection(listingId)(transfers);
 
 /** Total amount across transfers of one kind (e.g. cash refunded). */
 export const sumOfKind =

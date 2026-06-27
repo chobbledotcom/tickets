@@ -58,9 +58,12 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-23_system_notes",
         "2026-06-23_ticket_count_no_quantity",
         "2026-06-24_built_sites_updates",
+        "2026-06-24_attendees_kind",
         "2026-06-25_listing_attendee_ledger_event_group_index",
+        "2026-06-26_attendees_kind_not_null",
+        "2026-06-27_service_costs",
       ],
-      schemaHash: "1i8ay8t",
+      schemaHash: "eg14ic",
     });
   });
 });

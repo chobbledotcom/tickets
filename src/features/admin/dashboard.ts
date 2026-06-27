@@ -3,7 +3,7 @@
  */
 
 import { compact, unique } from "#fp";
-import { csvResponse, loadAttendeeNames } from "#routes/admin/actions.ts";
+import { csvResponse, loadAttendeeLinkRefs } from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
 import { requireSessionOr, sessionPage, withSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -16,6 +16,7 @@ import {
   getAllActivityLog,
   logActivity,
 } from "#shared/db/activityLog.ts";
+import { getUpcomingServicingEvents } from "#shared/db/attendees/servicing.ts";
 import {
   decryptAttendees,
   getActiveListingStats,
@@ -32,6 +33,7 @@ import {
 } from "#shared/listing-filter.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { sortListings } from "#shared/sort-listings.ts";
+import { todayInTz } from "#shared/timezone.ts";
 /* jscpd:ignore-end */
 import {
   type ActivityLogRefs,
@@ -91,9 +93,10 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       const activeType = listingTypeFromRequest(request);
       // Children are excluded from the multi-booking link builder (no booking
       // can start from a child).
-      const childIds = await getChildListingIds(
-        sortedListings.map((l) => l.id),
-      );
+      const [childIds, upcomingServicingEvents] = await Promise.all([
+        getChildListingIds(sortedListings.map((l) => l.id)),
+        getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
+      ]);
       return htmlResponse(
         adminDashboardPage(
           sortedListings,
@@ -106,6 +109,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           activeType,
           holidays,
           childIds,
+          upcomingServicingEvents,
         ),
       );
     },
@@ -156,7 +160,7 @@ const loadActivityLogRefs = async (
   const attendeeIds = unique(compact(entries.map((e) => e.attendee_id)));
   const listingIds = unique(compact(entries.map((e) => e.listing_id)));
   const [attendees, listings] = await Promise.all([
-    loadAttendeeNames(attendeeIds),
+    loadAttendeeLinkRefs(attendeeIds),
     getListingNamesByIds(listingIds),
   ]);
   return { attendees, listings };

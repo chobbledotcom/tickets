@@ -492,9 +492,13 @@ export const createTestAttendeeDirect = async (
     throw new Error(`Failed to create attendee: ${result.reason}`);
   }
 
+  const attendee = result.attendees[0]!;
+  const { logActivity } = await import("#shared/db/activityLog.ts");
+  await logActivity(`Attendee '${name}' created`, listingId, attendee.id);
+
   return {
-    attendee: result.attendees[0]!,
-    token: result.attendees[0]!.ticket_token,
+    attendee,
+    token: attendee.ticket_token,
   };
 };
 

@@ -14,6 +14,7 @@ import {
   type Table,
   TICKET_COUNTS_PREDICATE,
   TRIGGERS,
+  ticketCountPredicateFor,
 } from "./schema.ts";
 import {
   assertColumnsPresent,
@@ -139,6 +140,8 @@ const copyExpressionFor = ([column, type]: Column): string => {
 
 type RebuildParams = {
   columns: readonly Column[];
+  copyColumns?: readonly Column[];
+  sourceExists?: boolean;
   tableName: string;
   tmpName?: string;
 };
@@ -152,17 +155,23 @@ type RebuildParams = {
  */
 const rebuildStatements = ({
   columns,
+  copyColumns = columns,
+  sourceExists = true,
   tableName,
   tmpName = `${tableName}_new`,
 }: RebuildParams): string[] => {
-  const colNames = columns.map(([col]) => col).join(", ");
+  const colNames = copyColumns.map(([col]) => col).join(", ");
   const colDefs = columns.map(([col, type]) => `${col} ${type}`).join(", ");
-  const selectExprs = columns.map(copyExpressionFor).join(", ");
+  const selectExprs = copyColumns.map(copyExpressionFor).join(", ");
   return [
     `DROP TABLE IF EXISTS ${tmpName}`,
     `CREATE TABLE ${tmpName} (${colDefs})`,
-    `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
-    `DROP TABLE ${tableName}`,
+    ...(sourceExists && copyColumns.length > 0
+      ? [
+          `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
+        ]
+      : []),
+    `DROP TABLE ${sourceExists ? "" : "IF EXISTS "}${tableName}`,
     `ALTER TABLE ${tmpName} RENAME TO ${tableName}`,
   ];
 };
@@ -174,6 +183,77 @@ export const rebuildTableWithColumns = async (
     rebuildStatements(params).map((sql) => ({ args: [], sql })),
   );
 };
+
+const LISTING_AGGREGATE_TRIGGER_DEPENDENCIES = [
+  "attendees",
+  "listings",
+  "listing_attendees",
+] as const;
+
+const LISTING_AGGREGATE_TRIGGER_COLUMN_DEPENDENCIES = [
+  ["attendees", ["kind"]],
+  ["listings", ["booked_quantity", "tickets_count"]],
+  ["listing_attendees", ["attendee_id", "listing_id", "quantity"]],
+] as const;
+
+const isListingAggregateTrigger = (triggerName: string): boolean =>
+  triggerName.startsWith("trg_listing_attendees_aggregates_");
+
+const triggerDependencies = (triggerName: string, table: string): string[] =>
+  isListingAggregateTrigger(triggerName)
+    ? [...LISTING_AGGREGATE_TRIGGER_DEPENDENCIES]
+    : [table];
+
+const triggerColumnDependencies = (
+  triggerName: string,
+  table: string,
+): readonly (readonly [string, readonly string[]])[] =>
+  isListingAggregateTrigger(triggerName)
+    ? LISTING_AGGREGATE_TRIGGER_COLUMN_DEPENDENCIES
+    : [[table, []]];
+
+const requiredTriggerColumns = (
+  triggerName: string,
+  table: string,
+  dependency: string,
+): readonly string[] =>
+  triggerColumnDependencies(triggerName, table).find(
+    ([dependencyTable]) => dependencyTable === dependency,
+  )![1];
+
+const triggersDependingOn = (tableName: string) =>
+  TRIGGERS.filter((trigger) =>
+    triggerDependencies(trigger.name, trigger.table).includes(tableName),
+  );
+
+const liveColumnsForTriggerDependency = (
+  dependency: string,
+  liveTables: Map<string, Set<string>>,
+  rebuildingTable?: string,
+): Set<string> | undefined =>
+  dependency === rebuildingTable
+    ? new Set(currentSchemaTable(dependency).columns.map(([column]) => column))
+    : liveTables.get(dependency);
+
+const canCreateTrigger = (
+  triggerName: string,
+  table: string,
+  liveTables: Map<string, Set<string>>,
+  rebuildingTable?: string,
+): boolean =>
+  triggerDependencies(triggerName, table).every((dependency) => {
+    const columns = liveColumnsForTriggerDependency(
+      dependency,
+      liveTables,
+      rebuildingTable,
+    );
+    return (
+      columns !== undefined &&
+      requiredTriggerColumns(triggerName, table, dependency).every((column) =>
+        columns.has(column),
+      )
+    );
+  });
 
 /**
  * Recreate a table from its SCHEMA definition, preserving data for matching
@@ -202,12 +282,36 @@ export const rebuildTableWithColumns = async (
  */
 export const recreateTable = async (tableName: string): Promise<void> => {
   const tableSchema = currentSchemaTable(tableName);
+  const live = await snapshotLiveSchema();
+  const copyColumns = currentSchemaColumnsPresentIn(
+    tableName,
+    live.tables.get(tableName) ?? new Set(),
+  );
+  const dependentTriggers = triggersDependingOn(tableName);
+  const liveDependentTriggerNames = new Set(
+    dependentTriggers
+      .filter((trigger) => live.triggers.has(trigger.name))
+      .map((trigger) => trigger.name),
+  );
   const statements = [
-    ...rebuildStatements({ columns: tableSchema.columns, tableName }),
+    ...dependentTriggers.map(
+      (trigger) => `DROP TRIGGER IF EXISTS ${trigger.name}`,
+    ),
+    ...rebuildStatements({
+      columns: tableSchema.columns,
+      copyColumns,
+      sourceExists: live.tables.has(tableName),
+      tableName,
+    }),
     ...(tableSchema.indexes ?? []).map((idx) => createIndexSql(tableName, idx)),
-    // Triggers on this table were dropped with the old table — re-create them
-    // in the same transaction so the rebuilt table is never live without them.
-    ...TRIGGERS.filter((trg) => trg.table === tableName).map((trg) => trg.sql),
+    // Triggers on this table were dropped with the old table; triggers on other
+    // tables may also have been dropped because they read this table. Restore
+    // both in the same transaction when their dependencies are present.
+    ...TRIGGERS.filter(
+      (trg) =>
+        (trg.table === tableName || liveDependentTriggerNames.has(trg.name)) &&
+        canCreateTrigger(trg.name, trg.table, live.tables, tableName),
+    ).map((trg) => trg.sql),
   ];
   await withTransaction(async (tx) => {
     for (const sql of statements) await tx.execute(sql);
@@ -407,7 +511,12 @@ export const syncTriggers = async (): Promise<void> => {
   const live = await snapshotLiveSchema();
   const declaredNames = new Set(TRIGGERS.map((t) => t.name));
   for (const trg of TRIGGERS) {
-    if (!live.triggers.has(trg.name)) await runMigration(trg.sql);
+    if (
+      !live.triggers.has(trg.name) &&
+      canCreateTrigger(trg.name, trg.table, live.tables)
+    ) {
+      await runMigration(trg.sql);
+    }
   }
   for (const name of live.triggers) {
     if (name.startsWith("trg_") && !declaredNames.has(name)) {
@@ -429,10 +538,28 @@ export const BACKFILL_LISTING_AGGREGATES_SQL = `UPDATE listings SET
        booked_quantity = COALESCE(
          (SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = listings.id), 0),
        tickets_count = COALESCE(
-         (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = listings.id AND ${TICKET_COUNTS_PREDICATE}), 0)`;
+         (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = listings.id AND ${ticketCountPredicateFor(
+           "quantity",
+           "attendee_id",
+         )}), 0)`;
+
+const BACKFILL_LEGACY_LISTING_AGGREGATES_SQL = `UPDATE listings SET
+       booked_quantity = COALESCE(
+         (SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = listings.id), 0),
+       tickets_count = COALESCE(
+         (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = listings.id AND quantity > 0), 0)`;
+
+const BACKFILL_LISTING_AGGREGATES_SQL_BY_SCHEMA = {
+  current: BACKFILL_LISTING_AGGREGATES_SQL,
+  legacy: BACKFILL_LEGACY_LISTING_AGGREGATES_SQL,
+};
 
 export const backfillListingAggregates = async (): Promise<void> => {
-  await getDb().execute({ args: [], sql: BACKFILL_LISTING_AGGREGATES_SQL });
+  const attendeeColumns = await getExistingColumns("attendees");
+  const sql = attendeeColumns.has("kind")
+    ? BACKFILL_LISTING_AGGREGATES_SQL_BY_SCHEMA.current
+    : BACKFILL_LISTING_AGGREGATES_SQL_BY_SCHEMA.legacy;
+  await getDb().execute({ args: [], sql });
 };
 
 /**

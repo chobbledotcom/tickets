@@ -48,6 +48,29 @@ export const toMajorUnits = (minorUnits: number): string => {
   return (minorUnits / 10 ** places).toFixed(places);
 };
 
+/**
+ * Parse a strictly positive money amount in major units (e.g. `"90.00"`) into
+ * positive minor units, or `null` when `raw` is empty, non-numeric,
+ * non-positive, non-finite, or rounds to a non-safe-integer amount of minor
+ * units. Mirrors {@link parsePositiveIntId}'s null-on-invalid convention; the
+ * caller supplies the user-facing message. Used by routes that take a positive
+ * money amount from a form (service costs) so an invalid/empty/negative value
+ * becomes a form error rather than a 500 from the ledger.
+ */
+export const parsePositiveMinorUnits = (raw: string): number | null => {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  // Reject inputs with any non-numeric characters (commas, letters, etc.) so
+  // "1,000" doesn't silently parse as 1. Number() requires the full string to
+  // be a valid number, unlike parseFloat which accepts a leading-numeric prefix.
+  if (!/^\d+(\.\d+)?$/.test(trimmed)) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  const amount = toMinorUnits(parsed);
+  if (!Number.isSafeInteger(amount) || amount <= 0) return null;
+  return amount;
+};
+
 /** Result type for price validation */
 export type PriceResult =
   | { ok: true; price: number }

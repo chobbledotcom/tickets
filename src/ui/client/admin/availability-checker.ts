@@ -4,11 +4,11 @@
  * Persist the calendar availability checker's open state across a single
  * navigation.
  *
- * When the operator expands the checker and then clicks a calendar day (or the
- * "Create Attendee" button), the checker should still be open when the next
- * page loads — but closing it forgets that preference. The flag is written only
- * as the page is being left (`pagehide`), so it is very short-lived, and it is
- * consumed on the next load so it never lingers once the checker is closed.
+ * When the operator expands the checker and then clicks a calendar day (or a
+ * selected-listing create button), the checker should still be open when the
+ * next page loads — but closing it forgets that preference. The flag is written
+ * only as the page is being left (`pagehide`), so it is very short-lived, and it
+ * is consumed on the next load so it never lingers once the checker is closed.
  */
 
 const STORAGE_KEY = "calendar-availability-open";

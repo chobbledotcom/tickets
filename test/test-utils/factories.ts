@@ -73,7 +73,9 @@ export const testListingWithCount = (
 ): ListingWithCount => ({
   ...testListing(overrides),
   attendee_count: 0,
+  cost: 0,
   income: 0,
+  profit: 0,
   tickets_count: 0,
   ...overrides,
 });
@@ -87,6 +89,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   email: "john@example.com",
   end_date: null,
   id: 1,
+  kind: "attendee",
   listing_id: 1,
   name: "John Doe",
   payment_id: "",

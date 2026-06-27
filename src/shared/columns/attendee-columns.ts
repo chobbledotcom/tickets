@@ -5,8 +5,11 @@
  * iterates the ordered columns and calls each one's cell() function.
  */
 
+import { t } from "#i18n";
+import { attendeeAdminPath } from "#shared/attendee-links.ts";
 import type { ColumnDef, ColumnGenerators } from "#shared/column-order.ts";
 import { formatDateLabel, formatDatetimeShort } from "#shared/dates.ts";
+import { isServicing } from "#shared/db/attendees/kind.ts";
 import { normalizePhone } from "#shared/phone.ts";
 import { type AttendeeTableRow, hasTicketQuantity } from "#shared/types.ts";
 import type { AttendeeColumnOpts } from "#templates/attendee-table.tsx";
@@ -53,7 +56,7 @@ const date: AttendeeCol = {
 
 const name: AttendeeCol = {
   cell: (row) =>
-    `<a href="/admin/attendees/${row.attendee.id}">${escapeHtml(row.attendee.name)}</a>`,
+    `<a href="${attendeeAdminPath(row.attendee)}">${escapeHtml(row.attendee.name)}</a>`,
   description: "Attendee name with link to the edit attendee page",
   isHtml: true,
   label: "Name",
@@ -164,9 +167,11 @@ const ticket: AttendeeCol = {
   // link here would let staff copy a customer-facing URL that doesn't match this
   // row's cancelled/interested listing. Show the indicator instead.
   cell: (row, opts) =>
-    !hasTicketQuantity(row.attendee)
-      ? `<span class="muted small">No quantity</span>`
-      : `<a href="https://${opts.allowedDomain}/t/${row.attendee.ticket_token}">${row.attendee.ticket_token}</a>`,
+    isServicing(row.attendee.kind)
+      ? `<span class="muted small">${t("admin.attendee_table.servicing")}</span>`
+      : !hasTicketQuantity(row.attendee)
+        ? `<span class="muted small">${t("admin.attendee_table.no_quantity")}</span>`
+        : `<a href="https://${opts.allowedDomain}/t/${row.attendee.ticket_token}">${row.attendee.ticket_token}</a>`,
   description: "Clickable ticket token link",
   isHtml: true,
   label: "Ticket",

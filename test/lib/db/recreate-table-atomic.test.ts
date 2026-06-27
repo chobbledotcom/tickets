@@ -99,4 +99,21 @@ describe("db > recreateTable atomicity", () => {
     // The SCHEMA's UNIQUE index was (re)created in the same transaction.
     expect(await indexNames("users")).toContain("idx_users_username_index");
   });
+
+  test("creates a current schema table when it is absent from the live database", async () => {
+    await getDb().execute("DROP TABLE holidays");
+
+    await recreateTable("holidays");
+
+    expect(await columnNames("holidays")).toEqual([
+      "id",
+      "name",
+      "start_date",
+      "end_date",
+    ]);
+    const rows = await getDb().execute(
+      "SELECT COUNT(*) AS count FROM holidays",
+    );
+    expect(Number(rows.rows[0]!.count)).toBe(0);
+  });
 });

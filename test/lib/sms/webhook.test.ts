@@ -16,6 +16,7 @@ import {
   normalizeForIndex,
 } from "#shared/sms/phone-index.ts";
 import {
+  createServicingHold,
   createTestAttendeeDirect,
   createTestListing,
   describeWithEnv,
@@ -105,6 +106,15 @@ describeWithEnv("db > attendee phone index", { db: true }, () => {
     await setAttendeePhoneIndexIfEmpty(attendee.id, "different"); // ignored
     expect(await findAttendeeIdByPhoneIndex(idx)).toBe(attendee.id);
     expect(await findAttendeeIdByPhoneIndex("nope")).toBeNull();
+  });
+
+  test("lookup ignores servicing rows even if a phone index exists", async () => {
+    const service = await createServicingHold();
+    const idx = await computePhoneIndex("+447700900321");
+
+    await setAttendeePhoneIndexIfEmpty(service.id, idx);
+
+    expect(await findAttendeeIdByPhoneIndex(idx)).toBeNull();
   });
 });
 
