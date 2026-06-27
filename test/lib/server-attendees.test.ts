@@ -2726,7 +2726,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
       // Booking conflict: same listing, same start_at (null) — choose keep_target
-      const bookingKey = `${listing.id}:null`;
+      const bookingKey = `${listing.id}:null:0`;
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
@@ -3067,7 +3067,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const html = await previewPage.text();
       const mergeVersion = extractInputValue(html, "merge_version")!;
 
-      const bookingKey = `${listing.id}:null`;
+      const bookingKey = `${listing.id}:null:0`;
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
@@ -3346,7 +3346,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
 
-      const bookingKey = `${listing.id}:null`;
+      const bookingKey = `${listing.id}:null:0`;
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
