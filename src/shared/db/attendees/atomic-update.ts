@@ -178,10 +178,10 @@ const oldPinOf = (
   line: AtomicDesiredLine,
   existingByKey: Map<string, ListingAttendeeRow>,
 ): { startAt: string | null; parentListingId: number } => {
-  const row = existingByKey.get(line.key);
+  const row = existingByKey.get(line.key)!;
   return {
-    parentListingId: row?.parent_listing_id ?? 0,
-    startAt: row?.start_at ?? null,
+    parentListingId: row.parent_listing_id,
+    startAt: row.start_at,
   };
 };
 
