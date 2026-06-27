@@ -159,8 +159,10 @@ the **configuration each type still needs** stays visible. Three kinds of field:
 
 (Online digital and Delivered item differ only in the hidden `uses_logistics`
 toggle, so they show the same fields — the type is still distinct because the
-seed sets `uses_logistics` differently. The contact-fields box matters for
-Delivered item — `address` — but contact fields are always shown, so the template
+seed sets `uses_logistics` differently. The `address` contact box matters for the
+**logistics templates** — both Delivered item *and* Bookable item set
+`uses_logistics=1`, so both need a customer address (the calendar/export
+location links rely on it) — but contact fields are always shown, so the template
 seed just default-ticks the right boxes; see §5.)
 
 ---
@@ -358,6 +360,11 @@ The same handler, given `?template=<id>`, renders the blank create form but:
   create-parsing would default on save, so the form always shows what it will
   store. (The dimension toggles are seeded for inference; these visible daily
   defaults are seeded for honesty.)
+- **The seed also default-ticks the contact fields a template needs.** Both
+  logistics templates (Delivered item and Bookable item) seed `address` alongside
+  `email` so a logistics listing always asks the buyer for a location; the event
+  and Online-digital templates seed `email` only (see open question #3). Still
+  operator-editable on the form.
 
 **Routing of the GET (resolving the picker/form ambiguity):**
 
@@ -500,12 +507,13 @@ not survive.
    irrelevant to a Delivered item or Online digital ticket. Keep it always-shown
    for simplicity, or fold it into a group too?
 3. **Contact-field seeds (resolved as a default; flag if you disagree).** To avoid
-   a Delivered item silently not collecting a delivery address, the plan **decides**
-   the Delivered item seed ticks `address` (alongside `email`) rather than leaving
-   it to the operator to notice — consistent with the §"what each type shows" note.
-   Online digital seeds `email` only. The seed is still operator-editable on the
-   form; the question for you is only whether these *default* tick-sets are right,
-   not whether to seed at all.
+   a logistics listing silently not collecting a customer address, the plan
+   **decides** that **both logistics templates — Delivered item *and* Bookable
+   item** (each has `uses_logistics=1`) — seed `address` alongside `email`, since
+   the calendar/export location links rely on it. Online digital and the non-
+   logistics event templates seed `email` only. The seed is still operator-editable
+   on the form; the question for you is only whether these *default* tick-sets are
+   right, not whether to seed at all.
 4. **Surfacing the inferred type.** Should the inferred type label show on the
    listing **detail** page and the listings table (read-only, "Type: Bookable
    item"), or stay purely an edit-form affordance? Showing it makes the inference
