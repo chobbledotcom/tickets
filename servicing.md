@@ -205,6 +205,12 @@ flipping; the known non-auth exceptions are:
 - `POST /payment/webhook` (`src/features/api/webhooks.ts` —
   `handlePaymentWebhook`) — the payment-provider callback that completes the
   renewal; it is unauthenticated and must never be gated on site state.
+- `POST /unsubscribe` (`src/features/index.ts` — `handleUnsubscribePost`,
+  handler in `src/features/public/unsubscribe.ts`) — a public, no-login route
+  that changes a recipient's marketing-preference state (and can delete their
+  contact record). A lapsed site must still let recipients unsubscribe, so it
+  stays reachable; the existing blocklist leaves it writable and the allowlist
+  must keep it so.
 
 Each of these needs an explicit allowlist entry **and** a read-only test
 asserting it still reaches its handler, added in the same change that flips the
@@ -224,7 +230,12 @@ guard.
    servicing **and** the other latent gaps above. The GET-form list
    (`READ_ONLY_GET_PATTERNS`) stays a blocklist: it is cosmetic (a writable form
    rendered read-only is harmless because its mutating POST/DELETE is now
-   blocked), so it doesn't need inverting.
+   blocked), so it doesn't need inverting. **Preserve the existing API branch:**
+   the guard already returns a JSON `403` (`{ error: READ_ONLY_MESSAGE }`) for
+   `/api/*` mutations rather than an HTML redirect (`src/features/index.ts`
+   ~`:511`, asserted by `test/routes/read-only.test.ts`). The default-deny path
+   must keep that content-type/prefix split so API consumers still get a JSON
+   403, not a 302 page — block by default, but respond in the caller's format.
 
 2. *Registry-driven (fuller refactor).* Resolve the route first, then consult the
    matched route definition's method rather than regex-matching the path —
@@ -259,34 +270,61 @@ asserts finite + safe-integer + `minValue(1)`.
 existing `validation/number.ts`, `validation/email.ts`, `validation/date.ts`
 modules and their `parseXxx` → null-on-invalid / `isValidXxx` convention):
 
-- **Two schemas sharing one currency-aware decimal pattern, not one.** Money in
-  this app is not uniformly positive: most fields (service costs, prices) are
-  strictly positive (`minValue(1)`), but the owner-correction targets in
-  `src/features/admin/money-adjust.ts` deliberately accept finite **negative and
-  zero** values, because a modifier's net revenue can legitimately be negative.
-  Naïvely migrating every site onto the ledger's positive `minValue(1)` schema
-  would break those adjustment forms. Provide a positive
-  `parsePositiveMinorUnits` **and** a signed/zero-capable `parseMoneyMinor` for
-  correction targets, both built on the same `ledgerAmountPattern` decimal check
-  (the negative case allows a leading `-`).
+- **A small bound-parameterised family sharing one currency-aware decimal
+  pattern, not a single schema.** Money in this app spans three bounds, so a lone
+  positive `minValue(1)` parser is wrong for most sites:
+  - *Strictly positive* (`minValue(1)`) — service costs, and amounts that must be
+    non-zero.
+  - *Non-negative / zero-or-blank* (`minValue(0)`, blank ⇒ 0) — the common case:
+    listing `unit_price` defaults to `0` for free listings
+    (`src/shared/db/listings.ts:213`), QR price overrides use `minPrice: 0` for
+    fixed-price listings (`src/features/admin/listing-qr.ts:99`), and modifier
+    `min_subtotal` defaults to `0` (`src/shared/db/modifiers.ts:73`). Migrating
+    these onto a `minValue(1)` schema would start rejecting free tickets and
+    zero-threshold modifiers.
+  - *Signed* (negatives + zero) — the owner-correction targets in
+    `src/features/admin/money-adjust.ts`, because a modifier's net revenue can
+    legitimately be negative.
+
+  Build all three from one `ledgerAmountPattern` decimal check (the signed
+  variant allows a leading `-`), e.g. a `moneyMinorSchema({ min })` builder plus
+  named `parsePositiveMinorUnits` / `parseNonNegativeMinorUnits` /
+  `parseMoneyMinor` wrappers. Pick the variant per call site; the decimal/format
+  validation is shared, only the bound differs.
 - Because decimal places depend on `settings.currency` at parse time, the
   pattern must be built **per parse** (as `ledgerAmountPattern` does), not frozen
   as a module constant.
-- Migrate every money call site (service costs, prices, QR overrides, modifier
-  subtotal, manual balance/ledger adjustments) onto the matching schema, and
-  delete the ad-hoc `toMinorUnits(Number.parseFloat(...))` parses.
-- **Fix the browser input metadata too, or valid amounts can't be typed.** The
-  money inputs hard-code `step="0.01"` in five templates (`servicing.tsx`,
-  `ui/templates/admin/ledger.tsx`, `listings.tsx`, `modifiers.tsx`,
-  `attendee-form.tsx`), so native form validation rejects a valid 3-decimal
-  amount (KWD `1.005`) before the parser ever runs, and advertises cents on a
-  zero-decimal currency (JPY). Derive the input `step` (and `min` for the
-  positive vs signed cases) from `getDecimalPlaces(settings.currency)` in the
-  same refactor so the control accepts exactly what the shared schema does.
+- Migrate **every** money call site onto the matching variant, and delete the
+  ad-hoc `toMinorUnits(Number.parseFloat(...))` / unrestricted-regex parses.
+  Don't stop at the always-money fields — include the **conditionally-money**
+  ones, or `12.34abc` / `1.005` inputs still slip through after the validator
+  lands:
+  - modifier `calc_value`, which is `Number.parseFloat`-parsed and
+    `toMinorUnits`-converted only when `calc_kind === "fixed"`
+    (`src/ui/templates/fields.ts` ~`:891`, `src/shared/db/modifier-resolve.ts`
+    ~`:40`);
+  - reservation amounts (flat / per-item), which accept an unrestricted decimal
+    regex before `toMinorUnits` (`src/shared/reservation-amount.ts` ~`:30`,
+    ~`:71`).
+- **Fix the browser input metadata too, or valid amounts can't be typed.** Two
+  flavours of hard-coded two-decimal metadata both reject a valid 3-decimal
+  amount (KWD `1.005`) via native validation before the parser runs, and
+  mis-advertise cents on a zero-decimal currency (JPY):
+  - `step="0.01"` on number inputs across five templates (`servicing.tsx`,
+    `ui/templates/admin/ledger.tsx`, `listings.tsx`, `modifiers.tsx`,
+    `attendee-form.tsx`);
+  - hard-coded `pattern="\d+(\.\d{1,2})?"` on text inputs — the QR override price
+    (`src/ui/templates/admin/listing-qr.tsx:77`) and custom day prices
+    (`src/ui/templates/admin/listings.tsx:1440`).
+
+  Derive `step`, `pattern`/`title`, and `min` (per the positive / non-negative /
+  signed bound) from `getDecimalPlaces(settings.currency)` in the same refactor,
+  so each control accepts exactly what its shared schema does.
 
 This fixes the service-cost fractional bug **and** the `validatePrice` prefix bug
-in one place, keeps the signed correction forms working, and stops the next money
-field from re-introducing any of these. Pair it with table-driven tests over
-`{1.005 GBP, 1.23 JPY, "1,000", "12.34abc", "  10.50  ", negative, zero}` against
-both schemas (positive rejects negative/zero; signed accepts them) so the
-invariants are locked across currencies.
+in one place, keeps the zero-valued and signed forms working, and stops the next
+money field from re-introducing any of these. Pair it with table-driven tests
+over `{1.005 GBP, 1.23 JPY, "1,000", "12.34abc", "  10.50  ", negative, zero,
+blank}` against each variant (positive rejects negative/zero/blank; non-negative
+accepts zero/blank, rejects negative; signed accepts all finite) so the
+invariants are locked across currencies and bounds.
