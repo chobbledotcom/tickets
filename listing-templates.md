@@ -31,9 +31,12 @@ kind of thing*, the same way attendees split into "attendee" vs "servicing"
    normally hide (an override), that field is **not** hidden — it surfaces so the
    operator can see what makes this listing unusual.
 
-This is purely a **presentation** layer over the existing form. The DB schema,
-the create/update resources (`src/features/admin/listings-form.ts`), validation,
-and every stored field stay exactly as they are.
+This is almost entirely a **presentation** layer over the existing form: the DB
+schema, the create/update resources (`src/features/admin/listings-form.ts`), and
+every stored field stay exactly as they are. The **one** server-side addition is a
+single template-specific validation — the one-off template requires a `date` (see
+§5 and "Files this touches") — so a one-off can't silently save a blank date and
+reopen as Custom. Everything else, including all existing validation, is unchanged.
 
 ## Why this fits the existing model
 
@@ -274,12 +277,16 @@ whole subtlety here; "non-default" is too naive in three ways:
 3. **Exclude `slug`.** Auto-generated and always non-empty on edit, so it would
    surface on every listing; `advancedSectionHasValues` already excludes it.
 
-Net rule: **override = a hidden, non-dimension, non-slug field whose stored value
-differs from the value the inferred template's seed + schema defaults would have
-produced.** That keeps the common case (a listing that matches a template cleanly)
-fully collapsed, and only pops Customise for the genuinely unusual field — a daily
-listing that carries a listing-level `date`, a one-off with a webhook, a `hidden`
-flag, etc.
+Net rule: **override = a hidden field that is neither one of the three dimension
+toggles (`listing_type`/`purchase_only`/`uses_logistics`) nor `slug`, whose stored
+value differs from the value the inferred template's seed + schema defaults would
+have produced.** Note the exclusion is the three **toggles**, *not* every field
+the signature touches: `date` is the `dated` dimension but it is **not** excluded —
+a daily listing carrying a listing-level `date` is exactly the override that must
+surface (the `date` group reveals, Customise opens). That keeps the common case (a
+listing that matches a template cleanly) fully collapsed, and only pops Customise
+for the genuinely unusual field — a daily listing with a stray `date`, a one-off
+with a webhook, a `hidden` flag, etc.
 
 ### 4. The Customise toggle (CSS, no JS)
 
@@ -339,6 +346,18 @@ The same handler, given `?template=<id>`, renders the blank create form but:
   it renders **exactly as if a blank listing had been inferred as that type**. No
   new code path: feed the chosen template into the same "which fields are visible"
   logic the edit page uses (with no overrides, since the form is blank).
+- **The seed also pre-fills the *visible* config defaults a daily template
+  exposes.** For Weekly/Bookable the `DAILY` group is shown, but those controls
+  (`bookable_days`, `minimum_days_before`, `maximum_days_after`, `duration_days`)
+  render blank on a fresh form while create-parsing only *falls back* to
+  all-days / `1` / `90` / `1` on a blank submit. So the daily templates' `seed`
+  must set those four to their create-parsing defaults too — otherwise the
+  operator sees empty daily settings while an unchanged submit silently saves the
+  non-empty fallbacks (a confusing "what did I just save?" gap). General rule: the
+  seed pre-fills every value a shown control would otherwise render blank but that
+  create-parsing would default on save, so the form always shows what it will
+  store. (The dimension toggles are seeded for inference; these visible daily
+  defaults are seeded for honesty.)
 
 **Routing of the GET (resolving the picker/form ambiguity):**
 
@@ -436,6 +455,11 @@ type label on the detail page too (out of scope here).
   renders a blank form pre-seeded with `listing_type=standard`, `purchase_only=1`,
   `uses_logistics=1`, daily + date hidden, Customise collapsed; `?template=custom`
   and an unknown value render the full form; **bare `/new` renders the picker**.
+- **Daily templates seed their visible defaults.**
+  `GET /admin/listing/new?template=weekly-event` renders the (visible) `DAILY`
+  controls already filled with `bookable_days`=all / `min=1` / `max=90` /
+  `duration=1` — not blank — so the rendered form matches what an unchanged submit
+  would persist (no silent "form shows empty, save fills defaults" gap).
 - **Logistics gating.** With `settings.hasLogistics=false`, the picker omits
   Delivered item + Bookable item, and `?template=delivered-item` does not render a
   seeded form that can't be saved.
