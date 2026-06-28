@@ -25,11 +25,12 @@ import { createAuthedHandler } from "#shared/app-forms.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAllGroups } from "#shared/db/groups.ts";
+import { getAllGroups, getGroupIdsByListingIds } from "#shared/db/groups.ts";
 import { getChildListingIds } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
   childUnreachableAddOnError,
+  type ListingGroupMembership,
   listingIdsInGroups,
 } from "#shared/db/modifier-resolve.ts";
 import {
@@ -126,7 +127,7 @@ const resolveAddOnScope = (
   scope: ModifierScope | undefined,
   listingIds: number[],
   groupIds: number[],
-  allListings: ListingWithCount[],
+  allListings: ListingGroupMembership[],
 ): number[] | null => {
   if (scope === "listings") return listingIds;
   if (scope === "groups") return listingIdsInGroups(groupIds, allListings);
@@ -158,7 +159,17 @@ const childAddOnSaveError = async (
 ): Promise<string | null> => {
   const allListings = await getAllListings();
   const allIds = allListings.map((listing) => listing.id);
-  const childIds = await getChildListingIds(allIds);
+  const [childIds, membership] = await Promise.all([
+    getChildListingIds(allIds),
+    getGroupIdsByListingIds(allIds),
+  ]);
+  const membershipListings: ListingGroupMembership[] = allListings.map(
+    (listing) => ({
+      active: listing.active,
+      groupIds: membership.get(listing.id) ?? [],
+      id: listing.id,
+    }),
+  );
   // Only an ACTIVE non-child listing can serve a booking page (public ticket
   // contexts load active listings only — `withActiveListings`), so an inactive
   // non-child listing must NOT count as a reachable page that rescues a
@@ -176,7 +187,7 @@ const childAddOnSaveError = async (
         candidate.scope,
         candidate.listingIds,
         candidate.groupIds,
-        allListings,
+        membershipListings,
       ),
       trigger: candidate.trigger,
     },

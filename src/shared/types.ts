@@ -257,11 +257,12 @@ export const PARENT_CHILD_GROUP_UNITS = 2;
  * can never disagree about a shared-group parent's availability.
  */
 export const sharedGroupRemaining = (
-  parentGroupId: number,
-  childGroupId: number,
+  parentGroupIds: readonly number[],
+  childGroupIds: readonly number[],
   childGroupRemaining: number | undefined,
 ): number | undefined =>
-  parentGroupId === childGroupId && childGroupRemaining !== undefined
+  childGroupRemaining !== undefined &&
+  parentGroupIds.some((g) => childGroupIds.includes(g))
     ? childGroupRemaining
     : undefined;
 
@@ -285,17 +286,19 @@ export type SharedGroupCapacity = {
 };
 
 /**
- * Build the {@link SharedGroupCapacity} for a parent/child pair. When they are
- * not co-grouped there is no shared cap (both facts `undefined`); otherwise the
- * child's own group entries are the shared group's (they are the same group).
+ * Build the {@link SharedGroupCapacity} for a parent/child pair. They are
+ * co-grouped when their group sets intersect (share at least one group); when
+ * they are not, there is no shared cap (both facts `undefined`). Otherwise the
+ * child's own per-listing group entries (its tightest capped group) stand in for
+ * the shared group's capacity.
  */
 export const sharedGroupCapacity = (
-  parentGroupId: number,
-  childGroupId: number,
+  parentGroupIds: readonly number[],
+  childGroupIds: readonly number[],
   childStaticCap: number | undefined,
   childRemaining: number | undefined,
 ): SharedGroupCapacity =>
-  parentGroupId === childGroupId
+  parentGroupIds.some((g) => childGroupIds.includes(g))
     ? { remaining: childRemaining, staticCap: childStaticCap }
     : { remaining: undefined, staticCap: undefined };
 
@@ -472,6 +475,9 @@ export interface Group {
   description: string;
   hidden: boolean;
   id: number;
+  /** When true the group is a bookable "package": its member listings can carry
+   * per-listing price overrides (group_listings.package_price). */
+  is_package: boolean;
   max_attendees: number;
   name: string;
   slug: string;

@@ -13,6 +13,7 @@ import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import type { TxScope } from "#shared/db/client.ts";
+import { setListingGroups } from "#shared/db/groups.ts";
 import { setChildIdsTx } from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,
@@ -59,7 +60,7 @@ export type CreateListingBody = {
   description?: string;
   date?: string | null;
   location?: string;
-  group_id?: number;
+  group_ids?: number[];
   unit_price?: number;
   max_quantity?: number;
   thank_you_url?: string;
@@ -117,7 +118,6 @@ const optionalFields: FieldMapping[] = [
   ["description", "description", "string"],
   ["date", "date", "string"],
   ["location", "location", "string"],
-  ["group_id", "groupId", "number"],
   ["unit_price", "unitPrice", "number"],
   ["max_quantity", "maxQuantity", "number"],
   ["thank_you_url", "thankYouUrl", "string"],
@@ -152,6 +152,14 @@ const parseDayPrices = (raw: unknown): Record<number, number> => {
   }
   return result;
 };
+
+/** Parse the optional `group_ids` array (group membership). Returns undefined
+ * when the field is absent so an update that omits it leaves membership
+ * unchanged; an explicit array (including []) replaces it. */
+const parseGroupIds = (raw: unknown): number[] | undefined =>
+  Array.isArray(raw)
+    ? raw.filter((n): n is number => typeof n === "number" && n > 0)
+    : undefined;
 
 /** Check whether a value matches the expected field type */
 const matchesType = (val: unknown, type: FieldType): val is FieldValue =>
@@ -222,6 +230,7 @@ export const bodyToCreateInput = async (
     input: {
       ...pickTypedFields(body, optionalFields),
       dayPrices: parseDayPrices(body.day_prices),
+      groupIds: parseGroupIds(body.group_ids),
       maxAttendees: body.max_attendees,
       maxPrice: typeof body.max_price === "number" ? body.max_price : 0,
       name: body.name.trim(),
@@ -263,6 +272,8 @@ export const bodyToUpdateInput = async (
         body.day_prices !== undefined
           ? parseDayPrices(body.day_prices)
           : existing.day_prices,
+      // Omitted group_ids → undefined → afterWrite leaves membership unchanged.
+      groupIds: parseGroupIds(body.group_ids),
       maxAttendees,
       maxPrice:
         typeof body.max_price === "number"
@@ -421,7 +432,7 @@ const prepareChildEdges = async (
   const result = await validateChildEdges(
     listingInputToEdge(input, existing?.id ?? UNCREATED_PARENT_ID),
     submitted.childIds,
-    { wouldBeGroupId: input.groupId ?? 0 },
+    { wouldBeGroupIds: input.groupIds ?? [] },
   );
   return result.ok ? { value: result.childIds } : { error: result.error };
 };
@@ -443,6 +454,12 @@ const listingApiRoutes = defineCrudApi<
   ListingWithCount,
   PreparedChildEdges
 >({
+  // Group membership lives in group_listings, not a listing column, so persist
+  // it after the row write. Undefined groupIds (field omitted) leaves it as-is.
+  afterWrite: (id, input) =>
+    input.groupIds === undefined
+      ? Promise.resolve()
+      : setListingGroups(id, input.groupIds),
   extraRoutes: {
     "DELETE /api/admin/listings/:listingId": handleDeleteListing,
     "POST /api/admin/listings/:listingId/deactivate": (

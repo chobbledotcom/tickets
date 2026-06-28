@@ -25,6 +25,7 @@ import {
 } from "#shared/bulk-replace.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
+  assignListingsToGroup,
   getListingsByGroupId,
   groupsTable,
   setGroupListingsActive,
@@ -158,12 +159,14 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
     const input = await buildDuplicateListingInput(listing, {
       closesAt: shiftUtcIsoByDays(listing.closes_at ?? "", dayOffset),
       date: shiftUtcIsoByDays(listing.date, dayOffset),
-      groupId: newGroup.id,
       name: applyNameReplacement(listing.name, nameFind, nameReplace),
     });
     const created = await listingsTable.insert(input);
     idMap.set(listing.id, created.id);
   }
+  // Membership lives in group_listings (not a listing column), so add the cloned
+  // listings to the new group explicitly.
+  await assignListingsToGroup([...idMap.values()], newGroup.id);
   // A cloned parent whose remapped edge set fails re-validation is left gateless
   // rather than written; surface those as a warning flash (mirroring the
   // single-listing duplicate's "but: …" behaviour) instead of silently

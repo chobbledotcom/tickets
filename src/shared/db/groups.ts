@@ -34,6 +34,7 @@ export type GroupInput = {
   termsAndConditions?: string;
   maxAttendees?: number;
   hidden?: boolean;
+  isPackage?: boolean;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -46,6 +47,7 @@ const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
   ...idAndEncryptedSlugSchema(encrypt, decrypt),
   description: col.encryptedText(encrypt, decrypt),
   hidden: col.boolean(false),
+  is_package: col.boolean(false),
   max_attendees: col.simple<number>(),
   terms_and_conditions: col.encryptedText(encrypt, decrypt),
 });
@@ -259,15 +261,6 @@ export const setListingGroups = async (
 };
 
 /**
- * Remove all membership rows for a listing (used when the listing is deleted).
- */
-export const deleteListingFromAllGroups = async (
-  listingId: number,
-): Promise<void> => {
-  await execute("DELETE FROM group_listings WHERE listing_id = ?", [listingId]);
-};
-
-/**
  * Remove every listing from a group (used when the group is deleted).
  */
 export const resetGroupListings = async (groupId: number): Promise<void> => {
@@ -282,8 +275,10 @@ export const setGroupListingsActive = async (
   groupId: number,
   active: boolean,
 ): Promise<number> => {
+  // Unaliased `id` (not IN_GROUP_SQL's `listing.id`) — this UPDATE has no table
+  // alias, so SQLite would reject `listing.id` here.
   const result = await execute(
-    `UPDATE listings SET active = ? WHERE ${IN_GROUP_SQL}`,
+    "UPDATE listings SET active = ? WHERE id IN (SELECT listing_id FROM group_listings WHERE group_id = ?)",
     [active ? 1 : 0, groupId],
   );
   return result.rowsAffected;

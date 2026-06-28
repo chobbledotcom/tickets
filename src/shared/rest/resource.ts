@@ -82,6 +82,10 @@ export interface ResourceConfig<
   nameField?: keyof Row & string;
   /** Custom delete function (e.g., to delete related records first) */
   onDelete?: (id: InValue) => Promise<void>;
+  /** Side-effect run after a successful create/update, with the written row and
+   * the parsed input — e.g. to persist join-table rows (a listing's groups) that
+   * live outside the main table. */
+  afterWrite?: (row: Row, input: Input) => Promise<void>;
   table: Table<Row, Input>;
   toInput: (values: Values) => Input | Promise<Input>;
   /** Custom validation (e.g., check uniqueness). Return error message or null. */
@@ -173,9 +177,10 @@ export const defineResource = <
 
   const create = async (form: FormParams): Promise<CreateResult<Row>> => {
     const result = await parseAndValidate(form, parseInput, config.validate);
-    return result.ok
-      ? { ok: true, row: await table.insert(result.input) }
-      : result;
+    if (!result.ok) return result;
+    const row = await table.insert(result.input);
+    await config.afterWrite?.(row, result.input);
+    return { ok: true, row };
   };
 
   const update = async (
@@ -190,9 +195,10 @@ export const defineResource = <
       config.validate,
       id as Id,
     );
-    return result.ok
-      ? toUpdateResult(await table.update(id, result.input))
-      : result;
+    if (!result.ok) return result;
+    const row = await table.update(id, result.input);
+    if (row) await config.afterWrite?.(row, result.input);
+    return toUpdateResult(row);
   };
 
   const deleteRow = async (id: InValue): Promise<DeleteResult> => {

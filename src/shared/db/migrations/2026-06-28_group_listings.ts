@@ -27,8 +27,16 @@ export default schemaMigration(
     newTables: ["group_listings"],
   },
   async ({ getDb, recreateTable }) => {
+    // The runner may re-run up() after a verify retry or a crash before the
+    // marker is recorded, so make this safe to repeat. Gate on the legacy
+    // column: once listings has been rebuilt without group_id, the backfill is
+    // already done and there is nothing to copy or drop. INSERT OR IGNORE
+    // tolerates rows a prior partial run already wrote.
+    const info = await getDb().execute("PRAGMA table_info(listings)");
+    const hasLegacyGroupId = info.rows.some((row) => row.name === "group_id");
+    if (!hasLegacyGroupId) return;
     await getDb().execute(
-      "INSERT INTO group_listings (group_id, listing_id) " +
+      "INSERT OR IGNORE INTO group_listings (group_id, listing_id) " +
         "SELECT group_id, id FROM listings WHERE group_id > 0",
     );
     await recreateTable("listings");

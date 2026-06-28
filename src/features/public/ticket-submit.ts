@@ -26,6 +26,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { getSharedGroupCapacities } from "#shared/db/attendees.ts";
+import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   answerModifierQuantities,
@@ -947,9 +948,13 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
   const children = [...ctx.childrenByParentId.values()]
     .flat()
     .map((child) => child.listing);
-  const [childCaps, holidays] = await Promise.all([
+  const [childCaps, holidays, membership] = await Promise.all([
     getSharedGroupCapacities(children),
     getActiveHolidays(),
+    getGroupIdsByListingIds([
+      ...ctx.listings.map((l) => l.listing.id),
+      ...children.map((c) => c.id),
+    ]),
   ]);
   return {
     ...ctx,
@@ -957,6 +962,7 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
     // a parent sharing a capped group with its child offers only
     // floor(groupRemaining / 2) orders (invariant I7, Fix 3). Carried on the
     // render ctx so `childCappedMax` sees it; submit/quote keep it unset.
+    groupIdsByListingId: membership,
     groupRemainingByListingId: childCaps.remaining,
     listings: applyBookingPageParentSoldOut(
       ctx.listings,
@@ -964,6 +970,7 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
       childCaps.remaining,
       childCaps.staticCap,
       holidays,
+      membership,
     ),
   };
 };

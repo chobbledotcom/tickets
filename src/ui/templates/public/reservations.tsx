@@ -417,6 +417,10 @@ export type ChildRenderCtx = {
   /** Each listing id → its capped group's remaining spots, for the combined
    * parent+child demand clamp (invariant I7); empty when no group caps apply. */
   groupRemainingByListingId: ReadonlyMap<number, number>;
+  /** Each listing id → the ids of the groups it belongs to, so the
+   * shared-group/co-grouped checks work when a listing is in several groups.
+   * Empty/absent entries mean ungrouped. */
+  groupIdsByListingId: ReadonlyMap<number, number[]>;
   questions: QuestionWithAnswers[];
   questionListingMap: QuestionListingMap | undefined;
   rendered: Set<number>;
@@ -479,10 +483,11 @@ const childOrderCap = (
   parent: TicketListing,
   child: TicketListing,
   groupRemainingByListingId: ReadonlyMap<number, number>,
+  groupIdsByListingId: ReadonlyMap<number, number[]>,
 ): number => {
   const shared = sharedGroupRemaining(
-    parent.listing.group_id,
-    child.listing.group_id,
+    groupIdsByListingId.get(parent.listing.id) ?? [],
+    groupIdsByListingId.get(child.listing.id) ?? [],
     groupRemainingByListingId.get(child.listing.id),
   );
   return shared === undefined
@@ -538,18 +543,23 @@ const childCombinedCap = (
   parent: TicketListing,
   bookable: TicketListing[],
   groupRemainingByListingId: ReadonlyMap<number, number>,
+  groupIdsByListingId: ReadonlyMap<number, number[]>,
 ): number => {
   let sharedCohortRemaining: number | undefined;
   let sharedCohortChildMax = 0;
   let separateSum = 0;
-  // Separate (not-with-parent) CAPPED groups, bucketed by group_id so each pool's
-  // remaining and combined own cap accumulate once (Fix 3).
-  const cappedGroups = new Map<number, { remaining: number; ownCap: number }>();
+  // Separate (not-with-parent) CAPPED groups, bucketed by the child's group set
+  // (a stable key over its group ids) so children with the same capped
+  // membership accumulate their pool/own-cap once (Fix 3). A multi-group child is
+  // keyed by its whole set — an approximation safe because the submit-time
+  // checkBatchAvailability is the authoritative per-group gate.
+  const cappedGroups = new Map<string, { remaining: number; ownCap: number }>();
   for (const child of bookable) {
     const ownCap = childOwnRenderCap(parent, child);
+    const childGroupIds = groupIdsByListingId.get(child.listing.id) ?? [];
     const shared = sharedGroupRemaining(
-      parent.listing.group_id,
-      child.listing.group_id,
+      groupIdsByListingId.get(parent.listing.id) ?? [],
+      childGroupIds,
       groupRemainingByListingId.get(child.listing.id),
     );
     if (shared !== undefined) {
@@ -567,14 +577,15 @@ const childCombinedCap = (
       separateSum += ownCap;
       continue;
     }
-    // A capped child-only group the parent is NOT in (Fix 3): bucket by group_id
-    // so several children sharing it collapse to one clamped term.
-    const bucket = cappedGroups.get(child.listing.group_id) ?? {
+    // A capped child-only group the parent is NOT in (Fix 3): bucket by the
+    // child's group set so several children sharing it collapse to one term.
+    const bucketKey = [...childGroupIds].sort((a, b) => a - b).join(",");
+    const bucket = cappedGroups.get(bucketKey) ?? {
       ownCap: 0,
       remaining: groupRemaining,
     };
     bucket.ownCap += ownCap;
-    cappedGroups.set(child.listing.group_id, bucket);
+    cappedGroups.set(bucketKey, bucket);
   }
   const sharedCohortCap =
     sharedCohortRemaining === undefined
@@ -613,6 +624,7 @@ const childCappedMax = (
     info,
     bookable,
     childCtx.groupRemainingByListingId,
+    childCtx.groupIdsByListingId,
   );
   return Math.min(info.maxPurchasable, childCap);
 };
@@ -891,6 +903,7 @@ const renderChildBlock = (
                     parentInfo,
                     child,
                     ctx.groupRemainingByListingId,
+                    ctx.groupIdsByListingId,
                   ),
                 )
               : 0,
@@ -1119,6 +1132,9 @@ export type TicketPageOptions = {
    * capped group with its child clamps its quantity by the combined parent+child
    * demand (invariant I7, Fix 3). Empty/omitted when no group caps apply. */
   groupRemainingByListingId?: ReadonlyMap<number, number>;
+  /** Each listing id → the ids of the groups it belongs to, so the shared-group
+   * clamps work for listings in several groups. Empty/omitted = ungrouped. */
+  groupIdsByListingId?: ReadonlyMap<number, number[]>;
 };
 
 /** Unavailability message shown when all listings are sold out or closed */
@@ -1363,6 +1379,7 @@ const splitChildQuestions = (
   childrenByParentId: Map<number, TicketListing[]> | undefined,
   groupRemainingByListingId: ReadonlyMap<number, number>,
   childDatesById: ReadonlyMap<string, ChildSpanDates>,
+  groupIdsByListingId: ReadonlyMap<number, number[]>,
 ): { pageQuestions: QuestionWithAnswers[]; childCtx?: ChildRenderCtx } => {
   if (!childrenByParentId || childrenByParentId.size === 0) {
     return { pageQuestions: questions };
@@ -1377,6 +1394,7 @@ const splitChildQuestions = (
     childCtx: {
       childDatesById,
       children: childrenByParentId,
+      groupIdsByListingId,
       groupRemainingByListingId,
       questionListingMap,
       questions,
@@ -1463,6 +1481,7 @@ export const ticketPage = ({
   childrenByParentId,
   childDatesById,
   groupRemainingByListingId,
+  groupIdsByListingId,
 }: TicketPageOptions): string => {
   const inIframe = getIframeMode();
   const allUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
@@ -1494,6 +1513,7 @@ export const ticketPage = ({
     childrenByParentId,
     groupRemainingByListingId ?? new Map(),
     childDatesById ?? new Map(),
+    groupIdsByListingId ?? new Map(),
   );
 
   const listingRows = buildListingRows(

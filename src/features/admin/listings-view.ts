@@ -19,7 +19,7 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity.ts";
-import { groupsTable } from "#shared/db/groups.ts";
+import { getGroupIdsByListingId, groupsTable } from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import {
   getListingAggregateRecalculation,
@@ -156,13 +156,20 @@ const loadGroupContext = async (
   listing: ListingWithCount,
   dateFilter: string | null,
 ): Promise<GroupContext | undefined> => {
-  if (listing.group_id === 0) return undefined;
-  const group = await groupsTable.findById(listing.group_id);
-  if (!group || group.max_attendees <= 0) return undefined;
-  const remainingMap = await getGroupRemainingByGroupId([group.id], dateFilter);
-  // group.max_attendees > 0 guarantees the helper returns an entry for it.
-  const remaining = remainingMap.get(group.id) as number;
-  return { attendeeCount: group.max_attendees - remaining, group };
+  // A listing can belong to several groups; surface the first capped one's
+  // shared-cap row. (Capacity enforcement spans every group — see capacity.ts.)
+  for (const groupId of await getGroupIdsByListingId(listing.id)) {
+    const group = await groupsTable.findById(groupId);
+    if (!group || group.max_attendees <= 0) continue;
+    const remainingMap = await getGroupRemainingByGroupId(
+      [group.id],
+      dateFilter,
+    );
+    // group.max_attendees > 0 guarantees the helper returns an entry for it.
+    const remaining = remainingMap.get(group.id) as number;
+    return { attendeeCount: group.max_attendees - remaining, group };
+  }
+  return undefined;
 };
 
 /** Render listing page with attendee list and optional filter */

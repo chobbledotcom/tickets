@@ -10,6 +10,7 @@
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
+import { setListingGroups } from "#shared/db/groups.ts";
 import {
   computeSlugIndex,
   type ListingAggregateValues,
@@ -34,7 +35,6 @@ import type {
 } from "#templates/fields.ts";
 import {
   getAssignBuiltSiteField,
-  getGroupIdField,
   getInitialSiteMonthsField,
   getListingFields,
   getMonthsPerUnitField,
@@ -47,6 +47,13 @@ import {
 /** Parse comma-separated day names to string array */
 const parseBookableDays = (value: string): string[] | undefined =>
   value ? splitCsv(value) : undefined;
+
+/** Ids of the groups ticked on the listing form's group checkboxes. */
+const parseGroupIds = (form: FormParams): number[] =>
+  form
+    .getAll("group_ids")
+    .map(Number)
+    .filter((n) => n > 0);
 
 /**
  * Read the per-day-count price inputs (`day_price_1`, `day_price_2`, …) from
@@ -91,7 +98,7 @@ const extractCommonFields = (values: ListingFormValues, form: FormParams) => {
     description: values.description,
     durationDays,
     fields: values.fields || "",
-    groupId: Number(values.group_id) || 0,
+    groupIds: parseGroupIds(form),
     hidden: values.hidden === "1",
     initialSiteMonths: Number(values.initial_site_months) || 0,
     listingType: values.listing_type || "standard",
@@ -139,14 +146,19 @@ export const extractListingAggregateValues = (
   tickets_count: values.tickets_count,
 });
 
-/** Build listing resource fields for every create/update. */
+/** Build listing resource fields for every create/update. Group membership is
+ * parsed separately from the `group_ids` checkboxes (see parseGroupIds) and
+ * written via afterWrite, so it is not one of the validated single-value fields. */
 const buildListingResourceFields = (): Field[] => [
   ...getListingFields(),
   getMonthsPerUnitField(),
   getInitialSiteMonthsField(),
   getAssignBuiltSiteField(),
-  getGroupIdField(),
 ];
+
+/** Persist the listing's group memberships after the row is created/updated. */
+const writeListingGroups = (row: { id: number }, input: ListingInput) =>
+  setListingGroups(row.id, input.groupIds ?? []);
 
 /**
  * Build a per-request listings create resource whose `toInput` closes over the
@@ -155,6 +167,7 @@ const buildListingResourceFields = (): Field[] => [
  */
 export const buildCreateListingResource = (form: FormParams) =>
   defineResource({
+    afterWrite: writeListingGroups,
     fields: buildListingResourceFields(),
     nameField: "name",
     table: listingsTable,
@@ -165,6 +178,7 @@ export const buildCreateListingResource = (form: FormParams) =>
 /** Build a per-request listings update resource (includes the slug field). */
 export const buildUpdateListingResource = (form: FormParams) =>
   defineResource({
+    afterWrite: writeListingGroups,
     fields: [...buildListingResourceFields(), getSlugField()],
     nameField: "name",
     table: listingsTable,

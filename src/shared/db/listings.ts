@@ -496,6 +496,11 @@ export const deleteListing = async (listingId: number): Promise<void> => {
       args: [listingId, listingId],
       sql: "DELETE FROM listing_parents WHERE parent_listing_id = ? OR child_listing_id = ?",
     },
+    {
+      // Remove the listing from every group it belonged to (no FK cascade).
+      args: [listingId],
+      sql: "DELETE FROM group_listings WHERE listing_id = ?",
+    },
     { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
     { args: [listingId], sql: "DELETE FROM listings WHERE id = ?" },
   ]);

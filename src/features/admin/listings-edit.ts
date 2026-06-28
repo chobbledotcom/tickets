@@ -18,7 +18,7 @@ import {
   checkGroupCapAfterDurationChange,
   recomputeListingBookingRanges,
 } from "#shared/db/attendees.ts";
-import { getAllGroups } from "#shared/db/groups.ts";
+import { getAllGroups, getGroupIdsByListingId } from "#shared/db/groups.ts";
 import { getChildIds } from "#shared/db/listing-parents.ts";
 import {
   adjustListingIncome,
@@ -234,16 +234,19 @@ const getListingAndGroups = async (
   aggregateRecalculation: ListingAggregateRecalculation;
   groups: Group[];
   listing: ListingWithCount;
+  selectedGroupIds: number[];
 } | null> => {
-  const [listing, groups] = await Promise.all([
+  const [listing, groups, selectedGroupIds] = await Promise.all([
     getListingWithCount(listingId),
     getAllGroups(),
+    getGroupIdsByListingId(listingId),
   ]);
   return listing
     ? {
         aggregateRecalculation: await getListingAggregateRecalculation(listing),
         groups,
         listing,
+        selectedGroupIds,
       }
     : null;
 };
@@ -274,7 +277,12 @@ const listingAndGroupsPage =
 /** Handle GET /admin/listing/:id/duplicate */
 export const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listing/:id/duplicate"> =
   listingAndGroupsPage((ctx, session) =>
-    adminDuplicateListingPage(ctx.listing, ctx.groups, session),
+    adminDuplicateListingPage(
+      ctx.listing,
+      ctx.groups,
+      session,
+      ctx.selectedGroupIds,
+    ),
   );
 
 /** Handle GET /admin/listing/:id/edit */
@@ -293,16 +301,24 @@ export const handleAdminListingEditGet: TypedRouteHandler<
           ctx.aggregateRecalculation,
           flash.success,
           await loadListingParentsSection(ctx.listing),
+          ctx.selectedGroupIds,
         ),
       );
     }),
   );
 
-/**
- * If a daily listing's duration changed on edit, recompute booking ranges and
- * detect group-capacity overflow. Returns a string to append to the flash
- * message ("" when no reconciliation was needed or no overflow occurred).
- */
+/** The earliest over-capacity day across every group the listing belongs to
+ * after its booking ranges were recomputed, or null when all groups fit. */
+const firstGroupCapOverflow = async (
+  listingId: number,
+): Promise<string | null> => {
+  for (const groupId of await getGroupIdsByListingId(listingId)) {
+    const overDay = await checkGroupCapAfterDurationChange(listingId, groupId);
+    if (overDay) return overDay;
+  }
+  return null;
+};
+
 const reconcileDurationChange = async (
   row: {
     id: number;
@@ -310,7 +326,6 @@ const reconcileDurationChange = async (
     listing_type: string;
     customisable_days: boolean;
     duration_days: number;
-    group_id: number;
   },
   previousDurationDays: number,
 ): Promise<string> => {
@@ -326,7 +341,7 @@ const reconcileDurationChange = async (
     `Listing '${row.name}' duration changed to ${row.duration_days} day(s)`,
     row,
   );
-  const overDay = await checkGroupCapAfterDurationChange(row.id, row.group_id);
+  const overDay = await firstGroupCapOverflow(row.id);
   if (!overDay) return "";
   await logActivity(
     `Duration change caused group capacity overflow on ${overDay}`,
@@ -351,6 +366,7 @@ const renderListingEditError = async (
           ctx.aggregateRecalculation,
           undefined,
           await loadListingParentsSection(ctx.listing),
+          ctx.selectedGroupIds,
         ),
         400,
       )

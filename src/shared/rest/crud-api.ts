@@ -176,6 +176,10 @@ export interface CrudApiConfig<
   ) => ParseResult<Input> | Promise<ParseResult<Input>>;
   /** Optional validation (return error message or null) */
   validate?: (input: Input, id?: number) => Promise<string | null>;
+  /** Side-effect run after a successful create/update with the written row's id
+   * and the parsed input — e.g. to persist join-table rows (a listing's groups)
+   * that live outside the main table. */
+  afterWrite?: (id: number, input: Input) => Promise<void>;
 }
 
 /** Callback receiving an entity row plus auth context */
@@ -320,9 +324,11 @@ export const defineCrudApi = <
         existingId,
         prepared.value,
       );
+      await config.afterWrite?.((fullRow as { id: number }).id, input);
       return respondWithRow(fullRow, action, status);
     }
     const row = await plainWrite();
+    await config.afterWrite?.((row as { id: number }).id, input);
     return respondWithRow(row as unknown as FullRow, action, status);
   };
 

@@ -19,13 +19,14 @@
  * parents.md, "Public listing cards" and "no bookable child ⇒ sold out".
  */
 
-import { mapNotNullish } from "#fp";
+import { mapNotNullish, unique } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import {
   getGroupRemainingByListingId,
   getSharedGroupCapacities,
 } from "#shared/db/attendees.ts";
+import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   getChildListingIds,
@@ -160,6 +161,7 @@ const childBookableForParent = (
   groupRemaining: number | undefined,
   groupStaticCap: number | undefined,
   holidays: Holiday[],
+  membership: ReadonlyMap<number, number[]>,
 ): boolean =>
   childBookable(
     buildTicketListing(child, isRegistrationClosed(child), groupRemaining),
@@ -174,8 +176,8 @@ const childBookableForParent = (
   ) &&
   combinedGroupDemandFits(
     sharedGroupCapacity(
-      parent.group_id,
-      child.group_id,
+      membership.get(parent.id) ?? [],
+      membership.get(child.id) ?? [],
       groupStaticCap,
       groupRemaining,
     ),
@@ -208,11 +210,19 @@ export const classifyForDiscovery = async (
     ...parentsByChild.keys(),
   ]);
   const everyParent = [...parentsByChild.values()].flat();
-  const [childCaps, parentGroupRemaining, holidays] = await Promise.all([
-    getSharedGroupCapacities([...everyChild, ...displayedChildren]),
-    getGroupRemainingByListingId(everyParent),
-    getActiveHolidays(),
-  ]);
+  const [childCaps, parentGroupRemaining, holidays, membership] =
+    await Promise.all([
+      getSharedGroupCapacities([...everyChild, ...displayedChildren]),
+      getGroupRemainingByListingId(everyParent),
+      getActiveHolidays(),
+      getGroupIdsByListingIds(
+        unique([
+          ...byId.keys(),
+          ...everyChild.map((c) => c.id),
+          ...everyParent.map((p) => p.id),
+        ]),
+      ),
+    ]);
   const { remaining: groupRemaining, staticCap: groupStaticCap } = childCaps;
   // A child is an add-on only when at least one parent is itself bookable AND can
   // offer THIS child given the *combined* parent+child group demand (invariant I7,
@@ -234,6 +244,7 @@ export const classifyForDiscovery = async (
           groupRemaining.get(childId),
           groupStaticCap.get(childId),
           holidays,
+          membership,
         ),
     );
     if (offerable) addOnChildIds.add(childId);
@@ -250,6 +261,7 @@ export const classifyForDiscovery = async (
           groupRemaining.get(child.id),
           groupStaticCap.get(child.id),
           holidays,
+          membership,
         ),
       );
     if (!anyBookable) soldOutParentIds.add(parentId);
@@ -328,6 +340,7 @@ export const applyBookingPageParentSoldOut = (
   groupRemainingByListingId: ReadonlyMap<number, number>,
   groupStaticCapByListingId: ReadonlyMap<number, number>,
   holidays: Holiday[],
+  membership: ReadonlyMap<number, number[]>,
 ): TicketListing[] =>
   listings.map((info) => {
     const children = childrenByParentId.get(info.listing.id);
@@ -338,6 +351,7 @@ export const applyBookingPageParentSoldOut = (
         groupRemainingByListingId.get(child.listing.id),
         groupStaticCapByListingId.get(child.listing.id),
         holidays,
+        membership,
       ),
     );
     if (children && children.length > 0 && !anyBookable) {

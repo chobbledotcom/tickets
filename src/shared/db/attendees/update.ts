@@ -152,7 +152,7 @@ export const checkGroupCapAfterDurationChange = async (
     `SELECT ea.listing_id, listing.listing_type, ea.start_at, ea.end_at, ea.quantity
      FROM listing_attendees ea
      JOIN listings AS listing ON listing.id = ea.listing_id
-     WHERE listing.group_id = ?`,
+     WHERE ea.listing_id IN (SELECT listing_id FROM group_listings WHERE group_id = ?)`,
     [groupId],
   );
 

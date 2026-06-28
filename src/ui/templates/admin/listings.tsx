@@ -1881,7 +1881,7 @@ const ListingFormSections = ({
   fields,
   values,
   groups,
-  selectedGroupId,
+  selectedGroupIds,
   dayPricesListing,
   durationWarning,
   imagePreview,
@@ -1893,7 +1893,7 @@ const ListingFormSections = ({
   fields: Field[];
   values: FieldValues;
   groups: Group[];
-  selectedGroupId: number;
+  selectedGroupIds: number[];
   /** Listing whose duration sizes the day-price rows (absent on create). */
   dayPricesListing?: ListingWithCount;
   /** Pre-rendered edit-only duration-change warning ("" on create/duplicate). */
@@ -1935,7 +1935,7 @@ const ListingFormSections = ({
           {imagePreview && <Raw html={imagePreview} />}
           <ListingGroupSelect
             groups={groups}
-            selectedGroupId={selectedGroupId}
+            selectedGroupIds={selectedGroupIds}
           />
         </div>
       </fieldset>
@@ -1994,6 +1994,7 @@ export const adminListingNewPage = (
     error?: string;
     templateId?: string | null;
     values?: FieldValues;
+    selectedGroupIds?: number[];
   },
 ): string => {
   const {
@@ -2001,6 +2002,7 @@ export const adminListingNewPage = (
     templateId,
     customiseOpen = false,
     values: submitted,
+    selectedGroupIds = [],
   } = opts ?? {};
   const storageEnabled = isStorageEnabled();
   const builderEnabled = isBuilderEnabled();
@@ -2047,7 +2049,7 @@ export const adminListingNewPage = (
           groups={groups}
           imagePreview=""
           isTemplated={!!template}
-          selectedGroupId={Number(submitted?.group_id) || 0}
+          selectedGroupIds={selectedGroupIds}
           values={submitted ?? seeds}
         />
         <SubmitButton icon="plus">
@@ -2065,6 +2067,7 @@ export const adminDuplicateListingPage = (
   listing: ListingWithCount,
   groups: Group[],
   session: AdminSession,
+  selectedGroupIds: number[] = [],
 ): string => {
   const values = listingToFieldValues(listing);
   values.name = "";
@@ -2117,7 +2120,7 @@ export const adminDuplicateListingPage = (
           groups={groups}
           imagePreview=""
           isTemplated={!!template}
-          selectedGroupId={listing.group_id}
+          selectedGroupIds={selectedGroupIds}
           values={values}
         />
         <SubmitButton icon="plus">
@@ -2230,6 +2233,7 @@ export const adminListingEditPage = (
     childIds: ReadonlySet<number>;
     offeredUnder: ListingWithCount[];
   },
+  selectedGroupIds: number[] = [],
 ): string => {
   // A listing offered as a child inherits its parent's booking date/duration, so
   // its own date/duration settings have no effect when chosen as a child. Surface
@@ -2293,7 +2297,7 @@ export const adminListingEditPage = (
           groups={groups}
           imagePreview={imagePreview}
           isTemplated={!!template}
-          selectedGroupId={listing.group_id}
+          selectedGroupIds={selectedGroupIds}
           values={listingToFieldValues(listing)}
         />
         <ListingRunningTotalsSection

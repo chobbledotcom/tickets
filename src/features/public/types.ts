@@ -54,6 +54,10 @@ export type TicketCtx = TicketSharedContext & {
    * combined parent+child demand (invariant I7, Fix 3). Omitted on submit/quote
    * (the fold's authoritative date-specific check runs there instead). */
   groupRemainingByListingId?: ReadonlyMap<number, number>;
+  /** Each listing id → the ids of the groups it belongs to, set on the render
+   * path alongside groupRemainingByListingId so the shared-group quantity clamps
+   * work for listings in several groups. Omitted on submit/quote. */
+  groupIdsByListingId?: ReadonlyMap<number, number[]>;
   baseUrl?: string;
   prefill?: BookingPrefill;
 };

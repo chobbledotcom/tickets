@@ -29,7 +29,6 @@ export const API_EXAMPLE_LISTING: ListingWithCount = {
     "A hands-on workshop covering watercolours and sketching techniques. All materials provided.",
   duration_days: 1,
   fields: "email",
-  group_id: 0,
   hidden: false,
   id: 1,
   image_url: "",

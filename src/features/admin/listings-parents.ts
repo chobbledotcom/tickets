@@ -11,6 +11,7 @@ import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */
 import { logActivity } from "#shared/db/activityLog.ts";
+import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
 import {
   getChildIds,
   getChildrenForParents,
@@ -26,6 +27,7 @@ import {
 import {
   childOnlyAddOnName,
   childOnlyAddOnNameForListings,
+  type ListingGroupMembership,
 } from "#shared/db/modifier-resolve.ts";
 import {
   type EdgeListing,
@@ -180,7 +182,7 @@ export type ChildEdgeValidation =
  * (the live `modifier_groups`→`listings` join can't yet see it). Omitted by the
  * HTML children form, whose parent row already carries its live `group_id`.
  */
-export type ChildEdgeOptions = { wouldBeGroupId: number };
+export type ChildEdgeOptions = { wouldBeGroupIds: number[] };
 
 /** Build the add-on resolver for a child-edge validation: the live-table check
  * for the HTML form, or the in-memory would-be-group check for the admin API
@@ -198,15 +200,21 @@ const childOnlyAddOnResolver = async (
 ): Promise<ChildOnlyAddOnResolver> => {
   if (!options) return childOnlyAddOnName;
   const live = await getAllListings();
+  const membership = await getGroupIdsByListingIds(live.map((l) => l.id));
   const hasParent = live.some((listing) => listing.id === parent.id);
-  const withGroup = (group_id: number) => ({ group_id, id: parent.id });
-  const allListings: Pick<ListingWithCount, "id" | "group_id">[] = hasParent
-    ? live.map((listing) =>
-        listing.id === parent.id
-          ? { ...listing, group_id: options.wouldBeGroupId }
-          : listing,
-      )
-    : [...live, withGroup(options.wouldBeGroupId)];
+  const base: ListingGroupMembership[] = live.map((listing) => ({
+    active: listing.active,
+    groupIds:
+      listing.id === parent.id
+        ? options.wouldBeGroupIds
+        : (membership.get(listing.id) ?? []),
+    id: listing.id,
+  }));
+  // On create the parent row doesn't exist in `live` yet, so append a
+  // placeholder carrying its would-be group set (active — it serves a page).
+  const allListings: ListingGroupMembership[] = hasParent
+    ? base
+    : [...base, { active: true, groupIds: options.wouldBeGroupIds, id: parent.id }];
   return (childId, pageIds) =>
     childOnlyAddOnNameForListings(childId, pageIds, allListings);
 };
