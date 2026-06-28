@@ -7,7 +7,7 @@ const parse = (query: string, hasLogistics = true) =>
   parseListingDefaultsForm(new FormParams(query), hasLogistics);
 
 const ok = (result: ReturnType<typeof parse>) => {
-  if (!result.ok) throw new Error(`expected ok, got error: ${result.error}`);
+  if (result.error) throw new Error(`expected ok, got error: ${result.error}`);
   return result.value;
 };
 
@@ -42,7 +42,7 @@ describe("admin > listing defaults form parse > numbers", () => {
 
   test("rejects a non-numeric value", () => {
     const result = parse("default_minimum_days_before=abc");
-    expect(result.ok).toBe(false);
+    expect(result.error).not.toBeNull();
   });
 });
 
@@ -52,9 +52,9 @@ describe("admin > listing defaults form parse > duration", () => {
   });
 
   test("rejects 0, over the max, and non-integers", () => {
-    expect(parse("default_duration_days=0").ok).toBe(false);
-    expect(parse("default_duration_days=91").ok).toBe(false);
-    expect(parse("default_duration_days=2.5").ok).toBe(false);
+    expect(parse("default_duration_days=0").error).not.toBeNull();
+    expect(parse("default_duration_days=91").error).not.toBeNull();
+    expect(parse("default_duration_days=2.5").error).not.toBeNull();
   });
 });
 
@@ -67,8 +67,8 @@ describe("admin > listing defaults form parse > urls", () => {
   });
 
   test("rejects an unsafe url", () => {
-    expect(parse("default_webhook_url=ftp://example.com").ok).toBe(false);
-    expect(parse("default_thank_you_url=not-a-url").ok).toBe(false);
+    expect(parse("default_webhook_url=ftp://example.com").error).not.toBeNull();
+    expect(parse("default_thank_you_url=not-a-url").error).not.toBeNull();
   });
 });
 
@@ -89,10 +89,11 @@ describe("admin > listing defaults form parse > bookable days", () => {
   });
 
   test("rejects enabled with no valid day chosen", () => {
-    expect(parse("default_bookable_days_enabled=1").ok).toBe(false);
+    expect(parse("default_bookable_days_enabled=1").error).not.toBeNull();
     expect(
-      parse("default_bookable_days_enabled=1&default_bookable_days=Funday").ok,
-    ).toBe(false);
+      parse("default_bookable_days_enabled=1&default_bookable_days=Funday")
+        .error,
+    ).not.toBeNull();
   });
 });
 

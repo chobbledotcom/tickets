@@ -31,9 +31,9 @@ import {
 import { adminListingDefaultsPage } from "#templates/admin/listing-defaults.tsx";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
 
-type ParseResult =
-  | { ok: true; value: ListingDefaults }
-  | { ok: false; error: string };
+/** The parsed defaults plus the first validation error, if any. `value` always
+ * holds whatever parsed cleanly; `error` non-null means the handler rejects it. */
+type ParseResult = { value: ListingDefaults; error: string | null };
 
 const inputName = (field: ListingDefaultField): string =>
   `default_${field.field}`;
@@ -131,10 +131,10 @@ export const parseListingDefaultsForm = (
   for (const field of LISTING_DEFAULT_FIELDS) {
     if (field.field === "uses_logistics" && !hasLogistics) continue;
     const { value: parsed, error } = parseField(field, form);
-    if (error) return { error, ok: false };
+    if (error) return { error, value: value as ListingDefaults };
     if (parsed !== undefined) value[field.key] = parsed;
   }
-  return { ok: true, value: value as ListingDefaults };
+  return { error: null, value: value as ListingDefaults };
 };
 
 /** GET /admin/listing-defaults — owner only. */
@@ -160,8 +160,9 @@ export const handleListingDefaultsPost = settingsHandler<ParseResult>({
   label: "Listing defaults",
   log: () => t("listing_defaults.saved"),
   redirectTo: "/admin/listing-defaults",
+  // validate() rejects a non-null error before save() runs, so save always has
+  // a clean value to persist.
   save: async (result) => {
-    if (!result.ok) return;
     await settings.update.listingDefaults(result.value);
     // Listings inherit defaults at the cache layer (`decryptListingWithCount`),
     // which has its own TTL and is not invalidated by settings writes — so drop
@@ -169,5 +170,5 @@ export const handleListingDefaultsPost = settingsHandler<ParseResult>({
     // the TTL lapsed or an unrelated listing write cleared it.
     invalidateListingsCache();
   },
-  validate: (result) => (result.ok ? null : result.error),
+  validate: (result) => result.error,
 });
