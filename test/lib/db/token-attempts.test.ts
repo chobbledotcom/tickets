@@ -9,6 +9,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import { queryOne } from "#shared/db/client.ts";
 import {
   clearTokenAttempts,
   isTokenRateLimited,
@@ -23,6 +25,11 @@ import { describeWithEnv } from "#test-utils";
 
 const makeTokens = (prefix: string, count: number): string[] =>
   Array.from({ length: count }, (_, i) => `${prefix}-${i}`);
+
+const rawRow = async (ip: string): Promise<{ ip: string } | null> =>
+  queryOne<{ ip: string }>("SELECT ip FROM token_attempts WHERE ip = ?", [
+    await hmacHash(ip),
+  ]);
 
 describeWithEnv("db > token-attempts", { db: true }, () => {
   describe("isTokenRateLimited", () => {
@@ -50,6 +57,25 @@ describeWithEnv("db > token-attempts", { db: true }, () => {
 
         time.tick(TOKEN_LOCKOUT_MS + 1);
         expect(await isTokenRateLimited(ip)).toBe(false);
+      } finally {
+        time.restore();
+      }
+    });
+
+    test("deletes the stored row when an expired lockout is checked", async () => {
+      const ip = "10.0.0.11";
+      const time = new FakeTime(1_800_000_000_000);
+      try {
+        await recordTokenFailure(ip, makeTokens("exp", MAX_TOKEN_404S));
+        // While locked, the row persists.
+        expect(await rawRow(ip)).not.toBeNull();
+
+        time.tick(TOKEN_LOCKOUT_MS + 1);
+        expect(await isTokenRateLimited(ip)).toBe(false);
+
+        // Checking an expired lockout must clear the row so the next attempt
+        // starts fresh (and no fingerprint is left behind).
+        expect(await rawRow(ip)).toBeNull();
       } finally {
         time.restore();
       }
