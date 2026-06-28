@@ -300,20 +300,45 @@ documented JSON request actually reaches it:
 
 - **Narrow settings bundle.** Every prefix must have a `PREFIX_SETTINGS` entry;
   an unlisted prefix falls back to `ALL_SNAPSHOT_SETTINGS`, so `settingsForPath`
-  would load and decrypt unrelated secrets (payment, email, wallet, SMS keys) on
-  every public cross-origin preview (`src/features/index.ts`,
+  would load and decrypt unrelated secrets (email, wallet, SMS keys) on every
+  public cross-origin preview (`src/features/index.ts`,
   `src/shared/db/settings.ts`). Add an `external-order` entry, but do **not**
   reuse `calculate`'s `[...BOOKING_FLOW_SETTINGS, CONFIG_KEYS.EMBED_HOSTS]`
   bundle: `BOOKING_FLOW_SETTINGS` expands to `PUBLIC_NAV_SETTINGS` +
-  `PAYMENT_SETTINGS` + `EMAIL_SETTINGS`, which pulls in the Stripe/Square/SumUp
-  secret keys and the email API key — none of which a read-only quote needs.
-  Define a quote-specific bundle holding only the keys the preview actually reads
-  (e.g. `CONFIG_KEYS.COUNTRY` for currency, `CONFIG_KEYS.BOOKING_FEE`,
-  `CONFIG_KEYS.TERMS_AND_CONDITIONS` to detect the terms-deferral case, and
-  `CONFIG_KEYS.EMBED_HOSTS` for the origin gate), explicitly excluding all
-  payment-provider and email secrets. `calculate` is over-broad for the same
-  reason; narrowing it to share this quote bundle is a worthwhile follow-up, but
-  the new endpoint must start from the minimal set rather than inherit the
+  `PAYMENT_SETTINGS` + `EMAIL_SETTINGS`, which pulls in the email API key, the
+  wallet/webhook secrets, and Square's location/sandbox keys — none of which a
+  read-only quote reads. Define a quote-specific bundle holding only the keys the
+  preview actually reads:
+
+  - `CONFIG_KEYS.COUNTRY` for currency,
+  - `CONFIG_KEYS.BOOKING_FEE`,
+  - `CONFIG_KEYS.TERMS_AND_CONDITIONS` to detect the terms-deferral case,
+  - `CONFIG_KEYS.EMBED_HOSTS` for the origin gate, and
+  - the **payment-enabled signal** (see below).
+
+  The payment signal cannot simply be dropped: when the preview shares the
+  `/calculate` quote path, `renderQuote` calls `isPaymentsEnabled()`
+  (`src/features/public/ticket-submit.ts`), which reads
+  `settings.paymentProvider` and the active provider's key presence —
+  `settings.stripe.hasKey` / `square.hasToken` / `sumup.hasKey`. Those getters are
+  backed by the decrypted secret in the snapshot (`snap("stripe_secret_key") !==
+  ""`, etc. in `src/shared/db/settings.ts`), so omitting them would either fail
+  the per-path settings audit or make the preview see an empty key and return the
+  "no online payment" message instead of the same summary `/calculate` produces.
+  Two acceptable resolutions:
+
+  1. **Preferred:** expose a non-secret "payments configured" flag (a derived
+     boolean in the snapshot that does not require decrypting the provider
+     secret) and have both `isPaymentsEnabled()` and the preview read that. This
+     keeps the public endpoint from ever decrypting payment secrets.
+  2. **Fallback:** include `CONFIG_KEYS.PAYMENT_PROVIDER` plus the three provider
+     key settings (`STRIPE_SECRET_KEY`, `SQUARE_ACCESS_TOKEN`, `SUMUP_API_KEY`)
+     in the bundle for parity — still far narrower than `BOOKING_FLOW_SETTINGS`,
+     but it does decrypt the provider key to test presence.
+
+  `calculate` is over-broad for the same reasons; narrowing it to share this
+  quote bundle (and the presence flag) is a worthwhile follow-up, but the new
+  endpoint must start from the minimal set rather than inherit the full
   booking-flow secrets.
 
 Request body:
@@ -536,7 +561,10 @@ Server tests:
   or a customisable day count returns a Continue URL and deferral message rather
   than an error.
 - A preview request loads only the quote-specific settings bundle, not the
-  payment/email secrets in the booking-flow set.
+  email/wallet/webhook secrets in the booking-flow set.
+- A preview on a site with a configured payment provider returns the same
+  order summary as `/calculate` (payment-enabled parity), without depending on
+  email or unrelated payment sub-settings.
 
 Client tests:
 
@@ -578,8 +606,10 @@ End-to-end browser test:
 5. Add `POST /external-order/preview` under its own prefix (not `/api`). Register
    the prefix in `isJsonApiPath` (so the JSON body passes the content-type guard)
    and in `PREFIX_SETTINGS` with a quote-specific bundle (country, booking fee,
-   terms flag, embed_hosts) that excludes payment/email secrets — not the
-   booking-flow set. Give the `order.js` route prefix its own `[EMBED_HOSTS]`
+   terms flag, embed_hosts, and a payment-enabled signal for `isPaymentsEnabled`
+   parity) — not the booking-flow set, and excluding the email/wallet/webhook
+   secrets. Prefer a non-secret payments-configured flag over decrypting the
+   provider keys. Give the `order.js` route prefix its own `[EMBED_HOSTS]`
    `PREFIX_SETTINGS` entry as well.
 6. Build `src/ui/client/order.ts` with singleton link scanning, cart state,
    preview dialog, and Continue navigation.
