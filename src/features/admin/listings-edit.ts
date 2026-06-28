@@ -246,10 +246,17 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
       form,
       result.row.id,
     );
+    // Staff land on the dashboard (which renders flashes); editors can't open
+    // it, so they go to the new listing's edit page — which renders Flash, so
+    // the success message and any upload caveats are surfaced, not swallowed.
+    const createdRedirect =
+      session.adminLevel === "editor"
+        ? listingReturnPath(session.adminLevel, result.row.id)
+        : adminLandingPath(session.adminLevel);
     return processUploadsAndRedirect(
       formData,
       result.row.id,
-      adminLandingPath(session.adminLevel),
+      createdRedirect,
       t("success.listing_created"),
       undefined,
       undefined,

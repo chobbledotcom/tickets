@@ -121,14 +121,12 @@ export const debugDetailsHtml = (data: DebugFooterData): string => {
 };
 
 /** The footer's right-hand utility links, gated by role so none is a dead link:
- * the activity log is staff-only, the guide is for staff + editors (not delivery
- * agents), and logout is for everyone. */
+ * the activity log and the guide are staff-only (the guide body links to many
+ * owner/staff pages), and logout is for everyone. */
 const footerLinks = (adminLevel: AdminLevel): string =>
   compact([
     isStaff(adminLevel) ? `<a href="/admin/log">${t("nav.log")}</a>` : null,
-    adminLevel !== "agent"
-      ? `<a href="/admin/guide">${t("nav.guide")}</a>`
-      : null,
+    isStaff(adminLevel) ? `<a href="/admin/guide">${t("nav.guide")}</a>` : null,
     `<a href="/admin/logout">${t("nav.logout")}</a>`,
   ]).join(" &middot; ");
 

@@ -348,6 +348,21 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       );
     });
 
+    test("editor listing create lands on the edit page so flashes are shown", async () => {
+      const { cookie } = await createTestEditorSession();
+      const resp = await postMultipartAs(
+        "/admin/listing",
+        cookie,
+        buildCreateListingForm(testListingInput()),
+      );
+      expect(resp.status).toBe(302);
+      // Not the dashboard (/admin) or bare /admin/listings, which render no
+      // Flash for editors — the new listing's edit page does.
+      expect(resp.headers.get("location")).toMatch(
+        /\/admin\/listing\/\d+\/edit/,
+      );
+    });
+
     test("editors can use the markdown preview endpoint", async () => {
       const { cookie } = await createTestEditorSession();
       const response = await postFormAs("/admin/markdown-preview", cookie, {
@@ -357,18 +372,18 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       expect(await response.text()).toContain("<h1>Hello</h1>");
     });
 
-    test("editors can open the admin guide", async () => {
+    test("the admin guide stays staff-only (its body links to staff pages)", async () => {
       const { cookie } = await createTestEditorSession();
       const response = await getAs("/admin/guide", cookie);
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(403);
     });
 
-    test("editor footer links to the guide and logout, not the staff-only log", async () => {
+    test("editor footer shows only logout (no staff-only log or guide links)", async () => {
       const { cookie } = await createTestEditorSession();
       const html = await (await getAs("/admin/listings", cookie)).text();
-      expect(html).toContain('href="/admin/guide"');
       expect(html).toContain('href="/admin/logout"');
       expect(html).not.toContain('href="/admin/log"');
+      expect(html).not.toContain('href="/admin/guide"');
     });
 
     test("editors do not get the staff SQL/cache debug footer", async () => {

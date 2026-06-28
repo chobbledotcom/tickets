@@ -227,10 +227,10 @@ describe("adminFooterHtml", () => {
     expect(html).not.toContain("#log-out");
   });
 
-  test("editors get guide and logout but not the staff-only activity log", () => {
+  test("editors get only logout (log and guide are staff-only)", () => {
     const html = adminFooterHtml(null, "editor");
     expect(html).not.toContain('href="/admin/log"');
-    expect(html).toContain('<a href="/admin/guide">Guide</a>');
+    expect(html).not.toContain('href="/admin/guide"');
     expect(html).toContain('<a href="/admin/logout">Log out</a>');
   });
 
