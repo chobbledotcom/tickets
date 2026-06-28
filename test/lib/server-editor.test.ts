@@ -378,6 +378,25 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       expect(response.status).toBe(403);
     });
 
+    test("the markdown formatting help page is reachable by editors", async () => {
+      const { cookie } = await createTestEditorSession();
+      const response = await getAs("/admin/formatting", cookie);
+      expect(response.status).toBe(200);
+      // The editor-safe formatting section, not the full staff guide.
+      const html = await response.text();
+      expect(html).toContain("Markdown");
+      // The markdown field hint on the editor's listing edit form points here,
+      // so "Formatting help" never dead-ends on the staff-only guide.
+      const editHtml = await (
+        await getAs(
+          `/admin/listing/${(await createTestListing()).id}/edit`,
+          cookie,
+        )
+      ).text();
+      expect(editHtml).toContain('href="/admin/formatting"');
+      expect(editHtml).not.toContain('href="/admin/guide#text-formatting"');
+    });
+
     test("editor footer shows only logout (no staff-only log or guide links)", async () => {
       const { cookie } = await createTestEditorSession();
       const html = await (await getAs("/admin/listings", cookie)).text();

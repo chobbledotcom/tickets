@@ -298,8 +298,11 @@ export const validateBookableDays = (value: string): string | null => {
 };
 
 /** Shared formatting hint linking to the admin guide */
+// Links to the standalone formatting-help page (not the staff-only full guide),
+// so the hint works for every content role that edits markdown — including
+// editors, who 403 on /admin/guide.
 export const FORMATTING_HINT =
-  '<a href="/admin/guide#text-formatting" target="_blank" rel="noopener">Formatting help</a>';
+  '<a href="/admin/formatting" target="_blank" rel="noopener">Formatting help</a>';
 
 /** Validate description length */
 const DescriptionSchema = v.pipe(v.string(), v.maxLength(MAX_TEXTAREA_LENGTH));
