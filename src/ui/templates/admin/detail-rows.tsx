@@ -6,6 +6,7 @@ import { joinStrings, map, reduce, sumOf } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { type Attendee, hasTicketQuantity } from "#shared/types.ts";
+import { questionTextFlat } from "#templates/admin/questions.tsx";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
 /** A key/value row for the listing-details-table */
@@ -129,7 +130,7 @@ export const buildAnswerSummaryRows = (
   const counts = countAnswers(questionData.attendeeAnswerMap);
   return map(
     (q: { text: string; answers: QuestionAnswer[] }): DetailRow => ({
-      key: q.text,
+      key: questionTextFlat(q.text),
       value: formatAnswerSummary(q.answers, counts),
     }),
   )(questionData.questions);

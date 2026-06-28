@@ -64,6 +64,7 @@ import {
 } from "#shared/db/questions.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms.tsx";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
   type AnswerModifierOption,
@@ -78,6 +79,7 @@ import {
 import {
   type AnswerAggregateFormValues,
   answerAggregateFields,
+  FORMATTING_HINT,
 } from "#templates/fields.ts";
 
 /* jscpd:ignore-end */
@@ -85,11 +87,14 @@ import {
 export const questionTextForm = defineForm({
   fields: [
     {
+      hintHtml: `Shown to attendees above the answer field. ${FORMATTING_HINT}`,
       label: "Question text",
+      markdown: true,
+      maxlength: MAX_TEXTAREA_LENGTH,
       name: "text",
       placeholder: "e.g. What is your T-shirt size?",
       required: true,
-      type: "text",
+      type: "textarea",
     },
     {
       label: "Display as",

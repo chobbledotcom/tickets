@@ -158,4 +158,74 @@ describe("EditQuestions", () => {
 
     expect(html).toContain('name="question_7" type="text" value=""');
   });
+
+  test("renders complex markdown in a prose div for free-text questions", () => {
+    const html = render(
+      [
+        {
+          answers: [],
+          display_type: "free_text",
+          id: 1,
+          text: "Tell us **more**",
+        },
+      ],
+      { textAnswers: new Map([[1, "done"]]) },
+    );
+
+    expect(html).toContain('<div class="prose">');
+    expect(html).toContain("<strong>more</strong>");
+    expect(html).not.toContain('<label class="custom-question">');
+  });
+
+  test("renders complex markdown in a prose div for select questions", () => {
+    const html = render(
+      [
+        {
+          answers: [
+            {
+              active: true,
+              id: 10,
+              question_id: 1,
+              sort_order: 0,
+              text: "Red",
+            },
+          ],
+          display_type: "select",
+          id: 1,
+          text: "Pick [a colour](https://example.com)",
+        },
+      ],
+      { answerIds: [10] },
+    );
+
+    expect(html).toContain('<div class="prose">');
+    expect(html).toContain('<a href="https://example.com">a colour</a>');
+    expect(html).not.toContain('<label class="custom-question">');
+  });
+
+  test("renders complex markdown in a prose div for radio questions", () => {
+    const html = render(
+      [
+        {
+          answers: [
+            {
+              active: true,
+              id: 10,
+              question_id: 1,
+              sort_order: 0,
+              text: "Red",
+            },
+          ],
+          display_type: "radio",
+          id: 1,
+          text: "# Heading\n\nPick a colour",
+        },
+      ],
+      { answerIds: [10] },
+    );
+
+    expect(html).toContain('<div class="prose">');
+    expect(html).toContain("<h1>Heading</h1>");
+    expect(html).not.toContain("<legend>");
+  });
 });

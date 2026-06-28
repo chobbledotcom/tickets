@@ -22,6 +22,7 @@ import {
   type AccountLedgerData,
   AccountStatementSection,
 } from "#templates/admin/ledger.tsx";
+import { questionTextFlat } from "#templates/admin/questions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
@@ -251,7 +252,10 @@ export const AttendeeAnswersTable = ({
   const answered = mapNotNullish((q: QuestionWithAnswers) => {
     const picks = q.answers.filter((a) => selected.has(a.id));
     return picks.length > 0
-      ? { answer: picks.map((a) => a.text).join(", "), question: q.text }
+      ? {
+          answer: picks.map((a) => a.text).join(", "),
+          question: questionTextFlat(q.text),
+        }
       : null;
   })(questions);
   if (answered.length === 0) return null;

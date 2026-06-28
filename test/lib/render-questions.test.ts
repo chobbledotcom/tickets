@@ -205,4 +205,83 @@ describe("renderQuestions", () => {
 
     expect(html).not.toContain("data-listing-ids");
   });
+
+  test("wraps simple question text in a label for free-text questions", () => {
+    const html = renderQuestions([
+      {
+        answers: [],
+        display_type: "free_text" as const,
+        id: 1,
+        text: "Your name?",
+      },
+    ]).toString();
+
+    expect(html).toContain('<label class="custom-question">');
+    expect(html).toContain("Your name?");
+    expect(html).not.toContain('<div class="prose">');
+  });
+
+  test("renders complex markdown as a prose div for free-text questions", () => {
+    const html = renderQuestions([
+      {
+        answers: [],
+        display_type: "free_text" as const,
+        id: 1,
+        text: "Tell us **more** about yourself",
+      },
+    ]).toString();
+
+    expect(html).toContain('<div class="custom-question">');
+    expect(html).toContain('<div class="prose">');
+    expect(html).toContain("<strong>more</strong>");
+    expect(html).not.toContain("**more**");
+  });
+
+  test("wraps simple question text in a label for select questions", () => {
+    const html = renderQuestions(colourQuestion("select")).toString();
+
+    expect(html).toContain('<label class="custom-question">');
+    expect(html).not.toContain('<div class="prose">');
+  });
+
+  test("renders complex markdown as a prose div for select questions", () => {
+    const html = renderQuestions([
+      {
+        answers: [
+          { active: true, id: 10, question_id: 1, sort_order: 0, text: "Red" },
+        ],
+        display_type: "select" as const,
+        id: 1,
+        text: "Choose [a colour](https://example.com)",
+      },
+    ]).toString();
+
+    expect(html).toContain('<div class="custom-question">');
+    expect(html).toContain('<div class="prose">');
+    expect(html).toContain('<a href="https://example.com">a colour</a>');
+  });
+
+  test("wraps simple question text in a legend for radio questions", () => {
+    const html = renderQuestions(colourQuestion()).toString();
+
+    expect(html).toContain("<legend>Favourite colour?</legend>");
+    expect(html).not.toContain('<div class="prose">');
+  });
+
+  test("renders complex markdown as a prose div for radio questions", () => {
+    const html = renderQuestions([
+      {
+        answers: [
+          { active: true, id: 10, question_id: 1, sort_order: 0, text: "Red" },
+        ],
+        display_type: "radio" as const,
+        id: 1,
+        text: "# Heading\n\nPick a colour",
+      },
+    ]).toString();
+
+    expect(html).toContain('<div class="prose">');
+    expect(html).toContain("<h1>Heading</h1>");
+    expect(html).not.toContain("<legend>");
+  });
 });

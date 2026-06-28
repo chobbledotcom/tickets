@@ -25,6 +25,10 @@ import type {
 } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { BackButton, SubmitButton } from "#templates/components/actions.tsx";
+import {
+  questionFieldset,
+  questionWrapper,
+} from "#templates/components/question-text.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /**
@@ -225,7 +229,10 @@ export const PaymentDetails = ({
 };
 
 /** Render custom question fields with pre-selected answers for admin edit.
- * Shared by the unified add/edit attendee form. */
+ * Shared by the unified add/edit attendee form.
+ *
+ * Question text may contain markdown — simple text is used as a clickable
+ * label; complex markdown is rendered as a prose block above the control. */
 export const EditQuestions = ({
   questions,
   selectedAnswerIds,
@@ -237,51 +244,52 @@ export const EditQuestions = ({
 }): JSX.Element => (
   <>
     {questions.map((q) =>
-      q.display_type === "free_text" ? (
-        <label class="custom-question">
-          {q.text}
-          <input
-            maxlength={MAX_TEXTAREA_LENGTH}
-            name={`question_${q.id}`}
-            type="text"
-            value={selectedTextAnswers.get(q.id) ?? ""}
-          />
-        </label>
-      ) : q.display_type === "select" ? (
-        <label class="custom-question">
-          {q.text}
-          <select name={`question_${q.id}`}>
-            <option value="">No answer</option>
-            {q.answers
-              .filter((a) => a.active || selectedAnswerIds.includes(a.id))
-              .map((a) => (
-                <option
-                  selected={selectedAnswerIds.includes(a.id) || undefined}
-                  value={String(a.id)}
-                >
-                  {a.text}
-                </option>
-              ))}
-          </select>
-        </label>
-      ) : (
-        <fieldset class="custom-question">
-          <legend>{q.text}</legend>
-          {q.answers
-            .filter((a) => a.active || selectedAnswerIds.includes(a.id))
-            .map((a) => (
-              <label>
-                <input
-                  checked={selectedAnswerIds.includes(a.id)}
-                  name={`question_${q.id}`}
-                  type="radio"
-                  value={String(a.id)}
-                />{" "}
-                {a.text}
-              </label>
-            ))}
-        </fieldset>
-      ),
+      q.display_type === "free_text"
+        ? questionWrapper(
+            q,
+            undefined,
+            <input
+              maxlength={MAX_TEXTAREA_LENGTH}
+              name={`question_${q.id}`}
+              type="text"
+              value={selectedTextAnswers.get(q.id) ?? ""}
+            />,
+          )
+        : q.display_type === "select"
+          ? questionWrapper(
+              q,
+              undefined,
+              <select name={`question_${q.id}`}>
+                <option value="">No answer</option>
+                {q.answers
+                  .filter((a) => a.active || selectedAnswerIds.includes(a.id))
+                  .map((a) => (
+                    <option
+                      selected={selectedAnswerIds.includes(a.id) || undefined}
+                      value={String(a.id)}
+                    >
+                      {a.text}
+                    </option>
+                  ))}
+              </select>,
+            )
+          : questionFieldset(
+              q,
+              undefined,
+              q.answers
+                .filter((a) => a.active || selectedAnswerIds.includes(a.id))
+                .map((a) => (
+                  <label>
+                    <input
+                      checked={selectedAnswerIds.includes(a.id)}
+                      name={`question_${q.id}`}
+                      type="radio"
+                      value={String(a.id)}
+                    />{" "}
+                    {a.text}
+                  </label>
+                )),
+            ),
     )}
   </>
 );
