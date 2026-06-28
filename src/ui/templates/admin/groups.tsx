@@ -9,7 +9,7 @@ import {
   LISTING_DEFAULT_ORDER,
   LISTING_TABLE_COLUMNS,
 } from "#shared/columns/listing-columns.ts";
-import { formatCurrency } from "#shared/currency.ts";
+import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -106,6 +106,7 @@ export const groupToFieldValues = (
 ): Record<string, string | number | null> =>
   entityToFieldValues(group, getGroupFields(), {
     hidden: (g) => booleanToCheckbox(g.hidden),
+    is_package: (g) => booleanToCheckbox(g.is_package),
     max_attendees: (g) => g.max_attendees || null,
   });
 
@@ -131,10 +132,65 @@ export const adminGroupNewPage = (
   );
 
 /**
- * Admin group edit page
+ * Per-listing package price overrides. Shown only when "is a package" is ticked
+ * (the `.package-prices` block is hidden via CSS while the checkbox is clear).
+ * A blank input means "use the listing's own price"; the listing's base price is
+ * shown as the input placeholder.
+ */
+const PackagePriceTable = ({
+  listings,
+  prices,
+}: {
+  listings: ListingWithCount[];
+  prices: Map<number, number>;
+}): JSX.Element => (
+  <div class="package-prices">
+    <h2>{t("groups.package_prices.heading")}</h2>
+    <p>{t("groups.package_prices.hint")}</p>
+    {listings.length === 0 ? (
+      <p>{t("groups.package_prices.no_listings")}</p>
+    ) : (
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>{t("common.name")}</th>
+              <th>{t("fields.group.package_price")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {listings.map((e) => {
+              const override = prices.get(e.id) ?? 0;
+              return (
+                <tr>
+                  <td>{e.name}</td>
+                  <td>
+                    <input
+                      inputmode="decimal"
+                      name={`package_price_${e.id}`}
+                      placeholder={toMajorUnits(e.unit_price)}
+                      type="text"
+                      value={override > 0 ? toMajorUnits(override) : ""}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </div>
+);
+
+/**
+ * Admin group edit page. Loads the group's listings and their current package
+ * price overrides so the per-listing price table can be pre-filled.
  */
 export const adminGroupEditPage = (
   group: Group,
+  listings: ListingWithCount[],
+  prices: Map<number, number>,
   session: AdminSession,
   error?: string,
 ): string =>
@@ -145,6 +201,7 @@ export const adminGroupEditPage = (
         <h1>{t("groups.edit.heading")}</h1>
         <Flash error={error} />
         <Raw html={renderFields(getGroupFields(), groupToFieldValues(group))} />
+        <PackagePriceTable listings={listings} prices={prices} />
         <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
       </CsrfForm>
     </Layout>,

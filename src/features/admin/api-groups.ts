@@ -5,13 +5,15 @@
 import {
   deleteGroup,
   generateUniqueGroupSlug,
-  validateGroupSlug,
+  validateGroupWithPackage,
 } from "#routes/admin/groups.ts";
 import {
   computeGroupSlugIndex,
   type GroupInput,
   getAllGroups,
   groupsTable,
+  type PackagePriceInput,
+  setGroupPackagePrices,
 } from "#shared/db/groups.ts";
 import {
   type DeleteBody,
@@ -22,6 +24,9 @@ import {
 import { normalizeSlug } from "#shared/slug.ts";
 import type { Group } from "#shared/types.ts";
 
+/** A package price override in a JSON request body. */
+export type PackagePriceBody = { listing_id: number; price: number };
+
 /** JSON body accepted by POST /api/admin/groups */
 export type CreateGroupBody = {
   name: string;
@@ -29,6 +34,8 @@ export type CreateGroupBody = {
   max_attendees?: number;
   terms_and_conditions?: string;
   hidden?: boolean;
+  is_package?: boolean;
+  package_prices?: PackagePriceBody[];
 };
 
 /** JSON body accepted by PUT /api/admin/groups/:groupId */
@@ -40,7 +47,50 @@ export type DeleteGroupBody = DeleteBody;
 /** Strip slug_index from response */
 const STRIP_KEYS = ["slug_index"];
 
+/**
+ * Parse the optional `package_prices` array from a JSON body. Returns `undefined`
+ * when the key is absent (partial update: leave existing overrides untouched),
+ * or a validated list (invalid entries dropped) — an empty array clears them.
+ */
+const parsePackagePrices = (
+  body: Record<string, unknown>,
+): PackagePriceInput[] | undefined => {
+  const raw = body.package_prices;
+  if (!Array.isArray(raw)) return undefined;
+  return raw
+    .map((item) => item as Record<string, unknown>)
+    .map((item) => ({
+      listingId: Number(item.listing_id),
+      price: Number(item.price),
+    }))
+    .filter(
+      (p) =>
+        Number.isInteger(p.listingId) &&
+        p.listingId > 0 &&
+        Number.isInteger(p.price) &&
+        p.price >= 0,
+    );
+};
+
+/**
+ * Persist package price overrides after a group write, with partial-update
+ * semantics: clearing the group's package flag clears all overrides; an absent
+ * `package_prices` leaves existing rows untouched; otherwise the rows are set.
+ */
+const writePackagePrices = async (
+  id: number,
+  input: GroupInput,
+): Promise<void> => {
+  if (input.isPackage === false) {
+    await setGroupPackagePrices(id, []);
+    return;
+  }
+  if (input.packagePrices === undefined) return;
+  await setGroupPackagePrices(id, input.packagePrices);
+};
+
 export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
+  afterWrite: writePackagePrices,
   getAll: getAllGroups,
   name: "groups",
   nameField: "name",
@@ -59,9 +109,11 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
         description:
           typeof body.description === "string" ? body.description : "",
         hidden: body.hidden === true,
+        isPackage: body.is_package === true,
         maxAttendees:
           typeof body.max_attendees === "number" ? body.max_attendees : 0,
         name,
+        packagePrices: parsePackagePrices(body),
         slug,
         slugIndex,
         termsAndConditions:
@@ -92,11 +144,16 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
             : existing.description,
         hidden:
           typeof body.hidden === "boolean" ? body.hidden : existing.hidden,
+        isPackage:
+          typeof body.is_package === "boolean"
+            ? body.is_package
+            : existing.is_package,
         maxAttendees:
           typeof body.max_attendees === "number"
             ? body.max_attendees
             : existing.max_attendees,
         name: parsed.name,
+        packagePrices: parsePackagePrices(body),
         slug,
         slugIndex,
         termsAndConditions:
@@ -107,5 +164,5 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
       ok: true,
     };
   },
-  validate: validateGroupSlug,
+  validate: validateGroupWithPackage,
 });

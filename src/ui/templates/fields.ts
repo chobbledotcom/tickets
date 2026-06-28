@@ -98,6 +98,7 @@ export type GroupCreateFormValues = {
   terms_and_conditions: string;
   max_attendees: number | null;
   hidden: string;
+  is_package: string;
 };
 
 /** Typed values from group edit form validation (includes slug) */
@@ -758,6 +759,16 @@ const getGroupMaxAttendeesField = (): Field => ({
 const getGroupDescriptionField = (): Field =>
   buildDescriptionField(t("fields.group.description_hint"), FORMATTING_HINT);
 
+/** "Is a package" checkbox for group forms. Toggling it reveals the per-listing
+ * price override table on the edit page via the CSS sibling trick. */
+const getIsPackageField = (): Field => ({
+  hint: t("fields.group.is_package_hint"),
+  label: t("fields.group.is_package"),
+  name: "is_package",
+  options: [{ label: t("fields.group.is_package_label"), value: "1" }],
+  type: "checkbox-group",
+});
+
 /** Group form fields for creation (no slug - auto-generated) */
 export const getGroupCreateFields = (): Field[] => {
   const groupHiddenField = buildHiddenField("Group");
@@ -785,6 +796,7 @@ export const getGroupCreateFields = (): Field[] => {
           : null,
     },
     groupHiddenField,
+    getIsPackageField(),
   ];
 };
 
@@ -798,6 +810,7 @@ export const getGroupFields = (): Field[] => {
     creates[2]!,
     creates[3]!,
     buildHiddenField("Group"),
+    getIsPackageField(),
   ];
 };
 

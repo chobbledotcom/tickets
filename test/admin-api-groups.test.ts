@@ -4,6 +4,7 @@ import { handleRequest } from "#routes";
 import {
   getAllGroups,
   getGroupIdsByListingId,
+  getGroupPackagePrices,
   getUngroupedListings,
   groupsTable,
 } from "#shared/db/groups.ts";
@@ -433,6 +434,103 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         404,
         (body) => {
           expect(body.error).toBe("Group not found");
+        },
+      );
+    });
+  });
+
+  describe("package fields", () => {
+    test("POST persists is_package", async () => {
+      await assertJson(
+        apiRequest("/api/admin/groups", {
+          body: { is_package: true, name: "API Package" },
+          method: "POST",
+        }),
+        201,
+        (body) => {
+          expect(body.group.is_package).toBe(true);
+        },
+      );
+    });
+
+    test("PUT sets is_package and package_prices, ignoring malformed entries", async () => {
+      const group = await createTestGroup({ name: "PUT Pkg" });
+      const listing = await createTestListing({ groupId: group.id });
+
+      await assertJson(
+        apiRequest(`/api/admin/groups/${group.id}`, {
+          body: {
+            is_package: true,
+            package_prices: [
+              { listing_id: listing.id, price: 2500 },
+              { listing_id: -1, price: 100 }, // dropped: bad id
+              { listing_id: listing.id, price: -5 }, // dropped: negative
+            ],
+          },
+          method: "PUT",
+        }),
+        200,
+        (body) => {
+          expect(body.group.is_package).toBe(true);
+        },
+      );
+      const prices = await getGroupPackagePrices(group.id);
+      expect(prices).toEqual([
+        { group_id: group.id, listing_id: listing.id, package_price: 2500 },
+      ]);
+    });
+
+    test("PUT without package_prices leaves existing overrides untouched", async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Keep" });
+      const listing = await createTestListing({ groupId: group.id });
+      await apiRequest(`/api/admin/groups/${group.id}`, {
+        body: {
+          is_package: true,
+          package_prices: [{ listing_id: listing.id, price: 800 }],
+        },
+        method: "PUT",
+      });
+
+      // A name-only update must not wipe the saved override.
+      await apiRequest(`/api/admin/groups/${group.id}`, {
+        body: { name: "Keep Renamed" },
+        method: "PUT",
+      });
+      const prices = await getGroupPackagePrices(group.id);
+      expect(prices[0]!.package_price).toBe(800);
+    });
+
+    test("PUT is_package:false clears overrides", async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Drop" });
+      const listing = await createTestListing({ groupId: group.id });
+      await apiRequest(`/api/admin/groups/${group.id}`, {
+        body: {
+          is_package: true,
+          package_prices: [{ listing_id: listing.id, price: 400 }],
+        },
+        method: "PUT",
+      });
+
+      await apiRequest(`/api/admin/groups/${group.id}`, {
+        body: { is_package: false },
+        method: "PUT",
+      });
+      const prices = await getGroupPackagePrices(group.id);
+      expect(prices[0]!.package_price).toBe(0);
+    });
+
+    test("PUT rejects is_package on an incompatible group", async () => {
+      const group = await createTestGroup({ name: "BadPkg" });
+      await createTestListing({ canPayMore: true, groupId: group.id });
+
+      await assertJson(
+        apiRequest(`/api/admin/groups/${group.id}`, {
+          body: { is_package: true },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toContain("Packages cannot contain");
         },
       );
     });

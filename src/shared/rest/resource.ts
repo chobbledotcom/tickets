@@ -82,10 +82,11 @@ export interface ResourceConfig<
   nameField?: keyof Row & string;
   /** Custom delete function (e.g., to delete related records first) */
   onDelete?: (id: InValue) => Promise<void>;
-  /** Side-effect run after a successful create/update, with the written row and
-   * the parsed input — e.g. to persist join-table rows (a listing's groups) that
-   * live outside the main table. */
-  afterWrite?: (row: Row, input: Input) => Promise<void>;
+  /** Side-effect run after a successful create/update, with the written row, the
+   * parsed input, and the raw form — e.g. to persist join-table rows (a listing's
+   * groups) or dynamic inputs (a group's per-listing package prices) that live
+   * outside the main table. */
+  afterWrite?: (row: Row, input: Input, form: FormParams) => Promise<void>;
   table: Table<Row, Input>;
   toInput: (values: Values) => Input | Promise<Input>;
   /** Custom validation (e.g., check uniqueness). Return error message or null. */
@@ -179,7 +180,7 @@ export const defineResource = <
     const result = await parseAndValidate(form, parseInput, config.validate);
     if (!result.ok) return result;
     const row = await table.insert(result.input);
-    await config.afterWrite?.(row, result.input);
+    await config.afterWrite?.(row, result.input, form);
     return { ok: true, row };
   };
 
@@ -197,7 +198,7 @@ export const defineResource = <
     );
     if (!result.ok) return result;
     const row = await table.update(id, result.input);
-    if (row) await config.afterWrite?.(row, result.input);
+    if (row) await config.afterWrite?.(row, result.input, form);
     return toUpdateResult(row);
   };
 

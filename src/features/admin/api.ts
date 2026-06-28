@@ -153,13 +153,28 @@ const parseDayPrices = (raw: unknown): Record<number, number> => {
   return result;
 };
 
-/** Parse the optional `group_ids` array (group membership). Returns undefined
- * when the field is absent so an update that omits it leaves membership
- * unchanged; an explicit array (including []) replaces it. */
-const parseGroupIds = (raw: unknown): number[] | undefined =>
-  Array.isArray(raw)
-    ? raw.filter((n): n is number => typeof n === "number" && n > 0)
-    : undefined;
+/** Parse the optional `group_ids` array (group membership). An absent field
+ * yields `undefined` (leave membership unchanged); an explicit array (including
+ * `[]`) replaces it. Fails closed: any non-positive-integer entry rejects the
+ * whole request rather than being silently dropped, so a typo like
+ * `["5"]` can't quietly clear a listing's groups. */
+const parseGroupIds = (raw: unknown): ParseResult<number[] | undefined> => {
+  if (raw === undefined) return { input: undefined, ok: true };
+  if (!Array.isArray(raw)) {
+    return { error: "group_ids must be an array of group ids", ok: false };
+  }
+  const ids: number[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "number" || !Number.isInteger(entry) || entry <= 0) {
+      return {
+        error: "group_ids must contain only positive integer ids",
+        ok: false,
+      };
+    }
+    ids.push(entry);
+  }
+  return { input: ids, ok: true };
+};
 
 /** Check whether a value matches the expected field type */
 const matchesType = (val: unknown, type: FieldType): val is FieldValue =>
@@ -224,13 +239,16 @@ export const bodyToCreateInput = async (
     return { error: "max_attendees is required and must be >= 1", ok: false };
   }
 
+  const groups = parseGroupIds(body.group_ids);
+  if (!groups.ok) return groups;
+
   const { slug, slugIndex } = await generateUniqueListingSlug();
 
   return {
     input: {
       ...pickTypedFields(body, optionalFields),
       dayPrices: parseDayPrices(body.day_prices),
-      groupIds: parseGroupIds(body.group_ids),
+      groupIds: groups.input,
       maxAttendees: body.max_attendees,
       maxPrice: typeof body.max_price === "number" ? body.max_price : 0,
       name: body.name.trim(),
@@ -248,6 +266,9 @@ export const bodyToUpdateInput = async (
 ): Promise<ParseResult<ListingInput>> => {
   const parsedName = parseUpdateName(body, existing.name);
   if (!parsedName.ok) return parsedName;
+
+  const groups = parseGroupIds(body.group_ids);
+  if (!groups.ok) return groups;
 
   const existingGroupIds = await getGroupIdsByListingId(existing.id);
   const maxAttendees =
@@ -277,7 +298,7 @@ export const bodyToUpdateInput = async (
       // partial update validates listing-type/customisable-days against the
       // groups it stays in (and child-edge checks see the real groups). afterWrite
       // then rewrites the same set — a no-op when unchanged.
-      groupIds: parseGroupIds(body.group_ids) ?? existingGroupIds,
+      groupIds: groups.input ?? existingGroupIds,
       maxAttendees,
       maxPrice:
         typeof body.max_price === "number"

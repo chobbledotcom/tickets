@@ -26,9 +26,11 @@ import {
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   assignListingsToGroup,
+  getGroupPackagePrices,
   getListingsByGroupId,
   groupsTable,
   setGroupListingsActive,
+  setGroupPackagePrices,
 } from "#shared/db/groups.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -147,6 +149,7 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   const newGroup = await groupsTable.insert({
     description: group.description,
     hidden: group.hidden,
+    isPackage: group.is_package,
     maxAttendees: group.max_attendees,
     name: newName,
     slug,
@@ -167,6 +170,16 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   // Membership lives in group_listings (not a listing column), so add the cloned
   // listings to the new group explicitly.
   await assignListingsToGroup([...idMap.values()], newGroup.id);
+  // Carry the per-listing package price overrides across, remapping each source
+  // listing id to its clone so the duplicated package prices the same way.
+  const sourcePrices = await getGroupPackagePrices(group.id);
+  const remappedPrices = sourcePrices
+    .filter((row) => idMap.has(row.listing_id))
+    .map((row) => ({
+      listingId: idMap.get(row.listing_id)!,
+      price: row.package_price,
+    }));
+  await setGroupPackagePrices(newGroup.id, remappedPrices);
   // A cloned parent whose remapped edge set fails re-validation is left gateless
   // rather than written; surface those as a warning flash (mirroring the
   // single-listing duplicate's "but: …" behaviour) instead of silently

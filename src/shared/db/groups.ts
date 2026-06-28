@@ -19,11 +19,19 @@ import {
 import { queryListingsWithCounts } from "#shared/db/listings.ts";
 import { queryAndMap } from "#shared/db/query.ts";
 import { col } from "#shared/db/table.ts";
-import type { Group, ListingType, ListingWithCount } from "#shared/types.ts";
+import type {
+  Group,
+  GroupListing,
+  ListingType,
+  ListingWithCount,
+} from "#shared/types.ts";
 
 /** Groups are few, so the cache loads the whole set and answers by-id / by-slug
  * reads from it — same isolate-level TTL as the listings cache. */
 const GROUPS_CACHE_TTL_MS = 30_000;
+
+/** A per-listing package price override, as parsed from the group edit form. */
+export type PackagePriceInput = { listingId: number; price: number };
 
 /** Group input fields for create/update (camelCase) */
 export type GroupInput = {
@@ -35,6 +43,9 @@ export type GroupInput = {
   maxAttendees?: number;
   hidden?: boolean;
   isPackage?: boolean;
+  /** Per-listing price overrides. Absent means "leave existing rows untouched"
+   * (partial API update); an empty array clears every override to 0. */
+  packagePrices?: PackagePriceInput[];
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -223,10 +234,13 @@ export const assignListingsToGroup = (
   groupId: number,
 ): Promise<void> => {
   if (listingIds.length === 0) return Promise.resolve();
+  // INSERT ... SELECT gated on the listing existing, so an unknown id is a no-op
+  // (the join table has no FK, so a stale/crafted id would otherwise leave an
+  // orphan membership row that the old `UPDATE listings WHERE id` never created).
   return executeBatch(
     listingIds.map((listingId) => ({
-      args: [groupId, listingId],
-      sql: "INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES (?, ?)",
+      args: [groupId, listingId, listingId],
+      sql: "INSERT OR IGNORE INTO group_listings (group_id, listing_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM listings WHERE id = ?)",
     })),
   );
 };
@@ -268,6 +282,47 @@ export const setListingGroups = async (
  */
 export const resetGroupListings = async (groupId: number): Promise<void> => {
   await execute("DELETE FROM group_listings WHERE group_id = ?", [groupId]);
+};
+
+/**
+ * Every membership row for a group, carrying its `package_price` override.
+ * A `package_price` of 0 means "no override — use the listing's base price".
+ */
+export const getGroupPackagePrices = (
+  groupId: number,
+): Promise<GroupListing[]> =>
+  queryAll<GroupListing>(
+    "SELECT group_id, listing_id, package_price FROM group_listings WHERE group_id = ? ORDER BY listing_id ASC",
+    [groupId],
+  );
+
+/**
+ * Set the `package_price` override on a group's membership rows in one UPDATE.
+ * Listings named in `prices` get their value; every other member of the group
+ * is reset to 0 (no override). Passing an empty array therefore clears all
+ * overrides. Rows are only touched for listings already in the group, so a
+ * stale id in the form is a harmless no-op. One statement regardless of size,
+ * staying clear of the round-trip guard.
+ */
+export const setGroupPackagePrices = async (
+  groupId: number,
+  prices: PackagePriceInput[],
+): Promise<void> => {
+  if (prices.length === 0) {
+    await execute(
+      "UPDATE group_listings SET package_price = 0 WHERE group_id = ?",
+      [groupId],
+    );
+    return;
+  }
+  const cases = prices.map(() => "WHEN ? THEN ?").join(" ");
+  const args: number[] = [];
+  for (const { listingId, price } of prices) args.push(listingId, price);
+  args.push(groupId);
+  await execute(
+    `UPDATE group_listings SET package_price = CASE listing_id ${cases} ELSE 0 END WHERE group_id = ?`,
+    args,
+  );
 };
 
 /**

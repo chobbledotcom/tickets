@@ -795,6 +795,28 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         expect(result.input.slug).toBeTruthy();
       }
     });
+
+    test("rejects a non-array group_ids", async () => {
+      const result = await bodyToCreateInput({
+        group_ids: "5",
+        max_attendees: 10,
+        name: "Bad Groups",
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toContain("must be an array");
+    });
+
+    test("rejects group_ids with non-positive-integer entries", async () => {
+      const result = await bodyToCreateInput({
+        group_ids: ["5"],
+        max_attendees: 10,
+        name: "Bad Entry",
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toContain("positive integer ids");
+      }
+    });
   });
 
   describe("POST /api/admin/listings - group validation", () => {
@@ -933,6 +955,19 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
   });
 
   describe("bodyToUpdateInput", () => {
+    test("rejects malformed group_ids instead of silently clearing membership", async () => {
+      const existing = testListingWithCount({
+        max_attendees: 10,
+        name: "Has Groups",
+        slug: "has-groups",
+      });
+      const result = await bodyToUpdateInput({ group_ids: ["5"] }, existing);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toContain("positive integer ids");
+      }
+    });
+
     test("preserves existing values when fields not provided", async () => {
       const existing = testListingWithCount({
         bookable_days: ["Monday"],

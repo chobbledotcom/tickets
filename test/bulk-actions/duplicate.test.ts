@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   getAllGroups,
   getGroupIdsByListingId,
+  getGroupPackagePrices,
   getListingsByGroupId,
 } from "#shared/db/groups.ts";
 import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
@@ -12,6 +13,7 @@ import {
   createTestGroup,
   createTestListing,
   describeWithEnv,
+  getTestPackagePrices,
 } from "#test-utils";
 
 describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
@@ -157,6 +159,45 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         `/admin/groups/${group.id}/bulk-actions/duplicate`,
       );
       expect((await getAllGroups()).length).toBe(groupCountBefore);
+    });
+
+    test("copies the package flag and remaps per-listing package prices", async () => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Pkg Source",
+      });
+      const listing = await createTestListing({
+        groupId: group.id,
+        name: "Member",
+      });
+      // Set a package price override on the source group.
+      await adminFormPost(`/admin/groups/${group.id}/edit`, {
+        description: "",
+        is_package: "1",
+        max_attendees: "0",
+        name: "Pkg Source",
+        [`package_price_${listing.id}`]: "30.00",
+        slug: group.slug,
+        terms_and_conditions: "",
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        { new_name: "Pkg Copy" },
+      );
+      expect(response.status).toBe(302);
+
+      const newGroup = (await getAllGroups()).find(
+        (g) => g.name === "Pkg Copy",
+      )!;
+      expect(newGroup.is_package).toBe(true);
+      const newListing = (await getListingsByGroupId(newGroup.id))[0]!;
+      expect(newListing.id).not.toBe(listing.id);
+      const prices = await getTestPackagePrices(newGroup.id);
+      expect(prices.get(newListing.id)).toBe(3000);
+      // The source override is untouched.
+      const sourcePrices = await getGroupPackagePrices(group.id);
+      expect(sourcePrices[0]!.package_price).toBe(3000);
     });
 
     test("returns 404 when the source group does not exist", async () => {

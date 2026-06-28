@@ -4,6 +4,8 @@ import { execute, queryAll } from "#shared/db/client.ts";
 import {
   getGroupIdsByListingId,
   getGroupIdsByListingIds,
+  getGroupPackagePrices,
+  setGroupPackagePrices,
   setListingGroups,
 } from "#shared/db/groups.ts";
 import { MIGRATIONS } from "#shared/db/migrations.ts";
@@ -11,6 +13,7 @@ import {
   createTestGroup,
   createTestListing,
   describeWithEnv,
+  getTestPackagePrices,
 } from "#test-utils";
 
 const sortNums = (ns: number[]): number[] => ns.toSorted((a, b) => a - b);
@@ -46,6 +49,61 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     expect(sortNums(await getGroupIdsByListingId(listing.id))).toEqual(
       sortNums([g2.id, g3.id]),
     );
+  });
+
+  test("getGroupPackagePrices returns every membership row with its override", async () => {
+    const group = await createTestGroup({ name: "Pkg", slug: "pkg" });
+    const a = await createTestListing({ name: "A" });
+    const b = await createTestListing({ name: "B" });
+    await setListingGroups(a.id, [group.id]);
+    await setListingGroups(b.id, [group.id]);
+
+    await setGroupPackagePrices(group.id, [
+      { listingId: a.id, price: 1500 },
+      { listingId: b.id, price: 0 },
+    ]);
+
+    const rows = await getGroupPackagePrices(group.id);
+    expect(rows.map((r) => [r.listing_id, r.package_price]).sort()).toEqual(
+      [
+        [a.id, 1500],
+        [b.id, 0],
+      ].sort(),
+    );
+  });
+
+  test("getTestPackagePrices maps only the listings with a non-zero override", async () => {
+    const group = await createTestGroup({ name: "Map", slug: "map" });
+    const a = await createTestListing({ name: "MA" });
+    const b = await createTestListing({ name: "MB" });
+    await setListingGroups(a.id, [group.id]);
+    await setListingGroups(b.id, [group.id]);
+    await setGroupPackagePrices(group.id, [
+      { listingId: a.id, price: 999 },
+      { listingId: b.id, price: 0 },
+    ]);
+
+    const map = await getTestPackagePrices(group.id);
+    expect(map.get(a.id)).toBe(999);
+    expect(map.has(b.id)).toBe(false);
+  });
+
+  test("setGroupPackagePrices zeroes members it isn't given and clears on empty", async () => {
+    const group = await createTestGroup({ name: "Clr", slug: "clr" });
+    const a = await createTestListing({ name: "CA" });
+    const b = await createTestListing({ name: "CB" });
+    await setListingGroups(a.id, [group.id]);
+    await setListingGroups(b.id, [group.id]);
+
+    // Only A named: B falls into the CASE's ELSE branch and is reset to 0.
+    await setGroupPackagePrices(group.id, [{ listingId: a.id, price: 700 }]);
+    expect(await getTestPackagePrices(group.id)).toEqual(
+      new Map([[a.id, 700]]),
+    );
+
+    // Empty array clears every override.
+    await setGroupPackagePrices(group.id, []);
+    expect(await getTestPackagePrices(group.id)).toEqual(new Map());
   });
 
   test("the migration backfills group_listings from a legacy group_id column", async () => {

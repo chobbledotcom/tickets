@@ -749,6 +749,7 @@ export const createTestGroup = async (
   const input = {
     description: overrides.description ?? "",
     hidden: overrides.hidden ?? false,
+    isPackage: overrides.isPackage ?? false,
     maxAttendees: overrides.maxAttendees ?? 0,
     name: overrides.name ?? "Test Group",
     termsAndConditions: overrides.termsAndConditions ?? "",
@@ -762,6 +763,7 @@ export const createTestGroup = async (
       name: input.name,
       terms_and_conditions: input.termsAndConditions,
       ...(input.hidden ? { hidden: "1" } : {}),
+      ...(input.isPackage ? { is_package: "1" } : {}),
     },
     async () => {
       const { getAllGroups } = await import("#shared/db/groups.ts");
@@ -793,6 +795,7 @@ export const updateTestGroup = async (
   const existing = (await groupsTable.findById(groupId)) as Group;
 
   const hidden = updates.hidden ?? existing.hidden;
+  const isPackage = updates.isPackage ?? existing.is_package;
   return doAuthenticatedFormRequest(
     `/admin/groups/${groupId}/edit`,
     {
@@ -803,6 +806,7 @@ export const updateTestGroup = async (
       terms_and_conditions:
         updates.termsAndConditions ?? existing.terms_and_conditions,
       ...(hidden ? { hidden: "1" } : {}),
+      ...(isPackage ? { is_package: "1" } : {}),
     },
     async () => {
       const updated = await groupsTable.findById(groupId);
@@ -821,6 +825,20 @@ export const deleteTestGroup = async (groupId: number): Promise<void> => {
     { confirm_identifier: existing.name },
     async () => {},
     "delete group",
+  );
+};
+
+/** A group's package price overrides as a listing-id → price map, keeping only
+ * the listings that actually carry an override (price > 0). */
+export const getTestPackagePrices = async (
+  groupId: number,
+): Promise<Map<number, number>> => {
+  const { getGroupPackagePrices } = await import("#shared/db/groups.ts");
+  const rows = await getGroupPackagePrices(groupId);
+  return new Map(
+    rows
+      .filter((row) => row.package_price > 0)
+      .map((row) => [row.listing_id, row.package_price]),
   );
 };
 
