@@ -78,14 +78,6 @@ export const LISTING_DEFAULT_FIELDS: readonly ListingDefaultField[] = [
 export const hasAnyListingDefault = (defaults: ListingDefaults): boolean =>
   LISTING_DEFAULT_FIELDS.some(({ key }) => defaults[key] !== undefined);
 
-/** The keys (camelCase) for which a default is currently set. */
-export const setListingDefaultKeys = (
-  defaults: ListingDefaults,
-): (keyof ListingDefaults)[] =>
-  LISTING_DEFAULT_FIELDS.map(({ key }) => key).filter(
-    (key) => defaults[key] !== undefined,
-  );
-
 /** A kebab-case CSS marker class per defaulted field (e.g. `uses_logistics`
  * → `listing-form--default-uses-logistics`). */
 export const listingDefaultFieldClass = (field: keyof Listing): string =>

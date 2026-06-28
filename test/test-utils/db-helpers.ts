@@ -96,6 +96,7 @@ const buildCreateListingForm = (
     purchase_only: bool(input.purchaseOnly),
     thank_you_url: input.thankYouUrl ?? "",
     unit_price: optionalPrice(input.unitPrice),
+    use_defaults: bool(input.useDefaults),
     webhook_url: input.webhookUrl ?? "",
   };
 };
@@ -113,6 +114,7 @@ const buildUpdateBoolFields = (
     pickField(updates.nonTransferable, existing.non_transferable),
   ),
   purchase_only: bool(pickField(updates.purchaseOnly, existing.purchase_only)),
+  use_defaults: bool(pickField(updates.useDefaults, existing.use_defaults)),
   uses_logistics: bool(
     pickField(updates.usesLogistics, existing.uses_logistics),
   ),
