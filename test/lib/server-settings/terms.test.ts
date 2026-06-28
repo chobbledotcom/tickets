@@ -1,13 +1,13 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   adminFormPost,
   adminGet,
-  describeWithEnv,
+  describeAdminSettings,
   expectFlash,
   expectHtmlResponse,
   getAllActivityLog,
@@ -16,11 +16,9 @@ import {
   testRequiresAuth,
 } from "#test-utils";
 
-describeWithEnv("server (admin settings)", { db: true }, () => {
-  afterEach(() => {
-    setDemoModeForTest(false);
-  });
+// jscpd:ignore-end
 
+describeAdminSettings(() => {
   describe("POST /admin/settings/terms", () => {
     testRequiresAuth("/admin/settings/terms", {
       body: {

@@ -79,6 +79,22 @@ async function setupMixedBookings(
   return { dailyListing, listingDate, standardListing };
 }
 
+/** Create the canonical "Concert" standard listing booked by "Concert Fan".
+ *  Shared by the "shows attendees when date is selected" and "does not show
+ *  attendees on wrong date" tests so they exercise the same fixture and
+ *  differ only in the queried date. */
+async function setupStandardConcertBooking() {
+  const listing = await createTestListing({
+    date: "2026-06-15T14:00",
+    name: "Concert",
+  });
+  await submitTicketForm(listing.slug, {
+    email: "fan@test.com",
+    name: "Concert Fan",
+  });
+  return listing;
+}
+
 describeWithEnv(
   "admin calendar",
   { db: true, env: { NTFY_URL: undefined }, triggers: true },
@@ -221,14 +237,7 @@ describeWithEnv(
       });
 
       test("shows standard listing attendees when date is selected", async () => {
-        const listing = await createTestListing({
-          date: "2026-06-15T14:00",
-          name: "Concert",
-        });
-        await submitTicketForm(listing.slug, {
-          email: "fan@test.com",
-          name: "Concert Fan",
-        });
+        await setupStandardConcertBooking();
 
         const html = await fetchCalendarHtml("/admin/calendar?date=2026-06-15");
         expect(html).toContain("Concert Fan");
@@ -236,14 +245,7 @@ describeWithEnv(
       });
 
       test("does not show standard listing attendees on wrong date", async () => {
-        const listing = await createTestListing({
-          date: "2026-06-15T14:00",
-          name: "Concert",
-        });
-        await submitTicketForm(listing.slug, {
-          email: "fan@test.com",
-          name: "Concert Fan",
-        });
+        await setupStandardConcertBooking();
 
         const html = await fetchCalendarHtml("/admin/calendar?date=2026-06-16");
         expect(html).not.toContain("Concert Fan");

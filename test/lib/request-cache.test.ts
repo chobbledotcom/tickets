@@ -232,19 +232,24 @@ describe("column-gated invalidation", () => {
 });
 
 describe("requestCache", () => {
-  test("fetches on first call and caches within request", async () => {
+  const makeCountingCache = () => {
     let calls = 0;
     const cache = requestCache(() => {
       calls++;
       return Promise.resolve([1, 2, 3]);
     });
+    return { cache, getCalls: () => calls };
+  };
+
+  test("fetches on first call and caches within request", async () => {
+    const { cache, getCalls } = makeCountingCache();
 
     await runWithRequestCache(async () => {
       const first = await cache.getAll();
       expect(first).toEqual([1, 2, 3]);
       const second = await cache.getAll();
       expect(second).toBe(first); // same reference
-      expect(calls).toBe(1);
+      expect(getCalls()).toBe(1);
     });
   });
 
@@ -282,16 +287,12 @@ describe("requestCache", () => {
   });
 
   test("concurrent reads within request share one fetch", async () => {
-    let calls = 0;
-    const cache = requestCache(() => {
-      calls++;
-      return Promise.resolve([1, 2, 3]);
-    });
+    const { cache, getCalls } = makeCountingCache();
 
     await runWithRequestCache(async () => {
       const [a, b] = await Promise.all([cache.getAll(), cache.getAll()]);
       expect(a).toBe(b); // same reference
-      expect(calls).toBe(1);
+      expect(getCalls()).toBe(1);
     });
   });
 

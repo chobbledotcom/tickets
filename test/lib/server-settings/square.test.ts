@@ -1,16 +1,16 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
 import type { SquareConnectionTestResult } from "#shared/square.ts";
 import { squareApi } from "#shared/square.ts";
 import {
   adminFormPost,
   adminGet,
   assertJson,
-  describeWithEnv,
+  describeAdminSettings,
   expectFlash,
   expectHtmlResponse,
   getAllActivityLog,
@@ -20,11 +20,9 @@ import {
   withMocks,
 } from "#test-utils";
 
-describeWithEnv("server (admin settings)", { db: true }, () => {
-  afterEach(() => {
-    setDemoModeForTest(false);
-  });
+// jscpd:ignore-end
 
+describeAdminSettings(() => {
   describe("POST /admin/settings/square", () => {
     testRequiresAuth("/admin/settings/square", {
       body: {

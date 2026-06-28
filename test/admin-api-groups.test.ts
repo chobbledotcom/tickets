@@ -13,6 +13,7 @@ import {
   createTestListing,
   createTestManagerSession,
   describeWithEnv,
+  expectRejectsEmptyName,
   mockRequest,
   requestAsSession,
   testCookie,
@@ -335,17 +336,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
     test("rejects empty name", async () => {
       const group = await createTestGroup();
-
-      await assertJson(
-        apiRequest(`/api/admin/groups/${group.id}`, {
-          body: { name: "" },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("name cannot be empty");
-        },
-      );
+      await expectRejectsEmptyName(`/api/admin/groups/${group.id}`);
     });
 
     test("rejects duplicate slug", async () => {
