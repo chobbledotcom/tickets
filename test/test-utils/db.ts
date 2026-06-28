@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe } from "@std/testing/bdd";
 import { once } from "#fp";
 import { resetEffectiveDomain } from "#shared/config.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
+import {
+  ensureDefaultAttendeeStatus,
+  invalidateAttendeeStatusesCache,
+} from "#shared/db/attendee-statuses.ts";
 import { getDb, insert, queryOne, setDb } from "#shared/db/client.ts";
 import { invalidateGroupsCache } from "#shared/db/groups.ts";
 import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
@@ -109,6 +112,7 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
   invalidateHolidaysCache();
   invalidateGroupsCache();
   invalidateLogisticsAgentsCache();
+  invalidateAttendeeStatusesCache();
 
   // A temp file, not ":memory:": interactive transactions (withTransaction) open
   // a second connection, and each ":memory:" connection is its own *separate*
@@ -312,6 +316,7 @@ export const resetDb = (): void => {
   invalidateHolidaysCache();
   invalidateGroupsCache();
   invalidateLogisticsAgentsCache();
+  invalidateAttendeeStatusesCache();
   resetSessionCache();
   setTestSession(null);
   setDemoModeForTest(false);
