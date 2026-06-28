@@ -52,7 +52,8 @@ export type DeliveryDayGroup = {
  * since an agent may only ever reach this page. The logout button lives in the
  * footer (rendered because we flag this as an admin page). */
 const AgentHeader = (): JSX.Element => {
-  markAdminFooter();
+  // Only rendered for agent-class users (the bare run-sheet header).
+  markAdminFooter("agent");
   return (
     <header class="agent-header">
       <h1>{t("deliveries.title")}</h1>

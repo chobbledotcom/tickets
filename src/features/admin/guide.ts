@@ -3,7 +3,7 @@
  */
 
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import { sessionPage } from "#routes/auth.ts";
+import { contentPage } from "#routes/auth.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   getBunnyDnsSubdomainSuffix,
@@ -16,7 +16,7 @@ import { adminGuidePage } from "#templates/admin/guide.tsx";
 /**
  * Handle GET /admin/guide
  */
-const handleAdminGuideGet = sessionPage((session) => {
+const handleAdminGuideGet = contentPage((session) => {
   const hostEmail = getHostEmailConfig();
   return adminGuidePage(session, {
     builderEnabled: isBuilderEnabled(),

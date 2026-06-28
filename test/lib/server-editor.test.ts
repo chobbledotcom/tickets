@@ -4,6 +4,7 @@ import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getDb } from "#shared/db/client.ts";
+import { getListingWithCount } from "#shared/db/listings.ts";
 import {
   decryptAdminLevel,
   getUserByInviteCode,
@@ -302,6 +303,72 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         website_title: "Manager Site",
       });
       expect(managerSave.status).toBe(403);
+    });
+  });
+
+  describe("PII safety: webhooks, previews, footer, guide", () => {
+    test("editors cannot set or change a listing's webhook URL", async () => {
+      const { cookie } = await createTestEditorSession();
+      const listing = await createTestListing({
+        webhookUrl: "https://original.example/hook",
+      });
+
+      // The edit form hides the webhook field from editors…
+      const editHtml = await (
+        await getAs(`/admin/listing/${listing.id}/edit`, cookie)
+      ).text();
+      expect(editHtml).not.toContain('name="webhook_url"');
+
+      // …and a crafted webhook_url in an editor edit is ignored server-side.
+      const editBody = {
+        ...buildCreateListingForm(testListingInput()),
+        slug: listing.slug,
+        webhook_url: "https://attacker.example/steal",
+      };
+      const editorResp = await postMultipartAs(
+        `/admin/listing/${listing.id}/edit`,
+        cookie,
+        editBody,
+      );
+      expect(editorResp.status).toBe(302);
+      expect((await getListingWithCount(listing.id))!.webhook_url).toBe(
+        "https://original.example/hook",
+      );
+
+      // The same body as the owner DOES change it — proving the guard is what
+      // blocks the editor, not some unrelated validation failure.
+      const { cookie: ownerCookie } = await getTestSession();
+      await postMultipartAs(
+        `/admin/listing/${listing.id}/edit`,
+        ownerCookie,
+        editBody,
+      );
+      expect((await getListingWithCount(listing.id))!.webhook_url).toBe(
+        "https://attacker.example/steal",
+      );
+    });
+
+    test("editors can use the markdown preview endpoint", async () => {
+      const { cookie } = await createTestEditorSession();
+      const response = await postFormAs("/admin/markdown-preview", cookie, {
+        content: "# Hello",
+      });
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain("<h1>Hello</h1>");
+    });
+
+    test("editors can open the admin guide", async () => {
+      const { cookie } = await createTestEditorSession();
+      const response = await getAs("/admin/guide", cookie);
+      expect(response.status).toBe(200);
+    });
+
+    test("editor footer links to the guide and logout, not the staff-only log", async () => {
+      const { cookie } = await createTestEditorSession();
+      const html = await (await getAs("/admin/listings", cookie)).text();
+      expect(html).toContain('href="/admin/guide"');
+      expect(html).toContain('href="/admin/logout"');
+      expect(html).not.toContain('href="/admin/log"');
     });
   });
 

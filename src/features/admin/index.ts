@@ -48,6 +48,7 @@ import { usersRoutes } from "#routes/admin/users.ts";
 import { getAuthenticatedSession } from "#routes/auth.ts";
 import { createRouter, type RouteHandlerFn } from "#routes/router.ts";
 import { enableFooterDebug } from "#shared/db/query-log.ts";
+import { STAFF_ADMIN_LEVELS } from "#shared/types.ts";
 
 /** Route maps merged in order (later keys override earlier on conflict) */
 const adminRouteModules: Record<string, RouteHandlerFn>[] = [
@@ -107,10 +108,15 @@ type RouterFn = ReturnType<typeof createRouter>;
 export const routeAdmin: RouterFn = async (request, path, method, server) => {
   // Query recording is turned on earlier (prepareRequestEnvironment) for admin
   // GETs, so the route's settings load is captured. Here we only unlock the
-  // footer for staff — delivery agents never see the debug footer.
+  // footer for back-office staff — delivery agents and content editors (who are
+  // excluded from operational/debug access) never see the SQL/cache debug menu.
   const session = await getAuthenticatedSession(request);
 
-  if (method === "GET" && session && session.adminLevel !== "agent") {
+  if (
+    method === "GET" &&
+    session &&
+    (STAFF_ADMIN_LEVELS as readonly string[]).includes(session.adminLevel)
+  ) {
     enableFooterDebug();
   }
 

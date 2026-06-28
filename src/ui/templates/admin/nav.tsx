@@ -310,7 +310,7 @@ interface AdminNavProps {
 export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
   // Flag this render as an admin page so the Layout emits the admin footer
   // (Chobble link, optional debug menu, and the logout button).
-  markAdminFooter();
+  markAdminFooter(session.adminLevel);
   const items = topLevelItems(session);
   const section = resolveSection(active, session.adminLevel);
   const highlight = section?.topHref ?? active;

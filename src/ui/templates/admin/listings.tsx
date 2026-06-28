@@ -1677,6 +1677,15 @@ const getListingFieldsWithAutofocus = (): Field[] =>
     ),
   )(getListingFields());
 
+/** Drop fields an editor may not set from a listing form field list. Currently
+ * just the webhook URL — its registration webhook posts attendee PII, which the
+ * keyless editor role must never be able to redirect. The edit/create handlers
+ * also ignore the field server-side; this hides the dead control. */
+const fieldsForRole = (session: AdminSession, fields: Field[]): Field[] =>
+  session.adminLevel === "editor"
+    ? fields.filter((f) => f.name !== "webhook_url")
+    : fields;
+
 // ---------------------------------------------------------------------------
 // Listing template picker and seeded-form seeds
 // ---------------------------------------------------------------------------
@@ -2011,7 +2020,7 @@ export const adminListingNewPage = (
   const storageEnabled = isStorageEnabled();
   const builderEnabled = isBuilderEnabled();
   const fields = [
-    ...getListingFields(),
+    ...fieldsForRole(session, getListingFields()),
     ...(settings.hasLogistics ? [logisticsField] : []),
     ...(builderEnabled
       ? [
@@ -2077,7 +2086,7 @@ export const adminDuplicateListingPage = (
   const builderEnabled = isBuilderEnabled();
   const storageEnabled = isStorageEnabled();
   const dupFields = [
-    ...getListingFieldsWithAutofocus(),
+    ...fieldsForRole(session, getListingFieldsWithAutofocus()),
     ...(settings.hasLogistics ? [logisticsField] : []),
     ...(builderEnabled
       ? [
@@ -2248,7 +2257,7 @@ export const adminListingEditPage = (
   // Slug is editable only here (auto-generated on create), so it lives in the
   // edit form's field list rather than the shared definitions.
   const fields = [
-    ...getListingFields(),
+    ...fieldsForRole(session, getListingFields()),
     ...(settings.hasLogistics ? [logisticsField] : []),
     ...(builderEnabled
       ? [
