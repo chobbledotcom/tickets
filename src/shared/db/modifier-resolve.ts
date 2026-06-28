@@ -32,7 +32,7 @@ import type {
   ModifierSpec,
 } from "#shared/payments.ts";
 import { type ModifierTrigger, normalizeCode } from "#shared/price-modifier.ts";
-import type { ListingWithCount, Modifier } from "#shared/types.ts";
+import type { Modifier } from "#shared/types.ts";
 
 /** The signed pricing value the engine applies, from a modifier's stored
  * magnitude + direction. Multipliers ignore direction (the factor encodes it);

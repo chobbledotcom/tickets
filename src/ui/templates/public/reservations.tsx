@@ -1481,7 +1481,7 @@ export const ticketPage = ({
   childrenByParentId,
   childDatesById,
   groupRemainingByListingId,
-  groupIdsByListingId,
+  groupIdsByListingId = new Map(),
 }: TicketPageOptions): string => {
   const inIframe = getIframeMode();
   const allUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
@@ -1513,7 +1513,7 @@ export const ticketPage = ({
     childrenByParentId,
     groupRemainingByListingId ?? new Map(),
     childDatesById ?? new Map(),
-    groupIdsByListingId ?? new Map(),
+    groupIdsByListingId,
   );
 
   const listingRows = buildListingRows(

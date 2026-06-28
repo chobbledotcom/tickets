@@ -68,7 +68,7 @@ import {
   validateCalcValue,
 } from "#shared/price-modifier.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
-import type { ListingWithCount, Modifier } from "#shared/types.ts";
+import type { Modifier } from "#shared/types.ts";
 import {
   type AnswerLinks,
   adminModifierDeletePage,

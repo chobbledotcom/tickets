@@ -214,7 +214,10 @@ const childOnlyAddOnResolver = async (
   // placeholder carrying its would-be group set (active — it serves a page).
   const allListings: ListingGroupMembership[] = hasParent
     ? base
-    : [...base, { active: true, groupIds: options.wouldBeGroupIds, id: parent.id }];
+    : [
+        ...base,
+        { active: true, groupIds: options.wouldBeGroupIds, id: parent.id },
+      ];
   return (childId, pageIds) =>
     childOnlyAddOnNameForListings(childId, pageIds, allListings);
 };
