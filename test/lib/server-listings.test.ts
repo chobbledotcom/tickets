@@ -5,13 +5,22 @@ import { handleRequest } from "#routes";
 import { formatCountdown } from "#routes/format.ts";
 import { withCookie } from "#routes/response.ts";
 import { addDays } from "#shared/dates.ts";
+import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
+  getAllListings,
+  getListing,
   getListingWithCount,
   invalidateListingsCache,
   listingsTable,
   updateListingAggregateValues,
 } from "#shared/db/listings.ts";
+import {
+  answersTable,
+  questionsTable,
+  saveAttendeeAnswers,
+  setListingQuestions,
+} from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import { nowMs } from "#shared/now.ts";
@@ -20,9 +29,11 @@ import { todayInTz } from "#shared/timezone.ts";
 import {
   adminFormPost,
   adminGet,
+  adminMultipartPost,
   assertAdminHtml,
   assertAdminHtmlWithCookie,
   awaitTestRequest,
+  bookAttendee,
   createTestAttendee,
   createTestGroup,
   createTestListing,
@@ -34,6 +45,8 @@ import {
   expectHtmlResponse,
   expectStatus,
   followRedirectWithFlash,
+  getAllActivityLog,
+  getListingActivityLog,
   logActivity,
   mockFormRequest,
   mockMultipartRequest,
@@ -134,20 +147,13 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
     test("redirects to picker when posting a logistics template with logistics disabled", async () => {
       settings.setForTest({ has_logistics: false });
-      const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/listing",
-          {
-            csrf_token: await testCsrfToken(),
-            max_attendees: "100",
-            max_quantity: "1",
-            name: "Hireable",
-            template_id: "hireable-item",
-            thank_you_url: "https://example.com",
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminMultipartPost("/admin/listing", {
+        max_attendees: "100",
+        max_quantity: "1",
+        name: "Hireable",
+        template_id: "hireable-item",
+        thank_you_url: "https://example.com",
+      });
       await expectHtmlResponse(
         response,
         200,
@@ -157,64 +163,42 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("returns date required error for one-off-event template with no date", async () => {
-      const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/listing",
-          {
-            csrf_token: await testCsrfToken(),
-            listing_type: "standard",
-            max_attendees: "100",
-            max_quantity: "1",
-            name: "My Event",
-            purchase_only: "",
-            template_id: "one-off-event",
-            thank_you_url: "https://example.com",
-            uses_logistics: "",
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminMultipartPost("/admin/listing", {
+        listing_type: "standard",
+        max_attendees: "100",
+        max_quantity: "1",
+        name: "My Event",
+        purchase_only: "",
+        template_id: "one-off-event",
+        thank_you_url: "https://example.com",
+        uses_logistics: "",
+      });
       expect(response.status).toBe(400);
       expect(await response.text()).toContain("date is required");
     });
 
     test("re-renders with carried template_id when create validation fails", async () => {
-      const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/listing",
-          {
-            csrf_token: await testCsrfToken(),
-            max_attendees: "100",
-            max_quantity: "1",
-            template_id: "online-digital",
-            thank_you_url: "https://example.com",
-            // name omitted → validation error
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminMultipartPost("/admin/listing", {
+        max_attendees: "100",
+        max_quantity: "1",
+        template_id: "online-digital",
+        thank_you_url: "https://example.com",
+        // name omitted → validation error
+      });
       expect(response.status).toBe(400);
       expect(await response.text()).toContain('value="online-digital"');
     });
 
     test("creates listing when authenticated", async () => {
-      const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/listing",
-          {
-            csrf_token: await testCsrfToken(),
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "New Listing",
-            thank_you_url: "https://example.com/thanks",
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminMultipartPost("/admin/listing", {
+        max_attendees: "50",
+        max_quantity: "1",
+        name: "New Listing",
+        thank_you_url: "https://example.com/thanks",
+      });
       await expectFlashRedirect("/admin", "Listing created")(response);
 
       // Verify listing was actually created
-      const { getListing } = await import("#shared/db/listings.ts");
       const listing = await getListing(1);
       expect(listing).not.toBeNull();
       expect(listing?.name).toBe("New Listing");
@@ -223,23 +207,15 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("clears webhook URL when creating listing in demo mode", async () => {
       setDemoModeForTest(true);
 
-      const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/listing",
-          {
-            csrf_token: await testCsrfToken(),
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "Demo Listing",
-            webhook_url: "https://example.com/webhook",
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminMultipartPost("/admin/listing", {
+        max_attendees: "50",
+        max_quantity: "1",
+        name: "Demo Listing",
+        webhook_url: "https://example.com/webhook",
+      });
       await expectFlashRedirect("/admin", "Listing created")(response);
 
       // Verify webhook_url was cleared
-      const { getListing } = await import("#shared/db/listings.ts");
       const listing = await getListing(1);
       expect(listing).not.toBeNull();
       expect(listing?.webhook_url).toBe("");
@@ -250,45 +226,29 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         name: "Listing Group",
         slug: "listing-group",
       });
-      const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/listing",
-          {
-            csrf_token: await testCsrfToken(),
-            group_id: String(group.id),
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "Grouped Listing",
-            thank_you_url: "https://example.com/thanks",
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminMultipartPost("/admin/listing", {
+        group_id: String(group.id),
+        max_attendees: "50",
+        max_quantity: "1",
+        name: "Grouped Listing",
+        thank_you_url: "https://example.com/thanks",
+      });
       await expectFlashRedirect("/admin", "Listing created")(response);
 
-      const { getListing } = await import("#shared/db/listings.ts");
       const listing = await getListing(1);
       expect(listing?.group_id).toBe(group.id);
     });
 
     test("rejects non-existent group_id on create", async () => {
-      const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/listing",
-          {
-            csrf_token: await testCsrfToken(),
-            group_id: "999",
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "Bad Group Listing",
-            thank_you_url: "https://example.com/thanks",
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminMultipartPost("/admin/listing", {
+        group_id: "999",
+        max_attendees: "50",
+        max_quantity: "1",
+        name: "Bad Group Listing",
+        thank_you_url: "https://example.com/thanks",
+      });
       expectStatus(400)(response);
 
-      const { getAllListings } = await import("#shared/db/listings.ts");
       const listings = await getAllListings();
       const match = listings.find((e) => e.name === "Bad Group Listing");
       expect(match).toBeUndefined();
@@ -306,21 +266,14 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         name: "Standard Listing",
       });
 
-      const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/listing",
-          {
-            csrf_token: await testCsrfToken(),
-            group_id: String(group.id),
-            listing_type: "daily",
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "Daily Mismatch",
-            thank_you_url: "https://example.com/thanks",
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminMultipartPost("/admin/listing", {
+        group_id: String(group.id),
+        listing_type: "daily",
+        max_attendees: "50",
+        max_quantity: "1",
+        name: "Daily Mismatch",
+        thank_you_url: "https://example.com/thanks",
+      });
       expectStatus(400)(response);
       const body = await response.clone().text();
       expect(body).toContain("already contains standard listings");
@@ -360,43 +313,29 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("stays on form with error on validation failure", async () => {
-      const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/listing",
-          {
-            csrf_token: await testCsrfToken(),
-            max_attendees: "",
-            name: "",
-            thank_you_url: "",
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminMultipartPost("/admin/listing", {
+        max_attendees: "",
+        name: "",
+        thank_you_url: "",
+      });
       await expectHtmlResponse(response, 400, "Add Listing");
     });
 
     test("rejects duplicate slug", async () => {
       // First, create an listing with a specific name
-      const { cookie, csrfToken } = await setupListingAndLogin({
+      await setupListingAndLogin({
         maxAttendees: 100,
         name: "Duplicate Listing",
         thankYouUrl: "https://example.com",
       });
 
       // Try to create another listing with the same name (generates same slug)
-      const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/listing",
-          {
-            csrf_token: csrfToken,
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "Duplicate Listing",
-            thank_you_url: "https://example.com",
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminMultipartPost("/admin/listing", {
+        max_attendees: "50",
+        max_quantity: "1",
+        name: "Duplicate Listing",
+        thank_you_url: "https://example.com",
+      });
       // Slug auto-generated so creation succeeds
       await expectFlashRedirect("/admin", "Listing created")(response);
     });
@@ -608,10 +547,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const { listing, cookie } = await setupListingAndLogin({
         maxAttendees: 100,
       });
-      const { bookAttendee, createTestListing, createTestGroup } = await import(
-        "#test-utils"
-      );
-      const { listingsTable } = await import("#shared/db/listings.ts");
       const group = await createTestGroup({
         maxAttendees: 20,
         name: "Capped Group",
@@ -645,8 +580,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const { listing, cookie } = await setupListingAndLogin({
         maxAttendees: 100,
       });
-      const { createTestGroup } = await import("#test-utils");
-      const { listingsTable } = await import("#shared/db/listings.ts");
       const group = await createTestGroup({
         name: "Uncapped",
         slug: "uncapped-grp",
@@ -665,8 +598,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         maxAttendees: 100,
         name: "Q Listing",
       });
-      const { questionsTable, answersTable, setListingQuestions } =
-        await import("#shared/db/questions.ts");
       const q = await questionsTable.insert({
         displayType: "radio",
         text: "Size",
@@ -759,7 +690,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("shows only checked-in attendees", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -777,12 +708,9 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       );
 
       // Check in the first attendee
-      await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee/${checkedInAttendee.id}/checkin`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+      await adminFormPost(
+        `/admin/listing/${listing.id}/attendee/${checkedInAttendee.id}/checkin`,
+        {},
       );
 
       const html = await assertAdminHtml(
@@ -810,7 +738,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("shows only checked-out attendees", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing, cookie } = await setupListingAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -828,12 +756,9 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       );
 
       // Check in the first attendee
-      await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee/${checkedInAttendee.id}/checkin`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+      await adminFormPost(
+        `/admin/listing/${listing.id}/attendee/${checkedInAttendee.id}/checkin`,
+        {},
       );
 
       const response = await awaitTestRequest(
@@ -919,7 +844,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("returns CSV with Checked In column", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing, cookie } = await setupListingAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -931,12 +856,9 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       );
 
       // Check in the attendee
-      await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+      await adminFormPost(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+        {},
       );
 
       const response = await awaitTestRequest(
@@ -982,12 +904,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       );
 
       // Create question, answers, and assign to listing
-      const {
-        questionsTable,
-        answersTable,
-        setListingQuestions,
-        saveAttendeeAnswers,
-      } = await import("#shared/db/questions.ts");
       const q = await questionsTable.insert({
         displayType: "radio",
         text: "Shirt Size",
@@ -1078,12 +994,9 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         gross: 1500,
         listingId: listing.id,
       });
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/income`,
-          { csrf_token: await testCsrfToken(), income: "25.00" },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/income`,
+        { income: "25.00" },
       );
       await expectFlashRedirect(
         `/admin/listing/${listing.id}/edit`,
@@ -1128,7 +1041,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       await adminFormPost(`/admin/listing/${listing.id}/income`, {
         income: "12.34",
       });
-      const { getAllActivityLog } = await import("#test-utils");
       const log = await getAllActivityLog(10);
       const entry = log.find((e) => e.message.includes("income adjusted"));
       expect(entry?.message).toBe("Listing 'Gala' income adjusted");
@@ -1359,56 +1271,41 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("validates required fields", async () => {
-      const { cookie, csrfToken } = await setupListingAndLogin({
+      await setupListingAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/edit",
-          {
-            csrf_token: csrfToken,
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "",
-            slug: "test-slug",
-            thank_you_url: "https://example.com",
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/listing/1/edit", {
+        max_attendees: "50",
+        max_quantity: "1",
+        name: "",
+        slug: "test-slug",
+        thank_you_url: "https://example.com",
+      });
       await expectHtmlResponse(response, 400, "Listing Name is required");
     });
 
     test("updates listing when authenticated", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/edit",
-          {
-            csrf_token: csrfToken,
-            max_attendees: "200",
-            max_quantity: "5",
-            name: listing.name,
-            slug: listing.slug,
-            thank_you_url: "https://example.com/updated",
-            unit_price: "20.00",
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/listing/1/edit", {
+        max_attendees: "200",
+        max_quantity: "5",
+        name: listing.name,
+        slug: listing.slug,
+        thank_you_url: "https://example.com/updated",
+        unit_price: "20.00",
+      });
       await expectFlashRedirect(
         "/admin/listing/1",
         "Listing updated",
       )(response);
 
       // Verify the listing was updated
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(1);
       expect(updated?.max_attendees).toBe(200);
       expect(updated?.thank_you_url).toBe("https://example.com/updated");
@@ -1416,26 +1313,22 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("updates listing running totals from the edit form", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            booked_quantity: "12",
-            csrf_token: csrfToken,
-            max_attendees: "100",
-            max_quantity: "1",
-            name: listing.name,
-            slug: listing.slug,
-            thank_you_url: "https://example.com",
-            tickets_count: "4",
-          },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/edit`,
+        {
+          booked_quantity: "12",
+          max_attendees: "100",
+          max_quantity: "1",
+          name: listing.name,
+          slug: listing.slug,
+          thank_you_url: "https://example.com",
+          tickets_count: "4",
+        },
       );
       await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
@@ -1450,26 +1343,22 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("rejects invalid listing running totals", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            booked_quantity: "-1",
-            csrf_token: csrfToken,
-            max_attendees: "100",
-            max_quantity: "1",
-            name: listing.name,
-            slug: listing.slug,
-            thank_you_url: "https://example.com",
-            tickets_count: "4",
-          },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/edit`,
+        {
+          booked_quantity: "-1",
+          max_attendees: "100",
+          max_quantity: "1",
+          name: listing.name,
+          slug: listing.slug,
+          thank_you_url: "https://example.com",
+          tickets_count: "4",
+        },
       );
 
       await expectHtmlResponse(
@@ -1482,32 +1371,24 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("clears webhook URL when updating listing in demo mode", async () => {
       setDemoModeForTest(true);
 
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         webhookUrl: "https://example.com/original-webhook",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/edit",
-          {
-            csrf_token: csrfToken,
-            max_attendees: "200",
-            max_quantity: "5",
-            name: listing.name,
-            slug: listing.slug,
-            webhook_url: "https://example.com/new-webhook",
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/listing/1/edit", {
+        max_attendees: "200",
+        max_quantity: "5",
+        name: listing.name,
+        slug: listing.slug,
+        webhook_url: "https://example.com/new-webhook",
+      });
       await expectFlashRedirect(
         "/admin/listing/1",
         "Listing updated",
       )(response);
 
       // Verify webhook_url was cleared
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(1);
       expect(updated?.webhook_url).toBe("");
     });
@@ -1521,54 +1402,45 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         name: "Group Two",
         slug: "group-two",
       });
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         groupId: group1.id,
         maxAttendees: 50,
         name: "Group Switch Listing",
       });
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            csrf_token: csrfToken,
-            group_id: String(group2.id),
-            max_attendees: "50",
-            max_quantity: "1",
-            name: listing.name,
-            slug: listing.slug,
-          },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/edit`,
+        {
+          group_id: String(group2.id),
+          max_attendees: "50",
+          max_quantity: "1",
+          name: listing.name,
+          slug: listing.slug,
+        },
       );
       await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Listing updated",
       )(response);
 
-      const { getListing } = await import("#shared/db/listings.ts");
       const updated = await getListing(listing.id);
       expect(updated?.group_id).toBe(group2.id);
     });
 
     test("rejects non-existent group_id on edit", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 50,
         name: "Edit Bad Group",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            csrf_token: csrfToken,
-            group_id: "999",
-            max_attendees: "50",
-            max_quantity: "1",
-            name: listing.name,
-            slug: listing.slug,
-          },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/edit`,
+        {
+          group_id: "999",
+          max_attendees: "50",
+          max_quantity: "1",
+          name: listing.name,
+          slug: listing.slug,
+        },
       );
       await expectHtmlResponse(response, 400, "Selected group does not exist");
     });
@@ -1584,25 +1456,21 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         maxAttendees: 50,
         name: "Daily Listing",
       });
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         listingType: "standard",
         maxAttendees: 50,
         name: "Standard Listing",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            csrf_token: csrfToken,
-            group_id: String(group.id),
-            max_attendees: "50",
-            max_quantity: "1",
-            name: listing.name,
-            slug: listing.slug,
-          },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/edit`,
+        {
+          group_id: String(group.id),
+          max_attendees: "50",
+          max_quantity: "1",
+          name: listing.name,
+          slug: listing.slug,
+        },
       );
       await expectHtmlResponse(
         response,
@@ -1622,25 +1490,21 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         maxAttendees: 50,
         name: "Standard A",
       });
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         listingType: "standard",
         maxAttendees: 50,
         name: "Standard B",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            csrf_token: csrfToken,
-            group_id: String(group.id),
-            max_attendees: "50",
-            max_quantity: "1",
-            name: listing.name,
-            slug: listing.slug,
-          },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/edit`,
+        {
+          group_id: String(group.id),
+          max_attendees: "50",
+          max_quantity: "1",
+          name: listing.name,
+          slug: listing.slug,
+        },
       );
       await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
@@ -1649,84 +1513,67 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("updates listing slug", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         name: "Slug Update Test",
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            csrf_token: csrfToken,
-            max_attendees: "100",
-            max_quantity: "1",
-            name: "Slug Update Test",
-            slug: "new-custom-slug",
-            thank_you_url: "https://example.com",
-          },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/edit`,
+        {
+          max_attendees: "100",
+          max_quantity: "1",
+          name: "Slug Update Test",
+          slug: "new-custom-slug",
+          thank_you_url: "https://example.com",
+        },
       );
       await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Listing updated",
       )(response);
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(listing.id);
       expect(updated?.slug).toBe("new-custom-slug");
     });
 
     test("normalizes slug on update (spaces, uppercase)", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 50,
         name: "Normalize Test",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            csrf_token: csrfToken,
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "Normalize Test",
-            slug: "  My Custom Slug  ",
-          },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/edit`,
+        {
+          max_attendees: "50",
+          max_quantity: "1",
+          name: "Normalize Test",
+          slug: "  My Custom Slug  ",
+        },
       );
       await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Listing updated",
       )(response);
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(listing.id);
       expect(updated?.slug).toBe("my-custom-slug");
     });
 
     test("rejects invalid slug characters", async () => {
-      const { cookie, csrfToken } = await setupListingAndLogin({
+      await setupListingAndLogin({
         maxAttendees: 50,
         name: "Invalid Slug Test",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/edit",
-          {
-            csrf_token: csrfToken,
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "Invalid Slug Test",
-            slug: "invalid_slug!@#",
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/listing/1/edit", {
+        max_attendees: "50",
+        max_quantity: "1",
+        name: "Invalid Slug Test",
+        slug: "invalid_slug!@#",
+      });
       await expectHtmlResponse(
         response,
         400,
@@ -1766,23 +1613,19 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         name: "Slug Group",
         slug: "slug-group",
       });
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 50,
         name: "Listing Slug Collision",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            csrf_token: csrfToken,
-            max_attendees: "50",
-            max_quantity: "1",
-            name: listing.name,
-            slug: group.slug,
-          },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/edit`,
+        {
+          max_attendees: "50",
+          max_quantity: "1",
+          name: listing.name,
+          slug: group.slug,
+        },
       );
       await expectHtmlResponse(
         response,
@@ -1792,30 +1635,25 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("allows keeping the same slug on update", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 50,
         name: "Same Slug Test",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            csrf_token: csrfToken,
-            max_attendees: "100",
-            max_quantity: "1",
-            name: "Same Slug Test",
-            slug: listing.slug,
-          },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/edit`,
+        {
+          max_attendees: "100",
+          max_quantity: "1",
+          name: "Same Slug Test",
+          slug: listing.slug,
+        },
       );
       await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Listing updated",
       )(response);
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(listing.id);
       expect(updated?.slug).toBe(listing.slug);
       expect(updated?.max_attendees).toBe(100);
@@ -1867,43 +1705,34 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("deactivates listing and redirects", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/deactivate",
-          { confirm_identifier: listing.name, csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/listing/1/deactivate", {
+        confirm_identifier: listing.name,
+      });
       await expectFlashRedirect(
         "/admin/listing/1",
         "Listing deactivated",
       )(response);
 
       // Verify listing is now inactive
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const deactivatedListing = await getListingWithCount(1);
       expect(deactivatedListing?.active).toBe(false);
     });
 
     test("returns error when identifier does not match", async () => {
-      const { cookie, csrfToken } = await setupListingAndLogin({
+      await setupListingAndLogin({
         maxAttendees: 100,
         name: "Test Listing",
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/deactivate",
-          { confirm_identifier: "wrong-identifier", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/listing/1/deactivate", {
+        confirm_identifier: "wrong-identifier",
+      });
       expect(response.status).toBe(302);
       expectFlash(
         response,
@@ -1913,18 +1742,15 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("displays error on confirmation page after failed attempt", async () => {
-      const { cookie, csrfToken } = await setupListingAndLogin({
+      await setupListingAndLogin({
         maxAttendees: 100,
         name: "Test Listing",
         thankYouUrl: "https://example.com",
       });
 
-      const postResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/deactivate",
-          { confirm_identifier: "wrong", csrf_token: csrfToken },
-          cookie,
-        ),
+      const { cookie, response: postResponse } = await adminFormPost(
+        "/admin/listing/1/deactivate",
+        { confirm_identifier: "wrong" },
       );
       const page = await followRedirectWithFlash(
         postResponse,
@@ -1966,33 +1792,28 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
   describe("POST /admin/listing/:id/reactivate", () => {
     test("reactivates listing and redirects", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
       // Deactivate the listing first
       await deactivateTestListing(listing.id);
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/reactivate",
-          { confirm_identifier: listing.name, csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/listing/1/reactivate", {
+        confirm_identifier: listing.name,
+      });
       await expectFlashRedirect(
         "/admin/listing/1",
         "Listing reactivated",
       )(response);
 
       // Verify listing is now active
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const activeListing = await getListingWithCount(1);
       expect(activeListing?.active).toBe(true);
     });
 
     test("returns error when name does not match", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         name: "Test Listing",
         thankYouUrl: "https://example.com",
@@ -2000,13 +1821,9 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       // Deactivate the listing first
       await deactivateTestListing(listing.id);
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/reactivate",
-          { confirm_identifier: "wrong-identifier", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/listing/1/reactivate", {
+        confirm_identifier: "wrong-identifier",
+      });
       expect(response.status).toBe(302);
       expectFlash(
         response,
@@ -2016,19 +1833,16 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("displays error on confirmation page after failed attempt", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         name: "Test Listing",
         thankYouUrl: "https://example.com",
       });
       await deactivateTestListing(listing.id);
 
-      const postResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/reactivate",
-          { confirm_identifier: "wrong", csrf_token: csrfToken },
-          cookie,
-        ),
+      const { cookie, response: postResponse } = await adminFormPost(
+        "/admin/listing/1/reactivate",
+        { confirm_identifier: "wrong" },
       );
       const page = await followRedirectWithFlash(
         postResponse,
@@ -2114,39 +1928,29 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("rejects mismatched listing identifier", async () => {
-      const { cookie, csrfToken } = await setupListingAndLogin({
+      await setupListingAndLogin({
         maxAttendees: 100,
         name: "Test Listing",
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/delete",
-          {
-            confirm_identifier: "wrong-identifier",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/listing/1/delete", {
+        confirm_identifier: "wrong-identifier",
+      });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("does not match"), false);
     });
 
     test("displays error on confirmation page after failed attempt", async () => {
-      const { cookie, csrfToken } = await setupListingAndLogin({
+      await setupListingAndLogin({
         maxAttendees: 100,
         name: "Test Listing",
         thankYouUrl: "https://example.com",
       });
 
-      const postResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/delete",
-          { confirm_identifier: "wrong", csrf_token: csrfToken },
-          cookie,
-        ),
+      const { cookie, response: postResponse } = await adminFormPost(
+        "/admin/listing/1/delete",
+        { confirm_identifier: "wrong" },
       );
       const page = await followRedirectWithFlash(
         postResponse,
@@ -2158,52 +1962,37 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("deletes listing with matching identifier (case insensitive)", async () => {
-      const { cookie, csrfToken } = await setupListingAndLogin({
+      await setupListingAndLogin({
         maxAttendees: 100,
         name: "Test Listing",
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/delete",
-          {
-            confirm_identifier: "TEST LISTING", // uppercase (case insensitive)
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/listing/1/delete", {
+        confirm_identifier: "TEST LISTING", // uppercase (case insensitive)
+      });
       await expectFlashRedirect("/admin", "Listing deleted")(response);
 
       // Verify listing was deleted
-      const { getListing } = await import("#shared/db/listings.ts");
       const deletedListing = await getListing(1);
       expect(deletedListing).toBeNull();
     });
 
     test("deletes listing with matching identifier (trimmed)", async () => {
-      const { cookie, csrfToken } = await setupListingAndLogin({
+      await setupListingAndLogin({
         maxAttendees: 100,
         name: "Test Listing",
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/delete",
-          {
-            confirm_identifier: "  Test Listing  ", // with spaces
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/listing/1/delete", {
+        confirm_identifier: "  Test Listing  ", // with spaces
+      });
       await expectFlashRedirect("/admin", "Listing deleted")(response);
     });
 
     test("deletes the listing and unlinks its attendees", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         name: "Test Listing",
         thankYouUrl: "https://example.com",
@@ -2221,22 +2010,14 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         "jane@example.com",
       );
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/delete`,
-          {
-            confirm_identifier: listing.name,
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/delete`,
+        { confirm_identifier: listing.name },
       );
       expect(response.status).toBe(302);
 
       // The listing is gone and no attendees remain linked to it (the attendee
       // rows themselves are orphaned, not purged).
-      const { getListing } = await import("#shared/db/listings.ts");
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const deleted = await getListing(listing.id);
       expect(deleted).toBeNull();
 
@@ -2258,7 +2039,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       // Verify listing was deleted
-      const { getListing } = await import("#shared/db/listings.ts");
       const listing = await getListing(1);
       expect(listing).toBeNull();
     });
@@ -2299,7 +2079,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       // Verify listing was deleted
-      const { getListing } = await import("#shared/db/listings.ts");
       const listing = await getListing(1);
       expect(listing).toBeNull();
     });
@@ -2320,45 +2099,29 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
   describe("POST /admin/listing with can_pay_more", () => {
     test("creates listing with can_pay_more enabled", async () => {
-      const response = await handleRequest(
-        await mockMultipartRequest(
-          "/admin/listing",
-          {
-            can_pay_more: "1",
-            csrf_token: await testCsrfToken(),
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "Pay More Listing",
-            unit_price: "10.00",
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminMultipartPost("/admin/listing", {
+        can_pay_more: "1",
+        max_attendees: "50",
+        max_quantity: "1",
+        name: "Pay More Listing",
+        unit_price: "10.00",
+      });
       expect(response.status).toBe(302);
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const listing = await getListingWithCount(1);
       expect(listing?.can_pay_more).toBe(true);
       expect(listing?.unit_price).toBe(1000);
     });
 
     test("creates listing with can_pay_more disabled by default", async () => {
-      const response = await handleRequest(
-        await mockMultipartRequest(
-          "/admin/listing",
-          {
-            csrf_token: await testCsrfToken(),
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "Normal Listing",
-            unit_price: "5.00",
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminMultipartPost("/admin/listing", {
+        max_attendees: "50",
+        max_quantity: "1",
+        name: "Normal Listing",
+        unit_price: "5.00",
+      });
       expect(response.status).toBe(302);
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const listing = await getListingWithCount(1);
       expect(listing?.can_pay_more).toBe(false);
     });
@@ -2366,24 +2129,19 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("updates listing can_pay_more via edit", async () => {
       const listing = await createTestListing({ unitPrice: 1000 });
 
-      const response = await handleRequest(
-        await mockMultipartRequest(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            can_pay_more: "1",
-            csrf_token: await testCsrfToken(),
-            max_attendees: String(listing.max_attendees),
-            max_quantity: String(listing.max_quantity),
-            name: listing.name,
-            slug: listing.slug,
-            unit_price: "10.00",
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminMultipartPost(
+        `/admin/listing/${listing.id}/edit`,
+        {
+          can_pay_more: "1",
+          max_attendees: String(listing.max_attendees),
+          max_quantity: String(listing.max_quantity),
+          name: listing.name,
+          slug: listing.slug,
+          unit_price: "10.00",
+        },
       );
       expect(response.status).toBe(302);
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(listing.id);
       expect(updated?.can_pay_more).toBe(true);
     });
@@ -2395,7 +2153,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         canPayMore: true,
         maxPrice: 50000,
       });
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const saved = await getListingWithCount(listing.id);
       expect(saved?.max_price).toBe(50000);
       expect(saved?.can_pay_more).toBe(true);
@@ -2403,27 +2160,19 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
     test("max_price defaults to 10000 when not set", async () => {
       const listing = await createTestListing({ canPayMore: true });
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const saved = await getListingWithCount(listing.id);
       expect(saved?.max_price).toBe(10000);
     });
 
     test("rejects max_price less than unit_price + 100 when can_pay_more", async () => {
-      const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/listing",
-          {
-            can_pay_more: "1",
-            csrf_token: await testCsrfToken(),
-            max_attendees: "50",
-            max_price: "10.50",
-            max_quantity: "1",
-            name: "Bad Max Price",
-            unit_price: "10.00",
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminMultipartPost("/admin/listing", {
+        can_pay_more: "1",
+        max_attendees: "50",
+        max_price: "10.50",
+        max_quantity: "1",
+        name: "Bad Max Price",
+        unit_price: "10.00",
+      });
       await expectHtmlResponse(
         response,
         400,
@@ -2436,7 +2185,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         maxPrice: 1050,
         unitPrice: 1000,
       });
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const saved = await getListingWithCount(listing.id);
       expect(saved?.max_price).toBe(1050);
     });
@@ -2455,7 +2203,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         unitPrice: 1000,
       });
       await updateTestListing(listing.id, { maxPrice: 25000 });
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(listing.id);
       expect(updated?.max_price).toBe(25000);
     });
@@ -2563,7 +2310,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
   describe("admin/listings.ts (listing delete handler via onDelete)", () => {
     test("delete listing handler cleans up associated data", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         name: "On Delete Test",
         thankYouUrl: "https://example.com",
@@ -2576,18 +2323,13 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       );
 
       // Delete listing via API (skip verify)
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/delete?verify_identifier=false`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/delete?verify_identifier=false`,
+        {},
       );
       expect(response.status).toBe(302);
 
       // Verify both listing and attendees deleted
-      const { getListing } = await import("#shared/db/listings.ts");
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       expect(await getListing(listing.id)).toBeNull();
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
@@ -2595,26 +2337,19 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
   describe("admin/listings.ts (listingErrorPage with deleted listing)", () => {
     test("edit validation returns 400 with error when listing exists", async () => {
-      const { cookie, csrfToken } = await setupListingAndLogin({
+      await setupListingAndLogin({
         maxAttendees: 100,
         name: "First Edit Err",
         thankYouUrl: "https://example.com",
       });
 
       // Submit with empty name to trigger validation error
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/edit",
-          {
-            csrf_token: csrfToken,
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "",
-            thank_you_url: "https://example.com",
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/listing/1/edit", {
+        max_attendees: "50",
+        max_quantity: "1",
+        name: "",
+        thank_you_url: "https://example.com",
+      });
       // Should return 400 with error page (listing exists -> listingErrorPage returns htmlResponse)
       await expectHtmlResponse(response, 400, "Listing Name is required");
     });
@@ -2622,19 +2357,16 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
   describe("admin/listings.ts (form.get fallbacks)", () => {
     test("deactivate listing without confirm_identifier uses empty fallback", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         name: "Deactivate Fallback",
         thankYouUrl: "https://example.com",
       });
 
       // Submit without confirm_identifier field
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/deactivate`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/deactivate`,
+        {},
       );
       expect(response.status).toBe(302);
       expectFlash(
@@ -2645,7 +2377,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("reactivate listing without confirm_identifier uses empty fallback", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         name: "Reactivate Fallback",
         thankYouUrl: "https://example.com",
@@ -2653,12 +2385,9 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       await deactivateTestListing(listing.id);
 
       // Submit without confirm_identifier field
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/reactivate`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/reactivate`,
+        {},
       );
       expect(response.status).toBe(302);
       expectFlash(
@@ -2669,20 +2398,14 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("delete listing without confirm_identifier uses empty fallback", async () => {
-      const { cookie, csrfToken } = await setupListingAndLogin({
+      await setupListingAndLogin({
         maxAttendees: 100,
         name: "Delete Fallback",
         thankYouUrl: "https://example.com",
       });
 
       // Submit without confirm_identifier field
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/delete",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/listing/1/delete", {});
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("does not match"), false);
     });
@@ -2698,26 +2421,18 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("shows edit page with error when name is empty", async () => {
-      const {
-        listing: listing1,
-        cookie,
-        csrfToken,
-      } = await setupListingAndLogin({
+      const { listing: listing1 } = await setupListingAndLogin({
         maxAttendees: 50,
         name: "Edit Orig",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing1.id}/edit`,
-          {
-            csrf_token: csrfToken,
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "",
-          },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing1.id}/edit`,
+        {
+          max_attendees: "50",
+          max_quantity: "1",
+          name: "",
+        },
       );
       await expectHtmlResponse(response, 400, "Listing Name is required");
     });
@@ -2725,7 +2440,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
   describe("POST /admin/listing/:id/delete with custom onDelete", () => {
     test("deletes the listing when identifier verification is skipped", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 50,
         name: "Skip Verify Delete",
       });
@@ -2736,53 +2451,37 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         "test@example.com",
       );
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/delete?verify_identifier=false`,
-          {
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/delete?verify_identifier=false`,
+        {},
       );
       await expectFlashRedirect("/admin", "Listing deleted")(response);
 
-      const { getListing: getListingFn } = await import(
-        "#shared/db/listings.ts"
-      );
-      const deleted = await getListingFn(listing.id);
+      const deleted = await getListing(listing.id);
       expect(deleted).toBeNull();
     });
   });
 
   describe("routes/admin/listings.ts (listing error page)", () => {
     test("shows edit error page for existing listing with validation error", async () => {
-      const {
-        listing: listing1,
-        cookie,
-        csrfToken,
-      } = await setupListingAndLogin({
+      const { listing: listing1 } = await setupListingAndLogin({
         maxAttendees: 50,
         name: "Listing Err 1",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing1.id}/edit`,
-          {
-            csrf_token: csrfToken,
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "",
-          },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing1.id}/edit`,
+        {
+          max_attendees: "50",
+          max_quantity: "1",
+          name: "",
+        },
       );
       await expectHtmlResponse(response, 400, "Listing Name is required");
     });
 
     test("unlinks the listing's attendees when deleted with verification skipped", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 50,
         name: "Skip Verify Del Test",
       });
@@ -2793,16 +2492,12 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         "del@example.com",
       );
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/delete?verify_identifier=false`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/delete?verify_identifier=false`,
+        {},
       );
       await expectFlashRedirect("/admin", "Listing deleted")(response);
 
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(0);
     });
@@ -2810,8 +2505,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
   describe("routes/admin/listings.ts (listingErrorPage notFound)", () => {
     test("listing edit validation error returns 404 when listing was deleted", async () => {
-      const { listingsTable } = await import("#shared/db/listings.ts");
-
       const listing1 = await createTestListing({
         maxAttendees: 50,
         name: "Listing For Delete Err",
@@ -2827,7 +2520,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           const row = await originalFindById(id as number);
           if (row) {
             // Delete the listing from DB so getListingWithCount returns null
-            const { getDb } = await import("#shared/db/client.ts");
             await getDb().execute({
               args: [id as number],
               sql: "DELETE FROM listings WHERE id = ?",
@@ -2859,7 +2551,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
   describe("admin listing onDelete handler", () => {
     test("deleting an listing triggers the onDelete handler which calls deleteListing", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 10,
         name: "Delete OnDelete Test",
       });
@@ -2871,12 +2563,9 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         "a@test.com",
       );
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/delete`,
-          { confirm_identifier: listing.name, csrf_token: csrfToken },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/delete`,
+        { confirm_identifier: listing.name },
       );
       expect(response.status).toBe(302);
     });
@@ -2884,7 +2573,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
   describe("edit listing notFound race condition", () => {
     test("returns 404 when listing is deleted during edit update", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 50,
         name: "Race Condition Listing",
         thankYouUrl: "https://example.com",
@@ -2894,24 +2583,19 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       // updateResource.update which calls requireExists -> table.findById.
       // We spy on findById to return null, simulating the listing being deleted
       // between the initial check and the update.
-      const { listingsTable: table } = await import("#shared/db/listings.ts");
-      const findByIdStub2 = stub(table, "findById", () =>
+      const findByIdStub2 = stub(listingsTable, "findById", () =>
         Promise.resolve(null),
       );
 
       try {
-        const response = await handleRequest(
-          mockFormRequest(
-            `/admin/listing/${listing.id}/edit`,
-            {
-              csrf_token: csrfToken,
-              max_attendees: "50",
-              max_quantity: "1",
-              name: "Updated Name",
-              slug: "updated-slug",
-            },
-            cookie,
-          ),
+        const { response } = await adminFormPost(
+          `/admin/listing/${listing.id}/edit`,
+          {
+            max_attendees: "50",
+            max_quantity: "1",
+            name: "Updated Name",
+            slug: "updated-slug",
+          },
         );
         expect(response.status).toBe(404);
       } finally {
@@ -2925,7 +2609,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const closesAt = "2099-06-15T14:30";
       const listing = await createTestListing({ closesAt });
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const saved = await getListingWithCount(listing.id);
       expect(saved?.closes_at).toBe("2099-06-15T14:30:00.000Z");
     });
@@ -2933,7 +2616,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("creates listing without closes_at (defaults to null)", async () => {
       const listing = await createTestListing();
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const saved = await getListingWithCount(listing.id);
       expect(saved?.closes_at).toBeNull();
     });
@@ -2943,7 +2625,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const closesAt = "2099-12-31T23:59";
       await updateTestListing(listing.id, { closesAt });
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(listing.id);
       expect(updated?.closes_at).toBe("2099-12-31T23:59:00.000Z");
     });
@@ -2952,7 +2633,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const listing = await createTestListing({ closesAt: "2099-06-15T14:30" });
       await updateTestListing(listing.id, { closesAt: "" });
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(listing.id);
       expect(updated?.closes_at).toBeNull();
     });
@@ -3068,22 +2748,18 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("rejects invalid closes_at format", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin();
+      const { listing } = await setupListingAndLogin();
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            closes_at_date: "not-a-date",
-            closes_at_time: "99:99",
-            csrf_token: csrfToken,
-            max_attendees: "100",
-            max_quantity: "1",
-            name: listing.name,
-            slug: listing.slug,
-          },
-          cookie,
-        ),
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/edit`,
+        {
+          closes_at_date: "not-a-date",
+          closes_at_time: "99:99",
+          max_attendees: "100",
+          max_quantity: "1",
+          name: listing.name,
+          slug: listing.slug,
+        },
       );
       await expectHtmlResponse(
         response,
@@ -3099,7 +2775,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         date: "2026-06-15T14:00",
         location: "Village Hall",
       });
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const saved = await getListingWithCount(listing.id);
       expect(saved?.date).toBe("2026-06-15T14:00:00.000Z");
       expect(saved?.location).toBe("Village Hall");
@@ -3111,7 +2786,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         date: "2026-12-25T18:00",
         location: "Town Centre",
       });
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(listing.id);
       expect(updated?.date).toBe("2026-12-25T18:00:00.000Z");
       expect(updated?.location).toBe("Town Centre");
@@ -3120,7 +2794,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("clears listing date by setting to empty string", async () => {
       const listing = await createTestListing({ date: "2026-06-15T14:00" });
       await updateTestListing(listing.id, { date: "" });
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(listing.id);
       expect(updated?.date).toBe("");
     });
@@ -3200,21 +2873,17 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
 
     test("rejects invalid listing date on edit", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin();
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            csrf_token: csrfToken,
-            date_date: "not-a-date",
-            date_time: "99:99",
-            max_attendees: "100",
-            max_quantity: "1",
-            name: listing.name,
-            slug: listing.slug,
-          },
-          cookie,
-        ),
+      const { listing } = await setupListingAndLogin();
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/edit`,
+        {
+          date_date: "not-a-date",
+          date_time: "99:99",
+          max_attendees: "100",
+          max_quantity: "1",
+          name: listing.name,
+          slug: listing.slug,
+        },
       );
       await expectHtmlResponse(
         response,
@@ -3282,7 +2951,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         minimumDaysBefore: 2,
       });
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const saved = await getListingWithCount(listing.id);
       expect(saved?.listing_type).toBe("daily");
       expect(saved?.bookable_days).toEqual(["Monday", "Wednesday", "Friday"]);
@@ -3293,7 +2961,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("creates standard listing with default daily config", async () => {
       const listing = await createTestListing();
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const saved = await getListingWithCount(listing.id);
       expect(saved?.listing_type).toBe("standard");
       expect(saved?.bookable_days).toEqual([
@@ -3369,7 +3036,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         minimumDaysBefore: 0,
       });
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(listing.id);
       expect(updated?.listing_type).toBe("daily");
       expect(updated?.bookable_days).toEqual(["Saturday", "Sunday"]);
@@ -3386,7 +3052,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       });
       await updateTestListing(listing.id, { listingType: "standard" });
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(listing.id);
       expect(updated?.listing_type).toBe("standard");
     });
@@ -3423,7 +3088,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("creates listing with non_transferable flag", async () => {
       const listing = await createTestListing({ nonTransferable: true });
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const saved = await getListingWithCount(listing.id);
       expect(saved?.non_transferable).toBe(true);
     });
@@ -3431,7 +3095,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("creates listing without non_transferable by default", async () => {
       const listing = await createTestListing();
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const saved = await getListingWithCount(listing.id);
       expect(saved?.non_transferable).toBe(false);
     });
@@ -3471,63 +3134,59 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const listing = await createTestListing();
       await updateTestListing(listing.id, { nonTransferable: true });
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(listing.id);
       expect(updated?.non_transferable).toBe(true);
     });
 
     test("rejects invalid bookable_days value", async () => {
-      const { cookie, csrfToken } = await setupListingAndLogin({
+      await setupListingAndLogin({
         name: "Edit Target",
       });
 
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const listing = (await getListingWithCount(1))!;
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/listing/1/edit",
-          {
-            bookable_days: "Funday,Bunday",
-            csrf_token: csrfToken,
-            listing_type: "daily",
-            max_attendees: "50",
-            max_quantity: "1",
-            maximum_days_after: "90",
-            minimum_days_before: "1",
-            name: "Edit Target",
-            slug: listing.slug,
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/listing/1/edit", {
+        bookable_days: "Funday,Bunday",
+        listing_type: "daily",
+        max_attendees: "50",
+        max_quantity: "1",
+        maximum_days_after: "90",
+        minimum_days_before: "1",
+        name: "Edit Target",
+        slug: listing.slug,
+      });
       await expectHtmlResponse(response, 400, "Invalid day");
+    });
+
+    test("saves an empty bookable-days selection for a daily listing", async () => {
+      const listing = await createTestListing({
+        bookableDays: ["Monday"],
+        listingType: "daily",
+        name: "Daily Edit Target",
+      });
+
+      await updateTestListing(listing.id, { bookableDays: [] });
+
+      const updated = await getListingWithCount(listing.id);
+      expect(updated?.bookable_days).toEqual([]);
     });
   });
 
   describe("audit logging (listing edit)", () => {
     test("logs activity when listing is updated", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+      const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
-      await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            csrf_token: csrfToken,
-            max_attendees: "200",
-            max_quantity: "1",
-            name: listing.name,
-            slug: listing.slug,
-            thank_you_url: "https://example.com/updated",
-          },
-          cookie,
-        ),
-      );
+      await adminFormPost(`/admin/listing/${listing.id}/edit`, {
+        max_attendees: "200",
+        max_quantity: "1",
+        name: listing.name,
+        slug: listing.slug,
+        thank_you_url: "https://example.com/updated",
+      });
 
-      const { getListingActivityLog } = await import("#test-utils");
       const logs = await getListingActivityLog(listing.id);
       const updateLog = logs.find((l: { message: string }) =>
         l.message.includes("updated"),
@@ -3838,14 +3497,12 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
   describe("hidden listings", () => {
     test("creates listing with hidden enabled", async () => {
       const listing = await createTestListing({ hidden: true });
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const saved = await getListingWithCount(listing.id);
       expect(saved?.hidden).toBe(true);
     });
 
     test("creates listing with hidden disabled by default", async () => {
       const listing = await createTestListing();
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const saved = await getListingWithCount(listing.id);
       expect(saved?.hidden).toBe(false);
     });
@@ -3853,7 +3510,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("updates listing to enable hidden", async () => {
       const listing = await createTestListing();
       await updateTestListing(listing.id, { hidden: true });
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(listing.id);
       expect(updated?.hidden).toBe(true);
     });
@@ -3861,7 +3517,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("updates listing to enable can_pay_more via updateTestListing", async () => {
       const listing = await createTestListing({ unitPrice: 1000 });
       await updateTestListing(listing.id, { canPayMore: true });
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(listing.id);
       expect(updated?.can_pay_more).toBe(true);
     });
@@ -3869,7 +3524,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("updates listing to disable hidden", async () => {
       const listing = await createTestListing({ hidden: true });
       await updateTestListing(listing.id, { hidden: false });
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const updated = await getListingWithCount(listing.id);
       expect(updated?.hidden).toBe(false);
     });
@@ -3950,7 +3604,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
       try {
         const listing = await createTestListing({ assignBuiltSite: true });
-        const { getListingWithCount } = await import("#shared/db/listings.ts");
         const saved = await getListingWithCount(listing.id);
         expect(saved?.assign_built_site).toBe(true);
       } finally {
@@ -3960,7 +3613,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
     test("ignores assign_built_site when CAN_BUILD_SITES is not set", async () => {
       const listing = await createTestListing({ assignBuiltSite: true });
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       const saved = await getListingWithCount(listing.id);
       expect(saved?.assign_built_site).toBe(false);
     });
@@ -3969,7 +3621,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
       try {
         const listing = await createTestListing();
-        const { getListingWithCount } = await import("#shared/db/listings.ts");
         const saved = await getListingWithCount(listing.id);
         expect(saved?.assign_built_site).toBe(false);
       } finally {
@@ -3982,7 +3633,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       try {
         const listing = await createTestListing();
         await updateTestListing(listing.id, { assignBuiltSite: true });
-        const { getListingWithCount } = await import("#shared/db/listings.ts");
         const updated = await getListingWithCount(listing.id);
         expect(updated?.assign_built_site).toBe(true);
       } finally {
