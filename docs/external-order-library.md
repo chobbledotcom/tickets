@@ -11,6 +11,11 @@ module fails to load, JavaScript is disabled, or the external site is not
 allowed by the owner's settings, each link still opens its listing's normal
 ticket page.
 
+The module is **self-contained**: it ships with a snapshot of the site's public
+listings embedded at serve time, so the cart works entirely client-side. There
+is no order/quote API and the widget makes no network requests of its own beyond
+loading the module itself.
+
 ## Goals
 
 - A site owner can add one module script tag to their external site template, or
@@ -19,13 +24,14 @@ ticket page.
   URL>"`, and the module turns that link into an add-to-cart button.
 - Adding the first item reveals a floating cart button on the external site.
 - Clicking the floating cart button opens a cart preview on the external site.
-- The preview uses the same pricing and order-summary infrastructure as the
-  existing booking form running total.
+- The preview shows an **indicative** running total from prices embedded in the
+  module. The authoritative total, fees, and availability are computed by the
+  canonical ticket page at checkout.
 - The preview's Continue button sends the visitor to the canonical ticket page
   with the selected listings and quantities pre-filled, using the same booking
   flow as the existing `/order` page.
 - The existing allowed embed hosts setting becomes the single owner-controlled
-  allowlist for iframe embedding, module loading, and quote API access.
+  allowlist for iframe embedding and order-module loading.
 
 ## Non-Goals
 
@@ -33,6 +39,12 @@ ticket page.
   acceptance, or payment details.
 - The external widget does not create attendees, reserve capacity, or write to
   the database.
+- The external widget does not call a server quote/cart API. It prices the cart
+  indicatively from embedded data and hands off to the ticket page.
+- The external widget does not show an authoritative total or live availability.
+  Final pricing, fees, sold-out checks, and every input v1 cannot supply (dates,
+  questions, terms, pay-what-you-want, customisable day counts) are handled by
+  the canonical ticket page.
 - The external widget does not replace `/ticket/:slug`, `/order`, or the
   existing iframe embed snippet.
 - The external widget does not support arbitrary third-party checkout styling.
@@ -87,141 +99,181 @@ admin copy so the setting means:
 
 > External sites allowed to use embeds and order buttons
 
-The host list controls three behaviours:
+The host list controls two behaviours:
 
 1. `frame-ancestors` on embeddable ticket pages.
 2. Cross-origin module loading for `/order.js`.
-3. Cross-origin quote and cart-resolution requests used by `/order.js`.
 
 An empty list keeps the existing semantics: external access is allowed from any
-site. A non-empty list restricts all three behaviours to the same host patterns,
+site. A non-empty list restricts both behaviours to the same host patterns,
 including `*.example.com` wildcard support.
+
+There is no third "API access" behaviour anymore: the widget never makes a
+cross-origin request after the module loads, so the allowlist only needs to gate
+who can load and frame the content.
+
+## The Module Is Served Dynamically
+
+`/order.js` is **not** a static asset. It is rendered per request because:
+
+- Its CORS headers depend on the mutable `embed_hosts` setting and the request
+  `Origin`.
+- It embeds a snapshot of the site's public listings (see
+  [Embedded Catalog](#embedded-catalog)).
+
+Both of these change when the owner edits settings or listings, so the route
+must run inside the normal request pipeline (after settings load), not on the
+pre-settings static path.
+
+### Why a module, not a classic script
+
+The owner adds `<script type="module">`, and that matters for enforcement.
+Cross-origin **classic** scripts execute without a CORS check — that is how CDN
+`<script src>` works — which would let any site load the widget regardless of
+`embed_hosts`. A cross-origin **module** script *is* CORS-checked, so when the
+server omits `Access-Control-Allow-Origin` for a disallowed origin the browser
+refuses to evaluate it. The module form is what makes the allowlist actually
+bite. Keep it ESM (`format: "esm"`); do not copy the existing IIFE client
+bundles in `scripts/build-static-assets.ts`.
+
+### Serving and settings ordering
+
+- `routeStatic` runs before the database is initialized and before
+  `prepareRequestEnvironment` loads request settings (`src/features/index.ts`).
+  A pre-settings static route would only ever see default or stale `embed_hosts`.
+  `/order.js` must be served from a handler that runs **after** settings load.
+- `getPrefix("/order.js")` returns `order.js` (the whole path, since there is no
+  second slash). Register that prefix in `PREFIX_SETTINGS`; an unlisted prefix
+  falls back to `ALL_SNAPSHOT_SETTINGS` and would decrypt the full snapshot just
+  to read `embed_hosts`. Scope the entry to only what the module needs:
+  `[CONFIG_KEYS.EMBED_HOSTS, CONFIG_KEYS.COUNTRY]` (embed allowlist + currency
+  for price formatting). No payment, email, wallet, or SMS secrets are read on
+  this path.
+
+### Build integration
+
+- Add `src/ui/client/order.ts` with the static widget logic (link scanning, cart
+  state, preview dialog, Continue navigation).
+- Bundle it to an ESM artifact under `src/ui/static/` as the module *body*.
+- The dynamic handler composes the response by prepending the serialized catalog
+  to that bundled body (or substituting a placeholder token). The owner-facing
+  logic stays in the bundle; only the catalog JSON varies per request.
+- Add `ORDER_JS_PATH = "/order.js"` to asset paths.
+- Include the static body in edge asset inlining and cache-busting; the catalog
+  is injected at request time.
+
+## Embedded Catalog
+
+At serve time the handler reads the site's public, **listed** listings and
+serializes a small catalog into the module:
+
+```js
+// Prepended to the module body at request time
+const CATALOG = {
+  origin: "https://tickets.example.com",
+  currency: "GBP",
+  generatedAt: "2026-06-28T20:00:00Z",
+  listings: {
+    workshop: {
+      id: 12,
+      slug: "workshop",
+      name: "Workshop",
+      unitPrice: 1500,            // minor units (pence)
+      priceLabel: "£15.00",       // preformatted server-side
+      variablePrice: false,
+    },
+    meal: {
+      id: 13,
+      slug: "meal",
+      name: "Meal",
+      unitPrice: 0,
+      priceLabel: "Price set at checkout",
+      variablePrice: true,        // dated / PWYW / questions / customisable days
+    },
+  },
+};
+```
+
+Rules:
+
+- The catalog is keyed by slug for O(1) lookup from a `data-add-listing` URL.
+- `priceLabel` is formatted **server-side** using the same money helper the
+  `/ticket` and `/order` pages use, so the embedded price matches the canonical
+  display. The client never formats currency; it only sums `unitPrice`.
+- `variablePrice` is `true` when the listing defers pricing to checkout — it has
+  a date, custom questions, pay-what-you-want, or customisable day counts. The
+  cart shows `priceLabel` ("Price set at checkout") for these and excludes them
+  from the indicative subtotal.
+- **Only active, listed listings are included.** Hidden/unlisted and inactive
+  listings are omitted (see [Security And Privacy](#security-and-privacy)).
+- `generatedAt` is informational. The catalog can go stale between page loads;
+  that is accepted (listings change slowly and a page refresh re-fetches the
+  module). It is **not** a signed token and the module never refetches to
+  refresh it.
+
+The catalog is identical for every origin; the only per-origin variance in the
+response is the CORS header.
 
 ## Header Contract
 
-Module scripts are CORS-checked by browsers, so `/order.js` must send CORS
-headers when requested from an allowed external origin.
+`/order.js` is fetched as a cross-origin module, so it must send CORS headers
+when requested from an allowed origin. It is a simple `GET` — there is no
+preflight and no `OPTIONS` handler.
 
 For allowed origins:
 
 ```http
+Content-Type: application/javascript; charset=utf-8
 Access-Control-Allow-Origin: https://www.example.com
 Vary: Origin
 Cross-Origin-Resource-Policy: cross-origin
 Cache-Control: no-store
 ```
 
-For an empty allowlist:
+For an empty allowlist (any site allowed):
 
 ```http
+Content-Type: application/javascript; charset=utf-8
 Access-Control-Allow-Origin: *
 Vary: Origin
 Cross-Origin-Resource-Policy: cross-origin
 Cache-Control: no-store
 ```
 
-`Vary: Origin` and a non-cacheable `Cache-Control` are required on `/order.js`
-in both cases: the response varies by request `Origin` and depends on the
-mutable `embed_hosts` allowlist, so a cached copy could keep serving a stale
-`Access-Control-Allow-Origin` after the owner changes the allowlist. (A short
-`max-age` is acceptable in place of `no-store` if the staleness window is
-deemed safe, but the immutable static-asset cache is not.)
+When an origin is not allowed, omit `Access-Control-Allow-Origin`. The browser
+then refuses to evaluate the module, and the marked links fall back to ordinary
+navigation to the ticket page.
 
-For quote and cart-resolution endpoints:
-
-```http
-Access-Control-Allow-Origin: https://www.example.com
-Access-Control-Allow-Methods: POST, OPTIONS
-Access-Control-Allow-Headers: content-type
-Vary: Origin
-```
-
-These endpoints must not require cookies, must not set cookies, and must not use
-credentialed CORS. The client always sends `credentials: "omit"`.
-
-When an origin is not allowed, API endpoints return `403` with no permissive
-CORS header. Static module requests can simply omit `Access-Control-Allow-Origin`,
-which makes the browser block evaluation.
-
-## Script Asset
-
-Serve a new module asset:
-
-```text
-GET /order.js
-```
-
-Keep the existing `/embed.js` iframe loader unchanged for backwards
-compatibility. The new asset should have its own path because its job is
-different: it enhances links and manages a floating cart rather than replacing a
-script tag with an iframe.
-
-Build integration:
-
-- Add `src/ui/client/order.ts`.
-- Bundle it to `src/ui/static/order.js`.
-- Add `ORDER_JS_PATH = "/order.js"` to asset paths.
-- Include it in edge asset inlining and cache-busting.
-
-This bundle **must be emitted as an ES module** (`format: "esm"`), not as an
-IIFE. The existing client bundles in `scripts/build-static-assets.ts`
-(`STATIC_JS_BUNDLES`) all use `format: "iife"`, but the order widget resolves
-the tickets origin from `import.meta.url` to validate same-origin listing links
-and to key its cart. Under an IIFE wrapper `import.meta.url` is not the module
-URL, so add a dedicated bundle entry with `format: "esm"` rather than copying an
-existing IIFE entry. The `<script type="module">` tag the owner adds requires an
-ES module anyway.
-
-### Serving `/order.js` (do not reuse the immutable static path)
-
-`/order.js` cannot be added to the ordinary static routes, because that path is
-incompatible with origin-gated serving in two ways:
-
-1. **Caching.** The shared static handler attaches
-   `cache-control: public, max-age=31536000, immutable` to every asset
-   (`src/features/assets.ts` `CACHE_HEADERS`, mirrored by the edge inliner in
-   `scripts/build-edge.ts`). Because `/order.js`'s CORS headers depend on the
-   mutable `embed_hosts` setting and the request `Origin`, an immutable response
-   would let a browser or CDN keep a stale `Access-Control-Allow-Origin: *` (or a
-   previously allowed origin) after the owner tightens the allowlist, so the
-   module would keep evaluating on a now-disallowed site. Serve `/order.js` with
-   a no-store / short max-age handler, and always send `Vary: Origin`.
-
-2. **Settings ordering.** `routeStatic` runs before the database is initialized
-   and before `prepareRequestEnvironment` loads request settings
-   (`src/features/index.ts`: static routing precedes the settings load). A plain
-   static route would only ever see default or stale `embed_hosts` when choosing
-   CORS headers. `/order.js` must be served from a handler that runs **after**
-   settings are loaded, or one that explicitly initializes the database and loads
-   `EMBED_HOSTS` before deciding the CORS headers.
-
-   If `/order.js` is served as a post-settings route, its prefix needs its own
-   `PREFIX_SETTINGS` entry too. `getPrefix("/order.js")` returns `order.js` (the
-   whole path, since there is no second slash), and an unlisted prefix falls back
-   to `ALL_SNAPSHOT_SETTINGS` — so every public module load would decrypt the
-   full snapshot just to read `embed_hosts`. Register the handler's prefix
-   (`order.js`, or whatever prefix the route uses) scoped to just
-   `[CONFIG_KEYS.EMBED_HOSTS]`.
+`Vary: Origin` and a non-cacheable `Cache-Control` are required: the response
+varies by request `Origin` and embeds a catalog that depends on mutable
+settings, so a cached copy could serve a stale `Access-Control-Allow-Origin`
+after the owner tightens the allowlist. (A short `max-age` is acceptable in place
+of `no-store` if a brief staleness window is fine; the immutable static-asset
+cache is not.) The security stakes are lower than for the old API design — no
+private data is gated, the module only enhances links to already-public pages —
+but keeping the allowlist responsive is still worthwhile.
 
 ## Browser Behaviour
 
 On module evaluation:
 
-1. Resolve the tickets origin from `import.meta.url`.
+1. Read the tickets origin and catalog from the embedded `CATALOG`.
 2. Register a singleton cart controller for that origin.
 3. Scan the document for `a[data-add-listing]`.
-4. Attach click handlers to valid links.
+4. Attach click handlers to links whose listing is in the catalog.
 5. Start a `MutationObserver` so links added after page load are enhanced.
 
-The controller only enhances links whose `data-add-listing` URL:
+The controller only enhances a link whose `data-add-listing` URL:
 
 - is an absolute URL,
-- has the same origin as the module,
-- matches `/ticket/<single-slug>`, and
-- contains no `+` multi-listing slug bundle.
+- has the same origin as `CATALOG.origin`,
+- matches `/ticket/<single-slug>` with no `+` multi-listing bundle, and
+- resolves to a slug present in `CATALOG.listings`.
 
-Invalid links are left alone. In development builds the module may log a console
-warning; production should avoid noisy logs on owner sites.
+Links that do not resolve to a catalog slug are left alone — including
+hidden/unlisted listings, which are intentionally absent from the catalog and so
+simply keep their no-JS `href`. In development builds the module may log a
+console warning; production should avoid noisy logs on owner sites.
 
 When a visitor clicks an enhanced link:
 
@@ -229,7 +281,7 @@ When a visitor clicks an enhanced link:
 2. Add the listing to the cart, incrementing quantity if already present.
 3. Reveal or update the floating cart button.
 4. Briefly animate the cart button to acknowledge the add.
-5. Request a fresh preview in the background if the preview panel is open.
+5. Recompute the indicative subtotal locally if the preview panel is open.
 
 The cart is stored in `sessionStorage`, keyed by tickets origin:
 
@@ -237,8 +289,8 @@ The cart is stored in `sessionStorage`, keyed by tickets origin:
 tickets:external-order:v1:https://tickets.example.com
 ```
 
-Stored data contains public listing URLs/slugs and quantities only. It contains
-no contact details, answers, payment state, cookies, or tokens.
+Stored data contains slugs and quantities only. It contains no contact details,
+answers, payment state, cookies, or tokens.
 
 ## Cart UI
 
@@ -260,223 +312,47 @@ Preview requirements:
 - Restores focus to the cart button when closed.
 - Closes on Escape and on explicit close button.
 - Lists selected items with quantity steppers and remove buttons.
-- Debounces preview refreshes after quantity changes.
-- Shows the server-rendered order summary fragment.
-- Shows a Continue button when the cart contains at least one valid item.
+- Shows each item's `priceLabel` and line total (quantity × `unitPrice`) for
+  fixed-price listings, and "Price set at checkout" for variable-price listings.
+- Shows an indicative subtotal with a clear caveat (see [Pricing](#pricing)).
+- Shows a Continue button when the cart contains at least one item.
 
 Use Shadow DOM for the widget shell so owner CSS does not accidentally break the
-cart. Server-rendered order-summary HTML can be inserted into the shadow root
-and styled with a small copy of the existing `.order-summary` rules. Do not
-reuse the full site stylesheet on the external page.
+cart. Render the summary markup in the widget itself with a small copy of the
+existing `.order-summary` rules; do not reuse the full site stylesheet on the
+external page.
 
-## Server Contracts
+## Pricing
 
-Add a small external-order API under its own dedicated prefix:
+The widget total is **indicative**, computed entirely client-side from the
+embedded catalog. There is no checkout math in the widget and no server quote.
 
-```text
-POST /external-order/preview
-OPTIONS /external-order/preview
-```
-
-Do **not** nest this route under the existing `/api` prefix. That prefix only
-dispatches public API routes when `settings.showPublicApi` is true
-(`src/features/index.ts`), and that setting defaults to `false`
-(`src/shared/db/settings.ts`). Since the spec makes `embed_hosts` the single
-allowlist for quote access, an owner who adds only the order-button snippet must
-not be forced to also enable the unrelated public listing/booking API. Give the
-preview endpoint its own prefix handler gated solely by the `embed_hosts`
-origin check, so it is reachable whenever the allowlist permits it.
-
-Moving the route out from under `/api` requires two supporting changes so the
-documented JSON request actually reaches it:
-
-- **JSON content-type guard.** `processRequest` runs `isValidContentType` before
-  the prefix handler, and `isJsonApiPath` currently recognises only scan, `/api/*`,
-  and `/v1/*` routes as JSON APIs (`src/features/middleware.ts`,
-  `src/features/index.ts`). A `POST /external-order/preview` with
-  `Content-Type: application/json` would be rejected as a non-form POST unless the
-  new prefix is added to that guard (or otherwise exempted). The spec requires
-  updating `isJsonApiPath` to include the `/external-order/` path.
-
-- **Narrow settings bundle.** Every prefix must have a `PREFIX_SETTINGS` entry;
-  an unlisted prefix falls back to `ALL_SNAPSHOT_SETTINGS`, so `settingsForPath`
-  would load and decrypt unrelated secrets (email, wallet, SMS keys) on every
-  public cross-origin preview (`src/features/index.ts`,
-  `src/shared/db/settings.ts`). Add an `external-order` entry, but do **not**
-  reuse `calculate`'s `[...BOOKING_FLOW_SETTINGS, CONFIG_KEYS.EMBED_HOSTS]`
-  bundle: `BOOKING_FLOW_SETTINGS` expands to `PUBLIC_NAV_SETTINGS` +
-  `PAYMENT_SETTINGS` + `EMAIL_SETTINGS`, which pulls in the email API key, the
-  wallet/webhook secrets, and Square's location/sandbox keys — none of which a
-  read-only quote reads. Define a quote-specific bundle holding only the keys the
-  preview actually reads:
-
-  - `CONFIG_KEYS.COUNTRY` for currency,
-  - `CONFIG_KEYS.BOOKING_FEE`,
-  - `CONFIG_KEYS.TERMS_AND_CONDITIONS` to detect the terms-deferral case,
-  - `CONFIG_KEYS.EMBED_HOSTS` for the origin gate, and
-  - the **payment-enabled signal** (see below).
-
-  The payment signal cannot simply be dropped: when the preview shares the
-  `/calculate` quote path, `renderQuote` calls `isPaymentsEnabled()`
-  (`src/features/public/ticket-submit.ts`), which reads
-  `settings.paymentProvider` and the active provider's key presence —
-  `settings.stripe.hasKey` / `square.hasToken` / `sumup.hasKey`. Those getters are
-  backed by the decrypted secret in the snapshot (`snap("stripe_secret_key") !==
-  ""`, etc. in `src/shared/db/settings.ts`), so omitting them would either fail
-  the per-path settings audit or make the preview see an empty key and return the
-  "no online payment" message instead of the same summary `/calculate` produces.
-  Two acceptable resolutions:
-
-  1. **Preferred:** expose a non-secret "payments configured" flag (a derived
-     boolean in the snapshot that does not require decrypting the provider
-     secret) and have both `isPaymentsEnabled()` and the preview read that. This
-     keeps the public endpoint from ever decrypting payment secrets.
-  2. **Fallback:** include `CONFIG_KEYS.PAYMENT_PROVIDER` plus the three provider
-     key settings (`STRIPE_SECRET_KEY`, `SQUARE_ACCESS_TOKEN`, `SUMUP_API_KEY`)
-     in the bundle for parity — still far narrower than `BOOKING_FLOW_SETTINGS`,
-     but it does decrypt the provider key to test presence.
-
-  `calculate` is over-broad for the same reasons; narrowing it to share this
-  quote bundle (and the presence flag) is a worthwhile follow-up, but the new
-  endpoint must start from the minimal set rather than inherit the full
-  booking-flow secrets.
-
-Request body:
-
-```json
-{
-  "items": [
-    {
-      "url": "https://tickets.example.com/ticket/workshop",
-      "quantity": 2
-    }
-  ]
-}
-```
-
-Response body:
-
-```json
-{
-  "ok": true,
-  "items": [
-    {
-      "url": "https://tickets.example.com/ticket/workshop",
-      "slug": "workshop",
-      "listingId": 12,
-      "name": "Workshop",
-      "quantity": 2,
-      "maxPurchasable": 8
-    }
-  ],
-  "summaryHtml": "<div class=\"table-scroll\">...</div>",
-  "continueUrl": "https://tickets.example.com/ticket/workshop?q_12=2"
-}
-```
-
-The endpoint resolves public listing URLs to active listings, normalizes
-quantities against current availability, prices the cart through the same
-quote path used by `/calculate/:slug`, and returns the same order-summary
-fragment rendered by `orderSummary`.
-
-If requested quantities exceed availability, the response should normalize the
-quantity down and include a user-facing message in `summaryHtml`. The client then
-updates its cart to match the server response.
-
-If a listing is closed, sold out, unknown, or from the wrong origin, the
-response omits it from `items` and includes a clear message in `summaryHtml`.
-The client removes omitted items from its cart.
-
-A **hidden (unlisted) but active** listing must stay addable when its exact
-ticket URL is supplied. `withActiveListings` filters only on `active`, not on
-`hidden` (`src/features/public/ticket-payment.ts`), and the public test suite
-asserts hidden listings remain reachable by their direct `/ticket/<slug>` URL
-(`test/lib/server-public.test.ts`). Removing them on the JS-enhanced path would
-break the progressive-enhancement promise — the no-JS `href` fallback to
-`/ticket/<slug>` is intentionally valid — and linking to a hidden listing from an
-external site is a likely use case. The preview must therefore treat an active
-hidden listing as valid when the request carries its exact URL, and resolve it
-the same way the canonical ticket page does. The widget never enumerates hidden
-listings; it only resolves the specific URL the owner placed in
-`data-add-listing`.
-
-If the selected cart needs more pricing inputs before an accurate quote is
-possible, for example a dated listing that needs a date, the response still
-returns a `continueUrl` and a message fragment such as:
+- For fixed-price listings the line total is `quantity × unitPrice`, displayed
+  with the server-formatted currency.
+- Variable-price listings (dated, pay-what-you-want, custom questions, or
+  customisable days) show "Price set at checkout" and are excluded from the
+  subtotal.
+- The subtotal is labelled to set expectations, e.g.:
 
 ```html
-<p class="order-summary-message">Continue to choose a date and see the final total.</p>
+<p class="order-summary-message">
+  Subtotal — final total, fees, and availability are confirmed at checkout.
+</p>
 ```
 
-Every field that v1 cannot submit must be deferred the same way as the date
-case, not treated as a hard error. Feeding the quantity-only body straight into
-the booking-form validation would error in several places, each of which the
-canonical page is designed to collect:
-
-- **Terms acceptance.** `prepareOrder` runs `validateFormState` first, which
-  returns "You must agree to the terms and conditions" whenever `ctx.terms` is
-  set and `agree_terms=1` is absent (`src/features/public/ticket-submit.ts`).
-- **Required custom questions / answer-priced inputs.** `prepareOrder` then runs
-  `parseQuestionAnswers({ optional: false })` over the active questions for the
-  selected listings.
-- **Pay-what-you-want prices.** `parseCustomPrices` rejects any selected paid
-  `can_pay_more` listing that lacks a `custom_price_<id>` value.
-- **Required date.** A dated listing with no submitted date.
-- **Customisable day counts.** `resolveDayCount` returns "Please choose how many
-  days to book" for a selected `customisable_days` listing with no `day_count`.
-
-Since v1 sends only `quantity_<listingId>` fields and renders none of these
-controls, the preview quote function must detect when a selected listing needs
-any of them, skip that strict validation, and return a `continueUrl` plus a
-deferral message — exactly like the missing-date case. The visitor then supplies
-terms agreement, answers, and custom prices on the canonical ticket page.
-
-The first version does not render date, question, add-on, promo-code, or
-pay-what-you-want controls inside the external widget. Those remain on the
-canonical ticket page.
-
-## Pricing Reuse
-
-Do not duplicate checkout math in the widget endpoint.
-
-Refactor the current `/calculate/:slug` flow so both `/calculate/:slug` and
-`/external-order/preview` call the same internal quote function:
-
-```text
-selected listings + form-like pricing fields
-  -> prepareOrder
-  -> checkSoldOutTiers
-  -> checkAvailability
-  -> orderSummary / orderSummaryMessage
-```
-
-The external endpoint builds a form-like input from cart items:
-
-```text
-quantity_<listingId>=<quantity>
-```
-
-It may include future optional pricing fields, but v1 only sends quantities.
-No PII fields are accepted or needed.
-
-The shared quote function needs a lenient "preview" mode so the quantity-only
-body does not trip the booking form's strict validation. `prepareOrder` today
-runs `validateFormState` (terms), `parseQuestionAnswers({ optional: false })`,
-`resolveDayCount` (customisable days), `parseCustomPrices` (pay-what-you-want),
-and a required-date check before it will price. In preview mode the function must
-instead detect every input the v1 body cannot supply — terms acceptance,
-required questions, answer-priced fields, pay-what-you-want prices, customisable
-day counts, or a required date — and return a deferral result (Continue URL +
-message) rather than an error. The extraction should keep
-`/calculate/:slug` behaviour identical while exposing this preview-tolerant entry
-point for the widget.
+This deliberately avoids replicating the booking engine (tiers, fees, rounding,
+sold-out logic) in JavaScript. The single source of truth for the authoritative
+total is the canonical ticket page, which the visitor reaches via Continue. The
+only shared concern is the *displayed unit price*, and that is solved by
+formatting `priceLabel` server-side with the existing money helper when building
+the catalog — so the widget shows the same number `/ticket` shows, without
+owning the logic.
 
 ## Continue URL
 
-The external Continue button navigates the top-level window to the returned
-`continueUrl`.
-
-The URL is the canonical ticket page with quantities pre-filled:
+The external Continue button navigates the top-level window to the canonical
+ticket page with quantities pre-filled. The client builds the URL from the
+catalog using selected slugs and ids:
 
 ```text
 https://tickets.example.com/ticket/workshop+meal?q_12=2&q_13=1
@@ -484,42 +360,50 @@ https://tickets.example.com/ticket/workshop+meal?q_12=2&q_13=1
 
 This mirrors the existing `/order` gallery handoff: the external page selects a
 cart, then the ticket page collects attendee details, required fields, terms,
-and payment through the normal booking form.
+pay-what-you-want prices, dates, day counts, and payment through the normal
+booking form — i.e. everything the widget deliberately defers.
 
 The external widget must not submit directly to `/ticket/:slug` because it does
-not hold a CSRF token and does not collect the full booking form.
+not hold a CSRF token and does not collect the full booking form. It only
+navigates there.
 
 ## Error Handling
 
-Client-side failures:
+Client-side only — there is no server endpoint to fail:
 
 - If the module cannot parse a link, leave the link as a normal link.
-- If preview fetch fails, keep the cart and show a compact retry message.
+- If a `data-add-listing` slug is not in the catalog, leave the link alone.
 - If storage is unavailable, keep an in-memory cart for the current page.
-- If the server returns `403`, disable enhanced behaviour and leave existing
-  links usable.
+- If the module is blocked (disallowed origin / CORS), it never evaluates, so
+  the marked links simply work as ordinary links.
 
-Server-side failures:
+Server-side, the only failure surface is rendering `/order.js`:
 
-- Return `400` for malformed JSON or invalid item shapes.
-- Return `403` for disallowed origins.
-- Return `200` with an order-summary message for normal cart problems such as
-  sold-out listings, missing listings, or no selected items.
-- Never expose stack traces, decrypted settings, or private listing data.
+- Never expose stack traces, decrypted settings, or private listing data in the
+  module body.
+- Build the catalog with existing escaping/serialization helpers so listing
+  names cannot break out of the embedded JSON/JS.
 
 ## Security And Privacy
 
-- The preview endpoint is read-only and creates no reservations.
-- The preview endpoint ignores cookies and does not authenticate as an admin or
-  attendee.
-- The request body contains public listing URLs and quantities only.
-- No PII is stored by the widget.
-- The server must build all summary HTML with existing escaping/rendering
-  helpers.
+- There is no new server endpoint. `/order.js` is a read-only, public,
+  catalog-bearing asset.
+- The catalog contains only public listing data (slug, id, name, formatted
+  price) for active, **listed** listings — the same data the public listings
+  page already exposes.
+- Hidden/unlisted listings are never embedded, so the module cannot be used to
+  enumerate them. A `data-add-listing` pointing at a hidden listing is simply not
+  enhanced; its `href` still opens the real ticket page (the listing remains
+  reachable by its exact URL, exactly as today). This preserves the
+  progressive-enhancement promise without making unlisted listings discoverable.
+- No cookies are read or set; `sessionStorage` holds slugs and quantities only.
+- `embed_hosts` gates module loading via CORS on a module script. This prevents
+  arbitrary sites from embedding the widget, though it gates no private data.
 - The allowlist check uses the request `Origin` header, not `Referer`.
-- For `OPTIONS`, validate the requested origin before returning CORS headers.
 - Keep `frame-ancestors` on ticket pages exactly as strict as the owner setting
   requires.
+- `generatedAt` is not a security token; do not treat module freshness as an
+  authorization signal.
 
 ## Compatibility
 
@@ -543,40 +427,32 @@ They should not share global state.
 
 Server tests:
 
-- Allowed origin receives CORS headers for `/order.js`.
-- Disallowed origin receives no permissive CORS headers.
-- `OPTIONS /external-order/preview` validates origin and headers.
-- A `POST /external-order/preview` with `Content-Type: application/json` passes
-  the content-type guard (the new prefix is recognised as a JSON API).
-- Preview rejects malformed JSON with `400`.
-- Preview rejects disallowed origins with `403`.
-- Preview resolves a public listing URL to the correct listing id and slug.
-- Preview returns the same `orderSummary` fragment as `/calculate` for a simple
-  quantity-only cart.
-- Preview normalizes over-large quantities and reports the normalization.
-- Continue URL uses canonical slugs and `q_<listingId>` quantities.
-- Closed, sold-out, and unknown listings are not silently accepted.
-- An active hidden listing is accepted when its exact ticket URL is supplied.
-- A listing requiring terms, custom questions, pay-what-you-want price, a date,
-  or a customisable day count returns a Continue URL and deferral message rather
-  than an error.
-- A preview request loads only the quote-specific settings bundle, not the
-  email/wallet/webhook secrets in the booking-flow set.
-- A preview on a site with a configured payment provider returns the same
-  order summary as `/calculate` (payment-enabled parity), without depending on
-  email or unrelated payment sub-settings.
+- `/order.js` for an allowed origin sends `Access-Control-Allow-Origin`,
+  `Vary: Origin`, and a non-cacheable `Cache-Control`, and embeds the catalog.
+- `/order.js` for a disallowed origin sends no permissive CORS header.
+- The embedded catalog includes active listed listings with id, slug, name, and
+  a server-formatted `priceLabel`.
+- Hidden/unlisted and inactive listings are excluded from the catalog.
+- Embedded `priceLabel` matches the canonical `/ticket` price for the same
+  listing (shared money formatter).
+- Listings that defer pricing (dated, PWYW, questions, customisable days) are
+  flagged `variablePrice: true`.
+- Rendering `/order.js` loads only the `[EMBED_HOSTS, COUNTRY]` settings bundle,
+  not payment/email/wallet/SMS secrets.
+- Listing names with quotes/markup are safely escaped in the embedded catalog.
 
 Client tests:
 
 - Multiple identical module executions create one cart button.
-- Links are enhanced only when `data-add-listing` is valid for the module
-  origin.
+- Links are enhanced only when `data-add-listing` resolves to a catalog slug at
+  the module origin; unknown and hidden slugs are left as plain links.
 - Clicks prevent default only for enhanced links.
 - Re-clicking the same link increments quantity.
 - The cart survives same-tab page navigation through `sessionStorage`.
-- Quantity changes debounce preview refresh.
-- Server-normalized item quantities update client state.
-- The Continue button navigates to the server-returned URL.
+- The indicative subtotal sums fixed-price line totals and excludes
+  variable-price items, which show "Price set at checkout".
+- The Continue button builds and navigates to
+  `/ticket/<slugs>?q_<id>=<qty>` from the catalog.
 - The dialog meets keyboard basics: focus enters, Escape closes, focus returns.
 
 End-to-end browser test:
@@ -585,7 +461,8 @@ End-to-end browser test:
 - Load `/order.js` as a module.
 - Click two external `data-add-listing` links.
 - Assert the floating cart appears with count 2.
-- Open the preview and assert the order summary contains the priced total.
+- Open the preview and assert the indicative subtotal is shown with the
+  checkout caveat.
 - Click Continue and assert the browser reaches `/ticket/<slugs>` with the
   expected `q_<listingId>` query params.
 
@@ -595,29 +472,26 @@ End-to-end browser test:
    access, keeping the `embed_hosts` storage key.
 2. Add shared allowed-origin/CORS helpers on top of `parseEmbedHosts` and
    `buildFrameAncestors`.
-3. Add an ESM `order.js` bundle (`format: "esm"`) and serve `/order.js` from a
-   settings-aware handler (after settings load) with origin-gated CORS headers
-   and a no-store / short cache, not the immutable static asset path.
-4. Extract the current quote rendering behind `/calculate/:slug` into a shared
-   read-only quote function with a preview-tolerant mode that defers every input
-   v1 cannot submit — terms acceptance, required questions, answer-priced fields,
-   pay-what-you-want prices, customisable day counts, and required dates —
-   instead of erroring.
-5. Add `POST /external-order/preview` under its own prefix (not `/api`). Register
-   the prefix in `isJsonApiPath` (so the JSON body passes the content-type guard)
-   and in `PREFIX_SETTINGS` with a quote-specific bundle (country, booking fee,
-   terms flag, embed_hosts, and a payment-enabled signal for `isPaymentsEnabled`
-   parity) — not the booking-flow set, and excluding the email/wallet/webhook
-   secrets. Prefer a non-secret payments-configured flag over decrypting the
-   provider keys. Give the `order.js` route prefix its own `[EMBED_HOSTS]`
-   `PREFIX_SETTINGS` entry as well.
-6. Build `src/ui/client/order.ts` with singleton link scanning, cart state,
-   preview dialog, and Continue navigation.
-7. Add owner-facing snippet text to the settings or listing admin UI.
-8. Add the server, client, and e2e tests above.
+3. Add the dynamic `/order.js` handler: runs after settings load, gates CORS on
+   `embed_hosts` with `Vary: Origin` and `no-store`, and registers the `order.js`
+   prefix in `PREFIX_SETTINGS` as `[EMBED_HOSTS, COUNTRY]`.
+4. Build the embedded catalog from public listed listings, reusing the existing
+   listing-load and money-format helpers; exclude hidden/inactive listings and
+   flag `variablePrice` ones. Escape via existing serialization helpers.
+5. Build `src/ui/client/order.ts` (ESM): catalog-driven link scanning, singleton
+   guard, `sessionStorage` cart, indicative subtotal, preview dialog, and
+   Continue navigation. Compose the served module from this bundle plus the
+   injected catalog.
+6. Add owner-facing snippet text to the settings or listing admin UI.
+7. Add the server, client, and e2e tests above.
 
 ## Future Extensions
 
+- **Authoritative pricing (opt-in).** If exact totals, fees, or live availability
+  are ever needed inside the widget, add an opt-in server quote endpoint that
+  reuses the `/calculate` quote path. This was considered for v1 and dropped in
+  favour of the AJAX-free embedded-catalog design; it remains the documented
+  escape hatch if indicative pricing proves insufficient.
 - `data-add-date` or a widget-level date selector for dated listings.
 - Support for pay-what-you-want inputs in the external preview.
 - Support for add-ons and promo codes in the external preview.
