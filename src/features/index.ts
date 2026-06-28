@@ -14,6 +14,7 @@ import {
   isValidContentType,
   isWebhookPath,
 } from "#routes/middleware.ts";
+import { handleOrderJs } from "#routes/public/order-js.ts";
 import {
   databaseBusyResponse,
   htmlResponse,
@@ -423,6 +424,13 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
     CONFIG_KEYS.ORDER_INTRO_TEXT,
     CONFIG_KEYS.COUNTRY,
   ],
+  // External order library module: enable flag + embed allow-list (CORS) +
+  // country (currency for the embedded prices). No public nav, no secrets.
+  "order.js": [
+    CONFIG_KEYS.EXTERNAL_ORDER_ENABLED,
+    CONFIG_KEYS.EMBED_HOSTS,
+    CONFIG_KEYS.COUNTRY,
+  ],
   // --- Checkout / payment (bare layout, no public nav) ---
   pay: PAYMENT_SETTINGS,
   payment: [...PAYMENT_SETTINGS, ...EMAIL_SETTINGS],
@@ -609,6 +617,10 @@ const prefixHandlers: Record<string, RouterFn> = {
   instance: lazyRoute(loadInstanceRoutes),
   join: lazyRoute(loadJoinRoutes),
   order: lazyRoute(loadOrderRoutes),
+  "order.js": (request, path, method) =>
+    path === "/order.js" && method === "GET"
+      ? handleOrderJs(request)
+      : Promise.resolve(null),
   pay: lazyRoute(loadBalanceRoutes),
   payment: lazyRoute(loadPaymentRoutes),
   "read-only": (_request, path, method) =>

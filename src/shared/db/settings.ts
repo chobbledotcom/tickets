@@ -108,6 +108,7 @@ export const CONFIG_KEYS = {
   EMAIL_TPL_CONFIRMATION_SUBJECT: "email_tpl_confirmation_subject",
   EMAIL_TPL_CONFIRMATION_TEXT: "email_tpl_confirmation_text",
   EMBED_HOSTS: "embed_hosts",
+  EXTERNAL_ORDER_ENABLED: "external_order_enabled",
   GOOGLE_WALLET_ISSUER_ID: "google_wallet_issuer_id",
   GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: "google_wallet_service_account_email",
   GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: "google_wallet_service_account_key",
@@ -381,6 +382,7 @@ type SpecificFields = {
   underline_links: boolean;
   show_public_site: boolean;
   show_public_api: boolean;
+  external_order_enabled: boolean;
   calendar_feeds_enabled: boolean;
   calendar_feeds_group_by: string;
   contact_form_enabled: boolean;
@@ -410,6 +412,7 @@ const data: SettingsData = {
   contact_form_enabled: false,
   country: DEFAULT_COUNTRY,
   currency: "GBP",
+  external_order_enabled: false,
   has_logistics: false,
   order_enabled: false,
   orphan_purge_retention: DEFAULT_ORPHAN_RETENTION,
@@ -727,6 +730,9 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
   },
   [CONFIG_KEYS.SHOW_PUBLIC_API]: (raw) => {
     data.show_public_api = raw === "true";
+  },
+  [CONFIG_KEYS.EXTERNAL_ORDER_ENABLED]: (raw) => {
+    data.external_order_enabled = raw === "true";
   },
   [CONFIG_KEYS.CALENDAR_FEEDS_ENABLED]: (raw) => {
     data.calendar_feeds_enabled = raw === "true";
@@ -1124,6 +1130,9 @@ const settingsBase = {
       };
     },
   },
+  get externalOrderEnabled(): boolean {
+    return snap("external_order_enabled");
+  },
   /** Read a raw (possibly encrypted) value from the cache. */
   getCachedRaw: getRawCached,
 
@@ -1313,6 +1322,10 @@ const settingsBase = {
         setSnapshotField(key, content);
       },
     },
+    externalOrderEnabled: boolUpdate(
+      CONFIG_KEYS.EXTERNAL_ORDER_ENABLED,
+      "external_order_enabled",
+    ),
     // --- Google Wallet writes ---
     googleWallet: createGoogleWalletUpdateSettings(encryptedUpdate),
     hasLogistics: boolUpdate(CONFIG_KEYS.HAS_LOGISTICS, "has_logistics"),

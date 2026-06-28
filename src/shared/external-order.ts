@@ -29,10 +29,7 @@ const originHostname = (origin: string): string | null => {
  * `*.` wildcard prefix (`*.example.com` matches `a.example.com` but not the
  * bare apex `example.com`). Patterns are assumed already lowercased by
  * `parseEmbedHosts`. */
-export const matchesHostPattern = (
-  hostname: string,
-  pattern: string,
-): boolean => {
+const matchesHostPattern = (hostname: string, pattern: string): boolean => {
   if (pattern.startsWith("*.")) {
     const suffix = pattern.slice(1); // ".example.com"
     return hostname.endsWith(suffix) && hostname.length > suffix.length;
@@ -40,13 +37,8 @@ export const matchesHostPattern = (
   return hostname === pattern;
 };
 
-/** Is the request origin allowed by the embed-hosts allow-list? An empty list
- * means "allow any site" (the existing embed semantics). */
-export const isOriginAllowed = (
-  origin: string | null,
-  hosts: string[],
-): boolean => {
-  if (hosts.length === 0) return true;
+/** Is the request origin's host in the (non-empty) allow-list? */
+const isHostnameAllowed = (origin: string | null, hosts: string[]): boolean => {
   if (!origin) return false;
   const hostname = originHostname(origin);
   if (hostname === null) return false;
@@ -55,15 +47,15 @@ export const isOriginAllowed = (
 
 /** The `Access-Control-Allow-Origin` value to send, or null to omit the header
  * (which makes the browser refuse to evaluate the cross-origin module):
- * - empty allow-list → `*` (any site);
+ * - empty allow-list → `*` (any site, the existing embed semantics);
  * - allowed origin → the echoed origin;
- * - disallowed origin → null. */
+ * - disallowed or missing origin → null. */
 export const resolveAllowOrigin = (
   origin: string | null,
   hosts: string[],
 ): string | null => {
   if (hosts.length === 0) return "*";
-  return origin && isOriginAllowed(origin, hosts) ? origin : null;
+  return isHostnameAllowed(origin, hosts) ? origin : null;
 };
 
 // ---------------------------------------------------------------------------
@@ -71,8 +63,7 @@ export const resolveAllowOrigin = (
 // ---------------------------------------------------------------------------
 
 /** A listing the visitor can add to the cart. */
-export interface BookableCatalogListing {
-  bookable: true;
+export interface CatalogListing {
   id: number;
   slug: string;
   name: string;
@@ -82,16 +73,6 @@ export interface BookableCatalogListing {
    * pay-what-you-want), so the widget shows "Price set at checkout". */
   variablePrice: boolean;
 }
-
-/** A closed (inactive) listing — present only so the widget can tell the
- * visitor it is not bookable instead of navigating them to the ticket page. */
-export interface ClosedCatalogListing {
-  bookable: false;
-  slug: string;
-  name: string;
-}
-
-export type CatalogListing = BookableCatalogListing | ClosedCatalogListing;
 
 export interface Catalog {
   origin: string;
@@ -112,33 +93,26 @@ type VariablePriceFields = Pick<
  * variable here: the widget total is explicitly indicative (a lower bound), and
  * loading every listing's question/modifier graph on each public module fetch
  * is not worth it — the checkout caveat covers the difference. */
-export const isVariablePrice = (listing: VariablePriceFields): boolean =>
+const isVariablePrice = (listing: VariablePriceFields): boolean =>
   listing.listing_type === "daily" ||
   listing.customisable_days ||
   listing.can_pay_more;
 
-/** Build the catalog entry for one listing. Active listings are bookable and
- * carry pricing; closed (inactive) listings carry only slug + name.
- *
- * Note: `bookable` reflects the stable owner `active` toggle only. Time-window
- * (`closes_at`) and capacity (sold-out) states are deliberately not evaluated
- * here — like the indicative subtotal, those availability checks are resolved
- * authoritatively at the canonical ticket page. */
-export const buildCatalogEntry = (listing: Listing): CatalogListing =>
-  listing.active
-    ? {
-        bookable: true,
-        id: listing.id,
-        name: listing.name,
-        slug: listing.slug,
-        unitPrice: listing.unit_price,
-        variablePrice: isVariablePrice(listing),
-      }
-    : { bookable: false, name: listing.name, slug: listing.slug };
+const buildCatalogEntry = (listing: Listing): CatalogListing => ({
+  id: listing.id,
+  name: listing.name,
+  slug: listing.slug,
+  unitPrice: listing.unit_price,
+  variablePrice: isVariablePrice(listing),
+});
 
-/** Build the full catalog from the site's listings. Hidden/unlisted listings
- * are excluded (they must not be enumerable); every non-hidden listing —
- * active or closed — is included, keyed by slug. */
+/** Build the catalog from the site's listings. Only **active, non-hidden**
+ * listings are included — the same set the public `/order` and `/listings`
+ * pages expose, and the only set whose `/ticket/:slug` page does not 404
+ * (`withActiveListings` drops inactive listings). Hidden listings must not be
+ * enumerable; inactive listings 404 by direct URL today, so embedding their
+ * slug/name would leak otherwise-private names. A `data-add-listing` to a
+ * listing outside this set is simply not enhanced and keeps its plain `href`. */
 export const buildCatalog = (params: {
   origin: string;
   currency: string;
@@ -151,7 +125,7 @@ export const buildCatalog = (params: {
   generatedAt: params.generatedAt,
   listings: Object.fromEntries(
     params.listings
-      .filter((listing) => !listing.hidden)
+      .filter((listing) => listing.active && !listing.hidden)
       .map((listing) => [listing.slug, buildCatalogEntry(listing)]),
   ),
   origin: params.origin,
