@@ -66,6 +66,8 @@
   "settings.advanced.warning": "Be careful changing settings on this page. You can break your site in ways that can be hard to diagnose. Test your booking process after making a change.",
   "settings.advanced.public_api": "Enable public API?",
   "settings.advanced.public_api_hint": "Exposes a JSON API for listing listings, checking availability, and creating bookings. See the API guide for details.",
+  "settings.advanced.external_order": "Enable external order buttons?",
+  "settings.advanced.external_order_hint": "Lets you turn links on other websites into add-to-cart buttons via /order.js. This publishes your public listing catalogue (names, slugs and prices) to the allowed embed hosts, so only enable it if you are happy for that list to be readable on those sites.",
   "settings.advanced.apple_wallet": "Apple Wallet",
   "settings.advanced.apple_wallet_hint": "Configure Apple Wallet pass signing to show an 'Add to Apple Wallet' button on ticket pages.",
   "settings.advanced.apple_pass_type_id": "Pass Type ID",
