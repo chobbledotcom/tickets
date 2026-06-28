@@ -185,10 +185,14 @@ Note `import.meta.url` is **not** relied on for origin — the catalog carries
 
 ## Embedded Catalog
 
-At serve time the handler reads the site's public, **listed** listings —
-`loadSortedListings(e => e.active && !e.hidden)`, the same predicate the `/order`
-and public listings pages use (`src/features/public/order.ts`,
-`src/features/public/pages.ts`) — and serializes a small catalog into the module:
+At serve time the handler reads the site's **non-hidden** listings —
+`loadSortedListings(e => !e.hidden)` — and serializes a small catalog into the
+module. This is one step broader than the `/order` and public listings pages,
+which use `e.active && !e.hidden` (`src/features/public/order.ts`,
+`src/features/public/pages.ts`): we also include *closed* (inactive) listings so
+the widget can tell a visitor a listing isn't bookable rather than silently
+sending them to the ticket page (see Browser Behaviour). Hidden listings are
+still excluded.
 
 ```js
 // Prepended to the module body at request time
@@ -202,6 +206,7 @@ const CATALOG = {
       id: 12,
       slug: "workshop",
       name: "Workshop",
+      bookable: true,             // = listing.active
       unitPrice: 1500,            // minor units (pence)
       variablePrice: false,
     },
@@ -209,8 +214,14 @@ const CATALOG = {
       id: 13,
       slug: "meal",
       name: "Meal",
+      bookable: true,
       unitPrice: 2000,            // minimum for PWYW; a "from" price
       variablePrice: true,        // requires a checkout-only input (see below)
+    },
+    "last-years-show": {
+      slug: "last-years-show",
+      name: "Last Year's Show",
+      bookable: false,            // closed (active === false); price fields omitted
     },
   },
 };
@@ -246,10 +257,14 @@ Rules:
   indicative subtotal. A *required but non-priced* question does **not** set
   `variablePrice` — the price is still known; the answer is just collected at
   checkout like everything else the widget defers.
-- **Only active, listed listings are included** (`active && !hidden`).
-  Hidden/unlisted listings (privacy) and inactive/closed listings (unbookable)
-  are omitted; a `data-add-listing` to either falls back to its plain `href`
-  (see [Security And Privacy](#security-and-privacy)).
+- Every entry carries `bookable` (= the listing's `active` flag). Bookable
+  entries also carry `unitPrice` and `variablePrice`; closed (`bookable: false`)
+  entries carry only `slug` and `name` — enough to intercept the click with a
+  "not bookable" notice (see Browser Behaviour). Their price fields are omitted.
+- **All non-hidden listings are included**; hidden/unlisted listings are omitted
+  for privacy (see [Security And Privacy](#security-and-privacy)). A
+  `data-add-listing` to a hidden or unknown listing isn't enhanced and falls back
+  to its plain `href`.
 - `generatedAt` is informational. The catalog can go stale between page loads;
   that is accepted (listings change slowly and a page refresh re-fetches the
   module). It is **not** a signed token and the module never refetches to
@@ -309,11 +324,12 @@ On module evaluation:
 1. Read the tickets origin and catalog from the embedded `CATALOG`.
 2. Register a singleton cart controller for that origin.
 3. Load any stored cart and **reconcile it against the current catalog**: drop
-   stored slugs that are no longer present (the owner hid, deactivated, renamed,
-   or removed the listing since the cart was saved). Only catalog-resolved items
-   survive — this keeps the count, subtotal, and Continue URL consistent, since
-   the Continue URL is built from current catalog slugs and ids and a dropped
-   slug has no id. If items were dropped, surface a brief notice in the preview.
+   stored slugs that are no longer present, or whose entry is now
+   `bookable: false` (the owner hid, removed, or closed the listing since the
+   cart was saved). Only bookable catalog items survive — this keeps the count,
+   subtotal, and Continue URL consistent, since the Continue URL is built from
+   current catalog slugs and ids and a dropped slug has no id. If items were
+   dropped, surface a brief notice in the preview.
 4. Scan the document for `a[data-add-listing]`.
 5. Attach click handlers to links whose listing is in the catalog.
 6. Start a `MutationObserver` so links added after page load are enhanced.
@@ -333,10 +349,17 @@ console warning; production should avoid noisy logs on owner sites.
 When a visitor clicks an enhanced link:
 
 1. Prevent default navigation.
-2. Add the listing to the cart, incrementing quantity if already present.
-3. Reveal or update the floating cart button.
-4. Briefly animate the cart button to acknowledge the add.
-5. Recompute the indicative subtotal locally if the preview panel is open.
+2. If the catalog entry is **not bookable** (closed), show a brief accessible
+   notice such as "Last Year's Show isn't available to book right now" and stop —
+   do not add to the cart and do not navigate. There is no point sending the
+   visitor to the ticket page only to learn the same thing. (Live availability,
+   e.g. sold-out, is still resolved at checkout; only the stable closed/`active`
+   state is intercepted here.)
+3. Otherwise add the listing to the cart, incrementing quantity if already
+   present.
+4. Reveal or update the floating cart button.
+5. Briefly animate the cart button to acknowledge the add.
+6. Recompute the indicative subtotal locally if the preview panel is open.
 
 The cart is stored in `sessionStorage`, keyed by tickets origin:
 
@@ -456,8 +479,10 @@ Server-side, the only failure surface is rendering `/order.js`:
 - There is no new server endpoint. `/order.js` is a read-only, public,
   catalog-bearing asset.
 - The catalog contains only public listing data (slug, id, name, minor-unit unit
-  price) for active, **listed** listings (`active && !hidden`) — the same data the
-  public listings page already exposes.
+  price) for all **non-hidden** listings — both active and closed. Closed
+  listings carry only slug + name. This is all already-public data: closed
+  listings are reachable by direct link today, so embedding their slug/name
+  exposes nothing new.
 - Hidden/unlisted listings are never embedded, so the module cannot be used to
   enumerate them. A `data-add-listing` pointing at a hidden listing is simply not
   enhanced; its `href` still opens the real ticket page (the listing remains
@@ -498,8 +523,11 @@ Server tests:
   `Vary: Origin`, and a non-cacheable `Cache-Control`, and embeds the catalog.
 - `/order.js` for a disallowed origin sends no permissive CORS header.
 - The embedded catalog includes active listed listings with id, slug, name,
-  minor-unit `unitPrice`, and the `currency`/`decimalPlaces` descriptor.
-- Hidden/unlisted and inactive (`active === false`) listings are excluded.
+  minor-unit `unitPrice`, `bookable: true`, and the `currency`/`decimalPlaces`
+  descriptor.
+- Closed (`active === false`, non-hidden) listings are included with
+  `bookable: false` and only slug + name (no price fields).
+- Hidden/unlisted listings are excluded entirely.
 - `variablePrice` is set for a `daily` listing, a `customisable_days` listing, a
   `can_pay_more` listing, and a listing with a required answer-priced question;
   it is **not** set for a fixed-price listing that merely has a non-priced
@@ -518,8 +546,10 @@ Client tests:
 - Clicks prevent default only for enhanced links.
 - Re-clicking the same link increments quantity.
 - The cart survives same-tab page navigation through `sessionStorage`.
-- A stored slug absent from the current catalog is dropped on load, and Continue
-  is hidden when no catalog-resolved item remains.
+- A stored slug absent from the catalog, or now `bookable: false`, is dropped on
+  load, and Continue is hidden when no bookable item remains.
+- Clicking a closed (`bookable: false`) listing's link shows a "not bookable"
+  notice and neither navigates nor adds to the cart.
 - The indicative subtotal sums fixed-price line totals (formatted client-side)
   and excludes variable-price items, which show "Price set at checkout".
 - Client-formatted prices match the server's `formatCurrency` output for the
@@ -548,18 +578,20 @@ End-to-end browser test:
 3. Add the dynamic `/order.js` handler: runs after settings load, gates CORS on
    `embed_hosts` with `Vary: Origin` and `no-store`, and registers the `order.js`
    prefix in `PREFIX_SETTINGS` as `[EMBED_HOSTS, COUNTRY]`.
-4. Build the embedded catalog via `loadSortedListings(e => e.active && !e.hidden)`;
-   emit id, slug, name, minor-unit `unitPrice`, and a top-level
+4. Build the embedded catalog via `loadSortedListings(e => !e.hidden)`; emit each
+   entry's slug, name, and `bookable` (= `active`), plus id, minor-unit
+   `unitPrice`, and `variablePrice` for bookable ones, and a top-level
    `currency`/`decimalPlaces` descriptor (from `settings.currency` /
    `getDecimalPlaces`). Compute `variablePrice` from `listing_type === "daily"`,
    `customisable_days`, `can_pay_more`, or a required answer-priced question.
    Escape via existing serialization helpers.
 5. Build `src/ui/client/order.ts` (ESM, with a top-level `export {}` so it cannot
    run as a classic script): catalog-driven link scanning, singleton guard,
-   `sessionStorage` cart with on-load reconciliation against the catalog,
-   client-side currency formatting mirroring `formatCurrency`, indicative
-   subtotal, preview dialog, and Continue navigation. Compose the served module
-   from this bundle plus the injected catalog.
+   not-bookable notice for closed listings, `sessionStorage` cart with on-load
+   reconciliation (drop absent or non-bookable slugs), client-side currency
+   formatting mirroring `formatCurrency`, indicative subtotal, preview dialog, and
+   Continue navigation. Compose the served module from this bundle plus the
+   injected catalog.
 6. Add owner-facing snippet text to the settings or listing admin UI.
 7. Add the server, client, and e2e tests above.
 
