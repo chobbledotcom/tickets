@@ -34,6 +34,11 @@ import {
 } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
+  hasAnyListingDefault,
+  type ListingDefaults,
+  listingDefaultFormClasses,
+} from "#shared/listing-defaults.ts";
+import {
   inferTemplate,
   LISTING_TEMPLATES,
   type ListingTemplate,
@@ -1536,6 +1541,62 @@ const listingToFieldValues = (listing: ListingWithCount): FieldValues =>
     slug: listing.slug,
   });
 
+const checkboxValue = (on: boolean): string => (on ? "1" : "");
+
+/**
+ * The configured defaults rendered as listing-form field values, so a fresh
+ * create form pre-fills the fields the operator has set a default for (these are
+ * the values the "Use defaults" switch hides and the listing will inherit).
+ */
+const defaultsToFieldValues = (defaults: ListingDefaults): FieldValues => {
+  const values: FieldValues = {};
+  if (defaults.usesLogistics !== undefined) {
+    values.uses_logistics = checkboxValue(defaults.usesLogistics);
+  }
+  if (defaults.bookableDays !== undefined) {
+    values.bookable_days = defaults.bookableDays.join(",");
+  }
+  if (defaults.minimumDaysBefore !== undefined) {
+    values.minimum_days_before = String(defaults.minimumDaysBefore);
+  }
+  if (defaults.maximumDaysAfter !== undefined) {
+    values.maximum_days_after = String(defaults.maximumDaysAfter);
+  }
+  if (defaults.durationDays !== undefined) {
+    values.duration_days = String(defaults.durationDays);
+  }
+  if (defaults.customisableDays !== undefined) {
+    values.customisable_days = checkboxValue(defaults.customisableDays);
+  }
+  if (defaults.webhookUrl !== undefined) {
+    values.webhook_url = defaults.webhookUrl;
+  }
+  if (defaults.thankYouUrl !== undefined) {
+    values.thank_you_url = defaults.thankYouUrl;
+  }
+  if (defaults.hidden !== undefined) {
+    values.hidden = checkboxValue(defaults.hidden);
+  }
+  return values;
+};
+
+/**
+ * Combine the template-mode classes (if any) with one marker class per set
+ * default, so both the Customise hide and the Use-defaults hide can apply.
+ */
+const listingFormClassFor = (
+  template: ListingTemplate | null,
+  defaults: ListingDefaults,
+): string | undefined => {
+  const classes = [
+    template ? listingFormClass(template) : "",
+    listingDefaultFormClasses(defaults),
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return classes || undefined;
+};
+
 export const listingAggregateToFieldValues = (
   listing: ListingWithCount,
 ): FieldValues => ({
@@ -1889,6 +1950,8 @@ const ListingFormSections = ({
   childOfNote = "",
   customiseOpen,
   isTemplated,
+  showUseDefaults = false,
+  useDefaultsChecked = false,
 }: {
   fields: Field[];
   values: FieldValues;
@@ -1908,6 +1971,10 @@ const ListingFormSections = ({
   customiseOpen: boolean;
   /** True when a named template is active and dimension toggles should be hideable. */
   isTemplated: boolean;
+  /** Whether the operator has set any listing defaults (renders the toggle). */
+  showUseDefaults?: boolean;
+  /** Whether "Use defaults" starts checked (hiding the defaulted fields). */
+  useDefaultsChecked?: boolean;
 }): JSX.Element => {
   const fieldMap = new Map<string, Field>(fields.map((f) => [f.name, f]));
   const sec = (names: readonly string[]): string =>
@@ -1925,6 +1992,20 @@ const ListingFormSections = ({
           />
           {t("listings_table.customise")}{" "}
           <small>{t("listings_table.customise_hint")}</small>
+        </label>
+      )}
+
+      {showUseDefaults && (
+        <label class="listing-use-defaults-toggle">
+          <input
+            checked={useDefaultsChecked}
+            id="use-defaults"
+            name="use_defaults"
+            type="checkbox"
+            value="1"
+          />
+          {t("listing_defaults.use_defaults_toggle")}{" "}
+          <small>{t("listing_defaults.use_defaults_hint")}</small>
         </label>
       )}
 
@@ -2018,13 +2099,25 @@ export const adminListingNewPage = (
   ];
   const template = LISTING_TEMPLATES.find((t) => t.id === templateId) ?? null;
   const seeds = templateId ? (TEMPLATE_SEEDS[templateId] ?? {}) : {};
+  const defaults = settings.listingDefaults;
+  const showUseDefaults = hasAnyListingDefault(defaults);
+  // New listings start on the defaults (the spec's "which it will be for new
+  // listings, if there are any default set"); a POST error re-render honours
+  // whatever the operator submitted instead.
+  const useDefaultsChecked = submitted
+    ? submitted.use_defaults === "1"
+    : showUseDefaults;
+  const newValues = submitted ?? {
+    ...seeds,
+    ...defaultsToFieldValues(defaults),
+  };
   return String(
     <Layout title={t("listings_table.add_listing")}>
       <AdminNav active="/admin/" session={session} />
 
       <CsrfForm
         action="/admin/listing"
-        class={template ? listingFormClass(template) : undefined}
+        class={listingFormClassFor(template, defaults)}
         enctype="multipart/form-data"
       >
         <h1>{t("listings_table.add_listing")}</h1>
@@ -2048,7 +2141,9 @@ export const adminListingNewPage = (
           imagePreview=""
           isTemplated={!!template}
           selectedGroupId={Number(submitted?.group_id) || 0}
-          values={submitted ?? seeds}
+          showUseDefaults={showUseDefaults}
+          useDefaultsChecked={useDefaultsChecked}
+          values={newValues}
         />
         <SubmitButton icon="plus">
           {t("listings_table.create_listing")}
@@ -2083,6 +2178,8 @@ export const adminDuplicateListingPage = (
     ...(storageEnabled ? [getImageField(), getAttachmentField()] : []),
   ];
   const template = inferTemplate(listing);
+  const defaults = settings.listingDefaults;
+  const showUseDefaults = hasAnyListingDefault(defaults);
   return String(
     <Layout
       title={t("listings_table.duplicate_listing_title", {
@@ -2100,7 +2197,7 @@ export const adminDuplicateListingPage = (
       </div>
       <CsrfForm
         action="/admin/listing"
-        class={template ? listingFormClass(template) : undefined}
+        class={listingFormClassFor(template, defaults)}
         enctype="multipart/form-data"
       >
         <input
@@ -2118,6 +2215,8 @@ export const adminDuplicateListingPage = (
           imagePreview=""
           isTemplated={!!template}
           selectedGroupId={listing.group_id}
+          showUseDefaults={showUseDefaults}
+          useDefaultsChecked={listing.use_defaults}
           values={values}
         />
         <SubmitButton icon="plus">
@@ -2260,6 +2359,8 @@ export const adminListingEditPage = (
       : "";
   const durationWarning = String(<DurationWarning listing={listing} />);
   const template = inferTemplate(listing);
+  const defaults = settings.listingDefaults;
+  const showUseDefaults = hasAnyListingDefault(defaults);
   return String(
     <Layout
       title={t("listings_table.edit_listing_title", { name: listing.name })}
@@ -2273,7 +2374,7 @@ export const adminListingEditPage = (
       )}
       <CsrfForm
         action={`/admin/listing/${listing.id}/edit`}
-        class={template ? listingFormClass(template) : undefined}
+        class={listingFormClassFor(template, defaults)}
         enctype="multipart/form-data"
         id="listing-edit-form"
       >
@@ -2294,6 +2395,8 @@ export const adminListingEditPage = (
           imagePreview={imagePreview}
           isTemplated={!!template}
           selectedGroupId={listing.group_id}
+          showUseDefaults={showUseDefaults}
+          useDefaultsChecked={listing.use_defaults}
           values={listingToFieldValues(listing)}
         />
         <ListingRunningTotalsSection

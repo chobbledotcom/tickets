@@ -260,8 +260,11 @@ const getPrefix = (path: string): string => {
  * - pruning self-guards on last_pruned_*
  * - the activity-log backfill self-guards on its done flag + last-run stamp
  * - session auth + PII decryption read the key material
+ * - listing reads resolve listing defaults at the cache layer
+ *   (`resolveListingDefaults`), which can run on any route that loads a listing
  */
 const INFRA_SETTINGS: readonly string[] = [
+  CONFIG_KEYS.LISTING_DEFAULTS,
   CONFIG_KEYS.CUSTOM_DOMAIN,
   CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
   CONFIG_KEYS.BUNNY_SUBDOMAIN,

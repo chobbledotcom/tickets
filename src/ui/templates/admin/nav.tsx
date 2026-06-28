@@ -131,6 +131,7 @@ const usersSub = (): NavItem[] => [
 const settingsSub = (includeSite = false): NavItem[] =>
   compact([
     { href: "/admin/settings", label: t("nav.sub.settings") },
+    { href: "/admin/listing-defaults", label: t("nav.sub.listing_defaults") },
     { href: "/admin/settings/statuses", label: t("nav.sub.statuses") },
     { href: "/admin/privacy", label: t("nav.sub.privacy") },
     { href: "/admin/questions", label: t("terms.questions") },

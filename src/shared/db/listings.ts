@@ -49,7 +49,9 @@ import {
   ticketCountSumExpr,
 } from "#shared/db/migrations/schema.ts";
 import { nameMapByIds } from "#shared/db/query.ts";
+import { settings } from "#shared/db/settings.ts";
 import { col } from "#shared/db/table.ts";
+import { resolveListingDefaults } from "#shared/listing-defaults.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import {
@@ -103,6 +105,7 @@ export type ListingInput = {
   customisableDays?: boolean;
   dayPrices?: DayPrices;
   usesLogistics?: boolean;
+  useDefaults?: boolean;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -211,6 +214,7 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   purchase_only: col.boolean(false),
   thank_you_url: col.encryptedText(encrypt, decrypt),
   unit_price: col.withDefault(() => 0),
+  use_defaults: col.boolean(false),
   uses_logistics: col.boolean(false),
   webhook_url: col.encryptedText(encrypt, decrypt),
 });
@@ -354,14 +358,20 @@ export const decryptListingWithCount = async (
   row: ListingWithCount,
 ): Promise<ListingWithCount> => {
   const listing = await rawListingsTable.fromDb(row);
-  return {
-    ...listing,
-    attendee_count: row.attendee_count,
-    cost: Number(row.cost),
-    income: Number(row.income),
-    profit: Number(row.profit),
-    tickets_count: Number(row.tickets_count),
-  };
+  // Overlay the operator's listing defaults when this listing inherits them, so
+  // every consumer (public pages, booking, webhooks, exports, the edit form)
+  // sees the effective value live rather than this row's own stored value.
+  return resolveListingDefaults(
+    {
+      ...listing,
+      attendee_count: row.attendee_count,
+      cost: Number(row.cost),
+      income: Number(row.income),
+      profit: Number(row.profit),
+      tickets_count: Number(row.tickets_count),
+    },
+    settings.listingDefaults,
+  );
 };
 
 /**

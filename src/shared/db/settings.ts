@@ -46,6 +46,11 @@ import {
   invalidateUsersCache,
 } from "#shared/db/users.ts";
 import {
+  type ListingDefaults,
+  parseListingDefaults,
+  serializeListingDefaults,
+} from "#shared/listing-defaults.ts";
+import {
   DEFAULT_ORPHAN_RETENTION,
   isOrphanRetentionValue,
 } from "#shared/orphan-retention.ts";
@@ -127,6 +132,7 @@ export const CONFIG_KEYS = {
   LATEST_SCRIPT_VERSION: "latest_script_version",
   LATEST_SCRIPT_VERSION_NAME: "latest_script_version_name",
   LISTING_COLUMN_ORDER: "listing_column_order",
+  LISTING_DEFAULTS: "listing_defaults",
   ORDER_ENABLED: "order_enabled",
   ORDER_INTRO_TEXT: "order_intro_text",
   ORPHAN_PURGE_RETENTION: "orphan_purge_retention",
@@ -403,6 +409,7 @@ type SpecificFields = {
   phone_prefix: string;
   auto_purge_orphans: boolean;
   orphan_purge_retention: string;
+  listing_defaults: ListingDefaults;
 };
 
 /** Full settings snapshot type. */
@@ -418,6 +425,7 @@ const data: SettingsData = {
   country: DEFAULT_COUNTRY,
   currency: "GBP",
   has_logistics: false,
+  listing_defaults: {},
   order_enabled: false,
   orphan_purge_retention: DEFAULT_ORPHAN_RETENTION,
   payment_provider: null,
@@ -780,6 +788,9 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
   },
   [CONFIG_KEYS.SQUARE_SANDBOX]: (raw) => {
     data.square_sandbox = raw === "true";
+  },
+  [CONFIG_KEYS.LISTING_DEFAULTS]: (raw) => {
+    data.listing_defaults = parseListingDefaults(raw);
   },
 };
 
@@ -1150,6 +1161,9 @@ const settingsBase = {
     return snap("has_logistics");
   },
   invalidateCache,
+  get listingDefaults(): ListingDefaults {
+    return snap("listing_defaults");
+  },
   // --- Core ---
   loadKeys,
   get orderEnabled(): boolean {
@@ -1331,6 +1345,11 @@ const settingsBase = {
     // --- Google Wallet writes ---
     googleWallet: createGoogleWalletUpdateSettings(encryptedUpdate),
     hasLogistics: boolUpdate(CONFIG_KEYS.HAS_LOGISTICS, "has_logistics"),
+    listingDefaults: rawUpdate(
+      CONFIG_KEYS.LISTING_DEFAULTS,
+      "listing_defaults",
+      serializeListingDefaults,
+    ),
     orderEnabled: boolUpdate(CONFIG_KEYS.ORDER_ENABLED, "order_enabled"),
     orphanPurgeRetention: rawUpdate(
       CONFIG_KEYS.ORPHAN_PURGE_RETENTION,

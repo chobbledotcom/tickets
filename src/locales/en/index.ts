@@ -21,6 +21,7 @@ import fields from "./fields.json" with { type: "json" };
 import groups from "./groups.json" with { type: "json" };
 import guide from "./guide.json" with { type: "json" };
 import holidays from "./holidays.json" with { type: "json" };
+import listingDefaults from "./listing-defaults.json" with { type: "json" };
 import listingQr from "./listing-qr.json" with { type: "json" };
 import listingsTable from "./listings-table.json" with { type: "json" };
 import login from "./login.json" with { type: "json" };
@@ -63,6 +64,7 @@ const en: Record<string, string> = {
   ...groups,
   ...guide,
   ...holidays,
+  ...listingDefaults,
   ...listingQr,
   ...listingsTable,
   ...login,

@@ -35,6 +35,10 @@ import {
   handleHeaderImagePost,
 } from "#routes/admin/settings-header-image.ts";
 import {
+  handleListingDefaultsGet,
+  handleListingDefaultsPost,
+} from "#routes/admin/settings-listing-defaults.ts";
+import {
   handleAdminSettingsAdvancedGet,
   handleAdminSettingsGet,
 } from "#routes/admin/settings-page.ts";
@@ -62,8 +66,10 @@ import { defineRoutes } from "#routes/router.ts";
 
 /** Settings routes */
 export const settingsRoutes = defineRoutes({
+  "GET /admin/listing-defaults": handleListingDefaultsGet,
   "GET /admin/settings": handleAdminSettingsGet,
   "GET /admin/settings-advanced": handleAdminSettingsAdvancedGet,
+  "POST /admin/listing-defaults": handleListingDefaultsPost,
   "POST /admin/settings": handleAdminSettingsPost,
   "POST /admin/settings/apple-wallet": handleAppleWalletPost,
   "POST /admin/settings/attendee-column-order": handleAttendeeColumnOrderPost,
