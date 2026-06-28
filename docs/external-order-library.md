@@ -472,9 +472,10 @@ embedded catalog. There is no checkout math in the widget and no server quote.
 - For fixed-price listings the line total is `quantity × unitPrice`, formatted
   client-side from `CATALOG.currency` / `CATALOG.decimalPlaces` (see
   [Embedded Catalog](#embedded-catalog)).
-- Variable-price listings (`listing_type === "daily"`, pay-what-you-want,
-  customisable days, or a required answer-priced question) show "Price set at
-  checkout" and are excluded from the subtotal.
+- Variable-price listings (`listing_type === "daily"`, customisable days, or
+  pay-what-you-want) show "Price set at checkout" and are excluded from the
+  subtotal. (Answer-priced questions are not flagged — see the Embedded Catalog
+  note; their base price shows as a "from" estimate under the same caveat.)
 - The subtotal is labelled to set expectations, e.g.:
 
 ```html
