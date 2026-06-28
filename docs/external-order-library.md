@@ -112,6 +112,37 @@ There is no third "API access" behaviour anymore: the widget never makes a
 cross-origin request after the module loads, so the allowlist only needs to gate
 who can load and frame the content.
 
+## Enabling The System
+
+The order library is **off by default** and gated by its own setting,
+`external_order_enabled` (boolean, default `false`), with a dedicated toggle on
+the settings page ("External order buttons").
+
+This is a privacy boundary, not just a feature flag. A site can run with the
+public site disabled (`show_public_site = false`), in which case its listing
+slugs and names are effectively private — reachable only by someone who already
+holds the direct ticket URL. The embedded catalog would publish that whole
+list. So the order library must **not** be implied by any other setting; it has
+to be turned on explicitly, a deliberate "yes, publish my listing catalog to
+these external sites" decision, independent of `show_public_site`,
+`show_public_api`, and `embed_hosts`.
+
+When the setting is **off**, `/order.js` does not 404 (messy for owners who left
+the tag in their template). It returns a tiny, harmless module that logs a
+console notice and nothing else:
+
+```js
+console.warn("Chobble Tickets: the external order library is not enabled for this site.");
+export {};
+```
+
+The disabled stub contains no catalog and no listing data, so it is served with
+`Access-Control-Allow-Origin: *` (nothing to gate) — that way the console notice
+shows up wherever the tag was placed, which is the useful signal for an owner
+debugging "why isn't my cart working". `export {}` keeps it a module for
+consistency. Only when the setting is **on** does the handler apply the
+`embed_hosts` CORS gate and embed the catalog.
+
 ## The Module Is Served Dynamically
 
 `/order.js` is **not** a static asset. It is rendered per request because:
@@ -167,9 +198,9 @@ Note `import.meta.url` is **not** relied on for origin — the catalog carries
   second slash). Register that prefix in `PREFIX_SETTINGS`; an unlisted prefix
   falls back to `ALL_SNAPSHOT_SETTINGS` and would decrypt the full snapshot just
   to read `embed_hosts`. Scope the entry to only what the module needs:
-  `[CONFIG_KEYS.EMBED_HOSTS, CONFIG_KEYS.COUNTRY]` (embed allowlist + currency
-  for price formatting). No payment, email, wallet, or SMS secrets are read on
-  this path.
+  `[CONFIG_KEYS.EXTERNAL_ORDER_ENABLED, CONFIG_KEYS.EMBED_HOSTS,
+  CONFIG_KEYS.COUNTRY]` (enable flag + embed allowlist + currency for price
+  formatting). No payment, email, wallet, or SMS secrets are read on this path.
 
 ### Build integration
 
@@ -193,6 +224,14 @@ which use `e.active && !e.hidden` (`src/features/public/order.ts`,
 the widget can tell a visitor a listing isn't bookable rather than silently
 sending them to the ticket page (see Browser Behaviour). Hidden listings are
 still excluded.
+
+`loadSortedListings` reads the process-wide listings cache
+(`getAllListings`, `src/shared/sort-listings.ts`) — the same cache the public
+`/order` and `/listings` pages already populate, so `/order.js` adds no
+decryption those pages don't already do. Note `slug` and `name` are themselves
+encrypted columns, so the catalog's own fields must be decrypted regardless; the
+catalog simply does not read the other encrypted fields (description, location,
+date, etc.).
 
 ```js
 // Prepended to the module body at request time
@@ -241,26 +280,38 @@ Rules:
   client formatting, which made `quantity × unitPrice` line totals
   unrenderable — that rule is dropped.)
 - `variablePrice` is `true` when the listing requires an input the v1 widget
-  cannot supply, so a final price can't be shown. The precise conditions, each
-  confirmed against the booking form:
+  cannot supply, so a final price can't be shown. The conditions are direct
+  `Listing` fields, each confirmed against the booking form:
   - `listing_type === "daily"` — requires a date (`listing_type` is
     `"standard" | "daily"`; the date selector is gated on `"daily"`, not on a
     date merely existing — `src/features/public/ticket-payment.ts`).
   - `customisable_days` — requires a day-count choice (`resolveDayCount`).
   - `can_pay_more` — pay-what-you-want; `unit_price` is the minimum, shown as a
     "from" price.
-  - The listing has a **required answer-priced question** — an answer carries a
-    price `modifier_id` (`listing_questions` + answer modifiers,
-    `src/shared/db/questions.ts`, `src/shared/db/migrations/schema.ts`), so the
-    answer changes the price.
   For these the cart shows "Price set at checkout" and excludes them from the
-  indicative subtotal. A *required but non-priced* question does **not** set
-  `variablePrice` — the price is still known; the answer is just collected at
-  checkout like everything else the widget defers.
+  indicative subtotal.
+  Answer-priced questions (an answer carrying a price `modifier_id`) are
+  **deliberately not** treated as variable. Detecting them needs the
+  question/answer/modifier graph for every listing — including assign-all
+  questions, which have no per-listing `listing_questions` rows — on every public
+  module fetch. Since the subtotal is already an explicit lower-bound estimate
+  (modifiers and fees are excluded), such a listing simply shows its base
+  `unitPrice` as a "from" price and the checkout caveat covers the rest. This is
+  a v1 scope choice, not an oversight.
 - Every entry carries `bookable` (= the listing's `active` flag). Bookable
   entries also carry `unitPrice` and `variablePrice`; closed (`bookable: false`)
   entries carry only `slug` and `name` — enough to intercept the click with a
   "not bookable" notice (see Browser Behaviour). Their price fields are omitted.
+  `bookable` reflects only the stable owner `active` toggle. Time-window
+  (`closes_at`) and capacity (sold-out) states are **not** evaluated when
+  building the catalog — like the indicative subtotal, those availability checks
+  are resolved authoritatively at the ticket page. So a listing that is `active`
+  but past its registration window still shows as bookable in the widget and the
+  visitor learns it's closed at checkout. (Intercepting `active === false` covers
+  the owner's explicit "switch it off" case; intercepting time/capacity would
+  mean evaluating `buildTicketListingsWithGroupCapacity` per listing on every
+  module fetch, which v1 trades away for the same reason it shows an indicative
+  rather than authoritative total.)
 - **All non-hidden listings are included**; hidden/unlisted listings are omitted
   for privacy (see [Security And Privacy](#security-and-privacy)). A
   `data-add-listing` to a hidden or unknown listing isn't enhanced and falls back
@@ -404,6 +455,15 @@ cart. Render the summary markup in the widget itself with a small copy of the
 existing `.order-summary` rules; do not reuse the full site stylesheet on the
 external page.
 
+**Catalog text must never be rendered as HTML.** The server's serialization
+escaping (see [Embedded Catalog](#embedded-catalog)) only protects the embedded
+JS/JSON; once the widget renders rows in the browser, a listing `name` like
+`<img src=x onerror=...>` would execute if inserted via `innerHTML`. The widget
+must insert all catalog-derived text (names, messages) with `textContent` or
+DOM node creation — never `innerHTML`/`insertAdjacentHTML` with catalog data —
+so owner-provided names cannot run script on the external page. This is covered
+by a client test.
+
 ## Pricing
 
 The widget total is **indicative**, computed entirely client-side from the
@@ -476,6 +536,11 @@ Server-side, the only failure surface is rendering `/order.js`:
 
 ## Security And Privacy
 
+- The system is off by default and gated by `external_order_enabled`,
+  independent of `show_public_site`. This is the privacy boundary: a site with
+  the public site disabled keeps its slugs/names private until the owner
+  explicitly opts in to publishing the catalog. When off, the served stub
+  carries no listing data at all.
 - There is no new server endpoint. `/order.js` is a read-only, public,
   catalog-bearing asset.
 - The catalog contains only public listing data (slug, id, name, minor-unit unit
@@ -519,24 +584,27 @@ They should not share global state.
 
 Server tests:
 
-- `/order.js` for an allowed origin sends `Access-Control-Allow-Origin`,
+- When `external_order_enabled` is off, `/order.js` returns the console-notice
+  stub (no catalog, no listing data) with `Access-Control-Allow-Origin: *`,
+  regardless of origin or `embed_hosts`.
+- When off, the stub leaks no slug or listing name even if listings exist.
+- When on, `/order.js` for an allowed origin sends `Access-Control-Allow-Origin`,
   `Vary: Origin`, and a non-cacheable `Cache-Control`, and embeds the catalog.
-- `/order.js` for a disallowed origin sends no permissive CORS header.
+- When on, `/order.js` for a disallowed origin sends no permissive CORS header.
 - The embedded catalog includes active listed listings with id, slug, name,
   minor-unit `unitPrice`, `bookable: true`, and the `currency`/`decimalPlaces`
   descriptor.
 - Closed (`active === false`, non-hidden) listings are included with
   `bookable: false` and only slug + name (no price fields).
 - Hidden/unlisted listings are excluded entirely.
-- `variablePrice` is set for a `daily` listing, a `customisable_days` listing, a
-  `can_pay_more` listing, and a listing with a required answer-priced question;
-  it is **not** set for a fixed-price listing that merely has a non-priced
-  required question.
+- `variablePrice` is set for a `daily`, `customisable_days`, or `can_pay_more`
+  listing, and is **not** set for a plain fixed-price standard listing.
 - The served module body contains module-only syntax (e.g. `export {}`) so it
   throws if loaded as a classic script.
 - Rendering `/order.js` loads only the `[EMBED_HOSTS, COUNTRY]` settings bundle,
   not payment/email/wallet/SMS secrets.
-- Listing names with quotes/markup are safely escaped in the embedded catalog.
+- Listing names with quotes/markup/`</script>` are safely escaped in the embedded
+  catalog serialization.
 
 Client tests:
 
@@ -572,19 +640,23 @@ End-to-end browser test:
 ## Implementation Slices
 
 1. Rename the admin setting copy from iframe-only embedding to external-site
-   access, keeping the `embed_hosts` storage key.
+   access, keeping the `embed_hosts` storage key. Add a new boolean setting
+   `external_order_enabled` (default `false`) with its own settings-page toggle.
 2. Add shared allowed-origin/CORS helpers on top of `parseEmbedHosts` and
-   `buildFrameAncestors`.
-3. Add the dynamic `/order.js` handler: runs after settings load, gates CORS on
-   `embed_hosts` with `Vary: Origin` and `no-store`, and registers the `order.js`
-   prefix in `PREFIX_SETTINGS` as `[EMBED_HOSTS, COUNTRY]`.
+   `buildFrameAncestors` (this is `src/shared/external-order.ts`:
+   `isOriginAllowed` / `resolveAllowOrigin` / `matchesHostPattern`).
+3. Add the dynamic `/order.js` handler: runs after settings load; when
+   `external_order_enabled` is off, returns the console-notice stub with
+   `Access-Control-Allow-Origin: *`; when on, gates CORS on `embed_hosts` with
+   `Vary: Origin` and `no-store` and embeds the catalog. Register the `order.js`
+   prefix in `PREFIX_SETTINGS` as
+   `[EXTERNAL_ORDER_ENABLED, EMBED_HOSTS, COUNTRY]`.
 4. Build the embedded catalog via `loadSortedListings(e => !e.hidden)`; emit each
    entry's slug, name, and `bookable` (= `active`), plus id, minor-unit
    `unitPrice`, and `variablePrice` for bookable ones, and a top-level
    `currency`/`decimalPlaces` descriptor (from `settings.currency` /
-   `getDecimalPlaces`). Compute `variablePrice` from `listing_type === "daily"`,
-   `customisable_days`, `can_pay_more`, or a required answer-priced question.
-   Escape via existing serialization helpers.
+   `getDecimalPlaces`). `variablePrice` = `listing_type === "daily" ||
+   customisable_days || can_pay_more`. Escape via `serializeCatalog`.
 5. Build `src/ui/client/order.ts` (ESM, with a top-level `export {}` so it cannot
    run as a classic script): catalog-driven link scanning, singleton guard,
    not-bookable notice for closed listings, `sessionStorage` cart with on-load
