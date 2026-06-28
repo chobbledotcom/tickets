@@ -1,9 +1,22 @@
+import { readSlowTestsReport } from "../test-durations.ts";
 import { filterTestOutput, testProgressFromLine } from "./output.ts";
+
+/**
+ * Optional always-shown summary for a step. Invoked after the step finishes
+ * (on success only) and printed verbatim — used by the test step to surface the
+ * slow-tests report, which the step writes to a JUnit file but whose stdout is
+ * otherwise swallowed on success.
+ */
+export type StepSummary = (
+  stdout: string,
+  stderr: string,
+) => string | undefined | Promise<string | undefined>;
 
 export interface Step {
   cmd: string[];
   filterOutput?: (stdout: string, stderr: string) => string;
   progress?: (line: string) => string | undefined;
+  summary?: StepSummary;
   name: string;
 }
 
@@ -23,6 +36,7 @@ export const getSteps = (): Step[] => {
       filterOutput: filterTestOutput,
       name: "test:coverage",
       progress: testProgressFromLine,
+      summary: async () => (await readSlowTestsReport()) || undefined,
     },
   ];
 };

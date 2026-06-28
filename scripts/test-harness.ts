@@ -161,6 +161,7 @@ const buildDenoTestArgs = (
   extraArgs: string[],
   useCoverage: boolean,
   reporter?: "tap",
+  junitPath?: string,
 ): string[] => {
   const args = [
     "test",
@@ -176,6 +177,7 @@ const buildDenoTestArgs = (
   ];
   if (reporter) args.push("--reporter", reporter);
   if (useCoverage) args.push("--coverage=coverage");
+  if (junitPath) args.push("--junit-path", junitPath);
   args.push(...extraArgs);
   return args;
 };
@@ -183,11 +185,14 @@ const buildDenoTestArgs = (
 /**
  * Run `deno test` with the standard permission flags. `extraArgs` are appended
  * verbatim — the full runner passes `["test/"]`, the focused runner passes the
- * requested files (and any flags such as `--filter`). Returns the exit code.
+ * requested files (and any flags such as `--filter`). `junitPath`, when set,
+ * makes `deno test` write a JUnit XML file the caller can parse for per-test
+ * timings. Returns the exit code.
  */
 export const runTests = async (
   extraArgs: string[],
   useCoverage: boolean,
+  junitPath?: string,
 ): Promise<number> => {
   const env = {
     ...Deno.env.toObject(),
@@ -199,7 +204,7 @@ export const runTests = async (
 
   if (!hasReporterArg(extraArgs)) {
     return await runCompactDenoTest(
-      buildDenoTestArgs(extraArgs, useCoverage, "tap"),
+      buildDenoTestArgs(extraArgs, useCoverage, "tap", junitPath),
       {
         cwd: projectRoot,
         env,
@@ -210,7 +215,7 @@ export const runTests = async (
 
   console.log("Running tests...");
   const testCmd = new Deno.Command(Deno.execPath(), {
-    args: buildDenoTestArgs(extraArgs, useCoverage),
+    args: buildDenoTestArgs(extraArgs, useCoverage, undefined, junitPath),
     cwd: projectRoot,
     env,
     stderr: "inherit",
