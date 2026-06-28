@@ -14,8 +14,7 @@
  * per-request catalog is prepended as a `const CATALOG = {…};` statement.
  */
 
-import { dirname, fromFileUrl, join } from "@std/path";
-import { once } from "#fp";
+import { orderWidgetBody } from "#routes/assets.ts";
 import { getDecimalPlaces } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
 import { parseEmbedHosts } from "#shared/embed-hosts.ts";
@@ -28,20 +27,6 @@ import { nowIso } from "#shared/now.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 
 const JS_CONTENT_TYPE = "application/javascript; charset=utf-8";
-
-const staticDir = join(
-  dirname(fromFileUrl(import.meta.url)),
-  "..",
-  "..",
-  "ui",
-  "static",
-);
-
-/** The built widget bundle, read once on first use. Read lazily (not at import)
- * so importing this module never depends on the static build having run. */
-const widgetBody = once((): string =>
-  Deno.readTextFileSync(join(staticDir, "order.js")),
-);
 
 /** Served when the system is disabled. Carries no listing data, so it is safe
  * to expose to any origin — the `*` lets the notice surface wherever the owner
@@ -87,5 +72,8 @@ export const handleOrderJs = async (request: Request): Promise<Response> => {
   if (allowOrigin !== null) {
     headers["access-control-allow-origin"] = allowOrigin;
   }
-  return jsResponse(`${serializeCatalog(catalog)}\n${widgetBody()}`, headers);
+  return jsResponse(
+    `${serializeCatalog(catalog)}\n${orderWidgetBody()}`,
+    headers,
+  );
 };
