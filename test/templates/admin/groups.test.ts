@@ -20,8 +20,8 @@ describe("adminGroupDetailPage", () => {
   test("shows Group Attendees row with cap, count, and remaining", () => {
     const group = testGroup({ max_attendees: 50, name: "Summer Festival" });
     const listings = [
-      testListingWithCount({ attendee_count: 12, group_id: group.id, id: 1 }),
-      testListingWithCount({ attendee_count: 8, group_id: group.id, id: 2 }),
+      testListingWithCount({ attendee_count: 12, id: 1 }),
+      testListingWithCount({ attendee_count: 8, id: 2 }),
     ];
     const html = adminGroupDetailPage(
       group,
@@ -39,9 +39,7 @@ describe("adminGroupDetailPage", () => {
 
   test("Group Attendees row drops cap fragment when group is uncapped", () => {
     const group = testGroup({ max_attendees: 0, name: "Open Group" });
-    const listings = [
-      testListingWithCount({ attendee_count: 5, group_id: group.id }),
-    ];
+    const listings = [testListingWithCount({ attendee_count: 5 })];
     const html = adminGroupDetailPage(
       group,
       listings,
@@ -61,9 +59,7 @@ describe("adminGroupDetailPage", () => {
 
   test("Group Attendees row gets danger-text when at cap", () => {
     const group = testGroup({ max_attendees: 10 });
-    const listings = [
-      testListingWithCount({ attendee_count: 10, group_id: group.id }),
-    ];
+    const listings = [testListingWithCount({ attendee_count: 10 })];
     const html = adminGroupDetailPage(
       group,
       listings,
@@ -82,7 +78,6 @@ describe("adminGroupDetailPage", () => {
     const listings = [
       testListingWithCount({
         attendee_count: 9,
-        group_id: group.id,
         id: 1,
         income: 9000,
         tickets_count: 5,
