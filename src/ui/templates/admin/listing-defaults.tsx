@@ -86,7 +86,7 @@ const UrlControl = ({
     {labelFor(field)}
     <input
       name={inputName(field)}
-      placeholder="https://example.com"
+      placeholder={t("listing_defaults.url_placeholder")}
       type="url"
       value={value ?? ""}
     />

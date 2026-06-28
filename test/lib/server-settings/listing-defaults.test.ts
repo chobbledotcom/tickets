@@ -36,9 +36,8 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
         default_bookable_days_enabled: "1",
         default_duration_days: "3",
       });
-      const body = await adminGet("/admin/listing-defaults").then((r) =>
-        r.text(),
-      );
+      const response = await adminGet("/admin/listing-defaults");
+      const body = await response.text();
       // The duration input carries the saved value and Monday is pre-ticked.
       expect(body).toContain('value="3"');
       expect(body).toMatch(

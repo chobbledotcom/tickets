@@ -4,6 +4,7 @@
   "listing_defaults.save": "Save listing defaults",
   "listing_defaults.saved": "Listing defaults saved",
   "listing_defaults.no_default": "No default (set per listing)",
+  "listing_defaults.url_placeholder": "https://example.com",
   "listing_defaults.bool_yes": "Default to yes",
   "listing_defaults.bool_no": "Default to no",
   "listing_defaults.days_enable": "Set a default for bookable days",
