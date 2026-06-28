@@ -523,16 +523,27 @@ const childOnlyAddOnNameWithScopes = (
   return blocking?.name ?? null;
 };
 
-/** The ids of the supplied listings whose `group_id` is in `groupIds` — the
+/** A listing plus the ids of the groups it belongs to — the in-memory shape the
+ * would-be-scope reachability checks reason over. Built from `getAllListings`
+ * plus a `group_listings` membership map, with the saved listing's would-be
+ * group set applied. `active` is only consulted by the deactivation check. */
+export type ListingGroupMembership = {
+  id: number;
+  groupIds: number[];
+  active?: boolean;
+};
+
+/** The ids of the supplied listings that belong to ANY of `groupIds` — the
  * in-memory expansion of a "groups"-scoped modifier (or any group → its member
- * listings resolution). Shared so the live and would-be scope resolutions agree. */
+ * listings resolution). A listing in several groups matches if any of them is in
+ * scope. Shared so the live and would-be scope resolutions agree. */
 export const listingIdsInGroups = (
   groupIds: number[],
-  allListings: Pick<ListingWithCount, "id" | "group_id">[],
+  allListings: ListingGroupMembership[],
 ): number[] => {
   const groups = new Set(groupIds);
   return allListings
-    .filter((listing) => groups.has(listing.group_id))
+    .filter((listing) => listing.groupIds.some((g) => groups.has(g)))
     .map((listing) => listing.id);
 };
 
@@ -545,9 +556,7 @@ export const listingIdsInGroups = (
  * {@link listingIdsInGroups}.
  */
 const inMemoryGroupScopeResolver =
-  (
-    allListings: Pick<ListingWithCount, "id" | "group_id">[],
-  ): GroupScopeResolver =>
+  (allListings: ListingGroupMembership[]): GroupScopeResolver =>
   async (groupScopedIds) => {
     const groupLinks = await getModifierGroupIdsByModifierId(groupScopedIds);
     return new Map(
@@ -568,7 +577,7 @@ const inMemoryGroupScopeResolver =
 export const childOnlyAddOnNameForListings = async (
   childId: number,
   parentPageListingIds: readonly number[],
-  allListings: Pick<ListingWithCount, "id" | "group_id">[],
+  allListings: ListingGroupMembership[],
 ): Promise<string | null> =>
   childOnlyAddOnNameWithScopes(
     await optionalAddOnsWithScopes(inMemoryGroupScopeResolver(allListings)),
@@ -628,7 +637,7 @@ export const childUnreachableAddOnError = (
  * resolve against `allListings` so a group-scoped add-on reflects the same set.
  */
 export const firstChildUnreachableAddOnForListings = async (
-  allListings: Pick<ListingWithCount, "id" | "group_id" | "active">[],
+  allListings: ListingGroupMembership[],
   childListingIds: Set<number>,
 ): Promise<string | null> => {
   const { optional, scopes } = await optionalAddOnsWithScopes(

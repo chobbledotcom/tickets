@@ -105,6 +105,11 @@ const buildListingCountSql = (
   return buildUndatedListingCountSql(listingId, excludeAttendeeId);
 };
 
+// The group-count subqueries below correlate on `g.id` — the group row of the
+// enclosing NOT EXISTS in buildDayCapacitySql — and reach that group's member
+// listings through the group_listings join table, so a listing that belongs to
+// several groups is counted against each group's cap independently.
+
 const buildDailyNonListingGroupExclusionSql = (
   excludeAttendeeId?: number,
 ): string => {
@@ -113,8 +118,9 @@ const buildDailyNonListingGroupExclusionSql = (
   return `- COALESCE((
           SELECT SUM(ea4.quantity)
             FROM listing_attendees ea4
+            JOIN group_listings gl4 ON gl4.listing_id = ea4.listing_id
             JOIN listings AS groupListing ON groupListing.id = ea4.listing_id
-           WHERE groupListing.group_id = listing.group_id
+           WHERE gl4.group_id = g.id
              AND groupListing.listing_type != 'daily'
              AND ea4.attendee_id = ?
         ), 0)`;
@@ -126,8 +132,8 @@ const buildUndatedGroupExclusionSql = (excludeAttendeeId?: number): string => {
   return `- COALESCE((
           SELECT SUM(ea3.quantity)
             FROM listing_attendees ea3
-            JOIN listings AS groupListing ON groupListing.id = ea3.listing_id
-           WHERE groupListing.group_id = listing.group_id AND ea3.attendee_id = ?
+            JOIN group_listings gl3 ON gl3.listing_id = ea3.listing_id
+           WHERE gl3.group_id = g.id AND ea3.attendee_id = ?
         ), 0)`;
 };
 
@@ -144,14 +150,16 @@ const buildDailyGroupCountSql = (
   sql: `(COALESCE((
           SELECT SUM(groupListing.booked_quantity)
             FROM listings AS groupListing
-           WHERE groupListing.group_id = listing.group_id AND groupListing.listing_type != 'daily'
+            JOIN group_listings gl ON gl.listing_id = groupListing.id
+           WHERE gl.group_id = g.id AND groupListing.listing_type != 'daily'
         ), 0)
         ${buildDailyNonListingGroupExclusionSql(excludeAttendeeId)}
         + COALESCE((
           SELECT SUM(ea3.quantity)
             FROM listing_attendees ea3
+            JOIN group_listings gl3 ON gl3.listing_id = ea3.listing_id
             JOIN listings AS groupListing ON groupListing.id = ea3.listing_id
-           WHERE groupListing.group_id = listing.group_id
+           WHERE gl3.group_id = g.id
              AND groupListing.listing_type = 'daily' ${attendeeExclusionSql(
                "ea3",
                excludeAttendeeId,
@@ -167,7 +175,8 @@ const buildUndatedGroupCountSql = (
   sql: `(COALESCE((
           SELECT SUM(groupListing.booked_quantity)
             FROM listings AS groupListing
-           WHERE groupListing.group_id = listing.group_id
+            JOIN group_listings gl ON gl.listing_id = groupListing.id
+           WHERE gl.group_id = g.id
         ), 0)
         ${buildUndatedGroupExclusionSql(excludeAttendeeId)})`,
 });
@@ -201,29 +210,31 @@ const buildDayCapacitySql = (
   );
   const groupCount = buildGroupCountSql(dayRange, excludeAttendeeId);
 
+  // The listing-cap line also enforces active = 1 (an inactive listing's
+  // max_attendees subquery is NULL, so the comparison fails). The group cap
+  // passes unless SOME group the listing belongs to is capped and would be
+  // pushed over by this booking — so an ungrouped or all-uncapped listing has
+  // no offending group and NOT EXISTS is satisfied.
   const sql = `(
     ${listingCount.sql}
   ) + ? <= (SELECT max_attendees FROM listings WHERE id = ? AND active = 1)
-  AND (
-    SELECT CASE
-      WHEN listing.group_id = 0 THEN 1
-      WHEN COALESCE(g.max_attendees, 0) = 0 THEN 1
-      WHEN ${groupCount.sql} + ? <= g.max_attendees THEN 1
-      ELSE 0
-    END
-    FROM listings AS listing
-    LEFT JOIN groups g ON g.id = listing.group_id
-    WHERE listing.id = ? AND listing.active = 1
-  ) = 1`;
+  AND NOT EXISTS (
+    SELECT 1
+    FROM group_listings gl
+    JOIN groups g ON g.id = gl.group_id
+    WHERE gl.listing_id = ?
+      AND g.max_attendees > 0
+      AND (${groupCount.sql}) + ? > g.max_attendees
+  )`;
 
   return {
     args: [
       ...listingCount.args,
       qty,
       listingId,
+      listingId,
       ...groupCount.args,
       qty,
-      listingId,
     ],
     sql,
   };

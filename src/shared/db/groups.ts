@@ -4,7 +4,12 @@
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { execute, executeBatch, queryAll } from "#shared/db/client.ts";
+import {
+  execute,
+  executeBatch,
+  inPlaceholders,
+  queryAll,
+} from "#shared/db/client.ts";
 import {
   cachedEntityTable,
   defineIdTable,
@@ -103,6 +108,11 @@ export const isGroupSlugTaken = async (
   return groupHit.length > 0;
 };
 
+/** WHERE fragment matching listings that are members of the given group, via the
+ * group_listings join table (subquery form avoids duplicate rows). */
+const IN_GROUP_SQL =
+  "listing.id IN (SELECT listing_id FROM group_listings WHERE group_id = ?)";
+
 /** Query listings in a group with attendee counts, optionally filtering to active only */
 const queryGroupListings = (
   groupId: number,
@@ -110,8 +120,8 @@ const queryGroupListings = (
 ): Promise<ListingWithCount[]> =>
   queryListingsWithCounts(
     activeOnly
-      ? "WHERE listing.active = 1 AND listing.group_id = ?"
-      : "WHERE listing.group_id = ?",
+      ? `WHERE listing.active = 1 AND ${IN_GROUP_SQL}`
+      : `WHERE ${IN_GROUP_SQL}`,
     [groupId],
   );
 
@@ -161,16 +171,50 @@ export const validateGroupListingType = async (
 };
 
 /**
- * Get ungrouped listings (group_id = 0) with attendee counts.
+ * Get ungrouped listings (members of no group) with attendee counts.
  */
 export const getUngroupedListings = (): Promise<ListingWithCount[]> =>
-  queryListingsWithCounts("WHERE listing.group_id = 0");
+  queryListingsWithCounts(
+    "WHERE listing.id NOT IN (SELECT listing_id FROM group_listings)",
+  );
+
+/** The ids of every group a listing belongs to, ascending. */
+export const getGroupIdsByListingId = async (
+  listingId: number,
+): Promise<number[]> => {
+  const rows = await queryAll<{ group_id: number }>(
+    "SELECT group_id FROM group_listings WHERE listing_id = ? ORDER BY group_id ASC",
+    [listingId],
+  );
+  return rows.map((r) => r.group_id);
+};
+
+/** Map each listing id to the ids of the groups it belongs to, in one query.
+ * Listings that belong to no group are absent from the map. */
+export const getGroupIdsByListingIds = async (
+  listingIds: number[],
+): Promise<Map<number, number[]>> => {
+  const result = new Map<number, number[]>();
+  if (listingIds.length === 0) return result;
+  const rows = await queryAll<{ group_id: number; listing_id: number }>(
+    `SELECT group_id, listing_id FROM group_listings
+       WHERE listing_id IN (${inPlaceholders(listingIds)})
+     ORDER BY group_id ASC`,
+    listingIds,
+  );
+  for (const row of rows) {
+    const list = result.get(row.listing_id);
+    if (list) list.push(row.group_id);
+    else result.set(row.listing_id, [row.group_id]);
+  }
+  return result;
+};
 
 /**
- * Assign listings to a group by updating their group_id.
+ * Add listings to a group (membership rows), ignoring any already present.
  *
- * All listings move in a single batch transaction, so the reassignment is
- * atomic and costs one round-trip rather than one per listing.
+ * All rows insert in a single batch transaction, so the change is atomic and
+ * costs one round-trip rather than one per listing.
  */
 export const assignListingsToGroup = (
   listingIds: number[],
@@ -180,18 +224,54 @@ export const assignListingsToGroup = (
   return executeBatch(
     listingIds.map((listingId) => ({
       args: [groupId, listingId],
-      sql: "UPDATE listings SET group_id = ? WHERE id = ?",
+      sql: "INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES (?, ?)",
     })),
   );
 };
 
 /**
- * Reset group assignment on all listings in a group.
+ * Replace a listing's full set of group memberships (the listing-form
+ * checkboxes). Rows for groups that remain are left untouched so their
+ * `package_price` overrides survive; only newly-ticked groups are inserted and
+ * unticked ones removed.
+ */
+export const setListingGroups = async (
+  listingId: number,
+  groupIds: number[],
+): Promise<void> => {
+  const current = new Set(await getGroupIdsByListingId(listingId));
+  const desired = new Set(groupIds);
+  const statements = [
+    ...[...current]
+      .filter((id) => !desired.has(id))
+      .map((groupId) => ({
+        args: [groupId, listingId],
+        sql: "DELETE FROM group_listings WHERE group_id = ? AND listing_id = ?",
+      })),
+    ...[...desired]
+      .filter((id) => !current.has(id))
+      .map((groupId) => ({
+        args: [groupId, listingId],
+        sql: "INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES (?, ?)",
+      })),
+  ];
+  if (statements.length > 0) await executeBatch(statements);
+};
+
+/**
+ * Remove all membership rows for a listing (used when the listing is deleted).
+ */
+export const deleteListingFromAllGroups = async (
+  listingId: number,
+): Promise<void> => {
+  await execute("DELETE FROM group_listings WHERE listing_id = ?", [listingId]);
+};
+
+/**
+ * Remove every listing from a group (used when the group is deleted).
  */
 export const resetGroupListings = async (groupId: number): Promise<void> => {
-  await execute("UPDATE listings SET group_id = 0 WHERE group_id = ?", [
-    groupId,
-  ]);
+  await execute("DELETE FROM group_listings WHERE group_id = ?", [groupId]);
 };
 
 /**
@@ -203,7 +283,7 @@ export const setGroupListingsActive = async (
   active: boolean,
 ): Promise<number> => {
   const result = await execute(
-    "UPDATE listings SET active = ? WHERE group_id = ?",
+    `UPDATE listings SET active = ? WHERE ${IN_GROUP_SQL}`,
     [active ? 1 : 0, groupId],
   );
   return result.rowsAffected;

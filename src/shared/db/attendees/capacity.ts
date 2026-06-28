@@ -18,6 +18,7 @@ import type {
 } from "#shared/db/attendee-types.ts";
 import { buildCapacityCondition, dateToRange } from "#shared/db/capacity.ts";
 import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
+import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { type ListingType, normalizeDurationDays } from "#shared/types.ts";
 
@@ -54,19 +55,22 @@ export const getGroupRemainingByGroupId = async (
     ? `COALESCE((
         SELECT SUM(listing.booked_quantity)
           FROM listings AS listing
-         WHERE listing.group_id = g.id AND listing.listing_type != 'daily'
+          JOIN group_listings gl ON gl.listing_id = listing.id
+         WHERE gl.group_id = g.id AND listing.listing_type != 'daily'
       ), 0) + COALESCE((
         SELECT SUM(ea.quantity)
           FROM listing_attendees ea
           JOIN listings AS listing ON listing.id = ea.listing_id
-         WHERE listing.group_id = g.id
+          JOIN group_listings gl ON gl.listing_id = ea.listing_id
+         WHERE gl.group_id = g.id
            AND listing.listing_type = 'daily'
            AND ea.start_at < ? AND ea.end_at > ?
       ), 0)`
     : `COALESCE((
         SELECT SUM(listing.booked_quantity)
           FROM listings AS listing
-         WHERE listing.group_id = g.id
+          JOIN group_listings gl ON gl.listing_id = listing.id
+         WHERE gl.group_id = g.id
       ), 0)`;
   const countArgs = range ? [range.endAt, range.startAt] : [];
   const rows = await queryAll<{
@@ -88,14 +92,36 @@ export const getGroupRemainingByGroupId = async (
 
 type ListingForGroupLookup = {
   id: number;
-  group_id: number;
   listing_type: ListingType;
+};
+
+/**
+ * For each listing, the tightest (minimum) value across the groups it belongs
+ * to that appear in `byGroup` (the capped groups). A listing in several capped
+ * groups is constrained by whichever group has the least headroom; listings
+ * with no capped group are omitted, matching the old single-group behaviour for
+ * ungrouped/uncapped listings.
+ */
+const minByListingOverGroups = (
+  listingIds: number[],
+  membership: Map<number, number[]>,
+  byGroup: RemainingMap,
+): RemainingMap => {
+  const result: RemainingMap = new Map();
+  for (const id of listingIds) {
+    const values = (membership.get(id) ?? [])
+      .map((g) => byGroup.get(g))
+      .filter((v): v is number => v !== undefined);
+    if (values.length > 0) result.set(id, Math.min(...values));
+  }
+  return result;
 };
 
 /**
  * Per-listing view of group remaining capacity. Daily listings are dropped when
  * `date` is null — their cap is per-date, so a cumulative count would
- * misreport spots that other dates still have.
+ * misreport spots that other dates still have. A listing in multiple capped
+ * groups reports the tightest group's remaining.
  */
 export const getGroupRemainingByListingId = async (
   listings: ListingForGroupLookup[],
@@ -104,16 +130,16 @@ export const getGroupRemainingByListingId = async (
   const candidates = date
     ? listings
     : listings.filter((e) => e.listing_type !== "daily");
+  const membership = await getGroupIdsByListingIds(candidates.map((e) => e.id));
   const groupMap = await getGroupRemainingByGroupId(
-    candidates.map((e) => e.group_id),
+    [...membership.values()].flat(),
     date,
   );
-  const result: RemainingMap = new Map();
-  for (const listing of candidates) {
-    const remaining = groupMap.get(listing.group_id);
-    if (remaining !== undefined) result.set(listing.id, remaining);
-  }
-  return result;
+  return minByListingOverGroups(
+    candidates.map((e) => e.id),
+    membership,
+    groupMap,
+  );
 };
 
 /**
@@ -130,7 +156,8 @@ export const getGroupRemainingByListingId = async (
 export const getGroupStaticCapByListingId = async (
   listings: ListingForGroupLookup[],
 ): Promise<RemainingMap> => {
-  const ids = uniquePositiveGroupIds(listings.map((e) => e.group_id));
+  const membership = await getGroupIdsByListingIds(listings.map((e) => e.id));
+  const ids = uniquePositiveGroupIds([...membership.values()].flat());
   if (ids.length === 0) return new Map();
   const rows = await queryAll<{ group_id: number; max_attendees: number }>(
     `SELECT id AS group_id, max_attendees FROM groups
@@ -138,12 +165,11 @@ export const getGroupStaticCapByListingId = async (
     ids,
   );
   const capByGroup = new Map(rows.map((r) => [r.group_id, r.max_attendees]));
-  const result: RemainingMap = new Map();
-  for (const listing of listings) {
-    const cap = capByGroup.get(listing.group_id);
-    if (cap !== undefined) result.set(listing.id, cap);
-  }
-  return result;
+  return minByListingOverGroups(
+    listings.map((e) => e.id),
+    membership,
+    capByGroup,
+  );
 };
 
 /** Both shared-group capacity facts for a set of listings in one call: the
@@ -320,7 +346,6 @@ export const checkListingAvailability = async (
 type ListingRow = {
   id: number;
   max_attendees: number;
-  group_id: number;
   listing_type: ListingType;
   attendee_count: number;
 };
@@ -331,36 +356,64 @@ type DemandBucket = { perDay: Map<string, number>; total: number };
 const demandedDays = (bucket: DemandBucket): string[] | null =>
   bucket.perDay.size > 0 ? [...bucket.perDay.keys()] : null;
 
-/**
- * Aggregate batch items into per-key demand buckets. The `keyOf(listing)`
- * callback selects which bucket each item contributes to (returning null
- * skips the item). Daily listings with a date contribute per-day; everything
- * else contributes to a single total per bucket.
- *
- * Used twice: once keyed by listing id (for listing-cap checks), once keyed by
- * group id (for group-cap checks).
- */
-const aggregateDemand = <K>(
+/** Get the bucket for `key`, creating an empty one on first use. */
+const getOrCreateBucket = <K>(
+  buckets: Map<K, DemandBucket>,
+  key: K,
+): DemandBucket => {
+  let bucket = buckets.get(key);
+  if (!bucket) {
+    bucket = { perDay: new Map(), total: 0 };
+    buckets.set(key, bucket);
+  }
+  return bucket;
+};
+
+/** Add one item's demand to a bucket: per-day for a dated daily listing,
+ * otherwise a single total. */
+const addDemandToBucket = (
+  bucket: DemandBucket,
+  ev: ListingRow,
+  item: BatchAvailabilityItem,
+  date: string | null | undefined,
+): void => {
+  if (ev.listing_type === "daily" && date) {
+    for (const day of expandDailyRange(date, item.durationDays ?? 1)) {
+      bucket.perDay.set(day, (bucket.perDay.get(day) ?? 0) + item.quantity);
+    }
+  } else {
+    bucket.total += item.quantity;
+  }
+};
+
+/** Aggregate batch items into per-listing demand buckets (listing-cap checks). */
+const aggregateListingDemand = (
   ctx: BatchAvailabilityContext,
-  keyOf: (ev: ListingRow) => K | null,
-): Map<K, DemandBucket> => {
+): Map<number, DemandBucket> => {
   const { items, listingsById, date } = ctx;
-  const buckets = new Map<K, DemandBucket>();
+  const buckets = new Map<number, DemandBucket>();
   for (const item of items) {
     const ev = listingsById.get(item.listingId)!;
-    const key = keyOf(ev);
-    if (key === null) continue;
-    let bucket = buckets.get(key);
-    if (!bucket) {
-      bucket = { perDay: new Map(), total: 0 };
-      buckets.set(key, bucket);
-    }
-    if (ev.listing_type === "daily" && date) {
-      for (const day of expandDailyRange(date, item.durationDays ?? 1)) {
-        bucket.perDay.set(day, (bucket.perDay.get(day) ?? 0) + item.quantity);
-      }
-    } else {
-      bucket.total += item.quantity;
+    addDemandToBucket(getOrCreateBucket(buckets, ev.id), ev, item, date);
+  }
+  return buckets;
+};
+
+/**
+ * Aggregate batch items into per-group demand buckets (group-cap checks). A
+ * listing contributes its demand to every group it belongs to, so a listing in
+ * several groups is counted against each group's cap.
+ */
+const aggregateGroupDemand = (
+  ctx: BatchAvailabilityContext,
+  membership: Map<number, number[]>,
+): Map<number, DemandBucket> => {
+  const { items, listingsById, date } = ctx;
+  const buckets = new Map<number, DemandBucket>();
+  for (const item of items) {
+    const ev = listingsById.get(item.listingId)!;
+    for (const groupId of membership.get(item.listingId) ?? []) {
+      addDemandToBucket(getOrCreateBucket(buckets, groupId), ev, item, date);
     }
   }
   return buckets;
@@ -450,7 +503,7 @@ export const checkBatchAvailabilityImpl = async (
   const listingIds = map((i: BatchAvailabilityItem) => i.listingId)(items);
 
   const listingRows = await queryAll<ListingRow>(
-    `SELECT listing.id, listing.max_attendees, listing.group_id, listing.listing_type,
+    `SELECT listing.id, listing.max_attendees, listing.listing_type,
             listing.booked_quantity as attendee_count
      FROM listings AS listing
      WHERE listing.id IN (${inPlaceholders(listingIds)})`,
@@ -461,11 +514,10 @@ export const checkBatchAvailabilityImpl = async (
   // Every item must reference a known listing.
   if (items.some((i) => !listingsById.has(i.listingId))) return false;
 
+  const membership = await getGroupIdsByListingIds(listingIds);
   const ctx: BatchAvailabilityContext = { date, items, listingsById };
-  const listingDemand = aggregateDemand(ctx, (ev) => ev.id);
-  const groupDemand = aggregateDemand(ctx, (ev) =>
-    ev.group_id > 0 ? ev.group_id : null,
-  );
+  const listingDemand = aggregateListingDemand(ctx);
+  const groupDemand = aggregateGroupDemand(ctx, membership);
 
   // Prefetch everything the per-bucket checks need, batched: per-listing
   // occupancy rows, per-group per-day remaining, and date-less group caps.
@@ -546,7 +598,8 @@ const groupPerDayRemainingByGroup = async (
             COALESCE((
               SELECT SUM(listing.booked_quantity)
                 FROM listings AS listing
-               WHERE listing.group_id = g.id AND listing.listing_type != 'daily'
+                JOIN group_listings gl ON gl.listing_id = listing.id
+               WHERE gl.group_id = g.id AND listing.listing_type != 'daily'
             ), 0) AS base
        FROM groups g
      WHERE g.id IN (${inPlaceholders(ids)}) AND g.max_attendees > 0`,
@@ -557,10 +610,11 @@ const groupPerDayRemainingByGroup = async (
   const { startAt, endAt } = daySpan(days);
   type GroupRow = IntervalRow & { group_id: number };
   const rows = await queryAll<GroupRow>(
-    `SELECT listing.group_id, ea.start_at, ea.end_at, ea.quantity
+    `SELECT gl.group_id, ea.start_at, ea.end_at, ea.quantity
      FROM listing_attendees ea
      JOIN listings AS listing ON listing.id = ea.listing_id
-     WHERE listing.group_id IN (${inPlaceholders(cappedIds)})
+     JOIN group_listings gl ON gl.listing_id = ea.listing_id
+     WHERE gl.group_id IN (${inPlaceholders(cappedIds)})
        AND listing.listing_type = 'daily'
        AND ea.start_at < ? AND ea.end_at > ?`,
     [...cappedIds, endAt, startAt],
@@ -606,42 +660,38 @@ const getListingRemainingMapForRange = async (
   const totals = filter((l: ListingCapacityRow) => !usesRange(l))(listings);
   const days = date ? expandDailyRange(date, durationDays) : [];
 
+  const membership = await getGroupIdsByListingIds(listings.map((l) => l.id));
+  const groupsOf = (l: ListingCapacityRow): number[] =>
+    membership.get(l.id) ?? [];
+
   const [totalGroupRemaining, overlapByListing, dailyGroupPerDay] =
     await Promise.all([
-      getGroupRemainingByGroupId(
-        totals.map((l) => l.group_id),
-        null,
-      ),
+      getGroupRemainingByGroupId(totals.flatMap(groupsOf), null),
       overlappingRowsByListing(
         daily.map((l) => l.id),
         days,
       ),
-      groupPerDayRemainingByGroup(
-        daily.map((l) => l.group_id),
-        days,
-      ),
+      groupPerDayRemainingByGroup(daily.flatMap(groupsOf), days),
     ]);
 
   const result = new Map<number, number>();
   for (const l of totals) {
     const base = l.max_attendees - l.attendee_count;
-    const group =
-      l.group_id > 0 ? totalGroupRemaining.get(l.group_id) : undefined;
-    result.set(l.id, group === undefined ? base : Math.min(base, group));
+    const groupRemainings = groupsOf(l)
+      .map((g) => totalGroupRemaining.get(g))
+      .filter((r): r is number => r !== undefined);
+    result.set(l.id, Math.min(base, ...groupRemainings));
   }
   for (const l of daily) {
     const loads = perDayLoads(overlapByListing.get(l.id) ?? [], days);
     const listingRemaining = Math.min(
       ...days.map((day) => l.max_attendees - loads.get(day)!),
     );
-    const groupPerDay = dailyGroupPerDay.get(l.group_id);
-    const remaining = groupPerDay
-      ? Math.min(
-          listingRemaining,
-          Math.min(...days.map((day) => groupPerDay.get(day)!)),
-        )
-      : listingRemaining;
-    result.set(l.id, remaining);
+    const groupPerDayMins = groupsOf(l)
+      .map((g) => dailyGroupPerDay.get(g))
+      .filter((m): m is Map<string, number> => m !== undefined)
+      .map((m) => Math.min(...days.map((day) => m.get(day)!)));
+    result.set(l.id, Math.min(listingRemaining, ...groupPerDayMins));
   }
   return result;
 };

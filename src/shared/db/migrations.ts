@@ -82,6 +82,7 @@ import builtSitesUpdatesMigration from "./migrations/2026-06-24_built_sites_upda
 import listingAttendeeLedgerEventGroupIndexMigration from "./migrations/2026-06-25_listing_attendee_ledger_event_group_index.ts";
 import attendeesKindNotNullMigration from "./migrations/2026-06-26_attendees_kind_not_null.ts";
 import serviceCostsMigration from "./migrations/2026-06-27_service_costs.ts";
+import groupListingsMigration from "./migrations/2026-06-28_group_listings.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -263,6 +264,7 @@ export const MIGRATIONS: Migration[] = [
   listingAttendeeLedgerEventGroupIndexMigration,
   attendeesKindNotNullMigration,
   serviceCostsMigration,
+  groupListingsMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

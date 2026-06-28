@@ -8,7 +8,11 @@
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { groupsTable, validateGroupListingType } from "#shared/db/groups.ts";
+import {
+  getGroupIdsByListingIds,
+  groupsTable,
+  validateGroupListingType,
+} from "#shared/db/groups.ts";
 import {
   edgeIncompatibilityAfterChange,
   firstTouchingEdgeError,
@@ -26,6 +30,7 @@ import {
 import {
   childOnlyAddOnNameForListings,
   firstChildUnreachableAddOnForListings,
+  type ListingGroupMembership,
 } from "#shared/db/modifier-resolve.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { generateUniqueSlug } from "#shared/slug.ts";
@@ -60,19 +65,22 @@ type ListingUpdateCheck = (
   existingId: number | undefined,
 ) => Promise<string | null>;
 
-/** Validate selected group existence and listing type compatibility. */
+/** Validate each selected group exists and the listing type is compatible with
+ * that group's other members. */
 const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
-  if (!input.groupId || input.groupId === 0) return null;
+  for (const groupId of input.groupIds ?? []) {
+    const group = await groupsTable.findById(groupId);
+    if (!group) return "Selected group does not exist";
 
-  const group = await groupsTable.findById(input.groupId);
-  if (!group) return "Selected group does not exist";
-
-  return validateGroupListingType(
-    input.groupId,
-    input.listingType!,
-    input.customisableDays ?? false,
-    existingId ?? 0,
-  );
+    const typeError = await validateGroupListingType(
+      groupId,
+      input.listingType!,
+      input.customisableDays ?? false,
+      existingId ?? 0,
+    );
+    if (typeError) return typeError;
+  }
+  return null;
 };
 
 /**
@@ -128,16 +136,32 @@ export const listingInputToEdge = (
  * see the pending change — parents.md Fix 4). The listing is checked both as a
  * parent (its children, against its own page id `[id]`) and as a child (under
  * each parent's page id `[parentId]`). */
+/** Every listing as a {@link ListingGroupMembership} with a per-listing override
+ * applied — the would-be group set or inactive state the save is about to
+ * commit. One membership lookup feeds both would-be reachability checks. */
+const listingsWithGroups = async (
+  override: (listing: ListingWithCount) => Partial<ListingGroupMembership>,
+): Promise<ListingGroupMembership[]> => {
+  const all = await getAllListings();
+  const membership = await getGroupIdsByListingIds(all.map((l) => l.id));
+  return all.map((listing) => ({
+    active: listing.active,
+    groupIds: membership.get(listing.id) ?? [],
+    id: listing.id,
+    ...override(listing),
+  }));
+};
+
 const orphanedAddOnAfterChange = async (
   id: number,
-  wouldBeGroupId: number,
+  wouldBeGroupIds: number[],
 ): Promise<string | null> => {
-  // Apply this listing's would-be group_id to the in-memory listing set, so a
+  // Apply this listing's would-be group set to the in-memory listing set, so a
   // group-scoped add-on resolves against the move the save is about to make.
   // (Built eagerly; the shared traversal short-circuits before `check` runs when
   // the listing has no edges, so a no-edge save reads it but never queries scopes.)
-  const allListings = (await getAllListings()).map((listing) =>
-    listing.id === id ? { ...listing, group_id: wouldBeGroupId } : listing,
+  const allListings = await listingsWithGroups((listing) =>
+    listing.id === id ? { groupIds: wouldBeGroupIds } : {},
   );
   // Each touching edge is a (suppressed child, parent page id) pair: as a parent
   // of each child the page is self (`id`) and the suppressed child is the other
@@ -180,12 +204,11 @@ const orphanedAddOnAfterChange = async (
 export const deactivationOrphanedAddOnError = async (
   inactiveIds: ReadonlySet<number>,
 ): Promise<string | null> => {
-  const allListings = await getAllListings();
   // Apply the would-be inactive state of every target listing to the in-memory set.
-  const wouldBe = allListings.map((listing) =>
-    inactiveIds.has(listing.id) ? { ...listing, active: false } : listing,
+  const wouldBe = await listingsWithGroups((listing) =>
+    inactiveIds.has(listing.id) ? { active: false } : {},
   );
-  const childIds = await getChildListingIds(allListings.map((l) => l.id));
+  const childIds = await getChildListingIds(wouldBe.map((l) => l.id));
   return firstChildUnreachableAddOnForListings(wouldBe, childIds);
 };
 
@@ -215,7 +238,7 @@ const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
   if (fieldError) return fieldError;
   const orphanError = await orphanedAddOnAfterChange(
     existingId,
-    input.groupId ?? 0,
+    input.groupIds ?? [],
   );
   if (orphanError) return orphanError;
   return deactivationOrphanedAddOn(input, existingId);

@@ -75,7 +75,10 @@ export type ListingInput = {
   location?: string;
   slug: string;
   slugIndex: string;
-  groupId?: number;
+  /** Ids of the groups this listing belongs to. Transient — membership lives in
+   * the group_listings join table (written via setListingGroups), not a column,
+   * so the listings table ignores this field. */
+  groupIds?: number[];
   maxAttendees: number;
   thankYouUrl?: string;
   unitPrice?: number;
@@ -195,7 +198,6 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   description: col.encryptedText(encrypt, decrypt),
   duration_days: { default: () => 1, write: normalizeDurationDays },
   fields: col.withDefault<ListingFields>(() => "email"),
-  group_id: col.withDefault(() => 0),
   hidden: col.boolean(false),
   image_url: col.encryptedText(encrypt, decrypt),
   initial_site_months: col.withDefault(() => 0),

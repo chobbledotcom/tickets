@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Add built_sites.updates for tiered client deploys, index listing_attendees.ledger_event_group for ledger owner lookups, tighten attendees.kind to a strict attendee/servicing invariant, and add service_costs for per-event servicing cost records.";
+  "Replace listings.group_id with a group_listings join table (carrying package_price) so a listing can belong to many groups, and add groups.is_package for package groups.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -75,7 +75,6 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["webhook_url", "TEXT"],
         ["slug", "TEXT"],
         ["slug_index", "TEXT"],
-        ["group_id", "INTEGER NOT NULL DEFAULT 0"],
         ["active", "INTEGER NOT NULL DEFAULT 1"],
         ["fields", "TEXT NOT NULL DEFAULT 'email'"],
         ["closes_at", "TEXT"],
@@ -471,6 +470,7 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["terms_and_conditions", "TEXT NOT NULL DEFAULT ''"],
         ["max_attendees", "INTEGER NOT NULL DEFAULT 0"],
         ["hidden", "INTEGER NOT NULL DEFAULT 0"],
+        ["is_package", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         {
@@ -478,6 +478,32 @@ export const SCHEMA: [name: string, table: Table][] = [
           name: "idx_groups_slug_index",
           unique: true,
         },
+      ],
+    },
+  ],
+
+  [
+    // Many-to-many membership between groups and listings: one row means
+    // listing_id belongs to group_id. Replaces the old single listings.group_id
+    // FK so a listing can sit in several groups at once. No FKs (house style);
+    // the app keeps it consistent and the group/listing delete paths prune both
+    // sides. `package_price` (minor units, 0 = no override) is the per-listing
+    // price when this group is a package — unused for non-package groups. The PK
+    // covers group→listings lookups; the extra index serves listing→groups.
+    "group_listings",
+    {
+      columns: [
+        ["group_id", "INTEGER NOT NULL"],
+        ["listing_id", "INTEGER NOT NULL"],
+        ["package_price", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [
+        {
+          columns: ["group_id", "listing_id"],
+          name: "idx_group_listings_pair",
+          unique: true,
+        },
+        { columns: ["listing_id"], name: "idx_group_listings_listing" },
       ],
     },
   ],

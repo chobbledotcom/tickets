@@ -256,9 +256,9 @@ export const getModifierListingIdsByModifierId = modifierScopeListingIdsLookup(
 export const getModifierGroupListingIdsByModifierId =
   modifierScopeListingIdsLookup(
     (placeholders) =>
-      `SELECT modifierGroup.modifier_id, listing.id AS listing_id
+      `SELECT modifierGroup.modifier_id, groupListing.listing_id AS listing_id
        FROM modifier_groups AS modifierGroup
-         JOIN listings AS listing ON listing.group_id = modifierGroup.group_id
+         JOIN group_listings AS groupListing ON groupListing.group_id = modifierGroup.group_id
        WHERE modifierGroup.modifier_id IN (${placeholders})`,
   );
 

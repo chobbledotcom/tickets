@@ -314,7 +314,6 @@ export interface Listing {
   description: string;
   listing_type: ListingType;
   fields: ListingFields;
-  group_id: number;
   hidden: boolean;
   id: number;
   image_url: string;
@@ -478,6 +477,16 @@ export interface Group {
   slug: string;
   slug_index: string;
   terms_and_conditions: string;
+}
+
+/** A row in the group_listings join table: listing_id belongs to group_id. A
+ * listing may have many such rows (membership in several groups). `package_price`
+ * (minor units, 0 = no override) is the per-listing price when the group is a
+ * package; it is ignored for non-package groups. */
+export interface GroupListing {
+  group_id: number;
+  listing_id: number;
+  package_price: number;
 }
 
 /** An owner-defined price modifier (surcharge / discount / add-on). `calc_value`
