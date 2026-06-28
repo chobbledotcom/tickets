@@ -98,17 +98,16 @@ jobs:
           echo "Got credentials for $count site(s) on tier ${TIER} or more eager"
 
           for i in $(seq 0 $((count - 1))); do
-            name=$(jq -r ".sites[$i].name" <<<"$sites_json")
             script_id=$(jq -r ".sites[$i].scriptId" <<<"$sites_json")
             db_url=$(jq -r ".sites[$i].dbUrl" <<<"$sites_json")
             db_token=$(jq -r ".sites[$i].dbToken" <<<"$sites_json")
             # The returned tokens are credentials — keep them out of the logs.
             echo "::add-mask::$db_token"
 
-            echo "==> $name ($script_id): backing up"
+            echo "Backing up Script ${script_id}.."
             DB_URL="$db_url" DB_TOKEN="$db_token" deno task backup
 
-            echo "==> $name ($script_id): deploying"
+            echo "Updating site ${script_id}.."
             code=$(curl -s -o /tmp/resp -w "%{http_code}" -X POST \
               "https://api.bunny.net/compute/script/${script_id}/code" \
               -H "AccessKey: ${BUNNY_ACCESS_KEY}" \
@@ -126,5 +125,5 @@ jobs:
               echo "  ✗ publish failed (HTTP $code): $(cat /tmp/resp)"
               exit 1
             fi
-            echo "  ✓ $name updated"
+            echo "  ✓ ${script_id} updated"
           done
