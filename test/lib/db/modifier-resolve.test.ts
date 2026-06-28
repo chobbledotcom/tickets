@@ -292,12 +292,9 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
 
     test("applies a group-scoped modifier to the linked group's listings", async () => {
       const listing = await createTestListing({
+        groupId: 42,
         maxAttendees: 10,
         unitPrice: 1000,
-      });
-      await getDb().execute({
-        args: [42, listing.id],
-        sql: "UPDATE listings SET group_id = ? WHERE id = ?",
       });
       const m = await insertModifier({
         calcKind: "percent",
