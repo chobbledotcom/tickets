@@ -1154,7 +1154,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
 
     const newId = await apiCreateListing({
       child_listing_ids: [child.id],
-      group_id: group.id,
+      group_ids: [group.id],
       listing_type: "standard",
       max_attendees: 10,
       name: "New base unit",
@@ -1185,7 +1185,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
 
     await assertJson(
       apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { child_listing_ids: [child.id], group_id: otherGroup.id },
+        body: { child_listing_ids: [child.id], group_ids: [otherGroup.id] },
         method: "PUT",
       }),
       400,

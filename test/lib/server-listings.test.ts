@@ -281,7 +281,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           "/admin/listing",
           {
             csrf_token: await testCsrfToken(),
-            group_id: "999",
+            group_ids: "999",
             max_attendees: "50",
             max_quantity: "1",
             name: "Bad Group Listing",
@@ -315,7 +315,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           "/admin/listing",
           {
             csrf_token: await testCsrfToken(),
-            group_id: String(group.id),
+            group_ids: String(group.id),
             listing_type: "daily",
             max_attendees: "50",
             max_quantity: "1",
@@ -1564,7 +1564,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           `/admin/listing/${listing.id}/edit`,
           {
             csrf_token: csrfToken,
-            group_id: "999",
+            group_ids: "999",
             max_attendees: "50",
             max_quantity: "1",
             name: listing.name,
@@ -1598,7 +1598,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           `/admin/listing/${listing.id}/edit`,
           {
             csrf_token: csrfToken,
-            group_id: String(group.id),
+            group_ids: String(group.id),
             max_attendees: "50",
             max_quantity: "1",
             name: listing.name,
@@ -1636,7 +1636,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           `/admin/listing/${listing.id}/edit`,
           {
             csrf_token: csrfToken,
-            group_id: String(group.id),
+            group_ids: String(group.id),
             max_attendees: "50",
             max_quantity: "1",
             name: listing.name,
