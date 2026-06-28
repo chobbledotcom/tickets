@@ -15,7 +15,7 @@ const TEST_SESSION = { adminLevel: "owner" as const };
  *  `adminLevel`, `username`, and `inviteExpired` vary between tests. */
 const displayUser = (overrides: Partial<DisplayUser> = {}): DisplayUser => ({
   adminLevel: "owner",
-  hasDataKey: true,
+  activated: true,
   id: 1,
   inviteExpired: false,
   username: "owner",
@@ -33,13 +33,13 @@ describe("adminUsersPage", () => {
       displayUser(),
       displayUser({
         adminLevel: "manager",
-        hasDataKey: false,
+        activated: false,
         id: 2,
         username: "pending",
       }),
       displayUser({
         adminLevel: "manager",
-        hasDataKey: false,
+        activated: false,
         id: 3,
         username: "invited",
       }),
@@ -66,7 +66,7 @@ describe("adminUsersPage", () => {
       displayUser(),
       displayUser({
         adminLevel: "manager",
-        hasDataKey: false,
+        activated: false,
         id: 2,
         inviteExpired: true,
         username: "expired-user",
@@ -85,7 +85,7 @@ describe("adminUsersPage", () => {
     const users: DisplayUser[] = [
       {
         adminLevel: "owner",
-        hasDataKey: true,
+        activated: true,
         id: 1,
         inviteExpired: false,
         username: "owner",
@@ -107,7 +107,7 @@ describe("adminUsersPage", () => {
 describe("adminUserManagePage", () => {
   const manager: DisplayUser = {
     adminLevel: "manager",
-    hasDataKey: false,
+    activated: false,
     id: 2,
     inviteExpired: false,
     username: "pending",
@@ -131,7 +131,7 @@ describe("adminUserManagePage", () => {
     const agent: DisplayUser = {
       adminLevel: "agent",
       agentNames: ["Van 1"],
-      hasDataKey: true,
+      activated: true,
       id: 4,
       inviteExpired: false,
       username: "driver",
@@ -145,7 +145,7 @@ describe("adminUserManagePage", () => {
     const agent: DisplayUser = {
       adminLevel: "agent",
       agentNames: [],
-      hasDataKey: true,
+      activated: true,
       id: 4,
       inviteExpired: false,
       username: "driver",
@@ -159,7 +159,7 @@ describe("adminUserDeletePage", () => {
   test("renders delete confirmation form with username", () => {
     const user: DisplayUser = {
       adminLevel: "manager",
-      hasDataKey: true,
+      activated: true,
       id: 5,
       inviteExpired: false,
       username: "targetuser",
@@ -175,7 +175,7 @@ describe("adminUserDeletePage", () => {
   test("renders error message when provided", () => {
     const user: DisplayUser = {
       adminLevel: "owner",
-      hasDataKey: true,
+      activated: true,
       id: 5,
       inviteExpired: false,
       username: "targetuser",

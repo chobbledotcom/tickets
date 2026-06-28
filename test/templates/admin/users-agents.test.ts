@@ -21,7 +21,7 @@ const AGENTS: LogisticsAgent[] = [
 const agentUser = (agentNames: string[]): DisplayUser => ({
   adminLevel: "agent",
   agentNames,
-  hasDataKey: true,
+  activated: true,
   id: 4,
   inviteExpired: false,
   username: "driver",
@@ -51,7 +51,7 @@ describe("adminUserNewPage agent selector", () => {
 describe("adminUserAgentsPage", () => {
   const agentUser: DisplayUser = {
     adminLevel: "agent",
-    hasDataKey: true,
+    activated: true,
     id: 7,
     inviteExpired: false,
     username: "driver",
