@@ -1,5 +1,6 @@
 import { createClient, type InValue, type Row } from "@libsql/client";
 import { afterEach, beforeEach, describe } from "@std/testing/bdd";
+import { once } from "#fp";
 import { resetEffectiveDomain } from "#shared/config.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
@@ -83,23 +84,21 @@ const TEST_SCHEMA_SQL = `${[
 // Golden DB: schema + default attendee status built once per worker, then
 // copied per test instead of re-executing 100+ CREATE TABLE/INDEX/TRIGGER
 // statements on every beforeEach.
-let goldenDbPath: string | null = null;
-
-const getOrCreateGoldenDb = async (): Promise<string> => {
-  if (goldenDbPath !== null) return goldenDbPath;
-  const path = await Deno.makeTempFile({ suffix: "-golden.db" });
-  const client = createClient({ url: `file:${path}` });
-  setDb(client);
-  await client.executeMultiple(
-    "PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF;",
-  );
-  await client.executeMultiple(TEST_SCHEMA_SQL);
-  await ensureDefaultAttendeeStatus();
-  client.close();
-  setDb(null);
-  goldenDbPath = path;
-  return path;
-};
+const getOrCreateGoldenDb: () => Promise<string> = once(
+  async (): Promise<string> => {
+    const path = await Deno.makeTempFile({ suffix: "-golden.db" });
+    const client = createClient({ url: `file:${path}` });
+    setDb(client);
+    await client.executeMultiple(
+      "PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF;",
+    );
+    await client.executeMultiple(TEST_SCHEMA_SQL);
+    await ensureDefaultAttendeeStatus();
+    client.close();
+    setDb(null);
+    return path;
+  },
+);
 
 const prepareTestClient = async (triggers = false): Promise<void> => {
   setupTestEncryptionKey();
