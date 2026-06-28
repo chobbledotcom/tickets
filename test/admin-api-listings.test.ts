@@ -785,6 +785,16 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         expect(result.input.slug).toBeTruthy();
       }
     });
+
+    test("maps use_defaults so the API can opt into inherited defaults", async () => {
+      const result = await bodyToCreateInput({
+        max_attendees: 10,
+        name: "Inheriting",
+        use_defaults: true,
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.input.useDefaults).toBe(true);
+    });
   });
 
   describe("POST /api/admin/listings - group validation", () => {

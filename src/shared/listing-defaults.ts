@@ -19,7 +19,7 @@
  * validators.
  */
 
-import type { Listing } from "#shared/types.ts";
+import { availableDayCounts, type Listing } from "#shared/types.ts";
 
 /**
  * The operator-configurable defaults. A key is present only when a default is
@@ -107,16 +107,22 @@ export const resolveListingDefaults = <T extends Listing>(
     const value = defaults[key];
     if (value !== undefined) overlay[field] = value;
   }
-  // A customisable-days listing must have at least one priced day count, so a
-  // global "customise = yes" default can't safely turn it on for a listing with
-  // no day prices — that would leave the public booking form with no valid day
-  // count. Honour the default only where prices exist; turning it off is always
-  // safe. The listing keeps its own value otherwise.
-  if (
-    overlay.customisable_days === true &&
-    Object.keys(listing.day_prices).length === 0
-  ) {
-    delete overlay.customisable_days;
+  // A customisable-days listing must offer at least one priced day count within
+  // [1, duration_days], so a global "customise = yes" default can't safely turn
+  // it on unless this listing has such a count — otherwise the public booking
+  // form has no selectable day count. The check uses the EFFECTIVE duration
+  // (a duration default may also be overlaid here), mirroring
+  // {@link availableDayCounts}. Turning customise off is always safe; the
+  // listing keeps its own value otherwise.
+  if (overlay.customisable_days === true) {
+    const durationDays =
+      (overlay.duration_days as number | undefined) ?? listing.duration_days;
+    const usable = availableDayCounts({
+      customisable_days: true,
+      day_prices: listing.day_prices,
+      duration_days: durationDays,
+    });
+    if (usable.length === 0) delete overlay.customisable_days;
   }
   return { ...listing, ...overlay };
 };

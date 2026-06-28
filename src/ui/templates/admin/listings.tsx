@@ -2108,16 +2108,20 @@ export const adminListingNewPage = (
   const seeds = templateId ? (TEMPLATE_SEEDS[templateId] ?? {}) : {};
   const defaults = settings.listingDefaults;
   const showUseDefaults = hasAnyListingDefault(defaults);
-  // New listings start on the defaults (the spec's "which it will be for new
-  // listings, if there are any default set"); a POST error re-render honours
-  // whatever the operator submitted instead.
+  // A plain (Custom) new listing starts on the defaults — the spec's "which it
+  // will be for new listings, if there are any default set". A listing started
+  // from a named template instead keeps the shape that template pins: defaults
+  // must NOT override the seed (e.g. a "logistics = no" default silently
+  // un-logistic-ing the Hireable card), so Use-defaults starts OFF and the seed
+  // is shown as-is. A POST error re-render honours whatever was submitted.
   const useDefaultsChecked = submitted
     ? submitted.use_defaults === "1"
-    : showUseDefaults;
-  const newValues = submitted ?? {
-    ...seeds,
-    ...defaultsToFieldValues(defaults),
-  };
+    : showUseDefaults && !template;
+  const newValues = submitted
+    ? submitted
+    : template
+      ? seeds
+      : { ...seeds, ...defaultsToFieldValues(defaults) };
   return String(
     <Layout title={t("listings_table.add_listing")}>
       <AdminNav active="/admin/" session={session} />

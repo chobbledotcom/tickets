@@ -179,11 +179,29 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       const response = await adminGet("/admin/listing/new?template=custom");
       const body = await response.text();
       expect(body).toContain('id="use-defaults"');
+      // A plain (Custom) new listing starts with Use-defaults checked.
+      expect(body).toMatch(/checked[^>]*id="use-defaults"/);
       expect(body).toContain("listing-form--default-hidden");
       expect(body).toContain("listing-form--default-webhook-url");
       // Defaulted fields are pre-filled with the default values.
       expect(body).toContain("https://example.com/hook");
       expect(body).toContain("https://example.com/thanks");
+    });
+
+    test("a template-picked new listing keeps Use-defaults off so the template wins", async () => {
+      await settings.update.hasLogistics(true);
+      // A logistics=no default would otherwise un-logistic the Hireable card.
+      await adminFormPost("/admin/listing-defaults", {
+        default_uses_logistics: "0",
+      });
+      const response = await adminGet(
+        "/admin/listing/new?template=hireable-item",
+      );
+      const body = await response.text();
+      // The toggle is shown but NOT pre-checked, so the template's pinned
+      // logistics dimension is not overridden by the conflicting default.
+      expect(body).toContain('id="use-defaults"');
+      expect(body).not.toMatch(/checked[^>]*id="use-defaults"/);
     });
 
     test("edit form reflects a listing's Use-defaults flag", async () => {

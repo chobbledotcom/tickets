@@ -100,6 +100,27 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
     ).toBe(true);
   });
 
+  test("a customisable-days default respects the effective (defaulted) duration", () => {
+    const listing = testListing({
+      customisable_days: false,
+      day_prices: { 5: 1000 },
+      duration_days: 5,
+      use_defaults: true,
+    });
+    // A duration default of 3 makes the only priced count (5) invalid → skip.
+    expect(
+      resolveListingDefaults(listing, {
+        customisableDays: true,
+        durationDays: 3,
+      }).customisable_days,
+    ).toBe(false);
+    // Without lowering the duration, count 5 is within range → applies.
+    expect(
+      resolveListingDefaults(listing, { customisableDays: true })
+        .customisable_days,
+    ).toBe(true);
+  });
+
   test("a customisable-days 'no' default always applies", () => {
     const listing = testListing({
       customisable_days: true,

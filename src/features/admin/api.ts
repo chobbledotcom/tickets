@@ -78,6 +78,8 @@ export type CreateListingBody = {
   /** Day count → price (minor units), e.g. { "1": 1000, "2": 1800 }. */
   day_prices?: Record<number, number>;
   hidden?: boolean;
+  /** Inherit the operator's listing defaults (live) for the defaulted fields. */
+  use_defaults?: boolean;
   /** Listing ids the buyer must choose one of when this listing is booked (the
    * required-child gate). Only honoured when the parents feature is enabled;
    * self-edges and unknown ids are dropped, and the same nesting/field/add-on
@@ -134,6 +136,7 @@ const optionalFields: FieldMapping[] = [
   ["can_pay_more", "canPayMore", "boolean"],
   ["customisable_days", "customisableDays", "boolean"],
   ["hidden", "hidden", "boolean"],
+  ["use_defaults", "useDefaults", "boolean"],
 ];
 
 /**
