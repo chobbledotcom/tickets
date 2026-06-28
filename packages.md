@@ -6,7 +6,7 @@ Two new boolean+data fields on groups:
 - **`is_package`** — marks a group as a bookable package
 - **Package price overrides** — a per-listing price table stored separately, shown/hidden via the CSS input trick when `is_package` is checked on the edit form
 
-Packages show above regular listings on the public group/listings page.
+Packages show above regular listings on the public `/listings` page.
 
 ---
 
@@ -29,7 +29,7 @@ CREATE TABLE group_package_prices (
 ```
 Prices here override the listing's own price when it is booked as part of this package. Minor units, unencrypted (like listing prices themselves).
 
-**Migration**: add a new named migration file (e.g. `src/shared/db/migrations/add-group-packages.ts`) with the `ALTER TABLE` and `CREATE TABLE` statements, import it into `src/shared/db/migrations.ts`, and update the schema version string in `src/shared/db/migrations/schema.ts`. A schema-hash change with no corresponding `MIGRATIONS` entry causes deployed instances to fail to boot.
+**Migration**: add a new named migration file (e.g. `src/shared/db/migrations/add-group-packages.ts`) with the `ALTER TABLE` and `CREATE TABLE` statements, import it into `src/shared/db/migrations.ts`, and update the schema version string in `src/shared/db/migrations/schema.ts`. Additionally, add `is_package` to the `groups` column definitions and `group_package_prices` to the `SCHEMA` object and `SCHEMA_TABLE_NAMES` in `schema.ts` — `initializeFreshSchema` builds new databases directly from `SCHEMA`, so fresh installs and restores must include the new column/table.
 
 ---
 
@@ -57,14 +57,29 @@ export interface GroupPackagePrice {
 
 New functions:
 - `getGroupPackagePrices(groupId: number): Promise<GroupPackagePrice[]>`
-- `setGroupPackagePrices(groupId: number, prices: Array<{listingId: number; price: number}>, tx: TxScope): Promise<void>` — deletes existing rows for this group and inserts the new set, batched inside the same transaction as the group row write
+- `setGroupPackagePrices(groupId: number, prices: Array<{listingId: number; price: number}>, tx: TxScope): Promise<void>` — issues a DELETE for the group then a **single multi-row INSERT** for all price rows (not one INSERT per row). Interactive transactions in this repo have a 31-statement round-trip guard; a delete + N individual inserts for a package with many listings would exceed it. One DELETE + one multi-value INSERT keeps the write to two statements regardless of package size.
+- `deleteGroupPackagePricesForListing(listingId: number, tx: TxScope): Promise<void>` — removes price rows for a listing that is being deleted or removed from a package group
 
 Updates:
 - Group decode — add `is_package: row.is_package === 1`.
 
 ---
 
-## 4. Admin form — CSS input trick (`src/ui/templates/admin/groups.tsx` + `fields.ts`)
+## 4. Package compatibility invariants
+
+Packages must not contain listings that are incompatible with flat price overrides. The following restrictions apply and must be enforced in **every** path that can change group membership or listing properties, not just the group edit POST:
+
+- **No `customisable_days` listings** — day-count pricing uses `dayPriceFor()`, not `unit_price`, so a flat override is meaningless
+- **No `can_pay_more` listings** — the buyer enters a custom price; overwriting `CheckoutItem.unitPrice` with a package price would silently discard it
+
+These checks must be added to:
+- `validateListingTypesForGroup` (called by the add-listings path `/admin/groups/:id/add-listings`)
+- `validateListingInput` / `validateListingGroup` (listing create/edit/API)
+- The group edit POST handler (when enabling `is_package`)
+
+---
+
+## 5. Admin form — CSS input trick (`src/ui/templates/admin/groups.tsx` + `fields.ts`)
 
 On the **edit form** (after listings have been assigned):
 
@@ -89,16 +104,14 @@ The generic edit GET route (currently `createCrudHandlers`) must be replaced wit
 
 Styles go in `src/ui/static/style.scss` alongside the existing embed-toggle block.
 
-**Restriction**: `is_package` is only permitted on groups whose listings are all fixed-price (not customisable-day). Groups already enforce that all listings share `customisable_days`; the admin POST handler should reject enabling `is_package` when that flag is set, since customisable-day pricing derives from `dayPriceFor()` rather than `unit_price` and a flat per-listing override cannot apply meaningfully.
-
 ---
 
-## 5. Admin route handler (`src/features/admin/groups.ts`)
+## 6. Admin route handler (`src/features/admin/groups.ts`)
 
 The current group admin routes go through `defineNamedResource(... table: groupsTable ...)` and `defineCrudApi(... table: groupsTable ...)`. These generic paths write only the `groups` row and know nothing about `group_package_prices`. Both the admin form POST and the JSON API PUT must be replaced or wrapped with custom handlers that:
 
-1. Write the `groups` row and `group_package_prices` rows in a single `withTransaction`
-2. Use `setGroupPackagePrices` inside that transaction
+1. Write the `groups` row and `group_package_prices` rows in a single `withTransaction` using `setGroupPackagePrices`
+2. Enforce the package compatibility checks (§4) when `is_package` is true
 
 Edit handler parses:
 - `is_package` checkbox (present = true, absent = false)
@@ -107,36 +120,42 @@ Edit handler parses:
 Validation:
 - Each price input must be a non-negative integer when `is_package` is true
 - Listings must all belong to this group (prevent form-forged listing IDs)
-- Reject `is_package=true` when the group's listings have `customisable_days` set
+- Reject `is_package=true` when the group's listings include `customisable_days` or `can_pay_more` listings
 
 ---
 
-## 6. Pricing integration
+## 7. Listing membership changes — maintain price rows
+
+`group_package_prices` rows can become stale or missing through paths that don't go through the group edit form:
+
+- **Listing deleted**: `deleteGroupPackagePricesForListing` must be called in the listing delete path, inside the same transaction
+- **Listing removed from group** (reset/reassign): call `deleteGroupPackagePricesForListing` when a listing's `group_id` is cleared or changed away from a package group
+- **Listing added to package group** (`assignListingsToGroup`): newly added listings have no price row yet; the plan treats missing rows as "no override" at pricing time (falls back to listing base price), so a missing row is not a crash — but the group edit page will show the listing with a blank price input, prompting the operator to fill it in on the next edit save
+
+---
+
+## 8. Pricing integration
 
 **Where**: `src/features/public/ticket-submit.ts` and `src/features/api/payment-processing.ts`.
 
-**Item preparation** (`ticket-submit.ts`): When building `CheckoutItem`s for a package group, load `getGroupPackagePrices` and replace each `CheckoutItem.unitPrice` with the override value after day-count pricing would have applied — i.e. override the final `CheckoutItem.unitPrice` directly, not the source `listing.unit_price`. This means the substitution must happen on the assembled `CheckoutItem`, not on the listing record, so it naturally covers the payment path too.
+**Item assembly** (`ticket-submit.ts`): When building `CheckoutItem`s for a package group, load `getGroupPackagePrices` and replace the `unitPrice` on each assembled `CheckoutItem` whose `listingId` is in the package price map. The override is applied **after** `buildRegistrationItems` returns — scoped to the package group's member listing IDs only, so folded child add-ons (added by `foldSelectedChildren` for required child listings) are left on their own pricing and not overwritten.
 
-**Payment revalidation** (`payment-processing.ts`): `validateAndPrice` and `paidPricingRefund` re-derive prices from listings to detect tampered metadata. If package overrides are applied only in `ticket-submit.ts` but not here, legitimate package sessions will be classified as price changes and refunded. To avoid this, the group's `is_package` flag and the applicable `group_package_prices` must be carried through the signed checkout metadata and re-applied during payment completion so revalidation sees the same prices as the original quote.
-
-This keeps `priceCheckout` itself generic; the substitution layer wraps item assembly on both the booking and payment sides.
+**Payment revalidation** (`payment-processing.ts`): Carry the `groupId` in the signed checkout metadata. During revalidation (`validateAndPrice`, `paidPricingRefund`), fetch current `group_package_prices` for that group from the database and re-apply them the same way as the original quote. This means if an operator edits package prices while a customer is paying, revalidation detects the change and triggers the existing `price_changed` refund path — the same behaviour as a listing price edit. Do not embed the price values themselves in metadata; always re-fetch from the DB at revalidation time.
 
 ---
 
-## 7. Public page — packages above regular listings
+## 9. `/listings` page — packages above regular listings
 
-The current public homepage/listings renderer emits every group card before every listing card. Just re-ordering the groups SQL query is insufficient because `groups.name` is encrypted and cannot be sorted in SQL (ciphertext order is meaningless), and non-package groups would still appear above individual listings.
+The public `/listings` page is assembled by `handlePublicListings` in `src/features/public/pages.ts` and rendered with the `homepagePage` template. The file `src/features/public/groups.ts` handles group booking pages (different concern).
 
-Changes:
-- Load and decrypt all public groups in application code (already done via the entity cache)
-- Partition the groups array into `packageGroups` and `regularGroups` in TypeScript after decryption
-- Sort each partition by decrypted `name` in TypeScript
-- Render `packageGroups` cards under a "Packages" heading, then `regularGroups` cards and individual listing cards together (or under their own heading) — so packages genuinely float above everything else
+Changes to `pages.ts` and `homepagePage`:
+- After loading and decrypting all public groups via the entity cache, partition them into `packageGroups` and `regularGroups` in TypeScript (sort each by decrypted `name`)
+- Render `packageGroups` under a "Packages" heading first, then `regularGroups` and individual listing cards together
 - The group public page for a package group shows per-item package prices in the quantity/price display (not listing base prices)
 
 ---
 
-## 8. Bulk-duplicate path (`src/features/admin/bulk-actions.ts`)
+## 10. Bulk-duplicate path (`src/features/admin/bulk-actions.ts`)
 
 The group duplicate action creates a new group and clones its listings outside the CRUD edit route. It must also:
 - Copy `is_package` from the source group
@@ -146,16 +165,18 @@ All in the same transaction as the duplicate write.
 
 ---
 
-## 9. Tests
+## 11. Tests
 
 Each layer needs full coverage:
-- **Migration**: new column/table existence, schema version string
-- **DB layer**: `getGroupPackagePrices`, `setGroupPackagePrices` (create/update/replace), group encode/decode with `is_package`
+- **Migration**: new column/table existence in both upgraded and fresh-install schema; `SCHEMA_TABLE_NAMES` includes `group_package_prices`
+- **DB layer**: `getGroupPackagePrices`, `setGroupPackagePrices` (create/update/replace with multi-row INSERT), `deleteGroupPackagePricesForListing`; group encode/decode with `is_package`
+- **Compatibility enforcement**: `validateListingTypesForGroup` rejects customisable-day and can-pay-more listings for package groups; same rejection in listing create/edit paths
 - **Admin form GET**: custom loader passes listings + existing package prices to the template
-- **Admin form POST**: `is_package=on` + price inputs saves correctly; POST without saves `is_package=false` and clears prices; invalid (non-integer) price input returns 400; customisable-day group rejects `is_package=true`
-- **Pricing — item assembly**: package group substitutes override `unitPrice` on `CheckoutItem`; non-package group uses listing base prices
-- **Pricing — payment revalidation**: revalidation re-derives the same override prices from signed metadata, does not misclassify as a price change
-- **Public listing render**: package groups appear before non-package groups and individual listings; sorted by decrypted name within each partition
+- **Admin form POST**: `is_package=on` + price inputs saves correctly; POST without saves `is_package=false` and clears prices; invalid price input returns 400; incompatible listing types reject `is_package=true`
+- **Membership change**: listing delete removes price rows; listing group reassignment removes price rows; add-listings to package group leaves missing rows (no crash, blank on next edit)
+- **Pricing — item assembly**: package group substitutes override `unitPrice` on member `CheckoutItem`s; folded child items are NOT overridden; non-package group uses listing base prices
+- **Pricing — payment revalidation**: revalidation re-fetches current package prices via group ID in metadata; a package price edit between quote and payment triggers `price_changed` refund
+- **Public listing render**: package groups appear before non-package groups and individual listings; each partition sorted by decrypted name
 - **Bulk duplicate**: duplicated package group preserves `is_package` and remaps package prices to cloned listing IDs
 
 ---
@@ -166,19 +187,21 @@ Each layer needs full coverage:
 |---|---|
 | `src/shared/db/migrations/add-group-packages.ts` | New migration: `is_package` column, `group_package_prices` table |
 | `src/shared/db/migrations.ts` | Import + register new migration |
-| `src/shared/db/migrations/schema.ts` | Updated schema version string |
+| `src/shared/db/migrations/schema.ts` | Updated schema version string; `is_package` in groups schema; `group_package_prices` in SCHEMA + SCHEMA_TABLE_NAMES |
 | `src/shared/types.ts` | `Group.is_package`, `GroupPackagePrice`, updated `GroupInput` |
-| `src/shared/db/groups.ts` | `getGroupPackagePrices`, `setGroupPackagePrices`, decode update |
+| `src/shared/db/groups.ts` | `getGroupPackagePrices`, `setGroupPackagePrices` (multi-row INSERT), `deleteGroupPackagePricesForListing`, decode update |
+| `src/shared/db/listings.ts` or groups | `validateListingTypesForGroup` extended to check customisable_days + can_pay_more for package groups |
 | `src/features/admin/groups.ts` | Replace generic CRUD handlers with custom GET loader + POST that writes both tables in one transaction; JSON API PUT likewise |
+| `src/features/admin/listings.ts` | Listing delete/reassign path calls `deleteGroupPackagePricesForListing` |
 | `src/ui/templates/admin/groups.tsx` | `is_package` checkbox, CSS-trick price table, pre-filled overrides |
 | `src/ui/templates/fields.ts` | New field definitions if needed |
 | `src/ui/static/style.scss` | `:has()` rules for the package price section |
-| `src/features/public/ticket-submit.ts` | Substitute package prices on assembled `CheckoutItem`s |
-| `src/features/api/payment-processing.ts` | Re-apply package prices during revalidation from signed metadata |
-| `src/features/public/groups.ts` | Partition + sort groups in application code; pass to template |
-| `src/ui/templates/public/groups.tsx` or listings | "Packages" section above regular listings + individual listings |
+| `src/features/public/ticket-submit.ts` | Substitute package prices on member `CheckoutItem`s after `buildRegistrationItems`; carry groupId in signed metadata |
+| `src/features/api/payment-processing.ts` | Re-fetch current package prices via groupId in metadata during revalidation |
+| `src/features/public/pages.ts` | Partition groups into packages/regular; pass both to homepagePage |
+| `src/ui/templates/public/homepage.tsx` (or equivalent) | "Packages" section above regular listings + individual listings |
 | `src/features/admin/bulk-actions.ts` | Copy `is_package` + remap package prices when duplicating a group |
-| `test/lib/groups.test.ts` | New DB-layer tests |
-| `test/lib/admin-groups.test.ts` | New form/route + bulk-duplicate tests |
-| `test/lib/checkout-pricing.test.ts` | Package price substitution + revalidation tests |
+| `test/lib/groups.test.ts` | New DB-layer tests, compatibility enforcement tests |
+| `test/lib/admin-groups.test.ts` | Form/route tests, membership change tests, bulk-duplicate tests |
+| `test/lib/checkout-pricing.test.ts` | Package price substitution, child-item scoping, revalidation tests |
 | `test/lib/public-listings.test.ts` | Partition/sort render tests |
