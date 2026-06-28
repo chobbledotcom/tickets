@@ -18,6 +18,7 @@ import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { getDb, queryOne } from "#shared/db/client.ts";
 import {
+  createAnnualInspectionEvent,
   createDailyListingPair,
   createDailyTestListing,
   createServicingHold,
@@ -44,13 +45,7 @@ const bookingRows = (listingId: number) =>
 describeWithEnv("servicing §3 — creation", { db: true }, () => {
   test("creating a servicing event persists name, bookings and kind", async () => {
     const [a, b] = await createDailyListingPair("Room A", "Room B");
-    const event = await createTestServicingEvent({
-      bookings: [
-        { date: "2026-07-01", listingId: a.id, quantity: 2 },
-        { date: "2026-07-02", listingId: b.id, quantity: 1 },
-      ],
-      name: "Annual Inspection",
-    });
+    const event = await createAnnualInspectionEvent(a, b);
     expect(await kindOf(event.id)).toBe(SERVICING_KIND);
 
     const decrypted = await decryptFirstServicingAttendee(a.id);

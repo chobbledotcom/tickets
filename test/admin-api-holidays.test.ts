@@ -8,6 +8,7 @@ import {
   createTestHoliday,
   createTestManagerSession,
   describeWithEnv,
+  expectRejectsEmptyName,
   mockRequest,
   requestAsSession,
   testCookie,
@@ -213,17 +214,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
 
     test("rejects empty name", async () => {
       const holiday = await createTestHoliday();
-
-      await assertJson(
-        apiRequest(`/api/admin/holidays/${holiday.id}`, {
-          body: { name: "" },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("name cannot be empty");
-        },
-      );
+      await expectRejectsEmptyName(`/api/admin/holidays/${holiday.id}`);
     });
 
     test("validates date range on update", async () => {

@@ -42,6 +42,15 @@ const expectCartRows = async (
   }
 };
 
+const setupBookedOutListing = async () => {
+  const listing = await createTestListing({ maxAttendees: 1 });
+  await updateListingAggregateValues(listing.id, {
+    booked_quantity: 1,
+    tickets_count: 0,
+  });
+  return listing;
+};
+
 describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
   test("succeeds when capacity available", async () => {
     const listing = await createTestListing({
@@ -323,11 +332,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
   });
 
   test("atomic SQL uses editable booked quantity for date-less capacity", async () => {
-    const listing = await createTestListing({ maxAttendees: 1 });
-    await updateListingAggregateValues(listing.id, {
-      booked_quantity: 1,
-      tickets_count: 0,
-    });
+    const listing = await setupBookedOutListing();
     const result = await createAttendeeAtomic({
       bookings: [{ listingId: listing.id, quantity: 1 }],
       email: "manual-full@example.com",
@@ -337,11 +342,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
   });
 
   test("atomic SQL uses editable booked quantity for dated standard listings", async () => {
-    const listing = await createTestListing({ maxAttendees: 1 });
-    await updateListingAggregateValues(listing.id, {
-      booked_quantity: 1,
-      tickets_count: 0,
-    });
+    const listing = await setupBookedOutListing();
     const result = await createAttendeeAtomic({
       bookings: [{ date: "2026-05-01", listingId: listing.id, quantity: 1 }],
       email: "dated-standard-full@example.com",

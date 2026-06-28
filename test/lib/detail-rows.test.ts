@@ -11,10 +11,9 @@ import {
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
 import {
+  singleAnswerSizeQuestionData,
   sizeQuestionAnswerData,
-  testAnswer,
   testAttendee,
-  testQuestion,
   unselectedAnswerQuestionData,
 } from "#test-utils";
 
@@ -253,16 +252,7 @@ describe("detail-rows", () => {
         attendees: [],
         hasPaidListing: false,
         maxCapacity: 0,
-        questionData: {
-          attendeeAnswerMap: new Map(),
-          questions: [
-            testQuestion({
-              answers: [testAnswer({ id: 10, text: "S" })],
-              id: 1,
-              text: "Size?",
-            }),
-          ],
-        },
+        questionData: singleAnswerSizeQuestionData(),
       });
       expect(rows.find((r) => r.key === "Size?")).toBeDefined();
     });

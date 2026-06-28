@@ -19,6 +19,7 @@ import { getListingRemainingForRange } from "#shared/db/attendees/capacity.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import {
   buildDuplicateServicingInput,
+  createAnnualInspectionEvent,
   createDailyListingPair,
   createServicingHold,
   decryptFirstServicingAttendee,
@@ -63,14 +64,7 @@ describeWithEnv(
   () => {
     test("the duplicate copies name and all listing bookings", async () => {
       const [a, b] = await createDailyListingPair("A", "B");
-      const { createTestServicingEvent } = await import("#test-utils");
-      const original = await createTestServicingEvent({
-        bookings: [
-          { date: "2026-07-01", listingId: a.id, quantity: 2 },
-          { date: "2026-07-02", listingId: b.id, quantity: 1 },
-        ],
-        name: "Annual Inspection",
-      });
+      const original = await createAnnualInspectionEvent(a, b);
       const copy = await duplicateServicingEvent(original.id);
       expect(copy.id).not.toBe(original.id);
       expect(copy.name).toBe("Annual Inspection");

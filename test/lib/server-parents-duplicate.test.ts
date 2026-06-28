@@ -98,6 +98,28 @@ const duplicateGroup = async (
   return getListingsByGroupId(newGroup!.id);
 };
 
+/** Duplicate a whole group, returning the raw redirect Response (without
+ *  following it) so callers can assert a warning flash. The body is cancelled
+ *  because the warning-tests never render the redirect target — they only
+ *  inspect the flash cookie. */
+const duplicateGroupResponse = async (
+  groupId: number,
+  newName: string,
+): Promise<Response> => {
+  const { response } = await adminFormPost(
+    `/admin/groups/${groupId}/bulk-actions/duplicate`,
+    {
+      date_find: "",
+      date_replace: "",
+      name_find: "",
+      name_replace: "",
+      new_name: newName,
+    },
+  );
+  response.body?.cancel();
+  return response;
+};
+
 describeWithEnv(
   "server > duplication copies parent/child edges",
   { db: true },
@@ -280,18 +302,10 @@ describeWithEnv(
         externalChild.id,
       ]);
 
-      const { adminFormPost } = await import("#test-utils");
-      const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
-        {
-          date_find: "",
-          date_replace: "",
-          name_find: "",
-          name_replace: "",
-          new_name: "Stranded bundle copy",
-        },
+      const response = await duplicateGroupResponse(
+        group.id,
+        "Stranded bundle copy",
       );
-      response.body?.cancel();
 
       const newGroup = (await getAllGroups()).find(
         (g) => g.name === "Stranded bundle copy",
@@ -332,18 +346,10 @@ describeWithEnv(
       // external parent's page.
       await optInAddOnScopedTo("Child-only extra", [child.id]);
 
-      const { adminFormPost } = await import("#test-utils");
-      const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
-        {
-          date_find: "",
-          date_replace: "",
-          name_find: "",
-          name_replace: "",
-          new_name: "Incoming bundle copy",
-        },
+      const response = await duplicateGroupResponse(
+        group.id,
+        "Incoming bundle copy",
       );
-      response.body?.cancel();
 
       const newGroup = (await getAllGroups()).find(
         (g) => g.name === "Incoming bundle copy",

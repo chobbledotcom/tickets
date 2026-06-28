@@ -86,6 +86,35 @@ const renderActiveContactForm = async (): Promise<string> => {
   return html;
 };
 
+/** Set contact page text, GET /contact, and assert the Botpoison widget markup
+ * is absent. The "form omitted" tests (toggle off, or no business email) both
+ * render the page with contact text but without an active form, so the
+ * `data-botpoison-public-key` attribute must not be emitted. */
+const expectContactFormOmitted = async (): Promise<void> => {
+  await settings.update.contactPageText("Just some text");
+  const response = await handleRequest(mockRequest("/contact"));
+  const html = await response.text();
+  expect(html).not.toContain("data-botpoison-public-key");
+};
+
+/** Submit the contact form with an invalid email and assert the server rejects
+ * it (redirect + flash) without making any external call. `fields` carries any
+ * extra form fields — Botpoison-configured tests pass `_botpoison: "solved"`
+ * to prove email validation short-circuits ahead of Botpoison verify. */
+const expectInvalidEmailRejected = async (
+  mock: ReturnType<typeof installContactFetch>,
+  fields: Record<string, string> = {},
+): Promise<void> => {
+  const response = await postContactForm({
+    ...fields,
+    email: "not-an-email",
+    message: "Hello!",
+  });
+  expectRedirect(response, "/contact");
+  expectFlash(response, "Please enter a valid email address.", false);
+  expect(mock.calls.length).toBe(0);
+};
+
 describeWithEnv(
   "server (public contact form, Botpoison configured)",
   { db: true, env: BOTPOISON_ENV },
@@ -159,19 +188,13 @@ describeWithEnv(
       test("omits the form when the toggle is off", async () => {
         await settings.update.showPublicSite(true);
         await settings.update.businessEmail("owner@example.com");
-        await settings.update.contactPageText("Just some text");
-        const response = await handleRequest(mockRequest("/contact"));
-        const html = await response.text();
-        expect(html).not.toContain("data-botpoison-public-key");
+        await expectContactFormOmitted();
       });
 
       test("omits the form when no business email is set", async () => {
         await settings.update.showPublicSite(true);
         await settings.update.contactFormEnabled(true);
-        await settings.update.contactPageText("Just some text");
-        const response = await handleRequest(mockRequest("/contact"));
-        const html = await response.text();
-        expect(html).not.toContain("data-botpoison-public-key");
+        await expectContactFormOmitted();
       });
     });
 
@@ -222,14 +245,7 @@ describeWithEnv(
       test("rejects an invalid email without verifying", async () => {
         await activate();
         await withContactFetch({ botpoisonOk: true }, async (mock) => {
-          const response = await postContactForm({
-            _botpoison: "solved",
-            email: "not-an-email",
-            message: "Hello!",
-          });
-          expectRedirect(response, "/contact");
-          expectFlash(response, "Please enter a valid email address.", false);
-          expect(mock.calls.length).toBe(0);
+          await expectInvalidEmailRejected(mock, { _botpoison: "solved" });
         });
       });
 
@@ -382,13 +398,7 @@ describeWithEnv(
     test("still validates the email field", async () => {
       await activate();
       await withContactFetch({ botpoisonOk: false }, async (mock) => {
-        const response = await postContactForm({
-          email: "not-an-email",
-          message: "Hello!",
-        });
-        expectRedirect(response, "/contact");
-        expectFlash(response, "Please enter a valid email address.", false);
-        expect(mock.calls.length).toBe(0);
+        await expectInvalidEmailRejected(mock);
       });
     });
 

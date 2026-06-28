@@ -16,6 +16,7 @@ import {
 } from "#templates/admin/questions.tsx";
 import {
   setupTestEncryptionKey,
+  singleAnswerSizeQuestionData,
   sizeQuestionAnswerData,
   testAnswer,
   testListingWithCount,
@@ -666,16 +667,7 @@ describe("adminListingPage with questionData", () => {
       allowedDomain: "example.com",
       attendees: [],
       listing: testListingWithCount({ id: 1, name: "E" }),
-      questionData: {
-        attendeeAnswerMap: new Map(),
-        questions: [
-          testQuestion({
-            answers: [testAnswer({ id: 10, text: "S" })],
-            id: 1,
-            text: "Size?",
-          }),
-        ],
-      },
+      questionData: singleAnswerSizeQuestionData(),
       session: TEST_SESSION,
     });
     expect(html).toContain("<th>Size?</th>");
