@@ -15,6 +15,7 @@
  */
 
 import { orderWidgetBody } from "#routes/assets.ts";
+import { encodeBody } from "#routes/response.ts";
 import { getDecimalPlaces } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
 import { parseEmbedHosts } from "#shared/embed-hosts.ts";
@@ -35,7 +36,9 @@ const DISABLED_STUB =
   'console.warn("Chobble Tickets: the external order library is not enabled for this site.");\nexport {};\n';
 
 const jsResponse = (body: string, headers: Record<string, string>): Response =>
-  new Response(body, {
+  // Pre-encode to bytes: Bunny Edge intermittently fails to decode raw string
+  // bodies, so all text responses go out as Uint8Array (see encodeBody).
+  new Response(encodeBody(body), {
     headers: { "content-type": JS_CONTENT_TYPE, ...headers },
   });
 
