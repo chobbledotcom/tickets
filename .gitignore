@@ -12,6 +12,7 @@ bunny-script.ts.map
 .build-tag
 src/ui/static/*.js
 src/ui/static/style.css
+.test-junit.xml
 
 .bin/
 .direnv/
