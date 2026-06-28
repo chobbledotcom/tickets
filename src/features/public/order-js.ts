@@ -17,6 +17,7 @@
 import { orderWidgetBody } from "#routes/assets.ts";
 import { encodeBody } from "#routes/response.ts";
 import { getDecimalPlaces } from "#shared/currency.ts";
+import { getCatalogListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { parseEmbedHosts } from "#shared/embed-hosts.ts";
 import {
@@ -25,7 +26,6 @@ import {
   serializeCatalog,
 } from "#shared/external-order.ts";
 import { nowIso } from "#shared/now.ts";
-import { loadSortedListings } from "#shared/sort-listings.ts";
 
 const JS_CONTENT_TYPE = "application/javascript; charset=utf-8";
 
@@ -56,14 +56,11 @@ export const handleOrderJs = async (request: Request): Promise<Response> => {
     parseEmbedHosts(settings.embedHosts),
   );
   const currency = settings.currency;
-  const { listings } = await loadSortedListings(
-    (listing) => listing.active && !listing.hidden,
-  );
   const catalog = buildCatalog({
     currency,
     decimalPlaces: getDecimalPlaces(currency),
     generatedAt: nowIso(),
-    listings,
+    listings: await getCatalogListings(),
     origin: new URL(request.url).origin,
   });
 

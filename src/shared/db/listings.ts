@@ -47,6 +47,7 @@ import {
 } from "#shared/db/migrations/schema.ts";
 import { nameMapByIds } from "#shared/db/query.ts";
 import { col } from "#shared/db/table.ts";
+import type { CatalogSourceListing } from "#shared/external-order.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import {
@@ -517,6 +518,37 @@ export const getListingNamesByIds = (
   nameMapByIds("listings", "listing", "name", ids, (raw: string) =>
     decrypt(raw),
   );
+
+/** Narrow catalog query for the public `/order.js` route. Filters to active,
+ * non-hidden listings in SQL *before* decryption and selects only the columns
+ * the external-order widget serializes, so an unauthenticated module request
+ * never decrypts hidden/inactive listings' descriptions, locations, or dates —
+ * unlike loading the whole listings cache via getAllListings(). */
+export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
+  // Raw row: like the source listing but with the encrypted slug/name still
+  // encrypted and the booleans as SQLite 0/1 integers.
+  type CatalogRow = Omit<
+    CatalogSourceListing,
+    "active" | "hidden" | "customisable_days" | "can_pay_more"
+  > & { customisable_days: number; can_pay_more: number };
+  const rows = await queryAll<CatalogRow>(
+    `SELECT id, slug, name, unit_price, listing_type, customisable_days, can_pay_more
+     FROM listings WHERE active = 1 AND hidden = 0`,
+  );
+  return Promise.all(
+    rows.map(async (row) => ({
+      active: true,
+      can_pay_more: row.can_pay_more === 1,
+      customisable_days: row.customisable_days === 1,
+      hidden: false,
+      id: row.id,
+      listing_type: row.listing_type,
+      name: await decrypt(row.name),
+      slug: await decrypt(row.slug),
+      unit_price: row.unit_price,
+    })),
+  );
+};
 
 /**
  * Get listing with attendee count (from cache)

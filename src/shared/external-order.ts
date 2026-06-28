@@ -8,7 +8,22 @@
  * listings, currency, and request origin.
  */
 
-import type { Listing } from "#shared/types.ts";
+import type { ListingType } from "#shared/types.ts";
+
+/** The minimal listing shape the catalog is built from — only the columns the
+ * widget serializes, so the public `/order.js` route can load it with a narrow
+ * query instead of decrypting every field of every listing. */
+export interface CatalogSourceListing {
+  id: number;
+  slug: string;
+  name: string;
+  unit_price: number;
+  listing_type: ListingType;
+  customisable_days: boolean;
+  can_pay_more: boolean;
+  active: boolean;
+  hidden: boolean;
+}
 
 // ---------------------------------------------------------------------------
 // Origin / CORS matching
@@ -83,7 +98,7 @@ export interface Catalog {
 }
 
 type VariablePriceFields = Pick<
-  Listing,
+  CatalogSourceListing,
   "listing_type" | "customisable_days" | "can_pay_more"
 >;
 
@@ -98,7 +113,7 @@ const isVariablePrice = (listing: VariablePriceFields): boolean =>
   listing.customisable_days ||
   listing.can_pay_more;
 
-const buildCatalogEntry = (listing: Listing): CatalogListing => ({
+const buildCatalogEntry = (listing: CatalogSourceListing): CatalogListing => ({
   id: listing.id,
   name: listing.name,
   slug: listing.slug,
@@ -118,7 +133,7 @@ export const buildCatalog = (params: {
   currency: string;
   decimalPlaces: number;
   generatedAt: string;
-  listings: Listing[];
+  listings: CatalogSourceListing[];
 }): Catalog => ({
   currency: params.currency,
   decimalPlaces: params.decimalPlaces,
