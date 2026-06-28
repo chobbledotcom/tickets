@@ -10,8 +10,8 @@
 import { t } from "#i18n";
 import { parseEditableAggregateForm } from "#routes/admin/aggregate-recalculation.ts";
 import {
-  CONTENT_MULTIPART,
   adminLandingPath,
+  CONTENT_MULTIPART,
   listingReturnPath,
   requireContentOr,
   withAuth,

@@ -111,11 +111,15 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
 
     const logAndRedirect = async (
       verb: string,
-      name: string,
-      path?: string,
+      row: Row,
+      session: AdminSession,
     ): Promise<Response> => {
-      await logActivity(`${cfg.singular} '${name}' ${verb}`);
-      return redirect(path ?? cfg.listPath, `${cfg.singular} ${verb}`, true);
+      await logActivity(`${cfg.singular} '${cfg.getName(row)}' ${verb}`);
+      return redirect(
+        cfg.getRowPath?.(row, session) ?? cfg.listPath,
+        `${cfg.singular} ${verb}`,
+        true,
+      );
     };
 
     const listGet = authHtml(async (session) => {
@@ -134,11 +138,7 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
     const createHandler: FormHandler = async (session, form) => {
       const result = await cfg.resource.create(form);
       return result.ok
-        ? await logAndRedirect(
-            "created",
-            cfg.getName(result.row),
-            cfg.getRowPath?.(result.row, session),
-          )
+        ? await logAndRedirect("created", result.row, session)
         : errorRedirect(`${cfg.listPath}/new`, result.error);
     };
 
@@ -150,11 +150,7 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
       auth.withForm(request, async (session, form) => {
         const result = await cfg.resource.update(id, form);
         if (result.ok) {
-          return logAndRedirect(
-            "updated",
-            cfg.getName(result.row),
-            cfg.getRowPath?.(result.row, session),
-          );
+          return logAndRedirect("updated", result.row, session);
         }
         if ("notFound" in result) return notFoundResponse();
         return errorRedirect(`${cfg.listPath}/${id}/edit`, result.error);

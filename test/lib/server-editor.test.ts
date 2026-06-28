@@ -146,6 +146,40 @@ describeWithEnv("server (editor role)", { db: true }, () => {
     });
   });
 
+  describe("group create/edit redirects", () => {
+    test("editor group create/edit returns to the edit form, not the detail page", async () => {
+      const { cookie } = await createTestEditorSession();
+
+      const createResp = await postFormAs("/admin/groups", cookie, {
+        description: "",
+        max_attendees: "0",
+        name: "Editor Group",
+        terms_and_conditions: "",
+      });
+      expect(createResp.status).toBe(302);
+      expect(createResp.headers.get("location")).toMatch(
+        /\/admin\/groups\/\d+\/edit/,
+      );
+
+      const group = await createTestGroup({ name: "To Rename" });
+      const editResp = await postFormAs(
+        `/admin/groups/${group.id}/edit`,
+        cookie,
+        {
+          description: "",
+          max_attendees: "0",
+          name: "Renamed By Editor",
+          slug: group.slug,
+          terms_and_conditions: "",
+        },
+      );
+      expect(editResp.status).toBe(302);
+      expect(editResp.headers.get("location")).toContain(
+        `/admin/groups/${group.id}/edit`,
+      );
+    });
+  });
+
   describe("keyless security", () => {
     test("editor session derives no private key", async () => {
       const { cookie } = await createTestEditorSession();
@@ -347,9 +381,7 @@ const bookedQuantity = async (id: number): Promise<number> => {
     args: [id],
     sql: "SELECT booked_quantity FROM listings WHERE id = ?",
   });
-  return Number(
-    (result.rows[0] as Record<string, unknown>).booked_quantity,
-  );
+  return Number((result.rows[0] as Record<string, unknown>).booked_quantity);
 };
 
 /** Fetch the owner-only users management page. */

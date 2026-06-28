@@ -1553,77 +1553,83 @@ export const listingAggregateToFieldValues = (
  */
 const ListingIncomeAdjustSection = ({
   listing,
+  show,
 }: {
   listing: ListingWithCount;
-}): JSX.Element => (
-  <CsrfForm
-    action={`/admin/listing/${listing.id}/income`}
-    class="listing-section"
-  >
-    <h2>{t("listings_table.adjust_income")}</h2>
-    <div class="error" role="alert">
-      {t("listings_table.adjust_income_warning")}
-    </div>
-    <label>
-      {t("listings_table.adjust_income_current")}
-      <input disabled type="text" value={formatCurrency(listing.income)} />
-    </label>
-    <label for="income">
-      {t("listings_table.adjust_income_new_label")}
-      <input
-        id="income"
-        inputmode="decimal"
-        min="0"
-        name="income"
-        step="0.01"
-        type="number"
-        value={toMajorUnits(listing.income)}
-      />
-    </label>
-    <p>
-      <small>
-        <a href={`/admin/listing/${listing.id}#income-ledger`}>
-          {t("listings_table.income_ledger_link")}
-        </a>
-      </small>
-    </p>
-    <SubmitButton icon="save">
-      {t("listings_table.adjust_income_submit")}
-    </SubmitButton>
-  </CsrfForm>
-);
+  show: boolean;
+}): JSX.Element | null =>
+  !show ? null : (
+    <CsrfForm
+      action={`/admin/listing/${listing.id}/income`}
+      class="listing-section"
+    >
+      <h2>{t("listings_table.adjust_income")}</h2>
+      <div class="error" role="alert">
+        {t("listings_table.adjust_income_warning")}
+      </div>
+      <label>
+        {t("listings_table.adjust_income_current")}
+        <input disabled type="text" value={formatCurrency(listing.income)} />
+      </label>
+      <label for="income">
+        {t("listings_table.adjust_income_new_label")}
+        <input
+          id="income"
+          inputmode="decimal"
+          min="0"
+          name="income"
+          step="0.01"
+          type="number"
+          value={toMajorUnits(listing.income)}
+        />
+      </label>
+      <p>
+        <small>
+          <a href={`/admin/listing/${listing.id}#income-ledger`}>
+            {t("listings_table.income_ledger_link")}
+          </a>
+        </small>
+      </p>
+      <SubmitButton icon="save">
+        {t("listings_table.adjust_income_submit")}
+      </SubmitButton>
+    </CsrfForm>
+  );
 
 const ListingRunningTotalsSection = ({
   aggregateRecalculation,
   listing,
+  show,
 }: {
   aggregateRecalculation?: ListingAggregateRecalculation;
   listing: ListingWithCount;
-}): JSX.Element => (
-  <fieldset class="listing-section">
-    <legend>{t("listings_table.running_totals")}</legend>
-    <div class="stack">
-      <ListingAggregateMismatchNotice
-        actionHref={`/admin/listings/recalculate/${listing.id}`}
-        aggregateRecalculation={aggregateRecalculation}
-      />
-      <p>
-        <small>{t("listings_table.running_totals_note")}</small>
-      </p>
-      <Raw
-        html={renderFields(
-          listingAggregateFields,
-          listingAggregateToFieldValues(listing),
-        )}
-      />
-      <p>
-        <a href={`/admin/listings/recalculate/${listing.id}`}>
-          {t("listings_table.recalculate_totals")}
-        </a>
-      </p>
-    </div>
-  </fieldset>
-);
+  show: boolean;
+}): JSX.Element | null =>
+  !show ? null : (
+    <fieldset class="listing-section">
+      <legend>{t("listings_table.running_totals")}</legend>
+      <div class="stack">
+        <ListingAggregateMismatchNotice
+          actionHref={`/admin/listings/recalculate/${listing.id}`}
+          aggregateRecalculation={aggregateRecalculation}
+        />
+        <p>
+          <small>{t("listings_table.running_totals_note")}</small>
+        </p>
+        <Raw
+          html={renderFields(
+            listingAggregateFields,
+            listingAggregateToFieldValues(listing),
+          )}
+        />
+        <p>
+          <a href={`/admin/listings/recalculate/${listing.id}`}>
+            {t("listings_table.recalculate_totals")}
+          </a>
+        </p>
+      </div>
+    </fieldset>
+  );
 
 const listingRecalculateRows = (
   snapshot: ListingAggregateRecalculation,
@@ -2300,17 +2306,16 @@ export const adminListingEditPage = (
           selectedGroupId={listing.group_id}
           values={listingToFieldValues(listing)}
         />
-        {showFinancials && (
-          <ListingRunningTotalsSection
-            aggregateRecalculation={aggregateRecalculation}
-            listing={listing}
-          />
-        )}
+        <ListingRunningTotalsSection
+          aggregateRecalculation={aggregateRecalculation}
+          listing={listing}
+          show={showFinancials}
+        />
         <SubmitButton icon="save" id="listing-edit-submit">
           {t("common.save_changes")}
         </SubmitButton>
       </CsrfForm>
-      {showFinancials && <ListingIncomeAdjustSection listing={listing} />}
+      <ListingIncomeAdjustSection listing={listing} show={showFinancials} />
       {storageEnabled && listing.image_url && (
         <CsrfForm action={`/admin/listing/${listing.id}/image/delete`}>
           <SubmitButton class="secondary" icon="trash-2">

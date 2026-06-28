@@ -158,18 +158,19 @@ export const LISTING_DEFAULT_ORDER = [
  * (revenue/cost/profit) are omitted entirely — not just unordered — so a saved
  * column template can never surface them, and the name links to the edit form
  * rather than the forbidden detail page. */
-export const EDITOR_LISTING_TABLE_COLUMNS: ColumnGenerators<ListingWithCount> = {
-  attendees,
-  created,
-  date,
-  description,
-  location,
-  name: editorName,
-  price,
-  renewal,
-  status,
-  tickets,
-};
+export const EDITOR_LISTING_TABLE_COLUMNS: ColumnGenerators<ListingWithCount> =
+  {
+    attendees,
+    created,
+    date,
+    description,
+    location,
+    name: editorName,
+    price,
+    renewal,
+    status,
+    tickets,
+  };
 
 /** Default column order for the editor listing table (no money columns). */
 export const EDITOR_LISTING_DEFAULT_ORDER = [

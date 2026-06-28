@@ -7,7 +7,7 @@ import {
   settingsHandler,
   settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
-import { type AuthSession, SITE_FORM, requireSiteOr } from "#routes/auth.ts";
+import { type AuthSession, requireSiteOr, SITE_FORM } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";

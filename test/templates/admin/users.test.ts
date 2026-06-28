@@ -14,8 +14,8 @@ const TEST_SESSION = { adminLevel: "owner" as const };
 /** Factory for a {@link DisplayUser} with the common defaults. Only `id`,
  *  `adminLevel`, `username`, and `inviteExpired` vary between tests. */
 const displayUser = (overrides: Partial<DisplayUser> = {}): DisplayUser => ({
-  adminLevel: "owner",
   activated: true,
+  adminLevel: "owner",
   id: 1,
   inviteExpired: false,
   username: "owner",
@@ -32,14 +32,14 @@ describe("adminUsersPage", () => {
     const users: DisplayUser[] = [
       displayUser(),
       displayUser({
-        adminLevel: "manager",
         activated: false,
+        adminLevel: "manager",
         id: 2,
         username: "pending",
       }),
       displayUser({
-        adminLevel: "manager",
         activated: false,
+        adminLevel: "manager",
         id: 3,
         username: "invited",
       }),
@@ -65,8 +65,8 @@ describe("adminUsersPage", () => {
     const users: DisplayUser[] = [
       displayUser(),
       displayUser({
-        adminLevel: "manager",
         activated: false,
+        adminLevel: "manager",
         id: 2,
         inviteExpired: true,
         username: "expired-user",
@@ -84,8 +84,8 @@ describe("adminUsersPage", () => {
   test("renders invite, success, and error messages when provided", () => {
     const users: DisplayUser[] = [
       {
-        adminLevel: "owner",
         activated: true,
+        adminLevel: "owner",
         id: 1,
         inviteExpired: false,
         username: "owner",
@@ -106,8 +106,8 @@ describe("adminUsersPage", () => {
 
 describe("adminUserManagePage", () => {
   const manager: DisplayUser = {
-    adminLevel: "manager",
     activated: false,
+    adminLevel: "manager",
     id: 2,
     inviteExpired: false,
     username: "pending",
@@ -129,9 +129,9 @@ describe("adminUserManagePage", () => {
 
   test("shows edit-agents link and assigned agent names for an agent user", () => {
     const agent: DisplayUser = {
+      activated: true,
       adminLevel: "agent",
       agentNames: ["Van 1"],
-      activated: true,
       id: 4,
       inviteExpired: false,
       username: "driver",
@@ -143,9 +143,9 @@ describe("adminUserManagePage", () => {
 
   test("shows a placeholder when an agent user has no assigned agents", () => {
     const agent: DisplayUser = {
+      activated: true,
       adminLevel: "agent",
       agentNames: [],
-      activated: true,
       id: 4,
       inviteExpired: false,
       username: "driver",
@@ -158,8 +158,8 @@ describe("adminUserManagePage", () => {
 describe("adminUserDeletePage", () => {
   test("renders delete confirmation form with username", () => {
     const user: DisplayUser = {
-      adminLevel: "manager",
       activated: true,
+      adminLevel: "manager",
       id: 5,
       inviteExpired: false,
       username: "targetuser",
@@ -174,8 +174,8 @@ describe("adminUserDeletePage", () => {
 
   test("renders error message when provided", () => {
     const user: DisplayUser = {
-      adminLevel: "owner",
       activated: true,
+      adminLevel: "owner",
       id: 5,
       inviteExpired: false,
       username: "targetuser",

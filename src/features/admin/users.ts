@@ -77,7 +77,10 @@ const wrapInviteDataKey = async (
   if (!session.wrappedDataKey) {
     return errorRedirect("/admin/user/new", t("error.session_lacks_key"));
   }
-  const dataKey = await unwrapKeyWithToken(session.wrappedDataKey, session.token);
+  const dataKey = await unwrapKeyWithToken(
+    session.wrappedDataKey,
+    session.token,
+  );
   return wrapKeyWithToken(dataKey, inviteCode);
 };
 

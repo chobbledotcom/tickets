@@ -19,9 +19,9 @@ const AGENTS: LogisticsAgent[] = [
 /** The agent-user fixture used by both "shows assigned agent names" and
  *  "shows a placeholder when no agents" tests — only `agentNames` varies. */
 const agentUser = (agentNames: string[]): DisplayUser => ({
+  activated: true,
   adminLevel: "agent",
   agentNames,
-  activated: true,
   id: 4,
   inviteExpired: false,
   username: "driver",
@@ -50,8 +50,8 @@ describe("adminUserNewPage agent selector", () => {
 
 describe("adminUserAgentsPage", () => {
   const agentUser: DisplayUser = {
-    adminLevel: "agent",
     activated: true,
+    adminLevel: "agent",
     id: 7,
     inviteExpired: false,
     username: "driver",

@@ -340,18 +340,33 @@ export const decryptUsername = (
  * affects a row — the rest no-op and return false rather than overwriting the
  * password/key that the first accept already set.
  */
+/** Hash a new password and pre-encrypt the values both activation paths write:
+ * the encrypted hash and an encrypted empty string (used to clear invite
+ * fields). Shared by {@link acceptInvite} and {@link activateKeylessUser}. */
+const buildActivationSecrets = async (
+  password: string,
+): Promise<{
+  passwordHash: string;
+  encryptedHash: string;
+  encryptedEmpty: string;
+}> => {
+  const passwordHash = await hashPassword(password);
+  const [encryptedHash, encryptedEmpty] = await Promise.all([
+    encrypt(passwordHash),
+    encrypt(""),
+  ]);
+  return { encryptedEmpty, encryptedHash, passwordHash };
+};
+
 export const acceptInvite = async (
   userId: number,
   inviteWrappedDataKey: string,
   inviteCode: string,
   password: string,
 ): Promise<boolean> => {
-  const passwordHash = await hashPassword(password);
-  const [encryptedHash, encryptedEmpty, dataKey] = await Promise.all([
-    encrypt(passwordHash),
-    encrypt(""),
-    unwrapKeyWithToken(inviteWrappedDataKey, inviteCode),
-  ]);
+  const { passwordHash, encryptedHash, encryptedEmpty } =
+    await buildActivationSecrets(password);
+  const dataKey = await unwrapKeyWithToken(inviteWrappedDataKey, inviteCode);
   const wrappedDataKey = await wrapDataKeyForPassword(
     dataKey,
     password,
@@ -381,11 +396,8 @@ export const activateKeylessUser = async (
   userId: number,
   password: string,
 ): Promise<boolean> => {
-  const passwordHash = await hashPassword(password);
-  const [encryptedHash, encryptedEmpty] = await Promise.all([
-    encrypt(passwordHash),
-    encrypt(""),
-  ]);
+  const { encryptedHash, encryptedEmpty } =
+    await buildActivationSecrets(password);
   const result = await execute(
     "UPDATE users SET password_hash = ?, kek_version = 2, invite_code_hash = ?, invite_expiry = ? WHERE id = ? AND password_hash = ''",
     [encryptedHash, encryptedEmpty, encryptedEmpty, userId],
