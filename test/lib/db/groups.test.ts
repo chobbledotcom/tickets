@@ -20,10 +20,7 @@ import {
   isGroupSlugTaken,
   resetGroupListings,
 } from "#shared/db/groups.ts";
-import {
-  getListing,
-  updateListingAggregateValues,
-} from "#shared/db/listings.ts";
+import { updateListingAggregateValues } from "#shared/db/listings.ts";
 import {
   bookAttendee,
   createTestGroup,
