@@ -3,7 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
   getAllGroups,
-  getListingsByGroupId,
+  getGroupIdsByListingId,
+  getUngroupedListings,
   groupsTable,
 } from "#shared/db/groups.ts";
 import {
@@ -399,10 +400,10 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         200,
       );
 
-      // Listing should now be ungrouped (group_id = 0)
-      const listings = await getListingsByGroupId(0);
-      const found = listings.find((e) => e.id === listing.id);
-      expect(found).toBeDefined();
+      // Deleting the group removes membership; the listing survives, ungrouped.
+      expect(await getGroupIdsByListingId(listing.id)).toEqual([]);
+      const ungrouped = await getUngroupedListings();
+      expect(ungrouped.find((e) => e.id === listing.id)).toBeDefined();
     });
 
     test("rejects delete with wrong confirmation", async () => {

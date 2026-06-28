@@ -62,8 +62,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-25_listing_attendee_ledger_event_group_index",
         "2026-06-26_attendees_kind_not_null",
         "2026-06-27_service_costs",
+        "2026-06-28_group_listings",
       ],
-      schemaHash: "eg14ic",
+      schemaHash: "13y04fk",
     });
   });
 });

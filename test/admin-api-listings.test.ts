@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { bodyToCreateInput, bodyToUpdateInput } from "#routes/admin/api.ts";
+import { getGroupIdsByListingId } from "#shared/db/groups.ts";
 import {
   getListingWithCount,
   invalidateListingsCache,
@@ -264,7 +265,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       await assertJson(
         apiRequest("/api/admin/listings", {
           body: {
-            group_id: 99999,
+            group_ids: [99999],
             max_attendees: 10,
             name: "Group Listing",
           },
@@ -592,7 +593,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
             date: "2026-12-25T18:00:00Z",
             description: "New desc",
             fields: "email,phone,address",
-            group_id: 0,
+            group_ids: [],
             hidden: true,
             listing_type: "daily",
             location: "New Location",
@@ -800,10 +801,10 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     test("creates listing in a valid group", async () => {
       const group = await createTestGroup({ name: "Valid Group" });
 
-      await assertJson(
+      const body = await assertJson(
         apiRequest("/api/admin/listings", {
           body: {
-            group_id: group.id,
+            group_ids: [group.id],
             listing_type: "standard",
             max_attendees: 10,
             name: "Grouped Listing",
@@ -811,10 +812,8 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
           method: "POST",
         }),
         201,
-        (body) => {
-          expect(body.listing.group_id).toBe(group.id);
-        },
       );
+      expect(await getGroupIdsByListingId(body.listing.id)).toEqual([group.id]);
     });
 
     test("rejects listing with mismatched type in group", async () => {
@@ -823,7 +822,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       // Create a standard listing in the group
       await apiRequest("/api/admin/listings", {
         body: {
-          group_id: group.id,
+          group_ids: [group.id],
           listing_type: "standard",
           max_attendees: 10,
           name: "Standard In Group",
@@ -835,7 +834,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       await assertJson(
         apiRequest("/api/admin/listings", {
           body: {
-            group_id: group.id,
+            group_ids: [group.id],
             listing_type: "daily",
             max_attendees: 10,
             name: "Daily In Group",
@@ -893,7 +892,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/listings/${listing.id}`, {
-          body: { group_id: 99999 },
+          body: { group_ids: [99999] },
           method: "PUT",
         }),
         400,
@@ -909,7 +908,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       // Create a standard listing in the group
       await apiRequest("/api/admin/listings", {
         body: {
-          group_id: group.id,
+          group_ids: [group.id],
           listing_type: "standard",
           max_attendees: 10,
           name: "Standard First",
@@ -922,7 +921,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/listings/${listing.id}`, {
-          body: { group_id: group.id, listing_type: "daily" },
+          body: { group_ids: [group.id], listing_type: "daily" },
           method: "PUT",
         }),
         400,
