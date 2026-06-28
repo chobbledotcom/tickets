@@ -34,6 +34,8 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
     const listing = testListing({
       bookable_days: ["Sunday"],
       customisable_days: false,
+      // Day prices present so the customisable-days default is allowed to apply.
+      day_prices: { 1: 1000 },
       duration_days: 1,
       hidden: false,
       maximum_days_after: 90,
@@ -74,6 +76,40 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
     const listing = testListing({ hidden: false, use_defaults: true });
     resolveListingDefaults(listing, { hidden: true });
     expect(listing.hidden).toBe(false);
+  });
+
+  test("a customisable-days 'yes' default only applies where day prices exist", () => {
+    const noPrices = testListing({
+      customisable_days: false,
+      day_prices: {},
+      use_defaults: true,
+    });
+    expect(
+      resolveListingDefaults(noPrices, { customisableDays: true })
+        .customisable_days,
+    ).toBe(false);
+
+    const withPrices = testListing({
+      customisable_days: false,
+      day_prices: { 1: 1000 },
+      use_defaults: true,
+    });
+    expect(
+      resolveListingDefaults(withPrices, { customisableDays: true })
+        .customisable_days,
+    ).toBe(true);
+  });
+
+  test("a customisable-days 'no' default always applies", () => {
+    const listing = testListing({
+      customisable_days: true,
+      day_prices: {},
+      use_defaults: true,
+    });
+    expect(
+      resolveListingDefaults(listing, { customisableDays: false })
+        .customisable_days,
+    ).toBe(false);
   });
 });
 

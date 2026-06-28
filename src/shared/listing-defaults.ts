@@ -107,6 +107,17 @@ export const resolveListingDefaults = <T extends Listing>(
     const value = defaults[key];
     if (value !== undefined) overlay[field] = value;
   }
+  // A customisable-days listing must have at least one priced day count, so a
+  // global "customise = yes" default can't safely turn it on for a listing with
+  // no day prices — that would leave the public booking form with no valid day
+  // count. Honour the default only where prices exist; turning it off is always
+  // safe. The listing keeps its own value otherwise.
+  if (
+    overlay.customisable_days === true &&
+    Object.keys(listing.day_prices).length === 0
+  ) {
+    delete overlay.customisable_days;
+  }
   return { ...listing, ...overlay };
 };
 
