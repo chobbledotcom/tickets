@@ -585,6 +585,14 @@ const publicPageHandlers = reduce(
   {},
 )(PUBLIC_GET_PAGES);
 
+/** Serve the dynamic `/order.js` external-order module; ignore any other path
+ * under the `order.js` prefix. Named (not an inline arrow) so coverage
+ * attributes its branches correctly. */
+const orderJsPrefixHandler: RouterFn = (request, path, method) =>
+  path === "/order.js" && method === "GET"
+    ? handleOrderJs(request)
+    : Promise.resolve(null);
+
 /** Prefix dispatch table — O(1) lookup replaces the sequential ?? chain */
 const prefixHandlers: Record<string, RouterFn> = {
   ...publicPageHandlers,
@@ -617,10 +625,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   instance: lazyRoute(loadInstanceRoutes),
   join: lazyRoute(loadJoinRoutes),
   order: lazyRoute(loadOrderRoutes),
-  "order.js": (request, path, method) =>
-    path === "/order.js" && method === "GET"
-      ? handleOrderJs(request)
-      : Promise.resolve(null),
+  "order.js": orderJsPrefixHandler,
   pay: lazyRoute(loadBalanceRoutes),
   payment: lazyRoute(loadPaymentRoutes),
   "read-only": (_request, path, method) =>

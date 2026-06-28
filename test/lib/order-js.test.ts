@@ -54,6 +54,12 @@ describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
     expect(body).not.toContain(slug);
   });
 
+  test("a non-/order.js path under the prefix is not handled (404)", async () => {
+    await settings.update.externalOrderEnabled(true);
+    const res = await handleRequest(mockRequest("/order.js/extra"));
+    expect(res.status).toBe(404);
+  });
+
   test("allow-list echoes an allowed origin and omits a disallowed one", async () => {
     await settings.update.externalOrderEnabled(true);
     await settings.update.embedHosts("shop.example.com");
