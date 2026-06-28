@@ -370,6 +370,22 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       expect(html).toContain('href="/admin/logout"');
       expect(html).not.toContain('href="/admin/log"');
     });
+
+    test("editors do not get the staff SQL/cache debug footer", async () => {
+      const { cookie: editorCookie } = await createTestEditorSession();
+      const { cookie: ownerCookie } = await getTestSession();
+      // Admin GETs enable query logging; the owner's page therefore renders the
+      // debug footer — proving the menu is live on this path…
+      const ownerHtml = await (
+        await getAs("/admin/listings", ownerCookie)
+      ).text();
+      expect(ownerHtml).toContain("debug-menu");
+      // …but the editor's identical page must not (the unlock is staff-only).
+      const editorHtml = await (
+        await getAs("/admin/listings", editorCookie)
+      ).text();
+      expect(editorHtml).not.toContain("debug-menu");
+    });
   });
 
   describe("login, invite, activation, status", () => {
