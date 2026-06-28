@@ -20,20 +20,24 @@ describe("admin > listing defaults form parse > booleans", () => {
   });
 
   test("logistics default is ignored when the feature is disabled", () => {
-    expect("usesLogistics" in ok(parse("default_uses_logistics=1", false))).toBe(
-      false,
+    expect(
+      "usesLogistics" in ok(parse("default_uses_logistics=1", false)),
+    ).toBe(false);
+    expect(ok(parse("default_uses_logistics=1", true)).usesLogistics).toBe(
+      true,
     );
-    expect(ok(parse("default_uses_logistics=1", true)).usesLogistics).toBe(true);
   });
 });
 
 describe("admin > listing defaults form parse > numbers", () => {
   test("accepts a non-negative integer and ignores blanks", () => {
-    expect(ok(parse("default_minimum_days_before=2")).minimumDaysBefore).toBe(2);
-    expect(ok(parse("default_maximum_days_after=0")).maximumDaysAfter).toBe(0);
-    expect("minimumDaysBefore" in ok(parse("default_minimum_days_before="))).toBe(
-      false,
+    expect(ok(parse("default_minimum_days_before=2")).minimumDaysBefore).toBe(
+      2,
     );
+    expect(ok(parse("default_maximum_days_after=0")).maximumDaysAfter).toBe(0);
+    expect(
+      "minimumDaysBefore" in ok(parse("default_minimum_days_before=")),
+    ).toBe(false);
   });
 
   test("rejects a non-numeric value", () => {
@@ -56,9 +60,9 @@ describe("admin > listing defaults form parse > duration", () => {
 
 describe("admin > listing defaults form parse > urls", () => {
   test("accepts an https url and ignores blanks", () => {
-    expect(ok(parse("default_webhook_url=https://example.com/h")).webhookUrl).toBe(
-      "https://example.com/h",
-    );
+    expect(
+      ok(parse("default_webhook_url=https://example.com/h")).webhookUrl,
+    ).toBe("https://example.com/h");
     expect("webhookUrl" in ok(parse("default_webhook_url="))).toBe(false);
   });
 

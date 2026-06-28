@@ -41,7 +41,9 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       );
       // The duration input carries the saved value and Monday is pre-ticked.
       expect(body).toContain('value="3"');
-      expect(body).toMatch(/value="Monday"[^>]*checked|checked[^>]*value="Monday"/);
+      expect(body).toMatch(
+        /value="Monday"[^>]*checked|checked[^>]*value="Monday"/,
+      );
     });
   });
 

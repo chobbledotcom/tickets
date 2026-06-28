@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   hasAnyListingDefault,
-  type ListingDefaults,
   LISTING_DEFAULT_FIELDS,
+  type ListingDefaults,
   listingDefaultFieldClass,
   listingDefaultFormClasses,
   parseListingDefaults,
@@ -58,8 +58,8 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
   test("leaves fields without a default untouched", () => {
     const listing = testListing({
       hidden: false,
-      uses_logistics: true,
       use_defaults: true,
+      uses_logistics: true,
     });
     // Only a webhook default is set — every other field keeps its own value.
     const resolved = resolveListingDefaults(listing, {
@@ -95,9 +95,9 @@ describe("shared > listing-defaults > CSS marker classes", () => {
   });
 
   test("emits one class per set default", () => {
-    expect(listingDefaultFormClasses({ usesLogistics: true, hidden: true })).toBe(
-      "listing-form--default-uses-logistics listing-form--default-hidden",
-    );
+    expect(
+      listingDefaultFormClasses({ hidden: true, usesLogistics: true }),
+    ).toBe("listing-form--default-uses-logistics listing-form--default-hidden");
   });
 
   test("is empty when nothing is set", () => {
