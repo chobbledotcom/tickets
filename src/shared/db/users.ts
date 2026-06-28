@@ -51,8 +51,6 @@ export type UserDisplayFields = Pick<
 const USER_DISPLAY_SELECT =
   "SELECT id, username_hash, admin_level FROM users ORDER BY id ASC";
 
-const USER_ID_SELECT = "SELECT id FROM users ORDER BY id ASC";
-
 const USER_AUTH_SELECT =
   "SELECT id, admin_level FROM users WHERE id = ? LIMIT 1";
 
@@ -289,10 +287,6 @@ export const getAllUsers = (): Promise<User[]> => loadAllUsers();
 /** Get the minimal encrypted user fields needed to show assignable users. */
 export const getUserDisplayFields = (): Promise<UserDisplayFields[]> =>
   queryAll<UserDisplayFields>(USER_DISPLAY_SELECT);
-
-/** Get all user ids, ordered by id, for validating submitted user links. */
-export const getAllUserIds = async (): Promise<number[]> =>
-  (await queryAll<{ id: number }>(USER_ID_SELECT)).map((row) => row.id);
 
 /**
  * Verify a user's password (decrypt stored hash, then verify)
@@ -535,7 +529,6 @@ export const usersApi = {
   decryptAdminLevel,
   decryptUsername,
   deleteUser,
-  getAllUserIds,
   getAllUsers,
   getUserById,
   getUserByInviteCode,
