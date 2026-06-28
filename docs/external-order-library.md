@@ -134,7 +134,28 @@ Cross-origin **classic** scripts execute without a CORS check — that is how CD
 server omits `Access-Control-Allow-Origin` for a disallowed origin the browser
 refuses to evaluate it. The module form is what makes the allowlist actually
 bite. Keep it ESM (`format: "esm"`); do not copy the existing IIFE client
-bundles in `scripts/build-static-assets.ts`.
+bundles in `scripts/build-static-assets.ts` (which is how `embed.js` is built
+today — `format: "iife"`).
+
+**But the owner's tag is not a security boundary.** A disallowed site can ignore
+`type="module"` and include the same URL as a classic `<script src>`, which is
+not CORS-gated and would run the widget anyway. Two requirements close this:
+
+1. The served bundle **must contain module-only syntax** so it throws when parsed
+   as a classic script. esbuild's `esm` output does not guarantee this on its own
+   (with no exports it can be classic-compatible), so the bundle must include an
+   explicit top-level `export {}` (or a top-level `import` / `import.meta`
+   reference). Loaded as a classic script it then fails with a `SyntaxError`
+   before any widget code runs.
+2. Treat the catalog as public regardless. Even with (1), a determined attacker
+   could read the response body off the network; the only thing CORS + module
+   syntax actually prevents is *unauthorized widget execution/embedding*, not
+   disclosure. That is fine because the catalog is already-public listing data
+   (see [Security And Privacy](#security-and-privacy)) — but do not put anything
+   in the module body that isn't already public.
+
+Note `import.meta.url` is **not** relied on for origin — the catalog carries
+`origin` explicitly — so requirement (1) is purely to force module-only parsing.
 
 ### Serving and settings ordering
 
@@ -164,14 +185,17 @@ bundles in `scripts/build-static-assets.ts`.
 
 ## Embedded Catalog
 
-At serve time the handler reads the site's public, **listed** listings and
-serializes a small catalog into the module:
+At serve time the handler reads the site's public, **listed** listings —
+`loadSortedListings(e => e.active && !e.hidden)`, the same predicate the `/order`
+and public listings pages use (`src/features/public/order.ts`,
+`src/features/public/pages.ts`) — and serializes a small catalog into the module:
 
 ```js
 // Prepended to the module body at request time
 const CATALOG = {
   origin: "https://tickets.example.com",
-  currency: "GBP",
+  currency: "GBP",       // settings.currency, derived from COUNTRY
+  decimalPlaces: 2,       // getDecimalPlaces(currency); minor-units divisor = 10 ** places
   generatedAt: "2026-06-28T20:00:00Z",
   listings: {
     workshop: {
@@ -179,16 +203,14 @@ const CATALOG = {
       slug: "workshop",
       name: "Workshop",
       unitPrice: 1500,            // minor units (pence)
-      priceLabel: "£15.00",       // preformatted server-side
       variablePrice: false,
     },
     meal: {
       id: 13,
       slug: "meal",
       name: "Meal",
-      unitPrice: 0,
-      priceLabel: "Price set at checkout",
-      variablePrice: true,        // dated / PWYW / questions / customisable days
+      unitPrice: 2000,            // minimum for PWYW; a "from" price
+      variablePrice: true,        // requires a checkout-only input (see below)
     },
   },
 };
@@ -197,15 +219,37 @@ const CATALOG = {
 Rules:
 
 - The catalog is keyed by slug for O(1) lookup from a `data-add-listing` URL.
-- `priceLabel` is formatted **server-side** using the same money helper the
-  `/ticket` and `/order` pages use, so the embedded price matches the canonical
-  display. The client never formats currency; it only sums `unitPrice`.
-- `variablePrice` is `true` when the listing defers pricing to checkout — it has
-  a date, custom questions, pay-what-you-want, or customisable day counts. The
-  cart shows `priceLabel` ("Price set at checkout") for these and excludes them
-  from the indicative subtotal.
-- **Only active, listed listings are included.** Hidden/unlisted and inactive
-  listings are omitted (see [Security And Privacy](#security-and-privacy)).
+- Prices are **minor-unit integers** (`Listing.unit_price`, `src/shared/types.ts`).
+- The client formats all displayed money — unit price, line totals, and the
+  subtotal — itself, using `CATALOG.currency` and `CATALOG.decimalPlaces`. It must
+  mirror the server's `formatCurrency` (`src/shared/currency.ts`) so output
+  matches the canonical pages: convert `minorUnits / 10 ** decimalPlaces`, then
+  `new Intl.NumberFormat("en", { style: "currency", currency, trailingZeroDisplay:
+  "stripIfInteger" }).format(...)`. This is a single `Intl` call mirroring one
+  helper, not a reimplementation of checkout math. (An earlier draft forbade
+  client formatting, which made `quantity × unitPrice` line totals
+  unrenderable — that rule is dropped.)
+- `variablePrice` is `true` when the listing requires an input the v1 widget
+  cannot supply, so a final price can't be shown. The precise conditions, each
+  confirmed against the booking form:
+  - `listing_type === "daily"` — requires a date (`listing_type` is
+    `"standard" | "daily"`; the date selector is gated on `"daily"`, not on a
+    date merely existing — `src/features/public/ticket-payment.ts`).
+  - `customisable_days` — requires a day-count choice (`resolveDayCount`).
+  - `can_pay_more` — pay-what-you-want; `unit_price` is the minimum, shown as a
+    "from" price.
+  - The listing has a **required answer-priced question** — an answer carries a
+    price `modifier_id` (`listing_questions` + answer modifiers,
+    `src/shared/db/questions.ts`, `src/shared/db/migrations/schema.ts`), so the
+    answer changes the price.
+  For these the cart shows "Price set at checkout" and excludes them from the
+  indicative subtotal. A *required but non-priced* question does **not** set
+  `variablePrice` — the price is still known; the answer is just collected at
+  checkout like everything else the widget defers.
+- **Only active, listed listings are included** (`active && !hidden`).
+  Hidden/unlisted listings (privacy) and inactive/closed listings (unbookable)
+  are omitted; a `data-add-listing` to either falls back to its plain `href`
+  (see [Security And Privacy](#security-and-privacy)).
 - `generatedAt` is informational. The catalog can go stale between page loads;
   that is accepted (listings change slowly and a page refresh re-fetches the
   module). It is **not** a signed token and the module never refetches to
@@ -213,6 +257,11 @@ Rules:
 
 The catalog is identical for every origin; the only per-origin variance in the
 response is the CORS header.
+
+Note on accuracy: the indicative subtotal is `quantity × unitPrice` per
+fixed-price item. It does **not** apply quantity/tier price modifiers or the
+booking fee — those are resolved at checkout — so the subtotal is a lower-bound
+estimate, which the caveat in [Pricing](#pricing) makes explicit.
 
 ## Header Contract
 
@@ -259,9 +308,15 @@ On module evaluation:
 
 1. Read the tickets origin and catalog from the embedded `CATALOG`.
 2. Register a singleton cart controller for that origin.
-3. Scan the document for `a[data-add-listing]`.
-4. Attach click handlers to links whose listing is in the catalog.
-5. Start a `MutationObserver` so links added after page load are enhanced.
+3. Load any stored cart and **reconcile it against the current catalog**: drop
+   stored slugs that are no longer present (the owner hid, deactivated, renamed,
+   or removed the listing since the cart was saved). Only catalog-resolved items
+   survive — this keeps the count, subtotal, and Continue URL consistent, since
+   the Continue URL is built from current catalog slugs and ids and a dropped
+   slug has no id. If items were dropped, surface a brief notice in the preview.
+4. Scan the document for `a[data-add-listing]`.
+5. Attach click handlers to links whose listing is in the catalog.
+6. Start a `MutationObserver` so links added after page load are enhanced.
 
 The controller only enhances a link whose `data-add-listing` URL:
 
@@ -312,10 +367,14 @@ Preview requirements:
 - Restores focus to the cart button when closed.
 - Closes on Escape and on explicit close button.
 - Lists selected items with quantity steppers and remove buttons.
-- Shows each item's `priceLabel` and line total (quantity × `unitPrice`) for
-  fixed-price listings, and "Price set at checkout" for variable-price listings.
+- Shows each fixed-price item's unit price and line total (quantity × `unitPrice`,
+  formatted client-side per [Embedded Catalog](#embedded-catalog)), and "Price set
+  at checkout" for variable-price listings.
 - Shows an indicative subtotal with a clear caveat (see [Pricing](#pricing)).
-- Shows a Continue button when the cart contains at least one item.
+- Shows a Continue button only when the cart contains at least one
+  catalog-resolved item (after the reconciliation in Browser Behaviour).
+- If reconciliation dropped any stored item, shows a brief "some items are no
+  longer available" notice.
 
 Use Shadow DOM for the widget shell so owner CSS does not accidentally break the
 cart. Render the summary markup in the widget itself with a small copy of the
@@ -327,11 +386,12 @@ external page.
 The widget total is **indicative**, computed entirely client-side from the
 embedded catalog. There is no checkout math in the widget and no server quote.
 
-- For fixed-price listings the line total is `quantity × unitPrice`, displayed
-  with the server-formatted currency.
-- Variable-price listings (dated, pay-what-you-want, custom questions, or
-  customisable days) show "Price set at checkout" and are excluded from the
-  subtotal.
+- For fixed-price listings the line total is `quantity × unitPrice`, formatted
+  client-side from `CATALOG.currency` / `CATALOG.decimalPlaces` (see
+  [Embedded Catalog](#embedded-catalog)).
+- Variable-price listings (`listing_type === "daily"`, pay-what-you-want,
+  customisable days, or a required answer-priced question) show "Price set at
+  checkout" and are excluded from the subtotal.
 - The subtotal is labelled to set expectations, e.g.:
 
 ```html
@@ -343,10 +403,11 @@ embedded catalog. There is no checkout math in the widget and no server quote.
 This deliberately avoids replicating the booking engine (tiers, fees, rounding,
 sold-out logic) in JavaScript. The single source of truth for the authoritative
 total is the canonical ticket page, which the visitor reaches via Continue. The
-only shared concern is the *displayed unit price*, and that is solved by
-formatting `priceLabel` server-side with the existing money helper when building
-the catalog — so the widget shows the same number `/ticket` shows, without
-owning the logic.
+widget only formats raw unit prices; matching the canonical display is a matter
+of mirroring one `Intl.NumberFormat` call (`formatCurrency`,
+`src/shared/currency.ts`), not reproducing pricing logic. Quantity/tier modifiers
+and the booking fee are intentionally not applied here — the subtotal is a
+lower-bound estimate.
 
 ## Continue URL
 
@@ -358,10 +419,16 @@ catalog using selected slugs and ids:
 https://tickets.example.com/ticket/workshop+meal?q_12=2&q_13=1
 ```
 
-This mirrors the existing `/order` gallery handoff: the external page selects a
-cart, then the ticket page collects attendee details, required fields, terms,
-pay-what-you-want prices, dates, day counts, and payment through the normal
-booking form — i.e. everything the widget deliberately defers.
+This is the exact form the existing `/order` gallery handoff produces
+(`bookingUrlFor`, `src/features/public/order.ts`): slugs joined with `+`
+(`parseSlugs`, `src/features/public/types.ts`) and a `q_<listingId>` query param
+per listing. The ticket GET page reads those `q_<id>` params to pre-fill
+quantities (`parseQuantityPrefill`, `src/features/public/ticket-submit.ts`).
+Note the prefill param is `q_<id>`, deliberately **not** the form's submit field
+`quantity_<listingId>` — keep them distinct. The ticket page then collects
+attendee details, required fields, terms, pay-what-you-want prices, dates, day
+counts, and payment through the normal booking form — i.e. everything the widget
+defers.
 
 The external widget must not submit directly to `/ticket/:slug` because it does
 not hold a CSRF token and does not collect the full booking form. It only
@@ -388,9 +455,9 @@ Server-side, the only failure surface is rendering `/order.js`:
 
 - There is no new server endpoint. `/order.js` is a read-only, public,
   catalog-bearing asset.
-- The catalog contains only public listing data (slug, id, name, formatted
-  price) for active, **listed** listings — the same data the public listings
-  page already exposes.
+- The catalog contains only public listing data (slug, id, name, minor-unit unit
+  price) for active, **listed** listings (`active && !hidden`) — the same data the
+  public listings page already exposes.
 - Hidden/unlisted listings are never embedded, so the module cannot be used to
   enumerate them. A `data-add-listing` pointing at a hidden listing is simply not
   enhanced; its `href` still opens the real ticket page (the listing remains
@@ -430,13 +497,15 @@ Server tests:
 - `/order.js` for an allowed origin sends `Access-Control-Allow-Origin`,
   `Vary: Origin`, and a non-cacheable `Cache-Control`, and embeds the catalog.
 - `/order.js` for a disallowed origin sends no permissive CORS header.
-- The embedded catalog includes active listed listings with id, slug, name, and
-  a server-formatted `priceLabel`.
-- Hidden/unlisted and inactive listings are excluded from the catalog.
-- Embedded `priceLabel` matches the canonical `/ticket` price for the same
-  listing (shared money formatter).
-- Listings that defer pricing (dated, PWYW, questions, customisable days) are
-  flagged `variablePrice: true`.
+- The embedded catalog includes active listed listings with id, slug, name,
+  minor-unit `unitPrice`, and the `currency`/`decimalPlaces` descriptor.
+- Hidden/unlisted and inactive (`active === false`) listings are excluded.
+- `variablePrice` is set for a `daily` listing, a `customisable_days` listing, a
+  `can_pay_more` listing, and a listing with a required answer-priced question;
+  it is **not** set for a fixed-price listing that merely has a non-priced
+  required question.
+- The served module body contains module-only syntax (e.g. `export {}`) so it
+  throws if loaded as a classic script.
 - Rendering `/order.js` loads only the `[EMBED_HOSTS, COUNTRY]` settings bundle,
   not payment/email/wallet/SMS secrets.
 - Listing names with quotes/markup are safely escaped in the embedded catalog.
@@ -449,8 +518,12 @@ Client tests:
 - Clicks prevent default only for enhanced links.
 - Re-clicking the same link increments quantity.
 - The cart survives same-tab page navigation through `sessionStorage`.
-- The indicative subtotal sums fixed-price line totals and excludes
-  variable-price items, which show "Price set at checkout".
+- A stored slug absent from the current catalog is dropped on load, and Continue
+  is hidden when no catalog-resolved item remains.
+- The indicative subtotal sums fixed-price line totals (formatted client-side)
+  and excludes variable-price items, which show "Price set at checkout".
+- Client-formatted prices match the server's `formatCurrency` output for the
+  same minor-unit amount and currency.
 - The Continue button builds and navigates to
   `/ticket/<slugs>?q_<id>=<qty>` from the catalog.
 - The dialog meets keyboard basics: focus enters, Escape closes, focus returns.
@@ -475,13 +548,18 @@ End-to-end browser test:
 3. Add the dynamic `/order.js` handler: runs after settings load, gates CORS on
    `embed_hosts` with `Vary: Origin` and `no-store`, and registers the `order.js`
    prefix in `PREFIX_SETTINGS` as `[EMBED_HOSTS, COUNTRY]`.
-4. Build the embedded catalog from public listed listings, reusing the existing
-   listing-load and money-format helpers; exclude hidden/inactive listings and
-   flag `variablePrice` ones. Escape via existing serialization helpers.
-5. Build `src/ui/client/order.ts` (ESM): catalog-driven link scanning, singleton
-   guard, `sessionStorage` cart, indicative subtotal, preview dialog, and
-   Continue navigation. Compose the served module from this bundle plus the
-   injected catalog.
+4. Build the embedded catalog via `loadSortedListings(e => e.active && !e.hidden)`;
+   emit id, slug, name, minor-unit `unitPrice`, and a top-level
+   `currency`/`decimalPlaces` descriptor (from `settings.currency` /
+   `getDecimalPlaces`). Compute `variablePrice` from `listing_type === "daily"`,
+   `customisable_days`, `can_pay_more`, or a required answer-priced question.
+   Escape via existing serialization helpers.
+5. Build `src/ui/client/order.ts` (ESM, with a top-level `export {}` so it cannot
+   run as a classic script): catalog-driven link scanning, singleton guard,
+   `sessionStorage` cart with on-load reconciliation against the catalog,
+   client-side currency formatting mirroring `formatCurrency`, indicative
+   subtotal, preview dialog, and Continue navigation. Compose the served module
+   from this bundle plus the injected catalog.
 6. Add owner-facing snippet text to the settings or listing admin UI.
 7. Add the server, client, and e2e tests above.
 
