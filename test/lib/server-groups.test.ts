@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { validateGroupListingType } from "#shared/db/groups.ts";
+import {
+  getGroupIdsByListingId,
+  validateGroupListingType,
+} from "#shared/db/groups.ts";
 import { updateListingAggregateValues } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
@@ -379,7 +382,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         groupId: group.id,
         name: "Grouped Listing",
       });
-      expect(listing.group_id).toBe(group.id);
+      expect(await getGroupIdsByListingId(listing.id)).toContain(group.id);
 
       await deleteTestGroup(group.id);
 
@@ -389,7 +392,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(await groupsTable.findById(group.id)).toBeNull();
       const existingListing = await getListing(listing.id);
       expect(existingListing).not.toBeNull();
-      expect(existingListing?.group_id).toBe(0);
+      // Group delete prunes membership rows, leaving the listing ungrouped.
+      expect(await getGroupIdsByListingId(listing.id)).toEqual([]);
     });
 
     test("returns 404 when deleting a non-existent group", async () => {
@@ -842,8 +846,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const listing1 = await createTestListing({ name: "Listing A" });
       const listing2 = await createTestListing({ name: "Listing B" });
 
-      expect(listing1.group_id).toBe(0);
-      expect(listing2.group_id).toBe(0);
+      expect(await getGroupIdsByListingId(listing1.id)).toEqual([]);
+      expect(await getGroupIdsByListingId(listing2.id)).toEqual([]);
 
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
@@ -863,11 +867,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "Listings added to group",
       )(response);
 
-      const { getListing } = await import("#shared/db/listings.ts");
-      const updated1 = await getListing(listing1.id);
-      const updated2 = await getListing(listing2.id);
-      expect(updated1?.group_id).toBe(group.id);
-      expect(updated2?.group_id).toBe(0);
+      expect(await getGroupIdsByListingId(listing1.id)).toContain(group.id);
+      expect(await getGroupIdsByListingId(listing2.id)).toEqual([]);
     });
 
     test("handles empty selection gracefully", async () => {
@@ -927,9 +928,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       )(response);
 
       // Verify listing was NOT assigned
-      const { getListing } = await import("#shared/db/listings.ts");
-      const unchanged = await getListing(dailyListing.id);
-      expect(unchanged?.group_id).toBe(0);
+      expect(await getGroupIdsByListingId(dailyListing.id)).toEqual([]);
     });
   });
 

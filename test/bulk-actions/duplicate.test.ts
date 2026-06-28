@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllGroups, getListingsByGroupId } from "#shared/db/groups.ts";
+import {
+  getAllGroups,
+  getGroupIdsByListingId,
+  getListingsByGroupId,
+} from "#shared/db/groups.ts";
 import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
 import {
   adminFormPost,
@@ -96,7 +100,9 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       const original = await getListingWithCount(sourceListing.id);
       expect(original?.name).toBe("Spring Workshop");
       expect(original?.date).toBe(sourceListing.date);
-      expect(original?.group_id).toBe(group.id);
+      expect(await getGroupIdsByListingId(sourceListing.id)).toContain(
+        group.id,
+      );
     });
 
     test("duplicates with no replacements copies names and dates verbatim", async () => {

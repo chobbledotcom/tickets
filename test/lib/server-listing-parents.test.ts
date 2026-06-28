@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getGroupIdsByListingId } from "#shared/db/groups.ts";
 import { getChildIds } from "#shared/db/listing-parents.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
@@ -53,7 +54,7 @@ const optInAddOnForListings = async (
  * asserted rather than throwing as `updateTestListing` does. */
 const postListingEdit = async (
   listingId: number,
-  updates: Record<string, unknown>,
+  updates: Record<string, unknown> & { groupId?: number; groupIds?: number[] },
 ): Promise<Response> => {
   const { getListingWithCount } = await import("#shared/db/listings.ts");
   const { buildUpdateListingForm } = await import("#test-utils/db-helpers.ts");
@@ -62,11 +63,21 @@ const postListingEdit = async (
   const { mockMultipartRequest } = await import("#test-utils/mocks.ts");
   const existing = (await getListingWithCount(listingId))!;
   const form = buildUpdateListingForm(updates, existing);
+  // The edit form carries group membership as `group_ids` checkboxes. Translate
+  // the test's group intent (legacy groupId / groupIds) into that field; a
+  // single id covers these tests (the form helper is single-value).
+  const groupIds =
+    updates.groupIds ??
+    (typeof updates.groupId === "number" && updates.groupId > 0
+      ? [updates.groupId]
+      : []);
+  const formWithGroups =
+    groupIds.length > 0 ? { ...form, group_ids: String(groupIds[0]) } : form;
   const session = await getTestSession();
   return handleRequest(
     mockMultipartRequest(
       `/admin/listing/${listingId}/edit`,
-      { ...form, csrf_token: session.csrfToken },
+      { ...formWithGroups, csrf_token: session.csrfToken },
       session.cookie,
     ),
   );
@@ -723,7 +734,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const res = await postListingEdit(parent.id, { groupId: 0 });
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("Group extra");
-    expect((await getListingWithCount(parent.id))?.group_id).toBe(group.id);
+    expect(await getGroupIdsByListingId(parent.id)).toContain(group.id);
   });
 
   test("a listing save that keeps a group-scoped add-on reachable is allowed", async () => {
@@ -751,7 +762,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     await postChildren(parent.id, [child.id]);
 
     await updateTestListing(parent.id, { groupId: toGroup.id });
-    expect((await getListingWithCount(parent.id))?.group_id).toBe(toGroup.id);
+    expect(await getGroupIdsByListingId(parent.id)).toEqual([toGroup.id]);
   });
 
   test("saving a CHILD into a group that orphans its add-on is rejected", async () => {
@@ -777,7 +788,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const res = await postListingEdit(child.id, { groupId: group.id });
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("Group extra");
-    expect((await getListingWithCount(child.id))?.group_id).toBe(0);
+    expect(await getGroupIdsByListingId(child.id)).toEqual([]);
   });
 
   test("validateListingInput rejects an orphaning group change with an omitted groupId", async () => {
@@ -812,7 +823,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
         string,
         unknown
       >),
-      groupId: undefined,
+      groupIds: [] as number[],
     } as import("#shared/db/listings.ts").ListingInput;
     const error = await validateListingInput(input, parent.id);
     expect(error).toContain("Group extra");
@@ -1184,7 +1195,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     );
     // Neither the group move nor the edge change is partially applied; the
     // existing edge is preserved and the parent stays in its group.
-    expect((await getListingWithCount(parent.id))?.group_id).toBe(group.id);
+    expect(await getGroupIdsByListingId(parent.id)).toContain(group.id);
     expect(await getChildIds(parent.id)).toEqual([child.id]);
   });
 

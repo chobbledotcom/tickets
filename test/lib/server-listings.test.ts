@@ -7,6 +7,10 @@ import { withCookie } from "#routes/response.ts";
 import { addDays } from "#shared/dates.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
+  assignListingsToGroup,
+  getGroupIdsByListingId,
+} from "#shared/db/groups.ts";
+import {
   getListingWithCount,
   invalidateListingsCache,
   listingsTable,
@@ -255,7 +259,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           "/admin/listing",
           {
             csrf_token: await testCsrfToken(),
-            group_id: String(group.id),
+            group_ids: String(group.id),
             max_attendees: "50",
             max_quantity: "1",
             name: "Grouped Listing",
@@ -268,7 +272,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
       const { getListing } = await import("#shared/db/listings.ts");
       const listing = await getListing(1);
-      expect(listing?.group_id).toBe(group.id);
+      expect(await getGroupIdsByListingId(listing!.id)).toContain(group.id);
     });
 
     test("rejects non-existent group_id on create", async () => {
@@ -617,7 +621,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         name: "Capped Group",
         slug: "capped-grp",
       });
-      await listingsTable.update(listing.id, { groupId: group.id });
+      await assignListingsToGroup([listing.id], group.id);
       // Sibling listing in the same group with bookings: proves the row's
       // count is the group-wide total, not just the current listing's.
       const sibling = await createTestListing({
@@ -651,7 +655,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         name: "Uncapped",
         slug: "uncapped-grp",
       });
-      await listingsTable.update(listing.id, { groupId: group.id });
+      await assignListingsToGroup([listing.id], group.id);
 
       const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
         cookie,
@@ -1531,7 +1535,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           `/admin/listing/${listing.id}/edit`,
           {
             csrf_token: csrfToken,
-            group_id: String(group2.id),
+            group_ids: String(group2.id),
             max_attendees: "50",
             max_quantity: "1",
             name: listing.name,
@@ -1545,9 +1549,8 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         "Listing updated",
       )(response);
 
-      const { getListing } = await import("#shared/db/listings.ts");
-      const updated = await getListing(listing.id);
-      expect(updated?.group_id).toBe(group2.id);
+      // The group checkboxes replace membership: group1 → group2.
+      expect(await getGroupIdsByListingId(listing.id)).toEqual([group2.id]);
     });
 
     test("rejects non-existent group_id on edit", async () => {

@@ -13,7 +13,10 @@ import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import type { TxScope } from "#shared/db/client.ts";
-import { setListingGroups } from "#shared/db/groups.ts";
+import {
+  getGroupIdsByListingId,
+  setListingGroups,
+} from "#shared/db/groups.ts";
 import { setChildIdsTx } from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,
@@ -249,6 +252,7 @@ export const bodyToUpdateInput = async (
   const parsedName = parseUpdateName(body, existing.name);
   if (!parsedName.ok) return parsedName;
 
+  const existingGroupIds = await getGroupIdsByListingId(existing.id);
   const maxAttendees =
     typeof body.max_attendees === "number"
       ? body.max_attendees
@@ -272,8 +276,11 @@ export const bodyToUpdateInput = async (
         body.day_prices !== undefined
           ? parseDayPrices(body.day_prices)
           : existing.day_prices,
-      // Omitted group_ids → undefined → afterWrite leaves membership unchanged.
-      groupIds: parseGroupIds(body.group_ids),
+      // Omitted group_ids → fall back to the listing's CURRENT membership, so a
+      // partial update validates listing-type/customisable-days against the
+      // groups it stays in (and child-edge checks see the real groups). afterWrite
+      // then rewrites the same set — a no-op when unchanged.
+      groupIds: parseGroupIds(body.group_ids) ?? existingGroupIds,
       maxAttendees,
       maxPrice:
         typeof body.max_price === "number"

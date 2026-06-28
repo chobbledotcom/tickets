@@ -43,7 +43,6 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   description: "",
   duration_days: 1,
   fields: "email",
-  group_id: 0,
   hidden: false,
   id: 1,
   image_url: "",
@@ -130,6 +129,7 @@ export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   description: "",
   hidden: false,
   id: 1,
+  is_package: false,
   max_attendees: 0,
   name: "Test Group",
   slug: "test-group",
@@ -197,15 +197,37 @@ export const testBuiltSite = (
   ...overrides,
 });
 
+/** Test-listing overrides accept the legacy single `groupId` (mapped to a
+ * one-group membership) as well as the new `groupIds` array, so existing call
+ * sites passing `{ groupId }` keep working while multi-group tests can pass
+ * `{ groupIds }`. Membership is written via setListingGroups by the factory. */
+export type TestListingOverrides = Partial<
+  Omit<ListingInput, "slug" | "slugIndex" | "groupIds">
+> & { groupId?: number; groupIds?: number[] };
+
+/** Resolve the group-id list a test override describes: explicit `groupIds`
+ * wins; otherwise a positive `groupId` becomes a single-group list; `groupId: 0`
+ * (legacy "ungrouped") and an absent value yield none. */
+export const resolveTestGroupIds = (
+  overrides: TestListingOverrides,
+): number[] =>
+  overrides.groupIds ??
+  (overrides.groupId !== undefined && overrides.groupId > 0
+    ? [overrides.groupId]
+    : []);
+
 export const testListingInput = (
-  overrides: Partial<Omit<ListingInput, "slugIndex" | "slug">> = {},
-): Omit<ListingInput, "slugIndex" | "slug"> => ({
-  maxAttendees: 100,
-  maxPrice: 10000,
-  name: generateTestListingName(),
-  thankYouUrl: "https://example.com/thanks",
-  ...overrides,
-});
+  overrides: TestListingOverrides = {},
+): Omit<ListingInput, "slugIndex" | "slug"> => {
+  const { groupId: _groupId, groupIds: _groupIds, ...rest } = overrides;
+  return {
+    maxAttendees: 100,
+    maxPrice: 10000,
+    name: generateTestListingName(),
+    thankYouUrl: "https://example.com/thanks",
+    ...rest,
+  };
+};
 
 export const baseListingForm: Record<string, string> = {
   max_attendees: "100",

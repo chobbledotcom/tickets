@@ -22,7 +22,11 @@ import type {
   ListingWithCount,
 } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
-import { testListingInput } from "#test-utils/factories.ts";
+import {
+  resolveTestGroupIds,
+  type TestListingOverrides,
+  testListingInput,
+} from "#test-utils/factories.ts";
 import type { BookAttendeeOpts } from "#test-utils/internal.ts";
 
 const bool = (v: unknown): string => (v ? "1" : "");
@@ -80,7 +84,6 @@ const buildCreateListingForm = (
     uses_logistics: bool(input.usesLogistics),
     ...dayPriceFormFields(input.dayPrices),
     fields: input.fields ?? "email",
-    group_id: String(input.groupId ?? 0),
     hidden: bool(input.hidden),
     initial_site_months: String(initialSiteMonths),
     listing_type: input.listingType ?? "",
@@ -133,7 +136,6 @@ const buildUpdateNumericFields = (
     duration_days: String(
       pickField(updates.durationDays, existing.duration_days),
     ),
-    group_id: String(pickField(updates.groupId, existing.group_id)),
     initial_site_months: String(initialSiteMonths),
     max_attendees: String(
       pickField(updates.maxAttendees, existing.max_attendees),
@@ -256,11 +258,23 @@ const doAuthenticatedMultipartFormRequest = async <T>(
   );
 };
 
-export const createTestListing = (
-  overrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
+/** Write a test listing's group membership directly (the form helper is
+ * single-value, so membership is set via setListingGroups rather than the
+ * group_ids checkboxes). No-op for an empty list. */
+const applyTestListingGroups = async (
+  listingId: number,
+  groupIds: number[],
+): Promise<void> => {
+  if (groupIds.length === 0) return;
+  const { setListingGroups } = await import("#shared/db/groups.ts");
+  await setListingGroups(listingId, groupIds);
+};
+
+export const createTestListing = async (
+  overrides: TestListingOverrides = {},
 ): Promise<Listing> => {
   const input = testListingInput(overrides);
-  return doAuthenticatedMultipartFormRequest(
+  const listing = await doAuthenticatedMultipartFormRequest(
     "/admin/listing",
     buildCreateListingForm(input),
     async () => {
@@ -270,6 +284,8 @@ export const createTestListing = (
     },
     "create listing",
   );
+  await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));
+  return listing;
 };
 
 /**
@@ -278,12 +294,12 @@ export const createTestListing = (
  * return the newly created copy. Mirrors the real flow (the create handler reads
  * `duplicated_from` to copy the source parent's child edges).
  */
-export const duplicateTestListing = (
+export const duplicateTestListing = async (
   sourceId: number,
-  overrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
+  overrides: TestListingOverrides = {},
 ): Promise<Listing> => {
   const input = testListingInput(overrides);
-  return doAuthenticatedMultipartFormRequest(
+  const listing = await doAuthenticatedMultipartFormRequest(
     "/admin/listing",
     { ...buildCreateListingForm(input), duplicated_from: String(sourceId) },
     async () => {
@@ -293,6 +309,8 @@ export const duplicateTestListing = (
     },
     "duplicate listing",
   );
+  await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));
+  return listing;
 };
 
 const allDays: string[] = [
@@ -310,18 +328,27 @@ export const priceFormValue = (minorUnits: number): string =>
 
 export const updateTestListing = async (
   listingId: number,
-  updates: Partial<ListingInput>,
+  updates: Partial<Omit<ListingInput, "groupIds">> & {
+    groupId?: number;
+    groupIds?: number[];
+  },
 ): Promise<Listing> => {
   const existing = await getListingWithCount(listingId);
   if (!existing) {
     throw new Error(`Listing not found: ${listingId}`);
   }
-  return doAuthenticatedMultipartFormRequest(
+  const result = await doAuthenticatedMultipartFormRequest(
     `/admin/listing/${listingId}/edit`,
     buildUpdateListingForm(updates, existing),
     async () => (await getListingWithCount(listingId)) as ListingWithCount,
     "update listing",
   );
+  // Membership change requested? Replace it directly (form helper is single-value).
+  if (updates.groupId !== undefined || updates.groupIds !== undefined) {
+    const { setListingGroups } = await import("#shared/db/groups.ts");
+    await setListingGroups(listingId, resolveTestGroupIds(updates));
+  }
+  return result;
 };
 
 const changeListingStatus =
@@ -585,9 +612,7 @@ export const createTestAttendeeWithToken = async (
   return { attendee, listing, token };
 };
 
-export const createDailyTestListing = (
-  overrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
-) =>
+export const createDailyTestListing = (overrides: TestListingOverrides = {}) =>
   createTestListing({
     bookableDays: allDays,
     listingType: "daily",
