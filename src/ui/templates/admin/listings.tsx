@@ -2260,6 +2260,10 @@ export const adminListingEditPage = (
       : "";
   const durationWarning = String(<DurationWarning listing={listing} />);
   const template = inferTemplate(listing);
+  // Editors edit listing content but may not see ledger/income figures, so the
+  // running-totals and income-adjust sections are omitted for them (and the edit
+  // POST ignores any aggregate fields they craft — defence in depth).
+  const showFinancials = session.adminLevel !== "editor";
   return String(
     <Layout
       title={t("listings_table.edit_listing_title", { name: listing.name })}
@@ -2296,15 +2300,17 @@ export const adminListingEditPage = (
           selectedGroupId={listing.group_id}
           values={listingToFieldValues(listing)}
         />
-        <ListingRunningTotalsSection
-          aggregateRecalculation={aggregateRecalculation}
-          listing={listing}
-        />
+        {showFinancials && (
+          <ListingRunningTotalsSection
+            aggregateRecalculation={aggregateRecalculation}
+            listing={listing}
+          />
+        )}
         <SubmitButton icon="save" id="listing-edit-submit">
           {t("common.save_changes")}
         </SubmitButton>
       </CsrfForm>
-      <ListingIncomeAdjustSection listing={listing} />
+      {showFinancials && <ListingIncomeAdjustSection listing={listing} />}
       {storageEnabled && listing.image_url && (
         <CsrfForm action={`/admin/listing/${listing.id}/image/delete`}>
           <SubmitButton class="secondary" icon="trash-2">
