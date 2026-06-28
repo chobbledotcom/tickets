@@ -533,6 +533,18 @@ export type ListingGroupMembership = {
   active?: boolean;
 };
 
+/** Build the in-memory membership view of one listing from a
+ * listingId→groupIds map (absent → no groups). Shared by the would-be-scope
+ * builders so they agree on the shape. */
+export const toListingGroupMembership = (
+  listing: { id: number; active: boolean },
+  membership: Map<number, number[]>,
+): ListingGroupMembership => ({
+  active: listing.active,
+  groupIds: membership.get(listing.id) ?? [],
+  id: listing.id,
+});
+
 /** The ids of the supplied listings that belong to ANY of `groupIds` — the
  * in-memory expansion of a "groups"-scoped modifier (or any group → its member
  * listings resolution). A listing in several groups matches if any of them is in

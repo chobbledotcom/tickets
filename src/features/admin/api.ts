@@ -13,10 +13,7 @@ import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import type { TxScope } from "#shared/db/client.ts";
-import {
-  getGroupIdsByListingId,
-  setListingGroups,
-} from "#shared/db/groups.ts";
+import { getGroupIdsByListingId, setListingGroups } from "#shared/db/groups.ts";
 import { setChildIdsTx } from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,

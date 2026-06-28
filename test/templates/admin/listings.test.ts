@@ -18,7 +18,6 @@ import {
 import { getListingFields } from "#templates/fields.ts";
 import {
   describeWithEnv,
-  hasSelectedOption,
   setupTestEncryptionKey,
   testAttendee,
   testGroup,
@@ -38,13 +37,22 @@ afterEach(() => {
 });
 
 describe("adminListingEditPage group select", () => {
-  test("preselects the listing group_id when groups exist", () => {
+  test("checks the listing's groups when groups exist", () => {
     const groups = [testGroup({ id: 2, name: "Group Two" })];
-    const listing = testListingWithCount({ group_id: 2 });
-    const html = adminListingEditPage(listing, groups, TEST_SESSION);
-    expect(html).toContain('name="group_id"');
-    expect(hasSelectedOption(html, "2")).toBe(true);
-    expect(hasSelectedOption(html, "0")).toBe(false);
+    const listing = testListingWithCount({});
+    const html = adminListingEditPage(
+      listing,
+      groups,
+      TEST_SESSION,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [2],
+    );
+    expect(html).toContain('name="group_ids"');
+    expect(html).toContain('value="2"');
+    expect(html).toContain("checked");
   });
 });
 
@@ -951,11 +959,10 @@ describe("adminListingNewPage", () => {
     expect(html).toContain("Listings");
   });
 
-  test("renders group select when groups exist", () => {
+  test("renders group checkboxes when groups exist", () => {
     const groups = [testGroup({ id: 2, name: "My Group" })];
     const html = adminListingNewPage(groups, TEST_SESSION);
-    expect(html).toContain('name="group_id"');
-    expect(hasSelectedOption(html, "0")).toBe(true);
+    expect(html).toContain('name="group_ids"');
     expect(html).toContain('value="2"');
     expect(html).toContain("My Group");
   });
@@ -1022,12 +1029,13 @@ describe("adminListingNewPage", () => {
     expect(html).not.toContain("listing-form--no-daily");
   });
 
-  test("preserves submitted group_id on error re-render", () => {
+  test("preserves selected groups on error re-render", () => {
     const groups = [testGroup({ id: 3, name: "Group Three" })];
     const html = adminListingNewPage(groups, TEST_SESSION, {
-      values: { group_id: "3" },
+      selectedGroupIds: [3],
     });
-    expect(hasSelectedOption(html, "3")).toBe(true);
+    expect(html).toContain('value="3"');
+    expect(html).toContain("checked");
   });
 
   test("carries custom sentinel through as template_id hidden input", () => {

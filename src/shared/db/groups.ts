@@ -243,19 +243,22 @@ export const setListingGroups = async (
 ): Promise<void> => {
   const current = new Set(await getGroupIdsByListingId(listingId));
   const desired = new Set(groupIds);
+  // Statements for the group ids in `ids` that are absent from `exclude`.
+  const rowsFor = (ids: Set<number>, exclude: Set<number>, sql: string) =>
+    [...ids]
+      .filter((id) => !exclude.has(id))
+      .map((groupId) => ({ args: [groupId, listingId], sql }));
   const statements = [
-    ...[...current]
-      .filter((id) => !desired.has(id))
-      .map((groupId) => ({
-        args: [groupId, listingId],
-        sql: "DELETE FROM group_listings WHERE group_id = ? AND listing_id = ?",
-      })),
-    ...[...desired]
-      .filter((id) => !current.has(id))
-      .map((groupId) => ({
-        args: [groupId, listingId],
-        sql: "INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES (?, ?)",
-      })),
+    ...rowsFor(
+      current,
+      desired,
+      "DELETE FROM group_listings WHERE group_id = ? AND listing_id = ?",
+    ),
+    ...rowsFor(
+      desired,
+      current,
+      "INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES (?, ?)",
+    ),
   ];
   if (statements.length > 0) await executeBatch(statements);
 };

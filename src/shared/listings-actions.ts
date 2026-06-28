@@ -31,6 +31,7 @@ import {
   childOnlyAddOnNameForListings,
   firstChildUnreachableAddOnForListings,
   type ListingGroupMembership,
+  toListingGroupMembership,
 } from "#shared/db/modifier-resolve.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { generateUniqueSlug } from "#shared/slug.ts";
@@ -145,9 +146,7 @@ const listingsWithGroups = async (
   const all = await getAllListings();
   const membership = await getGroupIdsByListingIds(all.map((l) => l.id));
   return all.map((listing) => ({
-    active: listing.active,
-    groupIds: membership.get(listing.id) ?? [],
-    id: listing.id,
+    ...toListingGroupMembership(listing, membership),
     ...override(listing),
   }));
 };

@@ -386,34 +386,22 @@ const addDemandToBucket = (
   }
 };
 
-/** Aggregate batch items into per-listing demand buckets (listing-cap checks). */
-const aggregateListingDemand = (
-  ctx: BatchAvailabilityContext,
-): Map<number, DemandBucket> => {
-  const { items, listingsById, date } = ctx;
-  const buckets = new Map<number, DemandBucket>();
-  for (const item of items) {
-    const ev = listingsById.get(item.listingId)!;
-    addDemandToBucket(getOrCreateBucket(buckets, ev.id), ev, item, date);
-  }
-  return buckets;
-};
-
 /**
- * Aggregate batch items into per-group demand buckets (group-cap checks). A
- * listing contributes its demand to every group it belongs to, so a listing in
- * several groups is counted against each group's cap.
+ * Aggregate batch items into demand buckets keyed by whatever `keysFor` returns
+ * for each item. Keyed by `[ev.id]` it gives per-listing demand (listing caps);
+ * keyed by the listing's group ids it gives per-group demand (group caps) — a
+ * listing in several groups contributes to each, so each group's cap is checked.
  */
-const aggregateGroupDemand = (
+const aggregateDemand = (
   ctx: BatchAvailabilityContext,
-  membership: Map<number, number[]>,
+  keysFor: (ev: ListingRow, item: BatchAvailabilityItem) => number[],
 ): Map<number, DemandBucket> => {
   const { items, listingsById, date } = ctx;
   const buckets = new Map<number, DemandBucket>();
   for (const item of items) {
     const ev = listingsById.get(item.listingId)!;
-    for (const groupId of membership.get(item.listingId) ?? []) {
-      addDemandToBucket(getOrCreateBucket(buckets, groupId), ev, item, date);
+    for (const key of keysFor(ev, item)) {
+      addDemandToBucket(getOrCreateBucket(buckets, key), ev, item, date);
     }
   }
   return buckets;
@@ -516,8 +504,11 @@ export const checkBatchAvailabilityImpl = async (
 
   const membership = await getGroupIdsByListingIds(listingIds);
   const ctx: BatchAvailabilityContext = { date, items, listingsById };
-  const listingDemand = aggregateListingDemand(ctx);
-  const groupDemand = aggregateGroupDemand(ctx, membership);
+  const listingDemand = aggregateDemand(ctx, (ev) => [ev.id]);
+  const groupDemand = aggregateDemand(
+    ctx,
+    (_ev, item) => membership.get(item.listingId) ?? [],
+  );
 
   // Prefetch everything the per-bucket checks need, batched: per-listing
   // occupancy rows, per-group per-day remaining, and date-less group caps.

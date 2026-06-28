@@ -32,6 +32,7 @@ import {
   childUnreachableAddOnError,
   type ListingGroupMembership,
   listingIdsInGroups,
+  toListingGroupMembership,
 } from "#shared/db/modifier-resolve.ts";
 import {
   adjustModifierRevenue,
@@ -164,11 +165,7 @@ const childAddOnSaveError = async (
     getGroupIdsByListingIds(allIds),
   ]);
   const membershipListings: ListingGroupMembership[] = allListings.map(
-    (listing) => ({
-      active: listing.active,
-      groupIds: membership.get(listing.id) ?? [],
-      id: listing.id,
-    }),
+    (listing) => toListingGroupMembership(listing, membership),
   );
   // Only an ACTIVE non-child listing can serve a booking page (public ticket
   // contexts load active listings only — `withActiveListings`), so an inactive
