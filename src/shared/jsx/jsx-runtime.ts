@@ -83,7 +83,7 @@ export const escapeHtml = (str: string): string =>
     .replace(/"/g, "&quot;");
 
 /** Void elements that should not have closing tags */
-const VOID_ELEMENTS: Record<string, true> = {
+export const VOID_ELEMENTS: Record<string, true> = {
   area: true,
   base: true,
   br: true,
