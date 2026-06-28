@@ -1,5 +1,22 @@
 # Planning: the "Editor" user class
 
+> **Status: implemented.** This document is the original plan; the feature has
+> since been built on this branch. A few details were refined during
+> implementation (all driven by review feedback):
+> - **Site editing is owner + editor only** — managers stay excluded, so site
+>   uses a dedicated `SITE_ADMIN_LEVELS` (owner, editor), not the broader
+>   `CONTENT_ADMIN_LEVELS` (owner, manager, editor) used for listings/groups.
+> - **Editors are kept out of the delivery run sheet** via a dedicated
+>   `DELIVERY_ADMIN_LEVELS` (owner, manager, agent) gate, since adding `editor`
+>   to `ANY_USER_FORM` (for logout) would otherwise have admitted them.
+> - **Listing and group delete stay staff-only** (open questions 2/2a); editors
+>   get create/edit only.
+> - **Server-side aggregate guard**: the listing edit POST ignores any
+>   trigger-maintained aggregate fields (`booked_quantity`/`tickets_count`) an
+>   editor crafts, not just hiding the UI section.
+> - **Role-aware return paths**: editor saves redirect to edit/list pages, never
+>   the staff-only detail pages.
+
 ## Goal
 
 Add a fourth user class, **Editor**, alongside the existing `owner`, `manager`,
