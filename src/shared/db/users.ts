@@ -365,6 +365,35 @@ export const acceptInvite = async (
 };
 
 /**
+ * Complete a **keyless** invite (the editor role): set the password and clear
+ * the invite, leaving `wrapped_data_key` NULL. An editor holds no DATA_KEY, so
+ * unlike {@link acceptInvite} there is no handoff to unwrap or re-wrap — the
+ * password only authenticates; it protects no key. The user's role is fixed at
+ * invite time and is not changed here.
+ *
+ * Single-use: the UPDATE is guarded on `password_hash = ''` (the unactivated
+ * marker — buildUserInsert stores a literal empty string until a password is
+ * set, and pruneExpiredInvites uses the same marker). So a replay or a race only
+ * affects the row on the first submit; later submits no-op and return false
+ * rather than overwriting the password the first submit set.
+ */
+export const activateKeylessUser = async (
+  userId: number,
+  password: string,
+): Promise<boolean> => {
+  const passwordHash = await hashPassword(password);
+  const [encryptedHash, encryptedEmpty] = await Promise.all([
+    encrypt(passwordHash),
+    encrypt(""),
+  ]);
+  const result = await execute(
+    "UPDATE users SET password_hash = ?, kek_version = 2, invite_code_hash = ?, invite_expiry = ? WHERE id = ? AND password_hash = ''",
+    [encryptedHash, encryptedEmpty, encryptedEmpty, userId],
+  );
+  return result.rowsAffected > 0;
+};
+
+/**
  * Re-wrap a user's DATA_KEY under the password-bound (v2) KEK. Called at login —
  * the one place both the raw password and the freshly-unwrapped DATA_KEY are in
  * hand — for users still on the legacy v1 wrap, replacing the DB-recoverable
@@ -488,6 +517,7 @@ export const pruneExpiredInvites = async (): Promise<number> => {
  */
 export const usersApi = {
   acceptInvite,
+  activateKeylessUser,
   createInvitedUser,
   createUser,
   decryptAdminLevel,

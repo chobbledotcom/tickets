@@ -9,7 +9,13 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { parseEditableAggregateForm } from "#routes/admin/aggregate-recalculation.ts";
-import { AUTH_MULTIPART, requireSessionOr, withAuth } from "#routes/auth.ts";
+import {
+  CONTENT_MULTIPART,
+  adminLandingPath,
+  listingReturnPath,
+  requireContentOr,
+  withAuth,
+} from "#routes/auth.ts";
 import { applyFlash, formDataToParams } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -76,7 +82,7 @@ import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 export const handleNewListingGet: TypedRouteHandler<
   "GET /admin/listing/new"
 > = (request) =>
-  requireSessionOr(request, async (session) => {
+  requireContentOr(request, async (session) => {
     const templateParam = new URL(request.url).searchParams.get("template");
     if (!templateParam) {
       return htmlResponse(adminListingPickerPage(session));
@@ -174,7 +180,7 @@ const renderCreateListingError = async (
 export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
   request,
 ) =>
-  withAuth(request, AUTH_MULTIPART, async (session, formData) => {
+  withAuth(request, CONTENT_MULTIPART, async (session, formData) => {
     const form = formDataToParams(formData);
     applyDemoOverrides(form, LISTING_DEMO_FIELDS);
 
@@ -219,7 +225,7 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
     return processUploadsAndRedirect(
       formData,
       result.row.id,
-      "/admin",
+      adminLandingPath(session.adminLevel),
       t("success.listing_created"),
       undefined,
       undefined,
@@ -265,7 +271,7 @@ const listingAndGroupsPage =
     ) => string,
   ): TypedRouteHandler<"GET /admin/listing/:id"> =>
   (request, params) =>
-    requireSessionOr(request, (session) =>
+    requireContentOr(request, (session) =>
       withEntityFromParam(params.id, getListingAndGroups, (ctx) =>
         htmlResponse(renderPage(ctx, session, request)),
       ),
@@ -281,7 +287,7 @@ export const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listi
 export const handleAdminListingEditGet: TypedRouteHandler<
   "GET /admin/listing/:id/edit"
 > = (request, params) =>
-  requireSessionOr(request, (session) =>
+  requireContentOr(request, (session) =>
     withEntityFromParam(params.id, getListingAndGroups, async (ctx) => {
       const flash = applyFlash(request);
       return htmlResponse(
@@ -363,6 +369,7 @@ const handleListingEditSuccess = async (
   aggregateValues: ListingAggregateValues | null,
   formData: FormData,
   id: number,
+  session: AdminSession,
 ): Promise<Response> => {
   if (aggregateValues) {
     await updateListingAggregateValues(id, aggregateValues);
@@ -375,25 +382,41 @@ const handleListingEditSuccess = async (
   return processUploadsAndRedirect(
     formData,
     id,
-    `/admin/listing/${row.id}`,
+    listingReturnPath(session.adminLevel, row.id),
     `Listing updated${durationWarning}`,
     existing.image_url,
     existing.attachment_url,
   );
 };
 
+/**
+ * Parse the editable trigger-maintained aggregates (booked_quantity,
+ * tickets_count, …) from an edit submission — but only for staff. Editors may
+ * not touch these owner-level figures, so any such hidden fields they craft are
+ * ignored rather than trusted: they always edit with a null aggregate input.
+ */
+const parseAggregatesForRole = (
+  session: AdminSession,
+  form: FormParams,
+):
+  | { ok: true; input: ListingAggregateValues | null }
+  | { ok: false; error: string } =>
+  session.adminLevel === "editor"
+    ? { input: null, ok: true }
+    : parseEditableAggregateForm<
+        ListingAggregateFormValues,
+        ListingAggregateValues
+      >(form, listingAggregateFields, extractListingAggregateValues);
+
 /** Handle POST /admin/listing/:id/edit */
 export const handleAdminListingEditPost: TypedRouteHandler<
   "POST /admin/listing/:id/edit"
 > = (request, { id }) =>
-  withAuth(request, AUTH_MULTIPART, (session, formData) =>
+  withAuth(request, CONTENT_MULTIPART, (session, formData) =>
     withEntityFromParam(id, getListingWithCount, async (existing) => {
       const form = formDataToParams(formData);
       applyDemoOverrides(form, LISTING_DEMO_FIELDS);
-      const aggregates = parseEditableAggregateForm<
-        ListingAggregateFormValues,
-        ListingAggregateValues
-      >(form, listingAggregateFields, extractListingAggregateValues);
+      const aggregates = parseAggregatesForRole(session, form);
       if (!aggregates.ok) {
         return renderListingEditError(id, session, aggregates.error);
       }
@@ -408,6 +431,7 @@ export const handleAdminListingEditPost: TypedRouteHandler<
           aggregates.input,
           formData,
           id,
+          session,
         );
       }
       if ("notFound" in result) return notFoundResponse();

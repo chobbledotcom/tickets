@@ -416,11 +416,37 @@ export interface Session {
  *   per-page; managers are denied a subset).
  * - `agent` is a restricted delivery-driver login that can only ever reach its
  *   own logistics run sheet (`/admin/deliveries`). Auth gates exclude agents
- *   from every staff page by default — see `sessionRoleAllowed` in auth.ts. */
-export const AdminLevelSchema = v.picklist(["owner", "manager", "agent"]);
+ *   from every staff page by default — see `sessionRoleAllowed` in auth.ts.
+ * - `editor` is a content-only collaborator: they can create/edit listings and
+ *   groups and edit the public-site content, but hold no DATA_KEY (so attendee
+ *   PII is undecryptable for them) and have no ledger/settings/API access. Like
+ *   `agent`, they are excluded from every staff page by default and opted in to
+ *   only the content routes (see `CONTENT_ADMIN_LEVELS`). */
+export const AdminLevelSchema = v.picklist([
+  "owner",
+  "manager",
+  "agent",
+  "editor",
+]);
 
 /** Admin role levels that are back-office staff (not delivery agents). */
 export const STAFF_ADMIN_LEVELS = ["owner", "manager"] as const;
+
+/** Admin role levels that may create/edit listings & groups: the back-office
+ * staff plus the content-only `editor`. Used to gate the listing/group content
+ * routes editors are explicitly opted into; deliberately excludes `agent`. */
+export const CONTENT_ADMIN_LEVELS = ["owner", "manager", "editor"] as const;
+
+/** Admin role levels that may edit the public-facing site content (homepage,
+ * contact, order intro). Site editing has always been owner-only; the `editor`
+ * role is added to it, but `manager` stays excluded — so this is owner+editor,
+ * NOT the broader {@link CONTENT_ADMIN_LEVELS}. */
+export const SITE_ADMIN_LEVELS = ["owner", "editor"] as const;
+
+/** Admin role levels that may reach the delivery run sheet
+ * (`/admin/deliveries`): staff plus delivery `agent`s. This is the audience the
+ * run sheet has always had; the content-only `editor` is excluded. */
+export const DELIVERY_ADMIN_LEVELS = ["owner", "manager", "agent"] as const;
 
 /** Admin role levels */
 export type AdminLevel = v.InferOutput<typeof AdminLevelSchema>;
@@ -436,7 +462,7 @@ export type AdminSession = {
 };
 
 export interface User {
-  admin_level: string; // encrypted "owner", "manager" or "agent"
+  admin_level: string; // encrypted "owner", "manager", "agent" or "editor"
   id: number;
   invite_code_hash: string | null; // encrypted SHA-256 of invite token, null after password set
   invite_expiry: string | null; // encrypted ISO 8601, null after password set

@@ -1312,6 +1312,7 @@ export const getInviteUserFields = (): Field[] => [
       { label: t("fields.user.manager"), value: "manager" },
       { label: t("fields.user.owner"), value: "owner" },
       { label: t("fields.user.agent"), value: "agent" },
+      { label: t("fields.user.editor"), value: "editor" },
     ],
     required: true,
     type: "select",

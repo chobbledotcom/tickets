@@ -8,7 +8,7 @@
 
 /* jscpd:ignore-start */
 import { compact } from "#fp";
-import { AUTH_FORM, withAuth } from "#routes/auth.ts";
+import { CONTENT_FORM, listingReturnPath, withAuth } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -178,8 +178,10 @@ const handleFileDelete =
     clearFields: Partial<ListingInput>,
   ): TypedRouteHandler<`POST /admin/listing/:id/${string}/delete`> =>
   (request, { id }) =>
-    withAuth(request, AUTH_FORM, () =>
+    withAuth(request, CONTENT_FORM, (session) =>
       withEntityFromParam(id, getListingWithCount, async (listing) => {
+        // Staff return to the detail page; editors (who can't open it) to edit.
+        const returnPath = listingReturnPath(session.adminLevel, id);
         const url = getUrl(listing);
         if (url) {
           const [deleteResult] = await Promise.allSettled([deleteFile(url)]);
@@ -189,7 +191,7 @@ const handleFileDelete =
               `${label} removed for '${listing.name}'`,
               listing,
             );
-            return redirect(`/admin/listing/${id}`, `${label} removed`, true);
+            return redirect(returnPath, `${label} removed`, true);
           }
           const detail = `${label} removal failed: ${String(
             deleteResult.reason,
@@ -199,13 +201,9 @@ const handleFileDelete =
             detail,
             listingId: listing.id,
           });
-          return redirect(
-            `/admin/listing/${id}`,
-            `${label} removal failed`,
-            false,
-          );
+          return redirect(returnPath, `${label} removal failed`, false);
         }
-        return redirect(`/admin/listing/${id}`, `${label} removed`, true);
+        return redirect(returnPath, `${label} removed`, true);
       }),
     );
 

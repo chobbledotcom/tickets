@@ -60,11 +60,26 @@ import {
 const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Valid admin levels */
-const VALID_ADMIN_LEVELS = ["owner", "manager", "agent"] as const;
+const VALID_ADMIN_LEVELS = ["owner", "manager", "agent", "editor"] as const;
 
 /** The logistics agents an owner can assign — only when logistics is enabled. */
 const loadAssignableAgents = (): Promise<LogisticsAgent[]> =>
   settings.hasLogistics ? getAllLogisticsAgents() : Promise.resolve([]);
+
+/** Wrap the shared DATA_KEY under a new invitee's single-use invite code for the
+ * keyed roles (owner/manager/agent). Returns an error Response when the inviting
+ * owner's session somehow lacks its own key, so editors (which skip this) never
+ * pay that check. */
+const wrapInviteDataKey = async (
+  session: AuthSession,
+  inviteCode: string,
+): Promise<string | Response> => {
+  if (!session.wrappedDataKey) {
+    return errorRedirect("/admin/user/new", t("error.session_lacks_key"));
+  }
+  const dataKey = await unwrapKeyWithToken(session.wrappedDataKey, session.token);
+  return wrapKeyWithToken(dataKey, inviteCode);
+};
 
 /** Map of assignable logistics-agent id → name, for resolving agent users'
  * assignments to display names. */
@@ -108,14 +123,19 @@ const toDisplayUser = async (
           .map((id) => agentNameById.get(id))
           .filter((name): name is string => name !== undefined)
       : undefined;
-  const hasDataKey = user.wrapped_data_key !== null;
+  // A user is activated once they have set a password (buildUserInsert stores a
+  // literal empty string until then). This is the universal activation signal —
+  // it holds for keyed roles (owner/manager/agent, who also gain a data key) and
+  // for the keyless editor (who never gets one), so status doesn't hinge on the
+  // data key the editor deliberately lacks.
+  const activated = user.password_hash !== "";
   return {
+    activated,
     adminLevel,
     agentNames,
-    hasDataKey,
     id: user.id,
-    // An activated user has a data key; only un-activated invites can expire.
-    inviteExpired: hasDataKey ? false : await isInviteExpired(user),
+    // Only un-activated invites can expire.
+    inviteExpired: activated ? false : await isInviteExpired(user),
     username: await decryptUsername(user),
   };
 };
@@ -226,22 +246,21 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
     if (await isUsernameTaken(username)) {
       return errorRedirect("/admin/user/new", t("error.username_taken"));
     }
-    if (!session.wrappedDataKey) {
-      return errorRedirect("/admin/user/new", t("error.session_lacks_key"));
-    }
 
     const inviteCode = generateSecureToken();
     const codeHash = await hashInviteCode(inviteCode);
     const expiry = new Date(nowMs() + INVITE_EXPIRY_MS).toISOString();
 
-    // Hand the shared DATA_KEY to the invitee wrapped under their single-use
-    // invite code, so they self-activate at /join under the password-bound (v2)
-    // KEK instead of an admin re-keying them from a stored password hash.
-    const dataKey = await unwrapKeyWithToken(
-      session.wrappedDataKey,
-      session.token,
-    );
-    const inviteWrappedDataKey = await wrapKeyWithToken(dataKey, inviteCode);
+    // Editors hold no DATA_KEY: their invite carries no handoff, so they
+    // self-activate at /join without ever gaining the private key that decrypts
+    // attendee PII. Every other role gets the shared DATA_KEY wrapped under their
+    // single-use invite code, so they self-activate under the password-bound
+    // (v2) KEK instead of an admin re-keying them from a stored password hash.
+    const inviteWrappedDataKey =
+      adminLevel === "editor"
+        ? null
+        : await wrapInviteDataKey(session, inviteCode);
+    if (inviteWrappedDataKey instanceof Response) return inviteWrappedDataKey;
 
     const user = await createInvitedUser(
       username,
