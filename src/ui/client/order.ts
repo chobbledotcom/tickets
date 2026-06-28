@@ -32,8 +32,29 @@ interface CartLine {
   quantity: number;
 }
 
+/** Type guard for a stored cart line — used to reject corrupt/foreign values
+ * from the host page's sessionStorage. */
+const isCartLine = (value: unknown): value is CartLine => {
+  const line = value as Partial<CartLine> | null;
+  return (
+    typeof line === "object" &&
+    line !== null &&
+    typeof line.slug === "string" &&
+    typeof line.quantity === "number" &&
+    Number.isInteger(line.quantity) &&
+    line.quantity > 0
+  );
+};
+
+/** Parse a `data-add-quantity` attribute. Defaults to 1; invalid, zero,
+ * negative, or fractional values are treated as 1 (per the spec). */
+const parseAddQuantity = (raw: string | undefined): number => {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : 1;
+};
+
 const STORAGE_PREFIX = "tickets:external-order:v1:";
-const SINGLETON_FLAG = "__chobbleExternalOrder";
+const REGISTRY_KEY = "__chobbleExternalOrder";
 const NUMBER_LOCALE = "en";
 
 /** Format minor units the same way the server's `formatCurrency` does, so the
@@ -92,7 +113,9 @@ class CartController {
       const raw = sessionStorage.getItem(this.storageKey);
       if (!raw) return [];
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
+      // This is untrusted host-page state, not app data: keep only well-formed
+      // entries so a corrupt value like `[null]` cannot throw in reconcile().
+      return Array.isArray(parsed) ? parsed.filter(isCartLine) : [];
     } catch {
       this.memoryOnly = true;
       return [];
@@ -120,12 +143,12 @@ class CartController {
     return kept;
   }
 
-  add(entry: CatalogEntry): void {
+  add(entry: CatalogEntry, quantity = 1): void {
     const existing = this.lines.find((line) => line.slug === entry.slug);
     if (existing) {
-      existing.quantity += 1;
+      existing.quantity += quantity;
     } else {
-      this.lines.push({ quantity: 1, slug: entry.slug });
+      this.lines.push({ quantity, slug: entry.slug });
     }
     this.save();
     this.render();
@@ -340,11 +363,18 @@ const buildStyles = (): HTMLStyleElement => {
 };
 
 const init = (): void => {
-  const flagged = globalThis as unknown as Record<string, unknown>;
-  if (flagged[SINGLETON_FLAG]) return;
+  // The registry is keyed by tickets origin: duplicate tags for the SAME origin
+  // reuse one controller, but two different ticket sites on one page each get
+  // their own cart (the contract is one cart per tickets origin).
+  const global = globalThis as unknown as Record<
+    string,
+    Record<string, unknown>
+  >;
+  const registry = (global[REGISTRY_KEY] ??= {});
+  if (registry[CATALOG.origin]) return;
 
   const controller = new CartController();
-  flagged[SINGLETON_FLAG] = controller;
+  registry[CATALOG.origin] = controller;
 
   const enhance = (link: HTMLAnchorElement): void => {
     if (link.dataset.chobbleEnhanced) return;
@@ -353,7 +383,7 @@ const init = (): void => {
     link.dataset.chobbleEnhanced = "1";
     link.addEventListener("click", (event) => {
       event.preventDefault();
-      controller.add(entry);
+      controller.add(entry, parseAddQuantity(link.dataset.addQuantity));
     });
   };
 
