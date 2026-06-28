@@ -34,6 +34,15 @@ const reloadAggregates = async (listingId: number) => {
   return getListingWithCount(listingId);
 };
 
+/** Build the mixed-kind fixture: listing "L" holding a servicing hold of 3
+ * plus one real attendee. Returns the listing for further assertions. */
+const setupListingLWithHoldAndAttendee = async () => {
+  const listing = await createTestListing({ maxAttendees: 10, name: "L" });
+  await createServicingHold({ listing: { name: "L" }, quantity: 3 });
+  await createRealAttendee("Real", "real@example.com", { name: "L" });
+  return listing;
+};
+
 describeWithEnv(
   "servicing edge cases — aggregate recompute",
   { db: true },
@@ -57,18 +66,14 @@ describeWithEnv(
       // toward booked_quantity, not tickets_count) and a real attendee (counts
       // toward both). The split must hold for the mixed case, not just each
       // kind in isolation.
-      const listing = await createTestListing({ maxAttendees: 10, name: "L" });
-      await createServicingHold({ listing: { name: "L" }, quantity: 3 });
-      await createRealAttendee("Real", "real@example.com", { name: "L" });
+      const listing = await setupListingLWithHoldAndAttendee();
       const reloaded = await reloadAggregates(listing.id);
       expect(reloaded?.attendee_count).toBe(4); // 3 servicing + 1 real
       expect(reloaded?.tickets_count).toBe(1); // only the real attendee
     });
 
     test("recomputing aggregates on a mixed-kind listing preserves the split", async () => {
-      const listing = await createTestListing({ maxAttendees: 10, name: "L" });
-      await createServicingHold({ listing: { name: "L" }, quantity: 3 });
-      await createRealAttendee("Real", "real@example.com", { name: "L" });
+      const listing = await setupListingLWithHoldAndAttendee();
       // Reset to zero then recompute from the live rows.
       await resetListingAggregateFields(listing.id, [
         "booked_quantity",

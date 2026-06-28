@@ -406,6 +406,22 @@ export const sizeQuestionAnswerData = (): AttendeeQuestionData => ({
   ],
 });
 
+/** A minimal "Size?" question fixture: a single question with a single
+ *  answer "S" (id 10) and an empty `attendeeAnswerMap` (no one picked it).
+ *  Used to assert the question renders even with zero selections —
+ *  `buildSharedDetailRows` includes a question summary row, and
+ *  `adminListingPage` renders the answer header in the details table. */
+export const singleAnswerSizeQuestionData = (): AttendeeQuestionData => ({
+  attendeeAnswerMap: new Map(),
+  questions: [
+    testQuestion({
+      answers: [testAnswer({ id: 10, text: "S" })],
+      id: 1,
+      text: "Size?",
+    }),
+  ],
+});
+
 export const unselectedAnswerQuestionData = (): AttendeeQuestionData => ({
   attendeeAnswerMap: new Map(),
   questions: [

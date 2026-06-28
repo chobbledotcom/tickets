@@ -90,6 +90,17 @@ const markRequest = async (
     ),
   );
 
+/** Fetch the staff run sheet as HTML, asserting the request succeeds. */
+const fetchDeliveriesHtml = async (): Promise<string> => {
+  const response = await handleRequest(
+    mockRequest("/admin/deliveries", {
+      headers: { cookie: await testCookie() },
+    }),
+  );
+  expect(response.status).toBe(200);
+  return response.text();
+};
+
 describeWithEnv("server (agent deliveries)", { db: true }, () => {
   test("agent sees their run sheet for today", async () => {
     const van = await makeVan("Van 1");
@@ -315,13 +326,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
 
   test("staff can view the run sheet and see the staff nav and Calendar submenu", async () => {
     await settings.update.hasLogistics(true);
-    const response = await handleRequest(
-      mockRequest("/admin/deliveries", {
-        headers: { cookie: await testCookie() },
-      }),
-    );
-    expect(response.status).toBe(200);
-    const html = await response.text();
+    const html = await fetchDeliveriesHtml();
     // Staff (unlike agents) get the full navigation and the Calendar submenu
     // link to the deliveries page.
     expect(html).toContain('id="main-nav"');
@@ -329,13 +334,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
   });
 
   test("staff with no assigned agents see the no-agents prompt", async () => {
-    const response = await handleRequest(
-      mockRequest("/admin/deliveries", {
-        headers: { cookie: await testCookie() },
-      }),
-    );
-    expect(response.status).toBe(200);
-    const html = await response.text();
+    const html = await fetchDeliveriesHtml();
     expect(html).toContain("no logistics agents assigned");
   });
 

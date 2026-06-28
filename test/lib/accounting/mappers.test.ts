@@ -34,25 +34,30 @@ const facts = (overrides: Partial<BookingFacts> = {}): BookingFacts => ({
   ...overrides,
 });
 
+/** The canonical "paid booking that nets to zero" fixture: 5000 + 3000 gross,
+ *  −500 discount + 200 surcharge + 150 booking fee, paid at 7850. Used by the
+ *  `mapBooking` net-zero test (booking legs) and `mapRefund` reversal test
+ *  (refund legs must zero every account back out), so both share the exact
+ *  same booking facts rather than re-spelling them. */
+const paidBookingNettingToZero: Partial<BookingFacts> = {
+  amountPaid: 7850,
+  bookingFee: 150,
+  lines: [
+    { gross: 5000, listingId: 1 },
+    { gross: 3000, listingId: 2 },
+  ],
+  modifiers: [
+    { delta: -500, modifierId: 10 }, // discount
+    { delta: 200, modifierId: 11 }, // surcharge
+  ],
+};
+
 describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
   describe("mapBooking", () => {
     test("books gross, modifiers, fee and payment; a paid booking nets to zero", async () => {
-      const legs = (
-        await mapBooking(
-          facts({
-            amountPaid: 7850,
-            bookingFee: 150,
-            lines: [
-              { gross: 5000, listingId: 1 },
-              { gross: 3000, listingId: 2 },
-            ],
-            modifiers: [
-              { delta: -500, modifierId: 10 }, // discount
-              { delta: 200, modifierId: 11 }, // surcharge
-            ],
-          }),
-        )
-      ).map(asTransfer);
+      const legs = (await mapBooking(facts(paidBookingNettingToZero))).map(
+        asTransfer,
+      );
 
       // 8000 gross + 200 surcharge + 150 fee − 500 discount − 7850 paid = 0
       expect(balanceOf(attendeeAccount(3))(legs)).toBe(0);
@@ -233,18 +238,7 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
     };
 
     test("reverses every leg so revenue, the attendee and cash return to zero", async () => {
-      const order = await bookingOrder({
-        amountPaid: 7850,
-        bookingFee: 150,
-        lines: [
-          { gross: 5000, listingId: 1 },
-          { gross: 3000, listingId: 2 },
-        ],
-        modifiers: [
-          { delta: -500, modifierId: 10 },
-          { delta: 200, modifierId: 11 },
-        ],
-      });
+      const order = await bookingOrder(paidBookingNettingToZero);
       const { all } = await refundAndAll(order);
       expect(balanceOf(revenueAccount(1))(all)).toBe(0);
       expect(balanceOf(revenueAccount(2))(all)).toBe(0);

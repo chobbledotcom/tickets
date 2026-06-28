@@ -15,11 +15,27 @@ import {
   createTestListing,
   createTestManagerSession,
   describeWithEnv,
+  expectRejectsEmptyName,
   mockRequest,
   requestAsSession,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
+
+/** Create a package group with one member carrying a `price` override via the
+ * JSON API, returning the group. */
+const packagedGroup = async (name: string, price: number) => {
+  const group = await createTestGroup({ isPackage: true, name });
+  const listing = await createTestListing({ groupId: group.id });
+  await apiRequest(`/api/admin/groups/${group.id}`, {
+    body: {
+      is_package: true,
+      package_prices: [{ listing_id: listing.id, price }],
+    },
+    method: "PUT",
+  });
+  return group;
+};
 
 describeWithEnv("Admin API - Groups", { db: true }, () => {
   describe("GET /api/admin/groups", () => {
@@ -337,17 +353,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
     test("rejects empty name", async () => {
       const group = await createTestGroup();
-
-      await assertJson(
-        apiRequest(`/api/admin/groups/${group.id}`, {
-          body: { name: "" },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("name cannot be empty");
-        },
-      );
+      await expectRejectsEmptyName(`/api/admin/groups/${group.id}`);
     });
 
     test("rejects duplicate slug", async () => {
@@ -481,15 +487,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     });
 
     test("PUT without package_prices leaves existing overrides untouched", async () => {
-      const group = await createTestGroup({ isPackage: true, name: "Keep" });
-      const listing = await createTestListing({ groupId: group.id });
-      await apiRequest(`/api/admin/groups/${group.id}`, {
-        body: {
-          is_package: true,
-          package_prices: [{ listing_id: listing.id, price: 800 }],
-        },
-        method: "PUT",
-      });
+      const group = await packagedGroup("Keep", 800);
 
       // A name-only update must not wipe the saved override.
       await apiRequest(`/api/admin/groups/${group.id}`, {
@@ -501,15 +499,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     });
 
     test("PUT is_package:false clears overrides", async () => {
-      const group = await createTestGroup({ isPackage: true, name: "Drop" });
-      const listing = await createTestListing({ groupId: group.id });
-      await apiRequest(`/api/admin/groups/${group.id}`, {
-        body: {
-          is_package: true,
-          package_prices: [{ listing_id: listing.id, price: 400 }],
-        },
-        method: "PUT",
-      });
+      const group = await packagedGroup("Drop", 400);
 
       await apiRequest(`/api/admin/groups/${group.id}`, {
         body: { is_package: false },

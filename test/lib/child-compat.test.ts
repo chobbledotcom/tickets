@@ -42,6 +42,18 @@ const switchDate = (roots: FakeElement[], val: string): void => {
   byName(roots, "date").dispatch("change");
 };
 
+/** Assert the canonical `child_qty_101_202` field is enabled and holds
+ *  `value` (default "1"). Several date/span-compat cases end with this exact
+ *  pair of assertions after `initChildCompat()` — a tiny helper keeps them
+ *  from drifting. */
+const expectChildQty101202Enabled = (
+  roots: FakeElement[],
+  value = "1",
+): void => {
+  expect(byName(roots, "child_qty_101_202").disabled).toBe(false);
+  expect(byName(roots, "child_qty_101_202").value).toBe(value);
+};
+
 describe("child date/span compatibility", () => {
   afterEach(restoreDocument);
 
@@ -170,8 +182,7 @@ describe("child date/span compatibility", () => {
 
     initChildCompat();
 
-    expect(byName(roots, "child_qty_101_202").disabled).toBe(false);
-    expect(byName(roots, "child_qty_101_202").value).toBe("1");
+    expectChildQty101202Enabled(roots);
   });
 
   test("picks the date set matching the selected day-count for a customisable parent (Fix 4)", () => {
@@ -339,8 +350,7 @@ describe("child date/span compatibility", () => {
 
     initChildCompat();
 
-    expect(byName(roots, "child_qty_101_202").disabled).toBe(false);
-    expect(byName(roots, "child_qty_101_202").value).toBe("1");
+    expectChildQty101202Enabled(roots);
   });
 
   test("leaves a multi-span child enabled until a day-count is chosen (Fix 4)", () => {

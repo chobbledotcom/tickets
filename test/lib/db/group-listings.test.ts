@@ -18,6 +18,16 @@ import {
 
 const sortNums = (ns: number[]): number[] => ns.toSorted((a, b) => a - b);
 
+/** Assert a listing belongs to exactly `ids` (order-independent). */
+const expectGroupIds = async (
+  listingId: number,
+  ids: number[],
+): Promise<void> => {
+  expect(sortNums(await getGroupIdsByListingId(listingId))).toEqual(
+    sortNums(ids),
+  );
+};
+
 describeWithEnv("db > group_listings membership", { db: true }, () => {
   test("getGroupIdsByListingIds returns every group a listing belongs to", async () => {
     const g1 = await createTestGroup({ name: "G1", slug: "g1" });
@@ -40,15 +50,11 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     await setListingGroups(listing.id, [g1.id, g2.id]);
     // Keep g2, drop g1, add g3.
     await setListingGroups(listing.id, [g2.id, g3.id]);
-    expect(sortNums(await getGroupIdsByListingId(listing.id))).toEqual(
-      sortNums([g2.id, g3.id]),
-    );
+    await expectGroupIds(listing.id, [g2.id, g3.id]);
 
     // Setting the same set again is a no-op (no statements to run).
     await setListingGroups(listing.id, [g2.id, g3.id]);
-    expect(sortNums(await getGroupIdsByListingId(listing.id))).toEqual(
-      sortNums([g2.id, g3.id]),
-    );
+    await expectGroupIds(listing.id, [g2.id, g3.id]);
   });
 
   test("getGroupPackagePrices returns every membership row with its override", async () => {

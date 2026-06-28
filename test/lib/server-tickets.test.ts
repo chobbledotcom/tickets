@@ -24,6 +24,19 @@ const fetchTicketBody = async (tokenPath: string): Promise<string> => {
   return response.text();
 };
 
+/** Assert a daily-listing ticket page shows the booking date, returning the
+ * body for any further assertions the caller needs. */
+const expectDailyBookingDate = async (
+  response: Response,
+  date: string,
+): Promise<string> => {
+  expect(response.status).toBe(200);
+  const body = await response.text();
+  expect(body).toContain(formatDateLabel(date));
+  expect(body).toContain("Booking Date");
+  return body;
+};
+
 describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
   test("displays ticket for a single valid token", async () => {
     const { listing, token } = await createTestAttendeeWithToken(
@@ -177,11 +190,7 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     );
 
     const response = await awaitTestRequest(`/t/${token}`);
-    expect(response.status).toBe(200);
-
-    const body = await response.text();
-    expect(body).toContain(formatDateLabel(date));
-    expect(body).toContain("Booking Date");
+    await expectDailyBookingDate(response, date);
   });
 
   test("shows date for daily listing and shows standard listing without date on same ticket page", async () => {
@@ -192,11 +201,7 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
       await createTestAttendeeWithToken("Mixed", "mixed@test.com");
 
     const response = await awaitTestRequest(`/t/${tokenA}+${tokenB}`);
-    expect(response.status).toBe(200);
-
-    const body = await response.text();
-    expect(body).toContain(formatDateLabel(date));
-    expect(body).toContain("Booking Date");
+    const body = await expectDailyBookingDate(response, date);
     expect(body).toContain(dailyListing.name);
     expect(body).toContain(standardListing.name);
     expect(body).toContain("2 Tickets");

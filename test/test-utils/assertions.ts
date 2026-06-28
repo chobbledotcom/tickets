@@ -70,6 +70,22 @@ export const assertJson = async <T = any>(
   return expectJsonResponse<T>(status, assertions)(response);
 };
 
+/** PUT `{ name: "" }` to a JSON API entity endpoint and assert the standard
+ *  400 "name cannot be empty" rejection. The PUT-name-empty validation is
+ *  shared by every writable-named admin entity (holidays, groups, listings),
+ *  so hoisting the assertion here keeps each api test focused on the
+ *  behaviour specific to that resource. */
+export const expectRejectsEmptyName = async (path: string): Promise<void> => {
+  const { apiRequest } = await import("#test-utils/session.ts");
+  await assertJson(
+    apiRequest(path, { body: { name: "" }, method: "PUT" }),
+    400,
+    (body) => {
+      expect(body.error).toBe("name cannot be empty");
+    },
+  );
+};
+
 export const assertFormRedirect = async (
   path: string,
   data: Record<string, string>,

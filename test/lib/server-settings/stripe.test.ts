@@ -1,15 +1,15 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
 import { type StripeConnectionTestResult, stripeApi } from "#shared/stripe.ts";
 import {
   adminFormPost,
   adminGet,
   assertJson,
-  describeWithEnv,
+  describeAdminSettings,
   expectFlash,
   expectHtml,
   expectHtmlResponse,
@@ -21,11 +21,9 @@ import {
   withMocks,
 } from "#test-utils";
 
-describeWithEnv("server (admin settings)", { db: true }, () => {
-  afterEach(() => {
-    setDemoModeForTest(false);
-  });
+// jscpd:ignore-end
 
+describeAdminSettings(() => {
   /** Stub `setupWebhookEndpoint` to succeed, then POST the given Stripe key
    *  to the settings form. Returns a promise so the caller can assert on the
    *  effects inside the `withMocks` body. Collapses the repeated webhook-stub

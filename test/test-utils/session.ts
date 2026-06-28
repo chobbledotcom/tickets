@@ -379,6 +379,30 @@ export const adminFormPost = async (
   return { cookie, csrfToken, response };
 };
 
+export const adminMultipartPost = async (
+  path: string,
+  data: Record<string, string> = {},
+  file?: {
+    name: string;
+    fieldName: string;
+    data: Uint8Array;
+    contentType: string;
+  },
+): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
+  const { cookie, csrfToken } = await getTestSession();
+  const { handleRequest } = await import("#routes");
+  const { mockMultipartRequest } = await import("#test-utils/mocks.ts");
+  const response = await handleRequest(
+    mockMultipartRequest(
+      path,
+      { csrf_token: csrfToken, ...data },
+      cookie,
+      file,
+    ),
+  );
+  return { cookie, csrfToken, response };
+};
+
 export const adminGet = async (path: string): Promise<Response> => {
   const { cookie } = await getTestSession();
   const { awaitTestRequest } = await import("#test-utils/mocks.ts");

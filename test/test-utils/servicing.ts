@@ -76,6 +76,23 @@ export const createTestServicingEvent = (
   input: ServicingEventInput,
 ): Promise<ServicingEvent> => createServicingEvent(input);
 
+/** The canonical "Annual Inspection" servicing event spanning two daily
+ *  listings on consecutive days — quantity 2 on the first, 1 on the second.
+ *  Used by the §3-creation and §18-duplicate tests (the duplicate test must
+ *  start from an event whose bookings the duplicate reproduces 1-for-1),
+ *  sharing the fixture so they cannot drift apart. */
+export const createAnnualInspectionEvent = (
+  a: Pick<Listing, "id">,
+  b: Pick<Listing, "id">,
+): Promise<ServicingEvent> =>
+  createTestServicingEvent({
+    bookings: [
+      { date: "2026-07-01", listingId: a.id, quantity: 2 },
+      { date: "2026-07-02", listingId: b.id, quantity: 1 },
+    ],
+    name: "Annual Inspection",
+  });
+
 type TestListingInput = Parameters<typeof createTestListing>[0];
 
 const resolveTestListing = async (

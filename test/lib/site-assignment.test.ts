@@ -147,6 +147,14 @@ describeWithEnv(
       return body;
     };
 
+    const expectSetupEmailBody = async (setupUrl: string) => {
+      await assignAndNotifyBuiltSites([siteEntry()]);
+      const body = JSON.parse(fetchStub.calls[0].args[1].body);
+      expect(body.html).toContain(`href="${setupUrl}"`);
+      expect(body.text).toContain(setupUrl);
+      return body;
+    };
+
     beforeEach(async () => {
       fetchStub = stub(globalThis, "fetch", () =>
         Promise.resolve(new Response()),
@@ -308,22 +316,14 @@ describeWithEnv(
       test("email links to the assigned site's /setup/ page", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
 
-        await assignAndNotifyBuiltSites([siteEntry()]);
-
-        const body = JSON.parse(fetchStub.calls[0].args[1].body);
-        expect(body.html).toContain('href="https://a.test.net/setup/"');
+        const body = await expectSetupEmailBody("https://a.test.net/setup/");
         expect(body.html).toContain("activate your site");
-        expect(body.text).toContain("https://a.test.net/setup/");
       });
 
       test("email setup link keeps the scheme when the site URL already has one", async () => {
         await insertBuiltSite("Site C", "https://c.test.net/", "", "", true);
 
-        await assignAndNotifyBuiltSites([siteEntry()]);
-
-        const body = JSON.parse(fetchStub.calls[0].args[1].body);
-        expect(body.html).toContain('href="https://c.test.net/setup/"');
-        expect(body.text).toContain("https://c.test.net/setup/");
+        await expectSetupEmailBody("https://c.test.net/setup/");
       });
 
       test("uses DB email config when available and includes reply-to", async () => {
@@ -716,6 +716,29 @@ describeWithEnv(
   "syncReadOnlyFrom (Deno site)",
   { db: true, env: { DENO_DEPLOY_TOKEN: "tok123" } },
   () => {
+    type SetEnvVarsStub = Pick<ReturnType<typeof stub>, "calls" | "restore">;
+
+    const expectSetEnvVarIncludes = (
+      setStub: SetEnvVarsStub,
+      key: string,
+    ): void => {
+      const pairs = setStub.calls[0]!.args[1] as [string, string][];
+      expect(pairs.some(([k]) => k === key)).toBe(true);
+    };
+
+    const withStubbedSetEnvVars = async <T>(
+      body: (setStub: SetEnvVarsStub) => Promise<T>,
+    ): Promise<T> => {
+      const setStub = stub(denoDeployApi, "setEnvVars", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+      try {
+        return await body(setStub);
+      } finally {
+        setStub.restore();
+      }
+    };
+
     test("pushes secrets via denoDeployApi.setEnvVars for a Deno site", async () => {
       await insertBuiltSite(
         "Deno Sync",
@@ -731,18 +754,12 @@ describeWithEnv(
         (s) => s.name === "Deno Sync",
       )!;
 
-      const setStub = stub(denoDeployApi, "setEnvVars", () =>
-        Promise.resolve({ ok: true as const }),
-      );
-      try {
+      await withStubbedSetEnvVars(async (setStub) => {
         const result = await syncReadOnlyFrom(site, addMonthsIso(nowIso(), 3));
         expect(result.ok).toBe(true);
         expect(setStub.calls).toHaveLength(1);
-        const pairs = setStub.calls[0]!.args[1] as [string, string][];
-        expect(pairs.some(([k]) => k === "READ_ONLY_FROM")).toBe(true);
-      } finally {
-        setStub.restore();
-      }
+        expectSetEnvVarIncludes(setStub, "READ_ONLY_FROM");
+      });
     });
 
     test("pushes both READ_ONLY_FROM and RENEWAL_URL when renewalUrl is provided", async () => {
@@ -760,22 +777,16 @@ describeWithEnv(
         (s) => s.name === "Deno Sync Both",
       )!;
 
-      const setStub = stub(denoDeployApi, "setEnvVars", () =>
-        Promise.resolve({ ok: true as const }),
-      );
-      try {
+      await withStubbedSetEnvVars(async (setStub) => {
         const result = await syncReadOnlyFrom(
           site,
           addMonthsIso(nowIso(), 3),
           "https://example.com/renew/token123",
         );
         expect(result.ok).toBe(true);
-        const pairs = setStub.calls[0]!.args[1] as [string, string][];
-        expect(pairs.some(([k]) => k === "READ_ONLY_FROM")).toBe(true);
-        expect(pairs.some(([k]) => k === "RENEWAL_URL")).toBe(true);
-      } finally {
-        setStub.restore();
-      }
+        expectSetEnvVarIncludes(setStub, "READ_ONLY_FROM");
+        expectSetEnvVarIncludes(setStub, "RENEWAL_URL");
+      });
     });
   },
 );

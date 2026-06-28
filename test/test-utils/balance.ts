@@ -19,7 +19,12 @@ export const settle = (
  */
 export const createReservedAttendee = async (
   remainingBalance: number,
-  options: { listingName?: string; quantity?: number } = {},
+  options: {
+    listingName?: string;
+    quantity?: number;
+    /** Linked payment id stored on the attendee row (e.g. `pi_deposit`). */
+    paymentId?: string;
+  } = {},
 ): Promise<{ attendeeId: number; listingId: number }> => {
   const listing = await createTestListing({
     maxAttendees: 10,
@@ -41,6 +46,7 @@ export const createReservedAttendee = async (
     ],
     email: "guest@example.com",
     name: "Guest",
+    paymentId: options.paymentId,
     remainingBalance,
     statusId: reservation.id,
   });

@@ -12,6 +12,7 @@ import {
   setupStripe,
   testRequiresAuth,
 } from "#test-utils";
+import { createReservedAttendee } from "#test-utils/balance.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 /** A settle identity (session id + business time) for settleAttendeeBalance. */
@@ -149,33 +150,11 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
   });
 
   test("the attendee page links to the balance panel when a balance is due", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 10,
-      thankYouUrl: "https://example.com",
-    });
-    const reservation = await attendeeStatusesTable.insert({
-      isReservation: true,
-      name: "Reserved",
-      reservationAmount: "10%",
-    });
     // A linked payment id makes the read-only payment-details panel (which hosts
     // the "Balance outstanding" link) render; the deposit + sale legs leave £15
     // owed in the ledger so the outstanding-balance block shows.
-    const result = await createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, pricePaid: 100, quantity: 1 }],
-      email: "guest@example.com",
-      name: "Guest",
+    const { attendeeId } = await createReservedAttendee(1500, {
       paymentId: "pi_deposit",
-      remainingBalance: 1500,
-      statusId: reservation.id,
-    });
-    if (!result.success) throw new Error("setup failed");
-    const attendeeId = result.attendees[0]!.id;
-    await postListingSale({
-      amountPaid: 100,
-      attendeeId,
-      gross: 1600,
-      listingId: listing.id,
     });
     const response = await adminGet(`/admin/attendees/${attendeeId}`);
     const html = await response.text();

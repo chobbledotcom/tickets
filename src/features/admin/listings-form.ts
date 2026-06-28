@@ -27,7 +27,11 @@ import {
 } from "#shared/listings-actions.ts";
 import { defineResource } from "#shared/rest/resource.ts";
 import { normalizeSlug } from "#shared/slug.ts";
-import { type DayPrices, parseDayPrices } from "#shared/types.ts";
+import {
+  type DayPrices,
+  type ListingType,
+  parseDayPrices,
+} from "#shared/types.ts";
 import type {
   ListingAggregateFormValues,
   ListingEditFormValues,
@@ -44,9 +48,41 @@ import {
 
 /* jscpd:ignore-end */
 
-/** Parse comma-separated day names to string array */
-const parseBookableDays = (value: string): string[] | undefined =>
-  value ? splitCsv(value) : undefined;
+type ListingWriteMode = "create" | "update";
+type EmptyBookableDaysPolicy = "defaultAllDays" | "preserveEmpty";
+
+const DEFAULT_LISTING_TYPE: ListingType = "standard";
+
+const EMPTY_BOOKABLE_DAYS_POLICY = {
+  create: {
+    daily: "defaultAllDays",
+    standard: "defaultAllDays",
+  },
+  update: {
+    daily: "preserveEmpty",
+    standard: "defaultAllDays",
+  },
+} as const satisfies Record<
+  ListingWriteMode,
+  Record<ListingType, EmptyBookableDaysPolicy>
+>;
+
+const resolveListingType = (
+  value: ListingFormValues["listing_type"],
+): ListingType => value || DEFAULT_LISTING_TYPE;
+
+/** Parse comma-separated day names, applying the submit-mode empty selection policy. */
+const parseBookableDays = (
+  value: string,
+  listingType: ListingType,
+  mode: ListingWriteMode,
+): string[] | undefined => {
+  const days = splitCsv(value);
+  if (days.length > 0) return days;
+  return EMPTY_BOOKABLE_DAYS_POLICY[mode][listingType] === "preserveEmpty"
+    ? days
+    : undefined;
+};
 
 /** Ids of the groups ticked on the listing form's group checkboxes. */
 const parseGroupIds = (form: FormParams): number[] =>
@@ -84,12 +120,17 @@ const parseOptionalPrice = (raw: string | undefined): number | undefined =>
   raw ? toMinorUnits(Number.parseFloat(raw)) : undefined;
 
 /** Extract common listing fields from validated form values, normalizing datetimes to UTC */
-const extractCommonFields = (values: ListingFormValues, form: FormParams) => {
+const extractCommonFields = (
+  values: ListingFormValues,
+  form: FormParams,
+  mode: ListingWriteMode,
+) => {
   const webhookUrl = isDemoMode() ? "" : values.webhook_url || "";
   const durationDays = values.duration_days ?? 1;
+  const listingType = resolveListingType(values.listing_type);
   return {
     assignBuiltSite: isBuilderEnabled() && values.assign_built_site === "1",
-    bookableDays: parseBookableDays(values.bookable_days),
+    bookableDays: parseBookableDays(values.bookable_days, listingType, mode),
     canPayMore: values.can_pay_more === "1",
     closesAt: normalizeOptionalDatetime(values.closes_at, "closes_at"),
     customisableDays: values.customisable_days === "1",
@@ -101,7 +142,7 @@ const extractCommonFields = (values: ListingFormValues, form: FormParams) => {
     groupIds: parseGroupIds(form),
     hidden: values.hidden === "1",
     initialSiteMonths: Number(values.initial_site_months) || 0,
-    listingType: values.listing_type || "standard",
+    listingType,
     location: values.location,
     maxAttendees: values.max_attendees,
     maximumDaysAfter: values.maximum_days_after ?? 90,
@@ -126,7 +167,11 @@ const extractListingInput = async (
   form: FormParams,
 ): Promise<ListingInput> => {
   const { slug, slugIndex } = await generateUniqueListingSlug();
-  return { ...extractCommonFields(values, form), slug, slugIndex };
+  return {
+    ...extractCommonFields(values, form, "create"),
+    slug,
+    slugIndex,
+  };
 };
 
 /** Extract listing input for update (reads slug from form, normalizes it) */
@@ -136,7 +181,11 @@ const extractListingUpdateInput = async (
 ): Promise<ListingInput> => {
   const slug = normalizeSlug(values.slug);
   const slugIndex = await computeSlugIndex(slug);
-  return { ...extractCommonFields(values, form), slug, slugIndex };
+  return {
+    ...extractCommonFields(values, form, "update"),
+    slug,
+    slugIndex,
+  };
 };
 
 export const extractListingAggregateValues = (

@@ -85,6 +85,19 @@ const withStripe = async (
   }
 };
 
+/** Assert the most recent Stripe checkout session was created with a single
+ *  line at `expectedUnitPrice`, after the form redirected (302). Two
+ *  qr-book-vs-`custom_price` tests share this exact assertion pair. */
+const expectStripeCheckoutAtPrice = (
+  response: Response,
+  stripe: ReturnType<typeof stubStripe>,
+  expectedUnitPrice: number,
+): void => {
+  expect(response.status).toBe(302);
+  const intent = stripe.checkoutStub.calls[0]!.args[0];
+  expect(intent.items[0]!.unitPrice).toBe(expectedUnitPrice);
+};
+
 /** Scan a listing's QR-book link (token built from `payload`) and return the response. */
 const scanRequest = async (
   listing: { slug: string },
@@ -468,9 +481,7 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
           name: "Ada",
           qr_token: "qr1.forged.signature",
         });
-        expect(response.status).toBe(302);
-        const intent = stripe.checkoutStub.calls[0]!.args[0];
-        expect(intent.items[0]!.unitPrice).toBe(500);
+        expectStripeCheckoutAtPrice(response, stripe, 500);
       });
     });
 
@@ -492,9 +503,7 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
           name: "Ada",
           qr_token: token,
         });
-        expect(response.status).toBe(302);
-        const intent = stripe.checkoutStub.calls[0]!.args[0];
-        expect(intent.items[0]!.unitPrice).toBe(5000);
+        expectStripeCheckoutAtPrice(response, stripe, 5000);
       });
     });
 

@@ -15,6 +15,7 @@ import {
   createTestGroup,
   createTestListing,
   describeWithEnv,
+  expectRejectsEmptyName,
   mockRequest,
   requestAsSession,
   testCookie,
@@ -327,17 +328,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
 
     test("returns 400 when name is empty string", async () => {
       const listing = await createTestListing({ name: "Will Empty" });
-
-      await assertJson(
-        apiRequest(`/api/admin/listings/${listing.id}`, {
-          body: { name: "" },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("name cannot be empty");
-        },
-      );
+      await expectRejectsEmptyName(`/api/admin/listings/${listing.id}`);
     });
 
     test("rejects duplicate slug", async () => {
