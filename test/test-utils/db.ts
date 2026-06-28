@@ -183,7 +183,7 @@ export const createTestDbWithSetup = async (
         ...getCachedSetupSettings()!.map((row) =>
           insert("settings", { key: row.key, value: row.value }),
         ),
-        ...(getCachedSetupUsers() ?? []).map((row) =>
+        ...getCachedSetupUsers()!.map((row) =>
           insert("users", {
             admin_level: row.admin_level as InValue,
             id: row.id as InValue,
