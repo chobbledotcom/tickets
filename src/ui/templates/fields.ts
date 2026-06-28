@@ -746,13 +746,6 @@ export const getSlugField = (): Field => ({
   validate: (value: string) => validateSlug(normalizeSlug(value)),
 });
 
-/** Group selection field (validated even when rendered manually) */
-export const getGroupIdField = (): Field => ({
-  label: t("terms.group"),
-  name: "group_id",
-  type: "text",
-});
-
 /** Max attendees field for group forms */
 const getGroupMaxAttendeesField = (): Field => ({
   hint: t("fields.group.max_attendees_hint"),

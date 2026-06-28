@@ -156,9 +156,11 @@ const buildListingResourceFields = (): Field[] => [
   getAssignBuiltSiteField(),
 ];
 
-/** Persist the listing's group memberships after the row is created/updated. */
+/** Persist the listing's group memberships after the row is created/updated.
+ * extractCommonFields always sets groupIds (parseGroupIds returns an array), so
+ * it is non-null here. */
 const writeListingGroups = (row: { id: number }, input: ListingInput) =>
-  setListingGroups(row.id, input.groupIds ?? []);
+  setListingGroups(row.id, input.groupIds!);
 
 /**
  * Build a per-request listings create resource whose `toInput` closes over the

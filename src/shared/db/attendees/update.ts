@@ -134,7 +134,6 @@ export const checkGroupCapAfterDurationChange = async (
   listingId: number,
   groupId: number,
 ): Promise<string | null> => {
-  if (groupId <= 0) return null;
   const cap = await queryAll<{ max_attendees: number }>(
     "SELECT max_attendees FROM groups WHERE id = ?",
     [groupId],

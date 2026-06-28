@@ -317,19 +317,15 @@ export const defineCrudApi = <
   ): Promise<Response> => {
     const prepared = await prepareSideEffect(input, body, existing);
     if ("error" in prepared) return apiErrorResponse(prepared.error);
-    if (config.sideEffect) {
-      const statement = await getStatement();
-      const fullRow = await writeWithSideEffect(
-        statement,
-        existingId,
-        prepared.value,
-      );
-      await config.afterWrite?.((fullRow as { id: number }).id, input);
-      return respondWithRow(fullRow, action, status);
-    }
-    const row = await plainWrite();
-    await config.afterWrite?.((row as { id: number }).id, input);
-    return respondWithRow(row as unknown as FullRow, action, status);
+    const fullRow = config.sideEffect
+      ? await writeWithSideEffect(
+          await getStatement(),
+          existingId,
+          prepared.value,
+        )
+      : ((await plainWrite()) as unknown as FullRow);
+    await config.afterWrite?.((fullRow as { id: number }).id, input);
+    return respondWithRow(fullRow, action, status);
   };
 
   /** Validate raw input against config.validate, then invoke fn with the typed

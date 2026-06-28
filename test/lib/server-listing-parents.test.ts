@@ -818,13 +818,11 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     await postChildren(parent.id, [child.id]);
 
     const row = (await getListingWithCount(parent.id))!;
-    const input = {
-      ...(listingsTable.rowToInput(row, ["created"]) as Record<
-        string,
-        unknown
-      >),
-      groupIds: [] as number[],
-    } as import("#shared/db/listings.ts").ListingInput;
+    // Omit groupIds entirely (undefined) — validateListingInput defaults it to
+    // "no groups", which still orphans the group-scoped add-on.
+    const input = listingsTable.rowToInput(row, [
+      "created",
+    ]) as import("#shared/db/listings.ts").ListingInput;
     const error = await validateListingInput(input, parent.id);
     expect(error).toContain("Group extra");
   });
