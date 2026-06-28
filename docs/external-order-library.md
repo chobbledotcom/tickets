@@ -108,14 +108,24 @@ For allowed origins:
 Access-Control-Allow-Origin: https://www.example.com
 Vary: Origin
 Cross-Origin-Resource-Policy: cross-origin
+Cache-Control: no-store
 ```
 
 For an empty allowlist:
 
 ```http
 Access-Control-Allow-Origin: *
+Vary: Origin
 Cross-Origin-Resource-Policy: cross-origin
+Cache-Control: no-store
 ```
+
+`Vary: Origin` and a non-cacheable `Cache-Control` are required on `/order.js`
+in both cases: the response varies by request `Origin` and depends on the
+mutable `embed_hosts` allowlist, so a cached copy could keep serving a stale
+`Access-Control-Allow-Origin` after the owner changes the allowlist. (A short
+`max-age` is acceptable in place of `no-store` if the staleness window is
+deemed safe, but the immutable static-asset cache is not.)
 
 For quote and cart-resolution endpoints:
 
@@ -151,8 +161,39 @@ Build integration:
 - Add `src/ui/client/order.ts`.
 - Bundle it to `src/ui/static/order.js`.
 - Add `ORDER_JS_PATH = "/order.js"` to asset paths.
-- Add `GET /order.js` to static routes.
 - Include it in edge asset inlining and cache-busting.
+
+This bundle **must be emitted as an ES module** (`format: "esm"`), not as an
+IIFE. The existing client bundles in `scripts/build-static-assets.ts`
+(`STATIC_JS_BUNDLES`) all use `format: "iife"`, but the order widget resolves
+the tickets origin from `import.meta.url` to validate same-origin listing links
+and to key its cart. Under an IIFE wrapper `import.meta.url` is not the module
+URL, so add a dedicated bundle entry with `format: "esm"` rather than copying an
+existing IIFE entry. The `<script type="module">` tag the owner adds requires an
+ES module anyway.
+
+### Serving `/order.js` (do not reuse the immutable static path)
+
+`/order.js` cannot be added to the ordinary static routes, because that path is
+incompatible with origin-gated serving in two ways:
+
+1. **Caching.** The shared static handler attaches
+   `cache-control: public, max-age=31536000, immutable` to every asset
+   (`src/features/assets.ts` `CACHE_HEADERS`, mirrored by the edge inliner in
+   `scripts/build-edge.ts`). Because `/order.js`'s CORS headers depend on the
+   mutable `embed_hosts` setting and the request `Origin`, an immutable response
+   would let a browser or CDN keep a stale `Access-Control-Allow-Origin: *` (or a
+   previously allowed origin) after the owner tightens the allowlist, so the
+   module would keep evaluating on a now-disallowed site. Serve `/order.js` with
+   a no-store / short max-age handler, and always send `Vary: Origin`.
+
+2. **Settings ordering.** `routeStatic` runs before the database is initialized
+   and before `prepareRequestEnvironment` loads request settings
+   (`src/features/index.ts`: static routing precedes the settings load). A plain
+   static route would only ever see default or stale `embed_hosts` when choosing
+   CORS headers. `/order.js` must be served from a handler that runs **after**
+   settings are loaded, or one that explicitly initializes the database and loads
+   `EMBED_HOSTS` before deciding the CORS headers.
 
 ## Browser Behaviour
 
@@ -222,12 +263,21 @@ reuse the full site stylesheet on the external page.
 
 ## Server Contracts
 
-Add a small external-order API under a public prefix:
+Add a small external-order API under its own dedicated prefix:
 
 ```text
-POST /api/external-order/preview
-OPTIONS /api/external-order/preview
+POST /external-order/preview
+OPTIONS /external-order/preview
 ```
+
+Do **not** nest this route under the existing `/api` prefix. That prefix only
+dispatches public API routes when `settings.showPublicApi` is true
+(`src/features/index.ts`), and that setting defaults to `false`
+(`src/shared/db/settings.ts`). Since the spec makes `embed_hosts` the single
+allowlist for quote access, an owner who adds only the order-button snippet must
+not be forced to also enable the unrelated public listing/booking API. Give the
+preview endpoint its own prefix handler gated solely by the `embed_hosts`
+origin check, so it is reachable whenever the allowlist permits it.
 
 Request body:
 
@@ -271,9 +321,22 @@ If requested quantities exceed availability, the response should normalize the
 quantity down and include a user-facing message in `summaryHtml`. The client then
 updates its cart to match the server response.
 
-If a listing is closed, sold out, hidden, unknown, or from the wrong origin, the
+If a listing is closed, sold out, unknown, or from the wrong origin, the
 response omits it from `items` and includes a clear message in `summaryHtml`.
 The client removes omitted items from its cart.
+
+A **hidden (unlisted) but active** listing must stay addable when its exact
+ticket URL is supplied. `withActiveListings` filters only on `active`, not on
+`hidden` (`src/features/public/ticket-payment.ts`), and the public test suite
+asserts hidden listings remain reachable by their direct `/ticket/<slug>` URL
+(`test/lib/server-public.test.ts`). Removing them on the JS-enhanced path would
+break the progressive-enhancement promise — the no-JS `href` fallback to
+`/ticket/<slug>` is intentionally valid — and linking to a hidden listing from an
+external site is a likely use case. The preview must therefore treat an active
+hidden listing as valid when the request carries its exact URL, and resolve it
+the same way the canonical ticket page does. The widget never enumerates hidden
+listings; it only resolves the specific URL the owner placed in
+`data-add-listing`.
 
 If the selected cart needs more pricing inputs before an accurate quote is
 possible, for example a dated listing that needs a date, the response still
@@ -282,6 +345,19 @@ returns a `continueUrl` and a message fragment such as:
 ```html
 <p class="order-summary-message">Continue to choose a date and see the final total.</p>
 ```
+
+Required custom questions must be deferred the same way as the date case, not
+treated as a hard error. `prepareOrder` derives the active questions for the
+selected listings and runs `parseQuestionAnswers({ optional: false })` before
+pricing (`src/features/public/ticket-submit.ts`). Because v1 sends only
+`quantity_<listingId>` fields and renders no question controls, feeding the
+quantity-only body straight into that path would make the preview return an
+error instead of a Continue URL for otherwise bookable listings. The preview
+quote function must detect when a selected listing has required custom questions
+(or answer-priced inputs) that the v1 body cannot supply, skip the strict
+answer validation, and return a `continueUrl` plus a deferral message — exactly
+like the missing-date case. The visitor then supplies those answers on the
+canonical ticket page.
 
 The first version does not render date, question, add-on, promo-code, or
 pay-what-you-want controls inside the external widget. Those remain on the
@@ -292,7 +368,7 @@ canonical ticket page.
 Do not duplicate checkout math in the widget endpoint.
 
 Refactor the current `/calculate/:slug` flow so both `/calculate/:slug` and
-`/api/external-order/preview` call the same internal quote function:
+`/external-order/preview` call the same internal quote function:
 
 ```text
 selected listings + form-like pricing fields
@@ -310,6 +386,15 @@ quantity_<listingId>=<quantity>
 
 It may include future optional pricing fields, but v1 only sends quantities.
 No PII fields are accepted or needed.
+
+The shared quote function needs a lenient "preview" mode so the quantity-only
+body does not trip the booking form's strict validation. `prepareOrder` today
+calls `parseQuestionAnswers({ optional: false })` and requires a date for dated
+listings before it will price. In preview mode the function must instead detect
+the inputs the v1 body cannot supply — required questions, answer-priced fields,
+or a required date — and return a deferral result (Continue URL + message)
+rather than an error. The extraction should keep `/calculate/:slug` behaviour
+identical while exposing this preview-tolerant entry point for the widget.
 
 ## Continue URL
 
@@ -385,7 +470,7 @@ Server tests:
 
 - Allowed origin receives CORS headers for `/order.js`.
 - Disallowed origin receives no permissive CORS headers.
-- `OPTIONS /api/external-order/preview` validates origin and headers.
+- `OPTIONS /external-order/preview` validates origin and headers.
 - Preview rejects malformed JSON with `400`.
 - Preview rejects disallowed origins with `403`.
 - Preview resolves a public listing URL to the correct listing id and slug.
@@ -393,7 +478,8 @@ Server tests:
   quantity-only cart.
 - Preview normalizes over-large quantities and reports the normalization.
 - Continue URL uses canonical slugs and `q_<listingId>` quantities.
-- Closed, sold-out, hidden, and unknown listings are not silently accepted.
+- Closed, sold-out, and unknown listings are not silently accepted.
+- An active hidden listing is accepted when its exact ticket URL is supplied.
 
 Client tests:
 
@@ -424,10 +510,13 @@ End-to-end browser test:
    access, keeping the `embed_hosts` storage key.
 2. Add shared allowed-origin/CORS helpers on top of `parseEmbedHosts` and
    `buildFrameAncestors`.
-3. Add `/order.js` as a module asset with CORS headers.
+3. Add an ESM `order.js` bundle (`format: "esm"`) and serve `/order.js` from a
+   settings-aware handler (after settings load) with origin-gated CORS headers
+   and a no-store / short cache, not the immutable static asset path.
 4. Extract the current quote rendering behind `/calculate/:slug` into a shared
-   read-only quote function.
-5. Add `POST /api/external-order/preview`.
+   read-only quote function with a preview-tolerant mode that defers required
+   date/question/answer-priced inputs instead of erroring.
+5. Add `POST /external-order/preview` under its own prefix (not `/api`).
 6. Build `src/ui/client/order.ts` with singleton link scanning, cart state,
    preview dialog, and Continue navigation.
 7. Add owner-facing snippet text to the settings or listing admin UI.
