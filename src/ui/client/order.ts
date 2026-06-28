@@ -66,6 +66,12 @@ const formatMoney = (minorUnits: number): string =>
     trailingZeroDisplay: "stripIfInteger",
   }).format(minorUnits / 10 ** CATALOG.decimalPlaces);
 
+/** Look up a slug in the catalog with an own-property check, so inherited
+ * Object.prototype keys (`constructor`, `__proto__`, …) never resolve to a
+ * bogus entry. */
+const catalogEntry = (slug: string): CatalogEntry | undefined =>
+  Object.hasOwn(CATALOG.listings, slug) ? CATALOG.listings[slug] : undefined;
+
 /** Resolve a `data-add-listing` URL to a catalog entry, or null if it is not an
  * enhanceable single-listing URL on the tickets origin. */
 const resolveListing = (raw: string): CatalogEntry | null => {
@@ -78,7 +84,7 @@ const resolveListing = (raw: string): CatalogEntry | null => {
   if (url.origin !== CATALOG.origin) return null;
   const slug = url.pathname.match(/^\/ticket\/([^/+]+)$/)?.[1];
   if (!slug) return null;
-  return CATALOG.listings[slug] ?? null;
+  return catalogEntry(slug) ?? null;
 };
 
 class CartController {
@@ -93,6 +99,9 @@ class CartController {
 
   constructor() {
     this.lines = this.reconcile(this.load());
+    // Persist the reconciled cart so a pruned/normalised list replaces the
+    // stale stored value instead of being re-pruned on every navigation.
+    this.save();
     const host = document.createElement("div");
     host.setAttribute("data-chobble-order", "");
     document.body.appendChild(host);
@@ -107,17 +116,29 @@ class CartController {
     this.render();
   }
 
-  /** Read the stored cart; returns [] if storage is unavailable. */
+  /** Read the stored cart. A storage *access* failure flips to memory-only,
+   * but a corrupt JSON value is just dropped (storage still works). */
   private load(): CartLine[] {
+    let raw: string | null;
     try {
-      const raw = sessionStorage.getItem(this.storageKey);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      // This is untrusted host-page state, not app data: keep only well-formed
-      // entries so a corrupt value like `[null]` cannot throw in reconcile().
-      return Array.isArray(parsed) ? parsed.filter(isCartLine) : [];
+      raw = sessionStorage.getItem(this.storageKey);
     } catch {
       this.memoryOnly = true;
+      return [];
+    }
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      // Untrusted host-page state, not app data: keep only well-formed entries
+      // so a corrupt value like `[null]` cannot throw in reconcile().
+      return Array.isArray(parsed) ? parsed.filter(isCartLine) : [];
+    } catch {
+      // Bad JSON from the host page — discard it but keep using storage.
+      try {
+        sessionStorage.removeItem(this.storageKey);
+      } catch {
+        this.memoryOnly = true;
+      }
       return [];
     }
   }
@@ -135,7 +156,7 @@ class CartController {
    * deactivated the listing since the cart was saved); record a notice if so. */
   private reconcile(lines: CartLine[]): CartLine[] {
     const kept = lines.filter(
-      (line) => CATALOG.listings[line.slug] !== undefined && line.quantity > 0,
+      (line) => catalogEntry(line.slug) !== undefined && line.quantity > 0,
     );
     if (kept.length < lines.length) {
       this.notice = "Some items are no longer available and were removed.";
@@ -166,7 +187,7 @@ class CartController {
 
   private resolved(): { entry: CatalogEntry; quantity: number }[] {
     return this.lines.flatMap((line) => {
-      const entry = CATALOG.listings[line.slug];
+      const entry = catalogEntry(line.slug);
       return entry ? [{ entry, quantity: line.quantity }] : [];
     });
   }

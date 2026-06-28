@@ -532,8 +532,10 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
     "active" | "hidden" | "customisable_days" | "can_pay_more"
   > & { customisable_days: number; can_pay_more: number };
   const rows = await queryAll<CatalogRow>(
-    `SELECT id, slug, name, unit_price, listing_type, customisable_days, can_pay_more
-     FROM listings WHERE active = 1 AND hidden = 0`,
+    `SELECT listing.id, listing.slug, listing.name, listing.unit_price,
+            listing.listing_type, listing.customisable_days, listing.can_pay_more
+     FROM listings AS listing
+     WHERE listing.active = 1 AND listing.hidden = 0`,
   );
   return Promise.all(
     rows.map(async (row) => ({
