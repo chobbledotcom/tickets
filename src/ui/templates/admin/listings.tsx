@@ -1995,7 +1995,7 @@ const ListingFormSections = ({
         </label>
       )}
 
-      {showUseDefaults && (
+      {showUseDefaults ? (
         <label class="listing-use-defaults-toggle">
           <input
             checked={useDefaultsChecked}
@@ -2007,6 +2007,13 @@ const ListingFormSections = ({
           {t("listing_defaults.use_defaults_toggle")}{" "}
           <small>{t("listing_defaults.use_defaults_hint")}</small>
         </label>
+      ) : (
+        // No defaults are set, so the toggle is hidden — but if this listing is
+        // still flagged to inherit, preserve that flag so an unrelated edit
+        // doesn't silently opt it out (and stop inheriting once defaults return).
+        useDefaultsChecked && (
+          <input name="use_defaults" type="hidden" value="1" />
+        )
       )}
 
       <fieldset class="listing-section">

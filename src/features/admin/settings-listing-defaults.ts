@@ -13,7 +13,9 @@ import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
+import { isDemoMode } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   LISTING_DEFAULT_FIELDS,
@@ -74,6 +76,10 @@ const parseUrlField = (
   field: ListingDefaultField,
   form: FormParams,
 ): FieldParse => {
+  // Demo mode blanks per-listing webhook URLs so demo users can't configure
+  // outbound callbacks; the webhook default must be refused the same way, or a
+  // Use-defaults listing would resolve it and fire registration webhooks.
+  if (field.field === "webhook_url" && isDemoMode()) return {};
   const raw = form.getString(inputName(field));
   if (raw === "") return {};
   const error = validateSafeServerFetchUrl(
@@ -155,7 +161,13 @@ export const handleListingDefaultsPost = settingsHandler<ParseResult>({
   log: () => t("listing_defaults.saved"),
   redirectTo: "/admin/listing-defaults",
   save: async (result) => {
-    if (result.ok) await settings.update.listingDefaults(result.value);
+    if (!result.ok) return;
+    await settings.update.listingDefaults(result.value);
+    // Listings inherit defaults at the cache layer (`decryptListingWithCount`),
+    // which has its own TTL and is not invalidated by settings writes — so drop
+    // it here, otherwise warm isolates would serve stale inherited values until
+    // the TTL lapsed or an unrelated listing write cleared it.
+    invalidateListingsCache();
   },
   validate: (result) => (result.ok ? null : result.error),
 });

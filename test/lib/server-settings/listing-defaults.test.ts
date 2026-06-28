@@ -1,10 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  getAllListings,
-  invalidateListingsCache,
-} from "#shared/db/listings.ts";
-import { settings } from "#shared/db/settings.ts";
+import { getAllListings } from "#shared/db/listings.ts";
+import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   adminFormPost,
   adminGet,
@@ -95,6 +93,31 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       });
       expect(settings.listingDefaults.usesLogistics).toBe(true);
     });
+
+    test("stores the defaults blob encrypted at rest", async () => {
+      await adminFormPost("/admin/listing-defaults", {
+        default_thank_you_url: "https://secret.example.com/token-abc",
+        default_webhook_url: "https://secret.example.com/hook-xyz",
+      });
+      // Round-trips through decryption…
+      expect(settings.listingDefaults.webhookUrl).toBe(
+        "https://secret.example.com/hook-xyz",
+      );
+      // …but the stored value is ciphertext, not the plaintext URL.
+      const stored = settings.getCachedRaw(CONFIG_KEYS.LISTING_DEFAULTS) ?? "";
+      expect(stored).not.toContain("secret.example.com");
+      expect(stored).not.toContain("hook-xyz");
+    });
+
+    test("refuses a webhook default in demo mode", async () => {
+      setDemoModeForTest(true);
+      await adminFormPost("/admin/listing-defaults", {
+        default_hidden: "1",
+        default_webhook_url: "https://example.com/hook",
+      });
+      expect(settings.listingDefaults.hidden).toBe(true);
+      expect("webhookUrl" in settings.listingDefaults).toBe(false);
+    });
   });
 
   describe("live inheritance", () => {
@@ -108,18 +131,18 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       expect(listing.use_defaults).toBe(true);
 
       // Set a default after the listing exists — it should inherit live.
+      // Saving defaults must invalidate the listings cache itself (no manual
+      // invalidation here), or warm isolates would keep serving stale values.
       await adminFormPost("/admin/listing-defaults", {
         default_hidden: "1",
         default_webhook_url: "https://example.com/live",
       });
-      invalidateListingsCache();
       const inheriting = await findByName("Inheriting listing");
       expect(inheriting?.hidden).toBe(true);
       expect(inheriting?.webhook_url).toBe("https://example.com/live");
 
       // Clear the defaults — it reverts to its own stored values.
       await adminFormPost("/admin/listing-defaults", {});
-      invalidateListingsCache();
       const reverted = await findByName("Inheriting listing");
       expect(reverted?.hidden).toBe(false);
       expect(reverted?.webhook_url).toBe("");
@@ -132,7 +155,6 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
         name: "Own values listing",
         useDefaults: false,
       });
-      invalidateListingsCache();
       const own = await findByName("Own values listing");
       expect(own?.hidden).toBe(false);
     });
@@ -179,6 +201,20 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       const response = await adminGet("/admin/listing/new?template=custom");
       const body = await response.text();
       expect(body).not.toContain('id="use-defaults"');
+    });
+
+    test("preserves an inheriting listing's flag while no defaults exist", async () => {
+      // Listing flagged to inherit, but the operator has since cleared every
+      // default — the edit form has no visible toggle, so it must carry the
+      // flag in a hidden input rather than silently dropping it on save.
+      const listing = await createTestListing({
+        name: "Still inheriting",
+        useDefaults: true,
+      });
+      const response = await adminGet(`/admin/listing/${listing.id}/edit`);
+      const body = await response.text();
+      expect(body).not.toContain('id="use-defaults"');
+      expect(body).toContain('name="use_defaults" type="hidden" value="1"');
     });
   });
 });

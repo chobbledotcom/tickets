@@ -368,6 +368,10 @@ const ENCRYPTED_KEYS = [
   CONFIG_KEYS.SMS_GATEWAY_USERNAME,
   CONFIG_KEYS.SMS_GATEWAY_PASSWORD,
   CONFIG_KEYS.SMS_GATEWAY_WEBHOOK_SECRET,
+  // The defaults blob can carry a webhook / thank-you URL (which commonly hold
+  // bearer tokens or private endpoints) — the same fields are encrypted on
+  // listings, so the shared default is encrypted at rest too.
+  CONFIG_KEYS.LISTING_DEFAULTS,
 ] as const;
 
 /** Union of all string-setting snapshot keys. */
@@ -409,7 +413,6 @@ type SpecificFields = {
   phone_prefix: string;
   auto_purge_orphans: boolean;
   orphan_purge_retention: string;
-  listing_defaults: ListingDefaults;
 };
 
 /** Full settings snapshot type. */
@@ -425,7 +428,6 @@ const data: SettingsData = {
   country: DEFAULT_COUNTRY,
   currency: "GBP",
   has_logistics: false,
-  listing_defaults: {},
   order_enabled: false,
   orphan_purge_retention: DEFAULT_ORPHAN_RETENTION,
   payment_provider: null,
@@ -788,9 +790,6 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
   },
   [CONFIG_KEYS.SQUARE_SANDBOX]: (raw) => {
     data.square_sandbox = raw === "true";
-  },
-  [CONFIG_KEYS.LISTING_DEFAULTS]: (raw) => {
-    data.listing_defaults = parseListingDefaults(raw);
   },
 };
 
@@ -1162,7 +1161,7 @@ const settingsBase = {
   },
   invalidateCache,
   get listingDefaults(): ListingDefaults {
-    return snap("listing_defaults");
+    return parseListingDefaults(snap(CONFIG_KEYS.LISTING_DEFAULTS));
   },
   // --- Core ---
   loadKeys,
@@ -1345,11 +1344,11 @@ const settingsBase = {
     // --- Google Wallet writes ---
     googleWallet: createGoogleWalletUpdateSettings(encryptedUpdate),
     hasLogistics: boolUpdate(CONFIG_KEYS.HAS_LOGISTICS, "has_logistics"),
-    listingDefaults: rawUpdate(
-      CONFIG_KEYS.LISTING_DEFAULTS,
-      "listing_defaults",
-      serializeListingDefaults,
-    ),
+    listingDefaults: async (v: ListingDefaults): Promise<void> => {
+      const json = serializeListingDefaults(v);
+      await writeEncrypted(CONFIG_KEYS.LISTING_DEFAULTS, json);
+      setSnapshotField(CONFIG_KEYS.LISTING_DEFAULTS, json);
+    },
     orderEnabled: boolUpdate(CONFIG_KEYS.ORDER_ENABLED, "order_enabled"),
     orphanPurgeRetention: rawUpdate(
       CONFIG_KEYS.ORPHAN_PURGE_RETENTION,
