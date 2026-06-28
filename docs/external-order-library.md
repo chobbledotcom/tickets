@@ -195,6 +195,14 @@ incompatible with origin-gated serving in two ways:
    settings are loaded, or one that explicitly initializes the database and loads
    `EMBED_HOSTS` before deciding the CORS headers.
 
+   If `/order.js` is served as a post-settings route, its prefix needs its own
+   `PREFIX_SETTINGS` entry too. `getPrefix("/order.js")` returns `order.js` (the
+   whole path, since there is no second slash), and an unlisted prefix falls back
+   to `ALL_SNAPSHOT_SETTINGS` — so every public module load would decrypt the
+   full snapshot just to read `embed_hosts`. Register the handler's prefix
+   (`order.js`, or whatever prefix the route uses) scoped to just
+   `[CONFIG_KEYS.EMBED_HOSTS]`.
+
 ## Browser Behaviour
 
 On module evaluation:
@@ -294,11 +302,19 @@ documented JSON request actually reaches it:
   an unlisted prefix falls back to `ALL_SNAPSHOT_SETTINGS`, so `settingsForPath`
   would load and decrypt unrelated secrets (payment, email, wallet, SMS keys) on
   every public cross-origin preview (`src/features/index.ts`,
-  `src/shared/db/settings.ts`). Add an `external-order` entry scoped to just what
-  the quote needs — mirror `calculate`'s bundle
-  (`[...BOOKING_FLOW_SETTINGS, CONFIG_KEYS.EMBED_HOSTS]`) — to keep this
-  unauthenticated read-only endpoint small and avoid decrypting secrets it never
-  uses.
+  `src/shared/db/settings.ts`). Add an `external-order` entry, but do **not**
+  reuse `calculate`'s `[...BOOKING_FLOW_SETTINGS, CONFIG_KEYS.EMBED_HOSTS]`
+  bundle: `BOOKING_FLOW_SETTINGS` expands to `PUBLIC_NAV_SETTINGS` +
+  `PAYMENT_SETTINGS` + `EMAIL_SETTINGS`, which pulls in the Stripe/Square/SumUp
+  secret keys and the email API key — none of which a read-only quote needs.
+  Define a quote-specific bundle holding only the keys the preview actually reads
+  (e.g. `CONFIG_KEYS.COUNTRY` for currency, `CONFIG_KEYS.BOOKING_FEE`,
+  `CONFIG_KEYS.TERMS_AND_CONDITIONS` to detect the terms-deferral case, and
+  `CONFIG_KEYS.EMBED_HOSTS` for the origin gate), explicitly excluding all
+  payment-provider and email secrets. `calculate` is over-broad for the same
+  reason; narrowing it to share this quote bundle is a worthwhile follow-up, but
+  the new endpoint must start from the minimal set rather than inherit the
+  booking-flow secrets.
 
 Request body:
 
@@ -381,6 +397,8 @@ canonical page is designed to collect:
 - **Pay-what-you-want prices.** `parseCustomPrices` rejects any selected paid
   `can_pay_more` listing that lacks a `custom_price_<id>` value.
 - **Required date.** A dated listing with no submitted date.
+- **Customisable day counts.** `resolveDayCount` returns "Please choose how many
+  days to book" for a selected `customisable_days` listing with no `day_count`.
 
 Since v1 sends only `quantity_<listingId>` fields and renders none of these
 controls, the preview quote function must detect when a selected listing needs
@@ -419,11 +437,12 @@ No PII fields are accepted or needed.
 The shared quote function needs a lenient "preview" mode so the quantity-only
 body does not trip the booking form's strict validation. `prepareOrder` today
 runs `validateFormState` (terms), `parseQuestionAnswers({ optional: false })`,
-`parseCustomPrices` (pay-what-you-want), and a required-date check before it will
-price. In preview mode the function must instead detect every input the v1 body
-cannot supply — terms acceptance, required questions, answer-priced fields,
-pay-what-you-want prices, or a required date — and return a deferral result
-(Continue URL + message) rather than an error. The extraction should keep
+`resolveDayCount` (customisable days), `parseCustomPrices` (pay-what-you-want),
+and a required-date check before it will price. In preview mode the function must
+instead detect every input the v1 body cannot supply — terms acceptance,
+required questions, answer-priced fields, pay-what-you-want prices, customisable
+day counts, or a required date — and return a deferral result (Continue URL +
+message) rather than an error. The extraction should keep
 `/calculate/:slug` behaviour identical while exposing this preview-tolerant entry
 point for the widget.
 
@@ -513,8 +532,11 @@ Server tests:
 - Continue URL uses canonical slugs and `q_<listingId>` quantities.
 - Closed, sold-out, and unknown listings are not silently accepted.
 - An active hidden listing is accepted when its exact ticket URL is supplied.
-- A listing requiring terms, custom questions, pay-what-you-want price, or a date
-  returns a Continue URL and deferral message rather than an error.
+- A listing requiring terms, custom questions, pay-what-you-want price, a date,
+  or a customisable day count returns a Continue URL and deferral message rather
+  than an error.
+- A preview request loads only the quote-specific settings bundle, not the
+  payment/email secrets in the booking-flow set.
 
 Client tests:
 
@@ -551,11 +573,14 @@ End-to-end browser test:
 4. Extract the current quote rendering behind `/calculate/:slug` into a shared
    read-only quote function with a preview-tolerant mode that defers every input
    v1 cannot submit — terms acceptance, required questions, answer-priced fields,
-   pay-what-you-want prices, and required dates — instead of erroring.
+   pay-what-you-want prices, customisable day counts, and required dates —
+   instead of erroring.
 5. Add `POST /external-order/preview` under its own prefix (not `/api`). Register
    the prefix in `isJsonApiPath` (so the JSON body passes the content-type guard)
-   and in `PREFIX_SETTINGS` with a narrow `calculate`-style bundle (so it does not
-   fall back to loading every snapshot secret).
+   and in `PREFIX_SETTINGS` with a quote-specific bundle (country, booking fee,
+   terms flag, embed_hosts) that excludes payment/email secrets — not the
+   booking-flow set. Give the `order.js` route prefix its own `[EMBED_HOSTS]`
+   `PREFIX_SETTINGS` entry as well.
 6. Build `src/ui/client/order.ts` with singleton link scanning, cart state,
    preview dialog, and Continue navigation.
 7. Add owner-facing snippet text to the settings or listing admin UI.
