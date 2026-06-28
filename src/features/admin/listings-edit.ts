@@ -175,20 +175,28 @@ const renderCreateListingError = async (
 };
 
 /**
+ * Parse a multipart listing submission into form params, apply demo overrides,
+ * and lock the webhook URL for editors. Shared by create and edit.
+ *
  * Editors must not set or change a listing's webhook URL: the registration
  * webhook posts full attendee PII (name, email, phone, address, …) to that
  * endpoint, so a crafted URL would exfiltrate exactly the data the keyless
- * editor role can't otherwise read. Force the field to a fixed value before the
- * resource reads it — empty on create, the listing's current URL on edit — so
- * any value an editor submits is ignored. (The field is also hidden from the
- * editor form; this is the server-side backstop.)
+ * editor role can't otherwise read. The field is forced to a fixed value —
+ * empty on create, the listing's current URL on edit — so any value an editor
+ * submits is ignored. (The field is also hidden from the editor form; this is
+ * the server-side backstop.)
  */
-const lockWebhookForEditor = (
+const parseListingForm = (
   session: AdminSession,
-  form: FormParams,
-  existing: string,
-): void => {
-  if (session.adminLevel === "editor") form.set("webhook_url", existing);
+  formData: FormData,
+  existingWebhook: string,
+): FormParams => {
+  const form = formDataToParams(formData);
+  applyDemoOverrides(form, LISTING_DEMO_FIELDS);
+  if (session.adminLevel === "editor") {
+    form.set("webhook_url", existingWebhook);
+  }
+  return form;
 };
 
 /**
@@ -198,9 +206,7 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
   request,
 ) =>
   withAuth(request, CONTENT_MULTIPART, async (session, formData) => {
-    const form = formDataToParams(formData);
-    applyDemoOverrides(form, LISTING_DEMO_FIELDS);
-    lockWebhookForEditor(session, form, "");
+    const form = parseListingForm(session, formData, "");
 
     // Mirror the GET gate: reject logistics templates when the feature is off.
     // Guards against a form opened while logistics was enabled, or a crafted POST.
@@ -432,9 +438,7 @@ export const handleAdminListingEditPost: TypedRouteHandler<
 > = (request, { id }) =>
   withAuth(request, CONTENT_MULTIPART, (session, formData) =>
     withEntityFromParam(id, getListingWithCount, async (existing) => {
-      const form = formDataToParams(formData);
-      applyDemoOverrides(form, LISTING_DEMO_FIELDS);
-      lockWebhookForEditor(session, form, existing.webhook_url);
+      const form = parseListingForm(session, formData, existing.webhook_url);
       const aggregates = parseAggregatesForRole(session, form);
       if (!aggregates.ok) {
         return renderListingEditError(id, session, aggregates.error);
