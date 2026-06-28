@@ -279,6 +279,27 @@ not be forced to also enable the unrelated public listing/booking API. Give the
 preview endpoint its own prefix handler gated solely by the `embed_hosts`
 origin check, so it is reachable whenever the allowlist permits it.
 
+Moving the route out from under `/api` requires two supporting changes so the
+documented JSON request actually reaches it:
+
+- **JSON content-type guard.** `processRequest` runs `isValidContentType` before
+  the prefix handler, and `isJsonApiPath` currently recognises only scan, `/api/*`,
+  and `/v1/*` routes as JSON APIs (`src/features/middleware.ts`,
+  `src/features/index.ts`). A `POST /external-order/preview` with
+  `Content-Type: application/json` would be rejected as a non-form POST unless the
+  new prefix is added to that guard (or otherwise exempted). The spec requires
+  updating `isJsonApiPath` to include the `/external-order/` path.
+
+- **Narrow settings bundle.** Every prefix must have a `PREFIX_SETTINGS` entry;
+  an unlisted prefix falls back to `ALL_SNAPSHOT_SETTINGS`, so `settingsForPath`
+  would load and decrypt unrelated secrets (payment, email, wallet, SMS keys) on
+  every public cross-origin preview (`src/features/index.ts`,
+  `src/shared/db/settings.ts`). Add an `external-order` entry scoped to just what
+  the quote needs — mirror `calculate`'s bundle
+  (`[...BOOKING_FLOW_SETTINGS, CONFIG_KEYS.EMBED_HOSTS]`) — to keep this
+  unauthenticated read-only endpoint small and avoid decrypting secrets it never
+  uses.
+
 Request body:
 
 ```json
@@ -346,18 +367,26 @@ returns a `continueUrl` and a message fragment such as:
 <p class="order-summary-message">Continue to choose a date and see the final total.</p>
 ```
 
-Required custom questions must be deferred the same way as the date case, not
-treated as a hard error. `prepareOrder` derives the active questions for the
-selected listings and runs `parseQuestionAnswers({ optional: false })` before
-pricing (`src/features/public/ticket-submit.ts`). Because v1 sends only
-`quantity_<listingId>` fields and renders no question controls, feeding the
-quantity-only body straight into that path would make the preview return an
-error instead of a Continue URL for otherwise bookable listings. The preview
-quote function must detect when a selected listing has required custom questions
-(or answer-priced inputs) that the v1 body cannot supply, skip the strict
-answer validation, and return a `continueUrl` plus a deferral message — exactly
-like the missing-date case. The visitor then supplies those answers on the
-canonical ticket page.
+Every field that v1 cannot submit must be deferred the same way as the date
+case, not treated as a hard error. Feeding the quantity-only body straight into
+the booking-form validation would error in several places, each of which the
+canonical page is designed to collect:
+
+- **Terms acceptance.** `prepareOrder` runs `validateFormState` first, which
+  returns "You must agree to the terms and conditions" whenever `ctx.terms` is
+  set and `agree_terms=1` is absent (`src/features/public/ticket-submit.ts`).
+- **Required custom questions / answer-priced inputs.** `prepareOrder` then runs
+  `parseQuestionAnswers({ optional: false })` over the active questions for the
+  selected listings.
+- **Pay-what-you-want prices.** `parseCustomPrices` rejects any selected paid
+  `can_pay_more` listing that lacks a `custom_price_<id>` value.
+- **Required date.** A dated listing with no submitted date.
+
+Since v1 sends only `quantity_<listingId>` fields and renders none of these
+controls, the preview quote function must detect when a selected listing needs
+any of them, skip that strict validation, and return a `continueUrl` plus a
+deferral message — exactly like the missing-date case. The visitor then supplies
+terms agreement, answers, and custom prices on the canonical ticket page.
 
 The first version does not render date, question, add-on, promo-code, or
 pay-what-you-want controls inside the external widget. Those remain on the
@@ -389,12 +418,14 @@ No PII fields are accepted or needed.
 
 The shared quote function needs a lenient "preview" mode so the quantity-only
 body does not trip the booking form's strict validation. `prepareOrder` today
-calls `parseQuestionAnswers({ optional: false })` and requires a date for dated
-listings before it will price. In preview mode the function must instead detect
-the inputs the v1 body cannot supply — required questions, answer-priced fields,
-or a required date — and return a deferral result (Continue URL + message)
-rather than an error. The extraction should keep `/calculate/:slug` behaviour
-identical while exposing this preview-tolerant entry point for the widget.
+runs `validateFormState` (terms), `parseQuestionAnswers({ optional: false })`,
+`parseCustomPrices` (pay-what-you-want), and a required-date check before it will
+price. In preview mode the function must instead detect every input the v1 body
+cannot supply — terms acceptance, required questions, answer-priced fields,
+pay-what-you-want prices, or a required date — and return a deferral result
+(Continue URL + message) rather than an error. The extraction should keep
+`/calculate/:slug` behaviour identical while exposing this preview-tolerant entry
+point for the widget.
 
 ## Continue URL
 
@@ -471,6 +502,8 @@ Server tests:
 - Allowed origin receives CORS headers for `/order.js`.
 - Disallowed origin receives no permissive CORS headers.
 - `OPTIONS /external-order/preview` validates origin and headers.
+- A `POST /external-order/preview` with `Content-Type: application/json` passes
+  the content-type guard (the new prefix is recognised as a JSON API).
 - Preview rejects malformed JSON with `400`.
 - Preview rejects disallowed origins with `403`.
 - Preview resolves a public listing URL to the correct listing id and slug.
@@ -480,6 +513,8 @@ Server tests:
 - Continue URL uses canonical slugs and `q_<listingId>` quantities.
 - Closed, sold-out, and unknown listings are not silently accepted.
 - An active hidden listing is accepted when its exact ticket URL is supplied.
+- A listing requiring terms, custom questions, pay-what-you-want price, or a date
+  returns a Continue URL and deferral message rather than an error.
 
 Client tests:
 
@@ -514,9 +549,13 @@ End-to-end browser test:
    settings-aware handler (after settings load) with origin-gated CORS headers
    and a no-store / short cache, not the immutable static asset path.
 4. Extract the current quote rendering behind `/calculate/:slug` into a shared
-   read-only quote function with a preview-tolerant mode that defers required
-   date/question/answer-priced inputs instead of erroring.
-5. Add `POST /external-order/preview` under its own prefix (not `/api`).
+   read-only quote function with a preview-tolerant mode that defers every input
+   v1 cannot submit — terms acceptance, required questions, answer-priced fields,
+   pay-what-you-want prices, and required dates — instead of erroring.
+5. Add `POST /external-order/preview` under its own prefix (not `/api`). Register
+   the prefix in `isJsonApiPath` (so the JSON body passes the content-type guard)
+   and in `PREFIX_SETTINGS` with a narrow `calculate`-style bundle (so it does not
+   fall back to loading every snapshot secret).
 6. Build `src/ui/client/order.ts` with singleton link scanning, cart state,
    preview dialog, and Continue navigation.
 7. Add owner-facing snippet text to the settings or listing admin UI.
