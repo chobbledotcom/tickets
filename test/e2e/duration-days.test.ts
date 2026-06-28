@@ -790,7 +790,9 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       groupId = 0,
     ): Record<string, string> => ({
       duration_days: String(durationDays),
-      group_id: String(groupId),
+      // Membership is carried by the group_ids checkboxes; only send one when the
+      // listing is in a group (0 = ungrouped).
+      ...(groupId > 0 ? { group_ids: String(groupId) } : {}),
       listing_type: "daily",
       max_attendees: "100",
       max_quantity: "1",

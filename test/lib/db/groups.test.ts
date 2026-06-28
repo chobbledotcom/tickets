@@ -15,6 +15,7 @@ import {
   getActiveListingsByGroupId,
   getAllGroups,
   getGroupBySlugIndex,
+  getGroupIdsByListingId,
   groupsTable,
   isGroupSlugTaken,
   resetGroupListings,
@@ -162,7 +163,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       expect(listings[0]?.attendee_count).toBe(3);
     });
 
-    test("resetGroupListings sets group_id to 0", async () => {
+    test("resetGroupListings removes every membership row", async () => {
       const group = await createTestGroup({
         name: "Reset Group",
         slug: "reset-group",
@@ -173,7 +174,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Reset Listing",
       });
       await resetGroupListings(group.id);
-      expect((await getListing(listing.id))?.group_id).toBe(0);
+      expect(await getGroupIdsByListingId(listing.id)).toEqual([]);
     });
 
     test("assignListingsToGroup moves every listing in one batch", async () => {
@@ -183,13 +184,13 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       });
       const a = await createTestListing({ maxAttendees: 10, name: "Assign A" });
       const b = await createTestListing({ maxAttendees: 10, name: "Assign B" });
-      expect(a.group_id).toBe(0);
-      expect(b.group_id).toBe(0);
+      expect(await getGroupIdsByListingId(a.id)).toEqual([]);
+      expect(await getGroupIdsByListingId(b.id)).toEqual([]);
 
       await assignListingsToGroup([a.id, b.id], group.id);
 
-      expect((await getListing(a.id))?.group_id).toBe(group.id);
-      expect((await getListing(b.id))?.group_id).toBe(group.id);
+      expect(await getGroupIdsByListingId(a.id)).toContain(group.id);
+      expect(await getGroupIdsByListingId(b.id)).toContain(group.id);
     });
 
     test("assignListingsToGroup is a no-op for an empty list", async () => {
@@ -204,7 +205,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
 
       await assignListingsToGroup([], group.id);
 
-      expect((await getListing(listing.id))?.group_id).toBe(0);
+      expect(await getGroupIdsByListingId(listing.id)).toEqual([]);
     });
   });
 

@@ -337,17 +337,29 @@ export const updateTestListing = async (
   if (!existing) {
     throw new Error(`Listing not found: ${listingId}`);
   }
+  const { getGroupIdsByListingId, setListingGroups } = await import(
+    "#shared/db/groups.ts"
+  );
+  // The real edit form carries membership as pre-checked group_ids checkboxes;
+  // the form helper omits them. Resolve the intended set (requested change, else
+  // current membership) and submit its first id so the handler preserves
+  // membership during the request (e.g. its group-cap overflow check sees the
+  // group). Re-apply the full set afterwards for multi-group cases.
+  const previousGroups = await getGroupIdsByListingId(listingId);
+  const groupIds =
+    updates.groupId !== undefined || updates.groupIds !== undefined
+      ? resolveTestGroupIds(updates)
+      : previousGroups;
+  const form = buildUpdateListingForm(updates, existing);
+  const formWithGroups =
+    groupIds.length > 0 ? { ...form, group_ids: String(groupIds[0]) } : form;
   const result = await doAuthenticatedMultipartFormRequest(
     `/admin/listing/${listingId}/edit`,
-    buildUpdateListingForm(updates, existing),
+    formWithGroups,
     async () => (await getListingWithCount(listingId)) as ListingWithCount,
     "update listing",
   );
-  // Membership change requested? Replace it directly (form helper is single-value).
-  if (updates.groupId !== undefined || updates.groupIds !== undefined) {
-    const { setListingGroups } = await import("#shared/db/groups.ts");
-    await setListingGroups(listingId, resolveTestGroupIds(updates));
-  }
+  await setListingGroups(listingId, groupIds);
   return result;
 };
 
