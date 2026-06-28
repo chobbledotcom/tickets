@@ -14,7 +14,6 @@ import {
   isValidContentType,
   isWebhookPath,
 } from "#routes/middleware.ts";
-import { handleOrderJs } from "#routes/public/order-js.ts";
 import {
   databaseBusyResponse,
   htmlResponse,
@@ -111,6 +110,10 @@ const loadTicketRoutes = lazyExport(
 const loadOrderRoutes = lazyExport(
   () => import("#routes/public/order.ts"),
   "routeOrder",
+);
+const loadOrderJs = lazyExport(
+  () => import("#routes/public/order-js.ts"),
+  "handleOrderJs",
 );
 const loadPaymentRoutes = lazyExport(
   () => import("#routes/api/webhooks.ts"),
@@ -590,7 +593,7 @@ const publicPageHandlers = reduce(
  * attributes its branches correctly. */
 const orderJsPrefixHandler: RouterFn = (request, path, method) =>
   path === "/order.js" && method === "GET"
-    ? handleOrderJs(request)
+    ? loadOrderJs().then((handle) => handle(request))
     : Promise.resolve(null);
 
 /** Prefix dispatch table — O(1) lookup replaces the sequential ?? chain */

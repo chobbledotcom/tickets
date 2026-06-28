@@ -33,7 +33,9 @@ interface CartLine {
 }
 
 /** Type guard for a stored cart line — used to reject corrupt/foreign values
- * from the host page's sessionStorage. */
+ * from the host page's sessionStorage. Hand-rolled rather than valibot: this
+ * widget ships to external sites, and pulling valibot into the bundle for two
+ * tiny checks measured at +1.3 KB gzipped (a ~50% increase). */
 const isCartLine = (value: unknown): value is CartLine => {
   const line = value as Partial<CartLine> | null;
   return (

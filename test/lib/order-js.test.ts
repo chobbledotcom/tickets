@@ -60,16 +60,31 @@ describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
     expect(res.status).toBe(404);
   });
 
-  test("allow-list echoes an allowed origin and omits a disallowed one", async () => {
+  test("allow-list echoes an allowed origin and serves the catalog", async () => {
     await settings.update.externalOrderEnabled(true);
     await settings.update.embedHosts("shop.example.com");
+    await createTestListing({ name: "Allowed Workshop" });
+    const slug = await slugByName("Allowed Workshop");
 
     const allowed = await orderJs("https://shop.example.com");
+    const body = await allowed.text();
     expect(allowed.headers.get("access-control-allow-origin")).toBe(
       "https://shop.example.com",
     );
+    expect(body).toContain("const CATALOG");
+    expect(body).toContain(slug);
+  });
+
+  test("a disallowed origin gets no CORS header, no catalog, and no slugs", async () => {
+    await settings.update.externalOrderEnabled(true);
+    await settings.update.embedHosts("shop.example.com");
+    await createTestListing({ name: "Hidden From Evil" });
+    const slug = await slugByName("Hidden From Evil");
 
     const denied = await orderJs("https://evil.example.com");
+    const body = await denied.text();
     expect(denied.headers.get("access-control-allow-origin")).toBeNull();
+    expect(body).not.toContain("const CATALOG");
+    expect(body).not.toContain(slug);
   });
 });
