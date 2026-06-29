@@ -156,6 +156,27 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     );
   });
 
+  test("the hidden package booking page does not expose its single member", async () => {
+    const { handleRequest } = await import("#routes");
+    const { mockRequest } = await import("#test-utils/mocks.ts");
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "HiddenPage",
+      slug: "hidden-page",
+    });
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    await member(group, "SecretMember", { location: "SecretVenue" });
+
+    const body = await (
+      await handleRequest(mockRequest(`/ticket/${group.slug}`))
+    ).text();
+    // The page renders (as a package), but the lone member's name/location are
+    // not leaked in the header/OpenGraph (singleListing is dropped when hidden).
+    expect(body).toContain("HiddenPage");
+    expect(body).not.toContain("SecretMember");
+    expect(body).not.toContain("SecretVenue");
+  });
+
   test("edit POST rejects is_package on a group with a daily listing", async () => {
     const group = await createTestGroup({ name: "Daily", slug: "daily-pkg" });
     await member(group, "Daily Member", {

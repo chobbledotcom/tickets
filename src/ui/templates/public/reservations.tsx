@@ -1614,6 +1614,15 @@ const buildPageListingRows = (opts: {
   );
 };
 
+/** The lone listing whose rich details (image/date/location) head the page and
+ * feed its OpenGraph tags, or null for a multi-listing page OR a hidden package
+ * — a hidden package with one active member must not expose that member here. */
+const headerListing = (
+  listings: TicketListing[],
+  hidePackageListings: boolean,
+): ListingWithCount | null =>
+  listings.length === 1 && !hidePackageListings ? listings[0]!.listing : null;
+
 /**
  * Ticket page - register for one or more listings
  * Single listings show rich details (image, description, date, location).
@@ -1657,8 +1666,8 @@ export const ticketPage = ({
   );
   const hasDaily = listings.some((e) => e.listing.listing_type === "daily");
 
-  const isSingleListing = listings.length === 1;
-  const singleListing = isSingleListing ? listings[0]!.listing : null;
+  const singleListing = headerListing(listings, hidePackageListings);
+  const isSingleListing = singleListing !== null;
   const pastDays = singleListing?.date ? daysAgo(singleListing.date) : null;
 
   const { hasCustomisable, dayCounts, dayCountPriceFor, dateDurationDays } =
