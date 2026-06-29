@@ -85,7 +85,7 @@ const parseBookableDays = (
 };
 
 /** Ids of the groups ticked on the listing form's group checkboxes. */
-const parseGroupIds = (form: FormParams): number[] =>
+export const parseGroupIds = (form: FormParams): number[] =>
   form
     .getAll("group_ids")
     .map(Number)

@@ -580,6 +580,53 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expect(html).toContain(`href="/admin/groups/${group.id}"`);
     });
 
+    test("shows the tightest capped group when a listing is in several", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+      });
+      const loose = await createTestGroup({
+        maxAttendees: 50,
+        name: "Loose",
+        slug: "loose-grp",
+      });
+      const tight = await createTestGroup({
+        maxAttendees: 6,
+        name: "Tight",
+        slug: "tight-grp",
+      });
+      const looser = await createTestGroup({
+        maxAttendees: 100,
+        name: "Looser",
+        slug: "looser-grp",
+      });
+      await assignListingsToGroup([listing.id], loose.id);
+      await assignListingsToGroup([listing.id], tight.id);
+      await assignListingsToGroup([listing.id], looser.id);
+      // A sibling booked into the tight group makes it the binding constraint.
+      const sibling = await createTestListing({
+        groupId: tight.id,
+        maxAttendees: 100,
+        name: "Tight Sibling",
+      });
+      await bookAttendee(sibling, {
+        email: "t@test.com",
+        name: "T",
+        quantity: 4,
+      });
+
+      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      // The tight group (6 cap, 4 booked → 2 remain) is the binding one shown,
+      // not the roomier groups it also belongs to.
+      expect(html).toContain("4 / 6");
+      expect(html).toContain("2 remain");
+      expect(html).toContain(`href="/admin/groups/${tight.id}"`);
+      expect(html).not.toContain(`href="/admin/groups/${loose.id}"`);
+      expect(html).not.toContain(`href="/admin/groups/${looser.id}"`);
+    });
+
     test("omits Group Attendees row when group is uncapped", async () => {
       const { listing, cookie } = await setupListingAndLogin({
         maxAttendees: 100,
@@ -1476,10 +1523,15 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           slug: listing.slug,
         },
       );
-      await expectHtmlResponse(
+      const html = await expectHtmlResponse(
         response,
         400,
         "already contains daily listings",
+      );
+      // The rejected edit re-renders the group the operator ticked as checked,
+      // so their selection isn't silently dropped on the next submit.
+      expect(html).toContain(
+        `checked name="group_ids" type="checkbox" value="${group.id}"`,
       );
     });
 

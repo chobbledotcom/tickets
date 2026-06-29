@@ -57,6 +57,7 @@ import {
   buildCreateListingResource,
   buildUpdateListingResource,
   extractListingAggregateValues,
+  parseGroupIds,
 } from "./listings-form.ts";
 import {
   copyDuplicatedChildEdges,
@@ -354,6 +355,7 @@ const renderListingEditError = async (
   id: number,
   session: AdminSession,
   error: string,
+  submittedGroupIds: number[],
 ): Promise<Response> => {
   const ctx = await getListingAndGroups(id);
   return ctx
@@ -366,7 +368,9 @@ const renderListingEditError = async (
           ctx.aggregateRecalculation,
           undefined,
           await loadListingParentsSection(ctx.listing),
-          ctx.selectedGroupIds,
+          // Re-render the checkboxes the operator submitted (not the saved set),
+          // so a rejected edit doesn't silently drop their group changes.
+          submittedGroupIds,
         ),
         400,
       )
@@ -406,12 +410,20 @@ export const handleAdminListingEditPost: TypedRouteHandler<
     withEntityFromParam(id, getListingWithCount, async (existing) => {
       const form = formDataToParams(formData);
       applyDemoOverrides(form, LISTING_DEMO_FIELDS);
+      // The group checkboxes the operator submitted, so a rejected edit
+      // re-renders their selection rather than the saved membership.
+      const submittedGroupIds = parseGroupIds(form);
       const aggregates = parseEditableAggregateForm<
         ListingAggregateFormValues,
         ListingAggregateValues
       >(form, listingAggregateFields, extractListingAggregateValues);
       if (!aggregates.ok) {
-        return renderListingEditError(id, session, aggregates.error);
+        return renderListingEditError(
+          id,
+          session,
+          aggregates.error,
+          submittedGroupIds,
+        );
       }
 
       // Build a resource that includes the slug field; uniqueness is enforced
@@ -427,7 +439,12 @@ export const handleAdminListingEditPost: TypedRouteHandler<
         );
       }
       if ("notFound" in result) return notFoundResponse();
-      return renderListingEditError(id, session, result.error);
+      return renderListingEditError(
+        id,
+        session,
+        result.error,
+        submittedGroupIds,
+      );
     }),
   );
 

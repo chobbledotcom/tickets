@@ -151,13 +151,14 @@ export const loadListingQuestionData = async (
 
 /** Fetch group + current usage when the listing sits in a capped group, so the
  * detail page can render a row for the shared cap. Returns undefined for
- * ungrouped or uncapped groups. */
+ * ungrouped or uncapped groups. A listing can belong to several capped groups;
+ * the one with the FEWEST remaining spots is the binding constraint (a booking
+ * is blocked by the tightest group — see capacity.ts), so surface that one. */
 const loadGroupContext = async (
   listing: ListingWithCount,
   dateFilter: string | null,
 ): Promise<GroupContext | undefined> => {
-  // A listing can belong to several groups; surface the first capped one's
-  // shared-cap row. (Capacity enforcement spans every group — see capacity.ts.)
+  let tightest: { ctx: GroupContext; remaining: number } | undefined;
   for (const groupId of await getGroupIdsByListingId(listing.id)) {
     const group = await groupsTable.findById(groupId);
     if (!group || group.max_attendees <= 0) continue;
@@ -167,9 +168,14 @@ const loadGroupContext = async (
     );
     // group.max_attendees > 0 guarantees the helper returns an entry for it.
     const remaining = remainingMap.get(group.id) as number;
-    return { attendeeCount: group.max_attendees - remaining, group };
+    if (tightest === undefined || remaining < tightest.remaining) {
+      tightest = {
+        ctx: { attendeeCount: group.max_attendees - remaining, group },
+        remaining,
+      };
+    }
   }
-  return undefined;
+  return tightest?.ctx;
 };
 
 /** Render listing page with attendee list and optional filter */
