@@ -56,6 +56,11 @@ import type { RunCommand } from "./merge-warning.ts";
  *  `deno task mutation` directly. */
 export const STALE_BASE_SOURCE_LIMIT = 100;
 
+/** Prefix on the skip/warning notices that must stay visible even when the gate
+ *  passes. The precommit runner swallows a successful step's stdout, so these
+ *  are re-surfaced via `mutationNoticeSummary` (wired as the step's summary). */
+export const MUTATION_NOTICE_PREFIX = "⚠ mutation: ";
+
 /** The changed paths split into the src files to mutate and tests to run. */
 export interface ChangedFiles {
   sources: string[];
@@ -101,8 +106,9 @@ const resolveBaseRef = async (run: RunCommand): Promise<string | null> => {
  * The src/test files this branch changes relative to its base ref, via
  * `base...HEAD` (the merge-base of base and HEAD, to HEAD) so only the branch's
  * own commits count — limited to files that still exist (added, copied,
- * modified, renamed; deletions excluded). Null when no base ref can be
- * resolved, so the caller can skip rather than mutate the whole tree.
+ * modified, renamed; deletions excluded). Null when the diff cannot be scoped —
+ * no base ref resolves, or a shallow clone shares no merge base with `base` — so
+ * the caller can skip rather than mutate the whole tree or crash precommit.
  */
 export const changedFiles = async (
   run: RunCommand,
@@ -117,6 +123,11 @@ export const changedFiles = async (
     `${base}...HEAD`,
   ]);
   if (!result.success) {
+    // A shallow clone whose fetched history shares no commit with HEAD has no
+    // merge base, so `base...HEAD` aborts (exit 128, "no merge base"). Treat
+    // that as unscopable (skip) rather than failing the whole precommit; any
+    // other diff failure is a genuine error and still throws.
+    if (/no merge base/i.test(result.stderr)) return null;
     throw new Error(`git diff ${base}...HEAD failed: ${result.stderr.trim()}`);
   }
   const paths = result.stdout
@@ -127,11 +138,25 @@ export const changedFiles = async (
 };
 
 /**
+ * The notice lines (stale base, no merge base, no changed tests, …) emitted on
+ * `stdout`, joined for display — or undefined when there are none. Wired as the
+ * mutation step's `summary` so these stay visible even though the precommit
+ * runner swallows a passing step's output. A normal mutation *run* emits none,
+ * so a clean pass shows nothing extra.
+ */
+export const mutationNoticeSummary = (stdout: string): string | undefined => {
+  const notices = stdout
+    .split("\n")
+    .filter((line) => line.includes(MUTATION_NOTICE_PREFIX));
+  return notices.length > 0 ? notices.join("\n") : undefined;
+};
+
+/**
  * Run the mutation gate over the branch's changed files, returning a precommit
  * exit code.
  *
- *   - No base ref to diff against → skip (pass); we cannot scope the run, and
- *     the coverage gate still applies.
+ *   - Unscopable diff (no base ref, or a shallow clone with no merge base) →
+ *     skip (pass) with a notice; the coverage gate still applies.
  *   - More than `STALE_BASE_SOURCE_LIMIT` changed src files → skip (pass) with a
  *     fetch hint; the local base ref is almost certainly stale.
  *   - No changed src files → nothing to prove; pass.
@@ -148,13 +173,18 @@ export const runMutationStep = async (
 ): Promise<number> => {
   const changed = await changedFiles(deps.run);
   if (changed === null) {
-    deps.log("No origin/main or main to diff against — skipping mutation.");
+    deps.log(
+      `${MUTATION_NOTICE_PREFIX}no base commit to diff against — missing ` +
+        "origin/main/main, or a shallow clone with no merge base. If shallow, " +
+        "run `git fetch --unshallow`; skipping mutation.",
+    );
     return 0;
   }
   if (changed.sources.length > STALE_BASE_SOURCE_LIMIT) {
     deps.log(
-      `${changed.sources.length} changed src files — the local base ref looks ` +
-        "stale. Run `git fetch origin main` and retry; skipping mutation.",
+      `${MUTATION_NOTICE_PREFIX}${changed.sources.length} changed src files — ` +
+        "the local base ref looks stale. Run `git fetch origin main` and retry; " +
+        "skipping mutation.",
     );
     return 0;
   }
@@ -164,8 +194,9 @@ export const runMutationStep = async (
   }
   if (changed.tests.length === 0) {
     deps.log(
-      "Changed src files but no changed test files — skipping mutation. " +
-        "Change a test that covers them to mutation-check the change.",
+      `${MUTATION_NOTICE_PREFIX}changed src files but no changed test files — ` +
+        "skipping mutation. Change a test that covers them to mutation-check " +
+        "the change.",
     );
     return 0;
   }

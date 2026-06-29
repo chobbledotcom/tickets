@@ -7,6 +7,8 @@ import type {
 import {
   type ChangedFiles,
   changedFiles,
+  MUTATION_NOTICE_PREFIX,
+  mutationNoticeSummary,
   partitionChanged,
   runMutationStep,
   STALE_BASE_SOURCE_LIMIT,
@@ -140,12 +142,43 @@ describe("changedFiles", () => {
     expect(await changedFiles(fakeGit({ diff: ok("src/a.ts\n") }))).toBe(null);
   });
 
-  test("throws when the diff command fails", async () => {
+  test("returns null on a shallow clone with no merge base", async () => {
+    const changed = await changedFiles(
+      fakeGit({
+        base: "origin/main",
+        diff: fail("fatal: origin/main...HEAD: no merge base"),
+      }),
+    );
+    expect(changed).toBe(null);
+  });
+
+  test("throws when the diff fails for any other reason", async () => {
     await expect(
       changedFiles(
         fakeGit({ base: "origin/main", diff: fail("bad revision") }),
       ),
     ).rejects.toThrow("bad revision");
+  });
+});
+
+describe("mutationNoticeSummary", () => {
+  test("joins the notice lines and drops the rest", () => {
+    const stdout = [
+      "Running baseline tests…",
+      `${MUTATION_NOTICE_PREFIX}stale base, run git fetch`,
+      "..........",
+      `${MUTATION_NOTICE_PREFIX}no changed tests`,
+    ].join("\n");
+    expect(mutationNoticeSummary(stdout)).toBe(
+      `${MUTATION_NOTICE_PREFIX}stale base, run git fetch\n` +
+        `${MUTATION_NOTICE_PREFIX}no changed tests`,
+    );
+  });
+
+  test("returns undefined when there are no notices", () => {
+    expect(mutationNoticeSummary("All mutants were detected.\n")).toBe(
+      undefined,
+    );
   });
 });
 
@@ -171,9 +204,11 @@ describe("runMutationStep", () => {
     expect(logs).toEqual(expectedLogs);
   };
 
-  test("skips when there is no base ref to diff against", async () => {
+  test("skips with a notice when the diff cannot be scoped", async () => {
     await expectSkip(fakeGit({ diff: ok("src/a.ts\ntest/a.test.ts\n") }), [
-      "No origin/main or main to diff against — skipping mutation.",
+      `${MUTATION_NOTICE_PREFIX}no base commit to diff against — missing ` +
+        "origin/main/main, or a shallow clone with no merge base. If shallow, " +
+        "run `git fetch --unshallow`; skipping mutation.",
     ]);
   });
 
@@ -188,8 +223,9 @@ describe("runMutationStep", () => {
         diff: ok(`${sources.join("\n")}\ntest/a.test.ts\n`),
       }),
       [
-        `${STALE_BASE_SOURCE_LIMIT + 1} changed src files — the local base ref ` +
-          "looks stale. Run `git fetch origin main` and retry; skipping mutation.",
+        `${MUTATION_NOTICE_PREFIX}${STALE_BASE_SOURCE_LIMIT + 1} changed src ` +
+          "files — the local base ref looks stale. Run `git fetch origin main` " +
+          "and retry; skipping mutation.",
       ],
     );
   });
@@ -229,8 +265,9 @@ describe("runMutationStep", () => {
     await expectSkip(
       fakeGit({ base: "origin/main", diff: ok("src/a.ts\nsrc/b.ts\n") }),
       [
-        "Changed src files but no changed test files — skipping mutation. " +
-          "Change a test that covers them to mutation-check the change.",
+        `${MUTATION_NOTICE_PREFIX}changed src files but no changed test files ` +
+          "— skipping mutation. Change a test that covers them to " +
+          "mutation-check the change.",
       ],
     );
   });

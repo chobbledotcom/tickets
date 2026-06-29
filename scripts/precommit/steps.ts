@@ -1,4 +1,5 @@
 import { readSlowTestsReport } from "../test-durations.ts";
+import { mutationNoticeSummary } from "./mutation-step.ts";
 import { filterTestOutput, testProgressFromLine } from "./output.ts";
 
 /**
@@ -38,9 +39,15 @@ export const getSteps = (): Step[] => {
       progress: testProgressFromLine,
       summary: async () => (await readSlowTestsReport()) || undefined,
     },
-    // Mutation-test the staged src files against the staged test files, demanding
-    // a 100% kill rate. Runs last: it needs the green baseline the test step
-    // proves, and most commits stage no src files, so it skips cheaply.
-    { cmd: [deno, "task", "precommit:mutation"], name: "mutation" },
+    // Mutation-test the changed src files against the changed test files,
+    // demanding a 100% kill rate. Runs last: it needs the green baseline the
+    // test step proves, and most commits change no src files, so it skips
+    // cheaply. The summary re-surfaces skip notices (stale base, no merge base,
+    // no changed tests) that the runner would otherwise swallow on a green step.
+    {
+      cmd: [deno, "task", "precommit:mutation"],
+      name: "mutation",
+      summary: (stdout) => mutationNoticeSummary(stdout),
+    },
   ];
 };
