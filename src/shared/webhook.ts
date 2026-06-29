@@ -94,6 +94,20 @@ export type RegistrationEntry = {
   attendee: WebhookAttendee;
 };
 
+/** The per-unit price actually charged for a booking line. A package member's
+ * base `unit_price` is 0 — its charge lives in the package override — so for a
+ * package booking derive the per-unit from the amount actually paid rather than
+ * reporting a misleading 0. Non-package lines report the listing's base price. */
+const ticketUnitPrice = (entry: RegistrationEntry): number => {
+  const { listing, attendee } = entry;
+  if (attendee.package_group_id > 0 && attendee.quantity > 0) {
+    return Math.round(
+      Number.parseInt(attendee.price_paid, 10) / attendee.quantity,
+    );
+  }
+  return listing.unit_price;
+};
+
 /**
  * Build a consolidated webhook payload from registration entries
  */
@@ -106,7 +120,12 @@ export const buildWebhookPayload = (
     Number.parseInt(e.attendee.price_paid, 10),
   )(entries);
 
-  const hasPaidListing = entries.some(({ listing }) => isPaidListing(listing));
+  // A package member's base listing is free (the charge is the package
+  // override), so `isPaidListing` alone would report `price_paid: null` for an
+  // order that charged the buyer. Treat any positive amount actually paid as
+  // paid so integrations don't under-count package revenue.
+  const isPaidOrder =
+    entries.some(({ listing }) => isPaidListing(listing)) || totalPricePaid > 0;
   return {
     address: first.attendee.address,
     // Order-level balance — the same on every entry, so read it from the first
@@ -119,16 +138,16 @@ export const buildWebhookPayload = (
     notification_type: "registration.completed",
     payment_id: first.attendee.payment_id || null,
     phone: first.attendee.phone,
-    price_paid: hasPaidListing ? totalPricePaid : null,
+    price_paid: isPaidOrder ? totalPricePaid : null,
     special_instructions: first.attendee.special_instructions,
     ticket_url: buildTicketUrl(entries),
-    tickets: entries.map(({ listing, attendee }) => ({
-      date: attendee.date,
-      listing_name: listing.name,
-      listing_slug: listing.slug,
-      quantity: attendee.quantity,
-      ticket_token: attendee.ticket_token,
-      unit_price: listing.unit_price,
+    tickets: entries.map((entry) => ({
+      date: entry.attendee.date,
+      listing_name: entry.listing.name,
+      listing_slug: entry.listing.slug,
+      quantity: entry.attendee.quantity,
+      ticket_token: entry.attendee.ticket_token,
+      unit_price: ticketUnitPrice(entry),
     })),
     timestamp: nowIso(),
   };

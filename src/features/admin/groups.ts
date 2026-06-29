@@ -136,10 +136,13 @@ export const validateGroupWithPackage: GroupValidator = async (input, id) => {
 /** Parse one package-price input to minor units. A blank, non-numeric, or
  * negative value is treated as 0 — "no override; use the listing's own price" —
  * so a typo can't fail the save (after the row is written) or store a negative
- * override. */
+ * override. The whole string must be numeric: unlike `parseFloat` (which accepts
+ * a leading-numeric prefix, turning a typo like `12abc` or `1,50` into a real
+ * `12`/`1` override), a non-numeric input is rejected to 0. */
 const parsePackagePrice = (raw: string): number => {
-  if (raw === "") return 0;
-  const major = Number.parseFloat(raw);
+  const trimmed = raw.trim();
+  if (trimmed === "" || !/^\d+(\.\d+)?$/.test(trimmed)) return 0;
+  const major = Number(trimmed);
   return Number.isFinite(major) && major >= 0 ? toMinorUnits(major) : 0;
 };
 

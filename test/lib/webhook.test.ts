@@ -131,6 +131,29 @@ describe("webhook", () => {
       expect(payload.amount_owed).toBe(0);
     });
 
+    test("reports package-override revenue even when the base listing is free", async () => {
+      // A package member's base listing is free (unit_price 0); the buyer was
+      // charged via the package override, recorded on the attendee's price_paid.
+      const entries = [
+        makeEntry(
+          { unit_price: 0 },
+          {
+            package_group_id: 7,
+            payment_id: "pi_pkg",
+            price_paid: "5000",
+            quantity: 6,
+          },
+        ),
+      ];
+
+      const payload = await buildWebhookPayload(entries, "GBP");
+
+      // The order reports what was actually paid, not null.
+      expect(payload.price_paid).toBe(5000);
+      // The per-unit price is derived from the charge (5000 / 6), not the base 0.
+      expect(payload.tickets[0]!.unit_price).toBe(Math.round(5000 / 6));
+    });
+
     test("reports the order's outstanding balance as amount_owed", async () => {
       // A provider-less paid booking: nothing collected (price_paid 0), the full
       // value owed. remaining_balance is order-level, so a multi-listing order

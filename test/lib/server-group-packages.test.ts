@@ -178,6 +178,23 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     expect((await getTestPackagePrices(group.id)).size).toBe(0);
   });
 
+  test("edit POST rejects a leading-numeric typo instead of parsing a prefix", async () => {
+    const group = await createTestGroup({ name: "Typo", slug: "typo" });
+    const a = await member(group, "Letters");
+    const b = await member(group, "Comma");
+
+    const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
+      ...editFields("Typo", "typo"),
+      is_package: "1",
+      // parseFloat would turn these into a real 12 / 1 override; the strict
+      // parser treats the whole non-numeric string as "no override" (0).
+      [`package_price_${a.id}`]: "12abc",
+      [`package_price_${b.id}`]: "1,50",
+    });
+    expect(response.status).toBe(302);
+    expect((await getTestPackagePrices(group.id)).size).toBe(0);
+  });
+
   test("the listings API rejects a pay-what-you-want listing joining a package group", async () => {
     const group = await createTestGroup({
       isPackage: true,
