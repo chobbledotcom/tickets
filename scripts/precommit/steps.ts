@@ -38,5 +38,9 @@ export const getSteps = (): Step[] => {
       progress: testProgressFromLine,
       summary: async () => (await readSlowTestsReport()) || undefined,
     },
+    // Mutation-test the staged src files against the staged test files, demanding
+    // a 100% kill rate. Runs last: it needs the green baseline the test step
+    // proves, and most commits stage no src files, so it skips cheaply.
+    { cmd: [deno, "task", "precommit:mutation"], name: "mutation" },
   ];
 };
