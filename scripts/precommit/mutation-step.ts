@@ -66,8 +66,11 @@ export const stagedPaths = async (run: RunCommand): Promise<string[]> => {
  * Run the mutation gate over the staged files, returning a precommit exit code.
  *
  *   - No staged src files → nothing to prove; pass.
- *   - Staged src but no staged tests → fail: mutation needs the covering tests
- *     staged alongside the src they cover.
+ *   - Staged src but no staged tests → skip (pass). There are no staged tests
+ *     to mutate against, and there is no way to add one without artificially
+ *     editing an unchanged test (staging an unmodified file produces no diff).
+ *     The 100%-coverage gate still applies; stage a covering test to
+ *     mutation-check the change.
  *   - Both → mutate every staged src file against every staged test file. The
  *     runner's exit code passes through, except code 2 ("no mutable operators
  *     in any staged src file", e.g. a types-only or re-export change) becomes a
@@ -83,12 +86,10 @@ export const runMutationStep = async (
   }
   if (staged.tests.length === 0) {
     deps.log(
-      "Staged src changes but no staged test files. Mutation testing runs the " +
-        "tests you changed against the src you changed — stage the tests that " +
-        "cover these files:",
+      "Staged src changes but no staged test files — skipping mutation. " +
+        "Stage a test that covers the change to mutation-check it.",
     );
-    for (const source of staged.sources) deps.log(`  ${source}`);
-    return 1;
+    return 0;
   }
   deps.log(
     `Mutation-testing ${staged.sources.length} staged src file(s) against ` +

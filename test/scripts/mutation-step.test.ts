@@ -126,7 +126,7 @@ describe("runMutationStep", () => {
     expect(logs).toEqual(["No staged src files — nothing to mutation-test."]);
   });
 
-  test("fails and lists the sources when src is staged without tests", async () => {
+  test("skips (passing) when src is staged without tests", async () => {
     const logs: string[] = [];
     let mutationRan = false;
     const code = await runMutationStep({
@@ -137,15 +137,12 @@ describe("runMutationStep", () => {
         return Promise.resolve(0);
       },
     });
-    expect(code).toBe(1);
+    expect(code).toBe(0);
     expect(mutationRan).toBe(false);
-    expect(logs[0]).toBe(
-      "Staged src changes but no staged test files. Mutation testing runs the " +
-        "tests you changed against the src you changed — stage the tests that " +
-        "cover these files:",
-    );
-    expect(logs).toContain("  src/a.ts");
-    expect(logs).toContain("  src/b.ts");
+    expect(logs).toEqual([
+      "Staged src changes but no staged test files — skipping mutation. " +
+        "Stage a test that covers the change to mutation-check it.",
+    ]);
   });
 
   test("mutates the staged src against the staged tests", async () => {
