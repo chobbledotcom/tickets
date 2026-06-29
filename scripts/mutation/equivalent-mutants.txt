@@ -124,3 +124,5 @@ test/test-utils/test-browser.ts:256:49  ?? → ||  # button value fallback is ""
 test/test-utils/test-browser.ts:351:58  ?? → ||  # RequestInit.method is omitted or a non-empty method string in every caller
 test/test-utils/test-browser.ts:414:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined
 src/shared/listing-defaults.ts:167:35  && → ||  # readDefaultValue's only caller is parseListingDefaults(JSON.parse(...)); JSON can't carry NaN/Infinity, so a number raw is always finite — the Number.isFinite guard never disagrees with the typeof check
+src/ui/templates/admin/listing-defaults.tsx:90:19  ?? → ||  # UrlControl value: string|undefined; the only falsy-non-null string is "" which equals the "" fallback, so ?? and || coincide
+src/ui/templates/admin/listing-defaults.tsx:119:42  ?? → ||  # value?.includes(day): boolean|undefined; for boolean b, b ?? false === b || false, and undefined ?? false === undefined || false

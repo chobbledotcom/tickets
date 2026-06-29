@@ -12,9 +12,22 @@ import {
   expectFlash,
   testRequiresAuth,
 } from "#test-utils";
+import { extractFormEntries } from "#test-utils/test-browser.ts";
 
 const findByName = async (name: string) =>
   (await getAllListings()).find((l) => l.name === name);
+
+/** The defaults form's submittable controls, grouped by input name — what a
+ * browser would POST, so it reflects which option is selected and which boxes
+ * are ticked. */
+const submittedDefaults = async (): Promise<Map<string, string[]>> => {
+  const body = await (await adminGet("/admin/listing-defaults")).text();
+  const grouped = new Map<string, string[]>();
+  for (const [name, value] of extractFormEntries(body)) {
+    grouped.set(name, [...(grouped.get(name) ?? []), value]);
+  }
+  return grouped;
+};
 
 describeWithEnv("server (admin listing defaults)", { db: true }, () => {
   describe("GET /admin/listing-defaults", () => {
@@ -41,6 +54,52 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       expect(body).toMatch(
         /value="Monday"[^>]*checked|checked[^>]*value="Monday"/,
       );
+    });
+
+    test("a true bool default selects the Yes option", async () => {
+      await adminFormPost("/admin/listing-defaults", { default_hidden: "1" });
+      expect((await submittedDefaults()).get("default_hidden")).toEqual(["1"]);
+    });
+
+    test("a false bool default selects the No option", async () => {
+      await adminFormPost("/admin/listing-defaults", { default_hidden: "0" });
+      expect((await submittedDefaults()).get("default_hidden")).toEqual(["0"]);
+    });
+
+    test("an unset bool default selects No default", async () => {
+      // Save an unrelated default so the page still renders its controls.
+      await adminFormPost("/admin/listing-defaults", {
+        default_minimum_days_before: "3",
+      });
+      expect((await submittedDefaults()).get("default_hidden")).toEqual([""]);
+    });
+
+    test("a days default ticks its enable box and only the chosen days", async () => {
+      await adminFormPost("/admin/listing-defaults", {
+        default_bookable_days: "Monday",
+        default_bookable_days_enabled: "1",
+      });
+      const submitted = await submittedDefaults();
+      expect(submitted.get("default_bookable_days_enabled")).toEqual(["1"]);
+      expect(submitted.get("default_bookable_days")).toEqual(["Monday"]);
+    });
+
+    test("no days default leaves the enable box and every day unticked", async () => {
+      await adminFormPost("/admin/listing-defaults", {
+        default_minimum_days_before: "3",
+      });
+      const submitted = await submittedDefaults();
+      expect(submitted.get("default_bookable_days_enabled")).toBeUndefined();
+      expect(submitted.get("default_bookable_days")).toBeUndefined();
+    });
+
+    test("a url default pre-fills its input", async () => {
+      await adminFormPost("/admin/listing-defaults", {
+        default_webhook_url: "https://example.com/hook",
+      });
+      expect((await submittedDefaults()).get("default_webhook_url")).toEqual([
+        "https://example.com/hook",
+      ]);
     });
   });
 
