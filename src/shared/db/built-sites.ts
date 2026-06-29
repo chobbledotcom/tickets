@@ -255,7 +255,7 @@ type BuiltSiteBlobFields = Pick<
 >;
 
 type BuiltSiteBlobInput = Omit<BuiltSiteBlobFields, "renewalToken"> & {
-  renewalToken?: string | null;
+  renewalToken?: string | null | undefined;
 };
 
 const builtSiteBlobColumns = [

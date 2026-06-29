@@ -116,10 +116,14 @@ const createDbClient = (): Client => {
   if (!url) {
     throw new Error("DB_URL environment variable is required");
   }
+  // libsql's Config types authToken as `authToken?: string`, which under
+  // exactOptionalPropertyTypes rejects an explicit `undefined`. A no-token
+  // client is valid at runtime, so assert the type rather than branch on it
+  // (a branch here would leave one side uncovered).
   return createClient({
     authToken: getEnv("DB_TOKEN"),
     url,
-  });
+  } as Parameters<typeof createClient>[0]);
 };
 
 const [dbGetter, dbSetter] = lazyRef(createDbClient);

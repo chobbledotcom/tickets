@@ -25,9 +25,9 @@ export type PrivacyPageData = {
   orphanRetention: string;
   /** Whether automatic orphan purging is enabled. */
   autoPurgeOrphans: boolean;
-  error?: string;
-  success?: string;
-  info?: string;
+  error?: string | undefined;
+  success?: string | undefined;
+  info?: string | undefined;
 };
 
 /** The "older than" age dropdown, current age pre-selected. */

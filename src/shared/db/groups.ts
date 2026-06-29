@@ -55,7 +55,7 @@ export type GroupInput = {
   /** Per-listing package overrides (price + quantity). Absent means "leave
    * existing rows untouched" (partial API update); an empty array clears every
    * override back to price 0 / quantity 1. */
-  packageMembers?: PackageMemberInput[];
+  packageMembers?: PackageMemberInput[] | undefined;
 };
 
 /** Compute slug index from slug for blind index lookup */

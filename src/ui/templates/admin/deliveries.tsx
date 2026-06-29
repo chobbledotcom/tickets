@@ -143,8 +143,8 @@ const BookingCard = ({
 );
 
 export interface DeliveriesPageOpts {
-  error?: string;
-  success?: string;
+  error?: string | undefined;
+  success?: string | undefined;
   /** True when the user has no logistics agents assigned to them. */
   noAgents: boolean;
 }
@@ -171,7 +171,10 @@ export const agentDeliveriesPage = (
           <h1>{t("deliveries.title")}</h1>
         </>
       )}
-      <Flash error={opts.error} success={opts.success} />
+      <Flash
+        {...(opts.error !== undefined ? { error: opts.error } : {})}
+        {...(opts.success !== undefined ? { success: opts.success } : {})}
+      />
       {opts.noAgents ? (
         <p>
           <em>{t("deliveries.no_agents")}</em>

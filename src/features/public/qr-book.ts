@@ -52,9 +52,9 @@ const buildPrefill = (
   payload: QrBookPayload,
   token: string,
 ): QrPrefill => ({
-  date: payload.d || undefined,
+  ...(payload.d ? { date: payload.d } : {}),
   listings: buildListingPrefills(listing, payload),
-  name: payload.n || undefined,
+  ...(payload.n ? { name: payload.n } : {}),
   token,
 });
 

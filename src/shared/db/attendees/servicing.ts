@@ -141,7 +141,9 @@ const normalizedCreateInput = (
   name: string,
 ): AttendeeInput => ({
   address: "",
-  allowOverbook: input.allowOverbook,
+  ...(input.allowOverbook !== undefined
+    ? { allowOverbook: input.allowOverbook }
+    : {}),
   bookings: input.bookings,
   email: "",
   kind: SERVICING_KIND,
@@ -497,7 +499,7 @@ export type RecordServiceCostInput = {
   amount: number;
   occurredAt: string;
   memo: string;
-  reference?: string;
+  reference?: string | undefined;
 };
 
 /** True when the servicing event holds `listingId` (has a `listing_attendees`

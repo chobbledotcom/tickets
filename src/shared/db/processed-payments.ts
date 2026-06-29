@@ -67,8 +67,8 @@ export type ProcessedPayment = {
  */
 export type StoredPaymentFailure = {
   error: string;
-  status?: number;
-  refunded?: boolean;
+  status?: number | undefined;
+  refunded?: boolean | undefined;
 };
 
 /** Result of session reservation attempt */

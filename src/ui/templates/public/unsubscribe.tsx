@@ -16,9 +16,9 @@ export type UnsubscribeState = {
   /** Opaque contact hash from the link, or null when missing/invalid. */
   hash: string | null;
   unsubscribed: boolean;
-  success?: string;
-  error?: string;
-  info?: string;
+  success?: string | undefined;
+  error?: string | undefined;
+  info?: string | undefined;
 };
 
 /** The action form — carries the hash and the action, never the address. */
@@ -62,7 +62,11 @@ export const unsubscribePage = (state: UnsubscribeState): string => {
   return String(
     <Layout title={title}>
       <h1>{t("unsubscribe.email_preferences")}</h1>
-      <Flash error={state.error} info={state.info} success={state.success} />
+      <Flash
+        {...(state.error !== undefined ? { error: state.error } : {})}
+        {...(state.info !== undefined ? { info: state.info } : {})}
+        {...(state.success !== undefined ? { success: state.success } : {})}
+      />
       {!state.hash ? (
         <div class="prose">
           <p>{t("unsubscribe.invalid_link")}</p>

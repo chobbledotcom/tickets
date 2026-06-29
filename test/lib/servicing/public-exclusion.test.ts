@@ -114,7 +114,7 @@ describeWithEnv("servicing §16 — public-facing exclusion", { db: true }, () =
 
   test("GET /api/listings returns active listings only — no servicing rows", async () => {
     await enablePublicApi();
-    const listing = await createTestListing({
+    await createTestListing({
       maxAttendees: 5,
       name: "Room A",
     });

@@ -178,7 +178,7 @@ export const adminListingQrPage = ({
             {t("listing_qr.page_description_end")}
           </p>
         </div>
-        <Flash error={error} />
+        <Flash {...(error !== undefined ? { error } : {})} />
         <CsrfForm action={formAction}>
           <label>
             {t("listing_qr.customer_name")}

@@ -81,15 +81,15 @@ export type ListingInput = {
    * so the listings table ignores this field. */
   groupIds?: number[];
   maxAttendees: number;
-  thankYouUrl?: string;
-  unitPrice?: number;
+  thankYouUrl?: string | undefined;
+  unitPrice?: number | undefined;
   maxQuantity?: number;
   webhookUrl?: string;
   active?: boolean;
   fields?: ListingFields;
-  closesAt?: string;
+  closesAt?: string | undefined;
   listingType?: ListingType;
-  bookableDays?: string[];
+  bookableDays?: string[] | undefined;
   minimumDaysBefore?: number;
   maximumDaysAfter?: number;
   imageUrl?: string;

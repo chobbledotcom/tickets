@@ -79,7 +79,7 @@ const ActivityLogRow = ({
   refs,
 }: {
   entry: ActivityLogEntry;
-  refs?: ActivityLogRefs;
+  refs?: ActivityLogRefs | undefined;
 }): string =>
   String(
     <tr>

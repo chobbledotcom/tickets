@@ -51,8 +51,8 @@ export const adminSupportPage = (opts: {
   supportText: string | null;
   formActive: boolean;
   nagLabel: string | null;
-  success?: string;
-  error?: string;
+  success?: string | undefined;
+  error?: string | undefined;
 }): string =>
   String(
     <Layout title={t("support.page_title")}>

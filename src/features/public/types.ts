@@ -79,7 +79,7 @@ export type TicketCtx = TicketSharedContext & {
    * resolve the group a parent and child actually share. Omitted on submit/quote. */
   groupIdsByListingId?: ReadonlyMap<number, number[]>;
   baseUrl?: string;
-  prefill?: BookingPrefill;
+  prefill?: BookingPrefill | undefined;
 };
 
 /** Possibly-async response handler */

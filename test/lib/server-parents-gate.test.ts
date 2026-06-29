@@ -224,7 +224,9 @@ describeWithEnv(
     type StrangerListing = Awaited<ReturnType<typeof createTestListing>>;
     const REJECTION_CASES: {
       name: string;
-      children: NonNullable<Parameters<typeof makeParent>[0]>["children"];
+      children: NonNullable<
+        NonNullable<Parameters<typeof makeParent>[0]>["children"]
+      >;
       parent: { maxQuantity?: number; name: string };
       makeStranger?: boolean;
       // Build the posted quantity_*/child_qty_* fields from the resolved parent

@@ -20,9 +20,9 @@ const makeOutcome =
   (succeeded: boolean) =>
   (path: string, message: string, opts?: ActionOutcomeOpts): Response =>
     redirect(path, message, succeeded, {
-      cookie: opts?.cookie,
-      formId: opts?.formId,
-      result: opts?.result,
+      ...(opts?.cookie !== undefined ? { cookie: opts.cookie } : {}),
+      ...(opts?.formId !== undefined ? { formId: opts.formId } : {}),
+      ...(opts?.result !== undefined ? { result: opts.result } : {}),
     });
 
 /** Redirect with a success message */

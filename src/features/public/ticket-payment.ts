@@ -707,8 +707,8 @@ type FreeReservationParams = {
   contact: ContactInfo;
   date: string | null;
   dayCount?: number;
-  paidByListingId?: Map<number, number>;
-  remainingBalance?: number;
+  paidByListingId?: Map<number, number> | undefined;
+  remainingBalance?: number | undefined;
   /** Modifier stock to consume in the create transaction. Amounts are zeroed when
    *  payments are disabled — stock is still capped, nothing is charged. */
   modifierUsages: ModifierUsage[];
@@ -720,7 +720,7 @@ type FreeReservationParams = {
    * `createFreeReservation` expands each child booking into one row per
    * allocation instead of one summed row, giving each row its real
    * `parentListingId`. Absent for legacy/no-parent orders. */
-  allocations?: ChildAllocation[];
+  allocations?: ChildAllocation[] | undefined;
   /** When the order is a package checkout, the package group's id (stamped on
    * every booking row so the ticket view / confirmation email group the order
    * under the package). Absent / 0 for a non-package order. */
@@ -1157,9 +1157,9 @@ export const getTicketContext = async (
     childDatesById,
     childrenByParentId,
     dates,
-    hidePackageListings: group?.is_package
-      ? group.hide_package_listings
-      : undefined,
+    ...(group?.is_package
+      ? { hidePackageListings: group.hide_package_listings }
+      : {}),
     packageGroupId: group?.is_package ? group.id : null,
     packageGroupRemaining,
     packagePrices: packageMaps?.prices ?? null,

@@ -8,10 +8,10 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 /** Flash message shape — fields are only present when a message exists */
 export type Flash = {
-  success?: string;
-  error?: string;
-  info?: string;
-  result?: string;
+  success?: string | undefined;
+  error?: string | undefined;
+  info?: string | undefined;
+  result?: string | undefined;
   /**
    * Redemption token for the in-memory form re-fill stash. Carried in the
    * flash cookie and consumed at the read seam; never stored in the flash

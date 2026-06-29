@@ -63,7 +63,7 @@ const parsePackageMember = (item: unknown): ItemResult<PackageMemberInput> => {
     return { error: "package_members entries must be objects" };
   }
   const { listing_id, price, quantity = 1 } = item as Record<string, unknown>;
-  if (!Number.isInteger(listing_id) || (listing_id as number) <= 0) {
+  if (  Number.isInteger(listing_id) || (listing_id as number) <= 0) {
     return { error: "package_members listing_id must be a positive integer" };
   }
   if (!Number.isInteger(price) || (price as number) < 0) {

@@ -142,9 +142,9 @@ export const expectHtmlResponse = async (
 export const expectHtml = async (
   response: Response,
   opts: {
-    status?: number;
-    contains?: string[];
-    notContains?: string[];
+    status?: number | undefined;
+    contains?: string[] | undefined;
+    notContains?: string[] | undefined;
   } = {},
 ): Promise<string> => {
   if (opts.status !== undefined) expect(response.status).toBe(opts.status);
@@ -374,7 +374,7 @@ export const getHeader = (response: Response, name: string): string =>
  *  matches `pattern`. Runs `fn` twice — once per assertion — so only use for
  *  idempotent predicates (validators, pure checks), not stateful operations. */
 // deno-lint-ignore no-explicit-any
-export const expectThrows = <E extends Error>(
+export const expectThrows = (
   fn: () => unknown,
   errorClass: any,
   pattern?: RegExp,

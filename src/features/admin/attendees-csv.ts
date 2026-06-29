@@ -143,9 +143,9 @@ type AttendeeCsvOptions = {
   /** Site timezone, for the optional Listing Date column. */
   tz: string;
   /** Prepend fixed Listing Date / Listing Location columns. */
-  listingInfo?: CsvListingInfo;
+  listingInfo?: CsvListingInfo | undefined;
   /** Append one column per custom question. */
-  questionData?: CsvQuestionData;
+  questionData?: CsvQuestionData | undefined;
 };
 
 /** The ordered attendee columns for an export: an optional booking Date, then

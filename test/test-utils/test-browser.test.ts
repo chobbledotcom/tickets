@@ -337,7 +337,7 @@ describe("TestBrowser forms", () => {
   };
 
   it("logs request details when debug mode is enabled", async () => {
-    const { browser, messages } = await captureConsoleLog(async (b) => {
+    const { messages } = await captureConsoleLog(async (b) => {
       b.debug = true;
       useHandler(
         b,
@@ -355,7 +355,7 @@ describe("TestBrowser forms", () => {
   });
 
   it("logs without a cookie suffix when no cookies are set", async () => {
-    const { browser, messages } = await captureConsoleLog(async (b) => {
+    const { messages } = await captureConsoleLog(async (b) => {
       b.debug = true;
       useHandler(b, () => new Response("ok"));
       await b.visit("/debug-empty");

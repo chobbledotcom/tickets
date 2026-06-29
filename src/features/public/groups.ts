@@ -39,5 +39,8 @@ export const handleGroupTicketBySlug = (
   mode?: "calculate",
 ): Promise<Response> =>
   withActiveGroupListingsBySlug(slug, (group, listings) =>
-    renderTicketFlow(request, [slug], { group, mode })(listings),
+    renderTicketFlow(request, [slug], {
+      group,
+      ...(mode !== undefined ? { mode } : {}),
+    })(listings),
   );

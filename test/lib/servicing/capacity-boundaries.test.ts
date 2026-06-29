@@ -116,7 +116,7 @@ describeWithEnv(
       // quantity=0 is the no-quantity sentinel concept for attendees; a
       // servicing hold with qty 0 would consume no capacity and be invisible
       // to tickets_count — it's not a hold at all.
-      const listing = await createDailyTestListing({
+      await createDailyTestListing({
         maxAttendees: 5,
         name: "L",
       });
@@ -130,7 +130,7 @@ describeWithEnv(
     });
 
     test("a listing with max_attendees = 0 refuses any hold (only overbook can land)", async () => {
-      const listing = await createDailyTestListing({
+      await createDailyTestListing({
         maxAttendees: 0,
         name: "Closed",
       });

@@ -145,7 +145,7 @@ export type SharedDetailInput = {
   attendeeCount: number;
   maxCapacity: number;
   hasPaidListing: boolean;
-  questionData?: TableQuestionData;
+  questionData?: TableQuestionData | undefined;
   labelSuffix?: string;
   /** Skip the attendees row (when the caller renders its own complex version) */
   skipAttendees?: boolean;

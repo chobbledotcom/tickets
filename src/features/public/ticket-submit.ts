@@ -274,7 +274,7 @@ type CheckoutIntentParams = {
   info: AnswerInfo;
   items: ReturnType<typeof buildRegistrationItems>;
   modifiers: CheckoutIntent["modifiers"];
-  reservationAmount?: string;
+  reservationAmount?: string | undefined;
 };
 
 const checkoutIntentForSubmission = (
@@ -329,7 +329,10 @@ const handlePaidPath = async (
   }
   // Create the encrypted free-text strings only once availability is confirmed,
   // so a rejected over-capacity submission never leaves orphaned plaintext rows.
-  intent.listingTextAnswerIds = await computeListingTextAnswerIdMap(ctx, info);
+  const listingTextAnswerIds = await computeListingTextAnswerIdMap(ctx, info);
+  if (listingTextAnswerIds !== undefined) {
+    intent.listingTextAnswerIds = listingTextAnswerIds;
+  }
   return handlePaymentFlow(request, intent, ctx);
 };
 
@@ -966,10 +969,10 @@ export type BookingRequest = {
   slugs: string[];
   listings: TicketListing[];
   getContext: TicketContextProvider;
-  prefill?: TicketCtx["prefill"];
+  prefill?: TicketCtx["prefill"] | undefined;
   /** When "calculate", a POST returns a priced quote instead of completing the
    * booking. GET requests still render the page regardless. */
-  mode?: "calculate";
+  mode?: "calculate" | undefined;
 };
 
 /** Build the rendering context: derive the booking context from the listings

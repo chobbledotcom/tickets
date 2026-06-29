@@ -71,7 +71,7 @@ export type SumupCheckout = {
   /** Transaction id of the completing payment (refund/payment reference). */
   transactionId: string;
   /** Checkout creation time (ISO 8601), from SumUp's `date` field. */
-  createdAt?: string;
+  createdAt?: string | undefined;
 };
 
 /** Result of creating a hosted checkout. */

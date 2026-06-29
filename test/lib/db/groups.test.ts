@@ -46,13 +46,17 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
     });
     const e1 = await createTestListing({
       groupId: group.id,
-      listingType: overrides?.listingType,
+      ...(overrides?.listingType !== undefined
+        ? { listingType: overrides.listingType }
+        : {}),
       maxAttendees: 10,
       name: `${slug}-a`,
     });
     const e2 = await createTestListing({
       groupId: group.id,
-      listingType: overrides?.listingType,
+      ...(overrides?.listingType !== undefined
+        ? { listingType: overrides.listingType }
+        : {}),
       maxAttendees: 10,
       name: `${slug}-b`,
     });
@@ -64,7 +68,9 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
    *  within a test never collide. */
   const book = (listingId: number, quantity: number, date?: string) =>
     createAttendeeAtomic({
-      bookings: [{ date, listingId, quantity }],
+      bookings: [
+        { ...(date !== undefined ? { date } : {}), listingId, quantity },
+      ],
       email: `g${listingId}q${quantity}@example.com`,
       name: `g-${listingId}-${quantity}`,
     });

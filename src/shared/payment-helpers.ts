@@ -169,7 +169,7 @@ export const toBookingItems = (items: CheckoutIntent["items"]): BookingItem[] =>
 const optionalFields = (
   intent: Partial<
     Pick<ContactInfo, "phone" | "address" | "special_instructions">
-  > & { date: string | null; dayCount?: number },
+  > & { date: string | null; dayCount?: number | undefined },
 ): Record<string, string> => ({
   ...(intent.phone ? { phone: intent.phone } : {}),
   ...(intent.address ? { address: intent.address } : {}),
@@ -244,7 +244,7 @@ export const singleListingAnswerIds = (
 const thankYouUrlFits = (
   thankYouUrl: string | undefined,
   withoutUrl: Record<string, string>,
-  caps: { maxValueLength: number; maxEntries?: number },
+  caps: { maxValueLength: number; maxEntries?: number | undefined },
 ): boolean => {
   if (!thankYouUrl || thankYouUrl.length > caps.maxValueLength) return false;
   if (caps.maxEntries === undefined) return true;
@@ -262,14 +262,21 @@ export const buildItemsMetadata = async (
 ): Promise<Record<string, string>> => {
   // Build the metadata without the optional thank-you URL once; this is also the
   // baseline whose entry count decides whether the URL can be added back below.
+  const modifiers = toModifierRefs(intent.modifiers);
+  const siteTokenIndex = intent.siteToken
+    ? await hmacHash(intent.siteToken)
+    : undefined;
+  const {
+    thankYouUrl: _thankYouUrl,
+    modifiers: _modifiers,
+    siteToken: _siteToken,
+    ...intentRest
+  } = intent;
   const withoutUrl = buildMetadata({
-    ...intent,
+    ...intentRest,
     items: toBookingItems(intent.items),
-    modifiers: toModifierRefs(intent.modifiers),
-    siteTokenIndex: intent.siteToken
-      ? await hmacHash(intent.siteToken)
-      : undefined,
-    thankYouUrl: undefined,
+    ...(modifiers !== undefined ? { modifiers } : {}),
+    ...(siteTokenIndex !== undefined ? { siteTokenIndex } : {}),
   });
   const base = thankYouUrlFits(intent.thankYouUrl, withoutUrl, {
     maxEntries,

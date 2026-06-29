@@ -41,7 +41,11 @@ const ApiKeyRow = ({ apiKey }: { apiKey: ApiKeyDisplay }): string =>
 export const adminApiKeysPage = (
   keys: ApiKeyDisplay[],
   adminSession: AdminSession,
-  opts: { success?: string; error?: string; newKey?: string },
+  opts: {
+    success?: string | undefined;
+    error?: string | undefined;
+    newKey?: string | undefined;
+  },
 ): string => {
   const keyRows =
     keys.length > 0
@@ -108,7 +112,7 @@ export const adminApiKeysPage = (
 export const adminApiKeyManagePage = (
   apiKey: ApiKeyDisplay,
   session: AdminSession,
-  opts: { error?: string; success?: string } = {},
+  opts: { error?: string | undefined; success?: string | undefined } = {},
 ): string =>
   String(
     <Layout title={`${t("api_keys.title")}: ${apiKey.name}`}>

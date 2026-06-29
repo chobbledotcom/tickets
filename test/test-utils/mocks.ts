@@ -45,7 +45,7 @@ export const mockFormRequest = (
 /** Build a JSON API `Request` (no auth) for passing to `handleRequest`. */
 export const jsonRequest = (
   path: string,
-  options: { method?: string; body?: Record<string, unknown> } = {},
+  options: { method?: string; body?: Record<string, unknown> | undefined } = {},
 ): Request => {
   const { method = "GET", body } = options;
   const headers: Record<string, string> = { host: "localhost" };

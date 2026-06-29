@@ -223,7 +223,7 @@ const buildCreateAttendeeInput = (
     bookings: [
       {
         date: isDaily ? date : null,
-        durationDays: isDaily ? durationDays : undefined,
+        ...(isDaily ? { durationDays } : {}),
         listingId: listing.id,
         quantity,
       },

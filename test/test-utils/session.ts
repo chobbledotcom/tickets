@@ -385,7 +385,7 @@ export const apiRequest = async (
   const headers: HeadersInit =
     method !== "GET" ? { "content-type": "application/json" } : {};
   const init: RequestInit = {
-    body: method !== "GET" ? JSON.stringify(options.body ?? {}) : undefined,
+    ...(method !== "GET" ? { body: JSON.stringify(options.body ?? {}) } : {}),
     headers,
     method,
   };

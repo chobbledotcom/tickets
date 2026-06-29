@@ -93,7 +93,6 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       // created booking rows, so tickets/emails group the order by the persisted
       // id rather than membership equality.
       await setupStripe();
-      const { groupsTable } = await import("#shared/db/groups.ts");
       const { getDb } = await import("#shared/db/client.ts");
       const group = await createTestGroup({
         isPackage: true,

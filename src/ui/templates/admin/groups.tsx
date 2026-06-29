@@ -425,7 +425,7 @@ export const adminGroupDetailPage = (
     attendees,
     hasPaidListing,
     maxCapacity: 0,
-    questionData,
+    ...(questionData !== undefined ? { questionData } : {}),
     skipAttendees: true,
   });
 
@@ -540,8 +540,8 @@ export const adminGroupDetailPage = (
           <Raw
             html={AttendeeTable({
               allowedDomain,
-              phonePrefix,
-              questionData,
+              ...(phonePrefix !== undefined ? { phonePrefix } : {}),
+              ...(questionData !== undefined ? { questionData } : {}),
               returnUrl: `/admin/groups/${group.id}#attendees`,
               rows: tableRows,
               showDate: listings.some((e) => e.listing_type === "daily"),

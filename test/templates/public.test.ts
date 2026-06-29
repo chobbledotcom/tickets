@@ -66,13 +66,13 @@ describe("ticketPage (single listing)", () => {
     if (opts?.iframe) detectIframeMode("https://example.com/?iframe=true");
     else detectIframeMode("https://example.com/");
     return ticketPage({
-      baseUrl: opts?.baseUrl,
+      ...(opts?.baseUrl !== undefined ? { baseUrl: opts.baseUrl } : {}),
       dates: opts?.dates ?? [],
-      error: opts?.error,
+      ...(opts?.error !== undefined ? { error: opts.error } : {}),
       listings: [buildTicketListing(ev, opts?.isClosed ?? false, undefined)],
-      questions: opts?.questions,
+      ...(opts?.questions !== undefined ? { questions: opts.questions } : {}),
       slugs: [ev.slug],
-      terms: opts?.terms,
+      ...(opts?.terms !== undefined ? { terms: opts.terms } : {}),
     });
   };
 

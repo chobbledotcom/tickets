@@ -29,7 +29,7 @@ const buildTicketCard = async (
     ? await signAttachmentUrl(entry.listing.id, entry.attendee.id)
     : undefined;
   return {
-    attachmentUrl,
+    ...(attachmentUrl !== undefined ? { attachmentUrl } : {}),
     entry,
     token,
   };

@@ -81,7 +81,7 @@ export type ListingBooking = {
   /** The package group this booking row belongs to (defaults to 0 — not a
    * package order). Set once per create from the order-level value, the same on
    * every row, so tickets/emails group the order under the package by this id. */
-  packageGroupId?: number;
+  packageGroupId?: number | undefined;
 };
 
 /** A concrete booking line — every field resolved (unlike the optional-field

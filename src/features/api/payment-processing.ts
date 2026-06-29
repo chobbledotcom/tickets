@@ -319,7 +319,13 @@ const refundAndFail = async (
   detail?: string,
 ): Promise<PaymentFailureResult> => {
   const refunded = await refundAndLog(session, message, listingId);
-  return { detail, error: message, refunded, status, success: false };
+  return {
+    detail,
+    error: message,
+    refunded,
+    status,
+    success: false,
+  };
 };
 
 /**
@@ -518,31 +524,41 @@ export const extractIntent = (
   if (!items || items.length === 0) return null;
 
   const parsedDayCount = Number.parseInt(metadata.day_count, 10);
+  const allocations = parseAllocations(metadata.allocations);
+  const balanceAttendeeId = metadata.balance_attendee_id
+    ? Number(metadata.balance_attendee_id)
+    : undefined;
+  const dayCount =
+    Number.isInteger(parsedDayCount) && parsedDayCount > 0
+      ? parsedDayCount
+      : undefined;
+  const listingAnswerIds = parseListingAnswerIds(metadata.answer_ids);
+  const listingTextAnswerIds = parseListingTextAnswerIds(
+    metadata.text_answer_ids,
+  );
+  const reservationAmount = metadata.reservation_amount || undefined;
+  const siteTokenIndex = metadata.site_token_index || undefined;
+  const thankYouUrl = metadata.thank_you_url || undefined;
   return {
     address: metadata.address,
-    allocations: parseAllocations(metadata.allocations),
-    balanceAttendeeId: metadata.balance_attendee_id
-      ? Number(metadata.balance_attendee_id)
-      : undefined,
+    allocations,
+    balanceAttendeeId,
     date: metadata.date || null,
-    dayCount:
-      Number.isInteger(parsedDayCount) && parsedDayCount > 0
-        ? parsedDayCount
-        : undefined,
+    dayCount,
     email: metadata.email,
     items,
-    listingAnswerIds: parseListingAnswerIds(metadata.answer_ids),
-    listingTextAnswerIds: parseListingTextAnswerIds(metadata.text_answer_ids),
+    listingAnswerIds,
+    listingTextAnswerIds,
     modifiers: parseModifierRefs(metadata.modifiers),
     name: metadata.name,
     packageGroupId: metadata.package_group_id
       ? Number(metadata.package_group_id)
       : undefined,
     phone: metadata.phone,
-    reservationAmount: metadata.reservation_amount || undefined,
-    siteTokenIndex: metadata.site_token_index || undefined,
+    reservationAmount,
+    siteTokenIndex,
     special_instructions: metadata.special_instructions,
-    thankYouUrl: metadata.thank_you_url || undefined,
+    thankYouUrl,
   };
 };
 
@@ -1345,7 +1361,7 @@ const storeRefundedBooking = async (
     error: refunded
       ? BOOKING_SAVED_MESSAGE
       : `${BOOKING_SAVED_MESSAGE} Your refund is being arranged — please contact us if it does not arrive.`,
-    refunded: refunded ? true : undefined,
+    ...(refunded ? { refunded: true } : {}),
     status: 200,
     success: false,
   };

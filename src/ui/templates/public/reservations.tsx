@@ -1210,7 +1210,7 @@ export type TicketPageOptions = {
   baseUrl?: string;
   groupName?: string;
   groupDescription?: string;
-  prefill?: BookingPrefill;
+  prefill?: BookingPrefill | undefined;
   /** Override the <form action="…"> URL. Defaults to `/ticket/<slugs>`. */
   actionUrl?: string;
   /** Opt-in add-ons to offer below the questions. */
@@ -1235,7 +1235,7 @@ export type TicketPageOptions = {
   /** Package overrides (listing id → price) when this is a package page, so a
    * member whose base price is 0 but override is paid still renders the provider
    * contact fields. Empty/omitted for non-package pages. */
-  packagePrices?: ReadonlyMap<number, number> | null;
+  packagePrices?: ReadonlyMap<number, number> | null | undefined;
   /** Set on a package page: the group id, each member's fixed per-package
    * quantity, and whether members are hidden from buyers. When set, the page
    * shows one package-quantity selector instead of per-member quantities. */
@@ -1369,14 +1369,14 @@ const TicketPageForm = ({
   promoCodesEnabled,
 }: {
   slugs: string[];
-  actionUrl?: string;
+  actionUrl?: string | undefined;
   fields: Field[];
   hasDaily: boolean;
   durationDays: number;
   dates: string[] | undefined;
   hasCustomisable: boolean;
   dayCounts: number[];
-  dayCountPriceFor?: (days: number) => number | null;
+  dayCountPriceFor?: ((days: number) => number | null) | undefined;
   listingRows: string;
   hideQuantity: boolean;
   isPackage: boolean;
@@ -1384,7 +1384,7 @@ const TicketPageForm = ({
   questions: QuestionWithAnswers[] | undefined;
   questionListingMap: QuestionListingMap | undefined;
   terms: string | null | undefined;
-  prefill?: BookingPrefill;
+  prefill?: BookingPrefill | undefined;
   addOns: AddOnOption[] | undefined;
   promoCodesEnabled: boolean | undefined;
 }): JSX.Element => {
@@ -1459,7 +1459,7 @@ const dayConfig = (
 ): {
   hasCustomisable: boolean;
   dayCounts: number[];
-  dayCountPriceFor?: (days: number) => number | null;
+  dayCountPriceFor?: ((days: number) => number | null) | undefined;
   dateDurationDays: number;
 } => ({
   dateDurationDays:
@@ -1589,12 +1589,12 @@ const buildPageListingRows = (opts: {
   isPackage: boolean;
   listings: TicketListing[];
   packageQuantities: ReadonlyMap<number, number> | null | undefined;
-  packageGroupRemaining?: number | null;
+  packageGroupRemaining?: number | null | undefined;
   hidePackageListings: boolean;
   isSingleListing: boolean;
   hideQuantity: boolean;
-  prefill?: BookingPrefill;
-  childCtx?: ChildRenderCtx;
+  prefill?: BookingPrefill | undefined;
+  childCtx?: ChildRenderCtx | undefined;
 }): string => {
   if (opts.isPackage) {
     const quantities = opts.packageQuantities ?? new Map<number, number>();

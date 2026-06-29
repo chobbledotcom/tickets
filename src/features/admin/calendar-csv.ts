@@ -152,7 +152,7 @@ const calendarColumns = ({
   attendees: CalendarAttendee[];
   domain: string;
   tz: string;
-  logistics?: CalendarLogisticsCsv;
+  logistics?: CalendarLogisticsCsv | undefined;
 }): Column<CalendarAttendee>[] => {
   const showLogistics = Boolean(
     logistics && attendees.some((a) => logistics.listingIds.has(a.listing_id)),
