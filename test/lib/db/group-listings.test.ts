@@ -98,16 +98,18 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     expect(byId.get(a.id)).toBe(3);
     expect(byId.get(b.id)).toBe(1);
 
-    // Clearing resets quantity back to 1 as well as price to 0.
+    // Clearing resets quantity back to 1 as well as price to NULL (no override).
     await setGroupPackageMembers(group.id, []);
     const cleared = await getGroupPackagePrices(group.id);
     expect(
-      cleared.every((r) => r.quantity === 1 && r.package_price === 0),
+      cleared.every((r) => r.quantity === 1 && r.package_price === null),
     ).toBe(true);
   });
 
-  test("getTestPackagePrices maps only the listings with a non-zero override", async () => {
+  test("getTestPackagePrices keeps an explicit-free override but skips no-override members", async () => {
     const { group, a, b } = await groupWithTwoMembers("map");
+    // a: a positive override; b: an explicit free price (0) — a real value that
+    // is kept, distinct from a `null` no-override member which is skipped.
     await setGroupPackageMembers(group.id, [
       { listingId: a.id, price: 999 },
       { listingId: b.id, price: 0 },
@@ -115,15 +117,24 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
 
     const map = await getTestPackagePrices(group.id);
     expect(map.get(a.id)).toBe(999);
-    expect(map.has(b.id)).toBe(false);
+    expect(map.get(b.id)).toBe(0);
+
+    // Re-submitting b with no override (null) drops it from the map.
+    await setGroupPackageMembers(group.id, [
+      { listingId: a.id, price: 999 },
+      { listingId: b.id, price: null },
+    ]);
+    const after = await getTestPackagePrices(group.id);
+    expect(after.get(a.id)).toBe(999);
+    expect(after.has(b.id)).toBe(false);
   });
 
-  test("setGroupPackageMembers zeroes members it isn't given and clears on empty", async () => {
+  test("setGroupPackageMembers clears members it isn't given and clears on empty", async () => {
     // The group's second member is left unnamed below, so it falls into the
-    // CASE's ELSE branch and is reset to 0.
+    // CASE's ELSE branch and is reset to NULL (no override).
     const { group, a } = await groupWithTwoMembers("clr");
 
-    // Only A named: the other member is reset to 0.
+    // Only A named: the other member is reset to NULL (no override).
     await setGroupPackageMembers(group.id, [{ listingId: a.id, price: 700 }]);
     expect(await getTestPackagePrices(group.id)).toEqual(
       new Map([[a.id, 700]]),

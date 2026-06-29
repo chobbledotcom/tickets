@@ -619,23 +619,31 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
   });
 
   describe("loadPackageMemberMaps / getTicketContext packages", () => {
-    test("loadPackageMemberMaps keeps non-zero overrides and every quantity", async () => {
+    test("loadPackageMemberMaps keeps overrides incl. free, skips no-override, and every quantity", async () => {
       const group = await createTestGroup({ isPackage: true, name: "Pk" });
       const a = await createTestListing({ name: "PA" });
       const b = await createTestListing({ name: "PB" });
+      const c = await createTestListing({ name: "PC" });
       await setListingGroups(a.id, [group.id]);
       await setListingGroups(b.id, [group.id]);
+      await setListingGroups(c.id, [group.id]);
       await setGroupPackageMembers(group.id, [
         { listingId: a.id, price: 1500, quantity: 2 },
         { listingId: b.id, price: 0 },
+        { listingId: c.id, price: null },
       ]);
 
       const { prices, quantities } = await loadPackageMemberMaps(group.id);
+      // A positive override and an explicit free (0) are both real prices kept
+      // in the map; a null (no override) member is skipped so it falls back to
+      // the listing's own price.
       expect(prices.get(a.id)).toBe(1500);
-      expect(prices.has(b.id)).toBe(false);
+      expect(prices.get(b.id)).toBe(0);
+      expect(prices.has(c.id)).toBe(false);
       // Quantities cover every member, including the override-free one.
       expect(quantities.get(a.id)).toBe(2);
       expect(quantities.get(b.id)).toBe(1);
+      expect(quantities.get(c.id)).toBe(1);
     });
 
     test("getTicketContext exposes packageGroupId + prices for a package group", async () => {

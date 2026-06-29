@@ -634,7 +634,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         method: "PUT",
       });
       const prices = await getGroupPackagePrices(group.id);
-      expect(prices[0]!.package_price).toBe(0);
+      expect(prices[0]!.package_price).toBeNull();
     });
 
     test("PUT rejects a malformed package_members entry without wiping overrides", async () => {
