@@ -213,6 +213,22 @@ export const getGroupIdsByListingId = async (
   return rows.map((r) => r.group_id);
 };
 
+/** Whether any of the given group ids names a package group. Empty input → false
+ * (no query). The shared check the listing API and the children sub-form use to
+ * keep a listing that requires children out of a package group. */
+export const anyPackageGroup = async (
+  groupIds: readonly number[],
+): Promise<boolean> => {
+  if (groupIds.length === 0) return false;
+  const rows = await queryAll<{ id: number }>(
+    `SELECT id FROM groups WHERE id IN (${inPlaceholders(
+      groupIds,
+    )}) AND is_package = 1 LIMIT 1`,
+    [...groupIds],
+  );
+  return rows.length > 0;
+};
+
 /** The listing ids that are members of a group, ascending. */
 export const getGroupListingIds = async (
   groupId: number,

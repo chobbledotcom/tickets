@@ -5,7 +5,7 @@ import {
   getGroupPackagePrices,
   groupsTable,
 } from "#shared/db/groups.ts";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { getChildIds, setChildIds } from "#shared/db/listing-parents.ts";
 import {
   adminFormPost,
   adminGet,
@@ -200,6 +200,91 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
         expect(body.error).toContain("Packages cannot contain");
       },
     );
+  });
+
+  test("the listings API rejects a parent listing joining a package group", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "ParentApiPkg",
+      slug: "parent-api-pkg",
+    });
+    const parent = await createTestListing({ name: "Parent List" });
+    const child = await createTestListing({ name: "Child List" });
+    await setChildIds(parent.id, [child.id]);
+
+    await assertJson(
+      apiRequest(`/api/admin/listings/${parent.id}`, {
+        body: { group_ids: [group.id] },
+        method: "PUT",
+      }),
+      400,
+      (body) => {
+        expect(body.error).toContain("Packages cannot contain");
+      },
+    );
+  });
+
+  test("the listings API accepts a plain standard listing joining a package group", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "OkApiPkg",
+      slug: "ok-api-pkg",
+    });
+    const listing = await createTestListing({ name: "Plain List" });
+
+    await assertJson(
+      apiRequest(`/api/admin/listings/${listing.id}`, {
+        body: { group_ids: [group.id] },
+        method: "PUT",
+      }),
+      200,
+    );
+  });
+
+  test("the listings API rejects new child edges when joining a package group", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "ChildEdgePkg",
+      slug: "child-edge-pkg",
+    });
+    const child = await createTestListing({ name: "Edge Child" });
+
+    await assertJson(
+      apiRequest("/api/admin/listings", {
+        body: {
+          child_listing_ids: [child.id],
+          group_ids: [group.id],
+          max_attendees: 10,
+          name: "New Parent In Package",
+        },
+        method: "POST",
+      }),
+      400,
+      (body) => {
+        expect(body.error).toContain("Packages cannot contain");
+      },
+    );
+  });
+
+  test("the children sub-form rejects giving children to a package member", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "ChildFormPkg",
+      slug: "child-form-pkg",
+    });
+    const memberListing = await member(group, "Pkg Member");
+    const child = await createTestListing({ name: "Would-be Child" });
+
+    const { response } = await adminFormPost(
+      `/admin/listing/${memberListing.id}/children`,
+      { child_listing_ids: String(child.id) },
+    );
+    await expectFlashRedirect(
+      `/admin/listing/${memberListing.id}/edit`,
+      expect.stringContaining("Packages cannot contain"),
+      false,
+    )(response);
+    expect(await getChildIds(memberListing.id)).toEqual([]);
   });
 
   test("edit POST without is_package clears the package flag and overrides", async () => {

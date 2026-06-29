@@ -11,7 +11,11 @@ import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
+import {
+  anyPackageGroup,
+  getGroupIdsByListingId,
+  getGroupIdsByListingIds,
+} from "#shared/db/groups.ts";
 import {
   getChildIds,
   getChildrenForParents,
@@ -397,6 +401,19 @@ export const handleAdminListingChildren: TypedRouteHandler<
         return redirect(`/admin/listing/${id}/edit`, result.error, false);
       }
       const { childIds } = result;
+      // A listing that requires children is a parent, which can't be a package
+      // member (the package page renders no per-child selectors). Block giving
+      // children to a listing already in a package group.
+      if (
+        childIds.length > 0 &&
+        (await anyPackageGroup(await getGroupIdsByListingId(id)))
+      ) {
+        return redirect(
+          `/admin/listing/${id}/edit`,
+          t("error.package_incompatible_listing"),
+          false,
+        );
+      }
       await setChildIds(id, childIds);
       await logActivity(
         `Listing '${listing.name}' required children set to ${childIds.length} listing${

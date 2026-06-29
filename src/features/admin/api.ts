@@ -7,13 +7,18 @@
  *   - Session cookie + x-csrf-token header
  */
 
+import { t } from "#i18n";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import type { TxScope } from "#shared/db/client.ts";
-import { getGroupIdsByListingId, setListingGroups } from "#shared/db/groups.ts";
+import {
+  anyPackageGroup,
+  getGroupIdsByListingId,
+  setListingGroups,
+} from "#shared/db/groups.ts";
 import { setChildIdsTx } from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,
@@ -438,6 +443,16 @@ const prepareChildEdges = async (
   const submitted = submittedChildIds(body);
   if ("skip" in submitted) return { value: null };
   if ("error" in submitted) return submitted;
+  // A listing gaining children becomes a parent; a parent can't be a package
+  // member (the package page renders no per-child selectors). The group-side and
+  // listing-side validators only see edges that already exist, so reject the
+  // brand-new child edges here, before the row + edges commit together (Fix 4).
+  if (
+    submitted.childIds.length > 0 &&
+    (await anyPackageGroup(input.groupIds ?? []))
+  ) {
+    return { error: t("error.package_incompatible_listing") };
+  }
   // Resolve add-on reachability against the POST-SAVE listing set: apply the
   // submitted `group_id` to the parent in an in-memory listing set so a parent
   // created/moved into the same group as a child's group-scoped add-on is judged

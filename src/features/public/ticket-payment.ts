@@ -25,6 +25,7 @@ import {
   createAttendeeAtomic,
   createBookingAtomic,
   ensureAllBookings,
+  getGroupRemainingByGroupId,
 } from "#shared/db/attendees.ts";
 import { getGroupPackagePrices } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
@@ -1135,6 +1136,13 @@ export const getTicketContext = async (
   // no extra query.
   const packageMaps =
     group?.is_package === true ? await loadPackageMemberMaps(group.id) : null;
+  // The package group's own remaining pool (when capped): one package consumes
+  // the sum of its members' fixed quantities, so the package-count cap is bounded
+  // by floor(remaining / Σ memberQty) on top of each member's own capacity.
+  const packageGroupRemaining =
+    group?.is_package === true
+      ? ((await getGroupRemainingByGroupId([group.id])).get(group.id) ?? null)
+      : null;
   return {
     addOns,
     childDatesById,
@@ -1144,6 +1152,7 @@ export const getTicketContext = async (
       ? group.hide_package_listings
       : undefined,
     packageGroupId: group?.is_package ? group.id : null,
+    packageGroupRemaining,
     packagePrices: packageMaps?.prices ?? null,
     packageQuantities: packageMaps?.quantities ?? null,
     promoCodesEnabled,

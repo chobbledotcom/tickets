@@ -347,6 +347,49 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       expect(html).not.toContain("Empty Group");
     });
 
+    test("suppresses a package CTA when a member is sold out", async () => {
+      // A package is all-or-nothing: if any member can't be booked the whole
+      // bundle's count caps at 0, so its /listings Book CTA must be suppressed
+      // rather than land the buyer on a page that can only fail.
+      await settings.update.showPublicSite(true);
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Half Bundle",
+        slug: "half-bundle",
+      });
+      await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 50,
+        name: "Available Member",
+      });
+      await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 0,
+        name: "Sold Out Member",
+      });
+      // A standalone listing keeps the page non-empty.
+      await createTestListing({ maxAttendees: 50, name: "Standalone Listing" });
+
+      const html = await assertPublicHtml("/listings", "Standalone Listing");
+      expect(html).not.toContain(`href="/ticket/${pkg.slug}"`);
+      expect(html).not.toContain("Half Bundle");
+    });
+
+    test("suppresses a package CTA when the group has no members", async () => {
+      await settings.update.showPublicSite(true);
+      const empty = await createTestGroup({
+        isPackage: true,
+        name: "Empty Bundle",
+        slug: "empty-bundle",
+      });
+      // A standalone listing keeps the page non-empty.
+      await createTestListing({ maxAttendees: 50, name: "Standalone Listing" });
+
+      const html = await assertPublicHtml("/listings", "Standalone Listing");
+      expect(html).not.toContain(`href="/ticket/${empty.slug}"`);
+      expect(html).not.toContain("Empty Bundle");
+    });
+
     test("shows group description on listings page", async () => {
       await settings.update.showPublicSite(true);
       const group = await createTestGroup({

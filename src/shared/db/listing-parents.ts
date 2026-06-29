@@ -191,6 +191,18 @@ export const edgeIdsTouching = async (
   return { childIds, parentIds };
 };
 
+/** Whether a listing participates in any parent/child edge (as a parent of some
+ * child, or as a child under some parent). Used to reject parent/child listings
+ * from package groups: a package page books each member directly and can't render
+ * the per-child selectors a parent requires, nor offer a child that must be
+ * booked under its parent (invariant I3). */
+export const hasParentChildEdge = async (
+  listingId: number,
+): Promise<boolean> => {
+  const { childIds, parentIds } = await edgeIdsTouching(listingId);
+  return childIds.length > 0 || parentIds.length > 0;
+};
+
 /** One directed edge touching the saved listing, with the saved listing's own id
  * fixed on one side (the caller closes over it): `self: "parent"` means it is the
  * parent of `otherId` (one of its children); `self: "child"` means it is the

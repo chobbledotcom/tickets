@@ -161,6 +161,42 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     expect(html).not.toContain(formatCurrency(5000));
   });
 
+  test("caps the package count by the group's shared pool across members", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      maxAttendees: 2,
+      name: "Shared Pool",
+      slug: "shared-pool",
+    });
+    const a = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 100,
+      maxQuantity: 10,
+      name: "Pool A",
+      unitPrice: 0,
+    });
+    const b = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 100,
+      maxQuantity: 10,
+      name: "Pool B",
+      unitPrice: 0,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: a.id, price: 1000 },
+      { listingId: b.id, price: 1000 },
+    ]);
+
+    // The group holds 2; one package consumes 1 A + 1 B = 2 spots, so only one
+    // package fits. Posting 2 clamps to 1 → 1×1000 + 1×1000 = 2000, not 4000.
+    const html = await (
+      await calculate(group.slug, group.slug, { package_quantity: "2" })
+    ).text();
+    expect(html).toContain(formatCurrency(2000));
+    expect(html).not.toContain(formatCurrency(4000));
+  });
+
   test("prices a multi-unit line with a booking-fee extra line", async () => {
     await setupStripe();
     await settings.update.bookingFee("10");

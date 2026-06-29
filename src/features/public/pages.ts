@@ -37,21 +37,26 @@ import {
   applyParentSoldOut,
   classifyForDiscovery,
   groupHasBookableMember,
+  packageGroupBookable,
 } from "./discovery.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /** Active+visible filter for public listing listings */
 const isPublicListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
 
-/** Load non-hidden groups that have a member that is actually bookable
- * standalone (see {@link groupHasBookableMember}) — a child-only group's page
- * 404s and a sold-out-parent-only group's page renders no bookable quantity, so
- * either way its `/listings` Book CTA is suppressed rather than a dead link. */
+/** Load non-hidden groups whose `/listings` Book CTA leads to a bookable page,
+ * so a child-only or sold-out group never advertises a dead link. A regular
+ * group needs one standalone-bookable member ({@link groupHasBookableMember}); a
+ * PACKAGE needs the whole bundle to fit ({@link packageGroupBookable}) — a
+ * package with a single sold-out member can't sell, so its CTA is suppressed. */
 const loadPublicGroups = async (): Promise<Group[]> => {
   const groups = (await getAllGroups()).filter((g) => !g.hidden);
-  const bookable = await mapParallel(async (g: Group) =>
-    groupHasBookableMember(await getActiveListingsByGroupId(g.id)),
-  )(groups);
+  const bookable = await mapParallel(async (g: Group) => {
+    const members = await getActiveListingsByGroupId(g.id);
+    return g.is_package
+      ? packageGroupBookable(members, g.id)
+      : groupHasBookableMember(members);
+  })(groups);
   return groups.filter((_, i) => bookable[i]);
 };
 

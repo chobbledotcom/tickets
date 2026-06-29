@@ -23,10 +23,14 @@ import { mapNotNullish, unique } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import {
+  getGroupRemainingByGroupId,
   getGroupRemainingByListingId,
   getSharedGroupCapacities,
 } from "#shared/db/attendees.ts";
-import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
+import {
+  getGroupIdsByListingIds,
+  getGroupPackagePrices,
+} from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   getChildListingIds,
@@ -46,8 +50,10 @@ import {
   childOpen,
   combinedGroupDemandFits,
   fixedParentSpan,
+  packageQuantityCap,
   type TicketListing,
 } from "#templates/public.tsx";
+import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /**
  * How a discovery surface should treat each listing:
@@ -286,6 +292,35 @@ export const groupHasBookableMember = async (
   const { childIds, soldOutParentIds } = await classifyForDiscovery(members);
   return members.some(
     (m) => !childIds.has(m.id) && !soldOutParentIds.has(m.id),
+  );
+};
+
+/**
+ * Whether a PACKAGE group can sell at least one whole bundle. A package is all
+ * or nothing — every member is booked together — so the standalone-member gate
+ * ({@link groupHasBookableMember}) is wrong here: it would advertise a Book CTA
+ * for a package whose one sold-out/closed member caps `packageQuantityCap` at 0,
+ * landing the buyer on a page that can only fail. Gate on the real package cap
+ * (each member's capacity AND the shared pool ÷ combined member demand) ≥ 1.
+ * Callers pass the group's already-loaded active members.
+ */
+export const packageGroupBookable = async (
+  members: readonly ListingWithCount[],
+  groupId: number,
+): Promise<boolean> => {
+  if (members.length === 0) return false;
+  const [ticketListings, rows, remaining] = await Promise.all([
+    buildTicketListingsWithGroupCapacity([...members]),
+    getGroupPackagePrices(groupId),
+    getGroupRemainingByGroupId([groupId]),
+  ]);
+  const quantities = new Map(rows.map((r) => [r.listing_id, r.quantity]));
+  return (
+    packageQuantityCap(
+      ticketListings,
+      quantities,
+      remaining.get(groupId) ?? null,
+    ) >= 1
   );
 };
 

@@ -1069,19 +1069,28 @@ const renderPackageRows = (
   return selector + members;
 };
 
-/** The most packages the buyer can order: limited by the tightest member's
- * remaining capacity divided by how many of it one package includes. A
- * closed/sold-out member has `maxPurchasable` 0, capping the package at 0.
- * Exported so the submit path clamps the posted count to the same ceiling. */
+/** The most packages the buyer can order. Two bounds apply: each member's own
+ * remaining capacity divided by how many of it one package includes (a
+ * closed/sold-out member has `maxPurchasable` 0, capping the package at 0); and,
+ * when the package group itself is capacity-capped, the shared pool divided by
+ * the TOTAL members one package consumes (`packageGroupRemaining` ÷ Σ memberQty)
+ * — without which two members sharing the pool would each look individually
+ * available while only fewer packages actually fit. Exported so the submit path
+ * clamps the posted count to the same ceiling. */
 export const packageQuantityCap = (
   listings: TicketListing[],
   quantities: ReadonlyMap<number, number>,
-): number =>
-  Math.min(
-    ...listings.map((e) =>
-      Math.floor(e.maxPurchasable / (quantities.get(e.listing.id) ?? 1)),
-    ),
+  packageGroupRemaining?: number | null,
+): number => {
+  const qtyOf = (e: TicketListing) => quantities.get(e.listing.id) ?? 1;
+  const perMember = Math.min(
+    ...listings.map((e) => Math.floor(e.maxPurchasable / qtyOf(e))),
   );
+  if (packageGroupRemaining == null) return perMember;
+  // How many member units one package consumes from the shared pool.
+  const perPackage = listings.reduce((n, e) => n + qtyOf(e), 0);
+  return Math.min(perMember, Math.floor(packageGroupRemaining / perPackage));
+};
 
 /** Render controls for a single listing: quantity input + pay-more (no listing name/image/description). */
 const renderSingleListingControls = (
@@ -1217,6 +1226,10 @@ export type TicketPageOptions = {
    * shows one package-quantity selector instead of per-member quantities. */
   packageGroupId?: number | null;
   packageQuantities?: ReadonlyMap<number, number> | null;
+  /** The package group's own remaining pool when capped, bounding the package
+   * count by `floor(remaining / Σ memberQty)` (combined member demand). `null`
+   * when uncapped; omitted for non-package pages. */
+  packageGroupRemaining?: number | null;
   hidePackageListings?: boolean;
 };
 
@@ -1561,6 +1574,7 @@ const buildPageListingRows = (opts: {
   isPackage: boolean;
   listings: TicketListing[];
   packageQuantities: ReadonlyMap<number, number> | null | undefined;
+  packageGroupRemaining?: number | null;
   hidePackageListings: boolean;
   isSingleListing: boolean;
   hideQuantity: boolean;
@@ -1572,7 +1586,7 @@ const buildPageListingRows = (opts: {
     return renderPackageRows(
       opts.listings,
       quantities,
-      packageQuantityCap(opts.listings, quantities),
+      packageQuantityCap(opts.listings, quantities, opts.packageGroupRemaining),
       opts.hidePackageListings,
     );
   }
@@ -1612,6 +1626,7 @@ export const ticketPage = ({
   packagePrices,
   packageGroupId,
   packageQuantities,
+  packageGroupRemaining,
   hidePackageListings = false,
 }: TicketPageOptions): string => {
   // getTicketContext always sets packageQuantities alongside packageGroupId.
@@ -1658,6 +1673,7 @@ export const ticketPage = ({
     isPackage,
     isSingleListing,
     listings,
+    packageGroupRemaining,
     packageQuantities,
     prefill,
   });

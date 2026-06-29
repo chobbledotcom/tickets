@@ -17,6 +17,7 @@ import {
   edgeIncompatibilityAfterChange,
   firstTouchingEdgeError,
   getChildListingIds,
+  hasParentChildEdge,
 } from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,
@@ -37,6 +38,7 @@ import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { generateUniqueSlug } from "#shared/slug.ts";
 import { deleteListingStorageFiles } from "#shared/storage.ts";
 import {
+  type Group,
   type Listing,
   type ListingWithCount,
   normalizeDurationDays,
@@ -71,8 +73,27 @@ type ListingUpdateCheck = (
  * standard listing with a single fixed price (not daily, customisable-days, or
  * pay-what-you-want). The package check mirrors the group-side invariant so the
  * listing form/API can't smuggle an incompatible listing into a package. */
+/** The package-membership error for a listing joining `group`, or null when the
+ * group isn't a package or the listing is a valid member. A package member must
+ * be a plain standard listing (not daily/pay-more/customisable) AND free of
+ * parent/child edges — the package page renders no per-child selectors, mirroring
+ * the group-side invariant. (Brand-new child edges submitted on the same write
+ * are caught before the row commits in the API's prepareChildEdges.) */
+const packageMembershipError = async (
+  group: Group,
+  incompatibleByType: boolean,
+  existingId: number | undefined,
+): Promise<string | null> => {
+  if (!group.is_package) return null;
+  if (incompatibleByType) return t("error.package_incompatible_listing");
+  if (existingId !== undefined && (await hasParentChildEdge(existingId))) {
+    return t("error.package_incompatible_listing");
+  }
+  return null;
+};
+
 const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
-  const incompatibleWithPackage =
+  const incompatibleByType =
     (input.listingType ?? "standard") !== "standard" ||
     (input.canPayMore ?? false) ||
     (input.customisableDays ?? false);
@@ -88,9 +109,12 @@ const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
     );
     if (typeError) return typeError;
 
-    if (group.is_package && incompatibleWithPackage) {
-      return t("error.package_incompatible_listing");
-    }
+    const packageError = await packageMembershipError(
+      group,
+      incompatibleByType,
+      existingId,
+    );
+    if (packageError) return packageError;
   }
   return null;
 };

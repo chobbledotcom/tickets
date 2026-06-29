@@ -565,6 +565,49 @@ describe("ticketPage", () => {
     }
   });
 
+  test("caps the package selector by the shared pool, defaulting a missing member quantity to 1", () => {
+    const listings = [
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 1,
+          max_attendees: 100,
+          max_quantity: 10,
+          name: "Big",
+          slug: "big01",
+        }),
+        false,
+        undefined,
+      ),
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 2,
+          max_attendees: 100,
+          max_quantity: 10,
+          name: "Small",
+          slug: "sml01",
+        }),
+        false,
+        undefined,
+      ),
+    ];
+    const html = ticketPage({
+      groupName: "Pool Pkg",
+      listings,
+      packageGroupId: 7,
+      packageGroupRemaining: 4,
+      // Listing 1 takes 2 per package; listing 2 is omitted → defaults to 1, so
+      // one package consumes 3 of the pool of 4 → floor(4 / 3) = 1 package fits.
+      packageQuantities: new Map([[1, 2]]),
+      slugs: ["big01", "sml01"],
+    });
+    expect(html).toContain('name="package_quantity"');
+    expect(html).toContain('<option value="1"');
+    // The shared pool caps the count at 1, so no "2 packages" option is offered.
+    expect(html).not.toContain('<option value="2"');
+  });
+
   test("hides member rows when the package hides its listings", () => {
     const listings = [
       buildTicketListing(
