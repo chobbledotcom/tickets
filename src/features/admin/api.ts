@@ -18,6 +18,7 @@ import {
   computeSlugIndex,
   getAllListings,
   getListingWithCount,
+  getStoredListingWithCount,
   type ListingInput,
   listingsTable,
 } from "#shared/db/listings.ts";
@@ -238,8 +239,13 @@ export const bodyToCreateInput = async (
 /** Convert JSON body to ListingInput for update (merges with existing) */
 export const bodyToUpdateInput = async (
   body: Record<string, unknown>,
-  existing: ListingWithCount,
+  resolved: ListingWithCount,
 ): Promise<ParseResult<ListingInput>> => {
+  // Merge the patch onto the listing's *stored* values, not the resolved view,
+  // so an API update that doesn't touch a defaulted field can't bake the current
+  // default into the row (mirrors the HTML edit path). The lookup row is
+  // resolved; fall back to it only if the stored re-read races a delete.
+  const existing = (await getStoredListingWithCount(resolved.id)) ?? resolved;
   const parsedName = parseUpdateName(body, existing.name);
   if (!parsedName.ok) return parsedName;
 

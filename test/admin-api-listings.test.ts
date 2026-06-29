@@ -7,6 +7,7 @@ import {
   invalidateListingsCache,
   listingsTable,
 } from "#shared/db/listings.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   apiRequest,
   assertJson,
@@ -985,6 +986,24 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         expect(result.input.hidden).toBe(false);
         expect(result.input.maxPrice).toBe(0);
       }
+    });
+
+    test("merges onto stored values, not inherited defaults", async () => {
+      // Set the default first so creating the listing invalidates the cache and
+      // the resolving lookup sees the default live.
+      await settings.update.listingDefaults({ hidden: true });
+      const listing = await createTestListing({
+        hidden: false,
+        useDefaults: true,
+      });
+      const resolved = (await getListingWithCount(listing.id))!;
+      // The lookup row inherits the default…
+      expect(resolved.hidden).toBe(true);
+      // …but an update that doesn't touch hidden keeps the listing's stored
+      // false, so clearing the default later still restores its own value.
+      const result = await bodyToUpdateInput({ name: "Renamed" }, resolved);
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.input.hidden).toBe(false);
     });
 
     test("preserves existing closes_at null as empty string", async () => {

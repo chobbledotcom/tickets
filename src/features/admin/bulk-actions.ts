@@ -29,7 +29,10 @@ import {
   groupsTable,
   setGroupListingsActive,
 } from "#shared/db/groups.ts";
-import { listingsTable } from "#shared/db/listings.ts";
+import {
+  getStoredListingWithCount,
+  listingsTable,
+} from "#shared/db/listings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import {
   buildDuplicateListingInput,
@@ -155,11 +158,16 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
 
   const idMap = new Map<number, number>();
   for (const listing of listings) {
-    const input = await buildDuplicateListingInput(listing, {
-      closesAt: shiftUtcIsoByDays(listing.closes_at ?? "", dayOffset),
-      date: shiftUtcIsoByDays(listing.date, dayOffset),
+    // Clone from each listing's *stored* values, not the resolved view, so a
+    // duplicate made while a default is set doesn't bake that default into the
+    // new row (matching the single-listing edit/duplicate path). The listing was
+    // just read from this group, so the stored re-read always finds it.
+    const stored = (await getStoredListingWithCount(listing.id))!;
+    const input = await buildDuplicateListingInput(stored, {
+      closesAt: shiftUtcIsoByDays(stored.closes_at ?? "", dayOffset),
+      date: shiftUtcIsoByDays(stored.date, dayOffset),
       groupId: newGroup.id,
-      name: applyNameReplacement(listing.name, nameFind, nameReplace),
+      name: applyNameReplacement(stored.name, nameFind, nameReplace),
     });
     const created = await listingsTable.insert(input);
     idMap.set(listing.id, created.id);
