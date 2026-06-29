@@ -105,18 +105,22 @@ const runStep = async (step: Step): Promise<boolean> => {
   ]);
   const elapsed = ((performance.now() - start) / 1000).toFixed(1);
   if (progress) write(`\r\x1b[2K${prefix}`);
+  const success = status.success;
+  write(`${success ? green("✓") : red("✗")} ${dim(`${elapsed}s`)}\n`);
 
-  if (status.success) {
-    write(`${green("✓")} ${dim(`${elapsed}s`)}\n`);
-    return true;
+  if (!success) {
+    const output = step.filterOutput
+      ? step.filterOutput(stdout, stderr)
+      : [stdout, stderr].filter(Boolean).join("\n");
+    if (output) console.log(output);
   }
 
-  write(`${red("✗")} ${dim(`${elapsed}s`)}\n`);
-  const output = step.filterOutput
-    ? step.filterOutput(stdout, stderr)
-    : [stdout, stderr].filter(Boolean).join("\n");
-  if (output) console.log(output);
-  return false;
+  if (success && step.summary) {
+    const summary = await step.summary(stdout, stderr);
+    if (summary) console.log(summary);
+  }
+
+  return success;
 };
 
 export const main = async (): Promise<void> => {

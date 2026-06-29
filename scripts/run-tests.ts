@@ -7,6 +7,7 @@
  */
 
 import { join } from "node:path";
+import { JUNIT_PATH, readSlowTestsReport } from "./test-durations.ts";
 import { projectRoot, runTests, withTestHarness } from "./test-harness.ts";
 
 type CoverageMetricFailure = {
@@ -314,12 +315,17 @@ const checkCoverage = async (): Promise<void> => {
 /** Main: run the whole suite inside the harness, then enforce coverage */
 const main = async (): Promise<void> => {
   const useCoverage = Deno.args.includes("--coverage");
+  // Remove any stale JUnit file so a killed run can't surface a previous run's
+  // timings; `deno test --junit-path` rewrites it on a completed run.
+  await Deno.remove(JUNIT_PATH).catch(() => {});
   const exitCode = await withTestHarness(() =>
-    runTests(["test/"], useCoverage),
+    runTests(["test/"], useCoverage, JUNIT_PATH),
   );
 
   if (exitCode !== 0) Deno.exit(exitCode);
   if (useCoverage) await checkCoverage();
+  const slowTestsReport = await readSlowTestsReport();
+  if (slowTestsReport) console.log(slowTestsReport);
   Deno.exit(0);
 };
 

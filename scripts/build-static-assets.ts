@@ -29,6 +29,7 @@ export const STATIC_ASSET_OUTFILES = {
   embed: `${STATIC_DIR}/embed.js`,
   iframeResizerChild: `${STATIC_DIR}/iframe-resizer-child.js`,
   iframeResizerParent: `${STATIC_DIR}/iframe-resizer-parent.js`,
+  order: `${STATIC_DIR}/order.js`,
   scanner: `${STATIC_DIR}/scanner.js`,
 } as const;
 
@@ -124,6 +125,22 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
       format: "iife",
       minify: true,
       outfile: STATIC_ASSET_OUTFILES.contact,
+      platform: "browser",
+      plugins: [...denoPlugins({ configPath })],
+    },
+  },
+  {
+    // ESM (not IIFE): the order widget is loaded as `<script type="module">`,
+    // and that module form is what makes the cross-origin CORS gate bite — a
+    // classic-script include would bypass it. The `export {}` in order.ts also
+    // forces module-only parsing.
+    label: "Order",
+    options: {
+      bundle: true,
+      entryPoints: ["./src/ui/client/order.ts"],
+      format: "esm",
+      minify: true,
+      outfile: STATIC_ASSET_OUTFILES.order,
       platform: "browser",
       plugins: [...denoPlugins({ configPath })],
     },

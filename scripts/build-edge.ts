@@ -65,6 +65,11 @@ for (const [filename] of ASSET_DEFS) {
   );
 }
 
+// The external-order widget is served by a dynamic route (not an ASSET_DEFS
+// handler), but its body must still be inlined for the edge runtime, which has
+// no filesystem. Read it here so buildAssetsModule() can bake it in.
+STATIC_ASSETS["order.js"] = await Deno.readTextFile("./src/ui/static/order.js");
+
 /**
  * Build timestamp — always the current time. Used both as BUILD_TIMESTAMP
  * and (formatted) as the release tag in release builds, so the two always match.
@@ -105,7 +110,13 @@ const buildAssetsModule = (): string => {
       `export const ${exportName} = () => new Response(v${i}, { headers: { "content-type": "${contentType}", ...CACHE_HEADERS } });`,
   );
 
-  return [...varLines, cacheHeader, ...handlerLines].join("\n");
+  // Mirror assets.ts's orderWidgetBody export with the inlined widget source.
+  const orderWidget = [
+    `const orderJsBody = ${JSON.stringify(STATIC_ASSETS["order.js"])};`,
+    "export const orderWidgetBody = () => orderJsBody;",
+  ].join("\n");
+
+  return [...varLines, cacheHeader, ...handlerLines, orderWidget].join("\n");
 };
 
 /**
