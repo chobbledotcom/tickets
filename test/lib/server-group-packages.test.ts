@@ -5,6 +5,7 @@ import {
   getGroupPackagePrices,
   groupsTable,
 } from "#shared/db/groups.ts";
+import { setChildIds } from "#shared/db/listing-parents.ts";
 import {
   adminFormPost,
   adminGet,
@@ -51,6 +52,24 @@ const expectPackageRejected = async (group: {
     false,
   )(response);
   expect((await groupsTable.findById(group.id))!.is_package).toBe(false);
+};
+
+/** POST add-listings with `listingId` to a package group and assert the package
+ * invariant rejected it, leaving the group with no priced members. */
+const expectAddListingRejected = async (
+  group: { id: number },
+  listingId: number,
+): Promise<void> => {
+  const { response } = await adminFormPost(
+    `/admin/groups/${group.id}/add-listings`,
+    { listing_ids: String(listingId) },
+  );
+  await expectFlashRedirect(
+    `/admin/groups/${group.id}`,
+    expect.stringContaining("Packages cannot contain"),
+    false,
+  )(response);
+  expect(await getGroupPackagePrices(group.id)).toEqual([]);
 };
 
 describeWithEnv("server (admin group packages)", { db: true }, () => {
@@ -118,6 +137,29 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       listingType: "daily",
     });
     await expectPackageRejected(group);
+  });
+
+  test("edit POST rejects is_package on a group with a parent listing", async () => {
+    const group = await createTestGroup({ name: "ParentG", slug: "parent-g" });
+    const parent = await member(group, "Parent Member");
+    const child = await createTestListing({ name: "Child Of Parent" });
+    await setChildIds(parent.id, [child.id]);
+    // A parent's per-child selectors can't render on a package page, so it
+    // can't be packaged.
+    await expectPackageRejected(group);
+  });
+
+  test("add-listings rejects a child listing into a package group", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "PkgChild",
+      slug: "pkg-child",
+    });
+    const parent = await createTestListing({ name: "Outside Parent" });
+    const child = await createTestListing({ name: "Child Add" });
+    await setChildIds(parent.id, [child.id]);
+
+    await expectAddListingRejected(group, child.id);
   });
 
   test("edit POST treats a negative or non-numeric package price as no override", async () => {
@@ -247,16 +289,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       name: "Flex Add",
     });
 
-    const { response } = await adminFormPost(
-      `/admin/groups/${group.id}/add-listings`,
-      { listing_ids: String(flexible.id) },
-    );
-    await expectFlashRedirect(
-      `/admin/groups/${group.id}`,
-      expect.stringContaining("Packages cannot contain"),
-      false,
-    )(response);
-    expect(await getGroupPackagePrices(group.id)).toEqual([]);
+    await expectAddListingRejected(group, flexible.id);
   });
 
   test("add-listings accepts a fixed-price listing into a package group", async () => {

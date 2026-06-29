@@ -493,6 +493,25 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       }
     });
 
+    test("POST rejects package_members on create (assign listings first)", async () => {
+      // A brand-new group has no listings, so member overrides can't attach —
+      // creation must reject them rather than 201 an empty package.
+      await assertJson(
+        apiRequest("/api/admin/groups", {
+          body: {
+            is_package: true,
+            name: "CreateWithMembers",
+            package_members: [{ listing_id: 1, price: 100 }],
+          },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toContain("cannot be set on create");
+        },
+      );
+    });
+
     test("POST rejects a malformed package member", async () => {
       await assertJson(
         apiRequest("/api/admin/groups", {

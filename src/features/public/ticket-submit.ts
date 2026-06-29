@@ -59,6 +59,7 @@ import {
   type BookingPrefill,
   orderSummary,
   orderSummaryMessage,
+  packageQuantityCap,
   type TicketListing,
   type TicketPrefill,
 } from "#templates/public.tsx";
@@ -546,9 +547,13 @@ const parsePackageCount = (form: FormParams): number =>
  * Resolve the page listings' quantities from the form. For a package group the
  * buyer chooses a single `package_quantity`; each member's booked quantity is
  * its fixed per-package quantity × that count (the per-member `quantity_<id>`
- * inputs are not offered, so they are ignored). A count of 0 yields all-zero
- * lines, which `prepareOrder` rejects as "select at least one ticket". Non-package
- * pages parse the per-listing quantities as usual.
+ * inputs are not offered, so they are ignored). The posted count is clamped to
+ * the same capacity ceiling the page renders ({@link packageQuantityCap}) so a
+ * crafted POST can't exceed a member's remaining capacity or book a
+ * closed/sold-out member (whose `maxPurchasable` — and thus the cap — is 0). A
+ * resulting count of 0 yields all-zero lines, which `prepareOrder` rejects as
+ * "select at least one ticket". Non-package pages parse the per-listing
+ * quantities as usual.
  */
 const resolvePageQuantities = (
   form: FormParams,
@@ -558,7 +563,8 @@ const resolvePageQuantities = (
   if (packageGroupId == null || !packageQuantities) {
     return parseQuantities(form, ctx.listings);
   }
-  const packageQty = parsePackageCount(form);
+  const cap = packageQuantityCap(ctx.listings, packageQuantities);
+  const packageQty = Math.max(0, Math.min(parsePackageCount(form), cap));
   const quantities = new Map<number, number>();
   for (const [listingId, fixed] of packageQuantities) {
     quantities.set(listingId, fixed * packageQty);

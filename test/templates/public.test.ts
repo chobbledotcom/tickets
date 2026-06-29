@@ -4,6 +4,8 @@ import { stub } from "@std/testing/mock";
 import { getCurrentCsrfToken, signCsrfToken } from "#shared/csrf.ts";
 import { addDays } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
+import { FormParams } from "#shared/form-data.ts";
+import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { ListingWithCount } from "#shared/types.ts";
@@ -530,6 +532,37 @@ describe("ticketPage", () => {
     expect(html).toContain("&times;4");
     // No per-member quantity selectors on a package page.
     expect(html).not.toContain('name="quantity_1"');
+  });
+
+  test("restores the submitted package quantity after a validation error", () => {
+    setSavedFormData(new FormParams({ package_quantity: "3" }));
+    try {
+      const listings = [
+        buildTicketListing(
+          testListingWithCount({
+            attendee_count: 0,
+            id: 1,
+            max_attendees: 100,
+            max_quantity: 10,
+            name: "Tent",
+            slug: "tent1",
+          }),
+          false,
+          undefined,
+        ),
+      ];
+      const html = ticketPage({
+        groupName: "Camp Kit",
+        listings,
+        packageGroupId: 5,
+        packageQuantities: new Map([[1, 1]]),
+        slugs: ["tent1"],
+      });
+      // The selector pre-selects the just-submitted count, not a reset 1.
+      expect(html).toContain('value="3" selected');
+    } finally {
+      clearSavedFormData();
+    }
   });
 
   test("hides member rows when the package hides its listings", () => {

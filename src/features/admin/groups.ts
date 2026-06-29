@@ -33,6 +33,7 @@ import {
   validateGroupListingType,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { edgeIdsTouching } from "#shared/db/listing-parents.ts";
 import { getAttendeesByListingIds, getListing } from "#shared/db/listings.ts";
 import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -95,18 +96,41 @@ const isPackageable = (listing: {
   !listing.customisable_days &&
   !listing.can_pay_more;
 
+/** A listing in any parent/child relationship can't be a package member: a
+ * package page books each member directly and can't render the per-child
+ * selectors a parent requires, nor may it offer a child that must be booked
+ * under its parent (invariant I3). Complements the field-level
+ * {@link isPackageable} checks. */
+const hasParentChildEdge = async (listingId: number): Promise<boolean> => {
+  const { childIds, parentIds } = await edgeIdsTouching(listingId);
+  return childIds.length > 0 || parentIds.length > 0;
+};
+
+/** Whether a listing can be a package member: a plain standard listing (see
+ * {@link isPackageable}) that is not part of any parent/child relationship. */
+const isPackageableMember = async (listing: {
+  id: number;
+  listing_type: ListingType;
+  customisable_days: boolean;
+  can_pay_more: boolean;
+}): Promise<boolean> =>
+  isPackageable(listing) && !(await hasParentChildEdge(listing.id));
+
 /** Reject marking a group as a package when any current member can't be packaged
- * (see {@link isPackageable}). A falsy `isPackage` is always fine. Returns an
- * error message, or null when valid. */
+ * (see {@link isPackageableMember}). A falsy `isPackage` is always fine. Returns
+ * an error message, or null when valid. */
 const validatePackageCompatibility = async (
   groupId: number,
   isPackage: boolean | undefined,
 ): Promise<string | null> => {
   if (!isPackage) return null;
   const listings = await getListingsByGroupId(groupId);
-  return listings.every(isPackageable)
-    ? null
-    : t("error.package_incompatible_listing");
+  for (const listing of listings) {
+    if (!(await isPackageableMember(listing))) {
+      return t("error.package_incompatible_listing");
+    }
+  }
+  return null;
 };
 
 /** Combined validation: slug uniqueness plus the package invariant. On create
@@ -387,7 +411,7 @@ const validateListingTypesForGroup = async (
         listing.customisable_days,
       );
       if (typeError) return typeError;
-      if (isPackage && !isPackageable(listing)) {
+      if (isPackage && !(await isPackageableMember(listing))) {
         return t("error.package_incompatible_listing");
       }
     }

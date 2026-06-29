@@ -127,9 +127,22 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
     const name = typeof body.name === "string" ? body.name.trim() : "";
     if (!name) return { error: "name is required", ok: false };
 
+    // A brand-new group has no `group_listings` rows yet, so member overrides
+    // have nothing to attach to — `setGroupPackageMembers` would silently drop
+    // them all and return a 201 for an empty package. Reject up front: callers
+    // create the group, assign listings, then PUT the overrides. The malformed
+    // entry is still validated (and rejected) so the error names the field.
+    if (body.package_members !== undefined) {
+      const members = parsePackageMembers(body);
+      if (!members.ok) return members;
+      return {
+        error:
+          "package_members cannot be set on create; create the group, assign listings, then update it",
+        ok: false,
+      };
+    }
+
     const { slug, slugIndex } = await generateUniqueGroupSlug();
-    const members = parsePackageMembers(body);
-    if (!members.ok) return members;
     return {
       input: {
         description:
@@ -140,7 +153,6 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
         maxAttendees:
           typeof body.max_attendees === "number" ? body.max_attendees : 0,
         name,
-        packageMembers: members.input,
         slug,
         slugIndex,
         termsAndConditions:

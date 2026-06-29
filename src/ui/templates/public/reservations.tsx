@@ -385,6 +385,18 @@ const resolveQuantity = (
   return Math.max(0, Math.min(prefill.quantity, maxPurchasable));
 };
 
+/** Clamp a just-submitted numeric form value to `[0, max]`, falling back to
+ * `fallback` when the field was absent (`""`). Shared by the per-listing and
+ * package-count restores so the two can't drift. */
+const clampSavedQuantity = (
+  saved: string,
+  max: number,
+  fallback: number,
+): number =>
+  saved === ""
+    ? fallback
+    : Math.max(0, Math.min(Number.parseInt(saved, 10) || 0, max));
+
 /** The quantity to pre-select for a row: the value the visitor just submitted
  * (restored when a validation error re-renders the page), else the QR/order
  * pre-fill — both clamped to the available range. */
@@ -392,11 +404,19 @@ const restoredQuantity = (
   listingId: number,
   prefill: TicketPrefill | undefined,
   maxPurchasable: number,
-): number => {
-  const saved = savedFormValue(`quantity_${listingId}`);
-  if (saved === "") return resolveQuantity(prefill, maxPurchasable);
-  return Math.max(0, Math.min(Number.parseInt(saved, 10) || 0, maxPurchasable));
-};
+): number =>
+  clampSavedQuantity(
+    savedFormValue(`quantity_${listingId}`),
+    maxPurchasable,
+    resolveQuantity(prefill, maxPurchasable),
+  );
+
+/** The package count to pre-select: the value the buyer just submitted (restored
+ * when a validation error re-renders the page) clamped to the cap, else 1 (or 0
+ * when nothing can be ordered). Without this an error would silently reset a
+ * multi-package order to one, risking a wrong-quantity resubmit. */
+const restoredPackageQuantity = (cap: number): number =>
+  clampSavedQuantity(savedFormValue("package_quantity"), cap, Math.min(1, cap));
 
 /**
  * Per-parent child rendering inputs threaded down to the listing rows: the page's
@@ -1037,7 +1057,7 @@ const renderPackageRows = (
     "public.package.quantity",
   )}<select name="package_quantity">${quantityOptions(
     cap,
-    Math.min(1, cap),
+    restoredPackageQuantity(cap),
   )}</select></label>`;
   const members = hide
     ? ""
@@ -1050,8 +1070,10 @@ const renderPackageRows = (
 };
 
 /** The most packages the buyer can order: limited by the tightest member's
- * remaining capacity divided by how many of it one package includes. */
-const packageQuantityCap = (
+ * remaining capacity divided by how many of it one package includes. A
+ * closed/sold-out member has `maxPurchasable` 0, capping the package at 0.
+ * Exported so the submit path clamps the posted count to the same ceiling. */
+export const packageQuantityCap = (
   listings: TicketListing[],
   quantities: ReadonlyMap<number, number>,
 ): number =>

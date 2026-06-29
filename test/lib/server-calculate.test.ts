@@ -134,6 +134,33 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     expect(html).toContain(formatCurrency(6000));
   });
 
+  test("clamps the package count to the tightest member's capacity", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Capped",
+      slug: "capped-pkg",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 100,
+      maxQuantity: 2,
+      name: "Limited",
+      unitPrice: 4000,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: 1000 },
+    ]);
+
+    // The member caps the package at 2 (max_quantity); a crafted count of 5
+    // clamps to 2 → 2 × 1000 = 2000, never 5 × 1000.
+    const html = await (
+      await calculate(group.slug, group.slug, { package_quantity: "5" })
+    ).text();
+    expect(html).toContain(formatCurrency(2000));
+    expect(html).not.toContain(formatCurrency(5000));
+  });
+
   test("prices a multi-unit line with a booking-fee extra line", async () => {
     await setupStripe();
     await settings.update.bookingFee("10");
