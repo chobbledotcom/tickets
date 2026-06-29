@@ -30,10 +30,12 @@ export interface MutationStepDeps {
 }
 
 const isSourceFile = (path: string): boolean =>
-  path.startsWith("src/") && (path.endsWith(".ts") || path.endsWith(".tsx"));
+  path.startsWith("src/") &&
+  (path.endsWith(".ts") || path.endsWith(".tsx") || path.endsWith(".js"));
 
 const isTestFile = (path: string): boolean =>
-  path.startsWith("test/") && path.endsWith(".test.ts");
+  path.startsWith("test/") &&
+  (path.endsWith(".test.ts") || path.endsWith(".test.tsx"));
 
 /** Split staged paths into the src files we mutate and the tests we run. A
  *  path that is neither (docs, scripts, config) is dropped. */
