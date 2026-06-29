@@ -199,7 +199,7 @@ describe("runMutationStep", () => {
       { length: STALE_BASE_SOURCE_LIMIT },
       (_, i) => `src/f${i}.ts`,
     );
-    let received: ChangedFiles | null = null;
+    let mutatedSources = -1;
     const code = await runMutationStep({
       log: () => {},
       run: fakeGit({
@@ -207,12 +207,12 @@ describe("runMutationStep", () => {
         diff: ok(`${sources.join("\n")}\ntest/a.test.ts\n`),
       }),
       runMutation: (files) => {
-        received = files;
+        mutatedSources = files.sources.length;
         return Promise.resolve(0);
       },
     });
     expect(code).toBe(0);
-    expect(received?.sources.length).toBe(STALE_BASE_SOURCE_LIMIT);
+    expect(mutatedSources).toBe(STALE_BASE_SOURCE_LIMIT);
   });
 
   test("passes without running mutation when no src files changed", async () => {
