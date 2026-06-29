@@ -13,7 +13,9 @@ import type { SigningCredentials } from "#shared/apple-wallet.ts";
 import type { GoogleWalletCredentials } from "#shared/google-wallet.ts";
 
 function buildTestCerts(): SigningCredentials {
-  const keys = forge.pki.rsa.generateKeyPair(2048);
+  // 512-bit keys are sufficient for testing code paths — real security is not
+  // needed here, and smaller keys are ~32× faster to generate.
+  const keys = forge.pki.rsa.generateKeyPair(512);
 
   // Create a CA cert (WWDR stand-in)
   const caCert = forge.pki.createCertificate();
@@ -31,7 +33,7 @@ function buildTestCerts(): SigningCredentials {
   caCert.sign(keys.privateKey, forge.md.sha256.create());
 
   // Create a signing cert
-  const signingKeys = forge.pki.rsa.generateKeyPair(2048);
+  const signingKeys = forge.pki.rsa.generateKeyPair(512);
   const signingCert = forge.pki.createCertificate();
   signingCert.publicKey = signingKeys.publicKey;
   signingCert.serialNumber = "02";
@@ -71,7 +73,8 @@ export const configureAppleWallet = async (): Promise<void> => {
 };
 
 function buildGoogleTestCreds(): GoogleWalletCredentials {
-  const keys = forge.pki.rsa.generateKeyPair(2048);
+  // 512-bit keys are sufficient for testing code paths — no real security needed.
+  const keys = forge.pki.rsa.generateKeyPair(512);
   const pkcs8Asn1 = forge.pki.wrapRsaPrivateKey(
     forge.pki.privateKeyToAsn1(keys.privateKey),
   );

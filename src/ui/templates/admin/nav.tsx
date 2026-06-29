@@ -87,26 +87,38 @@ const renderReadOnlyBanner = (
   return null;
 };
 
+/** Editors only ever reach the content pages: listings, groups, and the public
+ * site editor. Everything else is gated away, so their nav lists exactly those
+ * (no dead/forbidden links). The Site editor is surfaced top-level here because
+ * the owner-only Settings parent it normally nests under is hidden from them. */
+const editorTopLevelItems = (): NavItem[] => [
+  { href: "/admin/listings", label: t("terms.listings") },
+  { href: "/admin/groups", label: t("terms.groups") },
+  { href: "/admin/site", label: t("nav.site") },
+];
+
 /** Top-level admin links, in order. Users and Settings are owner-only. */
 const topLevelItems = (session: AdminSession): NavItem[] =>
-  compact([
-    { href: "/admin/", label: t("nav.public.home") },
-    { href: "/admin/listings", label: t("terms.listings") },
-    { href: "/admin/calendar", label: t("nav.calendar") },
-    { href: "/admin/servicing", label: t("nav.servicing") },
-    { href: "/admin/attendees", label: t("terms.attendees") },
-    session.adminLevel === "owner"
-      ? { href: "/admin/users", label: t("terms.users") }
-      : null,
-    { href: "/admin/groups", label: t("terms.groups") },
-    { href: "/admin/modifiers", label: t("terms.modifiers") },
-    session.adminLevel === "owner"
-      ? { href: "/admin/ledger", label: t("nav.ledger") }
-      : null,
-    session.adminLevel === "owner"
-      ? { href: "/admin/settings", label: t("nav.settings") }
-      : null,
-  ]);
+  session.adminLevel === "editor"
+    ? editorTopLevelItems()
+    : compact([
+        { href: "/admin/", label: t("nav.public.home") },
+        { href: "/admin/listings", label: t("terms.listings") },
+        { href: "/admin/calendar", label: t("nav.calendar") },
+        { href: "/admin/servicing", label: t("nav.servicing") },
+        { href: "/admin/attendees", label: t("terms.attendees") },
+        session.adminLevel === "owner"
+          ? { href: "/admin/users", label: t("terms.users") }
+          : null,
+        { href: "/admin/groups", label: t("terms.groups") },
+        { href: "/admin/modifiers", label: t("terms.modifiers") },
+        session.adminLevel === "owner"
+          ? { href: "/admin/ledger", label: t("nav.ledger") }
+          : null,
+        session.adminLevel === "owner"
+          ? { href: "/admin/settings", label: t("nav.settings") }
+          : null,
+      ]);
 
 /** Calendar sub-nav: shown only when logistics adds the deliveries run sheet to
  * branch to — otherwise the section is just the calendar, with no sub-nav. */
@@ -162,8 +174,20 @@ const siteSub = (): NavItem[] => [
 
 /** Resolve which section (and sub-nav) the active route belongs to. Pages pass
  * their section's route as `active`; site pages pass /admin/site so the Site
- * third level can be added beneath the highlighted Settings link. */
-const resolveSection = (active: string): Section | null => {
+ * third level can be added beneath the highlighted Settings link.
+ *
+ * Editors have no Settings parent, so for them the Site editor's sub-pages hang
+ * directly under the top-level Site link — never under the owner-only settings
+ * sub-nav (whose siblings they can't open). */
+const resolveSection = (
+  active: string,
+  adminLevel: AdminSession["adminLevel"],
+): Section | null => {
+  if (adminLevel === "editor") {
+    return active === "/admin/site"
+      ? { items: siteSub(), label: t("nav.site"), topHref: "/admin/site" }
+      : null;
+  }
   if (active === "/admin/calendar") {
     const items = calendarSub();
     return items
@@ -287,9 +311,9 @@ interface AdminNavProps {
 export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
   // Flag this render as an admin page so the Layout emits the admin footer
   // (Chobble link, optional debug menu, and the logout button).
-  markAdminFooter();
+  markAdminFooter(session.adminLevel);
   const items = topLevelItems(session);
-  const section = resolveSection(active);
+  const section = resolveSection(active, session.adminLevel);
   const highlight = section?.topHref ?? active;
   return (
     <>

@@ -1,6 +1,33 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { Fragment, jsx, Raw, SafeHtml } from "#jsx/jsx-runtime.ts";
+import {
+  Fragment,
+  jsx,
+  Raw,
+  SafeHtml,
+  VOID_ELEMENTS,
+} from "#jsx/jsx-runtime.ts";
+
+// The HTML void elements, as a fixed spec list independent of the production
+// table. Driving the render tests from this (rather than from VOID_ELEMENTS
+// itself) means dropping a tag from VOID_ELEMENTS makes jsx() render it with a
+// closing tag and these tests FAIL — instead of silently no longer testing it.
+const EXPECTED_VOID_ELEMENTS = [
+  "area",
+  "base",
+  "br",
+  "col",
+  "embed",
+  "hr",
+  "img",
+  "input",
+  "link",
+  "meta",
+  "param",
+  "source",
+  "track",
+  "wbr",
+] as const;
 
 describe("jsx-runtime", () => {
   describe("jsx", () => {
@@ -34,14 +61,29 @@ describe("jsx-runtime", () => {
       expect(result.toString()).toBe("<div></div>");
     });
 
-    test("renders void element without closing tag", () => {
-      const result = jsx("br", null);
-      expect(result.toString()).toBe("<br>");
+    for (const tag of EXPECTED_VOID_ELEMENTS) {
+      test(`renders <${tag}> self-closing without a closing tag`, () => {
+        const result = jsx(tag, null);
+        expect(result.toString()).toBe(`<${tag}>`);
+      });
+    }
+
+    test("VOID_ELEMENTS table matches the HTML void-element spec exactly", () => {
+      // Pin the production table to the spec list: adding or removing a tag
+      // here (or there) is a deliberate change that must update both.
+      expect(Object.keys(VOID_ELEMENTS).sort()).toEqual(
+        [...EXPECTED_VOID_ELEMENTS].sort(),
+      );
     });
 
     test("renders void element with attributes", () => {
       const result = jsx("input", { name: "foo", type: "text" });
       expect(result.toString()).toBe('<input name="foo" type="text">');
+    });
+
+    test("renders a non-void element with an explicit closing tag", () => {
+      const result = jsx("div", null);
+      expect(result.toString()).toBe("<div></div>");
     });
 
     test("renders boolean attribute as name only when true", () => {
@@ -51,6 +93,16 @@ describe("jsx-runtime", () => {
 
     test("omits boolean attribute when false", () => {
       const result = jsx("input", { required: false });
+      expect(result.toString()).toBe("<input>");
+    });
+
+    test("omits attribute when value is null", () => {
+      const result = jsx("input", { name: null });
+      expect(result.toString()).toBe("<input>");
+    });
+
+    test("omits attribute when value is undefined", () => {
+      const result = jsx("input", { name: undefined });
       expect(result.toString()).toBe("<input>");
     });
 

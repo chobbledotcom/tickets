@@ -5,11 +5,14 @@
 import { filter, joinStrings, map, pipe, reduce, unique } from "#fp";
 import { t } from "#i18n";
 import {
+  type ColumnGenerators,
   getHeaderText,
   renderCells,
   resolveColumnLayout,
 } from "#shared/column-order.ts";
 import {
+  EDITOR_LISTING_DEFAULT_ORDER,
+  EDITOR_LISTING_TABLE_COLUMNS,
   LISTING_DEFAULT_ORDER,
   LISTING_TABLE_COLUMNS,
 } from "#shared/columns/listing-columns.ts";
@@ -39,21 +42,25 @@ import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
-/** Render a single listing table row using ordered column keys */
+/** Render a single listing table row using ordered column keys. `columns`
+ * defaults to the full staff column set; the editor variant passes its
+ * money-free, edit-linked set. */
 export const ListingRow = ({
   e,
   columnKeys,
   filters,
+  columns = LISTING_TABLE_COLUMNS,
 }: {
   e: ListingWithCount;
   columnKeys: string[];
   filters: Map<string, string>;
+  columns?: ColumnGenerators<ListingWithCount>;
 }): string => {
   const isInactive = !e.active;
   const cells = renderCells(
     e,
     columnKeys,
-    LISTING_TABLE_COLUMNS,
+    columns,
     undefined,
     filters,
     escapeHtml,
@@ -228,18 +235,16 @@ const upcomingServicingSection = (events: ServicingEventSummary[]): string => {
   );
 };
 
-/** Render the listing table with dynamic column keys */
+/** Render the listing table with dynamic column keys. `columns` defaults to the
+ * staff column set; the editor variant passes its money-free set. */
 export const renderListingTable = (
   columnKeys: string[],
   rows: string,
+  columns: ColumnGenerators<ListingWithCount> = LISTING_TABLE_COLUMNS,
 ): string => {
-  const validColumnKeys = columnKeys.filter(
-    (key) => LISTING_TABLE_COLUMNS[key],
-  );
+  const validColumnKeys = columnKeys.filter((key) => columns[key]);
   const headers = pipe(
-    map(
-      (key: string) => `<th>${getHeaderText(LISTING_TABLE_COLUMNS[key]!)}</th>`,
-    ),
+    map((key: string) => `<th>${getHeaderText(columns[key]!)}</th>`),
     joinStrings,
   )(validColumnKeys);
   return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
@@ -249,15 +254,14 @@ export const renderListingsTableSection = (
   listings: ListingWithCount[],
   columnKeys: string[],
   filters: Map<string, string>,
+  columns: ColumnGenerators<ListingWithCount> = LISTING_TABLE_COLUMNS,
 ): string => {
-  const validColumnKeys = columnKeys.filter(
-    (key) => LISTING_TABLE_COLUMNS[key],
-  );
+  const validColumnKeys = columnKeys.filter((key) => columns[key]);
   const listingRows =
     listings.length > 0
       ? pipe(
           map((e: ListingWithCount) =>
-            ListingRow({ columnKeys: validColumnKeys, e, filters }),
+            ListingRow({ columnKeys: validColumnKeys, columns, e, filters }),
           ),
           joinStrings,
         )(listings)
@@ -265,7 +269,7 @@ export const renderListingsTableSection = (
 
   return String(
     <div class="table-scroll">
-      <Raw html={renderListingTable(columnKeys, listingRows)} />
+      <Raw html={renderListingTable(columnKeys, listingRows, columns)} />
     </div>,
   );
 };
@@ -280,16 +284,20 @@ const ListingsTableBlock = ({
   filters,
   csvExport = false,
   headerHtml = "",
+  columns = LISTING_TABLE_COLUMNS,
 }: {
   listings: ListingWithCount[];
   columnKeys: string[];
   filters: Map<string, string>;
   csvExport?: boolean;
   headerHtml?: string;
+  columns?: ColumnGenerators<ListingWithCount>;
 }): JSX.Element => (
   <div class="table-block">
     <Raw html={headerHtml} />
-    <Raw html={renderListingsTableSection(listings, columnKeys, filters)} />
+    <Raw
+      html={renderListingsTableSection(listings, columnKeys, filters, columns)}
+    />
     {csvExport && (
       <div class="table-actions">
         <a href="/admin/listings/csv">{t("listings_table.export_csv")}</a>
@@ -388,10 +396,17 @@ export const adminListingsPage = (
   session: AdminSession,
   listingColumnTemplate?: string,
 ): string => {
+  // Editors see a money-free, edit-linked table on a fixed order (their saved
+  // column template is irrelevant and never references the omitted columns), and
+  // no CSV export (that route stays staff-only and exports ledger revenue).
+  const isEditor = session.adminLevel === "editor";
+  const columns = isEditor
+    ? EDITOR_LISTING_TABLE_COLUMNS
+    : LISTING_TABLE_COLUMNS;
   const { columnKeys, filters } = resolveColumnLayout(
-    listingColumnTemplate ?? "",
-    Object.keys(LISTING_TABLE_COLUMNS),
-    LISTING_DEFAULT_ORDER,
+    isEditor ? "" : (listingColumnTemplate ?? ""),
+    Object.keys(columns),
+    isEditor ? EDITOR_LISTING_DEFAULT_ORDER : LISTING_DEFAULT_ORDER,
   );
   const activeListings = filter((e: ListingWithCount) => e.active)(listings);
   const deactivatedListings = filter((e: ListingWithCount) => !e.active)(
@@ -412,7 +427,8 @@ export const adminListingsPage = (
 
       <ListingsTableBlock
         columnKeys={columnKeys}
-        csvExport
+        columns={columns}
+        csvExport={!isEditor}
         filters={filters}
         listings={activeListings}
       />
@@ -425,6 +441,7 @@ export const adminListingsPage = (
               deactivatedListings,
               columnKeys,
               filters,
+              columns,
             )}
           />
         </>

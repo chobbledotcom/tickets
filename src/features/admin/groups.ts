@@ -4,10 +4,14 @@
 
 import { map } from "#fp";
 import { t } from "#i18n";
-import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
+import {
+  createContentCrudHandlers,
+  createCrudHandlers,
+} from "#routes/admin/owner-crud.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { groupReturnPath } from "#shared/admin-paths.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -35,7 +39,12 @@ import { defineNamedResource } from "#shared/rest/resource.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import { sortListings } from "#shared/sort-listings.ts";
-import { type Attendee, type Group, isPaidListing } from "#shared/types.ts";
+import {
+  type AdminSession,
+  type Attendee,
+  type Group,
+  isPaidListing,
+} from "#shared/types.ts";
 import {
   adminGroupDeletePage,
   adminGroupDetailPage,
@@ -101,11 +110,15 @@ export const deleteGroup = async (
   await groupsTable.deleteById(id);
 };
 
-/** Shared CRUD handler config */
+/** Shared CRUD handler config. After create/edit, staff land on the group detail
+ * page; editors can't open it (it decrypts attendee PII), so they return to the
+ * group edit form instead — a successful save never bounces them to a forbidden
+ * page. */
 const crudConfig = {
   getAll: getAllGroups,
   getName: (g: Group) => g.name,
-  getRowPath: (g: Group) => `/admin/groups/${g.id}`,
+  getRowPath: (g: Group, session: AdminSession) =>
+    groupReturnPath(session.adminLevel, g.id),
   listPath: "/admin/groups",
   renderDelete: adminGroupDeletePage,
   renderEdit: adminGroupEditPage,
@@ -133,11 +146,18 @@ const groupsResource = defineNamedResource({
   validate: validateGroupSlug,
 });
 
-const crudCreate = createCrudHandlers({
+// Editors may create/edit groups, so list/new/create/edit use content-gated
+// handlers; group deletion is destructive and stays staff-only, so its routes
+// come from a staff CRUD below.
+const contentCreate = createContentCrudHandlers({
   ...crudConfig,
   resource: wrapResourceForDemo(groupsCreateResource, GROUP_DEMO_FIELDS),
 });
-const crud = createCrudHandlers({
+const content = createContentCrudHandlers({
+  ...crudConfig,
+  resource: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
+});
+const staffCrud = createCrudHandlers({
   ...crudConfig,
   resource: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
 });
@@ -257,11 +277,16 @@ const handleAddListingsToGroup = groupFormPost(async (group, form) => {
 
 /** Group routes */
 export const groupsRoutes = {
-  ...crud.routes,
-  // Override: create uses auto-generated slug, detail has custom page
-  "GET /admin/groups/new": crudCreate.newGet,
-  "POST /admin/groups": crudCreate.createPost,
+  // List/new/create/edit are content-gated (editors included)…
+  ...content.routes,
+  // …but group deletion stays staff-only — override the content delete routes.
+  ...staffCrud.deleteRoutes,
+  // Create uses the auto-generated-slug resource; detail has a custom page.
+  "GET /admin/groups/new": contentCreate.newGet,
+  "POST /admin/groups": contentCreate.createPost,
   ...defineRoutes({
+    // Detail decrypts attendee PII and add-listings is staff group management —
+    // both stay on the default staff gate (editors are excluded).
     "GET /admin/groups/:id": handleGroupDetail,
     "POST /admin/groups/:id/add-listings": handleAddListingsToGroup,
   }),

@@ -11,7 +11,8 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 const LogoutAgentHeader = (): JSX.Element => {
-  markAdminFooter();
+  // Only rendered for agent-class users (bare header, no staff nav).
+  markAdminFooter("agent");
   return (
     <header class="agent-header">
       <h1>{t("logout.title")}</h1>

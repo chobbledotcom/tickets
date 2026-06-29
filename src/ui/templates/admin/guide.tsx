@@ -24,7 +24,10 @@ import { domainsSections } from "#templates/admin/guide/domains.tsx";
 import { emailSections } from "#templates/admin/guide/email.tsx";
 import { gettingStartedSections } from "#templates/admin/guide/getting-started.tsx";
 import { integrationsSections } from "#templates/admin/guide/integrations.tsx";
-import { listingsSections } from "#templates/admin/guide/listings.tsx";
+import {
+  listingsSections,
+  textFormattingSection,
+} from "#templates/admin/guide/listings.tsx";
 import { operationsSections } from "#templates/admin/guide/operations.tsx";
 import { paymentsSections } from "#templates/admin/guide/payments.tsx";
 import { ticketsSections } from "#templates/admin/guide/tickets.tsx";
@@ -62,5 +65,23 @@ export const adminGuidePage = (
       </div>
 
       {renderGuideSections(guideSections(hostConfig))}
+    </Layout>,
+  );
+
+/**
+ * Standalone markdown formatting-help page. The full guide is staff-only (its
+ * body links to many owner/staff pages), but markdown formatting help is needed
+ * by every content role — including editors — wherever a markdown field shows
+ * the "Formatting help" hint. This renders just the editor-safe Text Formatting
+ * section so that link never dead-ends.
+ */
+export const adminFormattingHelpPage = (adminSession: AdminSession): string =>
+  String(
+    <Layout bodyClass="guide" title={t("guide.sections.text_formatting")}>
+      <AdminNav active="" session={adminSession} />
+      <div class="prose">
+        <h2>{t("guide.sections.text_formatting")}</h2>
+      </div>
+      {renderGuideSections([textFormattingSection])}
     </Layout>,
   );

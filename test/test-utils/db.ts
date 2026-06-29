@@ -1,8 +1,12 @@
 import { createClient, type InValue, type Row } from "@libsql/client";
 import { afterEach, beforeEach, describe } from "@std/testing/bdd";
+import { once } from "#fp";
 import { resetEffectiveDomain } from "#shared/config.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
+import {
+  ensureDefaultAttendeeStatus,
+  invalidateAttendeeStatusesCache,
+} from "#shared/db/attendee-statuses.ts";
 import { getDb, insert, queryOne, setDb } from "#shared/db/client.ts";
 import { invalidateGroupsCache } from "#shared/db/groups.ts";
 import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
@@ -80,6 +84,25 @@ const TEST_SCHEMA_SQL = `${[
   ),
 ].join(";\n")};`;
 
+// Golden DB: schema + default attendee status built once per worker, then
+// copied per test instead of re-executing 100+ CREATE TABLE/INDEX/TRIGGER
+// statements on every beforeEach.
+const getOrCreateGoldenDb: () => Promise<string> = once(
+  async (): Promise<string> => {
+    const path = await Deno.makeTempFile({ suffix: "-golden.db" });
+    const client = createClient({ url: `file:${path}` });
+    setDb(client);
+    await client.executeMultiple(
+      "PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF;",
+    );
+    await client.executeMultiple(TEST_SCHEMA_SQL);
+    await ensureDefaultAttendeeStatus();
+    client.close();
+    setDb(null);
+    return path;
+  },
+);
+
 const prepareTestClient = async (triggers = false): Promise<void> => {
   setupTestEncryptionKey();
   settings.setup.clearCache();
@@ -89,24 +112,29 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
   invalidateHolidaysCache();
   invalidateGroupsCache();
   invalidateLogisticsAgentsCache();
+  invalidateAttendeeStatusesCache();
 
   // A temp file, not ":memory:": interactive transactions (withTransaction) open
   // a second connection, and each ":memory:" connection is its own *separate*
   // empty database — a transaction would see no schema. A file is shared across
   // connections. Durability is irrelevant in tests, so relax fsync to keep speed
   // close to in-memory.
+  //
+  // Copy the golden DB (schema + default status, built once per worker) rather
+  // than re-running the schema SQL on every test — a file copy is much cheaper
+  // than executing 100+ CREATE TABLE / INDEX / TRIGGER statements.
+  const goldenPath = await getOrCreateGoldenDb();
   const path = await Deno.makeTempFile({ suffix: ".db" });
+  await Deno.copyFile(goldenPath, path);
   setTestEnv({
     DB_URL: `file:${path}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: triggers ? undefined : "1",
   });
   const client = createClient({ url: `file:${path}` });
   setDb(client);
-  await client.executeMultiple(
-    "PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF;",
-  );
-  await client.executeMultiple(TEST_SCHEMA_SQL);
-  await ensureDefaultAttendeeStatus();
+  // journal_mode persists in the SQLite header from the golden; synchronous=OFF
+  // is per-connection only and must be re-applied.
+  await client.executeMultiple("PRAGMA synchronous=OFF;");
 };
 
 export const createTestDb = async (triggers = false): Promise<void> => {
@@ -126,14 +154,16 @@ export const setupTransactionalTestDb = async (): Promise<
   () => Promise<void>
 > => {
   setupTestEncryptionKey();
+  const goldenPath = await getOrCreateGoldenDb();
   const path = await Deno.makeTempFile({ suffix: ".db" });
+  await Deno.copyFile(goldenPath, path);
   const restoreEnv = setTestEnv({
     DB_URL: `file:${path}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: "1",
   });
   const client = createClient({ url: `file:${path}` });
   setDb(client);
-  await client.executeMultiple(TEST_SCHEMA_SQL);
+  await client.executeMultiple("PRAGMA synchronous=OFF;");
   return async () => {
     setDb(null);
     client.close();
@@ -150,18 +180,14 @@ export const createTestDbWithSetup = async (
   resetTestSession();
 
   if (getCachedSetupSettings()) {
-    getDb().execute("DELETE FROM settings");
-    for (const row of getCachedSetupSettings()!) {
-      await getDb().execute(
-        insert("settings", {
-          key: row.key,
-          value: row.value,
-        }),
-      );
-    }
-    if (getCachedSetupUsers()) {
-      for (const row of getCachedSetupUsers()!) {
-        await getDb().execute(
+    // Restore settings and users in one batch rather than N sequential round-trips.
+    await getDb().batch(
+      [
+        { args: [], sql: "DELETE FROM settings" },
+        ...getCachedSetupSettings()!.map((row) =>
+          insert("settings", { key: row.key, value: row.value }),
+        ),
+        ...getCachedSetupUsers()!.map((row) =>
           insert("users", {
             admin_level: row.admin_level as InValue,
             id: row.id as InValue,
@@ -174,9 +200,10 @@ export const createTestDbWithSetup = async (
             username_index: row.username_index as InValue,
             wrapped_data_key: row.wrapped_data_key as InValue,
           }),
-        );
-      }
-    }
+        ),
+      ],
+      "write",
+    );
     settings.invalidateCache();
     await settings.loadKeys(ALL_SETTINGS_KEYS);
 
@@ -289,6 +316,7 @@ export const resetDb = (): void => {
   invalidateHolidaysCache();
   invalidateGroupsCache();
   invalidateLogisticsAgentsCache();
+  invalidateAttendeeStatusesCache();
   resetSessionCache();
   setTestSession(null);
   setDemoModeForTest(false);

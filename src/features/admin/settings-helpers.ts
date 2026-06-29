@@ -9,7 +9,12 @@
  * return SettingsFormHandler for use with settingsRoute/advancedSettingsRoute.
  */
 
-import { type AuthSession, OWNER_FORM, withAuth } from "#routes/auth.ts";
+import {
+  type AuthPolicy,
+  type AuthSession,
+  OWNER_FORM,
+  withAuth,
+} from "#routes/auth.ts";
 import { errorRedirect, jsonResponse, redirect } from "#routes/response.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -32,8 +37,14 @@ type SettingsFormHandler = (
 
 type ValidateFn<T> = (value: T) => string | null | Promise<string | null>;
 
-/** Redirect target: advanced page, custom path, or default settings page */
-type RedirectOpts = { advanced?: boolean; redirectTo?: string };
+/** Redirect target: advanced page, custom path, or default settings page.
+ * `auth` overrides the form policy (default owner-only) so non-settings pages —
+ * e.g. the public-site editor editors share — can widen who may save. */
+type RedirectOpts = {
+  advanced?: boolean;
+  redirectTo?: string;
+  auth?: AuthPolicy<"form">;
+};
 
 // ── Route wrappers ──────────────────────────────────────────────────
 
@@ -43,15 +54,16 @@ const ADVANCED_PATH = "/admin/settings-advanced";
 const pathFor = (opts: RedirectOpts) =>
   opts.redirectTo ?? (opts.advanced ? ADVANCED_PATH : SETTINGS_PATH);
 
-/** Build a route wrapper that provides auth + errorPage for the given path */
-const wrapRoute = (path: string) => {
+/** Build a route wrapper that provides auth + errorPage for the given path.
+ * Defaults to owner-only; pass a wider policy for pages other roles may save. */
+const wrapRoute = (path: string, auth: AuthPolicy<"form"> = OWNER_FORM) => {
   const mkErrorPage =
     (_session: AuthSession) =>
     (error: string, _status: number, formId: string): Response =>
       errorRedirect(path, error, formId);
   return (handler: SettingsFormHandler) =>
     (request: Request): Promise<Response> =>
-      withAuth(request, OWNER_FORM, (session, form) =>
+      withAuth(request, auth, (session, form) =>
         handler(form, mkErrorPage(session), session),
       );
 };
@@ -91,7 +103,7 @@ const asRoute = (
   opts: RedirectOpts,
   handler: SettingsFormHandler,
 ): ((request: Request) => Promise<Response>) =>
-  wrapRoute(pathFor(opts))(handler);
+  wrapRoute(pathFor(opts), opts.auth)(handler);
 
 // ── Core: createSettingsHandler ─────────────────────────────────────
 
