@@ -229,6 +229,40 @@ export const anyPackageGroup = async (
   return rows.length > 0;
 };
 
+/** Whether any of the given listings is a member of a package group. Empty
+ * input → false (no query). Used to keep a package member from being turned into
+ * another listing's required child (a package page can't render child edges). */
+export const anyListingInPackageGroup = async (
+  listingIds: readonly number[],
+): Promise<boolean> => {
+  if (listingIds.length === 0) return false;
+  const rows = await queryAll<{ listing_id: number }>(
+    `SELECT groupListing.listing_id
+       FROM group_listings AS groupListing
+       JOIN groups AS groupRow ON groupRow.id = groupListing.group_id
+      WHERE groupListing.listing_id IN (${inPlaceholders(listingIds)})
+        AND groupRow.is_package = 1
+      LIMIT 1`,
+    [...listingIds],
+  );
+  return rows.length > 0;
+};
+
+/** Whether adding child edges would violate the package invariant: the parent is
+ * joining/in a package group, or any chosen child is itself a package member —
+ * either way the package page can't render the resulting bundle. An empty
+ * `childIds` (clearing children) is never a conflict. */
+export const packageChildEdgeConflict = async (
+  parentGroupIds: readonly number[],
+  childIds: readonly number[],
+): Promise<boolean> => {
+  if (childIds.length === 0) return false;
+  return (
+    (await anyPackageGroup(parentGroupIds)) ||
+    (await anyListingInPackageGroup(childIds))
+  );
+};
+
 /** The listing ids that are members of a group, ascending. */
 export const getGroupListingIds = async (
   groupId: number,

@@ -12,9 +12,9 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
-  anyPackageGroup,
   getGroupIdsByListingId,
   getGroupIdsByListingIds,
+  packageChildEdgeConflict,
 } from "#shared/db/groups.ts";
 import {
   getChildIds,
@@ -401,12 +401,14 @@ export const handleAdminListingChildren: TypedRouteHandler<
         return redirect(`/admin/listing/${id}/edit`, result.error, false);
       }
       const { childIds } = result;
-      // A listing that requires children is a parent, which can't be a package
-      // member (the package page renders no per-child selectors). Block giving
-      // children to a listing already in a package group.
+      // A package member can't gain children (it would become a parent the
+      // package page can't render), nor can a package member be chosen AS a
+      // child. Block either before persisting the edges.
       if (
-        childIds.length > 0 &&
-        (await anyPackageGroup(await getGroupIdsByListingId(id)))
+        await packageChildEdgeConflict(
+          await getGroupIdsByListingId(id),
+          childIds,
+        )
       ) {
         return redirect(
           `/admin/listing/${id}/edit`,

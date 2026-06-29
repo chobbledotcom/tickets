@@ -55,22 +55,22 @@ export const getGroupRemainingByGroupId = async (
     ? `COALESCE((
         SELECT SUM(listing.booked_quantity)
           FROM listings AS listing
-          JOIN group_listings gl ON gl.listing_id = listing.id
-         WHERE gl.group_id = g.id AND listing.listing_type != 'daily'
+          JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
+         WHERE groupListing.group_id = groupRow.id AND listing.listing_type != 'daily'
       ), 0) + COALESCE((
-        SELECT SUM(ea.quantity)
-          FROM listing_attendees ea
-          JOIN listings AS listing ON listing.id = ea.listing_id
-          JOIN group_listings gl ON gl.listing_id = ea.listing_id
-         WHERE gl.group_id = g.id
+        SELECT SUM(attendee.quantity)
+          FROM listing_attendees AS attendee
+          JOIN listings AS listing ON listing.id = attendee.listing_id
+          JOIN group_listings AS groupListing ON groupListing.listing_id = attendee.listing_id
+         WHERE groupListing.group_id = groupRow.id
            AND listing.listing_type = 'daily'
-           AND ea.start_at < ? AND ea.end_at > ?
+           AND attendee.start_at < ? AND attendee.end_at > ?
       ), 0)`
     : `COALESCE((
         SELECT SUM(listing.booked_quantity)
           FROM listings AS listing
-          JOIN group_listings gl ON gl.listing_id = listing.id
-         WHERE gl.group_id = g.id
+          JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
+         WHERE groupListing.group_id = groupRow.id
       ), 0)`;
   const countArgs = range ? [range.endAt, range.startAt] : [];
   const rows = await queryAll<{
@@ -78,11 +78,11 @@ export const getGroupRemainingByGroupId = async (
     max_attendees: number;
     count: number;
   }>(
-    `SELECT g.id as group_id, g.max_attendees,
+    `SELECT groupRow.id as group_id, groupRow.max_attendees,
             ${datedCount} as count
-     FROM groups g
-     WHERE g.id IN (${inPlaceholders(ids)}) AND g.max_attendees > 0
-     GROUP BY g.id`,
+     FROM groups AS groupRow
+     WHERE groupRow.id IN (${inPlaceholders(ids)}) AND groupRow.max_attendees > 0
+     GROUP BY groupRow.id`,
     [...countArgs, ...ids],
   );
   return new Map(
@@ -585,15 +585,15 @@ const groupPerDayRemainingByGroup = async (
     max_attendees: number;
     base: number;
   }>(
-    `SELECT g.id, g.max_attendees,
+    `SELECT groupRow.id, groupRow.max_attendees,
             COALESCE((
               SELECT SUM(listing.booked_quantity)
                 FROM listings AS listing
-                JOIN group_listings gl ON gl.listing_id = listing.id
-               WHERE gl.group_id = g.id AND listing.listing_type != 'daily'
+                JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
+               WHERE groupListing.group_id = groupRow.id AND listing.listing_type != 'daily'
             ), 0) AS base
-       FROM groups g
-     WHERE g.id IN (${inPlaceholders(ids)}) AND g.max_attendees > 0`,
+       FROM groups AS groupRow
+     WHERE groupRow.id IN (${inPlaceholders(ids)}) AND groupRow.max_attendees > 0`,
     ids,
   );
   if (caps.length === 0) return result;
@@ -601,13 +601,13 @@ const groupPerDayRemainingByGroup = async (
   const { startAt, endAt } = daySpan(days);
   type GroupRow = IntervalRow & { group_id: number };
   const rows = await queryAll<GroupRow>(
-    `SELECT gl.group_id, ea.start_at, ea.end_at, ea.quantity
-     FROM listing_attendees ea
-     JOIN listings AS listing ON listing.id = ea.listing_id
-     JOIN group_listings gl ON gl.listing_id = ea.listing_id
-     WHERE gl.group_id IN (${inPlaceholders(cappedIds)})
+    `SELECT groupListing.group_id, attendee.start_at, attendee.end_at, attendee.quantity
+     FROM listing_attendees AS attendee
+     JOIN listings AS listing ON listing.id = attendee.listing_id
+     JOIN group_listings AS groupListing ON groupListing.listing_id = attendee.listing_id
+     WHERE groupListing.group_id IN (${inPlaceholders(cappedIds)})
        AND listing.listing_type = 'daily'
-       AND ea.start_at < ? AND ea.end_at > ?`,
+       AND attendee.start_at < ? AND attendee.end_at > ?`,
     [...cappedIds, endAt, startAt],
   );
   const rowsByGroup = new Map<number, GroupRow[]>();

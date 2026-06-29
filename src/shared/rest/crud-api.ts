@@ -208,6 +208,10 @@ export interface CrudApiConfig<
    * and the parsed input — e.g. to persist join-table rows (a listing's groups)
    * that live outside the main table. */
   afterWrite?: (id: number, input: Input) => Promise<void>;
+  /** Optionally hydrate extra fields onto each response row (list/get/create/
+   * update) that don't live on the main table — e.g. a listing's `group_ids`
+   * from the join table, so API clients can read back what they POST/PUT. */
+  hydrate?: (row: FullRow) => Promise<Record<string, unknown>>;
 }
 
 /** Callback receiving an entity row plus auth context */
@@ -270,8 +274,13 @@ export const defineCrudApi = <
     config.lookup ??
     ((id) => table.findById(id) as unknown as Promise<FullRow | null>);
 
-  /** Clean a row for JSON response */
-  const toResponse = (row: FullRow) => stripRow(row, stripKeys);
+  /** Clean a row for JSON response, hydrating any join-table fields. */
+  const toResponse = async (
+    row: FullRow,
+  ): Promise<Record<string, unknown>> => ({
+    ...stripRow(row, stripKeys),
+    ...(config.hydrate ? await config.hydrate(row) : {}),
+  });
 
   /** Log create/update, optionally linking to the row's id as listing_id */
   const logAction = (action: string, row: Row): Promise<unknown> =>
@@ -285,7 +294,10 @@ export const defineCrudApi = <
     withAuth(request, policy, async (session) => {
       const rows = await getAll();
       const extras = config.listExtras ? config.listExtras(session) : {};
-      return jsonResponse({ [listKey]: rows.map(toResponse), ...extras });
+      return jsonResponse({
+        [listKey]: await Promise.all(rows.map(toResponse)),
+        ...extras,
+      });
     });
 
   /** Log a written full row and return its JSON. */
@@ -295,7 +307,7 @@ export const defineCrudApi = <
     status: number,
   ): Promise<Response> => {
     await logAction(action, fullRow);
-    return jsonResponse({ [responseKey]: toResponse(fullRow) }, status);
+    return jsonResponse({ [responseKey]: await toResponse(fullRow) }, status);
   };
 
   /** Write the row and its side effect in ONE transaction, so a failed side
@@ -412,8 +424,8 @@ export const defineCrudApi = <
   };
 
   /** Get single */
-  const handleGet = entityRoute((row) =>
-    Promise.resolve(jsonResponse({ [responseKey]: toResponse(row) })),
+  const handleGet = entityRoute(async (row) =>
+    jsonResponse({ [responseKey]: await toResponse(row) }),
   );
 
   /** Update */

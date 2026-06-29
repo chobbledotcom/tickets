@@ -829,6 +829,33 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       expect(await getGroupIdsByListingId(body.listing.id)).toEqual([group.id]);
     });
 
+    test("listing responses include group_ids so clients can round-trip them", async () => {
+      const group = await createTestGroup({ name: "Roundtrip Group" });
+      const created = await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            group_ids: [group.id],
+            max_attendees: 10,
+            name: "Roundtrip Listing",
+          },
+          method: "POST",
+        }),
+        201,
+      );
+      // Membership is readable from the create, get, and list responses.
+      expect(created.listing.group_ids).toEqual([group.id]);
+      const got = await assertJson(
+        apiRequest(`/api/admin/listings/${created.listing.id}`),
+        200,
+      );
+      expect(got.listing.group_ids).toEqual([group.id]);
+      const list = await assertJson(apiRequest("/api/admin/listings"), 200);
+      const inList = list.listings.find(
+        (l: { id: number }) => l.id === created.listing.id,
+      );
+      expect(inList.group_ids).toEqual([group.id]);
+    });
+
     test("rejects listing with mismatched type in group", async () => {
       const group = await createTestGroup({ name: "Type Group" });
 

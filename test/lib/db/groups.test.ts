@@ -10,6 +10,7 @@ import {
 } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
+  anyListingInPackageGroup,
   assignListingsToGroup,
   computeGroupSlugIndex,
   getActiveListingsByGroupId,
@@ -581,6 +582,25 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
 
       expect(await getGroupRemainingForListing(e2, "2026-11-15")).toBe(3);
       expect(await getGroupRemainingForListing(e2, "2026-11-16")).toBe(5);
+    });
+  });
+
+  describe("anyListingInPackageGroup", () => {
+    test("is false for empty input (no query)", async () => {
+      expect(await anyListingInPackageGroup([])).toBe(false);
+    });
+
+    test("is true only for a member of a package group", async () => {
+      const pkg = await createTestGroup({ isPackage: true, name: "Pkg" });
+      const member = await createTestListing({ groupId: pkg.id, name: "Mem" });
+      const regular = await createTestGroup({ name: "Reg" });
+      const plain = await createTestListing({
+        groupId: regular.id,
+        name: "Pln",
+      });
+
+      expect(await anyListingInPackageGroup([member.id])).toBe(true);
+      expect(await anyListingInPackageGroup([plain.id])).toBe(false);
     });
   });
 });

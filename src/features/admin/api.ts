@@ -15,8 +15,8 @@ import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import {
-  anyPackageGroup,
   getGroupIdsByListingId,
+  packageChildEdgeConflict,
   setListingGroups,
 } from "#shared/db/groups.ts";
 import { setChildIdsTx } from "#shared/db/listing-parents.ts";
@@ -444,12 +444,12 @@ const prepareChildEdges = async (
   if ("skip" in submitted) return { value: null };
   if ("error" in submitted) return submitted;
   // A listing gaining children becomes a parent; a parent can't be a package
-  // member (the package page renders no per-child selectors). The group-side and
-  // listing-side validators only see edges that already exist, so reject the
-  // brand-new child edges here, before the row + edges commit together (Fix 4).
+  // member, and a package member can't become a child — either way the package
+  // page can't render the bundle. The group/listing validators only see edges
+  // that already exist, so reject the brand-new edges here, before the row +
+  // edges commit together (Fix 4).
   if (
-    submitted.childIds.length > 0 &&
-    (await anyPackageGroup(input.groupIds ?? []))
+    await packageChildEdgeConflict(input.groupIds ?? [], submitted.childIds)
   ) {
     return { error: t("error.package_incompatible_listing") };
   }
@@ -502,6 +502,10 @@ const listingApiRoutes = defineCrudApi<
     ) => handleToggleActive(request, listingId as number, true),
   },
   getAll: getAllListings,
+  // Group membership lives in the join table, not a listing column, so surface
+  // it on every response (list/get/create/update) — clients POST/PUT group_ids
+  // and must be able to read them back to round-trip listing group state.
+  hydrate: async (row) => ({ group_ids: await getGroupIdsByListingId(row.id) }),
   linkActivityToRow: true,
   listExtras: (session) => ({ admin_level: session.adminLevel }),
   lookup: getListingWithCount,

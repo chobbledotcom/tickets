@@ -825,4 +825,21 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     await groupsTable.update(group.id, { isPackage: false });
     await expectPackageRefund("cs_pkg_unflagged", listing.id, metadata);
   });
+
+  test("a package booking refunds when a member was added after checkout", async () => {
+    const { group, listing } = await setupPackage();
+    const metadata = packageMetadata(group.id, listing.id, 1500);
+    // A second member joins the bundle after the buyer signed a one-line order,
+    // so the signed lines no longer represent the whole package.
+    const added = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 1500 },
+      { listingId: added.id, price: 1000 },
+    ]);
+    await expectPackageRefund("cs_pkg_member_added", listing.id, metadata);
+  });
 });

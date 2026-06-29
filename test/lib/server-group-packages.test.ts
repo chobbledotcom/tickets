@@ -266,6 +266,51 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     );
   });
 
+  test("the listings API rejects choosing a package member as a child", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "MemberChildPkg",
+      slug: "member-child-pkg",
+    });
+    const memberListing = await member(group, "Pkg Member");
+
+    await assertJson(
+      apiRequest("/api/admin/listings", {
+        body: {
+          child_listing_ids: [memberListing.id],
+          max_attendees: 10,
+          name: "Parent Of Member",
+        },
+        method: "POST",
+      }),
+      400,
+      (body) => {
+        expect(body.error).toContain("Packages cannot contain");
+      },
+    );
+  });
+
+  test("the children sub-form rejects choosing a package member as a child", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "MemberChildForm",
+      slug: "member-child-form",
+    });
+    const memberListing = await member(group, "Form Member");
+    const parent = await createTestListing({ name: "Form Parent" });
+
+    const { response } = await adminFormPost(
+      `/admin/listing/${parent.id}/children`,
+      { child_listing_ids: String(memberListing.id) },
+    );
+    await expectFlashRedirect(
+      `/admin/listing/${parent.id}/edit`,
+      expect.stringContaining("Packages cannot contain"),
+      false,
+    )(response);
+    expect(await getChildIds(parent.id)).toEqual([]);
+  });
+
   test("the children sub-form rejects giving children to a package member", async () => {
     const group = await createTestGroup({
       isPackage: true,

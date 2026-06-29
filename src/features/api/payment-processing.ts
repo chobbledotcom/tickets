@@ -634,14 +634,36 @@ export const expectedItemPrice = (
   if (foldedChildIds.has(item.e)) return basePrice;
   if (!isPackageIntent) return basePrice;
   if (!pkg || !pkg.memberIds.has(item.e)) return null;
-  // The signed booked quantity must be a whole number of packages at the CURRENT
-  // per-package quantity. An operator raising a member's quantity mid-checkout
-  // leaves `item.q` stale (e.g. q=1 when the package now needs 3), so fail closed
-  // → the same price_changed refund a mid-checkout price edit takes.
-  const perPackage = pkg.quantityMap.get(item.e) ?? 1;
-  if (item.q % perPackage !== 0) return null;
   const override = pkg.priceMap.get(item.e);
   return override ? override * item.q : basePrice;
+};
+
+/**
+ * Whether a package order's signed lines no longer represent the CURRENT bundle,
+ * forcing a price_changed refund (the buyer must never be booked for a partial or
+ * stale bundle). The top-level package lines are the items minus folded children;
+ * the bundle matches only when they cover EXACTLY the current members and their
+ * quantities imply ONE common positive package count at the current per-package
+ * quantities. Catches a member added/removed mid-checkout, a member's quantity
+ * raised/lowered (so `q` is no longer a whole number of packages), or quantities
+ * edited so the lines no longer share a single count. Per-line price drift is
+ * handled separately by {@link expectedItemPrice}/the price-mismatch pass.
+ */
+export const packageBundleMismatch = (
+  pkg: PackagePricing,
+  items: readonly BookingItem[],
+  foldedChildIds: ReadonlySet<number>,
+): boolean => {
+  const lines = items.filter((item) => !foldedChildIds.has(item.e));
+  if (lines.length !== pkg.memberIds.size) return true;
+  const counts = new Set<number>();
+  for (const line of lines) {
+    if (!pkg.memberIds.has(line.e)) return true;
+    const count = line.q / (pkg.quantityMap.get(line.e) ?? 1);
+    if (!Number.isInteger(count) || count <= 0) return true;
+    counts.add(count);
+  }
+  return counts.size > 1;
 };
 
 /** Validate all booking items and return per-item pricing info or a failure result. */
@@ -677,6 +699,16 @@ const validateAllItems = async (
       item,
       listing: vp.listing,
     });
+  }
+  // Order-level package check: if the signed lines no longer match the current
+  // bundle (member added/removed, or quantities no longer share one package
+  // count), fail every line closed so the whole order takes the price_changed
+  // refund rather than booking a partial/stale bundle.
+  if (pkg && packageBundleMismatch(pkg, intent.items, foldedChildIds)) {
+    return {
+      items: validatedItems.map((v) => ({ ...v, expectedPrice: null })),
+      ok: true,
+    };
   }
   return { items: validatedItems, ok: true };
 };
