@@ -28,6 +28,17 @@ const expectGroupIds = async (
   );
 };
 
+/** A package group with two member listings assigned to it (each test then sets
+ * its own package overrides). `slug` keys the group and the listing names. */
+const groupWithTwoMembers = async (slug: string) => {
+  const group = await createTestGroup({ name: slug, slug });
+  const a = await createTestListing({ name: `${slug}-a` });
+  const b = await createTestListing({ name: `${slug}-b` });
+  await setListingGroups(a.id, [group.id]);
+  await setListingGroups(b.id, [group.id]);
+  return { a, b, group };
+};
+
 describeWithEnv("db > group_listings membership", { db: true }, () => {
   test("getGroupIdsByListingIds returns every group a listing belongs to", async () => {
     const g1 = await createTestGroup({ name: "G1", slug: "g1" });
@@ -58,11 +69,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
   });
 
   test("getGroupPackagePrices returns every membership row with its override", async () => {
-    const group = await createTestGroup({ name: "Pkg", slug: "pkg" });
-    const a = await createTestListing({ name: "A" });
-    const b = await createTestListing({ name: "B" });
-    await setListingGroups(a.id, [group.id]);
-    await setListingGroups(b.id, [group.id]);
+    const { group, a, b } = await groupWithTwoMembers("pkg");
 
     await setGroupPackageMembers(group.id, [
       { listingId: a.id, price: 1500 },
@@ -79,11 +86,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
   });
 
   test("setGroupPackageMembers stores per-package quantities (default 1)", async () => {
-    const group = await createTestGroup({ name: "Qty", slug: "qty" });
-    const a = await createTestListing({ name: "QA" });
-    const b = await createTestListing({ name: "QB" });
-    await setListingGroups(a.id, [group.id]);
-    await setListingGroups(b.id, [group.id]);
+    const { group, a, b } = await groupWithTwoMembers("qty");
 
     // A names quantity 3; B omits it and falls back to 1.
     await setGroupPackageMembers(group.id, [
@@ -104,11 +107,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
   });
 
   test("getTestPackagePrices maps only the listings with a non-zero override", async () => {
-    const group = await createTestGroup({ name: "Map", slug: "map" });
-    const a = await createTestListing({ name: "MA" });
-    const b = await createTestListing({ name: "MB" });
-    await setListingGroups(a.id, [group.id]);
-    await setListingGroups(b.id, [group.id]);
+    const { group, a, b } = await groupWithTwoMembers("map");
     await setGroupPackageMembers(group.id, [
       { listingId: a.id, price: 999 },
       { listingId: b.id, price: 0 },
@@ -120,13 +119,11 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
   });
 
   test("setGroupPackageMembers zeroes members it isn't given and clears on empty", async () => {
-    const group = await createTestGroup({ name: "Clr", slug: "clr" });
-    const a = await createTestListing({ name: "CA" });
-    const b = await createTestListing({ name: "CB" });
-    await setListingGroups(a.id, [group.id]);
-    await setListingGroups(b.id, [group.id]);
+    // The group's second member is left unnamed below, so it falls into the
+    // CASE's ELSE branch and is reset to 0.
+    const { group, a } = await groupWithTwoMembers("clr");
 
-    // Only A named: B falls into the CASE's ELSE branch and is reset to 0.
+    // Only A named: the other member is reset to 0.
     await setGroupPackageMembers(group.id, [{ listingId: a.id, price: 700 }]);
     expect(await getTestPackagePrices(group.id)).toEqual(
       new Map([[a.id, 700]]),
