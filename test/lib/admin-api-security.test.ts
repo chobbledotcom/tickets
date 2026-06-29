@@ -118,14 +118,14 @@ describeWithEnv("admin API security", { db: true }, () => {
 
     const assertListingRequestRejects400 = async (
       method: string,
-      bodyFn: (listingId: number) => string,
-      urlFn: (listingId: number) => string,
+      bodyFn: (listing: { id: number; name: string }) => string,
+      urlFn: (listing: { id: number; name: string }) => string,
     ): Promise<void> => {
       const listing = await createTestListing();
       const apiKey = await createTestApiKeyToken();
       const response = await handleRequest(
-        requestAsApiKey(urlFn(listing.id), apiKey, {
-          body: bodyFn(listing.id),
+        requestAsApiKey(urlFn(listing), apiKey, {
+          body: bodyFn(listing),
           method,
         }),
       );
@@ -136,7 +136,7 @@ describeWithEnv("admin API security", { db: true }, () => {
       assertListingRequestRejects400(
         "PUT",
         () => JSON.stringify({ name: "Updated" }),
-        (id) => `/api/admin/listings/${id}`,
+        ({ id }) => `/api/admin/listings/${id}`,
       ));
 
     test("POST /api/admin/listings with text/plain content-type returns 400", async () => {
@@ -154,8 +154,8 @@ describeWithEnv("admin API security", { db: true }, () => {
     test("body-bearing DELETE without content-type is rejected", () =>
       assertListingRequestRejects400(
         "DELETE",
-        (id) => JSON.stringify({ confirm_identifier: String(id) }),
-        (id) => `/api/admin/listings/${id}`,
+        ({ name }) => JSON.stringify({ confirm_identifier: name }),
+        ({ id }) => `/api/admin/listings/${id}`,
       ));
 
     test("treats uppercase Content-Type the same as lowercase (RFC 7231)", async () => {
