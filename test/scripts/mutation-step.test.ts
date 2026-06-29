@@ -5,10 +5,10 @@ import type {
   RunCommand,
 } from "../../scripts/precommit/merge-warning.ts";
 import {
-  partitionStaged,
+  type ChangedFiles,
+  changedFiles,
+  partitionChanged,
   runMutationStep,
-  type StagedFiles,
-  stagedPaths,
 } from "../../scripts/precommit/mutation-step.ts";
 
 const ok = (stdout = ""): CommandResult => ({
@@ -25,15 +25,34 @@ const fail = (stderr = ""): CommandResult => ({
   success: false,
 });
 
-/** A RunCommand that always returns the same result, ignoring its args. */
-const constRun =
-  (result: CommandResult): RunCommand =>
-  () =>
-    Promise.resolve(result);
+/**
+ * A fake git modelling base-ref resolution: `upstream` is the `@{upstream}`
+ * name (null = unset), `base` is the only `rev-parse --verify` ref that exists
+ * (null = none), and `diff` is served for the `git diff` call. Mirrors how
+ * `changedFiles` prefers the upstream, falls back to a verifiable ref, then
+ * diffs `base...HEAD`.
+ */
+const fakeGit =
+  (opts: {
+    base?: string | null;
+    diff: CommandResult;
+    upstream?: string | null;
+  }): RunCommand =>
+  (cmd) => {
+    const last = cmd.at(-1);
+    if (last === "@{upstream}") {
+      const name = opts.upstream ?? null;
+      return Promise.resolve(name === null ? fail() : ok(`${name}\n`));
+    }
+    if (cmd[1] === "rev-parse") {
+      return Promise.resolve(last === (opts.base ?? null) ? ok() : fail());
+    }
+    return Promise.resolve(opts.diff);
+  };
 
-describe("partitionStaged", () => {
+describe("partitionChanged", () => {
   test("collects src .ts, .tsx and .js files as sources", () => {
-    const { sources } = partitionStaged([
+    const { sources } = partitionChanged([
       "src/shared/dates.ts",
       "src/ui/templates/page.tsx",
       "src/ui/client/scanner.js",
@@ -46,7 +65,7 @@ describe("partitionStaged", () => {
   });
 
   test("collects test/*.test.ts and *.test.tsx files as tests", () => {
-    const { tests } = partitionStaged([
+    const { tests } = partitionChanged([
       "test/lib/dates.test.ts",
       "test/templates/admin/attendees.test.tsx",
     ]);
@@ -57,7 +76,7 @@ describe("partitionStaged", () => {
   });
 
   test("drops non-src non-test paths from both buckets", () => {
-    const result = partitionStaged([
+    const result = partitionChanged([
       "AGENTS.md",
       "deno.json",
       "scripts/precommit-mutation.ts",
@@ -67,8 +86,8 @@ describe("partitionStaged", () => {
     expect(result).toEqual({ sources: [], tests: [] });
   });
 
-  test("separates a mixed staged set into sources and tests", () => {
-    const result = partitionStaged([
+  test("separates a mixed changed set into sources and tests", () => {
+    const result = partitionChanged([
       "src/shared/dates.ts",
       "test/lib/dates.test.ts",
       "README.md",
@@ -80,49 +99,98 @@ describe("partitionStaged", () => {
   });
 });
 
-describe("stagedPaths", () => {
-  test("asks git only for surviving, staged file names", async () => {
-    let received: string[] = [];
-    const run: RunCommand = (cmd) => {
-      received = cmd;
-      return Promise.resolve(ok("src/a.ts\n"));
-    };
-    await stagedPaths(run);
-    expect(received).toEqual([
+/** fakeGit wrapped to record the argv of the `git diff` call it serves, so a
+ *  test can assert the base ref `changedFiles` resolved. */
+const recordingGit = (
+  opts: Parameters<typeof fakeGit>[0],
+): { diffArgs: () => string[] | undefined; run: RunCommand } => {
+  const inner = fakeGit(opts);
+  let diffArgs: string[] | undefined;
+  return {
+    diffArgs: () => diffArgs,
+    run: (cmd) => {
+      if (cmd[1] === "diff") diffArgs = cmd;
+      return inner(cmd);
+    },
+  };
+};
+
+describe("changedFiles", () => {
+  test("prefers the branch's upstream as the diff base", async () => {
+    const git = recordingGit({
+      diff: ok("src/a.ts\n"),
+      upstream: "origin/feature",
+    });
+    await changedFiles(git.run);
+    expect(git.diffArgs()).toEqual([
       "git",
       "diff",
-      "--cached",
       "--name-only",
       "--diff-filter=ACMR",
+      "origin/feature...HEAD",
     ]);
   });
 
-  test("trims whitespace and drops blank lines", async () => {
-    const paths = await stagedPaths(
-      constRun(ok("src/a.ts\n  test/a.test.ts  \n\n")),
-    );
-    expect(paths).toEqual(["src/a.ts", "test/a.test.ts"]);
+  test("falls back to origin/main when there is no upstream", async () => {
+    const git = recordingGit({ base: "origin/main", diff: ok("src/a.ts\n") });
+    await changedFiles(git.run);
+    expect(git.diffArgs()?.at(-1)).toBe("origin/main...HEAD");
   });
 
-  test("throws when git fails", async () => {
+  test("ignores an empty upstream and falls back to origin/main", async () => {
+    const git = recordingGit({
+      base: "origin/main",
+      diff: ok(""),
+      upstream: "",
+    });
+    await changedFiles(git.run);
+    expect(git.diffArgs()?.at(-1)).toBe("origin/main...HEAD");
+  });
+
+  test("falls back to local main when neither upstream nor origin/main exist", async () => {
+    const git = recordingGit({ base: "main", diff: ok("") });
+    await changedFiles(git.run);
+    expect(git.diffArgs()?.at(-1)).toBe("main...HEAD");
+  });
+
+  test("trims whitespace and drops blank lines, partitioned", async () => {
+    const changed = await changedFiles(
+      fakeGit({
+        base: "origin/main",
+        diff: ok("src/a.ts\n  test/a.test.ts  \n\n"),
+      }),
+    );
+    expect(changed).toEqual({
+      sources: ["src/a.ts"],
+      tests: ["test/a.test.ts"],
+    });
+  });
+
+  test("returns null when no upstream, origin/main or main exists", async () => {
+    expect(await changedFiles(fakeGit({ diff: ok("src/a.ts\n") }))).toBe(null);
+  });
+
+  test("throws when the diff command fails", async () => {
     await expect(
-      stagedPaths(constRun(fail("not a git repository"))),
-    ).rejects.toThrow("not a git repository");
+      changedFiles(
+        fakeGit({ base: "origin/main", diff: fail("bad revision") }),
+      ),
+    ).rejects.toThrow("bad revision");
   });
 });
 
 describe("runMutationStep", () => {
-  /** Run the step over a staged set that should pass *without* invoking the
+  /** Run the step over a changed set that should pass *without* invoking the
    *  mutation runner, asserting the exact log lines it emitted. */
   const expectSkip = async (
-    stagedStdout: string,
+    run: RunCommand,
     expectedLogs: string[],
   ): Promise<void> => {
     const logs: string[] = [];
     let mutationRan = false;
     const code = await runMutationStep({
       log: (message) => logs.push(message),
-      run: constRun(ok(stagedStdout)),
+      run,
       runMutation: () => {
         mutationRan = true;
         return Promise.resolve(0);
@@ -133,25 +201,41 @@ describe("runMutationStep", () => {
     expect(logs).toEqual(expectedLogs);
   };
 
-  test("passes without running mutation when no src files are staged", async () => {
-    await expectSkip("docs/guide.md\ntest/a.test.ts\n", [
-      "No staged src files — nothing to mutation-test.",
+  test("skips when there is no base ref to diff against", async () => {
+    await expectSkip(fakeGit({ diff: ok("src/a.ts\ntest/a.test.ts\n") }), [
+      "No upstream, origin/main, or main to diff against — skipping mutation.",
     ]);
   });
 
-  test("skips (passing) when src is staged without tests", async () => {
-    await expectSkip("src/a.ts\nsrc/b.ts\n", [
-      "Staged src changes but no staged test files — skipping mutation. " +
-        "Stage a test that covers the change to mutation-check it.",
-    ]);
+  test("passes without running mutation when no src files changed", async () => {
+    await expectSkip(
+      fakeGit({
+        base: "origin/main",
+        diff: ok("docs/guide.md\ntest/a.test.ts\n"),
+      }),
+      ["No changed src files — nothing to mutation-test."],
+    );
   });
 
-  test("mutates the staged src against the staged tests", async () => {
+  test("skips (passing) when src changed without any test", async () => {
+    await expectSkip(
+      fakeGit({ base: "origin/main", diff: ok("src/a.ts\nsrc/b.ts\n") }),
+      [
+        "Changed src files but no changed test files — skipping mutation. " +
+          "Change a test that covers them to mutation-check the change.",
+      ],
+    );
+  });
+
+  test("mutates the changed src against the changed tests", async () => {
     const logs: string[] = [];
-    let received: StagedFiles | null = null;
+    let received: ChangedFiles | null = null;
     const code = await runMutationStep({
       log: (message) => logs.push(message),
-      run: constRun(ok("src/a.ts\ntest/a.test.ts\n")),
+      run: fakeGit({
+        base: "origin/main",
+        diff: ok("src/a.ts\ntest/a.test.ts\n"),
+      }),
       runMutation: (files) => {
         received = files;
         return Promise.resolve(0);
@@ -163,7 +247,7 @@ describe("runMutationStep", () => {
       tests: ["test/a.test.ts"],
     });
     expect(logs).toEqual([
-      "Mutation-testing 1 staged src file(s) against 1 staged test " +
+      "Mutation-testing 1 changed src file(s) against 1 changed test " +
         "file(s); every mutant must be killed.",
     ]);
   });
@@ -171,7 +255,10 @@ describe("runMutationStep", () => {
   test("propagates a survivor failure from the mutation runner", async () => {
     const code = await runMutationStep({
       log: () => {},
-      run: constRun(ok("src/a.ts\ntest/a.test.ts\n")),
+      run: fakeGit({
+        base: "origin/main",
+        diff: ok("src/a.ts\ntest/a.test.ts\n"),
+      }),
       runMutation: () => Promise.resolve(1),
     });
     expect(code).toBe(1);
@@ -180,7 +267,10 @@ describe("runMutationStep", () => {
   test("treats 'no mutable operators' (exit 2) as a pass", async () => {
     const code = await runMutationStep({
       log: () => {},
-      run: constRun(ok("src/types.ts\ntest/a.test.ts\n")),
+      run: fakeGit({
+        base: "origin/main",
+        diff: ok("src/types.ts\ntest/a.test.ts\n"),
+      }),
       runMutation: () => Promise.resolve(2),
     });
     expect(code).toBe(0);

@@ -183,8 +183,8 @@ logging and table-scoped cache invalidation stay automatic.
 - `deno task lint:ci` - Strict, read-only lint (`check --error-on-warnings`, no `--write`). Fails on lint warnings (e.g. cognitive complexity) and on any code that *would* be reformatted, without touching the checkout. This is the lint `deno task precommit` runs in **every** environment, so a clean `precommit` locally means the lint step will pass in CI too. Run `deno task lint` to auto-fix before re-running.
 - `deno task build:edge` - Build for Bunny Edge deployment
 - `deno task backup` - Dump the database out-of-band to a `.zip`. Uploads to the configured storage zone by default (so it appears on the Backups page and lets the next migration skip its own inline backup); pass `--out <path>` to write a local file. Runs in a full Deno process, so unlike the in-edge backup it has no per-request subrequest budget and can dump arbitrarily large databases.
-- `deno task precommit` - Run all checks (typecheck, lint, tests, staged-file mutation)
-- `deno task precommit:mutation` - The precommit mutation gate, runnable on its own: mutation-test every **staged** `src/` file against every **staged** `test/` file and demand a 100% kill rate. Because the project requires 100% coverage, a src change lands with its covering test change in the same commit, so the staged set is its own source→test mapping. Skips cheaply when no `src/` files are staged (and likewise when src is staged without any staged tests — there is nothing to mutate against; the coverage gate still applies). See [Mutation Testing](#mutation-testing).
+- `deno task precommit` - Run all checks (typecheck, lint, tests, changed-file mutation)
+- `deno task precommit:mutation` - The precommit mutation gate, runnable on its own: mutation-test every `src/` file this branch changed against every changed `test/` file and demand a 100% kill rate. The changed set is the branch's committed diff against its base ref — its upstream (`@{upstream}`) when set, else `origin/main`, else a local `main` — via `base...HEAD` (precommit runs post-commit on a clean tree, so the index is empty; preferring the upstream keeps the diff bounded to the branch's own work even when local `main` is stale). Because the project requires 100% coverage, a src change lands with its covering test change in the same commit range, so the changed set is its own source→test mapping. Skips cheaply when there is no base ref or no changed `src/` files (and likewise when src changed without any changed test — nothing to mutate against; the coverage gate still applies). See [Mutation Testing](#mutation-testing).
 - `deno task mutation <source-glob> <test-glob>` - Mutation-test your tests on demand: mutate operators in the source and check your tests catch it (see [Mutation Testing](#mutation-testing))
 
 ### Running Individual Test Files
@@ -367,10 +367,11 @@ falsely "survives" on an alias-based project — see
 `scripts/mutation/LICENSE.mutasaurus.md`. As a manual tool it is **targeted**
 (run `deno task mutation` on the module you are hardening) — running it across
 the whole tree would be far too slow. `deno task precommit` does run it
-automatically, but **only over the files staged for the commit**: the
-`precommit:mutation` step mutates each staged `src/` file against the staged
-`test/` files and demands a 100% kill rate, so the cost stays bounded to what
-you actually changed. Known-equivalent survivors recorded in
+automatically, but **only over the files this branch changed** (its committed
+diff against `@{upstream}`/`origin/main`/`main`): the `precommit:mutation` step
+mutates each changed `src/` file against the changed `test/` files and demands a
+100% kill rate, so the cost stays bounded to what you actually changed.
+Known-equivalent survivors recorded in
 `scripts/mutation/equivalent-mutants.txt` are suppressed, as with a manual run.
 
 ### Coverage Requirements
