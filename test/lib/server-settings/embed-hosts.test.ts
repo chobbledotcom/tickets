@@ -63,7 +63,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
-        "Only allow embedding on these hosts",
+        "External sites allowed to use embeds and order buttons",
         "embed_hosts",
       );
     });
