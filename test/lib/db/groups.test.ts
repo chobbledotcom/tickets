@@ -66,7 +66,9 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
    *  within a test never collide. */
   const book = (listingId: number, quantity: number, date?: string) =>
     createAttendeeAtomic({
-      bookings: [{ ...(date !== undefined ? { date } : {}), listingId, quantity }],
+      bookings: [
+        { ...(date !== undefined ? { date } : {}), listingId, quantity },
+      ],
       email: `g${listingId}q${quantity}@example.com`,
       name: `g-${listingId}-${quantity}`,
     });

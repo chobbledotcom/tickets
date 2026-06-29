@@ -85,7 +85,10 @@ export const adminAttendeeStatusesPage = (
           <Raw html={t("statuses.attendee_statuses_description")} />
         </p>
       </div>
-      <Flash {...(error !== undefined ? { error } : {})} {...(success !== undefined ? { success } : {})} />
+      <Flash
+        {...(error !== undefined ? { error } : {})}
+        {...(success !== undefined ? { success } : {})}
+      />
       <p class="actions">
         <ActionButton href={`${LIST_PATH}/new`} icon="plus">
           {t("statuses.add_status_button")}
@@ -131,8 +134,10 @@ const checkbox = (
 /** Shared new/edit form for an attendee status. */
 export const adminAttendeeStatusFormPage = (
   session: AdminSession,
-  opts: { status?: AttendeeStatus | undefined; error?: string | undefined } =
-    {},
+  opts: {
+    status?: AttendeeStatus | undefined;
+    error?: string | undefined;
+  } = {},
 ): string => {
   const { status, error } = opts;
   const editing = status !== undefined;

@@ -169,7 +169,7 @@ export const toBookingItems = (items: CheckoutIntent["items"]): BookingItem[] =>
 const optionalFields = (
   intent: Partial<
     Pick<ContactInfo, "phone" | "address" | "special_instructions">
-  > & { date: string | null; dayCount?: number },
+  > & { date: string | null; dayCount?: number | undefined },
 ): Record<string, string> => ({
   ...(intent.phone ? { phone: intent.phone } : {}),
   ...(intent.address ? { address: intent.address } : {}),

@@ -58,7 +58,10 @@ export const adminApiKeysPage = (
   return String(
     <Layout title={t("api_keys.title")}>
       <AdminNav active="/admin/users" session={adminSession} />
-      <Flash {...(opts.error !== undefined ? { error: opts.error } : {})} {...(opts.success !== undefined ? { success: opts.success } : {})} />
+      <Flash
+        {...(opts.error !== undefined ? { error: opts.error } : {})}
+        {...(opts.success !== undefined ? { success: opts.success } : {})}
+      />
 
       {opts.newKey && (
         <div class="warning">
@@ -118,7 +121,10 @@ export const adminApiKeyManagePage = (
     <Layout title={`${t("api_keys.title")}: ${apiKey.name}`}>
       <AdminNav active="/admin/users" session={session} />
       <h1>{apiKey.name}</h1>
-      <Flash {...(opts.error !== undefined ? { error: opts.error } : {})} {...(opts.success !== undefined ? { success: opts.success } : {})} />
+      <Flash
+        {...(opts.error !== undefined ? { error: opts.error } : {})}
+        {...(opts.success !== undefined ? { success: opts.success } : {})}
+      />
       <div class="table-scroll">
         <table class="listing-details-table">
           <tbody>

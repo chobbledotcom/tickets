@@ -415,10 +415,8 @@ const buildTemplateData = async (
     bookings: attendeeBookingsFromLines(parsed.lines),
     contactRecords: opts.contactRecords ?? EMPTY_CONTACT_RECORDS,
     dateError: opts.dateError ?? null,
-    ...(opts.flashError !== undefined ? { flashError: opts.flashError } : {}),
-    ...(opts.flashSuccess !== undefined
-      ? { flashSuccess: opts.flashSuccess }
-      : {}),
+    flashError: opts.flashError,
+    flashSuccess: opts.flashSuccess,
     formError: opts.formError ?? null,
     // The shared date range only affects daily listings; the form's rendered
     // lines cover every active listing plus any inactive one this attendee
@@ -427,14 +425,14 @@ const buildTemplateData = async (
       (l) => l.listing?.listing_type === "daily",
     ),
     hasMixedTimings: opts.hasMixedTimings ?? false,
-    ...(opts.ledger !== undefined ? { ledger: opts.ledger } : {}),
+    ledger: opts.ledger,
     lineWarnings: warnings.byListing,
-    ...(logistics !== undefined ? { logistics } : {}),
+    logistics,
     mode,
     parsed,
     phonePrefix: settings.phonePrefix,
     questions: opts.questions ?? [],
-    ...(opts.returnUrl !== undefined ? { returnUrl: opts.returnUrl } : {}),
+    returnUrl: opts.returnUrl,
     selectedAnswerIds: opts.selectedAnswerIds ?? [],
     selectedTextAnswers: opts.selectedTextAnswers ?? new Map(),
     statuses,

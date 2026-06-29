@@ -84,7 +84,8 @@ const withEdgeScript = async <T>(
  * Find the pull zone ID via the edge script's linked pull zones.
  */
 const findPullZoneIdImpl = (): Promise<
-  { ok: true; id: number } | { ok: false; error: string; errorKey?: string | undefined }
+  | { ok: true; id: number }
+  | { ok: false; error: string; errorKey?: string | undefined }
 > =>
   withEdgeScript((data) => {
     const zone = data.LinkedPullZones[0];

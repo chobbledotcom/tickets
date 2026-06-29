@@ -72,7 +72,7 @@ export const stripePaymentProvider: PaymentProvider = {
       const createdAt = isoFromUnixSeconds(obj.created);
       return Promise.resolve({
         amountTotal,
-        ...(createdAt !== undefined ? { createdAt } : {}),
+        createdAt,
         id,
         metadata: extractSessionMetadata(metadata),
         paymentReference: asString(obj.payment_intent),
@@ -108,7 +108,7 @@ export const stripePaymentProvider: PaymentProvider = {
     const createdAt = isoFromUnixSeconds(session.created);
     return {
       amountTotal: amount_total,
-      ...(createdAt !== undefined ? { createdAt } : {}),
+      createdAt,
       id,
       metadata: extractSessionMetadata(metadata),
       paymentReference: payment_intent ?? "",

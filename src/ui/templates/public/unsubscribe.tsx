@@ -62,7 +62,11 @@ export const unsubscribePage = (state: UnsubscribeState): string => {
   return String(
     <Layout title={title}>
       <h1>{t("unsubscribe.email_preferences")}</h1>
-      <Flash {...(state.error !== undefined ? { error: state.error } : {})} {...(state.info !== undefined ? { info: state.info } : {})} {...(state.success !== undefined ? { success: state.success } : {})} />
+      <Flash
+        {...(state.error !== undefined ? { error: state.error } : {})}
+        {...(state.info !== undefined ? { info: state.info } : {})}
+        {...(state.success !== undefined ? { success: state.success } : {})}
+      />
       {!state.hash ? (
         <div class="prose">
           <p>{t("unsubscribe.invalid_link")}</p>

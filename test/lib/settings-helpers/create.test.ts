@@ -104,6 +104,7 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
 
     test("omits form= param from redirect when formId is not provided", async () => {
       const { handler } = makeCreate({
+        formId: undefined,
         redirectTo: "/admin/site",
       });
       const res = await runHandler(handler, { value: "x" }, mockErrorPage);
@@ -113,6 +114,7 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
 
     test("passes empty formId to errorPage when formId is not set", async () => {
       const { handler } = makeCreate({
+        formId: undefined,
         redirectTo: "/admin/site",
         validate: () => "error",
       });

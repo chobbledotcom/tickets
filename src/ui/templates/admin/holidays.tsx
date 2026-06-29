@@ -58,7 +58,9 @@ export const adminHolidaysPage = (
   String(
     <Layout title={t("terms.holidays")}>
       <AdminNav active="/admin/settings" session={session} />
-      <Flash {...(successMessage !== undefined ? { success: successMessage } : {})} />
+      <Flash
+        {...(successMessage !== undefined ? { success: successMessage } : {})}
+      />
       <p class="actions">
         <ActionButton href="/admin/holidays/new" icon="plus">
           {t("holidays.add_holiday")}

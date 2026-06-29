@@ -64,9 +64,9 @@ export type TextAnswerRef = { q: number; s: number };
  * booking and checkout intents. */
 export type ListingAnswerRefs = {
   /** Per-listing answer IDs: maps listingId → answerIds for that listing's questions */
-  listingAnswerIds?: Record<string, number[]>;
+  listingAnswerIds?: Record<string, number[]> | undefined;
   /** Per-listing free-text string refs: maps listingId → question/string ids. */
-  listingTextAnswerIds?: Record<string, TextAnswerRef[]>;
+  listingTextAnswerIds?: Record<string, TextAnswerRef[]> | undefined;
 };
 
 /** Fields shared between BookingIntent and CheckoutIntent that carry
@@ -74,57 +74,56 @@ export type ListingAnswerRefs = {
 type CheckoutMetaFields = {
   /** When set, this session settles a reserved attendee's outstanding balance
    * (rather than creating a new attendee). */
-  balanceAttendeeId?: number;
+  balanceAttendeeId?: number | undefined;
   /** Reservation amount string (e.g. "10%") — present when the items are
    * deposit-priced so the webhook can re-derive the deposit and the balance. */
-  reservationAmount?: string;
+  reservationAmount?: string | undefined;
   /** Explicit thank-you redirect carried through the paid round-trip, so a
    * single parent's configured `thank_you_url` survives folding a child (which
    * makes the booking multi-listing and would otherwise drop it). */
-  thankYouUrl?: string;
+  thankYouUrl?: string | undefined;
   /** Per-(child, parent) allocation map from the fold, carried through the
    * signed metadata so the webhook can expand child bookings into per-parent
    * rows. Absent for legacy/no-parent orders. */
-  allocations?: ChildAllocation[];
+  allocations?: ChildAllocation[] | undefined;
 };
 
-/** Processed booking intent extracted from payment session metadata */
-export type BookingIntent = ContactInfo &
+/** Fields shared by the booking and checkout intents: the contact, answer,
+ * and deposit/redirect metadata plus the booking date and shared day count. */
+type CheckoutIntentBase = ContactInfo &
   ListingAnswerRefs &
   CheckoutMetaFields & {
     date: string | null;
     /** Visitor-chosen day count for "customisable days" listings (shared across
      * the checkout). Absent when no selected listing is customisable. */
-    dayCount?: number;
-    items: BookingItem[];
-    /** Modifier references applied to this checkout, re-derived in the webhook.
-     * Always present (an empty array when none applied), parsed from metadata. */
-    modifiers: ModifierRef[];
-    /** HMAC index of the site renewal token. The plain token never reaches the
-     * payment provider, so a compromised provider cannot use it at /renew. */
-    siteTokenIndex?: string;
+    dayCount?: number | undefined;
   };
 
+/** Processed booking intent extracted from payment session metadata */
+export type BookingIntent = CheckoutIntentBase & {
+  items: BookingItem[];
+  /** Modifier references applied to this checkout, re-derived in the webhook.
+   * Always present (an empty array when none applied), parsed from metadata. */
+  modifiers: ModifierRef[];
+  /** HMAC index of the site renewal token. The plain token never reaches the
+   * payment provider, so a compromised provider cannot use it at /renew. */
+  siteTokenIndex?: string | undefined;
+};
+
 /** Registration intent for checkout (one or more listings) */
-export type CheckoutIntent = ContactInfo &
-  ListingAnswerRefs &
-  CheckoutMetaFields & {
-    date: string | null;
-    /** Visitor-chosen day count for "customisable days" listings (shared across
-     * the checkout). Absent when no selected listing is customisable. */
-    dayCount?: number;
-    items: CheckoutItem[];
-    /** Modifiers (surcharges, add-ons, …) resolved for this checkout. Absent or
-     * empty when none apply. Applied to the price by the checkout-pricing layer. */
-    modifiers?: ModifierSpec[];
-    /** Plain site renewal token from /renew. Hashed before storage in provider
-     * metadata; never stored at the provider in plaintext. */
-    siteToken?: string;
-    /** Override the subtotal the booking fee is calculated on (defaults to the
-     * item subtotal). Used so a deposit charges the fee on the full order, and a
-     * balance payment charges no fee (the fee was collected up front). */
-    feeSubtotal?: number;
-  };
+export type CheckoutIntent = CheckoutIntentBase & {
+  items: CheckoutItem[];
+  /** Modifiers (surcharges, add-ons, …) resolved for this checkout. Absent or
+   * empty when none apply. Applied to the price by the checkout-pricing layer. */
+  modifiers?: ModifierSpec[];
+  /** Plain site renewal token from /renew. Hashed before storage in provider
+   * metadata; never stored at the provider in plaintext. */
+  siteToken?: string;
+  /** Override the subtotal the booking fee is calculated on (defaults to the
+   * item subtotal). Used so a deposit charges the fee on the full order, and a
+   * balance payment charges no fee (the fee was collected up front). */
+  feeSubtotal?: number;
+};
 
 /** Result of creating a checkout session.
  * - Success: { sessionId, checkoutUrl }
@@ -223,7 +222,7 @@ export type ValidatedPaymentSession = {
    * webhook, an old redirect, a stale retry — is still recognised on the day it
    * was paid, not the day we happened to process it.
    */
-  createdAt?: string;
+  createdAt?: string | undefined;
 };
 
 /** Result of webhook signature verification */

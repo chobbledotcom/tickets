@@ -525,21 +525,21 @@ export const extractIntent = (
   const thankYouUrl = metadata.thank_you_url || undefined;
   return {
     address: metadata.address,
-    ...(allocations !== undefined ? { allocations } : {}),
-    ...(balanceAttendeeId !== undefined ? { balanceAttendeeId } : {}),
+    allocations,
+    balanceAttendeeId,
     date: metadata.date || null,
-    ...(dayCount !== undefined ? { dayCount } : {}),
+    dayCount,
     email: metadata.email,
     items,
-    ...(listingAnswerIds !== undefined ? { listingAnswerIds } : {}),
-    ...(listingTextAnswerIds !== undefined ? { listingTextAnswerIds } : {}),
+    listingAnswerIds,
+    listingTextAnswerIds,
     modifiers: parseModifierRefs(metadata.modifiers),
     name: metadata.name,
     phone: metadata.phone,
-    ...(reservationAmount !== undefined ? { reservationAmount } : {}),
-    ...(siteTokenIndex !== undefined ? { siteTokenIndex } : {}),
+    reservationAmount,
+    siteTokenIndex,
     special_instructions: metadata.special_instructions,
-    ...(thankYouUrl !== undefined ? { thankYouUrl } : {}),
+    thankYouUrl,
   };
 };
 

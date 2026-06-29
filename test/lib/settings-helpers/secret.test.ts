@@ -178,7 +178,7 @@ describeWithEnv("secretFieldHandler", { db: true }, () => {
   });
 
   test("omits form= param from redirect when formId is not provided", async () => {
-    const { handler } = makeSecret({});
+    const { handler } = makeSecret({ formId: undefined });
     const res = await runHandler(
       handler,
       { api_key: "new_value" },

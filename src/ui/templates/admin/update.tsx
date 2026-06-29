@@ -101,7 +101,10 @@ export const adminUpdatePage = (
     <Layout title={t("update.page_title")}>
       <AdminNav active="/admin/settings" session={session} />
 
-      <Flash {...(error !== undefined ? { error } : {})} {...(success !== undefined ? { success } : {})} />
+      <Flash
+        {...(error !== undefined ? { error } : {})}
+        {...(success !== undefined ? { success } : {})}
+      />
 
       <h2>{t("update.software_update")}</h2>
 
