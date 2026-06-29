@@ -373,12 +373,15 @@ mutates each changed `src/` file against the changed `test/` files and demands a
 100% kill rate, so the cost stays bounded to what you actually changed.
 Known-equivalent survivors recorded in
 `scripts/mutation/equivalent-mutants.txt` are suppressed, as with a manual run.
-It is a deliberately mapping-free, best-effort check with two documented blind
+It is a deliberately mapping-free, best-effort check with three documented blind
 spots (see the header of `scripts/precommit/mutation-step.ts`): it scopes to the
-*committed* diff, so uncommitted work isn't checked until committed; and it
-trusts that a changed src file's covering test changed alongside it, so a
-changed src whose test is unchanged — paired with an unrelated changed test —
-can report false survivors. In both cases, reach for `deno task mutation` on the
+*committed* diff, so uncommitted work isn't checked until committed; it trusts
+that a changed src file's covering test changed alongside it, so a changed src
+whose test is unchanged — paired with an unrelated changed test — can report
+false survivors; and it diffs against your *local* `origin/main`, never
+re-fetching, so a stale local ref under a branch built on newer main commits can
+leak upstream src into the set (run `git fetch origin main` first; a branch's own
+author is unaffected). In each case, reach for `deno task mutation` on the
 specific module.
 
 ### Coverage Requirements

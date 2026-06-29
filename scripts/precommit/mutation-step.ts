@@ -41,6 +41,15 @@
  *     file also changed in the range, that src is mutated only against the
  *     unrelated test and can report false survivors. Touch the covering test
  *     too, or verify that file with `deno task mutation` directly.
+ *   - Trusts the *local* base ref. The diff is against your local
+ *     `origin/main`/`main` — never re-fetched. If that ref is stale *and* the
+ *     branch sits on newer main commits you have not fetched (e.g. you checked
+ *     out someone else's branch), those upstream src files leak into the changed
+ *     set and can be mutated against the branch's tests, yielding survivors the
+ *     branch never introduced. The `STALE_BASE_SOURCE_LIMIT` guard only catches
+ *     *gross* staleness; for the moderate case run `git fetch origin main`
+ *     first. A branch's own author, having branched from a fetched main, has a
+ *     base ref at or ahead of the branch base, so is unaffected.
  *
  * Everything here is pure and dependency-injected so it is unit-testable
  * without spawning git or the mutation runner; the thin entry
