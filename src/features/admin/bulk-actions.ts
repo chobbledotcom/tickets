@@ -194,12 +194,14 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
     cloneInputs.map(({ input }) => listingsTable.insertStatement!(input)),
   );
   const membershipInserts = cloneInputs.map(({ sourceId, input }) => {
-    const source = memberBySource.get(sourceId);
+    // Every clone was just read as a member of the source group, so it always
+    // has a group_listings row whose price/quantity the clone copies.
+    const source = memberBySource.get(sourceId)!;
     return cloneGroupMembershipStatement({
       groupSlugIndex: slugIndex,
       listingSlugIndex: input.slugIndex,
-      packagePrice: source?.package_price ?? 0,
-      quantity: source?.quantity ?? 1,
+      packagePrice: source.package_price,
+      quantity: source.quantity,
     });
   });
   await executeBatch([groupInsert, ...cloneInserts, ...membershipInserts]);
