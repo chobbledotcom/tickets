@@ -32,6 +32,14 @@ import { colClass } from "#templates/components/table-columns.ts";
 import { answerAggregateFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
+/** Render question text flat for admin display: line breaks are replaced with
+ * " / " so the text fits on one line in tables, headings, and confirmation
+ * prompts. The raw markdown is shown (not rendered) so operators can see
+ * exactly what they typed. HTML escaping is left to the JSX/attribute context
+ * that consumes the result. */
+export const questionTextFlat = (text: string): string =>
+  text.replace(/\r?\n/g, " / ");
+
 /** Move-up / move-down reorder controls used as the first column of the
  * question and answer tables. `action` builds the move path for a direction. */
 const ReorderControls = ({
@@ -136,7 +144,9 @@ export const adminQuestionsPage = (
                     index={i}
                   />
                   <td>
-                    <a href={`/admin/questions/${q.id}`}>{q.text}</a>
+                    <a href={`/admin/questions/${q.id}`}>
+                      {questionTextFlat(q.text)}
+                    </a>
                   </td>
                   <td class={colClass("quantity")}>{q.answers.length}</td>
                   <QuestionListingsCell
@@ -163,9 +173,9 @@ export const adminQuestionPage = (
   assignedListingIds: Set<number> = new Set(),
 ): string =>
   String(
-    <Layout title={`Question: ${question.text}`}>
+    <Layout title={`Question: ${questionTextFlat(question.text)}`}>
       <AdminNav active="/admin/settings" session={session} />
-      <h1>{question.text}</h1>
+      <h1>{questionTextFlat(question.text)}</h1>
       <Flash error={error} />
 
       <CsrfForm action={`/admin/questions/${question.id}/edit`}>
@@ -393,7 +403,9 @@ export const adminAnswerEditPage = (
       <h1>{t("questions.edit_answer.heading")}</h1>
       <p>
         <small>
-          {t("questions.edit_answer.question_context", { text: question.text })}
+          {t("questions.edit_answer.question_context", {
+            text: questionTextFlat(question.text),
+          })}
         </small>
       </p>
       <Flash error={error} />
@@ -502,12 +514,16 @@ export const adminQuestionDeletePage = (
         action={`/admin/questions/${question.id}/delete`}
         buttonText={t("questions.delete.submit")}
         label={t("questions.delete.confirm_label")}
-        name={question.text}
+        name={questionTextFlat(question.text)}
       >
         <h1>{t("questions.delete.heading")}</h1>
         <Flash error={error} />
         <p>{t("questions.delete.warning")}</p>
-        <p>{t("questions.delete.confirm_prompt", { text: question.text })}</p>
+        <p>
+          {t("questions.delete.confirm_prompt", {
+            text: questionTextFlat(question.text),
+          })}
+        </p>
       </ConfirmForm>
     </Layout>,
   );
@@ -533,7 +549,7 @@ export const adminAnswerDeletePage = (
         <p>
           {t("questions.delete_answer.warning", {
             answerText: answer.text,
-            questionText: question.text,
+            questionText: questionTextFlat(question.text),
           })}
         </p>
         <p>
@@ -574,7 +590,7 @@ export const adminListingQuestionsPage = (
                   type="checkbox"
                   value={String(q.id)}
                 />
-                {` ${q.text}`}
+                {` ${questionTextFlat(q.text)}`}
                 <small>
                   {" "}
                   ({q.answers.length} option{q.answers.length !== 1 ? "s" : ""}
