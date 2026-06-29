@@ -57,8 +57,14 @@ const parsePackagePrices = (
 ): PackagePriceInput[] | undefined => {
   const raw = body.package_prices;
   if (!Array.isArray(raw)) return undefined;
+  // Drop non-object entries (e.g. a `null` in the array) before reading fields,
+  // so a malformed element can't throw; remaining junk is filtered out by the
+  // value checks, matching the rest of this best-effort parser.
   return raw
-    .map((item) => item as Record<string, unknown>)
+    .filter(
+      (item): item is Record<string, unknown> =>
+        typeof item === "object" && item !== null,
+    )
     .map((item) => ({
       listingId: Number(item.listing_id),
       price: Number(item.price),

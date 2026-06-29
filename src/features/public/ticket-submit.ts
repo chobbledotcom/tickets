@@ -79,6 +79,7 @@ import {
 } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import {
+  applyPackageOverrides,
   buildRegistrationItems,
   checkAvailability,
   createFreeReservation,
@@ -296,6 +297,7 @@ const checkoutIntentForSubmission = (
     ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
     ...(reservationAmount ? { reservationAmount } : {}),
     ...(modifiers && modifiers.length > 0 ? { modifiers } : {}),
+    ...(ctx.packageGroupId ? { packageGroupId: ctx.packageGroupId } : {}),
   };
 };
 
@@ -630,11 +632,18 @@ const prepareOrder = async (
   );
   if (!answersResult.ok) return { error: answersResult.error, ok: false };
 
-  const items = buildRegistrationItems(
-    foldedCtx.listings,
-    quantities,
-    fold.customPrices,
-    dayCount,
+  // Build items from the folded set, then apply package overrides to the
+  // top-level page listings only (folded children keep their own price).
+  const pageListingIds = new Set(ctx.listings.map((e) => e.listing.id));
+  const items = applyPackageOverrides(
+    buildRegistrationItems(
+      foldedCtx.listings,
+      quantities,
+      fold.customPrices,
+      dayCount,
+    ),
+    ctx.packagePrices,
+    pageListingIds,
   );
 
   const info: AnswerInfo = {

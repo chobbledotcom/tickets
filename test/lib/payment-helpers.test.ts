@@ -112,6 +112,39 @@ describe("payment-helpers", () => {
         ),
       ).toEqual(allocations);
     });
+
+    test("buildMetadata carries packageGroupId and round-trips it when packed", () => {
+      const metadata = buildMetadata({
+        date: null,
+        email: "a@example.com",
+        items: [{ e: 2, p: 1500, q: 1 }],
+        name: "Alice",
+        packageGroupId: 7,
+      });
+      expect(metadata.package_group_id).toBe("7");
+      // It is a packed small field (kept out of the top level for Square's cap).
+      const packed = packMetadata(metadata);
+      expect(packed.package_group_id).toBeUndefined();
+      expect(JSON.parse(packed.b!).package_group_id).toBe("7");
+      expect(
+        extractSessionMetadata(packed as unknown as SessionMetadata)
+          .package_group_id,
+      ).toBe("7");
+    });
+
+    test("buildMetadata omits package_group_id for a non-package booking", () => {
+      const metadata = buildMetadata({
+        date: null,
+        email: "a@example.com",
+        items: [{ e: 2, p: 1000, q: 1 }],
+        name: "Alice",
+      });
+      expect(metadata.package_group_id).toBeUndefined();
+      expect(
+        extractSessionMetadata(metadata as unknown as SessionMetadata)
+          .package_group_id,
+      ).toBe("");
+    });
   });
 
   describe("metadata round-trip: build → validate → extract", () => {

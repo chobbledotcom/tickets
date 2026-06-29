@@ -26,6 +26,7 @@ import {
   createBookingAtomic,
   ensureAllBookings,
 } from "#shared/db/attendees.ts";
+import { getGroupPackagePrices } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   getChildIds,
@@ -231,6 +232,37 @@ export const buildRegistrationItems = (
     slug: listing.slug,
     unitPrice: itemUnitPrice(listing, customPrices, dayCount),
   }));
+};
+
+/** Load a package group's listing-id → override price map, keeping only the
+ * members that actually carry an override (price > 0). */
+export const loadPackagePriceMap = async (
+  groupId: number,
+): Promise<ReadonlyMap<number, number>> => {
+  const rows = await getGroupPackagePrices(groupId);
+  return new Map(
+    rows
+      .filter((row) => row.package_price > 0)
+      .map((row) => [row.listing_id, row.package_price]),
+  );
+};
+
+/** Apply package price overrides to the assembled items. Only top-level page
+ * listings (`pageListingIds`) carrying a non-zero override are replaced; folded
+ * children and base-priced members keep their computed price (package overrides
+ * never reach a folded child line). */
+export const applyPackageOverrides = (
+  items: CheckoutItem[],
+  packagePrices: ReadonlyMap<number, number> | null | undefined,
+  pageListingIds: ReadonlySet<number>,
+): CheckoutItem[] => {
+  if (!packagePrices || packagePrices.size === 0) return items;
+  return items.map((item) => {
+    const override = pageListingIds.has(item.listingId)
+      ? packagePrices.get(item.listingId)
+      : undefined;
+    return override ? { ...item, unitPrice: override } : item;
+  });
 };
 
 export const handlePaymentFlow = (
@@ -1086,11 +1118,17 @@ export const getTicketContext = async (
   const terms = group
     ? group.terms_and_conditions || globalTerms || ""
     : globalTerms;
+  // For a package group, load the per-listing overrides once here so both the
+  // quote and submit paths can price against them with no extra query.
+  const packagePrices =
+    group?.is_package === true ? await loadPackagePriceMap(group.id) : null;
   return {
     addOns,
     childDatesById,
     childrenByParentId,
     dates,
+    packageGroupId: group?.is_package ? group.id : null,
+    packagePrices,
     promoCodesEnabled,
     terms,
     ...questionsResult,

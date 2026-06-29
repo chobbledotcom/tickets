@@ -249,6 +249,7 @@ export const webhookMeta = (
   email: "",
   items: "",
   modifiers: "",
+  package_group_id: "",
   phone: "",
   price_proof: "",
   reservation_amount: "",

@@ -69,6 +69,7 @@ import {
   createBookingAtomic,
   ensureAllBookings,
 } from "#shared/db/attendees.ts";
+import { getGroupPackagePrices, groupsTable } from "#shared/db/groups.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
@@ -519,6 +520,9 @@ export const extractIntent = (
     listingTextAnswerIds: parseListingTextAnswerIds(metadata.text_answer_ids),
     modifiers: parseModifierRefs(metadata.modifiers),
     name: metadata.name,
+    packageGroupId: metadata.package_group_id
+      ? Number(metadata.package_group_id)
+      : undefined,
     phone: metadata.phone,
     reservationAmount: metadata.reservation_amount || undefined,
     siteTokenIndex: metadata.site_token_index || undefined,
@@ -565,12 +569,59 @@ const handleReservationConflict = async (
   };
 };
 
+/** Current package-pricing state for a booking's group: which listings are
+ * members and their non-zero overrides. Null when the booking isn't a package
+ * (or the group was deleted / is no longer a package — those members then
+ * revalidate against the base listing price, so a stale package price mismatches
+ * and refunds via the normal path). */
+export type PackagePricing = {
+  memberIds: Set<number>;
+  priceMap: Map<number, number>;
+};
+
+const loadPackagePricing = async (
+  intent: BookingIntent,
+): Promise<PackagePricing | null> => {
+  if (intent.packageGroupId === undefined) return null;
+  const group = await groupsTable.findById(intent.packageGroupId);
+  if (!group?.is_package) return null;
+  const rows = await getGroupPackagePrices(intent.packageGroupId);
+  return {
+    memberIds: new Set(rows.map((r) => r.listing_id)),
+    priceMap: new Map(
+      rows
+        .filter((r) => r.package_price > 0)
+        .map((r) => [r.listing_id, r.package_price]),
+    ),
+  };
+};
+
+/** The expected line total for one item: a top-level package member with a
+ * non-zero override is priced at `override × qty`; folded children (in the
+ * allocations) and non-members keep the normal per-listing `basePrice`. */
+export const expectedItemPrice = (
+  pkg: PackagePricing | null,
+  foldedChildIds: ReadonlySet<number>,
+  item: BookingItem,
+  basePrice: number,
+): number => {
+  if (!pkg || foldedChildIds.has(item.e) || !pkg.memberIds.has(item.e)) {
+    return basePrice;
+  }
+  const override = pkg.priceMap.get(item.e);
+  return override ? override * item.q : basePrice;
+};
+
 /** Validate all booking items and return per-item pricing info or a failure result. */
 const validateAllItems = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
 ): Promise<{ ok: true; items: ValidatedItem[] } | PaymentFailureResult> => {
   const includeListingName = intent.items.length > 1;
+  const pkg = await loadPackagePricing(intent);
+  const foldedChildIds = new Set(
+    (intent.allocations ?? []).map((a) => a.childId),
+  );
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
     const vp = await validateAndPrice(
@@ -580,7 +631,12 @@ const validateAllItems = async (
     );
     if (!vp.ok) return validationFailure(session, vp, item.e);
     validatedItems.push({
-      expectedPrice: vp.expectedPrice,
+      expectedPrice: expectedItemPrice(
+        pkg,
+        foldedChildIds,
+        item,
+        vp.expectedPrice,
+      ),
       item,
       listing: vp.listing,
     });

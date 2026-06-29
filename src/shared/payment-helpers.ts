@@ -323,6 +323,7 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "modifiers"
       | "thankYouUrl"
       | "allocations"
+      | "packageGroupId"
     >
   >;
 
@@ -352,6 +353,9 @@ export const buildMetadata = (
   ...(intent.thankYouUrl ? { thank_you_url: intent.thankYouUrl } : {}),
   ...(intent.allocations?.length
     ? { allocations: JSON.stringify(intent.allocations) }
+    : {}),
+  ...(intent.packageGroupId
+    ? { package_group_id: String(intent.packageGroupId) }
     : {}),
 });
 
@@ -420,6 +424,7 @@ const PACKED_KEYS = [
   "reservation_amount",
   "balance_attendee_id",
   "site_token_index",
+  "package_group_id",
 ] as const;
 
 /** The single metadata key the packed small fields are stored under. */
@@ -572,6 +577,7 @@ export const extractSessionMetadata = (
     items: get("items"),
     modifiers: get("modifiers"),
     name: metadata.name,
+    package_group_id: get("package_group_id"),
     phone: get("phone"),
     price_proof: get("price_proof"),
     reservation_amount: get("reservation_amount"),

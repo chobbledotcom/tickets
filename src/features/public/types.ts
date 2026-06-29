@@ -38,6 +38,11 @@ export type TicketSharedContext = {
   childDatesById: Map<string, ChildSpanDates>;
   groupName?: string;
   groupDescription?: string;
+  /** Set when the booking page is a package group: the group's id (for signed
+   * metadata) and listing-id → override price map (only members with a non-zero
+   * `package_price`). `null`/absent for non-package pages. */
+  packageGroupId?: number | null;
+  packagePrices?: ReadonlyMap<number, number> | null;
   actionUrl?: string;
   siteToken?: string;
   promoCodesEnabled?: boolean;

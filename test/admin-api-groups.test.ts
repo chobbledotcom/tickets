@@ -509,6 +509,23 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       expect(prices[0]!.package_price).toBe(0);
     });
 
+    test("PUT tolerates a null entry in package_prices without crashing", async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Nully" });
+      const listing = await createTestListing({ groupId: group.id });
+      await assertJson(
+        apiRequest(`/api/admin/groups/${group.id}`, {
+          body: {
+            is_package: true,
+            package_prices: [null, { listing_id: listing.id, price: 600 }],
+          },
+          method: "PUT",
+        }),
+        200,
+      );
+      const prices = await getGroupPackagePrices(group.id);
+      expect(prices[0]!.package_price).toBe(600);
+    });
+
     test("PUT rejects is_package on an incompatible group", async () => {
       const group = await createTestGroup({ name: "BadPkg" });
       await createTestListing({ canPayMore: true, groupId: group.id });

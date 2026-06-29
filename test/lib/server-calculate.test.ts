@@ -6,6 +6,7 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { invalidateAttendeeStatusesCache } from "#shared/db/attendee-statuses.ts";
 import { getDb } from "#shared/db/client.ts";
+import { setGroupPackagePrices } from "#shared/db/groups.ts";
 import { modifiersTable, setModifierAnswers } from "#shared/db/modifiers.ts";
 import {
   answersTable,
@@ -57,6 +58,33 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     expect(html).toContain(formatCurrency(1500));
     expect(html).toContain("order-summary-total");
     expect(html).toContain("Total");
+  });
+
+  test("quotes a package member at its override price, not its base price", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Day Pass",
+      slug: "day-pass",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxQuantity: 5,
+      name: "Pass Member",
+      unitPrice: 5000,
+    });
+    await setGroupPackagePrices(group.id, [
+      { listingId: member.id, price: 1500 },
+    ]);
+
+    const html = await (
+      await calculate(group.slug, group.slug, {
+        [`quantity_${member.id}`]: "1",
+      })
+    ).text();
+    // The package override (1500) prices the line — not the 5000 base.
+    expect(html).toContain(formatCurrency(1500));
+    expect(html).not.toContain(formatCurrency(5000));
   });
 
   test("prices a multi-unit line with a booking-fee extra line", async () => {

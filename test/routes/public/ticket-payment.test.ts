@@ -3,13 +3,16 @@ import { describe, it as test } from "@std/testing/bdd";
 import fc from "fast-check";
 import { parseQuantityValue } from "#routes/public/ticket-form.ts";
 import {
+  applyPackageOverrides,
   bookingDateFields,
   buildRegistrationItems,
   computeSharedDates,
   createFreeReservation,
   foldChild,
   foldSelectedChildren,
+  getTicketContext,
   loadChildrenByParentId,
+  loadPackagePriceMap,
   MODIFIER_SOLD_OUT_MESSAGE,
   resolveChildSelections,
   resolveDayCount,
@@ -33,6 +36,7 @@ import {
   getVisits,
   hashEmail,
 } from "#shared/db/contact-preferences.ts";
+import { setGroupPackagePrices, setListingGroups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
@@ -583,6 +587,79 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         new Map(),
       );
       expect(items[0]!.unitPrice).toBe(500);
+    });
+  });
+
+  describe("applyPackageOverrides", () => {
+    const item = (listingId: number, unitPrice: number) => ({
+      listingId,
+      name: `L${listingId}`,
+      quantity: 1,
+      slug: `l${listingId}`,
+      unitPrice,
+    });
+
+    test("returns items unchanged when there are no overrides", () => {
+      const items = [item(1, 500)];
+      expect(applyPackageOverrides(items, null, new Set([1]))).toBe(items);
+      expect(applyPackageOverrides(items, new Map(), new Set([1]))).toBe(items);
+    });
+
+    test("overrides only top-level page listings carrying a price", () => {
+      const items = [item(1, 500), item(2, 800), item(3, 0)];
+      const prices = new Map([
+        [1, 1200],
+        [3, 999],
+      ]);
+      // Listing 1 is a page member with an override; 2 has none; 3 is a folded
+      // child (not in the page set) so its override is ignored.
+      const result = applyPackageOverrides(items, prices, new Set([1, 2]));
+      expect(result.map((i) => i.unitPrice)).toEqual([1200, 800, 0]);
+    });
+  });
+
+  describe("loadPackagePriceMap / getTicketContext packages", () => {
+    test("loadPackagePriceMap keeps only non-zero overrides", async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Pk" });
+      const a = await createTestListing({ name: "PA" });
+      const b = await createTestListing({ name: "PB" });
+      await setListingGroups(a.id, [group.id]);
+      await setListingGroups(b.id, [group.id]);
+      await setGroupPackagePrices(group.id, [
+        { listingId: a.id, price: 1500 },
+        { listingId: b.id, price: 0 },
+      ]);
+
+      const map = await loadPackagePriceMap(group.id);
+      expect(map.get(a.id)).toBe(1500);
+      expect(map.has(b.id)).toBe(false);
+    });
+
+    test("getTicketContext exposes packageGroupId + prices for a package group", async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Ctx" });
+      const a = await createTestListing({ name: "CA" });
+      await setListingGroups(a.id, [group.id]);
+      await setGroupPackagePrices(group.id, [{ listingId: a.id, price: 2000 }]);
+
+      const ctx = await getTicketContext(
+        [
+          buildTicketListing(
+            testListingWithCount({ id: a.id }),
+            false,
+            undefined,
+          ),
+        ],
+        group,
+      );
+      expect(ctx.packageGroupId).toBe(group.id);
+      expect(ctx.packagePrices?.get(a.id)).toBe(2000);
+    });
+
+    test("getTicketContext leaves package fields null for a non-package group", async () => {
+      const group = await createTestGroup({ name: "Plain" });
+      const ctx = await getTicketContext([], group);
+      expect(ctx.packageGroupId).toBeNull();
+      expect(ctx.packagePrices).toBeNull();
     });
   });
 

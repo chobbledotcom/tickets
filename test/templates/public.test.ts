@@ -1,11 +1,13 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { getCurrentCsrfToken, signCsrfToken } from "#shared/csrf.ts";
 import { addDays } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { ListingWithCount } from "#shared/types.ts";
+import { fieldsApi } from "#templates/fields.ts";
 import {
   buildOgTags,
   buildTicketListing,
@@ -109,6 +111,32 @@ describe("ticketPage (single listing)", () => {
   test("displays listing name as header", () => {
     const html = renderTicket(listing);
     expect(html).toContain("<h1>Test Listing</h1>");
+  });
+
+  test("a package override makes an otherwise-free listing render the provider email", () => {
+    // Square requires an email for paid checkouts; a free listing whose only
+    // cost comes from a package override must still surface that field.
+    const s = stub(fieldsApi, "getSettingCached", () => "square");
+    try {
+      const free = testListingWithCount({
+        attendee_count: 0,
+        fields: "",
+        id: 991,
+        slug: "free991",
+        unit_price: 0,
+      });
+      const render = (packagePrices?: ReadonlyMap<number, number>) =>
+        ticketPage({
+          dates: [],
+          listings: [buildTicketListing(free, false, undefined)],
+          packagePrices,
+          slugs: ["free991"],
+        });
+      expect(render()).not.toContain('name="email"');
+      expect(render(new Map([[991, 1500]]))).toContain('name="email"');
+    } finally {
+      s.restore();
+    }
   });
 
   test("shows quantity selector when max_quantity > 1 and spots available", () => {

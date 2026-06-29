@@ -6,6 +6,7 @@ import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import { execute } from "#shared/db/client.ts";
+import { groupsTable, setGroupPackagePrices } from "#shared/db/groups.ts";
 import { deleteListing, listingsTable } from "#shared/db/listings.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { prunePayments } from "#shared/db/prune.ts";
@@ -14,6 +15,7 @@ import { balanceOf } from "#shared/ledger/project.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
   assertJson,
+  createTestGroup,
   createTestListing,
   describeWithEnv,
   getTestPrivateKey,
@@ -743,5 +745,84 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
         expect(record?.failure_data).not.toBe("");
       },
     );
+  });
+
+  // ---- package pricing revalidation -----------------------------------------
+
+  /** A package group whose single member has a base price of 5000 but a package
+   * override of 1500. Returns the group and member. */
+  const setupPackage = async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Pkg",
+      slug: "pkg",
+    });
+    const listing = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 50,
+      unitPrice: 5000,
+    });
+    await setGroupPackagePrices(group.id, [
+      { listingId: listing.id, price: 1500 },
+    ]);
+    return { group, listing };
+  };
+
+  /** Signed metadata for a one-line package booking at `price` (the override). */
+  const packageMetadata = (groupId: number, listingId: number, price: number) =>
+    signMeta(
+      webhookMeta({
+        email: "buyer@example.com",
+        items: singleItem(listingId, 1, price),
+        name: "Buyer",
+        package_group_id: String(groupId),
+      }),
+      price,
+    );
+
+  /** Drive a 1500 package session through the webhook and assert it was kept as
+   * a refunded placeholder (the post-checkout change invalidated the price). */
+  const expectPackageRefund = (
+    id: string,
+    listingId: number,
+    metadata: Record<string, string>,
+  ): Promise<void> =>
+    runWebhook({ amount_total: 1500, id, metadata }, async (refund) => {
+      await expectStoredRefund(listingId);
+      expect(refund.calls.length).toBe(1);
+    });
+
+  test("a package booking is priced against the override, not the base price", async () => {
+    const { group, listing } = await setupPackage();
+    // Signed at the override (1500), not the 5000 base — only the package path
+    // makes this validate; the base-price check would refund it.
+    await runWebhook(
+      {
+        amount_total: 1500,
+        id: "cs_pkg_ok",
+        metadata: packageMetadata(group.id, listing.id, 1500),
+      },
+      () => expectProcessed(listing.id),
+    );
+  });
+
+  test("a package booking refunds when the override changed after checkout", async () => {
+    const { group, listing } = await setupPackage();
+    const metadata = packageMetadata(group.id, listing.id, 1500);
+    // Operator raises the override after the buyer signed at 1500.
+    await setGroupPackagePrices(group.id, [
+      { listingId: listing.id, price: 2000 },
+    ]);
+    await expectPackageRefund("cs_pkg_changed", listing.id, metadata);
+  });
+
+  test("a package booking refunds when the group is no longer a package", async () => {
+    const { group, listing } = await setupPackage();
+    const metadata = packageMetadata(group.id, listing.id, 1500);
+    // The package flag is cleared, so the member revalidates at its 5000 base
+    // price and the 1500 the buyer signed no longer matches.
+    await groupsTable.update(group.id, { isPackage: false });
+    await expectPackageRefund("cs_pkg_unflagged", listing.id, metadata);
   });
 });

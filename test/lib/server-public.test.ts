@@ -279,6 +279,57 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       );
     });
 
+    test("lists package groups under a Packages heading above regular ones", async () => {
+      await settings.update.showPublicSite(true);
+      // Two package groups (out of alpha order) prove the name sort runs.
+      const pkgZ = await createTestGroup({
+        isPackage: true,
+        name: "Zephyr Bundle",
+        slug: "zephyr-bundle",
+      });
+      await createTestListing({
+        groupId: pkgZ.id,
+        maxAttendees: 50,
+        name: "Zephyr Listing",
+      });
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Weekend Bundle",
+        slug: "weekend-bundle",
+      });
+      await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 50,
+        name: "Bundle Listing",
+      });
+      const regular = await createTestGroup({
+        name: "Regular Group",
+        slug: "regular-group",
+      });
+      await createTestListing({
+        groupId: regular.id,
+        maxAttendees: 50,
+        name: "Regular Listing",
+      });
+
+      const html = await assertPublicHtml("/listings", "Weekend Bundle");
+      // The Packages heading precedes the package groups, sorted by name
+      // (Weekend before Zephyr), which precede the "All bookable listings"
+      // section that carries the regular group.
+      expect(html.indexOf("Packages")).toBeLessThan(
+        html.indexOf("Weekend Bundle"),
+      );
+      expect(html.indexOf("Weekend Bundle")).toBeLessThan(
+        html.indexOf("Zephyr Bundle"),
+      );
+      expect(html.indexOf("Zephyr Bundle")).toBeLessThan(
+        html.indexOf("All bookable listings"),
+      );
+      expect(html.indexOf("All bookable listings")).toBeLessThan(
+        html.indexOf("Regular Group"),
+      );
+    });
+
     test("suppresses the CTA of a group with no active members on listings page", async () => {
       // A group with no active (standalone-bookable) member has no valid
       // `/ticket/<group>` entry point (its group page 404s), so its Book CTA must

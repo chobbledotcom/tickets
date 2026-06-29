@@ -1135,6 +1135,10 @@ export type TicketPageOptions = {
   /** Each listing id → the ids of the groups it belongs to, so the shared-group
    * clamps work for listings in several groups. Empty/omitted = ungrouped. */
   groupIdsByListingId?: ReadonlyMap<number, number[]>;
+  /** Package overrides (listing id → price) when this is a package page, so a
+   * member whose base price is 0 but override is paid still renders the provider
+   * contact fields. Empty/omitted for non-package pages. */
+  packagePrices?: ReadonlyMap<number, number> | null;
 };
 
 /** Unavailability message shown when all listings are sold out or closed */
@@ -1404,13 +1408,23 @@ const splitChildQuestions = (
   };
 };
 
+/** Whether a listing is paid in context — its own pricing, or a package override
+ * that makes an otherwise-free member cost money. */
+const paidInContext = (
+  listing: TicketListing,
+  packagePrices: ReadonlyMap<number, number> | null | undefined,
+): boolean =>
+  isPaidListing(listing.listing) ||
+  (packagePrices?.get(listing.listing.id) ?? 0) > 0;
+
 /** Whether the page itself (its listings or add-ons, NOT possible children) is
  * paid — so its provider-imposed email renders required. */
 const pagePaid = (
   listings: TicketListing[],
   addOns: AddOnOption[] | undefined,
+  packagePrices: ReadonlyMap<number, number> | null | undefined,
 ): boolean =>
-  listings.some((e) => isPaidListing(e.listing)) ||
+  listings.some((e) => paidInContext(e, packagePrices)) ||
   (addOns?.some((addOn) => addOn.requiresPayment) ?? false);
 
 /** Whether the contact-field set must include a paid order's provider-imposed
@@ -1421,12 +1435,14 @@ const pageOrChildPaid = (
   listings: TicketListing[],
   childrenByParentId: Map<number, TicketListing[]> | undefined,
   addOns: AddOnOption[] | undefined,
+  packagePrices: ReadonlyMap<number, number> | null | undefined,
 ): boolean => {
   const children = childrenByParentId
     ? [...childrenByParentId.values()].flat()
     : [];
   return (
-    pagePaid(listings, addOns) || children.some((e) => isPaidListing(e.listing))
+    pagePaid(listings, addOns, packagePrices) ||
+    children.some((e) => isPaidListing(e.listing))
   );
 };
 
@@ -1482,6 +1498,7 @@ export const ticketPage = ({
   childDatesById,
   groupRemainingByListingId,
   groupIdsByListingId = new Map(),
+  packagePrices,
 }: TicketPageOptions): string => {
   const inIframe = getIframeMode();
   const allUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
@@ -1489,8 +1506,8 @@ export const ticketPage = ({
   const fields: Field[] = buildContactFields(
     listings,
     childrenByParentId,
-    pagePaid(listings, addOns),
-    pageOrChildPaid(listings, childrenByParentId, addOns),
+    pagePaid(listings, addOns, packagePrices),
+    pageOrChildPaid(listings, childrenByParentId, addOns, packagePrices),
   );
   const hasDaily = listings.some((e) => e.listing.listing_type === "daily");
 
