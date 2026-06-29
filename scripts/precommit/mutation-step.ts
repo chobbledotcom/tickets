@@ -20,6 +20,21 @@
  * coverage, a src change lands in the same commit range as the test change that
  * covers it, so the changed set is its own source→test mapping.
  *
+ * Known limitations (this is a deliberately mapping-free, best-effort *local*
+ * check; `deno task mutation` is the precise manual tool):
+ *
+ *   - Committed-only. It scopes to `base...HEAD`, not the working tree, so
+ *     *uncommitted* changes are not mutation-checked until committed. The
+ *     canonical flow — commit, then `deno task precommit`, then push — runs on a
+ *     clean tree where the worktree already equals HEAD, so this only affects
+ *     dirty pre-checks. Commit (even a WIP commit) to bring changes under it.
+ *   - No real source→test pairing. It runs *all* changed tests against *all*
+ *     changed src, trusting that a src change ships with its covering test. If a
+ *     changed src file's covering test is *unchanged* while an *unrelated* test
+ *     file also changed in the range, that src is mutated only against the
+ *     unrelated test and can report false survivors. Touch the covering test
+ *     too, or verify that file with `deno task mutation` directly.
+ *
  * Everything here is pure and dependency-injected so it is unit-testable
  * without spawning git or the mutation runner; the thin entry
  * `scripts/precommit-mutation.ts` wires in the real implementations.
