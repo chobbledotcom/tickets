@@ -140,6 +140,15 @@ export const handleShowPublicApiPost = settingsToggle({
   save: (v) => settings.update.showPublicApi(v),
 });
 
+/** Handle POST /admin/settings/external-order - owner only */
+export const handleExternalOrderPost = settingsToggle({
+  advanced: true,
+  field: "external_order_enabled",
+  formId: "settings-external-order",
+  label: "External order buttons",
+  save: (v) => settings.update.externalOrderEnabled(v),
+});
+
 /** Handle POST /admin/settings/calendar-feeds - owner only */
 export const handleCalendarFeedsPost = settingsHandler({
   extract: (form) => ({

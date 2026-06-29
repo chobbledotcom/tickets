@@ -442,6 +442,7 @@ describe("adminAdvancedSettingsPage", () => {
     emailApiKeyConfigured: false,
     emailFromAddress: "",
     emailProvider: "",
+    externalOrderEnabled: false,
     googleWalletConfigured: false,
     googleWalletIssuerId: "",
     googleWalletServiceAccountEmail: "",

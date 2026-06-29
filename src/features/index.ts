@@ -111,6 +111,10 @@ const loadOrderRoutes = lazyExport(
   () => import("#routes/public/order.ts"),
   "routeOrder",
 );
+const loadOrderJs = lazyExport(
+  () => import("#routes/public/order-js.ts"),
+  "handleOrderJs",
+);
 const loadPaymentRoutes = lazyExport(
   () => import("#routes/api/webhooks.ts"),
   "routePayment",
@@ -423,6 +427,13 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
     CONFIG_KEYS.ORDER_INTRO_TEXT,
     CONFIG_KEYS.COUNTRY,
   ],
+  // External order library module: enable flag + embed allow-list (CORS) +
+  // country (currency for the embedded prices). No public nav, no secrets.
+  "order.js": [
+    CONFIG_KEYS.EXTERNAL_ORDER_ENABLED,
+    CONFIG_KEYS.EMBED_HOSTS,
+    CONFIG_KEYS.COUNTRY,
+  ],
   // --- Checkout / payment (bare layout, no public nav) ---
   pay: PAYMENT_SETTINGS,
   payment: [...PAYMENT_SETTINGS, ...EMAIL_SETTINGS],
@@ -577,6 +588,15 @@ const publicPageHandlers = reduce(
   {},
 )(PUBLIC_GET_PAGES);
 
+/** Serve the dynamic `/order.js` external-order module; ignore any other path
+ * under the `order.js` prefix. Named (not an inline arrow) so coverage
+ * attributes its branches correctly. */
+const orderJsPrefixHandler: RouterFn = async (request, path, method) => {
+  if (path !== "/order.js" || method !== "GET") return null;
+  const handle = await loadOrderJs();
+  return handle(request);
+};
+
 /** Prefix dispatch table — O(1) lookup replaces the sequential ?? chain */
 const prefixHandlers: Record<string, RouterFn> = {
   ...publicPageHandlers,
@@ -609,6 +629,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   instance: lazyRoute(loadInstanceRoutes),
   join: lazyRoute(loadJoinRoutes),
   order: lazyRoute(loadOrderRoutes),
+  "order.js": orderJsPrefixHandler,
   pay: lazyRoute(loadBalanceRoutes),
   payment: lazyRoute(loadPaymentRoutes),
   "read-only": (_request, path, method) =>

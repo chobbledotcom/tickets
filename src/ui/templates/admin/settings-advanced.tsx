@@ -15,6 +15,7 @@ import { CustomDomainForm } from "#templates/admin/settings/custom-domain.tsx";
 import { EmailNotificationsForm } from "#templates/admin/settings/email.tsx";
 import { AdminEmailTemplateForm } from "#templates/admin/settings/email-tpl-admin.tsx";
 import { ConfirmationEmailTemplateForm } from "#templates/admin/settings/email-tpl-confirmation.tsx";
+import { ExternalOrderForm } from "#templates/admin/settings/external-order.tsx";
 import { GoogleWalletForm } from "#templates/admin/settings/google-wallet.tsx";
 import { PublicApiForm } from "#templates/admin/settings/public-api.tsx";
 import { SmsGatewayForm } from "#templates/admin/settings/sms-gateway.tsx";
@@ -23,6 +24,7 @@ import { Layout } from "#templates/layout.tsx";
 
 export type AdvancedSettingsPageState = {
   showPublicApi: boolean;
+  externalOrderEnabled: boolean;
   emailProvider: string;
   emailApiKeyConfigured: boolean;
   emailFromAddress: string;
@@ -87,6 +89,7 @@ export const adminAdvancedSettingsPage = (
       {ListingColumnOrderForm(s)}
       {AttendeeColumnOrderForm(s)}
       {PublicApiForm(s)}
+      {ExternalOrderForm(s)}
       {GoogleWalletForm(s)}
       {AppleWalletForm(s)}
       {SmsGatewayForm(s)}

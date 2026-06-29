@@ -46,3 +46,10 @@ export const handleIframeResizerChildJs = staticHandler(
   "iframe-resizer-child.js",
   JS,
 );
+
+/** The raw ESM body of the external-order widget (`/order.js`). Exposed here —
+ * rather than read in the handler — so the edge build inlines it the same way
+ * it inlines the other static assets (the dynamic `/order.js` route prepends the
+ * per-request catalog to this string). Returns the unencoded source text. */
+export const orderWidgetBody = (): string =>
+  Deno.readTextFileSync(join(staticDir, "order.js"));
