@@ -786,14 +786,24 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       }
     });
 
-    test("maps use_defaults so the API can opt into inherited defaults", async () => {
-      const result = await bodyToCreateInput({
-        max_attendees: 10,
-        name: "Inheriting",
-        use_defaults: true,
-      });
-      expect(result.ok).toBe(true);
-      if (result.ok) expect(result.input.useDefaults).toBe(true);
+    test("maps the use_defaults flag both ways and omits it when absent", async () => {
+      // true/false both round-trip (so the API can opt in *and* out), and an
+      // absent flag stays absent rather than defaulting to either value.
+      const cases: Array<[boolean | undefined, boolean | undefined]> = [
+        [true, true],
+        [false, false],
+        [undefined, undefined],
+      ];
+      for (const [sent, expected] of cases) {
+        const body: Record<string, unknown> = {
+          max_attendees: 10,
+          name: "Inheriting",
+        };
+        if (sent !== undefined) body.use_defaults = sent;
+        const result = await bodyToCreateInput(body);
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.input.useDefaults).toBe(expected);
+      }
     });
   });
 
