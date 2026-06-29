@@ -44,6 +44,31 @@ describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
     expect(body).toContain("isExternalOrderModule");
   });
 
+  test("marks a pay-what-you-want listing as variable-price in the catalog", async () => {
+    await settings.update.externalOrderEnabled(true);
+    // Not daily, not customisable — can_pay_more is the only variable-price
+    // trigger, so it must survive the SQLite 0/1 → boolean conversion.
+    await createTestListing({ canPayMore: true, name: "Pay What You Want" });
+
+    const body = await (await orderJs()).text();
+    expect(body).toContain('"variablePrice":true');
+    expect(body).not.toContain('"variablePrice":false');
+  });
+
+  test("marks a customisable-days listing as variable-price in the catalog", async () => {
+    await settings.update.externalOrderEnabled(true);
+    await createTestListing({
+      customisableDays: true,
+      dayPrices: { 1: 0, 2: 0 },
+      durationDays: 2,
+      name: "Customisable",
+    });
+
+    const body = await (await orderJs()).text();
+    expect(body).toContain('"variablePrice":true');
+    expect(body).not.toContain('"variablePrice":false');
+  });
+
   test("excludes hidden listings from the embedded catalog", async () => {
     await settings.update.externalOrderEnabled(true);
     await createTestListing({ hidden: true, name: "Secret Listing" });
