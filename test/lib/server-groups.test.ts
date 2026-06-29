@@ -784,6 +784,35 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(await response.text()).toContain("Free-Standalone Member");
     });
 
+    test("hides revenue for a package whose free member has no override", async () => {
+      // A package group still reaches the override check (unlike a non-package
+      // group, which returns early): a free member with a null override (no
+      // positive price anywhere) is not paid, so no revenue row is shown.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Override Free",
+        slug: "override-free",
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Truly-Free Member",
+        unitPrice: 0,
+      });
+      await createTestAttendee(
+        member.id,
+        member.slug,
+        "Guest",
+        "guest@test.com",
+      );
+
+      const response = await adminGet(`/admin/groups/${group.id}`);
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain("Truly-Free Member");
+      expect(html).not.toContain("Total Revenue");
+    });
+
     const createGroupWithListing = async (
       groupName: string,
       groupSlug: string,
