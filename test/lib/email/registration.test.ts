@@ -5,6 +5,7 @@ import type { EmailConfig } from "#shared/email.ts";
 import { sendRegistrationEmails, sendTestEmail } from "#shared/email.ts";
 import { updateBusinessEmail } from "#shared/validation/email.ts";
 import {
+  createTestGroup,
   describeWithEnv,
   makeTestEntry as makeEntry,
   useFetchStub,
@@ -36,6 +37,23 @@ const setupAndSendRegistration = async (
 ) => {
   await setupDbEmailConfig(opts);
   await sendRegistrationEmails(entries ?? [makeEntry()], "GBP");
+};
+
+/** Decode a base64 SVG attachment back to its UTF-8 source. */
+const decodeSvgAttachment = (content: string): string => {
+  const binary = atob(content);
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+};
+
+/** Assert the email body carries exactly one `ticket.svg` attachment and return
+ * its decoded SVG source. */
+const expectSingleTicketSvg = (body: {
+  attachments: { filename: string; content: string }[];
+}): string => {
+  expect(body.attachments).toHaveLength(1);
+  expect(body.attachments[0]!.filename).toBe("ticket.svg");
+  return decodeSvgAttachment(body.attachments[0]!.content);
 };
 
 describeWithEnv(
@@ -131,12 +149,7 @@ describeWithEnv(
     test("attaches SVG ticket to confirmation email", async () => {
       await setupAndSendRegistration();
 
-      const body = fetch.getFetchJsonBody();
-      expect(body.attachments).toHaveLength(1);
-      expect(body.attachments[0].filename).toBe("ticket.svg");
-      const binary = atob(body.attachments[0].content);
-      const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-      const decoded = new TextDecoder().decode(bytes);
+      const decoded = expectSingleTicketSvg(fetch.getFetchJsonBody());
       expect(decoded).toContain("<svg");
     });
 
@@ -145,6 +158,34 @@ describeWithEnv(
 
       const body = fetch.findCallBodyByRecipient("admin@business.com");
       expect(body.attachments).toBeUndefined();
+    });
+
+    test("collapses a hidden package's tickets into one package-level SVG", async () => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "VIP Bundle",
+      });
+      const { execute } = await import("#shared/db/client.ts");
+      await execute(
+        "UPDATE groups SET hide_package_listings = 1 WHERE id = ?",
+        [group.id],
+      );
+      const entries = [
+        makeEntry(
+          { name: "Secret Seat" },
+          { package_group_id: group.id, ticket_token: "pkgtok" },
+        ),
+        makeEntry(
+          { name: "Secret Meal" },
+          { package_group_id: group.id, ticket_token: "pkgtok" },
+        ),
+      ];
+      await setupAndSendRegistration({}, entries);
+
+      const decoded = expectSingleTicketSvg(fetch.getFetchJsonBody());
+      expect(decoded).toContain("VIP Bundle");
+      expect(decoded).not.toContain("Secret Seat");
+      expect(decoded).not.toContain("Secret Meal");
     });
 
     test("attaches numbered tickets for multi-listing registration", async () => {

@@ -325,6 +325,26 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       await expectHtmlResponse(response, 400, "Add Listing");
     });
 
+    test("preserves submitted group selection when create fails validation", async () => {
+      const group = await createTestGroup({ name: "Keep Me Group" });
+      const { response } = await adminMultipartPost("/admin/listing", {
+        group_ids: String(group.id),
+        max_attendees: "",
+        name: "",
+        thank_you_url: "",
+      });
+      const html = await response.text();
+      expect(response.status).toBe(400);
+      // The submitted group checkbox re-renders as checked rather than empty, so
+      // a fixed-and-resubmitted listing keeps its membership.
+      expect(html).toContain(`value="${group.id}"`);
+      expect(html).toMatch(
+        new RegExp(
+          `checked[^>]*value="${group.id}"|value="${group.id}"[^>]*checked`,
+        ),
+      );
+    });
+
     test("rejects duplicate slug", async () => {
       // First, create an listing with a specific name
       await setupListingAndLogin({

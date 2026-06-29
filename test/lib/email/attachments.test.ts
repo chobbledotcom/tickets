@@ -92,4 +92,30 @@ describe("buildTicketAttachments", () => {
     expect(decoded).toContain("Cafe Musik");
     expect(decoded).toContain("Zurich");
   });
+
+  test("collapses a hidden package into one SVG showing the package name, not members", async () => {
+    const entries = [
+      makeEntry(
+        { name: "Secret Member A" },
+        { price_paid: "1000", quantity: 2, ticket_token: "pkgtok" },
+      ),
+      makeEntry(
+        { name: "Secret Member B" },
+        { price_paid: "500", quantity: 1, ticket_token: "pkgtok" },
+      ),
+    ];
+    const attachments = await buildTicketAttachments(entries, "GBP", {
+      hideListings: true,
+      name: "Weekend Bundle",
+    });
+
+    expect(attachments.length).toBe(1);
+    expect(attachments[0]!.filename).toBe("ticket.svg");
+    const decoded = decodeAttachmentContent(attachments[0]!);
+    expect(decoded).toContain("Weekend Bundle");
+    expect(decoded).not.toContain("Secret Member A");
+    expect(decoded).not.toContain("Secret Member B");
+    // The bundle's summed quantity heads the single ticket (2 + 1).
+    expect(decoded).toContain("Qty: 3");
+  });
 });

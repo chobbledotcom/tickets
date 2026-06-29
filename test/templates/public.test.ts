@@ -1093,6 +1093,17 @@ describe("ticketViewPage package grouping", () => {
     expect(html).toContain(`/t/${token}/svg`);
   });
 
+  test("omits wallet links on a package card even when wallets are enabled", () => {
+    // Wallet routes resolve a token to a single member listing, so a saved pass
+    // would show only the first member (leaking a hidden member); package cards
+    // therefore never render wallet links.
+    const html = ticketViewPage(pkgCards, true, true, {
+      hideListings: false,
+      name: "Camp Kit",
+    });
+    expect(html).not.toContain("wallet-link");
+  });
+
   test("a purchase-only package omits the QR", () => {
     const cards = [
       {

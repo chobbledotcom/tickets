@@ -103,13 +103,14 @@ const renderQrBlock = (token: string, purchaseOnly: boolean): string =>
 
 /** Render one card for a whole package booking: the package name, then each
  * member with its booked quantity (omitted when the package hides its listings),
- * then the shared QR/wallet. The attendee's member lines share one token, so the
- * package is a single card. */
+ * then the shared QR. The attendee's member lines share one token, so the
+ * package is a single card. Wallet (Apple/Google) links are deliberately
+ * omitted: both wallet routes resolve a token to a single member listing, so a
+ * saved pass would show only the first member (and leak a hidden member's name)
+ * rather than the package the buyer clicked. */
 const renderPackageCard = (
   cards: TicketCard[],
   packageInfo: PackageDisplay,
-  appleWalletEnabled: boolean,
-  googleWalletEnabled: boolean,
 ): string => {
   const { token } = cards[0]!;
   const purchaseOnly = cards.every((c) => c.entry.listing.purchase_only);
@@ -126,7 +127,6 @@ const renderPackageCard = (
       <div class="ticket-card-name">${escapeHtml(packageInfo.name)}</div>
       ${membersHtml}
       ${renderQrBlock(token, purchaseOnly)}
-      ${renderWalletSection(token, purchaseOnly, appleWalletEnabled, googleWalletEnabled)}
     </div>
   `;
 };
@@ -217,12 +217,7 @@ export const ticketViewPage = (
   packageInfo: PackageDisplay | null = null,
 ): string => {
   const cardHtml = packageInfo
-    ? renderPackageCard(
-        cards,
-        packageInfo,
-        appleWalletEnabled,
-        googleWalletEnabled,
-      )
+    ? renderPackageCard(cards, packageInfo)
     : pipe(
         map((card: TicketCard) =>
           renderTicketCard(card, appleWalletEnabled, googleWalletEnabled),

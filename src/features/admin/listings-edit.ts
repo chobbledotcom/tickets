@@ -168,6 +168,9 @@ const renderCreateListingError = async (
     adminListingNewPage(groups, session, {
       customiseOpen: form.getString("customise") === "1",
       error,
+      // The group checkboxes the operator submitted, so a rejected create
+      // re-renders their selection rather than dropping every group.
+      selectedGroupIds: parseGroupIds(form),
       templateId,
       values: Object.fromEntries(form.entries()),
     }),

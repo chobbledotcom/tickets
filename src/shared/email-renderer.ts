@@ -14,7 +14,10 @@ import {
   formatDateLabel,
   formatDateRangeLabelCompactEn,
 } from "#shared/dates.ts";
-import { getPackageDisplayForBookings } from "#shared/db/groups.ts";
+import {
+  getPackageDisplayForBookings,
+  type PackageDisplay,
+} from "#shared/db/groups.ts";
 import type {
   EmailTemplateFormat,
   EmailTemplateType,
@@ -113,6 +116,21 @@ const toTemplateEntry = ({ listing, attendee }: EmailEntry): TemplateEntry => {
   };
 };
 
+/** The buyer's summed price (minor units) across an order's entries. */
+export const sumEntryPrices = (entries: EmailEntry[]): number =>
+  sumOf((e: EmailEntry) => Number(e.attendee.price_paid))(entries);
+
+/** The bundle's summed booked quantity across an order's entries. */
+export const sumEntryQuantities = (entries: EmailEntry[]): number =>
+  sumOf((e: EmailEntry) => e.attendee.quantity)(entries);
+
+/** The package display for an order's entries (keyed by their persisted
+ * package_group_id), or null when the order is not a single package. */
+export const getPackageDisplayForEntries = (
+  entries: EmailEntry[],
+): Promise<PackageDisplay | null> =>
+  getPackageDisplayForBookings(entries.map((e) => e.attendee.package_group_id));
+
 /** A single row standing in for a hidden package's members: the package name,
  * the buyer's contact, and the bundle's summed quantity/price — so the buyer's
  * confirmation never reveals the member listings (the admin email keeps them). */
@@ -126,10 +144,8 @@ const collapsedPackageEntry = (
       ...base.attendee,
       date: null,
       date_range_label: "",
-      price_paid: String(
-        sumOf((e: EmailEntry) => Number(e.attendee.price_paid))(entries),
-      ),
-      quantity: sumOf((e: EmailEntry) => e.attendee.quantity)(entries),
+      price_paid: String(sumEntryPrices(entries)),
+      quantity: sumEntryQuantities(entries),
     },
     listing: {
       is_paid: entries.some((e) => isPaidListing(e.listing)),
@@ -152,9 +168,7 @@ export const buildTemplateData = async (
   ticketUrl: string,
   options: { hidePackageMembers?: boolean } = {},
 ): Promise<TemplateData> => {
-  const pkg = await getPackageDisplayForBookings(
-    entries.map((e) => e.attendee.package_group_id),
-  );
+  const pkg = await getPackageDisplayForEntries(entries);
   const collapse = pkg?.hideListings === true && options.hidePackageMembers;
   const templateEntries: TemplateEntry[] = collapse
     ? [collapsedPackageEntry(entries, pkg.name)]

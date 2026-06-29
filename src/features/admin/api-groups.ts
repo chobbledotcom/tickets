@@ -11,6 +11,7 @@ import {
   computeGroupSlugIndex,
   type GroupInput,
   getAllGroups,
+  getGroupPackagePrices,
   groupsTable,
   type PackageMemberInput,
   setGroupPackageMembers,
@@ -116,6 +117,19 @@ const writePackageMembers = async (
 export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   afterWrite: writePackageMembers,
   getAll: getAllGroups,
+  // Hydrate a package group's member overrides onto every response so an API
+  // client can read back the listing_id/price/quantity values it PUT and
+  // round-trip the configuration. Non-package groups carry no members.
+  hydrate: async (row) =>
+    row.is_package
+      ? {
+          package_members: (await getGroupPackagePrices(row.id)).map((m) => ({
+            listing_id: m.listing_id,
+            price: m.package_price,
+            quantity: m.quantity,
+          })),
+        }
+      : {},
   name: "groups",
   nameField: "name",
   onDelete: deleteGroup,

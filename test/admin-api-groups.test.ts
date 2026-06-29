@@ -572,6 +572,34 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       expect(rows[0]!.quantity).toBe(1);
     });
 
+    test("GET hydrates package_members so config round-trips", async () => {
+      const { group, listing } = await groupWithMember("RoundTrip");
+      await putGroup(group.id, {
+        is_package: true,
+        package_members: [{ listing_id: listing.id, price: 1234, quantity: 2 }],
+      });
+      await assertJson(
+        apiRequest(`/api/admin/groups/${group.id}`),
+        200,
+        (body) => {
+          expect(body.group.package_members).toEqual([
+            { listing_id: listing.id, price: 1234, quantity: 2 },
+          ]);
+        },
+      );
+    });
+
+    test("GET omits package_members for a non-package group", async () => {
+      const group = await createTestGroup({ name: "Plain" });
+      await assertJson(
+        apiRequest(`/api/admin/groups/${group.id}`),
+        200,
+        (body) => {
+          expect(body.group.package_members).toBeUndefined();
+        },
+      );
+    });
+
     test("PUT without package_members leaves existing overrides untouched", async () => {
       const group = await packagedGroup("Keep", 800);
 
