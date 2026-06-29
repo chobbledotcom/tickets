@@ -50,6 +50,7 @@ import {
   type Group,
   isPaidListing,
   type ListingType,
+  type ListingWithCount,
 } from "#shared/types.ts";
 import {
   adminGroupDeletePage,
@@ -341,6 +342,20 @@ export const groupFormPost = (
     loadContext: ({ id }) => groupsTable.findById(id),
   });
 
+/** Whether a group's roster has any paid attendee data to decrypt. A package
+ * member can carry a `package_price` override while its own `unit_price` is 0,
+ * so it's paid in practice; treat any positive override as paid (alongside the
+ * usual {@link isPaidListing} checks) so the roster decrypts payment fields. */
+const groupHasPaidListing = async (
+  group: Group,
+  listings: ListingWithCount[],
+): Promise<boolean> => {
+  if (listings.some(isPaidListing)) return true;
+  if (!group.is_package) return false;
+  const rows = await getGroupPackagePrices(group.id);
+  return rows.some((row) => row.package_price > 0);
+};
+
 /** Handle GET /admin/groups/:id - group detail page */
 const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
   request,
@@ -358,7 +373,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
     let phonePrefix: string | undefined;
     if (listingIds.length > 0) {
       const privateKey = await requireRequestPrivateKey();
-      const hasPaidListing = sortedListings.some(isPaidListing);
+      const hasPaidListing = await groupHasPaidListing(group, sortedListings);
       const [rawAttendees, prefix] = await Promise.all([
         getAttendeesByListingIds(listingIds),
         Promise.resolve(settings.phonePrefix),

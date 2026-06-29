@@ -5,6 +5,7 @@ import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
   getGroupIdsByListingId,
+  setGroupPackageMembers,
   validateGroupListingType,
 } from "#shared/db/groups.ts";
 import { updateListingAggregateValues } from "#shared/db/listings.ts";
@@ -729,6 +730,35 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).toContain("Total Revenue");
+    });
+
+    test("decrypts the roster for a package whose member is paid only via its override", async () => {
+      // A package member can be free on its own (unit_price 0) yet paid through
+      // its package_price override; the roster must still decrypt payment data.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Override Paid",
+        slug: "override-paid",
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Free-Standalone Member",
+        unitPrice: 0,
+      });
+      await setGroupPackageMembers(group.id, [
+        { listingId: member.id, price: 2500 },
+      ]);
+      await createTestAttendee(
+        member.id,
+        member.slug,
+        "Buyer",
+        "buyer@test.com",
+      );
+
+      const response = await adminGet(`/admin/groups/${group.id}`);
+      expectStatus(200)(response);
+      expect(await response.text()).toContain("Free-Standalone Member");
     });
 
     const createGroupWithListing = async (
