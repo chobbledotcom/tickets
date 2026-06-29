@@ -5,7 +5,7 @@ import {
   getGroupIdsByListingId,
   getGroupIdsByListingIds,
   getGroupPackagePrices,
-  setGroupPackagePrices,
+  setGroupPackageMembers,
   setListingGroups,
 } from "#shared/db/groups.ts";
 import { MIGRATIONS } from "#shared/db/migrations.ts";
@@ -64,7 +64,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     await setListingGroups(a.id, [group.id]);
     await setListingGroups(b.id, [group.id]);
 
-    await setGroupPackagePrices(group.id, [
+    await setGroupPackageMembers(group.id, [
       { listingId: a.id, price: 1500 },
       { listingId: b.id, price: 0 },
     ]);
@@ -78,13 +78,38 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     );
   });
 
+  test("setGroupPackageMembers stores per-package quantities (default 1)", async () => {
+    const group = await createTestGroup({ name: "Qty", slug: "qty" });
+    const a = await createTestListing({ name: "QA" });
+    const b = await createTestListing({ name: "QB" });
+    await setListingGroups(a.id, [group.id]);
+    await setListingGroups(b.id, [group.id]);
+
+    // A names quantity 3; B omits it and falls back to 1.
+    await setGroupPackageMembers(group.id, [
+      { listingId: a.id, price: 100, quantity: 3 },
+      { listingId: b.id, price: 200 },
+    ]);
+    const rows = await getGroupPackagePrices(group.id);
+    const byId = new Map(rows.map((r) => [r.listing_id, r.quantity]));
+    expect(byId.get(a.id)).toBe(3);
+    expect(byId.get(b.id)).toBe(1);
+
+    // Clearing resets quantity back to 1 as well as price to 0.
+    await setGroupPackageMembers(group.id, []);
+    const cleared = await getGroupPackagePrices(group.id);
+    expect(
+      cleared.every((r) => r.quantity === 1 && r.package_price === 0),
+    ).toBe(true);
+  });
+
   test("getTestPackagePrices maps only the listings with a non-zero override", async () => {
     const group = await createTestGroup({ name: "Map", slug: "map" });
     const a = await createTestListing({ name: "MA" });
     const b = await createTestListing({ name: "MB" });
     await setListingGroups(a.id, [group.id]);
     await setListingGroups(b.id, [group.id]);
-    await setGroupPackagePrices(group.id, [
+    await setGroupPackageMembers(group.id, [
       { listingId: a.id, price: 999 },
       { listingId: b.id, price: 0 },
     ]);
@@ -94,7 +119,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     expect(map.has(b.id)).toBe(false);
   });
 
-  test("setGroupPackagePrices zeroes members it isn't given and clears on empty", async () => {
+  test("setGroupPackageMembers zeroes members it isn't given and clears on empty", async () => {
     const group = await createTestGroup({ name: "Clr", slug: "clr" });
     const a = await createTestListing({ name: "CA" });
     const b = await createTestListing({ name: "CB" });
@@ -102,25 +127,25 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     await setListingGroups(b.id, [group.id]);
 
     // Only A named: B falls into the CASE's ELSE branch and is reset to 0.
-    await setGroupPackagePrices(group.id, [{ listingId: a.id, price: 700 }]);
+    await setGroupPackageMembers(group.id, [{ listingId: a.id, price: 700 }]);
     expect(await getTestPackagePrices(group.id)).toEqual(
       new Map([[a.id, 700]]),
     );
 
     // Empty array clears every override.
-    await setGroupPackagePrices(group.id, []);
+    await setGroupPackageMembers(group.id, []);
     expect(await getTestPackagePrices(group.id)).toEqual(new Map());
   });
 
-  test("setGroupPackagePrices ignores non-member ids without wiping real overrides", async () => {
+  test("setGroupPackageMembers ignores non-member ids without wiping real overrides", async () => {
     const group = await createTestGroup({ name: "Stale", slug: "stale" });
     const a = await createTestListing({ name: "SA" });
     const outsider = await createTestListing({ name: "Outsider" });
     await setListingGroups(a.id, [group.id]);
-    await setGroupPackagePrices(group.id, [{ listingId: a.id, price: 500 }]);
+    await setGroupPackageMembers(group.id, [{ listingId: a.id, price: 500 }]);
 
     // A submission listing only a non-member is a no-op, not a full wipe.
-    await setGroupPackagePrices(group.id, [
+    await setGroupPackageMembers(group.id, [
       { listingId: outsider.id, price: 999 },
     ]);
     expect(await getTestPackagePrices(group.id)).toEqual(
@@ -128,7 +153,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     );
 
     // A mixed submission applies the member entry and drops the non-member.
-    await setGroupPackagePrices(group.id, [
+    await setGroupPackageMembers(group.id, [
       { listingId: a.id, price: 700 },
       { listingId: outsider.id, price: 999 },
     ]);

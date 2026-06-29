@@ -35,6 +35,7 @@ import {
   type DeleteBody,
   defineCrudApi,
   type ParseResult,
+  parseOptionalArray,
   parseUpdateName,
   parseUpdateSlug,
   withApiEntity,
@@ -158,23 +159,12 @@ const parseDayPrices = (raw: unknown): Record<number, number> => {
  * `[]`) replaces it. Fails closed: any non-positive-integer entry rejects the
  * whole request rather than being silently dropped, so a typo like
  * `["5"]` can't quietly clear a listing's groups. */
-const parseGroupIds = (raw: unknown): ParseResult<number[] | undefined> => {
-  if (raw === undefined) return { input: undefined, ok: true };
-  if (!Array.isArray(raw)) {
-    return { error: "group_ids must be an array of group ids", ok: false };
-  }
-  const ids: number[] = [];
-  for (const entry of raw) {
-    if (typeof entry !== "number" || !Number.isInteger(entry) || entry <= 0) {
-      return {
-        error: "group_ids must contain only positive integer ids",
-        ok: false,
-      };
-    }
-    ids.push(entry);
-  }
-  return { input: ids, ok: true };
-};
+const parseGroupIds = (raw: unknown): ParseResult<number[] | undefined> =>
+  parseOptionalArray<number>(raw, "group_ids", (entry) =>
+    typeof entry === "number" && Number.isInteger(entry) && entry > 0
+      ? { value: entry }
+      : { error: "group_ids must contain only positive integer ids" },
+  );
 
 /** Check whether a value matches the expected field type */
 const matchesType = (val: unknown, type: FieldType): val is FieldValue =>

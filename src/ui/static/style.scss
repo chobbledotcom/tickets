@@ -1705,6 +1705,14 @@ form.listing-form--templated.listing-form--no-daily:not(:has(#customise-listing:
 // Hide the max price field unless "Allow Pay More" is checked.
 @include reveal-when-checked("can_pay_more", 'label:has([name="max_price"])');
 
+// Package-only controls — the per-member price/quantity table and the
+// "hide listings within package" toggle — appear only once "Package" is ticked.
+@include reveal-when-checked("is_package", ".package-prices");
+@include reveal-when-checked(
+  "is_package",
+  'label:has(input[name="hide_package_listings"])'
+);
+
 // Hide the reservation amount field unless "This is a reservation" is checked.
 @include reveal-when-checked(
   "is_reservation",

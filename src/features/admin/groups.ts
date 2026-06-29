@@ -27,9 +27,9 @@ import {
   getUngroupedListings,
   groupsTable,
   isGroupSlugTaken,
-  type PackagePriceInput,
+  type PackageMemberInput,
   resetGroupListings,
-  setGroupPackagePrices,
+  setGroupPackageMembers,
   validateGroupListingType,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
@@ -48,6 +48,7 @@ import {
   type Attendee,
   type Group,
   isPaidListing,
+  type ListingType,
 } from "#shared/types.ts";
 import {
   adminGroupDeletePage,
@@ -81,13 +82,18 @@ const validateGroupSlug: GroupValidator = async (input, id) => {
   return taken ? t("error.slug_in_use_group") : null;
 };
 
-/** A package prices each member individually, so every member must have a single
- * fixed price: `customisable_days` and `can_pay_more` listings, whose price is
- * chosen at booking time, cannot be packaged. */
+/** A package prices each member individually and the buyer picks a single
+ * package quantity, so every member must be a plain standard listing with a
+ * single fixed price: daily listings (date-driven), `customisable_days`, and
+ * `can_pay_more` listings (price chosen at booking time) cannot be packaged. */
 const isPackageable = (listing: {
+  listing_type: ListingType;
   customisable_days: boolean;
   can_pay_more: boolean;
-}): boolean => !listing.customisable_days && !listing.can_pay_more;
+}): boolean =>
+  listing.listing_type === "standard" &&
+  !listing.customisable_days &&
+  !listing.can_pay_more;
 
 /** Reject marking a group as a package when any current member can't be packaged
  * (see {@link isPackageable}). A falsy `isPackage` is always fine. Returns an
@@ -122,24 +128,37 @@ const parsePackagePrice = (raw: string): number => {
   return Number.isFinite(major) && major >= 0 ? toMinorUnits(major) : 0;
 };
 
-/** Read the per-listing `package_price_<id>` inputs from the edit form. */
-const parsePackagePrices = (form: FormParams): PackagePriceInput[] => {
-  const prices: PackagePriceInput[] = [];
+/** Parse one package-quantity input. A blank, non-numeric, or sub-1 value
+ * defaults to 1 (a package always includes at least one of each member). */
+const parsePackageQuantity = (raw: string): number => {
+  const n = Number.parseInt(raw, 10);
+  return Number.isInteger(n) && n >= 1 ? n : 1;
+};
+
+/** Read the per-listing `package_price_<id>` / `package_qty_<id>` inputs from
+ * the edit form into one member entry per listing whose price input is present. */
+const parsePackageMembers = (form: FormParams): PackageMemberInput[] => {
+  const members: PackageMemberInput[] = [];
   for (const key of new Set(form.keys())) {
     const match = /^package_price_(\d+)$/.exec(key);
     if (!match) continue;
-    prices.push({
-      listingId: Number(match[1]),
+    const listingId = Number(match[1]);
+    members.push({
+      listingId,
       price: parsePackagePrice(form.getString(key)),
+      quantity: parsePackageQuantity(
+        form.getString(`package_qty_${listingId}`),
+      ),
     });
   }
-  return prices;
+  return members;
 };
 
 /** Shared fields from group form values */
 const sharedGroupFields = (values: GroupCreateFormValues) => ({
   description: values.description,
   hidden: values.hidden === "1",
+  hidePackageListings: values.hide_package_listings === "1",
   isPackage: values.is_package === "1",
   maxAttendees: values.max_attendees ?? 0,
   name: values.name,
@@ -201,24 +220,25 @@ const groupsCreateResource = defineNamedResource({
   toInput: extractGroupCreateInput,
 });
 
-/** Persist the group's per-listing package prices after the row is saved,
- * reading the dynamic `package_price_<id>` inputs from the raw form. When the
- * group is not (or no longer) a package, every override is cleared to 0. */
-const writeGroupPackagePrices = (
+/** Persist the group's per-listing package overrides (price + quantity) after
+ * the row is saved, reading the dynamic `package_price_<id>` / `package_qty_<id>`
+ * inputs from the raw form. When the group is not (or no longer) a package,
+ * every override is cleared back to price 0 / quantity 1. */
+const writeGroupPackageMembers = (
   group: Group,
   input: GroupInput,
   form: FormParams,
 ) =>
-  setGroupPackagePrices(
+  setGroupPackageMembers(
     group.id,
-    input.isPackage ? parsePackagePrices(form) : [],
+    input.isPackage ? parsePackageMembers(form) : [],
   );
 
 /** Groups resource for REST update operations (user-provided slug). Validates
- * the package invariant and writes the dynamic price overrides via afterWrite,
- * so the generic CRUD edit route handles packages without a bespoke handler. */
+ * the package invariant and writes the dynamic overrides via afterWrite, so the
+ * generic CRUD edit route handles packages without a bespoke handler. */
 const groupsResource = defineNamedResource({
-  afterWrite: writeGroupPackagePrices,
+  afterWrite: writeGroupPackageMembers,
   fields: getGroupFields(),
   nameField: "name",
   onDelete: deleteGroup,
@@ -267,16 +287,20 @@ const handleGroupEditGet: TypedRouteHandler<"GET /admin/groups/:id/edit"> = (
 ) =>
   groupPage(requireContentOr, async (group, session) => {
     const listings = await getListingsByGroupId(id);
-    const prices = await getGroupPackagePrices(id);
-    // Only real overrides (price > 0) go in the map; members without one show a
-    // blank input that falls back to the listing's base price.
-    const priceMap = new Map(
-      prices
-        .filter((row) => row.package_price > 0)
-        .map((row) => [row.listing_id, row.package_price] as const),
+    const rows = await getGroupPackagePrices(id);
+    // listing id → saved per-unit price + per-package quantity, to pre-fill the
+    // members table. A 0 price renders as a blank input (use the base price).
+    const members = new Map(
+      rows.map(
+        (row) =>
+          [
+            row.listing_id,
+            { price: row.package_price, quantity: row.quantity },
+          ] as const,
+      ),
     );
     return htmlResponse(
-      adminGroupEditPage(group, listings, priceMap, session, getFlash().error),
+      adminGroupEditPage(group, listings, members, session, getFlash().error),
     );
   })(request, id);
 

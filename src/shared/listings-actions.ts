@@ -67,13 +67,15 @@ type ListingUpdateCheck = (
 ) => Promise<string | null>;
 
 /** Validate each selected group exists, the listing type is compatible with that
- * group's other members, and — for package groups — the listing has a single
- * fixed price (no customisable days or pay-what-you-want). The package check
- * mirrors the group-side invariant so the listing form/API can't smuggle an
- * incompatible listing into a package. */
+ * group's other members, and — for package groups — the listing is a plain
+ * standard listing with a single fixed price (not daily, customisable-days, or
+ * pay-what-you-want). The package check mirrors the group-side invariant so the
+ * listing form/API can't smuggle an incompatible listing into a package. */
 const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
   const incompatibleWithPackage =
-    (input.canPayMore ?? false) || (input.customisableDays ?? false);
+    (input.listingType ?? "standard") !== "standard" ||
+    (input.canPayMore ?? false) ||
+    (input.customisableDays ?? false);
   for (const groupId of input.groupIds ?? []) {
     const group = await groupsTable.findById(groupId);
     if (!group) return "Selected group does not exist";

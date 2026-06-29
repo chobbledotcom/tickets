@@ -30,12 +30,23 @@ const packagedGroup = async (name: string, price: number) => {
   await apiRequest(`/api/admin/groups/${group.id}`, {
     body: {
       is_package: true,
-      package_prices: [{ listing_id: listing.id, price }],
+      package_members: [{ listing_id: listing.id, price }],
     },
     method: "PUT",
   });
   return group;
 };
+
+/** A fresh group with one member listing, for package PUT tests. */
+const groupWithMember = async (name: string) => {
+  const group = await createTestGroup({ name });
+  const listing = await createTestListing({ groupId: group.id });
+  return { group, listing };
+};
+
+/** PUT a group via the JSON API. */
+const putGroup = (groupId: number, body: Record<string, unknown>) =>
+  apiRequest(`/api/admin/groups/${groupId}`, { body, method: "PUT" });
 
 describeWithEnv("Admin API - Groups", { db: true }, () => {
   describe("GET /api/admin/groups", () => {
@@ -446,47 +457,103 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
   });
 
   describe("package fields", () => {
-    test("POST persists is_package", async () => {
+    test("POST persists is_package and hide_package_listings", async () => {
       await assertJson(
         apiRequest("/api/admin/groups", {
-          body: { is_package: true, name: "API Package" },
+          body: {
+            hide_package_listings: true,
+            is_package: true,
+            name: "API Package",
+          },
           method: "POST",
         }),
         201,
         (body) => {
           expect(body.group.is_package).toBe(true);
+          expect(body.group.hide_package_listings).toBe(true);
         },
       );
     });
 
-    test("PUT sets is_package and package_prices, ignoring malformed entries", async () => {
-      const group = await createTestGroup({ name: "PUT Pkg" });
-      const listing = await createTestListing({ groupId: group.id });
+    test("PUT rejects malformed package members (bad id, price, or quantity)", async () => {
+      const { group, listing } = await groupWithMember("BadMembers");
+      const cases: Array<[Record<string, unknown>, string]> = [
+        [{ listing_id: -1, price: 100 }, "listing_id"],
+        [{ listing_id: listing.id, price: -5 }, "price"],
+        [{ listing_id: listing.id, price: 100, quantity: 0 }, "quantity"],
+      ];
+      for (const [member, errorSubstring] of cases) {
+        await assertJson(
+          putGroup(group.id, { is_package: true, package_members: [member] }),
+          400,
+          (body) => {
+            expect(body.error).toContain(errorSubstring);
+          },
+        );
+      }
+    });
 
+    test("POST rejects a malformed package member", async () => {
       await assertJson(
-        apiRequest(`/api/admin/groups/${group.id}`, {
+        apiRequest("/api/admin/groups", {
           body: {
             is_package: true,
-            package_prices: [
-              { listing_id: listing.id, price: 2500 },
-              { listing_id: -1, price: 100 }, // dropped: bad id
-              { listing_id: listing.id, price: -5 }, // dropped: negative
-            ],
+            name: "BadCreate",
+            package_members: [null],
           },
-          method: "PUT",
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toContain("package_members");
+        },
+      );
+    });
+
+    test("PUT updates hide_package_listings", async () => {
+      const group = await packagedGroup("HideUpd", 500);
+      await assertJson(
+        putGroup(group.id, { hide_package_listings: true, is_package: true }),
+        200,
+        (body) => {
+          expect(body.group.hide_package_listings).toBe(true);
+        },
+      );
+    });
+
+    test("PUT sets is_package, package member prices and quantities", async () => {
+      const { group, listing } = await groupWithMember("PUT Pkg");
+
+      await assertJson(
+        putGroup(group.id, {
+          is_package: true,
+          package_members: [
+            { listing_id: listing.id, price: 2500, quantity: 3 },
+          ],
         }),
         200,
         (body) => {
           expect(body.group.is_package).toBe(true);
         },
       );
-      const prices = await getGroupPackagePrices(group.id);
-      expect(prices).toEqual([
-        { group_id: group.id, listing_id: listing.id, package_price: 2500 },
+      const rows = await getGroupPackagePrices(group.id);
+      expect(rows).toEqual([
+        {
+          group_id: group.id,
+          listing_id: listing.id,
+          package_price: 2500,
+          quantity: 3,
+        },
       ]);
     });
 
-    test("PUT without package_prices leaves existing overrides untouched", async () => {
+    test("PUT defaults a member's quantity to 1 when omitted", async () => {
+      const group = await packagedGroup("DefaultQty", 900);
+      const rows = await getGroupPackagePrices(group.id);
+      expect(rows[0]!.quantity).toBe(1);
+    });
+
+    test("PUT without package_members leaves existing overrides untouched", async () => {
       const group = await packagedGroup("Keep", 800);
 
       // A name-only update must not wipe the saved override.
@@ -509,19 +576,22 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       expect(prices[0]!.package_price).toBe(0);
     });
 
-    test("PUT tolerates a null entry in package_prices without crashing", async () => {
-      const group = await createTestGroup({ isPackage: true, name: "Nully" });
-      const listing = await createTestListing({ groupId: group.id });
+    test("PUT rejects a malformed package_members entry without wiping overrides", async () => {
+      const group = await packagedGroup("FailClosed", 600);
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`, {
           body: {
             is_package: true,
-            package_prices: [null, { listing_id: listing.id, price: 600 }],
+            package_members: [null],
           },
           method: "PUT",
         }),
-        200,
+        400,
+        (body) => {
+          expect(body.error).toContain("package_members");
+        },
       );
+      // The existing override survives the rejected request.
       const prices = await getGroupPackagePrices(group.id);
       expect(prices[0]!.package_price).toBe(600);
     });

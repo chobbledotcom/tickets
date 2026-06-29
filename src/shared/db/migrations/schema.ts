@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Replace listings.group_id with a group_listings join table (carrying package_price) so a listing can belong to many groups, and add groups.is_package for package groups.";
+  "Add group_listings.quantity (how many of a listing one package unit includes) and groups.hide_package_listings (hide a package's members from buyers/tickets/emails).";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -471,6 +471,7 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["max_attendees", "INTEGER NOT NULL DEFAULT 0"],
         ["hidden", "INTEGER NOT NULL DEFAULT 0"],
         ["is_package", "INTEGER NOT NULL DEFAULT 0"],
+        ["hide_package_listings", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         {
@@ -488,14 +489,17 @@ export const SCHEMA: [name: string, table: Table][] = [
     // FK so a listing can sit in several groups at once. No FKs (house style);
     // the app keeps it consistent and the group/listing delete paths prune both
     // sides. `package_price` (minor units, 0 = no override) is the per-listing
-    // price when this group is a package — unused for non-package groups. The PK
-    // covers group→listings lookups; the extra index serves listing→groups.
+    // price when this group is a package — unused for non-package groups.
+    // `quantity` is how many of this listing one unit of the package includes
+    // (≥1; default 1). The PK covers group→listings lookups; the extra index
+    // serves listing→groups.
     "group_listings",
     {
       columns: [
         ["group_id", "INTEGER NOT NULL"],
         ["listing_id", "INTEGER NOT NULL"],
         ["package_price", "INTEGER NOT NULL DEFAULT 0"],
+        ["quantity", "INTEGER NOT NULL DEFAULT 1"],
       ],
       indexes: [
         {

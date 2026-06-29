@@ -128,6 +128,7 @@ export const testRadioQuestion = (
 export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   description: "",
   hidden: false,
+  hide_package_listings: false,
   id: 1,
   is_package: false,
   max_attendees: 0,

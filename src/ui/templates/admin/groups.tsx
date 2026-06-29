@@ -111,6 +111,7 @@ export const groupToFieldValues = (
 ): Record<string, string | number | null> =>
   entityToFieldValues(group, getGroupFields(), {
     hidden: (g) => booleanToCheckbox(g.hidden),
+    hide_package_listings: (g) => booleanToCheckbox(g.hide_package_listings),
     is_package: (g) => booleanToCheckbox(g.is_package),
     max_attendees: (g) => g.max_attendees || null,
   });
@@ -136,18 +137,25 @@ export const adminGroupNewPage = (
     </Layout>,
   );
 
+/** A package member's saved per-unit price override (minor units, 0 = none) and
+ * fixed per-package quantity, keyed by listing id. */
+export type PackageMemberValues = ReadonlyMap<
+  number,
+  { price: number; quantity: number }
+>;
+
 /**
- * Per-listing package price overrides. Shown only when "is a package" is ticked
- * (the `.package-prices` block is hidden via CSS while the checkbox is clear).
- * A blank input means "use the listing's own price"; the listing's base price is
- * shown as the input placeholder.
+ * Per-listing package overrides (per-unit price + quantity per package). Shown
+ * only when "is a package" is ticked (the `.package-prices` block is hidden via
+ * CSS while the checkbox is clear). A blank price means "use the listing's own
+ * price"; the listing's base price is the placeholder. Quantity defaults to 1.
  */
-const PackagePriceTable = ({
+const PackageMembersTable = ({
   listings,
-  prices,
+  members,
 }: {
   listings: ListingWithCount[];
-  prices: Map<number, number>;
+  members: PackageMemberValues;
 }): JSX.Element => (
   <div class="package-prices">
     <h2>{t("groups.package_prices.heading")}</h2>
@@ -161,11 +169,13 @@ const PackagePriceTable = ({
             <tr>
               <th>{t("common.name")}</th>
               <th>{t("fields.group.package_price")}</th>
+              <th>{t("fields.group.package_quantity")}</th>
             </tr>
           </thead>
           <tbody>
             {listings.map((e) => {
-              const override = prices.get(e.id) ?? 0;
+              const member = members.get(e.id);
+              const override = member?.price ?? 0;
               return (
                 <tr>
                   <td>{e.name}</td>
@@ -176,6 +186,15 @@ const PackagePriceTable = ({
                       placeholder={toMajorUnits(e.unit_price)}
                       type="text"
                       value={override > 0 ? toMajorUnits(override) : ""}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      inputmode="numeric"
+                      min="1"
+                      name={`package_qty_${e.id}`}
+                      type="number"
+                      value={String(member?.quantity ?? 1)}
                     />
                   </td>
                 </tr>
@@ -190,12 +209,13 @@ const PackagePriceTable = ({
 
 /**
  * Admin group edit page. Loads the group's listings and their current package
- * price overrides so the per-listing price table can be pre-filled.
+ * overrides (per-unit price + per-package quantity) so the members table can be
+ * pre-filled.
  */
 export const adminGroupEditPage = (
   group: Group,
   listings: ListingWithCount[],
-  prices: Map<number, number>,
+  members: PackageMemberValues,
   session: AdminSession,
   error?: string,
 ): string =>
@@ -206,7 +226,7 @@ export const adminGroupEditPage = (
         <h1>{t("groups.edit.heading")}</h1>
         <Flash error={error} />
         <Raw html={renderFields(getGroupFields(), groupToFieldValues(group))} />
-        <PackagePriceTable listings={listings} prices={prices} />
+        <PackageMembersTable listings={listings} members={members} />
         <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
       </CsrfForm>
     </Layout>,

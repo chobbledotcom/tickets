@@ -6,7 +6,7 @@ import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import { execute } from "#shared/db/client.ts";
-import { groupsTable, setGroupPackagePrices } from "#shared/db/groups.ts";
+import { groupsTable, setGroupPackageMembers } from "#shared/db/groups.ts";
 import { deleteListing, listingsTable } from "#shared/db/listings.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { prunePayments } from "#shared/db/prune.ts";
@@ -763,7 +763,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       maxAttendees: 50,
       unitPrice: 5000,
     });
-    await setGroupPackagePrices(group.id, [
+    await setGroupPackageMembers(group.id, [
       { listingId: listing.id, price: 1500 },
     ]);
     return { group, listing };
@@ -811,7 +811,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     const { group, listing } = await setupPackage();
     const metadata = packageMetadata(group.id, listing.id, 1500);
     // Operator raises the override after the buyer signed at 1500.
-    await setGroupPackagePrices(group.id, [
+    await setGroupPackageMembers(group.id, [
       { listingId: listing.id, price: 2000 },
     ]);
     await expectPackageRefund("cs_pkg_changed", listing.id, metadata);

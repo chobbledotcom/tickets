@@ -66,7 +66,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     expect(groups[groups.length - 1]!.is_package).toBe(true);
   });
 
-  test("edit POST saves is_package and per-listing package prices", async () => {
+  test("edit POST saves is_package, per-listing prices and quantities", async () => {
     const group = await createTestGroup({ name: "Pkg", slug: "pkg" });
     const a = await member(group, "A");
     const b = await member(group, "B");
@@ -76,6 +76,8 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       is_package: "1",
       [`package_price_${a.id}`]: "12.50",
       [`package_price_${b.id}`]: "",
+      [`package_qty_${a.id}`]: "2",
+      // b omits package_qty → defaults to 1.
     });
     await expectFlashRedirect(
       `/admin/groups/${group.id}`,
@@ -89,6 +91,33 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     expect(prices.get(a.id)).toBe(1250);
     // Blank input is stored as 0 (no override), so it's absent from the map.
     expect(prices.has(b.id)).toBe(false);
+    const rows = await getGroupPackagePrices(group.id);
+    const qty = new Map(rows.map((r) => [r.listing_id, r.quantity]));
+    expect(qty.get(a.id)).toBe(2);
+    expect(qty.get(b.id)).toBe(1);
+  });
+
+  test("edit POST persists the hide-package-listings flag", async () => {
+    const group = await createTestGroup({ name: "HideG", slug: "hide-g" });
+    await member(group, "HM");
+
+    await adminFormPost(`/admin/groups/${group.id}/edit`, {
+      ...editFields("HideG", "hide-g"),
+      hide_package_listings: "1",
+      is_package: "1",
+    });
+    expect((await groupsTable.findById(group.id))!.hide_package_listings).toBe(
+      true,
+    );
+  });
+
+  test("edit POST rejects is_package on a group with a daily listing", async () => {
+    const group = await createTestGroup({ name: "Daily", slug: "daily-pkg" });
+    await member(group, "Daily Member", {
+      date: "2026-09-01T10:00",
+      listingType: "daily",
+    });
+    await expectPackageRejected(group);
   });
 
   test("edit POST treats a negative or non-numeric package price as no override", async () => {
@@ -178,6 +207,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       is_package: "1",
       [`package_price_${a.id}`]: "7.00",
       [`package_price_${b.id}`]: "",
+      [`package_qty_${a.id}`]: "5",
     });
 
     const html = await expectHtmlResponse(
@@ -190,6 +220,9 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     expect(html).toContain('value="7.00"');
     // The override-free member renders an empty value, falling back to base price.
     expect(html).toContain(`name="package_price_${b.id}"`);
+    // Per-package quantity inputs render, pre-filled with the saved quantity.
+    expect(html).toContain(`name="package_qty_${a.id}"`);
+    expect(html).toContain('value="5"');
   });
 
   test("edit GET shows the empty-group prompt when there are no listings", async () => {

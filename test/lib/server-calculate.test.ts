@@ -6,7 +6,7 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { invalidateAttendeeStatusesCache } from "#shared/db/attendee-statuses.ts";
 import { getDb } from "#shared/db/client.ts";
-import { setGroupPackagePrices } from "#shared/db/groups.ts";
+import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import { modifiersTable, setModifierAnswers } from "#shared/db/modifiers.ts";
 import {
   answersTable,
@@ -73,7 +73,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       name: "Pass Member",
       unitPrice: 5000,
     });
-    await setGroupPackagePrices(group.id, [
+    await setGroupPackageMembers(group.id, [
       { listingId: member.id, price: 1500 },
     ]);
 

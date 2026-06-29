@@ -12,20 +12,27 @@ import {
   type GroupInput,
   getAllGroups,
   groupsTable,
-  type PackagePriceInput,
-  setGroupPackagePrices,
+  type PackageMemberInput,
+  setGroupPackageMembers,
 } from "#shared/db/groups.ts";
 import {
   type DeleteBody,
   defineCrudApi,
+  type ItemResult,
+  type ParseResult,
+  parseOptionalArray,
   parseUpdateName,
   parseUpdateSlug,
 } from "#shared/rest/crud-api.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import type { Group } from "#shared/types.ts";
 
-/** A package price override in a JSON request body. */
-export type PackagePriceBody = { listing_id: number; price: number };
+/** A package member override in a JSON request body. `quantity` defaults to 1. */
+export type PackageMemberBody = {
+  listing_id: number;
+  price: number;
+  quantity?: number;
+};
 
 /** JSON body accepted by POST /api/admin/groups */
 export type CreateGroupBody = {
@@ -35,7 +42,8 @@ export type CreateGroupBody = {
   terms_and_conditions?: string;
   hidden?: boolean;
   is_package?: boolean;
-  package_prices?: PackagePriceBody[];
+  hide_package_listings?: boolean;
+  package_members?: PackageMemberBody[];
 };
 
 /** JSON body accepted by PUT /api/admin/groups/:groupId */
@@ -47,56 +55,66 @@ export type DeleteGroupBody = DeleteBody;
 /** Strip slug_index from response */
 const STRIP_KEYS = ["slug_index"];
 
-/**
- * Parse the optional `package_prices` array from a JSON body. Returns `undefined`
- * when the key is absent (partial update: leave existing overrides untouched),
- * or a validated list (invalid entries dropped) — an empty array clears them.
- */
-const parsePackagePrices = (
-  body: Record<string, unknown>,
-): PackagePriceInput[] | undefined => {
-  const raw = body.package_prices;
-  if (!Array.isArray(raw)) return undefined;
-  // Drop non-object entries (e.g. a `null` in the array) before reading fields,
-  // so a malformed element can't throw; remaining junk is filtered out by the
-  // value checks, matching the rest of this best-effort parser.
-  return raw
-    .filter(
-      (item): item is Record<string, unknown> =>
-        typeof item === "object" && item !== null,
-    )
-    .map((item) => ({
-      listingId: Number(item.listing_id),
-      price: Number(item.price),
-    }))
-    .filter(
-      (p) =>
-        Number.isInteger(p.listingId) &&
-        p.listingId > 0 &&
-        Number.isInteger(p.price) &&
-        p.price >= 0,
-    );
+/** Parse one JSON package-member entry, failing closed on anything malformed
+ * (rather than coercing `null`/junk into a real override that would clear a
+ * member). `quantity` is optional and defaults to 1. */
+const parsePackageMember = (item: unknown): ItemResult<PackageMemberInput> => {
+  if (typeof item !== "object" || item === null) {
+    return { error: "package_members entries must be objects" };
+  }
+  const { listing_id, price, quantity = 1 } = item as Record<string, unknown>;
+  if (!Number.isInteger(listing_id) || (listing_id as number) <= 0) {
+    return { error: "package_members listing_id must be a positive integer" };
+  }
+  if (!Number.isInteger(price) || (price as number) < 0) {
+    return { error: "package_members price must be a non-negative integer" };
+  }
+  if (!Number.isInteger(quantity) || (quantity as number) < 1) {
+    return { error: "package_members quantity must be a positive integer" };
+  }
+  return {
+    value: {
+      listingId: listing_id as number,
+      price: price as number,
+      quantity: quantity as number,
+    },
+  };
 };
 
 /**
- * Persist package price overrides after a group write, with partial-update
- * semantics: clearing the group's package flag clears all overrides; an absent
- * `package_prices` leaves existing rows untouched; otherwise the rows are set.
+ * Parse the optional `package_members` array from a JSON body. `undefined` when
+ * the key is absent (partial update: leave existing overrides untouched); an
+ * empty array clears them. Fails closed (see {@link parseOptionalArray}): any
+ * malformed entry rejects the whole request rather than being dropped.
  */
-const writePackagePrices = async (
+const parsePackageMembers = (
+  body: Record<string, unknown>,
+): ParseResult<PackageMemberInput[] | undefined> =>
+  parseOptionalArray(
+    body.package_members,
+    "package_members",
+    parsePackageMember,
+  );
+
+/**
+ * Persist package overrides after a group write, with partial-update semantics:
+ * clearing the group's package flag clears all overrides; absent `package_members`
+ * leaves existing rows untouched; otherwise the rows are set.
+ */
+const writePackageMembers = async (
   id: number,
   input: GroupInput,
 ): Promise<void> => {
   if (input.isPackage === false) {
-    await setGroupPackagePrices(id, []);
+    await setGroupPackageMembers(id, []);
     return;
   }
-  if (input.packagePrices === undefined) return;
-  await setGroupPackagePrices(id, input.packagePrices);
+  if (input.packageMembers === undefined) return;
+  await setGroupPackageMembers(id, input.packageMembers);
 };
 
 export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
-  afterWrite: writePackagePrices,
+  afterWrite: writePackageMembers,
   getAll: getAllGroups,
   name: "groups",
   nameField: "name",
@@ -110,16 +128,19 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
     if (!name) return { error: "name is required", ok: false };
 
     const { slug, slugIndex } = await generateUniqueGroupSlug();
+    const members = parsePackageMembers(body);
+    if (!members.ok) return members;
     return {
       input: {
         description:
           typeof body.description === "string" ? body.description : "",
         hidden: body.hidden === true,
+        hidePackageListings: body.hide_package_listings === true,
         isPackage: body.is_package === true,
         maxAttendees:
           typeof body.max_attendees === "number" ? body.max_attendees : 0,
         name,
-        packagePrices: parsePackagePrices(body),
+        packageMembers: members.input,
         slug,
         slugIndex,
         termsAndConditions:
@@ -134,6 +155,9 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   toUpdateInput: async (body, existing) => {
     const parsed = parseUpdateName(body, existing.name);
     if (!parsed.ok) return parsed;
+
+    const members = parsePackageMembers(body);
+    if (!members.ok) return members;
 
     const { slug, slugIndex } = await parseUpdateSlug(
       body,
@@ -150,6 +174,10 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
             : existing.description,
         hidden:
           typeof body.hidden === "boolean" ? body.hidden : existing.hidden,
+        hidePackageListings:
+          typeof body.hide_package_listings === "boolean"
+            ? body.hide_package_listings
+            : existing.hide_package_listings,
         isPackage:
           typeof body.is_package === "boolean"
             ? body.is_package
@@ -159,7 +187,7 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
             ? body.max_attendees
             : existing.max_attendees,
         name: parsed.name,
-        packagePrices: parsePackagePrices(body),
+        packageMembers: members.input,
         slug,
         slugIndex,
         termsAndConditions:

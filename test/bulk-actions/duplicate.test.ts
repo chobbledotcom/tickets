@@ -161,7 +161,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       expect((await getAllGroups()).length).toBe(groupCountBefore);
     });
 
-    test("copies the package flag and remaps per-listing package prices", async () => {
+    test("copies the package flag, hide option, and remapped member overrides", async () => {
       const group = await createTestGroup({
         isPackage: true,
         name: "Pkg Source",
@@ -170,13 +170,15 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         groupId: group.id,
         name: "Member",
       });
-      // Set a package price override on the source group.
+      // Set a package price override + quantity + hide flag on the source group.
       await adminFormPost(`/admin/groups/${group.id}/edit`, {
         description: "",
+        hide_package_listings: "1",
         is_package: "1",
         max_attendees: "0",
         name: "Pkg Source",
         [`package_price_${listing.id}`]: "30.00",
+        [`package_qty_${listing.id}`]: "4",
         slug: group.slug,
         terms_and_conditions: "",
       });
@@ -191,13 +193,17 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         (g) => g.name === "Pkg Copy",
       )!;
       expect(newGroup.is_package).toBe(true);
+      expect(newGroup.hide_package_listings).toBe(true);
       const newListing = (await getListingsByGroupId(newGroup.id))[0]!;
       expect(newListing.id).not.toBe(listing.id);
       const prices = await getTestPackagePrices(newGroup.id);
       expect(prices.get(newListing.id)).toBe(3000);
+      const newRows = await getGroupPackagePrices(newGroup.id);
+      expect(newRows[0]!.quantity).toBe(4);
       // The source override is untouched.
-      const sourcePrices = await getGroupPackagePrices(group.id);
-      expect(sourcePrices[0]!.package_price).toBe(3000);
+      const sourceRows = await getGroupPackagePrices(group.id);
+      expect(sourceRows[0]!.package_price).toBe(3000);
+      expect(sourceRows[0]!.quantity).toBe(4);
     });
 
     test("returns 404 when the source group does not exist", async () => {

@@ -30,8 +30,16 @@ import type {
  * reads from it — same isolate-level TTL as the listings cache. */
 const GROUPS_CACHE_TTL_MS = 30_000;
 
-/** A per-listing package price override, as parsed from the group edit form. */
-export type PackagePriceInput = { listingId: number; price: number };
+/** A package member's per-unit price override and fixed quantity, as parsed from
+ * the group edit form / API. `price` is minor units (0 = no override, use the
+ * listing's own price); `quantity` is how many of this listing one package unit
+ * includes (≥1). */
+export type PackageMemberInput = {
+  listingId: number;
+  price: number;
+  /** How many of this listing one package unit includes (≥1). Defaults to 1. */
+  quantity?: number;
+};
 
 /** Group input fields for create/update (camelCase) */
 export type GroupInput = {
@@ -43,9 +51,11 @@ export type GroupInput = {
   maxAttendees?: number;
   hidden?: boolean;
   isPackage?: boolean;
-  /** Per-listing price overrides. Absent means "leave existing rows untouched"
-   * (partial API update); an empty array clears every override to 0. */
-  packagePrices?: PackagePriceInput[];
+  hidePackageListings?: boolean;
+  /** Per-listing package overrides (price + quantity). Absent means "leave
+   * existing rows untouched" (partial API update); an empty array clears every
+   * override back to price 0 / quantity 1. */
+  packageMembers?: PackageMemberInput[];
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -58,6 +68,7 @@ const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
   ...idAndEncryptedSlugSchema(encrypt, decrypt),
   description: col.encryptedText(encrypt, decrypt),
   hidden: col.boolean(false),
+  hide_package_listings: col.boolean(false),
   is_package: col.boolean(false),
   max_attendees: col.simple<number>(),
   terms_and_conditions: col.encryptedText(encrypt, decrypt),
@@ -296,51 +307,57 @@ export const resetGroupListings = async (groupId: number): Promise<void> => {
 };
 
 /**
- * Every membership row for a group, carrying its `package_price` override.
- * A `package_price` of 0 means "no override — use the listing's base price".
+ * Every membership row for a group, carrying its `package_price` override and
+ * per-package `quantity`. A `package_price` of 0 means "no override — use the
+ * listing's base price"; `quantity` defaults to 1.
  */
 export const getGroupPackagePrices = (
   groupId: number,
 ): Promise<GroupListing[]> =>
   queryAll<GroupListing>(
-    "SELECT group_id, listing_id, package_price FROM group_listings WHERE group_id = ? ORDER BY listing_id ASC",
+    "SELECT group_id, listing_id, package_price, quantity FROM group_listings WHERE group_id = ? ORDER BY listing_id ASC",
     [groupId],
   );
 
-/** Reset every override in a group to 0 (no override). */
-const clearGroupPackagePrices = (groupId: number): Promise<unknown> =>
-  execute("UPDATE group_listings SET package_price = 0 WHERE group_id = ?", [
-    groupId,
-  ]);
+/** Reset every member's override to price 0 / quantity 1 (no override). */
+const clearGroupPackageMembers = (groupId: number): Promise<unknown> =>
+  execute(
+    "UPDATE group_listings SET package_price = 0, quantity = 1 WHERE group_id = ?",
+    [groupId],
+  );
 
 /**
- * Set the `package_price` override on a group's membership rows in one UPDATE.
- * Listings named in `prices` that are CURRENT members get their value; every
- * other member is reset to 0 (no override). Non-member ids are dropped, so a
- * stale or crafted id is ignored rather than wiping the real overrides via the
- * `ELSE 0` branch. An explicit empty array clears all overrides; a non-empty
- * list that matches no members is a no-op (it isn't treated as "clear all").
- * One statement regardless of size, staying clear of the round-trip guard.
+ * Set the `package_price` and `quantity` on a group's membership rows in one
+ * UPDATE. Listings named in `members` that are CURRENT members get their values;
+ * every other member is reset to price 0 / quantity 1. Non-member ids are
+ * dropped, so a stale or crafted id is ignored rather than wiping the real
+ * overrides via the `ELSE` branches. An explicit empty array clears all
+ * overrides; a non-empty list that matches no members is a no-op (it isn't
+ * treated as "clear all"). One statement regardless of size, staying clear of
+ * the round-trip guard.
  */
-export const setGroupPackagePrices = async (
+export const setGroupPackageMembers = async (
   groupId: number,
-  prices: PackagePriceInput[],
+  members: PackageMemberInput[],
 ): Promise<void> => {
-  if (prices.length === 0) {
-    await clearGroupPackagePrices(groupId);
+  if (members.length === 0) {
+    await clearGroupPackageMembers(groupId);
     return;
   }
   const memberIds = new Set(await getGroupListingIds(groupId));
-  const valid = prices.filter((p) => memberIds.has(p.listingId));
+  const valid = members.filter((m) => memberIds.has(m.listingId));
   // A non-empty submission with no valid members is treated as a no-op rather
   // than a full wipe — only an explicit empty array clears overrides.
   if (valid.length === 0) return;
-  const cases = valid.map(() => "WHEN ? THEN ?").join(" ");
+  const priceCases = valid.map(() => "WHEN ? THEN ?").join(" ");
+  const qtyCases = valid.map(() => "WHEN ? THEN ?").join(" ");
   const args: number[] = [];
   for (const { listingId, price } of valid) args.push(listingId, price);
+  for (const { listingId, quantity } of valid)
+    args.push(listingId, quantity ?? 1);
   args.push(groupId);
   await execute(
-    `UPDATE group_listings SET package_price = CASE listing_id ${cases} ELSE 0 END WHERE group_id = ?`,
+    `UPDATE group_listings SET package_price = CASE listing_id ${priceCases} ELSE 0 END, quantity = CASE listing_id ${qtyCases} ELSE 1 END WHERE group_id = ?`,
     args,
   );
 };

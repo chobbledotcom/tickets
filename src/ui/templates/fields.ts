@@ -99,6 +99,7 @@ export type GroupCreateFormValues = {
   max_attendees: number | null;
   hidden: string;
   is_package: string;
+  hide_package_listings: string;
 };
 
 /** Typed values from group edit form validation (includes slug) */
@@ -772,6 +773,18 @@ const getIsPackageField = (): Field => ({
   type: "checkbox-group",
 });
 
+/** "Hide listings within package" checkbox. Only meaningful for packages, so the
+ * edit page reveals it via the same CSS trick as the price table. */
+const getHidePackageListingsField = (): Field => ({
+  hint: t("fields.group.hide_package_listings_hint"),
+  label: t("fields.group.hide_package_listings"),
+  name: "hide_package_listings",
+  options: [
+    { label: t("fields.group.hide_package_listings_label"), value: "1" },
+  ],
+  type: "checkbox-group",
+});
+
 /** Group form fields for creation (no slug - auto-generated) */
 export const getGroupCreateFields = (): Field[] => {
   const groupHiddenField = buildHiddenField("Group");
@@ -800,6 +813,7 @@ export const getGroupCreateFields = (): Field[] => {
     },
     groupHiddenField,
     getIsPackageField(),
+    getHidePackageListingsField(),
   ];
 };
 
@@ -814,6 +828,7 @@ export const getGroupFields = (): Field[] => {
     creates[3]!,
     buildHiddenField("Group"),
     getIsPackageField(),
+    getHidePackageListingsField(),
   ];
 };
 

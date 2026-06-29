@@ -36,7 +36,7 @@ import {
   getVisits,
   hashEmail,
 } from "#shared/db/contact-preferences.ts";
-import { setGroupPackagePrices, setListingGroups } from "#shared/db/groups.ts";
+import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
@@ -625,7 +625,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       const b = await createTestListing({ name: "PB" });
       await setListingGroups(a.id, [group.id]);
       await setListingGroups(b.id, [group.id]);
-      await setGroupPackagePrices(group.id, [
+      await setGroupPackageMembers(group.id, [
         { listingId: a.id, price: 1500 },
         { listingId: b.id, price: 0 },
       ]);
@@ -639,7 +639,9 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       const group = await createTestGroup({ isPackage: true, name: "Ctx" });
       const a = await createTestListing({ name: "CA" });
       await setListingGroups(a.id, [group.id]);
-      await setGroupPackagePrices(group.id, [{ listingId: a.id, price: 2000 }]);
+      await setGroupPackageMembers(group.id, [
+        { listingId: a.id, price: 2000 },
+      ]);
 
       const ctx = await getTicketContext(
         [

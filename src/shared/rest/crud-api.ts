@@ -47,6 +47,34 @@ export type ParseResult<Input> =
   | { ok: true; input: Input }
   | { ok: false; error: string };
 
+/** Outcome of parsing a single array element: a value, or a rejection reason. */
+export type ItemResult<T> = { value: T } | { error: string };
+
+/**
+ * Parse an optional JSON-array field with partial-update semantics, failing
+ * closed. `undefined` → ok with `undefined` (caller leaves existing data
+ * untouched); a non-array → error; otherwise every element runs through
+ * `parseItem` and the first rejection fails the whole parse (so a malformed
+ * entry can't be silently dropped into a destructive replacement).
+ */
+export const parseOptionalArray = <T>(
+  raw: unknown,
+  label: string,
+  parseItem: (item: unknown) => ItemResult<T>,
+): ParseResult<T[] | undefined> => {
+  if (raw === undefined) return { input: undefined, ok: true };
+  if (!Array.isArray(raw)) {
+    return { error: `${label} must be an array`, ok: false };
+  }
+  const items: T[] = [];
+  for (const item of raw) {
+    const parsed = parseItem(item);
+    if ("error" in parsed) return { error: parsed.error, ok: false };
+    items.push(parsed.value);
+  }
+  return { input: items, ok: true };
+};
+
 /** JSON error response for API endpoints */
 export const apiErrorResponse = (message: string, status = 400): Response =>
   jsonResponse({ error: message }, status);

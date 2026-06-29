@@ -513,9 +513,14 @@ export interface Holiday {
 export interface Group {
   description: string;
   hidden: boolean;
+  /** When true (and the group is a package) the package's member listings are
+   * hidden from buyers, tickets, and confirmation emails — only admins see the
+   * breakdown. */
+  hide_package_listings: boolean;
   id: number;
   /** When true the group is a bookable "package": its member listings can carry
-   * per-listing price overrides (group_listings.package_price). */
+   * per-listing price overrides (group_listings.package_price) and fixed
+   * per-package quantities (group_listings.quantity). */
   is_package: boolean;
   max_attendees: number;
   name: string;
@@ -527,11 +532,13 @@ export interface Group {
 /** A row in the group_listings join table: listing_id belongs to group_id. A
  * listing may have many such rows (membership in several groups). `package_price`
  * (minor units, 0 = no override) is the per-listing price when the group is a
- * package; it is ignored for non-package groups. */
+ * package; `quantity` (≥1) is how many of this listing one unit of the package
+ * includes. Both are ignored for non-package groups. */
 export interface GroupListing {
   group_id: number;
   listing_id: number;
   package_price: number;
+  quantity: number;
 }
 
 /** An owner-defined price modifier (surcharge / discount / add-on). `calc_value`

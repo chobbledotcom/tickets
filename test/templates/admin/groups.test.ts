@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { adminGroupDetailPage } from "#templates/admin/groups.tsx";
+import {
+  adminGroupDetailPage,
+  adminGroupEditPage,
+} from "#templates/admin/groups.tsx";
 import {
   setupTestEncryptionKey,
   testAttendee,
@@ -102,5 +105,37 @@ describe("adminGroupDetailPage", () => {
     expect(html).toContain("Running total check");
     expect(html).toContain("expected <strong>2</strong>, got");
     expect(html).toContain("Review group listings");
+  });
+});
+
+describe("adminGroupEditPage package members table", () => {
+  test("renders saved overrides and falls back to defaults for members without a row", () => {
+    const group = testGroup({ is_package: true, name: "Bundle" });
+    const withOverride = testListingWithCount({ id: 1, name: "Priced" });
+    const withoutRow = testListingWithCount({ id: 2, name: "Default" });
+    // Only listing 1 has a saved member row; listing 2 exercises the
+    // member-absent defaults (price → blank, quantity → 1).
+    const members = new Map([[1, { price: 1500, quantity: 4 }]]);
+
+    const html = adminGroupEditPage(
+      group,
+      [withOverride, withoutRow],
+      members,
+      TEST_SESSION,
+    );
+    expect(html).toContain('name="package_price_1"');
+    expect(html).toContain('value="15.00"');
+    expect(html).toContain('name="package_qty_1"');
+    expect(html).toContain('value="4"');
+    // Listing 2 (no row): blank price, quantity defaults to 1.
+    expect(html).toContain('name="package_price_2"');
+    expect(html).toContain('name="package_qty_2"');
+    expect(html).toContain('value="1"');
+  });
+
+  test("shows the empty-state prompt when the package has no listings", () => {
+    const group = testGroup({ is_package: true, name: "Empty" });
+    const html = adminGroupEditPage(group, [], new Map(), TEST_SESSION);
+    expect(html).toContain("Add listings to this group");
   });
 });
