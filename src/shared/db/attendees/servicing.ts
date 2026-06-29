@@ -196,6 +196,7 @@ const rowsToServicingEvent = async (
           ledger_event_group: "",
           listing_id: row.listing_id,
           order_token: "",
+          package_group_id: 0,
           parent_listing_id: 0,
           price_paid: Number(row.price_paid),
           quantity: row.quantity,

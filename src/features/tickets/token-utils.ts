@@ -127,6 +127,7 @@ const buildAttendeeView = (
   kind: base.kind,
   listing_id: booking.listing_id,
   name: "",
+  package_group_id: booking.package_group_id,
   payment_id: "",
   phone: "",
   pii_blob: base.pii_blob,

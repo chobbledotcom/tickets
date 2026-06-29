@@ -17,10 +17,12 @@ import {
   getAllGroups,
   getGroupBySlugIndex,
   getGroupIdsByListingId,
-  getPackageDisplayForListings,
+  getPackageDisplayById,
+  getPackageDisplayForBookings,
   groupsTable,
   isGroupSlugTaken,
   resetGroupListings,
+  sharedPackageGroupId,
 } from "#shared/db/groups.ts";
 import { updateListingAggregateValues } from "#shared/db/listings.ts";
 import {
@@ -586,33 +588,89 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
     });
   });
 
-  describe("getPackageDisplayForListings", () => {
-    test("returns the package only when the listings are its exact members", async () => {
+  describe("getPackageDisplayById", () => {
+    test("returns the package display for an is_package group id", async () => {
       const pkg = await createTestGroup({
         isPackage: true,
         name: "Bundle",
         slug: "bundle-disp",
       });
-      const a = await createTestListing({ groupId: pkg.id, name: "A" });
-      const b = await createTestListing({ groupId: pkg.id, name: "B" });
-
-      expect(await getPackageDisplayForListings([a.id, b.id])).toEqual({
+      expect(await getPackageDisplayById(pkg.id)).toEqual({
         hideListings: false,
         name: "Bundle",
       });
-      // A subset of the members is not the whole package.
-      expect(await getPackageDisplayForListings([a.id])).toBeNull();
-      // Empty input short-circuits.
-      expect(await getPackageDisplayForListings([])).toBeNull();
     });
 
-    test("returns null for a non-package group's listings", async () => {
-      const regular = await createTestGroup({ name: "Reg", slug: "reg-disp" });
-      const listing = await createTestListing({
-        groupId: regular.id,
-        name: "Plain",
+    test("carries the group's hide-listings flag", async () => {
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Hidden Bundle",
+        slug: "hidden-bundle-disp",
       });
-      expect(await getPackageDisplayForListings([listing.id])).toBeNull();
+      await groupsTable.update(pkg.id, { hidePackageListings: true });
+      expect(await getPackageDisplayById(pkg.id)).toEqual({
+        hideListings: true,
+        name: "Hidden Bundle",
+      });
+    });
+
+    test("returns null for 0 (not a package) and negative ids", async () => {
+      expect(await getPackageDisplayById(0)).toBeNull();
+      expect(await getPackageDisplayById(-1)).toBeNull();
+    });
+
+    test("returns null for a non-package group", async () => {
+      const regular = await createTestGroup({ name: "Reg", slug: "reg-disp" });
+      expect(await getPackageDisplayById(regular.id)).toBeNull();
+    });
+
+    test("returns null for a group id that no longer exists", async () => {
+      expect(await getPackageDisplayById(987654)).toBeNull();
+    });
+  });
+
+  describe("sharedPackageGroupId", () => {
+    test("returns the id when every booking shares the same non-zero id", () => {
+      expect(sharedPackageGroupId([7, 7, 7])).toBe(7);
+    });
+
+    test("returns null for an empty list", () => {
+      expect(sharedPackageGroupId([])).toBeNull();
+    });
+
+    test("returns null when any booking is not a package (id 0)", () => {
+      expect(sharedPackageGroupId([7, 0, 7])).toBeNull();
+      expect(sharedPackageGroupId([0])).toBeNull();
+    });
+
+    test("returns null when bookings carry differing package ids", () => {
+      expect(sharedPackageGroupId([7, 8])).toBeNull();
+    });
+  });
+
+  describe("getPackageDisplayForBookings", () => {
+    test("resolves the package when every booking shares its id", async () => {
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Combo",
+        slug: "combo-disp",
+      });
+      expect(await getPackageDisplayForBookings([pkg.id, pkg.id])).toEqual({
+        hideListings: false,
+        name: "Combo",
+      });
+    });
+
+    test("returns null when the bookings are not one package order", async () => {
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Combo2",
+        slug: "combo2-disp",
+      });
+      // A standalone order (id 0) of the same listings is never the package.
+      expect(await getPackageDisplayForBookings([0, 0])).toBeNull();
+      // A mixed/partial set is not one package order.
+      expect(await getPackageDisplayForBookings([pkg.id, 0])).toBeNull();
     });
   });
 

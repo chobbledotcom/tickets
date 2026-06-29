@@ -82,6 +82,10 @@ export type WebhookAttendee = ContactInfo & {
   /** Exclusive end of the booked range (YYYY-MM-DD), or null for date-less
    * bookings. Used to render the true span of multi-day/customisable bookings. */
   end_date: string | null;
+  /** The package group this booking belongs to (0 = not a package). Lets the
+   * confirmation email group the order's lines under the package by this
+   * persisted id rather than membership equality. */
+  package_group_id: number;
 };
 
 /** Registration entry: listing + attendee pair */

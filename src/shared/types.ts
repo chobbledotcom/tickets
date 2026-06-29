@@ -385,6 +385,10 @@ export interface Attendee extends ContactInfo {
   split_logistics_agents: boolean;
   ticket_token: string;
   ticket_token_index: string;
+  /** The package group this booking row belongs to (0 = not a package). Stamped
+   * on every row of a package order so tickets/emails group the order under the
+   * package by this persisted id. */
+  package_group_id: number;
 }
 
 /** Short keys used in the PII blob JSON to minimize encrypted payload size */

@@ -83,6 +83,7 @@ import listingAttendeeLedgerEventGroupIndexMigration from "./migrations/2026-06-
 import attendeesKindNotNullMigration from "./migrations/2026-06-26_attendees_kind_not_null.ts";
 import serviceCostsMigration from "./migrations/2026-06-27_service_costs.ts";
 import groupListingsMigration from "./migrations/2026-06-28_group_listings.ts";
+import attendeePackageGroupMigration from "./migrations/2026-06-29_attendee_package_group.ts";
 import packageQuantitiesMigration from "./migrations/2026-06-29_package_quantities.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
@@ -267,6 +268,9 @@ export const MIGRATIONS: Migration[] = [
   serviceCostsMigration,
   groupListingsMigration,
   packageQuantitiesMigration,
+  // Stamps package_group_id on each booking row of a package order, so tickets
+  // and emails group by the persisted id rather than membership equality.
+  attendeePackageGroupMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(
@@ -408,9 +412,9 @@ export const verifyMigrationWithRetry = (migration: Migration): Promise<void> =>
       if (!willRetry) return;
       logDebug(
         "Migration",
-        `verify ${migration.id} failed on attempt ${
-          attempt + 1
-        }, retrying: ${error instanceof Error ? error.message : String(error)}`,
+        `verify ${migration.id} failed on attempt ${attempt + 1}, retrying: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     },
   );

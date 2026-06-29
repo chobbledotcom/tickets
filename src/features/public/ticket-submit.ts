@@ -389,6 +389,9 @@ const handleFreePath = async (
     ledgerOrder,
     listings: ctx.listings,
     modifierUsages,
+    // Carry the package group id so each booking row stores it (0 = not a
+    // package), grouping the order under the package on the ticket view / email.
+    ...(ctx.packageGroupId ? { packageGroupId: ctx.packageGroupId } : {}),
     paidByListingId: paymentBreakdown?.paidByListingId,
     quantities,
     remainingBalance: paymentBreakdown?.remainingBalance,
@@ -491,7 +494,9 @@ const priceSubmissionBeforeContact = async (
 
 /** Message shown when a selected answer tier has sold out. */
 const soldOutTierMessage = (tiers: string[]): string =>
-  `Sorry, ${tiers.join(", ")} is no longer available. Please choose a different option.`;
+  `Sorry, ${tiers.join(
+    ", ",
+  )} is no longer available. Please choose a different option.`;
 
 /**
  * An answer is recorded on every ticket that picked it, so a stock-limited

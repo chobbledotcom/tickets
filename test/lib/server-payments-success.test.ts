@@ -5,6 +5,7 @@ import { handleRequest } from "#routes";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
   bookAttendee,
+  createTestGroup,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
@@ -82,6 +83,63 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         expect(attendees1.length).toBe(1);
         expect(attendees2.length).toBe(1);
         expect(attendees2[0]?.quantity).toBe(2);
+      } finally {
+        mockRetrieve.restore();
+      }
+    });
+
+    test("stamps package_group_id on a paid package booking", async () => {
+      // The webhook/redirect package path threads intent.packageGroupId onto the
+      // created booking rows, so tickets/emails group the order by the persisted
+      // id rather than membership equality.
+      await setupStripe();
+      const { groupsTable } = await import("#shared/db/groups.ts");
+      const { getDb } = await import("#shared/db/client.ts");
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Paid Kit",
+        slug: "paid-kit",
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 50,
+        name: "Paid Member",
+        unitPrice: 1000,
+      });
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 1000,
+          id: "cs_pkg_paid",
+          metadata: signMeta(
+            {
+              email: "pkgpaid@example.com",
+              items: singleItem(member.id, 1, 1000),
+              name: "Pkg Payer",
+              package_group_id: String(group.id),
+            },
+            1000,
+          ),
+          payment_intent: "pi_pkg_paid",
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        const redirectResponse = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_pkg_paid"),
+        );
+        expectRedirect(redirectResponse, /^\/payment\/success\?tokens=.+$/);
+
+        const row = (
+          await getDb().execute({
+            args: [member.id],
+            sql: "SELECT package_group_id FROM listing_attendees WHERE listing_id = ? ORDER BY id DESC LIMIT 1",
+          })
+        ).rows[0]!;
+        expect(Number(row.package_group_id)).toBe(group.id);
       } finally {
         mockRetrieve.restore();
       }

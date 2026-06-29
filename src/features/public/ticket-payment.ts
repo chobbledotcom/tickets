@@ -721,6 +721,10 @@ type FreeReservationParams = {
    * allocation instead of one summed row, giving each row its real
    * `parentListingId`. Absent for legacy/no-parent orders. */
   allocations?: ChildAllocation[];
+  /** When the order is a package checkout, the package group's id (stamped on
+   * every booking row so the ticket view / confirmation email group the order
+   * under the package). Absent / 0 for a non-package order. */
+  packageGroupId?: number;
 };
 
 type FreeReservationResult =
@@ -755,6 +759,7 @@ export const createFreeReservation = async ({
   modifierUsages,
   ledgerOrder,
   allocations,
+  packageGroupId,
 }: FreeReservationParams): Promise<FreeReservationResult> => {
   const selected = listingsWithQuantity(listings, quantities);
   const bookings = buildBookings(selected, date, dayCount).map((booking) => ({
@@ -788,6 +793,10 @@ export const createFreeReservation = async ({
   const input = {
     ...contact,
     bookings: finalBookings,
+    // Stamp the package group id on every booking row (0 = not a package), so
+    // the ticket view / confirmation email group the order under the package by
+    // this persisted id rather than membership equality.
+    packageGroupId: packageGroupId ?? 0,
     remainingBalance,
     statusId,
   };

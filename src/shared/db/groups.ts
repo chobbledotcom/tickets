@@ -267,38 +267,45 @@ export const packageChildEdgeConflict = async (
  * name on tickets/emails. */
 export type PackageDisplay = { name: string; hideListings: boolean };
 
-/** For a booking's set of `listingIds`, the package group they EXACTLY make up
- * (every listing is a member and the group has no other members), or null. The
- * equality requirement avoids mistaking a coincidental standalone order of some
- * members for the whole package. The group's name is decrypted on the way out. */
-export const getPackageDisplayForListings = async (
-  listingIds: readonly number[],
+/** The package display for a booking's PERSISTED `package_group_id`, or null when
+ * the id is 0 (not a package) or names a group that no longer exists or is not a
+ * package. Grouping on the stored id — set on every booking row of one package
+ * checkout — is exact: a standalone order of the same listings carries id 0, so
+ * it is never mistaken for the package. The group's name is decrypted on the way
+ * out. */
+export const getPackageDisplayById = async (
+  groupId: number,
 ): Promise<PackageDisplay | null> => {
-  const ids = [...new Set(listingIds)];
-  if (ids.length === 0) return null;
-  const rows = await queryAll<{
-    group_id: number;
-    matched: number;
-    total: number;
-  }>(
-    `SELECT groupListing.group_id AS group_id,
-            COUNT(*) AS matched,
-            (SELECT COUNT(*) FROM group_listings AS allMembers
-              WHERE allMembers.group_id = groupListing.group_id) AS total
-       FROM group_listings AS groupListing
-       JOIN groups AS groupRow ON groupRow.id = groupListing.group_id
-      WHERE groupRow.is_package = 1
-        AND groupListing.listing_id IN (${inPlaceholders(ids)})
-      GROUP BY groupListing.group_id`,
-    [...ids],
-  );
-  const match = rows.find(
-    (row) => row.matched === ids.length && row.total === ids.length,
-  );
-  if (!match) return null;
-  // The group is named by the join, so it always loads (decrypting its name).
-  const group = (await groupsTable.findById(match.group_id))!;
+  if (groupId <= 0) return null;
+  const group = await groupsTable.findById(groupId);
+  if (!group || !group.is_package) return null;
   return { hideListings: group.hide_package_listings, name: group.name };
+};
+
+/** The single package id every booking in an order shares, or null. Returns the
+ * id only when the list is non-empty and every entry carries the SAME non-zero
+ * `package_group_id`; a mixed set (some 0, or differing ids) is not one package
+ * order, so it returns null. The shared check the ticket view and the email use
+ * before {@link getPackageDisplayById}. */
+export const sharedPackageGroupId = (
+  packageGroupIds: readonly number[],
+): number | null => {
+  const first = packageGroupIds[0];
+  if (first === undefined || first <= 0) return null;
+  return packageGroupIds.every((id) => id === first) ? first : null;
+};
+
+/** The package display for a set of bookings' persisted `package_group_id`s: the
+ * group only when every booking shares the same non-zero id, else null. Combines
+ * {@link sharedPackageGroupId} with {@link getPackageDisplayById} so the ticket
+ * view and the confirmation email resolve the package the same way. */
+export const getPackageDisplayForBookings = (
+  packageGroupIds: readonly number[],
+): Promise<PackageDisplay | null> => {
+  const shared = sharedPackageGroupId(packageGroupIds);
+  return shared === null
+    ? Promise.resolve(null)
+    : getPackageDisplayById(shared);
 };
 
 /** The listing ids that are members of a group, ascending. */

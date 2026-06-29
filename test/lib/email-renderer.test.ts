@@ -191,14 +191,16 @@ describeWithEnv("email-renderer", { db: true }, () => {
         name: "Chair",
         unitPrice: 500,
       });
+      // Grouping is by the persisted package_group_id every booking row of the
+      // order carries, so stamp the group id on each entry's attendee.
       return [
         makeEntry(
           { id: tent.id, name: "Tent", unit_price: 0 },
-          { price_paid: "2000", quantity: 2 },
+          { package_group_id: group.id, price_paid: "2000", quantity: 2 },
         ),
         makeEntry(
           { id: chair.id, name: "Chair", unit_price: 500 },
-          { price_paid: "3000", quantity: 6 },
+          { package_group_id: group.id, price_paid: "3000", quantity: 6 },
         ),
       ];
     };
@@ -245,6 +247,42 @@ describeWithEnv("email-renderer", { db: true }, () => {
         "Tent",
         "Chair",
       ]);
+    });
+
+    test("a standalone booking of a hidden one-member package's listing is NOT collapsed", async () => {
+      // Regression for the membership-equality bug: a one-member HIDDEN package
+      // whose sole listing is booked standalone (NOT via the package, so its
+      // booking rows carry package_group_id 0) must render normally — never
+      // renamed to or collapsed as the package — because grouping is by the
+      // persisted id, not by membership equality.
+      const { groupsTable } = await import("#shared/db/groups.ts");
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Solo Kit",
+      });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      const widget = await createTestListing({
+        groupId: group.id,
+        name: "Widget",
+        unitPrice: 500,
+      });
+      const entries = [
+        makeEntry(
+          { id: widget.id, name: "Widget", unit_price: 500 },
+          // package_group_id defaults to 0 — a standalone, non-package order.
+          { price_paid: "1500", quantity: 3 },
+        ),
+      ];
+      const data = await buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+        { hidePackageMembers: true },
+      );
+      // Not collapsed, not renamed to the package.
+      expect(data.listing_names).toBe("Widget");
+      expect(data.entries.length).toBe(1);
+      expect(data.entries[0]!.listing.name).toBe("Widget");
     });
   });
 

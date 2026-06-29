@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Add group_listings.quantity (how many of a listing one package unit includes) and groups.hide_package_listings (hide a package's members from buyers/tickets/emails).";
+  "Add listing_attendees.package_group_id (the package group an order belongs to; 0 = not a package) so tickets/emails group an order's lines under the package by its persisted id rather than membership equality.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -339,6 +339,12 @@ export const SCHEMA: [name: string, table: Table][] = [
         // (0 = not a folded child). A child summed across two parents records the
         // first — the common case is one parent → one child.
         ["parent_listing_id", "INTEGER NOT NULL DEFAULT 0"],
+        // The package group this order belongs to (0 = not a package), stamped on
+        // every booking row of one package checkout like order_token. Tickets and
+        // confirmation emails group the order's lines under the package by this
+        // persisted id, so a standalone order of the same listings is not
+        // mistaken for the package by membership equality.
+        ["package_group_id", "INTEGER NOT NULL DEFAULT 0"],
       ],
       // FKs omitted — libsql's FK enforcement causes issues during table
       // recreation migrations. Referential integrity is enforced by application
@@ -1122,7 +1128,9 @@ END`,
   {
     name: "trg_listing_attendees_aggregates_update",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_update
-AFTER UPDATE OF ${LISTING_AGGREGATE_WRITE_COLUMNS.join(", ")} ON listing_attendees
+AFTER UPDATE OF ${LISTING_AGGREGATE_WRITE_COLUMNS.join(
+      ", ",
+    )} ON listing_attendees
 FOR EACH ROW
 BEGIN
   UPDATE listings SET

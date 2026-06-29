@@ -75,6 +75,7 @@ const getBookings = (attendeeId: number) =>
     attachment_downloads: number;
     order_token: string;
     parent_listing_id: number;
+    package_group_id: number;
   }>(
     `SELECT ${LISTING_ATTENDEE_ROW_COLS}
      FROM listing_attendees
@@ -662,6 +663,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 5,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 0,
               quantity: 1,
@@ -677,6 +679,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 5,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 0,
               quantity: 2,
@@ -720,6 +723,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 7,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 0,
               quantity: 1,
@@ -735,6 +739,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 7,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 0,
               quantity: 2,
@@ -780,6 +785,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 5,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 1500,
               quantity: 0,
@@ -830,6 +836,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 5,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 0,
               quantity: 0,
@@ -845,6 +852,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 5,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 1500,
               quantity: 2,
@@ -891,6 +899,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 5,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 0,
               quantity: 0,
@@ -943,6 +952,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 5,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 0,
               quantity: 1,
@@ -958,6 +968,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 5,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 0,
               quantity: 2,
@@ -993,6 +1004,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         ledger_event_group: "grp",
         listing_id: 5,
         order_token: "",
+        package_group_id: 0,
         parent_listing_id: 0,
         price_paid: 5000,
         quantity: 1,

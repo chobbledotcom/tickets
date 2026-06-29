@@ -14,7 +14,7 @@ import {
   formatDateLabel,
   formatDateRangeLabelCompactEn,
 } from "#shared/dates.ts";
-import { getPackageDisplayForListings } from "#shared/db/groups.ts";
+import { getPackageDisplayForBookings } from "#shared/db/groups.ts";
 import type {
   EmailTemplateFormat,
   EmailTemplateType,
@@ -140,9 +140,9 @@ const collapsedPackageEntry = (
 };
 
 /**
- * Build the data object exposed to Liquid templates. When the booking's listings
- * are exactly one package group's members, the package name heads the email
- * (`listing_names`) instead of the member list. `hidePackageMembers` (set for the
+ * Build the data object exposed to Liquid templates. When every booking in the
+ * order carries the same persisted package group id, the package name heads the
+ * email (`listing_names`) instead of the member list. `hidePackageMembers` (set for the
  * buyer's confirmation, not the admin notification) collapses a HIDDEN package's
  * member rows into one package row so members aren't revealed.
  */
@@ -152,8 +152,8 @@ export const buildTemplateData = async (
   ticketUrl: string,
   options: { hidePackageMembers?: boolean } = {},
 ): Promise<TemplateData> => {
-  const pkg = await getPackageDisplayForListings(
-    entries.map((e) => e.listing.id),
+  const pkg = await getPackageDisplayForBookings(
+    entries.map((e) => e.attendee.package_group_id),
   );
   const collapse = pkg?.hideListings === true && options.hidePackageMembers;
   const templateEntries: TemplateEntry[] = collapse

@@ -2,6 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { groupsTable } from "#shared/db/groups.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { clearTokenAttempts } from "#shared/db/token-attempts.ts";
 import { MAX_TOKEN_404S } from "#shared/limits.ts";
@@ -11,6 +13,7 @@ import {
   createPaidTestAttendee,
   createTestAttendee,
   createTestAttendeeWithToken,
+  createTestGroup,
   createTestListing,
   describeWithEnv,
   expectHtml,
@@ -434,3 +437,107 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(notLocked.status).toBe(404);
   });
 });
+
+describeWithEnv(
+  "ticket view package grouping (/t/:tokens)",
+  { db: true },
+  () => {
+    /** A HIDDEN one-member package group and its sole listing. */
+    const hiddenOneMemberPackage = async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Kit Bag" });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      const widget = await createTestListing({
+        groupId: group.id,
+        name: "Widget",
+      });
+      return { group, widget };
+    };
+
+    test("a standalone booking of a hidden package's listing is NOT collapsed/hidden", async () => {
+      // Regression for the membership-equality bug: the listing booked NOT via the
+      // package (package_group_id 0 on its rows) must render normally, never
+      // collapsed/renamed to the hidden package.
+      const { widget } = await hiddenOneMemberPackage();
+      const result = await createAttendeeAtomic({
+        bookings: [{ listingId: widget.id, quantity: 1 }],
+        email: "standalone@test.com",
+        name: "Standalone",
+      });
+      if (!result.success) throw new Error("standalone booking failed");
+      const token = result.attendees[0]!.ticket_token;
+
+      const body = await fetchTicketBody(token);
+      expect(body).toContain("Widget");
+      expect(body).not.toContain("Kit Bag");
+    });
+
+    test("the same listing booked as the package IS collapsed under the package name", async () => {
+      const { group, widget } = await hiddenOneMemberPackage();
+      const result = await createAttendeeAtomic({
+        bookings: [{ listingId: widget.id, quantity: 1 }],
+        email: "pkg@test.com",
+        name: "Packaged",
+        packageGroupId: group.id,
+      });
+      if (!result.success) throw new Error("package booking failed");
+      const token = result.attendees[0]!.ticket_token;
+
+      const body = await fetchTicketBody(token);
+      expect(body).toContain("Kit Bag");
+      // Hidden package: the member listing name is suppressed.
+      expect(body).not.toContain("Widget");
+    });
+
+    test("a FREE public package checkout stamps package_group_id and collapses the ticket", async () => {
+      // Drives the public free-checkout path so handleFreePath threads
+      // ctx.packageGroupId into createFreeReservation — the standalone-vs-package
+      // distinction comes from the persisted id, set here end-to-end.
+      const { handleRequest } = await import("#routes");
+      const { mockRequest, mockTicketFormRequest } = await import(
+        "#test-utils/mocks.ts"
+      );
+      const { extractCsrfToken } = await import("#test-utils/csrf.ts");
+      const { getDb } = await import("#shared/db/client.ts");
+
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Free Kit",
+        slug: "free-kit",
+      });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      // A free member (unit price 0) so the order completes via the free path.
+      const freebie = await createTestListing({
+        groupId: group.id,
+        name: "Freebie",
+        unitPrice: 0,
+      });
+
+      const pageHtml = await (
+        await handleRequest(mockRequest(`/ticket/${group.slug}`))
+      ).text();
+      const csrf = extractCsrfToken(pageHtml)!;
+      const submit = await handleRequest(
+        mockTicketFormRequest(
+          group.slug,
+          {
+            email: "freepkg@test.com",
+            name: "Free Buyer",
+            package_quantity: "1",
+          },
+          csrf,
+        ),
+      );
+      expect([302, 303]).toContain(submit.status);
+
+      // The free public package checkout stamped the group id onto the booking
+      // row (the standalone-vs-package distinction is persisted, not inferred).
+      const row = (
+        await getDb().execute({
+          args: [freebie.id],
+          sql: "SELECT package_group_id FROM listing_attendees WHERE listing_id = ? ORDER BY id DESC LIMIT 1",
+        })
+      ).rows[0]!;
+      expect(Number(row.package_group_id)).toBe(group.id);
+    });
+  },
+);

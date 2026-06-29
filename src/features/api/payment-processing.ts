@@ -1116,6 +1116,10 @@ const createAttendeeForSession = async (
     {
       ...(await attendeeBaseFields(session, intent)),
       bookings,
+      // Stamp the package group id on every booking row so the ticket view /
+      // confirmation email group the order under the package by this persisted
+      // id rather than membership equality. 0 for a non-package order.
+      packageGroupId: intent.packageGroupId ?? 0,
       remainingBalance,
     },
     plan,
