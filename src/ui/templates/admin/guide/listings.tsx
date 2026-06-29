@@ -9,6 +9,16 @@ import {
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
 
+/** The markdown text-formatting help section. Exported so the standalone
+ * `/admin/formatting` help page (reachable by content roles, including editors
+ * who can't open the staff-only full guide) renders the same content as the
+ * guide's Text Formatting section. */
+export const textFormattingSection: GuideSection = {
+  entries: [faq("fields_support_formatting"), faq("what_formatting_can_i_use")],
+  id: "text-formatting",
+  titleKey: "text_formatting",
+};
+
 export const listingsSections = (): GuideSection[] => [
   {
     entries: [
@@ -77,12 +87,5 @@ export const listingsSections = (): GuideSection[] => [
     ],
     titleKey: "public_site",
   },
-  {
-    entries: [
-      faq("fields_support_formatting"),
-      faq("what_formatting_can_i_use"),
-    ],
-    id: "text-formatting",
-    titleKey: "text_formatting",
-  },
+  textFormattingSection,
 ];

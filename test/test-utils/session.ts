@@ -280,6 +280,45 @@ export const createTestAgentSession = async (
   return { cookie: `${getSessionCookieName()}=${token}`, userId };
 };
 
+/**
+ * Create an activated **editor** user plus a live session for it. Editors hold
+ * no DATA_KEY, so — unlike every other role helper — both the user row's
+ * `wrapped_data_key` and the session's wrapped key are null. The user has a
+ * password set (so it counts as activated) but it protects no key. Mirrors the
+ * real keyless editor a /join activation produces.
+ */
+export const createTestEditorSession = async (
+  opts: { token?: string; username?: string; password?: string } = {},
+): Promise<{ cookie: string; userId: number }> => {
+  const token = opts.token ?? "editor-session";
+  // Production stores usernames lower-cased (buildUserInsert), so the login
+  // blind-index lookup is case-insensitive; mirror that here.
+  const username = (opts.username ?? "testeditor").toLowerCase();
+  const password = opts.password ?? "editorpass123";
+  const { encrypt: enc } = await import("#shared/crypto/encryption.ts");
+  const { hashPassword, hmacHash } = await import("#shared/crypto/hashing.ts");
+  const { getDb, insert } = await import("#shared/db/client.ts");
+  const { createSession } = await import("#shared/db/sessions.ts");
+  const { getUserByUsername, invalidateUsersCache: invalidateUsers } =
+    await import("#shared/db/users.ts");
+
+  await getDb().execute(
+    insert("users", {
+      admin_level: await enc("editor"),
+      kek_version: 2,
+      password_hash: await enc(await hashPassword(password)),
+      username_hash: await enc(username),
+      username_index: await hmacHash(username),
+      wrapped_data_key: null,
+    }),
+  );
+  invalidateUsers();
+  const userId = (await getUserByUsername(username))!.id;
+
+  await createSession(token, "editor-csrf", Date.now() + 60_000, null, userId);
+  return { cookie: `${getSessionCookieName()}=${token}`, userId };
+};
+
 export const createTestApiKeyToken = async (): Promise<string> => {
   const dataKey = await getTestDataKeyForApiKey();
   const { apiKey } = await createApiKey(

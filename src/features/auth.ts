@@ -30,9 +30,12 @@ import { getCachedSession, setCachedSession } from "#shared/session-context.ts";
 import { getSettingsNagItemsForOwner } from "#shared/settings-nags.ts";
 import {
   type AdminLevel,
+  CONTENT_ADMIN_LEVELS,
+  DELIVERY_ADMIN_LEVELS,
   isRecord,
+  isStaffRole,
   type NagItem,
-  STAFF_ADMIN_LEVELS,
+  SITE_ADMIN_LEVELS,
 } from "#shared/types.ts";
 
 // SessionKeyError and the session→private-key derivation live in #shared so
@@ -121,9 +124,13 @@ export const getAuthenticatedSession = async (
 
 /** Where a user should land after authenticating, based on their role.
  * Delivery agents go straight to their run sheet (the only page they may see);
- * staff go to the dashboard. */
-export const adminLandingPath = (adminLevel: AdminLevel): string =>
-  adminLevel === "agent" ? "/admin/deliveries" : "/admin";
+ * editors go to the listings index (the dashboard shows financials they may not
+ * see); staff go to the dashboard. */
+export const adminLandingPath = (adminLevel: AdminLevel): string => {
+  if (adminLevel === "agent") return "/admin/deliveries";
+  if (adminLevel === "editor") return "/admin/listings";
+  return "/admin";
+};
 
 /**
  * Extract Bearer token from Authorization header.
@@ -245,7 +252,7 @@ const sessionRoleAllowed = (
 ): boolean => {
   if (roles) return roles.includes(level);
   if (role) return level === role;
-  return (STAFF_ADMIN_LEVELS as readonly AdminLevel[]).includes(level);
+  return isStaffRole(level);
 };
 
 /** Auth policy presets — use with withAuth to avoid repeating policy objects */
@@ -253,11 +260,34 @@ export const OWNER_FORM: AuthPolicy<"form"> = { body: "form", role: "owner" };
 export const AUTH_FORM: AuthPolicy<"form"> = { body: "form" };
 /** Agent-only form gate (delivery run-sheet actions). */
 export const AGENT_FORM: AuthPolicy<"form"> = { body: "form", role: "agent" };
-/** Form gate that admits any authenticated user, agents included — used for
- * actions every logged-in user must reach, like logout. */
+/** Content-editing form gate: staff plus the content-only `editor`. Used for the
+ * listing/group create-edit actions and the public-site content saves editors
+ * are opted into. */
+export const CONTENT_FORM: AuthPolicy<"form"> = {
+  body: "form",
+  roles: CONTENT_ADMIN_LEVELS,
+};
+/** Content-editing multipart gate (listing create/edit with image uploads). */
+export const CONTENT_MULTIPART: AuthPolicy<"multipart"> = {
+  body: "multipart",
+  roles: CONTENT_ADMIN_LEVELS,
+};
+/** Public-site content form gate: owner + editor only (managers stay excluded
+ * from site editing — see {@link SITE_ADMIN_LEVELS}). */
+export const SITE_FORM: AuthPolicy<"form"> = {
+  body: "form",
+  roles: SITE_ADMIN_LEVELS,
+};
+/** Delivery run-sheet form gate: staff + agent, but NOT editor. */
+export const DELIVERY_FORM: AuthPolicy<"form"> = {
+  body: "form",
+  roles: DELIVERY_ADMIN_LEVELS,
+};
+/** Form gate that admits any authenticated user, agents and editors included —
+ * used for actions every logged-in user must reach, like logout. */
 export const ANY_USER_FORM: AuthPolicy<"form"> = {
   body: "form",
-  roles: ["owner", "manager", "agent"],
+  roles: ["owner", "manager", "agent", "editor"],
 };
 export const AUTH_MULTIPART: AuthPolicy<"multipart"> = { body: "multipart" };
 export const OWNER_MULTIPART: AuthPolicy<"multipart"> = {
@@ -297,10 +327,11 @@ const requireSessionFor = async (
   request: Request,
   channel: AuthChannel,
   role?: AdminLevel,
+  roles?: readonly AdminLevel[],
 ): Promise<AuthSession | Response> => {
   const session = await getAuthenticatedSession(request);
   if (!session) return authFailure(channel, "not-authenticated");
-  if (!sessionRoleAllowed(session.adminLevel, role, undefined)) {
+  if (!sessionRoleAllowed(session.adminLevel, role, roles)) {
     return authFailure(channel, "forbidden");
   }
   return session;
@@ -346,6 +377,26 @@ export const requireOwnerOr = requireRoleOr("owner");
 /** Require agent session — shorthand for requireSessionOr with agent role */
 export const requireAgentOr = requireRoleOr("agent");
 
+/** Build a session guard that admits any of the given roles. */
+const requireRolesOr =
+  (roles: readonly AdminLevel[]) =>
+  async (request: Request, handler: SessionHandler): Promise<Response> => {
+    const result = await requireSessionFor(request, "html", undefined, roles);
+    return isResponse(result) ? result : handler(result);
+  };
+
+/** Require a content-editing session (staff or editor) — 403 outside
+ * {@link CONTENT_ADMIN_LEVELS}. Used for the listing/group create-edit pages. */
+export const requireContentOr = requireRolesOr(CONTENT_ADMIN_LEVELS);
+
+/** Require a site-editing session (owner or editor) — 403 outside
+ * {@link SITE_ADMIN_LEVELS}. Managers stay excluded from site editing. */
+export const requireSiteOr = requireRolesOr(SITE_ADMIN_LEVELS);
+
+/** Require a delivery-run-sheet session (staff or agent, NOT editor) — 403
+ * outside {@link DELIVERY_ADMIN_LEVELS}. */
+export const requireDeliveryOr = requireRolesOr(DELIVERY_ADMIN_LEVELS);
+
 /** Session guard: require auth and call handler with session */
 export type SessionGuard<TSession> = (
   request: Request,
@@ -370,6 +421,18 @@ export const ownerPage = authPage(requireOwnerOr);
 
 /** Authenticated GET page: authenticate, apply flash, render HTML */
 export const sessionPage = authPage(requireSessionOr);
+
+/** Content-editing GET page (staff or editor): authenticate, apply flash,
+ * render HTML. */
+export const contentPage = authPage(requireContentOr);
+
+/** Site-editing GET page (owner or editor): authenticate, apply flash,
+ * render HTML. */
+export const sitePage = authPage(requireSiteOr);
+
+/** Delivery-run-sheet GET page (staff or agent): authenticate, apply flash,
+ * render HTML. */
+export const deliveryPage = authPage(requireDeliveryOr);
 
 /** Agent-only GET page: authenticate, apply flash, render HTML */
 export const agentPage = authPage(requireAgentOr);

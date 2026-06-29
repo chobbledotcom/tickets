@@ -206,19 +206,19 @@ describe("debugDetailsHtml", () => {
 
 describe("adminFooterHtml", () => {
   test("renders a footer with the admin-footer class", () => {
-    const html = adminFooterHtml(null);
+    const html = adminFooterHtml(null, "owner");
     expect(html).toContain('<footer class="admin-footer">');
     expect(html).toContain("</footer>");
   });
 
   test("links to the GitHub repo", () => {
-    const html = adminFooterHtml(null);
+    const html = adminFooterHtml(null, "owner");
     expect(html).toContain('href="https://github.com/chobbledotcom/tickets"');
     expect(html).toContain("Chobble Tickets</a>");
   });
 
-  test("includes inline utility links separated by dots", () => {
-    const html = adminFooterHtml(null);
+  test("staff see log, guide, and logout links separated by dots", () => {
+    const html = adminFooterHtml(null, "owner");
     expect(html).toContain('<div class="admin-footer-links">');
     expect(html).toContain(
       '<a href="/admin/log">Log</a> &middot; <a href="/admin/guide">Guide</a> &middot; <a href="/admin/logout">Log out</a>',
@@ -227,18 +227,35 @@ describe("adminFooterHtml", () => {
     expect(html).not.toContain("#log-out");
   });
 
+  test("editors get only logout (log and guide are staff-only)", () => {
+    const html = adminFooterHtml(null, "editor");
+    expect(html).not.toContain('href="/admin/log"');
+    expect(html).not.toContain('href="/admin/guide"');
+    expect(html).toContain('<a href="/admin/logout">Log out</a>');
+  });
+
+  test("delivery agents get only logout (no log or guide they can't open)", () => {
+    const html = adminFooterHtml(null, "agent");
+    expect(html).not.toContain('href="/admin/log"');
+    expect(html).not.toContain('href="/admin/guide"');
+    expect(html).toContain('<a href="/admin/logout">Log out</a>');
+  });
+
   test("omits the debug menu when no debug data is supplied", () => {
-    const html = adminFooterHtml(null);
+    const html = adminFooterHtml(null, "owner");
     expect(html).not.toContain("debug-menu");
   });
 
   test("includes the debug menu when debug data is supplied", () => {
-    const html = adminFooterHtml({
-      cacheStats: [],
-      queries: [],
-      renderTimeMs: 12,
-      uptimeSeconds: 0,
-    });
+    const html = adminFooterHtml(
+      {
+        cacheStats: [],
+        queries: [],
+        renderTimeMs: 12,
+        uptimeSeconds: 0,
+      },
+      "owner",
+    );
     expect(html).toContain("debug-menu");
     expect(html).toContain("12ms");
   });
@@ -253,17 +270,32 @@ describe("renderAdminFooter", () => {
 
   test("renders the footer with logout once flagged, with no debug menu when query logging is off", () => {
     runWithQueryLogContext(() => {
-      markAdminFooter();
+      markAdminFooter("owner");
       const html = renderAdminFooter();
       expect(html).toContain('<footer class="admin-footer">');
       expect(html).toContain('<a href="/admin/logout">Log out</a>');
+      // The exact role passed to markAdminFooter drives the gated links: a staff
+      // role gets the staff-only log/guide links (proves the stored role is used
+      // verbatim, not mangled).
+      expect(html).toContain('<a href="/admin/log">Log</a>');
+      expect(html).toContain('<a href="/admin/guide">Guide</a>');
       expect(html).not.toContain("debug-menu");
+    });
+  });
+
+  test("renders only logout for a non-staff role flagged via the store", () => {
+    runWithQueryLogContext(() => {
+      markAdminFooter("editor");
+      const html = renderAdminFooter();
+      expect(html).toContain('<a href="/admin/logout">Log out</a>');
+      expect(html).not.toContain('href="/admin/log"');
+      expect(html).not.toContain('href="/admin/guide"');
     });
   });
 
   test("consumes the flag so a later render is empty", () => {
     runWithQueryLogContext(() => {
-      markAdminFooter();
+      markAdminFooter("owner");
       renderAdminFooter();
       expect(renderAdminFooter()).toBe("");
     });
@@ -272,7 +304,7 @@ describe("renderAdminFooter", () => {
   test("includes the debug menu and uptime when footer debug is enabled", () => {
     runWithQueryLogContext(() => {
       enableFooterDebug();
-      markAdminFooter();
+      markAdminFooter("owner");
       const html = renderAdminFooter();
       expect(html).toContain("debug-menu");
       expect(html).toMatch(/up \d+s/);

@@ -22,10 +22,12 @@ import { Layout } from "#templates/layout.tsx";
 
 /** Displayable user info (decrypted) */
 export interface DisplayUser {
+  /** True once the user has set a password via /join. For keyed roles this also
+   * means they hold a data key; the keyless editor activates without one. */
+  activated: boolean;
   adminLevel: AdminLevel;
   /** For agent users: the names of the logistics agents they're assigned to. */
   agentNames?: string[];
-  hasDataKey: boolean;
   id: number;
   inviteExpired: boolean;
   username: string;
@@ -61,9 +63,9 @@ const AgentSelector = ({
 
 /** Status label for a user */
 const userStatus = (user: DisplayUser): string => {
-  // A user with a data key has joined and self-activated; otherwise they are an
+  // An activated user has joined and set a password; otherwise they are an
   // outstanding invite, which is either still open or expired.
-  if (user.hasDataKey) return t("users.status.active");
+  if (user.activated) return t("users.status.active");
   if (user.inviteExpired) return t("users.status.expired");
   return t("users.status.invited");
 };

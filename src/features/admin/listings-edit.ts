@@ -9,10 +9,16 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { parseEditableAggregateForm } from "#routes/admin/aggregate-recalculation.ts";
-import { AUTH_MULTIPART, requireSessionOr, withAuth } from "#routes/auth.ts";
+import {
+  adminLandingPath,
+  CONTENT_MULTIPART,
+  requireContentOr,
+  withAuth,
+} from "#routes/auth.ts";
 import { applyFlash, formDataToParams } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { listingReturnPath } from "#shared/admin-paths.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   checkGroupCapAfterDurationChange,
@@ -76,7 +82,7 @@ import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 export const handleNewListingGet: TypedRouteHandler<
   "GET /admin/listing/new"
 > = (request) =>
-  requireSessionOr(request, async (session) => {
+  requireContentOr(request, async (session) => {
     const templateParam = new URL(request.url).searchParams.get("template");
     if (!templateParam) {
       return htmlResponse(adminListingPickerPage(session));
@@ -169,14 +175,38 @@ const renderCreateListingError = async (
 };
 
 /**
+ * Parse a multipart listing submission into form params, apply demo overrides,
+ * and lock the webhook URL for editors. Shared by create and edit.
+ *
+ * Editors must not set or change a listing's webhook URL: the registration
+ * webhook posts full attendee PII (name, email, phone, address, …) to that
+ * endpoint, so a crafted URL would exfiltrate exactly the data the keyless
+ * editor role can't otherwise read. The field is forced to a fixed value —
+ * empty on create, the listing's current URL on edit — so any value an editor
+ * submits is ignored. (The field is also hidden from the editor form; this is
+ * the server-side backstop.)
+ */
+const parseListingForm = (
+  session: AdminSession,
+  formData: FormData,
+  existingWebhook: string,
+): FormParams => {
+  const form = formDataToParams(formData);
+  applyDemoOverrides(form, LISTING_DEMO_FIELDS);
+  if (session.adminLevel === "editor") {
+    form.set("webhook_url", existingWebhook);
+  }
+  return form;
+};
+
+/**
  * Handle POST /admin/listing (create listing)
  */
 export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
   request,
 ) =>
-  withAuth(request, AUTH_MULTIPART, async (session, formData) => {
-    const form = formDataToParams(formData);
-    applyDemoOverrides(form, LISTING_DEMO_FIELDS);
+  withAuth(request, CONTENT_MULTIPART, async (session, formData) => {
+    const form = parseListingForm(session, formData, "");
 
     // Mirror the GET gate: reject logistics templates when the feature is off.
     // Guards against a form opened while logistics was enabled, or a crafted POST.
@@ -216,10 +246,17 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
       form,
       result.row.id,
     );
+    // Staff land on the dashboard (which renders flashes); editors can't open
+    // it, so they go to the new listing's edit page — which renders Flash, so
+    // the success message and any upload caveats are surfaced, not swallowed.
+    const createdRedirect =
+      session.adminLevel === "editor"
+        ? listingReturnPath(session.adminLevel, result.row.id)
+        : adminLandingPath(session.adminLevel);
     return processUploadsAndRedirect(
       formData,
       result.row.id,
-      "/admin",
+      createdRedirect,
       t("success.listing_created"),
       undefined,
       undefined,
@@ -265,7 +302,7 @@ const listingAndGroupsPage =
     ) => string,
   ): TypedRouteHandler<"GET /admin/listing/:id"> =>
   (request, params) =>
-    requireSessionOr(request, (session) =>
+    requireContentOr(request, (session) =>
       withEntityFromParam(params.id, getListingAndGroups, (ctx) =>
         htmlResponse(renderPage(ctx, session, request)),
       ),
@@ -281,7 +318,7 @@ export const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listi
 export const handleAdminListingEditGet: TypedRouteHandler<
   "GET /admin/listing/:id/edit"
 > = (request, params) =>
-  requireSessionOr(request, (session) =>
+  requireContentOr(request, (session) =>
     withEntityFromParam(params.id, getListingAndGroups, async (ctx) => {
       const flash = applyFlash(request);
       return htmlResponse(
@@ -363,6 +400,7 @@ const handleListingEditSuccess = async (
   aggregateValues: ListingAggregateValues | null,
   formData: FormData,
   id: number,
+  session: AdminSession,
 ): Promise<Response> => {
   if (aggregateValues) {
     await updateListingAggregateValues(id, aggregateValues);
@@ -375,25 +413,40 @@ const handleListingEditSuccess = async (
   return processUploadsAndRedirect(
     formData,
     id,
-    `/admin/listing/${row.id}`,
+    listingReturnPath(session.adminLevel, row.id),
     `Listing updated${durationWarning}`,
     existing.image_url,
     existing.attachment_url,
   );
 };
 
+/**
+ * Parse the editable trigger-maintained aggregates (booked_quantity,
+ * tickets_count, …) from an edit submission — but only for staff. Editors may
+ * not touch these owner-level figures, so any such hidden fields they craft are
+ * ignored rather than trusted: they always edit with a null aggregate input.
+ */
+const parseAggregatesForRole = (
+  session: AdminSession,
+  form: FormParams,
+):
+  | { ok: true; input: ListingAggregateValues | null }
+  | { ok: false; error: string } =>
+  session.adminLevel === "editor"
+    ? { input: null, ok: true }
+    : parseEditableAggregateForm<
+        ListingAggregateFormValues,
+        ListingAggregateValues
+      >(form, listingAggregateFields, extractListingAggregateValues);
+
 /** Handle POST /admin/listing/:id/edit */
 export const handleAdminListingEditPost: TypedRouteHandler<
   "POST /admin/listing/:id/edit"
 > = (request, { id }) =>
-  withAuth(request, AUTH_MULTIPART, (session, formData) =>
+  withAuth(request, CONTENT_MULTIPART, (session, formData) =>
     withEntityFromParam(id, getListingWithCount, async (existing) => {
-      const form = formDataToParams(formData);
-      applyDemoOverrides(form, LISTING_DEMO_FIELDS);
-      const aggregates = parseEditableAggregateForm<
-        ListingAggregateFormValues,
-        ListingAggregateValues
-      >(form, listingAggregateFields, extractListingAggregateValues);
+      const form = parseListingForm(session, formData, existing.webhook_url);
+      const aggregates = parseAggregatesForRole(session, form);
       if (!aggregates.ok) {
         return renderListingEditError(id, session, aggregates.error);
       }
@@ -408,6 +461,7 @@ export const handleAdminListingEditPost: TypedRouteHandler<
           aggregates.input,
           formData,
           id,
+          session,
         );
       }
       if ("notFound" in result) return notFoundResponse();

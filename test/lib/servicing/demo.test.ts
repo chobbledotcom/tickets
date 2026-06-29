@@ -66,9 +66,18 @@ describe("servicing §0 — demo override replaces a servicing name with a servi
       // are absent. Applying ATTENDEE_DEMO_FIELDS (the wrong pool) would set
       // nothing on those fields because they are absent, but it WOULD rewrite
       // `name` with a person — proving the wrong-pool mutant is observable.
-      const form = new FormParams({ name: "Boiler Service" });
+      //
+      // The seed name is deliberately NOT a member of DEMO_SERVICING_NAMES, so
+      // the random override always changes it (a seed that is in the pool could
+      // be drawn back out unchanged, ~1/poolSize of the time — a real flake).
+      const seedName = "Unlisted Placeholder Job";
+      expect(DEMO_SERVICING_NAMES).not.toContain(seedName);
+      const form = new FormParams({ name: seedName });
       applyDemoOverrides(form, SERVICING_DEMO_FIELDS);
-      expect(form.get("name")).not.toBe("Boiler Service");
+      // Rewritten to a servicing reason from the correct pool (so it changed,
+      // and a wrong-pool mutant — which would pick a person — is caught).
+      expect(form.get("name")).not.toBe(seedName);
+      expect(DEMO_SERVICING_NAMES).toContain(form.getString("name"));
       // email/phone were never present; they remain absent.
       expect(form.getString("email")).toBe("");
       expect(form.getString("phone")).toBe("");

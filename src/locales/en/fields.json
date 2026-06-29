@@ -179,6 +179,7 @@
   "fields.user.manager": "Manager",
   "fields.user.owner": "Owner",
   "fields.user.agent": "Delivery agent",
+  "fields.user.editor": "Editor",
   "fields.modifier.total_uses": "Total Uses",
   "fields.modifier.usage_count": "Total Orders",
   "fields.modifier.total_revenue": "Total Money Collected",
