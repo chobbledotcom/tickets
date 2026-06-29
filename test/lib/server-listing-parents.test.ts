@@ -812,7 +812,6 @@ describeWithEnv("server > listing parents", { db: true }, () => {
         string,
         unknown
       >),
-      groupId: undefined,
     } as import("#shared/db/listings.ts").ListingInput;
     const error = await validateListingInput(input, parent.id);
     expect(error).toContain("Group extra");

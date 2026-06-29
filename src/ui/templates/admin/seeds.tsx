@@ -25,7 +25,7 @@ export const adminSeedsPage = (
           <h1>{t("admin.seeds.heading")}</h1>
           <p>{t("admin.seeds.intro")}</p>
         </div>
-        <Flash error={error} success={success} />
+        <Flash {...(error !== undefined ? { error } : {})} {...(success !== undefined ? { success } : {})} />
         <Raw html={seedsForm.render()} />
         <SubmitButton icon="plus">{t("admin.seeds.submit")}</SubmitButton>
       </CsrfForm>

@@ -100,7 +100,6 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
       field: "my_field",
       formId: "settings-field",
       label: "My field",
-      validate: undefined,
     });
     const res = await runHandler(
       handler,
@@ -116,9 +115,7 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
     const { handler } = makeClearable({
       advanced: true,
       field: "my_field",
-      formId: undefined,
       label: "My field",
-      validate: undefined,
     });
     const res = await runHandler(handler, { my_field: "val" }, mockErrorPage);
     expectRedirect(res, "/admin/settings-advanced");

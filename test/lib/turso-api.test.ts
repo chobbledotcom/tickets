@@ -135,7 +135,7 @@ describeWithEnv("turso-api", { env: TURSO_ENV }, () => {
 
     await withMocks(
       () =>
-        stubTursoFetch("h", "db_h", "t", (url, init) => {
+        stubTursoFetch("h", "db_h", "t", (_url, init) => {
           const auth = (init?.headers as Record<string, string>)?.Authorization;
           if (auth) authHeaders.push(auth);
         }),

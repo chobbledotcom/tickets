@@ -96,7 +96,7 @@ export const adminCalendarPage = (
           attendees,
           hasPaidListing,
           maxCapacity: 0,
-          questionData,
+          ...(questionData !== undefined ? { questionData } : {}),
         })
       : [];
 
@@ -146,8 +146,8 @@ export const adminCalendarPage = (
             html={AttendeeTable({
               allowedDomain,
               emptyMessage,
-              phonePrefix,
-              questionData,
+              ...(phonePrefix !== undefined ? { phonePrefix } : {}),
+              ...(questionData !== undefined ? { questionData } : {}),
               returnUrl,
               rows: tableRows,
               showDate: false,

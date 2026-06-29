@@ -1241,21 +1241,21 @@ const TicketPageForm = ({
   promoCodesEnabled,
 }: {
   slugs: string[];
-  actionUrl?: string;
+  actionUrl?: string | undefined;
   fields: Field[];
   hasDaily: boolean;
   durationDays: number;
   dates: string[] | undefined;
   hasCustomisable: boolean;
   dayCounts: number[];
-  dayCountPriceFor?: (days: number) => number | null;
+  dayCountPriceFor?: ((days: number) => number | null) | undefined;
   listingRows: string;
   hideQuantity: boolean;
   isSingleListing: boolean;
   questions: QuestionWithAnswers[] | undefined;
   questionListingMap: QuestionListingMap | undefined;
   terms: string | null | undefined;
-  prefill?: BookingPrefill;
+  prefill?: BookingPrefill | undefined;
   addOns: AddOnOption[] | undefined;
   promoCodesEnabled: boolean | undefined;
 }): JSX.Element => {
@@ -1330,7 +1330,7 @@ const dayConfig = (
 ): {
   hasCustomisable: boolean;
   dayCounts: number[];
-  dayCountPriceFor?: (days: number) => number | null;
+  dayCountPriceFor?: ((days: number) => number | null) | undefined;
   dateDurationDays: number;
 } => ({
   dateDurationDays:

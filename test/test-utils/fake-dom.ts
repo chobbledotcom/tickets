@@ -13,7 +13,7 @@ export type FakeElement = {
   classes: Set<string>;
   attrs: Map<string, string>;
   /** Form-control state the scripts read/write. */
-  type?: string;
+  type?: string | undefined;
   value: string;
   checked: boolean;
   required: boolean;
@@ -46,19 +46,19 @@ export type ElementSpec = {
   required?: boolean;
   disabled?: boolean;
   hidden?: boolean;
-  data?: Record<string, string>;
+  data?: Record<string, string> | undefined;
   children?: ElementSpec[];
 };
 
 /** A parsed simple selector clause (one comma-separated alternative). */
 type Clause = {
-  tag?: string;
-  class?: string;
-  type?: string;
-  namePrefix?: string;
-  nameExact?: string;
-  dataKey?: string;
-  dataValue?: string;
+  tag?: string | undefined;
+  class?: string | undefined;
+  type?: string | undefined;
+  namePrefix?: string | undefined;
+  nameExact?: string | undefined;
+  dataKey?: string | undefined;
+  dataValue?: string | undefined;
   checked: boolean;
 };
 

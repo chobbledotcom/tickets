@@ -760,7 +760,7 @@ const AttendeeEditForm = ({
       : `/admin/attendees/${data.attendee!.id}`;
   return (
     <CsrfForm action={formAction} id={ATTENDEE_FORM_ID}>
-      <Flash error={data.flashError} success={data.flashSuccess} />
+      <Flash {...(data.flashError !== undefined ? { error: data.flashError } : {})} {...(data.flashSuccess !== undefined ? { success: data.flashSuccess } : {})} />
       {data.returnUrl && (
         <input name="return_url" type="hidden" value={data.returnUrl} />
       )}

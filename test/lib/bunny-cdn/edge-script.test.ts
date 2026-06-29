@@ -385,7 +385,7 @@ describeWithEnv(
     });
 
     test("GETs the script secrets endpoint", async () => {
-      const calls: { url: string; init?: RequestInit }[] = [];
+      const calls: { url: string; init?: RequestInit | undefined }[] = [];
       await withMocks(
         () =>
           stub(

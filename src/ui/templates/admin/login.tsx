@@ -16,7 +16,7 @@ import { Layout } from "#templates/layout.tsx";
 export const adminLoginPage = (error?: string): string =>
   String(
     <Layout title={t("login.title")}>
-      <Flash error={error} />
+      <Flash {...(error !== undefined ? { error } : {})} />
       <CsrfForm action="/admin/login">
         <Raw html={renderFields(getLoginFields())} />
         <SubmitButton icon="log-in">{t("login.submit")}</SubmitButton>

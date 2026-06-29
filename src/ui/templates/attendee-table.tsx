@@ -55,7 +55,7 @@ export type AttendeeColumnOpts = {
   answerTextMap: Map<number, string>;
   answerQuestionMap: Map<number, string>;
   /** Question data for the answers column */
-  questionData?: TableQuestionData;
+  questionData?: TableQuestionData | undefined;
 };
 
 /** Options for the unified AttendeeTable component */

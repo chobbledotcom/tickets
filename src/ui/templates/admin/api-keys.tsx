@@ -41,7 +41,11 @@ const ApiKeyRow = ({ apiKey }: { apiKey: ApiKeyDisplay }): string =>
 export const adminApiKeysPage = (
   keys: ApiKeyDisplay[],
   adminSession: AdminSession,
-  opts: { success?: string; error?: string; newKey?: string },
+  opts: {
+    success?: string | undefined;
+    error?: string | undefined;
+    newKey?: string | undefined;
+  },
 ): string => {
   const keyRows =
     keys.length > 0
@@ -54,7 +58,7 @@ export const adminApiKeysPage = (
   return String(
     <Layout title={t("api_keys.title")}>
       <AdminNav active="/admin/users" session={adminSession} />
-      <Flash error={opts.error} success={opts.success} />
+      <Flash {...(opts.error !== undefined ? { error: opts.error } : {})} {...(opts.success !== undefined ? { success: opts.success } : {})} />
 
       {opts.newKey && (
         <div class="warning">
@@ -108,13 +112,13 @@ export const adminApiKeysPage = (
 export const adminApiKeyManagePage = (
   apiKey: ApiKeyDisplay,
   session: AdminSession,
-  opts: { error?: string; success?: string } = {},
+  opts: { error?: string | undefined; success?: string | undefined } = {},
 ): string =>
   String(
     <Layout title={`${t("api_keys.title")}: ${apiKey.name}`}>
       <AdminNav active="/admin/users" session={session} />
       <h1>{apiKey.name}</h1>
-      <Flash error={opts.error} success={opts.success} />
+      <Flash {...(opts.error !== undefined ? { error: opts.error } : {})} {...(opts.success !== undefined ? { success: opts.success } : {})} />
       <div class="table-scroll">
         <table class="listing-details-table">
           <tbody>

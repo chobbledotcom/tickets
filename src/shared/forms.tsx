@@ -502,9 +502,9 @@ export const Flash = ({
   success,
   info,
 }: {
-  error?: string;
-  success?: string;
-  info?: string;
+  error?: string | undefined;
+  success?: string | undefined;
+  info?: string | undefined;
 }): JSX.Element => {
   if (error || success || info) consumeFlash();
   return (
@@ -620,7 +620,7 @@ export const CsrfForm = ({
 }: {
   action: string;
   children?: Child;
-  id?: string;
+  id?: string | undefined;
   class?: string;
   enctype?: string;
 } & { [key: `data-${string}`]: string | boolean }): JSX.Element => (

@@ -142,9 +142,9 @@ export const expectHtmlResponse = async (
 export const expectHtml = async (
   response: Response,
   opts: {
-    status?: number;
-    contains?: string[];
-    notContains?: string[];
+    status?: number | undefined;
+    contains?: string[] | undefined;
+    notContains?: string[] | undefined;
   } = {},
 ): Promise<string> => {
   if (opts.status !== undefined) expect(response.status).toBe(opts.status);

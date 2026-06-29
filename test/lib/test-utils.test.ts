@@ -1202,7 +1202,10 @@ describe("test-utils", () => {
     });
 
     test("creates listing without thankYouUrl using ?? empty string fallback", async () => {
-      const listing = await createTestListing({ thankYouUrl: undefined });
+      const thankYouUrl: string | undefined = undefined;
+      const listing = await createTestListing({
+        ...(thankYouUrl !== undefined ? { thankYouUrl } : {}),
+      });
       expect(listing.id).toBeGreaterThan(0);
       // thankYouUrl: undefined triggers the default empty string
       expect(listing.thank_you_url).toBe("");

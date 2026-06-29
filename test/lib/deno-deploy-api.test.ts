@@ -96,7 +96,7 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
         stub(
           globalThis,
           "fetch",
-          (input: string | URL | Request, init?: RequestInit) => {
+          (_input: string | URL | Request, init?: RequestInit) => {
             authHeader = (init?.headers as Record<string, string>)
               ?.Authorization;
             return Promise.resolve(

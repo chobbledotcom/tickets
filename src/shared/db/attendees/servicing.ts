@@ -496,7 +496,7 @@ export type RecordServiceCostInput = {
   amount: number;
   occurredAt: string;
   memo: string;
-  reference?: string;
+  reference?: string | undefined;
 };
 
 /** True when the servicing event holds `listingId` (has a `listing_attendees`

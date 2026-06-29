@@ -82,7 +82,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
     test("filters the table to a single listing", async () => {
       const { first } = await seedListingFilterPair();
 
-      const html = await expectHtml(
+      await expectHtml(
         await adminGet(`/admin/attendees?listing=${first.id}`),
         {
           contains: ["AliceOne", `selected value="${first.id}"`],

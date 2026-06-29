@@ -50,7 +50,7 @@ const createAttendee = async (
   date?: string | null,
 ) => {
   const result = await createAttendeeAtomic({
-    bookings: [{ date, listingId }],
+    bookings: [{ ...(date !== undefined ? { date } : {}), listingId }],
     email: email ?? `${name.toLowerCase()}@test.com`,
     name,
   });

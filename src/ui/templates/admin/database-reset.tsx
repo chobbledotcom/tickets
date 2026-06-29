@@ -60,7 +60,7 @@ export const ResetDatabaseForm = ({
 export const demoResetPage = (error?: string): string =>
   String(
     <Layout title={t("settings.advanced.database_reset.heading")}>
-      <Flash error={error} />
+      <Flash {...(error !== undefined ? { error } : {})} />
       <ResetDatabaseForm action="/demo/reset" />
       <p>
         <BackButton href="/admin">

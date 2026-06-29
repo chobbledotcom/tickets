@@ -223,7 +223,7 @@ const MonthsInput = ({
   id,
   defaultValue = "1",
 }: {
-  id?: string;
+  id?: string | undefined;
   defaultValue?: string;
 }): JSX.Element => (
   <input
@@ -355,7 +355,7 @@ const SecretsPanel = ({
   view,
 }: {
   site: BuiltSite;
-  view?: SiteSecretsView;
+  view?: SiteSecretsView | undefined;
 }): JSX.Element => {
   if (!view) {
     return <p class="prose">{t("built_sites.secrets_unavailable")}</p>;

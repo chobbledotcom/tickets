@@ -85,7 +85,7 @@ export const adminAttendeeStatusesPage = (
           <Raw html={t("statuses.attendee_statuses_description")} />
         </p>
       </div>
-      <Flash error={error} success={success} />
+      <Flash {...(error !== undefined ? { error } : {})} {...(success !== undefined ? { success } : {})} />
       <p class="actions">
         <ActionButton href={`${LIST_PATH}/new`} icon="plus">
           {t("statuses.add_status_button")}
@@ -146,7 +146,7 @@ export const adminAttendeeStatusFormPage = (
       <h1>
         {editing ? t("statuses.form_title_edit") : t("statuses.form_title_add")}
       </h1>
-      <Flash error={error} />
+      <Flash {...(error !== undefined ? { error } : {})} />
       <CsrfForm action={action}>
         <label>
           {t("common.name")}
@@ -216,7 +216,7 @@ export const adminAttendeeStatusDeletePage = (
         name={status.name}
       >
         <h1>{t("statuses.delete_title")}</h1>
-        <Flash error={error} />
+        <Flash {...(error !== undefined ? { error } : {})} />
         <p>{t("statuses.delete_confirm", { name: status.name })}</p>
       </ConfirmForm>
     </Layout>,

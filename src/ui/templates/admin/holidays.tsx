@@ -58,7 +58,7 @@ export const adminHolidaysPage = (
   String(
     <Layout title={t("terms.holidays")}>
       <AdminNav active="/admin/settings" session={session} />
-      <Flash success={successMessage} />
+      <Flash {...(successMessage !== undefined ? { success: successMessage } : {})} />
       <p class="actions">
         <ActionButton href="/admin/holidays/new" icon="plus">
           {t("holidays.add_holiday")}
@@ -97,7 +97,7 @@ export const adminHolidayNewPage = (
       <AdminNav active="/admin/settings" session={session} />
       <CsrfForm action="/admin/holidays">
         <h1>{t("holidays.add.heading")}</h1>
-        <Flash error={error} />
+        <Flash {...(error !== undefined ? { error } : {})} />
         <Raw html={renderFields(getHolidayFields())} />
         <SubmitButton icon="plus">{t("holidays.add.submit")}</SubmitButton>
       </CsrfForm>
@@ -117,7 +117,7 @@ export const adminHolidayEditPage = (
       <AdminNav active="/admin/settings" session={session} />
       <CsrfForm action={`/admin/holidays/${holiday.id}/edit`}>
         <h1>{t("holidays.edit.heading")}</h1>
-        <Flash error={error} />
+        <Flash {...(error !== undefined ? { error } : {})} />
         <Raw
           html={renderFields(getHolidayFields(), holidayToFieldValues(holiday))}
         />
@@ -151,7 +151,7 @@ export const adminHolidayDeletePage = (
         name={holiday.name}
       >
         <h1>{t("holidays.delete.heading")}</h1>
-        <Flash error={error} />
+        <Flash {...(error !== undefined ? { error } : {})} />
         <p>
           <Raw
             html={t("holidays.delete.confirm", {

@@ -532,11 +532,7 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
       maxAttendees: 10,
       name: "Dateless",
     });
-    const attendee = await createTestAttendeeDirect(
-      dated.id,
-      "",
-      "blank@test.com",
-    );
+    await createTestAttendeeDirect(dated.id, "", "blank@test.com");
     await createTestAttendeeDirect(dateless.id, "No Date", "nodate@test.com");
 
     await expectCalendarFeed(requestAsApiKey("/caldav/events.ics", apiKey), {

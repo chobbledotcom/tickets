@@ -342,7 +342,7 @@ describeWithEnv(
     });
 
     test("a two-of-one booking persists child Alpha qty 2 and no child Beta line", async () => {
-      const { parent, childA, childB, date } = await setupAndBookTwoOfOne();
+      const { childA, childB } = await setupAndBookTwoOfOne();
 
       const rowsA = await getAttendeesRaw(childA.id);
       expect(rowsA.length).toBe(1);
@@ -384,7 +384,7 @@ describeWithEnv(
     });
 
     test("a one-of-each booking shares one order token and records each child's parent", async () => {
-      const { parent, childA, childB, date } = await setupAndBookOneOfEach();
+      const { parent, childA, childB } = await setupAndBookOneOfEach();
 
       const parentRow = (await orderRowsFor(parent.id))[0]!;
       const rowA = (await orderRowsFor(childA.id))[0]!;
@@ -402,7 +402,7 @@ describeWithEnv(
     });
 
     test("a two-of-one booking records both units of the child under the parent", async () => {
-      const { parent, childA, date } = await setupAndBookTwoOfOne();
+      const { parent, childA } = await setupAndBookTwoOfOne();
 
       const rowsA = await orderRowsFor(childA.id);
       const parentRows = await orderRowsFor(parent.id);
@@ -415,7 +415,7 @@ describeWithEnv(
     });
 
     test("a standalone booking has an empty order token and no parent", async () => {
-      const { standalone, date } = await setupStandalone();
+      const { standalone } = await setupStandalone();
 
       const rows = await orderRowsFor(standalone.id);
       expect(rows.length).toBe(1);
@@ -424,7 +424,7 @@ describeWithEnv(
     });
 
     test("the admin attendee detail page labels each child under its parent", async () => {
-      const { parent, childA, childB, date } = await setupAndBookOneOfEach();
+      const { parent } = await setupAndBookOneOfEach();
 
       const { adminGet } = await import("#test-utils");
       const { getAttendeesRaw: rawFor } = await import(
@@ -443,7 +443,7 @@ describeWithEnv(
     });
 
     test("a standalone booking's attendee detail page shows no add-on annotation", async () => {
-      const { standalone, date } = await setupStandalone();
+      const { standalone } = await setupStandalone();
 
       const { adminGet } = await import("#test-utils");
       const { getAttendeesRaw: rawFor } = await import(
@@ -457,7 +457,7 @@ describeWithEnv(
     });
 
     test("the admin calendar shows the parent and inherited-date child bookings on the parent's date", async () => {
-      const { parent, childA, childB, date } = await setupAndBookOneOfEach();
+      const { date } = await setupAndBookOneOfEach();
 
       const { adminGet } = await import("#test-utils");
       const calendar = await adminGet(`/admin/calendar?date=${date}`);

@@ -1397,13 +1397,13 @@ export const adminListingPage = ({
         isOwner={session.adminLevel === "owner"}
         listing={listing}
       />
-      <Flash success={successMessage} />
+      <Flash {...(successMessage !== undefined ? { success: successMessage } : {})} />
       {!listing.active && (
         <div class="error" role="alert">
           {t("listings_table.listing_deactivated_warning")}
         </div>
       )}
-      <Flash error={errorMessage} />
+      <Flash {...(errorMessage !== undefined ? { error: errorMessage } : {})} />
       <ListingDetailsTable
         adjustedCount={adjustedCount}
         aggregateRecalculation={aggregateRecalculation}
@@ -2043,7 +2043,7 @@ export const adminListingNewPage = (
         enctype="multipart/form-data"
       >
         <h1>{t("listings_table.add_listing")}</h1>
-        <Flash error={error} />
+        <Flash {...(error !== undefined ? { error } : {})} />
         {templateId && (
           <input name="template_id" type="hidden" value={templateId} />
         )}
@@ -2284,7 +2284,7 @@ export const adminListingEditPage = (
       title={t("listings_table.edit_listing_title", { name: listing.name })}
     >
       <AdminNav active="/admin/" session={session} />
-      <Flash error={error} success={success} />
+      <Flash {...(error !== undefined ? { error } : {})} {...(success !== undefined ? { success } : {})} />
       {childOfNames !== null && (
         <p class="notice listing-child-banner">
           {t("listings_table.child_banner", { names: childOfNames })}
@@ -2371,7 +2371,7 @@ export const adminDeleteListingPage = (
       title={t("listings_table.delete_listing_title", { name: listing.name })}
     >
       <AdminNav active="/admin/" session={session} />
-      <Flash error={error} />
+      <Flash {...(error !== undefined ? { error } : {})} />
 
       <ConfirmForm
         action={`/admin/listing/${listing.id}/delete`}
@@ -2407,7 +2407,7 @@ export const adminDeactivateListingPage = (
       })}
     >
       <AdminNav active="/admin/" session={session} />
-      <Flash error={error} />
+      <Flash {...(error !== undefined ? { error } : {})} />
 
       <ConfirmForm
         action={`/admin/listing/${listing.id}/deactivate`}
@@ -2449,7 +2449,7 @@ export const adminReactivateListingPage = (
       })}
     >
       <AdminNav active="/admin/" session={session} />
-      <Flash error={error} />
+      <Flash {...(error !== undefined ? { error } : {})} />
 
       <ConfirmForm
         action={`/admin/listing/${listing.id}/reactivate`}

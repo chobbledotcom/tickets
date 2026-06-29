@@ -188,7 +188,7 @@ const LedgerRow = ({
 }: {
   transfer: Transfer;
   names: LedgerNames;
-  returnUrl?: string;
+  returnUrl?: string | undefined;
 }): string =>
   String(
     <tr>
@@ -380,7 +380,7 @@ const HumanLedgerRow = ({
 }: {
   transfer: Transfer;
   names: LedgerNames;
-  returnUrl?: string;
+  returnUrl?: string | undefined;
 }): JSX.Element => (
   <tr>
     <td>{formatDatetimeShort(transfer.occurredAt)}</td>
@@ -469,7 +469,7 @@ const StatementRow = ({
   line: StatementLine;
   account: AccountRef;
   names: LedgerNames;
-  returnUrl?: string;
+  returnUrl?: string | undefined;
 }): string =>
   String(
     <tr>
@@ -586,7 +586,7 @@ const AccountStatementActions = ({
 }: {
   account: AccountRef;
   names: LedgerNames;
-  fullLedgerHref?: string;
+  fullLedgerHref?: string | undefined;
   returnUrl: string;
 }): JSX.Element | null => {
   const showAdd = canAddLedgerEntry(account, names);

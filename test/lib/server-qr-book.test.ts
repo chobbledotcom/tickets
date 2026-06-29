@@ -327,7 +327,7 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
           value: 1000,
         }),
       );
-      await withStripe(async (stripe) => {
+      await withStripe(async () => {
         const response = await awaitTestRequest(
           qrBookPath(listing.slug, token),
         );

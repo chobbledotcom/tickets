@@ -46,7 +46,7 @@ export const adminDeleteAttendeePage = (
         buttonText={t("admin.attendees.delete_submit")}
         label={t("admin.attendees.delete_label")}
         name={attendee.name}
-        returnUrl={returnUrl}
+        {...(returnUrl !== undefined ? { returnUrl } : {})}
       >
         <p>
           <strong>Warning:</strong> This will permanently remove this attendee
@@ -98,7 +98,7 @@ export const adminRefundAttendeePage = (
         buttonText={t("admin.attendees.refund_submit")}
         label={t("admin.attendees.delete_label")}
         name={attendee.name}
-        returnUrl={returnUrl}
+        {...(returnUrl !== undefined ? { returnUrl } : {})}
       >
         <p>
           <strong>Warning:</strong> This will issue a full refund for this
@@ -689,7 +689,7 @@ export const adminResendNotificationPage = (
         danger={false}
         label={t("admin.attendees.delete_label")}
         name={attendee.name}
-        returnUrl={returnUrl}
+        {...(returnUrl !== undefined ? { returnUrl } : {})}
       >
         <p>
           <strong>Note:</strong> This will re-send the registration notification

@@ -29,11 +29,11 @@ export const adminRecalculatePage = ({
   active: string;
   currentLabel: string;
   description: string;
-  error?: string;
+  error?: string | undefined;
   recalculatedLabel: string;
   rows: RecalculateRow[];
   session: AdminSession;
-  success?: string;
+  success?: string | undefined;
   submitLabel: string;
   title: string;
 }): string =>
