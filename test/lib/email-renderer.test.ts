@@ -118,6 +118,19 @@ describeWithEnv("email-renderer", { db: true }, () => {
       expect(data.entries[0]!.listing.is_paid).toBe(true);
     });
 
+    test("marks a free-base entry as paid from its booking price", async () => {
+      // A package override charges a member whose base listing is free, so the
+      // booking carries a positive price_paid even though isPaidListing is false.
+      const entries = [makeEntry({ unit_price: 0 }, { price_paid: "1500" })];
+      const data = await buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
+
+      expect(data.entries[0]!.listing.is_paid).toBe(true);
+    });
+
     test("includes attendee date when present", async () => {
       const entries = [makeEntry({}, { date: "2026-04-15" })];
       const data = await buildTemplateData(
@@ -233,6 +246,46 @@ describeWithEnv("email-renderer", { db: true }, () => {
       // Summed across members; the paid Chair makes the bundle paid.
       expect(data.entries[0]!.attendee.quantity).toBe(8);
       expect(data.entries[0]!.attendee.price_paid).toBe("5000");
+      expect(data.entries[0]!.listing.is_paid).toBe(true);
+    });
+
+    test("a collapsed hidden package of free-base members is paid from prices", async () => {
+      // Every member's base listing is free, but a package override charged the
+      // buyer, so the booking carries a positive price_paid. The collapsed row
+      // must still render as paid even though no member isPaidListing.
+      const { groupsTable } = await import("#shared/db/groups.ts");
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Free Kit",
+      });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      const memberA = await createTestListing({
+        groupId: group.id,
+        name: "A",
+        unitPrice: 0,
+      });
+      const memberB = await createTestListing({
+        groupId: group.id,
+        name: "B",
+        unitPrice: 0,
+      });
+      const entries = [
+        makeEntry(
+          { id: memberA.id, name: "A", unit_price: 0 },
+          { package_group_id: group.id, price_paid: "1000", quantity: 1 },
+        ),
+        makeEntry(
+          { id: memberB.id, name: "B", unit_price: 0 },
+          { package_group_id: group.id, price_paid: "0", quantity: 1 },
+        ),
+      ];
+      const data = await buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+        { hidePackageMembers: true },
+      );
+      expect(data.entries.length).toBe(1);
       expect(data.entries[0]!.listing.is_paid).toBe(true);
     });
 

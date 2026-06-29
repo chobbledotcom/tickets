@@ -85,8 +85,15 @@ export type TemplateData = {
   amount_owed: string;
 };
 
+/** Whether an entry's price cell should render. A package override can charge a
+ * member whose base listing is free, so the booking's actual `price_paid` makes
+ * the row paid even when `isPaidListing(listing)` is false. */
+const entryIsPaid = ({ listing, attendee }: EmailEntry): boolean =>
+  isPaidListing(listing) || Number(attendee.price_paid) > 0;
+
 /** Map one booking entry to its template shape. */
-const toTemplateEntry = ({ listing, attendee }: EmailEntry): TemplateEntry => {
+const toTemplateEntry = (entry: EmailEntry): TemplateEntry => {
+  const { listing, attendee } = entry;
   // Render the booking's actual span from its stored range (end_date is the
   // exclusive end), so customisable-days bookings show the chosen length rather
   // than the listing's maximum duration.
@@ -109,7 +116,7 @@ const toTemplateEntry = ({ listing, attendee }: EmailEntry): TemplateEntry => {
       special_instructions: attendee.special_instructions,
     },
     listing: {
-      is_paid: isPaidListing(listing),
+      is_paid: entryIsPaid(entry),
       name: listing.name,
       slug: listing.slug,
     },
@@ -148,7 +155,7 @@ const collapsedPackageEntry = (
       quantity: sumEntryQuantities(entries),
     },
     listing: {
-      is_paid: entries.some((e) => isPaidListing(e.listing)),
+      is_paid: entries.some(entryIsPaid),
       name: packageName,
       slug: "",
     },
