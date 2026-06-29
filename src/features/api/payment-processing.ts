@@ -304,10 +304,10 @@ const refundAndFail = async (
 ): Promise<PaymentFailureResult> => {
   const refunded = await refundAndLog(session, message, listingId);
   return {
-    ...(detail !== undefined ? { detail } : {}),
+    detail,
     error: message,
     refunded,
-    ...(status !== undefined ? { status } : {}),
+    status,
     success: false,
   };
 };
@@ -1504,8 +1504,8 @@ export const processPaymentSession = async (
   if (!result.success) {
     await markSessionFailed(sessionId, {
       error: result.error,
-      ...(result.refunded !== undefined ? { refunded: result.refunded } : {}),
-      ...(result.status !== undefined ? { status: result.status } : {}),
+      refunded: result.refunded,
+      status: result.status,
     });
   }
 

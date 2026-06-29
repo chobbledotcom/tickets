@@ -227,7 +227,7 @@ export type RefundFacts = {
   readonly postedBy?: string;
   /** Optional PII-free reason code stamped on every refund leg (e.g. why an
    * automatic refund happened). Kept free of names/emails by convention. */
-  readonly memo?: string;
+  readonly memo?: string | undefined;
 };
 
 /**

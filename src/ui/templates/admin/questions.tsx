@@ -99,7 +99,7 @@ export const adminQuestionsPage = (
       <p class="actions">
         <GuideLink href="/admin/guide#questions">Questions guide</GuideLink>
       </p>
-      <Flash {...(error !== undefined ? { error } : {})} />
+      <Flash error={error} />
 
       <CsrfForm action="/admin/questions" id="new-question">
         <Raw html={questionTextForm.render()} />
@@ -166,7 +166,7 @@ export const adminQuestionPage = (
     <Layout title={`Question: ${question.text}`}>
       <AdminNav active="/admin/settings" session={session} />
       <h1>{question.text}</h1>
-      <Flash {...(error !== undefined ? { error } : {})} />
+      <Flash error={error} />
 
       <CsrfForm action={`/admin/questions/${question.id}/edit`}>
         <Raw html={questionTextForm.field("text").render(question.text)} />
@@ -396,7 +396,7 @@ export const adminAnswerEditPage = (
           {t("questions.edit_answer.question_context", { text: question.text })}
         </small>
       </p>
-      <Flash {...(error !== undefined ? { error } : {})} />
+      <Flash error={error} />
 
       <CsrfForm
         action={`/admin/questions/${question.id}/answers/${answer.id}/edit`}
@@ -505,7 +505,7 @@ export const adminQuestionDeletePage = (
         name={question.text}
       >
         <h1>{t("questions.delete.heading")}</h1>
-        <Flash {...(error !== undefined ? { error } : {})} />
+        <Flash error={error} />
         <p>{t("questions.delete.warning")}</p>
         <p>{t("questions.delete.confirm_prompt", { text: question.text })}</p>
       </ConfirmForm>
@@ -529,7 +529,7 @@ export const adminAnswerDeletePage = (
         name={answer.text}
       >
         <h1>{t("questions.delete_answer.heading")}</h1>
-        <Flash {...(error !== undefined ? { error } : {})} />
+        <Flash error={error} />
         <p>
           {t("questions.delete_answer.warning", {
             answerText: answer.text,
@@ -556,7 +556,7 @@ export const adminListingQuestionsPage = (
       <AdminNav active="/admin/" session={session} />
 
       <h1>{t("questions.listing.heading", { listing: listing.name })}</h1>
-      <Flash {...(error !== undefined ? { error } : {})} />
+      <Flash error={error} />
 
       {allQuestions.length === 0 ? (
         <p>

@@ -24,7 +24,7 @@ export const ResetDatabaseForm = ({
   action: string;
   id?: string;
 }): JSX.Element => (
-  <CsrfForm action={action} {...(id !== undefined ? { id } : {})}>
+  <CsrfForm action={action} id={id}>
     <h2>{t("settings.advanced.database_reset.heading")}</h2>
     <article>
       <aside>
@@ -60,7 +60,7 @@ export const ResetDatabaseForm = ({
 export const demoResetPage = (error?: string): string =>
   String(
     <Layout title={t("settings.advanced.database_reset.heading")}>
-      <Flash {...(error !== undefined ? { error } : {})} />
+      <Flash error={error} />
       <ResetDatabaseForm action="/demo/reset" />
       <p>
         <BackButton href="/admin">

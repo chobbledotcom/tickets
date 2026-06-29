@@ -65,10 +65,10 @@ type PaymentSuccess = {
 type PaymentFailure = {
   success: false;
   error: string;
-  status?: number;
-  refunded?: boolean;
+  status?: number | undefined;
+  refunded?: boolean | undefined;
   /** Internal diagnostic detail (not shown to users) */
-  detail?: string;
+  detail?: string | undefined;
 };
 
 /** Result of processing a payment session */

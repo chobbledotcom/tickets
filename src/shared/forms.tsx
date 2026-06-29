@@ -704,7 +704,7 @@ export const ConfirmForm = ({
   label?: string;
   buttonText: string;
   danger?: boolean;
-  returnUrl?: string;
+  returnUrl?: string | undefined;
   id?: string;
   hiddenFields?: Record<string, string>;
   /** When false, omit the type-the-name input — a plain are-you-sure page. */

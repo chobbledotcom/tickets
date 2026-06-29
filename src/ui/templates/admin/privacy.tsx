@@ -123,11 +123,7 @@ export const adminPrivacyPage = (
         <Raw html={t("privacy.hashing_html")} />
       </div>
 
-      <Flash
-        {...(data.error !== undefined ? { error: data.error } : {})}
-        {...(data.info !== undefined ? { info: data.info } : {})}
-        {...(data.success !== undefined ? { success: data.success } : {})}
-      />
+      <Flash error={data.error} info={data.info} success={data.success} />
 
       <OrphansForm
         autoPurgeOrphans={data.autoPurgeOrphans}

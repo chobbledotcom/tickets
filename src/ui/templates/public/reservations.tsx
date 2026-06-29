@@ -1101,7 +1101,7 @@ export type TicketPageOptions = {
   baseUrl?: string;
   groupName?: string;
   groupDescription?: string;
-  prefill?: BookingPrefill;
+  prefill?: BookingPrefill | undefined;
   /** Override the <form action="…"> URL. Defaults to `/ticket/<slugs>`. */
   actionUrl?: string;
   /** Opt-in add-ons to offer below the questions. */

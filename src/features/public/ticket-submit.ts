@@ -287,7 +287,7 @@ const checkoutIntentForSubmission = (
     ...contact,
     date,
     items,
-    ...(listingAnswerIds !== undefined ? { listingAnswerIds } : {}),
+    listingAnswerIds,
     // Carry the chosen span only when a customisable listing is involved, so
     // the webhook re-prices and dates the booking by day count, not the
     // listing's fixed duration.
@@ -377,7 +377,7 @@ const handleFreePath = async (
     allocations,
   } = params;
   const result = await createFreeReservation({
-    ...(allocations !== undefined ? { allocations } : {}),
+    allocations,
     contact,
     date,
     dayCount,
@@ -388,13 +388,9 @@ const handleFreePath = async (
     ledgerOrder,
     listings: ctx.listings,
     modifierUsages,
-    ...(paymentBreakdown?.paidByListingId !== undefined
-      ? { paidByListingId: paymentBreakdown.paidByListingId }
-      : {}),
+    paidByListingId: paymentBreakdown?.paidByListingId,
     quantities,
-    ...(paymentBreakdown?.remainingBalance !== undefined
-      ? { remainingBalance: paymentBreakdown.remainingBalance }
-      : {}),
+    remainingBalance: paymentBreakdown?.remainingBalance,
   });
   if (!result.success) return ticketFormErrorResponse(ctx)(result.error);
 
@@ -938,7 +934,7 @@ const buildTicketCtx = async ({
     listings,
     slugs,
     ...sharedCtx,
-    ...(prefill !== undefined ? { prefill } : {}),
+    prefill,
   };
 };
 

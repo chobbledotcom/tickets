@@ -662,8 +662,8 @@ type FreeReservationParams = {
   contact: ContactInfo;
   date: string | null;
   dayCount?: number;
-  paidByListingId?: Map<number, number>;
-  remainingBalance?: number;
+  paidByListingId?: Map<number, number> | undefined;
+  remainingBalance?: number | undefined;
   /** Modifier stock to consume in the create transaction. Amounts are zeroed when
    *  payments are disabled — stock is still capped, nothing is charged. */
   modifierUsages: ModifierUsage[];
@@ -675,7 +675,7 @@ type FreeReservationParams = {
    * `createFreeReservation` expands each child booking into one row per
    * allocation instead of one summed row, giving each row its real
    * `parentListingId`. Absent for legacy/no-parent orders. */
-  allocations?: ChildAllocation[];
+  allocations?: ChildAllocation[] | undefined;
 };
 
 type FreeReservationResult =

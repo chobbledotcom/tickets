@@ -96,7 +96,7 @@ export const deliverMessage = async (
   const { sendEmail } = await import("#shared/email.ts");
   const status = await sendEmail(config, {
     html: buildMessageHtml(opts.body, opts.intro),
-    ...(opts.replyTo !== undefined ? { replyTo: opts.replyTo } : {}),
+    replyTo: opts.replyTo,
     subject: opts.subject,
     text: buildMessageText(opts.body, opts.intro),
     to: opts.to,

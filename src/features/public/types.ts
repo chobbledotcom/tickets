@@ -55,7 +55,7 @@ export type TicketCtx = TicketSharedContext & {
    * (the fold's authoritative date-specific check runs there instead). */
   groupRemainingByListingId?: ReadonlyMap<number, number>;
   baseUrl?: string;
-  prefill?: BookingPrefill;
+  prefill?: BookingPrefill | undefined;
 };
 
 /** Possibly-async response handler */
