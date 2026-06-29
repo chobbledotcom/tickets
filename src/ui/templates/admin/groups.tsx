@@ -4,6 +4,7 @@
 
 import { joinStrings, map, pipe, sumOf } from "#fp";
 import { t } from "#i18n";
+import { groupReturnPath } from "#shared/admin-paths.ts";
 import { resolveColumnLayout } from "#shared/column-order.ts";
 import {
   LISTING_DEFAULT_ORDER,
@@ -88,13 +89,7 @@ export const adminGroupsPage = (
                   <td>
                     {/* Staff open the detail page; editors can't (it decrypts
                         attendee PII), so they link straight to the edit form. */}
-                    <a
-                      href={
-                        session.adminLevel === "editor"
-                          ? `/admin/groups/${g.id}/edit`
-                          : `/admin/groups/${g.id}`
-                      }
-                    >
+                    <a href={groupReturnPath(session.adminLevel, g.id)}>
                       {g.name}
                     </a>
                   </td>

@@ -8,9 +8,10 @@
 
 /* jscpd:ignore-start */
 import { compact } from "#fp";
-import { CONTENT_FORM, listingReturnPath, withAuth } from "#routes/auth.ts";
+import { CONTENT_FORM, withAuth } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { listingReturnPath } from "#shared/admin-paths.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   getListingWithCount,

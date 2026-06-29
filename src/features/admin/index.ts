@@ -48,7 +48,7 @@ import { usersRoutes } from "#routes/admin/users.ts";
 import { getAuthenticatedSession } from "#routes/auth.ts";
 import { createRouter, type RouteHandlerFn } from "#routes/router.ts";
 import { enableFooterDebug } from "#shared/db/query-log.ts";
-import { STAFF_ADMIN_LEVELS } from "#shared/types.ts";
+import { isStaffRole } from "#shared/types.ts";
 
 /** Route maps merged in order (later keys override earlier on conflict) */
 const adminRouteModules: Record<string, RouteHandlerFn>[] = [
@@ -112,11 +112,7 @@ export const routeAdmin: RouterFn = async (request, path, method, server) => {
   // excluded from operational/debug access) never see the SQL/cache debug menu.
   const session = await getAuthenticatedSession(request);
 
-  if (
-    method === "GET" &&
-    session &&
-    (STAFF_ADMIN_LEVELS as readonly string[]).includes(session.adminLevel)
-  ) {
+  if (method === "GET" && session && isStaffRole(session.adminLevel)) {
     enableFooterDebug();
   }
 

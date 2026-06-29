@@ -23,7 +23,7 @@ import {
   type QueryLogEntry,
   sqlWallClockMs,
 } from "#shared/db/query-log.ts";
-import { type AdminLevel, STAFF_ADMIN_LEVELS } from "#shared/types.ts";
+import { type AdminLevel, isStaffRole } from "#shared/types.ts";
 import { getUptimeSeconds } from "#shared/uptime.ts";
 
 /** Data passed to the debug-details renderer */
@@ -44,10 +44,6 @@ const _adminFooterStore = { adminLevel: null as AdminLevel | null };
 export const markAdminFooter = (adminLevel: AdminLevel): void => {
   _adminFooterStore.adminLevel = adminLevel;
 };
-
-/** Whether the given role is back-office staff (owner/manager). */
-const isStaff = (adminLevel: AdminLevel): boolean =>
-  (STAFF_ADMIN_LEVELS as readonly AdminLevel[]).includes(adminLevel);
 
 /** Total query work: the sum of every query's duration, counting concurrent
  * and batched queries in full. Pairs with the wall-clock figure to expose how
@@ -125,8 +121,10 @@ export const debugDetailsHtml = (data: DebugFooterData): string => {
  * owner/staff pages), and logout is for everyone. */
 const footerLinks = (adminLevel: AdminLevel): string =>
   compact([
-    isStaff(adminLevel) ? `<a href="/admin/log">${t("nav.log")}</a>` : null,
-    isStaff(adminLevel) ? `<a href="/admin/guide">${t("nav.guide")}</a>` : null,
+    isStaffRole(adminLevel) ? `<a href="/admin/log">${t("nav.log")}</a>` : null,
+    isStaffRole(adminLevel)
+      ? `<a href="/admin/guide">${t("nav.guide")}</a>`
+      : null,
     `<a href="/admin/logout">${t("nav.logout")}</a>`,
   ]).join(" &middot; ");
 

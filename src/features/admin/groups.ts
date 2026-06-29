@@ -11,6 +11,7 @@ import {
 import { requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { groupReturnPath } from "#shared/admin-paths.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -117,9 +118,7 @@ const crudConfig = {
   getAll: getAllGroups,
   getName: (g: Group) => g.name,
   getRowPath: (g: Group, session: AdminSession) =>
-    session.adminLevel === "editor"
-      ? `/admin/groups/${g.id}/edit`
-      : `/admin/groups/${g.id}`,
+    groupReturnPath(session.adminLevel, g.id),
   listPath: "/admin/groups",
   renderDelete: adminGroupDeletePage,
   renderEdit: adminGroupEditPage,

@@ -33,9 +33,9 @@ import {
   CONTENT_ADMIN_LEVELS,
   DELIVERY_ADMIN_LEVELS,
   isRecord,
+  isStaffRole,
   type NagItem,
   SITE_ADMIN_LEVELS,
-  STAFF_ADMIN_LEVELS,
 } from "#shared/types.ts";
 
 // SessionKeyError and the session→private-key derivation live in #shared so
@@ -131,17 +131,6 @@ export const adminLandingPath = (adminLevel: AdminLevel): string => {
   if (adminLevel === "editor") return "/admin/listings";
   return "/admin";
 };
-
-/** Where a listing create/edit/upload action should return the user. Staff land
- * on the attendee-centric detail page; editors (who can't open it) return to the
- * edit form so a successful save never bounces them to a forbidden page. */
-export const listingReturnPath = (
-  adminLevel: AdminLevel,
-  id: number,
-): string =>
-  adminLevel === "editor"
-    ? `/admin/listing/${id}/edit`
-    : `/admin/listing/${id}`;
 
 /**
  * Extract Bearer token from Authorization header.
@@ -263,7 +252,7 @@ const sessionRoleAllowed = (
 ): boolean => {
   if (roles) return roles.includes(level);
   if (role) return level === role;
-  return (STAFF_ADMIN_LEVELS as readonly AdminLevel[]).includes(level);
+  return isStaffRole(level);
 };
 
 /** Auth policy presets — use with withAuth to avoid repeating policy objects */

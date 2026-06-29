@@ -12,13 +12,13 @@ import { parseEditableAggregateForm } from "#routes/admin/aggregate-recalculatio
 import {
   adminLandingPath,
   CONTENT_MULTIPART,
-  listingReturnPath,
   requireContentOr,
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash, formDataToParams } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { listingReturnPath } from "#shared/admin-paths.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   checkGroupCapAfterDurationChange,

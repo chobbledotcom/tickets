@@ -41,7 +41,7 @@ import {
 } from "#shared/db/users.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
-import { DELIVERY_ADMIN_LEVELS } from "#shared/types.ts";
+import { isDeliveryRole } from "#shared/types.ts";
 import {
   type AgentUserOption,
   adminLogisticsAgentDeletePage,
@@ -106,9 +106,7 @@ const loadAgentUserOptions = async (): Promise<AgentUserOption[]> => {
       username: await decryptUsername(user),
     })),
   );
-  return options.filter((option) =>
-    (DELIVERY_ADMIN_LEVELS as readonly string[]).includes(option.adminLevel),
-  );
+  return options.filter((option) => isDeliveryRole(option.adminLevel));
 };
 
 /** The chosen `user_ids` reduced to ids that are real delivery-eligible users,
