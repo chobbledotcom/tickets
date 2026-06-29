@@ -103,7 +103,11 @@ const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
 
     const typeError = await validateGroupListingType(
       groupId,
-      input.listingType!,
+      // The DB column defaults to "standard" when omitted (e.g. a JSON API
+      // create that sends group_ids but no listing_type), so validate against
+      // that default rather than passing undefined and reading every standard
+      // group as a type mismatch.
+      input.listingType ?? "standard",
       input.customisableDays ?? false,
       existingId ?? 0,
     );

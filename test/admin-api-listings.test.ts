@@ -829,6 +829,37 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       expect(await getGroupIdsByListingId(body.listing.id)).toEqual([group.id]);
     });
 
+    test("creates a default-standard listing in an existing group without listing_type", async () => {
+      const group = await createTestGroup({ name: "Standard Group" });
+      // Seed the group with one standard listing.
+      await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            group_ids: [group.id],
+            listing_type: "standard",
+            max_attendees: 10,
+            name: "First",
+          },
+          method: "POST",
+        }),
+        201,
+      );
+      // A second create omits listing_type (DB defaults to standard); it must
+      // not be read as a type mismatch against the standard group.
+      const body = await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            group_ids: [group.id],
+            max_attendees: 10,
+            name: "Second",
+          },
+          method: "POST",
+        }),
+        201,
+      );
+      expect(await getGroupIdsByListingId(body.listing.id)).toEqual([group.id]);
+    });
+
     test("listing responses include group_ids so clients can round-trip them", async () => {
       const group = await createTestGroup({ name: "Roundtrip Group" });
       const created = await assertJson(
