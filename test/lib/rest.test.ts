@@ -481,6 +481,25 @@ describeWithEnv("rest/handlers", { db: true }, () => {
       await expectExists(resource, 1);
     });
 
+    test("skips verification when no onVerifyFailed is configured, even with a wrong name", async () => {
+      // Name verification is only enforced when the caller supplies an
+      // onVerifyFailed handler. Without it, a wrong name must NOT block the
+      // delete (and must not try to call the absent handler).
+      const resource = await insertRow(
+        createTestResource(true),
+        importantItemData,
+      );
+      const handler = deleteHandler(resource, deleteOpts());
+      const response = await handler(
+        await createAuthRequest("/items/1", {
+          confirm_identifier: "Wrong Name",
+        }),
+        1,
+      );
+      expect(response.status).toBe(204);
+      await expectDeleted(resource, 1);
+    });
+
     const setupDeleteWithVerify = async () => {
       const resource = await insertRow(
         createTestResource(true),
