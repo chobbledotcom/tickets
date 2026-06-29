@@ -483,6 +483,32 @@ describeWithEnv(
       expect(body).not.toContain("Widget");
     });
 
+    test("two separate package orders are NOT collapsed into one card", async () => {
+      // /t/a+b resolves two distinct attendees who happen to share a package
+      // group; collapsing them would render a single package card and drop the
+      // second ticket. Only a single-token order collapses, so two tokens render
+      // normally (each booking as its own card) rather than one hidden package.
+      const { group, widget } = await hiddenOneMemberPackage();
+      const book = async (email: string) => {
+        const result = await createAttendeeAtomic({
+          bookings: [{ listingId: widget.id, quantity: 1 }],
+          email,
+          name: email,
+          packageGroupId: group.id,
+        });
+        if (!result.success) throw new Error("package booking failed");
+        return result.attendees[0]!.ticket_token;
+      };
+      const tokenA = await book("a@test.com");
+      const tokenB = await book("b@test.com");
+
+      const body = await fetchTicketBody(`${tokenA}+${tokenB}`);
+      // Two cards, rendered normally — not collapsed into one hidden package.
+      expect(body).toContain("2 Tickets");
+      expect(body).toContain("Widget");
+      expect(body).not.toContain("Kit Bag");
+    });
+
     test("a FREE public package checkout stamps package_group_id and collapses the ticket", async () => {
       // Drives the public free-checkout path so handleFreePath threads
       // ctx.packageGroupId into createFreeReservation — the standalone-vs-package

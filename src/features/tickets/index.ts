@@ -55,13 +55,19 @@ const handleTicketView = withResolvedEntries(async (entries, tokens) => {
   const cards = await Promise.all(
     entries.map((entry) => buildTicketCard(entry, token)),
   );
-  // When every booking in the order carries the same persisted package group id,
-  // render the bundle as a single package card (members grouped, or hidden)
-  // instead of one card per member. A standalone order of the same listings has
-  // id 0, so it renders normally rather than being collapsed as the package.
-  const packageInfo = await getPackageDisplayForBookings(
-    entries.map((e) => e.attendee.package_group_id),
-  );
+  // When a SINGLE order's bookings all carry the same persisted package group
+  // id, render the bundle as one package card (members grouped, or hidden)
+  // instead of one card per member, sharing the order's QR token. Only a
+  // single-token URL is one order: `/t/a+b` resolves two separate attendees
+  // who happen to share a package group, and collapsing them would drop the
+  // second ticket's check-in token — so those render normally per booking. A
+  // standalone order of the same listings has group id 0 and renders normally.
+  const packageInfo =
+    tokens.length === 1
+      ? await getPackageDisplayForBookings(
+          entries.map((e) => e.attendee.package_group_id),
+        )
+      : null;
   return htmlResponse(
     ticketViewPage(
       cards,
