@@ -69,6 +69,28 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       });
     });
 
+    test("batch-hydrates package_members across the list", async () => {
+      const withMember = await packagedGroup("Listed", 700);
+      const emptyPackage = await createTestGroup({
+        isPackage: true,
+        name: "EmptyPkg",
+        slug: "empty-pkg",
+      });
+      const plain = await createTestGroup({ name: "Plain", slug: "plain" });
+
+      await assertJson(apiRequest("/api/admin/groups"), 200, (body) => {
+        const byId = new Map<number, { package_members?: unknown[] }>(
+          body.groups.map((g: { id: number }) => [g.id, g]),
+        );
+        // A package group with a member carries its override.
+        expect(byId.get(withMember.id)?.package_members).toHaveLength(1);
+        // A package group with no listings hydrates to an empty member list.
+        expect(byId.get(emptyPackage.id)?.package_members).toEqual([]);
+        // A non-package group carries no package_members field at all.
+        expect(byId.get(plain.id)?.package_members).toBeUndefined();
+      });
+    });
+
     test("returns 401 without auth", async () => {
       const response = await handleRequest(mockRequest("/api/admin/groups"));
       expect(response.status).toBe(401);

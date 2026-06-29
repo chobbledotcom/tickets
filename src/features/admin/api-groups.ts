@@ -12,6 +12,7 @@ import {
   type GroupInput,
   getAllGroups,
   getGroupPackagePrices,
+  getGroupPackagePricesByGroupIds,
   groupsTable,
   type PackageMemberInput,
   setGroupPackageMembers,
@@ -26,7 +27,7 @@ import {
   parseUpdateSlug,
 } from "#shared/rest/crud-api.ts";
 import { normalizeSlug } from "#shared/slug.ts";
-import type { Group } from "#shared/types.ts";
+import type { Group, GroupListing } from "#shared/types.ts";
 
 /** A package member override in a JSON request body. `quantity` defaults to 1. */
 export type PackageMemberBody = {
@@ -114,22 +115,40 @@ const writePackageMembers = async (
   await setGroupPackageMembers(id, input.packageMembers);
 };
 
+/** Map a stored membership row to the JSON `package_members` entry shape clients
+ * PUT, so list and single-row hydration serialize members identically. */
+const toMember = (m: GroupListing): PackageMemberBody => ({
+  listing_id: m.listing_id,
+  price: m.package_price,
+  quantity: m.quantity,
+});
+
 export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   afterWrite: writePackageMembers,
   getAll: getAllGroups,
   // Hydrate a package group's member overrides onto every response so an API
   // client can read back the listing_id/price/quantity values it PUT and
   // round-trip the configuration. Non-package groups carry no members.
+  // get/create/update hydrate the single written group; the list endpoint uses
+  // the batched hydrateList below (one query for every package group).
   hydrate: async (row) =>
     row.is_package
-      ? {
-          package_members: (await getGroupPackagePrices(row.id)).map((m) => ({
-            listing_id: m.listing_id,
-            price: m.package_price,
-            quantity: m.quantity,
-          })),
-        }
+      ? { package_members: (await getGroupPackagePrices(row.id)).map(toMember) }
       : {},
+  // Only package groups appear in the map; non-package groups are absent, so the
+  // CRUD list builder hydrates them to no extra fields.
+  hydrateList: async (rows) => {
+    const packageGroups = rows.filter((row) => row.is_package);
+    const byGroup = await getGroupPackagePricesByGroupIds(
+      packageGroups.map((row) => row.id),
+    );
+    return new Map(
+      packageGroups.map((row) => [
+        row.id,
+        { package_members: (byGroup.get(row.id) ?? []).map(toMember) },
+      ]),
+    );
+  },
   name: "groups",
   nameField: "name",
   onDelete: deleteGroup,

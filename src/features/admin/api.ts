@@ -16,6 +16,7 @@ import type { RouteHandlerFn } from "#routes/router.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import {
   getGroupIdsByListingId,
+  getGroupIdsByListingIds,
   packageChildEdgeConflict,
   setListingGroups,
 } from "#shared/db/groups.ts";
@@ -478,6 +479,20 @@ const persistChildEdges = async (
   if (value !== null) await setChildIdsTx(tx, listingId, value);
 };
 
+/** Batched `group_ids` hydration for a set of listing rows, keyed by listing id
+ * — one join-table query for the whole list rather than one per row (the
+ * single-row `hydrate` reuses it with a one-element list). */
+const hydrateListingGroupIds = async (
+  rows: { id: number }[],
+): Promise<ReadonlyMap<number, Record<string, unknown>>> => {
+  const groupIdsByListing = await getGroupIdsByListingIds(
+    rows.map((r) => r.id),
+  );
+  return new Map(
+    rows.map((r) => [r.id, { group_ids: groupIdsByListing.get(r.id) ?? [] }]),
+  );
+};
+
 const listingApiRoutes = defineCrudApi<
   Listing,
   ListingInput,
@@ -505,7 +520,10 @@ const listingApiRoutes = defineCrudApi<
   // Group membership lives in the join table, not a listing column, so surface
   // it on every response (list/get/create/update) — clients POST/PUT group_ids
   // and must be able to read them back to round-trip listing group state.
+  // get/create/update hydrate the single written row; the list endpoint uses
+  // the batched hydrateList below to avoid an N+1 over the returned listings.
   hydrate: async (row) => ({ group_ids: await getGroupIdsByListingId(row.id) }),
+  hydrateList: hydrateListingGroupIds,
   linkActivityToRow: true,
   listExtras: (session) => ({ admin_level: session.adminLevel }),
   lookup: getListingWithCount,

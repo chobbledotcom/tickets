@@ -17,11 +17,13 @@ import {
   getAllGroups,
   getGroupBySlugIndex,
   getGroupIdsByListingId,
+  getGroupPackagePricesByGroupIds,
   getPackageDisplayById,
   getPackageDisplayForBookings,
   groupsTable,
   isGroupSlugTaken,
   resetGroupListings,
+  setGroupPackageMembers,
   sharedPackageGroupId,
 } from "#shared/db/groups.ts";
 import { updateListingAggregateValues } from "#shared/db/listings.ts";
@@ -696,6 +698,44 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
 
       expect(await anyListingInPackageGroup([member.id])).toBe(true);
       expect(await anyListingInPackageGroup([plain.id])).toBe(false);
+    });
+  });
+
+  describe("getGroupPackagePricesByGroupIds", () => {
+    test("returns an empty map for no group ids (no query)", async () => {
+      const result = await getGroupPackagePricesByGroupIds([]);
+      expect(result.size).toBe(0);
+    });
+
+    test("groups membership rows by group id in one query", async () => {
+      const a = await createTestGroup({
+        isPackage: true,
+        name: "A",
+        slug: "a",
+      });
+      const a1 = await createTestListing({ groupId: a.id, name: "A1" });
+      const a2 = await createTestListing({ groupId: a.id, name: "A2" });
+      const b = await createTestGroup({
+        isPackage: true,
+        name: "B",
+        slug: "b",
+      });
+      const b1 = await createTestListing({ groupId: b.id, name: "B1" });
+      await setGroupPackageMembers(a.id, [
+        { listingId: a1.id, price: 100, quantity: 1 },
+        { listingId: a2.id, price: 200, quantity: 3 },
+      ]);
+      await setGroupPackageMembers(b.id, [
+        { listingId: b1.id, price: 500, quantity: 1 },
+      ]);
+
+      const result = await getGroupPackagePricesByGroupIds([a.id, b.id]);
+      expect(result.get(a.id)?.length).toBe(2);
+      expect(result.get(b.id)?.length).toBe(1);
+      // Each row carries its override price for the right group.
+      const a2Row = result.get(a.id)?.find((r) => r.listing_id === a2.id);
+      expect(a2Row?.package_price).toBe(200);
+      expect(a2Row?.quantity).toBe(3);
     });
   });
 });

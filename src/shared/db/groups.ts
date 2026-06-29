@@ -414,6 +414,28 @@ export const getGroupPackagePrices = (
     [groupId],
   );
 
+/** The membership rows for several groups in one query, keyed by group id, so a
+ * list endpoint can hydrate every group's package members without a per-group
+ * round-trip. Groups with no membership rows are absent from the map. */
+export const getGroupPackagePricesByGroupIds = async (
+  groupIds: number[],
+): Promise<Map<number, GroupListing[]>> => {
+  const result = new Map<number, GroupListing[]>();
+  if (groupIds.length === 0) return result;
+  const rows = await queryAll<GroupListing>(
+    `SELECT group_id, listing_id, package_price, quantity FROM group_listings
+       WHERE group_id IN (${inPlaceholders(groupIds)})
+     ORDER BY listing_id ASC`,
+    groupIds,
+  );
+  for (const row of rows) {
+    const list = result.get(row.group_id);
+    if (list) list.push(row);
+    else result.set(row.group_id, [row]);
+  }
+  return result;
+};
+
 /** Reset every member's override to price 0 / quantity 1 (no override). */
 const clearGroupPackageMembers = (groupId: number): Promise<unknown> =>
   execute(

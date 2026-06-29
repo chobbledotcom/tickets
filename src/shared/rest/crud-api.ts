@@ -212,6 +212,14 @@ export interface CrudApiConfig<
    * update) that don't live on the main table — e.g. a listing's `group_ids`
    * from the join table, so API clients can read back what they POST/PUT. */
   hydrate?: (row: FullRow) => Promise<Record<string, unknown>>;
+  /** Optionally hydrate the WHOLE list in one batched call, keyed by row id, so
+   * the list endpoint avoids running `hydrate` once per row (an N+1 over the
+   * returned rows — costly on remote libsql for large catalogs). When set it is
+   * used only by the list endpoint; get/create/update still use `hydrate`. A row
+   * absent from the returned map hydrates to no extra fields. */
+  hydrateList?: (
+    rows: FullRow[],
+  ) => Promise<ReadonlyMap<number, Record<string, unknown>>>;
 }
 
 /** Callback receiving an entity row plus auth context */
@@ -289,13 +297,26 @@ export const defineCrudApi = <
       config.linkActivityToRow ? row : undefined,
     );
 
+  /** Build list items, using the batched `hydrateList` when provided (one query
+   * for all rows) and falling back to the per-row `hydrate` otherwise. */
+  const listItems = async (
+    rows: FullRow[],
+  ): Promise<Record<string, unknown>[]> => {
+    if (!config.hydrateList) return Promise.all(rows.map(toResponse));
+    const extraById = await config.hydrateList(rows);
+    return rows.map((row) => ({
+      ...stripRow(row, stripKeys),
+      ...(extraById.get((row as { id: number }).id) ?? {}),
+    }));
+  };
+
   /** List all */
   const handleList: RouteHandlerFn = (request) =>
     withAuth(request, policy, async (session) => {
       const rows = await getAll();
       const extras = config.listExtras ? config.listExtras(session) : {};
       return jsonResponse({
-        [listKey]: await Promise.all(rows.map(toResponse)),
+        [listKey]: await listItems(rows),
         ...extras,
       });
     });

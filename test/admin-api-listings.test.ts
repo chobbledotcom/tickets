@@ -887,6 +887,32 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       expect(inList.group_ids).toEqual([group.id]);
     });
 
+    test("list batch-hydrates group_ids, including an empty array for ungrouped", async () => {
+      const group = await createTestGroup({ name: "Batch Group" });
+      const grouped = await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: { group_ids: [group.id], max_attendees: 10, name: "Grouped" },
+          method: "POST",
+        }),
+        201,
+      );
+      const ungrouped = await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: { max_attendees: 10, name: "Ungrouped" },
+          method: "POST",
+        }),
+        201,
+      );
+
+      const list = await assertJson(apiRequest("/api/admin/listings"), 200);
+      const byId = new Map<number, { group_ids: number[] }>(
+        list.listings.map((l: { id: number }) => [l.id, l]),
+      );
+      expect(byId.get(grouped.listing.id)?.group_ids).toEqual([group.id]);
+      // An ungrouped listing hydrates to an empty array, not a missing field.
+      expect(byId.get(ungrouped.listing.id)?.group_ids).toEqual([]);
+    });
+
     test("rejects listing with mismatched type in group", async () => {
       const group = await createTestGroup({ name: "Type Group" });
 
