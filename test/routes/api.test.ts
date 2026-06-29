@@ -3,6 +3,7 @@ import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { handleRequest } from "#routes";
+import { groupsTable } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 import {
@@ -1186,6 +1187,43 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
 
       // Booking goes to URL slug, body slug is ignored
       await expectBookedTo(target.id, other.id);
+    });
+  });
+
+  describe("hidden package members are never exposed by the API", () => {
+    /** A hidden package with one member listing, returning the member. */
+    const hiddenPackageMember = async () => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Hidden Bundle",
+      });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      return createTestListing({ groupId: group.id, name: "Secret Member" });
+    };
+
+    test("excludes the member from GET /api/listings", async () => {
+      await hiddenPackageMember();
+      const { listings } = await fetchListingsList();
+      expect(listings).toEqual([]);
+    });
+
+    test("404s the member's detail, availability and book endpoints", async () => {
+      const member = await hiddenPackageMember();
+      expect((await fetchListingBySlug(member.slug)).response.status).toBe(404);
+      expect((await fetchAvailability(member.slug)).response.status).toBe(404);
+      expect((await bookListing(member.slug)).response.status).toBe(404);
+    });
+
+    test("a VISIBLE package member stays listable and bookable", async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Open" });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Open Member",
+      });
+      const { listings } = await fetchListingsList();
+      expect(listings.map((l) => l.slug)).toContain(member.slug);
+      expect((await fetchListingBySlug(member.slug)).response.status).toBe(200);
     });
   });
 });

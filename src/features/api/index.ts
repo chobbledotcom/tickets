@@ -7,7 +7,10 @@
 
 import { compact, filter, pipe, sumOf } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
-import { classifyForDiscovery } from "#routes/public/discovery.ts";
+import {
+  classifyForDiscovery,
+  dropHiddenPackageMembers,
+} from "#routes/public/discovery.ts";
 import { parseCustomPrice } from "#routes/public/ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-listings.ts";
 import {
@@ -40,6 +43,7 @@ import {
   isBookingRateLimited,
   recordBookingAttempt,
 } from "#shared/db/booking-attempts.ts";
+import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import {
@@ -243,12 +247,19 @@ const buildChildPublicListings = async (
 
 const LISTING_NOT_FOUND = { error: "Listing not found" } as const;
 
-/** Look up an active listing by slug, returning a 404 response if missing/inactive */
+/** Look up an active listing by slug, returning a 404 response if
+ * missing/inactive, or if it is the member of a HIDDEN package — such a member is
+ * reachable only through its package, so the API must never expose or book it
+ * standalone (mirroring the `/ticket/<member>` 404 on the web). Guards the detail,
+ * availability, and book endpoints in one place. */
 const findActiveListing = async (
   slug: string,
 ): Promise<ListingWithCount | Response> => {
   const listing = await getListingWithCountBySlug(slug);
-  return listing?.active ? listing : apiResponse(LISTING_NOT_FOUND, 404);
+  if (!listing?.active) return apiResponse(LISTING_NOT_FOUND, 404);
+  return (await getHiddenPackageMemberIds([listing.id])).size > 0
+    ? apiResponse(LISTING_NOT_FOUND, 404)
+    : listing;
 };
 
 /** Parse a JSON request body, returning a 400 API response on failure */
@@ -356,7 +367,11 @@ const handleListListings = async (): Promise<Response> => {
   // client lists it as bookable then hits the parent-sold-out outcome at detail.
   const { childIds, soldOutParentIds } =
     await classifyForDiscovery(visibleListings);
-  const bookableListings = visibleListings.filter((e) => !childIds.has(e.id));
+  // Drop the members of a HIDDEN package too: they have no standalone page (their
+  // /ticket slug 404s), so the API must not list them as bookable either.
+  const bookableListings = await dropHiddenPackageMembers(
+    visibleListings.filter((e) => !childIds.has(e.id)),
+  );
   const groupRemaining = await getGroupRemainingByListingId(bookableListings);
   const listings = bookableListings.map((e) => {
     const publicListing = toPublicListing(
