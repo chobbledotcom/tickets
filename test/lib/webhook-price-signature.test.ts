@@ -8,6 +8,7 @@ import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import { execute } from "#shared/db/client.ts";
 import { groupsTable, setGroupPackageMembers } from "#shared/db/groups.ts";
 import { deleteListing, listingsTable } from "#shared/db/listings.ts";
+import { modifiersTable } from "#shared/db/modifiers.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { prunePayments } from "#shared/db/prune.ts";
 import { getNoteRows, getNotesForAttendee } from "#shared/db/system-notes.ts";
@@ -841,5 +842,57 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       { listingId: added.id, price: 1000 },
     ]);
     await expectPackageRefund("cs_pkg_member_added", listing.id, metadata);
+  });
+
+  test("a package booking refunds when a free member's override turns paid mid-payment", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "FreePkg",
+      slug: "free-pkg",
+    });
+    const listing = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 50,
+      unitPrice: 0,
+    });
+    // The member is free at checkout (override 0), so its signed line price is 0.
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 0 },
+    ]);
+    // An opt-in add-on keeps the order PAID even though every package line is
+    // free — this is the case the old `hasPaidItems` guard skipped.
+    const addOn = await modifiersTable.insert({
+      calcKind: "fixed",
+      calcValue: 500,
+      direction: "charge",
+      name: "Add-on",
+    });
+    await execute("UPDATE modifiers SET trigger = ? WHERE id = ?", [
+      "optional",
+      addOn.id,
+    ]);
+    const metadata = signMeta(
+      webhookMeta({
+        email: "buyer@example.com",
+        items: singleItem(listing.id, 1, 0),
+        modifiers: JSON.stringify([{ i: addOn.id, q: 1 }]),
+        name: "Buyer",
+        package_group_id: String(group.id),
+      }),
+      500,
+    );
+    // Operator raises the override from 0 to a positive value while the payment
+    // is in flight; the signed zero line must no longer be honoured.
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 1500 },
+    ]);
+    await runWebhook(
+      { amount_total: 500, id: "cs_pkg_free_drift", metadata },
+      async (refund) => {
+        await expectStoredRefund(listing.id);
+        expect(refund.calls.length).toBe(1);
+      },
+    );
   });
 });

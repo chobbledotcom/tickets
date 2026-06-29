@@ -941,9 +941,17 @@ const paidPricingRefund = (
       );
     }
   }
-  const hasPaidItems = intent.items.some((item) => item.p > 0);
+  // Run the per-item check when a line was signed paid, OR when a line signed
+  // as free now has a positive expected price. The latter catches a package
+  // override (or base price) raised from 0 to positive while an add-on/modifier
+  // kept the order paid: `pricedOrder` is re-derived from the signed zero unit
+  // prices, so the total still matches `agreed` and only this comparison against
+  // the freshly loaded `expectedPrice` sees the drift.
+  const needsItemCheck =
+    intent.items.some((item) => item.p > 0) ||
+    validatedItems.some(({ expectedPrice }) => (expectedPrice ?? 0) > 0);
   // Per-item prices are ticket-only (no fee), so validate without booking fee
-  if (hasPaidItems) {
+  if (needsItemCheck) {
     for (const { item, listing, expectedPrice } of validatedItems) {
       if (
         expectedPrice === null ||
