@@ -8,6 +8,27 @@ import {
   VOID_ELEMENTS,
 } from "#jsx/jsx-runtime.ts";
 
+// The HTML void elements, as a fixed spec list independent of the production
+// table. Driving the render tests from this (rather than from VOID_ELEMENTS
+// itself) means dropping a tag from VOID_ELEMENTS makes jsx() render it with a
+// closing tag and these tests FAIL — instead of silently no longer testing it.
+const EXPECTED_VOID_ELEMENTS = [
+  "area",
+  "base",
+  "br",
+  "col",
+  "embed",
+  "hr",
+  "img",
+  "input",
+  "link",
+  "meta",
+  "param",
+  "source",
+  "track",
+  "wbr",
+] as const;
+
 describe("jsx-runtime", () => {
   describe("jsx", () => {
     test("renders element with text child", () => {
@@ -40,12 +61,20 @@ describe("jsx-runtime", () => {
       expect(result.toString()).toBe("<div></div>");
     });
 
-    for (const tag of Object.keys(VOID_ELEMENTS)) {
+    for (const tag of EXPECTED_VOID_ELEMENTS) {
       test(`renders <${tag}> self-closing without a closing tag`, () => {
         const result = jsx(tag, null);
         expect(result.toString()).toBe(`<${tag}>`);
       });
     }
+
+    test("VOID_ELEMENTS table matches the HTML void-element spec exactly", () => {
+      // Pin the production table to the spec list: adding or removing a tag
+      // here (or there) is a deliberate change that must update both.
+      expect(Object.keys(VOID_ELEMENTS).sort()).toEqual(
+        [...EXPECTED_VOID_ELEMENTS].sort(),
+      );
+    });
 
     test("renders void element with attributes", () => {
       const result = jsx("input", { name: "foo", type: "text" });
