@@ -14,6 +14,7 @@ import {
   getAttendeesByTokens,
   type ListingAttendeeRow,
 } from "#shared/db/attendees.ts";
+import { getPackageDisplayById } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -82,6 +83,14 @@ export const lookupSingleTokenPassData = async (
   const entries = await resolveEntries(result.attendees);
   const entry = entries[0];
   if (!entry) return { ok: false, response: notFoundResponse() };
+  // A wallet pass is built from a single member listing, so for a package
+  // booking it would misrepresent the bundle as one member — and for a HIDDEN
+  // package it would leak that member's name/location to anyone with the token.
+  // The ticket page already omits wallet links for package cards; 404 the direct
+  // pass endpoints to match.
+  if (await getPackageDisplayById(entry.attendee.package_group_id)) {
+    return { ok: false, response: notFoundResponse() };
+  }
   return { ok: true, passData: buildWalletPassData(entry, token) };
 };
 

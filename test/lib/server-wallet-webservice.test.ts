@@ -2,9 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
 import { handleRequest } from "#routes";
+import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { groupsTable } from "#shared/db/groups.ts";
 import {
   assertJson,
   createTestAttendeeWithToken,
+  createTestGroup,
+  createTestListing,
   describeWithEnv,
 } from "#test-utils";
 import { configureAppleWallet } from "#test-utils/crypto.ts";
@@ -155,6 +159,30 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
       );
       expect(passJson.serialNumber).toBe(token);
       expect(passJson.passTypeIdentifier).toBe("pass.com.test.tickets");
+    });
+
+    test("404s a package booking's token (a single-member pass would leak/misrepresent the bundle)", async () => {
+      await configureAppleWallet();
+      const group = await createTestGroup({ isPackage: true, name: "Bundle" });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Secret Member",
+      });
+      const result = await createAttendeeAtomic({
+        bookings: [{ listingId: member.id, quantity: 1 }],
+        email: "buyer@test.com",
+        name: "Buyer",
+        packageGroupId: group.id,
+      });
+      if (!result.success) throw new Error("setup failed");
+      const token = result.attendees[0]!.ticket_token;
+
+      const response = await walletRequest(
+        `/v1/passes/pass.com.test.tickets/${token}`,
+      );
+      expect(response.status).toBe(404);
     });
   });
 
