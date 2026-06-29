@@ -1,29 +1,25 @@
 /**
  * Listing defaults — operator-set defaults that listings inherit live.
  *
- * The operator configures a default for any subset of the fields below on the
- * Listing Defaults settings page. A listing with `use_defaults` on inherits the
- * *currently configured* value of each set default at read time
- * ({@link resolveListingDefaults}), so changing a default in settings instantly
- * changes every "Use defaults" listing — the row's own stored value for a
- * defaulted field is ignored while the flag is on. A field with no configured
- * default is never overridden, so untouched defaults leave the listing alone.
+ * The operator sets a default for any subset of the fields below on the Listing
+ * Defaults page. A listing with `use_defaults` on inherits each set default's
+ * *current* value at read time ({@link resolveListingDefaults}), so changing a
+ * default instantly changes every "Use defaults" listing; the row's own value
+ * for a defaulted field is ignored while the flag is on. A field with no
+ * default is never touched.
  *
- * Inheritance is a single per-listing flag, never a per-field one: a per-field
- * "use default?" toggle would be ambiguous for a field whose own value is
- * `false`/empty (is that an override, or just unset?), so the whole set moves
- * together.
+ * Inheritance is one per-listing flag, never per-field: a per-field "use
+ * default?" toggle would be ambiguous for a field whose own value is
+ * `false`/empty (an override, or just unset?), so the whole set moves together.
  *
- * This module is pure (storage parse/serialize + the overlay). Form parsing and
- * validation for the settings page live in the feature layer, which owns the
- * validators.
+ * This module is pure. Form parsing/validation lives in the feature layer.
  */
 
 import type { Listing } from "#shared/types.ts";
 
 /**
  * The operator-configurable defaults. A key is present only when a default is
- * set for that field; an absent key means "no default — never override".
+ * set; an absent key means "no default — never override".
  */
 export type ListingDefaults = {
   /** Always (`true`) / never (`false`) require logistics. */
@@ -42,7 +38,7 @@ export type ListingDefaults = {
   hidden?: boolean;
 };
 
-/** A defaultable field's identity across storage, the form, and the CSS hide. */
+/** How a default is stored, validated, and rendered. */
 export type ListingDefaultKind = "bool" | "number" | "url" | "days";
 
 export type ListingDefaultField = {
@@ -54,19 +50,16 @@ export type ListingDefaultField = {
 };
 
 /**
- * Every defaultable field, in display order. The single source of truth that
- * drives the settings form, the form-field hiding (one CSS marker class per
- * key), the storage round-trip, and the overlay.
+ * Every defaultable field, in display order — the single source of truth for the
+ * settings form, the form-field hiding, the storage round-trip, and the overlay.
  *
- * Deliberately excludes `duration_days` and `customisable_days`. Both are
- * entangled with per-listing booking data and save-time invariants that live,
- * read-time inheritance can't honour: `customisable_days` requires a priced day
- * count within the duration, forbids `can_pay_more`, and must stay uniform
- * across a group (`validateGroupListingType`); `duration_days` feeds
- * parent/child edge compatibility (`durationsCompatible`) and existing bookings'
- * stored ranges. Inheriting either globally would silently produce listings the
- * normal save path would have rejected, so they stay per-listing. The remaining
- * fields are display / availability / side-effect only and inherit safely.
+ * Deliberately excludes `duration_days` and `customisable_days`: both are tied
+ * to per-listing booking data and save-time invariants that read-time
+ * inheritance can't honour (customisable days needs a priced day count, forbids
+ * pay-more, and must stay uniform across a group; duration feeds parent/child
+ * edge compatibility and existing bookings' ranges). Inheriting either globally
+ * would silently produce listings the normal save path would reject, so they
+ * stay per-listing. The fields below are display/availability/side-effect only.
  */
 export const LISTING_DEFAULT_FIELDS: readonly ListingDefaultField[] = [
   { field: "uses_logistics", key: "usesLogistics", kind: "bool" },
@@ -78,40 +71,49 @@ export const LISTING_DEFAULT_FIELDS: readonly ListingDefaultField[] = [
   { field: "hidden", key: "hidden", kind: "bool" },
 ] as const;
 
-/** Whether any default at all is configured (drives the form toggle's presence). */
-export const hasAnyListingDefault = (defaults: ListingDefaults): boolean =>
-  LISTING_DEFAULT_FIELDS.some(({ key }) => defaults[key] !== undefined);
+/** The HTML form input name for a field's default value. */
+export const listingDefaultInputName = (field: ListingDefaultField): string =>
+  `default_${field.field}`;
 
-/** A kebab-case CSS marker class per defaulted field (e.g. `uses_logistics`
- * → `listing-form--default-uses-logistics`). */
+/** The i18n key for a field's label. */
+export const listingDefaultLabelKey = (field: ListingDefaultField): string =>
+  `listing_defaults.field.${field.field}.label`;
+
+/** The i18n key for a field's hint. */
+export const listingDefaultHintKey = (field: ListingDefaultField): string =>
+  `listing_defaults.field.${field.field}.hint`;
+
+/** A kebab-case CSS marker class per field (e.g. `uses_logistics` →
+ * `listing-form--default-uses-logistics`). */
 export const listingDefaultFieldClass = (field: keyof Listing): string =>
   `listing-form--default-${String(field).replace(/_/g, "-")}`;
 
-/**
- * The marker classes for a listing form, one per field that has a default set,
- * so CSS can hide each defaulted field while "Use defaults" is on.
- */
+/** The fields that currently have a default set, in display order. */
+export const setListingDefaultFields = (
+  defaults: ListingDefaults,
+): ListingDefaultField[] =>
+  LISTING_DEFAULT_FIELDS.filter(({ key }) => defaults[key] !== undefined);
+
+/** Whether any default is configured (drives the form toggle's presence). */
+export const hasAnyListingDefault = (defaults: ListingDefaults): boolean =>
+  setListingDefaultFields(defaults).length > 0;
+
+/** One marker class per set default, so CSS can hide each defaulted field while
+ * "Use defaults" is on. */
 export const listingDefaultFormClasses = (defaults: ListingDefaults): string =>
-  LISTING_DEFAULT_FIELDS.filter(({ key }) => defaults[key] !== undefined)
+  setListingDefaultFields(defaults)
     .map(({ field }) => listingDefaultFieldClass(field))
     .join(" ");
 
 /**
  * Resolve a listing's effective values: when `use_defaults` is on, overlay each
- * configured default onto a copy of the listing; otherwise return it unchanged.
- * Pure — the caller supplies the current defaults snapshot and whether the
- * logistics feature is enabled.
- *
- * Two overlaid fields are gated to keep the overlay from producing a listing the
- * normal save path would reject:
- * - `uses_logistics` is inert while the logistics feature is off, matching how a
- *   per-listing save can't set it when `hasLogistics` is off — so a listing
- *   created during a logistics-off window never silently becomes a logistics
- *   listing if the feature is later re-enabled.
+ * set default onto a copy of the listing; otherwise return it unchanged. Two
+ * fields are gated so the overlay never produces a listing the save path rejects:
+ * - `uses_logistics` is inert while logistics is off, matching the per-listing
+ *   save gate — so a listing created during a logistics-off window can't
+ *   silently become a logistics listing if the feature is re-enabled.
  * - `hidden` never applies to a renewal tier (`months_per_unit > 0`), which must
- *   stay hidden + purchase-only (`validateRenewalConfig`); a global "Hidden = No"
- *   would otherwise make it visible and break renewal extension
- *   (`isQualifyingTierListing`).
+ *   stay hidden + purchase-only or renewal extension breaks.
  */
 export const resolveListingDefaults = <T extends Listing>(
   listing: T,
@@ -120,9 +122,8 @@ export const resolveListingDefaults = <T extends Listing>(
 ): T => {
   if (!listing.use_defaults) return listing;
   const overlay: Partial<Record<keyof Listing, unknown>> = {};
-  for (const { key, field } of LISTING_DEFAULT_FIELDS) {
-    const value = defaults[key];
-    if (value !== undefined) overlay[field] = value;
+  for (const { key, field } of setListingDefaultFields(defaults)) {
+    overlay[field] = defaults[key];
   }
   if (!hasLogistics) delete overlay.uses_logistics;
   if (listing.months_per_unit > 0) delete overlay.hidden;
@@ -145,40 +146,44 @@ const readDefaultValue = (
   return isStringArray(raw) ? raw : undefined;
 };
 
+/** Parse JSON into a plain object, or null for blank/garbled/non-object input. */
+const parseJsonObject = (
+  raw: string | undefined,
+): Record<string, unknown> | null => {
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === "object" && parsed !== null
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Parse the stored JSON blob into a {@link ListingDefaults}, keeping only known
- * keys with a value of the right type. Empty/blank/garbled input yields `{}`
- * (no defaults), so a bad row can never silently override listings.
+ * keys with a value of the right type. Bad input yields `{}` so a corrupt row
+ * can never silently override listings.
  */
 export const parseListingDefaults = (
   raw: string | undefined,
 ): ListingDefaults => {
-  if (!raw) return {};
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return {};
-  }
-  if (typeof parsed !== "object" || parsed === null) return {};
-  const source = parsed as Record<string, unknown>;
-  const result: ListingDefaults = {};
+  const source = parseJsonObject(raw);
+  if (!source) return {};
+  const result: Record<string, unknown> = {};
   for (const { key, kind } of LISTING_DEFAULT_FIELDS) {
     if (!(key in source)) continue;
     const value = readDefaultValue(kind, source[key]);
-    if (value !== undefined) {
-      (result as Record<string, unknown>)[key] = value;
-    }
+    if (value !== undefined) result[key] = value;
   }
   return result;
 };
 
 /** Serialize defaults for storage (only set keys, stable field order). */
-export const serializeListingDefaults = (defaults: ListingDefaults): string => {
-  const result: Record<string, unknown> = {};
-  for (const { key } of LISTING_DEFAULT_FIELDS) {
-    const value = defaults[key];
-    if (value !== undefined) result[key] = value;
-  }
-  return JSON.stringify(result);
-};
+export const serializeListingDefaults = (defaults: ListingDefaults): string =>
+  JSON.stringify(
+    Object.fromEntries(
+      setListingDefaultFields(defaults).map(({ key }) => [key, defaults[key]]),
+    ),
+  );

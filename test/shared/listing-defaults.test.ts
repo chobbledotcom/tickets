@@ -6,9 +6,13 @@ import {
   type ListingDefaults,
   listingDefaultFieldClass,
   listingDefaultFormClasses,
+  listingDefaultHintKey,
+  listingDefaultInputName,
+  listingDefaultLabelKey,
   parseListingDefaults,
   resolveListingDefaults,
   serializeListingDefaults,
+  setListingDefaultFields,
 } from "#shared/listing-defaults.ts";
 import { testListing } from "#test-utils";
 
@@ -112,6 +116,45 @@ describe("shared > listing-defaults > hasAnyListingDefault", () => {
 
   test("true when at least one default is set", () => {
     expect(hasAnyListingDefault({ hidden: false })).toBe(true);
+  });
+});
+
+describe("shared > listing-defaults > setListingDefaultFields", () => {
+  test("returns only the set fields, in display order", () => {
+    const fields = setListingDefaultFields({
+      hidden: true,
+      usesLogistics: true,
+    });
+    // Display order is uses_logistics before hidden, regardless of insertion.
+    expect(fields.map((f) => f.field)).toEqual(["uses_logistics", "hidden"]);
+  });
+
+  test("is empty when nothing is set", () => {
+    expect(setListingDefaultFields({})).toEqual([]);
+  });
+});
+
+describe("shared > listing-defaults > i18n + input-name builders", () => {
+  const usesLogistics = LISTING_DEFAULT_FIELDS.find(
+    (f) => f.field === "uses_logistics",
+  ) as (typeof LISTING_DEFAULT_FIELDS)[number];
+
+  test("builds the form input name from the column", () => {
+    expect(listingDefaultInputName(usesLogistics)).toBe(
+      "default_uses_logistics",
+    );
+  });
+
+  test("builds the label key from the column", () => {
+    expect(listingDefaultLabelKey(usesLogistics)).toBe(
+      "listing_defaults.field.uses_logistics.label",
+    );
+  });
+
+  test("builds the hint key from the column", () => {
+    expect(listingDefaultHintKey(usesLogistics)).toBe(
+      "listing_defaults.field.uses_logistics.hint",
+    );
   });
 });
 

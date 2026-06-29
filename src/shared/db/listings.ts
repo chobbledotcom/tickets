@@ -575,11 +575,32 @@ export const getListingNamesByIds = (
     decrypt(raw),
   );
 
+/**
+ * SQL predicate (over the `listing` alias) selecting listings that are
+ * *effectively* visible — i.e. honouring an inherited Hidden default the same
+ * way {@link resolveListingDefaults} does, so the catalog can't publish a
+ * default-hidden listing or drop a default-unhidden one. A renewal tier
+ * (`months_per_unit > 0`) never inherits hidden, so it's excluded from the
+ * inheriting set. `hiddenDefault` is the configured default, or undefined when
+ * none is set (then only the stored value matters).
+ */
+export const catalogVisibleSql = (
+  hiddenDefault: boolean | undefined,
+): string => {
+  const inheriting =
+    "(listing.use_defaults = 1 AND listing.months_per_unit = 0)";
+  if (hiddenDefault === undefined) return "listing.hidden = 0";
+  return hiddenDefault
+    ? `listing.hidden = 0 AND NOT ${inheriting}`
+    : `(${inheriting} OR listing.hidden = 0)`;
+};
+
 /** Narrow catalog query for the public `/order.js` route. Filters to active,
- * non-hidden listings in SQL *before* decryption and selects only the columns
- * the external-order widget serializes, so an unauthenticated module request
- * never decrypts hidden/inactive listings' descriptions, locations, or dates —
- * unlike loading the whole listings cache via getAllListings(). */
+ * effectively-visible listings in SQL *before* decryption and selects only the
+ * columns the external-order widget serializes, so an unauthenticated module
+ * request never decrypts hidden/inactive listings' descriptions, locations, or
+ * dates — unlike loading the whole listings cache via getAllListings(). The
+ * hidden filter honours an inherited Hidden default (see {@link catalogVisibleSql}). */
 export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
   // Raw row: like the source listing but with the encrypted slug/name still
   // encrypted and the booleans as SQLite 0/1 integers.
@@ -591,7 +612,8 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
     `SELECT listing.id, listing.slug, listing.name, listing.unit_price,
             listing.listing_type, listing.customisable_days, listing.can_pay_more
      FROM listings AS listing
-     WHERE listing.active = 1 AND listing.hidden = 0`,
+     WHERE listing.active = 1
+       AND ${catalogVisibleSql(settings.listingDefaults.hidden)}`,
   );
   return Promise.all(
     rows.map(async (row) => ({

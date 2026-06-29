@@ -54,6 +54,38 @@ describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
     expect(body).not.toContain(slug);
   });
 
+  test("a Hidden=true default hides a use-defaults listing from the catalog", async () => {
+    await settings.update.externalOrderEnabled(true);
+    await settings.update.listingDefaults({ hidden: true });
+    // Stored hidden=0, but it inherits the Hidden default, so it must not ship.
+    await createTestListing({
+      hidden: false,
+      name: "Inherits Hidden",
+      useDefaults: true,
+    });
+    const slug = await slugByName("Inherits Hidden");
+
+    const body = await (await orderJs()).text();
+    expect(body).toContain("const CATALOG");
+    expect(body).not.toContain(slug);
+  });
+
+  test("a Hidden=false default reveals a use-defaults listing stored as hidden", async () => {
+    await settings.update.externalOrderEnabled(true);
+    await settings.update.listingDefaults({ hidden: false });
+    // Stored hidden=1, but the Hidden=No default makes it effectively visible.
+    await createTestListing({
+      hidden: true,
+      name: "Inherits Visible",
+      useDefaults: true,
+    });
+    const slug = await slugByName("Inherits Visible");
+
+    const body = await (await orderJs()).text();
+    expect(body).toContain("const CATALOG");
+    expect(body).toContain(slug);
+  });
+
   test("a non-/order.js path under the prefix is not handled (404)", async () => {
     await settings.update.externalOrderEnabled(true);
     const res = await handleRequest(mockRequest("/order.js/extra"));

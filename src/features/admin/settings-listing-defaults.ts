@@ -21,21 +21,24 @@ import {
   LISTING_DEFAULT_FIELDS,
   type ListingDefaultField,
   type ListingDefaults,
+  listingDefaultInputName,
+  listingDefaultLabelKey,
 } from "#shared/listing-defaults.ts";
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { adminListingDefaultsPage } from "#templates/admin/listing-defaults.tsx";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
 
+/** One field's parse outcome: a value to set, an error, or neither (unset). */
+type FieldParse = { value?: unknown; error?: string };
+
 /** The parsed defaults plus the first validation error, if any. `value` always
  * holds whatever parsed cleanly; `error` non-null means the handler rejects it. */
 type ParseResult = { value: ListingDefaults; error: string | null };
 
-const inputName = (field: ListingDefaultField): string =>
-  `default_${field.field}`;
-
-const labelFor = (field: ListingDefaultField): string =>
-  t(`listing_defaults.field.${field.field}.label`);
+/** Read a field's submitted value from the form. */
+const submitted = (field: ListingDefaultField, form: FormParams): string =>
+  form.getString(listingDefaultInputName(field));
 
 /** Parse one bool field's tri-state select into true/false/undefined. */
 const parseBool = (raw: string): boolean | undefined =>
@@ -45,15 +48,16 @@ const parseBool = (raw: string): boolean | undefined =>
 const parseNumberField = (
   field: ListingDefaultField,
   raw: string,
-): { value?: number; error?: string } => {
+): FieldParse => {
   if (raw === "") return {};
-  const parsed = parseNonNegativeInt(raw);
-  if (parsed === null) {
-    return {
-      error: t("listing_defaults.error.number", { label: labelFor(field) }),
-    };
-  }
-  return { value: parsed };
+  const value = parseNonNegativeInt(raw);
+  return value === null
+    ? {
+        error: t("listing_defaults.error.number", {
+          label: t(listingDefaultLabelKey(field)),
+        }),
+      }
+    : { value };
 };
 
 /** Parse one URL field. Blank ⇒ unset; unsafe ⇒ error. */
@@ -62,10 +66,10 @@ const parseUrlField = (
   form: FormParams,
 ): FieldParse => {
   // Demo mode blanks per-listing webhook URLs so demo users can't configure
-  // outbound callbacks; the webhook default must be refused the same way, or a
+  // outbound callbacks; refuse the webhook default the same way, or a
   // Use-defaults listing would resolve it and fire registration webhooks.
   if (field.field === "webhook_url" && isDemoMode()) return {};
-  const raw = form.getString(inputName(field));
+  const raw = submitted(field, form);
   if (raw === "") return {};
   const error = validateSafeServerFetchUrl(
     raw,
@@ -74,8 +78,8 @@ const parseUrlField = (
   return error ? { error } : { value: raw };
 };
 
-/** Parse the bookable-days default: only set when its enable box is ticked, and
- * at least one valid day (in canonical order) must be chosen. */
+/** Parse the bookable-days default: only set when its enable box is ticked, with
+ * at least one valid day (in canonical order). */
 const parseDaysField = (form: FormParams): FieldParse => {
   if (form.getString("default_bookable_days_enabled") !== "1") return {};
   const days = VALID_DAY_NAMES.filter((day) =>
@@ -85,19 +89,15 @@ const parseDaysField = (form: FormParams): FieldParse => {
   return { value: days };
 };
 
-/** One field's parse outcome: a value to set, an error, or neither (unset). */
-type FieldParse = { value?: unknown; error?: string };
-
 /** Dispatch one field to its kind's parser. */
 const parseField = (
   field: ListingDefaultField,
   form: FormParams,
 ): FieldParse => {
-  if (field.kind === "bool") {
-    return { value: parseBool(form.getString(inputName(field))) };
-  }
+  if (field.kind === "bool")
+    return { value: parseBool(submitted(field, form)) };
   if (field.kind === "number") {
-    return parseNumberField(field, form.getString(inputName(field)));
+    return parseNumberField(field, submitted(field, form));
   }
   if (field.kind === "url") return parseUrlField(field, form);
   return parseDaysField(form);

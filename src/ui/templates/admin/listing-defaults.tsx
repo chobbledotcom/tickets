@@ -9,9 +9,12 @@
 import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import {
+  listingDefaultInputName as inputName,
   LISTING_DEFAULT_FIELDS,
   type ListingDefaultField,
   type ListingDefaults,
+  listingDefaultHintKey,
+  listingDefaultLabelKey,
 } from "#shared/listing-defaults.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -19,15 +22,11 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
-/** Form input name for a field's default value. */
-const inputName = (field: ListingDefaultField): string =>
-  `default_${field.field}`;
-
 const labelFor = (field: ListingDefaultField): string =>
-  t(`listing_defaults.field.${field.field}.label`);
+  t(listingDefaultLabelKey(field));
 
 const hintFor = (field: ListingDefaultField): string =>
-  t(`listing_defaults.field.${field.field}.hint`);
+  t(listingDefaultHintKey(field));
 
 /** Tri-state select: no default / yes / no. */
 const BoolControl = ({

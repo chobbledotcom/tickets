@@ -2,7 +2,7 @@
  * Admin listing page templates - detail, edit, delete
  */
 
-import { filter, joinStrings, map, mapNotNullish, pipe } from "#fp";
+import { filter, joinStrings, map, mapNotNullish, pipe, reduce } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { formatCountdown } from "#routes/format.ts";
@@ -35,8 +35,10 @@ import {
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   hasAnyListingDefault,
+  type ListingDefaultField,
   type ListingDefaults,
   listingDefaultFormClasses,
+  setListingDefaultFields,
 } from "#shared/listing-defaults.ts";
 import {
   inferTemplate,
@@ -1541,38 +1543,33 @@ const listingToFieldValues = (listing: ListingWithCount): FieldValues =>
     slug: listing.slug,
   });
 
-const checkboxValue = (on: boolean): string => (on ? "1" : "");
+/** Render one set default as its listing-form field value, reusing the same
+ * formatters {@link listingToFieldValues} uses for a saved listing. */
+const defaultFieldValue = (
+  field: ListingDefaultField,
+  value: NonNullable<ListingDefaults[keyof ListingDefaults]>,
+): string =>
+  field.kind === "bool"
+    ? booleanToCheckbox(value as boolean)
+    : field.kind === "days"
+      ? formatBookableDays(value as string[])
+      : String(value);
 
 /**
  * The configured defaults rendered as listing-form field values, so a fresh
- * create form pre-fills the fields the operator has set a default for (these are
- * the values the "Use defaults" switch hides and the listing will inherit).
+ * create form pre-fills the fields the operator has set a default for (the
+ * values the "Use defaults" switch hides and the listing will inherit).
  */
-const defaultsToFieldValues = (defaults: ListingDefaults): FieldValues => {
-  const values: FieldValues = {};
-  if (defaults.usesLogistics !== undefined) {
-    values.uses_logistics = checkboxValue(defaults.usesLogistics);
-  }
-  if (defaults.bookableDays !== undefined) {
-    values.bookable_days = defaults.bookableDays.join(",");
-  }
-  if (defaults.minimumDaysBefore !== undefined) {
-    values.minimum_days_before = String(defaults.minimumDaysBefore);
-  }
-  if (defaults.maximumDaysAfter !== undefined) {
-    values.maximum_days_after = String(defaults.maximumDaysAfter);
-  }
-  if (defaults.webhookUrl !== undefined) {
-    values.webhook_url = defaults.webhookUrl;
-  }
-  if (defaults.thankYouUrl !== undefined) {
-    values.thank_you_url = defaults.thankYouUrl;
-  }
-  if (defaults.hidden !== undefined) {
-    values.hidden = checkboxValue(defaults.hidden);
-  }
-  return values;
-};
+const defaultsToFieldValues = (defaults: ListingDefaults): FieldValues =>
+  reduce((values: FieldValues, field: ListingDefaultField) => {
+    values[field.field] = defaultFieldValue(
+      field,
+      defaults[field.key] as NonNullable<
+        ListingDefaults[keyof ListingDefaults]
+      >,
+    );
+    return values;
+  }, {} as FieldValues)(setListingDefaultFields(defaults));
 
 /**
  * Combine the template-mode classes (if any) with one marker class per set

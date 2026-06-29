@@ -22,6 +22,7 @@ import {
 } from "#shared/db/attendees.ts";
 import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
 import {
+  catalogVisibleSql,
   computeSlugIndex,
   deleteListing,
   getAllListings,
@@ -1104,5 +1105,25 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       expect(windowed.grossSales).toBe(4000);
       expect(windowed.recognisedIncome).toBe(4000);
     });
+  });
+});
+
+describe("shared > db > listings > catalogVisibleSql", () => {
+  test("with no hidden default, only the stored flag matters", () => {
+    expect(catalogVisibleSql(undefined)).toBe("listing.hidden = 0");
+  });
+
+  test("a Hidden=true default hides every inheriting non-renewal listing", () => {
+    // Inheriting rows (use_defaults, not a renewal tier) are excluded even when
+    // their stored hidden flag is 0, matching resolveListingDefaults.
+    expect(catalogVisibleSql(true)).toBe(
+      "listing.hidden = 0 AND NOT (listing.use_defaults = 1 AND listing.months_per_unit = 0)",
+    );
+  });
+
+  test("a Hidden=false default reveals inheriting rows regardless of stored flag", () => {
+    expect(catalogVisibleSql(false)).toBe(
+      "((listing.use_defaults = 1 AND listing.months_per_unit = 0) OR listing.hidden = 0)",
+    );
   });
 });
