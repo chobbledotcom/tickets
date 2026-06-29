@@ -17,6 +17,7 @@ import {
   getAllGroups,
   getGroupBySlugIndex,
   getGroupIdsByListingId,
+  getPackageDisplayForListings,
   groupsTable,
   isGroupSlugTaken,
   resetGroupListings,
@@ -582,6 +583,36 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
 
       expect(await getGroupRemainingForListing(e2, "2026-11-15")).toBe(3);
       expect(await getGroupRemainingForListing(e2, "2026-11-16")).toBe(5);
+    });
+  });
+
+  describe("getPackageDisplayForListings", () => {
+    test("returns the package only when the listings are its exact members", async () => {
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Bundle",
+        slug: "bundle-disp",
+      });
+      const a = await createTestListing({ groupId: pkg.id, name: "A" });
+      const b = await createTestListing({ groupId: pkg.id, name: "B" });
+
+      expect(await getPackageDisplayForListings([a.id, b.id])).toEqual({
+        hideListings: false,
+        name: "Bundle",
+      });
+      // A subset of the members is not the whole package.
+      expect(await getPackageDisplayForListings([a.id])).toBeNull();
+      // Empty input short-circuits.
+      expect(await getPackageDisplayForListings([])).toBeNull();
+    });
+
+    test("returns null for a non-package group's listings", async () => {
+      const regular = await createTestGroup({ name: "Reg", slug: "reg-disp" });
+      const listing = await createTestListing({
+        groupId: regular.id,
+        name: "Plain",
+      });
+      expect(await getPackageDisplayForListings([listing.id])).toBeNull();
     });
   });
 

@@ -12,6 +12,7 @@ import {
   formatDateRangeLabelCompactEn,
   formatDatetimeLabel,
 } from "#shared/dates.ts";
+import type { PackageDisplay } from "#shared/db/groups.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
@@ -89,6 +90,47 @@ const renderWalletSection = (
     : "";
 };
 
+/** The shared QR + token block (empty for purchase-only listings, which aren't
+ * checked in). One attendee's lines all share its token, so a package renders it
+ * once on the package card. */
+const renderQrBlock = (token: string, purchaseOnly: boolean): string =>
+  purchaseOnly
+    ? ""
+    : `<div class="ticket-card-qr"><img src="/t/${escapeHtml(
+        token,
+      )}/svg" alt={t("listing_qr.qr_code")} /></div>
+      <div class="ticket-card-token">${escapeHtml(token)}</div>`;
+
+/** Render one card for a whole package booking: the package name, then each
+ * member with its booked quantity (omitted when the package hides its listings),
+ * then the shared QR/wallet. The attendee's member lines share one token, so the
+ * package is a single card. */
+const renderPackageCard = (
+  cards: TicketCard[],
+  packageInfo: PackageDisplay,
+  appleWalletEnabled: boolean,
+  googleWalletEnabled: boolean,
+): string => {
+  const { token } = cards[0]!;
+  const purchaseOnly = cards.every((c) => c.entry.listing.purchase_only);
+  const membersHtml = packageInfo.hideListings
+    ? ""
+    : `<ul class="ticket-card-package-members">${cards
+        .map(
+          (c) =>
+            `<li>${escapeHtml(c.entry.listing.name)} <span class="package-member-qty">&times;${c.entry.attendee.quantity}</span></li>`,
+        )
+        .join("")}</ul>`;
+  return `
+    <div class="ticket-card">
+      <div class="ticket-card-name">${escapeHtml(packageInfo.name)}</div>
+      ${membersHtml}
+      ${renderQrBlock(token, purchaseOnly)}
+      ${renderWalletSection(token, purchaseOnly, appleWalletEnabled, googleWalletEnabled)}
+    </div>
+  `;
+};
+
 /** Render a single ticket card */
 const renderTicketCard = (
   card: TicketCard,
@@ -158,14 +200,7 @@ const renderTicketCard = (
       <div class="ticket-card-quantity">${t("tickets.quantity")} ${attendee.quantity}</div>
       ${priceHtml}
       ${attachmentHtml}
-      ${
-        listing.purchase_only
-          ? ""
-          : `<div class="ticket-card-qr"><img src="/t/${escapeHtml(
-              token,
-            )}/svg" alt={t("listing_qr.qr_code")} /></div>
-      <div class="ticket-card-token">${escapeHtml(token)}</div>`
-      }
+      ${renderQrBlock(token, listing.purchase_only)}
       ${walletHtml}
     </div>
   `;
@@ -179,16 +214,27 @@ export const ticketViewPage = (
   cards: TicketCard[],
   appleWalletEnabled = false,
   googleWalletEnabled = false,
+  packageInfo: PackageDisplay | null = null,
 ): string => {
-  const cardHtml = pipe(
-    map((card: TicketCard) =>
-      renderTicketCard(card, appleWalletEnabled, googleWalletEnabled),
-    ),
-    (c) => c.join(""),
-  )(cards);
+  const cardHtml = packageInfo
+    ? renderPackageCard(
+        cards,
+        packageInfo,
+        appleWalletEnabled,
+        googleWalletEnabled,
+      )
+    : pipe(
+        map((card: TicketCard) =>
+          renderTicketCard(card, appleWalletEnabled, googleWalletEnabled),
+        ),
+        (c) => c.join(""),
+      )(cards);
 
   const allPurchaseOnly = cards.every((c) => c.entry.listing.purchase_only);
-  const heading = allPurchaseOnly ? "Your Purchase" : ticketCount(cards.length);
+  // A package is one card, so don't reveal the member count in the heading.
+  const heading = allPurchaseOnly
+    ? "Your Purchase"
+    : ticketCount(packageInfo ? 1 : cards.length);
   const title = allPurchaseOnly ? "Your Purchase" : t("tickets.title");
 
   return String(

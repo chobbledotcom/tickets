@@ -1049,6 +1049,69 @@ describe("ticketPage listing date and location", () => {
   });
 });
 
+describe("ticketViewPage package grouping", () => {
+  const token = "PKG00011AABBCCDD";
+  const pkgCards = [
+    {
+      entry: {
+        attendee: testAttendee({ quantity: 2 }),
+        listing: testListingWithCount({ name: "Tent" }),
+      },
+      token,
+    },
+    {
+      entry: {
+        attendee: testAttendee({ quantity: 6 }),
+        listing: testListingWithCount({ name: "Chair" }),
+      },
+      token,
+    },
+  ];
+
+  test("renders a non-hidden package as one card with members and booked quantities", () => {
+    const html = ticketViewPage(pkgCards, false, false, {
+      hideListings: false,
+      name: "Camp Kit",
+    });
+    expect(html).toContain("Camp Kit");
+    expect(html).toContain("Tent");
+    expect(html).toContain("&times;2");
+    expect(html).toContain("Chair");
+    expect(html).toContain("&times;6");
+    // One shared QR for the whole bundle.
+    expect(html).toContain(`/t/${token}/svg`);
+  });
+
+  test("hides member listings for a hidden package, showing only the name", () => {
+    const html = ticketViewPage(pkgCards, false, false, {
+      hideListings: true,
+      name: "Secret Bundle",
+    });
+    expect(html).toContain("Secret Bundle");
+    expect(html).not.toContain("Tent");
+    expect(html).not.toContain("Chair");
+    expect(html).toContain(`/t/${token}/svg`);
+  });
+
+  test("a purchase-only package omits the QR", () => {
+    const cards = [
+      {
+        entry: {
+          attendee: testAttendee({ quantity: 1 }),
+          listing: testListingWithCount({ name: "Pass", purchase_only: true }),
+        },
+        token,
+      },
+    ];
+    const html = ticketViewPage(cards, false, false, {
+      hideListings: false,
+      name: "Purchase Bundle",
+    });
+    expect(html).toContain("Purchase Bundle");
+    expect(html).not.toContain(`/t/${token}/svg`);
+  });
+});
+
 describe("ticketViewPage listing date and location", () => {
   const token = "AABB0011CCDDEEFF";
 

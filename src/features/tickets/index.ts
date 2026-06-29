@@ -14,6 +14,7 @@ import {
   withTokenRateLimit,
 } from "#routes/tickets/token-utils.ts";
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
+import { getPackageDisplayForListings } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
@@ -54,11 +55,18 @@ const handleTicketView = withResolvedEntries(async (entries, tokens) => {
   const cards = await Promise.all(
     entries.map((entry) => buildTicketCard(entry, token)),
   );
+  // When the booked listings are exactly one package group's members, render the
+  // bundle as a single package card (members grouped, or hidden) instead of one
+  // card per member.
+  const packageInfo = await getPackageDisplayForListings(
+    entries.map((e) => e.listing.id),
+  );
   return htmlResponse(
     ticketViewPage(
       cards,
       settings.appleWallet.hasConfig,
       settings.googleWallet.hasConfig,
+      packageInfo,
     ),
   );
 });

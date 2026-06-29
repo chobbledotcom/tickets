@@ -263,6 +263,44 @@ export const packageChildEdgeConflict = async (
   );
 };
 
+/** Package-group display info for grouping a booking's lines under the package
+ * name on tickets/emails. */
+export type PackageDisplay = { name: string; hideListings: boolean };
+
+/** For a booking's set of `listingIds`, the package group they EXACTLY make up
+ * (every listing is a member and the group has no other members), or null. The
+ * equality requirement avoids mistaking a coincidental standalone order of some
+ * members for the whole package. The group's name is decrypted on the way out. */
+export const getPackageDisplayForListings = async (
+  listingIds: readonly number[],
+): Promise<PackageDisplay | null> => {
+  const ids = [...new Set(listingIds)];
+  if (ids.length === 0) return null;
+  const rows = await queryAll<{
+    group_id: number;
+    matched: number;
+    total: number;
+  }>(
+    `SELECT groupListing.group_id AS group_id,
+            COUNT(*) AS matched,
+            (SELECT COUNT(*) FROM group_listings AS allMembers
+              WHERE allMembers.group_id = groupListing.group_id) AS total
+       FROM group_listings AS groupListing
+       JOIN groups AS groupRow ON groupRow.id = groupListing.group_id
+      WHERE groupRow.is_package = 1
+        AND groupListing.listing_id IN (${inPlaceholders(ids)})
+      GROUP BY groupListing.group_id`,
+    [...ids],
+  );
+  const match = rows.find(
+    (row) => row.matched === ids.length && row.total === ids.length,
+  );
+  if (!match) return null;
+  // The group is named by the join, so it always loads (decrypting its name).
+  const group = (await groupsTable.findById(match.group_id))!;
+  return { hideListings: group.hide_package_listings, name: group.name };
+};
+
 /** The listing ids that are members of a group, ascending. */
 export const getGroupListingIds = async (
   groupId: number,
