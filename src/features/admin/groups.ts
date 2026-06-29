@@ -378,9 +378,13 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
     const listingIds = map((e: { id: number }) => e.id)(sortedListings);
     let attendees: Attendee[] = [];
     let phonePrefix: string | undefined;
+    // Package-aware: an override-priced package charges via package_price even
+    // when its member listings are free, so this (not listings.some(isPaid))
+    // decides whether the roster decrypts payment fields AND whether the detail
+    // page shows the revenue row.
+    const hasPaidListing = await groupHasPaidListing(group, sortedListings);
     if (listingIds.length > 0) {
       const privateKey = await requireRequestPrivateKey();
-      const hasPaidListing = await groupHasPaidListing(group, sortedListings);
       const [rawAttendees, prefix] = await Promise.all([
         getAttendeesByListingIds(listingIds),
         Promise.resolve(settings.phonePrefix),
@@ -408,6 +412,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
         attendees,
         session,
         allowedDomain,
+        hasPaidListing,
         phonePrefix,
         flash.success,
         questionData,

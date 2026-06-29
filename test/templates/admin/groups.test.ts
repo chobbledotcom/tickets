@@ -33,6 +33,7 @@ describe("adminGroupDetailPage", () => {
       [],
       TEST_SESSION,
       "localhost",
+      false,
     );
     expect(html).toContain("Group Attendees");
     expect(html).toContain("20 / 50");
@@ -50,6 +51,7 @@ describe("adminGroupDetailPage", () => {
       [],
       TEST_SESSION,
       "localhost",
+      false,
     );
     const groupRow = html.match(
       /<th>Group Attendees<\/th><td>([\s\S]*?)<\/td>/,
@@ -70,6 +72,7 @@ describe("adminGroupDetailPage", () => {
       [],
       TEST_SESSION,
       "localhost",
+      false,
     );
     expect(html).toContain("danger-text");
     expect(html).toContain("10 / 10");
@@ -101,10 +104,44 @@ describe("adminGroupDetailPage", () => {
       attendees,
       TEST_SESSION,
       "localhost",
+      true,
     );
     expect(html).toContain("Running total check");
     expect(html).toContain("expected <strong>2</strong>, got");
     expect(html).toContain("Review group listings");
+  });
+
+  test("shows Total Revenue row for an override-priced package whose listings are free", () => {
+    // An override-priced package charges via package_price even when its member
+    // listings are free, so the route passes hasPaidListing=true despite the
+    // listings reading as unpaid. The revenue row must still render.
+    const group = testGroup({ is_package: true, max_attendees: 20 });
+    const listings = [testListingWithCount({ attendee_count: 2, id: 1 })];
+    const attendees = [
+      testAttendee({ id: 1, listing_id: 1, price_paid: "2500", quantity: 2 }),
+    ];
+    const withRevenue = adminGroupDetailPage(
+      group,
+      listings,
+      [],
+      attendees,
+      TEST_SESSION,
+      "localhost",
+      true,
+    );
+    expect(withRevenue).toContain("Total Revenue");
+
+    // Without a paid listing the revenue row is omitted entirely.
+    const withoutRevenue = adminGroupDetailPage(
+      group,
+      listings,
+      [],
+      attendees,
+      TEST_SESSION,
+      "localhost",
+      false,
+    );
+    expect(withoutRevenue).not.toContain("Total Revenue");
   });
 });
 

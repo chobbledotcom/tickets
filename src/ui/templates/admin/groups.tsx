@@ -28,7 +28,6 @@ import {
   type Attendee,
   type Group,
   hasTicketQuantity,
-  isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
 import { ListingRow, renderListingTable } from "#templates/admin/dashboard.tsx";
@@ -394,6 +393,7 @@ export const adminGroupDetailPage = (
   attendees: Attendee[],
   session: AdminSession,
   allowedDomain: string,
+  hasPaidListing: boolean,
   phonePrefix?: string,
   successMessage?: string,
   questionData?: TableQuestionData,
@@ -417,7 +417,6 @@ export const adminGroupDetailPage = (
   const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
     buildEmbedSnippets(ticketUrl);
-  const hasPaidListing = listings.some(isPaidListing);
   const totalCount = totalAttendeeCount(listings);
   const tableRows = buildAttendeeRows(attendees, listings);
   const sharedRows = buildSharedDetailRows({
