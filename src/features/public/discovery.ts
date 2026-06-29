@@ -93,12 +93,10 @@ export const visibleGroupMembers = <T extends { id: number }>(
 /** Load a group's active members already filtered to what buyers may see — the
  * "active members → {@link visibleGroupMembers}" step every public group surface
  * (listings page, group QR, direct ticket page) runs before deciding bookability. */
-export const getVisibleGroupMembers = (
+export const getVisibleGroupMembers = async (
   group: Group,
 ): Promise<ListingWithCount[]> =>
-  getActiveListingsByGroupId(group.id).then((members) =>
-    visibleGroupMembers(group, members),
-  );
+  visibleGroupMembers(group, await getActiveListingsByGroupId(group.id));
 
 /**
  * How a discovery surface should treat each listing:
