@@ -5,7 +5,13 @@
 import { compact, unique } from "#fp";
 import { csvResponse, loadAttendeeLinkRefs } from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
-import { requireSessionOr, sessionPage, withSession } from "#routes/auth.ts";
+import {
+  adminLandingPath,
+  contentPage,
+  requireSessionOr,
+  sessionPage,
+  withSession,
+} from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
@@ -76,9 +82,11 @@ const handleAdminGet = (request: Request): Promise<Response> =>
   withSession(
     request,
     async (session) => {
-      // Delivery agents have no dashboard — send them to their run sheet.
-      if (session.adminLevel === "agent") {
-        return redirectResponse("/admin/deliveries");
+      // Delivery agents and editors have no dashboard — agents go to their run
+      // sheet; editors go to listings (the dashboard shows ledger/income figures
+      // they may not see, and would require a private key they don't hold).
+      if (session.adminLevel === "agent" || session.adminLevel === "editor") {
+        return redirectResponse(adminLandingPath(session.adminLevel));
       }
       const { error: imageError, success: successMessage } = getFlash();
       const [listings, holidays, newestRaw, privateKey] = await Promise.all([
@@ -116,9 +124,11 @@ const handleAdminGet = (request: Request): Promise<Response> =>
     () => loginResponse(request),
   );
 
-/** Handle GET /admin/listings */
+/** Handle GET /admin/listings — the listings index. Editors land here, so it is
+ * gated to content roles (staff + editor); the template renders role-aware
+ * columns/links so editors see no financials or forbidden detail links. */
 const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
-  sessionPage(async (session) =>
+  contentPage(async (session) =>
     adminListingsPage(
       await loadSortedListings(),
       session,

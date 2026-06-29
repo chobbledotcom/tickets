@@ -4,10 +4,14 @@
 
 import { map } from "#fp";
 import { t } from "#i18n";
-import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
-import { requireSessionOr } from "#routes/auth.ts";
+import {
+  createContentCrudHandlers,
+  createCrudHandlers,
+} from "#routes/admin/owner-crud.ts";
+import { requireContentOr, requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { groupReturnPath } from "#shared/admin-paths.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { toMinorUnits } from "#shared/currency.ts";
@@ -171,12 +175,16 @@ export const deleteGroup = async (
 };
 
 /** Shared CRUD handler config. `renderEdit` is omitted because the edit page
- * needs the group's listings and package prices — those are loaded by the
- * custom {@link handleGroupEditGet} route (the edit POST stays generic). */
+ * needs the group's listings and package prices — those are loaded by the custom
+ * {@link handleGroupEditGet} route (the edit POST stays generic). After
+ * create/edit, staff land on the group detail page; editors can't open it (it
+ * decrypts attendee PII), so they return to the group edit form instead — a
+ * successful save never bounces them to a forbidden page. */
 const crudConfig = {
   getAll: getAllGroups,
   getName: (g: Group) => g.name,
-  getRowPath: (g: Group) => `/admin/groups/${g.id}`,
+  getRowPath: (g: Group, session: AdminSession) =>
+    groupReturnPath(session.adminLevel, g.id),
   listPath: "/admin/groups",
   renderDelete: adminGroupDeletePage,
   renderList: adminGroupsPage,
@@ -219,11 +227,18 @@ const groupsResource = defineNamedResource({
   validate: validateGroupWithPackage,
 });
 
-const crudCreate = createCrudHandlers({
+// Editors may create/edit groups, so list/new/create/edit use content-gated
+// handlers; group deletion is destructive and stays staff-only, so its routes
+// come from a staff CRUD below.
+const contentCreate = createContentCrudHandlers({
   ...crudConfig,
   resource: wrapResourceForDemo(groupsCreateResource, GROUP_DEMO_FIELDS),
 });
-const crud = createCrudHandlers({
+const content = createContentCrudHandlers({
+  ...crudConfig,
+  resource: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
+});
+const staffCrud = createCrudHandlers({
   ...crudConfig,
   resource: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
 });
@@ -231,12 +246,16 @@ const crud = createCrudHandlers({
 /** Look up group by id, return 404 if not found */
 export const withGroup = withEntityLoader(groupsTable.findById);
 
-/** Build a session-guarded GET handler that loads the group by id and hands it,
- * with the session, to `render`. Shared by the detail and edit-form pages. */
+/** Build a GET handler (guarded by `requireSession`) that loads the group by id
+ * and hands it, with the session, to `render`. The edit form is content-gated
+ * (editors included); the detail page stays staff-only (it decrypts PII). */
 const groupPage =
-  (render: (group: Group, session: AdminSession) => Promise<Response>) =>
+  (
+    requireSession: typeof requireSessionOr,
+    render: (group: Group, session: AdminSession) => Promise<Response>,
+  ) =>
   (request: Request, id: number): Promise<Response> =>
-    requireSessionOr(request, (session) =>
+    requireSession(request, (session) =>
       withGroup(id)((group) => render(group, session)),
     );
 
@@ -246,7 +265,7 @@ const handleGroupEditGet: TypedRouteHandler<"GET /admin/groups/:id/edit"> = (
   request,
   { id },
 ) =>
-  groupPage(async (group, session) => {
+  groupPage(requireContentOr, async (group, session) => {
     const listings = await getListingsByGroupId(id);
     const prices = await getGroupPackagePrices(id);
     // Only real overrides (price > 0) go in the map; members without one show a
@@ -279,7 +298,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
   request,
   { id },
 ) =>
-  groupPage(async (group, session) => {
+  groupPage(requireSessionOr, async (group, session) => {
     const [listings, ungroupedListings, holidays] = await Promise.all([
       getListingsByGroupId(id),
       getUngroupedListings(),
@@ -381,11 +400,16 @@ const handleAddListingsToGroup = groupFormPost(async (group, form) => {
 
 /** Group routes */
 export const groupsRoutes = {
-  ...crud.routes,
-  // Override: create uses auto-generated slug, detail has custom page
-  "GET /admin/groups/new": crudCreate.newGet,
-  "POST /admin/groups": crudCreate.createPost,
+  // List/new/create/edit are content-gated (editors included)…
+  ...content.routes,
+  // …but group deletion stays staff-only — override the content delete routes.
+  ...staffCrud.deleteRoutes,
+  // Create uses the auto-generated-slug resource; detail has a custom page.
+  "GET /admin/groups/new": contentCreate.newGet,
+  "POST /admin/groups": contentCreate.createPost,
   ...defineRoutes({
+    // Detail decrypts attendee PII and add-listings is staff group management —
+    // both stay on the default staff gate (editors are excluded).
     "GET /admin/groups/:id": handleGroupDetail,
     // Custom edit GET so the per-listing package-price table is loaded and
     // pre-filled. The edit POST is the generic CRUD route — groupsResource

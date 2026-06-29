@@ -55,17 +55,22 @@ const randomDelay = (): Promise<void> =>
     ? Promise.resolve()
     : new Promise((resolve) => setTimeout(resolve, 100 + Math.random() * 100));
 
-/** Create a session with a wrapped DATA_KEY and redirect to the user's landing
- * page (delivery agents go to their run sheet, staff to the dashboard). */
+/** Create a session and redirect to the user's landing page (delivery agents go
+ * to their run sheet, editors to listings, staff to the dashboard). When the
+ * user holds a DATA_KEY it is wrapped under the session token so the private key
+ * can be derived later; the keyless editor gets a null wrap and so can never
+ * derive it. */
 const createLoginSession = async (
-  dataKey: CryptoKey,
+  dataKey: CryptoKey | null,
   userId: number,
   adminLevel: AdminLevel,
 ): Promise<Response> => {
   const token = generateSecureToken();
   const csrfToken = generateSecureToken();
   const expires = nowMs() + 24 * 60 * 60 * 1000;
-  const wrappedDataKey = await wrapKeyWithToken(dataKey, token);
+  const wrappedDataKey = dataKey
+    ? await wrapKeyWithToken(dataKey, token)
+    : null;
 
   await createSession(token, csrfToken, expires, wrappedDataKey, userId);
 
@@ -129,8 +134,17 @@ const handleAdminLogin = async (
   // Clear failed attempts on successful login
   await clearLoginAttempts(clientIp);
 
-  // Check if user has a wrapped data key (fully activated)
+  const adminLevel = await decryptAdminLevel(user);
+
+  // Editors are activated without a DATA_KEY, so a missing wrap is normal for
+  // them — give them a keyless session (no private key derivable). For every
+  // other role a missing wrap means the account was never activated. Password
+  // verification has already passed, so an editor reaching here has set a
+  // password and is genuinely active.
   if (!user.wrapped_data_key) {
+    if (adminLevel === "editor") {
+      return createLoginSession(null, user.id, adminLevel);
+    }
     return fail("/admin", t("error.account_not_activated"));
   }
 
@@ -158,7 +172,6 @@ const handleAdminLogin = async (
     await migrateUserToV2Kek(user.id, dataKey, password, passwordHash);
   }
 
-  const adminLevel = await decryptAdminLevel(user);
   return createLoginSession(dataKey, user.id, adminLevel);
 };
 

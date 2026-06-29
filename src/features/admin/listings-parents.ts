@@ -6,7 +6,7 @@
 import { unique } from "#fp";
 import { t } from "#i18n";
 /* jscpd:ignore-start */
-import { AUTH_FORM, withAuth } from "#routes/auth.ts";
+import { CONTENT_FORM, withAuth } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */
@@ -387,7 +387,7 @@ export const remapDuplicatedGroupEdges = async (
 export const handleAdminListingChildren: TypedRouteHandler<
   "POST /admin/listing/:id/children"
 > = (request, { id }) =>
-  withAuth(request, AUTH_FORM, (_session, form) =>
+  withAuth(request, CONTENT_FORM, (_session, form) =>
     withEntityFromParam(id, getListingWithCount, async (listing) => {
       const result = await validateChildEdges(
         listing,

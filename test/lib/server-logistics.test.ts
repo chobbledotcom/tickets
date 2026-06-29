@@ -12,6 +12,8 @@ import {
   adminFormPost,
   adminGet,
   createListingWithAttendeeAndLogistics,
+  createTestAgentSession,
+  createTestEditorSession,
   describeWithEnv,
   expectFlash,
   expectFlashRedirect,
@@ -186,6 +188,31 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       await adminFormPost(`/admin/logistics/${id}/edit`, {
         name: "Crewed Van",
         user_ids: "999999",
+      });
+      expect(await getAgentUserIds(id)).toEqual([]);
+    });
+
+    test("does not offer or accept editors as logistics drivers", async () => {
+      settings.setForTest({ has_logistics: true });
+      const id = await createAgent("No Editors Van");
+      const { userId: agentUserId } = await createTestAgentSession({
+        username: "drivableagent",
+      });
+      const { userId: editorUserId } = await createTestEditorSession({
+        username: "noteditordriver",
+      });
+
+      // The edit form offers the agent user but never the editor.
+      const editHtml = await (
+        await adminGet(`/admin/logistics/${id}/edit`)
+      ).text();
+      expect(editHtml).toContain(`value="${agentUserId}"`);
+      expect(editHtml).not.toContain(`value="${editorUserId}"`);
+
+      // A crafted submission with the editor's id is dropped server-side.
+      await adminFormPost(`/admin/logistics/${id}/edit`, {
+        name: "No Editors Van",
+        user_ids: String(editorUserId),
       });
       expect(await getAgentUserIds(id)).toEqual([]);
     });

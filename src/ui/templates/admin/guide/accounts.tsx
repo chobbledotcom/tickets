@@ -14,6 +14,8 @@ export const accountsSections = (): GuideSection[] => [
   {
     entries: [
       faq("owner_vs_manager"),
+      faq("editor_role"),
+      faq("agent_role"),
       faq("invite_admin"),
       faq("invite_link_expiry"),
     ],

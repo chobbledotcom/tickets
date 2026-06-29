@@ -92,6 +92,7 @@ const getAdvancedSettingsPageState = async (
     emailApiKeyConfigured: settings.email.hasApiKey,
     emailFromAddress: settings.email.fromAddress,
     emailProvider: settings.email.provider,
+    externalOrderEnabled: settings.externalOrderEnabled,
     googleWalletConfigured: settings.googleWallet.hasDbConfig,
     googleWalletIssuerId: settings.googleWallet.issuerId,
     googleWalletServiceAccountEmail: settings.googleWallet.serviceAccountEmail,

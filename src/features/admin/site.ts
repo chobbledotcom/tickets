@@ -1,13 +1,13 @@
 /**
- * Admin site page editor routes - manage public site content
- * Owner-only access
+ * Admin site page editor routes - manage public site content.
+ * Access: owner + editor (managers stay excluded — see SITE_ADMIN_LEVELS).
  */
 
 import {
   settingsHandler,
   settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
-import { type AuthSession, requireOwnerOr } from "#routes/auth.ts";
+import { type AuthSession, requireSiteOr, SITE_FORM } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -101,7 +101,7 @@ type PageRenderer = (
 const siteGetRoute =
   (render: PageRenderer) =>
   (request: Request): Promise<Response> =>
-    requireOwnerOr(request, (session) => {
+    requireSiteOr(request, (session) => {
       const flash = applyFlash(request);
       const html = render(session, flash.error, flash.success);
       return htmlResponse(html);
@@ -135,6 +135,7 @@ const renderContactPage: PageRenderer = (session, error, success) => {
 
 /** Handle POST /admin/site - save homepage */
 const handleSiteHomePost = settingsHandler<{ title: string; text: string }>({
+  auth: SITE_FORM,
   extract: (form) => {
     applyDemoOverrides(form, SITE_HOME_DEMO_FIELDS);
     return {
@@ -162,6 +163,7 @@ const handleSiteHomePost = settingsHandler<{ title: string; text: string }>({
 
 /** Handle POST /admin/site/contact/form - toggle the public contact form */
 const handleSiteContactFormTogglePost = settingsToggle({
+  auth: SITE_FORM,
   field: "contact_form_enabled",
   label: "Contact form",
   redirectTo: "/admin/site/contact",
@@ -170,6 +172,7 @@ const handleSiteContactFormTogglePost = settingsToggle({
 
 /** Handle POST /admin/site/contact - save contact page */
 const handleSiteContactPost = settingsHandler({
+  auth: SITE_FORM,
   extract: (form) => {
     applyDemoOverrides(form, SITE_CONTACT_DEMO_FIELDS);
     return form.getString("contact_page_text");
@@ -188,7 +191,7 @@ const handleSiteContactPost = settingsHandler({
  * Loads the live listing count so the editor can warn when there is nothing to
  * show, then renders the toggle + intro-text forms. */
 const handleSiteOrderGet = (request: Request): Promise<Response> =>
-  requireOwnerOr(request, async (session) => {
+  requireSiteOr(request, async (session) => {
     const flash = applyFlash(request);
     const listingCount = await countOrderListings();
     return htmlResponse(
@@ -204,6 +207,7 @@ const handleSiteOrderGet = (request: Request): Promise<Response> =>
 
 /** Handle POST /admin/site/order/toggle - enable/disable the public order page */
 const handleSiteOrderTogglePost = settingsToggle({
+  auth: SITE_FORM,
   field: "order_enabled",
   label: "Order page",
   redirectTo: "/admin/site/order",
@@ -212,6 +216,7 @@ const handleSiteOrderTogglePost = settingsToggle({
 
 /** Handle POST /admin/site/order - save the order page intro text */
 const handleSiteOrderPost = settingsHandler({
+  auth: SITE_FORM,
   extract: (form) => form.getString("order_intro_text"),
   label: "Order page",
   log: () => "Order page updated",

@@ -258,21 +258,24 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
       0,
       MIGRATIONS.findIndex((migration) => migration.id === lastAppliedId) + 1,
     );
-    await getDb().execute("DELETE FROM schema_migrations");
-    for (const migration of applied) {
-      await getDb().execute({
-        args: [migration.id, migration.description],
-        sql: "INSERT INTO schema_migrations (id, description, applied_at) VALUES (?, ?, '2026-01-01T00:00:00.000Z')",
-      });
-    }
-    await getDb().execute({
-      args: [LATEST_UPDATE],
-      sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
-    });
-    await getDb().execute({
-      args: [SCHEMA_HASH],
-      sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-    });
+    await getDb().batch(
+      [
+        { args: [], sql: "DELETE FROM schema_migrations" },
+        ...applied.map((migration) => ({
+          args: [migration.id, migration.description],
+          sql: "INSERT INTO schema_migrations (id, description, applied_at) VALUES (?, ?, '2026-01-01T00:00:00.000Z')",
+        })),
+        {
+          args: [LATEST_UPDATE],
+          sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
+        },
+        {
+          args: [SCHEMA_HASH],
+          sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+        },
+      ],
+      "write",
+    );
     invalidateInitDbCache();
   };
 

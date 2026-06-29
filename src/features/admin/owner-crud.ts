@@ -5,7 +5,9 @@ import {
 import {
   AUTH_FORM,
   authPage,
+  CONTENT_FORM,
   OWNER_FORM,
+  requireContentOr,
   requireOwnerOr,
   requireSessionOr,
   type SessionGuard,
@@ -38,8 +40,10 @@ import type { AdminSession } from "#shared/types.ts";
 type CrudConfig<Row, Input, Display = Row> = {
   singular: string;
   listPath: string;
-  /** Redirect path after create/edit. Falls back to listPath when not provided. */
-  getRowPath?: (row: Row) => string;
+  /** Redirect path after create/edit. Falls back to listPath when not provided.
+   * Receives the acting session so the target can be role-aware (e.g. editors,
+   * who can't open the staff detail page, return to the edit form instead). */
+  getRowPath?: (row: Row, session: AdminSession) => string;
   getAll: () => Promise<Display[]>;
   resource: NamedResource<Row, Input>;
   renderList: (
@@ -70,6 +74,15 @@ export const createCrudHandlers = createCrudHandlersWithAuth({
   withForm: (r, h) => withAuth(r, AUTH_FORM, h),
 });
 
+/** Create CRUD handlers accessible to content roles (owner, manager, editor).
+ * Used for the listing/group create/edit pages editors share; callers that must
+ * keep destructive deletes staff-only assemble routes by hand, taking the
+ * read/write handlers from here and the delete routes from a staff CRUD. */
+export const createContentCrudHandlers = createCrudHandlersWithAuth({
+  requireSession: requireContentOr,
+  withForm: (r, h) => withAuth(r, CONTENT_FORM, h),
+});
+
 function createCrudHandlersWithAuth(auth: AuthGuards) {
   return <Row, Input, Display = Row>(cfg: CrudConfig<Row, Input, Display>) => {
     type FormHandler = (
@@ -98,11 +111,15 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
 
     const logAndRedirect = async (
       verb: string,
-      name: string,
-      path?: string,
+      row: Row,
+      session: AdminSession,
     ): Promise<Response> => {
-      await logActivity(`${cfg.singular} '${name}' ${verb}`);
-      return redirect(path ?? cfg.listPath, `${cfg.singular} ${verb}`, true);
+      await logActivity(`${cfg.singular} '${cfg.getName(row)}' ${verb}`);
+      return redirect(
+        cfg.getRowPath?.(row, session) ?? cfg.listPath,
+        `${cfg.singular} ${verb}`,
+        true,
+      );
     };
 
     const listGet = authHtml(async (session) => {
@@ -118,14 +135,10 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
       cfg.renderNew(session, getFlash().error),
     );
 
-    const createHandler: FormHandler = async (_session, form) => {
+    const createHandler: FormHandler = async (session, form) => {
       const result = await cfg.resource.create(form);
       return result.ok
-        ? await logAndRedirect(
-            "created",
-            cfg.getName(result.row),
-            cfg.getRowPath?.(result.row),
-          )
+        ? await logAndRedirect("created", result.row, session)
         : errorRedirect(`${cfg.listPath}/new`, result.error);
     };
 
@@ -134,14 +147,10 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
     const editGet = cfg.renderEdit ? authRowHtml(cfg.renderEdit) : undefined;
 
     const editPost: IdRouteHandler = (request, { id }) =>
-      auth.withForm(request, async (_session, form) => {
+      auth.withForm(request, async (session, form) => {
         const result = await cfg.resource.update(id, form);
         if (result.ok) {
-          return logAndRedirect(
-            "updated",
-            cfg.getName(result.row),
-            cfg.getRowPath?.(result.row),
-          );
+          return logAndRedirect("updated", result.row, session);
         }
         if ("notFound" in result) return notFoundResponse();
         return errorRedirect(`${cfg.listPath}/${id}/edit`, result.error);

@@ -82,8 +82,10 @@ export const escapeHtml = (str: string): string =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
-/** Void elements that should not have closing tags */
-const VOID_ELEMENTS: Record<string, true> = {
+/** Void elements that should not have closing tags.
+ * Frozen so the renderer's global void-element rules can't be mutated by an
+ * importer (the table is exported only so tests can enumerate it). */
+export const VOID_ELEMENTS: Readonly<Record<string, true>> = Object.freeze({
   area: true,
   base: true,
   br: true,
@@ -98,7 +100,7 @@ const VOID_ELEMENTS: Record<string, true> = {
   source: true,
   track: true,
   wbr: true,
-};
+});
 
 const isSafeHtml = (value: unknown): value is SafeHtml =>
   value instanceof SafeHtml;

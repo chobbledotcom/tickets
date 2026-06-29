@@ -60,7 +60,7 @@ const splitClosesAt = (
 const pickField = <T>(update: T | undefined, existing: T): T =>
   update !== undefined ? update : existing;
 
-const buildCreateListingForm = (
+export const buildCreateListingForm = (
   input: Omit<ListingInput, "slug" | "slugIndex">,
 ): Record<string, string> => {
   const closesAtParts = splitClosesAt(input.closesAt, null);
