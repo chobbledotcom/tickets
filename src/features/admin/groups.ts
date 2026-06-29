@@ -108,17 +108,25 @@ export const validateGroupWithPackage: GroupValidator = async (input, id) => {
   return validatePackageCompatibility(id, input.isPackage);
 };
 
-/** Read the per-listing `package_price_<id>` inputs from the edit form. A blank
- * input means price 0 — "no override; use the listing's own price". */
+/** Parse one package-price input to minor units. A blank, non-numeric, or
+ * negative value is treated as 0 — "no override; use the listing's own price" —
+ * so a typo can't fail the save (after the row is written) or store a negative
+ * override. */
+const parsePackagePrice = (raw: string): number => {
+  if (raw === "") return 0;
+  const major = Number.parseFloat(raw);
+  return Number.isFinite(major) && major >= 0 ? toMinorUnits(major) : 0;
+};
+
+/** Read the per-listing `package_price_<id>` inputs from the edit form. */
 const parsePackagePrices = (form: FormParams): PackagePriceInput[] => {
   const prices: PackagePriceInput[] = [];
   for (const key of new Set(form.keys())) {
     const match = /^package_price_(\d+)$/.exec(key);
     if (!match) continue;
-    const raw = form.getString(key);
     prices.push({
       listingId: Number(match[1]),
-      price: raw === "" ? 0 : toMinorUnits(Number.parseFloat(raw)),
+      price: parsePackagePrice(form.getString(key)),
     });
   }
   return prices;

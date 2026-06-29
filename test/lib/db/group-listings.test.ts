@@ -112,6 +112,31 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     expect(await getTestPackagePrices(group.id)).toEqual(new Map());
   });
 
+  test("setGroupPackagePrices ignores non-member ids without wiping real overrides", async () => {
+    const group = await createTestGroup({ name: "Stale", slug: "stale" });
+    const a = await createTestListing({ name: "SA" });
+    const outsider = await createTestListing({ name: "Outsider" });
+    await setListingGroups(a.id, [group.id]);
+    await setGroupPackagePrices(group.id, [{ listingId: a.id, price: 500 }]);
+
+    // A submission listing only a non-member is a no-op, not a full wipe.
+    await setGroupPackagePrices(group.id, [
+      { listingId: outsider.id, price: 999 },
+    ]);
+    expect(await getTestPackagePrices(group.id)).toEqual(
+      new Map([[a.id, 500]]),
+    );
+
+    // A mixed submission applies the member entry and drops the non-member.
+    await setGroupPackagePrices(group.id, [
+      { listingId: a.id, price: 700 },
+      { listingId: outsider.id, price: 999 },
+    ]);
+    expect(await getTestPackagePrices(group.id)).toEqual(
+      new Map([[a.id, 700]]),
+    );
+  });
+
   test("the migration backfills group_listings from a legacy group_id column", async () => {
     // Reconstruct a pre-migration shape: re-add the dropped column with data, so
     // the migration's up() exercises its backfill + column-drop path.

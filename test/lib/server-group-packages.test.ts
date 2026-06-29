@@ -8,6 +8,8 @@ import {
 import {
   adminFormPost,
   adminGet,
+  apiRequest,
+  assertJson,
   createTestGroup,
   createTestListing,
   describeWithEnv,
@@ -87,6 +89,46 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     expect(prices.get(a.id)).toBe(1250);
     // Blank input is stored as 0 (no override), so it's absent from the map.
     expect(prices.has(b.id)).toBe(false);
+  });
+
+  test("edit POST treats a negative or non-numeric package price as no override", async () => {
+    const group = await createTestGroup({ name: "Bad", slug: "bad" });
+    const a = await member(group, "Neg");
+    const b = await member(group, "NaN");
+
+    const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
+      ...editFields("Bad", "bad"),
+      is_package: "1",
+      [`package_price_${a.id}`]: "-5",
+      [`package_price_${b.id}`]: "abc",
+    });
+    expect(response.status).toBe(302);
+    // Both invalid inputs store 0 (no override), so neither appears in the map.
+    expect((await getTestPackagePrices(group.id)).size).toBe(0);
+  });
+
+  test("the listings API rejects a pay-what-you-want listing joining a package group", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "ApiPkg",
+      slug: "api-pkg",
+    });
+    await assertJson(
+      apiRequest("/api/admin/listings", {
+        body: {
+          can_pay_more: true,
+          group_ids: [group.id],
+          max_attendees: 10,
+          max_price: 10000,
+          name: "Pay In Package",
+        },
+        method: "POST",
+      }),
+      400,
+      (body) => {
+        expect(body.error).toContain("Packages cannot contain");
+      },
+    );
   });
 
   test("edit POST without is_package clears the package flag and overrides", async () => {

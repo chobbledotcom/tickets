@@ -202,6 +202,17 @@ export const getGroupIdsByListingId = async (
   return rows.map((r) => r.group_id);
 };
 
+/** The listing ids that are members of a group, ascending. */
+export const getGroupListingIds = async (
+  groupId: number,
+): Promise<number[]> => {
+  const rows = await queryAll<{ listing_id: number }>(
+    "SELECT listing_id FROM group_listings WHERE group_id = ? ORDER BY listing_id ASC",
+    [groupId],
+  );
+  return rows.map((r) => r.listing_id);
+};
+
 /** Map each listing id to the ids of the groups it belongs to, in one query.
  * Listings that belong to no group are absent from the map. */
 export const getGroupIdsByListingIds = async (
@@ -296,28 +307,37 @@ export const getGroupPackagePrices = (
     [groupId],
   );
 
+/** Reset every override in a group to 0 (no override). */
+const clearGroupPackagePrices = (groupId: number): Promise<unknown> =>
+  execute("UPDATE group_listings SET package_price = 0 WHERE group_id = ?", [
+    groupId,
+  ]);
+
 /**
  * Set the `package_price` override on a group's membership rows in one UPDATE.
- * Listings named in `prices` get their value; every other member of the group
- * is reset to 0 (no override). Passing an empty array therefore clears all
- * overrides. Rows are only touched for listings already in the group, so a
- * stale id in the form is a harmless no-op. One statement regardless of size,
- * staying clear of the round-trip guard.
+ * Listings named in `prices` that are CURRENT members get their value; every
+ * other member is reset to 0 (no override). Non-member ids are dropped, so a
+ * stale or crafted id is ignored rather than wiping the real overrides via the
+ * `ELSE 0` branch. An explicit empty array clears all overrides; a non-empty
+ * list that matches no members is a no-op (it isn't treated as "clear all").
+ * One statement regardless of size, staying clear of the round-trip guard.
  */
 export const setGroupPackagePrices = async (
   groupId: number,
   prices: PackagePriceInput[],
 ): Promise<void> => {
   if (prices.length === 0) {
-    await execute(
-      "UPDATE group_listings SET package_price = 0 WHERE group_id = ?",
-      [groupId],
-    );
+    await clearGroupPackagePrices(groupId);
     return;
   }
-  const cases = prices.map(() => "WHEN ? THEN ?").join(" ");
+  const memberIds = new Set(await getGroupListingIds(groupId));
+  const valid = prices.filter((p) => memberIds.has(p.listingId));
+  // A non-empty submission with no valid members is treated as a no-op rather
+  // than a full wipe — only an explicit empty array clears overrides.
+  if (valid.length === 0) return;
+  const cases = valid.map(() => "WHEN ? THEN ?").join(" ");
   const args: number[] = [];
-  for (const { listingId, price } of prices) args.push(listingId, price);
+  for (const { listingId, price } of valid) args.push(listingId, price);
   args.push(groupId);
   await execute(
     `UPDATE group_listings SET package_price = CASE listing_id ${cases} ELSE 0 END WHERE group_id = ?`,
