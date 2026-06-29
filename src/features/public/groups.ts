@@ -11,7 +11,7 @@ import {
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
-import { visibleGroupMembers } from "./discovery.ts";
+import { groupBookable, visibleGroupMembers } from "./discovery.ts";
 import { renderTicketFlow } from "./ticket-submit.ts";
 import type { AsyncHandler } from "./types.ts";
 
@@ -32,7 +32,16 @@ const withActiveGroupListingsBySlug = async (
   ]);
   const visible = await visibleGroupMembers(group, members);
   const sorted = sortListings(visible, holidays);
-  return sorted.length === 0 ? notFoundResponse() : handler(group, sorted);
+  if (sorted.length === 0) return notFoundResponse();
+  // A package is all-or-nothing: a saved or directly-typed /ticket/<package>
+  // URL must not sell an incomplete or sold-out bundle when a member was
+  // deactivated or the bundle no longer fits, even though /listings and the
+  // group QR already hide it. Apply the SAME gate they use. A regular group is
+  // left to render its sold-out members as before.
+  if (group.is_package && !(await groupBookable(group, visible))) {
+    return notFoundResponse();
+  }
+  return handler(group, sorted);
 };
 
 /** Handle group ticket page by slug. With `mode: "calculate"` a POST prices the

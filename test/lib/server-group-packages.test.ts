@@ -13,6 +13,7 @@ import {
   assertJson,
   createTestGroup,
   createTestListing,
+  deactivateTestListing,
   describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
@@ -244,6 +245,29 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     // it has nothing to book and 404s rather than leaking it.
     const res = await handleRequest(mockRequest(`/ticket/${regular.slug}`));
     expect(res.status).toBe(404);
+  });
+
+  test("a direct /ticket/<package> URL 404s once a member is deactivated", async () => {
+    const { handleRequest } = await import("#routes");
+    const { mockRequest } = await import("#test-utils/mocks.ts");
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Bundle",
+      slug: "bundle",
+    });
+    await member(group, "First");
+    const second = await member(group, "Second");
+
+    // The complete bundle renders.
+    const before = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+    expect(before.status).toBe(200);
+
+    // Deactivating one member makes the all-or-nothing bundle incomplete, so the
+    // saved/direct URL must 404 rather than sell the active subset — matching how
+    // /listings and the group QR already hide it.
+    await deactivateTestListing(second.id);
+    const after = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+    expect(after.status).toBe(404);
   });
 
   test("edit POST rejects is_package on a group with a daily listing", async () => {
