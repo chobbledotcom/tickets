@@ -159,6 +159,34 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       expect(newListings[0]!.date).toBe(sourceListing.date);
     });
 
+    test("duplicates a large group without tripping the transaction round-trip guard", async () => {
+      // 16 listings would be 1 + 16 + 16 = 33 statements in an interactive
+      // transaction (guard fires at 30); the single-batch clone must stay clear
+      // of it and land every membership row.
+      const group = await createTestGroup({ name: "Big" });
+      for (let i = 0; i < 16; i++) {
+        await createTestListing({ groupId: group.id, name: `Listing ${i}` });
+      }
+
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        {
+          date_find: "",
+          date_replace: "",
+          name_find: "",
+          name_replace: "",
+          new_name: "Big Copy",
+        },
+      );
+
+      expect(response.status).toBe(302);
+      const newGroup = (await getAllGroups()).find(
+        (g) => g.name === "Big Copy",
+      );
+      expect(newGroup).toBeDefined();
+      expect((await getListingsByGroupId(newGroup!.id)).length).toBe(16);
+    });
+
     test("rejects an empty new group name with an error flash", async () => {
       const group = await createTestGroup({ name: "Needs Name" });
       await createTestListing({ groupId: group.id, name: "E" });

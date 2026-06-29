@@ -24,14 +24,14 @@ import {
   shiftUtcIsoByDays,
 } from "#shared/bulk-replace.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { withTransaction } from "#shared/db/client.ts";
+import { executeBatch } from "#shared/db/client.ts";
 import {
-  assignListingsToGroup,
+  cloneGroupMembershipStatement,
+  getGroupBySlugIndex,
   getGroupPackagePrices,
   getListingsByGroupId,
   groupsTable,
   setGroupListingsActive,
-  setGroupPackageMembers,
 } from "#shared/db/groups.ts";
 import {
   getStoredListingWithCount,
@@ -168,56 +168,59 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
       sourceId: listing.id,
     });
   }
-  const sourceMembers = await getGroupPackagePrices(group.id);
+  const memberBySource = new Map(
+    (await getGroupPackagePrices(group.id)).map((row) => [row.listing_id, row]),
+  );
 
-  // The group row, its cloned listings, their group memberships, and the package
-  // price/quantity overrides land in ONE transaction, so a mid-flow failure can
-  // never leave cloned listings ungrouped or a cloned package falling back to
-  // base prices. (Membership lives in group_listings, not a listing column, so
-  // it is written explicitly; parent/child edges are remapped after the commit
-  // below, since they read the freshly-committed clone rows.)
-  const { newGroupId, idMap } = await withTransaction(async (tx) => {
-    const groupInsert = await groupsTable.insertStatement!({
-      description: group.description,
-      hidden: group.hidden,
-      hidePackageListings: group.hide_package_listings,
-      isPackage: group.is_package,
-      maxAttendees: group.max_attendees,
-      name: newName,
-      slug,
-      slugIndex,
-      termsAndConditions: group.terms_and_conditions,
-    });
-    const groupId = Number((await tx.execute(groupInsert)).lastInsertRowid);
-
-    const ids = new Map<number, number>();
-    for (const { sourceId, input } of cloneInputs) {
-      const listingInsert = await listingsTable.insertStatement!(input);
-      ids.set(
-        sourceId,
-        Number((await tx.execute(listingInsert)).lastInsertRowid),
-      );
-    }
-
-    await assignListingsToGroup([...ids.values()], groupId, tx);
-    // Carry the per-listing package overrides (price + quantity) across,
-    // remapping each source listing id to its clone so the duplicate packages
-    // identically.
-    const remappedMembers = sourceMembers
-      .filter((row) => ids.has(row.listing_id))
-      .map((row) => ({
-        listingId: ids.get(row.listing_id)!,
-        price: row.package_price,
-        quantity: row.quantity,
-      }));
-    await setGroupPackageMembers(groupId, remappedMembers, tx);
-    return { idMap: ids, newGroupId: groupId };
+  // The group row, its cloned listings, and their membership rows (each carrying
+  // the source's package price/quantity so a package duplicates identically) all
+  // land in ONE batch — atomic, a single round-trip, and clear of the
+  // interactive-transaction round-trip guard regardless of how many listings the
+  // group has. Memberships resolve the new group and clone by the slug_index each
+  // was just inserted with, so no per-row id read is needed. Parent/child edges
+  // are remapped after the batch commits, since they read the new clone rows.
+  const groupInsert = await groupsTable.insertStatement!({
+    description: group.description,
+    hidden: group.hidden,
+    hidePackageListings: group.hide_package_listings,
+    isPackage: group.is_package,
+    maxAttendees: group.max_attendees,
+    name: newName,
+    slug,
+    slugIndex,
+    termsAndConditions: group.terms_and_conditions,
   });
+  const cloneInserts = await Promise.all(
+    cloneInputs.map(({ input }) => listingsTable.insertStatement!(input)),
+  );
+  const membershipInserts = cloneInputs.map(({ sourceId, input }) => {
+    const source = memberBySource.get(sourceId);
+    return cloneGroupMembershipStatement({
+      groupSlugIndex: slugIndex,
+      listingSlugIndex: input.slugIndex,
+      packagePrice: source?.package_price ?? 0,
+      quantity: source?.quantity ?? 1,
+    });
+  });
+  await executeBatch([groupInsert, ...cloneInserts, ...membershipInserts]);
+
+  // Resolve the freshly-inserted ids by their (unique) slug_index for the redirect
+  // and the edge remap — two reads, not one per clone.
+  const newGroupId = (await getGroupBySlugIndex(slugIndex))!.id;
+  const idBySlugIndex = new Map(
+    (await getListingsByGroupId(newGroupId)).map((l) => [l.slug_index, l.id]),
+  );
+  const idMap = new Map(
+    cloneInputs.map(({ sourceId, input }) => [
+      sourceId,
+      idBySlugIndex.get(input.slugIndex)!,
+    ]),
+  );
 
   // A cloned parent whose remapped edge set fails re-validation is left gateless
   // rather than written; surface those as a warning flash (mirroring the
   // single-listing duplicate's "but: …" behaviour) instead of silently
-  // reporting success while producing a gateless standalone clone (Fix 5).
+  // reporting success while producing a gateless standalone clone.
   const edgeErrors = await remapDuplicatedGroupEdges(idMap);
 
   await logActivity(

@@ -2,6 +2,7 @@
  * Groups table operations
  */
 
+import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
@@ -365,29 +366,46 @@ export const getGroupIdsByListingIds = async (
  * Add listings to a group (membership rows), ignoring any already present.
  *
  * All rows insert in a single batch transaction, so the change is atomic and
- * costs one round-trip rather than one per listing. Pass `tx` to enrol the
- * inserts in an open write transaction (so they commit or roll back with the
- * caller's other writes — e.g. a group duplicate's clones and overrides).
+ * costs one round-trip rather than one per listing.
  */
-export const assignListingsToGroup = async (
+export const assignListingsToGroup = (
   listingIds: number[],
   groupId: number,
-  tx?: TxScope,
 ): Promise<void> => {
-  if (listingIds.length === 0) return;
+  if (listingIds.length === 0) return Promise.resolve();
   // INSERT ... SELECT gated on the listing existing, so an unknown id is a no-op
   // (the join table has no FK, so a stale/crafted id would otherwise leave an
   // orphan membership row that the old `UPDATE listings WHERE id` never created).
-  const statements = listingIds.map((listingId) => ({
-    args: [groupId, listingId, listingId],
-    sql: "INSERT OR IGNORE INTO group_listings (group_id, listing_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM listings WHERE id = ?)",
-  }));
-  if (tx) {
-    for (const statement of statements) await tx.execute(statement);
-    return;
-  }
-  await executeBatch(statements);
+  return executeBatch(
+    listingIds.map((listingId) => ({
+      args: [groupId, listingId, listingId],
+      sql: "INSERT OR IGNORE INTO group_listings (group_id, listing_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM listings WHERE id = ?)",
+    })),
+  );
 };
+
+/** One group_listings row for a DUPLICATED group, resolving both the new group
+ * and the cloned listing by the slug_index each was just inserted with, so the
+ * whole clone (group + listings + memberships) runs as one batch — one
+ * round-trip, atomic, and clear of the interactive-transaction round-trip guard.
+ * Carries the source member's package_price/quantity so the duplicate packages
+ * identically. */
+export const cloneGroupMembershipStatement = (member: {
+  groupSlugIndex: string;
+  listingSlugIndex: string;
+  packagePrice: number;
+  quantity: number;
+}): { sql: string; args: InValue[] } => ({
+  args: [
+    member.groupSlugIndex,
+    member.listingSlugIndex,
+    member.packagePrice,
+    member.quantity,
+  ],
+  sql: `INSERT INTO group_listings (group_id, listing_id, package_price, quantity)
+        SELECT (SELECT id FROM groups WHERE slug_index = ?),
+               (SELECT id FROM listings WHERE slug_index = ?), ?, ?`,
+});
 
 /**
  * Replace a listing's full set of group memberships (the listing-form
