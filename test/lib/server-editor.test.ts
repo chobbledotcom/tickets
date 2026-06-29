@@ -5,6 +5,7 @@ import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   decryptAdminLevel,
   getUserByInviteCode,
@@ -346,6 +347,77 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       expect((await getListingWithCount(listing.id))!.webhook_url).toBe(
         "https://attacker.example/steal",
       );
+    });
+
+    test("an editor edit can't bake an inherited webhook default into the row", async () => {
+      // The owner sets a webhook *default*; this listing inherits it live, but
+      // keeps its own stored webhook underneath.
+      await settings.update.listingDefaults({
+        webhookUrl: "https://default.example/hook",
+      });
+      const listing = await createTestListing({
+        useDefaults: true,
+        webhookUrl: "https://own.example/hook",
+      });
+      // Live, the listing resolves to the inherited default…
+      expect((await getListingWithCount(listing.id))!.webhook_url).toBe(
+        "https://default.example/hook",
+      );
+
+      // …but an editor saving an edit must neither set their crafted URL nor
+      // freeze the inherited default into the row.
+      const { cookie } = await createTestEditorSession();
+      const editorResp = await postMultipartAs(
+        `/admin/listing/${listing.id}/edit`,
+        cookie,
+        {
+          ...buildCreateListingForm(testListingInput()),
+          slug: listing.slug,
+          webhook_url: "https://attacker.example/steal",
+        },
+      );
+      expect(editorResp.status).toBe(302);
+
+      // Clearing the default reveals the listing's preserved own webhook —
+      // proving the editor's save materialised neither the default nor the
+      // crafted URL.
+      await settings.update.listingDefaults({});
+      expect((await getListingWithCount(listing.id))!.webhook_url).toBe(
+        "https://own.example/hook",
+      );
+    });
+
+    test("an editor edit can't toggle a listing's use_defaults inheritance", async () => {
+      // A webhook default makes the use_defaults flag control PII delivery, so
+      // editors must not flip it.
+      await settings.update.listingDefaults({
+        webhookUrl: "https://default.example/hook",
+      });
+      const listing = await createTestListing({
+        name: "Inherits",
+        useDefaults: true,
+      });
+
+      // The editor's form omits use_defaults (the toggle is hidden from them);
+      // a naive parse would read that as "off" and stop the webhook.
+      const { cookie } = await createTestEditorSession();
+      const resp = await postMultipartAs(
+        `/admin/listing/${listing.id}/edit`,
+        cookie,
+        { ...buildCreateListingForm(testListingInput()), slug: listing.slug },
+      );
+      expect(resp.status).toBe(302);
+      // The flag is preserved, so the listing keeps inheriting.
+      expect((await getListingWithCount(listing.id))!.use_defaults).toBe(true);
+
+      // The owner submitting the same body DOES turn it off — proving the lock
+      // is what blocks the editor, not an unrelated validation failure.
+      const { cookie: ownerCookie } = await getTestSession();
+      await postMultipartAs(`/admin/listing/${listing.id}/edit`, ownerCookie, {
+        ...buildCreateListingForm(testListingInput()),
+        slug: listing.slug,
+      });
+      expect((await getListingWithCount(listing.id))!.use_defaults).toBe(false);
     });
 
     test("editor listing create lands on the edit page so flashes are shown", async () => {

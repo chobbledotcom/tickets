@@ -155,6 +155,7 @@ const extractCommonFields = (
     purchaseOnly: values.purchase_only === "1",
     thankYouUrl: values.thank_you_url || "",
     unitPrice,
+    useDefaults: form.getString("use_defaults") === "1",
     usesLogistics:
       settings.hasLogistics && form.getString("uses_logistics") === "1",
     webhookUrl,

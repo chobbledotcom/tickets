@@ -49,8 +49,10 @@ import {
   ticketCountSumExpr,
 } from "#shared/db/migrations/schema.ts";
 import { nameMapByIds } from "#shared/db/query.ts";
+import { settings } from "#shared/db/settings.ts";
 import { col } from "#shared/db/table.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
+import { resolveListingDefaults } from "#shared/listing-defaults.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import {
@@ -104,6 +106,7 @@ export type ListingInput = {
   customisableDays?: boolean;
   dayPrices?: DayPrices;
   usesLogistics?: boolean;
+  useDefaults?: boolean;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -212,6 +215,7 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   purchase_only: col.boolean(false),
   thank_you_url: col.encryptedText(encrypt, decrypt),
   unit_price: col.withDefault(() => 0),
+  use_defaults: col.boolean(false),
   uses_logistics: col.boolean(false),
   webhook_url: col.encryptedText(encrypt, decrypt),
 });
@@ -351,7 +355,7 @@ export const LISTING_COUNT_GROUP_BY = "";
  * directly as an Array.map / mapParallel callback — a second positional
  * parameter would capture the map index.
  */
-export const decryptListingWithCount = async (
+const decryptStoredListingWithCount = async (
   row: ListingWithCount,
 ): Promise<ListingWithCount> => {
   const listing = await rawListingsTable.fromDb(row);
@@ -363,6 +367,38 @@ export const decryptListingWithCount = async (
     profit: Number(row.profit),
     tickets_count: Number(row.tickets_count),
   };
+};
+
+export const decryptListingWithCount = async (
+  row: ListingWithCount,
+): Promise<ListingWithCount> =>
+  // Overlay the operator's listing defaults when this listing inherits them, so
+  // every consumer (public pages, booking, webhooks, exports) sees the effective
+  // value live rather than this row's own stored value. The edit form and its
+  // save deliberately bypass this (see getStoredListingWithCount) so a save
+  // never materialises an inherited default over the listing's own column.
+  resolveListingDefaults(
+    await decryptStoredListingWithCount(row),
+    settings.listingDefaults,
+    settings.hasLogistics,
+  );
+
+/**
+ * Single listing with count, decrypted to its own *stored* values with no
+ * defaults overlaid. Uncached and used only by the edit form and its save,
+ * which must read and preserve the listing's own columns — otherwise saving an
+ * inheriting listing would bake the current defaults into its row, losing the
+ * stored values for good. Every other read resolves via the cache.
+ */
+export const getStoredListingWithCount = async (
+  id: number,
+): Promise<ListingWithCount | null> => {
+  const rows = await queryAll<ListingWithCount>(
+    `${LISTING_COUNT_SELECT} WHERE listing.id = ? ${LISTING_COUNT_GROUP_BY}`,
+    [id],
+  );
+  const row = rows[0];
+  return row ? decryptStoredListingWithCount(row) : null;
 };
 
 /**
@@ -564,11 +600,36 @@ export const getListingNamesByIds = (
     decrypt(raw),
   );
 
+/**
+ * SQL predicate (over the `listing` alias) selecting listings that are
+ * *effectively* visible — i.e. honouring an inherited Hidden default the same
+ * way {@link resolveListingDefaults} does, so the catalog can't publish a
+ * default-hidden listing or drop a default-unhidden one. A renewal tier
+ * (`months_per_unit > 0`) never inherits hidden, so it's excluded from the
+ * inheriting set. `hiddenDefault` is the configured default, or undefined when
+ * none is set (then only the stored value matters).
+ */
+export const catalogVisibleSql = (
+  hiddenDefault: boolean | undefined,
+): string => {
+  const inheriting =
+    "(listing.use_defaults = 1 AND listing.months_per_unit = 0)";
+  if (hiddenDefault === undefined) return "listing.hidden = 0";
+  return hiddenDefault
+    ? `listing.hidden = 0 AND NOT ${inheriting}`
+    : `(${inheriting} OR listing.hidden = 0)`;
+};
+
 /** Narrow catalog query for the public `/order.js` route. Filters to active,
- * non-hidden listings in SQL *before* decryption and selects only the columns
- * the external-order widget serializes, so an unauthenticated module request
- * never decrypts hidden/inactive listings' descriptions, locations, or dates —
- * unlike loading the whole listings cache via getAllListings(). */
+ * effectively-visible listings in SQL *before* decryption and selects only the
+ * columns the external-order widget serializes, so an unauthenticated module
+ * request never decrypts hidden/inactive listings' descriptions, locations, or
+ * dates — unlike loading the whole listings cache via getAllListings(). The
+ * hidden filter honours an inherited Hidden default (see {@link catalogVisibleSql}).
+ * Required children are excluded: they're only bookable through their parent (the
+ * public `/order` flow drops them and `/ticket/<child>` 404s), so an order.js
+ * add-to-cart link to one would dead-end — and an inherited Hidden=No default
+ * must not surface a stored-hidden child. */
 export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
   // Raw row: like the source listing but with the encrypted slug/name still
   // encrypted and the booleans as SQLite 0/1 integers.
@@ -580,7 +641,9 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
     `SELECT listing.id, listing.slug, listing.name, listing.unit_price,
             listing.listing_type, listing.customisable_days, listing.can_pay_more
      FROM listings AS listing
-     WHERE listing.active = 1 AND listing.hidden = 0`,
+     WHERE listing.active = 1
+       AND ${catalogVisibleSql(settings.listingDefaults.hidden)}
+       AND listing.id NOT IN (SELECT child_listing_id FROM listing_parents)`,
   );
   return Promise.all(
     rows.map(async (row) => ({
