@@ -89,7 +89,7 @@ export const ensureAllBookings = async (
 
 /** Order-level fields shared by every booking in one atomic create. */
 type AttendeeOrderFields = {
-  kind?: string;
+  kind?: string | undefined;
   statusId: number | null;
   remainingBalance: number;
 };
@@ -431,7 +431,9 @@ const finishAttendeeWrite = async (
             ...contactInfo,
             created: enc.created,
             date: booking.date ?? null,
-            durationDays: booking.durationDays,
+            ...(booking.durationDays !== undefined
+              ? { durationDays: booking.durationDays }
+              : {}),
             kind: input.kind ?? ATTENDEE_KIND,
             paymentId: input.paymentId ?? "",
             pricePaid: booking.pricePaid ?? 0,

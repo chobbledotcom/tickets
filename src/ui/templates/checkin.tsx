@@ -60,7 +60,7 @@ export const checkinAdminPage = (
         <Raw
           html={AttendeeTable({
             allowedDomain,
-            phonePrefix,
+            ...(phonePrefix !== undefined ? { phonePrefix } : {}),
             returnUrl: checkinPath,
             rows: tableRows,
             showDate,

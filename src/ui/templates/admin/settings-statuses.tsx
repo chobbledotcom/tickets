@@ -131,7 +131,8 @@ const checkbox = (
 /** Shared new/edit form for an attendee status. */
 export const adminAttendeeStatusFormPage = (
   session: AdminSession,
-  opts: { status?: AttendeeStatus; error?: string } = {},
+  opts: { status?: AttendeeStatus | undefined; error?: string | undefined } =
+    {},
 ): string => {
   const { status, error } = opts;
   const editing = status !== undefined;

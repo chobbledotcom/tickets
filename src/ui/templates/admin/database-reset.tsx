@@ -24,7 +24,7 @@ export const ResetDatabaseForm = ({
   action: string;
   id?: string;
 }): JSX.Element => (
-  <CsrfForm action={action} id={id}>
+  <CsrfForm action={action} {...(id !== undefined ? { id } : {})}>
     <h2>{t("settings.advanced.database_reset.heading")}</h2>
     <article>
       <aside>

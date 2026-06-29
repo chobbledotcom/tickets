@@ -71,7 +71,7 @@ export const captureServerError = async (
   if (!Sentry.isInitialized()) return;
 
   const captureContext = {
-    extra: context.detail ? { detail: context.detail } : undefined,
+    ...(context.detail ? { extra: { detail: context.detail } } : {}),
     level: "error" as const,
     tags: eventTags(context),
   };

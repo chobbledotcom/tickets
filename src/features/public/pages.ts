@@ -123,9 +123,9 @@ const renderContactPage = async (request: Request): Promise<Response> => {
     contactPage({
       botpoisonPublicKey: contactFormPublicKey(),
       content: settings.contactPageText || null,
-      error: flash.error,
+      ...(flash.error !== undefined ? { error: flash.error } : {}),
       formActive,
-      success: flash.success,
+      ...(flash.success !== undefined ? { success: flash.success } : {}),
       websiteTitle: settings.websiteTitle,
     }),
   );

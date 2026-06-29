@@ -887,7 +887,7 @@ export const adminAccountStatementPage = (
 export type LedgerEntryFormValues = {
   amount: string;
   occurredAt: string;
-  entryType?: string;
+  entryType?: string | undefined;
 };
 
 export type LedgerEntryAddOption = ManualLedgerEntryOption & {
@@ -940,7 +940,7 @@ export const adminLedgerEntryAddPage = ({
   values: LedgerEntryFormValues;
   returnUrl: string;
   session: AdminSession;
-  error?: string;
+  error?: string | undefined;
 }): string =>
   String(
     <Layout title={t("admin.ledger.add.heading")}>
@@ -997,7 +997,7 @@ export const adminLedgerEntryEditPage = ({
   values: LedgerEntryFormValues;
   returnUrl: string;
   session: AdminSession;
-  error?: string;
+  error?: string | undefined;
 }): string =>
   String(
     <Layout title={t("admin.ledger.edit.heading")}>

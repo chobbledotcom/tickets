@@ -166,7 +166,7 @@ export const validateSubmittedDate = (
 
 /** Render ticket HTML (CSRF token auto-embedded by CsrfForm) */
 export const renderTicketPage = (ctx: TicketCtx, error?: string) =>
-  ticketPage({ ...ctx, error });
+  ticketPage({ ...ctx, ...(error !== undefined ? { error } : {}) });
 
 /** Ticket response builder */
 export const ticketResponse =

@@ -16,9 +16,9 @@ export type UnsubscribeState = {
   /** Opaque contact hash from the link, or null when missing/invalid. */
   hash: string | null;
   unsubscribed: boolean;
-  success?: string;
-  error?: string;
-  info?: string;
+  success?: string | undefined;
+  error?: string | undefined;
+  info?: string | undefined;
 };
 
 /** The action form — carries the hash and the action, never the address. */

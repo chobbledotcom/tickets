@@ -81,7 +81,11 @@ const computeAttendeeRefund = async (
   // adjustment instead.
   if (balanceOf(account)(legs) !== 0) return { legs: [], posted: false };
   return {
-    legs: await mapRefund({ memo, occurredAt: nowIso(), orderLegs: order }),
+    legs: await mapRefund({
+      ...(memo !== undefined ? { memo } : {}),
+      occurredAt: nowIso(),
+      orderLegs: order,
+    }),
     posted: true,
   };
 };

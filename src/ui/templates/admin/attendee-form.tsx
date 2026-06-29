@@ -569,9 +569,9 @@ const ContactHistory = ({
               kind: "attendee",
               token: attendee.ticket_token,
             })}`}
-            title={
-              hasEmail ? undefined : t("attendee_form.no_email_disabled_title")
-            }
+            {...(hasEmail
+              ? {}
+              : { title: t("attendee_form.no_email_disabled_title") })}
           >
             {t("attendee_form.send_email_to_attendee")}
           </MaybeButtonLink>

@@ -116,8 +116,9 @@ const createDbClient = (): Client => {
   if (!url) {
     throw new Error("DB_URL environment variable is required");
   }
+  const authToken = getEnv("DB_TOKEN");
   return createClient({
-    authToken: getEnv("DB_TOKEN"),
+    ...(authToken !== undefined ? { authToken } : {}),
     url,
   });
 };

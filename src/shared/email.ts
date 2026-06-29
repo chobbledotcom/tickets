@@ -55,8 +55,8 @@ export type EmailMessage = {
   subject: string;
   html: string;
   text: string;
-  replyTo?: ValidEmail;
-  attachments?: EmailAttachment[];
+  replyTo?: ValidEmail | undefined;
+  attachments?: EmailAttachment[] | undefined;
 };
 
 export type EmailConfig = {

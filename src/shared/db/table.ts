@@ -24,13 +24,13 @@ import { requestCache } from "#shared/request-cache.ts";
  */
 export type ColumnDef<T = unknown> = {
   /** Whether this column is auto-generated (like id) */
-  generated?: boolean;
+  generated?: boolean | undefined;
   /** Default value generator (for created timestamps etc) */
-  default?: () => T;
+  default?: (() => T) | undefined;
   /** Transform value before writing to DB (e.g., encrypt) */
-  write?: (v: T) => Promise<T> | T;
+  write?: ((v: T) => Promise<T> | T) | undefined;
   /** Transform value after reading from DB (e.g., decrypt) */
-  read?: (v: T) => Promise<T> | T;
+  read?: ((v: T) => Promise<T> | T) | undefined;
 };
 
 /**

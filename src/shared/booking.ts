@@ -101,7 +101,10 @@ export const processBooking = async (
             unitPrice,
           },
         ],
-        listingAnswerIds: singleListingAnswerIds(listing.id, answerIds),
+        ...(() => {
+          const ids = singleListingAnswerIds(listing.id, answerIds);
+          return ids !== undefined ? { listingAnswerIds: ids } : {};
+        })(),
       },
       baseUrl,
     );

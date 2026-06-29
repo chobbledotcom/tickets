@@ -141,7 +141,9 @@ const normalizedCreateInput = (
   name: string,
 ): AttendeeInput => ({
   address: "",
-  allowOverbook: input.allowOverbook,
+  ...(input.allowOverbook !== undefined
+    ? { allowOverbook: input.allowOverbook }
+    : {}),
   bookings: input.bookings,
   email: "",
   kind: SERVICING_KIND,

@@ -144,7 +144,7 @@ export const adminAddNotePage = ({
   attendeeName: string;
   session: AdminSession;
   returnUrl: string;
-  error?: string;
+  error?: string | undefined;
 }): string =>
   String(
     <Layout title={t("notes.add_title")}>
@@ -191,7 +191,7 @@ export const adminDeleteNotePage = ({
   note: SystemNote;
   session: AdminSession;
   returnUrl: string;
-  error?: string;
+  error?: string | undefined;
 }): string =>
   String(
     <Layout title={t("notes.delete_title")}>

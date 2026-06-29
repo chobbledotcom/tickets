@@ -25,7 +25,7 @@ export type SmsHistoryItem = {
 type SmsPageOptions = {
   configured: boolean;
   queueCount: number;
-  flash: { success?: string; error?: string };
+  flash: { success?: string | undefined; error?: string | undefined };
   target?: { attendee: Attendee; listing: ListingWithCount };
   history: SmsHistoryItem[];
 };

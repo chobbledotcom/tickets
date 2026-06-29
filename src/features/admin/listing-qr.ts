@@ -201,10 +201,10 @@ const createQrFormValidator = (
 });
 
 type ParsedValues = {
-  name?: string;
-  value?: number;
+  name?: string | undefined;
+  value?: number | undefined;
   quantity: number;
-  date?: string;
+  date?: string | undefined;
 };
 
 /** Parse validated string values into the typed shape needed for token signing */
@@ -240,7 +240,12 @@ const signAndRenderQr = async (
   listing: ListingWithCount,
   parsed: ParsedValues,
 ): Promise<AdminListingQrResult> => {
-  const payload = buildQrBookPayload(parsed);
+  const payload = buildQrBookPayload({
+    quantity: parsed.quantity,
+    ...(parsed.name !== undefined ? { name: parsed.name } : {}),
+    ...(parsed.value !== undefined ? { value: parsed.value } : {}),
+    ...(parsed.date !== undefined ? { date: parsed.date } : {}),
+  });
   const token = await signQrBookToken(listing.slug, payload);
   const url = buildQrUrl(listing.slug, token);
   const svg = await generateQrSvg(url);

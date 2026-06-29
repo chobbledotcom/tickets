@@ -143,8 +143,8 @@ const BookingCard = ({
 );
 
 export interface DeliveriesPageOpts {
-  error?: string;
-  success?: string;
+  error?: string | undefined;
+  success?: string | undefined;
   /** True when the user has no logistics agents assigned to them. */
   noAgents: boolean;
 }

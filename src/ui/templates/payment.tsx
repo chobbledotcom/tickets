@@ -58,14 +58,14 @@ export const successPage = ({
   const inIframe = getIframeMode();
   return String(
     <Layout
-      bodyClass={inIframe ? "iframe" : undefined}
-      headExtra={
-        thankYouUrl
-          ? `<meta http-equiv="refresh" content="3;url=${escapeHtml(
+      {...(inIframe ? { bodyClass: "iframe" } : {})}
+      {...(thankYouUrl
+        ? {
+            headExtra: `<meta http-equiv="refresh" content="3;url=${escapeHtml(
               thankYouUrl,
-            )}">`
-          : undefined
-      }
+            )}">`,
+          }
+        : {})}
       title={t("payment.success.title")}
     >
       <div

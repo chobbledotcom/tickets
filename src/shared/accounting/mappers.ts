@@ -259,7 +259,7 @@ export const mapRefund = async (
       destination: leg.source,
       eventGroup: group,
       kind: refundKind(leg.kind ?? ""),
-      memo: facts.memo,
+      ...(facts.memo !== undefined ? { memo: facts.memo } : {}),
       occurredAt: facts.occurredAt,
       postedBy: facts.postedBy ?? "system",
       reference: await legReference([REFUND, bookingGroup, leg.reference]),

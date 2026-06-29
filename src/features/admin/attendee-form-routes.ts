@@ -371,18 +371,18 @@ const buildTemplateData = async (
   parsed: ParsedAttendeeForm,
   attendee: Attendee | null,
   opts: {
-    attendeeError?: string | null;
-    dateError?: string | null;
-    flashError?: string;
-    flashSuccess?: string;
-    formError?: string | null;
-    hasMixedTimings?: boolean;
-    returnUrl?: string;
-    questions?: QuestionWithAnswers[];
-    selectedAnswerIds?: number[];
-    selectedTextAnswers?: Map<number, string>;
-    contactRecords?: ContactRecordsByChannel;
-    ledger?: AttendeeLedgerData;
+    attendeeError?: string | null | undefined;
+    dateError?: string | null | undefined;
+    flashError?: string | undefined;
+    flashSuccess?: string | undefined;
+    formError?: string | null | undefined;
+    hasMixedTimings?: boolean | undefined;
+    returnUrl?: string | undefined;
+    questions?: QuestionWithAnswers[] | undefined;
+    selectedAnswerIds?: number[] | undefined;
+    selectedTextAnswers?: Map<number, string> | undefined;
+    contactRecords?: ContactRecordsByChannel | undefined;
+    ledger?: AttendeeLedgerData | undefined;
   } = {},
 ): Promise<AttendeeFormTemplateData> => {
   const statuses = await getAllAttendeeStatuses();
@@ -415,8 +415,10 @@ const buildTemplateData = async (
     bookings: attendeeBookingsFromLines(parsed.lines),
     contactRecords: opts.contactRecords ?? EMPTY_CONTACT_RECORDS,
     dateError: opts.dateError ?? null,
-    flashError: opts.flashError,
-    flashSuccess: opts.flashSuccess,
+    ...(opts.flashError !== undefined ? { flashError: opts.flashError } : {}),
+    ...(opts.flashSuccess !== undefined
+      ? { flashSuccess: opts.flashSuccess }
+      : {}),
     formError: opts.formError ?? null,
     // The shared date range only affects daily listings; the form's rendered
     // lines cover every active listing plus any inactive one this attendee
@@ -425,14 +427,14 @@ const buildTemplateData = async (
       (l) => l.listing?.listing_type === "daily",
     ),
     hasMixedTimings: opts.hasMixedTimings ?? false,
-    ledger: opts.ledger,
+    ...(opts.ledger !== undefined ? { ledger: opts.ledger } : {}),
     lineWarnings: warnings.byListing,
-    logistics,
+    ...(logistics !== undefined ? { logistics } : {}),
     mode,
     parsed,
     phonePrefix: settings.phonePrefix,
     questions: opts.questions ?? [],
-    returnUrl: opts.returnUrl,
+    ...(opts.returnUrl !== undefined ? { returnUrl: opts.returnUrl } : {}),
     selectedAnswerIds: opts.selectedAnswerIds ?? [],
     selectedTextAnswers: opts.selectedTextAnswers ?? new Map(),
     statuses,
@@ -488,8 +490,8 @@ const renderAttendeeFormPage = (
   const flash = applyFlash(request);
   return renderForm(session, {
     ...data,
-    flashError: flash.error,
-    flashSuccess: flash.success,
+    ...(flash.error !== undefined ? { flashError: flash.error } : {}),
+    ...(flash.success !== undefined ? { flashSuccess: flash.success } : {}),
   });
 };
 

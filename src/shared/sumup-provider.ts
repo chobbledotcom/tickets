@@ -52,14 +52,17 @@ const toPaymentStatus = (status: SumupCheckout["status"]): PaymentStatus =>
 const buildValidatedSession = (
   checkout: SumupCheckout,
   metadata: Record<string, string>,
-): ValidatedPaymentSession => ({
-  amountTotal: checkout.amountMinor,
-  createdAt: toCanonicalIso(checkout.createdAt),
-  id: checkout.reference,
-  metadata: extractSessionMetadata(metadata as SessionMetadata),
-  paymentReference: checkout.transactionId,
-  paymentStatus: toPaymentStatus(checkout.status),
-});
+): ValidatedPaymentSession => {
+  const createdAt = toCanonicalIso(checkout.createdAt);
+  return {
+    amountTotal: checkout.amountMinor,
+    ...(createdAt !== undefined ? { createdAt } : {}),
+    id: checkout.reference,
+    metadata: extractSessionMetadata(metadata as SessionMetadata),
+    paymentReference: checkout.transactionId,
+    paymentStatus: toPaymentStatus(checkout.status),
+  };
+};
 
 /** SumUp payment provider implementation. */
 export const sumupPaymentProvider: PaymentProvider = {
