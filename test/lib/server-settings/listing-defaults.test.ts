@@ -224,6 +224,30 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       expect(reverted?.webhook_url).toBe("");
     });
 
+    test("disabling logistics drops an inherited logistics value live", async () => {
+      await settings.update.hasLogistics(true);
+      await adminFormPost("/admin/listing-defaults", {
+        default_uses_logistics: "1",
+      });
+      await createTestListing({
+        name: "Logistics inheritor",
+        useDefaults: true,
+      });
+      // Materialise it into the listings cache while the default applies.
+      expect((await findByName("Logistics inheritor"))?.uses_logistics).toBe(
+        true,
+      );
+
+      // Disabling logistics clears the default and must invalidate the listings
+      // cache itself, or the warm row keeps reading as a logistics listing.
+      await adminFormPost("/admin/logistics/has-logistics", {
+        has_logistics: "false",
+      });
+      expect((await findByName("Logistics inheritor"))?.uses_logistics).toBe(
+        false,
+      );
+    });
+
     test("a listing without Use-defaults keeps its own values", async () => {
       await adminFormPost("/admin/listing-defaults", { default_hidden: "1" });
       await createTestListing({
