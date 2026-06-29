@@ -41,17 +41,35 @@ export type ListingDefaults = {
 /** How a default is stored, validated, and rendered. */
 export type ListingDefaultKind = "bool" | "number" | "url" | "days";
 
+/** What {@link resolveListingDefaults} knows beyond the listing being resolved. */
+export type ResolveContext = { hasLogistics: boolean };
+
 export type ListingDefaultField = {
   /** Key in {@link ListingDefaults}. */
   key: keyof ListingDefaults;
   /** Matching listing column / listing-form field name (snake_case). */
   field: keyof Listing;
   kind: ListingDefaultKind;
+  /**
+   * When present, the default only overlays a listing for which this returns
+   * true — the schema-level home for a per-field invariant the overlay must not
+   * break, so {@link resolveListingDefaults} stays a plain fold with no
+   * special-cased branches. Absent ⇒ the default always applies.
+   */
+  appliesTo?: (listing: Listing, ctx: ResolveContext) => boolean;
 };
 
 /**
  * Every defaultable field, in display order — the single source of truth for the
  * settings form, the form-field hiding, the storage round-trip, and the overlay.
+ * Two carry an `appliesTo` gate so the overlay never produces a listing the save
+ * path would reject:
+ * - `uses_logistics` is inert while logistics is off, matching the per-listing
+ *   save gate — so a listing created during a logistics-off window can't
+ *   silently become a logistics listing if the feature is re-enabled.
+ * - `hidden` never applies to a renewal tier (`months_per_unit > 0`), which must
+ *   stay hidden + purchase-only or renewal extension breaks. {@link catalogVisibleSql}
+ *   mirrors this gate in SQL.
  *
  * Deliberately excludes `duration_days` and `customisable_days`: both are tied
  * to per-listing booking data and save-time invariants that read-time
@@ -62,13 +80,23 @@ export type ListingDefaultField = {
  * stay per-listing. The fields below are display/availability/side-effect only.
  */
 export const LISTING_DEFAULT_FIELDS: readonly ListingDefaultField[] = [
-  { field: "uses_logistics", key: "usesLogistics", kind: "bool" },
+  {
+    appliesTo: (_listing, { hasLogistics }) => hasLogistics,
+    field: "uses_logistics",
+    key: "usesLogistics",
+    kind: "bool",
+  },
   { field: "bookable_days", key: "bookableDays", kind: "days" },
   { field: "minimum_days_before", key: "minimumDaysBefore", kind: "number" },
   { field: "maximum_days_after", key: "maximumDaysAfter", kind: "number" },
   { field: "webhook_url", key: "webhookUrl", kind: "url" },
   { field: "thank_you_url", key: "thankYouUrl", kind: "url" },
-  { field: "hidden", key: "hidden", kind: "bool" },
+  {
+    appliesTo: (listing) => listing.months_per_unit === 0,
+    field: "hidden",
+    key: "hidden",
+    kind: "bool",
+  },
 ] as const;
 
 /** The HTML form input name for a field's default value. */
@@ -107,13 +135,10 @@ export const listingDefaultFormClasses = (defaults: ListingDefaults): string =>
 
 /**
  * Resolve a listing's effective values: when `use_defaults` is on, overlay each
- * set default onto a copy of the listing; otherwise return it unchanged. Two
- * fields are gated so the overlay never produces a listing the save path rejects:
- * - `uses_logistics` is inert while logistics is off, matching the per-listing
- *   save gate — so a listing created during a logistics-off window can't
- *   silently become a logistics listing if the feature is re-enabled.
- * - `hidden` never applies to a renewal tier (`months_per_unit > 0`), which must
- *   stay hidden + purchase-only or renewal extension breaks.
+ * set default whose {@link ListingDefaultField.appliesTo} gate (if any) accepts
+ * the listing; otherwise return it unchanged. The per-field gates keep the
+ * overlay from producing a listing the save path would reject — see
+ * {@link LISTING_DEFAULT_FIELDS}.
  */
 export const resolveListingDefaults = <T extends Listing>(
   listing: T,
@@ -121,12 +146,11 @@ export const resolveListingDefaults = <T extends Listing>(
   hasLogistics: boolean,
 ): T => {
   if (!listing.use_defaults) return listing;
+  const ctx: ResolveContext = { hasLogistics };
   const overlay: Partial<Record<keyof Listing, unknown>> = {};
-  for (const { key, field } of setListingDefaultFields(defaults)) {
-    overlay[field] = defaults[key];
+  for (const { key, field, appliesTo } of setListingDefaultFields(defaults)) {
+    if (!appliesTo || appliesTo(listing, ctx)) overlay[field] = defaults[key];
   }
-  if (!hasLogistics) delete overlay.uses_logistics;
-  if (listing.months_per_unit > 0) delete overlay.hidden;
   return { ...listing, ...overlay };
 };
 
