@@ -10,7 +10,8 @@
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
-import { setListingGroups } from "#shared/db/groups.ts";
+import type { TxScope } from "#shared/db/client.ts";
+import { setListingGroupsTx } from "#shared/db/groups.ts";
 import {
   computeSlugIndex,
   type ListingAggregateValues,
@@ -212,11 +213,11 @@ const buildListingResourceFields = (): Field[] => [
   getAssignBuiltSiteField(),
 ];
 
-/** Persist the listing's group memberships after the row is created/updated.
+/** Persist the listing's group memberships in the row write's transaction.
  * extractCommonFields always sets groupIds (parseGroupIds returns an array), so
  * it is non-null here. */
-const writeListingGroups = (row: { id: number }, input: ListingInput) =>
-  setListingGroups(row.id, input.groupIds!);
+const writeListingGroups = (tx: TxScope, id: number, input: ListingInput) =>
+  setListingGroupsTx(tx, id, input.groupIds!);
 
 /**
  * Build a per-request listings create resource whose `toInput` closes over the

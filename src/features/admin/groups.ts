@@ -17,6 +17,7 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { decryptAttendees } from "#shared/db/attendees.ts";
+import type { TxScope } from "#shared/db/client.ts";
 import {
   assignListingsToGroup,
   computeGroupSlugIndex,
@@ -153,10 +154,15 @@ const parsePackagePrice = (raw: string): number => {
 };
 
 /** Parse one package-quantity input. A blank, non-numeric, or sub-1 value
- * defaults to 1 (a package always includes at least one of each member). */
+ * defaults to 1 (a package always includes at least one of each member). The
+ * whole string must be digits: unlike `parseInt` (which accepts a leading
+ * prefix), a typo like `2abc` or `1e3` defaults to 1 rather than parsing a
+ * partial 2/1. */
 const parsePackageQuantity = (raw: string): number => {
-  const n = Number.parseInt(raw, 10);
-  return Number.isInteger(n) && n >= 1 ? n : 1;
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) return 1;
+  const n = Number(trimmed);
+  return Number.isSafeInteger(n) && n >= 1 ? n : 1;
 };
 
 /** Read the per-listing `package_price_<id>` / `package_qty_<id>` inputs from
@@ -249,13 +255,15 @@ const groupsCreateResource = defineNamedResource({
  * inputs from the raw form. When the group is not (or no longer) a package,
  * every override is cleared back to price 0 / quantity 1. */
 const writeGroupPackageMembers = (
-  group: Group,
+  tx: TxScope,
+  id: number,
   input: GroupInput,
   form: FormParams,
 ) =>
   setGroupPackageMembers(
-    group.id,
+    id,
     input.isPackage ? parsePackageMembers(form) : [],
+    tx,
   );
 
 /** Groups resource for REST update operations (user-provided slug). Validates

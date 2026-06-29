@@ -23,7 +23,7 @@ import { ADMIN_API, type AuthPolicy, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { type TxScope, withTransaction } from "#shared/db/client.ts";
+import { type TxScope, writeRowInTransaction } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import type { AdminSession } from "#shared/types.ts";
 
@@ -344,14 +344,15 @@ export const defineCrudApi = <
     prepared: Prepared,
     input: Input,
   ): Promise<FullRow> => {
-    const id = await withTransaction(async (tx) => {
-      const res = await tx.execute(statement);
-      const rowId = existingId ?? Number(res.lastInsertRowid);
-      if (config.sideEffect)
-        await config.sideEffect.persist(tx, rowId, prepared);
-      if (config.afterWrite) await config.afterWrite(tx, rowId, input);
-      return rowId;
-    });
+    const id = await writeRowInTransaction(
+      statement,
+      existingId,
+      async (tx, rowId) => {
+        if (config.sideEffect)
+          await config.sideEffect.persist(tx, rowId, prepared);
+        if (config.afterWrite) await config.afterWrite(tx, rowId, input);
+      },
+    );
     return (await lookup(id))!;
   };
 

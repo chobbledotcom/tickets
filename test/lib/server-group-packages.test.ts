@@ -116,6 +116,32 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     expect(qty.get(b.id)).toBe(1);
   });
 
+  test("edit POST defaults a malformed or out-of-range quantity to 1", async () => {
+    const group = await createTestGroup({ name: "BadQty", slug: "bad-qty" });
+    const prefix = await member(group, "Prefix");
+    const zero = await member(group, "Zero");
+    const huge = await member(group, "Huge");
+
+    await adminFormPost(`/admin/groups/${group.id}/edit`, {
+      ...editFields("BadQty", "bad-qty"),
+      is_package: "1",
+      [`package_price_${prefix.id}`]: "1.00",
+      [`package_price_${zero.id}`]: "1.00",
+      [`package_price_${huge.id}`]: "1.00",
+      // parseInt would read 2 from "2abc"; 0 is below the minimum; the 20-digit
+      // value overflows the safe-integer range — each defaults to 1.
+      [`package_qty_${prefix.id}`]: "2abc",
+      [`package_qty_${zero.id}`]: "0",
+      [`package_qty_${huge.id}`]: "99999999999999999999",
+    });
+
+    const rows = await getGroupPackagePrices(group.id);
+    const qty = new Map(rows.map((r) => [r.listing_id, r.quantity]));
+    expect(qty.get(prefix.id)).toBe(1);
+    expect(qty.get(zero.id)).toBe(1);
+    expect(qty.get(huge.id)).toBe(1);
+  });
+
   test("edit POST persists the hide-package-listings flag", async () => {
     const group = await createTestGroup({ name: "HideG", slug: "hide-g" });
     await member(group, "HM");

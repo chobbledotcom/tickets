@@ -452,6 +452,25 @@ export const withTransaction = <T>(work: TransactionWork<T>): Promise<T> => {
   return run;
 };
 
+/**
+ * Write one row `statement` in a fresh write transaction and run `persist` (the
+ * coupled join-table writes) on the same `tx`, so the row and its side writes
+ * commit or roll back together. Returns the row id — `existingId` on update, or
+ * the INSERT's `lastInsertRowid` on create (`existingId` null). Shared by the
+ * REST resource (HTML forms) and CRUD API write paths.
+ */
+export const writeRowInTransaction = (
+  statement: InStatement,
+  existingId: number | null,
+  persist: (tx: TxScope, id: number) => Promise<void>,
+): Promise<number> =>
+  withTransaction(async (tx) => {
+    const res = await tx.execute(statement);
+    const id = existingId ?? Number(res.lastInsertRowid);
+    await persist(tx, id);
+    return id;
+  });
+
 /** Build SQL placeholders for an IN clause, e.g. "?, ?, ?" */
 export const inPlaceholders = (values: readonly unknown[]): string =>
   values.map(() => "?").join(", ");
