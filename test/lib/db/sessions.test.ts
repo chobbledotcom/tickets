@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
+import { getAllCacheStats } from "#shared/cache-registry.ts";
+import { execute } from "#shared/db/client.ts";
 import {
   createSession,
   deleteAllSessions,
@@ -8,6 +10,7 @@ import {
   deleteSession,
   getAllSessions,
   getSession,
+  resetSessionCache,
 } from "#shared/db/sessions.ts";
 import { describeWithEnv } from "#test-utils";
 
@@ -113,5 +116,90 @@ describeWithEnv("db > sessions", { db: true }, () => {
     } finally {
       time.restore();
     }
+  });
+
+  // The following tests observe the cache's *effect* by mutating the DB row
+  // behind the cache's back: a cached read returns the stale in-memory value,
+  // while a cache miss reflects the changed DB.
+
+  test("createSession pre-caches so a later read skips the DB", async () => {
+    await createSession("precache", "csrf-pre", Date.now() + 60000, null, 1);
+    // Remove the row from the DB; the cache still holds the session.
+    await execute("DELETE FROM sessions");
+
+    const session = await getSession("precache");
+    expect(session).not.toBeNull();
+    expect(session?.csrf_token).toBe("csrf-pre");
+  });
+
+  test("getSession caches the DB result so a second read skips the DB", async () => {
+    await createSession("dbcache", "csrf-db", Date.now() + 60000, null, 1);
+    resetSessionCache(); // drop the pre-cache; the DB row remains
+
+    const first = await getSession("dbcache"); // cache miss → DB → caches
+    expect(first?.csrf_token).toBe("csrf-db");
+
+    await execute("DELETE FROM sessions"); // remove DB row; cache retains it
+    const second = await getSession("dbcache");
+    expect(second).not.toBeNull();
+    expect(second?.csrf_token).toBe("csrf-db");
+  });
+
+  test("getSession re-queries the DB once the cache TTL expires", async () => {
+    const start = Date.now();
+    const time = new FakeTime(start);
+    try {
+      await createSession("ttl-requery", "csrf-old", start + 60000, null, 1);
+      // Within TTL: cached (stale) value is served even after the DB changes.
+      await execute("UPDATE sessions SET csrf_token = 'csrf-new'");
+      expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-old");
+
+      // Past the 10s TTL: the cache entry expires and the DB is re-read.
+      time.now = start + 11000;
+      expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-new");
+    } finally {
+      time.restore();
+    }
+  });
+
+  test("repeated reads of a missing session stay null (cached null is safe)", async () => {
+    expect(await getSession("ghost")).toBeNull();
+    // Second read hits the cached null entry; must not throw or resurrect a row.
+    expect(await getSession("ghost")).toBeNull();
+  });
+
+  test("resetSessionCache clears cached sessions", async () => {
+    await createSession("reset-me", "csrf-reset", Date.now() + 60000, null, 1);
+    await execute("DELETE FROM sessions"); // DB empty; cache still holds it
+
+    resetSessionCache();
+
+    // With the cache cleared, the read falls through to the (empty) DB.
+    expect(await getSession("reset-me")).toBeNull();
+  });
+
+  test("deleteOtherSessions keeps the current session cached", async () => {
+    const expires = Date.now() + 60000;
+    await createSession("keep", "csrf-keep", expires, null, 1);
+    await createSession("drop", "csrf-drop", expires, null, 1);
+
+    await deleteOtherSessions("keep");
+
+    // The kept session should still be cached: deleting all DB rows leaves a
+    // cached read returning it, while the dropped one is gone.
+    await execute("DELETE FROM sessions");
+    const kept = await getSession("keep");
+    expect(kept).not.toBeNull();
+    expect(kept?.csrf_token).toBe("csrf-keep");
+  });
+
+  test("registers a 'sessions' cache stat reflecting cached entries", async () => {
+    resetSessionCache();
+    const before = getAllCacheStats().find((s) => s.name === "sessions");
+    expect(before?.entries).toBe(0);
+
+    await createSession("stat", "csrf-stat", Date.now() + 60000, null, 1);
+    const after = getAllCacheStats().find((s) => s.name === "sessions");
+    expect(after?.entries).toBe(1);
   });
 });

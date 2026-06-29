@@ -76,6 +76,20 @@ describeAdminSettings(() => {
         response,
         expect.stringContaining("Square credentials updated"),
       );
+      // No sandbox checkbox submitted → production mode persisted.
+      expect(settings.square.sandbox).toBe(false);
+    });
+
+    test("persists sandbox mode when the sandbox checkbox is checked", async () => {
+      const { response } = await adminFormPost("/admin/settings/square", {
+        square_access_token: "EAAAl_test_new",
+        square_location_id: "L_test_456",
+        square_sandbox: "on",
+      });
+
+      expect(response.status).toBe(302);
+      // The checkbox ("on") must be stored as sandbox=true, not just accepted.
+      expect(settings.square.sandbox).toBe(true);
     });
 
     test("rejects an access token that looks like an application ID", async () => {

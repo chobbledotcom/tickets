@@ -46,6 +46,33 @@ describe("renderField", () => {
     expect(html).toContain('placeholder="Enter your name"');
   });
 
+  test("marks a markdown textarea for preview, plain textarea is not marked", () => {
+    const withPreview = rendered({
+      label: "Bio",
+      markdown: true,
+      name: "bio",
+      type: "textarea",
+    });
+    expect(withPreview).toContain("data-markdown-preview");
+
+    const plain = rendered({ label: "Bio", name: "bio", type: "textarea" });
+    expect(plain).not.toContain("data-markdown-preview");
+  });
+
+  test("renders a checkbox group only for the checkbox-group type", () => {
+    // A non-checkbox field that happens to carry options must still render its
+    // normal input — the checkbox-group branch is gated on the type, not just
+    // the presence of options.
+    const html = rendered({
+      label: "Name",
+      name: "name",
+      options: [{ label: "A", value: "a" }],
+      type: "text",
+    });
+    expect(html).toContain('type="text"');
+    expect(html).not.toContain('type="checkbox"');
+  });
+
   test("renders hint text", () => {
     const html = rendered({
       hint: "Minimum 8 characters",

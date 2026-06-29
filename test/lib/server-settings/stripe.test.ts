@@ -143,6 +143,10 @@ describeAdminSettings(() => {
           expectRedirect(response, "/admin/settings");
           expectFlash(response, expect.stringContaining("Stripe key updated"));
           expectFlash(response, expect.stringContaining("webhook configured"));
+          // The webhook config returned by setupWebhookEndpoint must be
+          // persisted, not just acknowledged in the flash.
+          expect(settings.stripe.webhookSecret).toBe("whsec_test_secret");
+          expect(settings.stripe.webhookEndpointId).toBe("we_test_123");
         },
       );
     });

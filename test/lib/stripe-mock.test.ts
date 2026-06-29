@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 
 import {
+  BIN_DIR,
   downloadStripeMock,
   getArch,
   getPlatform,
@@ -145,6 +146,40 @@ describe("stripe-mock utilities", () => {
       }
     });
 
+    test("start downloads the binary when it is missing before spawning", async () => {
+      const testPort = 12113;
+      // Skip if something is already on that port
+      if (await isStripeMockRunning(testPort)) return;
+
+      const realPath = STRIPE_MOCK_PATH;
+      const backupPath = `${realPath}.bak-mgr`;
+      const manager = new StripeMockManager(testPort);
+      let renamed = false;
+
+      try {
+        // Remove the binary so start() must download it before spawning;
+        // if start() skipped the download, spawn would fail with NotFound.
+        await Deno.rename(realPath, backupPath);
+        renamed = true;
+
+        await manager.start();
+
+        expect(manager.isManaged()).toBe(true);
+        expect(await isStripeMockRunning(testPort)).toBe(true);
+      } finally {
+        manager.stop();
+        if (renamed) {
+          // Discard the downloaded binary and restore the original.
+          try {
+            await Deno.remove(realPath);
+          } catch {
+            // May not exist if download failed
+          }
+          await Deno.rename(backupPath, realPath);
+        }
+      }
+    });
+
     test("start throws when stripe-mock fails to become ready", async () => {
       // Temporarily replace STRIPE_MOCK_PATH-referenced binary with a no-op script
       // that exits immediately, so the process starts but never listens on the port
@@ -198,31 +233,36 @@ describe("stripe-mock utilities", () => {
   });
 
   describe("downloadStripeMock with missing binary", () => {
-    test("enters download path when binary does not exist", async () => {
-      const realPath = STRIPE_MOCK_PATH;
-      const backupPath = `${realPath}.bak-dl`;
-      let renamed = false;
+    test("creates the bin dir, downloads an executable binary, and cleans up the tarball", async () => {
+      // Move the whole bin dir aside so downloadStripeMock must recreate it
+      // (the already-running stripe-mock keeps its open file handle).
+      const backupDir = `${BIN_DIR}.bak-dl`;
+      const tarPath = `${BIN_DIR}/stripe-mock.tar.gz`;
+      let movedAway = false;
 
       try {
-        await Deno.rename(realPath, backupPath);
-        renamed = true;
+        await Deno.rename(BIN_DIR, backupDir);
+        movedAway = true;
 
-        // Call downloadStripeMock - it should detect file is missing and download
+        // Bin dir is gone: download must mkdir it, fetch, extract, chmod, clean up.
         await downloadStripeMock();
 
-        // Verify the binary was downloaded
-        const stat = await Deno.stat(realPath);
+        // Binary was downloaded as a real file...
+        const stat = await Deno.stat(STRIPE_MOCK_PATH);
         expect(stat.isFile).toBe(true);
+        // ...and made executable (owner execute bit set by chmod +x).
+        expect((stat.mode ?? 0) & 0o100).toBe(0o100);
+        // ...and the intermediate tarball was removed.
+        await expect(Deno.stat(tarPath)).rejects.toThrow(Deno.errors.NotFound);
       } finally {
-        // Restore the original binary
-        if (renamed) {
+        // Discard the freshly downloaded dir and restore the original.
+        if (movedAway) {
           try {
-            // Remove the downloaded one if it exists
-            await Deno.remove(realPath);
+            await Deno.remove(BIN_DIR, { recursive: true });
           } catch {
             // May not exist if download failed
           }
-          await Deno.rename(backupPath, realPath);
+          await Deno.rename(backupDir, BIN_DIR);
         }
       }
     });
