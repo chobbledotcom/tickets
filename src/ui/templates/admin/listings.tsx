@@ -36,6 +36,7 @@ import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   hasAnyListingDefault,
   type ListingDefaultField,
+  type ListingDefaultKind,
   type ListingDefaults,
   listingDefaultFormClasses,
   setListingDefaultFields,
@@ -1543,15 +1544,23 @@ const listingToFieldValues = (listing: ListingWithCount): FieldValues =>
 
 /** Render one set default as its listing-form field value, reusing the same
  * formatters {@link listingToFieldValues} uses for a saved listing. */
+/** Per-kind formatter to a listing-form field value. Keyed by
+ * {@link ListingDefaultKind} so a new kind is a compile error here, matching the
+ * settings parser and control. */
+const KIND_FORMATTERS: Record<
+  ListingDefaultKind,
+  (value: ListingDefaults[keyof ListingDefaults]) => string
+> = {
+  bool: (value) => booleanToCheckbox(value as boolean),
+  days: (value) => formatBookableDays(value as string[]),
+  number: (value) => String(value),
+  url: (value) => String(value),
+};
+
 const defaultFieldValue = (
   field: ListingDefaultField,
   value: ListingDefaults[keyof ListingDefaults],
-): string =>
-  field.kind === "bool"
-    ? booleanToCheckbox(value as boolean)
-    : field.kind === "days"
-      ? formatBookableDays(value as string[])
-      : String(value);
+): string => KIND_FORMATTERS[field.kind](value);
 
 /**
  * The configured defaults rendered as listing-form field values, so a fresh

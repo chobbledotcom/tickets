@@ -12,6 +12,7 @@ import {
   listingDefaultInputName as inputName,
   LISTING_DEFAULT_FIELDS,
   type ListingDefaultField,
+  type ListingDefaultKind,
   type ListingDefaults,
   listingDefaultHintKey,
   listingDefaultLabelKey,
@@ -129,25 +130,36 @@ const DaysControl = ({
   </fieldset>
 );
 
+/** Per-kind control. Keyed by {@link ListingDefaultKind} so a new kind is a
+ * compile error here, matching the parser and listing-form formatter. */
+const KIND_CONTROLS: Record<
+  ListingDefaultKind,
+  (
+    field: ListingDefaultField,
+    value: ListingDefaults[keyof ListingDefaults],
+  ) => JSX.Element
+> = {
+  bool: (field, value) => (
+    <BoolControl field={field} value={value as boolean | undefined} />
+  ),
+  days: (field, value) => (
+    <DaysControl field={field} value={value as string[] | undefined} />
+  ),
+  number: (field, value) => (
+    <NumberControl field={field} value={value as number | undefined} />
+  ),
+  url: (field, value) => (
+    <UrlControl field={field} value={value as string | undefined} />
+  ),
+};
+
 const DefaultControl = ({
   field,
   defaults,
 }: {
   field: ListingDefaultField;
   defaults: ListingDefaults;
-}): JSX.Element => {
-  const value = defaults[field.key];
-  if (field.kind === "bool") {
-    return <BoolControl field={field} value={value as boolean | undefined} />;
-  }
-  if (field.kind === "number") {
-    return <NumberControl field={field} value={value as number | undefined} />;
-  }
-  if (field.kind === "url") {
-    return <UrlControl field={field} value={value as string | undefined} />;
-  }
-  return <DaysControl field={field} value={value as string[] | undefined} />;
-};
+}): JSX.Element => KIND_CONTROLS[field.kind](field, defaults[field.key]);
 
 /**
  * Render the Listing Defaults page. The logistics default is only offered when

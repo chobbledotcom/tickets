@@ -20,6 +20,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import {
   LISTING_DEFAULT_FIELDS,
   type ListingDefaultField,
+  type ListingDefaultKind,
   type ListingDefaults,
   listingDefaultInputName,
   listingDefaultLabelKey,
@@ -89,19 +90,22 @@ const parseDaysField = (form: FormParams): FieldParse => {
   return { value: days };
 };
 
-/** Dispatch one field to its kind's parser. */
-const parseField = (
-  field: ListingDefaultField,
-  form: FormParams,
-): FieldParse => {
-  if (field.kind === "bool")
-    return { value: parseBool(submitted(field, form)) };
-  if (field.kind === "number") {
-    return parseNumberField(field, submitted(field, form));
-  }
-  if (field.kind === "url") return parseUrlField(field, form);
-  return parseDaysField(form);
+/** Per-kind parser. The `Record` is keyed by {@link ListingDefaultKind}, so a
+ * new kind is a compile error here (and in the settings control + listing-form
+ * formatter that dispatch the same way) rather than silently mis-parsed. */
+const KIND_PARSERS: Record<
+  ListingDefaultKind,
+  (field: ListingDefaultField, form: FormParams) => FieldParse
+> = {
+  bool: (field, form) => ({ value: parseBool(submitted(field, form)) }),
+  days: (_field, form) => parseDaysField(form),
+  number: (field, form) => parseNumberField(field, submitted(field, form)),
+  url: (field, form) => parseUrlField(field, form),
 };
+
+/** Dispatch one field to its kind's parser. */
+const parseField = (field: ListingDefaultField, form: FormParams): FieldParse =>
+  KIND_PARSERS[field.kind](field, form);
 
 /**
  * Parse the form into a {@link ListingDefaults}. The logistics default is only
