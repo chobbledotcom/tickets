@@ -1589,7 +1589,7 @@ const buildPageListingRows = (opts: {
   isPackage: boolean;
   listings: TicketListing[];
   packageQuantities: ReadonlyMap<number, number> | null | undefined;
-  packageGroupRemaining?: number | null | undefined;
+  packageCap: number;
   hidePackageListings: boolean;
   isSingleListing: boolean;
   hideQuantity: boolean;
@@ -1601,7 +1601,7 @@ const buildPageListingRows = (opts: {
     return renderPackageRows(
       opts.listings,
       quantities,
-      packageQuantityCap(opts.listings, quantities, opts.packageGroupRemaining),
+      opts.packageCap,
       opts.hidePackageListings,
     );
   }
@@ -1612,6 +1612,30 @@ const buildPageListingRows = (opts: {
     opts.prefill,
     opts.childCtx,
   );
+};
+
+/** The package-count cap for a package page (0 for non-package pages, where it
+ * is unused) and whether the page should render as sold out. A package is
+ * bookable only when at least one whole bundle fits: even if every member still
+ * has individual capacity, a 0 cap (shared pool drained, or a member's fixed
+ * per-package quantity exceeds its remaining units) would leave the selector
+ * offering only "0", so treat it as sold out rather than letting submit fall
+ * through to "select at least one ticket". */
+const packagePageAvailability = (
+  isPackage: boolean,
+  listings: TicketListing[],
+  packageQuantities: ReadonlyMap<number, number> | null | undefined,
+  packageGroupRemaining: number | null | undefined,
+): { packageCap: number; soldOut: boolean } => {
+  const cap = isPackage
+    ? packageQuantityCap(
+        listings,
+        packageQuantities ?? new Map(),
+        packageGroupRemaining,
+      )
+    : null;
+  const membersUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
+  return { packageCap: cap ?? 0, soldOut: membersUnavailable || cap === 0 };
 };
 
 /** The lone listing whose rich details (image/date/location) head the page and
@@ -1656,7 +1680,12 @@ export const ticketPage = ({
   // getTicketContext always sets packageQuantities alongside packageGroupId.
   const isPackage = packageGroupId != null;
   const inIframe = getIframeMode();
-  const allUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
+  const { packageCap, soldOut: allUnavailable } = packagePageAvailability(
+    isPackage,
+    listings,
+    packageQuantities,
+    packageGroupRemaining,
+  );
   const allClosed = listings.every((e) => e.isClosed);
   const fields: Field[] = buildContactFields(
     listings,
@@ -1697,7 +1726,7 @@ export const ticketPage = ({
     isPackage,
     isSingleListing,
     listings,
-    packageGroupRemaining,
+    packageCap,
     packageQuantities,
     prefill,
   });

@@ -509,6 +509,8 @@ describe("ticketPage", () => {
           attendee_count: 0,
           id: 2,
           max_attendees: 100,
+          // ×4 per package, so its per-order limit must admit at least 4.
+          max_quantity: 10,
           name: "Chair",
           slug: "chr12",
         }),
@@ -606,6 +608,49 @@ describe("ticketPage", () => {
     expect(html).toContain('<option value="1"');
     // The shared pool caps the count at 1, so no "2 packages" option is offered.
     expect(html).not.toContain('<option value="2"');
+  });
+
+  test("renders a package as sold out when its cap is zero", () => {
+    const listings = [
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 1,
+          max_attendees: 100,
+          name: "Big",
+          slug: "big01",
+        }),
+        false,
+        undefined,
+      ),
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 2,
+          max_attendees: 100,
+          name: "Small",
+          slug: "sml01",
+        }),
+        false,
+        undefined,
+      ),
+    ];
+    // Both members still have individual capacity, but one package consumes 2
+    // units (1 each) from a shared pool with only 1 left → floor(1 / 2) = 0
+    // packages fit. The page must show sold out, not a 0-only selector.
+    const html = ticketPage({
+      groupName: "Drained Pkg",
+      listings,
+      packageGroupId: 7,
+      packageGroupRemaining: 1,
+      packageQuantities: new Map([
+        [1, 1],
+        [2, 1],
+      ]),
+      slugs: ["big01", "sml01"],
+    });
+    expect(html).not.toContain('name="package_quantity"');
+    expect(html).toContain("Sorry, all listings are sold out.");
   });
 
   test("hides member rows when the package hides its listings", () => {
