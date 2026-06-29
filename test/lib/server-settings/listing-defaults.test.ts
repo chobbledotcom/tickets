@@ -94,6 +94,23 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       expect(settings.listingDefaults.usesLogistics).toBe(true);
     });
 
+    test("disabling logistics clears the saved logistics default", async () => {
+      await settings.update.hasLogistics(true);
+      await adminFormPost("/admin/listing-defaults", {
+        default_hidden: "1",
+        default_uses_logistics: "1",
+      });
+      expect(settings.listingDefaults.usesLogistics).toBe(true);
+
+      // Turning the feature off removes the logistics default (but keeps others),
+      // so re-enabling later can't resurrect it onto Use-defaults listings.
+      await adminFormPost("/admin/logistics/has-logistics", {
+        has_logistics: "false",
+      });
+      expect("usesLogistics" in settings.listingDefaults).toBe(false);
+      expect(settings.listingDefaults.hidden).toBe(true);
+    });
+
     test("stores the defaults blob encrypted at rest", async () => {
       await adminFormPost("/admin/listing-defaults", {
         default_thank_you_url: "https://secret.example.com/token-abc",

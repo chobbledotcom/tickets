@@ -22,6 +22,7 @@ import {
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 /* jscpd:ignore-end */
+import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { clearLogisticsAgentReferences } from "#shared/db/logistics.ts";
 import {
   getAllLogisticsAgents,
@@ -51,12 +52,32 @@ import {
 } from "#templates/admin/logistics.tsx";
 import { logisticsAgentFields } from "#templates/fields.ts";
 
+/**
+ * Disabling logistics also clears any saved logistics default, so a later
+ * re-enable can't resurrect it onto Use-defaults listings — and listings created
+ * while logistics is off are never opted into an inert logistics default.
+ */
+const clearLogisticsDefaultWhenDisabled = async (
+  enabled: boolean,
+): Promise<void> => {
+  if (enabled) return;
+  const defaults = settings.listingDefaults;
+  if (defaults.usesLogistics === undefined) return;
+  const next = { ...defaults };
+  delete next.usesLogistics;
+  await settings.update.listingDefaults(next);
+  invalidateListingsCache();
+};
+
 /** Handle POST /admin/logistics/has-logistics — owner only. */
 export const handleHasLogisticsPost = settingsToggle({
   field: "has_logistics",
   label: "Logistics",
   redirectTo: "/admin/logistics",
-  save: (v) => settings.update.hasLogistics(v),
+  save: async (v) => {
+    await settings.update.hasLogistics(v);
+    await clearLogisticsDefaultWhenDisabled(v);
+  },
 });
 
 /** Extract logistics agent input from validated form values. The `name` field
