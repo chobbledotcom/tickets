@@ -1010,6 +1010,57 @@ const renderListingRow = (
   `;
 };
 
+/** A package member row: name + fixed per-package quantity, read-only — the
+ * buyer chooses the package count, not per-member quantities. */
+const renderPackageMemberRow = (
+  info: TicketListing,
+  fixedQty: number,
+): string => `
+    <div class="ticket-row package-member">
+      ${renderListingImage(info.listing)}
+      <label>${escapeHtml(info.listing.name)} <span class="package-member-qty">&times;${fixedQty}</span></label>
+      ${renderListingDescription(info.listing.description)}
+    </div>
+  `;
+
+/** A package booking page's listing area: the single "number of packages"
+ * selector, then each member row (each showing its fixed quantity) — unless the
+ * package hides its listings from buyers, in which case only the selector shows.
+ * `cap` is the most packages the tightest member's capacity allows. */
+const renderPackageRows = (
+  listings: TicketListing[],
+  quantities: ReadonlyMap<number, number>,
+  cap: number,
+  hide: boolean,
+): string => {
+  const selector = `<label>${t(
+    "public.package.quantity",
+  )}<select name="package_quantity">${quantityOptions(
+    cap,
+    Math.min(1, cap),
+  )}</select></label>`;
+  const members = hide
+    ? ""
+    : listings
+        .map((e) =>
+          renderPackageMemberRow(e, quantities.get(e.listing.id) ?? 1),
+        )
+        .join("");
+  return selector + members;
+};
+
+/** The most packages the buyer can order: limited by the tightest member's
+ * remaining capacity divided by how many of it one package includes. */
+const packageQuantityCap = (
+  listings: TicketListing[],
+  quantities: ReadonlyMap<number, number>,
+): number =>
+  Math.min(
+    ...listings.map((e) =>
+      Math.floor(e.maxPurchasable / (quantities.get(e.listing.id) ?? 1)),
+    ),
+  );
+
 /** Render controls for a single listing: quantity input + pay-more (no listing name/image/description). */
 const renderSingleListingControls = (
   info: TicketListing,
@@ -1139,6 +1190,12 @@ export type TicketPageOptions = {
    * member whose base price is 0 but override is paid still renders the provider
    * contact fields. Empty/omitted for non-package pages. */
   packagePrices?: ReadonlyMap<number, number> | null;
+  /** Set on a package page: the group id, each member's fixed per-package
+   * quantity, and whether members are hidden from buyers. When set, the page
+   * shows one package-quantity selector instead of per-member quantities. */
+  packageGroupId?: number | null;
+  packageQuantities?: ReadonlyMap<number, number> | null;
+  hidePackageListings?: boolean;
 };
 
 /** Unavailability message shown when all listings are sold out or closed */
@@ -1252,6 +1309,7 @@ const TicketPageForm = ({
   dayCountPriceFor,
   listingRows,
   hideQuantity,
+  isPackage,
   isSingleListing,
   questions,
   questionListingMap,
@@ -1271,6 +1329,7 @@ const TicketPageForm = ({
   dayCountPriceFor?: (days: number) => number | null;
   listingRows: string;
   hideQuantity: boolean;
+  isPackage: boolean;
   isSingleListing: boolean;
   questions: QuestionWithAnswers[] | undefined;
   questionListingMap: QuestionListingMap | undefined;
@@ -1300,7 +1359,7 @@ const TicketPageForm = ({
         <Raw html={renderDayCountSelector(dayCounts, dayCountPriceFor)} />
       )}
 
-      {hideQuantity || isSingleListing ? (
+      {hideQuantity || isSingleListing || isPackage ? (
         <Raw html={listingRows} />
       ) : (
         <fieldset class="ticket-listings">
@@ -1474,6 +1533,36 @@ const buildListingRows = (
         )
         .join("");
 
+/** Build the page's listing area: a package shows one package-quantity selector
+ * plus read-only member rows; any other page shows the per-listing controls. */
+const buildPageListingRows = (opts: {
+  isPackage: boolean;
+  listings: TicketListing[];
+  packageQuantities: ReadonlyMap<number, number> | null | undefined;
+  hidePackageListings: boolean;
+  isSingleListing: boolean;
+  hideQuantity: boolean;
+  prefill?: BookingPrefill;
+  childCtx?: ChildRenderCtx;
+}): string => {
+  if (opts.isPackage) {
+    const quantities = opts.packageQuantities ?? new Map<number, number>();
+    return renderPackageRows(
+      opts.listings,
+      quantities,
+      packageQuantityCap(opts.listings, quantities),
+      opts.hidePackageListings,
+    );
+  }
+  return buildListingRows(
+    opts.listings,
+    opts.isSingleListing,
+    opts.hideQuantity,
+    opts.prefill,
+    opts.childCtx,
+  );
+};
+
 /**
  * Ticket page - register for one or more listings
  * Single listings show rich details (image, description, date, location).
@@ -1499,7 +1588,12 @@ export const ticketPage = ({
   groupRemainingByListingId,
   groupIdsByListingId = new Map(),
   packagePrices,
+  packageGroupId,
+  packageQuantities,
+  hidePackageListings = false,
 }: TicketPageOptions): string => {
+  // getTicketContext always sets packageQuantities alongside packageGroupId.
+  const isPackage = packageGroupId != null;
   const inIframe = getIframeMode();
   const allUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
   const allClosed = listings.every((e) => e.isClosed);
@@ -1533,13 +1627,18 @@ export const ticketPage = ({
     groupIdsByListingId,
   );
 
-  const listingRows = buildListingRows(
-    listings,
-    isSingleListing,
-    hideQuantity,
-    prefill,
+  // A package page shows one "number of packages" selector plus read-only member
+  // rows (each ×its fixed quantity); other pages show per-listing controls.
+  const listingRows = buildPageListingRows({
     childCtx,
-  );
+    hidePackageListings,
+    hideQuantity,
+    isPackage,
+    isSingleListing,
+    listings,
+    packageQuantities,
+    prefill,
+  });
 
   // Caller-supplied group metadata (groups, renewals) takes priority over
   // single-listing details — the caller knows what page the customer landed on.
@@ -1583,6 +1682,7 @@ export const ticketPage = ({
           hasCustomisable={hasCustomisable}
           hasDaily={hasDaily}
           hideQuantity={hideQuantity}
+          isPackage={isPackage}
           isSingleListing={isSingleListing}
           listingRows={listingRows}
           prefill={prefill}

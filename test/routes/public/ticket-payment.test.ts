@@ -12,7 +12,7 @@ import {
   foldSelectedChildren,
   getTicketContext,
   loadChildrenByParentId,
-  loadPackagePriceMap,
+  loadPackageMemberMaps,
   MODIFIER_SOLD_OUT_MESSAGE,
   resolveChildSelections,
   resolveDayCount,
@@ -618,21 +618,24 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
     });
   });
 
-  describe("loadPackagePriceMap / getTicketContext packages", () => {
-    test("loadPackagePriceMap keeps only non-zero overrides", async () => {
+  describe("loadPackageMemberMaps / getTicketContext packages", () => {
+    test("loadPackageMemberMaps keeps non-zero overrides and every quantity", async () => {
       const group = await createTestGroup({ isPackage: true, name: "Pk" });
       const a = await createTestListing({ name: "PA" });
       const b = await createTestListing({ name: "PB" });
       await setListingGroups(a.id, [group.id]);
       await setListingGroups(b.id, [group.id]);
       await setGroupPackageMembers(group.id, [
-        { listingId: a.id, price: 1500 },
+        { listingId: a.id, price: 1500, quantity: 2 },
         { listingId: b.id, price: 0 },
       ]);
 
-      const map = await loadPackagePriceMap(group.id);
-      expect(map.get(a.id)).toBe(1500);
-      expect(map.has(b.id)).toBe(false);
+      const { prices, quantities } = await loadPackageMemberMaps(group.id);
+      expect(prices.get(a.id)).toBe(1500);
+      expect(prices.has(b.id)).toBe(false);
+      // Quantities cover every member, including the override-free one.
+      expect(quantities.get(a.id)).toBe(2);
+      expect(quantities.get(b.id)).toBe(1);
     });
 
     test("getTicketContext exposes packageGroupId + prices for a package group", async () => {

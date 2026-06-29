@@ -234,17 +234,29 @@ export const buildRegistrationItems = (
   }));
 };
 
-/** Load a package group's listing-id → override price map, keeping only the
- * members that actually carry an override (price > 0). */
-export const loadPackagePriceMap = async (
+/** A package group's per-member overrides for the booking flow: `prices` keeps
+ * only members with a non-zero override (price > 0); `quantities` carries every
+ * member's per-package quantity (≥1). */
+export type PackageMemberMaps = {
+  prices: ReadonlyMap<number, number>;
+  quantities: ReadonlyMap<number, number>;
+};
+
+/** Load a package group's member rows once into the price + quantity maps the
+ * booking flow needs (so quote and submit price/derive quantities with no extra
+ * query). */
+export const loadPackageMemberMaps = async (
   groupId: number,
-): Promise<ReadonlyMap<number, number>> => {
+): Promise<PackageMemberMaps> => {
   const rows = await getGroupPackagePrices(groupId);
-  return new Map(
-    rows
-      .filter((row) => row.package_price > 0)
-      .map((row) => [row.listing_id, row.package_price]),
-  );
+  return {
+    prices: new Map(
+      rows
+        .filter((row) => row.package_price > 0)
+        .map((row) => [row.listing_id, row.package_price]),
+    ),
+    quantities: new Map(rows.map((row) => [row.listing_id, row.quantity])),
+  };
 };
 
 /** Apply package price overrides to the assembled items. Only top-level page
@@ -1118,17 +1130,22 @@ export const getTicketContext = async (
   const terms = group
     ? group.terms_and_conditions || globalTerms || ""
     : globalTerms;
-  // For a package group, load the per-listing overrides once here so both the
-  // quote and submit paths can price against them with no extra query.
-  const packagePrices =
-    group?.is_package === true ? await loadPackagePriceMap(group.id) : null;
+  // For a package group, load the per-listing overrides (price + quantity) once
+  // here so both the quote and submit paths can price/derive against them with
+  // no extra query.
+  const packageMaps =
+    group?.is_package === true ? await loadPackageMemberMaps(group.id) : null;
   return {
     addOns,
     childDatesById,
     childrenByParentId,
     dates,
+    hidePackageListings: group?.is_package
+      ? group.hide_package_listings
+      : undefined,
     packageGroupId: group?.is_package ? group.id : null,
-    packagePrices,
+    packagePrices: packageMaps?.prices ?? null,
+    packageQuantities: packageMaps?.quantities ?? null,
     promoCodesEnabled,
     terms,
     ...questionsResult,

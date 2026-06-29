@@ -538,6 +538,34 @@ const validatePaymentUpgrade = (
   return validateTicketFields(form, ctx, true);
 };
 
+/** The buyer-chosen number of packages (0 when absent/invalid → an empty order). */
+const parsePackageCount = (form: FormParams): number =>
+  parseNonNegativeInt(form.getString("package_quantity")) ?? 0;
+
+/**
+ * Resolve the page listings' quantities from the form. For a package group the
+ * buyer chooses a single `package_quantity`; each member's booked quantity is
+ * its fixed per-package quantity × that count (the per-member `quantity_<id>`
+ * inputs are not offered, so they are ignored). A count of 0 yields all-zero
+ * lines, which `prepareOrder` rejects as "select at least one ticket". Non-package
+ * pages parse the per-listing quantities as usual.
+ */
+const resolvePageQuantities = (
+  form: FormParams,
+  ctx: TicketCtx,
+): Map<number, number> => {
+  const { packageGroupId, packageQuantities } = ctx;
+  if (packageGroupId == null || !packageQuantities) {
+    return parseQuantities(form, ctx.listings);
+  }
+  const packageQty = parsePackageCount(form);
+  const quantities = new Map<number, number>();
+  for (const [listingId, fixed] of packageQuantities) {
+    quantities.set(listingId, fixed * packageQty);
+  }
+  return quantities;
+};
+
 /** A parsed-and-priced submission, or the message explaining why it could not
  * be priced. `prepareOrder` runs every step shared by the booking submit and
  * the `/calculate` quote: page-state and field validation, item building, and
@@ -566,7 +594,7 @@ const prepareOrder = async (
   const stateError = validateFormState(form, ctx);
   if (stateError) return { error: stateError, ok: false };
 
-  const pageQuantities = parseQuantities(form, ctx.listings);
+  const pageQuantities = resolvePageQuantities(form, ctx);
   const totalQuantity = sum(Array.from(pageQuantities.values()));
   if (totalQuantity === 0) {
     return { error: "Please select at least one ticket", ok: false };

@@ -43,6 +43,14 @@ export type TicketSharedContext = {
    * `package_price`). `null`/absent for non-package pages. */
   packageGroupId?: number | null;
   packagePrices?: ReadonlyMap<number, number> | null;
+  /** Set on a package page: listing-id → how many of that listing one package
+   * unit includes (every member, default 1). The buyer chooses a single package
+   * quantity and each member's booked quantity is `fixedQty × packageQty`.
+   * `null`/absent for non-package pages. */
+  packageQuantities?: ReadonlyMap<number, number> | null;
+  /** Set on a package page: whether the member listings are hidden from buyers,
+   * tickets, and confirmation emails. */
+  hidePackageListings?: boolean;
   actionUrl?: string;
   siteToken?: string;
   promoCodesEnabled?: boolean;

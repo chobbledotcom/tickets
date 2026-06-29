@@ -542,7 +542,9 @@ const priceMismatchRefund = (
 type ValidatedItem = {
   item: BookingItem;
   listing: ListingWithCount;
-  expectedPrice: number;
+  /** The expected line total, or `null` to fail closed (a package line that is
+   * no longer a valid member — forces a `price_changed` refund). */
+  expectedPrice: number | null;
 };
 
 /** Handle the "already reserved" branch of reserveSession */
@@ -596,18 +598,23 @@ const loadPackagePricing = async (
   };
 };
 
-/** The expected line total for one item: a top-level package member with a
- * non-zero override is priced at `override × qty`; folded children (in the
- * allocations) and non-members keep the normal per-listing `basePrice`. */
+/** The expected line total for one item, or `null` to fail closed (force a
+ * `price_changed` refund). Folded children (in the allocations) always price at
+ * the normal per-listing `basePrice`. For a NON-package order every line is
+ * base-priced. For a package order every top-level line must still be a current
+ * member: a non-zero override prices at `override × qty`, a base-priced member
+ * keeps `basePrice`, and a line that is no longer a member (package deleted,
+ * un-flagged, or the listing removed mid-checkout) fails closed. */
 export const expectedItemPrice = (
   pkg: PackagePricing | null,
+  isPackageIntent: boolean,
   foldedChildIds: ReadonlySet<number>,
   item: BookingItem,
   basePrice: number,
-): number => {
-  if (!pkg || foldedChildIds.has(item.e) || !pkg.memberIds.has(item.e)) {
-    return basePrice;
-  }
+): number | null => {
+  if (foldedChildIds.has(item.e)) return basePrice;
+  if (!isPackageIntent) return basePrice;
+  if (!pkg || !pkg.memberIds.has(item.e)) return null;
   const override = pkg.priceMap.get(item.e);
   return override ? override * item.q : basePrice;
 };
@@ -618,6 +625,7 @@ const validateAllItems = async (
   intent: BookingIntent,
 ): Promise<{ ok: true; items: ValidatedItem[] } | PaymentFailureResult> => {
   const includeListingName = intent.items.length > 1;
+  const isPackageIntent = intent.packageGroupId !== undefined;
   const pkg = await loadPackagePricing(intent);
   const foldedChildIds = new Set(
     (intent.allocations ?? []).map((a) => a.childId),
@@ -630,9 +638,13 @@ const validateAllItems = async (
       intent.dayCount,
     );
     if (!vp.ok) return validationFailure(session, vp, item.e);
+    // `null` here means "fail closed" (the line is no longer a valid package
+    // member); it is carried through so the price-mismatch pass refunds it via
+    // the normal stored-placeholder path.
     validatedItems.push({
       expectedPrice: expectedItemPrice(
         pkg,
+        isPackageIntent,
         foldedChildIds,
         item,
         vp.expectedPrice,
@@ -845,11 +857,25 @@ const paidPricingRefund = (
   pricedOrder: PricedOrder,
   agreed: number,
 ): RefundSpec | null => {
+  // Fail closed first: a `null` expected price means a package line is no longer
+  // a valid member (package deleted/unflagged or the listing removed). This is
+  // checked for every item regardless of price, so even a free package member
+  // refunds rather than completing.
+  for (const { listing, expectedPrice } of validatedItems) {
+    if (expectedPrice === null) {
+      return priceChangedSpec(
+        `Package member listing ${listing.id} is no longer part of its package`,
+      );
+    }
+  }
   const hasPaidItems = intent.items.some((item) => item.p > 0);
   // Per-item prices are ticket-only (no fee), so validate without booking fee
   if (hasPaidItems) {
     for (const { item, listing, expectedPrice } of validatedItems) {
-      if (hasPriceMismatch(item.p, expectedPrice, listing, 0, item.q)) {
+      if (
+        expectedPrice === null ||
+        hasPriceMismatch(item.p, expectedPrice, listing, 0, item.q)
+      ) {
         return priceChangedSpec(
           `Per-item price mismatch for listing ${listing.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${listing.can_pay_more})`,
         );

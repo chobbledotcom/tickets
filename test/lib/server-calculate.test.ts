@@ -77,14 +77,61 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       { listingId: member.id, price: 1500 },
     ]);
 
+    // A package is booked by package count, not per-member quantities.
     const html = await (
-      await calculate(group.slug, group.slug, {
-        [`quantity_${member.id}`]: "1",
-      })
+      await calculate(group.slug, group.slug, { package_quantity: "1" })
     ).text();
     // The package override (1500) prices the line — not the 5000 base.
     expect(html).toContain(formatCurrency(1500));
     expect(html).not.toContain(formatCurrency(5000));
+  });
+
+  test("an absent or invalid package quantity quotes nothing", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Zero Pkg",
+      slug: "zero-pkg",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      name: "Z",
+      unitPrice: 5000,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: 1000 },
+    ]);
+
+    // "abc" → 0 packages → empty order.
+    const response = await calculate(group.slug, group.slug, {
+      package_quantity: "abc",
+    });
+    expect(await response.text()).toContain("select at least one");
+  });
+
+  test("multiplies a package member's line by its quantity and the package count", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Bundle",
+      slug: "bundle-qty",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxQuantity: 50,
+      name: "Bundled",
+      unitPrice: 5000,
+    });
+    // 3 of this listing per package, overridden to 1000 each.
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: 1000, quantity: 3 },
+    ]);
+
+    // 2 packages → 6 units × 1000 = 6000.
+    const html = await (
+      await calculate(group.slug, group.slug, { package_quantity: "2" })
+    ).text();
+    expect(html).toContain(formatCurrency(6000));
   });
 
   test("prices a multi-unit line with a booking-fee extra line", async () => {

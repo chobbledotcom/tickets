@@ -489,6 +489,76 @@ describe("ticketPage", () => {
     expect(html).not.toContain("Reserve Tickets</button>");
   });
 
+  test("renders a package quantity selector and member rows with fixed quantities", () => {
+    const listings = [
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 1,
+          max_attendees: 100,
+          name: "Tent",
+          slug: "tent1",
+        }),
+        false,
+        undefined,
+      ),
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 2,
+          max_attendees: 100,
+          name: "Chair",
+          slug: "chr12",
+        }),
+        false,
+        undefined,
+      ),
+    ];
+    const html = ticketPage({
+      groupName: "Camp Kit",
+      listings,
+      packageGroupId: 5,
+      // Only listing 2 has a quantity row; listing 1 falls back to ×1.
+      packageQuantities: new Map([[2, 4]]),
+      slugs: ["tent1", "chr12"],
+    });
+    expect(html).toContain('name="package_quantity"');
+    expect(html).toContain("Number of packages");
+    expect(html).toContain("Tent");
+    expect(html).toContain("&times;1");
+    expect(html).toContain("Chair");
+    expect(html).toContain("&times;4");
+    // No per-member quantity selectors on a package page.
+    expect(html).not.toContain('name="quantity_1"');
+  });
+
+  test("hides member rows when the package hides its listings", () => {
+    const listings = [
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 1,
+          max_attendees: 100,
+          name: "SecretItem",
+          slug: "sec12",
+        }),
+        false,
+        undefined,
+      ),
+    ];
+    // packageQuantities omitted exercises the defensive empty-map fallback.
+    const html = ticketPage({
+      groupName: "Hidden Bundle",
+      hidePackageListings: true,
+      listings,
+      packageGroupId: 5,
+      slugs: ["sec12"],
+    });
+    expect(html).toContain('name="package_quantity"');
+    expect(html).toContain("Hidden Bundle");
+    expect(html).not.toContain("SecretItem");
+  });
+
   test("renders markdown paragraphs in terms and conditions", () => {
     const listings = [
       buildTicketListing(
