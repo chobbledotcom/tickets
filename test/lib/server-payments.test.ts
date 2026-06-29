@@ -10,6 +10,7 @@ import {
   assertPublicHtml,
   awaitTestRequest,
   bookAttendee,
+  createTestGroup,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
@@ -718,6 +719,87 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             "/payment/cancel?session_id=cs_test_cancel",
             "Payment Cancelled",
             `/ticket/${listing.slug}`,
+          );
+        },
+        resetStripeClient,
+      );
+    });
+
+    test("a cancelled package checkout links back to the package page", async () => {
+      const { stub } = await import("@std/testing/mock");
+      const { stripeApi } = await import("#shared/stripe.ts");
+      await setupStripe();
+
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Cancel Pkg",
+        slug: "cancel-pkg",
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      await withMocks(
+        () =>
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              id: "cs_pkg_cancel",
+              metadata: {
+                email: "john@example.com",
+                items: singleItem(member.id, 1, 1000),
+                name: "John",
+                package_group_id: String(group.id),
+              },
+              payment_status: "unpaid",
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >),
+          ),
+        async () => {
+          // The retry link is the bundle's page, not the member's standalone page.
+          await assertPublicHtml(
+            "/payment/cancel?session_id=cs_pkg_cancel",
+            "Payment Cancelled",
+            `/ticket/${group.slug}`,
+          );
+        },
+        resetStripeClient,
+      );
+    });
+
+    test("a cancelled package checkout falls back to the member page when the group is gone", async () => {
+      const { stub } = await import("@std/testing/mock");
+      const { stripeApi } = await import("#shared/stripe.ts");
+      await setupStripe();
+
+      const member = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      await withMocks(
+        () =>
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              id: "cs_pkg_cancel_gone",
+              metadata: {
+                email: "john@example.com",
+                items: singleItem(member.id, 1, 1000),
+                name: "John",
+                package_group_id: "99999",
+              },
+              payment_status: "unpaid",
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >),
+          ),
+        async () => {
+          await assertPublicHtml(
+            "/payment/cancel?session_id=cs_pkg_cancel_gone",
+            "Payment Cancelled",
+            `/ticket/${member.slug}`,
           );
         },
         resetStripeClient,

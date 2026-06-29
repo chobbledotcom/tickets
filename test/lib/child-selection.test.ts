@@ -10,6 +10,7 @@ import {
   childQtySpec as childQty,
   childSelectorSpec as childSelector,
   installFakeDom,
+  packageSelectorSpec as packageSelector,
   quantitySpec as quantity,
   restoreDocument,
   soleChildSpec as soleChild,
@@ -105,6 +106,33 @@ describe("child selection helpers", () => {
       childSelector("101"),
       soleChild("101", "202"),
     ]);
+
+    expect([...selectedListingIds()]).toEqual([]);
+  });
+
+  test("selectedListingIds includes every package member when a package is selected", () => {
+    // A package page renders only the `package_quantity` selector, so each member
+    // is active purely because a package is chosen (the submit path derives their
+    // quantities from the package count).
+    installFakeDom([packageSelector(["201", "202"], "2")]);
+
+    expect([...selectedListingIds()].sort()).toEqual(["201", "202"]);
+  });
+
+  test("selectedListingIds excludes package members when no package is selected", () => {
+    installFakeDom([packageSelector(["201", "202"], "0")]);
+
+    expect([...selectedListingIds()]).toEqual([]);
+  });
+
+  test("selectedListingIds tolerates a package selector with no member ids", () => {
+    installFakeDom([packageSelector([], "1")]);
+
+    expect([...selectedListingIds()]).toEqual([]);
+  });
+
+  test("selectedListingIds tolerates a package selector missing its members attribute", () => {
+    installFakeDom([{ name: "package_quantity", tag: "select", value: "1" }]);
 
     expect([...selectedListingIds()]).toEqual([]);
   });

@@ -375,6 +375,33 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       expect(html).not.toContain("Half Bundle");
     });
 
+    test("suppresses a package CTA when a member is inactive", async () => {
+      // A package is all-or-nothing: an inactive member makes the whole bundle
+      // unavailable rather than silently selling only the active subset.
+      await settings.update.showPublicSite(true);
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Partial Bundle",
+        slug: "partial-bundle",
+      });
+      await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 50,
+        name: "Active Member",
+      });
+      const inactive = await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 50,
+        name: "Inactive Member",
+      });
+      await deactivateTestListing(inactive.id);
+      await createTestListing({ maxAttendees: 50, name: "Standalone Listing" });
+
+      const html = await assertPublicHtml("/listings", "Standalone Listing");
+      expect(html).not.toContain(`href="/ticket/${pkg.slug}"`);
+      expect(html).not.toContain("Partial Bundle");
+    });
+
     test("suppresses a package CTA when the group has no members", async () => {
       await settings.update.showPublicSite(true);
       const empty = await createTestGroup({

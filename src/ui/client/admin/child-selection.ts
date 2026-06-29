@@ -88,6 +88,18 @@ export const childSelectorParentIds = (): string[] => {
 export const parentInCart = (parentId: string): boolean =>
   quantityValue(parentId) > 0;
 
+/** The member listing ids of an in-cart package: the ids encoded on the
+ * `package_quantity` selector (`data-package-members`) when at least one package
+ * is selected, else empty. Empty on non-package pages (no such selector). */
+export const selectedPackageMemberIds = (): string[] => {
+  const selector = document.querySelector<HTMLSelectElement>(
+    '[name="package_quantity"]',
+  );
+  if (selector === null || controlQty(selector) <= 0) return [];
+  const raw = selector.getAttribute("data-package-members") ?? "";
+  return raw.split(" ").filter((id) => id.length > 0);
+};
+
 /** The effective set of "active" listing ids: every page listing with quantity
  * > 0, plus every child given a positive `child_qty_*` under an in-cart parent.
  * Drives the question show/require machinery, so a child-only question is active
@@ -100,6 +112,11 @@ export const selectedListingIds = (): Set<string> => {
     const id = control.getAttribute("name")!.slice("quantity_".length);
     if (quantityValue(id) > 0) ids.add(id);
   }
+  // A package page offers only the `package_quantity` selector (members have no
+  // own quantity control), but the submit path derives a quantity for every
+  // member from the package count — so once a package is selected, EVERY member
+  // listing is active and its scoped questions must show/require.
+  for (const id of selectedPackageMemberIds()) ids.add(id);
   for (const parentId of childSelectorParentIds()) {
     if (!parentInCart(parentId)) continue;
     for (const childId of chosenChildIds(parentId)) ids.add(childId);
@@ -143,9 +160,13 @@ export const onChangeOf = (selector: string, listener: () => void): void => {
 };
 
 /** Run `listener` whenever a selection that can change the active-listing set
- * changes: any quantity control, or any per-child quantity control. */
+ * changes: any quantity control, any per-child quantity control, or the package
+ * count selector (which activates every package member at once). */
 export const onSelectionChange = (listener: () => void): void =>
-  onChangeOf('[name^="quantity_"], [name^="child_qty_"]', listener);
+  onChangeOf(
+    '[name^="quantity_"], [name^="child_qty_"], [name="package_quantity"]',
+    listener,
+  );
 
 /** Shared init scaffold for the parent/child enhancement scripts: no-op when the
  * page has no child selector, otherwise run `perParent` for every parent id on

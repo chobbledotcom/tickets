@@ -36,8 +36,7 @@ import {
 import {
   applyParentSoldOut,
   classifyForDiscovery,
-  groupHasBookableMember,
-  packageGroupBookable,
+  groupBookable,
 } from "./discovery.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
@@ -51,12 +50,9 @@ const isPublicListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
  * package with a single sold-out member can't sell, so its CTA is suppressed. */
 const loadPublicGroups = async (): Promise<Group[]> => {
   const groups = (await getAllGroups()).filter((g) => !g.hidden);
-  const bookable = await mapParallel(async (g: Group) => {
-    const members = await getActiveListingsByGroupId(g.id);
-    return g.is_package
-      ? packageGroupBookable(members, g.id)
-      : groupHasBookableMember(members);
-  })(groups);
+  const bookable = await mapParallel(async (g: Group) =>
+    groupBookable(g, await getActiveListingsByGroupId(g.id)),
+  )(groups);
   return groups.filter((_, i) => bookable[i]);
 };
 

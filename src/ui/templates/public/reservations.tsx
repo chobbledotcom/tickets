@@ -1053,9 +1053,13 @@ const renderPackageRows = (
   cap: number,
   hide: boolean,
 ): string => {
+  // Every member listing id, so the client knows which listing-scoped questions
+  // to show/require once a package is selected — even when members are hidden and
+  // render no rows of their own.
+  const memberIds = listings.map((e) => e.listing.id).join(" ");
   const selector = `<label>${t(
     "public.package.quantity",
-  )}<select name="package_quantity">${quantityOptions(
+  )}<select name="package_quantity" data-package-members="${memberIds}">${quantityOptions(
     cap,
     restoredPackageQuantity(cap),
   )}</select></label>`;

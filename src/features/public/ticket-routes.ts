@@ -15,7 +15,7 @@ import { getListingWithCountBySlug } from "#shared/db/listings.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";
-import { groupHasBookableMember } from "./discovery.ts";
+import { groupBookable } from "./discovery.ts";
 import { handleGroupTicketBySlug } from "./groups.ts";
 import { handleQrBookGet } from "./qr-book.ts";
 import { anyChildListing } from "./ticket-payment.ts";
@@ -98,12 +98,12 @@ export const handleTicketQrGet = async (
   // A group QR encodes `/ticket/<group>`, which renders no bookable quantity
   // when the group has no standalone-bookable member — every member is a child
   // (a booking can never start from a child, invariant I3) or a parent projected
-  // sold out (its required children all unavailable). Use the SAME gate as the
-  // `/listings` group CTA (Fix 3 + sold-out parents) so the QR 404s exactly when
-  // the page it points at would offer nothing to book.
+  // sold out (its required children all unavailable). For a PACKAGE the whole
+  // bundle must fit. Use the SAME gate as the `/listings` group CTA so the QR
+  // 404s exactly when the page it points at would offer nothing to book.
   if (group) {
     const members = await getActiveListingsByGroupId(group.id);
-    return (await groupHasBookableMember(members))
+    return (await groupBookable(group, members))
       ? qrResponse(slug)
       : notFoundResponse();
   }

@@ -29,6 +29,7 @@ import {
 } from "#shared/db/attendees.ts";
 import {
   getGroupIdsByListingIds,
+  getGroupListingIds,
   getGroupPackagePrices,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
@@ -39,6 +40,7 @@ import {
 } from "#shared/db/listing-parents.ts";
 import {
   availableDayCounts,
+  type Group,
   type Holiday,
   type ListingWithCount,
   sharedGroupCapacity,
@@ -301,19 +303,26 @@ export const groupHasBookableMember = async (
  * ({@link groupHasBookableMember}) is wrong here: it would advertise a Book CTA
  * for a package whose one sold-out/closed member caps `packageQuantityCap` at 0,
  * landing the buyer on a page that can only fail. Gate on the real package cap
- * (each member's capacity AND the shared pool ÷ combined member demand) ≥ 1.
- * Callers pass the group's already-loaded active members.
+ * (each member's capacity AND the shared pool ÷ combined member demand) ≥ 1, and
+ * require EVERY member to be active — a package is all-or-nothing, so one
+ * inactive member makes the whole bundle unavailable rather than silently
+ * selling the active subset. Callers pass the group's already-loaded active
+ * members.
  */
 export const packageGroupBookable = async (
   members: readonly ListingWithCount[],
   groupId: number,
 ): Promise<boolean> => {
   if (members.length === 0) return false;
-  const [ticketListings, rows, remaining] = await Promise.all([
+  const [allMemberIds, ticketListings, rows, remaining] = await Promise.all([
+    getGroupListingIds(groupId),
     buildTicketListingsWithGroupCapacity([...members]),
     getGroupPackagePrices(groupId),
     getGroupRemainingByGroupId([groupId]),
   ]);
+  // An inactive member is absent from `members` (active only) but still a group
+  // row, so fewer active members than total means the bundle is incomplete.
+  if (members.length < allMemberIds.length) return false;
   const quantities = new Map(rows.map((r) => [r.listing_id, r.quantity]));
   return (
     packageQuantityCap(
@@ -323,6 +332,18 @@ export const packageGroupBookable = async (
     ) >= 1
   );
 };
+
+/** Whether a group's `/listings` CTA / QR should be offered: a regular group
+ * needs one standalone-bookable member ({@link groupHasBookableMember}); a
+ * PACKAGE needs the whole bundle to fit ({@link packageGroupBookable}). The
+ * single decision both the listings page and the group QR share. */
+export const groupBookable = (
+  group: Group,
+  members: readonly ListingWithCount[],
+): Promise<boolean> =>
+  group.is_package
+    ? packageGroupBookable(members, group.id)
+    : groupHasBookableMember(members);
 
 /** Force a {@link TicketListing} into the sold-out state (no Book CTA, no
  * purchasable quantity) — projecting a parent with no bookable child onto the

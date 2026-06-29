@@ -167,7 +167,22 @@ export const cancelPageResponse = async (
     );
     return paymentErrorResponse("Listing not found", 404);
   }
-  return htmlResponse(paymentCancelPage(listing, `/ticket/${listing.slug}`));
+  // A package checkout retries against the bundle's own page, not a member's
+  // standalone page (which may hide members or use override prices/quantities).
+  const retryHref = await retryHrefFor(intent, listing.slug);
+  return htmlResponse(paymentCancelPage(listing, retryHref));
+};
+
+/** The retry link for a cancelled checkout: the package group's page when the
+ * order was a package, else the (first) listing's own page. Falls back to the
+ * listing slug if the group is gone. */
+const retryHrefFor = async (
+  intent: BookingIntent | null,
+  listingSlug: string,
+): Promise<string> => {
+  if (intent?.packageGroupId === undefined) return `/ticket/${listingSlug}`;
+  const group = await groupsTable.findById(intent.packageGroupId);
+  return `/ticket/${group?.slug ?? listingSlug}`;
 };
 
 export const validatePaidSession = async (
@@ -579,6 +594,9 @@ const handleReservationConflict = async (
 export type PackagePricing = {
   memberIds: Set<number>;
   priceMap: Map<number, number>;
+  /** Each member's CURRENT per-package quantity, to re-check the signed booked
+   * quantity against an operator's mid-checkout edit. */
+  quantityMap: Map<number, number>;
 };
 
 const loadPackagePricing = async (
@@ -595,6 +613,7 @@ const loadPackagePricing = async (
         .filter((r) => r.package_price > 0)
         .map((r) => [r.listing_id, r.package_price]),
     ),
+    quantityMap: new Map(rows.map((r) => [r.listing_id, r.quantity])),
   };
 };
 
@@ -615,6 +634,12 @@ export const expectedItemPrice = (
   if (foldedChildIds.has(item.e)) return basePrice;
   if (!isPackageIntent) return basePrice;
   if (!pkg || !pkg.memberIds.has(item.e)) return null;
+  // The signed booked quantity must be a whole number of packages at the CURRENT
+  // per-package quantity. An operator raising a member's quantity mid-checkout
+  // leaves `item.q` stale (e.g. q=1 when the package now needs 3), so fail closed
+  // → the same price_changed refund a mid-checkout price edit takes.
+  const perPackage = pkg.quantityMap.get(item.e) ?? 1;
+  if (item.q % perPackage !== 0) return null;
   const override = pkg.priceMap.get(item.e);
   return override ? override * item.q : basePrice;
 };
