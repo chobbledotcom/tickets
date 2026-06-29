@@ -144,8 +144,9 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     const result = await createBookingAtomic(paidInput(listing.id, 600), plan);
 
     expect(result).not.toBe("sold-out");
-    if (result === "sold-out" || !result.success)
+    if (result === "sold-out" || !result.success) {
       throw new Error("expected ok");
+    }
     const attendeeId = result.attendees[0]!.id;
     // Gross revenue recognised, surcharge billed, and the £6 paid clears the
     // balance to zero — the legs were posted with the real attendee id.
@@ -224,8 +225,9 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       plan,
     );
 
-    if (result === "sold-out" || !result.success)
+    if (result === "sold-out" || !result.success) {
       throw new Error("expected ok");
+    }
     expect(result.attendees.length).toBe(1);
     // No money moved, no event-group stamp written.
     expect((await allTransfers()).length).toBe(0);
@@ -313,8 +315,9 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     );
 
     // Greedy create: the open listing's booking landed, the full one didn't.
-    if (result === "sold-out" || !result.success)
+    if (result === "sold-out" || !result.success) {
       throw new Error("expected ok");
+    }
     expect(result.attendees.length).toBe(1);
     // The all-bookings-landed guard held back every leg and the finalize, so the
     // caller's ensureAllBookings can roll the partial booking back cleanly.

@@ -268,7 +268,9 @@ END`,
 FOR EACH ROW BEGIN
   ${spec.contribution("+", "NEW")}
 END`,
-    [updateName]: `AFTER UPDATE OF ${spec.updateOfColumns.join(", ")} ON ${spec.usageTable}
+    [updateName]: `AFTER UPDATE OF ${spec.updateOfColumns.join(
+      ", ",
+    )} ON ${spec.usageTable}
 FOR EACH ROW BEGIN
   ${spec.contribution("-", "OLD")}
   ${spec.contribution("+", "NEW")}

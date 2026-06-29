@@ -51,14 +51,14 @@ describeWithEnv(
       );
     });
 
+    const superuserItem = {
+      href: "/admin/settings#settings-superuser",
+      id: "superuser" as const,
+      label: "Choose whether to enable a superuser recovery account.",
+    };
+
     test("renders superuser nag link when items contain the superuser item", () => {
-      const items = [
-        {
-          href: "/admin/settings#settings-superuser",
-          id: "superuser" as const,
-          label: "Choose whether to enable a superuser recovery account.",
-        },
-      ];
+      const items = [superuserItem];
       const html = String(SettingsNagBanner({ items }));
       expect(html).toContain('href="/admin/settings#settings-superuser"');
       expect(html).toContain(
@@ -76,14 +76,7 @@ describeWithEnv(
         },
         () => {
           const baseNags = getSettingsNagItems();
-          const items = [
-            ...baseNags,
-            {
-              href: "/admin/settings#settings-superuser",
-              id: "superuser" as const,
-              label: "Choose whether to enable a superuser recovery account.",
-            },
-          ];
+          const items = [...baseNags, superuserItem];
           const html = String(SettingsNagBanner({ items }));
           expect(html).toContain(
             'href="/admin/settings#settings-payment-provider"',
@@ -105,13 +98,7 @@ describeWithEnv(
     });
 
     test("superuser nag label text matches exactly", () => {
-      const items = [
-        {
-          href: "/admin/settings#settings-superuser",
-          id: "superuser" as const,
-          label: "Choose whether to enable a superuser recovery account.",
-        },
-      ];
+      const items = [superuserItem];
       const html = String(SettingsNagBanner({ items }));
       expect(html).toContain(
         "Choose whether to enable a superuser recovery account.",

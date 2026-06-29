@@ -213,7 +213,9 @@ const mergePreview = async (
   sourceToken: string,
 ): Promise<{ version: string; bookingField: string }> => {
   const page = await adminGet(
-    `/admin/attendees/${targetId}/merge?token=${encodeURIComponent(sourceToken)}`,
+    `/admin/attendees/${targetId}/merge?token=${encodeURIComponent(
+      sourceToken,
+    )}`,
   );
   expect(page.status).toBe(200);
   const html = await page.text();
@@ -1449,7 +1451,9 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
 
     // The preview shows the conflict row but NOT the money-decision UI.
     const preview = await adminGet(
-      `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+      `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+        sourceToken,
+      )}`,
     );
     const previewHtml = await preview.text();
     expect(previewHtml).toContain('name="booking_');

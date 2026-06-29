@@ -85,6 +85,15 @@ const withStripe = async (
   }
 };
 
+const expectStripeRedirect = (
+  response: Response,
+  stripe: ReturnType<typeof stubStripe>,
+): void => {
+  expect(response.status).toBe(302);
+  expect(response.headers.get("location")).toContain("stripe.example");
+  expect(stripe.checkoutStub.calls.length).toBe(1);
+};
+
 /** Assert the most recent Stripe checkout session was created with a single
  *  line at `expectedUnitPrice`, after the form redirected (302). Two
  *  qr-book-vs-`custom_price` tests share this exact assertion pair. */
@@ -429,9 +438,7 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
           const response = await awaitTestRequest(
             qrBookPath(listing.slug, token),
           );
-          expect(response.status).toBe(302);
-          expect(response.headers.get("location")).toContain("stripe.example");
-          expect(stripe.checkoutStub.calls.length).toBe(1);
+          expectStripeRedirect(response, stripe);
         });
       } finally {
         await settings.update.terms("");
@@ -568,9 +575,7 @@ describeWithEnv("qr-book scan handler > parent gate", { db: true }, () => {
     const stripe = stubStripe();
     try {
       const response = await awaitTestRequest(qrBookPath(listing.slug, token));
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("stripe.example");
-      expect(stripe.checkoutStub.calls.length).toBe(1);
+      expectStripeRedirect(response, stripe);
     } finally {
       stripe.restore();
     }

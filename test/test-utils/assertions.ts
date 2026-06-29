@@ -86,6 +86,25 @@ export const expectRejectsEmptyName = async (path: string): Promise<void> => {
   );
 };
 
+/** DELETE a named resource via the admin JSON API with a confirmation and
+ *  assert the standard `{ status: "ok" }` 200 response. */
+export const assertApiDeleteOk = async (
+  url: string,
+  confirmationName: string,
+): Promise<void> => {
+  const { apiRequest } = await import("#test-utils/session.ts");
+  await assertJson(
+    apiRequest(url, {
+      body: { confirm_identifier: confirmationName },
+      method: "DELETE",
+    }),
+    200,
+    (body) => {
+      expect(body.status).toBe("ok");
+    },
+  );
+};
+
 export const assertFormRedirect = async (
   path: string,
   data: Record<string, string>,

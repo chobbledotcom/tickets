@@ -317,9 +317,13 @@ describe("sumup", () => {
       expect(result.merchant.error).toBe("No merchant code configured");
     });
 
-    test("reports success with key mode, merchant, and currency", async () => {
+    const withMerchantClient = (fn: () => Promise<void>): Promise<void> => {
       const client = makeClient({ merchantGet: () => Promise.resolve({}) });
-      await withClient(client, async () => {
+      return withClient(client, fn);
+    };
+
+    test("reports success with key mode, merchant, and currency", () =>
+      withMerchantClient(async () => {
         const result = await testSumupConnection();
         expect(result.ok).toBe(true);
         expect(result.apiKey).toEqual({ mode: "test", valid: true });
@@ -328,13 +332,11 @@ describe("sumup", () => {
           merchantCode: "MC123",
         });
         expect(result.currency).toEqual({ code: "GBP", supported: true });
-      });
-    });
+      }));
 
     test("fails overall when the site currency is unsupported", async () => {
       settings.setForTest({ currency: "AUD" });
-      const client = makeClient({ merchantGet: () => Promise.resolve({}) });
-      await withClient(client, async () => {
+      await withMerchantClient(async () => {
         const result = await testSumupConnection();
         expect(result.ok).toBe(false);
         expect(result.apiKey.valid).toBe(true);
@@ -344,8 +346,7 @@ describe("sumup", () => {
 
     test("reports the key mode as unknown for an unrecognized key prefix", async () => {
       settings.setForTest({ sumup_api_key: "plainkey" });
-      const client = makeClient({ merchantGet: () => Promise.resolve({}) });
-      await withClient(client, async () => {
+      await withMerchantClient(async () => {
         const result = await testSumupConnection();
         expect(result.apiKey.mode).toBe("unknown");
       });

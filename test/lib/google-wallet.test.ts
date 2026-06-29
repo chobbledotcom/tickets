@@ -25,6 +25,12 @@ const makePassData = (
   ...overrides,
 });
 
+const findTextModule = (
+  obj: { textModulesData: Array<Record<string, string>> },
+  id: string,
+): Record<string, string> =>
+  obj.textModulesData.find((m) => m.id === id) as Record<string, string>;
+
 describe("google-wallet", () => {
   // generateGoogleTestCreds() is memoized, so one call yields the shared creds
   // for every test.
@@ -106,9 +112,7 @@ describe("google-wallet", () => {
     test("includes quantity when greater than 1", async () => {
       const decoded = await extractPayload(makePassData({ quantity: 3 }));
       const obj = decoded.payload.listingTicketObjects[0];
-      const qty = obj.textModulesData.find(
-        (m: Record<string, string>) => m.id === "qty",
-      );
+      const qty = findTextModule(obj, "qty");
       expect(qty).toBeDefined();
       expect(qty.body).toBe("3");
     });
@@ -124,9 +128,7 @@ describe("google-wallet", () => {
         makePassData({ currencyCode: "EUR", pricePaid: 2500 }),
       );
       const obj = decoded.payload.listingTicketObjects[0];
-      const price = obj.textModulesData.find(
-        (m: Record<string, string>) => m.id === "price",
-      );
+      const price = findTextModule(obj, "price");
       expect(price).toBeDefined();
       expect(price.body).toBe("25 EUR");
     });
@@ -142,9 +144,7 @@ describe("google-wallet", () => {
         makePassData({ currencyCode: "JPY", pricePaid: 1000 }),
       );
       const obj = decoded.payload.listingTicketObjects[0];
-      const price = obj.textModulesData.find(
-        (m: Record<string, string>) => m.id === "price",
-      );
+      const price = findTextModule(obj, "price");
       expect(price.body).toBe("1000 JPY");
     });
   });

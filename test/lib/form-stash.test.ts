@@ -21,8 +21,9 @@ const stashRequired = (data: string): string => {
 
 const formStashStat = () => {
   const stat = getAllCacheStats().find((s) => s.name === "form-stash");
-  if (stat === undefined)
+  if (stat === undefined) {
     throw new Error("form-stash stats are not registered");
+  }
   return stat;
 };
 
