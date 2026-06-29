@@ -83,6 +83,7 @@ import listingAttendeeLedgerEventGroupIndexMigration from "./migrations/2026-06-
 import attendeesKindNotNullMigration from "./migrations/2026-06-26_attendees_kind_not_null.ts";
 import serviceCostsMigration from "./migrations/2026-06-27_service_costs.ts";
 import groupListingsMigration from "./migrations/2026-06-28_group_listings.ts";
+import listingUseDefaultsMigration from "./migrations/2026-06-28_listing_use_defaults.ts";
 import attendeePackageGroupMigration from "./migrations/2026-06-29_attendee_package_group.ts";
 import packageQuantitiesMigration from "./migrations/2026-06-29_package_quantities.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
@@ -266,6 +267,8 @@ export const MIGRATIONS: Migration[] = [
   listingAttendeeLedgerEventGroupIndexMigration,
   attendeesKindNotNullMigration,
   serviceCostsMigration,
+  // Pure additive column add (use_defaults on listings); from main.
+  listingUseDefaultsMigration,
   groupListingsMigration,
   packageQuantitiesMigration,
   // Stamps package_group_id on each booking row of a package order, so tickets

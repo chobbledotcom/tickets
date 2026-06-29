@@ -46,6 +46,11 @@ import {
   invalidateUsersCache,
 } from "#shared/db/users.ts";
 import {
+  type ListingDefaults,
+  parseListingDefaults,
+  serializeListingDefaults,
+} from "#shared/listing-defaults.ts";
+import {
   DEFAULT_ORPHAN_RETENTION,
   isOrphanRetentionValue,
 } from "#shared/orphan-retention.ts";
@@ -128,6 +133,7 @@ export const CONFIG_KEYS = {
   LATEST_SCRIPT_VERSION: "latest_script_version",
   LATEST_SCRIPT_VERSION_NAME: "latest_script_version_name",
   LISTING_COLUMN_ORDER: "listing_column_order",
+  LISTING_DEFAULTS: "listing_defaults",
   ORDER_ENABLED: "order_enabled",
   ORDER_INTRO_TEXT: "order_intro_text",
   ORPHAN_PURGE_RETENTION: "orphan_purge_retention",
@@ -363,6 +369,10 @@ const ENCRYPTED_KEYS = [
   CONFIG_KEYS.SMS_GATEWAY_USERNAME,
   CONFIG_KEYS.SMS_GATEWAY_PASSWORD,
   CONFIG_KEYS.SMS_GATEWAY_WEBHOOK_SECRET,
+  // The defaults blob can carry a webhook / thank-you URL (which commonly hold
+  // bearer tokens or private endpoints) — the same fields are encrypted on
+  // listings, so the shared default is encrypted at rest too.
+  CONFIG_KEYS.LISTING_DEFAULTS,
 ] as const;
 
 /** Union of all string-setting snapshot keys. */
@@ -1159,6 +1169,9 @@ const settingsBase = {
     return snap("has_logistics");
   },
   invalidateCache,
+  get listingDefaults(): ListingDefaults {
+    return parseListingDefaults(snap(CONFIG_KEYS.LISTING_DEFAULTS));
+  },
   // --- Core ---
   loadKeys,
   get orderEnabled(): boolean {
@@ -1344,6 +1357,11 @@ const settingsBase = {
     // --- Google Wallet writes ---
     googleWallet: createGoogleWalletUpdateSettings(encryptedUpdate),
     hasLogistics: boolUpdate(CONFIG_KEYS.HAS_LOGISTICS, "has_logistics"),
+    listingDefaults: async (v: ListingDefaults): Promise<void> => {
+      const json = serializeListingDefaults(v);
+      await writeEncrypted(CONFIG_KEYS.LISTING_DEFAULTS, json);
+      setSnapshotField(CONFIG_KEYS.LISTING_DEFAULTS, json);
+    },
     orderEnabled: boolUpdate(CONFIG_KEYS.ORDER_ENABLED, "order_enabled"),
     orphanPurgeRetention: rawUpdate(
       CONFIG_KEYS.ORPHAN_PURGE_RETENTION,

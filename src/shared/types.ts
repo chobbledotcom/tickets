@@ -384,6 +384,11 @@ export interface Listing {
   /** When true (and logistics is enabled) this listing is dropped off and
    * collected from the customer, so its attendees carry logistics agents. */
   uses_logistics: boolean;
+  /** When true, the fields covered by the operator's listing defaults are
+   * inherited live from settings rather than this row's own stored values
+   * (see {@link resolveListingDefaults}). A single per-listing flag, never a
+   * per-field one, so a stored `false` is never ambiguous. */
+  use_defaults: boolean;
 }
 
 /** A logistics agent (typically a van) used for drop-off and collection. */

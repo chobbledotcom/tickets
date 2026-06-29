@@ -123,3 +123,7 @@ test/test-utils/test-browser.ts:249:27  ?? → ||  # button attribute capture fa
 test/test-utils/test-browser.ts:256:49  ?? → ||  # button value fallback is "", so empty value and absent value agree
 test/test-utils/test-browser.ts:351:58  ?? → ||  # RequestInit.method is omitted or a non-empty method string in every caller
 test/test-utils/test-browser.ts:414:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined
+src/ui/templates/admin/listing-defaults.tsx:90:19  ?? → ||  # UrlControl value: string|undefined; the only falsy-non-null string is "" which equals the "" fallback, so ?? and || coincide
+src/ui/templates/admin/listing-defaults.tsx:119:42  ?? → ||  # value?.includes(day): boolean|undefined; for boolean b, b ?? false === b || false, and undefined ?? false === undefined || false
+src/shared/listing-defaults.ts:95:52  === → ==  # hidden gate `months_per_unit === 0`: months_per_unit is a number (DB integer column), so === and == never disagree — there is no string/null operand to coerce
+src/shared/listing-defaults.ts:123:59  !== → !=  # setListingDefaultFields "is set" check: ListingDefaults values are boolean|number|string|string[]|undefined and never null, so `!== undefined` and `!= undefined` always agree

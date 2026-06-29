@@ -62,6 +62,7 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   slug_index: "test-listing-index",
   thank_you_url: "https://example.com/thanks",
   unit_price: 0,
+  use_defaults: false,
   uses_logistics: false,
   webhook_url: "",
   ...overrides,

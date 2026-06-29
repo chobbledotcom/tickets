@@ -34,6 +34,14 @@ import {
 } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
+  hasAnyListingDefault,
+  type ListingDefaultField,
+  type ListingDefaultKind,
+  type ListingDefaults,
+  listingDefaultFormClasses,
+  setListingDefaultFields,
+} from "#shared/listing-defaults.ts";
+import {
   inferTemplate,
   LISTING_TEMPLATES,
   type ListingTemplate,
@@ -1534,6 +1542,77 @@ const listingToFieldValues = (listing: ListingWithCount): FieldValues =>
     slug: listing.slug,
   });
 
+/** Render one set default as its listing-form field value, reusing the same
+ * formatters {@link listingToFieldValues} uses for a saved listing. */
+/** Per-kind formatter to a listing-form field value. Keyed by
+ * {@link ListingDefaultKind} so a new kind is a compile error here, matching the
+ * settings parser and control. */
+const KIND_FORMATTERS: Record<
+  ListingDefaultKind,
+  (value: ListingDefaults[keyof ListingDefaults]) => string
+> = {
+  bool: (value) => booleanToCheckbox(value as boolean),
+  days: (value) => formatBookableDays(value as string[]),
+  number: (value) => String(value),
+  url: (value) => String(value),
+};
+
+const defaultFieldValue = (
+  field: ListingDefaultField,
+  value: ListingDefaults[keyof ListingDefaults],
+): string => KIND_FORMATTERS[field.kind](value);
+
+/**
+ * The configured defaults rendered as listing-form field values, so a fresh
+ * create form pre-fills the fields the operator has set a default for (the
+ * values the "Use defaults" switch hides and the listing will inherit).
+ */
+const defaultsToFieldValues = (defaults: ListingDefaults): FieldValues =>
+  Object.fromEntries(
+    setListingDefaultFields(defaults).map((field) => [
+      field.field,
+      defaultFieldValue(field, defaults[field.key]),
+    ]),
+  );
+
+/**
+ * Combine the template-mode classes (if any) with one marker class per set
+ * default, so both the Customise hide and the Use-defaults hide can apply.
+ */
+const listingFormClassFor = (
+  template: ListingTemplate | null,
+  defaults: ListingDefaults,
+): string | undefined => {
+  const classes = [
+    template ? listingFormClass(template) : "",
+    listingDefaultFormClasses(defaults),
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return classes || undefined;
+};
+
+/** The form's `class` attribute as a spreadable prop, omitted entirely when no
+ * template or default classes apply (so we never pass `class={undefined}`). */
+const listingFormClassAttr = (
+  template: ListingTemplate | null,
+  defaults: ListingDefaults,
+): { class?: string } => {
+  const classes = listingFormClassFor(template, defaults);
+  return classes ? { class: classes } : {};
+};
+
+/**
+ * Whether to render the "Use defaults" toggle: only when defaults exist AND the
+ * viewer isn't an editor. Editors can't toggle inheritance — it would change the
+ * effective webhook (PII) they're otherwise locked out of — so the control is
+ * hidden from them and the POST forces use_defaults back to its stored value.
+ */
+const showUseDefaultsToggle = (
+  session: AdminSession,
+  defaults: ListingDefaults,
+): boolean => hasAnyListingDefault(defaults) && session.adminLevel !== "editor";
+
 export const listingAggregateToFieldValues = (
   listing: ListingWithCount,
 ): FieldValues => ({
@@ -1902,6 +1981,8 @@ const ListingFormSections = ({
   childOfNote = "",
   customiseOpen,
   isTemplated,
+  showUseDefaults = false,
+  useDefaultsChecked = false,
 }: {
   fields: Field[];
   values: FieldValues;
@@ -1921,6 +2002,10 @@ const ListingFormSections = ({
   customiseOpen: boolean;
   /** True when a named template is active and dimension toggles should be hideable. */
   isTemplated: boolean;
+  /** Whether the operator has set any listing defaults (renders the toggle). */
+  showUseDefaults?: boolean;
+  /** Whether "Use defaults" starts checked (hiding the defaulted fields). */
+  useDefaultsChecked?: boolean;
 }): JSX.Element => {
   const fieldMap = new Map<string, Field>(fields.map((f) => [f.name, f]));
   const sec = (names: readonly string[]): string =>
@@ -1939,6 +2024,27 @@ const ListingFormSections = ({
           {t("listings_table.customise")}{" "}
           <small>{t("listings_table.customise_hint")}</small>
         </label>
+      )}
+
+      {showUseDefaults ? (
+        <label class="listing-use-defaults-toggle">
+          <input
+            checked={useDefaultsChecked}
+            id="use-defaults"
+            name="use_defaults"
+            type="checkbox"
+            value="1"
+          />
+          {t("listing_defaults.use_defaults_toggle")}{" "}
+          <small>{t("listing_defaults.use_defaults_hint")}</small>
+        </label>
+      ) : (
+        // No defaults are set, so the toggle is hidden — but if this listing is
+        // still flagged to inherit, preserve that flag so an unrelated edit
+        // doesn't silently opt it out (and stop inheriting once defaults return).
+        useDefaultsChecked && (
+          <input name="use_defaults" type="hidden" value="1" />
+        )
       )}
 
       <fieldset class="listing-section">
@@ -2033,13 +2139,29 @@ export const adminListingNewPage = (
   ];
   const template = LISTING_TEMPLATES.find((t) => t.id === templateId) ?? null;
   const seeds = templateId ? (TEMPLATE_SEEDS[templateId] ?? {}) : {};
+  const defaults = settings.listingDefaults;
+  const showUseDefaults = showUseDefaultsToggle(session, defaults);
+  // A plain (Custom) new listing starts on the defaults — the spec's "which it
+  // will be for new listings, if there are any default set". A listing started
+  // from a named template instead keeps the shape that template pins: defaults
+  // must NOT override the seed (e.g. a "logistics = no" default silently
+  // un-logistic-ing the Hireable card), so Use-defaults starts OFF and the seed
+  // is shown as-is. A POST error re-render honours whatever was submitted.
+  const useDefaultsChecked = submitted
+    ? submitted.use_defaults === "1"
+    : showUseDefaults && !template;
+  const newValues = submitted
+    ? submitted
+    : template
+      ? seeds
+      : { ...seeds, ...defaultsToFieldValues(defaults) };
   return String(
     <Layout title={t("listings_table.add_listing")}>
       <AdminNav active="/admin/" session={session} />
 
       <CsrfForm
         action="/admin/listing"
-        {...(template ? { class: listingFormClass(template) } : {})}
+        {...listingFormClassAttr(template, defaults)}
         enctype="multipart/form-data"
       >
         <h1>{t("listings_table.add_listing")}</h1>
@@ -2063,7 +2185,9 @@ export const adminListingNewPage = (
           imagePreview=""
           isTemplated={!!template}
           selectedGroupIds={selectedGroupIds}
-          values={submitted ?? seeds}
+          showUseDefaults={showUseDefaults}
+          useDefaultsChecked={useDefaultsChecked}
+          values={newValues}
         />
         <SubmitButton icon="plus">
           {t("listings_table.create_listing")}
@@ -2099,6 +2223,8 @@ export const adminDuplicateListingPage = (
     ...(storageEnabled ? [getImageField(), getAttachmentField()] : []),
   ];
   const template = inferTemplate(listing);
+  const defaults = settings.listingDefaults;
+  const showUseDefaults = showUseDefaultsToggle(session, defaults);
   return String(
     <Layout
       title={t("listings_table.duplicate_listing_title", {
@@ -2116,7 +2242,7 @@ export const adminDuplicateListingPage = (
       </div>
       <CsrfForm
         action="/admin/listing"
-        {...(template ? { class: listingFormClass(template) } : {})}
+        {...listingFormClassAttr(template, defaults)}
         enctype="multipart/form-data"
       >
         <input
@@ -2134,6 +2260,8 @@ export const adminDuplicateListingPage = (
           imagePreview=""
           isTemplated={!!template}
           selectedGroupIds={selectedGroupIds}
+          showUseDefaults={showUseDefaults}
+          useDefaultsChecked={listing.use_defaults}
           values={values}
         />
         <SubmitButton icon="plus">
@@ -2277,6 +2405,8 @@ export const adminListingEditPage = (
       : "";
   const durationWarning = String(<DurationWarning listing={listing} />);
   const template = inferTemplate(listing);
+  const defaults = settings.listingDefaults;
+  const showUseDefaults = showUseDefaultsToggle(session, defaults);
   // Editors edit listing content but may not see ledger/income figures, so the
   // running-totals and income-adjust sections are omitted for them (and the edit
   // POST ignores any aggregate fields they craft — defence in depth).
@@ -2294,7 +2424,7 @@ export const adminListingEditPage = (
       )}
       <CsrfForm
         action={`/admin/listing/${listing.id}/edit`}
-        {...(template ? { class: listingFormClass(template) } : {})}
+        {...listingFormClassAttr(template, defaults)}
         enctype="multipart/form-data"
         id="listing-edit-form"
       >
@@ -2315,6 +2445,8 @@ export const adminListingEditPage = (
           imagePreview={imagePreview}
           isTemplated={!!template}
           selectedGroupIds={selectedGroupIds}
+          showUseDefaults={showUseDefaults}
+          useDefaultsChecked={listing.use_defaults}
           values={listingToFieldValues(listing)}
         />
         <ListingRunningTotalsSection

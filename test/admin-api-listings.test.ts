@@ -8,6 +8,7 @@ import {
   invalidateListingsCache,
   listingsTable,
 } from "#shared/db/listings.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   apiRequest,
   assertJson,
@@ -808,6 +809,26 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         expect(result.error).toContain("positive integer ids");
       }
     });
+
+    test("maps the use_defaults flag both ways and omits it when absent", async () => {
+      // true/false both round-trip (so the API can opt in *and* out), and an
+      // absent flag stays absent rather than defaulting to either value.
+      const cases: Array<[boolean | undefined, boolean | undefined]> = [
+        [true, true],
+        [false, false],
+        [undefined, undefined],
+      ];
+      for (const [sent, expected] of cases) {
+        const body: Record<string, unknown> = {
+          max_attendees: 10,
+          name: "Inheriting",
+        };
+        if (sent !== undefined) body.use_defaults = sent;
+        const result = await bodyToCreateInput(body);
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.input.useDefaults).toBe(expected);
+      }
+    });
   });
 
   describe("POST /api/admin/listings - group validation", () => {
@@ -1112,6 +1133,39 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         expect(result.input.hidden).toBe(false);
         expect(result.input.maxPrice).toBe(0);
       }
+    });
+
+    test("merges onto stored values, not inherited defaults", async () => {
+      // Set the default first so creating the listing invalidates the cache and
+      // the resolving lookup sees the default live.
+      await settings.update.listingDefaults({ hidden: true });
+      const listing = await createTestListing({
+        hidden: false,
+        useDefaults: true,
+      });
+      const resolved = (await getListingWithCount(listing.id))!;
+      // The lookup row inherits the default…
+      expect(resolved.hidden).toBe(true);
+      // …but an update that doesn't touch hidden keeps the listing's stored
+      // false, so clearing the default later still restores its own value.
+      const result = await bodyToUpdateInput({ name: "Renamed" }, resolved);
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.input.hidden).toBe(false);
+    });
+
+    test("preserves use_defaults when absent and toggles it when sent", async () => {
+      const existing = testListingWithCount({
+        max_attendees: 10,
+        name: "Inheriting",
+        slug: "inheriting",
+        use_defaults: true,
+      });
+      // Omitted → the flag is preserved (an unrelated PUT can't un-inherit it).
+      const kept = await bodyToUpdateInput({}, existing);
+      expect(kept.ok && kept.input.useDefaults).toBe(true);
+      // Explicit false → turned off.
+      const off = await bodyToUpdateInput({ use_defaults: false }, existing);
+      expect(off.ok && off.input.useDefaults).toBe(false);
     });
 
     test("preserves existing closes_at null as empty string", async () => {

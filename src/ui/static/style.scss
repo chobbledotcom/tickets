@@ -1643,6 +1643,18 @@ label.terms-agree {
   );
 }
 
+// Hide a listing field whose value is supplied by the operator's listing
+// defaults while the form's "Use defaults" switch is on. Gated on the per-field
+// marker class so only the fields that actually have a default set are hidden.
+// $class is the kebab-case field name (the marker class suffix); $field is the
+// snake-case form field name.
+@mixin hide-when-using-defaults($class, $field) {
+  @include hidden-in-form(
+    '.listing-form--default-#{$class}:has(#use-defaults:checked)',
+    'label:has([name="#{$field}"])'
+  );
+}
+
 // Daily-only scheduling fields are grouped in one section, hidden entirely for
 // standard listings (which book a single fixed date instead).
 @include hidden-when-selected(
@@ -1701,6 +1713,23 @@ form.listing-form--templated.listing-form--no-daily:not(:has(#customise-listing:
     display: none;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Listing defaults: while "Use defaults" is on, hide each field the operator
+// has set a default for (marked by a per-field class on the form), so a listing
+// inheriting every default shows a much shorter form. Pure CSS — the inputs stay
+// in the DOM, so unticking Use defaults reveals them pre-filled with the
+// defaults to customise from.
+// ---------------------------------------------------------------------------
+@include hide-when-using-defaults("uses-logistics", "uses_logistics");
+@include hide-when-using-defaults("bookable-days", "bookable_days");
+@include hide-when-using-defaults("minimum-days-before", "minimum_days_before");
+@include hide-when-using-defaults("maximum-days-after", "maximum_days_after");
+@include hide-when-using-defaults("duration-days", "duration_days");
+@include hide-when-using-defaults("customisable-days", "customisable_days");
+@include hide-when-using-defaults("webhook-url", "webhook_url");
+@include hide-when-using-defaults("thank-you-url", "thank_you_url");
+@include hide-when-using-defaults("hidden", "hidden");
 
 // Hide the max price field unless "Allow Pay More" is checked.
 @include reveal-when-checked("can_pay_more", 'label:has([name="max_price"])');
@@ -1800,6 +1829,12 @@ form.listing-form--templated.listing-form--no-daily:not(:has(#customise-listing:
 
 /* Customise toggle in listing forms */
 .listing-customise-toggle {
+  display: block;
+  margin-block: var(--space-m);
+}
+
+/* "Use defaults" toggle in listing forms */
+.listing-use-defaults-toggle {
   display: block;
   margin-block: var(--space-m);
 }

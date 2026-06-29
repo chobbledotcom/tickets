@@ -6,7 +6,12 @@ import {
   getGroupPackagePrices,
   getListingsByGroupId,
 } from "#shared/db/groups.ts";
-import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
+import {
+  getAllListings,
+  getListingWithCount,
+  getStoredListingWithCount,
+} from "#shared/db/listings.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   adminFormPost,
   createTestGroup,
@@ -99,6 +104,30 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       expect(await getGroupIdsByListingId(sourceListing.id)).toContain(
         group.id,
       );
+    });
+
+    test("clones a use-defaults listing from its stored values, not inherited defaults", async () => {
+      // A Hidden=Yes default is live while we duplicate the group.
+      await settings.update.listingDefaults({ hidden: true });
+      const group = await createTestGroup({ name: "Inherits" });
+      await createTestListing({
+        groupId: group.id,
+        hidden: false,
+        name: "Inheriting member",
+        useDefaults: true,
+      });
+
+      await adminFormPost(`/admin/groups/${group.id}/bulk-actions/duplicate`, {
+        new_name: "Inherits copy",
+      });
+
+      const newGroup = (await getAllGroups()).find(
+        (g) => g.name === "Inherits copy",
+      )!;
+      const clone = (await getListingsByGroupId(newGroup.id))[0]!;
+      // The clone's OWN stored hidden is the source's stored false, not the
+      // Hidden=Yes default — so clearing the default later won't strand it.
+      expect((await getStoredListingWithCount(clone.id))?.hidden).toBe(false);
     });
 
     test("duplicates with no replacements copies names and dates verbatim", async () => {

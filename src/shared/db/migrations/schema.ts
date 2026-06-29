@@ -104,6 +104,7 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["customisable_days", "INTEGER NOT NULL DEFAULT 0"],
         ["day_prices", "TEXT NOT NULL DEFAULT '{}'"],
         ["uses_logistics", "INTEGER NOT NULL DEFAULT 0"],
+        ["use_defaults", "INTEGER NOT NULL DEFAULT 0"],
         // Precomputed counts over listing_attendees, maintained by the
         // LISTING_AGGREGATE_TRIGGERS so listing reads and the active-listing
         // stats never COUNT the listing_attendees table. booked_quantity is
