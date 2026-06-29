@@ -99,11 +99,24 @@ export const listingDefaultFormClasses = (defaults: ListingDefaults): string =>
 /**
  * Resolve a listing's effective values: when `use_defaults` is on, overlay each
  * configured default onto a copy of the listing; otherwise return it unchanged.
- * Pure — the caller supplies the current defaults snapshot.
+ * Pure — the caller supplies the current defaults snapshot and whether the
+ * logistics feature is enabled.
+ *
+ * Two overlaid fields are gated to keep the overlay from producing a listing the
+ * normal save path would reject:
+ * - `uses_logistics` is inert while the logistics feature is off, matching how a
+ *   per-listing save can't set it when `hasLogistics` is off — so a listing
+ *   created during a logistics-off window never silently becomes a logistics
+ *   listing if the feature is later re-enabled.
+ * - `hidden` never applies to a renewal tier (`months_per_unit > 0`), which must
+ *   stay hidden + purchase-only (`validateRenewalConfig`); a global "Hidden = No"
+ *   would otherwise make it visible and break renewal extension
+ *   (`isQualifyingTierListing`).
  */
 export const resolveListingDefaults = <T extends Listing>(
   listing: T,
   defaults: ListingDefaults,
+  hasLogistics: boolean,
 ): T => {
   if (!listing.use_defaults) return listing;
   const overlay: Partial<Record<keyof Listing, unknown>> = {};
@@ -111,6 +124,8 @@ export const resolveListingDefaults = <T extends Listing>(
     const value = defaults[key];
     if (value !== undefined) overlay[field] = value;
   }
+  if (!hasLogistics) delete overlay.uses_logistics;
+  if (listing.months_per_unit > 0) delete overlay.hidden;
   return { ...listing, ...overlay };
 };
 

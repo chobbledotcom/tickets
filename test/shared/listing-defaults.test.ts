@@ -25,7 +25,7 @@ const fullDefaults: ListingDefaults = {
 describe("shared > listing-defaults > resolveListingDefaults", () => {
   test("returns the listing unchanged when use_defaults is off", () => {
     const listing = testListing({ hidden: false, use_defaults: false });
-    expect(resolveListingDefaults(listing, fullDefaults)).toBe(listing);
+    expect(resolveListingDefaults(listing, fullDefaults, true)).toBe(listing);
   });
 
   test("overlays every set default when use_defaults is on", () => {
@@ -39,7 +39,7 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
       uses_logistics: false,
       webhook_url: "",
     });
-    const resolved = resolveListingDefaults(listing, fullDefaults);
+    const resolved = resolveListingDefaults(listing, fullDefaults, true);
     expect(resolved.bookable_days).toEqual(["Monday", "Wednesday"]);
     expect(resolved.hidden).toBe(true);
     expect(resolved.maximum_days_after).toBe(30);
@@ -56,17 +56,51 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
       uses_logistics: true,
     });
     // Only a webhook default is set — every other field keeps its own value.
-    const resolved = resolveListingDefaults(listing, {
-      webhookUrl: "https://example.com/only",
-    });
+    const resolved = resolveListingDefaults(
+      listing,
+      { webhookUrl: "https://example.com/only" },
+      true,
+    );
     expect(resolved.webhook_url).toBe("https://example.com/only");
     expect(resolved.hidden).toBe(false);
     expect(resolved.uses_logistics).toBe(true);
   });
 
+  test("does not apply the logistics default while logistics is off", () => {
+    const listing = testListing({ use_defaults: true, uses_logistics: false });
+    // hasLogistics off → the stored uses_logistics=true default stays inert.
+    expect(
+      resolveListingDefaults(listing, { usesLogistics: true }, false)
+        .uses_logistics,
+    ).toBe(false);
+    // hasLogistics on → the default applies.
+    expect(
+      resolveListingDefaults(listing, { usesLogistics: true }, true)
+        .uses_logistics,
+    ).toBe(true);
+  });
+
+  test("never makes a renewal tier visible via a hidden default", () => {
+    const tier = testListing({
+      hidden: true,
+      months_per_unit: 12,
+      purchase_only: true,
+      use_defaults: true,
+    });
+    // A "Hidden = No" default must not flip a renewal tier visible.
+    expect(resolveListingDefaults(tier, { hidden: false }, true).hidden).toBe(
+      true,
+    );
+    // A non-renewal listing still inherits the hidden default.
+    const normal = testListing({ hidden: true, use_defaults: true });
+    expect(resolveListingDefaults(normal, { hidden: false }, true).hidden).toBe(
+      false,
+    );
+  });
+
   test("does not mutate the original listing", () => {
     const listing = testListing({ hidden: false, use_defaults: true });
-    resolveListingDefaults(listing, { hidden: true });
+    resolveListingDefaults(listing, { hidden: true }, true);
     expect(listing.hidden).toBe(false);
   });
 });

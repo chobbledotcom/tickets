@@ -372,6 +372,7 @@ export const decryptListingWithCount = async (
       tickets_count: Number(row.tickets_count),
     },
     settings.listingDefaults,
+    settings.hasLogistics,
   );
 };
 
