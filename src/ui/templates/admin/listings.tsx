@@ -1593,6 +1593,17 @@ const listingFormClassAttr = (
   return classes ? { class: classes } : {};
 };
 
+/**
+ * Whether to render the "Use defaults" toggle: only when defaults exist AND the
+ * viewer isn't an editor. Editors can't toggle inheritance — it would change the
+ * effective webhook (PII) they're otherwise locked out of — so the control is
+ * hidden from them and the POST forces use_defaults back to its stored value.
+ */
+const showUseDefaultsToggle = (
+  session: AdminSession,
+  defaults: ListingDefaults,
+): boolean => hasAnyListingDefault(defaults) && session.adminLevel !== "editor";
+
 export const listingAggregateToFieldValues = (
   listing: ListingWithCount,
 ): FieldValues => ({
@@ -2118,7 +2129,7 @@ export const adminListingNewPage = (
   const template = LISTING_TEMPLATES.find((t) => t.id === templateId) ?? null;
   const seeds = templateId ? (TEMPLATE_SEEDS[templateId] ?? {}) : {};
   const defaults = settings.listingDefaults;
-  const showUseDefaults = hasAnyListingDefault(defaults);
+  const showUseDefaults = showUseDefaultsToggle(session, defaults);
   // A plain (Custom) new listing starts on the defaults — the spec's "which it
   // will be for new listings, if there are any default set". A listing started
   // from a named template instead keeps the shape that template pins: defaults
@@ -2201,7 +2212,7 @@ export const adminDuplicateListingPage = (
   ];
   const template = inferTemplate(listing);
   const defaults = settings.listingDefaults;
-  const showUseDefaults = hasAnyListingDefault(defaults);
+  const showUseDefaults = showUseDefaultsToggle(session, defaults);
   return String(
     <Layout
       title={t("listings_table.duplicate_listing_title", {
@@ -2382,7 +2393,7 @@ export const adminListingEditPage = (
   const durationWarning = String(<DurationWarning listing={listing} />);
   const template = inferTemplate(listing);
   const defaults = settings.listingDefaults;
-  const showUseDefaults = hasAnyListingDefault(defaults);
+  const showUseDefaults = showUseDefaultsToggle(session, defaults);
   // Editors edit listing content but may not see ledger/income figures, so the
   // running-totals and income-adjust sections are omitted for them (and the edit
   // POST ignores any aggregate fields they craft — defence in depth).

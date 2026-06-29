@@ -177,25 +177,27 @@ const renderCreateListingError = async (
 
 /**
  * Parse a multipart listing submission into form params, apply demo overrides,
- * and lock the webhook URL for editors. Shared by create and edit.
+ * and lock the editor-forbidden fields. Shared by create and edit.
  *
  * Editors must not set or change a listing's webhook URL: the registration
  * webhook posts full attendee PII (name, email, phone, address, …) to that
  * endpoint, so a crafted URL would exfiltrate exactly the data the keyless
- * editor role can't otherwise read. The field is forced to a fixed value —
- * empty on create, the listing's current URL on edit — so any value an editor
- * submits is ignored. (The field is also hidden from the editor form; this is
- * the server-side backstop.)
+ * editor role can't otherwise read. They also must not toggle `use_defaults`,
+ * because inheriting (or dropping) an operator-set webhook default changes the
+ * same effective webhook behind their back. Both fields are forced to their
+ * existing values — empty / off on create — so any value an editor submits is
+ * ignored. (Both are also hidden from the editor form; this is the backstop.)
  */
 const parseListingForm = (
   session: AdminSession,
   formData: FormData,
-  existingWebhook: string,
+  existing: { webhookUrl: string; useDefaults: boolean },
 ): FormParams => {
   const form = formDataToParams(formData);
   applyDemoOverrides(form, LISTING_DEMO_FIELDS);
   if (session.adminLevel === "editor") {
-    form.set("webhook_url", existingWebhook);
+    form.set("webhook_url", existing.webhookUrl);
+    form.set("use_defaults", existing.useDefaults ? "1" : "");
   }
   return form;
 };
@@ -207,7 +209,10 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
   request,
 ) =>
   withAuth(request, CONTENT_MULTIPART, async (session, formData) => {
-    const form = parseListingForm(session, formData, "");
+    const form = parseListingForm(session, formData, {
+      useDefaults: false,
+      webhookUrl: "",
+    });
 
     // Mirror the GET gate: reject logistics templates when the feature is off.
     // Guards against a form opened while logistics was enabled, or a crafted POST.
@@ -450,9 +455,12 @@ export const handleAdminListingEditPost: TypedRouteHandler<
   withAuth(request, CONTENT_MULTIPART, (session, formData) =>
     withEntityFromParam(id, getStoredListingWithCount, async (existing) => {
       // `existing` holds the listing's *stored* values (defaults not overlaid):
-      // a save preserves the listing's own columns, and the editor webhook lock
-      // re-applies the real stored URL rather than an inherited default.
-      const form = parseListingForm(session, formData, existing.webhook_url);
+      // a save preserves the listing's own columns, and the editor field locks
+      // re-apply the real stored webhook URL and use_defaults flag.
+      const form = parseListingForm(session, formData, {
+        useDefaults: existing.use_defaults,
+        webhookUrl: existing.webhook_url,
+      });
       const aggregates = parseAggregatesForRole(session, form);
       if (!aggregates.ok) {
         return renderListingEditError(id, session, aggregates.error);

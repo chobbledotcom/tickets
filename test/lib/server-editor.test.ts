@@ -387,6 +387,39 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       );
     });
 
+    test("an editor edit can't toggle a listing's use_defaults inheritance", async () => {
+      // A webhook default makes the use_defaults flag control PII delivery, so
+      // editors must not flip it.
+      await settings.update.listingDefaults({
+        webhookUrl: "https://default.example/hook",
+      });
+      const listing = await createTestListing({
+        name: "Inherits",
+        useDefaults: true,
+      });
+
+      // The editor's form omits use_defaults (the toggle is hidden from them);
+      // a naive parse would read that as "off" and stop the webhook.
+      const { cookie } = await createTestEditorSession();
+      const resp = await postMultipartAs(
+        `/admin/listing/${listing.id}/edit`,
+        cookie,
+        { ...buildCreateListingForm(testListingInput()), slug: listing.slug },
+      );
+      expect(resp.status).toBe(302);
+      // The flag is preserved, so the listing keeps inheriting.
+      expect((await getListingWithCount(listing.id))!.use_defaults).toBe(true);
+
+      // The owner submitting the same body DOES turn it off — proving the lock
+      // is what blocks the editor, not an unrelated validation failure.
+      const { cookie: ownerCookie } = await getTestSession();
+      await postMultipartAs(`/admin/listing/${listing.id}/edit`, ownerCookie, {
+        ...buildCreateListingForm(testListingInput()),
+        slug: listing.slug,
+      });
+      expect((await getListingWithCount(listing.id))!.use_defaults).toBe(false);
+    });
+
     test("editor listing create lands on the edit page so flashes are shown", async () => {
       const { cookie } = await createTestEditorSession();
       const resp = await postMultipartAs(

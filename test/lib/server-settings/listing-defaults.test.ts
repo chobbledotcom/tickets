@@ -185,14 +185,20 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       expect(stored).not.toContain("hook-xyz");
     });
 
-    test("refuses a webhook default in demo mode", async () => {
+    test("refuses a webhook default in demo mode but keeps the thank-you url", async () => {
       setDemoModeForTest(true);
       await adminFormPost("/admin/listing-defaults", {
         default_hidden: "1",
+        default_thank_you_url: "https://example.com/thanks",
         default_webhook_url: "https://example.com/hook",
       });
       expect(settings.listingDefaults.hidden).toBe(true);
+      // Only the outbound webhook is blocked in demo mode — the thank-you
+      // redirect (no PII callback) still saves.
       expect("webhookUrl" in settings.listingDefaults).toBe(false);
+      expect(settings.listingDefaults.thankYouUrl).toBe(
+        "https://example.com/thanks",
+      );
     });
   });
 
@@ -333,13 +339,27 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
 
     test("edit form reflects a listing's Use-defaults flag", async () => {
       await adminFormPost("/admin/listing-defaults", { default_hidden: "1" });
-      const listing = await createTestListing({
-        name: "Editable",
+      const inheriting = await createTestListing({
+        name: "Inheriting",
         useDefaults: true,
       });
-      const response = await adminGet(`/admin/listing/${listing.id}/edit`);
-      const body = await response.text();
-      expect(body).toContain('id="use-defaults"');
+      const ownValues = await createTestListing({
+        name: "Own values",
+        useDefaults: false,
+      });
+
+      const onBody = await (
+        await adminGet(`/admin/listing/${inheriting.id}/edit`)
+      ).text();
+      // An inheriting listing renders the toggle pre-checked…
+      expect(onBody).toMatch(/checked[^>]*id="use-defaults"/);
+
+      const offBody = await (
+        await adminGet(`/admin/listing/${ownValues.id}/edit`)
+      ).text();
+      // …and a non-inheriting one renders it present but unchecked.
+      expect(offBody).toContain('id="use-defaults"');
+      expect(offBody).not.toMatch(/checked[^>]*id="use-defaults"/);
     });
 
     test("no toggle when the operator has set no defaults", async () => {

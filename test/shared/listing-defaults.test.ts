@@ -102,6 +102,31 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
     );
   });
 
+  test("a renewal tier still inherits every non-hidden default", () => {
+    // The hidden gate withholds only `hidden` — the rest of the overlay still
+    // applies, so the gate must not suppress the whole fold for a tier.
+    const tier = testListing({
+      bookable_days: ["Sunday"],
+      hidden: true,
+      months_per_unit: 12,
+      purchase_only: true,
+      use_defaults: true,
+      webhook_url: "",
+    });
+    const resolved = resolveListingDefaults(
+      tier,
+      {
+        bookableDays: ["Monday"],
+        hidden: false,
+        webhookUrl: "https://example.com/hook",
+      },
+      true,
+    );
+    expect(resolved.hidden).toBe(true); // withheld
+    expect(resolved.webhook_url).toBe("https://example.com/hook"); // applied
+    expect(resolved.bookable_days).toEqual(["Monday"]); // applied
+  });
+
   test("does not mutate the original listing", () => {
     const listing = testListing({ hidden: false, use_defaults: true });
     resolveListingDefaults(listing, { hidden: true }, true);

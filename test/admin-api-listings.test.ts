@@ -1006,6 +1006,21 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       if (result.ok) expect(result.input.hidden).toBe(false);
     });
 
+    test("preserves use_defaults when absent and toggles it when sent", async () => {
+      const existing = testListingWithCount({
+        max_attendees: 10,
+        name: "Inheriting",
+        slug: "inheriting",
+        use_defaults: true,
+      });
+      // Omitted → the flag is preserved (an unrelated PUT can't un-inherit it).
+      const kept = await bodyToUpdateInput({}, existing);
+      expect(kept.ok && kept.input.useDefaults).toBe(true);
+      // Explicit false → turned off.
+      const off = await bodyToUpdateInput({ use_defaults: false }, existing);
+      expect(off.ok && off.input.useDefaults).toBe(false);
+    });
+
     test("preserves existing closes_at null as empty string", async () => {
       const existing = testListingWithCount({
         closes_at: null,

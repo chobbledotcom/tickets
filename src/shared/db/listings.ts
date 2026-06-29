@@ -625,7 +625,11 @@ export const catalogVisibleSql = (
  * columns the external-order widget serializes, so an unauthenticated module
  * request never decrypts hidden/inactive listings' descriptions, locations, or
  * dates — unlike loading the whole listings cache via getAllListings(). The
- * hidden filter honours an inherited Hidden default (see {@link catalogVisibleSql}). */
+ * hidden filter honours an inherited Hidden default (see {@link catalogVisibleSql}).
+ * Required children are excluded: they're only bookable through their parent (the
+ * public `/order` flow drops them and `/ticket/<child>` 404s), so an order.js
+ * add-to-cart link to one would dead-end — and an inherited Hidden=No default
+ * must not surface a stored-hidden child. */
 export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
   // Raw row: like the source listing but with the encrypted slug/name still
   // encrypted and the booleans as SQLite 0/1 integers.
@@ -638,7 +642,8 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
             listing.listing_type, listing.customisable_days, listing.can_pay_more
      FROM listings AS listing
      WHERE listing.active = 1
-       AND ${catalogVisibleSql(settings.listingDefaults.hidden)}`,
+       AND ${catalogVisibleSql(settings.listingDefaults.hidden)}
+       AND listing.id NOT IN (SELECT child_listing_id FROM listing_parents)`,
   );
   return Promise.all(
     rows.map(async (row) => ({
