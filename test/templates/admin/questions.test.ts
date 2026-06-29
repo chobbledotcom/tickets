@@ -18,6 +18,7 @@ import {
   setupTestEncryptionKey,
   singleAnswerSizeQuestionData,
   sizeQuestionAnswerData,
+  smallLargeAnswers,
   testAnswer,
   testListingWithCount,
   testQuestion,
@@ -36,10 +37,7 @@ const TEST_SESSION = { adminLevel: "owner" as const };
  *  Built once so each describe shares the same fixture instead of re-spelling
  *  the literal three times. */
 const tShirtQuestion = testQuestion({
-  answers: [
-    testAnswer({ id: 10, sort_order: 0, text: "Small" }),
-    testAnswer({ id: 11, sort_order: 1, text: "Large" }),
-  ],
+  answers: smallLargeAnswers,
   id: 1,
   text: "T-shirt size?",
 });

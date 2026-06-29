@@ -161,10 +161,12 @@ const createProtectedFixture = async (): Promise<ProtectedFixture> => {
     trigger: "answer",
   });
 
-  for (const listing of listings)
+  for (const listing of listings) {
     await linkModifierListing(modifier.id, listing.id);
-  for (const answerId of answerIds)
+  }
+  for (const answerId of answerIds) {
     await linkModifierAnswer(modifier.id, answerId);
+  }
 
   const groupModifier = await insertModifier({
     name: "N+1 protected group discount",

@@ -14,9 +14,7 @@ import {
 
 /** Build a minimal JUnit document wrapping the given `<testcase>` fragments. */
 const junit = (cases: string): string =>
-  `<?xml version="1.0" encoding="UTF-8"?>\n<testsuites name="deno test" tests="0" failures="0" errors="0" time="0.0">\n${
-    cases
-  }\n</testsuites>`;
+  `<?xml version="1.0" encoding="UTF-8"?>\n<testsuites name="deno test" tests="0" failures="0" errors="0" time="0.0">\n${cases}\n</testsuites>`;
 
 const testcase = (attrs: Record<string, string>, body = ""): string =>
   `<testcase ${Object.entries(attrs)

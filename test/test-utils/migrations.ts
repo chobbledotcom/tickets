@@ -1,3 +1,4 @@
+import { expect } from "@std/expect";
 import { getDb } from "#shared/db/client.ts";
 import type {
   AdditiveMigration,
@@ -24,6 +25,32 @@ export const indexExists = async (name: string): Promise<boolean> => {
     sql: "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?",
   });
   return result.rows.length > 0;
+};
+
+export const tableExists = async (table: string): Promise<boolean> => {
+  const result = await getDb().execute({
+    args: [table],
+    sql: "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+  });
+  return result.rows.length > 0;
+};
+
+export const settingsTableExists = (): Promise<boolean> =>
+  tableExists("settings");
+
+export const schemaMarkerKeys = async (): Promise<string[]> => {
+  const result = await getDb().execute(
+    "SELECT key FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash') ORDER BY key",
+  );
+  return result.rows.map((row) => String(row.key));
+};
+
+/** Assert the "empty but initialized settings table" state: settings table
+ *  exists, listings table absent, no schema-version markers recorded yet. */
+export const assertSchemaEmpty = async (): Promise<void> => {
+  expect(await settingsTableExists()).toBe(true);
+  expect(await tableExists("listings")).toBe(false);
+  expect(await schemaMarkerKeys()).toEqual([]);
 };
 
 const additive = (migration: AdditiveMigration): Migration => ({

@@ -360,6 +360,14 @@ export const pricedOrder = (
   ...overrides,
 });
 
+/** The canonical Small/Large answer pair (ids 10 and 11) reused by both the
+ *  factories and the questions template tests so the answer array lives in
+ *  one place. */
+export const smallLargeAnswers = [
+  testAnswer({ id: 10, sort_order: 0, text: "Small" }),
+  testAnswer({ id: 11, sort_order: 1, text: "Large" }),
+];
+
 /** The canonical "Size?" question answer-data fixture used by both the
  *  detail-rows unit tests and the admin questions template tests: three
  *  attendees (ids 1, 2, 3) answering a single "Size?" question (id 1) with
@@ -374,10 +382,7 @@ export const sizeQuestionAnswerData = (): AttendeeQuestionData => ({
   ]),
   questions: [
     testQuestion({
-      answers: [
-        testAnswer({ id: 10, sort_order: 0, text: "Small" }),
-        testAnswer({ id: 11, sort_order: 1, text: "Large" }),
-      ],
+      answers: smallLargeAnswers,
       id: 1,
       text: "Size?",
     }),

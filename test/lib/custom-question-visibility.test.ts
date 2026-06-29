@@ -49,6 +49,14 @@ describe("custom question visibility", () => {
     expect(listenerAttached).toBe(false);
   });
 
+  const assertHiddenAndDeRequired = (
+    roots: ReturnType<typeof installFakeDom>,
+    text: { required: boolean },
+  ): void => {
+    expect(roots[0]!.hidden).toBe(true);
+    expect(text.required).toBe(false);
+  };
+
   test("hides and de-requires a question with no active listing", () => {
     const control = textControl();
     const roots = installFakeDom([
@@ -59,8 +67,7 @@ describe("custom question visibility", () => {
 
     initQuestionVisibility();
 
-    expect(roots[0]!.hidden).toBe(true);
-    expect(text.required).toBe(false);
+    assertHiddenAndDeRequired(roots, text);
   });
 
   test("shows and requires a question for a child given a positive quantity under an in-cart parent", () => {
@@ -134,7 +141,6 @@ describe("custom question visibility", () => {
 
     initQuestionVisibility();
 
-    expect(roots[0]!.hidden).toBe(true);
-    expect(text.required).toBe(false);
+    assertHiddenAndDeRequired(roots, text);
   });
 });

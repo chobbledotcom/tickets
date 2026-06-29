@@ -29,6 +29,13 @@ const extractToken = (html: string): string | null => {
   return match ? decodeURIComponent(match[1]!) : null;
 };
 
+const extractAndVerifyToken = async (html: string, slug: string) => {
+  const token = extractToken(html);
+  expect(token).not.toBeNull();
+  const payload = await verifyQrBookToken(slug, token!);
+  return { payload, token };
+};
+
 /** Parent with a Monday-only child: computes bookable start dates for each.
  * Shared by two tests that exercise the child-date-constrained QR flow. */
 const setupParentWithMondayChild = async () => {
@@ -307,9 +314,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
         },
       );
       const body = await response.text();
-      const token = extractToken(body);
-      expect(token).not.toBeNull();
-      const payload = await verifyQrBookToken(listing.slug, token!);
+      const { payload } = await extractAndVerifyToken(body, listing.slug);
       expect(payload).not.toBeNull();
       expect(payload!.n).toBe("Ada Lovelace");
       expect(payload!.v).toBe(1250);
@@ -329,9 +334,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
       );
       expect(response.status).toBe(200);
       const body = await response.text();
-      const token = extractToken(body);
-      expect(token).not.toBeNull();
-      const payload = await verifyQrBookToken(listing.slug, token!);
+      const { payload } = await extractAndVerifyToken(body, listing.slug);
       expect(payload!.n).toBe("");
       expect(payload!.q).toBe(1);
       expect(payload!.v).toBe(-1);

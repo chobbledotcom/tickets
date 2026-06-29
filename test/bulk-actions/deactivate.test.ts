@@ -8,10 +8,13 @@ import {
   createTestGroup,
   createTestListing,
   describeWithEnv,
+  getBulkActionForm,
   insertModifier,
   linkModifierListing,
   patchModifier,
 } from "#test-utils";
+
+const getDeactivateForm = getBulkActionForm("deactivate");
 
 /** Insert an active opt-in add-on scoped to the given listing ids. */
 const optInAddOnForListings = async (
@@ -31,12 +34,8 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       const group = await createTestGroup({ name: "To Deactivate" });
       await createTestListing({ groupId: group.id, name: "Listing" });
 
-      const response = await adminGet(
-        `/admin/groups/${group.id}/bulk-actions/deactivate`,
-      );
-      const html = await response.text();
+      const html = await getDeactivateForm(group.id);
 
-      expect(response.status).toBe(200);
       expect(html).toContain("Deactivate Group");
       expect(html).toContain('name="confirm_identifier"');
       expect(html).toContain("deactivate 1 active listing");
@@ -48,12 +47,8 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       await createTestListing({ groupId: group.id, name: "A" });
       await createTestListing({ groupId: group.id, name: "B" });
 
-      const response = await adminGet(
-        `/admin/groups/${group.id}/bulk-actions/deactivate`,
-      );
-      const html = await response.text();
+      const html = await getDeactivateForm(group.id);
 
-      expect(response.status).toBe(200);
       expect(html).toContain("deactivate 2 active listings");
     });
 

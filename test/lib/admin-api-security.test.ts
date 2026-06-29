@@ -116,17 +116,28 @@ describeWithEnv("admin API security", { db: true }, () => {
       expect(response.status).toBe(400);
     });
 
-    test("PUT /api/admin/listings/:id without content-type returns 400", async () => {
+    const assertListingRequestRejects400 = async (
+      method: string,
+      bodyFn: (listingId: number) => string,
+      urlFn: (listingId: number) => string,
+    ): Promise<void> => {
       const listing = await createTestListing();
       const apiKey = await createTestApiKeyToken();
       const response = await handleRequest(
-        requestAsApiKey(`/api/admin/listings/${listing.id}`, apiKey, {
-          body: JSON.stringify({ name: "Updated" }),
-          method: "PUT",
+        requestAsApiKey(urlFn(listing.id), apiKey, {
+          body: bodyFn(listing.id),
+          method,
         }),
       );
       expect(response.status).toBe(400);
-    });
+    };
+
+    test("PUT /api/admin/listings/:id without content-type returns 400", () =>
+      assertListingRequestRejects400(
+        "PUT",
+        () => JSON.stringify({ name: "Updated" }),
+        (id) => `/api/admin/listings/${id}`,
+      ));
 
     test("POST /api/admin/listings with text/plain content-type returns 400", async () => {
       const apiKey = await createTestApiKeyToken();
@@ -140,17 +151,12 @@ describeWithEnv("admin API security", { db: true }, () => {
       expect(response.status).toBe(400);
     });
 
-    test("body-bearing DELETE without content-type is rejected", async () => {
-      const listing = await createTestListing();
-      const apiKey = await createTestApiKeyToken();
-      const response = await handleRequest(
-        requestAsApiKey(`/api/admin/listings/${listing.id}`, apiKey, {
-          body: JSON.stringify({ confirm_identifier: listing.name }),
-          method: "DELETE",
-        }),
-      );
-      expect(response.status).toBe(400);
-    });
+    test("body-bearing DELETE without content-type is rejected", () =>
+      assertListingRequestRejects400(
+        "DELETE",
+        (id) => JSON.stringify({ confirm_identifier: String(id) }),
+        (id) => `/api/admin/listings/${id}`,
+      ));
 
     test("treats uppercase Content-Type the same as lowercase (RFC 7231)", async () => {
       const apiKey = await createTestApiKeyToken();

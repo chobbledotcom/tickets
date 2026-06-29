@@ -42,24 +42,19 @@ describe("db > keyed-cache", () => {
     clock = 1000;
   });
 
-  const build = (
-    rows: Row[],
-  ): {
+  type CacheFixture = {
     cache: KeyedCache<Row>;
     calls: ReturnType<typeof makeFetchers>["calls"];
-  } => {
+  };
+
+  const build = (rows: Row[]): CacheFixture => {
     const { base, calls } = makeFetchers(rows);
     return { cache: createKeyedCache({ ...base, now, ttlMs: 1000 }), calls };
   };
 
   // A "small table" cache that omits the single-row fetchers, so by-id and
   // by-key reads fall back to the whole-set load.
-  const buildLite = (
-    rows: Row[],
-  ): {
-    cache: KeyedCache<Row>;
-    calls: ReturnType<typeof makeFetchers>["calls"];
-  } => {
+  const buildLite = (rows: Row[]): CacheFixture => {
     const { base, calls } = makeFetchers(rows);
     return {
       cache: createKeyedCache<Row>({

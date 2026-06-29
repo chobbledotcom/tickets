@@ -439,8 +439,9 @@ export const skipComment = (content: string, i: number): number => {
     while (
       j < content.length &&
       !(content[j] === "*" && content[j + 1] === "/")
-    )
+    ) {
       j++;
+    }
     return j + 2;
   }
   return i;

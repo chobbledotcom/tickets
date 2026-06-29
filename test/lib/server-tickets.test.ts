@@ -15,6 +15,7 @@ import {
   describeWithEnv,
   expectHtml,
   expectHtmlResponse,
+  fetchAliceTicketPageBody,
   getAttendeesRaw,
 } from "#test-utils";
 
@@ -296,13 +297,7 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
   });
 
   test("displays ticket token on ticket page", async () => {
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
-
-    const response = await awaitTestRequest(`/t/${token}`);
-    const body = await response.text();
+    const { body, token } = await fetchAliceTicketPageBody();
     expect(body).toContain("ticket-card-token");
     expect(body).toContain(token);
   });

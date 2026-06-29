@@ -431,7 +431,9 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     await postAttendeePayment(attendeeId);
     const [entry] = await allTransfers();
     const response = await adminGet(
-      `/admin/ledger/entries/${entry!.id}/edit?return_url=%2Fadmin%2Fattendees%2F${attendeeId}`,
+      `/admin/ledger/entries/${
+        entry!.id
+      }/edit?return_url=%2Fadmin%2Fattendees%2F${attendeeId}`,
     );
     expect(response.status).toBe(200);
     const html = await response.text();

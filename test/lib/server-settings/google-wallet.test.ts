@@ -9,6 +9,7 @@ import {
   expectFlashRedirect,
   expectHtml,
   expectRedirect,
+  fetchAliceTicketPageBody,
   loginAsAdmin,
   mockFormRequest,
   setTestEnv,
@@ -119,12 +120,7 @@ describeWithEnv("ticket view google wallet link", { db: true }, () => {
   });
 
   test("does not show google wallet link when not configured", async () => {
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
-    const response = await awaitTestRequest(`/t/${token}`);
-    const body = await response.text();
+    const { body } = await fetchAliceTicketPageBody();
     expect(body).not.toContain("Google Wallet");
   });
 
