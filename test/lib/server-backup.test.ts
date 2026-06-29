@@ -199,7 +199,9 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         // A backup whose schema matches must NOT show the mismatch warning.
         expect(html).not.toContain("Schema mismatch");
         // The uploaded zip must be stored so the confirm step can read it back.
-        const tempName = html.match(/value="(restore-pending-[^"]+\.zip)"/)?.[1];
+        const tempName = html.match(
+          /value="(restore-pending-[^"]+\.zip)"/,
+        )?.[1];
         expect(tempName).toBeDefined();
         expect(await downloadRaw(tempName!)).not.toBeNull();
       });
