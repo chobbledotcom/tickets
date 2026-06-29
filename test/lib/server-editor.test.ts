@@ -5,6 +5,7 @@ import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   decryptAdminLevel,
   getUserByInviteCode,
@@ -345,6 +346,44 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       );
       expect((await getListingWithCount(listing.id))!.webhook_url).toBe(
         "https://attacker.example/steal",
+      );
+    });
+
+    test("an editor edit can't bake an inherited webhook default into the row", async () => {
+      // The owner sets a webhook *default*; this listing inherits it live, but
+      // keeps its own stored webhook underneath.
+      await settings.update.listingDefaults({
+        webhookUrl: "https://default.example/hook",
+      });
+      const listing = await createTestListing({
+        useDefaults: true,
+        webhookUrl: "https://own.example/hook",
+      });
+      // Live, the listing resolves to the inherited default…
+      expect((await getListingWithCount(listing.id))!.webhook_url).toBe(
+        "https://default.example/hook",
+      );
+
+      // …but an editor saving an edit must neither set their crafted URL nor
+      // freeze the inherited default into the row.
+      const { cookie } = await createTestEditorSession();
+      const editorResp = await postMultipartAs(
+        `/admin/listing/${listing.id}/edit`,
+        cookie,
+        {
+          ...buildCreateListingForm(testListingInput()),
+          slug: listing.slug,
+          webhook_url: "https://attacker.example/steal",
+        },
+      );
+      expect(editorResp.status).toBe(302);
+
+      // Clearing the default reveals the listing's preserved own webhook —
+      // proving the editor's save materialised neither the default nor the
+      // crafted URL.
+      await settings.update.listingDefaults({});
+      expect((await getListingWithCount(listing.id))!.webhook_url).toBe(
+        "https://own.example/hook",
       );
     });
 

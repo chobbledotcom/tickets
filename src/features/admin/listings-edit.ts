@@ -30,6 +30,7 @@ import {
   adjustListingIncome,
   getListingAggregateRecalculation,
   getListingWithCount,
+  getStoredListingWithCount,
   type ListingAggregateRecalculation,
   type ListingAggregateValues,
   updateListingAggregateValues,
@@ -273,7 +274,10 @@ const getListingAndGroups = async (
   listing: ListingWithCount;
 } | null> => {
   const [listing, groups] = await Promise.all([
-    getListingWithCount(listingId),
+    // The edit form reads the listing's *stored* values, not the resolved view,
+    // so editing an inheriting listing can't bake the current defaults into its
+    // row (and the editor webhook lock below preserves the real stored URL).
+    getStoredListingWithCount(listingId),
     getAllGroups(),
   ]);
   return listing
@@ -444,7 +448,10 @@ export const handleAdminListingEditPost: TypedRouteHandler<
   "POST /admin/listing/:id/edit"
 > = (request, { id }) =>
   withAuth(request, CONTENT_MULTIPART, (session, formData) =>
-    withEntityFromParam(id, getListingWithCount, async (existing) => {
+    withEntityFromParam(id, getStoredListingWithCount, async (existing) => {
+      // `existing` holds the listing's *stored* values (defaults not overlaid):
+      // a save preserves the listing's own columns, and the editor webhook lock
+      // re-applies the real stored URL rather than an inherited default.
       const form = parseListingForm(session, formData, existing.webhook_url);
       const aggregates = parseAggregatesForRole(session, form);
       if (!aggregates.ok) {

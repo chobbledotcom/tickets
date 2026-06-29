@@ -303,6 +303,34 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       expect(body).not.toMatch(/checked[^>]*id="use-defaults"/);
     });
 
+    test("edit form pre-fills a listing's own stored values, not the inherited defaults", async () => {
+      await adminFormPost("/admin/listing-defaults", {
+        default_hidden: "1",
+        default_webhook_url: "https://default.example/hook",
+      });
+      const listing = await createTestListing({
+        hidden: false,
+        name: "Own data",
+        useDefaults: true,
+        webhookUrl: "https://own.example/hook",
+      });
+      const body = await (
+        await adminGet(`/admin/listing/${listing.id}/edit`)
+      ).text();
+      const submitted = new Map<string, string[]>();
+      for (const [name, value] of extractFormEntries(body)) {
+        submitted.set(name, [...(submitted.get(name) ?? []), value]);
+      }
+      // The webhook field carries the listing's OWN url (so a normal save
+      // preserves it), not the inherited default…
+      expect(submitted.get("webhook_url")).toEqual([
+        "https://own.example/hook",
+      ]);
+      // …and the hidden checkbox reflects the stored false (unchecked, so not
+      // submitted), not the inherited Hidden=Yes default.
+      expect(submitted.get("hidden")).toBeUndefined();
+    });
+
     test("edit form reflects a listing's Use-defaults flag", async () => {
       await adminFormPost("/admin/listing-defaults", { default_hidden: "1" });
       const listing = await createTestListing({

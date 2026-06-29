@@ -32,6 +32,7 @@ import {
   getListingWithAttendeeRaw,
   getListingWithAttendeesRaw,
   getListingWithCount,
+  getStoredListingWithCount,
   isSlugTaken,
   listingIncomeSubquery,
   listingRevenueBreakdown,
@@ -51,6 +52,7 @@ import {
   saveAttendeeAnswers,
   setListingQuestions,
 } from "#shared/db/questions.ts";
+import { settings } from "#shared/db/settings.ts";
 import { account } from "#shared/ledger/account.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import {
@@ -1127,3 +1129,28 @@ describe("shared > db > listings > catalogVisibleSql", () => {
     );
   });
 });
+
+describeWithEnv(
+  "db > listings > getStoredListingWithCount",
+  { db: true, triggers: true },
+  () => {
+    test("returns the listing's own stored values, not inherited defaults", async () => {
+      // Set the default first; creating the listing then invalidates the
+      // listings cache, so the resolving read sees the default live.
+      await settings.update.listingDefaults({ hidden: true });
+      const listing = await createTestListing({
+        hidden: false,
+        useDefaults: true,
+      });
+      // The resolving read overlays the default…
+      expect((await getListingWithCount(listing.id))?.hidden).toBe(true);
+      // …the stored read preserves the listing's own column, so an edit save
+      // built from it can't bake the default into the row.
+      expect((await getStoredListingWithCount(listing.id))?.hidden).toBe(false);
+    });
+
+    test("returns null for a missing listing", async () => {
+      expect(await getStoredListingWithCount(99999)).toBeNull();
+    });
+  },
+);

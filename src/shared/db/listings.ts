@@ -355,25 +355,50 @@ export const LISTING_COUNT_GROUP_BY = "";
  * directly as an Array.map / mapParallel callback — a second positional
  * parameter would capture the map index.
  */
-export const decryptListingWithCount = async (
+const decryptStoredListingWithCount = async (
   row: ListingWithCount,
 ): Promise<ListingWithCount> => {
   const listing = await rawListingsTable.fromDb(row);
+  return {
+    ...listing,
+    attendee_count: row.attendee_count,
+    cost: Number(row.cost),
+    income: Number(row.income),
+    profit: Number(row.profit),
+    tickets_count: Number(row.tickets_count),
+  };
+};
+
+export const decryptListingWithCount = async (
+  row: ListingWithCount,
+): Promise<ListingWithCount> =>
   // Overlay the operator's listing defaults when this listing inherits them, so
-  // every consumer (public pages, booking, webhooks, exports, the edit form)
-  // sees the effective value live rather than this row's own stored value.
-  return resolveListingDefaults(
-    {
-      ...listing,
-      attendee_count: row.attendee_count,
-      cost: Number(row.cost),
-      income: Number(row.income),
-      profit: Number(row.profit),
-      tickets_count: Number(row.tickets_count),
-    },
+  // every consumer (public pages, booking, webhooks, exports) sees the effective
+  // value live rather than this row's own stored value. The edit form and its
+  // save deliberately bypass this (see getStoredListingWithCount) so a save
+  // never materialises an inherited default over the listing's own column.
+  resolveListingDefaults(
+    await decryptStoredListingWithCount(row),
     settings.listingDefaults,
     settings.hasLogistics,
   );
+
+/**
+ * Single listing with count, decrypted to its own *stored* values with no
+ * defaults overlaid. Uncached and used only by the edit form and its save,
+ * which must read and preserve the listing's own columns — otherwise saving an
+ * inheriting listing would bake the current defaults into its row, losing the
+ * stored values for good. Every other read resolves via the cache.
+ */
+export const getStoredListingWithCount = async (
+  id: number,
+): Promise<ListingWithCount | null> => {
+  const rows = await queryAll<ListingWithCount>(
+    `${LISTING_COUNT_SELECT} WHERE listing.id = ? ${LISTING_COUNT_GROUP_BY}`,
+    [id],
+  );
+  const row = rows[0];
+  return row ? decryptStoredListingWithCount(row) : null;
 };
 
 /**
