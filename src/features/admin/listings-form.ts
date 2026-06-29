@@ -121,11 +121,18 @@ const extractCommonFields = (
   const webhookUrl = isDemoMode() ? "" : values.webhook_url || "";
   const durationDays = values.duration_days ?? 1;
   const listingType = resolveListingType(values.listing_type);
+  const unitPrice = parseOptionalPrice(values.unit_price);
+  const bookableDays = parseBookableDays(
+    values.bookable_days,
+    listingType,
+    mode,
+  );
+  const closesAt = normalizeOptionalDatetime(values.closes_at, "closes_at");
   return {
     assignBuiltSite: isBuilderEnabled() && values.assign_built_site === "1",
-    bookableDays: parseBookableDays(values.bookable_days, listingType, mode),
+    bookableDays,
     canPayMore: values.can_pay_more === "1",
-    closesAt: normalizeOptionalDatetime(values.closes_at, "closes_at"),
+    closesAt,
     customisableDays: values.customisable_days === "1",
     date: normalizeOptionalDatetime(values.date, "date") ?? "",
     dayPrices: parseDayPricesFromForm(form, durationDays),
@@ -147,7 +154,7 @@ const extractCommonFields = (
     nonTransferable: values.non_transferable === "1",
     purchaseOnly: values.purchase_only === "1",
     thankYouUrl: values.thank_you_url || "",
-    unitPrice: parseOptionalPrice(values.unit_price),
+    unitPrice,
     usesLogistics:
       settings.hasLogistics && form.getString("uses_logistics") === "1",
     webhookUrl,

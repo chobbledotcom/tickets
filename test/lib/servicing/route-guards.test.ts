@@ -42,7 +42,7 @@ describeWithEnv(
     });
 
     test("/admin/servicing/:id 404s for a normal attendee id (servicing loads only kind='servicing')", async () => {
-      const { attendee, listing } = await createRealAttendee();
+      const { attendee } = await createRealAttendee();
       const { cookie } = await getTestSession();
       await assertAdmin404(`/admin/servicing/${attendee.id}`, cookie);
     });

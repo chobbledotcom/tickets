@@ -25,7 +25,7 @@ const post = (
       tier === undefined
         ? "/instance/site-credentials"
         : `/instance/site-credentials?tier=${tier}`,
-      { headers, method: "POST" },
+      { ...(headers !== undefined ? { headers } : {}), method: "POST" },
     ),
   );
 

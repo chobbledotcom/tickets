@@ -62,7 +62,7 @@ const rowToTransfer = (row: TransferRow): Transfer => ({
   postedBy: row.posted_by,
   recordedAt: epochMsToIso(Number(row.recorded_at)),
   reference: row.reference,
-  reversesId: row.reverses_id === null ? undefined : Number(row.reverses_id),
+  ...(row.reverses_id === null ? {} : { reversesId: Number(row.reverses_id) }),
   source: account(row.source_type, row.source_id),
 });
 

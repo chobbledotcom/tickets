@@ -111,7 +111,7 @@ const handleAdminLogin = async (
     await recordFailedLogin(clientIp);
     if (existingToken) await deleteSession(existingToken);
     return fail("/admin", "Username or password was wrong", {
-      cookie: existingToken ? clearSessionCookie() : undefined,
+      ...(existingToken ? { cookie: clearSessionCookie() } : {}),
     });
   };
 

@@ -251,7 +251,7 @@ describeWithEnv(
 
       test("rejects an empty message", async () => {
         await activate();
-        await withContactFetch({ botpoisonOk: true }, async (mock) => {
+        await withContactFetch({ botpoisonOk: true }, async () => {
           const response = await postContactForm({
             _botpoison: "solved",
             email: "visitor@example.com",

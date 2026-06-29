@@ -135,7 +135,7 @@ describeWithEnv(
     });
 
     test("only upcoming service events are listed (past-dated holds are excluded)", async () => {
-      const listing = await createDailyTestListing({
+      await createDailyTestListing({
         maxAttendees: 5,
         name: "Room A",
       });

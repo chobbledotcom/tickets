@@ -1439,12 +1439,11 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
       "Free A",
       "free-a@example.com",
     );
-    const { attendee: source, token: sourceToken } =
-      await createTestAttendeeDirect(
-        listing.id,
-        "Free B",
-        "free-b@example.com",
-      );
+    const { token: sourceToken } = await createTestAttendeeDirect(
+      listing.id,
+      "Free B",
+      "free-b@example.com",
+    );
     // Nothing paid on either side — £0 at stake.
     expect(await incomeOf(listing.id)).toBe(0);
 

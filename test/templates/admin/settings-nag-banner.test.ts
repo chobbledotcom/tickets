@@ -42,7 +42,7 @@ describeWithEnv(
           payment_provider_setting: null,
         },
         () => {
-          const html = String(SettingsNagBanner({ items: undefined }));
+          const html = String(SettingsNagBanner({}));
           expect(html).toContain("Finish setting up your site");
           expect(html).toContain(
             'href="/admin/settings#settings-payment-provider"',

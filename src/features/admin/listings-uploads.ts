@@ -41,7 +41,7 @@ const processFormFile = async (opts: {
   formData: FormData;
   fieldName: string;
   listingId: number;
-  existingUrl?: string;
+  existingUrl?: string | undefined;
   validate: (data: Uint8Array, file: File) => string | null;
   upload: (data: Uint8Array, file: File) => Promise<Partial<ListingInput>>;
   label: string;

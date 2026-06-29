@@ -233,8 +233,8 @@ const findFormByButton = (
 ): {
   action: string;
   body: string;
-  buttonName?: string;
-  buttonValue?: string;
+  buttonName?: string | undefined;
+  buttonValue?: string | undefined;
 } => {
   const lower = buttonText.toLowerCase();
   for (const f of forms) {
@@ -405,8 +405,8 @@ export class TestBrowser {
     action: string;
     body: string;
     entries: FormEntry[];
-    buttonName?: string;
-    buttonValue?: string;
+    buttonName?: string | undefined;
+    buttonValue?: string | undefined;
   } {
     const forms = findForms(this.currentHtml);
     if (!buttonText) {

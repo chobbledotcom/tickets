@@ -214,7 +214,7 @@ export const makeParent = async (
    * instead of reaching into `children[0]`. */
   child: Listing;
   children: Listing[];
-  group?: Group;
+  group?: Group | undefined;
 }> => {
   const group = spec.group ? await createTestGroup(spec.group) : undefined;
   const groupId = group?.id;

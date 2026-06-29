@@ -55,7 +55,7 @@ export type AttendeeColumnOpts = {
   answerTextMap: Map<number, string>;
   answerQuestionMap: Map<number, string>;
   /** Question data for the answers column */
-  questionData?: TableQuestionData;
+  questionData?: TableQuestionData | undefined;
 };
 
 /** Options for the unified AttendeeTable component */
@@ -67,14 +67,14 @@ export type AttendeeTableOptions = {
   activeFilter?: string;
   returnUrl?: string;
   emptyMessage?: string;
-  phonePrefix?: string;
+  phonePrefix?: string | undefined;
   /** Show the check-in/check-out status column (default: true). Per-attendee
    * edit/refund/delete actions live on the attendee edit page, not the table. */
   showCheckin?: boolean;
   /** Skip default sort and use rows as-is (default: false) */
   presorted?: boolean;
   /** Question data for the Answers column */
-  questionData?: TableQuestionData;
+  questionData?: TableQuestionData | undefined;
   /** Liquid template controlling column order (e.g. "{{name}}, {{email}}, {{qty}}") */
   columnTemplate?: string;
 };

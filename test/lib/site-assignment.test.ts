@@ -486,7 +486,7 @@ describeWithEnv(
 
       test("picks the cheapest qualifying tier listing", async () => {
         const cheap = await createTierListing(300);
-        const _expensive = await createTierListing(900);
+        await createTierListing(900);
 
         const result = await pickTierListing();
         expect(result).not.toBeNull();

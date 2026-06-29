@@ -113,7 +113,7 @@ describeWithEnv(
       // A pre-migration backup (no kind column) restored onto a
       // post-migration DB: the restore must add the column with the default
       // ('attendee'), not crash on its absence.
-      const listing = await createTestListing({ maxAttendees: 10, name: "L" });
+      await createTestListing({ maxAttendees: 10, name: "L" });
       const { id } = await createServicingHold({ listing: { name: "L" } });
       // Take a backup, drop the kind column from the live DB (simulating a
       // pre-migration restore source), restore, and re-apply the migration.

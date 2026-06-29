@@ -109,13 +109,13 @@ const asRoute = (
 
 type SettingsHandlerConfig<T> = RedirectOpts & {
   /** Form ID for flash message targeting (omit for non-settings pages) */
-  formId?: string;
+  formId?: string | undefined;
   /** Human-readable label — used for default log (default: "${label} updated") */
   label: string;
   /** Extract the value from form data */
   extract: (form: FormParams) => T;
   /** Validate the value. Return error string or null if valid. */
-  validate?: ValidateFn<T>;
+  validate?: ValidateFn<T> | undefined;
   /** Persist the value */
   save: (value: T) => Promise<void> | void;
   /** Activity log + flash message (default: "${label} updated") */
@@ -153,7 +153,7 @@ const settingsHandler = <T>(
 // ── Specialization: toggleHandler ───────────────────────────────────
 
 type ToggleConfig = RedirectOpts & {
-  formId?: string;
+  formId?: string | undefined;
   field: string;
   label: string;
   save: (value: boolean) => Promise<void> | void;
@@ -175,10 +175,10 @@ const settingsToggle = (
 // ── Shared field config base ─────────────────────────────────────────
 
 type FieldConfig = RedirectOpts & {
-  formId?: string;
+  formId?: string | undefined;
   field: string;
   label: string;
-  validate?: ValidateFn<string>;
+  validate?: ValidateFn<string> | undefined;
   save: (value: string) => Promise<void> | void;
 };
 

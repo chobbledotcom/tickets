@@ -45,7 +45,7 @@ export const bookingBatchPlan = async (
   ledger: { pricedOrder: PricedOrder; occurredAt: string; eventId: string },
   finalizeSessionId?: string,
 ): Promise<BookingBatchPlan> => ({
-  finalizeSessionId,
+  ...(finalizeSessionId !== undefined ? { finalizeSessionId } : {}),
   legs: await mapBooking(
     bookingFactsFromOrder(ledger.pricedOrder, {
       attendeeId: BATCH_LEG_ATTENDEE_PLACEHOLDER,

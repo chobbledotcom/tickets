@@ -371,18 +371,18 @@ const buildTemplateData = async (
   parsed: ParsedAttendeeForm,
   attendee: Attendee | null,
   opts: {
-    attendeeError?: string | null;
-    dateError?: string | null;
-    flashError?: string;
-    flashSuccess?: string;
-    formError?: string | null;
-    hasMixedTimings?: boolean;
-    returnUrl?: string;
-    questions?: QuestionWithAnswers[];
-    selectedAnswerIds?: number[];
-    selectedTextAnswers?: Map<number, string>;
-    contactRecords?: ContactRecordsByChannel;
-    ledger?: AttendeeLedgerData;
+    attendeeError?: string | null | undefined;
+    dateError?: string | null | undefined;
+    flashError?: string | undefined;
+    flashSuccess?: string | undefined;
+    formError?: string | null | undefined;
+    hasMixedTimings?: boolean | undefined;
+    returnUrl?: string | undefined;
+    questions?: QuestionWithAnswers[] | undefined;
+    selectedAnswerIds?: number[] | undefined;
+    selectedTextAnswers?: Map<number, string> | undefined;
+    contactRecords?: ContactRecordsByChannel | undefined;
+    ledger?: AttendeeLedgerData | undefined;
   } = {},
 ): Promise<AttendeeFormTemplateData> => {
   const statuses = await getAllAttendeeStatuses();
@@ -488,8 +488,8 @@ const renderAttendeeFormPage = (
   const flash = applyFlash(request);
   return renderForm(session, {
     ...data,
-    flashError: flash.error,
-    flashSuccess: flash.success,
+    ...(flash.error !== undefined ? { flashError: flash.error } : {}),
+    ...(flash.success !== undefined ? { flashSuccess: flash.success } : {}),
   });
 };
 

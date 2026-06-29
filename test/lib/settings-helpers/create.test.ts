@@ -96,7 +96,6 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
 
     test("redirects to custom path when redirectTo is set", async () => {
       const { handler } = makeCreate({
-        formId: undefined,
         redirectTo: "/admin/site",
       });
       const res = await runHandler(handler, { value: "x" }, mockErrorPage);
