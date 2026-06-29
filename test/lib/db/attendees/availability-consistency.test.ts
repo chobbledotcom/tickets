@@ -82,16 +82,17 @@ describeWithEnv(
       ).toBe(false);
     });
 
+    /** A capped group with two standard members (each individually roomy at 10),
+     * so only the SHARED group cap can constrain a cross-listing cart. */
+    const groupWithTwoMembers = async (groupCap: number) => {
+      const group = await createTestGroup({ maxAttendees: groupCap });
+      const member = (): Promise<{ id: number }> =>
+        createTestListing({ groupId: group.id, maxAttendees: 10 });
+      return { a: await member(), b: await member() };
+    };
+
     test("cross-listing demand on a shared group cap that fits exactly", async () => {
-      const group = await createTestGroup({ maxAttendees: 4 });
-      const a = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-      });
-      const b = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-      });
+      const { a, b } = await groupWithTwoMembers(4);
       expect(
         await assertConsistent([
           { listingId: a.id, quantity: 2 },
@@ -101,15 +102,7 @@ describeWithEnv(
     });
 
     test("cross-listing demand exceeding a shared group cap is rejected by BOTH", async () => {
-      const group = await createTestGroup({ maxAttendees: 4 });
-      const a = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-      });
-      const b = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-      });
+      const { a, b } = await groupWithTwoMembers(4);
       // 2 + 3 = 5 against a group cap of 4: each line fits its OWN listing cap,
       // only the combined group demand overflows — the case a per-line check
       // would miss but the aggregated preflight and the sequential write catch.
@@ -122,15 +115,7 @@ describeWithEnv(
     });
 
     test("a shared group already partly full, combined cart tips it over", async () => {
-      const group = await createTestGroup({ maxAttendees: 6 });
-      const a = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-      });
-      const b = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-      });
+      const { a, b } = await groupWithTwoMembers(6);
       await bookAttendee(a, { quantity: 3 });
       // 3 already booked + a cart of 2 + 2 = 7 > 6.
       expect(
@@ -141,9 +126,22 @@ describeWithEnv(
       ).toBe(false);
     });
 
+    /** A daily listing capped at 2, fully booked on `fullDate` (1-day booking).
+     * `durationDays` sets the listing's bookable span for the cart under test. */
+    const dailyListingFullOn = async (
+      fullDate: string,
+      durationDays?: number,
+    ): Promise<{ id: number }> => {
+      const listing = await createDailyTestListing({
+        maxAttendees: 2,
+        ...(durationDays !== undefined && { durationDays }),
+      });
+      await bookAttendee(listing, { date: fullDate, quantity: 2 });
+      return listing;
+    };
+
     test("daily per-date capacity agrees on a full date", async () => {
-      const listing = await createDailyTestListing({ maxAttendees: 2 });
-      await bookAttendee(listing, { date: "2026-05-01", quantity: 2 });
+      const listing = await dailyListingFullOn("2026-05-01");
       expect(
         await assertConsistent(
           [{ date: "2026-05-01", listingId: listing.id, quantity: 1 }],
@@ -153,15 +151,8 @@ describeWithEnv(
     });
 
     test("daily multi-day cart agrees when one day in the span is full", async () => {
-      const listing = await createDailyTestListing({
-        durationDays: 3,
-        maxAttendees: 2,
-      });
-      await bookAttendee(listing, {
-        date: "2026-05-02",
-        durationDays: 1,
-        quantity: 2,
-      });
+      // The listing spans 3 days; day 2 of the span is already full.
+      const listing = await dailyListingFullOn("2026-05-02", 3);
       expect(
         await assertConsistent(
           [
