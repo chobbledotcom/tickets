@@ -75,6 +75,19 @@ export const dropHiddenPackageMembers = async <T extends { id: number }>(
     : listings.filter((e) => !hidden.has(e.id));
 };
 
+/** A group's members as buyers may see them on that group's own surfaces. A
+ * package group keeps its full membership — it IS the package — while any other
+ * group drops the members of a hidden package, which belong only to that
+ * package and must never surface standalone (even via a second group they
+ * happen to share). */
+export const visibleGroupMembers = <T extends { id: number }>(
+  group: { is_package: boolean },
+  members: T[],
+): Promise<T[]> =>
+  group.is_package
+    ? Promise.resolve(members)
+    : dropHiddenPackageMembers(members);
+
 /**
  * How a discovery surface should treat each listing:
  * - `childIds` — **every** child of some parent. A booking can never start from a

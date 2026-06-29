@@ -11,10 +11,13 @@ import {
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
+import { visibleGroupMembers } from "./discovery.ts";
 import { renderTicketFlow } from "./ticket-submit.ts";
 import type { AsyncHandler } from "./types.ts";
 
-/** Load group by slug and its active listings, return 404 if empty */
+/** Load group by slug and its buyer-visible active listings, return 404 if
+ * empty. A non-package group never exposes a hidden package's members, so a
+ * regular group made only of them reads as empty (404) rather than leaking them. */
 const withActiveGroupListingsBySlug = async (
   slug: string,
   handler: AsyncHandler<[Group, ListingWithCount[]]>,
@@ -23,11 +26,12 @@ const withActiveGroupListingsBySlug = async (
   const group = await getGroupBySlugIndex(slugIndex);
   if (!group) return notFoundResponse();
 
-  const [listings, holidays] = await Promise.all([
+  const [members, holidays] = await Promise.all([
     getActiveListingsByGroupId(group.id),
     getActiveHolidays(),
   ]);
-  const sorted = sortListings(listings, holidays);
+  const visible = await visibleGroupMembers(group, members);
+  const sorted = sortListings(visible, holidays);
   return sorted.length === 0 ? notFoundResponse() : handler(group, sorted);
 };
 

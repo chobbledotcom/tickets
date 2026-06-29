@@ -10,12 +10,13 @@ import {
   computeGroupSlugIndex,
   getActiveListingsByGroupId,
   getGroupBySlugIndex,
+  getHiddenPackageMemberIds,
 } from "#shared/db/groups.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";
-import { groupBookable } from "./discovery.ts";
+import { groupBookable, visibleGroupMembers } from "./discovery.ts";
 import { handleGroupTicketBySlug } from "./groups.ts";
 import { handleQrBookGet } from "./qr-book.ts";
 import { anyChildListing } from "./ticket-payment.ts";
@@ -86,12 +87,15 @@ export const handleTicketQrGet = async (
 ): Promise<Response> => {
   const listing = await getListingWithCountBySlug(slug);
   // A child has no standalone booking page (invariant I3), so its QR — which
-  // encodes `/ticket/<child>` — would be a dead end. Suppress it like the rest
-  // of the child's share affordances.
-  if (listing && (await anyChildListing([listing.id]))) {
-    return notFoundResponse();
+  // encodes `/ticket/<child>` — would be a dead end. A hidden package's member
+  // is the same: its page now 404s, so its QR must too. Suppress both like the
+  // rest of the listing's share affordances.
+  if (listing) {
+    const blocked =
+      (await anyChildListing([listing.id])) ||
+      (await getHiddenPackageMemberIds([listing.id])).size > 0;
+    return blocked ? notFoundResponse() : qrResponse(slug);
   }
-  if (listing) return qrResponse(slug);
 
   const slugIndex = await computeGroupSlugIndex(slug);
   const group = await getGroupBySlugIndex(slugIndex);
@@ -102,7 +106,10 @@ export const handleTicketQrGet = async (
   // bundle must fit. Use the SAME gate as the `/listings` group CTA so the QR
   // 404s exactly when the page it points at would offer nothing to book.
   if (group) {
-    const members = await getActiveListingsByGroupId(group.id);
+    const members = await visibleGroupMembers(
+      group,
+      await getActiveListingsByGroupId(group.id),
+    );
     return (await groupBookable(group, members))
       ? qrResponse(slug)
       : notFoundResponse();

@@ -38,6 +38,7 @@ import {
   classifyForDiscovery,
   dropHiddenPackageMembers,
   groupBookable,
+  visibleGroupMembers,
 } from "./discovery.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
@@ -52,7 +53,10 @@ const isPublicListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
 const loadPublicGroups = async (): Promise<Group[]> => {
   const groups = (await getAllGroups()).filter((g) => !g.hidden);
   const bookable = await mapParallel(async (g: Group) =>
-    groupBookable(g, await getActiveListingsByGroupId(g.id)),
+    groupBookable(
+      g,
+      await visibleGroupMembers(g, await getActiveListingsByGroupId(g.id)),
+    ),
   )(groups);
   return groups.filter((_, i) => bookable[i]);
 };

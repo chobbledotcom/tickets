@@ -194,6 +194,58 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     expect(res.status).toBe(404);
   });
 
+  test("a hidden package member's QR and qr-book 404 like its page", async () => {
+    const { handleRequest } = await import("#routes");
+    const { mockRequest } = await import("#test-utils/mocks.ts");
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "QrHide",
+      slug: "qr-hide",
+    });
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    const listing = await member(group, "QrMember");
+
+    const qr = await handleRequest(mockRequest(`/ticket/${listing.slug}/qr`));
+    expect(qr.status).toBe(404);
+    // A validly-signed qr-book token for the member is still rejected — a
+    // hidden member is never bookable on its own, even direct-to-checkout.
+    const { buildQrBookPayload, signQrBookToken } = await import(
+      "#shared/qr-token.ts"
+    );
+    const token = await signQrBookToken(
+      listing.slug,
+      buildQrBookPayload({ name: "Ada", value: 1000 }),
+    );
+    const qrBook = await handleRequest(
+      mockRequest(
+        `/ticket/${listing.slug}/qr-book?t=${encodeURIComponent(token)}`,
+      ),
+    );
+    expect(qrBook.status).toBe(404);
+  });
+
+  test("a non-package group never exposes a hidden package's members", async () => {
+    const { handleRequest } = await import("#routes");
+    const { mockRequest } = await import("#test-utils/mocks.ts");
+    const pkg = await createTestGroup({
+      isPackage: true,
+      name: "HidePkg",
+      slug: "hide-pkg",
+    });
+    await groupsTable.update(pkg.id, { hidePackageListings: true });
+    const regular = await createTestGroup({ name: "Regular", slug: "regular" });
+    // A listing shared between the hidden package and a regular public group.
+    await createTestListing({
+      groupIds: [pkg.id, regular.id],
+      name: "SharedMember",
+    });
+
+    // The regular group's page must not show the member; with no other member
+    // it has nothing to book and 404s rather than leaking it.
+    const res = await handleRequest(mockRequest(`/ticket/${regular.slug}`));
+    expect(res.status).toBe(404);
+  });
+
   test("edit POST rejects is_package on a group with a daily listing", async () => {
     const group = await createTestGroup({ name: "Daily", slug: "daily-pkg" });
     await member(group, "Daily Member", {

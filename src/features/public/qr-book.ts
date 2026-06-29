@@ -11,6 +11,7 @@ import { isRegistrationClosed } from "#routes/format.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingForListing } from "#shared/db/attendees/capacity.ts";
+import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getChildIds } from "#shared/db/listing-parents.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings.ts";
@@ -176,7 +177,12 @@ export const handleQrBookGet = async (
   const listing = await getListingWithCountBySlug(slug);
   if (!listing?.active) return errorResponse(slug, 404);
   // A booking can never start from a child (invariant I3): a signed QR for a
-  // child would otherwise skip straight to checkout for it alone.
+  // child would otherwise skip straight to checkout for it alone. A hidden
+  // package's member is likewise reachable only through the package, never its
+  // own page or a direct-to-checkout QR.
   if (await anyChildListing([listing.id])) return errorResponse(slug, 404);
+  if ((await getHiddenPackageMemberIds([listing.id])).size > 0) {
+    return errorResponse(slug, 404);
+  }
   return dispatchVerified(request, slug, token, payload, listing);
 };
