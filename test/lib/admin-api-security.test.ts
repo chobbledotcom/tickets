@@ -116,20 +116,43 @@ describeWithEnv("admin API security", { db: true }, () => {
       expect(response.status).toBe(400);
     });
 
-    const assertListingRequestRejects400 = async (
+    type ListingShape = { id: number; name: string };
+
+    const makeListingRequest = async (
       method: string,
-      bodyFn: (listing: { id: number; name: string }) => string,
-      urlFn: (listing: { id: number; name: string }) => string,
-    ): Promise<void> => {
+      bodyFn: (listing: ListingShape) => string,
+      urlFn: (listing: ListingShape) => string,
+      extraHeaders?: Record<string, string>,
+    ): Promise<Response> => {
       const listing = await createTestListing();
       const apiKey = await createTestApiKeyToken();
-      const response = await handleRequest(
+      return handleRequest(
         requestAsApiKey(urlFn(listing), apiKey, {
           body: bodyFn(listing),
           method,
+          ...(extraHeaders ? { headers: extraHeaders } : {}),
         }),
       );
+    };
+
+    const assertListingRequestRejects400 = async (
+      method: string,
+      bodyFn: (listing: ListingShape) => string,
+      urlFn: (listing: ListingShape) => string,
+    ): Promise<void> => {
+      const response = await makeListingRequest(method, bodyFn, urlFn);
       expect(response.status).toBe(400);
+    };
+
+    const assertListingRequestWithJsonAccepted = async (
+      method: string,
+      bodyFn: (listing: ListingShape) => string,
+      urlFn: (listing: ListingShape) => string,
+    ): Promise<void> => {
+      const response = await makeListingRequest(method, bodyFn, urlFn, {
+        "content-type": "application/json",
+      });
+      expect(response.status).not.toBe(400);
     };
 
     test("PUT /api/admin/listings/:id without content-type returns 400", () =>
@@ -160,31 +183,19 @@ describeWithEnv("admin API security", { db: true }, () => {
 
     // Regression: confirm the 400s above come from missing content-type, not
     // from some other validation. Adding the header must make each request pass.
-    test("PUT /api/admin/listings/:id with content-type is not rejected for missing content-type", async () => {
-      const listing = await createTestListing();
-      const apiKey = await createTestApiKeyToken();
-      const response = await handleRequest(
-        requestAsApiKey(`/api/admin/listings/${listing.id}`, apiKey, {
-          body: JSON.stringify({ name: "Updated" }),
-          headers: { "content-type": "application/json" },
-          method: "PUT",
-        }),
-      );
-      expect(response.status).not.toBe(400);
-    });
+    test("PUT /api/admin/listings/:id with content-type is not rejected for missing content-type", () =>
+      assertListingRequestWithJsonAccepted(
+        "PUT",
+        () => JSON.stringify({ name: "Updated" }),
+        ({ id }) => `/api/admin/listings/${id}`,
+      ));
 
-    test("DELETE /api/admin/listings/:id with content-type is not rejected for missing content-type", async () => {
-      const listing = await createTestListing();
-      const apiKey = await createTestApiKeyToken();
-      const response = await handleRequest(
-        requestAsApiKey(`/api/admin/listings/${listing.id}`, apiKey, {
-          body: JSON.stringify({ confirm_identifier: listing.name }),
-          headers: { "content-type": "application/json" },
-          method: "DELETE",
-        }),
-      );
-      expect(response.status).not.toBe(400);
-    });
+    test("DELETE /api/admin/listings/:id with content-type is not rejected for missing content-type", () =>
+      assertListingRequestWithJsonAccepted(
+        "DELETE",
+        ({ name }) => JSON.stringify({ confirm_identifier: name }),
+        ({ id }) => `/api/admin/listings/${id}`,
+      ));
 
     test("treats uppercase Content-Type the same as lowercase (RFC 7231)", async () => {
       const apiKey = await createTestApiKeyToken();
