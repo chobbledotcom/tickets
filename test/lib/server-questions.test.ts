@@ -171,6 +171,30 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         false,
       );
     });
+
+    test("rejects text longer than MAX_TEXTAREA_LENGTH server-side", async () => {
+      // The browser maxlength is only a UI hint; a direct POST must not be able
+      // to persist markdown beyond the cap (it would later be encrypted and
+      // rendered on public booking pages).
+      const { MAX_TEXTAREA_LENGTH } = await import("#shared/limits.ts");
+      const { response } = await adminFormPost("/admin/questions", {
+        display_type: "radio" as const,
+        text: "a".repeat(MAX_TEXTAREA_LENGTH + 1),
+      });
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining(
+          `Question text must be ${MAX_TEXTAREA_LENGTH} characters or fewer`,
+        ),
+        false,
+      );
+
+      const { getAllQuestionsWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
+      expect(await getAllQuestionsWithAnswers()).toHaveLength(0);
+    });
   });
 
   describe("GET /admin/questions/:id", () => {
@@ -546,6 +570,25 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { questionsTable } = await import("#shared/db/questions.ts");
       const found = await questionsTable.findById(id);
       expect(found).toBeNull();
+    });
+
+    test("deletes a multiline question via its flattened confirmation text", async () => {
+      // A question editor is a textarea, so the text can contain newlines. The
+      // confirmation page (and the single-line confirm input) shows the
+      // flattened "Line 1 / Line 2" form, so deletion must verify against that
+      // — not the raw newline text the operator cannot type.
+      const id = await createQuestion("Line 1\nLine 2");
+      const { response } = await adminFormPost(
+        `/admin/questions/${id}/delete`,
+        { confirm_identifier: "Line 1 / Line 2" },
+      );
+      await expectFlashRedirect(
+        "/admin/questions",
+        "Question deleted",
+      )(response);
+
+      const { questionsTable } = await import("#shared/db/questions.ts");
+      expect(await questionsTable.findById(id)).toBeNull();
     });
 
     test("rejects deletion with wrong text", async () => {

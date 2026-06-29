@@ -75,6 +75,7 @@ import {
   adminQuestionDeletePage,
   adminQuestionPage,
   adminQuestionsPage,
+  questionTextFlat,
 } from "#templates/admin/questions.tsx";
 import {
   type AnswerAggregateFormValues,
@@ -279,7 +280,10 @@ const handleAddAnswer = createAuthedFormRoute<
 
 /** Confirmed-delete handlers for questions */
 const questionDelete = createConfirmedHandlers<QuestionWithAnswers>({
-  identifier: (q) => q.text,
+  // The confirmation page shows the flattened text (newlines → " / "), and a
+  // single-line input can't carry the raw newlines, so verify against the same
+  // flattened form the operator can actually type.
+  identifier: (q) => questionTextFlat(q.text),
   identifierLabel: "Question text",
   load: (id) => getQuestionWithAnswers(id),
   onConfirm: async (q) => {

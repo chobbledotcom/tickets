@@ -245,21 +245,18 @@ export const EditQuestions = ({
   <>
     {questions.map((q) =>
       q.display_type === "free_text"
-        ? questionWrapper(
-            q,
-            undefined,
+        ? questionWrapper(q, undefined, (labelledBy) => (
             <input
+              aria-labelledby={labelledBy}
               maxlength={MAX_TEXTAREA_LENGTH}
               name={`question_${q.id}`}
               type="text"
               value={selectedTextAnswers.get(q.id) ?? ""}
-            />,
-          )
+            />
+          ))
         : q.display_type === "select"
-          ? questionWrapper(
-              q,
-              undefined,
-              <select name={`question_${q.id}`}>
+          ? questionWrapper(q, undefined, (labelledBy) => (
+              <select aria-labelledby={labelledBy} name={`question_${q.id}`}>
                 <option value="">No answer</option>
                 {q.answers
                   .filter((a) => a.active || selectedAnswerIds.includes(a.id))
@@ -271,8 +268,8 @@ export const EditQuestions = ({
                       {a.text}
                     </option>
                   ))}
-              </select>,
-            )
+              </select>
+            ))
           : questionFieldset(
               q,
               undefined,

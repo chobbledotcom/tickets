@@ -40,11 +40,11 @@ describe("questionTextContent", () => {
     expect(content).toBe("What size?");
   });
 
-  test("returns a prose div for complex markdown", () => {
+  test("returns a prose div with a stable id for complex markdown", () => {
     const content = String(
       questionTextContent(radioQuestion("What **size**?")),
     );
-    expect(content).toContain('<div class="prose">');
+    expect(content).toContain('<div class="prose" id="question-1-prose">');
     expect(content).toContain("<strong>size</strong>");
   });
 });
@@ -52,11 +52,9 @@ describe("questionTextContent", () => {
 describe("questionWrapper", () => {
   test("wraps a control in a label for simple text", () => {
     const html = String(
-      questionWrapper(
-        radioQuestion("What size?"),
-        undefined,
-        <input name="q1" type="text" />,
-      ),
+      questionWrapper(radioQuestion("What size?"), undefined, () => (
+        <input name="q1" type="text" />
+      )),
     );
     expect(html).toContain('<label class="custom-question">');
     expect(html).toContain("What size?");
@@ -64,20 +62,45 @@ describe("questionWrapper", () => {
     expect(html).toContain('type="text"');
   });
 
+  test("does not pass a labelledBy id when the control is inside a label", () => {
+    // Simple text labels the control implicitly via the wrapping <label>, so no
+    // aria-labelledby is needed — the factory is called with no id.
+    const html = String(
+      questionWrapper(radioQuestion("What size?"), undefined, (labelledBy) => (
+        <input aria-labelledby={labelledBy} name="q1" type="text" />
+      )),
+    );
+    expect(html).not.toContain("aria-labelledby");
+  });
+
   test("wraps a control in a div with prose for complex markdown", () => {
     const html = String(
-      questionWrapper(
-        radioQuestion("What **size**?"),
-        "100 200",
-        <input name="q1" type="text" />,
-      ),
+      questionWrapper(radioQuestion("What **size**?"), "100 200", () => (
+        <input name="q1" type="text" />
+      )),
     );
     expect(html).toContain(
       '<div class="custom-question" data-listing-ids="100 200">',
     );
-    expect(html).toContain('<div class="prose">');
+    expect(html).toContain('<div class="prose" id="question-1-prose">');
     expect(html).toContain("<strong>size</strong>");
     expect(html).not.toContain('<label class="custom-question">');
+  });
+
+  test("names the control via aria-labelledby for complex markdown", () => {
+    // The control sits outside any <label>, so it must reference the prose id to
+    // stay named for assistive tech.
+    const html = String(
+      questionWrapper(
+        radioQuestion("What **size**?"),
+        undefined,
+        (labelledBy) => (
+          <input aria-labelledby={labelledBy} name="q1" type="text" />
+        ),
+      ),
+    );
+    expect(html).toContain('aria-labelledby="question-1-prose"');
+    expect(html).toContain('<div class="prose" id="question-1-prose">');
   });
 });
 
@@ -95,9 +118,10 @@ describe("questionFieldset", () => {
     expect(html).toContain("<legend>What size?</legend>");
     expect(html).toContain('type="radio"');
     expect(html).not.toContain('<div class="prose">');
+    expect(html).not.toContain("aria-labelledby");
   });
 
-  test("renders complex fieldset text as prose before controls", () => {
+  test("renders complex fieldset text as prose and names the group by it", () => {
     const html = String(
       questionFieldset(radioQuestion("What **size**?"), "100 200", [
         <label>
@@ -107,9 +131,9 @@ describe("questionFieldset", () => {
     );
 
     expect(html).toContain(
-      '<fieldset class="custom-question" data-listing-ids="100 200">',
+      '<fieldset aria-labelledby="question-1-prose" class="custom-question" data-listing-ids="100 200">',
     );
-    expect(html).toContain('<div class="prose">');
+    expect(html).toContain('<div class="prose" id="question-1-prose">');
     expect(html).toContain("<strong>size</strong>");
     expect(html).not.toContain("<legend>");
   });

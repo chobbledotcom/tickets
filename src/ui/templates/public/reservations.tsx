@@ -289,31 +289,32 @@ const renderQuestion = (
   const answered = savedFormValue(`question_${q.id}`);
   const options = q.answers.filter((a) => a.active);
   if (q.display_type === "free_text") {
-    return questionWrapper(
-      q,
-      listingIds,
+    return questionWrapper(q, listingIds, (labelledBy) => (
       <input
+        aria-labelledby={labelledBy}
         maxlength={MAX_TEXTAREA_LENGTH}
         name={`question_${q.id}`}
         required={required}
         type="text"
         value={answered}
-      />,
-    );
+      />
+    ));
   }
   if (q.display_type === "select") {
-    return questionWrapper(
-      q,
-      listingIds,
-      <select name={`question_${q.id}`} required={required}>
+    return questionWrapper(q, listingIds, (labelledBy) => (
+      <select
+        aria-labelledby={labelledBy}
+        name={`question_${q.id}`}
+        required={required}
+      >
         <option value="">{t("public.ticket.select_answer_placeholder")}</option>
         {options.map((a) => (
           <option selected={answered === String(a.id)} value={String(a.id)}>
             {a.text}
           </option>
         ))}
-      </select>,
-    );
+      </select>
+    ));
   }
   return questionFieldset(
     q,

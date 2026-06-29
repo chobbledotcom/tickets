@@ -397,6 +397,16 @@ const validateSingleField = (
     if (error) return { error, valid: false };
   }
 
+  // Enforce the field's maxlength server-side (the rendered input's maxlength is
+  // only a browser hint). Runs after any custom validator so a field with its
+  // own length rule keeps its domain-specific message.
+  if (field.maxlength && trimmed.length > field.maxlength) {
+    return {
+      error: `${field.label} must be ${field.maxlength} characters or fewer`,
+      valid: false,
+    };
+  }
+
   return { valid: true, value: parseFieldValue(field, trimmed) };
 };
 
