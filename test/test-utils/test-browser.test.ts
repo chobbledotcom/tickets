@@ -145,7 +145,9 @@ describe("TestBrowser navigation", () => {
     useHandler(browser, (request) => {
       const url = new URL(request.url);
       seen.push(
-        `${request.method} ${url.pathname} ${request.headers.get("cookie") ?? ""}`,
+        `${request.method} ${url.pathname} ${
+          request.headers.get("cookie") ?? ""
+        }`,
       );
       if (url.pathname === "/start") {
         return new Response(null, {

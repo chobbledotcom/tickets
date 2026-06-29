@@ -92,19 +92,29 @@ describeWithEnv(
       expect((await allTransfers()).length).toBe(0);
     });
 
+    const makeTrackingPostLedger = (
+      listingId: number,
+    ): {
+      posted: { value: boolean };
+      postLedger: (tx: TxScope, attendeeId: number) => Promise<void>;
+    } => {
+      const posted = { value: false };
+      const postLedger = async (
+        tx: TxScope,
+        attendeeId: number,
+      ): Promise<void> => {
+        posted.value = true;
+        await postTransfersTx(tx, saleAndPayment(listingId, attendeeId));
+      };
+      return { posted, postLedger };
+    };
+
     test("rolls back the whole order (and posts nothing) on a partial create", async () => {
       // Two listings, one already full: the paid path is all-or-nothing, so the
       // create must roll back rather than post legs for the line that did book.
       const open = await createTestListing({ maxAttendees: 5 });
       const full = await createTestListing({ maxAttendees: 1 });
-      let posted = false;
-      const postLedger = async (
-        tx: TxScope,
-        attendeeId: number,
-      ): Promise<void> => {
-        posted = true;
-        await postTransfersTx(tx, saleAndPayment(open.id, attendeeId));
-      };
+      const { posted, postLedger } = makeTrackingPostLedger(open.id);
 
       const result = await createAttendeeAtomic(
         {
@@ -119,21 +129,14 @@ describeWithEnv(
       );
 
       expect(result.success).toBe(false);
-      expect(posted).toBe(false);
+      expect(posted.value).toBe(false);
       expect((await getAttendeesRaw(open.id)).length).toBe(0);
       expect((await allTransfers()).length).toBe(0);
     });
 
     test("returns capacity_exceeded without posting when no booking fits", async () => {
       const listing = await createTestListing({ maxAttendees: 1 });
-      let posted = false;
-      const postLedger = async (
-        tx: TxScope,
-        attendeeId: number,
-      ): Promise<void> => {
-        posted = true;
-        await postTransfersTx(tx, saleAndPayment(listing.id, attendeeId));
-      };
+      const { posted, postLedger } = makeTrackingPostLedger(listing.id);
 
       const result = await createAttendeeAtomic(
         {
@@ -147,7 +150,7 @@ describeWithEnv(
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(result.reason).toBe("capacity_exceeded");
-      expect(posted).toBe(false);
+      expect(posted.value).toBe(false);
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
       expect((await allTransfers()).length).toBe(0);
     });

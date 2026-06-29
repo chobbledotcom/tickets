@@ -10,6 +10,7 @@ import {
 } from "#shared/db/groups.ts";
 import {
   apiRequest,
+  assertApiDeleteOk,
   assertJson,
   createTestGroup,
   createTestListing,
@@ -410,16 +411,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("deletes group with correct confirmation", async () => {
       const group = await createTestGroup({ name: "To Delete" });
 
-      await assertJson(
-        apiRequest(`/api/admin/groups/${group.id}`, {
-          body: { confirm_identifier: "To Delete" },
-          method: "DELETE",
-        }),
-        200,
-        (body) => {
-          expect(body.status).toBe("ok");
-        },
-      );
+      await assertApiDeleteOk(`/api/admin/groups/${group.id}`, "To Delete");
 
       const all = await getAllGroups();
       expect(all.find((g) => g.id === group.id)).toBeUndefined();

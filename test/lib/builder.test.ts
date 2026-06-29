@@ -280,59 +280,58 @@ describeWithEnv(
         },
       ));
 
-    test("buildSite returns error when Deno app creation fails", () =>
-      withMocks(
-        () =>
+    const DENO_ERROR_CASES: {
+      name: string;
+      mocks: () => Restorable | Record<string, Restorable>;
+      error: string;
+    }[] = [
+      {
+        error: "Create app failed",
+        mocks: () =>
           stubDenoBuilderApis({
             createAppResult: {
               error: "Create app failed (500): Error",
               ok: false as const,
             },
           }),
-        async () => {
-          const result = await builderApi.buildSite({
-            dbToken: "tok",
-            dbUrl: "libsql://test.io",
-            hostingProvider: "deno",
-            siteName: "Fail",
-          });
-          expectBuildError(result, "Create app failed");
-        },
-      ));
-
-    test("buildSite returns error when Deno setEnvVars fails", () =>
-      withMocks(
-        () =>
+        name: "buildSite returns error when Deno app creation fails",
+      },
+      {
+        error: "Failed to set secrets",
+        mocks: () =>
           stubDenoBuilderApis({
-            setEnvResult: { error: "Set env failed (403)", ok: false as const },
+            setEnvResult: {
+              error: "Set env failed (403)",
+              ok: false as const,
+            },
           }),
-        async () => {
-          const result = await builderApi.buildSite({
-            dbToken: "tok",
-            dbUrl: "libsql://test.io",
-            hostingProvider: "deno",
-            siteName: "Fail",
-          });
-          expectBuildError(result, "Failed to set secrets");
-        },
-      ));
-
-    test("buildSite returns error when Deno deployCode fails", () =>
-      withMocks(
-        () =>
+        name: "buildSite returns error when Deno setEnvVars fails",
+      },
+      {
+        error: "Deploy failed",
+        mocks: () =>
           stubDenoBuilderApis({
-            deployResult: { error: "Deploy failed (500)", ok: false as const },
+            deployResult: {
+              error: "Deploy failed (500)",
+              ok: false as const,
+            },
           }),
-        async () => {
+        name: "buildSite returns error when Deno deployCode fails",
+      },
+    ];
+    for (const { name, mocks, error } of DENO_ERROR_CASES) {
+      test(name, () =>
+        withMocks(mocks, async () => {
           const result = await builderApi.buildSite({
             dbToken: "tok",
             dbUrl: "libsql://test.io",
             hostingProvider: "deno",
             siteName: "Fail",
           });
-          expectBuildError(result, "Deploy failed");
-        },
-      ));
+          expectBuildError(result, error);
+        }),
+      );
+    }
 
     test("createDatabase dispatches to tursoApi when provider is turso", () =>
       withMocks(

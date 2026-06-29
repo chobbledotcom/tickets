@@ -18,7 +18,7 @@
   "gitignore": true,
   "exitCode": 1,
   "minLines": 1,
-  "minTokens": 49,
+  "minTokens": 48,
   "path": [
     "test"
   ]

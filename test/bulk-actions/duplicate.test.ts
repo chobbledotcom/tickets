@@ -9,12 +9,14 @@ import {
 import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
 import {
   adminFormPost,
-  adminGet,
   createTestGroup,
   createTestListing,
   describeWithEnv,
+  getBulkActionForm,
   getTestPackagePrices,
 } from "#test-utils";
+
+const getDuplicateForm = getBulkActionForm("duplicate");
 
 describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
   describe("GET /admin/groups/:id/bulk-actions/duplicate", () => {
@@ -22,12 +24,8 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       const group = await createTestGroup({ name: "Original" });
       await createTestListing({ groupId: group.id, name: "Spring Workshop" });
 
-      const response = await adminGet(
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
-      );
-      const html = await response.text();
+      const html = await getDuplicateForm(group.id);
 
-      expect(response.status).toBe(200);
       expect(html).toContain("Duplicate Group");
       expect(html).toContain("Spring Workshop");
       expect(html).toContain('id="duplicate-preview-listings"');
@@ -38,12 +36,8 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
     test("shows an empty-state message when the group has no listings", async () => {
       const group = await createTestGroup({ name: "Empty" });
 
-      const response = await adminGet(
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
-      );
-      const html = await response.text();
+      const html = await getDuplicateForm(group.id);
 
-      expect(response.status).toBe(200);
       expect(html).toContain("This group has no listings");
     });
   });

@@ -20,9 +20,13 @@ import {
   SCHEMA_HASH,
 } from "#shared/db/migrations.ts";
 import {
+  assertSchemaEmpty,
   describeWithEnv,
   invalidateTestDbCache,
+  schemaMarkerKeys,
+  settingsTableExists,
   stubNtfyFetch,
+  tableExists,
 } from "#test-utils";
 import {
   markCurrentSchemaMigrationPending,
@@ -94,32 +98,10 @@ describeWithEnv("db > migrations", { db: true }, () => {
       }
     };
 
-    const settingsTableExists = async (): Promise<boolean> => {
-      const result = await getDb().execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'",
-      );
-      return result.rows.length > 0;
-    };
-
-    const tableExists = async (table: string): Promise<boolean> => {
-      const result = await getDb().execute({
-        args: [table],
-        sql: "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-      });
-      return result.rows.length > 0;
-    };
-
     const createEmptySettingsTable = () =>
       getDb().execute(
         "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
       );
-
-    const schemaMarkerKeys = async (): Promise<string[]> => {
-      const result = await getDb().execute(
-        "SELECT key FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash') ORDER BY key",
-      );
-      return result.rows.map((row) => String(row.key));
-    };
 
     const schemaMigrationsTableExists = async (): Promise<boolean> => {
       const result = await getDb().execute(
@@ -389,9 +371,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
       await expect(initDb()).rejects.toThrow("settings table is uninitialized");
 
-      expect(await settingsTableExists()).toBe(true);
-      expect(await tableExists("listings")).toBe(false);
-      expect(await schemaMarkerKeys()).toEqual([]);
+      await assertSchemaEmpty();
     });
 
     test("initDb bootstraps a missing settings table when explicitly allowed", async () => {
@@ -403,59 +383,44 @@ describeWithEnv("db > migrations", { db: true }, () => {
       expect(await tableExists("listings")).toBe(true);
     });
 
-    test("named legacy migration drops legacy indexes not in declarative schema", async () => {
-      await getDb().execute(
-        `CREATE INDEX IF NOT EXISTS
-         idx_attendees_legacy_created
-         ON attendees(created)`,
-      );
-
-      const before = await getDb().execute(
-        `SELECT name FROM sqlite_master
-         WHERE type = 'index'
-           AND name = 'idx_attendees_legacy_created'`,
-      );
+    const assertLegacyObjectDropped = async (
+      type: string,
+      name: string,
+      createSql: string,
+    ): Promise<void> => {
+      await getDb().execute(createSql);
+      const before = await getDb().execute({
+        args: [type, name],
+        sql: "SELECT name FROM sqlite_master WHERE type = ? AND name = ?",
+      });
       expect(before.rows.length).toBe(1);
-
       await getDb().execute(
         "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
       );
       await markCurrentSchemaMigrationPending();
       await initDb();
-
-      const after = await getDb().execute(
-        `SELECT name FROM sqlite_master
-         WHERE type = 'index'
-           AND name = 'idx_attendees_legacy_created'`,
-      );
+      const after = await getDb().execute({
+        args: [type, name],
+        sql: "SELECT name FROM sqlite_master WHERE type = ? AND name = ?",
+      });
       expect(after.rows.length).toBe(0);
-    });
+    };
 
-    test("named legacy migration drops legacy triggers not in declarative schema", async () => {
-      await getDb().execute(
+    test("named legacy migration drops legacy indexes not in declarative schema", () =>
+      assertLegacyObjectDropped(
+        "index",
+        "idx_attendees_legacy_created",
+        "CREATE INDEX IF NOT EXISTS idx_attendees_legacy_created ON attendees(created)",
+      ));
+
+    test("named legacy migration drops legacy triggers not in declarative schema", () =>
+      assertLegacyObjectDropped(
+        "trigger",
+        "trg_legacy_noop",
         `CREATE TRIGGER IF NOT EXISTS trg_legacy_noop
          AFTER INSERT ON attendees
          FOR EACH ROW BEGIN SELECT 1; END`,
-      );
-
-      const before = await getDb().execute(
-        `SELECT name FROM sqlite_master
-         WHERE type = 'trigger' AND name = 'trg_legacy_noop'`,
-      );
-      expect(before.rows.length).toBe(1);
-
-      await getDb().execute(
-        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
-      );
-      await markCurrentSchemaMigrationPending();
-      await initDb();
-
-      const after = await getDb().execute(
-        `SELECT name FROM sqlite_master
-         WHERE type = 'trigger' AND name = 'trg_legacy_noop'`,
-      );
-      expect(after.rows.length).toBe(0);
-    });
+      ));
   });
 
   describe("initDb ready cache", () => {

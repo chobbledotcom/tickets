@@ -6,6 +6,7 @@ import { invalidateInitDbCache, resetDatabase } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   assertPublicHtml,
+  assertSchemaEmpty,
   awaitTestRequest,
   createTestDb,
   describeWithEnv,
@@ -20,6 +21,9 @@ import {
   mockSetupFormRequest,
   reloginAsAdmin,
   resetDb,
+  schemaMarkerKeys,
+  settingsTableExists,
+  tableExists,
   withExpectedError,
   withMocks,
 } from "#test-utils";
@@ -55,34 +59,12 @@ describeWithEnv("server (setup)", { db: true }, () => {
     settings.setup.clearCache();
   }
 
-  async function settingsTableExists(): Promise<boolean> {
-    const result = await getDb().execute(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'",
-    );
-    return result.rows.length > 0;
-  }
-
-  async function tableExists(table: string): Promise<boolean> {
-    const result = await getDb().execute({
-      args: [table],
-      sql: "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-    });
-    return result.rows.length > 0;
-  }
-
   async function createEmptySettingsTable(): Promise<void> {
     await getDb().execute(
       "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
     );
     settings.invalidateCache();
     settings.setup.clearCache();
-  }
-
-  async function schemaMarkerKeys(): Promise<string[]> {
-    const result = await getDb().execute(
-      "SELECT key FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash') ORDER BY key",
-    );
-    return result.rows.map((row) => String(row.key));
   }
 
   describe("setup routes", () => {
@@ -127,9 +109,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
           "This site has not been activated yet",
         );
 
-        expect(await settingsTableExists()).toBe(true);
-        expect(await tableExists("listings")).toBe(false);
-        expect(await schemaMarkerKeys()).toEqual([]);
+        await assertSchemaEmpty();
       });
 
       test("returns not-activated page for admin when setup is incomplete", async () => {

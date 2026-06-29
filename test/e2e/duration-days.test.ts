@@ -1178,7 +1178,9 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/listing/${listing.id}/attendee/${result.attendees[0]!.id}/checkin`,
+          `/admin/listing/${listing.id}/attendee/${
+            result.attendees[0]!.id
+          }/checkin`,
           { csrf_token: csrfToken },
           cookie,
         ),

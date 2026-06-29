@@ -624,6 +624,53 @@ export const createTestAttendeeWithToken = async (
   return { attendee, listing, token };
 };
 
+/** Create a test attendee for "Alice" and fetch her ticket page body.
+ *  Returns both the token (for further URL assertions) and the HTML body. */
+export const fetchAliceTicketPageBody = async (): Promise<{
+  token: string;
+  body: string;
+}> => {
+  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
+  const { token } = await createTestAttendeeWithToken(
+    "Alice",
+    "alice@test.com",
+  );
+  const response = await awaitTestRequest(`/t/${token}`);
+  const body = await response.text();
+  return { body, token };
+};
+
+/** Assert that the admin password can be verified against the stored hash,
+ *  and that the hash uses the pbkdf2 scheme. Shared by the users-db and auth
+ *  tests which both verify this same invariant. */
+export const assertAdminPasswordVerifies = async (): Promise<void> => {
+  const { expect } = await import("@std/expect");
+  const { getUserByUsername, verifyUserPassword } = await import(
+    "#shared/db/users.ts"
+  );
+  const { TEST_ADMIN_PASSWORD, TEST_ADMIN_USERNAME } = await import(
+    "#test-utils/internal.ts"
+  );
+  const user = await getUserByUsername(TEST_ADMIN_USERNAME);
+  expect(user).not.toBeNull();
+  const result = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
+  expect(result).toBeTruthy();
+  expect(result).toContain("pbkdf2:");
+};
+
+/** Assert that verifyUserPassword returns null for an incorrect password. */
+export const assertAdminPasswordRejects = async (): Promise<void> => {
+  const { expect } = await import("@std/expect");
+  const { getUserByUsername, verifyUserPassword } = await import(
+    "#shared/db/users.ts"
+  );
+  const { TEST_ADMIN_USERNAME } = await import("#test-utils/internal.ts");
+  const user = await getUserByUsername(TEST_ADMIN_USERNAME);
+  expect(user).not.toBeNull();
+  const result = await verifyUserPassword(user!, "wrongpassword");
+  expect(result).toBeNull();
+};
+
 export const createDailyTestListing = (overrides: TestListingOverrides = {}) =>
   createTestListing({
     bookableDays: allDays,
