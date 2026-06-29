@@ -274,7 +274,22 @@ describe("renderAdminFooter", () => {
       const html = renderAdminFooter();
       expect(html).toContain('<footer class="admin-footer">');
       expect(html).toContain('<a href="/admin/logout">Log out</a>');
+      // The exact role passed to markAdminFooter drives the gated links: a staff
+      // role gets the staff-only log/guide links (proves the stored role is used
+      // verbatim, not mangled).
+      expect(html).toContain('<a href="/admin/log">Log</a>');
+      expect(html).toContain('<a href="/admin/guide">Guide</a>');
       expect(html).not.toContain("debug-menu");
+    });
+  });
+
+  test("renders only logout for a non-staff role flagged via the store", () => {
+    runWithQueryLogContext(() => {
+      markAdminFooter("editor");
+      const html = renderAdminFooter();
+      expect(html).toContain('<a href="/admin/logout">Log out</a>');
+      expect(html).not.toContain('href="/admin/log"');
+      expect(html).not.toContain('href="/admin/guide"');
     });
   });
 
