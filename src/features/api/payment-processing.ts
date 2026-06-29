@@ -925,7 +925,6 @@ const deletedListingSpec = (session: ValidatedPaymentSession): RefundSpec => ({
  * test, so this path refunds without paging.
  */
 const paidPricingRefund = (
-  intent: BookingIntent,
   validatedItems: ValidatedItem[],
   pricedOrder: PricedOrder,
   agreed: number,
@@ -941,26 +940,19 @@ const paidPricingRefund = (
       );
     }
   }
-  // Run the per-item check when a line was signed paid, OR when a line signed
-  // as free now has a positive expected price. The latter catches a package
-  // override (or base price) raised from 0 to positive while an add-on/modifier
-  // kept the order paid: `pricedOrder` is re-derived from the signed zero unit
-  // prices, so the total still matches `agreed` and only this comparison against
-  // the freshly loaded `expectedPrice` sees the drift.
-  const needsItemCheck =
-    intent.items.some((item) => item.p > 0) ||
-    validatedItems.some(({ expectedPrice }) => (expectedPrice ?? 0) > 0);
-  // Per-item prices are ticket-only (no fee), so validate without booking fee
-  if (needsItemCheck) {
-    for (const { item, listing, expectedPrice } of validatedItems) {
-      if (
-        expectedPrice === null ||
-        hasPriceMismatch(item.p, expectedPrice, listing, 0, item.q)
-      ) {
-        return priceChangedSpec(
-          `Per-item price mismatch for listing ${listing.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${listing.can_pay_more})`,
-        );
-      }
+  // Per-item prices are ticket-only (no fee), so validate without booking fee.
+  // EVERY item is checked, not just the ones signed paid: a package override (or
+  // base price) raised from 0 to positive while an add-on/modifier kept the order
+  // paid would otherwise slip through, because `pricedOrder` is re-derived from
+  // the signed zero unit prices so the total still matches `agreed` — only this
+  // comparison against the freshly loaded `expectedPrice` sees the drift. A
+  // genuinely free line (signed 0, still 0) costs nothing here: it never
+  // mismatches. expectedPrice is non-null by the fail-closed loop above.
+  for (const { item, listing, expectedPrice } of validatedItems) {
+    if (hasPriceMismatch(item.p, expectedPrice!, listing, 0, item.q)) {
+      return priceChangedSpec(
+        `Per-item price mismatch for listing ${listing.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${listing.can_pay_more})`,
+      );
     }
   }
   if (pricedOrder.total !== agreed) {
@@ -1553,7 +1545,7 @@ const processReservedSession = async (
   const knownRefund: RefundSpec | null =
     verdict.verdict === "mismatch"
       ? chargeMismatchSpec(session, verdict.agreed)
-      : paidPricingRefund(intent, validatedItems, pricedOrder, verdict.agreed);
+      : paidPricingRefund(validatedItems, pricedOrder, verdict.agreed);
   if (knownRefund) {
     return storeRefundedBooking(session, intent, placeholders, knownRefund);
   }
