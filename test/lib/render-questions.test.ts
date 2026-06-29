@@ -232,7 +232,8 @@ describe("renderQuestions", () => {
     ]).toString();
 
     expect(html).toContain('<div class="custom-question">');
-    expect(html).toContain('<div class="prose">');
+    expect(html).toContain('<div class="prose" id="question-1-prose">');
+    expect(html).toContain('aria-labelledby="question-1-prose"');
     expect(html).toContain("<strong>more</strong>");
     expect(html).not.toContain("**more**");
   });
@@ -257,7 +258,8 @@ describe("renderQuestions", () => {
     ]).toString();
 
     expect(html).toContain('<div class="custom-question">');
-    expect(html).toContain('<div class="prose">');
+    expect(html).toContain('<div class="prose" id="question-1-prose">');
+    expect(html).toContain('aria-labelledby="question-1-prose"');
     expect(html).toContain('<a href="https://example.com">a colour</a>');
   });
 
@@ -280,7 +282,10 @@ describe("renderQuestions", () => {
       },
     ]).toString();
 
-    expect(html).toContain('<div class="prose">');
+    expect(html).toContain(
+      '<fieldset aria-labelledby="question-1-prose" class="custom-question">',
+    );
+    expect(html).toContain('<div class="prose" id="question-1-prose">');
     expect(html).toContain("<h1>Heading</h1>");
     expect(html).not.toContain("<legend>");
   });
