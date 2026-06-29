@@ -489,6 +489,29 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
     });
 
+    test("group revenue comes from the ledger and survives attendee deletion", async () => {
+      const { bookAttendee } = await import("#test-utils");
+      const { deleteAttendee } = await import("#shared/db/attendees.ts");
+      const group = await createTestGroup({ name: "Rev", slug: "rev-group" });
+      const listing = await createTestListing({
+        groupId: group.id,
+        name: "Paid Listing",
+        unitPrice: 2500,
+      });
+      const result = await bookAttendee(listing, { pricePaid: 2500 });
+      if (!result.success) throw new Error("booking failed");
+      const attendeeId = result.attendees[0]!.id;
+
+      const before = await adminGet(`/admin/groups/${group.id}`);
+      await expectHtmlResponse(before, 200, "Total Revenue", "£25");
+
+      // Deleting the attendee purges its rows but not the ledger sale leg, so the
+      // ledger-projected revenue still counts it — an attendee-sum would not.
+      await deleteAttendee(attendeeId);
+      const after = await adminGet(`/admin/groups/${group.id}`);
+      await expectHtmlResponse(after, 200, "Total Revenue", "£25");
+    });
+
     test("shows hidden status on detail page when group is hidden", async () => {
       const group = await createTestGroup({
         hidden: true,

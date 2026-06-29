@@ -149,6 +149,11 @@ export type SharedDetailInput = {
   labelSuffix?: string;
   /** Skip the attendees row (when the caller renders its own complex version) */
   skipAttendees?: boolean;
+  /** Total revenue (minor units) to show, when the caller has an authoritative
+   * figure that doesn't depend on the loaded attendee rows — the group page
+   * passes the ledger-projected income, which still counts revenue from bookings
+   * since deleted (an attendee-sum would silently lose it). */
+  revenue?: number;
 };
 
 /** Whether a count is at or above 90% of capacity */
@@ -175,10 +180,10 @@ const buildAttendeeRow = (
   };
 };
 
-/** Build a revenue detail row */
-const buildRevenueRow = (attendees: Attendee[]): DetailRow => ({
+/** Build a revenue detail row from a minor-units total */
+const buildRevenueRow = (revenue: number): DetailRow => ({
   key: t("detail_rows.total_revenue"),
-  value: formatCurrency(calculateTotalRevenue(attendees)),
+  value: formatCurrency(revenue),
 });
 
 /** Build the shared detail rows: attendees, checked-in, revenue, question summary */
@@ -190,11 +195,14 @@ export const buildSharedDetailRows = ({
   questionData,
   labelSuffix = "",
   skipAttendees = false,
+  revenue,
 }: SharedDetailInput): DetailRow[] => [
   ...(skipAttendees
     ? []
     : [buildAttendeeRow(attendeeCount, maxCapacity, labelSuffix)]),
   ...buildCheckedInRows(getCheckedInStats(attendees), labelSuffix),
-  ...(hasPaidListing ? [buildRevenueRow(attendees)] : []),
+  ...(hasPaidListing
+    ? [buildRevenueRow(revenue ?? calculateTotalRevenue(attendees))]
+    : []),
   ...buildAnswerSummaryRows(questionData),
 ];

@@ -10,7 +10,7 @@ import {
   LISTING_DEFAULT_ORDER,
   LISTING_TABLE_COLUMNS,
 } from "#shared/columns/listing-columns.ts";
-import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
+import { toMajorUnits } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -33,7 +33,6 @@ import {
 import { ListingRow, renderListingTable } from "#templates/admin/dashboard.tsx";
 import {
   buildSharedDetailRows,
-  calculateTotalRevenue,
   renderDetailRows,
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
@@ -299,6 +298,11 @@ const groupAggregateMismatchItems = (
   // report a bogus tickets_count drift. (booked_quantity/income sum quantity/
   // price_paid, to which a ghost contributes 0, so those sides stay unfiltered.)
   const realTicketCount = attendees.filter(hasTicketQuantity).length;
+  // Quantity integrity only: the trigger-maintained booked_quantity/tickets_count
+  // aggregates are cross-checked against the live attendee rows. Revenue is NOT
+  // compared here — it is the ledger's job (projected income counts bookings
+  // since deleted, which an attendee-sum can't), so a refund or a deletion would
+  // make an income comparison flag a non-issue.
   const checks: Array<ExpectedActualItem & { matches: boolean }> = [
     {
       actual: String(totalAttendeeCount(listings)),
@@ -311,12 +315,6 @@ const groupAggregateMismatchItems = (
       expected: String(realTicketCount),
       label: t("fields.listing.tickets_count"),
       matches: totalTicketCount(listings) === realTicketCount,
-    },
-    {
-      actual: formatCurrency(totalIncome(listings)),
-      expected: formatCurrency(calculateTotalRevenue(attendees)),
-      label: t("fields.listing.income"),
-      matches: totalIncome(listings) === calculateTotalRevenue(attendees),
     },
   ];
   return checks.filter((item) => !item.matches);
@@ -424,6 +422,10 @@ export const adminGroupDetailPage = (
     attendees,
     hasPaidListing,
     maxCapacity: 0,
+    // Revenue comes from the ledger (the listings' projected income), not a sum
+    // over the loaded attendees: bookings since deleted still count, and a
+    // package's override revenue is captured the same way.
+    revenue: totalIncome(listings),
     ...(questionData !== undefined ? { questionData } : {}),
     skipAttendees: true,
   });
