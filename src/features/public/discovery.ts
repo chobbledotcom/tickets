@@ -31,6 +31,7 @@ import {
   getGroupIdsByListingIds,
   getGroupListingIds,
   getGroupPackagePrices,
+  getHiddenPackageMemberIds,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
@@ -56,6 +57,23 @@ import {
   type TicketListing,
 } from "#templates/public.tsx";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
+
+/**
+ * Drop members of a HIDDEN package from a buyer-facing listing set: such a
+ * package promises buyers see only its name, never the individual members, so
+ * the members must not appear as standalone cards/links/feed items on any
+ * public surface. A no-op (and no query) when none of the listings are
+ * hidden-package members. The package group itself is unaffected — its CTA is
+ * gated separately by {@link packageGroupBookable}.
+ */
+export const dropHiddenPackageMembers = async <T extends { id: number }>(
+  listings: T[],
+): Promise<T[]> => {
+  const hidden = await getHiddenPackageMemberIds(listings.map((e) => e.id));
+  return hidden.size === 0
+    ? listings
+    : listings.filter((e) => !hidden.has(e.id));
+};
 
 /**
  * How a discovery surface should treat each listing:

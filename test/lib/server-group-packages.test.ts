@@ -177,6 +177,23 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     expect(body).not.toContain("SecretVenue");
   });
 
+  test("a hidden package member's own /ticket slug 404s, never a standalone page", async () => {
+    const { handleRequest } = await import("#routes");
+    const { mockRequest } = await import("#test-utils/mocks.ts");
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "DirectHide",
+      slug: "direct-hide",
+    });
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    const listing = await member(group, "DirectMember");
+
+    // Only the package (group slug) is public; the member's own slug must not
+    // resolve to a standalone booking page.
+    const res = await handleRequest(mockRequest(`/ticket/${listing.slug}`));
+    expect(res.status).toBe(404);
+  });
+
   test("edit POST rejects is_package on a group with a daily listing", async () => {
     const group = await createTestGroup({ name: "Daily", slug: "daily-pkg" });
     await member(group, "Daily Member", {

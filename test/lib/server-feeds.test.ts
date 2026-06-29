@@ -6,8 +6,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { escapeIcs, escapeXml } from "#routes/feeds.ts";
+import { groupsTable } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  createTestGroup,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
@@ -73,6 +75,20 @@ const feedExclusionTests = (feedPath: string, emptyMarker: string) => {
     });
     await expectHtml(await handleRequest(mockRequest(feedPath)), {
       notContains: ["Raffle Tickets", emptyMarker],
+    });
+  });
+
+  test("excludes members of a hidden package", async () => {
+    await settings.update.showPublicSite(true);
+    const group = await createTestGroup({ isPackage: true, name: "Bundle" });
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    await createTestListing({
+      groupId: group.id,
+      maxAttendees: 100,
+      name: "Hidden Member",
+    });
+    await expectHtml(await handleRequest(mockRequest(feedPath)), {
+      notContains: ["Hidden Member", emptyMarker],
     });
   });
 };

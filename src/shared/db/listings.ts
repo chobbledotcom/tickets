@@ -650,7 +650,14 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
      FROM listings AS listing
      WHERE listing.active = 1
        AND ${catalogVisibleSql(settings.listingDefaults.hidden)}
-       AND listing.id NOT IN (SELECT child_listing_id FROM listing_parents)`,
+       AND listing.id NOT IN (SELECT child_listing_id FROM listing_parents)
+       AND listing.id NOT IN (
+         SELECT groupListing.listing_id
+           FROM group_listings AS groupListing
+           JOIN groups AS groupRow ON groupRow.id = groupListing.group_id
+          WHERE groupRow.is_package = 1
+            AND groupRow.hide_package_listings = 1
+       )`,
   );
   return Promise.all(
     rows.map(async (row) => ({

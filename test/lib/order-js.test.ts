@@ -1,10 +1,16 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { groupsTable } from "#shared/db/groups.ts";
 import { setChildIds } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
-import { createTestListing, describeWithEnv, mockRequest } from "#test-utils";
+import {
+  createTestGroup,
+  createTestListing,
+  describeWithEnv,
+  mockRequest,
+} from "#test-utils";
 
 const orderJs = (origin?: string): Promise<Response> =>
   handleRequest(
@@ -43,6 +49,21 @@ describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
     expect(body).toContain("const CATALOG");
     expect(body).toContain(slug);
     expect(body).toContain("isExternalOrderModule");
+  });
+
+  test("excludes a hidden package's members from the catalog", async () => {
+    await settings.update.externalOrderEnabled(true);
+    const group = await createTestGroup({ isPackage: true, name: "Bundle" });
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    await createTestListing({ groupId: group.id, name: "Hidden Member" });
+    await createTestListing({ name: "Standalone" });
+    const memberSlug = await slugByName("Hidden Member");
+    const standaloneSlug = await slugByName("Standalone");
+
+    const body = await (await orderJs()).text();
+    // The standalone listing is advertised; the hidden package's member is not.
+    expect(body).toContain(standaloneSlug);
+    expect(body).not.toContain(memberSlug);
   });
 
   test("marks a pay-what-you-want listing as variable-price in the catalog", async () => {

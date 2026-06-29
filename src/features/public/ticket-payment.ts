@@ -27,7 +27,10 @@ import {
   ensureAllBookings,
   getGroupRemainingByGroupId,
 } from "#shared/db/attendees.ts";
-import { getGroupPackagePrices } from "#shared/db/groups.ts";
+import {
+  getGroupPackagePrices,
+  getHiddenPackageMemberIds,
+} from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   getChildIds,
@@ -882,7 +885,9 @@ export const parentRequiresChild = async (
 ): Promise<boolean> => (await getChildIds(listingId)).length > 0;
 
 /** Load active listings, 404 if none — or if any resolved slug is a child (a
- * booking can't start from a child; see {@link anyChildListing}). */
+ * booking can't start from a child; see {@link anyChildListing}) or a member of
+ * a HIDDEN package (only the package name is public, never a member's own page;
+ * the package itself is reached via its group slug, not these listing slugs). */
 export const withActiveListings = async (
   slugs: string[],
   handler: AsyncHandler<[TicketListing[]]>,
@@ -891,7 +896,9 @@ export const withActiveListings = async (
   const active = compact(listings).filter((e) => e.active);
   const activeListings = await buildTicketListingsWithGroupCapacity(active);
   if (activeListings.length === 0) return notFoundResponse();
-  if (await anyChildListing(activeListings.map((e) => e.listing.id))) {
+  const ids = activeListings.map((e) => e.listing.id);
+  if (await anyChildListing(ids)) return notFoundResponse();
+  if ((await getHiddenPackageMemberIds(ids)).size > 0) {
     return notFoundResponse();
   }
   return handler(activeListings);

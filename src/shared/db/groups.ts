@@ -249,6 +249,26 @@ export const anyListingInPackageGroup = async (
   return rows.length > 0;
 };
 
+/** Of the given listing ids, those that belong to a HIDDEN package — a package
+ * group (`is_package = 1`) with `hide_package_listings = 1`. Buyers must never
+ * meet these members standalone: the package name is the only public surface,
+ * so every buyer-facing discovery/direct path drops them. */
+export const getHiddenPackageMemberIds = async (
+  listingIds: readonly number[],
+): Promise<Set<number>> => {
+  if (listingIds.length === 0) return new Set();
+  const rows = await queryAll<{ listing_id: number }>(
+    `SELECT DISTINCT groupListing.listing_id
+       FROM group_listings AS groupListing
+       JOIN groups AS groupRow ON groupRow.id = groupListing.group_id
+      WHERE groupListing.listing_id IN (${inPlaceholders(listingIds)})
+        AND groupRow.is_package = 1
+        AND groupRow.hide_package_listings = 1`,
+    [...listingIds],
+  );
+  return new Set(rows.map((r) => r.listing_id));
+};
+
 /** Whether adding child edges would violate the package invariant: the parent is
  * joining/in a package group, or any chosen child is itself a package member —
  * either way the package page can't render the resulting bundle. An empty

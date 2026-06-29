@@ -36,6 +36,7 @@ import {
 import {
   applyParentSoldOut,
   classifyForDiscovery,
+  dropHiddenPackageMembers,
   groupBookable,
 } from "./discovery.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
@@ -81,10 +82,13 @@ export const handleHome = (): Response =>
  * listings dashboard, not the public page.) */
 export const handlePublicListings = (): Response | Promise<Response> =>
   requirePublicSite(async () => {
-    const [groups, { listings }] = await Promise.all([
+    const [groups, { listings: allListings }] = await Promise.all([
       loadPublicGroups(),
       loadSortedListings(isPublicListing),
     ]);
+    // A hidden package's members never appear standalone — only the package
+    // name is public — so drop them before building the individual cards.
+    const listings = await dropHiddenPackageMembers(allListings);
     // Parents with no bookable child read as sold out; a (visible) child keeps
     // its card but loses its standalone Book CTA (invariants I3/I6).
     const classification = await classifyForDiscovery(listings);

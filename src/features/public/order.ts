@@ -27,7 +27,11 @@ import { SELECT_PREFIX } from "#shared/order-select.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { orderGalleryPage, type TicketListing } from "#templates/public.tsx";
-import { applyParentSoldOut, classifyForDiscovery } from "./discovery.ts";
+import {
+  applyParentSoldOut,
+  classifyForDiscovery,
+  dropHiddenPackageMembers,
+} from "./discovery.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /** Active, visible listings are the items offered on the order page. */
@@ -83,7 +87,9 @@ const handleOrder = async (request: Request): Promise<Response> => {
   const blocked = orderUnavailable();
   if (blocked) return blocked;
 
-  const listings = await loadOrderListings();
+  // A hidden package's members never appear standalone — only the package name
+  // is public — so drop them before classifying and building cards.
+  const listings = await dropHiddenPackageMembers(await loadOrderListings());
   const classification = await classifyForDiscovery(listings);
   // Drop children entirely (not selectable), then build cards and project
   // child-derived sold-out onto the surviving parents.

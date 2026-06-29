@@ -6,7 +6,10 @@
 import { map, pipe } from "#fp";
 import { withAuth } from "#routes/auth.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
-import { classifyForDiscovery } from "#routes/public/discovery.ts";
+import {
+  classifyForDiscovery,
+  dropHiddenPackageMembers,
+} from "#routes/public/discovery.ts";
 import {
   icsResponse,
   redirectResponse,
@@ -64,10 +67,13 @@ type FeedData = { listings: ListingWithCount[]; domain: string; title: string };
  * booking can't start from — invariant I3), and a parent with no bookable child
  * is omitted (it would publish a link the gate rejects as sold out — I6). */
 const loadFeedData = async (): Promise<FeedData> => {
-  const { listings } = await loadSortedListings(
+  const { listings: allListings } = await loadSortedListings(
     (e) =>
       e.active && !e.hidden && !e.purchase_only && !isRegistrationClosed(e),
   );
+  // A hidden package's members are never syndicated standalone — only the
+  // package name is public.
+  const listings = await dropHiddenPackageMembers(allListings);
   const { childIds, soldOutParentIds } = await classifyForDiscovery(listings);
   return {
     domain: getEffectiveDomain(),
