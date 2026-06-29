@@ -151,6 +151,8 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         );
         expect(response.status).toBe(200);
         expect(response.headers.get("content-type")).toBe("application/zip");
+        // The response body must be the actual zip bytes, not an empty slice.
+        expect((await response.arrayBuffer()).byteLength).toBeGreaterThan(0);
       });
     });
   });
@@ -192,6 +194,14 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         expect(response.status).toBe(200);
         const html = await response.text();
         expect(html).toContain("Confirm Database Restore");
+        // The statement count must be a real number, not NaN.
+        expect(html).not.toContain("NaN");
+        // A backup whose schema matches must NOT show the mismatch warning.
+        expect(html).not.toContain("Schema mismatch");
+        // The uploaded zip must be stored so the confirm step can read it back.
+        const pending = html.match(/value="(restore-pending-[^"]+\.zip)"/);
+        expect(pending).toBeTruthy();
+        expect(await downloadRaw(pending![1])).not.toBeNull();
       });
     });
 
@@ -222,7 +232,11 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       await withLocalStorageEnabled(async () => {
         const { cookie, csrfToken } = await getTestSession();
         const response = await postRestore(cookie, csrfToken);
-        expect(response.status).toBe(302);
+        await expectFlashRedirect(
+          "/admin/backup",
+          "Please select a backup file",
+          false,
+        )(response);
       });
     });
 
@@ -232,7 +246,11 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         const response = await postRestore(cookie, csrfToken, {
           backup_file: new File([new ArrayBuffer(100)], "bad.zip"),
         });
-        expect(response.status).toBe(302);
+        await expectFlashRedirect(
+          "/admin/backup",
+          expect.stringContaining("Invalid backup file"),
+          false,
+        )(response);
       });
     });
   });
@@ -248,6 +266,23 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         "/admin/backup/restore/confirm",
         {
           backup_filename: "bad.zip",
+          confirm_identifier: RESTORE_CONFIRM_PHRASE,
+        },
+      );
+      await expectFlashRedirect(
+        "/admin/backup",
+        "Invalid backup reference",
+        false,
+      )(response);
+    });
+
+    test("rejects a path-traversal filename that passes the prefix check", async () => {
+      // The leaf has the restore-pending prefix and .zip suffix, so only the
+      // isSafeBackupFilename guard (no "/", "\\", or "..") rejects it.
+      const { response } = await adminFormPost(
+        "/admin/backup/restore/confirm",
+        {
+          backup_filename: "restore-pending-a/b.zip",
           confirm_identifier: RESTORE_CONFIRM_PHRASE,
         },
       );
