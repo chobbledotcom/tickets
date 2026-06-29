@@ -158,6 +158,34 @@ describeWithEnv("admin API security", { db: true }, () => {
         ({ id }) => `/api/admin/listings/${id}`,
       ));
 
+    // Regression: confirm the 400s above come from missing content-type, not
+    // from some other validation. Adding the header must make each request pass.
+    test("PUT /api/admin/listings/:id with content-type is not rejected for missing content-type", async () => {
+      const listing = await createTestListing();
+      const apiKey = await createTestApiKeyToken();
+      const response = await handleRequest(
+        requestAsApiKey(`/api/admin/listings/${listing.id}`, apiKey, {
+          body: JSON.stringify({ name: "Updated" }),
+          headers: { "content-type": "application/json" },
+          method: "PUT",
+        }),
+      );
+      expect(response.status).not.toBe(400);
+    });
+
+    test("DELETE /api/admin/listings/:id with content-type is not rejected for missing content-type", async () => {
+      const listing = await createTestListing();
+      const apiKey = await createTestApiKeyToken();
+      const response = await handleRequest(
+        requestAsApiKey(`/api/admin/listings/${listing.id}`, apiKey, {
+          body: JSON.stringify({ confirm_identifier: listing.name }),
+          headers: { "content-type": "application/json" },
+          method: "DELETE",
+        }),
+      );
+      expect(response.status).not.toBe(400);
+    });
+
     test("treats uppercase Content-Type the same as lowercase (RFC 7231)", async () => {
       const apiKey = await createTestApiKeyToken();
       const body = JSON.stringify({ max_attendees: 10, name: "Case Test" });
