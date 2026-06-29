@@ -16,7 +16,12 @@ import type {
   LineBooking,
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
-import { buildCapacityCondition, dateToRange } from "#shared/db/capacity.ts";
+import {
+  buildBatchCapacitySql,
+  buildCapacityCondition,
+  type CapacityBucket,
+  dateToRange,
+} from "#shared/db/capacity.ts";
 import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
 import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
@@ -374,11 +379,9 @@ type ListingRow = {
   attendee_count: number;
 };
 
-type DemandBucket = { perDay: Map<string, number>; total: number };
-
-/** The days a bucket demands, or null when its demand is total-only. */
-const demandedDays = (bucket: DemandBucket): string[] | null =>
-  bucket.perDay.size > 0 ? [...bucket.perDay.keys()] : null;
+/** The demand split a listing/group bucket carries — identical to the SQL
+ * builder's {@link CapacityBucket}, so aggregated demand feeds it directly. */
+type DemandBucket = CapacityBucket;
 
 /** Get the bucket for `key`, creating an empty one on first use. */
 const getOrCreateBucket = <K>(
@@ -441,68 +444,15 @@ type BatchAvailabilityContext = {
   date: string | null | undefined;
 };
 
-/** The keys of a demand map whose bucket has per-day (daily) demand. */
-const withDailyDemand = (demand: Map<number, DemandBucket>): number[] =>
-  [...demand].filter(([, b]) => b.perDay.size > 0).map(([key]) => key);
-
-/** A single listing's demand fits its `max_attendees` — per-day against
- * pre-fetched occupancy, and total against the existing count. */
-const listingFits = (
-  ev: ListingRow,
-  bucket: DemandBucket,
-  overlapByListing: Map<number, IntervalRow[]>,
-): boolean => {
-  const days = demandedDays(bucket);
-  if (days) {
-    const loads = perDayLoads(overlapByListing.get(ev.id) ?? [], days);
-    if (
-      [...bucket.perDay].some(
-        ([day, qty]) => loads.get(day)! + qty > ev.max_attendees,
-      )
-    ) {
-      return false;
-    }
-  }
-  return !(
-    bucket.total > 0 && ev.attendee_count + bucket.total > ev.max_attendees
-  );
-};
-
-/** A single group's demand fits its remaining capacity — per-day against
- * pre-fetched per-day remaining, total against the date-less baseline. */
-const groupFits = (
-  groupId: number,
-  bucket: DemandBucket,
-  groupPerDay: Map<number, Map<string, number>>,
-  totalGroupRemaining: Map<number, number>,
-): boolean => {
-  const remaining = groupPerDay.get(groupId);
-  if (
-    remaining &&
-    [...bucket.perDay].some(
-      ([day, qty]) => qty + bucket.total > remaining.get(day)!,
-    )
-  ) {
-    return false;
-  }
-  if (bucket.perDay.size === 0 && bucket.total > 0) {
-    const groupRemaining = totalGroupRemaining.get(groupId);
-    if (groupRemaining !== undefined && bucket.total > groupRemaining) {
-      return false;
-    }
-  }
-  return true;
-};
-
 /**
  * Check availability for multiple listings in a single preflight pass.
- * For multi-day daily listings, expands each booking into per-day demand so
- * that every day in the range is checked independently. Group caps are
- * similarly evaluated per-day across all listings in each group.
  *
- * Batched: per-listing occupancy and per-group caps are each fetched in one
- * query for the whole cart, so a large multi-listing cart can't fan out a read
- * per listing or per group.
+ * Aggregates the cart's combined demand per listing and per group (per-day for
+ * dated daily listings), then evaluates it with ONE SELECT built from the SAME
+ * count subqueries the atomic write predicate uses ({@link
+ * buildBatchCapacitySql}). Reusing the write's counting is what keeps this
+ * read-time preflight and the write-time guard from ever disagreeing about
+ * capacity — a single round trip, no per-listing or per-group fan-out.
  */
 export const checkBatchAvailabilityImpl = async (
   items: BatchAvailabilityItem[],
@@ -514,6 +464,8 @@ export const checkBatchAvailabilityImpl = async (
   if (items.some((i) => i.quantity < 0)) return false;
   const listingIds = map((i: BatchAvailabilityItem) => i.listingId)(items);
 
+  // The listing_type per item drives per-day vs total demand bucketing; the
+  // cap comparison itself is left to the SQL (which also enforces active = 1).
   const listingRows = await queryAll<ListingRow>(
     `SELECT listing.id, listing.max_attendees, listing.listing_type,
             listing.booked_quantity as attendee_count
@@ -534,32 +486,9 @@ export const checkBatchAvailabilityImpl = async (
     (_ev, item) => membership.get(item.listingId) ?? [],
   );
 
-  // Prefetch everything the per-bucket checks need, batched: per-listing
-  // occupancy rows, per-group per-day remaining, and date-less group caps.
-  const allDays = unique(
-    [...listingDemand.values()].flatMap((b) => [...b.perDay.keys()]),
-  );
-  const [overlapByListing, groupPerDay, totalGroupRemaining] =
-    await Promise.all([
-      overlappingRowsByListing(withDailyDemand(listingDemand), allDays),
-      groupPerDayRemainingByGroup(withDailyDemand(groupDemand), allDays),
-      getGroupRemainingByGroupId(
-        [...groupDemand]
-          .filter(([, b]) => b.perDay.size === 0 && b.total > 0)
-          .map(([gid]) => gid),
-        null,
-      ),
-    ]);
-
-  for (const [id, bucket] of listingDemand) {
-    if (!listingFits(listingsById.get(id)!, bucket, overlapByListing)) {
-      return false;
-    }
-  }
-  for (const [gid, bucket] of groupDemand) {
-    if (!groupFits(gid, bucket, groupPerDay, totalGroupRemaining)) return false;
-  }
-  return true;
+  const { sql, args } = buildBatchCapacitySql(listingDemand, groupDemand);
+  const row = (await queryOne<{ fits: number }>(sql, args))!;
+  return row.fits === 1;
 };
 
 // ---------------------------------------------------------------------------
