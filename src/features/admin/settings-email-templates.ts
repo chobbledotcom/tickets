@@ -174,7 +174,7 @@ export const handleEmailTemplatePreviewPost = (
       return jsonResponse({ error: `Template syntax error: ${error}` }, 400);
     }
 
-    const sampleData = buildTemplateData(
+    const sampleData = await buildTemplateData(
       PREVIEW_BOOKINGS,
       PREVIEW_CURRENCY,
       PREVIEW_TICKET_URL,

@@ -7,13 +7,14 @@
  */
 
 import type { Liquid } from "liquidjs";
-import { lazyRef, map } from "#fp";
+import { lazyRef, map, sumOf } from "#fp";
 import { createBaseLiquidEngine } from "#shared/currency.ts";
 import {
   addDays,
   formatDateLabel,
   formatDateRangeLabelCompactEn,
 } from "#shared/dates.ts";
+import { getPackageDisplayForListings } from "#shared/db/groups.ts";
 import type {
   EmailTemplateFormat,
   EmailTemplateType,
@@ -81,43 +82,83 @@ export type TemplateData = {
   amount_owed: string;
 };
 
-/** Build the data object exposed to Liquid templates */
-export const buildTemplateData = (
+/** Map one booking entry to its template shape. */
+const toTemplateEntry = ({ listing, attendee }: EmailEntry): TemplateEntry => {
+  // Render the booking's actual span from its stored range (end_date is the
+  // exclusive end), so customisable-days bookings show the chosen length rather
+  // than the listing's maximum duration.
+  const lastDay = attendee.end_date ? addDays(attendee.end_date, -1) : null;
+  const dateRangeLabel = attendee.date
+    ? lastDay && lastDay > attendee.date
+      ? formatDateRangeLabelCompactEn(attendee.date, lastDay)
+      : formatDateLabel(attendee.date)
+    : "";
+  return {
+    attendee: {
+      address: attendee.address,
+      date: attendee.date,
+      date_range_label: dateRangeLabel,
+      email: attendee.email,
+      name: attendee.name,
+      phone: attendee.phone,
+      price_paid: attendee.price_paid,
+      quantity: attendee.quantity,
+      special_instructions: attendee.special_instructions,
+    },
+    listing: {
+      is_paid: isPaidListing(listing),
+      name: listing.name,
+      slug: listing.slug,
+    },
+  };
+};
+
+/** A single row standing in for a hidden package's members: the package name,
+ * the buyer's contact, and the bundle's summed quantity/price — so the buyer's
+ * confirmation never reveals the member listings (the admin email keeps them). */
+const collapsedPackageEntry = (
+  entries: EmailEntry[],
+  packageName: string,
+): TemplateEntry => {
+  const base = toTemplateEntry(entries[0]!);
+  return {
+    attendee: {
+      ...base.attendee,
+      date: null,
+      date_range_label: "",
+      price_paid: String(
+        sumOf((e: EmailEntry) => Number(e.attendee.price_paid))(entries),
+      ),
+      quantity: sumOf((e: EmailEntry) => e.attendee.quantity)(entries),
+    },
+    listing: {
+      is_paid: entries.some((e) => isPaidListing(e.listing)),
+      name: packageName,
+      slug: "",
+    },
+  };
+};
+
+/**
+ * Build the data object exposed to Liquid templates. When the booking's listings
+ * are exactly one package group's members, the package name heads the email
+ * (`listing_names`) instead of the member list. `hidePackageMembers` (set for the
+ * buyer's confirmation, not the admin notification) collapses a HIDDEN package's
+ * member rows into one package row so members aren't revealed.
+ */
+export const buildTemplateData = async (
   entries: EmailEntry[],
   currency: string,
   ticketUrl: string,
-): TemplateData => {
-  const templateEntries: TemplateEntry[] = map(
-    ({ listing, attendee }: EmailEntry): TemplateEntry => {
-      // Render the booking's actual span from its stored range (end_date is the
-      // exclusive end), so customisable-days bookings show the chosen length
-      // rather than the listing's maximum duration.
-      const lastDay = attendee.end_date ? addDays(attendee.end_date, -1) : null;
-      const dateRangeLabel = attendee.date
-        ? lastDay && lastDay > attendee.date
-          ? formatDateRangeLabelCompactEn(attendee.date, lastDay)
-          : formatDateLabel(attendee.date)
-        : "";
-      return {
-        attendee: {
-          address: attendee.address,
-          date: attendee.date,
-          date_range_label: dateRangeLabel,
-          email: attendee.email,
-          name: attendee.name,
-          phone: attendee.phone,
-          price_paid: attendee.price_paid,
-          quantity: attendee.quantity,
-          special_instructions: attendee.special_instructions,
-        },
-        listing: {
-          is_paid: isPaidListing(listing),
-          name: listing.name,
-          slug: listing.slug,
-        },
-      };
-    },
-  )(entries);
+  options: { hidePackageMembers?: boolean } = {},
+): Promise<TemplateData> => {
+  const pkg = await getPackageDisplayForListings(
+    entries.map((e) => e.listing.id),
+  );
+  const collapse = pkg?.hideListings === true && options.hidePackageMembers;
+  const templateEntries: TemplateEntry[] = collapse
+    ? [collapsedPackageEntry(entries, pkg.name)]
+    : map(toTemplateEntry)(entries);
 
   return {
     // remaining_balance is order-level (identical on every entry), so read it
@@ -126,7 +167,7 @@ export const buildTemplateData = (
     attendee: templateEntries[0]!.attendee,
     currency,
     entries: templateEntries,
-    listing_names: listingNames(entries),
+    listing_names: pkg ? pkg.name : listingNames(entries),
     ticket_url: ticketUrl,
   };
 };

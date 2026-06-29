@@ -13,6 +13,8 @@ import {
   validateTemplate,
 } from "#shared/email-renderer.ts";
 import {
+  createTestGroup,
+  createTestListing,
   describeWithEnv,
   makeTestEntry as makeEntry,
   useSetting,
@@ -29,7 +31,11 @@ const renderConfirmation = async (): Promise<{
   settings.invalidateCache();
   await settings.loadKeys(ALL_SETTINGS_KEYS);
   const entries = [makeEntry()];
-  const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+  const data = await buildTemplateData(
+    entries,
+    "GBP",
+    "https://example.com/t/ABC",
+  );
   const result = await renderEmailContent("confirmation", data);
   return { data, result };
 };
@@ -40,9 +46,9 @@ describeWithEnv("email-renderer", { db: true }, () => {
   afterEach(resetEngine);
 
   describe("buildTemplateData", () => {
-    test("builds correct data shape from single entry", () => {
+    test("builds correct data shape from single entry", async () => {
       const entries = [makeEntry()];
-      const data = buildTemplateData(
+      const data = await buildTemplateData(
         entries,
         "GBP",
         "https://example.com/t/ABC",
@@ -59,12 +65,12 @@ describeWithEnv("email-renderer", { db: true }, () => {
       expect(data.attendee.email).toBe("jane@example.com");
     });
 
-    test("builds correct data shape from multiple entries", () => {
+    test("builds correct data shape from multiple entries", async () => {
       const entries = [
         makeEntry({ name: "Listing A" }),
         makeEntry({ name: "Listing B" }),
       ];
-      const data = buildTemplateData(
+      const data = await buildTemplateData(
         entries,
         "GBP",
         "https://example.com/t/ABC+DEF",
@@ -75,13 +81,13 @@ describeWithEnv("email-renderer", { db: true }, () => {
       expect(data.attendee.name).toBe("Jane Doe");
     });
 
-    test("formats three or more listing names with commas and 'and'", () => {
+    test("formats three or more listing names with commas and 'and'", async () => {
       const entries = [
         makeEntry({ name: "Listing A" }),
         makeEntry({ name: "Listing B" }),
         makeEntry({ name: "Listing C" }),
       ];
-      const data = buildTemplateData(
+      const data = await buildTemplateData(
         entries,
         "GBP",
         "https://example.com/t/ABC+DEF+GHI",
@@ -90,9 +96,9 @@ describeWithEnv("email-renderer", { db: true }, () => {
       expect(data.listing_names).toBe("Listing A, Listing B, and Listing C");
     });
 
-    test("marks paid listings correctly", () => {
+    test("marks paid listings correctly", async () => {
       const entries = [makeEntry({ unit_price: 1000 })];
-      const data = buildTemplateData(
+      const data = await buildTemplateData(
         entries,
         "GBP",
         "https://example.com/t/ABC",
@@ -101,9 +107,9 @@ describeWithEnv("email-renderer", { db: true }, () => {
       expect(data.entries[0]!.listing.is_paid).toBe(true);
     });
 
-    test("marks can_pay_more listings as paid", () => {
+    test("marks can_pay_more listings as paid", async () => {
       const entries = [makeEntry({ can_pay_more: true, unit_price: 0 })];
-      const data = buildTemplateData(
+      const data = await buildTemplateData(
         entries,
         "GBP",
         "https://example.com/t/ABC",
@@ -112,9 +118,9 @@ describeWithEnv("email-renderer", { db: true }, () => {
       expect(data.entries[0]!.listing.is_paid).toBe(true);
     });
 
-    test("includes attendee date when present", () => {
+    test("includes attendee date when present", async () => {
       const entries = [makeEntry({}, { date: "2026-04-15" })];
-      const data = buildTemplateData(
+      const data = await buildTemplateData(
         entries,
         "GBP",
         "https://example.com/t/ABC",
@@ -125,38 +131,120 @@ describeWithEnv("email-renderer", { db: true }, () => {
 
     // Helper for the date_range_label tests — every case follows the same
     // makeEntry → buildTemplateData → read label flow.
-    const dateRangeLabelFor = (
+    const dateRangeLabelFor = async (
       listing: Partial<Parameters<typeof makeEntry>[0]>,
       attendee: Partial<Parameters<typeof makeEntry>[1]>,
-    ): string =>
-      buildTemplateData(
-        [makeEntry(listing, attendee)],
-        "GBP",
-        "https://example.com/t/ABC",
+    ): Promise<string> =>
+      (
+        await buildTemplateData(
+          [makeEntry(listing, attendee)],
+          "GBP",
+          "https://example.com/t/ABC",
+        )
       ).entries[0]!.attendee.date_range_label;
 
-    test("date_range_label: single-day daily booking formats as a date", () => {
+    test("date_range_label: single-day daily booking formats as a date", async () => {
       expect(
-        dateRangeLabelFor(
+        await dateRangeLabelFor(
           { duration_days: 1, listing_type: "daily" },
           { date: "2026-04-15" },
         ),
       ).toContain("15 April");
     });
 
-    test("date_range_label: multi-day booking uses en dash", () => {
+    test("date_range_label: multi-day booking uses en dash", async () => {
       // The label comes from the booking's stored span (end_date is exclusive),
       // so a 3-day booking from the 15th ends (exclusive) on the 18th.
       expect(
-        dateRangeLabelFor(
+        await dateRangeLabelFor(
           { duration_days: 3, listing_type: "daily" },
           { date: "2026-04-15", end_date: "2026-04-18" },
         ),
       ).toBe("15\u201317 April 2026");
     });
 
-    test("date_range_label: empty when no booking date", () => {
-      expect(dateRangeLabelFor({}, { date: null })).toBe("");
+    test("date_range_label: empty when no booking date", async () => {
+      expect(await dateRangeLabelFor({}, { date: null })).toBe("");
+    });
+  });
+
+  describe("package grouping", () => {
+    /** A package group (Camp Kit) with a free Tent and a paid Chair member, and
+     * the email entries for booking 2 tents + 6 chairs. `hide` sets the group's
+     * hide-listings flag. */
+    const buildPackageEntries = async (hide: boolean) => {
+      const { groupsTable } = await import("#shared/db/groups.ts");
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Camp Kit",
+      });
+      if (hide) {
+        await groupsTable.update(group.id, { hidePackageListings: true });
+      }
+      const tent = await createTestListing({
+        groupId: group.id,
+        name: "Tent",
+        unitPrice: 0,
+      });
+      const chair = await createTestListing({
+        groupId: group.id,
+        name: "Chair",
+        unitPrice: 500,
+      });
+      return [
+        makeEntry(
+          { id: tent.id, name: "Tent", unit_price: 0 },
+          { price_paid: "2000", quantity: 2 },
+        ),
+        makeEntry(
+          { id: chair.id, name: "Chair", unit_price: 500 },
+          { price_paid: "3000", quantity: 6 },
+        ),
+      ];
+    };
+
+    test("a non-hidden package heads the email with its name and lists members", async () => {
+      const entries = await buildPackageEntries(false);
+      const data = await buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
+      expect(data.listing_names).toBe("Camp Kit");
+      expect(data.entries.map((e) => e.listing.name)).toEqual([
+        "Tent",
+        "Chair",
+      ]);
+    });
+
+    test("a hidden package collapses to one row for the buyer's confirmation", async () => {
+      const entries = await buildPackageEntries(true);
+      const data = await buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+        { hidePackageMembers: true },
+      );
+      expect(data.listing_names).toBe("Camp Kit");
+      expect(data.entries.length).toBe(1);
+      expect(data.entries[0]!.listing.name).toBe("Camp Kit");
+      // Summed across members; the paid Chair makes the bundle paid.
+      expect(data.entries[0]!.attendee.quantity).toBe(8);
+      expect(data.entries[0]!.attendee.price_paid).toBe("5000");
+      expect(data.entries[0]!.listing.is_paid).toBe(true);
+    });
+
+    test("a hidden package still shows members in the admin notification", async () => {
+      const entries = await buildPackageEntries(true);
+      const data = await buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
+      expect(data.entries.map((e) => e.listing.name)).toEqual([
+        "Tent",
+        "Chair",
+      ]);
     });
   });
 
@@ -312,7 +400,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
   describe("renderEmailContent", () => {
     test("uses default templates when no custom templates are set", async () => {
       const entries = [makeEntry()];
-      const data = buildTemplateData(
+      const data = await buildTemplateData(
         entries,
         "GBP",
         "https://example.com/t/ABC",
@@ -362,7 +450,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
       const errorSpy = spy(console, "error");
       try {
         const entries = [makeEntry()];
-        const data = buildTemplateData(
+        const data = await buildTemplateData(
           entries,
           "GBP",
           "https://example.com/t/ABC",
@@ -389,7 +477,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
 
     test("renders admin notification defaults correctly", async () => {
       const entries = [makeEntry()];
-      const data = buildTemplateData(
+      const data = await buildTemplateData(
         entries,
         "GBP",
         "https://example.com/t/ABC",
@@ -414,7 +502,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
           },
         ),
       ];
-      const data = buildTemplateData(
+      const data = await buildTemplateData(
         entries,
         "GBP",
         "https://example.com/t/ABC",
@@ -431,7 +519,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
       const entries = [
         makeEntry({}, { address: "", phone: "", special_instructions: "" }),
       ];
-      const data = buildTemplateData(
+      const data = await buildTemplateData(
         entries,
         "GBP",
         "https://example.com/t/ABC",
@@ -448,7 +536,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
       const entries = [
         makeEntry({ unit_price: 1000 }, { price_paid: "2000", quantity: 2 }),
       ];
-      const data = buildTemplateData(
+      const data = await buildTemplateData(
         entries,
         "GBP",
         "https://example.com/t/ABC",
@@ -468,7 +556,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
           { price_paid: "0", remaining_balance: 2000 },
         ),
       ];
-      const data = buildTemplateData(
+      const data = await buildTemplateData(
         entries,
         "GBP",
         "https://example.com/t/ABC",
@@ -490,7 +578,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
           { price_paid: "1000", remaining_balance: 0 },
         ),
       ];
-      const data = buildTemplateData(
+      const data = await buildTemplateData(
         entries,
         "GBP",
         "https://example.com/t/ABC",
@@ -504,7 +592,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
 
     test("shows date when attendee has date", async () => {
       const entries = [makeEntry({}, { date: "2026-07-15" })];
-      const data = buildTemplateData(
+      const data = await buildTemplateData(
         entries,
         "GBP",
         "https://example.com/t/ABC",
@@ -557,7 +645,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
       const errorSpy = spy(console, "error");
       try {
         const entries = [makeEntry()];
-        const data = buildTemplateData(
+        const data = await buildTemplateData(
           entries,
           "GBP",
           "https://example.com/t/ABC",

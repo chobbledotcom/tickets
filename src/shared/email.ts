@@ -365,11 +365,14 @@ export const sendRegistrationEmails = async (
   const attendeeEmail = attendeeRaw ? parseEmail(attendeeRaw) : null;
   const businessEmail = parseEmail(settings.businessEmail);
   const ticketUrl = buildTicketUrl(entries);
-  const data = buildTemplateData(entries, currency, ticketUrl);
   const promises: Promise<number | undefined>[] = [];
 
   if (attendeeEmail) {
     const replyTo = businessEmail || undefined;
+    // The buyer's confirmation hides a hidden package's member listings.
+    const data = await buildTemplateData(entries, currency, ticketUrl, {
+      hidePackageMembers: true,
+    });
     const [confirmation, attachments] = await Promise.all([
       renderEmailContent("confirmation", data),
       buildTicketAttachments(entries, currency),
@@ -385,6 +388,8 @@ export const sendRegistrationEmails = async (
   }
 
   if (businessEmail) {
+    // The admin notification always shows package members, even when hidden.
+    const data = await buildTemplateData(entries, currency, ticketUrl);
     const notification = await renderEmailContent("admin", data);
     promises.push(
       sendEmail(config, {
