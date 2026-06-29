@@ -28,10 +28,12 @@ import {
   getSharedGroupCapacities,
 } from "#shared/db/attendees.ts";
 import {
+  getActiveListingsByGroupId,
   getGroupIdsByListingIds,
   getGroupListingIds,
   getGroupPackagePrices,
   getHiddenPackageMemberIds,
+  packageMemberMaps,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
@@ -87,6 +89,16 @@ export const visibleGroupMembers = <T extends { id: number }>(
   group.is_package
     ? Promise.resolve(members)
     : dropHiddenPackageMembers(members);
+
+/** Load a group's active members already filtered to what buyers may see — the
+ * "active members → {@link visibleGroupMembers}" step every public group surface
+ * (listings page, group QR, direct ticket page) runs before deciding bookability. */
+export const getVisibleGroupMembers = (
+  group: Group,
+): Promise<ListingWithCount[]> =>
+  getActiveListingsByGroupId(group.id).then((members) =>
+    visibleGroupMembers(group, members),
+  );
 
 /**
  * How a discovery surface should treat each listing:
@@ -369,11 +381,10 @@ export const packageGroupBookable = async (
   // An inactive member is absent from `members` (active only) but still a group
   // row, so fewer active members than total means the bundle is incomplete.
   if (members.length < allMemberIds.length) return false;
-  const quantities = new Map(rows.map((r) => [r.listing_id, r.quantity]));
   return (
     packageQuantityCap(
       ticketListings,
-      quantities,
+      packageMemberMaps(rows).quantities,
       remaining.get(groupId) ?? null,
     ) >= 1
   );

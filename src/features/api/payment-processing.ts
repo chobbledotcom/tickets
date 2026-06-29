@@ -69,7 +69,12 @@ import {
   createBookingAtomic,
   ensureAllBookings,
 } from "#shared/db/attendees.ts";
-import { getGroupPackagePrices, groupsTable } from "#shared/db/groups.ts";
+import {
+  getGroupPackagePrices,
+  getPackageGroupById,
+  groupsTable,
+  packageMemberMaps,
+} from "#shared/db/groups.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
@@ -619,19 +624,13 @@ const loadPackagePricing = async (
   intent: BookingIntent,
 ): Promise<PackagePricing | null> => {
   if (intent.packageGroupId === undefined) return null;
-  const group = await groupsTable.findById(intent.packageGroupId);
-  if (!group?.is_package) return null;
+  if ((await getPackageGroupById(intent.packageGroupId)) === null) return null;
   const rows = await getGroupPackagePrices(intent.packageGroupId);
+  const { prices, quantities } = packageMemberMaps(rows);
   return {
     memberIds: new Set(rows.map((r) => r.listing_id)),
-    priceMap: new Map(
-      rows.flatMap((r) =>
-        r.package_price === null
-          ? []
-          : [[r.listing_id, r.package_price] as const],
-      ),
-    ),
-    quantityMap: new Map(rows.map((r) => [r.listing_id, r.quantity])),
+    priceMap: prices,
+    quantityMap: quantities,
   };
 };
 

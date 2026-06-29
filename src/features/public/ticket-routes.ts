@@ -8,7 +8,6 @@ import { verifyTokensWithRealLine } from "#routes/tickets/token-utils.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
   computeGroupSlugIndex,
-  getActiveListingsByGroupId,
   getGroupBySlugIndex,
   getHiddenPackageMemberIds,
 } from "#shared/db/groups.ts";
@@ -16,7 +15,7 @@ import { getListingWithCountBySlug } from "#shared/db/listings.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";
-import { groupBookable, visibleGroupMembers } from "./discovery.ts";
+import { getVisibleGroupMembers, groupBookable } from "./discovery.ts";
 import { handleGroupTicketBySlug } from "./groups.ts";
 import { handleQrBookGet } from "./qr-book.ts";
 import { anyChildListing } from "./ticket-payment.ts";
@@ -106,11 +105,7 @@ export const handleTicketQrGet = async (
   // bundle must fit. Use the SAME gate as the `/listings` group CTA so the QR
   // 404s exactly when the page it points at would offer nothing to book.
   if (group) {
-    const members = await visibleGroupMembers(
-      group,
-      await getActiveListingsByGroupId(group.id),
-    );
-    return (await groupBookable(group, members))
+    return (await groupBookable(group, await getVisibleGroupMembers(group)))
       ? qrResponse(slug)
       : notFoundResponse();
   }

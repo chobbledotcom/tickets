@@ -377,8 +377,8 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
     // decides whether the roster decrypts payment fields AND whether the detail
     // page shows the revenue row.
     const hasPaidListing = await groupHasPaidListing(group, sortedListings);
+    const privateKey = await requireRequestPrivateKey();
     if (listingIds.length > 0) {
-      const privateKey = await requireRequestPrivateKey();
       const [rawAttendees, prefix] = await Promise.all([
         getAttendeesByListingIds(listingIds),
         Promise.resolve(settings.phonePrefix),
@@ -395,7 +395,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
     const questionData = await loadAttendeeQuestionData(
       listingIds,
       attendees.map((a) => a.id),
-      await requireRequestPrivateKey(),
+      privateKey,
     );
 
     return htmlResponse(

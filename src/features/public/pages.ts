@@ -19,7 +19,7 @@ import {
   sendContactMessage,
 } from "#shared/contact-form.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { getActiveListingsByGroupId, getAllGroups } from "#shared/db/groups.ts";
+import { getAllGroups } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
@@ -37,8 +37,8 @@ import {
   applyParentSoldOut,
   classifyForDiscovery,
   dropHiddenPackageMembers,
+  getVisibleGroupMembers,
   groupBookable,
-  visibleGroupMembers,
 } from "./discovery.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
@@ -53,10 +53,7 @@ const isPublicListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
 const loadPublicGroups = async (): Promise<Group[]> => {
   const groups = (await getAllGroups()).filter((g) => !g.hidden);
   const bookable = await mapParallel(async (g: Group) =>
-    groupBookable(
-      g,
-      await visibleGroupMembers(g, await getActiveListingsByGroupId(g.id)),
-    ),
+    groupBookable(g, await getVisibleGroupMembers(g)),
   )(groups);
   return groups.filter((_, i) => bookable[i]);
 };

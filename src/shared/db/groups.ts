@@ -298,13 +298,24 @@ export type PackageDisplay = { name: string; hideListings: boolean };
  * checkout — is exact: a standalone order of the same listings carries id 0, so
  * it is never mistaken for the package. The group's name is decrypted on the way
  * out. */
+/** Load a group by id only when it is a live package, else null. The one home
+ * for "this id names a package group" — a non-positive id, a missing group, or a
+ * non-package group all read as null. */
+export const getPackageGroupById = async (
+  groupId: number,
+): Promise<Group | null> => {
+  if (groupId <= 0) return null;
+  const group = await groupsTable.findById(groupId);
+  return group?.is_package ? group : null;
+};
+
 export const getPackageDisplayById = async (
   groupId: number,
 ): Promise<PackageDisplay | null> => {
-  if (groupId <= 0) return null;
-  const group = await groupsTable.findById(groupId);
-  if (!group || !group.is_package) return null;
-  return { hideListings: group.hide_package_listings, name: group.name };
+  const group = await getPackageGroupById(groupId);
+  return group === null
+    ? null
+    : { hideListings: group.hide_package_listings, name: group.name };
 };
 
 /** The single package id every booking in an order shares, or null. Returns the
@@ -498,6 +509,25 @@ export const getGroupPackagePrices = (
     "SELECT group_id, listing_id, package_price, quantity FROM group_listings WHERE group_id = ? ORDER BY listing_id ASC",
     [groupId],
   );
+
+/** A package group's member rows projected into the two maps every consumer
+ * needs (the booking flow, the webhook revalidation, the bookability gate, and
+ * the test harness): `prices` keeps only members with a real override — a
+ * positive price OR an explicit free `0`, dropping a `null` "no override" — while
+ * `quantities` covers every member (default 1). Owning both here keeps the "what
+ * counts as an override" rule in one place; callers destructure what they use. */
+export const packageMemberMaps = (
+  rows: readonly GroupListing[],
+): { prices: Map<number, number>; quantities: Map<number, number> } => ({
+  prices: new Map(
+    rows.flatMap((row) =>
+      row.package_price === null
+        ? []
+        : [[row.listing_id, row.package_price] as const],
+    ),
+  ),
+  quantities: new Map(rows.map((row) => [row.listing_id, row.quantity])),
+});
 
 /** The membership rows for several groups in one query, keyed by group id, so a
  * list endpoint can hydrate every group's package members without a per-group

@@ -30,6 +30,7 @@ import {
 import {
   getGroupPackagePrices,
   getHiddenPackageMemberIds,
+  packageMemberMaps,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
@@ -253,17 +254,7 @@ export type PackageMemberMaps = {
 export const loadPackageMemberMaps = async (
   groupId: number,
 ): Promise<PackageMemberMaps> => {
-  const rows = await getGroupPackagePrices(groupId);
-  return {
-    prices: new Map(
-      rows.flatMap((row) =>
-        row.package_price === null
-          ? []
-          : [[row.listing_id, row.package_price] as const],
-      ),
-    ),
-    quantities: new Map(rows.map((row) => [row.listing_id, row.quantity])),
-  };
+  return packageMemberMaps(await getGroupPackagePrices(groupId));
 };
 
 /** Apply package price overrides to the assembled items. Only top-level page

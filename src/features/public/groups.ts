@@ -5,13 +5,12 @@
 import { notFoundResponse } from "#routes/response.ts";
 import {
   computeGroupSlugIndex,
-  getActiveListingsByGroupId,
   getGroupBySlugIndex,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
-import { groupBookable, visibleGroupMembers } from "./discovery.ts";
+import { getVisibleGroupMembers, groupBookable } from "./discovery.ts";
 import { renderTicketFlow } from "./ticket-submit.ts";
 import type { AsyncHandler } from "./types.ts";
 
@@ -26,11 +25,10 @@ const withActiveGroupListingsBySlug = async (
   const group = await getGroupBySlugIndex(slugIndex);
   if (!group) return notFoundResponse();
 
-  const [members, holidays] = await Promise.all([
-    getActiveListingsByGroupId(group.id),
+  const [visible, holidays] = await Promise.all([
+    getVisibleGroupMembers(group),
     getActiveHolidays(),
   ]);
-  const visible = await visibleGroupMembers(group, members);
   const sorted = sortListings(visible, holidays);
   if (sorted.length === 0) return notFoundResponse();
   // A package is all-or-nothing: a saved or directly-typed /ticket/<package>

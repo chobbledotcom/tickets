@@ -882,15 +882,10 @@ export const deleteTestGroup = async (groupId: number): Promise<void> => {
 export const getTestPackagePrices = async (
   groupId: number,
 ): Promise<Map<number, number>> => {
-  const { getGroupPackagePrices } = await import("#shared/db/groups.ts");
-  const rows = await getGroupPackagePrices(groupId);
-  return new Map(
-    rows.flatMap((row) =>
-      row.package_price === null
-        ? []
-        : [[row.listing_id, row.package_price] as const],
-    ),
+  const { getGroupPackagePrices, packageMemberMaps } = await import(
+    "#shared/db/groups.ts"
   );
+  return packageMemberMaps(await getGroupPackagePrices(groupId)).prices;
 };
 
 export const createTestHoliday = (
