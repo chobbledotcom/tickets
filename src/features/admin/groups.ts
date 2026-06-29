@@ -77,8 +77,8 @@ const validateGroupSlug: GroupValidator = async (input, id) => {
   return taken ? t("error.slug_in_use_group") : null;
 };
 
-/** A package prices each member individually, so its listings must have a single
- * fixed price — `customisable_days` and `can_pay_more` listings, whose price is
+/** A package prices each member individually, so every member must have a single
+ * fixed price: `customisable_days` and `can_pay_more` listings, whose price is
  * chosen at booking time, cannot be packaged. */
 const isPackageable = (listing: {
   customisable_days: boolean;
