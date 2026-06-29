@@ -46,7 +46,6 @@ export {
   getGroupRemainingByGroupId,
   getGroupRemainingByListingId,
   getGroupRemainingForListing,
-  getGroupStaticCapByListingId,
   getListingRemainingForRange,
   getSharedGroupCapacities,
   type ListingCapacityRow,

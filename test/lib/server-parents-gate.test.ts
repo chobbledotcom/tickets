@@ -2414,6 +2414,82 @@ describeWithEnv(
       expect(quantityOptionsHtml).not.toContain(">3</option>");
     });
 
+    test("a child sharing a roomy group with the parent is NOT sold out by a tighter NON-shared group (Codex #3)", async () => {
+      // The child belongs to the parent's capped group A (10 spots) AND its own
+      // tighter capped group B (1 spot). The shared-pool calc must use group A's
+      // remaining (10) — the group it SHARES with the parent — not the child's
+      // tightest group overall (B = 1). floor(10 / 2) = 5 ≥ 1, so a parent+child
+      // order fits and the page renders a bookable form. The pre-fix code took the
+      // child's per-listing minimum (1), computed floor(1 / 2) = 0, and wrongly
+      // marked the parent sold out.
+      const groupA = await createTestGroup({
+        maxAttendees: 10,
+        name: "Shared",
+      });
+      const groupB = await createTestGroup({
+        maxAttendees: 1,
+        name: "Tighter",
+      });
+      const parent = await createTestListing({
+        groupIds: [groupA.id],
+        maxAttendees: 100,
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        groupIds: [groupA.id, groupB.id],
+        maxAttendees: 100,
+        name: "Add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await bookingPageHtml(parent.slug);
+      expect(html).not.toContain("Sorry, this listing is full.");
+      expect(html).toContain(`name="quantity_${parent.id}"`);
+    });
+
+    test("two children sharing one capped group but differing OTHER memberships cap by that group (Codex #2)", async () => {
+      // Both children draw on capped group A with 1 spot left. Child1 is in {A},
+      // Child2 in {A, B} (B is a roomy private group). They draw on the SAME pool
+      // (A), so the parent quantity cap is min(1, Σ own caps) = 1 — NOT 2. The
+      // pre-fix code bucketed by the WHOLE group-id set, so {A} and {A,B} landed in
+      // different buckets and each contributed 1, over-offering a 2 the submit-time
+      // checkBatchAvailability would reject.
+      const groupA = await createTestGroup({ maxAttendees: 1, name: "PoolA" });
+      const groupB = await createTestGroup({
+        maxAttendees: 100,
+        name: "PoolB",
+      });
+      const parent = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 5,
+        name: "Base unit",
+      });
+      const childOne = await createTestListing({
+        groupIds: [groupA.id],
+        maxAttendees: 100,
+        maxQuantity: 5,
+        name: "Add-on one",
+      });
+      const childTwo = await createTestListing({
+        groupIds: [groupA.id, groupB.id],
+        maxAttendees: 100,
+        maxQuantity: 5,
+        name: "Add-on two",
+      });
+      await setChildIds(parent.id, [childOne.id, childTwo.id]);
+
+      const html = await bookingPageHtml(parent.slug);
+      const quantitySelect = html.slice(
+        html.indexOf(`name="quantity_${parent.id}"`),
+      );
+      const quantityOptionsHtml = quantitySelect.slice(
+        0,
+        quantitySelect.indexOf("</select>"),
+      );
+      expect(quantityOptionsHtml).toContain(">1</option>");
+      expect(quantityOptionsHtml).not.toContain(">2</option>");
+    });
+
     test("a parent whose only child is sold out renders sold out on its own page", async () => {
       // On /ticket/<parent> the page must project a no-bookable-child parent to
       // sold out (no quantity selector / Book control), mirroring discovery,

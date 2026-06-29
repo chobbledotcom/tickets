@@ -25,7 +25,10 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
-import { getSharedGroupCapacities } from "#shared/db/attendees.ts";
+import {
+  getGroupRemainingByListingId,
+  getSharedGroupCapacities,
+} from "#shared/db/attendees.ts";
 import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
@@ -63,7 +66,10 @@ import {
   type TicketListing,
   type TicketPrefill,
 } from "#templates/public.tsx";
-import { applyBookingPageParentSoldOut } from "./discovery.ts";
+import {
+  applyBookingPageParentSoldOut,
+  type ChildCapacityCtx,
+} from "./discovery.ts";
 import {
   buildListingAnswerMap,
   buildListingTextAnswerMap,
@@ -1000,29 +1006,36 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
   const children = [...ctx.childrenByParentId.values()]
     .flat()
     .map((child) => child.listing);
-  const [childCaps, holidays, membership] = await Promise.all([
-    getSharedGroupCapacities(children),
-    getActiveHolidays(),
-    getGroupIdsByListingIds([
-      ...ctx.listings.map((l) => l.listing.id),
-      ...children.map((c) => c.id),
-    ]),
-  ]);
+  const [childCaps, childOwnRemaining, holidays, membership] =
+    await Promise.all([
+      getSharedGroupCapacities(children),
+      getGroupRemainingByListingId(children),
+      getActiveHolidays(),
+      getGroupIdsByListingIds([
+        ...ctx.listings.map((l) => l.listing.id),
+        ...children.map((c) => c.id),
+      ]),
+    ]);
+  const caps: ChildCapacityCtx = {
+    childOwnRemaining,
+    membership,
+    remainingByGroupId: childCaps.remaining,
+    staticCapByGroupId: childCaps.staticCap,
+  };
   return {
     ...ctx,
-    // The same children's group-remaining drives the per-parent quantity clamp:
-    // a parent sharing a capped group with its child offers only
-    // floor(groupRemaining / 2) orders (invariant I7, Fix 3). Carried on the
-    // render ctx so `childCappedMax` sees it; submit/quote keep it unset.
+    // The PER-GROUP remaining drives the per-parent quantity clamp keyed by the
+    // SPECIFIC group a parent and child share (Codex #3): a parent sharing a capped
+    // group with its child offers only floor(sharedRemaining / 2) orders (invariant
+    // I7, Fix 3). Carried on the render ctx so `childCappedMax` sees it; submit/quote
+    // keep it unset.
     groupIdsByListingId: membership,
-    groupRemainingByListingId: childCaps.remaining,
+    groupRemainingByGroupId: childCaps.remaining,
     listings: applyBookingPageParentSoldOut(
       ctx.listings,
       ctx.childrenByParentId,
-      childCaps.remaining,
-      childCaps.staticCap,
+      caps,
       holidays,
-      membership,
     ),
   };
 };

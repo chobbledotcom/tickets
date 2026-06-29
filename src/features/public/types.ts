@@ -68,14 +68,15 @@ export type TicketSharedContext = {
 export type TicketCtx = TicketSharedContext & {
   slugs: string[];
   listings: TicketListing[];
-  /** Each listing id → its capped group's remaining spots, set on the render path
-   * so a parent sharing a capped group with its child clamps its quantity by the
-   * combined parent+child demand (invariant I7, Fix 3). Omitted on submit/quote
-   * (the fold's authoritative date-specific check runs there instead). */
-  groupRemainingByListingId?: ReadonlyMap<number, number>;
+  /** Each GROUP id → its remaining spots (uncapped groups omitted), set on the
+   * render path so a parent sharing a capped group with its child clamps its
+   * quantity by the combined parent+child demand against the SPECIFIC shared group
+   * (invariant I7, Fix 3, Codex #3). Omitted on submit/quote (the fold's
+   * authoritative date-specific check runs there instead). */
+  groupRemainingByGroupId?: ReadonlyMap<number, number>;
   /** Each listing id → the ids of the groups it belongs to, set on the render
-   * path alongside groupRemainingByListingId so the shared-group quantity clamps
-   * work for listings in several groups. Omitted on submit/quote. */
+   * path alongside groupRemainingByGroupId so the shared-group quantity clamps
+   * resolve the group a parent and child actually share. Omitted on submit/quote. */
   groupIdsByListingId?: ReadonlyMap<number, number[]>;
   baseUrl?: string;
   prefill?: BookingPrefill;

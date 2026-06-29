@@ -244,13 +244,30 @@ export const dayPriceFor = (
 export const PARENT_CHILD_GROUP_UNITS = 2;
 
 /**
+ * The capped groups a parent and one of its children BOTH belong to — the pool(s)
+ * the combined parent+child demand actually contends for (invariant I7). A capped
+ * group is one present in `byGroup` (uncapped groups are omitted from that map).
+ * Empty when they share no capped group.
+ */
+const sharedCappedGroupIds = (
+  parentGroupIds: readonly number[],
+  childGroupIds: readonly number[],
+  byGroup: ReadonlyMap<number, number>,
+): number[] =>
+  parentGroupIds.filter((g) => childGroupIds.includes(g) && byGroup.has(g));
+
+/**
  * The remaining spots of the **capped group a parent and one of its children
  * share**, or `undefined` when they don't share a capped group. A parent and its
  * required child in the same capped group consume two group spots per order
  * (invariant I7), so callers must reason about combined demand, not each row in
- * isolation. `childGroupRemaining` is the child's group-remaining entry (only
- * present for a capped group), which equals the shared group's remaining when the
- * two are co-grouped; in different or uncapped groups there is no shared cap.
+ * isolation.
+ *
+ * `remainingByGroupId` is the PER-GROUP remaining (groupId → free spots; uncapped
+ * groups omitted), so the result is the tightest SHARED group's remaining — the
+ * group the parent and child actually contend over — NOT the child's tightest
+ * group overall. A child also in a tighter NON-shared group must not drag the
+ * shared-pool calc down to that unrelated cap (Codex #3).
  *
  * The single source of truth for both discovery (does the minimum order fit?) and
  * the booking-page quantity ceiling (how many orders fit?), so the two surfaces
@@ -259,12 +276,16 @@ export const PARENT_CHILD_GROUP_UNITS = 2;
 export const sharedGroupRemaining = (
   parentGroupIds: readonly number[],
   childGroupIds: readonly number[],
-  childGroupRemaining: number | undefined,
-): number | undefined =>
-  childGroupRemaining !== undefined &&
-  parentGroupIds.some((g) => childGroupIds.includes(g))
-    ? childGroupRemaining
-    : undefined;
+  remainingByGroupId: ReadonlyMap<number, number>,
+): number | undefined => {
+  const shared = sharedCappedGroupIds(
+    parentGroupIds,
+    childGroupIds,
+    remainingByGroupId,
+  );
+  if (shared.length === 0) return undefined;
+  return Math.min(...shared.map((g) => remainingByGroupId.get(g)!));
+};
 
 /**
  * The capacity a parent and one of its children share, as two orthogonal facts:
@@ -286,21 +307,44 @@ export type SharedGroupCapacity = {
 };
 
 /**
- * Build the {@link SharedGroupCapacity} for a parent/child pair. They are
- * co-grouped when their group sets intersect (share at least one group); when
- * they are not, there is no shared cap (both facts `undefined`). Otherwise the
- * child's own per-listing group entries (its tightest capped group) stand in for
- * the shared group's capacity.
+ * Build the {@link SharedGroupCapacity} for a parent/child pair from the PER-GROUP
+ * capacity maps (groupId → spots; uncapped groups omitted). They are co-grouped
+ * when their group sets intersect in at least one CAPPED group; when they are not,
+ * there is no shared cap (both facts `undefined`).
+ *
+ * Both facts are the tightest value over the groups they SHARE — the pool(s) the
+ * combined demand actually contends for — NOT the child's tightest group overall.
+ * A child also in a tighter non-shared group must not pull the shared cap down to
+ * an unrelated group's value (Codex #3); the static cap and remaining are taken
+ * from the SAME shared groups so date-less surfaces reject a share too small to
+ * ever hold both even when a daily child's per-date remaining is unknown.
  */
 export const sharedGroupCapacity = (
   parentGroupIds: readonly number[],
   childGroupIds: readonly number[],
-  childStaticCap: number | undefined,
-  childRemaining: number | undefined,
-): SharedGroupCapacity =>
-  parentGroupIds.some((g) => childGroupIds.includes(g))
-    ? { remaining: childRemaining, staticCap: childStaticCap }
-    : { remaining: undefined, staticCap: undefined };
+  staticCapByGroupId: ReadonlyMap<number, number>,
+  remainingByGroupId: ReadonlyMap<number, number>,
+): SharedGroupCapacity => {
+  const sharedForCap = sharedCappedGroupIds(
+    parentGroupIds,
+    childGroupIds,
+    staticCapByGroupId,
+  );
+  const sharedForRemaining = sharedCappedGroupIds(
+    parentGroupIds,
+    childGroupIds,
+    remainingByGroupId,
+  );
+  const minOver = (
+    ids: number[],
+    byGroup: ReadonlyMap<number, number>,
+  ): number | undefined =>
+    ids.length === 0 ? undefined : Math.min(...ids.map((g) => byGroup.get(g)!));
+  return {
+    remaining: minOver(sharedForRemaining, remainingByGroupId),
+    staticCap: minOver(sharedForCap, staticCapByGroupId),
+  };
+};
 
 export interface Listing {
   active: boolean;

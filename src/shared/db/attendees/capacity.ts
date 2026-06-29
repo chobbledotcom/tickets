@@ -38,21 +38,31 @@ type RemainingMap = Map<number, number>;
 const uniquePositiveGroupIds = (groupIds: number[]): number[] =>
   unique(groupIds.filter((id) => id > 0));
 
+/** Run `queryFor` over the distinct capped-group candidate ids, or short-circuit
+ * to an empty map when none are worth a lookup. The shared dedup + empty guard
+ * every per-group cap query opens with. */
+const cappedGroupQuery = async <T>(
+  groupIds: number[],
+  queryFor: (ids: number[]) => Promise<Map<number, T>>,
+): Promise<Map<number, T>> => {
+  const ids = uniquePositiveGroupIds(groupIds);
+  return ids.length === 0 ? new Map() : queryFor(ids);
+};
+
 /**
  * Per-group remaining capacity. Groups with `max_attendees <= 0` (no cap)
  * are omitted from the map. With `date = null`, this uses each listing's
  * editable booked_quantity running total; with a date, non-daily listings still
  * use booked_quantity while daily listings count overlapping attendee rows.
  */
-export const getGroupRemainingByGroupId = async (
+export const getGroupRemainingByGroupId = (
   groupIds: number[],
   date: string | null = null,
-): Promise<RemainingMap> => {
-  const ids = uniquePositiveGroupIds(groupIds);
-  if (ids.length === 0) return new Map();
-  const range = date ? dateToRange(date) : null;
-  const datedCount = date
-    ? `COALESCE((
+): Promise<RemainingMap> =>
+  cappedGroupQuery(groupIds, async (ids) => {
+    const range = date ? dateToRange(date) : null;
+    const datedCount = date
+      ? `COALESCE((
         SELECT SUM(listing.booked_quantity)
           FROM listings AS listing
           JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
@@ -66,29 +76,29 @@ export const getGroupRemainingByGroupId = async (
            AND listing.listing_type = 'daily'
            AND attendee.start_at < ? AND attendee.end_at > ?
       ), 0)`
-    : `COALESCE((
+      : `COALESCE((
         SELECT SUM(listing.booked_quantity)
           FROM listings AS listing
           JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
          WHERE groupListing.group_id = groupRow.id
       ), 0)`;
-  const countArgs = range ? [range.endAt, range.startAt] : [];
-  const rows = await queryAll<{
-    group_id: number;
-    max_attendees: number;
-    count: number;
-  }>(
-    `SELECT groupRow.id as group_id, groupRow.max_attendees,
+    const countArgs = range ? [range.endAt, range.startAt] : [];
+    const rows = await queryAll<{
+      group_id: number;
+      max_attendees: number;
+      count: number;
+    }>(
+      `SELECT groupRow.id as group_id, groupRow.max_attendees,
             ${datedCount} as count
      FROM groups AS groupRow
      WHERE groupRow.id IN (${inPlaceholders(ids)}) AND groupRow.max_attendees > 0
      GROUP BY groupRow.id`,
-    [...countArgs, ...ids],
-  );
-  return new Map(
-    rows.map((r) => [r.group_id, Math.max(0, r.max_attendees - r.count)]),
-  );
-};
+      [...countArgs, ...ids],
+    );
+    return new Map(
+      rows.map((r) => [r.group_id, Math.max(0, r.max_attendees - r.count)]),
+    );
+  });
 
 type ListingForGroupLookup = {
   id: number;
@@ -117,6 +127,16 @@ const minByListingOverGroups = (
   return result;
 };
 
+/** Load the listings' group membership along with the flat list of every group
+ * id any of them belongs to — the pair every per-listing → per-group lookup
+ * below starts from. */
+const loadMembershipWithGroupIds = async (
+  listings: ListingForGroupLookup[],
+): Promise<{ membership: Map<number, number[]>; groupIds: number[] }> => {
+  const membership = await getGroupIdsByListingIds(listings.map((e) => e.id));
+  return { groupIds: [...membership.values()].flat(), membership };
+};
+
 /**
  * Per-listing view of group remaining capacity. Daily listings are dropped when
  * `date` is null — their cap is per-date, so a cumulative count would
@@ -130,11 +150,8 @@ export const getGroupRemainingByListingId = async (
   const candidates = date
     ? listings
     : listings.filter((e) => e.listing_type !== "daily");
-  const membership = await getGroupIdsByListingIds(candidates.map((e) => e.id));
-  const groupMap = await getGroupRemainingByGroupId(
-    [...membership.values()].flat(),
-    date,
-  );
+  const { membership, groupIds } = await loadMembershipWithGroupIds(candidates);
+  const groupMap = await getGroupRemainingByGroupId(groupIds, date);
   return minByListingOverGroups(
     candidates.map((e) => e.id),
     membership,
@@ -143,50 +160,55 @@ export const getGroupRemainingByListingId = async (
 };
 
 /**
- * Per-listing STATIC group cap (`groups.max_attendees`), date-INDEPENDENT.
+ * Per-GROUP STATIC cap (`groups.max_attendees`), date-INDEPENDENT, keyed by group
+ * id. Uncapped/absent groups are omitted, matching {@link getGroupRemainingByGroupId}.
  *
- * Unlike {@link getGroupRemainingByListingId} this never drops daily listings:
- * the static cap is a structural fact (how many can EVER sit in the group),
- * not a per-date count. Date-less surfaces use it to reject a parent+child
- * share that can never satisfy the combined minimum order (a parent and its
- * required child co-grouped consume `PARENT_CHILD_GROUP_UNITS` spots), even
- * for a daily child whose per-date remaining is unknown without a date.
- * Listings whose group is ungrouped or uncapped are omitted.
+ * The static cap is a structural fact (how many can EVER sit in the group), not a
+ * per-date count, so date-less surfaces use it to reject a parent+child share that
+ * can never satisfy the combined minimum order (a parent and its required child
+ * co-grouped consume `PARENT_CHILD_GROUP_UNITS` spots) even when a daily child's
+ * per-date remaining is unknown without a date.
  */
-export const getGroupStaticCapByListingId = async (
-  listings: ListingForGroupLookup[],
-): Promise<RemainingMap> => {
-  const membership = await getGroupIdsByListingIds(listings.map((e) => e.id));
-  const ids = uniquePositiveGroupIds([...membership.values()].flat());
-  if (ids.length === 0) return new Map();
-  const rows = await queryAll<{ group_id: number; max_attendees: number }>(
-    `SELECT id AS group_id, max_attendees FROM groups
+export const getGroupStaticCapByGroupId = (
+  groupIds: number[],
+): Promise<RemainingMap> =>
+  cappedGroupQuery(groupIds, async (ids) => {
+    const rows = await queryAll<{ group_id: number; max_attendees: number }>(
+      `SELECT id AS group_id, max_attendees FROM groups
      WHERE id IN (${inPlaceholders(ids)}) AND max_attendees > 0`,
-    ids,
-  );
-  const capByGroup = new Map(rows.map((r) => [r.group_id, r.max_attendees]));
-  return minByListingOverGroups(
-    listings.map((e) => e.id),
-    membership,
-    capByGroup,
-  );
-};
+      ids,
+    );
+    return new Map(rows.map((r) => [r.group_id, r.max_attendees]));
+  });
 
-/** Both shared-group capacity facts for a set of listings in one call: the
- * date-less `remaining` ({@link getGroupRemainingByListingId}) and the
- * date-independent `staticCap` ({@link getGroupStaticCapByListingId}). The
- * single fetch every date-less parent/child surface (discovery + the booking
- * page's sold-out projection) uses, so they pull the same two maps the
- * {@link SharedGroupCapacity} vocabulary reasons over rather than each wiring up
- * the pair by hand. */
+/** The PER-GROUP shared-group capacity facts + membership for a set of listings,
+ * the single fetch every date-less parent/child surface (discovery + the booking
+ * page's sold-out projection + the quantity clamp) uses. Returns the date-less
+ * `remaining` and date-independent `staticCap` keyed by GROUP id (not per
+ * listing), plus each listing's group `membership`, so the {@link
+ * SharedGroupCapacity} vocabulary can reason about the SPECIFIC group a parent and
+ * child share rather than a child's tightest group overall (Codex #3). */
 export const getSharedGroupCapacities = async (
   listings: ListingForGroupLookup[],
-): Promise<{ remaining: RemainingMap; staticCap: RemainingMap }> => {
+): Promise<{
+  remaining: RemainingMap;
+  staticCap: RemainingMap;
+  membership: Map<number, number[]>;
+}> => {
+  const { membership, groupIds: allGroupIds } =
+    await loadMembershipWithGroupIds(listings);
+  // A daily listing's group `remaining` is a per-DATE fact; a date-less cumulative
+  // count would misreport it, so date-less `remaining` is computed only over groups
+  // reachable from a NON-daily listing (mirroring the old per-listing drop). The
+  // structural `staticCap` is date-independent, so it covers every group.
+  const datelessGroupIds = listings
+    .filter((e) => e.listing_type !== "daily")
+    .flatMap((e) => membership.get(e.id) ?? []);
   const [remaining, staticCap] = await Promise.all([
-    getGroupRemainingByListingId(listings),
-    getGroupStaticCapByListingId(listings),
+    getGroupRemainingByGroupId(datelessGroupIds),
+    getGroupStaticCapByGroupId(allGroupIds),
   ]);
-  return { remaining, staticCap };
+  return { membership, remaining, staticCap };
 };
 
 const listingForCapacity = async (

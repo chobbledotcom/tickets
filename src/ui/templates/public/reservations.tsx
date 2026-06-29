@@ -434,11 +434,12 @@ export type ChildRenderCtx = {
    * disable a child the selected date/day-count can't serve (Codex 430, Fix 1).
    * Non-daily children are omitted (no date constraint). */
   childDatesById: ReadonlyMap<string, ChildSpanDates>;
-  /** Each listing id → its capped group's remaining spots, for the combined
-   * parent+child demand clamp (invariant I7); empty when no group caps apply. */
-  groupRemainingByListingId: ReadonlyMap<number, number>;
+  /** Each GROUP id → its remaining spots (uncapped groups omitted), for the
+   * combined parent+child demand clamp against the SPECIFIC shared group
+   * (invariant I7, Codex #2/#3); empty when no group caps apply. */
+  groupRemainingByGroupId: ReadonlyMap<number, number>;
   /** Each listing id → the ids of the groups it belongs to, so the
-   * shared-group/co-grouped checks work when a listing is in several groups.
+   * shared-group/co-grouped checks resolve the group a parent and child share.
    * Empty/absent entries mean ungrouped. */
   groupIdsByListingId: ReadonlyMap<number, number[]>;
   questions: QuestionWithAnswers[];
@@ -502,13 +503,13 @@ const childOwnRenderCap = (
 const childOrderCap = (
   parent: TicketListing,
   child: TicketListing,
-  groupRemainingByListingId: ReadonlyMap<number, number>,
+  groupRemainingByGroupId: ReadonlyMap<number, number>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
 ): number => {
   const shared = sharedGroupRemaining(
     groupIdsByListingId.get(parent.listing.id) ?? [],
     groupIdsByListingId.get(child.listing.id) ?? [],
-    groupRemainingByListingId.get(child.listing.id),
+    groupRemainingByGroupId,
   );
   return shared === undefined
     ? childOwnRenderCap(parent, child)
@@ -562,50 +563,59 @@ const cappedGroupCohortCap = (remaining: number, ownCapSum: number): number =>
 const childCombinedCap = (
   parent: TicketListing,
   bookable: TicketListing[],
-  groupRemainingByListingId: ReadonlyMap<number, number>,
+  groupRemainingByGroupId: ReadonlyMap<number, number>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
 ): number => {
+  const parentGroupIds = groupIdsByListingId.get(parent.listing.id) ?? [];
   let sharedCohortRemaining: number | undefined;
   let sharedCohortChildMax = 0;
   let separateSum = 0;
-  // Separate (not-with-parent) CAPPED groups, bucketed by the child's group set
-  // (a stable key over its group ids) so children with the same capped
-  // membership accumulate their pool/own-cap once (Fix 3). A multi-group child is
-  // keyed by its whole set — an approximation safe because the submit-time
-  // checkBatchAvailability is the authoritative per-group gate.
-  const cappedGroups = new Map<string, { remaining: number; ownCap: number }>();
+  // Separate (not-with-parent) CAPPED groups, bucketed by the SPECIFIC capped
+  // group id the children share — NOT the child's whole group set (Codex #2).
+  // Two children both in capped group A but with different OTHER memberships
+  // would land in different full-set buckets and each offer cap 1, over-offering
+  // 2 where the shared pool fits 1; keying by the tightest capped group id they
+  // share collapses them into one term. A child in several separate capped groups
+  // is assigned to its tightest (least-remaining) one; the submit-time
+  // checkBatchAvailability is the authoritative per-group gate for the rest.
+  const cappedGroups = new Map<number, { remaining: number; ownCap: number }>();
   for (const child of bookable) {
     const ownCap = childOwnRenderCap(parent, child);
     const childGroupIds = groupIdsByListingId.get(child.listing.id) ?? [];
     const shared = sharedGroupRemaining(
-      groupIdsByListingId.get(parent.listing.id) ?? [],
+      parentGroupIds,
       childGroupIds,
-      groupRemainingByListingId.get(child.listing.id),
+      groupRemainingByGroupId,
     );
     if (shared !== undefined) {
-      // Co-grouped with the PARENT: one shared pool. Every such child reports the
-      // same remaining, so record it once; the cohort's combined order cap is added
-      // below, not per child. (Daily children never reach this branch — no
-      // date-less group entry.)
-      sharedCohortRemaining = shared;
+      // Co-grouped with the PARENT: one shared pool. The tightest shared group's
+      // remaining stands for every co-grouped child, so record it once; the
+      // cohort's combined order cap is added below, not per child. (Daily children
+      // never reach this branch — no date-less group entry.)
+      sharedCohortRemaining =
+        sharedCohortRemaining === undefined
+          ? shared
+          : Math.min(sharedCohortRemaining, shared);
       sharedCohortChildMax += ownCap;
       continue;
     }
-    const groupRemaining = groupRemainingByListingId.get(child.listing.id);
-    if (groupRemaining === undefined) {
+    // The child's capped groups the parent is NOT in, tightest first.
+    const separateCapped = childGroupIds
+      .filter((g) => groupRemainingByGroupId.has(g))
+      .map((g) => ({ groupId: g, remaining: groupRemainingByGroupId.get(g)! }))
+      .sort((a, b) => a.remaining - b.remaining);
+    if (separateCapped.length === 0) {
       // Ungrouped or uncapped: a private pool, so it adds its own cap directly.
       separateSum += ownCap;
       continue;
     }
-    // A capped child-only group the parent is NOT in (Fix 3): bucket by the
-    // child's group set so several children sharing it collapse to one term.
-    const bucketKey = [...childGroupIds].sort((a, b) => a - b).join(",");
-    const bucket = cappedGroups.get(bucketKey) ?? {
-      ownCap: 0,
-      remaining: groupRemaining,
-    };
+    // A capped child-only group the parent is NOT in (Fix 3, Codex #2): bucket by
+    // the tightest shared capped group id so several children drawing on it
+    // collapse to one term clamped by that group's remaining.
+    const { groupId, remaining } = separateCapped[0]!;
+    const bucket = cappedGroups.get(groupId) ?? { ownCap: 0, remaining };
     bucket.ownCap += ownCap;
-    cappedGroups.set(bucketKey, bucket);
+    cappedGroups.set(groupId, bucket);
   }
   const sharedCohortCap =
     sharedCohortRemaining === undefined
@@ -643,7 +653,7 @@ const childCappedMax = (
   const childCap = childCombinedCap(
     info,
     bookable,
-    childCtx.groupRemainingByListingId,
+    childCtx.groupRemainingByGroupId,
     childCtx.groupIdsByListingId,
   );
   return Math.min(info.maxPurchasable, childCap);
@@ -922,7 +932,7 @@ const renderChildBlock = (
                   childOrderCap(
                     parentInfo,
                     child,
-                    ctx.groupRemainingByListingId,
+                    ctx.groupRemainingByGroupId,
                     ctx.groupIdsByListingId,
                   ),
                 )
@@ -1214,12 +1224,13 @@ export type TicketPageOptions = {
    * span, keyed by the (parent, child) PAIR ({@link ChildRenderCtx.childDatesById},
    * Fix 4). Omitted/empty when no daily children. */
   childDatesById?: ReadonlyMap<string, ChildSpanDates>;
-  /** Each listing id → its capped group's remaining spots, so a parent sharing a
-   * capped group with its child clamps its quantity by the combined parent+child
-   * demand (invariant I7, Fix 3). Empty/omitted when no group caps apply. */
-  groupRemainingByListingId?: ReadonlyMap<number, number>;
+  /** Each GROUP id → its remaining spots (uncapped groups omitted), so a parent
+   * sharing a capped group with its child clamps its quantity by the combined
+   * parent+child demand against the SPECIFIC shared group (invariant I7, Fix 3,
+   * Codex #2/#3). Empty/omitted when no group caps apply. */
+  groupRemainingByGroupId?: ReadonlyMap<number, number>;
   /** Each listing id → the ids of the groups it belongs to, so the shared-group
-   * clamps work for listings in several groups. Empty/omitted = ungrouped. */
+   * clamps resolve the group a parent and child share. Empty/omitted = ungrouped. */
   groupIdsByListingId?: ReadonlyMap<number, number[]>;
   /** Package overrides (listing id → price) when this is a package page, so a
    * member whose base price is 0 but override is paid still renders the provider
@@ -1479,7 +1490,7 @@ const splitChildQuestions = (
   questions: QuestionWithAnswers[],
   questionListingMap: QuestionListingMap | undefined,
   childrenByParentId: Map<number, TicketListing[]> | undefined,
-  groupRemainingByListingId: ReadonlyMap<number, number>,
+  groupRemainingByGroupId: ReadonlyMap<number, number>,
   childDatesById: ReadonlyMap<string, ChildSpanDates>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
 ): { pageQuestions: QuestionWithAnswers[]; childCtx?: ChildRenderCtx } => {
@@ -1497,7 +1508,7 @@ const splitChildQuestions = (
       childDatesById,
       children: childrenByParentId,
       groupIdsByListingId,
-      groupRemainingByListingId,
+      groupRemainingByGroupId,
       questionListingMap,
       questions,
       rendered: new Set<number>(pageQuestions.map((q) => q.id)),
@@ -1625,7 +1636,7 @@ export const ticketPage = ({
   promoCodesEnabled,
   childrenByParentId,
   childDatesById,
-  groupRemainingByListingId,
+  groupRemainingByGroupId,
   groupIdsByListingId = new Map(),
   packagePrices,
   packageGroupId,
@@ -1663,7 +1674,7 @@ export const ticketPage = ({
     questions ?? [],
     questionListingMap,
     childrenByParentId,
-    groupRemainingByListingId ?? new Map(),
+    groupRemainingByGroupId ?? new Map(),
     childDatesById ?? new Map(),
     groupIdsByListingId,
   );
