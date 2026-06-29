@@ -9,6 +9,7 @@ import {
   changedFiles,
   partitionChanged,
   runMutationStep,
+  STALE_BASE_SOURCE_LIMIT,
 } from "../../scripts/precommit/mutation-step.ts";
 
 const ok = (stdout = ""): CommandResult => ({
@@ -26,29 +27,17 @@ const fail = (stderr = ""): CommandResult => ({
 });
 
 /**
- * A fake git modelling base-ref resolution: `upstream` is the `@{upstream}`
- * name (null = unset), `base` is the only `rev-parse --verify` ref that exists
- * (null = none), and `diff` is served for the `git diff` call. Mirrors how
- * `changedFiles` prefers the upstream, falls back to a verifiable ref, then
+ * A fake git modelling base-ref resolution: `base` is the only
+ * `rev-parse --verify` ref that exists (null = none), and `diff` is served for
+ * the `git diff` call. Mirrors how `changedFiles` resolves a base ref then
  * diffs `base...HEAD`.
  */
 const fakeGit =
-  (opts: {
-    base?: string | null;
-    diff: CommandResult;
-    upstream?: string | null;
-  }): RunCommand =>
-  (cmd) => {
-    const last = cmd.at(-1);
-    if (last === "@{upstream}") {
-      const name = opts.upstream ?? null;
-      return Promise.resolve(name === null ? fail() : ok(`${name}\n`));
-    }
-    if (cmd[1] === "rev-parse") {
-      return Promise.resolve(last === (opts.base ?? null) ? ok() : fail());
-    }
-    return Promise.resolve(opts.diff);
-  };
+  (opts: { base?: string | null; diff: CommandResult }): RunCommand =>
+  (cmd) =>
+    cmd[1] === "rev-parse"
+      ? Promise.resolve(cmd.at(-1) === (opts.base ?? null) ? ok() : fail())
+      : Promise.resolve(opts.diff);
 
 describe("partitionChanged", () => {
   test("collects src .ts, .tsx and .js files as sources", () => {
@@ -116,38 +105,19 @@ const recordingGit = (
 };
 
 describe("changedFiles", () => {
-  test("prefers the branch's upstream as the diff base", async () => {
-    const git = recordingGit({
-      diff: ok("src/a.ts\n"),
-      upstream: "origin/feature",
-    });
+  test("diffs origin/main...HEAD for the branch's files", async () => {
+    const git = recordingGit({ base: "origin/main", diff: ok("src/a.ts\n") });
     await changedFiles(git.run);
     expect(git.diffArgs()).toEqual([
       "git",
       "diff",
       "--name-only",
       "--diff-filter=ACMR",
-      "origin/feature...HEAD",
+      "origin/main...HEAD",
     ]);
   });
 
-  test("falls back to origin/main when there is no upstream", async () => {
-    const git = recordingGit({ base: "origin/main", diff: ok("src/a.ts\n") });
-    await changedFiles(git.run);
-    expect(git.diffArgs()?.at(-1)).toBe("origin/main...HEAD");
-  });
-
-  test("ignores an empty upstream and falls back to origin/main", async () => {
-    const git = recordingGit({
-      base: "origin/main",
-      diff: ok(""),
-      upstream: "",
-    });
-    await changedFiles(git.run);
-    expect(git.diffArgs()?.at(-1)).toBe("origin/main...HEAD");
-  });
-
-  test("falls back to local main when neither upstream nor origin/main exist", async () => {
+  test("falls back to local main when origin/main is absent", async () => {
     const git = recordingGit({ base: "main", diff: ok("") });
     await changedFiles(git.run);
     expect(git.diffArgs()?.at(-1)).toBe("main...HEAD");
@@ -166,7 +136,7 @@ describe("changedFiles", () => {
     });
   });
 
-  test("returns null when no upstream, origin/main or main exists", async () => {
+  test("returns null when neither origin/main nor main exists", async () => {
     expect(await changedFiles(fakeGit({ diff: ok("src/a.ts\n") }))).toBe(null);
   });
 
@@ -203,8 +173,46 @@ describe("runMutationStep", () => {
 
   test("skips when there is no base ref to diff against", async () => {
     await expectSkip(fakeGit({ diff: ok("src/a.ts\ntest/a.test.ts\n") }), [
-      "No upstream, origin/main, or main to diff against — skipping mutation.",
+      "No origin/main or main to diff against — skipping mutation.",
     ]);
+  });
+
+  test("skips with a fetch hint when the changed set looks stale-base huge", async () => {
+    const sources = Array.from(
+      { length: STALE_BASE_SOURCE_LIMIT + 1 },
+      (_, i) => `src/f${i}.ts`,
+    );
+    await expectSkip(
+      fakeGit({
+        base: "origin/main",
+        diff: ok(`${sources.join("\n")}\ntest/a.test.ts\n`),
+      }),
+      [
+        `${STALE_BASE_SOURCE_LIMIT + 1} changed src files — the local base ref ` +
+          "looks stale. Run `git fetch origin main` and retry; skipping mutation.",
+      ],
+    );
+  });
+
+  test("still runs at exactly the stale-base limit", async () => {
+    const sources = Array.from(
+      { length: STALE_BASE_SOURCE_LIMIT },
+      (_, i) => `src/f${i}.ts`,
+    );
+    let received: ChangedFiles | null = null;
+    const code = await runMutationStep({
+      log: () => {},
+      run: fakeGit({
+        base: "origin/main",
+        diff: ok(`${sources.join("\n")}\ntest/a.test.ts\n`),
+      }),
+      runMutation: (files) => {
+        received = files;
+        return Promise.resolve(0);
+      },
+    });
+    expect(code).toBe(0);
+    expect(received?.sources.length).toBe(STALE_BASE_SOURCE_LIMIT);
   });
 
   test("passes without running mutation when no src files changed", async () => {

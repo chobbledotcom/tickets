@@ -7,12 +7,19 @@
  * branch's *committed* diff against a base ref, using `base...HEAD` so only this
  * branch's own commits count.
  *
- * The base ref mirrors how `push.ts` decides what to push: it prefers the
- * branch's own upstream (`@{upstream}`) when set, falling back to `origin/main`
- * then a local `main`. Preferring the upstream keeps the diff bounded to the
- * branch's own work even when the local `main`/`origin/main` is far behind the
- * real one — diffing a stale `origin/main` would otherwise balloon the changed
- * set to the whole tree and try to mutate everything.
+ * The base ref is the integration branch: `origin/main`, falling back to a
+ * local `main`. `base...HEAD` is the three-dot (merge-base) form, so in a normal
+ * checkout it is the branch's *full* diff against main and only the branch's own
+ * commits count, regardless of how far main has advanced or how much of the
+ * branch has already been pushed. (Using the branch's own upstream instead would
+ * drop already-pushed commits from the range, letting a fully-pushed branch
+ * report "no changed src" and skip source changes still in the PR.)
+ *
+ * If the *local* `origin/main` ref is badly stale (e.g. a fresh shallow clone),
+ * the merge-base falls way back and the changed set balloons toward the whole
+ * tree. Rather than attempt a multi-hundred-file mutation run, the gate skips
+ * with a "run `git fetch origin main`" warning once the changed-source count
+ * exceeds `STALE_BASE_SOURCE_LIMIT`.
  *
  * It mutates every changed `src/` file, runs every changed `test/` file against
  * the mutants, and demands a 100% kill rate. The whole src file is mutated
@@ -41,6 +48,13 @@
  */
 
 import type { RunCommand } from "./merge-warning.ts";
+
+/** A changed-source count above this almost certainly means the local base ref
+ *  is stale (the merge-base fell far back), not a real change set — so the gate
+ *  skips with a fetch hint rather than mutating most of the tree. Real changes,
+ *  even large refactors, stay well under this; bigger ones can be checked with
+ *  `deno task mutation` directly. */
+export const STALE_BASE_SOURCE_LIMIT = 100;
 
 /** The changed paths split into the src files to mutate and tests to run. */
 export interface ChangedFiles {
@@ -72,42 +86,15 @@ export const partitionChanged = (paths: string[]): ChangedFiles => ({
   tests: paths.filter(isTestFile),
 });
 
-/** This branch's own upstream ref (e.g. `origin/feature`), or null when the
- *  branch has no upstream set. Preferred base: it tracks what this branch has
- *  pushed, so the diff stays bounded to the branch's own commits even when the
- *  local `main`/`origin/main` is far behind the real one. */
-const upstreamRef = async (run: RunCommand): Promise<string | null> => {
-  const result = await run([
-    "git",
-    "rev-parse",
-    "--abbrev-ref",
-    "--symbolic-full-name",
-    "@{upstream}",
-  ]);
-  if (!result.success) return null;
-  const value = result.stdout.trim();
-  return value === "" ? null : value;
-};
-
-/** The first of `refs` that resolves to a commit, or null when none do. */
-const firstExistingRef = async (
-  run: RunCommand,
-  refs: string[],
-): Promise<string | null> => {
-  for (const ref of refs) {
+/** The base ref to diff against: the integration branch — `origin/main`, then a
+ *  local `main`. The first that resolves to a commit wins; null when neither
+ *  does, so the caller skips rather than mutating the whole tree. */
+const resolveBaseRef = async (run: RunCommand): Promise<string | null> => {
+  for (const ref of ["origin/main", "main"]) {
     const result = await run(["git", "rev-parse", "--verify", "--quiet", ref]);
     if (result.success) return ref;
   }
   return null;
-};
-
-/** The base ref to diff against: this branch's upstream when set, else the
- *  integration branch (`origin/main`, then a local `main`). Null when none
- *  resolve, so the caller skips rather than mutating the whole tree. */
-const resolveBaseRef = async (run: RunCommand): Promise<string | null> => {
-  const upstream = await upstreamRef(run);
-  if (upstream !== null) return upstream;
-  return firstExistingRef(run, ["origin/main", "main"]);
 };
 
 /**
@@ -145,6 +132,8 @@ export const changedFiles = async (
  *
  *   - No base ref to diff against → skip (pass); we cannot scope the run, and
  *     the coverage gate still applies.
+ *   - More than `STALE_BASE_SOURCE_LIMIT` changed src files → skip (pass) with a
+ *     fetch hint; the local base ref is almost certainly stale.
  *   - No changed src files → nothing to prove; pass.
  *   - Changed src but no changed tests → skip (pass). There are no changed
  *     tests to mutate against; the 100%-coverage gate still applies, and
@@ -159,8 +148,13 @@ export const runMutationStep = async (
 ): Promise<number> => {
   const changed = await changedFiles(deps.run);
   if (changed === null) {
+    deps.log("No origin/main or main to diff against — skipping mutation.");
+    return 0;
+  }
+  if (changed.sources.length > STALE_BASE_SOURCE_LIMIT) {
     deps.log(
-      "No upstream, origin/main, or main to diff against — skipping mutation.",
+      `${changed.sources.length} changed src files — the local base ref looks ` +
+        "stale. Run `git fetch origin main` and retry; skipping mutation.",
     );
     return 0;
   }
