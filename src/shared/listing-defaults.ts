@@ -154,60 +154,16 @@ export const resolveListingDefaults = <T extends Listing>(
   return { ...listing, ...overlay };
 };
 
-const isStringArray = (value: unknown): value is string[] =>
-  Array.isArray(value) && value.every((item) => typeof item === "string");
-
-/** Coerce one raw parsed value to the type its field expects, or undefined. */
-const readDefaultValue = (
-  kind: ListingDefaultKind,
-  raw: unknown,
-): boolean | number | string | string[] | undefined => {
-  if (kind === "bool") return typeof raw === "boolean" ? raw : undefined;
-  if (kind === "number") {
-    return typeof raw === "number" && Number.isFinite(raw) ? raw : undefined;
-  }
-  if (kind === "url") return typeof raw === "string" ? raw : undefined;
-  return isStringArray(raw) ? raw : undefined;
-};
-
-/** Parse JSON into a plain object, or null for blank/garbled/non-object input. */
-const parseJsonObject = (
-  raw: string | undefined,
-): Record<string, unknown> | null => {
-  if (!raw) return null;
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return typeof parsed === "object" && parsed !== null
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-};
-
 /**
- * Parse the stored JSON blob into a {@link ListingDefaults}, keeping only known
- * keys with a value of the right type. Bad input yields `{}` so a corrupt row
- * can never silently override listings.
+ * Parse the stored JSON blob into a {@link ListingDefaults}. The blob is only
+ * ever written by {@link serializeListingDefaults}, so its shape is trusted; an
+ * absent setting (no defaults configured yet) reads as `{}`.
  */
 export const parseListingDefaults = (
   raw: string | undefined,
-): ListingDefaults => {
-  const source = parseJsonObject(raw);
-  if (!source) return {};
-  const result: Record<string, unknown> = {};
-  for (const { key, kind } of LISTING_DEFAULT_FIELDS) {
-    if (!(key in source)) continue;
-    const value = readDefaultValue(kind, source[key]);
-    if (value !== undefined) result[key] = value;
-  }
-  return result;
-};
+): ListingDefaults => (raw ? (JSON.parse(raw) as ListingDefaults) : {});
 
-/** Serialize defaults for storage (only set keys, stable field order). */
+/** Serialize defaults for storage. `JSON.stringify` drops every unset
+ * (`undefined`) key, so only configured defaults are persisted. */
 export const serializeListingDefaults = (defaults: ListingDefaults): string =>
-  JSON.stringify(
-    Object.fromEntries(
-      setListingDefaultFields(defaults).map(({ key }) => [key, defaults[key]]),
-    ),
-  );
+  JSON.stringify(defaults);

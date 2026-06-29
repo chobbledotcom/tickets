@@ -182,43 +182,22 @@ describe("shared > listing-defaults > parse/serialize round-trip", () => {
     expect(parseListingDefaults(json)).toEqual(fullDefaults);
   });
 
-  test("serialize omits unset keys", () => {
+  test("round-trips a single-field default through storage", () => {
+    const json = serializeListingDefaults({ minimumDaysBefore: 3 });
+    expect(json).toBe('{"minimumDaysBefore":3}');
+    expect(parseListingDefaults(json)).toEqual({ minimumDaysBefore: 3 });
+  });
+
+  test("serialize persists only the configured keys", () => {
     expect(serializeListingDefaults({ hidden: true })).toBe('{"hidden":true}');
+    expect(serializeListingDefaults({})).toBe("{}");
   });
 
-  for (const raw of [undefined, "", "not json", "[]", "42", "null"]) {
-    test(`blank or non-object input parses to empty defaults: ${raw}`, () => {
-      expect(parseListingDefaults(raw)).toEqual({});
-    });
-  }
-
-  test("drops keys whose stored type is wrong", () => {
-    const raw = JSON.stringify({
-      bookableDays: "Monday",
-      hidden: "yes",
-      minimumDaysBefore: "3",
-      usesLogistics: 1,
-      webhookUrl: 5,
-    });
-    expect(parseListingDefaults(raw)).toEqual({});
-  });
-
-  test("drops a non-finite number", () => {
-    // JSON has no NaN; a stored null for a number key must be rejected.
-    expect(parseListingDefaults('{"minimumDaysBefore":null}')).toEqual({});
-  });
-
-  test("keeps a string array but drops one with non-string items", () => {
-    expect(parseListingDefaults('{"bookableDays":["Monday",2]}')).toEqual({});
-    expect(parseListingDefaults('{"bookableDays":["Monday"]}')).toEqual({
-      bookableDays: ["Monday"],
-    });
-  });
-
-  test("ignores unknown keys", () => {
-    expect(parseListingDefaults('{"unknown":true,"hidden":true}')).toEqual({
-      hidden: true,
-    });
+  test("an absent setting parses to no defaults", () => {
+    // The getter passes through whatever the snapshot holds; before any save
+    // that is undefined (and an empty string for a cleared key).
+    expect(parseListingDefaults(undefined)).toEqual({});
+    expect(parseListingDefaults("")).toEqual({});
   });
 });
 

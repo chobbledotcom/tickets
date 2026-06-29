@@ -2,7 +2,7 @@
  * Admin listing page templates - detail, edit, delete
  */
 
-import { filter, joinStrings, map, mapNotNullish, pipe, reduce } from "#fp";
+import { filter, joinStrings, map, mapNotNullish, pipe } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { formatCountdown } from "#routes/format.ts";
@@ -1545,7 +1545,7 @@ const listingToFieldValues = (listing: ListingWithCount): FieldValues =>
  * formatters {@link listingToFieldValues} uses for a saved listing. */
 const defaultFieldValue = (
   field: ListingDefaultField,
-  value: NonNullable<ListingDefaults[keyof ListingDefaults]>,
+  value: ListingDefaults[keyof ListingDefaults],
 ): string =>
   field.kind === "bool"
     ? booleanToCheckbox(value as boolean)
@@ -1559,15 +1559,12 @@ const defaultFieldValue = (
  * values the "Use defaults" switch hides and the listing will inherit).
  */
 const defaultsToFieldValues = (defaults: ListingDefaults): FieldValues =>
-  reduce((values: FieldValues, field: ListingDefaultField) => {
-    values[field.field] = defaultFieldValue(
-      field,
-      defaults[field.key] as NonNullable<
-        ListingDefaults[keyof ListingDefaults]
-      >,
-    );
-    return values;
-  }, {} as FieldValues)(setListingDefaultFields(defaults));
+  Object.fromEntries(
+    setListingDefaultFields(defaults).map((field) => [
+      field.field,
+      defaultFieldValue(field, defaults[field.key]),
+    ]),
+  );
 
 /**
  * Combine the template-mode classes (if any) with one marker class per set
