@@ -195,6 +195,21 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     expect((await getTestPackagePrices(group.id)).size).toBe(0);
   });
 
+  test("edit POST rejects an out-of-range package price as no override", async () => {
+    const group = await createTestGroup({ name: "Huge", slug: "huge" });
+    const a = await member(group, "Big");
+
+    const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
+      ...editFields("Huge", "huge"),
+      is_package: "1",
+      // 14 nines scales past Number.MAX_SAFE_INTEGER in minor units, so it would
+      // store a lossy amount — rejected to 0 (no override) instead.
+      [`package_price_${a.id}`]: "99999999999999",
+    });
+    expect(response.status).toBe(302);
+    expect((await getTestPackagePrices(group.id)).size).toBe(0);
+  });
+
   test("the listings API rejects a pay-what-you-want listing joining a package group", async () => {
     const group = await createTestGroup({
       isPackage: true,

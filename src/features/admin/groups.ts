@@ -141,9 +141,15 @@ export const validateGroupWithPackage: GroupValidator = async (input, id) => {
  * `12`/`1` override), a non-numeric input is rejected to 0. */
 const parsePackagePrice = (raw: string): number => {
   const trimmed = raw.trim();
-  if (trimmed === "" || !/^\d+(\.\d+)?$/.test(trimmed)) return 0;
-  const major = Number(trimmed);
-  return Number.isFinite(major) && major >= 0 ? toMinorUnits(major) : 0;
+  if (trimmed === "") return 0;
+  // Require the WHOLE string to be a non-negative decimal: unlike parseFloat
+  // (which accepts a leading-numeric prefix), "12abc"/"1,50" fail the test and
+  // are rejected to 0 rather than parsed as a partial 12/1 override.
+  if (!/^\d+(\.\d+)?$/.test(trimmed)) return 0;
+  // The only remaining failure is an absurdly large amount overflowing the
+  // safe-integer range once scaled to minor units — reject that to 0 too.
+  const minor = toMinorUnits(Number(trimmed));
+  return Number.isSafeInteger(minor) ? minor : 0;
 };
 
 /** Parse one package-quantity input. A blank, non-numeric, or sub-1 value
