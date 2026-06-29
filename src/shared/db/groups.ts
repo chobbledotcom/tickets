@@ -345,22 +345,28 @@ export const getGroupIdsByListingIds = async (
  * Add listings to a group (membership rows), ignoring any already present.
  *
  * All rows insert in a single batch transaction, so the change is atomic and
- * costs one round-trip rather than one per listing.
+ * costs one round-trip rather than one per listing. Pass `tx` to enrol the
+ * inserts in an open write transaction (so they commit or roll back with the
+ * caller's other writes — e.g. a group duplicate's clones and overrides).
  */
-export const assignListingsToGroup = (
+export const assignListingsToGroup = async (
   listingIds: number[],
   groupId: number,
+  tx?: TxScope,
 ): Promise<void> => {
-  if (listingIds.length === 0) return Promise.resolve();
+  if (listingIds.length === 0) return;
   // INSERT ... SELECT gated on the listing existing, so an unknown id is a no-op
   // (the join table has no FK, so a stale/crafted id would otherwise leave an
   // orphan membership row that the old `UPDATE listings WHERE id` never created).
-  return executeBatch(
-    listingIds.map((listingId) => ({
-      args: [groupId, listingId, listingId],
-      sql: "INSERT OR IGNORE INTO group_listings (group_id, listing_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM listings WHERE id = ?)",
-    })),
-  );
+  const statements = listingIds.map((listingId) => ({
+    args: [groupId, listingId, listingId],
+    sql: "INSERT OR IGNORE INTO group_listings (group_id, listing_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM listings WHERE id = ?)",
+  }));
+  if (tx) {
+    for (const statement of statements) await tx.execute(statement);
+    return;
+  }
+  await executeBatch(statements);
 };
 
 /**
