@@ -49,6 +49,25 @@ export const toMajorUnits = (minorUnits: number): string => {
 };
 
 /**
+ * Parse a non-negative money amount in major units (e.g. `"0"`, `"90.00"`) into
+ * minor units, or `null` when `raw` is empty, non-numeric, or rounds to a
+ * non-safe-integer amount. An explicit `0` is a valid result (not `null`); the
+ * `^\d+` shape already excludes negatives and non-finite values. Used by callers
+ * that accept zero as a real value (a package member can be free) and by
+ * {@link parsePositiveMinorUnits} for the positive-only case.
+ */
+export const parseNonNegativeMinorUnits = (raw: string): number | null => {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  // Reject inputs with any non-numeric characters (commas, letters, etc.) so
+  // "1,000" doesn't silently parse as 1. The whole string must be a non-negative
+  // decimal, unlike parseFloat which accepts a leading-numeric prefix.
+  if (!/^\d+(\.\d+)?$/.test(trimmed)) return null;
+  const amount = toMinorUnits(Number(trimmed));
+  return Number.isSafeInteger(amount) && amount >= 0 ? amount : null;
+};
+
+/**
  * Parse a strictly positive money amount in major units (e.g. `"90.00"`) into
  * positive minor units, or `null` when `raw` is empty, non-numeric,
  * non-positive, non-finite, or rounds to a non-safe-integer amount of minor
@@ -58,17 +77,8 @@ export const toMajorUnits = (minorUnits: number): string => {
  * becomes a form error rather than a 500 from the ledger.
  */
 export const parsePositiveMinorUnits = (raw: string): number | null => {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  // Reject inputs with any non-numeric characters (commas, letters, etc.) so
-  // "1,000" doesn't silently parse as 1. Number() requires the full string to
-  // be a valid number, unlike parseFloat which accepts a leading-numeric prefix.
-  if (!/^\d+(\.\d+)?$/.test(trimmed)) return null;
-  const parsed = Number(trimmed);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  const amount = toMinorUnits(parsed);
-  if (!Number.isSafeInteger(amount) || amount <= 0) return null;
-  return amount;
+  const amount = parseNonNegativeMinorUnits(raw);
+  return amount !== null && amount > 0 ? amount : null;
 };
 
 /** Result type for price validation */

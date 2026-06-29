@@ -239,8 +239,9 @@ export const buildRegistrationItems = (
 };
 
 /** A package group's per-member overrides for the booking flow: `prices` keeps
- * only members with a non-zero override (price > 0); `quantities` carries every
- * member's per-package quantity (≥1). */
+ * every member that has an override — a positive price OR an explicit free (0),
+ * but not a `null` "no override"; `quantities` carries every member's
+ * per-package quantity (≥1). */
 export type PackageMemberMaps = {
   prices: ReadonlyMap<number, number>;
   quantities: ReadonlyMap<number, number>;
@@ -255,18 +256,20 @@ export const loadPackageMemberMaps = async (
   const rows = await getGroupPackagePrices(groupId);
   return {
     prices: new Map(
-      rows
-        .filter((row) => row.package_price > 0)
-        .map((row) => [row.listing_id, row.package_price]),
+      rows.flatMap((row) =>
+        row.package_price === null
+          ? []
+          : [[row.listing_id, row.package_price] as const],
+      ),
     ),
     quantities: new Map(rows.map((row) => [row.listing_id, row.quantity])),
   };
 };
 
 /** Apply package price overrides to the assembled items. Only top-level page
- * listings (`pageListingIds`) carrying a non-zero override are replaced; folded
- * children and base-priced members keep their computed price (package overrides
- * never reach a folded child line). */
+ * listings (`pageListingIds`) carrying an override (a positive price OR an
+ * explicit free 0) are replaced; folded children and base-priced members keep
+ * their computed price (package overrides never reach a folded child line). */
 export const applyPackageOverrides = (
   items: CheckoutItem[],
   packagePrices: ReadonlyMap<number, number> | null | undefined,
@@ -277,7 +280,7 @@ export const applyPackageOverrides = (
     const override = pageListingIds.has(item.listingId)
       ? packagePrices.get(item.listingId)
       : undefined;
-    return override ? { ...item, unitPrice: override } : item;
+    return override !== undefined ? { ...item, unitPrice: override } : item;
   });
 };
 

@@ -86,6 +86,32 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     expect(html).not.toContain(formatCurrency(5000));
   });
 
+  test("quotes an explicit-free package member at zero, not its base price", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Free Pass",
+      slug: "free-pass",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxQuantity: 5,
+      name: "Free Member",
+      unitPrice: 5000,
+    });
+    // An explicit free override (0), distinct from "no override" which would
+    // charge the 5000 base.
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: 0 },
+    ]);
+
+    const html = await (
+      await calculate(group.slug, group.slug, { package_quantity: "1" })
+    ).text();
+    expect(html).toContain(formatCurrency(0));
+    expect(html).not.toContain(formatCurrency(5000));
+  });
+
   test("an absent or invalid package quantity quotes nothing", async () => {
     await setupStripe();
     const group = await createTestGroup({

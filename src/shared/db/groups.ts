@@ -38,7 +38,10 @@ const GROUPS_CACHE_TTL_MS = 30_000;
  * includes (≥1). */
 export type PackageMemberInput = {
   listingId: number;
-  price: number;
+  /** Per-listing package price in minor units: `null` means no override (charge
+   * the listing's own price), `0` means explicitly free in this package, and a
+   * positive value overrides the listing price. */
+  price: number | null;
   /** How many of this listing one package unit includes (≥1). Defaults to 1. */
   quantity?: number;
 };
@@ -393,7 +396,7 @@ export const assignListingsToGroup = (
 export const cloneGroupMembershipStatement = (member: {
   groupSlugIndex: string;
   listingSlugIndex: string;
-  packagePrice: number;
+  packagePrice: number | null;
   quantity: number;
 }): { sql: string; args: InValue[] } => ({
   args: [
@@ -484,8 +487,9 @@ export const resetGroupListings = async (groupId: number): Promise<void> => {
 
 /**
  * Every membership row for a group, carrying its `package_price` override and
- * per-package `quantity`. A `package_price` of 0 means "no override — use the
- * listing's base price"; `quantity` defaults to 1.
+ * per-package `quantity`. A `null` `package_price` means "no override — use the
+ * listing's own price", `0` means explicitly free in this package, and a
+ * positive value overrides the price; `quantity` defaults to 1.
  */
 export const getGroupPackagePrices = (
   groupId: number,
@@ -517,29 +521,31 @@ export const getGroupPackagePricesByGroupIds = async (
   return result;
 };
 
-/** Reset-every-member-to-no-override statement (price 0 / quantity 1). */
+/** Reset-every-member-to-no-override statement (price NULL / quantity 1). */
 const clearMembersStatement = (groupId: number) => ({
   args: [groupId],
-  sql: "UPDATE group_listings SET package_price = 0, quantity = 1 WHERE group_id = ?",
+  sql: "UPDATE group_listings SET package_price = NULL, quantity = 1 WHERE group_id = ?",
 });
 
 /** The single CASE-UPDATE that applies each valid member's price/quantity,
- * resetting every other member via the ELSE branches. One statement regardless
- * of size, staying clear of the round-trip guard. */
+ * resetting every other member to no-override (NULL price / quantity 1) via the
+ * ELSE branches. One statement regardless of size, staying clear of the
+ * round-trip guard. A member's price may be null (no override), 0 (free), or a
+ * positive override. */
 const memberOverrideStatement = (
   groupId: number,
   valid: PackageMemberInput[],
 ) => {
   const priceCases = valid.map(() => "WHEN ? THEN ?").join(" ");
   const qtyCases = valid.map(() => "WHEN ? THEN ?").join(" ");
-  const args: number[] = [];
+  const args: (number | null)[] = [];
   for (const { listingId, price } of valid) args.push(listingId, price);
   for (const { listingId, quantity } of valid)
     args.push(listingId, quantity ?? 1);
   args.push(groupId);
   return {
     args,
-    sql: `UPDATE group_listings SET package_price = CASE listing_id ${priceCases} ELSE 0 END, quantity = CASE listing_id ${qtyCases} ELSE 1 END WHERE group_id = ?`,
+    sql: `UPDATE group_listings SET package_price = CASE listing_id ${priceCases} ELSE NULL END, quantity = CASE listing_id ${qtyCases} ELSE 1 END WHERE group_id = ?`,
   };
 };
 
@@ -560,7 +566,7 @@ const applyPackageMembers = async (
   groupId: number,
   members: PackageMemberInput[],
   readCurrentIds: () => Promise<Set<number>>,
-  run: (stmt: { args: number[]; sql: string }) => Promise<unknown>,
+  run: (stmt: { args: (number | null)[]; sql: string }) => Promise<unknown>,
 ): Promise<void> => {
   if (members.length === 0) {
     await run(clearMembersStatement(groupId));

@@ -808,6 +808,38 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     );
   });
 
+  test("an explicit-free package member (override 0) completes at £0", async () => {
+    const { group, listing } = await setupPackage();
+    // Override the member to free (0) — distinct from "no override", which would
+    // re-price at the 5000 base and refund a £0 booking. The signed £0 line must
+    // be honoured.
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 0 },
+    ]);
+    await runWebhook(
+      {
+        amount_total: 0,
+        id: "cs_pkg_free_ov",
+        metadata: packageMetadata(group.id, listing.id, 0),
+      },
+      () => expectProcessed(listing.id),
+    );
+  });
+
+  test("a no-override package member refunds a £0 booking (charges its base)", async () => {
+    const { group, listing } = await setupPackage();
+    // No override (null) → the member keeps its 5000 base, so a signed £0 line
+    // no longer matches and must take the price_changed refund path.
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: null },
+    ]);
+    await expectPackageRefund(
+      "cs_pkg_no_ov",
+      listing.id,
+      packageMetadata(group.id, listing.id, 0),
+    );
+  });
+
   test("a package booking refunds when the override changed after checkout", async () => {
     const { group, listing } = await setupPackage();
     const metadata = packageMetadata(group.id, listing.id, 1500);

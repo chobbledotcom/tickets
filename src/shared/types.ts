@@ -584,13 +584,15 @@ export interface Group {
 
 /** A row in the group_listings join table: listing_id belongs to group_id. A
  * listing may have many such rows (membership in several groups). `package_price`
- * (minor units, 0 = no override) is the per-listing price when the group is a
- * package; `quantity` (≥1) is how many of this listing one unit of the package
- * includes. Both are ignored for non-package groups. */
+ * (minor units) is the per-listing price when the group is a package: `null`
+ * means no override (use the listing's own price), `0` means explicitly free in
+ * the package, and a positive value overrides the price. `quantity` (≥1) is how
+ * many of this listing one unit of the package includes. Both are ignored for
+ * non-package groups. */
 export interface GroupListing {
   group_id: number;
   listing_id: number;
-  package_price: number;
+  package_price: number | null;
   quantity: number;
 }
 

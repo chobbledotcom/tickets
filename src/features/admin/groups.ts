@@ -14,7 +14,7 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { groupReturnPath } from "#shared/admin-paths.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { toMinorUnits } from "#shared/currency.ts";
+import { parseNonNegativeMinorUnits } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { decryptAttendees } from "#shared/db/attendees.ts";
 import type { TxScope } from "#shared/db/client.ts";
@@ -135,23 +135,14 @@ export const validateGroupWithPackage: GroupValidator = async (input, id) => {
 };
 
 /** Parse one package-price input to minor units. A blank, non-numeric, or
- * negative value is treated as 0 — "no override; use the listing's own price" —
- * so a typo can't fail the save (after the row is written) or store a negative
- * override. The whole string must be numeric: unlike `parseFloat` (which accepts
- * a leading-numeric prefix, turning a typo like `12abc` or `1,50` into a real
- * `12`/`1` override), a non-numeric input is rejected to 0. */
-const parsePackagePrice = (raw: string): number => {
-  const trimmed = raw.trim();
-  if (trimmed === "") return 0;
-  // Require the WHOLE string to be a non-negative decimal: unlike parseFloat
-  // (which accepts a leading-numeric prefix), "12abc"/"1,50" fail the test and
-  // are rejected to 0 rather than parsed as a partial 12/1 override.
-  if (!/^\d+(\.\d+)?$/.test(trimmed)) return 0;
-  // The only remaining failure is an absurdly large amount overflowing the
-  // safe-integer range once scaled to minor units — reject that to 0 too.
-  const minor = toMinorUnits(Number(trimmed));
-  return Number.isSafeInteger(minor) ? minor : 0;
-};
+ * negative value is `null` — "no override; use the listing's own price" — so a
+ * typo can't fail the save or store a negative override. An explicit `0` is a
+ * real value: the listing is FREE within this package, distinct from "no
+ * override". {@link parseNonNegativeMinorUnits} enforces the whole-string-numeric
+ * rule, so a typo like `12abc`/`1,50` falls back to no override rather than a
+ * partial `12`/`1`. */
+const parsePackagePrice = (raw: string): number | null =>
+  parseNonNegativeMinorUnits(raw);
 
 /** Parse one package-quantity input. A blank, non-numeric, or sub-1 value
  * defaults to 1 (a package always includes at least one of each member). The
@@ -321,7 +312,8 @@ const handleGroupEditGet: TypedRouteHandler<"GET /admin/groups/:id/edit"> = (
     const listings = await getListingsByGroupId(id);
     const rows = await getGroupPackagePrices(id);
     // listing id → saved per-unit price + per-package quantity, to pre-fill the
-    // members table. A 0 price renders as a blank input (use the base price).
+    // members table. A null price renders blank (no override); an explicit 0
+    // renders as 0 (free in the package).
     const members = new Map(
       rows.map(
         (row) =>
@@ -360,7 +352,9 @@ const groupHasPaidListing = async (
   if (listings.some(isPaidListing)) return true;
   if (!group.is_package) return false;
   const rows = await getGroupPackagePrices(group.id);
-  return rows.some((row) => row.package_price > 0);
+  // Only a positive override charges money; a null (no override → base price,
+  // already covered above) or an explicit free (0) adds no revenue.
+  return rows.some((row) => (row.package_price ?? 0) > 0);
 };
 
 /** Handle GET /admin/groups/:id - group detail page */

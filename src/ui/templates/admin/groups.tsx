@@ -135,18 +135,19 @@ export const adminGroupNewPage = (
     </Layout>,
   );
 
-/** A package member's saved per-unit price override (minor units, 0 = none) and
- * fixed per-package quantity, keyed by listing id. */
+/** A package member's saved per-unit price override (minor units; `null` = no
+ * override, `0` = free) and fixed per-package quantity, keyed by listing id. */
 export type PackageMemberValues = ReadonlyMap<
   number,
-  { price: number; quantity: number }
+  { price: number | null; quantity: number }
 >;
 
 /**
  * Per-listing package overrides (per-unit price + quantity per package). Shown
  * only when "is a package" is ticked (the `.package-prices` block is hidden via
- * CSS while the checkbox is clear). A blank price means "use the listing's own
- * price"; the listing's base price is the placeholder. Quantity defaults to 1.
+ * CSS while the checkbox is clear). A blank price means "no override — use the
+ * listing's own price" (its base price is the placeholder); an explicit 0 means
+ * the listing is free within the package. Quantity defaults to 1.
  */
 const PackageMembersTable = ({
   listings,
@@ -173,7 +174,8 @@ const PackageMembersTable = ({
           <tbody>
             {listings.map((e) => {
               const member = members.get(e.id);
-              const override = member?.price ?? 0;
+              // null/absent → blank (no override); 0 → "0" (free); N → amount.
+              const override = member?.price ?? null;
               return (
                 <tr>
                   <td>{e.name}</td>
@@ -183,7 +185,7 @@ const PackageMembersTable = ({
                       name={`package_price_${e.id}`}
                       placeholder={toMajorUnits(e.unit_price)}
                       type="text"
-                      value={override > 0 ? toMajorUnits(override) : ""}
+                      value={override === null ? "" : toMajorUnits(override)}
                     />
                   </td>
                   <td>

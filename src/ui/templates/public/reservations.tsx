@@ -1517,14 +1517,17 @@ const splitChildQuestions = (
   };
 };
 
-/** Whether a listing is paid in context — its own pricing, or a package override
- * that makes an otherwise-free member cost money. */
+/** Whether a listing is paid in context. A package override REPLACES the base
+ * price for this purpose: a member with an override is paid only when that
+ * override is positive (an explicit free 0 makes a paid base listing free here);
+ * a member with no override falls back to its own pricing. */
 const paidInContext = (
   listing: TicketListing,
   packagePrices: ReadonlyMap<number, number> | null | undefined,
-): boolean =>
-  isPaidListing(listing.listing) ||
-  (packagePrices?.get(listing.listing.id) ?? 0) > 0;
+): boolean => {
+  const override = packagePrices?.get(listing.listing.id);
+  return override !== undefined ? override > 0 : isPaidListing(listing.listing);
+};
 
 /** Whether the page itself (its listings or add-ons, NOT possible children) is
  * paid — so its provider-imposed email renders required. */

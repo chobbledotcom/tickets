@@ -67,7 +67,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-29_package_quantities",
         "2026-06-29_attendee_package_group",
       ],
-      schemaHash: "191d7c5",
+      schemaHash: "j86z9g",
     });
   });
 });

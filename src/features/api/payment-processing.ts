@@ -625,9 +625,11 @@ const loadPackagePricing = async (
   return {
     memberIds: new Set(rows.map((r) => r.listing_id)),
     priceMap: new Map(
-      rows
-        .filter((r) => r.package_price > 0)
-        .map((r) => [r.listing_id, r.package_price]),
+      rows.flatMap((r) =>
+        r.package_price === null
+          ? []
+          : [[r.listing_id, r.package_price] as const],
+      ),
     ),
     quantityMap: new Map(rows.map((r) => [r.listing_id, r.quantity])),
   };
@@ -637,9 +639,10 @@ const loadPackagePricing = async (
  * `price_changed` refund). Folded children (in the allocations) always price at
  * the normal per-listing `basePrice`. For a NON-package order every line is
  * base-priced. For a package order every top-level line must still be a current
- * member: a non-zero override prices at `override × qty`, a base-priced member
- * keeps `basePrice`, and a line that is no longer a member (package deleted,
- * un-flagged, or the listing removed mid-checkout) fails closed. */
+ * member: an override prices at `override × qty` (including an explicit free 0),
+ * a member with no override keeps `basePrice`, and a line that is no longer a
+ * member (package deleted, un-flagged, or the listing removed mid-checkout)
+ * fails closed. */
 export const expectedItemPrice = (
   pkg: PackagePricing | null,
   isPackageIntent: boolean,
@@ -651,7 +654,7 @@ export const expectedItemPrice = (
   if (!isPackageIntent) return basePrice;
   if (!pkg || !pkg.memberIds.has(item.e)) return null;
   const override = pkg.priceMap.get(item.e);
-  return override ? override * item.q : basePrice;
+  return override !== undefined ? override * item.q : basePrice;
 };
 
 /**

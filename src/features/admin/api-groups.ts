@@ -30,10 +30,12 @@ import {
 import { normalizeSlug } from "#shared/slug.ts";
 import type { Group, GroupListing } from "#shared/types.ts";
 
-/** A package member override in a JSON request body. `quantity` defaults to 1. */
+/** A package member override in a JSON request body. `price` is minor units:
+ * `null` means no override (use the listing's own price), `0` means free in the
+ * package, and a positive value overrides the price. `quantity` defaults to 1. */
 export type PackageMemberBody = {
   listing_id: number;
-  price: number;
+  price: number | null;
   quantity?: number;
 };
 
@@ -58,19 +60,26 @@ export type DeleteGroupBody = DeleteBody;
 /** Strip slug_index from response */
 const STRIP_KEYS = ["slug_index"];
 
-/** Parse one JSON package-member entry, failing closed on anything malformed
- * (rather than coercing `null`/junk into a real override that would clear a
- * member). `quantity` is optional and defaults to 1. */
+/** Parse one JSON package-member entry, failing closed on anything malformed.
+ * `price` is minor units: `null` (or absent) means no override, `0` means free
+ * in the package, and a positive integer overrides the price. `quantity` is
+ * optional and defaults to 1. */
 const parsePackageMember = (item: unknown): ItemResult<PackageMemberInput> => {
   if (typeof item !== "object" || item === null) {
     return { error: "package_members entries must be objects" };
   }
-  const { listing_id, price, quantity = 1 } = item as Record<string, unknown>;
+  const {
+    listing_id,
+    price = null,
+    quantity = 1,
+  } = item as Record<string, unknown>;
   if (!Number.isInteger(listing_id) || (listing_id as number) <= 0) {
     return { error: "package_members listing_id must be a positive integer" };
   }
-  if (!Number.isInteger(price) || (price as number) < 0) {
-    return { error: "package_members price must be a non-negative integer" };
+  if (price !== null && (!Number.isInteger(price) || (price as number) < 0)) {
+    return {
+      error: "package_members price must be a non-negative integer or null",
+    };
   }
   if (!Number.isInteger(quantity) || (quantity as number) < 1) {
     return { error: "package_members quantity must be a positive integer" };
@@ -78,7 +87,7 @@ const parsePackageMember = (item: unknown): ItemResult<PackageMemberInput> => {
   return {
     value: {
       listingId: listing_id as number,
-      price: price as number,
+      price: price as number | null,
       quantity: quantity as number,
     },
   };

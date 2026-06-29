@@ -17,6 +17,7 @@ import {
   getAllGroups,
   getGroupBySlugIndex,
   getGroupIdsByListingId,
+  getGroupPackagePrices,
   getGroupPackagePricesByGroupIds,
   getPackageDisplayById,
   getPackageDisplayForBookings,
@@ -736,6 +737,32 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       const a2Row = result.get(a.id)?.find((r) => r.listing_id === a2.id);
       expect(a2Row?.package_price).toBe(200);
       expect(a2Row?.quantity).toBe(3);
+    });
+  });
+
+  describe("package_price override states", () => {
+    test("stores null (no override), 0 (free), and a positive override distinctly", async () => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Tri",
+        slug: "tri",
+      });
+      const none = await createTestListing({ groupId: group.id, name: "None" });
+      const free = await createTestListing({ groupId: group.id, name: "Free" });
+      const paid = await createTestListing({ groupId: group.id, name: "Paid" });
+      await setGroupPackageMembers(group.id, [
+        { listingId: none.id, price: null },
+        { listingId: free.id, price: 0 },
+        { listingId: paid.id, price: 1500 },
+      ]);
+
+      const rows = await getGroupPackagePrices(group.id);
+      const priceOf = (id: number) =>
+        rows.find((r) => r.listing_id === id)?.package_price;
+      // null and 0 are preserved as distinct values, not collapsed together.
+      expect(priceOf(none.id)).toBeNull();
+      expect(priceOf(free.id)).toBe(0);
+      expect(priceOf(paid.id)).toBe(1500);
     });
   });
 });

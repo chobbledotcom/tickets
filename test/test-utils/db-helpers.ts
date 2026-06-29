@@ -878,16 +878,18 @@ export const deleteTestGroup = async (groupId: number): Promise<void> => {
 };
 
 /** A group's package price overrides as a listing-id → price map, keeping only
- * the listings that actually carry an override (price > 0). */
+ * the listings that carry an override (a non-null price, including a free 0). */
 export const getTestPackagePrices = async (
   groupId: number,
 ): Promise<Map<number, number>> => {
   const { getGroupPackagePrices } = await import("#shared/db/groups.ts");
   const rows = await getGroupPackagePrices(groupId);
   return new Map(
-    rows
-      .filter((row) => row.package_price > 0)
-      .map((row) => [row.listing_id, row.package_price]),
+    rows.flatMap((row) =>
+      row.package_price === null
+        ? []
+        : [[row.listing_id, row.package_price] as const],
+    ),
   );
 };
 
