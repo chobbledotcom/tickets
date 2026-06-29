@@ -123,3 +123,4 @@ test/test-utils/test-browser.ts:249:27  ?? → ||  # button attribute capture fa
 test/test-utils/test-browser.ts:256:49  ?? → ||  # button value fallback is "", so empty value and absent value agree
 test/test-utils/test-browser.ts:351:58  ?? → ||  # RequestInit.method is omitted or a non-empty method string in every caller
 test/test-utils/test-browser.ts:414:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined
+src/shared/listing-defaults.ts:167:35  && → ||  # readDefaultValue's only caller is parseListingDefaults(JSON.parse(...)); JSON can't carry NaN/Infinity, so a number raw is always finite — the Number.isFinite guard never disagrees with the typeof check
