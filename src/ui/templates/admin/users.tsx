@@ -27,7 +27,7 @@ export interface DisplayUser {
   activated: boolean;
   adminLevel: AdminLevel;
   /** For agent users: the names of the logistics agents they're assigned to. */
-  agentNames?: string[];
+  agentNames?: string[] | undefined;
   id: number;
   inviteExpired: boolean;
   username: string;
@@ -75,9 +75,9 @@ const userStatus = (user: DisplayUser): string => {
  */
 export interface UsersPageOpts {
   currentUserId: number;
-  error?: string;
+  error?: string | undefined;
   inviteLink: string;
-  success?: string;
+  success?: string | undefined;
 }
 
 export const adminUsersPage = (
@@ -156,7 +156,11 @@ export const adminUsersPage = (
 export const adminUserManagePage = (
   user: DisplayUser,
   session: AdminSession,
-  opts: { currentUserId: number; error?: string; success?: string },
+  opts: {
+    currentUserId: number;
+    error?: string | undefined;
+    success?: string | undefined;
+  },
 ): string =>
   String(
     <Layout title={`${t("terms.users")}: ${user.username}`}>

@@ -77,7 +77,7 @@ describeWithEnv(
   { db: true },
   () => {
     test("the attendees browser excludes servicing (kind predicate on getAttendeesPage)", async () => {
-      const { listing } = await createMixedAudience();
+      await createMixedAudience();
       const page = await getAttendeesPage({
         listingIds: null,
         page: 0,

@@ -88,7 +88,10 @@ export const adminBuilderPage = (
     <Layout title={t("builder.site_builder_title")}>
       <AdminNav active="/admin/settings" session={session} />
 
-      <Flash error={error} success={success} />
+      <Flash
+        {...(error !== undefined ? { error } : {})}
+        {...(success !== undefined ? { success } : {})}
+      />
 
       <h2>{t("builder.site_builder_title")}</h2>
 

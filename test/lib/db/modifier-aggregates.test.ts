@@ -35,11 +35,6 @@ describeWithEnv(
     triggers: true,
   },
   () => {
-    type Aggregates = {
-      total_uses: number;
-      usage_count: number;
-    };
-
     const makeModifier = () =>
       modifiersTable.insert({
         calcKind: "fixed",

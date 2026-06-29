@@ -270,11 +270,11 @@ export type ErrorContext = {
   /** Error code for classification */
   code: ErrorCodeType;
   /** Optional: listing ID (not slug) */
-  listingId?: number;
+  listingId?: number | undefined;
   /** Optional: attendee ID */
-  attendeeId?: number;
+  attendeeId?: number | undefined;
   /** Optional: additional safe context */
-  detail?: string;
+  detail?: string | undefined;
   /**
    * Optional original thrown error. Forwarded to Sentry (never to the console
    * line, ntfy, or the activity log) so server-side reports carry a real stack

@@ -121,8 +121,8 @@ export type AttendeeFormTemplateData = {
    * no-quantity), kept out of the per-line quantity table. */
   formError: string | null;
   /** Save outcome shown inside the form. */
-  flashError?: string;
-  flashSuccess?: string;
+  flashError?: string | undefined;
+  flashSuccess?: string | undefined;
   /** Custom questions across the attendee's booked listings. */
   questions: QuestionWithAnswers[];
   /** Currently-selected answer ids for the rendered questions. */
@@ -132,7 +132,7 @@ export type AttendeeFormTemplateData = {
   /** Today's ISO date. */
   todayIso: string;
   /** Optional return URL the caller came from. */
-  returnUrl?: string;
+  returnUrl?: string | undefined;
   /** Contact history by channel (edit mode only). */
   contactRecords: ContactRecordsByChannel;
   /** Public site domain, for the read-only ticket link (edit mode). */
@@ -143,7 +143,7 @@ export type AttendeeFormTemplateData = {
   activityLog: ActivityLogEntry[];
   /** This attendee's ledger account statement (edit mode only; undefined in
    * create mode, where the attendee has no account yet). */
-  ledger?: AttendeeLedgerData;
+  ledger?: AttendeeLedgerData | undefined;
   /** The attendee's current bookings, for the read-only summary table at the top
    * of the page (edit mode; empty in create mode). */
   bookings: AttendeeBooking[];
@@ -152,7 +152,7 @@ export type AttendeeFormTemplateData = {
   /** All warnings flattened, for the top-of-page summary. */
   topWarnings: string[];
   /** Logistics selectors data, or undefined when logistics doesn't apply. */
-  logistics?: AttendeeLogisticsData;
+  logistics?: AttendeeLogisticsData | undefined;
   /** Operator/system notes for this attendee, oldest first (edit mode; empty in
    * create mode). Rendered as a prominent notes block above the form. */
   systemNotes: SystemNote[];
@@ -569,9 +569,9 @@ const ContactHistory = ({
               kind: "attendee",
               token: attendee.ticket_token,
             })}`}
-            title={
-              hasEmail ? undefined : t("attendee_form.no_email_disabled_title")
-            }
+            {...(hasEmail
+              ? {}
+              : { title: t("attendee_form.no_email_disabled_title") })}
           >
             {t("attendee_form.send_email_to_attendee")}
           </MaybeButtonLink>
@@ -760,7 +760,12 @@ const AttendeeEditForm = ({
       : `/admin/attendees/${data.attendee!.id}`;
   return (
     <CsrfForm action={formAction} id={ATTENDEE_FORM_ID}>
-      <Flash error={data.flashError} success={data.flashSuccess} />
+      <Flash
+        {...(data.flashError !== undefined ? { error: data.flashError } : {})}
+        {...(data.flashSuccess !== undefined
+          ? { success: data.flashSuccess }
+          : {})}
+      />
       {data.returnUrl && (
         <input name="return_url" type="hidden" value={data.returnUrl} />
       )}

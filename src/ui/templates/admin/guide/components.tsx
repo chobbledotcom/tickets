@@ -26,7 +26,7 @@ export const Section = ({
   title,
   children,
 }: {
-  id?: string;
+  id?: string | undefined;
   title: string;
   children?: Child;
 }): JSX.Element => (

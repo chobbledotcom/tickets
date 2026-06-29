@@ -141,10 +141,14 @@ export const createServicingHold = async (
   if (opts.date !== undefined) booking.date = opts.date;
   if (opts.durationDays !== undefined) booking.durationDays = opts.durationDays;
   const event = await createTestServicingEvent({
-    allowOverbook: opts.allowOverbook,
+    ...(opts.allowOverbook !== undefined
+      ? { allowOverbook: opts.allowOverbook }
+      : {}),
     bookings: [booking],
     name: opts.name ?? "Boiler Service",
-    questionAnswers: opts.questionAnswers,
+    ...(opts.questionAnswers !== undefined
+      ? { questionAnswers: opts.questionAnswers }
+      : {}),
   });
   return { event, id: event.id, listing, ticketToken: event.ticketToken };
 };

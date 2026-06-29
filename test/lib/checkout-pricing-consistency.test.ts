@@ -422,7 +422,11 @@ describeWithEnv(
         }
 
         const ctx = { visits: randInt(0, 2) };
-        const specs = await resolveModifiers(items, { addOns, code, ctx });
+        const specs = await resolveModifiers(items, {
+          addOns,
+          ...(code !== undefined ? { code } : {}),
+          ctx,
+        });
         await expectConsistent(items, specs, { ctx });
       }
     });

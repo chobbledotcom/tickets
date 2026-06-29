@@ -156,7 +156,7 @@ describe("LedgerTable", () => {
     const html = String(
       LedgerTable({
         names: names(),
-        transfers: [transfer({ kind: undefined })],
+        transfers: [transfer({})],
       }),
     );
     expect(html).toContain("<td>—</td>");

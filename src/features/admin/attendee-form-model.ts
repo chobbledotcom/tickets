@@ -474,7 +474,7 @@ export const toCreateInput = (
     const { date, durationDays } = lineDate(line, parsed);
     return {
       date,
-      durationDays: date ? durationDays : undefined,
+      ...(date && durationDays !== undefined ? { durationDays } : {}),
       listingId: line.listingId,
       // A retained line always has a non-null quantity: isBookedLine guarantees
       // ≥ 1, and a no-quantity line is parsed/built with quantity 0.

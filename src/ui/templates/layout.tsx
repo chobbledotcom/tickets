@@ -24,9 +24,9 @@ export const escapeHtml = (str: string): string =>
     .replace(/"/g, "&quot;");
 
 interface LayoutProps {
-  bodyClass?: string;
+  bodyClass?: string | undefined;
   children?: Child;
-  headExtra?: string;
+  headExtra?: string | undefined;
   theme?: Theme;
   title: string;
 }

@@ -25,7 +25,7 @@ const BASE_SECURITY_HEADERS: Record<string, string> = {
 /** Payment config for CSP header construction */
 export type PaymentCspConfig = {
   provider: PaymentProviderType | null;
-  sandbox?: boolean;
+  sandbox?: boolean | undefined;
 };
 
 /**

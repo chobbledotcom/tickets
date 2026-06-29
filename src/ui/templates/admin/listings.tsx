@@ -150,7 +150,7 @@ const formatListingAggregateValue = (
 ): string => listingAggregateFormatters[name](value);
 
 const listingAggregateMismatchItems = (
-  aggregateRecalculation?: ListingAggregateRecalculation,
+  aggregateRecalculation?: ListingAggregateRecalculation | undefined,
 ): ExpectedActualItem[] => {
   if (!aggregateRecalculation) return [];
   return listingAggregateFields.flatMap((field) => {
@@ -172,7 +172,7 @@ const ListingAggregateMismatchNotice = ({
   aggregateRecalculation,
   actionHref,
 }: {
-  aggregateRecalculation?: ListingAggregateRecalculation;
+  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
   actionHref: string;
 }): JSX.Element | null => {
   const items = listingAggregateMismatchItems(aggregateRecalculation);
@@ -191,7 +191,7 @@ const ListingAggregateMismatchRow = ({
   aggregateRecalculation,
   listing,
 }: {
-  aggregateRecalculation?: ListingAggregateRecalculation;
+  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
   listing: ListingWithCount;
 }): JSX.Element | null => {
   const items = listingAggregateMismatchItems(aggregateRecalculation);
@@ -507,38 +507,38 @@ export type AdminListingPageOptions = {
   attendees: Attendee[];
   allowedDomain: string;
   session: AdminSession;
-  aggregateRecalculation?: ListingAggregateRecalculation;
-  checkinMessage?: CheckinMessage;
-  activeFilter?: AttendeeFilter;
-  dateFilter?: string | null;
-  availableDates?: DateOption[];
-  errorMessage?: string;
-  phonePrefix?: string;
-  successMessage?: string;
-  questionData?: TableQuestionData;
-  groupContext?: GroupContext;
+  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
+  checkinMessage?: CheckinMessage | undefined;
+  activeFilter?: AttendeeFilter | undefined;
+  dateFilter?: string | null | undefined;
+  availableDates?: DateOption[] | undefined;
+  errorMessage?: string | undefined;
+  phonePrefix?: string | undefined;
+  successMessage?: string | undefined;
+  questionData?: TableQuestionData | undefined;
+  groupContext?: GroupContext | undefined;
   /** The listing's revenue-account breakdown (gross sales, manual adjustments,
    * recognised income, refunds, net balance), reconciling the reported income
    * with the live ledger balance. Omitted only by template callers that don't
    * exercise the section. */
-  revenueBreakdown?: ListingRevenueBreakdown;
+  revenueBreakdown?: ListingRevenueBreakdown | undefined;
   /** Owner-only full revenue-account statement for add/edit/delete controls. */
-  ledger?: AccountLedgerData;
+  ledger?: AccountLedgerData | undefined;
   /** Whether any of the listing's attendees (across all dates) have an email
    * address — gates the owner-only "Email" action. */
-  hasEmailableAttendees?: boolean;
+  hasEmailableAttendees?: boolean | undefined;
   /** Whether this listing is a child of another listing. A child has no
    * standalone booking entry point (invariant I3), so the per-listing share
    * generators (public URL / embed snippets / QR) are suppressed and the booking
    * QR menu action is hidden — they would only publish a dead-end link. */
-  isChild?: boolean;
+  isChild?: boolean | undefined;
   /** The names of this listing's required children when it is a parent (empty
    * otherwise). Surfaces a warning on the quick add-attendee form: a manual add
    * books the parent alone, where public bookings fold a chosen child. */
-  childNames?: string[];
+  childNames?: string[] | undefined;
   /** Decrypted notes for the listed attendees (empty when none) — surfaced as a
    * red expandable above the attendee table. */
-  systemNotes?: SystemNote[];
+  systemNotes?: SystemNote[] | undefined;
 };
 
 /** Top action nav for the listing detail page */
@@ -603,11 +603,9 @@ const ListingActionNav = ({
                 kind: "listing",
                 listingId: listing.id,
               })}`}
-              title={
-                hasEmailableAttendees
-                  ? undefined
-                  : t("listings_table.no_email_attendees")
-              }
+              {...(hasEmailableAttendees
+                ? {}
+                : { title: t("listings_table.no_email_attendees") })}
             >
               {t("common.email")}
             </MaybeButtonLink>
@@ -874,7 +872,7 @@ const ListingDetailsTable = ({
   isChild,
 }: {
   listing: ListingWithCount;
-  aggregateRecalculation?: ListingAggregateRecalculation;
+  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
   allowedDomain: string;
   ticketUrl: string;
   embedScriptCode: string;
@@ -1215,8 +1213,8 @@ const AttendeesSection = ({
           html={AttendeeTable({
             activeFilter,
             allowedDomain,
-            phonePrefix,
-            questionData,
+            ...(phonePrefix !== undefined ? { phonePrefix } : {}),
+            ...(questionData !== undefined ? { questionData } : {}),
             returnUrl,
             rows: tableRows,
             showDate: isDaily,
@@ -1377,7 +1375,7 @@ export const adminListingPage = ({
     hasPaidListing,
     labelSuffix: dailySuffix,
     maxCapacity: isDaily && !dateFilter ? 0 : listing.max_attendees,
-    questionData,
+    ...(questionData !== undefined ? { questionData } : {}),
     skipAttendees: true,
   });
   const basePath = `/admin/listing/${listing.id}`;
@@ -1588,6 +1586,16 @@ const listingFormClassFor = (
   return classes || undefined;
 };
 
+/** The form's `class` attribute as a spreadable prop, omitted entirely when no
+ * template or default classes apply (so we never pass `class={undefined}`). */
+const listingFormClassAttr = (
+  template: ListingTemplate | null,
+  defaults: ListingDefaults,
+): { class?: string } => {
+  const classes = listingFormClassFor(template, defaults);
+  return classes ? { class: classes } : {};
+};
+
 export const listingAggregateToFieldValues = (
   listing: ListingWithCount,
 ): FieldValues => ({
@@ -1653,7 +1661,7 @@ const ListingRunningTotalsSection = ({
   listing,
   show,
 }: {
-  aggregateRecalculation?: ListingAggregateRecalculation;
+  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
   listing: ListingWithCount;
   show: boolean;
 }): JSX.Element | null =>
@@ -2134,7 +2142,7 @@ export const adminListingNewPage = (
 
       <CsrfForm
         action="/admin/listing"
-        class={listingFormClassFor(template, defaults)}
+        {...listingFormClassAttr(template, defaults)}
         enctype="multipart/form-data"
       >
         <h1>{t("listings_table.add_listing")}</h1>
@@ -2214,7 +2222,7 @@ export const adminDuplicateListingPage = (
       </div>
       <CsrfForm
         action="/admin/listing"
-        class={listingFormClassFor(template, defaults)}
+        {...listingFormClassAttr(template, defaults)}
         enctype="multipart/form-data"
       >
         <input
@@ -2339,7 +2347,7 @@ export const adminListingEditPage = (
   groups: Group[],
   session: AdminSession,
   error?: string,
-  aggregateRecalculation?: ListingAggregateRecalculation,
+  aggregateRecalculation?: ListingAggregateRecalculation | undefined,
   success?: string,
   parents?: {
     candidates: ChildCandidate[];
@@ -2395,7 +2403,7 @@ export const adminListingEditPage = (
       )}
       <CsrfForm
         action={`/admin/listing/${listing.id}/edit`}
-        class={listingFormClassFor(template, defaults)}
+        {...listingFormClassAttr(template, defaults)}
         enctype="multipart/form-data"
         id="listing-edit-form"
       >

@@ -282,7 +282,7 @@ export type BulkEmailPreviewState = {
   /** Human label for the target: audience label or listing name. */
   targetLabel: string;
   /** Audience description (omitted for single-listing sends). */
-  audienceDescription?: string;
+  audienceDescription?: string | undefined;
   recipientCount: number;
   skippedCount: number;
   sendableCount: number;

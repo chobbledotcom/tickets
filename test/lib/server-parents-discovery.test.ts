@@ -269,7 +269,7 @@ describeWithEnv(
       test("a sold-out visible child shows sold out, not the add-on note", async () => {
         // The unavailable state must take precedence over the add-on note so the
         // card does not advertise an add-on the gate would reject (Fix 2).
-        const { parent, child } = await setupSoldOutChild();
+        await setupSoldOutChild();
         const body = await publicBody("/listings");
         expect(body).toContain("Add-on");
         expect(body).toContain("Sold Out");

@@ -89,11 +89,6 @@ describeWithEnv(
     triggers: true,
   },
   () => {
-    type Aggregates = {
-      booked_quantity: number;
-      tickets_count: number;
-    };
-
     const insertAttendee = (
       listingId: number,
       attendeeId: number,

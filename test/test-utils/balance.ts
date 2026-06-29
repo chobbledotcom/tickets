@@ -46,7 +46,9 @@ export const createReservedAttendee = async (
     ],
     email: "guest@example.com",
     name: "Guest",
-    paymentId: options.paymentId,
+    ...(options.paymentId !== undefined
+      ? { paymentId: options.paymentId }
+      : {}),
     remainingBalance,
     statusId: reservation.id,
   });

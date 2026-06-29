@@ -7,8 +7,8 @@ const enc = (v: string) => Promise.resolve(`enc:${v}`);
 const dec = (v: string) => Promise.resolve(v.replace("enc:", ""));
 
 type EncryptedColumnLike = {
-  write?: (v: string) => Promise<string | null> | string | null;
-  read?: (v: string) => Promise<string | null> | string | null;
+  write?: ((v: string) => Promise<string | null> | string | null) | undefined;
+  read?: ((v: string) => Promise<string | null> | string | null) | undefined;
 };
 const assertEncRoundTrip = async (def: EncryptedColumnLike) => {
   expect(await def.write?.("hello")).toBe("enc:hello");

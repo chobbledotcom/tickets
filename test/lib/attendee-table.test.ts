@@ -371,7 +371,7 @@ describe("AttendeeTable", () => {
     });
 
     test("does not include return_url when not provided", () => {
-      const html = AttendeeTable(makeOpts({ returnUrl: undefined }));
+      const html = AttendeeTable(makeOpts({}));
       expect(html).not.toContain("return_url");
     });
   });

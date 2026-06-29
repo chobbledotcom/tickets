@@ -22,8 +22,8 @@ export type ContactHistoryPageData = {
   hmac: string;
   record: ContactRecord;
   session: AdminSession;
-  flashError?: string;
-  flashSuccess?: string;
+  flashError?: string | undefined;
+  flashSuccess?: string | undefined;
   /** Inline validation error from a rejected save (re-rendered in place). */
   formError?: string | null;
 };

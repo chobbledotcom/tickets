@@ -745,7 +745,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         parent: { maxAttendees: 10, maxQuantity: 10 },
       });
       const parentListing = await ticketListingFor(parent.id);
-      const childListing = await ticketListingFor(child.id);
+      await ticketListingFor(child.id);
       const childrenByParentId = await loadChildrenByParentId([parentListing]);
       const ctx = stubCtx([parentListing], childrenByParentId);
       const form = new FormParams({

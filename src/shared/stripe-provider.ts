@@ -69,9 +69,10 @@ export const stripePaymentProvider: PaymentProvider = {
       typeof amountTotal === "number" &&
       hasRequiredSessionMetadata(metadata)
     ) {
+      const createdAt = isoFromUnixSeconds(obj.created);
       return Promise.resolve({
         amountTotal,
-        createdAt: isoFromUnixSeconds(obj.created),
+        createdAt,
         id,
         metadata: extractSessionMetadata(metadata),
         paymentReference: asString(obj.payment_intent),
@@ -104,9 +105,10 @@ export const stripePaymentProvider: PaymentProvider = {
 
     if (amount_total === null) return null;
 
+    const createdAt = isoFromUnixSeconds(session.created);
     return {
       amountTotal: amount_total,
-      createdAt: isoFromUnixSeconds(session.created),
+      createdAt,
       id,
       metadata: extractSessionMetadata(metadata),
       paymentReference: payment_intent ?? "",

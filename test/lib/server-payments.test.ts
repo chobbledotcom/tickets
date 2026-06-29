@@ -301,41 +301,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         >),
       ),
     });
-  });
-
-  // A handled post-payment failure reserves the session, then refunds/returns.
-  // The reservation must record the terminal outcome so an immediate retry
-  // (redirect refresh or webhook re-delivery) replays the SAME result instead
-  // of re-refunding or getting stuck behind the "being processed" lock.
-  describe("GET /payment/success — idempotent replay of handled failures", () => {
-    /** Stub retrieveCheckoutSession to a fixed paid session + a refund spy.
-     * Synchronous so withMocks can read .restore off the returned stubs. */
-    const stubPaidSession = (
-      stripeApi: typeof import("#shared/stripe.ts").stripeApi,
-      stub: typeof import("@std/testing/mock").stub,
-      sessionId: string,
-      metadata: Record<string, string>,
-      amountTotal: number,
-    ) => ({
-      mockRefund: stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_replay" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
-      ),
-      mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: amountTotal,
-          id: sessionId,
-          // Sign at amountTotal (as production checkout does) so the session
-          // classifies as trusted — an unsigned session would be ignored.
-          metadata: signMeta(metadata, amountTotal),
-          payment_intent: `pi_${sessionId}`,
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      ),
-    });
 
     test("closed-listing-after-payment refunds once and replays on retry", async () => {
       const { stub } = await import("@std/testing/mock");

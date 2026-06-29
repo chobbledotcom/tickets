@@ -331,7 +331,7 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
         occurredAt: REFUND_AT,
         orderLegs: [
           { ...base, kind: "adjustment", reference: "a" },
-          { ...base, kind: undefined, reference: "b" },
+          { ...base, reference: "b" },
         ],
       });
       expect(refund.map((l) => l.kind)).toEqual([

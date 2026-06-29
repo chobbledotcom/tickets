@@ -36,7 +36,7 @@ export type TestDuration = {
   /** Source-relative file when the JUnit `classname` is a user file, else "". */
   file: string;
   durationMs: number;
-  line?: number;
+  line?: number | undefined;
 };
 
 const TESTCASE_RE = /<testcase\b([^>]*)>/g;

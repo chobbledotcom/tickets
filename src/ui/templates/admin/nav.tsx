@@ -324,7 +324,11 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
         getRenewalUrl(),
       )}
       {session.adminLevel === "owner" && (
-        <SettingsNagBanner items={session.settingsNagItems} />
+        <SettingsNagBanner
+          {...(session.settingsNagItems !== undefined
+            ? { items: session.settingsNagItems }
+            : {})}
+        />
       )}
       {/* The desktop sidebar nav and the mobile bars share one wrapper so the
           desktop grid can pin it as a single sticky left-hand column. */}

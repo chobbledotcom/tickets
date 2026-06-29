@@ -106,7 +106,7 @@ describeWithEnv(
     test("a future-dated real attendee is NOT listed in the service-events table", async () => {
       // The upcoming-events table on the admin home must exclude real
       // attendees even when they're future-dated — it's a servicing-only view.
-      const listing = await createTestListing({ maxAttendees: 10, name: "L" });
+      await createTestListing({ maxAttendees: 10, name: "L" });
       const { createRealAttendee } = await import("#test-utils");
       const { attendee } = await createRealAttendee(
         "Future Real",
