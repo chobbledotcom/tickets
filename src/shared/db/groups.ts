@@ -9,6 +9,7 @@ import {
   executeBatch,
   inPlaceholders,
   queryAll,
+  type TxScope,
 } from "#shared/db/client.ts";
 import {
   cachedEntityTable,
@@ -368,18 +369,20 @@ export const assignListingsToGroup = (
  * `package_price` overrides survive; only newly-ticked groups are inserted and
  * unticked ones removed.
  */
-export const setListingGroups = async (
+/** The DELETE/INSERT statements to move a listing from its `current` group set
+ * to the `desired` one, preserving rows (and their package_price overrides) for
+ * groups in both. Shared by {@link setListingGroups} (its own batch) and
+ * {@link setListingGroupsTx} (on a caller's transaction) so they can't drift. */
+const listingGroupDiffStatements = (
   listingId: number,
-  groupIds: number[],
-): Promise<void> => {
-  const current = new Set(await getGroupIdsByListingId(listingId));
-  const desired = new Set(groupIds);
-  // Statements for the group ids in `ids` that are absent from `exclude`.
+  current: Set<number>,
+  desired: Set<number>,
+) => {
   const rowsFor = (ids: Set<number>, exclude: Set<number>, sql: string) =>
     [...ids]
       .filter((id) => !exclude.has(id))
       .map((groupId) => ({ args: [groupId, listingId], sql }));
-  const statements = [
+  return [
     ...rowsFor(
       current,
       desired,
@@ -391,7 +394,41 @@ export const setListingGroups = async (
       "INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES (?, ?)",
     ),
   ];
+};
+
+export const setListingGroups = async (
+  listingId: number,
+  groupIds: number[],
+): Promise<void> => {
+  const current = new Set(await getGroupIdsByListingId(listingId));
+  const statements = listingGroupDiffStatements(
+    listingId,
+    current,
+    new Set(groupIds),
+  );
   if (statements.length > 0) await executeBatch(statements);
+};
+
+/** Replace a listing's group memberships inside an existing write transaction,
+ * so the change commits atomically with the listing row write (the admin API
+ * create/update path). Mirrors {@link setListingGroups} but reads the current
+ * set and runs each statement on the caller's `tx`. */
+export const setListingGroupsTx = async (
+  tx: TxScope,
+  listingId: number,
+  groupIds: number[],
+): Promise<void> => {
+  const rows = await tx.execute({
+    args: [listingId],
+    sql: "SELECT group_id FROM group_listings WHERE listing_id = ?",
+  });
+  const current = new Set(rows.rows.map((r) => Number(r.group_id)));
+  const statements = listingGroupDiffStatements(
+    listingId,
+    current,
+    new Set(groupIds),
+  );
+  for (const stmt of statements) await tx.execute(stmt);
 };
 
 /**
@@ -436,36 +473,19 @@ export const getGroupPackagePricesByGroupIds = async (
   return result;
 };
 
-/** Reset every member's override to price 0 / quantity 1 (no override). */
-const clearGroupPackageMembers = (groupId: number): Promise<unknown> =>
-  execute(
-    "UPDATE group_listings SET package_price = 0, quantity = 1 WHERE group_id = ?",
-    [groupId],
-  );
+/** Reset-every-member-to-no-override statement (price 0 / quantity 1). */
+const clearMembersStatement = (groupId: number) => ({
+  args: [groupId],
+  sql: "UPDATE group_listings SET package_price = 0, quantity = 1 WHERE group_id = ?",
+});
 
-/**
- * Set the `package_price` and `quantity` on a group's membership rows in one
- * UPDATE. Listings named in `members` that are CURRENT members get their values;
- * every other member is reset to price 0 / quantity 1. Non-member ids are
- * dropped, so a stale or crafted id is ignored rather than wiping the real
- * overrides via the `ELSE` branches. An explicit empty array clears all
- * overrides; a non-empty list that matches no members is a no-op (it isn't
- * treated as "clear all"). One statement regardless of size, staying clear of
- * the round-trip guard.
- */
-export const setGroupPackageMembers = async (
+/** The single CASE-UPDATE that applies each valid member's price/quantity,
+ * resetting every other member via the ELSE branches. One statement regardless
+ * of size, staying clear of the round-trip guard. */
+const memberOverrideStatement = (
   groupId: number,
-  members: PackageMemberInput[],
-): Promise<void> => {
-  if (members.length === 0) {
-    await clearGroupPackageMembers(groupId);
-    return;
-  }
-  const memberIds = new Set(await getGroupListingIds(groupId));
-  const valid = members.filter((m) => memberIds.has(m.listingId));
-  // A non-empty submission with no valid members is treated as a no-op rather
-  // than a full wipe — only an explicit empty array clears overrides.
-  if (valid.length === 0) return;
+  valid: PackageMemberInput[],
+) => {
   const priceCases = valid.map(() => "WHEN ? THEN ?").join(" ");
   const qtyCases = valid.map(() => "WHEN ? THEN ?").join(" ");
   const args: number[] = [];
@@ -473,11 +493,64 @@ export const setGroupPackageMembers = async (
   for (const { listingId, quantity } of valid)
     args.push(listingId, quantity ?? 1);
   args.push(groupId);
-  await execute(
-    `UPDATE group_listings SET package_price = CASE listing_id ${priceCases} ELSE 0 END, quantity = CASE listing_id ${qtyCases} ELSE 1 END WHERE group_id = ?`,
+  return {
     args,
-  );
+    sql: `UPDATE group_listings SET package_price = CASE listing_id ${priceCases} ELSE 0 END, quantity = CASE listing_id ${qtyCases} ELSE 1 END WHERE group_id = ?`,
+  };
 };
+
+/** Keep only the submitted members that are CURRENT members of the group, so a
+ * stale or crafted id is ignored rather than wiping real overrides. */
+const validMembers = (
+  members: PackageMemberInput[],
+  currentIds: Set<number>,
+): PackageMemberInput[] => members.filter((m) => currentIds.has(m.listingId));
+
+/**
+ * Apply package-member overrides via the caller-supplied reader and runner, so
+ * the batch and transactional variants share one decision tree. An explicit
+ * empty array clears all overrides; a non-empty list that matches no current
+ * member is a no-op (it isn't treated as "clear all").
+ */
+const applyPackageMembers = async (
+  groupId: number,
+  members: PackageMemberInput[],
+  readCurrentIds: () => Promise<Set<number>>,
+  run: (stmt: { args: number[]; sql: string }) => Promise<unknown>,
+): Promise<void> => {
+  if (members.length === 0) {
+    await run(clearMembersStatement(groupId));
+    return;
+  }
+  const valid = validMembers(members, await readCurrentIds());
+  if (valid.length === 0) return;
+  await run(memberOverrideStatement(groupId, valid));
+};
+
+/** Set the `package_price` / `quantity` on a group's membership rows. Pass `tx`
+ * to run inside an existing write transaction (the admin API update path, so the
+ * overrides commit atomically with the group row write); omit it to run as the
+ * function's own statements. See {@link applyPackageMembers} for the
+ * partial-update rules. */
+export const setGroupPackageMembers = (
+  groupId: number,
+  members: PackageMemberInput[],
+  tx?: TxScope,
+): Promise<void> =>
+  applyPackageMembers(
+    groupId,
+    members,
+    tx
+      ? async () => {
+          const rows = await tx.execute({
+            args: [groupId],
+            sql: "SELECT listing_id FROM group_listings WHERE group_id = ?",
+          });
+          return new Set(rows.rows.map((r) => Number(r.listing_id)));
+        }
+      : async () => new Set(await getGroupListingIds(groupId)),
+    tx ? (stmt) => tx.execute(stmt) : (stmt) => execute(stmt.sql, stmt.args),
+  );
 
 /**
  * Set the `active` flag on every listing in a group.

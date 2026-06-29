@@ -7,6 +7,7 @@ import {
   generateUniqueGroupSlug,
   validateGroupWithPackage,
 } from "#routes/admin/groups.ts";
+import type { TxScope } from "#shared/db/client.ts";
 import {
   computeGroupSlugIndex,
   type GroupInput,
@@ -99,20 +100,22 @@ const parsePackageMembers = (
   );
 
 /**
- * Persist package overrides after a group write, with partial-update semantics:
- * clearing the group's package flag clears all overrides; absent `package_members`
- * leaves existing rows untouched; otherwise the rows are set.
+ * Persist package overrides in the group write's transaction, with
+ * partial-update semantics: clearing the group's package flag clears all
+ * overrides; absent `package_members` leaves existing rows untouched; otherwise
+ * the rows are set.
  */
 const writePackageMembers = async (
+  tx: TxScope,
   id: number,
   input: GroupInput,
 ): Promise<void> => {
   if (input.isPackage === false) {
-    await setGroupPackageMembers(id, []);
+    await setGroupPackageMembers(id, [], tx);
     return;
   }
   if (input.packageMembers === undefined) return;
-  await setGroupPackageMembers(id, input.packageMembers);
+  await setGroupPackageMembers(id, input.packageMembers, tx);
 };
 
 /** Map a stored membership row to the JSON `package_members` entry shape clients

@@ -18,7 +18,7 @@ import {
   getGroupIdsByListingId,
   getGroupIdsByListingIds,
   packageChildEdgeConflict,
-  setListingGroups,
+  setListingGroupsTx,
 } from "#shared/db/groups.ts";
 import { setChildIdsTx } from "#shared/db/listing-parents.ts";
 import {
@@ -419,10 +419,18 @@ const submittedChildIds = (
  * that doesn't exist yet (Fix 4). */
 const UNCREATED_PARENT_ID = -1;
 
-/** The prepared child-edge side effect to persist after the row write:
- * `null` = leave existing edges untouched (field omitted / feature off); an
- * array = replace the parent's edges with these cleaned ids. */
+/** The prepared child-edge write: `null` = leave existing edges untouched
+ * (field omitted / feature off); an array = replace the parent's edges with
+ * these cleaned ids. */
 type PreparedChildEdges = number[] | null;
+
+/** Both of a listing write's join-table writes, prepared before the row write so
+ * they commit in its transaction: the child edges and the group membership
+ * (`groupIds` undefined = field omitted, leave membership untouched). */
+type PreparedListingJoins = {
+  childEdges: PreparedChildEdges;
+  groupIds: number[] | undefined;
+};
 
 /**
  * Validate a write's `child_listing_ids` against the would-be parent BEFORE the
@@ -436,13 +444,14 @@ type PreparedChildEdges = number[] | null;
  * stands in. `null` value when the field is omitted / the parents feature is off
  * (existing edges left intact); a present-but-malformed field is rejected.
  */
-const prepareChildEdges = async (
+const prepareListingJoins = async (
   input: ListingInput,
   body: Record<string, unknown>,
   existing: ListingWithCount | null,
-): Promise<{ error: string } | { value: PreparedChildEdges }> => {
+): Promise<{ error: string } | { value: PreparedListingJoins }> => {
+  const groupIds = input.groupIds;
   const submitted = submittedChildIds(body);
-  if ("skip" in submitted) return { value: null };
+  if ("skip" in submitted) return { value: { childEdges: null, groupIds } };
   if ("error" in submitted) return submitted;
   // A listing gaining children becomes a parent; a parent can't be a package
   // member, and a package member can't become a child — either way the package
@@ -465,18 +474,25 @@ const prepareChildEdges = async (
     submitted.childIds,
     { wouldBeGroupIds: input.groupIds ?? [] },
   );
-  return result.ok ? { value: result.childIds } : { error: result.error };
+  return result.ok
+    ? { value: { childEdges: result.childIds, groupIds } }
+    : { error: result.error };
 };
 
-/** Write the prepared child edges on the open write transaction (Fix 4): a no-op
- * when `null` (field omitted), otherwise replaces the parent's edges with the
- * cleaned ids validated before the write — atomically with the listing row. */
-const persistChildEdges = async (
+/** Write the prepared join-table rows on the open write transaction (Fix 4),
+ * atomically with the listing row: child edges (a no-op when `null`, i.e. field
+ * omitted) and group membership (a no-op when `undefined`). */
+const persistListingJoins = async (
   tx: TxScope,
   listingId: number,
-  value: PreparedChildEdges,
+  value: PreparedListingJoins,
 ): Promise<void> => {
-  if (value !== null) await setChildIdsTx(tx, listingId, value);
+  if (value.childEdges !== null) {
+    await setChildIdsTx(tx, listingId, value.childEdges);
+  }
+  if (value.groupIds !== undefined) {
+    await setListingGroupsTx(tx, listingId, value.groupIds);
+  }
 };
 
 /** Batched `group_ids` hydration for a set of listing rows, keyed by listing id
@@ -497,14 +513,8 @@ const listingApiRoutes = defineCrudApi<
   Listing,
   ListingInput,
   ListingWithCount,
-  PreparedChildEdges
+  PreparedListingJoins
 >({
-  // Group membership lives in group_listings, not a listing column, so persist
-  // it after the row write. Undefined groupIds (field omitted) leaves it as-is.
-  afterWrite: (id, input) =>
-    input.groupIds === undefined
-      ? Promise.resolve()
-      : setListingGroups(id, input.groupIds),
   extraRoutes: {
     "DELETE /api/admin/listings/:listingId": handleDeleteListing,
     "POST /api/admin/listings/:listingId/deactivate": (
@@ -529,13 +539,13 @@ const listingApiRoutes = defineCrudApi<
   lookup: getListingWithCount,
   name: "listings",
   nameField: "name",
-  // The required-child gate is an atomic side effect (Fix 4): validate the
-  // would-be edges BEFORE the row write (a rejected edge skips the whole write,
-  // leaving no orphan create / no persisted rename), then write them AFTER the
-  // row exists with its real id.
+  // The required-child gate and group membership are atomic side effects (Fix
+  // 4): validate the would-be edges/membership BEFORE the row write (a rejected
+  // edge skips the whole write, leaving no orphan create / no persisted
+  // rename), then write them in the SAME transaction once the row exists.
   sideEffect: {
-    persist: persistChildEdges,
-    validate: prepareChildEdges,
+    persist: persistListingJoins,
+    validate: prepareListingJoins,
   },
   singular: "Listing",
   stripKeys: ["slug_index"],

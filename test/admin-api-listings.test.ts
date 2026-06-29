@@ -913,6 +913,35 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       expect(byId.get(ungrouped.listing.id)?.group_ids).toEqual([]);
     });
 
+    test("PUT moves a listing from one group to another", async () => {
+      const groupA = await createTestGroup({ name: "From Group" });
+      const groupB = await createTestGroup({ name: "To Group" });
+      const created = await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: { group_ids: [groupA.id], max_attendees: 10, name: "Mover" },
+          method: "POST",
+        }),
+        201,
+      );
+      expect(await getGroupIdsByListingId(created.listing.id)).toEqual([
+        groupA.id,
+      ]);
+
+      // Re-grouping a listing that already belongs to a group diffs the current
+      // membership against the new set inside the write transaction.
+      const updated = await assertJson(
+        apiRequest(`/api/admin/listings/${created.listing.id}`, {
+          body: { group_ids: [groupB.id] },
+          method: "PUT",
+        }),
+        200,
+      );
+      expect(updated.listing.group_ids).toEqual([groupB.id]);
+      expect(await getGroupIdsByListingId(created.listing.id)).toEqual([
+        groupB.id,
+      ]);
+    });
+
     test("rejects listing with mismatched type in group", async () => {
       const group = await createTestGroup({ name: "Type Group" });
 

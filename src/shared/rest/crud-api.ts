@@ -204,10 +204,12 @@ export interface CrudApiConfig<
   ) => ParseResult<Input> | Promise<ParseResult<Input>>;
   /** Optional validation (return error message or null) */
   validate?: (input: Input, id?: number) => Promise<string | null>;
-  /** Side-effect run after a successful create/update with the written row's id
-   * and the parsed input — e.g. to persist join-table rows (a listing's groups)
-   * that live outside the main table. */
-  afterWrite?: (id: number, input: Input) => Promise<void>;
+  /** Side-effect run with the written row's id and the parsed input to persist
+   * join-table rows (a listing's groups, a group's package members) that live
+   * outside the main table. Runs inside the SAME transaction as the row write
+   * (it receives the transaction scope), so a failure rolls the row write back
+   * rather than leaving partial state. */
+  afterWrite?: (tx: TxScope, id: number, input: Input) => Promise<void>;
   /** Optionally hydrate extra fields onto each response row (list/get/create/
    * update) that don't live on the main table — e.g. a listing's `group_ids`
    * from the join table, so API clients can read back what they POST/PUT. */
@@ -331,20 +333,23 @@ export const defineCrudApi = <
     return jsonResponse({ [responseKey]: await toResponse(fullRow) }, status);
   };
 
-  /** Write the row and its side effect in ONE transaction, so a failed side
-   * effect rolls the row write back (no orphan row), then read the committed row
-   * back. `existingId` is null on create (the id comes from the INSERT) and the
-   * existing id on update. Only used when `config.sideEffect` is set. */
-  const writeWithSideEffect = async (
+  /** Write the row and its join-table writes (the prepared side effect and/or
+   * `afterWrite`) in ONE transaction, so a failed join write rolls the row write
+   * back (no orphan row, no partial membership/override change), then read the
+   * committed row back. `existingId` is null on create (the id comes from the
+   * INSERT) and the existing id on update. */
+  const writeInTransaction = async (
     statement: { args: InValue[]; sql: string },
     existingId: number | null,
     prepared: Prepared,
+    input: Input,
   ): Promise<FullRow> => {
-    const sideEffect = config.sideEffect!;
     const id = await withTransaction(async (tx) => {
       const res = await tx.execute(statement);
       const rowId = existingId ?? Number(res.lastInsertRowid);
-      await sideEffect.persist(tx, rowId, prepared);
+      if (config.sideEffect)
+        await config.sideEffect.persist(tx, rowId, prepared);
+      if (config.afterWrite) await config.afterWrite(tx, rowId, input);
       return rowId;
     });
     return (await lookup(id))!;
@@ -363,9 +368,11 @@ export const defineCrudApi = <
       ? config.sideEffect.validate(input, body, existing)
       : { value: undefined as Prepared };
 
-  /** Validate the prepared side effect, then write the row either transactionally
-   * (when a side effect is present) or with a plain statement. Returns an error
-   * response on side-effect rejection, or the logged JSON response on success. */
+  /** Validate the prepared side effect, then write the row. Any join-table write
+   * (a side effect and/or `afterWrite`) shares the row write's transaction so a
+   * failure rolls the row back rather than leaving partial state; resources with
+   * neither use a plain statement. Returns an error response on side-effect
+   * rejection, or the logged JSON response on success. */
   const checkAndWrite = async (
     input: Input,
     body: Record<string, unknown>,
@@ -378,14 +385,15 @@ export const defineCrudApi = <
   ): Promise<Response> => {
     const prepared = await prepareSideEffect(input, body, existing);
     if ("error" in prepared) return apiErrorResponse(prepared.error);
-    const fullRow = config.sideEffect
-      ? await writeWithSideEffect(
-          await getStatement(),
-          existingId,
-          prepared.value,
-        )
-      : ((await plainWrite()) as unknown as FullRow);
-    await config.afterWrite?.((fullRow as { id: number }).id, input);
+    const fullRow =
+      config.sideEffect || config.afterWrite
+        ? await writeInTransaction(
+            await getStatement(),
+            existingId,
+            prepared.value,
+            input,
+          )
+        : ((await plainWrite()) as unknown as FullRow);
     return respondWithRow(fullRow, action, status);
   };
 
