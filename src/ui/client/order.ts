@@ -155,15 +155,24 @@ class CartController {
   }
 
   /** Drop stored slugs no longer present in the catalog (owner hid, removed, or
-   * deactivated the listing since the cart was saved); record a notice if so. */
+   * deactivated the listing since the cart was saved) and merge any duplicate
+   * lines for the same slug — corrupt/foreign storage could hold both, and a
+   * duplicate would otherwise emit `q_<id>` twice in the Continue URL (the
+   * ticket page reads only the first). Record a notice when items are dropped. */
   private reconcile(lines: CartLine[]): CartLine[] {
-    const kept = lines.filter(
-      (line) => catalogEntry(line.slug) !== undefined && line.quantity > 0,
-    );
-    if (kept.length < lines.length) {
+    const merged = new Map<string, number>();
+    let dropped = false;
+    for (const line of lines) {
+      if (catalogEntry(line.slug) === undefined || line.quantity <= 0) {
+        dropped = true;
+        continue;
+      }
+      merged.set(line.slug, (merged.get(line.slug) ?? 0) + line.quantity);
+    }
+    if (dropped) {
       this.notice = "Some items are no longer available and were removed.";
     }
-    return kept;
+    return [...merged].map(([slug, quantity]) => ({ quantity, slug }));
   }
 
   add(entry: CatalogEntry, quantity = 1): void {
@@ -401,10 +410,14 @@ const init = (): void => {
 
   const enhance = (link: HTMLAnchorElement): void => {
     if (link.dataset.chobbleEnhanced) return;
-    const entry = resolveListing(link.dataset.addListing ?? "");
-    if (!entry) return;
+    if (!resolveListing(link.dataset.addListing ?? "")) return;
     link.dataset.chobbleEnhanced = "1";
     link.addEventListener("click", (event) => {
+      // Re-resolve at click time: an SPA may have repointed `data-add-listing`
+      // since enhancement (re-scans skip already-enhanced links). If it now
+      // points outside the catalog, fall through to normal navigation.
+      const entry = resolveListing(link.dataset.addListing ?? "");
+      if (!entry) return;
       event.preventDefault();
       controller.add(entry, parseAddQuantity(link.dataset.addQuantity));
     });
