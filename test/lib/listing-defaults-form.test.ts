@@ -46,18 +46,6 @@ describe("admin > listing defaults form parse > numbers", () => {
   });
 });
 
-describe("admin > listing defaults form parse > duration", () => {
-  test("accepts 1..MAX", () => {
-    expect(ok(parse("default_duration_days=3")).durationDays).toBe(3);
-  });
-
-  test("rejects 0, over the max, and non-integers", () => {
-    expect(parse("default_duration_days=0").error).not.toBeNull();
-    expect(parse("default_duration_days=91").error).not.toBeNull();
-    expect(parse("default_duration_days=2.5").error).not.toBeNull();
-  });
-});
-
 describe("admin > listing defaults form parse > urls", () => {
   test("accepts an https url and ignores blanks", () => {
     expect(
@@ -104,10 +92,8 @@ describe("admin > listing defaults form parse > combined", () => {
         [
           "default_uses_logistics=1",
           "default_hidden=0",
-          "default_customisable_days=1",
           "default_minimum_days_before=1",
           "default_maximum_days_after=30",
-          "default_duration_days=2",
           "default_webhook_url=https://example.com/hook",
           "default_thank_you_url=https://example.com/thanks",
           "default_bookable_days_enabled=1",
@@ -117,8 +103,6 @@ describe("admin > listing defaults form parse > combined", () => {
     );
     expect(value).toEqual({
       bookableDays: ["Friday"],
-      customisableDays: true,
-      durationDays: 2,
       hidden: false,
       maximumDaysAfter: 30,
       minimumDaysBefore: 1,

@@ -32,11 +32,11 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       await adminFormPost("/admin/listing-defaults", {
         default_bookable_days: "Monday",
         default_bookable_days_enabled: "1",
-        default_duration_days: "3",
+        default_minimum_days_before: "3",
       });
       const response = await adminGet("/admin/listing-defaults");
       const body = await response.text();
-      // The duration input carries the saved value and Monday is pre-ticked.
+      // The number input carries the saved value and Monday is pre-ticked.
       expect(body).toContain('value="3"');
       expect(body).toMatch(
         /value="Monday"[^>]*checked|checked[^>]*value="Monday"/,
@@ -52,15 +52,15 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
 
     test("saves the chosen defaults and round-trips them", async () => {
       const { response } = await adminFormPost("/admin/listing-defaults", {
-        default_duration_days: "3",
         default_hidden: "1",
+        default_minimum_days_before: "3",
         default_webhook_url: "https://example.com/hook",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Listing defaults saved"));
       expect(settings.listingDefaults).toEqual({
-        durationDays: 3,
         hidden: true,
+        minimumDaysBefore: 3,
         webhookUrl: "https://example.com/hook",
       });
     });
@@ -167,13 +167,12 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       await adminFormPost("/admin/listing-defaults", {
         default_bookable_days: "Monday",
         default_bookable_days_enabled: "1",
-        default_customisable_days: "0",
-        default_duration_days: "2",
         default_hidden: "1",
         default_maximum_days_after: "30",
         default_minimum_days_before: "1",
         default_thank_you_url: "https://example.com/thanks",
-        default_uses_logistics: "1",
+        // A "no" bool default exercises the unchecked checkbox pre-fill.
+        default_uses_logistics: "0",
         default_webhook_url: "https://example.com/hook",
       });
       const response = await adminGet("/admin/listing/new?template=custom");

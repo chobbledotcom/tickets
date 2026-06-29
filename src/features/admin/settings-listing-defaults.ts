@@ -22,12 +22,8 @@ import {
   type ListingDefaultField,
   type ListingDefaults,
 } from "#shared/listing-defaults.ts";
-import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
-import {
-  parseNonNegativeInt,
-  parsePositiveInt,
-} from "#shared/validation/number.ts";
+import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { adminListingDefaultsPage } from "#templates/admin/listing-defaults.tsx";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
 
@@ -45,23 +41,12 @@ const labelFor = (field: ListingDefaultField): string =>
 const parseBool = (raw: string): boolean | undefined =>
   raw === "1" ? true : raw === "0" ? false : undefined;
 
-/** Parse one number field, enforcing its range. Blank ⇒ unset; bad ⇒ error. */
+/** Parse one number field (a non-negative day count). Blank ⇒ unset; bad ⇒ error. */
 const parseNumberField = (
   field: ListingDefaultField,
   raw: string,
 ): { value?: number; error?: string } => {
   if (raw === "") return {};
-  if (field.field === "duration_days") {
-    const parsed = parsePositiveInt(raw);
-    if (parsed === null || parsed > MAX_DURATION_DAYS) {
-      return {
-        error: t("listing_defaults.error.duration", {
-          max: MAX_DURATION_DAYS,
-        }),
-      };
-    }
-    return { value: parsed };
-  }
   const parsed = parseNonNegativeInt(raw);
   if (parsed === null) {
     return {

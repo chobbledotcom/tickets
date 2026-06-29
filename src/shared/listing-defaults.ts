@@ -19,7 +19,7 @@
  * validators.
  */
 
-import { availableDayCounts, type Listing } from "#shared/types.ts";
+import type { Listing } from "#shared/types.ts";
 
 /**
  * The operator-configurable defaults. A key is present only when a default is
@@ -34,10 +34,6 @@ export type ListingDefaults = {
   minimumDaysBefore?: number;
   /** Maximum days ahead a daily booking can be made. */
   maximumDaysAfter?: number;
-  /** Default booking duration (days) for daily listings. */
-  durationDays?: number;
-  /** Whether visitors may choose their own booking length. */
-  customisableDays?: boolean;
   /** Booking webhook URL. */
   webhookUrl?: string;
   /** Post-purchase thank-you redirect URL. */
@@ -61,14 +57,22 @@ export type ListingDefaultField = {
  * Every defaultable field, in display order. The single source of truth that
  * drives the settings form, the form-field hiding (one CSS marker class per
  * key), the storage round-trip, and the overlay.
+ *
+ * Deliberately excludes `duration_days` and `customisable_days`. Both are
+ * entangled with per-listing booking data and save-time invariants that live,
+ * read-time inheritance can't honour: `customisable_days` requires a priced day
+ * count within the duration, forbids `can_pay_more`, and must stay uniform
+ * across a group (`validateGroupListingType`); `duration_days` feeds
+ * parent/child edge compatibility (`durationsCompatible`) and existing bookings'
+ * stored ranges. Inheriting either globally would silently produce listings the
+ * normal save path would have rejected, so they stay per-listing. The remaining
+ * fields are display / availability / side-effect only and inherit safely.
  */
 export const LISTING_DEFAULT_FIELDS: readonly ListingDefaultField[] = [
   { field: "uses_logistics", key: "usesLogistics", kind: "bool" },
   { field: "bookable_days", key: "bookableDays", kind: "days" },
   { field: "minimum_days_before", key: "minimumDaysBefore", kind: "number" },
   { field: "maximum_days_after", key: "maximumDaysAfter", kind: "number" },
-  { field: "duration_days", key: "durationDays", kind: "number" },
-  { field: "customisable_days", key: "customisableDays", kind: "bool" },
   { field: "webhook_url", key: "webhookUrl", kind: "url" },
   { field: "thank_you_url", key: "thankYouUrl", kind: "url" },
   { field: "hidden", key: "hidden", kind: "bool" },
@@ -106,23 +110,6 @@ export const resolveListingDefaults = <T extends Listing>(
   for (const { key, field } of LISTING_DEFAULT_FIELDS) {
     const value = defaults[key];
     if (value !== undefined) overlay[field] = value;
-  }
-  // A customisable-days listing must offer at least one priced day count within
-  // [1, duration_days], so a global "customise = yes" default can't safely turn
-  // it on unless this listing has such a count — otherwise the public booking
-  // form has no selectable day count. The check uses the EFFECTIVE duration
-  // (a duration default may also be overlaid here), mirroring
-  // {@link availableDayCounts}. Turning customise off is always safe; the
-  // listing keeps its own value otherwise.
-  if (overlay.customisable_days === true) {
-    const durationDays =
-      (overlay.duration_days as number | undefined) ?? listing.duration_days;
-    const usable = availableDayCounts({
-      customisable_days: true,
-      day_prices: listing.day_prices,
-      duration_days: durationDays,
-    });
-    if (usable.length === 0) delete overlay.customisable_days;
   }
   return { ...listing, ...overlay };
 };

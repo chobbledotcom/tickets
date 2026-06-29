@@ -1562,12 +1562,6 @@ const defaultsToFieldValues = (defaults: ListingDefaults): FieldValues => {
   if (defaults.maximumDaysAfter !== undefined) {
     values.maximum_days_after = String(defaults.maximumDaysAfter);
   }
-  if (defaults.durationDays !== undefined) {
-    values.duration_days = String(defaults.durationDays);
-  }
-  if (defaults.customisableDays !== undefined) {
-    values.customisable_days = checkboxValue(defaults.customisableDays);
-  }
   if (defaults.webhookUrl !== undefined) {
     values.webhook_url = defaults.webhookUrl;
   }

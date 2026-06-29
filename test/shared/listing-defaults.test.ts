@@ -14,8 +14,6 @@ import { testListing } from "#test-utils";
 
 const fullDefaults: ListingDefaults = {
   bookableDays: ["Monday", "Wednesday"],
-  customisableDays: true,
-  durationDays: 3,
   hidden: true,
   maximumDaysAfter: 30,
   minimumDaysBefore: 2,
@@ -33,10 +31,6 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
   test("overlays every set default when use_defaults is on", () => {
     const listing = testListing({
       bookable_days: ["Sunday"],
-      customisable_days: false,
-      // Day prices present so the customisable-days default is allowed to apply.
-      day_prices: { 1: 1000 },
-      duration_days: 1,
       hidden: false,
       maximum_days_after: 90,
       minimum_days_before: 1,
@@ -47,8 +41,6 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
     });
     const resolved = resolveListingDefaults(listing, fullDefaults);
     expect(resolved.bookable_days).toEqual(["Monday", "Wednesday"]);
-    expect(resolved.customisable_days).toBe(true);
-    expect(resolved.duration_days).toBe(3);
     expect(resolved.hidden).toBe(true);
     expect(resolved.maximum_days_after).toBe(30);
     expect(resolved.minimum_days_before).toBe(2);
@@ -76,61 +68,6 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
     const listing = testListing({ hidden: false, use_defaults: true });
     resolveListingDefaults(listing, { hidden: true });
     expect(listing.hidden).toBe(false);
-  });
-
-  test("a customisable-days 'yes' default only applies where day prices exist", () => {
-    const noPrices = testListing({
-      customisable_days: false,
-      day_prices: {},
-      use_defaults: true,
-    });
-    expect(
-      resolveListingDefaults(noPrices, { customisableDays: true })
-        .customisable_days,
-    ).toBe(false);
-
-    const withPrices = testListing({
-      customisable_days: false,
-      day_prices: { 1: 1000 },
-      use_defaults: true,
-    });
-    expect(
-      resolveListingDefaults(withPrices, { customisableDays: true })
-        .customisable_days,
-    ).toBe(true);
-  });
-
-  test("a customisable-days default respects the effective (defaulted) duration", () => {
-    const listing = testListing({
-      customisable_days: false,
-      day_prices: { 5: 1000 },
-      duration_days: 5,
-      use_defaults: true,
-    });
-    // A duration default of 3 makes the only priced count (5) invalid → skip.
-    expect(
-      resolveListingDefaults(listing, {
-        customisableDays: true,
-        durationDays: 3,
-      }).customisable_days,
-    ).toBe(false);
-    // Without lowering the duration, count 5 is within range → applies.
-    expect(
-      resolveListingDefaults(listing, { customisableDays: true })
-        .customisable_days,
-    ).toBe(true);
-  });
-
-  test("a customisable-days 'no' default always applies", () => {
-    const listing = testListing({
-      customisable_days: true,
-      day_prices: {},
-      use_defaults: true,
-    });
-    expect(
-      resolveListingDefaults(listing, { customisableDays: false })
-        .customisable_days,
-    ).toBe(false);
   });
 });
 
@@ -181,8 +118,8 @@ describe("shared > listing-defaults > parse/serialize round-trip", () => {
   test("drops keys whose stored type is wrong", () => {
     const raw = JSON.stringify({
       bookableDays: "Monday",
-      durationDays: "3",
       hidden: "yes",
+      minimumDaysBefore: "3",
       usesLogistics: 1,
       webhookUrl: 5,
     });
@@ -191,7 +128,7 @@ describe("shared > listing-defaults > parse/serialize round-trip", () => {
 
   test("drops a non-finite number", () => {
     // JSON has no NaN; a stored null for a number key must be rejected.
-    expect(parseListingDefaults('{"durationDays":null}')).toEqual({});
+    expect(parseListingDefaults('{"minimumDaysBefore":null}')).toEqual({});
   });
 
   test("keeps a string array but drops one with non-string items", () => {
