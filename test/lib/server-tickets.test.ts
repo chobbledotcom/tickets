@@ -448,6 +448,31 @@ describeWithEnv(
       return { group, widget };
     };
 
+    /** Drive the public free-checkout submit for a package group, returning the
+     * (redirect) response. The page GET first seeds the CSRF token the POST
+     * needs. */
+    const submitFreePackageBooking = async (
+      slug: string,
+      contact: { email: string; name: string },
+    ): Promise<Response> => {
+      const { handleRequest } = await import("#routes");
+      const { mockRequest, mockTicketFormRequest } = await import(
+        "#test-utils/mocks.ts"
+      );
+      const { extractCsrfToken } = await import("#test-utils/csrf.ts");
+      const pageHtml = await (
+        await handleRequest(mockRequest(`/ticket/${slug}`))
+      ).text();
+      const csrf = extractCsrfToken(pageHtml)!;
+      return handleRequest(
+        mockTicketFormRequest(
+          slug,
+          { ...contact, package_quantity: "1" },
+          csrf,
+        ),
+      );
+    };
+
     test("a standalone booking of a hidden package's listing is NOT collapsed/hidden", async () => {
       // Regression for the membership-equality bug: the listing booked NOT via the
       // package (package_group_id 0 on its rows) must render normally, never
@@ -570,11 +595,6 @@ describeWithEnv(
       // Drives the public free-checkout path so handleFreePath threads
       // ctx.packageGroupId into createFreeReservation — the standalone-vs-package
       // distinction comes from the persisted id, set here end-to-end.
-      const { handleRequest } = await import("#routes");
-      const { mockRequest, mockTicketFormRequest } = await import(
-        "#test-utils/mocks.ts"
-      );
-      const { extractCsrfToken } = await import("#test-utils/csrf.ts");
       const { getDb } = await import("#shared/db/client.ts");
 
       const group = await createTestGroup({
@@ -590,21 +610,10 @@ describeWithEnv(
         unitPrice: 0,
       });
 
-      const pageHtml = await (
-        await handleRequest(mockRequest(`/ticket/${group.slug}`))
-      ).text();
-      const csrf = extractCsrfToken(pageHtml)!;
-      const submit = await handleRequest(
-        mockTicketFormRequest(
-          group.slug,
-          {
-            email: "freepkg@test.com",
-            name: "Free Buyer",
-            package_quantity: "1",
-          },
-          csrf,
-        ),
-      );
+      const submit = await submitFreePackageBooking(group.slug, {
+        email: "freepkg@test.com",
+        name: "Free Buyer",
+      });
       expect([302, 303]).toContain(submit.status);
 
       // The free public package checkout stamped the group id onto the booking
@@ -616,6 +625,34 @@ describeWithEnv(
         })
       ).rows[0]!;
       expect(Number(row.package_group_id)).toBe(group.id);
+    });
+
+    test("a hidden single-member package ignores the member's thank-you URL", async () => {
+      // With one member, a package booking would otherwise fall through the
+      // single-listing thank-you redirect and send the buyer to that member's
+      // thank-you page — revealing the member the hidden package concealed. It
+      // must land on the generic reserved page instead.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Secret Kit",
+        slug: "secret-kit",
+      });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      await createTestListing({
+        groupId: group.id,
+        name: "Concealed Freebie",
+        thankYouUrl: "https://example.com/concealed-member",
+        unitPrice: 0,
+      });
+
+      const submit = await submitFreePackageBooking(group.slug, {
+        email: "secret@test.com",
+        name: "Secret Buyer",
+      });
+      expect([302, 303]).toContain(submit.status);
+      const location = submit.headers.get("location") ?? "";
+      expect(location).not.toContain("concealed-member");
+      expect(location).toContain("/ticket/reserved");
     });
   },
 );

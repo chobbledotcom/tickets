@@ -743,6 +743,18 @@ const prepareOrder = async (
   };
 };
 
+/** The thank-you URL to honour for a submission's post-booking redirect: a
+ * genuine single standalone listing's configured URL. A hidden package is never
+ * treated as "single listing" here — even with one member, redirecting to that
+ * member's thank-you page would reveal the member the package concealed — so it
+ * resolves to null and the booking lands on the generic reserved page. (Folding
+ * a required child is handled separately: the single page ctx still drives this,
+ * so a child fold never drops a single parent's URL.) */
+const singleListingThankYouUrl = (ctx: TicketCtx): string | null =>
+  ctx.listings.length === 1 && !ctx.hidePackageListings
+    ? ctx.listings[0]!.listing.thank_you_url
+    : null;
+
 /** Process submitted form after CSRF and demo overrides. */
 const processSubmission = async (
   request: Request,
@@ -762,8 +774,7 @@ const processSubmission = async (
   // child doesn't drop a single parent's configured URL (parents.md fold
   // checklist, thank-you item).
   const foldedCtx = pricingParams.ctx;
-  const thankYouUrl =
-    ctx.listings.length === 1 ? ctx.listings[0]!.listing.thank_you_url : null;
+  const thankYouUrl = singleListingThankYouUrl(ctx);
 
   const paymentsEnabled = isPaymentsEnabled();
   const requiresPaidFields = pricedOrder.total > 0;
