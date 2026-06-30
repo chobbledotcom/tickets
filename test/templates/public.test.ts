@@ -1220,6 +1220,32 @@ describe("ticketViewPage package grouping", () => {
     expect(html).not.toContain("wallet-link");
   });
 
+  test("omits wallet links on a standalone card sharing a token with a package", () => {
+    // After a merge, a standalone booking can share a token with a package. The
+    // wallet endpoints 404 any token containing a package row, so the standalone
+    // card must not advertise wallet links it can't honour.
+    const mixed = [
+      pkgCards[0]!,
+      {
+        entry: {
+          attendee: testAttendee({ package_group_id: 0, quantity: 1 }),
+          listing: testListingWithCount({ name: "Standalone Add-On" }),
+        },
+        token,
+      },
+    ];
+    const html = ticketViewPage(
+      mixed,
+      true,
+      true,
+      new Map([[1, { hideListings: false, name: "Camp Kit" }]]),
+    );
+    // The standalone card renders (it's not part of the package)…
+    expect(html).toContain("Standalone Add-On");
+    // …but no wallet links anywhere, because the shared token's pass 404s.
+    expect(html).not.toContain("wallet-link");
+  });
+
   test("a purchase-only package omits the QR", () => {
     const cards = [
       {

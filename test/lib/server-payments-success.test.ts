@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { groupsTable } from "#shared/db/groups.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
   bookAttendee,
@@ -203,6 +204,62 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         // (the session may belong to a different instance sharing the provider).
         await expectHtmlResponse(response, 400, "not recognized");
         expect(mockRefund.calls.length).toBe(0);
+      } finally {
+        mockRetrieve.restore();
+        mockRefund.restore();
+      }
+    });
+
+    test("a multi-item session with a now-hidden, deactivated member refunds without leaking the member name", async () => {
+      await setupStripe();
+      const visible = await createTestListing({
+        name: "Open Add-On",
+        unitPrice: 500,
+      });
+      const group = await createTestGroup({ isPackage: true, name: "Bundle" });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      // The standalone session was signed before this listing became a hidden
+      // package member; it is then deactivated, so per-item validation fails on
+      // it. The failure message must not expose the concealed member's name.
+      const member = await createTestListing({
+        groupId: group.id,
+        name: "Concealed Member XYZ",
+        unitPrice: 500,
+      });
+      await deactivateTestListing(member.id);
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 1000,
+          id: "cs_stale_hidden_multi",
+          metadata: signMeta(
+            {
+              email: "stale@example.com",
+              items: JSON.stringify([
+                { e: visible.id, p: 500, q: 1 },
+                { e: member.id, p: 500, q: 1 },
+              ]),
+              name: "Stale Buyer",
+            },
+            1000,
+          ),
+          payment_intent: "pi_stale_hidden_multi",
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_stale_refund" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >),
+      );
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_stale_hidden_multi"),
+        );
+        const body = await response.text();
+        expect(body).not.toContain("Concealed Member XYZ");
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();

@@ -697,7 +697,6 @@ const validateAllItems = async (
   const hiddenPackage =
     intent.packageGroupId !== undefined &&
     (await getPackageDisplayById(intent.packageGroupId))?.hideListings === true;
-  const includeListingName = intent.items.length > 1 && !hiddenPackage;
   // A standalone session started before its listing joined a HIDDEN package must
   // not book the now-hidden member: its /ticket/<slug> 404s and /t/<token> would
   // render the member name/details. Detected here, failed closed after pricing so
@@ -705,6 +704,12 @@ const validateAllItems = async (
   const staleHiddenMember =
     !isPackageIntent &&
     (await getHiddenPackageMemberIds(intent.items.map((i) => i.e))).size > 0;
+  // Suppress per-member names in failure messages for BOTH hidden cases: a hidden
+  // package intent, and a stale standalone session whose listing has since become
+  // a hidden member (else a member closed/deactivated mid-checkout surfaces its
+  // name on /payment/success before the stale-member refund below runs).
+  const includeListingName =
+    intent.items.length > 1 && !hiddenPackage && !staleHiddenMember;
   const pkg = await loadPackagePricing(intent);
   const foldedChildIds = new Set(
     (intent.allocations ?? []).map((a) => a.childId),
