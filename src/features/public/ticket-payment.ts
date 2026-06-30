@@ -830,8 +830,12 @@ export const createFreeReservation = async ({
 
   const check = await ensureAllBookings(result, finalBookings.length, "public");
   if (!check.ok) {
+    // A package order must never name a member in the capacity error — a hidden
+    // package would leak the listing it concealed. Omit the name (generic
+    // message) for a package; a non-package order keeps its single listing's name.
+    const errorName = packageGroupId ? "" : selected[0]!.listing.name;
     return {
-      error: formatAtomicError(check.reason, selected[0]!.listing.name),
+      error: formatAtomicError(check.reason, errorName),
       success: false,
     };
   }

@@ -270,6 +270,44 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(1);
       expect((await getAttendeesRaw(e2.id))[0]!.quantity).toBe(2);
     });
+
+    test("a package order's capacity error omits the member name", async () => {
+      // A hidden package conceals its members, so a sellout between render and
+      // insert must not surface a member's name in the capacity error. The
+      // omission applies to every package order (packageGroupId set); the hidden
+      // package is the privacy-critical case.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Sellout Kit",
+        slug: "sellout-kit",
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 1,
+        name: "Secret Widget",
+      });
+      // Fill the member's only spot so the package reservation can't be created.
+      const first = await createAttendeeAtomic({
+        bookings: [{ listingId: member.id, quantity: 1 }],
+        email: "first@test.com",
+        name: "First",
+      });
+      if (!first.success) throw new Error("setup booking failed");
+
+      const result = await createFreeReservation({
+        contact,
+        date: null,
+        ledgerOrder: null,
+        listings: [await ticketListingFor(member.id)],
+        modifierUsages: [],
+        packageGroupId: group.id,
+        quantities: new Map([[member.id, 1]]),
+      });
+      if (result.success) throw new Error("expected a capacity failure");
+      // Generic message — never the concealed member's name.
+      expect(result.error).toContain("not enough spots available");
+      expect(result.error).not.toContain("Secret Widget");
+    });
   });
 
   describe("concurrent parent/child reservations (capacity races)", () => {

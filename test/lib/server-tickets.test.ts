@@ -538,11 +538,12 @@ describeWithEnv(
       expect(body).toContain("attachment-link");
     });
 
-    test("two separate package orders are NOT collapsed into one card", async () => {
-      // /t/a+b resolves two distinct attendees who share a package group; both
-      // cards share `tokens[0]`, so collapsing would merge them and drop the
-      // second ticket. Only a single-token order collapses, so two tokens render
-      // per booking rather than one card.
+    test("two separate package orders each collapse, hiding members, on a multi-token page", async () => {
+      // /t/a+b resolves two distinct attendees who share a hidden package. Each
+      // card carries its OWN attendee token, so package collapsing keys buckets by
+      // (token, package): both orders collapse to a package card (member name
+      // hidden) yet stay two distinct cards with their own check-in QRs. Keying on
+      // a shared `tokens[0]` used to disable collapsing here and leak the member.
       const { group, widget } = await hiddenOneMemberPackage();
       const book = async (email: string) => {
         const result = await createAttendeeAtomic({
@@ -558,8 +559,13 @@ describeWithEnv(
       const tokenB = await book("b@test.com");
 
       const body = await fetchTicketBody(`${tokenA}+${tokenB}`);
+      // Two distinct package cards (one per order), each its own check-in QR…
       expect(body).toContain("2 Tickets");
-      expect(body).not.toContain("Kit Bag");
+      expect(body).toContain(`/t/${tokenA}/svg`);
+      expect(body).toContain(`/t/${tokenB}/svg`);
+      // …showing the package name, never the concealed member.
+      expect(body).toContain("Kit Bag");
+      expect(body).not.toContain("Widget");
     });
 
     test("a token mixing a hidden package and a standalone booking hides only the member", async () => {
