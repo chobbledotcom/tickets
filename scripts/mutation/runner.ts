@@ -19,6 +19,7 @@ import {
   withTestHarness,
 } from "../test-harness.ts";
 import { type AssetRebuilder, createAssetRebuilder } from "./assets.ts";
+import { batchTestFiles } from "./batch.ts";
 import { applyMutant, generateMutants, type Mutant } from "./generate.ts";
 import {
   type IgnoreList,
@@ -56,7 +57,35 @@ const testEnv = (): Record<string, string> => ({
   STRIPE_MOCK_PORT: String(STRIPE_MOCK_PORT),
 });
 
-/** Run the test files once, returning the outcome and how long it took. */
+/** Run one `deno test` process over `batch`, returning its exit code. */
+const runTestBatch = async (
+  batch: string[],
+  signal: AbortSignal,
+): Promise<number> => {
+  const { code } = await new Deno.Command(Deno.execPath(), {
+    args: ["test", "--no-check", "--allow-all", ...batch],
+    cwd: projectRoot,
+    env: testEnv(),
+    signal,
+    stderr: "null",
+    stdout: "null",
+  }).output();
+  return code;
+};
+
+/**
+ * Run the test files once, returning the outcome and how long it took.
+ *
+ * The files are run in batches, each in its own `deno test` process, to cap how
+ * many test files a single process loads at a time — see ./batch.ts for why the
+ * local libsql driver's per-transaction fd leak makes a one-big-process run
+ * spike past the open-file ceiling ("Too many open files"). A fresh process per
+ * batch releases every fd on exit, so the peak stays bounded by one batch.
+ *
+ * A non-zero batch is enough to decide the run: it fails the baseline, or kills
+ * a mutant, so the remaining batches are skipped. All batches share one timeout
+ * and abort signal, so a mutant that hangs is still caught as "timed-out".
+ */
 const runTests = async (
   testFiles: string[],
   timeoutMs: number,
@@ -68,21 +97,15 @@ const runTests = async (
   if (abortSignal?.aborted) controller.abort();
   else abortSignal?.addEventListener("abort", onAbort, { once: true });
   const startedAt = performance.now();
+  const elapsed = (): number => performance.now() - startedAt;
   try {
-    const { code } = await new Deno.Command(Deno.execPath(), {
-      args: ["test", "--no-check", "--allow-all", ...testFiles],
-      cwd: projectRoot,
-      env: testEnv(),
-      signal: controller.signal,
-      stderr: "null",
-      stdout: "null",
-    }).output();
-    return {
-      durationMs: performance.now() - startedAt,
-      outcome: code === 0 ? "passed" : "failed",
-    };
+    for (const batch of batchTestFiles(testFiles)) {
+      const code = await runTestBatch(batch, controller.signal);
+      if (code !== 0) return { durationMs: elapsed(), outcome: "failed" };
+    }
+    return { durationMs: elapsed(), outcome: "passed" };
   } catch {
-    return { durationMs: performance.now() - startedAt, outcome: "timed-out" };
+    return { durationMs: elapsed(), outcome: "timed-out" };
   } finally {
     clearTimeout(timer);
     abortSignal?.removeEventListener("abort", onAbort);
