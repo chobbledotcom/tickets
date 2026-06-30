@@ -12,7 +12,9 @@ describeWithEnv("custom.css handler", { db: true, triggers: true }, () => {
     const res = await customCss();
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/css");
-    expect(res.headers.get("cache-control")).toBe("public, max-age=3600");
+    expect(res.headers.get("cache-control")).toBe(
+      "public, max-age=31536000, immutable",
+    );
     expect(await res.text()).toBe("");
   });
 

@@ -1435,6 +1435,17 @@ const settingsBase = {
     underlineLinks: boolUpdate(CONFIG_KEYS.UNDERLINE_LINKS, "underline_links"),
   },
   updateUserPassword,
+  /**
+   * The settings version the loaded snapshot is stamped at (`-1` before any
+   * load). Synchronous — it reads the in-memory cache stamp, not the DB — so it
+   * is safe to call during a render. Used to cache-bust assets whose body is a
+   * setting (e.g. /custom.css): every settings write bumps this counter, so a
+   * URL keyed on it changes whenever any setting changes, letting the asset be
+   * served immutable while edits still appear on the next request.
+   */
+  get version(): number {
+    return getCacheState().version;
+  },
   withCurrentTask,
 };
 
