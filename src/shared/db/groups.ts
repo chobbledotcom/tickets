@@ -318,6 +318,23 @@ export const getPackageDisplayById = async (
     : { hideListings: group.hide_package_listings, name: group.name };
 };
 
+/** The package displays for a set of (possibly repeated or zero)
+ * `package_group_id`s — only ids naming a live package appear in the map. Lets
+ * the ticket view collapse each token's package rows into one card per package,
+ * so an attendee holding both a package booking and a standalone one (e.g. after
+ * an attendee merge) doesn't fall back to per-row cards that leak a hidden member.
+ * Groups are cached, so the per-id resolution is cheap. */
+export const getPackageDisplaysByIds = async (
+  groupIds: readonly number[],
+): Promise<Map<number, PackageDisplay>> => {
+  const result = new Map<number, PackageDisplay>();
+  for (const id of new Set(groupIds)) {
+    const display = await getPackageDisplayById(id);
+    if (display) result.set(id, display);
+  }
+  return result;
+};
+
 /** The single package id every booking in an order shares, or null. Returns the
  * id only when the list is non-empty and every entry carries the SAME non-zero
  * `package_group_id`; a mixed set (some 0, or differing ids) is not one package

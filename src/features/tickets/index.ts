@@ -14,7 +14,7 @@ import {
   withTokenRateLimit,
 } from "#routes/tickets/token-utils.ts";
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
-import { getPackageDisplayForBookings } from "#shared/db/groups.ts";
+import { getPackageDisplaysByIds } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
@@ -55,25 +55,25 @@ const handleTicketView = withResolvedEntries(async (entries, tokens) => {
   const cards = await Promise.all(
     entries.map((entry) => buildTicketCard(entry, token)),
   );
-  // When a SINGLE order's bookings all carry the same persisted package group
-  // id, render the bundle as one package card (members grouped, or hidden)
-  // instead of one card per member, sharing the order's QR token. Only a
-  // single-token URL is one order: `/t/a+b` resolves two separate attendees
-  // who happen to share a package group, and collapsing them would drop the
-  // second ticket's check-in token — so those render normally per booking. A
-  // standalone order of the same listings has group id 0 and renders normally.
-  const packageInfo =
+  // Collapse each package's rows into one card (members grouped, or hidden),
+  // keyed by (token, package) so a token mixing a package booking with a
+  // standalone one — e.g. after an attendee merge — still hides the package's
+  // members instead of falling back to per-row cards that leak a hidden member.
+  // Only a single-token URL is one order: `/t/a+b` shares `tokens[0]` across both
+  // attendees' cards, so collapsing there would merge them and drop a check-in
+  // token — those render per booking, as before.
+  const packageDisplays =
     tokens.length === 1
-      ? await getPackageDisplayForBookings(
+      ? await getPackageDisplaysByIds(
           entries.map((e) => e.attendee.package_group_id),
         )
-      : null;
+      : new Map();
   return htmlResponse(
     ticketViewPage(
       cards,
       settings.appleWallet.hasConfig,
       settings.googleWallet.hasConfig,
-      packageInfo,
+      packageDisplays,
     ),
   );
 });

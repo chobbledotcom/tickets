@@ -514,10 +514,10 @@ describeWithEnv(
     });
 
     test("two separate package orders are NOT collapsed into one card", async () => {
-      // /t/a+b resolves two distinct attendees who happen to share a package
-      // group; collapsing them would render a single package card and drop the
+      // /t/a+b resolves two distinct attendees who share a package group; both
+      // cards share `tokens[0]`, so collapsing would merge them and drop the
       // second ticket. Only a single-token order collapses, so two tokens render
-      // normally (each booking as its own card) rather than one hidden package.
+      // per booking rather than one card.
       const { group, widget } = await hiddenOneMemberPackage();
       const book = async (email: string) => {
         const result = await createAttendeeAtomic({
@@ -533,10 +533,37 @@ describeWithEnv(
       const tokenB = await book("b@test.com");
 
       const body = await fetchTicketBody(`${tokenA}+${tokenB}`);
-      // Two cards, rendered normally — not collapsed into one hidden package.
       expect(body).toContain("2 Tickets");
-      expect(body).toContain("Widget");
       expect(body).not.toContain("Kit Bag");
+    });
+
+    test("a token mixing a hidden package and a standalone booking hides only the member", async () => {
+      // After an attendee merge, one token can carry both a hidden-package row and
+      // a normal row. The package collapses (member hidden) while the standalone
+      // booking still renders — the mixed set must not fall back to per-row cards.
+      const { group, widget } = await hiddenOneMemberPackage();
+      const standalone = await createTestListing({ name: "Standalone Ticket" });
+      const result = await createAttendeeAtomic({
+        bookings: [
+          { listingId: widget.id, quantity: 1 },
+          { listingId: standalone.id, quantity: 1 },
+        ],
+        email: "merged@test.com",
+        name: "Merged",
+        packageGroupId: group.id,
+      });
+      if (!result.success) throw new Error("booking failed");
+      // The widget row is a package member; null the standalone row's package id.
+      const { getDb } = await import("#shared/db/client.ts");
+      await getDb().execute({
+        args: [standalone.id],
+        sql: "UPDATE listing_attendees SET package_group_id = 0 WHERE listing_id = ?",
+      });
+
+      const body = await fetchTicketBody(result.attendees[0]!.ticket_token);
+      expect(body).toContain("Kit Bag");
+      expect(body).toContain("Standalone Ticket");
+      expect(body).not.toContain("Widget");
     });
 
     test("a FREE public package checkout stamps package_group_id and collapses the ticket", async () => {

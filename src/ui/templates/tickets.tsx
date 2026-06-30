@@ -2,7 +2,6 @@
  * Ticket view page template - displays attendee ticket information with QR code
  */
 
-import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -222,26 +221,57 @@ const renderTicketCard = (
  * Ticket view page - shows individual cards for each ticket with its own QR code
  * The QR code encodes the /checkin/:token URL for admin scanning
  */
+/** Group key for collapsing a package booking into one card: rows sharing a
+ * token AND a (real) package id are one card. Keying on the token too keeps two
+ * attendees who share a package (`/t/a+b`) as separate cards — each with its own
+ * check-in QR — rather than merging them and dropping a token. */
+const packageCardKey = (card: TicketCard): string =>
+  `${card.token} ${card.entry.attendee.package_group_id}`;
+
 export const ticketViewPage = (
   cards: TicketCard[],
   appleWalletEnabled = false,
   googleWalletEnabled = false,
-  packageInfo: PackageDisplay | null = null,
+  packageDisplays: ReadonlyMap<number, PackageDisplay> = new Map(),
 ): string => {
-  const cardHtml = packageInfo
-    ? renderPackageCard(cards, packageInfo)
-    : pipe(
-        map((card: TicketCard) =>
-          renderTicketCard(card, appleWalletEnabled, googleWalletEnabled),
-        ),
-        (c) => c.join(""),
-      )(cards);
+  // Resolve each card's package display (only for a real, non-zero package id),
+  // and bucket the package rows by (token, package) so each bucket renders as one
+  // package card. A row with no display renders as its own normal card — so a
+  // token mixing a hidden package with a standalone booking collapses the package
+  // (hiding its members) while still showing the standalone ticket.
+  const displayFor = (card: TicketCard): PackageDisplay | undefined =>
+    packageDisplays.get(card.entry.attendee.package_group_id);
+  const buckets = new Map<string, TicketCard[]>();
+  for (const card of cards) {
+    if (!displayFor(card)) continue;
+    const key = packageCardKey(card);
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(card);
+    else buckets.set(key, [card]);
+  }
+  const rendered = new Set<string>();
+  const htmlParts: string[] = [];
+  for (const card of cards) {
+    const display = displayFor(card);
+    if (display) {
+      const key = packageCardKey(card);
+      if (rendered.has(key)) continue;
+      rendered.add(key);
+      htmlParts.push(renderPackageCard(buckets.get(key)!, display));
+    } else {
+      htmlParts.push(
+        renderTicketCard(card, appleWalletEnabled, googleWalletEnabled),
+      );
+    }
+  }
+  const cardHtml = htmlParts.join("");
 
   const allPurchaseOnly = cards.every((c) => c.entry.listing.purchase_only);
-  // A package is one card, so don't reveal the member count in the heading.
+  // Each package collapses to one card, so count rendered cards (not member rows)
+  // in the heading rather than revealing a package's member count.
   const heading = allPurchaseOnly
     ? "Your Purchase"
-    : ticketCount(packageInfo ? 1 : cards.length);
+    : ticketCount(htmlParts.length);
   const title = allPurchaseOnly ? "Your Purchase" : t("tickets.title");
 
   return String(
