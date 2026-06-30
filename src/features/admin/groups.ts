@@ -34,12 +34,12 @@ import {
   hiddenPackageHasBookings,
   isGroupSlugTaken,
   type PackageMemberInput,
+  packageMemberEdgesOk,
   resetGroupListings,
   setGroupPackageMembers,
   validateGroupListingType,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { hasParentChildEdge } from "#shared/db/listing-parents.ts";
 import { getAttendeesByListingIds, getListing } from "#shared/db/listings.ts";
 import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -54,6 +54,7 @@ import {
   type AdminSession,
   type Attendee,
   type Group,
+  isPackageableListing,
   isPaidListing,
   type ListingType,
   type ListingWithCount,
@@ -90,28 +91,18 @@ const validateGroupSlug: GroupValidator = async (input, id) => {
   return taken ? t("error.slug_in_use_group") : null;
 };
 
-/** A package prices each member individually and the buyer picks a single
- * package quantity, so every member must be a plain standard listing with a
- * single fixed price: daily listings (date-driven), `customisable_days`, and
- * `can_pay_more` listings (price chosen at booking time) cannot be packaged. */
-const isPackageable = (listing: {
-  listing_type: ListingType;
-  customisable_days: boolean;
-  can_pay_more: boolean;
-}): boolean =>
-  listing.listing_type === "standard" &&
-  !listing.customisable_days &&
-  !listing.can_pay_more;
-
-/** Whether a listing can be a package member: a plain standard listing (see
- * {@link isPackageable}) that is not part of any parent/child relationship. */
+/** Whether a listing can be a package member: a plain standard fixed-price
+ * listing ({@link isPackageableListing}) whose parent/child edges are compatible
+ * with riding inside a flat package page ({@link packageMemberEdgesOk}) — it is
+ * not a child of anything, and any child it requires is a single packageable
+ * listing auto-included with the member (Stage 0 auto-include). */
 const isPackageableMember = async (listing: {
   id: number;
   listing_type: ListingType;
   customisable_days: boolean;
   can_pay_more: boolean;
 }): Promise<boolean> =>
-  isPackageable(listing) && !(await hasParentChildEdge(listing.id));
+  isPackageableListing(listing) && (await packageMemberEdgesOk(listing.id));
 
 /** Reject marking a group as a package when any current member can't be packaged
  * (see {@link isPackageableMember}). A falsy `isPackage` is always fine. Returns
@@ -462,7 +453,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
 
 /** Validate that all listing types match the group; returns error message or
  * null. When the group is a package, also reject listings that can't be packaged
- * (customisable-day or pay-what-you-want listings — see {@link isPackageable}). */
+ * (see {@link isPackageableMember}). */
 const validateListingTypesForGroup = async (
   groupId: number,
   listingIds: number[],

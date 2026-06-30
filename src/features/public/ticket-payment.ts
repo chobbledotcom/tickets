@@ -1172,14 +1172,20 @@ export const getTicketContext = async (
   // no extra query.
   const packageMaps =
     group?.is_package === true ? await loadPackageMemberMaps(group.id) : null;
-  // Every CAPPED group the package members belong to bounds the bundle count:
-  // one package consumes the sum of its members' fixed quantities from each such
-  // group. Load each member's group ids and the remaining for every group any
-  // member sits in (not just the package's own group), so a second capped group
-  // the members happen to share also clamps the advertised package count.
+  // Every CAPPED group a bundle LEAF belongs to bounds the bundle count: one
+  // package consumes the sum of its leaves' per-package quantities from each such
+  // group. Leaves are the members AND each member-parent's auto-included children
+  // (Stage 0), so include the children's listing ids — a capped group the child
+  // sits in clamps the package just as a member's own group does. Load each
+  // leaf's group ids and the remaining for every group any leaf sits in (not just
+  // the package's own group).
+  const packageLeafIds = [
+    ...listingIds,
+    ...childListingIdsOf(childrenByParentId),
+  ];
   const packageMemberGroupIds =
     group?.is_package === true
-      ? await getGroupIdsByListingIds(listingIds)
+      ? await getGroupIdsByListingIds(packageLeafIds)
       : new Map<number, number[]>();
   const packageGroupRemainingByGroupId =
     group?.is_package === true

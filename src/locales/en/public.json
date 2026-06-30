@@ -61,6 +61,7 @@
   "public.multi.select_tickets": "Select Tickets",
   "public.multi.reserve_tickets": "Reserve Tickets",
   "public.package.quantity": "Number of packages",
+  "public.package.includes": "Includes",
   "public.not_found.title": "Not Found",
   "public.not_found.heading": "Not Found",
   "public.temporary_error.title": "Temporary Error",

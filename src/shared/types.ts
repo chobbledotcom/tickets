@@ -138,6 +138,18 @@ export const isPaidListing = (
   (listing.customisable_days &&
     Object.values(listing.day_prices).some((price) => price > 0));
 
+/** Whether a listing can be a package member (or a package member-parent's
+ * auto-included child): a plain standard listing with a single fixed price.
+ * Daily listings are date-driven; `customisable_days` and `can_pay_more`
+ * listings have a price chosen at booking time — none of these can be priced or
+ * laid out on the flat package page, so each is barred from packages. */
+export const isPackageableListing = (
+  listing: Pick<Listing, "listing_type" | "customisable_days" | "can_pay_more">,
+): boolean =>
+  listing.listing_type === "standard" &&
+  !listing.customisable_days &&
+  !listing.can_pay_more;
+
 /** True when an attendee/booking row is a real ticket (quantity ≥ 1) rather than
  * the no-quantity sentinel (quantity 0). The shared "is this a real ticket, not a
  * ghost" test for the readers, rosters, and exports that must skip sentinel rows —

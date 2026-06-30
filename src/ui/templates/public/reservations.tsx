@@ -1041,28 +1041,54 @@ const renderListingRow = (
   `;
 };
 
+/** The "Includes: ChildName ×qty" line a package member-parent shows for each of
+ * its auto-included children, which ride along inside the member row rather than
+ * as their own member rows (Stage 0 auto-include). Each child folds at the
+ * member's per-package quantity, so it carries that same `fixedQty`. Empty when
+ * the member has no auto-included children. */
+const renderAutoIncludedChildren = (
+  children: TicketListing[] | undefined,
+  fixedQty: number,
+): string =>
+  children && children.length > 0
+    ? `<div class="package-member-includes">${t(
+        "public.package.includes",
+      )}: ${children
+        .map(
+          (child) =>
+            `${escapeHtml(child.listing.name)} <span class="package-member-qty">&times;${fixedQty}</span>`,
+        )
+        .join(", ")}</div>`
+    : "";
+
 /** A package member row: name + fixed per-package quantity, read-only — the
- * buyer chooses the package count, not per-member quantities. */
+ * buyer chooses the package count, not per-member quantities. A member-parent's
+ * auto-included children ride along inside the row as an "Includes" line. */
 const renderPackageMemberRow = (
   info: TicketListing,
   fixedQty: number,
+  children: TicketListing[] | undefined,
 ): string => `
     <div class="ticket-row package-member">
       ${renderListingImage(info.listing)}
       <label>${escapeHtml(info.listing.name)} <span class="package-member-qty">&times;${fixedQty}</span></label>
       ${renderListingDescription(info.listing.description)}
+      ${renderAutoIncludedChildren(children, fixedQty)}
     </div>
   `;
 
 /** A package booking page's listing area: the single "number of packages"
- * selector, then each member row (each showing its fixed quantity) — unless the
- * package hides its listings from buyers, in which case only the selector shows.
- * `cap` is the most packages the tightest member's capacity allows. */
+ * selector, then each member row (each showing its fixed quantity, plus any
+ * auto-included children riding along) — unless the package hides its listings
+ * from buyers, in which case only the selector shows and the auto-included
+ * children stay concealed with the rest. `cap` is the most packages the tightest
+ * member's capacity allows. */
 const renderPackageRows = (
   listings: TicketListing[],
   quantities: ReadonlyMap<number, number>,
   cap: number,
   hide: boolean,
+  childrenByParentId: ReadonlyMap<number, TicketListing[]> | undefined,
 ): string => {
   // Every member listing id, so the client knows which listing-scoped questions
   // to show/require once a package is selected — even when members are hidden and
@@ -1078,46 +1104,86 @@ const renderPackageRows = (
     ? ""
     : listings
         .map((e) =>
-          renderPackageMemberRow(e, quantities.get(e.listing.id) ?? 1),
+          renderPackageMemberRow(
+            e,
+            quantities.get(e.listing.id) ?? 1,
+            childrenByParentId?.get(e.listing.id),
+          ),
         )
         .join("");
   return selector + members;
 };
 
-/** The most packages the buyer can order. Two kinds of bound apply: each
- * member's own remaining capacity divided by how many of it one package includes
- * (a closed/sold-out member has `maxPurchasable` 0, capping the package at 0);
- * and every CAPPED group its members belong to — one package consumes the SUM of
- * its members' fixed quantities from each such group, so that pool fits
- * `floor(remaining / demand)` packages. The package's own group is just one such
- * group; a second group some members also share is bounded the same way (Codex),
- * without which two members sharing a near-full pool would each look individually
- * available while fewer whole packages actually fit. Exported so the submit path
- * clamps the posted count to the same ceiling. */
+/** Every leaf one package consumes, mapped to its per-package quantity: each
+ * member at its fixed quantity, PLUS each member-parent's auto-included child at
+ * that same quantity (the sole child auto-fills to the parent's booked quantity,
+ * so per package it consumes the parent's fixed count too — Stage 0). Summed and
+ * deduped by listing id, so a child reachable under two members consumes its pool
+ * once per package. Each leaf's `TicketListing` is kept for its `maxPurchasable`.
+ */
+const packageBundleLeaves = (
+  members: TicketListing[],
+  quantities: ReadonlyMap<number, number>,
+  childrenByParentId: ReadonlyMap<number, TicketListing[]> | undefined,
+): { demand: Map<number, number>; listings: TicketListing[] } => {
+  const demand = new Map<number, number>();
+  const byId = new Map<number, TicketListing>();
+  const add = (leaf: TicketListing, qty: number) => {
+    demand.set(leaf.listing.id, (demand.get(leaf.listing.id) ?? 0) + qty);
+    byId.set(leaf.listing.id, leaf);
+  };
+  for (const member of members) {
+    const qty = quantities.get(member.listing.id) ?? 1;
+    add(member, qty);
+    for (const child of childrenByParentId?.get(member.listing.id) ?? []) {
+      add(child, qty);
+    }
+  }
+  return { demand, listings: [...byId.values()] };
+};
+
+/** The most packages the buyer can order. Two kinds of bound apply over every
+ * bundle leaf — each member AND each member-parent's auto-included child
+ * ({@link packageBundleLeaves}): each leaf's own remaining capacity divided by
+ * how many of it one package includes (a closed/sold-out member or child has
+ * `maxPurchasable` 0, capping the package at 0); and every CAPPED group a leaf
+ * belongs to — one package consumes the SUM of its leaves' per-package quantities
+ * from each such group, so that pool fits `floor(remaining / demand)` packages.
+ * The package's own group is just one such group; a second group some leaves also
+ * share is bounded the same way (Codex), without which two leaves sharing a
+ * near-full pool would each look individually available while fewer whole packages
+ * actually fit. Exported so the submit path clamps the posted count to the same
+ * ceiling. */
 export const packageQuantityCap = (
   listings: TicketListing[],
   quantities: ReadonlyMap<number, number>,
   groupRemainingByGroupId: ReadonlyMap<number, number>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
+  childrenByParentId?: ReadonlyMap<number, TicketListing[]>,
 ): number => {
-  const qtyOf = (e: TicketListing) => quantities.get(e.listing.id) ?? 1;
-  const perMember = Math.min(
-    ...listings.map((e) => Math.floor(e.maxPurchasable / qtyOf(e))),
+  const { demand, listings: leaves } = packageBundleLeaves(
+    listings,
+    quantities,
+    childrenByParentId,
   );
-  // Combined per-package demand against each capped group its members sit in.
+  const perLeaf = Math.min(
+    ...leaves.map((e) =>
+      Math.floor(e.maxPurchasable / demand.get(e.listing.id)!),
+    ),
+  );
+  // Combined per-package demand against each capped group any leaf sits in.
   const demandByGroup = new Map<number, number>();
-  for (const e of listings) {
-    const q = qtyOf(e);
-    for (const groupId of groupIdsByListingId.get(e.listing.id) ?? []) {
+  for (const [listingId, q] of demand) {
+    for (const groupId of groupIdsByListingId.get(listingId) ?? []) {
       if (!groupRemainingByGroupId.has(groupId)) continue; // uncapped
       demandByGroup.set(groupId, (demandByGroup.get(groupId) ?? 0) + q);
     }
   }
-  let cap = perMember;
-  for (const [groupId, demand] of demandByGroup) {
+  let cap = perLeaf;
+  for (const [groupId, d] of demandByGroup) {
     cap = Math.min(
       cap,
-      groupPoolUnits(groupRemainingByGroupId.get(groupId)!, demand),
+      groupPoolUnits(groupRemainingByGroupId.get(groupId)!, d),
     );
   }
   return cap;
@@ -1618,6 +1684,7 @@ const buildPageListingRows = (opts: {
   hideQuantity: boolean;
   prefill?: BookingPrefill | undefined;
   childCtx?: ChildRenderCtx | undefined;
+  childrenByParentId?: ReadonlyMap<number, TicketListing[]> | undefined;
 }): string => {
   if (opts.isPackage) {
     const quantities = opts.packageQuantities ?? new Map<number, number>();
@@ -1626,6 +1693,7 @@ const buildPageListingRows = (opts: {
       quantities,
       opts.packageCap,
       opts.hidePackageListings,
+      opts.childrenByParentId,
     );
   }
   return buildListingRows(
@@ -1650,6 +1718,7 @@ const packagePageAvailability = (
   packageQuantities: ReadonlyMap<number, number> | null | undefined,
   groupRemainingByGroupId: ReadonlyMap<number, number>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
+  childrenByParentId: ReadonlyMap<number, TicketListing[]> | undefined,
 ): { packageCap: number; soldOut: boolean } => {
   const cap = isPackage
     ? packageQuantityCap(
@@ -1657,6 +1726,7 @@ const packagePageAvailability = (
         packageQuantities ?? new Map(),
         groupRemainingByGroupId,
         groupIdsByListingId,
+        childrenByParentId,
       )
     : null;
   const membersUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
@@ -1712,6 +1782,7 @@ export const ticketPage = ({
     packageQuantities,
     packageGroupRemainingByGroupId,
     packageMemberGroupIds,
+    childrenByParentId,
   );
   const allClosed = listings.every((e) => e.isClosed);
   const fields: Field[] = buildContactFields(
@@ -1748,6 +1819,7 @@ export const ticketPage = ({
   // rows (each ×its fixed quantity); other pages show per-listing controls.
   const listingRows = buildPageListingRows({
     childCtx,
+    childrenByParentId,
     hidePackageListings,
     hideQuantity,
     isPackage,

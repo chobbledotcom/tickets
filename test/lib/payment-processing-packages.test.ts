@@ -44,6 +44,15 @@ describe("expectedItemPrice (package revalidation)", () => {
   test("a package whose group was deleted/unflagged fails closed", () => {
     expect(expectedItemPrice(null, true, new Set(), item(1), 5000)).toBeNull();
   });
+
+  test("an auto-included child (not a member) keeps its base price", () => {
+    // The Stage 0 auto-included child rides in via the parent's edge, so it is
+    // NOT a package member — yet it is in the allocations (foldedChildIds), so it
+    // is revalidated at its own base price, never failed closed as a non-member.
+    expect(expectedItemPrice(pkg, true, new Set([7]), item(7, 2), 800)).toBe(
+      800,
+    );
+  });
 });
 
 describe("packageBundleMismatch (order-level revalidation)", () => {

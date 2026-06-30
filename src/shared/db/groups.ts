@@ -18,14 +18,16 @@ import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
-import { queryListingsWithCounts } from "#shared/db/listings.ts";
+import { edgeIdsTouching } from "#shared/db/listing-parents.ts";
+import { getListing, queryListingsWithCounts } from "#shared/db/listings.ts";
 import { queryAndMap } from "#shared/db/query.ts";
 import { col } from "#shared/db/table.ts";
-import type {
-  Group,
-  GroupListing,
-  ListingType,
-  ListingWithCount,
+import {
+  type Group,
+  type GroupListing,
+  isPackageableListing,
+  type ListingType,
+  type ListingWithCount,
 } from "#shared/types.ts";
 
 /** Groups are few, so the cache loads the whole set and answers by-id / by-slug
@@ -308,19 +310,51 @@ export const isHiddenPackageMember = async (
   listingId: number,
 ): Promise<boolean> => (await getHiddenPackageMemberIds([listingId])).size > 0;
 
-/** Whether adding child edges would violate the package invariant: the parent is
- * joining/in a package group, or any chosen child is itself a package member —
- * either way the package page can't render the resulting bundle. An empty
- * `childIds` (clearing children) is never a conflict. */
+/** Whether a parent's would-be child set is deterministic enough to ride along
+ * inside a flat package page (Stage 0 auto-include): at most ONE child, itself a
+ * plain standard listing (so the sole-child branch auto-fills it to the parent's
+ * quantity with no date/duration/pay-more ambiguity). More than one child, or a
+ * non-packageable child, is non-deterministic and waits for Stage 4. An empty
+ * child set (a plain member, or clearing edges) is trivially deterministic. */
+export const packageChildrenDeterministic = async (
+  childIds: readonly number[],
+): Promise<boolean> => {
+  if (childIds.length === 0) return true;
+  if (childIds.length > 1) return false;
+  const child = await getListing(childIds[0]!);
+  return child !== null && isPackageableListing(child);
+};
+
+/** Whether a listing's parent/child edges allow it to be a package member: it is
+ * not itself a child of anything (a child is only bookable under its parent, so a
+ * package page — which books members directly — can't offer it; invariant I3),
+ * and its own children are deterministic enough to auto-include
+ * ({@link packageChildrenDeterministic}). The member listing's own type
+ * (standard/fixed-price) is the caller's separate check. */
+export const packageMemberEdgesOk = async (
+  listingId: number,
+): Promise<boolean> => {
+  const { childIds, parentIds } = await edgeIdsTouching(listingId);
+  if (parentIds.length > 0) return false;
+  return packageChildrenDeterministic(childIds);
+};
+
+/** Whether adding child edges would violate the package invariant. Three ways:
+ * a chosen child is itself a package member (a child can't be booked standalone,
+ * so it can't be a member); or the parent is joining/in a package group and the
+ * resulting children are non-deterministic ({@link packageChildrenDeterministic}
+ * — more than one, or a non-packageable child) so the flat package page can't
+ * ride them along. A parent in a package may keep a single packageable child
+ * (Stage 0 auto-include). An empty `childIds` (clearing children) is never a
+ * conflict. */
 export const packageChildEdgeConflict = async (
   parentGroupIds: readonly number[],
   childIds: readonly number[],
 ): Promise<boolean> => {
   if (childIds.length === 0) return false;
-  return (
-    (await anyPackageGroup(parentGroupIds)) ||
-    (await anyListingInPackageGroup(childIds))
-  );
+  if (await anyListingInPackageGroup(childIds)) return true;
+  if (!(await anyPackageGroup(parentGroupIds))) return false;
+  return !(await packageChildrenDeterministic(childIds));
 };
 
 /** Package-group display info for grouping a booking's lines under the package

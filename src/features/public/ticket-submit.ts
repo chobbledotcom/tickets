@@ -583,6 +583,7 @@ const resolvePageQuantities = (
     packageQuantities,
     ctx.packageGroupRemainingByGroupId,
     ctx.packageMemberGroupIds,
+    ctx.childrenByParentId,
   );
   const packageQty = Math.max(0, Math.min(parsePackageCount(form), cap));
   const quantities = new Map<number, number>();

@@ -432,7 +432,7 @@ describeWithEnv(
       expect(row?.quantity).toBe(2);
     });
 
-    test("duplicating a parent into a package drops the inherited children", async () => {
+    test("duplicating a parent into a package carries its sole packageable child", async () => {
       const group = await createTestGroup({ isPackage: true, name: "Pkg" });
       const child = await createTestListing({ name: "Child" });
       const parent = await createTestListing({
@@ -447,14 +447,15 @@ describeWithEnv(
         group.id,
       );
 
-      // The copy is a valid package member, so it must NOT inherit the parent's
-      // required children — that combination violates the package invariant.
+      // Stage 0 auto-include: a package member-parent's sole packageable child
+      // rides along, so the copy stays a member AND keeps its auto-include gate
+      // (referencing the same existing child).
       expect(
         (await getGroupPackagePrices(group.id)).some(
           (r) => r.listing_id === copy.id,
         ),
       ).toBe(true);
-      expect(await getChildIds(copy.id)).toEqual([]);
+      expect(await getChildIds(copy.id)).toEqual([child.id]);
     });
   },
 );

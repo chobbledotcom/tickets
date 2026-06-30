@@ -24,11 +24,7 @@ import {
   checkGroupCapAfterDurationChange,
   recomputeListingBookingRanges,
 } from "#shared/db/attendees.ts";
-import {
-  anyListingInPackageGroup,
-  getAllGroups,
-  getGroupIdsByListingId,
-} from "#shared/db/groups.ts";
+import { getAllGroups, getGroupIdsByListingId } from "#shared/db/groups.ts";
 import { getChildIds } from "#shared/db/listing-parents.ts";
 import {
   adjustListingIncome,
@@ -157,16 +153,11 @@ const copyEdgesFromDuplicateSource = async (
   // here we only carry the parent/child gate.
   const childIds = await getChildIds(sourceId);
   if (childIds.length === 0) return null;
-  // A package member can't gate required children (the package page renders no
-  // per-child selectors), so a copy that joined a package group must not inherit
-  // the source's child edges — keep it a valid package member and tell the
-  // operator the gate wasn't carried over, mirroring the children endpoint's
-  // package invariant that the create path would otherwise bypass.
-  if (await anyListingInPackageGroup([newId])) {
-    return t("listings_table.duplicate_children_dropped", {
-      reason: t("error.package_member_no_children"),
-    });
-  }
+  // A package member-parent legitimately auto-includes a single packageable child
+  // (Stage 0), so the copy — which joined the same package group — carries the
+  // edge through the validated path below like any other duplicate; the save-time
+  // invariant already guarantees the source's child set is package-deterministic,
+  // so there is no package-incompatible edge to defend against here.
   // The copy was just created in this request, so it always loads.
   const newListing = (await getListingWithCount(newId))!;
   const error = await copyDuplicatedChildEdges(newListing, childIds);

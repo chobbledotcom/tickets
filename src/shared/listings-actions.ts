@@ -9,15 +9,17 @@ import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
+  anyListingInPackageGroup,
   getGroupIdsByListingIds,
   groupsTable,
+  packageMemberEdgesOk,
   validateGroupListingType,
 } from "#shared/db/groups.ts";
 import {
   edgeIncompatibilityAfterChange,
   firstTouchingEdgeError,
   getChildListingIds,
-  hasParentChildEdge,
+  getParentIds,
 } from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,
@@ -39,6 +41,7 @@ import { generateUniqueSlug } from "#shared/slug.ts";
 import { deleteListingStorageFiles } from "#shared/storage.ts";
 import {
   type Group,
+  isPackageableListing,
   type Listing,
   type ListingWithCount,
   normalizeDurationDays,
@@ -75,8 +78,9 @@ type ListingUpdateCheck = (
  * listing form/API can't smuggle an incompatible listing into a package. */
 /** The package-membership error for a listing joining `group`, or null when the
  * group isn't a package or the listing is a valid member. A package member must
- * be a plain standard listing (not daily/pay-more/customisable) AND free of
- * parent/child edges — the package page renders no per-child selectors, mirroring
+ * be a plain standard listing (not daily/pay-more/customisable) AND have
+ * package-compatible edges — not a child of anything, and at most one packageable
+ * child it auto-includes (Stage 0; see {@link packageMemberEdgesOk}), mirroring
  * the group-side invariant. (Brand-new child edges submitted on the same write
  * are caught before the row commits in the API's prepareChildEdges.) */
 const packageMembershipError = async (
@@ -86,7 +90,7 @@ const packageMembershipError = async (
 ): Promise<string | null> => {
   if (!group.is_package) return null;
   if (incompatibleByType) return t("error.package_incompatible_listing");
-  if (existingId !== undefined && (await hasParentChildEdge(existingId))) {
+  if (existingId !== undefined && !(await packageMemberEdgesOk(existingId))) {
     return t("error.package_incompatible_listing");
   }
   return null;
@@ -268,12 +272,44 @@ const deactivationOrphanedAddOn = async (
  * no-edge page that is the only one rescuing a child-scoped add-on). No-op for
  * creates (no edges yet, and a fresh listing rescues nothing).
  */
+/**
+ * Block a type edit that would make a package member-parent's auto-included
+ * child non-packageable. The child rides inside a flat package page only while
+ * it stays a plain standard fixed-price listing; turning it daily,
+ * customisable-days, or pay-what-you-want would leave the package unable to price
+ * or lay it out. The member-side break (editing the parent itself) is caught by
+ * {@link packageMembershipError} via the parent's group set; this catches the
+ * other side — editing the CHILD — which carries no package group of its own.
+ * No-op when the would-be listing stays packageable or has no package-member
+ * parent.
+ */
+const packageChildTypeError = async (
+  input: ListingInput,
+  existingId: number,
+): Promise<string | null> => {
+  if (
+    isPackageableListing({
+      can_pay_more: input.canPayMore ?? false,
+      customisable_days: input.customisableDays ?? false,
+      listing_type: input.listingType ?? "standard",
+    })
+  ) {
+    return null;
+  }
+  const parentIds = await getParentIds(existingId);
+  return parentIds.length > 0 && (await anyListingInPackageGroup(parentIds))
+    ? t("error.package_incompatible_listing")
+    : null;
+};
+
 const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
   if (existingId === undefined) return null;
   const fieldError = await edgeIncompatibilityAfterChange(
     listingInputToEdge(input, existingId),
   );
   if (fieldError) return fieldError;
+  const childTypeError = await packageChildTypeError(input, existingId);
+  if (childTypeError) return childTypeError;
   const orphanError = await orphanedAddOnAfterChange(
     existingId,
     input.groupIds ?? [],

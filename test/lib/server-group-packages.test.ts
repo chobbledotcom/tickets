@@ -20,6 +20,7 @@ import {
   expectFlashRedirect,
   expectHtmlResponse,
   getTestPackagePrices,
+  postChildren,
 } from "#test-utils";
 
 /** Base fields the group edit form always submits. */
@@ -302,13 +303,33 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     await expectPackageRejected(group);
   });
 
-  test("edit POST rejects is_package on a group with a parent listing", async () => {
+  test("edit POST accepts is_package when a member parent has a sole packageable child", async () => {
     const group = await createTestGroup({ name: "ParentG", slug: "parent-g" });
     const parent = await member(group, "Parent Member");
     const child = await createTestListing({ name: "Child Of Parent" });
     await setChildIds(parent.id, [child.id]);
-    // A parent's per-child selectors can't render on a package page, so it
-    // can't be packaged.
+    // Stage 0 auto-include: a parent whose sole child is packageable rides its
+    // child along inside the flat package page, so it is a valid member.
+    const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
+      ...editFields("ParentG", "parent-g"),
+      is_package: "1",
+    });
+    await expectFlashRedirect(
+      `/admin/groups/${group.id}`,
+      "Group updated",
+      true,
+    )(response);
+    expect((await groupsTable.findById(group.id))!.is_package).toBe(true);
+  });
+
+  test("edit POST rejects is_package when a member parent has two children", async () => {
+    const group = await createTestGroup({ name: "TwoG", slug: "two-g" });
+    const parent = await member(group, "Two-Child Parent");
+    const a = await createTestListing({ name: "First Child" });
+    const b = await createTestListing({ name: "Second Child" });
+    await setChildIds(parent.id, [a.id, b.id]);
+    // More than one child is non-deterministic (the package page can't present a
+    // buyer choice yet — Stage 4), so it can't be packaged.
     await expectPackageRejected(group);
   });
 
@@ -397,7 +418,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     );
   });
 
-  test("the listings API rejects a parent listing joining a package group", async () => {
+  test("the listings API accepts a parent with a sole packageable child joining a package group", async () => {
     const group = await createTestGroup({
       isPackage: true,
       name: "ParentApiPkg",
@@ -406,6 +427,28 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     const parent = await createTestListing({ name: "Parent List" });
     const child = await createTestListing({ name: "Child List" });
     await setChildIds(parent.id, [child.id]);
+
+    // Stage 0 auto-include: a sole packageable child rides along, so the parent
+    // is a valid package member.
+    await assertJson(
+      apiRequest(`/api/admin/listings/${parent.id}`, {
+        body: { group_ids: [group.id] },
+        method: "PUT",
+      }),
+      200,
+    );
+  });
+
+  test("the listings API rejects a parent with two children joining a package group", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "TwoChildApiPkg",
+      slug: "two-child-api-pkg",
+    });
+    const parent = await createTestListing({ name: "Two-Child Parent" });
+    const a = await createTestListing({ name: "Child One" });
+    const b = await createTestListing({ name: "Child Two" });
+    await setChildIds(parent.id, [a.id, b.id]);
 
     await assertJson(
       apiRequest(`/api/admin/listings/${parent.id}`, {
@@ -436,7 +479,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     );
   });
 
-  test("the listings API rejects new child edges when joining a package group", async () => {
+  test("the listings API accepts a single packageable child edge when joining a package group", async () => {
     const group = await createTestGroup({
       isPackage: true,
       name: "ChildEdgePkg",
@@ -444,6 +487,8 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     });
     const child = await createTestListing({ name: "Edge Child" });
 
+    // Stage 0 auto-include: a new parent with one packageable child may join a
+    // package group — the child rides along.
     await assertJson(
       apiRequest("/api/admin/listings", {
         body: {
@@ -451,6 +496,29 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
           group_ids: [group.id],
           max_attendees: 10,
           name: "New Parent In Package",
+        },
+        method: "POST",
+      }),
+      201,
+    );
+  });
+
+  test("the listings API rejects multiple new child edges when joining a package group", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "MultiEdgePkg",
+      slug: "multi-edge-pkg",
+    });
+    const a = await createTestListing({ name: "Edge Child A" });
+    const b = await createTestListing({ name: "Edge Child B" });
+
+    await assertJson(
+      apiRequest("/api/admin/listings", {
+        body: {
+          child_listing_ids: [a.id, b.id],
+          group_ids: [group.id],
+          max_attendees: 10,
+          name: "New Multi Parent In Package",
         },
         method: "POST",
       }),
@@ -506,7 +574,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     expect(await getChildIds(parent.id)).toEqual([]);
   });
 
-  test("the children sub-form rejects giving children to a package member", async () => {
+  test("the children sub-form gives a single packageable child to a package member", async () => {
     const group = await createTestGroup({
       isPackage: true,
       name: "ChildFormPkg",
@@ -515,10 +583,26 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     const memberListing = await member(group, "Pkg Member");
     const child = await createTestListing({ name: "Would-be Child" });
 
+    // Stage 0 auto-include: a package member may gain one packageable child.
     const { response } = await adminFormPost(
       `/admin/listing/${memberListing.id}/children`,
       { child_listing_ids: String(child.id) },
     );
+    expect(response.status).toBe(302);
+    expect(await getChildIds(memberListing.id)).toEqual([child.id]);
+  });
+
+  test("the children sub-form rejects giving two children to a package member", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "TwoChildFormPkg",
+      slug: "two-child-form-pkg",
+    });
+    const memberListing = await member(group, "Pkg Member Two");
+    const a = await createTestListing({ name: "Would-be Child A" });
+    const b = await createTestListing({ name: "Would-be Child B" });
+
+    const response = await postChildren(memberListing.id, [a.id, b.id]);
     await expectFlashRedirect(
       `/admin/listing/${memberListing.id}/edit`,
       expect.stringContaining("Packages cannot contain"),
