@@ -340,9 +340,31 @@ Adding it to the group-demand maps alone is the trap.
    questions (render-the-child's-questions-under-the-parent is deferred to a later
    stage); document the rejection alongside the other admin guards.
 6. **Webhook revalidation** (`payment-processing.ts`): the auto-included child is
-   revalidated via the **normal listing-price path** (it is a base-priced folded
-   child, not a package-override member) — the same carve-out packages.md §10
-   already documents for folded children.
+   priced via the **normal listing-price path** (it is a base-priced folded child,
+   not a package-override member) — the same carve-out packages.md §10 documents.
+   But price-checking alone is **not** enough: `expectedItemPrice` returns the base
+   price for `foldedChildIds` *before* the package-membership check and
+   `packageBundleMismatch` filters folded children out, so a signed child line is
+   trusted even if the operator **removed or swapped the parent's sole child while
+   checkout was open**. Stage 0 must re-walk the **current** parent→child edge and
+   the sole-child quantity invariant at payment time and take the `price_changed`
+   refund path when the edge no longer holds — the same protection direct
+   package-member edits already get.
+7. **Discovery capacity** (`src/features/public/discovery.ts:369-397`):
+   `packageGroupBookable` feeds only direct members to `packageQuantityCap`, so
+   without the same synthetic-child expansion a package whose auto-included child
+   is sold out (or constrained by a child-only capped group) would still be
+   advertised / issued a QR while `/ticket/<group>` already caps at 0. Apply the
+   synthetic-child expansion here too, so discovery hides/re-shows the package in
+   lockstep with the ticket page.
+8. **Checkout summaries & hosted line items**: the parent-only visibility contract
+   must hold on the running total (`orderSummary`) and the Stripe/Square line items
+   too. Both build from `foldedCtx.listings` after `foldSelectedChildren`
+   (`ticket-submit.ts:691-704`) and render `line.item.name`, and the existing
+   name-hiding helper is gated only on `hidePackageListings` — so a *visible*
+   package would otherwise show the auto-included child as its own priced buyer
+   line on `/calculate` and at the provider. Stage 0 must fold the child's amount
+   into its parent's line (aggregate / rename / filter) for every priced display.
 
 ### Tickets / discovery
 
@@ -351,9 +373,11 @@ Adding it to the group-demand maps alone is the trap.
   member line or ticket card, matching the single render invariant above. So a
   hidden package conceals it and a visible package shows only the parent member.
   No new card path.
-- Discovery / `/order` / `/order.js`: the package surfaces as today; the
-  auto-included child is never independently surfaced (it has no standalone entry
-  point — it is a child).
+- Discovery / `/order` / `/order.js`: the auto-included child is never
+  independently surfaced (no standalone entry point — it is a child). Capacity is
+  **not** "as today", though — see touch-point 7: `packageGroupBookable` must run
+  the same synthetic-child expansion or discovery will advertise a package the
+  ticket page caps at 0.
 
 ### Tests (100% line + branch, mutation-resistant)
 
@@ -374,8 +398,15 @@ Adding it to the group-demand maps alone is the trap.
 - Capacity: package availability bounded by the child's own cap **even when the
   child is in no capped group** (the own-cap arm), and by the child's group pools
   (the group-demand arm); a test where the child's own cap is the tightest limit.
-- Webhook: child revalidated via the listing-price path; price drift on the child
-  triggers `price_changed`.
+- Webhook: child price drift triggers `price_changed`; **and** removing/swapping
+  the parent's sole child mid-checkout makes the stale signed child line take the
+  `price_changed` path (the edge is re-walked, not just the price).
+- Discovery: a package whose auto-included child is sold out (or whose child-only
+  capped group is full) drops from `/order`/listings and stops issuing a QR, in
+  lockstep with `/ticket/<group>` capping at 0.
+- Checkout displays: on a **visible** package, `/calculate`'s running total and the
+  Stripe/Square line items show the child folded into its parent's line, never as
+  its own buyer-facing priced line.
 - Privacy: `hide_package_listings` hides the auto-included child everywhere.
 
 ### Why this is the right interim step
