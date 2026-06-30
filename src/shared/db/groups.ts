@@ -207,6 +207,20 @@ export const getUngroupedListings = (): Promise<ListingWithCount[]> =>
     "WHERE listing.id NOT IN (SELECT listing_id FROM group_listings)",
   );
 
+/**
+ * Listings that are NOT already in the given group, with attendee counts — the
+ * candidates the group detail "add listings" form offers. Membership is
+ * many-to-many, so a listing already in another group is still a valid
+ * candidate here; only this group's current members are excluded.
+ */
+export const getListingsNotInGroup = (
+  groupId: number,
+): Promise<ListingWithCount[]> =>
+  queryListingsWithCounts(
+    "WHERE listing.id NOT IN (SELECT listing_id FROM group_listings WHERE group_id = ?)",
+    [groupId],
+  );
+
 /** The ids of every group a listing belongs to, ascending. */
 export const getGroupIdsByListingId = async (
   listingId: number,

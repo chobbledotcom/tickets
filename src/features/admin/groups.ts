@@ -29,7 +29,7 @@ import {
   getAllGroups,
   getGroupPackagePrices,
   getListingsByGroupId,
-  getUngroupedListings,
+  getListingsNotInGroup,
   groupsTable,
   hiddenPackageHasBookings,
   isGroupSlugTaken,
@@ -394,9 +394,11 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
   { id },
 ) =>
   groupPage(requireSessionOr, async (group, session) => {
-    const [listings, ungroupedListings, holidays] = await Promise.all([
+    // The add-listings form offers any listing not already in THIS group —
+    // membership is many-to-many, so a listing in another group can still join.
+    const [listings, addableListings, holidays] = await Promise.all([
       getListingsByGroupId(id),
-      getUngroupedListings(),
+      getListingsNotInGroup(id),
       getActiveHolidays(),
     ]);
     const sortedListings = sortListings(listings, holidays);
@@ -440,7 +442,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
       adminGroupDetailPage(
         group,
         sortedListings,
-        sortListings(ungroupedListings, holidays),
+        sortListings(addableListings, holidays),
         attendees,
         session,
         allowedDomain,

@@ -489,6 +489,34 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
     });
 
+    test("add-listings form offers listings from other groups, not this group's own members", async () => {
+      // Membership is many-to-many, so a listing already in another group is a
+      // valid candidate to also join this one; only this group's current members
+      // are excluded from the add form.
+      const groupA = await createTestGroup({
+        name: "Group A",
+        slug: "group-a",
+      });
+      const inOtherGroup = await createTestListing({
+        groupId: groupA.id,
+        name: "Other Group Member",
+      });
+      const target = await createTestGroup({
+        name: "Target",
+        slug: "target-g",
+      });
+      const ownMember = await createTestListing({
+        groupId: target.id,
+        name: "Target Member",
+      });
+
+      const html = await (await adminGet(`/admin/groups/${target.id}`)).text();
+      // The listing already in Group A is offered as an add candidate…
+      expect(html).toContain(`value="${inOtherGroup.id}"`);
+      // …while the target's own member is not (no add-form checkbox for it).
+      expect(html).not.toContain(`value="${ownMember.id}"`);
+    });
+
     test("group revenue comes from the ledger and survives attendee deletion", async () => {
       const { bookAttendee } = await import("#test-utils");
       const { deleteAttendee } = await import("#shared/db/attendees.ts");
