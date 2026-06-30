@@ -11,7 +11,10 @@ import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
 import type { TxScope } from "#shared/db/client.ts";
-import { setListingGroupsTx } from "#shared/db/groups.ts";
+import {
+  copyPackageMemberOverridesTx,
+  setListingGroupsTx,
+} from "#shared/db/groups.ts";
 import {
   computeSlugIndex,
   type ListingAggregateValues,
@@ -220,6 +223,18 @@ const buildListingResourceFields = (): Field[] => [
 const writeListingGroups = (tx: TxScope, id: number, input: ListingInput) =>
   setListingGroupsTx(tx, id, input.groupIds!);
 
+/** Create-only afterWrite: persist the memberships, then — for a duplicate —
+ * copy the source's package overrides onto the new membership rows in the SAME
+ * transaction, so the duplicate never commits as a live package member at the
+ * default price when the override copy fails. */
+const writeCreateListingGroups =
+  (form: FormParams) =>
+  async (tx: TxScope, id: number, input: ListingInput): Promise<void> => {
+    await writeListingGroups(tx, id, input);
+    const sourceId = form.getOptionalInt("duplicated_from");
+    if (sourceId !== null) await copyPackageMemberOverridesTx(tx, sourceId, id);
+  };
+
 /**
  * Build a per-request listings create resource whose `toInput` closes over the
  * raw form, so the dynamic `day_price_*` inputs can be read alongside the
@@ -227,7 +242,7 @@ const writeListingGroups = (tx: TxScope, id: number, input: ListingInput) =>
  */
 export const buildCreateListingResource = (form: FormParams) =>
   defineResource({
-    afterWrite: writeListingGroups,
+    afterWrite: writeCreateListingGroups(form),
     fields: buildListingResourceFields(),
     nameField: "name",
     table: listingsTable,

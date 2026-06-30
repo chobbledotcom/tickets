@@ -26,7 +26,6 @@ import {
 } from "#shared/db/attendees.ts";
 import {
   anyListingInPackageGroup,
-  copyPackageMemberOverrides,
   getAllGroups,
   getGroupIdsByListingId,
 } from "#shared/db/groups.ts";
@@ -153,10 +152,9 @@ const copyEdgesFromDuplicateSource = async (
 ): Promise<string | null> => {
   const sourceId = form.getOptionalInt("duplicated_from");
   if (sourceId === null) return null;
-  // Carry the source's per-package price/quantity onto the copy's membership
-  // rows: a duplicated package member must keep its override, not silently reset
-  // to its base price with quantity 1 and so change the bundle.
-  await copyPackageMemberOverrides(sourceId, newId);
+  // The source's per-package price/quantity is copied onto the copy's membership
+  // rows atomically in the create write's afterWrite (see buildCreateListingResource);
+  // here we only carry the parent/child gate.
   const childIds = await getChildIds(sourceId);
   if (childIds.length === 0) return null;
   // A package member can't gate required children (the package page renders no

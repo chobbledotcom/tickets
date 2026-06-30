@@ -436,22 +436,25 @@ const listingGroupDiffStatements = (
   current: Set<number>,
   desired: Set<number>,
 ) => {
-  const rowsFor = (ids: Set<number>, exclude: Set<number>, sql: string) =>
-    [...ids]
-      .filter((id) => !exclude.has(id))
-      .map((groupId) => ({ args: [groupId, listingId], sql }));
-  return [
-    ...rowsFor(
-      current,
-      desired,
-      "DELETE FROM group_listings WHERE group_id = ? AND listing_id = ?",
-    ),
-    ...rowsFor(
-      desired,
-      current,
-      "INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES (?, ?)",
-    ),
-  ];
+  const toRemove = [...current].filter((id) => !desired.has(id));
+  const toAdd = [...desired].filter((id) => !current.has(id));
+  const statements: { args: InValue[]; sql: string }[] = [];
+  // Set-based DELETE + multi-row INSERT — at most two statements regardless of
+  // how many groups change, so the transactional path (setListingGroupsTx) stays
+  // well under the interactive round-trip guard even for a large group selection.
+  if (toRemove.length > 0) {
+    statements.push({
+      args: [listingId, ...toRemove],
+      sql: `DELETE FROM group_listings WHERE listing_id = ? AND group_id IN (${inPlaceholders(toRemove)})`,
+    });
+  }
+  if (toAdd.length > 0) {
+    statements.push({
+      args: toAdd.flatMap((groupId) => [groupId, listingId]),
+      sql: `INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES ${toAdd.map(() => "(?, ?)").join(", ")}`,
+    });
+  }
+  return statements;
 };
 
 export const setListingGroups = async (
@@ -551,17 +554,17 @@ export const getGroupPackagePricesByGroupIds = async (
   return result;
 };
 
-/** Copy a source listing's per-package price/quantity onto a freshly-duplicated
- * listing's membership rows, for every package group they share. Without this a
- * duplicated package member would join at its base price with quantity 1,
- * silently changing the bundle's contents and checkout total. Regular (non-
- * package) shared groups carry no override, so they are left untouched. */
-export const copyPackageMemberOverrides = async (
+/** The statement that copies a source listing's per-package price/quantity onto a
+ * freshly-duplicated listing's membership rows, for every package group they
+ * share. Without this a duplicated package member would join at its base price
+ * with quantity 1, silently changing the bundle's contents and checkout total.
+ * Regular (non-package) shared groups carry no override, so they are untouched. */
+const copyPackageOverridesStatement = (
   sourceListingId: number,
   newListingId: number,
-): Promise<void> => {
-  await execute(
-    `UPDATE group_listings AS dst
+) => ({
+  args: [sourceListingId, sourceListingId, newListingId, sourceListingId],
+  sql: `UPDATE group_listings AS dst
         SET package_price = (
               SELECT src.package_price FROM group_listings AS src
                WHERE src.group_id = dst.group_id AND src.listing_id = ?),
@@ -572,7 +575,19 @@ export const copyPackageMemberOverrides = async (
         AND dst.group_id IN (
               SELECT group_id FROM group_listings WHERE listing_id = ?)
         AND dst.group_id IN (SELECT id FROM groups WHERE is_package = 1)`,
-    [sourceListingId, sourceListingId, newListingId, sourceListingId],
+});
+
+/** Copy the source's package overrides onto the duplicate's membership rows in
+ * the SAME transaction that inserted them (the create write's `afterWrite`), so a
+ * failure rolls the whole duplicate back rather than leaving a live member at the
+ * default price. */
+export const copyPackageMemberOverridesTx = async (
+  tx: TxScope,
+  sourceListingId: number,
+  newListingId: number,
+): Promise<void> => {
+  await tx.execute(
+    copyPackageOverridesStatement(sourceListingId, newListingId),
   );
 };
 
