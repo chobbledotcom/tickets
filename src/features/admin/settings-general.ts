@@ -92,6 +92,23 @@ export const handleTermsPost = settingsHandler({
       : null,
 });
 
+/**
+ * Handle POST /admin/settings/custom-css - owner only.
+ * Stored verbatim and served as a public stylesheet from /custom.css.
+ */
+export const handleCustomCssPost = settingsHandler({
+  advanced: true,
+  extract: (form) => form.getString("custom_css"),
+  formId: "settings-custom-css",
+  label: "Custom CSS",
+  log: (v) => (v === "" ? "Custom CSS removed" : "Custom CSS updated"),
+  save: (v) => settings.update.customCss(v),
+  validate: (v) =>
+    v.length > MAX_TEXTAREA_LENGTH
+      ? `Custom CSS must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
+      : null,
+});
+
 /** Handle POST /admin/settings/business-email - owner only */
 export const handleBusinessEmailPost = settingsClearable({
   field: "business_email",
