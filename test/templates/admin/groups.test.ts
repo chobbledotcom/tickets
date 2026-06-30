@@ -34,6 +34,7 @@ describe("adminGroupDetailPage", () => {
       TEST_SESSION,
       "localhost",
       false,
+      true,
     );
     expect(html).toContain("Group Attendees");
     expect(html).toContain("20 / 50");
@@ -52,6 +53,7 @@ describe("adminGroupDetailPage", () => {
       TEST_SESSION,
       "localhost",
       false,
+      true,
     );
     const groupRow = html.match(
       /<th>Group Attendees<\/th><td>([\s\S]*?)<\/td>/,
@@ -73,6 +75,7 @@ describe("adminGroupDetailPage", () => {
       TEST_SESSION,
       "localhost",
       false,
+      true,
     );
     expect(html).toContain("danger-text");
     expect(html).toContain("10 / 10");
@@ -105,6 +108,7 @@ describe("adminGroupDetailPage", () => {
       TEST_SESSION,
       "localhost",
       true,
+      true,
     );
     expect(html).toContain("Running total check");
     expect(html).toContain("expected <strong>2</strong>, got");
@@ -128,6 +132,7 @@ describe("adminGroupDetailPage", () => {
       TEST_SESSION,
       "localhost",
       true,
+      true,
     );
     expect(withRevenue).toContain("Total Revenue");
 
@@ -140,8 +145,41 @@ describe("adminGroupDetailPage", () => {
       TEST_SESSION,
       "localhost",
       false,
+      true,
     );
     expect(withoutRevenue).not.toContain("Total Revenue");
+  });
+
+  test("suppresses the public URL / QR / embed when the group isn't shareable", () => {
+    const group = testGroup({ is_package: true, name: "Sold Out Pkg" });
+    const listings = [testListingWithCount({ attendee_count: 0, id: 1 })];
+
+    const shareable = adminGroupDetailPage(
+      group,
+      listings,
+      [],
+      [],
+      TEST_SESSION,
+      "localhost",
+      false,
+      true,
+    );
+    expect(shareable).toContain(`localhost/ticket/${group.slug}`);
+    expect(shareable).toContain(`embed-script-${group.id}`);
+
+    const unshareable = adminGroupDetailPage(
+      group,
+      listings,
+      [],
+      [],
+      TEST_SESSION,
+      "localhost",
+      false,
+      false,
+    );
+    expect(unshareable).not.toContain(`localhost/ticket/${group.slug}`);
+    expect(unshareable).not.toContain(`embed-script-${group.id}`);
+    expect(unshareable).toContain("isn't currently bookable");
   });
 });
 

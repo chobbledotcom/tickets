@@ -11,6 +11,7 @@ import {
   foldChild,
   foldSelectedChildren,
   getTicketContext,
+  hidePackageMemberNames,
   loadChildrenByParentId,
   loadPackageMemberMaps,
   MODIFIER_SOLD_OUT_MESSAGE,
@@ -615,6 +616,33 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       // child (not in the page set) so its override is ignored.
       const result = applyPackageOverrides(items, prices, new Set([1, 2]));
       expect(result.map((i) => i.unitPrice)).toEqual([1200, 800, 0]);
+    });
+  });
+
+  describe("hidePackageMemberNames", () => {
+    const item = (listingId: number, name: string) => ({
+      listingId,
+      name,
+      quantity: 1,
+      slug: `l${listingId}`,
+      unitPrice: 500,
+    });
+
+    test("renames every item to the package name for a hidden package", () => {
+      const items = [item(1, "Secret A"), item(2, "Secret B")];
+      const result = hidePackageMemberNames(items, true, "Welcome Pack");
+      expect(result.map((i) => i.name)).toEqual([
+        "Welcome Pack",
+        "Welcome Pack",
+      ]);
+      // Ids/prices/quantities are untouched so the webhook still revalidates.
+      expect(result.map((i) => i.listingId)).toEqual([1, 2]);
+    });
+
+    test("is a no-op for a visible package or a missing name", () => {
+      const items = [item(1, "Member")];
+      expect(hidePackageMemberNames(items, false, "Pack")).toBe(items);
+      expect(hidePackageMemberNames(items, true, undefined)).toBe(items);
     });
   });
 

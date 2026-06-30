@@ -94,6 +94,7 @@ import {
   foldSelectedChildren,
   getTicketContext,
   handlePaymentFlow,
+  hidePackageMemberNames,
   resolveDayCount,
   withActiveListings,
 } from "./ticket-payment.ts";
@@ -687,15 +688,19 @@ const prepareOrder = async (
   // Build items from the folded set, then apply package overrides to the
   // top-level page listings only (folded children keep their own price).
   const pageListingIds = new Set(ctx.listings.map((e) => e.listing.id));
-  const items = applyPackageOverrides(
-    buildRegistrationItems(
-      foldedCtx.listings,
-      quantities,
-      fold.customPrices,
-      dayCount,
+  const items = hidePackageMemberNames(
+    applyPackageOverrides(
+      buildRegistrationItems(
+        foldedCtx.listings,
+        quantities,
+        fold.customPrices,
+        dayCount,
+      ),
+      ctx.packagePrices,
+      pageListingIds,
     ),
-    ctx.packagePrices,
-    pageListingIds,
+    ctx.hidePackageListings === true,
+    ctx.groupName,
   );
 
   const info: AnswerInfo = {

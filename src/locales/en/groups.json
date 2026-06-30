@@ -19,6 +19,7 @@
   "groups.detail.group_details": "Group Details",
   "groups.detail.col.listing_name": "Listing Name",
   "groups.detail.no_listings": "No listings in this group",
+  "groups.detail.share_unavailable": "This package isn't currently bookable (an incomplete bundle or a sold-out member), so its public page 404s — no link, embed, or QR code until it can be booked.",
   "groups.detail.add_listings": "Add Listings to Group",
   "groups.detail.add_listings_submit": "Add Selected Listings",
   "groups.fields.name": "Group Name",

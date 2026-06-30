@@ -927,4 +927,38 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       },
     );
   });
+
+  test("a hidden package booking completes (member name never leaks in the flow)", async () => {
+    const { group, listing } = await setupPackage();
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    // A normal hidden-package session: it processes, exercising the path that
+    // suppresses member names in any failure message for hidden packages.
+    await runWebhook(
+      {
+        amount_total: 1500,
+        id: "cs_pkg_hidden_ok",
+        metadata: packageMetadata(group.id, listing.id, 1500),
+      },
+      () => expectProcessed(listing.id),
+    );
+  });
+
+  test("a standalone session for a now-hidden package member is refunded, not booked", async () => {
+    const { group, listing } = await setupPackage();
+    // The buyer started a STANDALONE (non-package) checkout at the base price;
+    // the operator then hid the package. Completing it would book a leaking
+    // standalone ticket whose /ticket/<slug> 404s, so it must refund instead.
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    await runWebhook(
+      {
+        amount_total: 5000,
+        id: "cs_stale_hidden_member",
+        metadata: signedMeta(5000, { items: singleItem(listing.id, 1, 5000) }),
+      },
+      async (refund) => {
+        await expectStoredRefund(listing.id);
+        expect(refund.calls.length).toBe(1);
+      },
+    );
+  });
 });

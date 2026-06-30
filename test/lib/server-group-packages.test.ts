@@ -637,4 +637,20 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     json.body?.cancel();
     expect(json.status).toBe(404);
   });
+
+  test("a package's admin share links are gated on bookability", async () => {
+    const group = await createTestGroup({ isPackage: true, name: "ShareGate" });
+    const only = await member(group, "Only Member");
+
+    // Bookable bundle: the admin detail offers the public link.
+    const before = await (await adminGet(`/admin/groups/${group.id}`)).text();
+    expect(before).toContain(`/ticket/${group.slug}`);
+
+    // Deactivating the sole member makes the bundle unbookable, so /ticket/<group>
+    // now 404s and the admin share/QR/embed links are suppressed.
+    await deactivateTestListing(only.id);
+    const after = await (await adminGet(`/admin/groups/${group.id}`)).text();
+    expect(after).not.toContain(`/ticket/${group.slug}`);
+    expect(after).toContain("isn't currently bookable");
+  });
 });

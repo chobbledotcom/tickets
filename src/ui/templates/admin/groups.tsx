@@ -386,6 +386,79 @@ const GroupAttendeesRow = ({
 /**
  * Admin group detail page - shows group info, listings in group, and add-listings form
  */
+/** The group's public-URL / QR / embed rows, or a "not bookable" note when its
+ * `/ticket/<group>` route would 404 (a package with an incomplete or sold-out
+ * bundle) — so the admin isn't handed dead share affordances. A non-package group
+ * always renders (its page shows sold-out members rather than 404ing). */
+const GroupShareRows = ({
+  group,
+  allowedDomain,
+  ticketUrl,
+  embedScriptCode,
+  embedIframeCode,
+  shareable,
+}: {
+  group: Group;
+  allowedDomain: string;
+  ticketUrl: string;
+  embedScriptCode: string;
+  embedIframeCode: string;
+  shareable: boolean;
+}): JSX.Element =>
+  shareable ? (
+    <>
+      <tr>
+        <th>{t("common.public_url")}</th>
+        <td>
+          <a href={ticketUrl}>{`${allowedDomain}/ticket/${group.slug}`}</a>
+          <small>
+            {" "}
+            (<a href={`/ticket/${group.slug}/qr`}>{t("common.qr_code")}</a>)
+          </small>
+        </td>
+      </tr>
+      <tr>
+        <th>
+          <label for={`embed-script-${group.id}`}>
+            {t("common.embed_script")}
+          </label>
+        </th>
+        <td>
+          <input
+            data-select-on-click
+            id={`embed-script-${group.id}`}
+            readonly
+            type="text"
+            value={embedScriptCode}
+          />
+        </td>
+      </tr>
+      <tr>
+        <th>
+          <label for={`embed-iframe-${group.id}`}>
+            {t("common.embed_iframe")}
+          </label>
+        </th>
+        <td>
+          <input
+            data-select-on-click
+            id={`embed-iframe-${group.id}`}
+            readonly
+            type="text"
+            value={embedIframeCode}
+          />
+        </td>
+      </tr>
+    </>
+  ) : (
+    <tr>
+      <th>{t("common.public_url")}</th>
+      <td>
+        <em>{t("groups.detail.share_unavailable")}</em>
+      </td>
+    </tr>
+  );
+
 export const adminGroupDetailPage = (
   group: Group,
   listings: ListingWithCount[],
@@ -394,6 +467,7 @@ export const adminGroupDetailPage = (
   session: AdminSession,
   allowedDomain: string,
   hasPaidListing: boolean,
+  shareable: boolean,
   phonePrefix?: string,
   successMessage?: string,
   questionData?: TableQuestionData,
@@ -467,54 +541,14 @@ export const adminGroupDetailPage = (
               <tr>
                 <th colspan="2">{group.name}</th>
               </tr>
-              <tr>
-                <th>{t("common.public_url")}</th>
-                <td>
-                  <a href={ticketUrl}>
-                    {`${allowedDomain}/ticket/${group.slug}`}
-                  </a>
-                  <small>
-                    {" "}
-                    (
-                    <a href={`/ticket/${group.slug}/qr`}>
-                      {t("common.qr_code")}
-                    </a>
-                    )
-                  </small>
-                </td>
-              </tr>
-              <tr>
-                <th>
-                  <label for={`embed-script-${group.id}`}>
-                    {t("common.embed_script")}
-                  </label>
-                </th>
-                <td>
-                  <input
-                    data-select-on-click
-                    id={`embed-script-${group.id}`}
-                    readonly
-                    type="text"
-                    value={embedScriptCode}
-                  />
-                </td>
-              </tr>
-              <tr>
-                <th>
-                  <label for={`embed-iframe-${group.id}`}>
-                    {t("common.embed_iframe")}
-                  </label>
-                </th>
-                <td>
-                  <input
-                    data-select-on-click
-                    id={`embed-iframe-${group.id}`}
-                    readonly
-                    type="text"
-                    value={embedIframeCode}
-                  />
-                </td>
-              </tr>
+              <GroupShareRows
+                allowedDomain={allowedDomain}
+                embedIframeCode={embedIframeCode}
+                embedScriptCode={embedScriptCode}
+                group={group}
+                shareable={shareable}
+                ticketUrl={ticketUrl}
+              />
               {group.hidden && (
                 <tr>
                   <th>{t("listings_table.hidden")}</th>

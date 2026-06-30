@@ -275,6 +275,20 @@ export const applyPackageOverrides = (
   });
 };
 
+/** For a HIDDEN package, replace each checkout item's buyer-facing name with the
+ * package name, so the hosted-checkout line items (Stripe/Square render
+ * `CheckoutItem.name`) never reveal the member listings before the buyer pays.
+ * Prices, quantities and listing ids are untouched, so the webhook still
+ * revalidates each member. A no-op for a visible package or a non-package. */
+export const hidePackageMemberNames = (
+  items: CheckoutItem[],
+  hide: boolean,
+  packageName: string | undefined,
+): CheckoutItem[] =>
+  hide && packageName
+    ? items.map((item) => ({ ...item, name: packageName }))
+    : items;
+
 export const handlePaymentFlow = (
   request: Request,
   intent: CheckoutIntent,

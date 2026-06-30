@@ -9,6 +9,10 @@ import {
   createCrudHandlers,
 } from "#routes/admin/owner-crud.ts";
 import { requireContentOr, requireSessionOr } from "#routes/auth.ts";
+import {
+  getVisibleGroupMembers,
+  groupBookable,
+} from "#routes/public/discovery.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { groupReturnPath } from "#shared/admin-paths.ts";
@@ -397,6 +401,13 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
       attendees.map((a) => a.id),
       privateKey,
     );
+    // The group's public /ticket/<group> page 404s for a package whose bundle is
+    // incomplete or sold out, so suppress its admin share/QR/embed links then.
+    // A non-package group always renders (it shows sold-out members), so it stays
+    // shareable.
+    const shareable =
+      !group.is_package ||
+      (await groupBookable(group, await getVisibleGroupMembers(group)));
 
     return htmlResponse(
       adminGroupDetailPage(
@@ -407,6 +418,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
         session,
         allowedDomain,
         hasPaidListing,
+        shareable,
         phonePrefix,
         flash.success,
         questionData,

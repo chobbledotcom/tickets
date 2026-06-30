@@ -71,6 +71,8 @@ import {
 } from "#shared/db/attendees.ts";
 import {
   getGroupPackagePrices,
+  getHiddenPackageMemberIds,
+  getPackageDisplayById,
   getPackageGroupById,
   groupsTable,
   packageMemberMaps,
@@ -689,8 +691,20 @@ const validateAllItems = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
 ): Promise<{ ok: true; items: ValidatedItem[] } | PaymentFailureResult> => {
-  const includeListingName = intent.items.length > 1;
   const isPackageIntent = intent.packageGroupId !== undefined;
+  // For a hidden package, a per-member failure message would reveal a member name
+  // on /payment/success, so never include the listing name in those errors.
+  const hiddenPackage =
+    intent.packageGroupId !== undefined &&
+    (await getPackageDisplayById(intent.packageGroupId))?.hideListings === true;
+  const includeListingName = intent.items.length > 1 && !hiddenPackage;
+  // A standalone session started before its listing joined a HIDDEN package must
+  // not book the now-hidden member: its /ticket/<slug> 404s and /t/<token> would
+  // render the member name/details. Detected here, failed closed after pricing so
+  // the order takes the price_changed refund instead of a leaking standalone ticket.
+  const staleHiddenMember =
+    !isPackageIntent &&
+    (await getHiddenPackageMemberIds(intent.items.map((i) => i.e))).size > 0;
   const pkg = await loadPackagePricing(intent);
   const foldedChildIds = new Set(
     (intent.allocations ?? []).map((a) => a.childId),
@@ -722,7 +736,10 @@ const validateAllItems = async (
   // bundle (member added/removed, or quantities no longer share one package
   // count), fail every line closed so the whole order takes the price_changed
   // refund rather than booking a partial/stale bundle.
-  if (pkg && packageBundleMismatch(pkg, intent.items, foldedChildIds)) {
+  if (
+    staleHiddenMember ||
+    (pkg && packageBundleMismatch(pkg, intent.items, foldedChildIds))
+  ) {
     return {
       items: validatedItems.map((v) => ({ ...v, expectedPrice: null })),
       ok: true,
