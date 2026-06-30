@@ -40,17 +40,28 @@ const DISABLED_STUB =
 const DISALLOWED_STUB =
   'console.warn("Chobble Tickets: this site is not allowed to load the order library.");\nexport {};\n';
 
-const jsResponse = (body: string, headers: Record<string, string>): Response =>
-  // Pre-encode to bytes: Bunny Edge intermittently fails to decode raw string
-  // bodies, so all text responses go out as Uint8Array (see encodeBody).
-  new Response(encodeBody(body), {
+// Pre-encode the constant stub bodies once. `/order.js` is fetched on every
+// page that embeds the tag, and the no-catalog stubs (feature disabled, or a
+// denied origin) are the common case for a site that hasn't finished setup, so
+// the bytes are encoded at module load instead of on every request. The
+// encoded buffers are never mutated, so reusing them across responses is safe.
+const DISABLED_STUB_BODY = encodeBody(DISABLED_STUB);
+const DISALLOWED_STUB_BODY = encodeBody(DISALLOWED_STUB);
+
+// Pre-encode to bytes: Bunny Edge intermittently fails to decode raw string
+// bodies, so all text responses go out as Uint8Array (see encodeBody).
+const jsResponse = (
+  body: ArrayBuffer,
+  headers: Record<string, string>,
+): Response =>
+  new Response(body, {
     headers: { "content-type": JS_CONTENT_TYPE, ...headers },
   });
 
 /** Handle `GET /order.js`. */
 export const handleOrderJs = async (request: Request): Promise<Response> => {
   if (!settings.externalOrderEnabled) {
-    return jsResponse(DISABLED_STUB, {
+    return jsResponse(DISABLED_STUB_BODY, {
       "access-control-allow-origin": "*",
       "cache-control": "no-store",
     });
@@ -66,22 +77,29 @@ export const handleOrderJs = async (request: Request): Promise<Response> => {
   // evaluation, not the response body) and avoids the DB/decryption cost on
   // requests that could never use it.
   if (allowOrigin === null) {
-    return jsResponse(DISALLOWED_STUB, { "cache-control": "no-store" });
+    return jsResponse(DISALLOWED_STUB_BODY, { "cache-control": "no-store" });
   }
 
+  // Parse the request URL once: it supplies both the catalog origin and the
+  // `?debug=true` flag that turns on the widget's verbose console logging.
+  const url = new URL(request.url);
   const currency = settings.currency;
   const catalog = buildCatalog({
     currency,
+    debug: url.searchParams.get("debug") === "true",
     decimalPlaces: getDecimalPlaces(currency),
     generatedAt: nowIso(),
     listings: await getCatalogListings(),
-    origin: new URL(request.url).origin,
+    origin: url.origin,
   });
 
-  return jsResponse(`${serializeCatalog(catalog)}\n${orderWidgetBody()}`, {
-    "access-control-allow-origin": allowOrigin,
-    "cache-control": "no-store",
-    "cross-origin-resource-policy": "cross-origin",
-    vary: "Origin",
-  });
+  return jsResponse(
+    encodeBody(`${serializeCatalog(catalog)}\n${orderWidgetBody()}`),
+    {
+      "access-control-allow-origin": allowOrigin,
+      "cache-control": "no-store",
+      "cross-origin-resource-policy": "cross-origin",
+      vary: "Origin",
+    },
+  );
 };
