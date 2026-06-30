@@ -24,7 +24,12 @@ import {
   checkGroupCapAfterDurationChange,
   recomputeListingBookingRanges,
 } from "#shared/db/attendees.ts";
-import { getAllGroups, getGroupIdsByListingId } from "#shared/db/groups.ts";
+import {
+  anyListingInPackageGroup,
+  copyPackageMemberOverrides,
+  getAllGroups,
+  getGroupIdsByListingId,
+} from "#shared/db/groups.ts";
 import { getChildIds } from "#shared/db/listing-parents.ts";
 import {
   adjustListingIncome,
@@ -148,8 +153,22 @@ const copyEdgesFromDuplicateSource = async (
 ): Promise<string | null> => {
   const sourceId = form.getOptionalInt("duplicated_from");
   if (sourceId === null) return null;
+  // Carry the source's per-package price/quantity onto the copy's membership
+  // rows: a duplicated package member must keep its override, not silently reset
+  // to its base price with quantity 1 and so change the bundle.
+  await copyPackageMemberOverrides(sourceId, newId);
   const childIds = await getChildIds(sourceId);
   if (childIds.length === 0) return null;
+  // A package member can't gate required children (the package page renders no
+  // per-child selectors), so a copy that joined a package group must not inherit
+  // the source's child edges — keep it a valid package member and tell the
+  // operator the gate wasn't carried over, mirroring the children endpoint's
+  // package invariant that the create path would otherwise bypass.
+  if (await anyListingInPackageGroup([newId])) {
+    return t("listings_table.duplicate_children_dropped", {
+      reason: t("error.package_member_no_children"),
+    });
+  }
   // The copy was just created in this request, so it always loads.
   const newListing = (await getListingWithCount(newId))!;
   const error = await copyDuplicatedChildEdges(newListing, childIds);

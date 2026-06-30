@@ -1,7 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import { getAllGroups, getListingsByGroupId } from "#shared/db/groups.ts";
+import {
+  getAllGroups,
+  getGroupPackagePrices,
+  getListingsByGroupId,
+  setGroupPackageMembers,
+} from "#shared/db/groups.ts";
 import { getChildIds } from "#shared/db/listing-parents.ts";
 import {
   adminFormPost,
@@ -48,6 +53,7 @@ const setChildren = async (
 const duplicateListingResponse = async (
   sourceId: number,
   name: string,
+  groupId?: number,
 ): Promise<{ response: Response; copy: { id: number } }> => {
   const { csrfToken, cookie } = await getTestSession();
   const { handleRequest } = await import("#routes");
@@ -58,6 +64,7 @@ const duplicateListingResponse = async (
         ...baseListingForm,
         csrf_token: csrfToken,
         duplicated_from: String(sourceId),
+        ...(groupId !== undefined ? { group_ids: String(groupId) } : {}),
         name,
       },
       cookie,
@@ -398,6 +405,56 @@ describeWithEnv(
       );
       response.body?.cancel();
       expect(response.status).toBe(404);
+    });
+
+    test("duplicating a package member copies its price and quantity override", async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Bundle" });
+      const source = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Member",
+      });
+      await setGroupPackageMembers(group.id, [
+        { listingId: source.id, price: 1500, quantity: 2 },
+      ]);
+
+      const { copy } = await duplicateListingResponse(
+        source.id,
+        "Member copy",
+        group.id,
+      );
+
+      // The copy joins at the source's override, not its base price/quantity 1.
+      const row = (await getGroupPackagePrices(group.id)).find(
+        (r) => r.listing_id === copy.id,
+      );
+      expect(row?.package_price).toBe(1500);
+      expect(row?.quantity).toBe(2);
+    });
+
+    test("duplicating a parent into a package drops the inherited children", async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Pkg" });
+      const child = await createTestListing({ name: "Child" });
+      const parent = await createTestListing({
+        maxAttendees: 10,
+        name: "Parent",
+      });
+      await setChildren(parent.id, [child.id]);
+
+      const { copy } = await duplicateListingResponse(
+        parent.id,
+        "Parent copy",
+        group.id,
+      );
+
+      // The copy is a valid package member, so it must NOT inherit the parent's
+      // required children — that combination violates the package invariant.
+      expect(
+        (await getGroupPackagePrices(group.id)).some(
+          (r) => r.listing_id === copy.id,
+        ),
+      ).toBe(true);
+      expect(await getChildIds(copy.id)).toEqual([]);
     });
   },
 );

@@ -551,6 +551,31 @@ export const getGroupPackagePricesByGroupIds = async (
   return result;
 };
 
+/** Copy a source listing's per-package price/quantity onto a freshly-duplicated
+ * listing's membership rows, for every package group they share. Without this a
+ * duplicated package member would join at its base price with quantity 1,
+ * silently changing the bundle's contents and checkout total. Regular (non-
+ * package) shared groups carry no override, so they are left untouched. */
+export const copyPackageMemberOverrides = async (
+  sourceListingId: number,
+  newListingId: number,
+): Promise<void> => {
+  await execute(
+    `UPDATE group_listings AS dst
+        SET package_price = (
+              SELECT src.package_price FROM group_listings AS src
+               WHERE src.group_id = dst.group_id AND src.listing_id = ?),
+            quantity = (
+              SELECT src.quantity FROM group_listings AS src
+               WHERE src.group_id = dst.group_id AND src.listing_id = ?)
+      WHERE dst.listing_id = ?
+        AND dst.group_id IN (
+              SELECT group_id FROM group_listings WHERE listing_id = ?)
+        AND dst.group_id IN (SELECT id FROM groups WHERE is_package = 1)`,
+    [sourceListingId, sourceListingId, newListingId, sourceListingId],
+  );
+};
+
 /** Reset-every-member-to-no-override statement (price NULL / quantity 1). */
 const clearMembersStatement = (groupId: number) => ({
   args: [groupId],
