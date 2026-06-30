@@ -225,13 +225,15 @@ writing each **once**, recursively, instead of three times.
    add-on can sign one total and revalidate/persist another.
 4. **Capacity** — **every booked node** consumes capacity, not only leaves: a
    parent line is itself sold, so it charges its own listing cap and group pools
-   alongside its children. Aggregate demand **by (listing, group pool, resolved
-   date/span), summing** quantities across every path that books a listing (never
-   dedupe — that would validate one unit while the order consumes several). The
-   date/span belongs in the key: daily/`customisable_days` remaining is scoped to
-   the booked span, so combining different spans (or checking against the wrong
-   remaining bucket) would cause false sell-outs or overbooking. Feed each node
-   through
+   alongside its children. Aggregate demand **by (listing, group pool, day),
+   summing** quantities across every path that books a listing (never dedupe —
+   that would validate one unit while the order consumes several). The key is
+   **per-day, not per-span**: a dated daily/`customisable_days` node is expanded
+   into its individual days and each day checked independently, so a 2-day span
+   from Monday contributes demand to Monday *and* Tuesday and conflicts with a
+   1-day Tuesday booking on the shared day. Keying by the whole `(date,duration)`
+   span would let overlapping-but-not-identical spans bypass the cap on their
+   shared days. Feed each node through
    **both** arms of the cap: its own `maxPurchasable` (own-cap term) *and* its
    group ids/demand (group-pool term) — a listing in no capped group is bounded
    only by the former. Also gate on **active/bookable** state, not just the cap.
@@ -292,13 +294,26 @@ writing the recursive renderer, walk the route table and list every booking
 *entry* the tree must represent and every *surface* the projection must reach, so
 the model isn't validated against an incomplete set. Known entries: single
 listing; multi-slug cart (`/ticket/<slug+slug>`); regular group; package; signed
-QR link with `payload.v` price override; `/renew` tier picker with `siteToken`.
-Known buyer surfaces: booking page; `/calculate` running total; Stripe/Square line
-items; confirmation email + ticket attachments; ticket cards; public `/listings`;
-the `/order.js` embed widget; discovery (`packageGroupBookable`). The test matrix
-covers each entry × each surface. (This list is the current best enumeration; the
-router is the source of truth — treat anything it surfaces that isn't here as a
-gap to add, not an exception to special-case.)
+QR link with `payload.v` price override; `/renew` tier picker with `siteToken`;
+the **JSON API booking path** (`POST /api/listings/:slug/book`, which already runs
+the parent/child fold and checkout). Known buyer surfaces: booking page;
+`/calculate` running total; Stripe/Square line items; confirmation email + ticket
+attachments; ticket cards; public `/listings`; the `/order.js` embed widget; the
+**JSON API discovery routes** (`GET /api/listings`, detail/availability); the
+**RSS/ICS feeds** (`/feeds/listings.{rss,ics}`, which syndicate `/ticket/<slug>`
+links via `classifyForDiscovery`/`dropHiddenPackageMembers`); discovery
+(`packageGroupBookable`). The test matrix covers each entry × each surface. (This
+list is the current best enumeration; the router is the source of truth — treat
+anything it surfaces that isn't here as a gap to add, not an exception.)
+
+**Non-tree checkout flows that must be explicitly exempted, not forced into the
+tree:** the `/pay/:token` outstanding-balance flow builds a `CheckoutIntent` with
+`balanceAttendeeId` and a synthetic "Remaining balance" item, and
+`payment-processing.ts` short-circuits on `balanceAttendeeId` to settle an
+existing attendee (no booking rows). The unified pricing/revalidation must carry
+this as a recognized non-booking intent (like the modifiers/fees contract), or a
+tree-only price walk would treat a balance payment as a malformed line and
+refund/fail it. Audit the router for any other such intents during Phase 0.
 
 **Phase 1 — unify render.** One recursive renderer behind `ticketPage` and
 `packagePageAvailability`, emitting the controls both produce today, driven by a
@@ -364,9 +379,10 @@ the accepted configuration fails from whichever path wasn't updated:
 
 ### Capacity — every booked node, summed, both arms, active-gated, everywhere
 
-- Charge every booked node (parents too), sum per (listing, group pool), feed both
-  the own-cap and group-demand arms, and gate on active/bookable state (an
-  inactive node with spare capacity must not advertise) — as in operation 4.
+- Charge every booked node (parents too), sum per (listing, group pool, **day** —
+  dated daily/customisable nodes expand to per-day demand, not a whole-span key),
+  feed both the own-cap and group-demand arms, and gate on active/bookable state
+  (an inactive node with spare capacity must not advertise) — as in operation 4.
 - **Discovery parity:** `packageGroupBookable` (`src/features/public/discovery.ts:369-397`)
   must run the same walk as the ticket page, or `/order`/listings advertise (and
   issue QRs for) a bundle the ticket page caps at 0.
