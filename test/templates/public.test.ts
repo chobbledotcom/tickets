@@ -1099,14 +1099,14 @@ describe("ticketViewPage package grouping", () => {
   const pkgCards = [
     {
       entry: {
-        attendee: testAttendee({ quantity: 2 }),
+        attendee: testAttendee({ package_group_id: 1, quantity: 2 }),
         listing: testListingWithCount({ name: "Tent" }),
       },
       token,
     },
     {
       entry: {
-        attendee: testAttendee({ quantity: 6 }),
+        attendee: testAttendee({ package_group_id: 1, quantity: 6 }),
         listing: testListingWithCount({ name: "Chair" }),
       },
       token,
@@ -1114,10 +1114,12 @@ describe("ticketViewPage package grouping", () => {
   ];
 
   test("renders a non-hidden package as one card with members and booked quantities", () => {
-    const html = ticketViewPage(pkgCards, false, false, {
-      hideListings: false,
-      name: "Camp Kit",
-    });
+    const html = ticketViewPage(
+      pkgCards,
+      false,
+      false,
+      new Map([[1, { hideListings: false, name: "Camp Kit" }]]),
+    );
     expect(html).toContain("Camp Kit");
     expect(html).toContain("Tent");
     expect(html).toContain("&times;2");
@@ -1128,10 +1130,12 @@ describe("ticketViewPage package grouping", () => {
   });
 
   test("hides member listings for a hidden package, showing only the name", () => {
-    const html = ticketViewPage(pkgCards, false, false, {
-      hideListings: true,
-      name: "Secret Bundle",
-    });
+    const html = ticketViewPage(
+      pkgCards,
+      false,
+      false,
+      new Map([[1, { hideListings: true, name: "Secret Bundle" }]]),
+    );
     expect(html).toContain("Secret Bundle");
     expect(html).not.toContain("Tent");
     expect(html).not.toContain("Chair");
@@ -1142,10 +1146,12 @@ describe("ticketViewPage package grouping", () => {
     // Wallet routes resolve a token to a single member listing, so a saved pass
     // would show only the first member (leaking a hidden member); package cards
     // therefore never render wallet links.
-    const html = ticketViewPage(pkgCards, true, true, {
-      hideListings: false,
-      name: "Camp Kit",
-    });
+    const html = ticketViewPage(
+      pkgCards,
+      true,
+      true,
+      new Map([[1, { hideListings: false, name: "Camp Kit" }]]),
+    );
     expect(html).not.toContain("wallet-link");
   });
 
@@ -1153,16 +1159,18 @@ describe("ticketViewPage package grouping", () => {
     const cards = [
       {
         entry: {
-          attendee: testAttendee({ quantity: 1 }),
+          attendee: testAttendee({ package_group_id: 1, quantity: 1 }),
           listing: testListingWithCount({ name: "Pass", purchase_only: true }),
         },
         token,
       },
     ];
-    const html = ticketViewPage(cards, false, false, {
-      hideListings: false,
-      name: "Purchase Bundle",
-    });
+    const html = ticketViewPage(
+      cards,
+      false,
+      false,
+      new Map([[1, { hideListings: false, name: "Purchase Bundle" }]]),
+    );
     expect(html).toContain("Purchase Bundle");
     expect(html).not.toContain(`/t/${token}/svg`);
   });
