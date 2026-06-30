@@ -54,6 +54,24 @@ captured below as a requirement on the unified build.
   relative to #1462's branch.
 - Land in the shippable **phases** in "Implementation phases" — each is green on
   its own; the model arrives incrementally, not as one big-bang cutover.
+- **Deployment assumption:** the affected sites will be made inactive while this
+  ships. We therefore do **not** need to preserve in-flight checkout sessions or
+  byte-identical signed metadata for sessions created by the old code. Existing
+  persisted bookings still must render and remain editable, but the paid checkout
+  metadata can move to a clean v2 shape instead of carrying old wire compromises.
+- **Phase 1 starts by enumerating, from the route table, every booking *entry*
+  the tree must represent and every buyer *surface* the projection must reach** —
+  the router is the source of truth, so a flow that isn't in the lists below is a
+  gap to add, not an exception to special-case. Known entries: single listing;
+  ad-hoc multi-slug cart (`/ticket/<slug+slug>`); regular (non-package) group;
+  package; signed QR link with a `payload.v` price override; `/renew` tier picker
+  with a `siteToken`; the JSON API booking path (`POST /api/listings/:slug/book`,
+  which already runs the parent/child fold); and the non-tree `/pay/:token`
+  balance settlement. Known buyer surfaces: booking page; `/calculate` running
+  total; Stripe/Square line items; confirmation email + ticket attachments; ticket
+  cards; public `/listings`; the `/order.js` embed widget; the RSS/ICS feeds
+  (`/feeds/listings.{rss,ics}`); the JSON API discovery routes; and discovery
+  (`packageGroupBookable`). The test matrix covers each relevant entry × surface.
 
 ---
 
@@ -86,105 +104,78 @@ model already needs, and the tree may carry a root/group identity:
 
 ```
 BookingTree {
-  // The page root / entry context. Owns the page header (name/description/terms/
-  // action slug) and any signed, non-line metadata the entry carries. For a
-  // package it also owns the buyer-controlled `packageQty` + aggregate card
-  // (rendered even when every member node is HIDDEN).
-  root:  { kind: "listing", slugs }              // 1+ standalone listings: /ticket/<slug+slug> (the cart)
-       | { kind: "group",   groupId }            // regular (non-package) group page
-       | { kind: "package", groupId, packageQty } // package page
-  entry: {                                       // signed, non-line context — priced/persisted
-                                                 // alongside the tree, NOT as node prices
-    qrPriceOverride?: amount         // signed QR link payload.v on a fixed-price listing
-    renewal?: { siteToken, actionUrl }  // /renew tier picker → webhook extends a built site
-  }
-  nodes: BookingNode[]
+  rootRef:  { kind: "listing", slugs } |          // standalone listing(s): /ticket/<slug[+slug…]>
+            { kind: "group",   groupId } |        // regular (non-package) group page
+            { kind: "package", groupId }          // package page
+  entry:    { qrPriceOverride?, renewal?, balanceAttendeeId? }  // signed NON-line context,
+                                                  // priced/revalidated alongside the tree
+  nodes:    BookingNode[]                          // top-level nodes
 }
 
 BookingNode {
+  nodeKey       // stable path/edge identity used by render, fold, metadata, rows
   listingId
+  edgeRef:       none | { kind: "group_member", groupId } |
+                       { kind: "parent_child", parentId }
   quantityRule:  REQUIRED(qty) | FIXED(qty) | OPTIONAL(min,max) | BUYER_CHOICE
-  childRule:     NONE | CHILDREN_SUM_TO_PARENT  // SEPARATE from quantityRule: this node's
-                                                // chosen children must sum to ITS resolved
-                                                // qty (sole child auto-fills). A package
-                                                // member-parent is FIXED(qty) *and* this.
   priceRule:     BASE | OVERRIDE(amount) | PAY_MORE(min,max) | DAY_PRICE
-  visibility:    SHOWN    // own control / row
-               | FOLDED   // booked + signed as its own node, displayed via its parent
-               | HIDDEN    // privacy: dropped from buyer DISPLAY only — kept in form /
-                           // booking semantics (its questions activate, answers attach)
+  visibility:    SHOWN | HIDDEN          // hidden ⇒ never named on a buyer surface
   dateSpan:      NONE | DATE(date) | SPAN(date,duration) | INHERIT(parent)
-  fields:        contact-field requirements    // merged into the rendered form even when a
-                                               // candidate child is FOLDED/HIDDEN
   children:      BookingNode[]           // empty for a leaf
 }
 ```
 
-Facets that are easy to under-model — each required so the tree can represent
-today's data and serve a *purely* recursive walk (Codex review):
+Three facets beyond the obvious ones, all required so the model can actually
+represent today's data (Codex review):
 
-- **`root` + `entry` — page identity and signed non-line context, not just a
-  member list.** `/ticket/<…>` serves several roots: one *or more* standalone
-  listings (`/ticket/<slug+slug>` is the cart's ad-hoc multi-listing page — so the
-  `listing` root carries a slug *list*), a **regular group** (name/description/
-  terms/action slug + buyer-chosen member quantities), or a **package**. Beyond
-  the line nodes, an entry can also carry **signed, non-line context**: a QR link's
-  price override (`payload.v` on a fixed-price listing) and the `/renew` flow's
-  `siteToken` + override `actionUrl` (the webhook extends a built site from it).
-  These price/persist *alongside* the tree, not as node prices — model them as an
-  explicit `entry` contract, or a unified builder will charge/revalidate at base
-  price and lose the renewal action/token. The root also threads `packageGroupId`
-  through checkout and onto `package_group_id` rows for hidden-member display and
-  revalidation, and owns the package `packageQty` control + card.
-- **`dateSpan` — date/duration facet.** `DAY_PRICE` alone is not enough: daily and
-  `customisable_days` listings persist a selected date/duration
+- **`rootRef` / `entry` — explicit page + non-line identity.** `/ticket/<…>`
+  serves a standalone listing, an ad-hoc **multi-slug cart** (`/ticket/<slug+slug>`,
+  so the `listing` root carries a slug *list*), a **regular (non-package) group**
+  (name/description/terms/action slug + buyer-chosen member quantities), or a
+  **package**. Package flows must also carry the group id through checkout
+  (`packageGroupId`) and onto persisted rows (`package_group_id`) for
+  hidden-member display and revalidation. Beyond the line nodes, an `entry` holds
+  signed **non-line** context — a QR link's `payload.v` price override, the
+  `/renew` `siteToken`/`actionUrl`, and the `/pay` `balanceAttendeeId` — which is
+  priced and revalidated alongside the tree, never as node prices, or a unified
+  builder would charge/revalidate at base price and lose the renewal/balance
+  action.
+- **`nodeKey` / `edgeRef` — explicit node identity.** A listing can be reached by
+  more than one path (standalone, package member, required child under a package
+  member, the same child under two parents). The signed checkout payload and the
+  fold output must identify the **node/path**, not only the `listingId`, so price,
+  visibility, parent/package provenance, and row expansion cannot collapse
+  accidentally. Until the unified edge table exists, `nodeKey` can be derived
+  from the current path (`group:<id>/member:<listingId>`,
+  `parent:<id>/child:<listingId>`, etc.); after Phase 3 it should point at the
+  persisted edge identity.
+- **`dateSpan` — date/duration facet.** `DAY_PRICE` alone is not enough: daily
+  and `customisable_days` listings persist a selected date/duration
   (`bookingDateFields`), and a parent/child fold resolves the child's duration
-  from the parent (`INHERIT(parent)`). Without it the walk can't represent
-  daily/customisable listings or daily children accurately.
-- **`visibility` is three modes, and it is display-only.** `SHOWN`, `FOLDED`
-  (booked + signed as its own node but shown through its parent — a visible
-  package member-parent's auto-included child, which is neither a normal row nor a
-  secret), and `HIDDEN` (privacy). Critically, `HIDDEN` suppresses *display* only:
-  a hidden member's listing-scoped questions still activate and its answers still
-  attach to the booked row, so the walk keeps hidden nodes in form/booking
-  semantics — it does not literally delete them.
-- **`childRule` is its own facet, separate from `quantityRule`.** A parent's
-  chosen child quantities must sum exactly to the parent's *resolved* quantity
-  (sole child auto-fills). This can't be a `quantityRule` *value*: a package
-  member-parent needs both its own `FIXED(packageQty × memberQty)` quantity **and**
-  the children-sum constraint, and a normal parent needs its buyer-chosen quantity
-  **and** the constraint. So allocation lives in a separate `childRule`, leaving
-  `quantityRule` to own the node's own quantity.
-- **`fields` — contact-field requirements must merge even for folded/hidden
-  candidates.** Today the render includes a possible child's extra contact fields
-  (non-required) so the buyer can fill them, and submit validates the folded set
-  once the child is known. A recursive renderer that folds/hides a child without
-  projecting its `listing.fields` would show an unfillable form and reject it after
-  folding — so merge folded/hidden candidate nodes' fields into the rendered form
-  (or reject such configurations).
+  from the parent. Without a date/span facet (including `INHERIT(parent)`), the
+  recursive walk can't represent daily/customisable listings or daily children
+  accurately.
 
-The models map onto it directly:
+The three models map onto it directly:
 
-- **Normal listing** = a single `SHOWN` leaf whose `priceRule`/`dateSpan` come
-  from the listing's own fields — `BASE`, or `PAY_MORE` for `can_pay_more`, or
-  `DAY_PRICE`/`SPAN` for daily/`customisable_days` (not always `BASE`). (The
-  "single item is an array of one" principle: a one-node tree, not a special case.)
-- **Regular group** = `root = {group, groupId}` with `SHOWN / BUYER_CHOICE`
+- **Normal listing** = a single `BUYER_CHOICE / SHOWN` leaf whose `priceRule`/
+  `dateSpan` come from the listing's own fields (`BASE`, `PAY_MORE` for
+  `can_pay_more`, or `DAY_PRICE`/`SPAN` for daily/`customisable_days`). (The
+  "single item is an array of one" principle from AGENTS.md: a normal booking is a
+  one-node tree, not a special case.) A multi-slug cart is the same with several
+  top-level nodes.
+- **Regular group** = `rootRef = {group, groupId}` with `SHOWN / BUYER_CHOICE`
   member nodes (each priced from its own fields), carrying the group's
   name/description/terms.
-- **Parent/child** = a parent node with `childRule = CHILDREN_SUM_TO_PARENT`,
-  whose children inherit the parent's span. (Today's `foldSelectedChildren`.)
-- **Multi-listing cart** = `root = {listing, slugs:[…]}` with one `SHOWN /
-  BUYER_CHOICE` node per slug (the `/ticket/<slug+slug>` page the order cart
-  redirects to). A normal single listing is the one-slug case.
-- **QR / renewal entries** = any root above plus an `entry` (`qrPriceOverride`,
-  or `renewal.siteToken`/`actionUrl`) carried as signed context.
-- **Package** = `root = {package, groupId, packageQty}` whose top-level nodes are
-  one `FIXED(packageQty × memberQty)` member per `group_listings` row; `OVERRIDE`
-  price per member; `HIDDEN` members when `hide_package_listings`.
+- **Parent/child** = a `BUYER_CHOICE` parent whose children are `BUYER_CHOICE`
+  leaves that must total the parent's quantity (the fold enforces the sum; a sole
+  child auto-fills), inheriting the parent's span. (Today's `foldSelectedChildren`.)
+- **Package** = a `rootRef = {package, groupId}` tree whose top-level nodes are
+  one `FIXED(packageQty × memberQty)` member per `group_listings` row;
+  `OVERRIDE` price per member; `HIDDEN` members when `hide_package_listings`.
 - **Package member that is a parent** (the old "auto-include") = a `FIXED` member
-  node with a child node; the child is `FOLDED` on a visible package. No new code
-  path — a tree one level deeper.
+  node that itself has a child node — no new code path, just a tree one level
+  deeper.
 
 ---
 
@@ -193,59 +184,61 @@ The models map onto it directly:
 Everything the booking system does is one of five tree walks. Unification means
 writing each **once**, recursively, instead of three times.
 
-1. **Render** — emit the **root** control first (group header; for a package, the
-   single `packageQty` selector + aggregate card, even when all members are
-   `HIDDEN`), then walk the nodes: a control per `SHOWN` node (`FIXED`/`REQUIRED`
-   read-only, `BUYER_CHOICE` input, `OPTIONAL` optional input), a `FOLDED` node
-   shown only through its parent, and a `HIDDEN` node dropped from **display** —
-   but still emitting its hidden form fields (member ids, listing-scoped
-   questions) so submit/answers behave as today. Today: `ticketPage` +
-   `packagePageAvailability` + per-child selectors → **one** recursive renderer.
+1. **Render** — walk the tree, emit a control per `SHOWN` node (`FIXED`/`REQUIRED`
+   shown read-only, `BUYER_CHOICE` as an input, `OPTIONAL` as an optional input),
+   keyed by `nodeKey`, and omit `HIDDEN` nodes (drop them, never render-then-hide).
+   Questions are rendered in one separate order-level pass (see "Questions" below),
+   not once per node. Today: `ticketPage` + `packagePageAvailability` +
+   per-child selectors → **one** recursive renderer.
 2. **Fold** — walk the submitted form into priced **per-node line items**
    (not a flat `Map<listingId, qty>`), validating each node's `quantityRule`.
    The output must keep each node/edge as its own line so pricing, display, and
    signed metadata retain that node's `priceRule`, visibility, parent/package
-   identity, and `BookingItem.p` — a listing reachable through two nodes
+   identity, and signed line price — a listing reachable through two nodes
    (e.g. a package override on one path, a standalone or child allocation on
    another) must **not** be collapsed by `listingId` before those consumers run.
    Collapse by listing **only** when computing capacity demand. Today:
-   `foldSelectedChildren` + package expansion → **one** recursive fold.
+   `foldSelectedChildren` + package expansion → **one** recursive fold. The v2
+   signed line shape should therefore carry `nodeKey`/edge provenance in addition
+   to listing id, quantity, and price.
 3. **Price** — each node contributes `effectivePrice(node) × resolvedQty` to its
-   own line and to its signed `BookingItem.p`. `OVERRIDE` wins, then `PAY_MORE`,
+   own canonical signed line. `OVERRIDE` wins, then `PAY_MORE`,
    then `DAY_PRICE`, then `BASE`. Mind the **already-expanded quantity**: a
    package member's quantity is `fixed × packageQty` before children fold, and the
    sole-child fold fills the child to that parent quantity — so a child's
    contribution is `childBase × (fixed × packageQty)`, reached without a second
    `× packageQty` (double-multiplying overcharges/overbooks for `packageQty > 1`).
-   **Node prices are not the whole total:** opt-in add-ons, promo/answer
-   modifiers, the reservation amount and booking fees flow through
-   `CheckoutIntent.modifiers`/metadata and are re-derived by the webhook. The
-   unified price walk must treat these as part of the signed pricing contract
-   (even though they live outside the node tree), or an order with a discount/
-   add-on can sign one total and revalidate/persist another.
+   **Node prices are not the whole order:** opt-in add-ons, promo/answer
+   modifiers, the reservation amount and booking fees flow through `CheckoutIntent`
+   outside the node tree, and the `/pay` balance flow is a synthetic "Remaining
+   balance" line settling an existing attendee with no booking nodes at all. The
+   canonical priced order must include these non-line components so a node-only
+   walk can't sign one total and persist/revalidate another.
 4. **Capacity** — **every booked node** consumes capacity, not only leaves: a
    parent line is itself sold, so it charges its own listing cap and group pools
    alongside its children. Aggregate demand **by (listing, group pool, day),
    summing** quantities across every path that books a listing (never dedupe —
    that would validate one unit while the order consumes several). The key is
-   **per-day, not per-span**: a dated daily/`customisable_days` node is expanded
-   into its individual days and each day checked independently, so a 2-day span
-   from Monday contributes demand to Monday *and* Tuesday and conflicts with a
-   1-day Tuesday booking on the shared day. Keying by the whole `(date,duration)`
-   span would let overlapping-but-not-identical spans bypass the cap on their
-   shared days. Feed each node through
-   **both** arms of the cap: its own `maxPurchasable` (own-cap term) *and* its
-   group ids/demand (group-pool term) — a listing in no capped group is bounded
-   only by the former. Also gate on **active/bookable** state, not just the cap.
-   Today: `packageQuantityCap` + `childCombinedCap` + per-line availability, all
-   already routing through the shared `groupPoolUnits` leaf — the seed of the
-   unified capacity walk.
+   **per-day, not per-span**: a dated daily/`customisable_days` node expands into
+   its individual days and each day is checked independently, so a 2-day span from
+   Monday contributes demand to Monday *and* Tuesday and conflicts with a 1-day
+   Tuesday booking on the shared day (a whole-`(date,duration)` key would let
+   overlapping-but-not-identical spans bypass the cap on shared days). Feed each
+   node through **both** arms of the cap: its own `maxPurchasable` (own-cap term)
+   *and* its group ids/demand (group-pool term) — a listing in no capped group is
+   bounded only by the former. Also gate on **active/bookable** state, not just
+   the cap. Today: `packageQuantityCap` + `childCombinedCap` + per-line
+   availability, all already routing through the shared `groupPoolUnits` leaf —
+   the seed of the unified capacity walk.
 5. **Revalidate (webhook)** — re-walk the tree at payment time against **current**
-   config and recompute price × qty for every node; re-check that each edge
-   (parent→child, member→group) still holds and quantities still satisfy the
-   rules; any drift → `price_changed` refund. Pricing alone is insufficient: a
-   signed child line must not be trusted if the operator removed/swapped the edge
-   mid-checkout. Today: package revalidation + child revalidation → **one** walk.
+   config and recompute price × qty for every node; re-check that each signed
+   `nodeKey` still resolves to the same edge path (parent→child, member→group) and
+   that quantities still satisfy the rules; any drift → `price_changed` refund.
+   Pricing alone is insufficient: a signed child line must not be trusted if the
+   operator removed/swapped the edge mid-checkout. Today: package revalidation +
+   child revalidation → **one** walk. Because sites are inactive during deploy,
+   this can be a clean v2 metadata path rather than a byte-compatible old/new
+   bridge for already-open checkout sessions.
 
 The fact that step 4 *already* funnels through one primitive (`groupPoolUnits`,
 added on #1462's branch) is the proof of concept: when we found two capacity code
@@ -282,6 +275,11 @@ paths and asked "can these be one calculation?", the answer was yes.
 - **Entry-point identity.** `/ticket/<group>` vs `/ticket/<parent>` resolve
   differently and stamp different ids (`package_group_id`). The unified entry
   point resolves any slug to its root; existing rows must keep resolving.
+- **Metadata and row identity.** Current checkout metadata is listing-id keyed
+  (`BookingItem` is only id/quantity/price) and current rows only carry
+  `parent_listing_id` plus order-level `package_group_id`. The unified fold needs
+  a v2 signed line shape and, by Phase 3, a storage identity that can distinguish
+  arbitrary tree paths without relying on listing id alone.
 
 ---
 
@@ -289,44 +287,22 @@ paths and asked "can these be one calculation?", the answer was yes.
 
 Each phase is independently shippable and green. No "Stage 0".
 
-**Phase 0 — enumerate entry contexts and buyer surfaces from the router.** Before
-writing the recursive renderer, walk the route table and list every booking
-*entry* the tree must represent and every *surface* the projection must reach, so
-the model isn't validated against an incomplete set. Known entries: single
-listing; multi-slug cart (`/ticket/<slug+slug>`); regular group; package; signed
-QR link with `payload.v` price override; `/renew` tier picker with `siteToken`;
-the **JSON API booking path** (`POST /api/listings/:slug/book`, which already runs
-the parent/child fold and checkout). Known buyer surfaces: booking page;
-`/calculate` running total; Stripe/Square line items; confirmation email + ticket
-attachments; ticket cards; public `/listings`; the `/order.js` embed widget; the
-**JSON API discovery routes** (`GET /api/listings`, detail/availability); the
-**RSS/ICS feeds** (`/feeds/listings.{rss,ics}`, which syndicate `/ticket/<slug>`
-links via `classifyForDiscovery`/`dropHiddenPackageMembers`); discovery
-(`packageGroupBookable`). The test matrix covers each entry × each surface. (This
-list is the current best enumeration; the router is the source of truth — treat
-anything it surfaces that isn't here as a gap to add, not an exception.)
-
-**Non-tree checkout flows that must be explicitly exempted, not forced into the
-tree:** the `/pay/:token` outstanding-balance flow builds a `CheckoutIntent` with
-`balanceAttendeeId` and a synthetic "Remaining balance" item, and
-`payment-processing.ts` short-circuits on `balanceAttendeeId` to settle an
-existing attendee (no booking rows). The unified pricing/revalidation must carry
-this as a recognized non-booking intent (like the modifiers/fees contract), or a
-tree-only price walk would treat a balance payment as a malformed line and
-refund/fail it. Audit the router for any other such intents during Phase 0.
-
-**Phase 1 — unify render.** One recursive renderer behind `ticketPage` and
-`packagePageAvailability`, emitting the controls both produce today, driven by a
-`BookingTree` built from the existing `listing_parents` + `group_listings` tables
-(no schema change). Behaviour-identical; golden-test the HTML.
+**Phase 1 — canonical tree builder + render.** Build a `BookingTree` from the
+existing `listing_parents` + `group_listings` tables (no schema change), including
+`nodeKey`/`edgeRef`, root identity, visibility, price, quantity, and date facets.
+Keep compatibility adapters for the current submit paths while putting one
+recursive renderer behind `ticketPage` and `packagePageAvailability`. Behaviour
+identical; golden-test the HTML and assert stable `nodeKey` form field names.
 
 **Phase 2 — unify fold + price + capacity + revalidate.** Collapse
 `foldSelectedChildren` + package expansion into one recursive fold producing
-per-node line items; one `effectivePrice(node)`; one capacity walk seeded by
-`groupPoolUnits`; one revalidation walk. Still no schema change — the tree is
-built from the existing tables each request. This is where a package member that
-is a parent (the old "auto-include") starts working, as a plain tree, with the
-invariants below.
+per-node line items; introduce v2 checkout metadata carrying `nodeKey`/edge
+provenance; one `effectivePrice(node)`; one aggregate capacity walk seeded by
+`groupPoolUnits`; one revalidation walk. Still no edge-store schema change — the
+tree is built from the existing tables each request, and persisted rows continue
+to use `parent_listing_id`/`package_group_id` where those are expressive enough.
+This is where a package member that is a parent (the old "auto-include") starts
+working, as a plain tree, with the invariants below.
 
 **Phase 3 — unify the edge store.** One edge representation carrying
 `quantityRule`/`priceRule`/`visibility`/`dateSpan` per edge; migrate
@@ -370,12 +346,16 @@ the accepted configuration fails from whichever path wasn't updated:
 - A parent member must itself satisfy the packageable rules (standard, not
   `customisable_days`/`can_pay_more`) — the deterministic-child rule is *added on
   top*, not a replacement.
-- **Questions:** a member-parent's child with required custom questions makes an
-  unanswerable package form (the package page renders no child block). Reject such
-  children — and reject required questions *attached later* via the
-  question-assignment routes (`POST /admin/questions/:id/listings`,
-  `POST /admin/listing/:id/questions` in `src/features/admin/questions.ts`) — or
-  render the child's questions under the parent.
+- **Questions:** answers are **not** product-instance/node scoped. A buyer should
+  answer each relevant question once per order, even when several selected nodes
+  require it. Relevance is the union of the selected tree's listings (including
+  folded/hidden nodes) against the existing question assignments; render each
+  matching question once by question id, validate it once, and persist it through
+  the existing attendee/order answer flow. Do not duplicate prompts per node, and
+  do not introduce node-keyed answer storage. Hidden nodes must not cause the
+  system to print hidden listing names; operators remain responsible for writing
+  question copy that collects the information they need without relying on repeated
+  per-product prompts.
 
 ### Capacity — every booked node, summed, both arms, active-gated, everywhere
 
@@ -384,7 +364,8 @@ the accepted configuration fails from whichever path wasn't updated:
   feed both the own-cap and group-demand arms, and gate on active/bookable state
   (an inactive node with spare capacity must not advertise) — as in operation 4.
 - **Discovery parity:** `packageGroupBookable` (`src/features/public/discovery.ts:369-397`)
-  must run the same walk as the ticket page, or `/order`/listings advertise (and
+  must run the same walk as the ticket page, or `/order`/listings, the `/order.js`
+  widget, the RSS/ICS feeds, and the JSON API discovery routes advertise (and
   issue QRs for) a bundle the ticket page caps at 0.
 
 ### Buyer-facing display — a projection, never a mutation of signed items
@@ -394,18 +375,17 @@ the booking-page render, the running total (`orderSummary`), the Stripe/Square
 line items, the confirmation email/ticket attachments (`buildTemplateData`), the
 ticket cards, the public `/listings` cards (which today keep child listings in the
 card list and only swap the CTA; an auto-included child has no `group_listings`
-row, so it needs a dedicated suppression path), **and the external `/order.js`
-embed widget** (`order-js.ts` ships active listing/package slugs from
-`getCatalogListings()`/`loadPublicGroups()` to third-party sites — if the
-visibility/capacity projection isn't wired through it too, embedded carts keep
-advertising a folded child or a package the ticket page suppresses).
+row, so it needs a dedicated suppression path), the `/order.js` embed widget, and
+the RSS/ICS feeds.
 
 **Crucially this is display-only.** The provider line items *and* the signed
-booking metadata derive from the **same** `CheckoutIntent.items`
-(`priceCheckout(intent)` and `toBookingItems(intent.items)`). Folding a child into
-its parent must be a **projection over the items for display**, never a removal
-from the signed list — the webhook needs every node as its own signed item to
-persist and revalidate (operation 5).
+booking metadata must no longer be the same mutable array once display folding is
+needed. The v2 checkout intent should carry canonical signed booking lines
+(`nodeKey`, listing id, quantity, unit/line price, provenance) and derive provider
+display lines from a **projection** over those lines. Folding a child into its
+parent for Stripe/Square/email/card display must never remove it from the
+canonical signed booking lines — the webhook needs every booked node as its own
+signed item to persist and revalidate (operation 5).
 
 ### Privacy
 
@@ -418,10 +398,14 @@ Keep parent rows as their own booked rows; the tree is not only its leaves. Any
 edge-store migration must keep pre-migration bookings resolving
 (`package_group_id`, allocations, `getPackageDisplaysByIds`).
 
-### Signed-price round-trip
+### Metadata v2 consistency
 
-The unified price walk must produce byte-identical `BookingItem.p` to today's
-per-model pricing, or in-flight checkouts at deploy time refund spuriously.
+No byte-identical old/new metadata guarantee is required for in-flight checkouts:
+sites are inactive during deployment. The requirement is instead that the v2
+metadata is internally consistent — the amount sent to the provider, the signed
+proof, the webhook re-price, and the ledger booking all derive from the same
+canonical per-node lines (plus the non-line components: modifiers, fees,
+reservation, and the `/pay` balance settlement).
 
 ---
 
@@ -432,20 +416,25 @@ invariants above demand:
 
 - **Admin:** the accepted parent-member-with-child configuration succeeds via
   **every** save path (group edit/add-listings, listing save, children form, JSON
-  API, duplicate); incompatible parent/child/cardinality rejected from each;
-  required-question children rejected including via the later assignment routes.
+  API, single-listing duplicate, group bulk duplicate); incompatible
+  parent/child/cardinality rejected from each.
+- **Questions:** a question assigned to several selected listings is rendered and
+  validated once; a required question on a folded/hidden child is still collected
+  once without printing the hidden listing's name.
 - **Fold/pricing:** with `packageQty > 1` **and** `memberQty > 1`, parent and
   child quantities/prices are each `fixed × packageQty` exactly once (a regression
-  that fails on a doubled or missing scale factor); per-node lines preserved when
-  a listing is reachable two ways.
+  that fails on a doubled or missing scale factor); v2 signed per-node lines are
+  preserved when a listing is reachable two ways.
 - **Capacity:** bounded by a node's own cap even when it is in no capped group;
-  by group pools; an inactive node drops the bundle; discovery hides/re-shows in
-  lockstep with `/ticket/<group>`.
+  by group pools; per-day for daily nodes (a 2-day span conflicts with a 1-day
+  booking on a shared day); an inactive node drops the bundle; discovery
+  (cards, `/order.js`, feeds, API) hides/re-shows in lockstep with `/ticket/<group>`.
 - **Display:** visible-package child folded into its parent on summary, provider
-  lines, email, ticket card, and `/listings` — while the **signed items still
-  carry the child separately** (assert the webhook receives/persists it).
+  lines, email, ticket card, `/listings`, and `/order.js` — while the **canonical
+  signed lines still carry the child separately** (assert the webhook
+  receives/persists it).
 - **Webhook:** price drift *and* a removed/swapped edge mid-checkout both take
-  `price_changed`.
+  `price_changed`; the `/pay` balance and renewal entries settle/extend correctly.
 - **Privacy:** `hide_package_listings` conceals members on every surface.
 
 ---
@@ -455,6 +444,8 @@ invariants above demand:
 - **Existing bookings must keep resolving** across the Phase 3 migration.
 - **Privacy regressions** — every new surface routes through the hidden-member
   helpers; default `HIDDEN` to dropped.
-- **Signed-price round-trip** — byte-identical `p`, or deploy-time refunds.
-- **Capacity double-counting / under-counting** — sum per (listing, pool), charge
-  every booked node, both arms.
+- **Metadata v2 consistency** — provider total, signed proof, webhook re-price,
+  ledger legs, and persisted rows all derive from the same canonical per-node
+  lines (plus the non-line components).
+- **Capacity double-counting / under-counting** — sum per (listing, pool, day),
+  charge every booked node, both arms.
