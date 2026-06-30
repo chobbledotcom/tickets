@@ -598,7 +598,14 @@ describe("ticketPage", () => {
       groupName: "Pool Pkg",
       listings,
       packageGroupId: 7,
-      packageGroupRemaining: 4,
+      // Both members sit in the capped package group 7 (pool of 4). Member 1 is
+      // also in group 8, which is uncapped (absent from the remaining map) and so
+      // contributes no constraint.
+      packageGroupRemainingByGroupId: new Map([[7, 4]]),
+      packageMemberGroupIds: new Map([
+        [1, [7, 8]],
+        [2, [7]],
+      ]),
       // Listing 1 takes 2 per package; listing 2 is omitted → defaults to 1, so
       // one package consumes 3 of the pool of 4 → floor(4 / 3) = 1 package fits.
       packageQuantities: new Map([[1, 2]]),
@@ -642,7 +649,11 @@ describe("ticketPage", () => {
       groupName: "Drained Pkg",
       listings,
       packageGroupId: 7,
-      packageGroupRemaining: 1,
+      packageGroupRemainingByGroupId: new Map([[7, 1]]),
+      packageMemberGroupIds: new Map([
+        [1, [7]],
+        [2, [7]],
+      ]),
       packageQuantities: new Map([
         [1, 1],
         [2, 1],
@@ -651,6 +662,60 @@ describe("ticketPage", () => {
     });
     expect(html).not.toContain('name="package_quantity"');
     expect(html).toContain("Sorry, all listings are sold out.");
+  });
+
+  test("caps the package by a SECOND capped group the members share", () => {
+    const listings = [
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 1,
+          max_attendees: 100,
+          max_quantity: 10,
+          name: "Big",
+          slug: "big01",
+        }),
+        false,
+        undefined,
+      ),
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 2,
+          max_attendees: 100,
+          max_quantity: 10,
+          name: "Small",
+          slug: "sml01",
+        }),
+        false,
+        undefined,
+      ),
+    ];
+    // The package group (7) is roomy — floor(10 / 2) = 5 packages fit — but both
+    // members ALSO belong to a second capped group (9) with only 2 spots, and one
+    // package consumes 2 (1 each) from it → floor(2 / 2) = 1. The tighter shared
+    // pool must bind, so only "1" is offered, never "2".
+    const html = ticketPage({
+      groupName: "Shared Pool Pkg",
+      listings,
+      packageGroupId: 7,
+      packageGroupRemainingByGroupId: new Map([
+        [7, 10],
+        [9, 2],
+      ]),
+      packageMemberGroupIds: new Map([
+        [1, [7, 9]],
+        [2, [7, 9]],
+      ]),
+      packageQuantities: new Map([
+        [1, 1],
+        [2, 1],
+      ]),
+      slugs: ["big01", "sml01"],
+    });
+    expect(html).toContain('name="package_quantity"');
+    expect(html).toContain('<option value="1"');
+    expect(html).not.toContain('<option value="2"');
   });
 
   test("hides member rows when the package hides its listings", () => {

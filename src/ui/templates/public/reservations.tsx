@@ -45,6 +45,7 @@ import {
   childStandardInStock,
   constrainOptionsByChildUnion,
   encodeChildSpanDates,
+  groupPoolUnits,
   renderListingImage,
   resolveInheritedDuration,
   selectableChild,
@@ -514,7 +515,7 @@ const childOrderCap = (
   return shared === undefined
     ? childOwnRenderCap(parent, child)
     : Math.min(
-        Math.floor(shared / PARENT_CHILD_GROUP_UNITS),
+        groupPoolUnits(shared, PARENT_CHILD_GROUP_UNITS),
         childOwnRenderCap(parent, child),
       );
 };
@@ -621,7 +622,7 @@ const childCombinedCap = (
     sharedCohortRemaining === undefined
       ? 0
       : Math.min(
-          Math.floor(sharedCohortRemaining / PARENT_CHILD_GROUP_UNITS),
+          groupPoolUnits(sharedCohortRemaining, PARENT_CHILD_GROUP_UNITS),
           sharedCohortChildMax,
         );
   let cappedGroupsCap = 0;
@@ -1083,27 +1084,43 @@ const renderPackageRows = (
   return selector + members;
 };
 
-/** The most packages the buyer can order. Two bounds apply: each member's own
- * remaining capacity divided by how many of it one package includes (a
- * closed/sold-out member has `maxPurchasable` 0, capping the package at 0); and,
- * when the package group itself is capacity-capped, the shared pool divided by
- * the TOTAL members one package consumes (`packageGroupRemaining` ÷ Σ memberQty)
- * — without which two members sharing the pool would each look individually
- * available while only fewer packages actually fit. Exported so the submit path
+/** The most packages the buyer can order. Two kinds of bound apply: each
+ * member's own remaining capacity divided by how many of it one package includes
+ * (a closed/sold-out member has `maxPurchasable` 0, capping the package at 0);
+ * and every CAPPED group its members belong to — one package consumes the SUM of
+ * its members' fixed quantities from each such group, so that pool fits
+ * `floor(remaining / demand)` packages. The package's own group is just one such
+ * group; a second group some members also share is bounded the same way (Codex),
+ * without which two members sharing a near-full pool would each look individually
+ * available while fewer whole packages actually fit. Exported so the submit path
  * clamps the posted count to the same ceiling. */
 export const packageQuantityCap = (
   listings: TicketListing[],
   quantities: ReadonlyMap<number, number>,
-  packageGroupRemaining?: number | null,
+  groupRemainingByGroupId: ReadonlyMap<number, number>,
+  groupIdsByListingId: ReadonlyMap<number, number[]>,
 ): number => {
   const qtyOf = (e: TicketListing) => quantities.get(e.listing.id) ?? 1;
   const perMember = Math.min(
     ...listings.map((e) => Math.floor(e.maxPurchasable / qtyOf(e))),
   );
-  if (packageGroupRemaining == null) return perMember;
-  // How many member units one package consumes from the shared pool.
-  const perPackage = listings.reduce((n, e) => n + qtyOf(e), 0);
-  return Math.min(perMember, Math.floor(packageGroupRemaining / perPackage));
+  // Combined per-package demand against each capped group its members sit in.
+  const demandByGroup = new Map<number, number>();
+  for (const e of listings) {
+    const q = qtyOf(e);
+    for (const groupId of groupIdsByListingId.get(e.listing.id) ?? []) {
+      if (!groupRemainingByGroupId.has(groupId)) continue; // uncapped
+      demandByGroup.set(groupId, (demandByGroup.get(groupId) ?? 0) + q);
+    }
+  }
+  let cap = perMember;
+  for (const [groupId, demand] of demandByGroup) {
+    cap = Math.min(
+      cap,
+      groupPoolUnits(groupRemainingByGroupId.get(groupId)!, demand),
+    );
+  }
+  return cap;
 };
 
 /** Render controls for a single listing: quantity input + pay-more (no listing name/image/description). */
@@ -1241,10 +1258,13 @@ export type TicketPageOptions = {
    * shows one package-quantity selector instead of per-member quantities. */
   packageGroupId?: number | null;
   packageQuantities?: ReadonlyMap<number, number> | null;
-  /** The package group's own remaining pool when capped, bounding the package
-   * count by `floor(remaining / Σ memberQty)` (combined member demand). `null`
-   * when uncapped; omitted for non-package pages. */
-  packageGroupRemaining?: number | null;
+  /** On a package page: every capped group the members belong to → its remaining
+   * spots, and each member → its group ids. {@link packageQuantityCap} bounds the
+   * bundle by `floor(remaining / combined demand)` per group — the package's own
+   * group and any other capped group members share alike. Empty/omitted for
+   * non-package pages (or when no member's group is capped). */
+  packageGroupRemainingByGroupId?: ReadonlyMap<number, number>;
+  packageMemberGroupIds?: ReadonlyMap<number, number[]>;
   hidePackageListings?: boolean;
 };
 
@@ -1628,13 +1648,15 @@ const packagePageAvailability = (
   isPackage: boolean,
   listings: TicketListing[],
   packageQuantities: ReadonlyMap<number, number> | null | undefined,
-  packageGroupRemaining: number | null | undefined,
+  groupRemainingByGroupId: ReadonlyMap<number, number>,
+  groupIdsByListingId: ReadonlyMap<number, number[]>,
 ): { packageCap: number; soldOut: boolean } => {
   const cap = isPackage
     ? packageQuantityCap(
         listings,
         packageQuantities ?? new Map(),
-        packageGroupRemaining,
+        groupRemainingByGroupId,
+        groupIdsByListingId,
       )
     : null;
   const membersUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
@@ -1677,7 +1699,8 @@ export const ticketPage = ({
   packagePrices,
   packageGroupId,
   packageQuantities,
-  packageGroupRemaining,
+  packageGroupRemainingByGroupId = new Map(),
+  packageMemberGroupIds = new Map(),
   hidePackageListings = false,
 }: TicketPageOptions): string => {
   // getTicketContext always sets packageQuantities alongside packageGroupId.
@@ -1687,7 +1710,8 @@ export const ticketPage = ({
     isPackage,
     listings,
     packageQuantities,
-    packageGroupRemaining,
+    packageGroupRemainingByGroupId,
+    packageMemberGroupIds,
   );
   const allClosed = listings.every((e) => e.isClosed);
   const fields: Field[] = buildContactFields(

@@ -51,12 +51,16 @@ export type TicketSharedContext = {
   /** Set on a package page: whether the member listings are hidden from buyers,
    * tickets, and confirmation emails. */
   hidePackageListings?: boolean;
-  /** Set on a package page whose group is capacity-capped: the package group's
-   * own remaining spots. One package consumes the SUM of its members' fixed
-   * quantities from this pool, so the package-count cap is also bounded by
-   * `floor(packageGroupRemaining / Σ memberQty)`. `null` when the group is
-   * uncapped; absent for non-package pages. */
-  packageGroupRemaining?: number | null;
+  /** Set on a package page: every CAPPED group the members belong to → its
+   * remaining spots, and each member → its group ids. One package consumes the
+   * SUM of its members' fixed quantities from each such group, so the package
+   * count is bounded by `floor(remaining / demand)` per group — the package's own
+   * group AND any other capped group members happen to share (many-to-many
+   * membership). Empty for non-package pages or when no member's group is capped.
+   * Carried on the SHARED context so the render page and the submit clamp use the
+   * same ceiling. */
+  packageGroupRemainingByGroupId?: ReadonlyMap<number, number>;
+  packageMemberGroupIds?: ReadonlyMap<number, number[]>;
   actionUrl?: string;
   siteToken?: string;
   promoCodesEnabled?: boolean;

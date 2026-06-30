@@ -371,20 +371,28 @@ export const packageGroupBookable = async (
   groupId: number,
 ): Promise<boolean> => {
   if (members.length === 0) return false;
-  const [allMemberIds, ticketListings, rows, remaining] = await Promise.all([
-    getGroupListingIds(groupId),
-    buildTicketListingsWithGroupCapacity([...members]),
-    getGroupPackagePrices(groupId),
-    getGroupRemainingByGroupId([groupId]),
-  ]);
+  const [allMemberIds, ticketListings, rows, groupIdsByListingId] =
+    await Promise.all([
+      getGroupListingIds(groupId),
+      buildTicketListingsWithGroupCapacity([...members]),
+      getGroupPackagePrices(groupId),
+      getGroupIdsByListingIds(members.map((m) => m.id)),
+    ]);
   // An inactive member is absent from `members` (active only) but still a group
   // row, so fewer active members than total means the bundle is incomplete.
   if (members.length < allMemberIds.length) return false;
+  // Remaining for EVERY capped group any member sits in — the package's own
+  // group and any other group members happen to share — so the cap reflects all
+  // shared pools, not just this group's.
+  const remaining = await getGroupRemainingByGroupId([
+    ...new Set([...groupIdsByListingId.values()].flat()),
+  ]);
   return (
     packageQuantityCap(
       ticketListings,
       packageMemberMaps(rows).quantities,
-      remaining.get(groupId) ?? null,
+      remaining,
+      groupIdsByListingId,
     ) >= 1
   );
 };

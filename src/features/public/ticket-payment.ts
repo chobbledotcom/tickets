@@ -28,6 +28,7 @@ import {
   getGroupRemainingByGroupId,
 } from "#shared/db/attendees.ts";
 import {
+  getGroupIdsByListingIds,
   getGroupPackagePrices,
   getHiddenPackageMemberIds,
   isHiddenPackageMember,
@@ -1171,13 +1172,21 @@ export const getTicketContext = async (
   // no extra query.
   const packageMaps =
     group?.is_package === true ? await loadPackageMemberMaps(group.id) : null;
-  // The package group's own remaining pool (when capped): one package consumes
-  // the sum of its members' fixed quantities, so the package-count cap is bounded
-  // by floor(remaining / Σ memberQty) on top of each member's own capacity.
-  const packageGroupRemaining =
+  // Every CAPPED group the package members belong to bounds the bundle count:
+  // one package consumes the sum of its members' fixed quantities from each such
+  // group. Load each member's group ids and the remaining for every group any
+  // member sits in (not just the package's own group), so a second capped group
+  // the members happen to share also clamps the advertised package count.
+  const packageMemberGroupIds =
     group?.is_package === true
-      ? ((await getGroupRemainingByGroupId([group.id])).get(group.id) ?? null)
-      : null;
+      ? await getGroupIdsByListingIds(listingIds)
+      : new Map<number, number[]>();
+  const packageGroupRemainingByGroupId =
+    group?.is_package === true
+      ? await getGroupRemainingByGroupId([
+          ...new Set([...packageMemberGroupIds.values()].flat()),
+        ])
+      : new Map<number, number>();
   return {
     addOns,
     childDatesById,
@@ -1187,7 +1196,8 @@ export const getTicketContext = async (
       ? { hidePackageListings: group.hide_package_listings }
       : {}),
     packageGroupId: group?.is_package ? group.id : null,
-    packageGroupRemaining,
+    packageGroupRemainingByGroupId,
+    packageMemberGroupIds,
     packagePrices: packageMaps?.prices ?? null,
     packageQuantities: packageMaps?.quantities ?? null,
     promoCodesEnabled,

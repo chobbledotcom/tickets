@@ -581,7 +581,8 @@ const resolvePageQuantities = (
   const cap = packageQuantityCap(
     ctx.listings,
     packageQuantities,
-    ctx.packageGroupRemaining,
+    ctx.packageGroupRemainingByGroupId ?? new Map(),
+    ctx.packageMemberGroupIds ?? new Map(),
   );
   const packageQty = Math.max(0, Math.min(parsePackageCount(form), cap));
   const quantities = new Map<number, number>();
