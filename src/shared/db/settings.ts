@@ -101,6 +101,7 @@ export const CONFIG_KEYS = {
   CONTACT_PAGE_TEXT: "contact_page_text",
   COUNTRY: "country",
   CURRENT_TASK: "current_task",
+  CUSTOM_CSS: "custom_css",
   CUSTOM_DOMAIN: "custom_domain",
   CUSTOM_DOMAIN_LAST_VALIDATED: "custom_domain_last_validated",
   EMAIL_API_KEY: "email_api_key",
@@ -318,6 +319,9 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.TERMS_AND_CONDITIONS,
   CONFIG_KEYS.BULK_EMAIL_DRAFT,
   CONFIG_KEYS.EMAIL_PROVIDER,
+  // Custom CSS is served verbatim as a public stylesheet at /custom.css, so it
+  // is stored unencrypted — there is nothing secret about it.
+  CONFIG_KEYS.CUSTOM_CSS,
   CONFIG_KEYS.CUSTOM_DOMAIN,
   CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
   CONFIG_KEYS.BUNNY_SUBDOMAIN,
@@ -595,6 +599,7 @@ const STRING_ACCESSORS = {
   businessEmail: { key: CONFIG_KEYS.BUSINESS_EMAIL },
   contactPageText: { key: CONFIG_KEYS.CONTACT_PAGE_TEXT },
   currentTask: { key: CONFIG_KEYS.CURRENT_TASK },
+  customCss: { key: CONFIG_KEYS.CUSTOM_CSS },
   customDomain: { key: CONFIG_KEYS.CUSTOM_DOMAIN },
   // readOnly: settings.update.customDomainLastValidated writes a timestamp
   customDomainLastValidated: {

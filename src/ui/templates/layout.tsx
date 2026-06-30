@@ -60,6 +60,9 @@ export const Layout = ({
           />
           <title>{title}</title>
           <link href={CSS_PATH} rel="stylesheet" />
+          {/* Operator-supplied custom CSS, served from the cached /custom.css
+              route so this link costs no per-request settings read. */}
+          <link href="/custom.css" rel="stylesheet" />
           {headExtra && <Raw html={headExtra} />}
         </head>
         <body class={bodyClass || undefined}>

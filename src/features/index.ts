@@ -121,6 +121,10 @@ const loadOrderJs = lazyExport(
   () => import("#routes/public/order-js.ts"),
   "handleOrderJs",
 );
+const loadCustomCss = lazyExport(
+  () => import("#routes/public/custom-css.ts"),
+  "handleCustomCss",
+);
 const loadPaymentRoutes = lazyExport(
   () => import("#routes/api/webhooks.ts"),
   "routePayment",
@@ -410,6 +414,8 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   ],
   // Contact form submission sends an email to the business address.
   contact: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY, ...EMAIL_SETTINGS],
+  // The custom stylesheet route reads only the custom_css setting.
+  "custom.css": [CONFIG_KEYS.CUSTOM_CSS],
   demo: [],
   events: [],
   // --- Feeds (ICS/RSS): website title + country (timezone) ---
@@ -622,6 +628,14 @@ const orderJsPrefixHandler: RouterFn = async (request, path, method) => {
   return handle(request);
 };
 
+/** Serve the dynamic `/custom.css` stylesheet from the `custom_css` setting;
+ * ignore any other path under the `custom.css` prefix. */
+const customCssPrefixHandler: RouterFn = async (_request, path, method) => {
+  if (path !== "/custom.css" || method !== "GET") return null;
+  const handle = await loadCustomCss();
+  return handle();
+};
+
 /** Prefix dispatch table — O(1) lookup replaces the sequential ?? chain */
 const prefixHandlers: Record<string, RouterFn> = {
   ...publicPageHandlers,
@@ -646,6 +660,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   caldav: lazyRoute(loadFeedRoutes),
   checkin: lazyRoute(loadCheckinRoutes),
   contact: contactPrefixHandler,
+  "custom.css": customCssPrefixHandler,
   demo: lazyRoute(loadDemoResetRoutes),
   events: legacyEventsRedirectHandler,
   feeds: lazyRoute(loadFeedRoutes),
