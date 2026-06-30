@@ -114,12 +114,24 @@ const renderPackageCard = (
 ): string => {
   const { token } = cards[0]!;
   const purchaseOnly = cards.every((c) => c.entry.listing.purchase_only);
+  // Each member's signed attachment link rides along on its row so a bundle
+  // buyer can still download per-listing files (a standalone card would show
+  // them). A hidden package shows no members, so its attachments stay concealed
+  // too — its whole premise is that buyers never see the member listings.
+  const memberAttachment = (c: TicketCard): string =>
+    optionalHtml(
+      c.attachmentUrl,
+      (url) =>
+        ` <a href="${escapeHtml(url)}" class="attachment-link">${t("tickets.download")} ${escapeHtml(
+          c.entry.listing.attachment_name,
+        )}</a>`,
+    );
   const membersHtml = packageInfo.hideListings
     ? ""
     : `<ul class="ticket-card-package-members">${cards
         .map(
           (c) =>
-            `<li>${escapeHtml(c.entry.listing.name)} <span class="package-member-qty">&times;${c.entry.attendee.quantity}</span></li>`,
+            `<li>${escapeHtml(c.entry.listing.name)} <span class="package-member-qty">&times;${c.entry.attendee.quantity}</span>${memberAttachment(c)}</li>`,
         )
         .join("")}</ul>`;
   return `

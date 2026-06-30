@@ -610,4 +610,31 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     const rows = await getGroupPackagePrices(group.id);
     expect(rows.map((r) => r.listing_id)).toEqual([fixed.id]);
   });
+
+  /** A hidden package with one member listing, returning the member. */
+  const hiddenPackageMember = async (name: string) => {
+    const group = await createTestGroup({ isPackage: true, name });
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    return member(group, `${name} member`);
+  };
+
+  test("a hidden package member's admin detail suppresses share/QR affordances", async () => {
+    const listing = await hiddenPackageMember("HideShare");
+    const body = await (await adminGet(`/admin/listing/${listing.id}`)).text();
+    expect(body).not.toContain(`/admin/listing/${listing.id}/qr`);
+    expect(body).not.toContain(`/ticket/${listing.slug}`);
+    expect(body).toContain("buyers book it only through the package");
+    expect(body).not.toContain(`embed-script-${listing.id}`);
+    expect(body).not.toContain(`embed-iframe-${listing.id}`);
+  });
+
+  test("a hidden package member's admin QR generator route 404s", async () => {
+    const listing = await hiddenPackageMember("HideQr");
+    const res = await adminGet(`/admin/listing/${listing.id}/qr`);
+    res.body?.cancel();
+    expect(res.status).toBe(404);
+    const json = await adminGet(`/admin/listing/${listing.id}/qr.json`);
+    json.body?.cancel();
+    expect(json.status).toBe(404);
+  });
 });

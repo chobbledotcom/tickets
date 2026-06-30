@@ -9,7 +9,6 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import {
   computeGroupSlugIndex,
   getGroupBySlugIndex,
-  getHiddenPackageMemberIds,
 } from "#shared/db/groups.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
@@ -18,7 +17,7 @@ import { successPage } from "#templates/payment.tsx";
 import { getVisibleGroupMembers, groupBookable } from "./discovery.ts";
 import { handleGroupTicketBySlug } from "./groups.ts";
 import { handleQrBookGet } from "./qr-book.ts";
-import { anyChildListing } from "./ticket-payment.ts";
+import { lacksStandalonePublicPage } from "./ticket-payment.ts";
 import { handleBySlugs } from "./ticket-submit.ts";
 import { parseSlugs } from "./types.ts";
 
@@ -90,10 +89,9 @@ export const handleTicketQrGet = async (
   // is the same: its page now 404s, so its QR must too. Suppress both like the
   // rest of the listing's share affordances.
   if (listing) {
-    const blocked =
-      (await anyChildListing([listing.id])) ||
-      (await getHiddenPackageMemberIds([listing.id])).size > 0;
-    return blocked ? notFoundResponse() : qrResponse(slug);
+    return (await lacksStandalonePublicPage(listing.id))
+      ? notFoundResponse()
+      : qrResponse(slug);
   }
 
   const slugIndex = await computeGroupSlugIndex(slug);

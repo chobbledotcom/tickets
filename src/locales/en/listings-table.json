@@ -132,6 +132,7 @@
   "listings_table.i_understand": "I understand",
   "listings_table.recalculate_description": "Compare the stored listing totals with totals counted from attendee records. Select only the stored values you want to replace.",
   "listings_table.child_share_suppressed": "This listing is offered as a child of another listing, so it has no standalone booking link, embed, or QR code — buyers choose it during the parent's booking.",
+  "listings_table.package_member_share_suppressed": "This listing belongs to a package that hides its listings, so it has no standalone booking link, embed, or QR code — buyers book it only through the package.",
   "listings_table.child_banner": "This listing is offered as a child of {names}. It can't be booked on its own — buyers choose it while booking that listing, and it takes that listing's date and duration.",
   "listings_table.child_field_inherited": "Inherited from the parent when this listing is chosen as a child, so the settings here have no effect then.",
   "listings_table.children_legend": "Required child listings",

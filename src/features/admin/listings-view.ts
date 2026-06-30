@@ -19,7 +19,11 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity.ts";
-import { getGroupIdsByListingId, groupsTable } from "#shared/db/groups.ts";
+import {
+  getGroupIdsByListingId,
+  getHiddenPackageMemberIds,
+  groupsTable,
+} from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import {
   getListingAggregateRecalculation,
@@ -211,6 +215,7 @@ const renderListingPage = async (
             groupContext,
             recalc,
             isChild,
+            hiddenMemberIds,
             childrenByParent,
             revenueBreakdown,
             systemNotes,
@@ -223,6 +228,10 @@ const renderListingPage = async (
             // A child has no standalone share/QR affordance (invariant I3);
             // `anyChildListing` no-ops (no query) when the feature is off.
             anyChildListing([listing.id]),
+            // A hidden package's member has no standalone public page either (its
+            // /ticket slug 404s), so its share/QR/embed affordances are suppressed
+            // the same way a child's are.
+            getHiddenPackageMemberIds([listing.id]),
             // A parent's required children — names the quick add-attendee warning
             // lists. Empty map (no key) when this listing isn't a parent.
             getChildrenForParents([listing.id]),
@@ -247,6 +256,7 @@ const renderListingPage = async (
               // gate the action on the full set, not the date-filtered view.
               hasEmailableAttendees: attendees.some((a) => a.email !== ""),
               isChild,
+              isHiddenPackageMember: hiddenMemberIds.size > 0,
               listing,
               phonePrefix,
               questionData,

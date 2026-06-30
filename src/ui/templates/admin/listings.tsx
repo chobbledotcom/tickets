@@ -533,6 +533,10 @@ export type AdminListingPageOptions = {
    * generators (public URL / embed snippets / QR) are suppressed and the booking
    * QR menu action is hidden — they would only publish a dead-end link. */
   isChild?: boolean | undefined;
+  /** True when this listing is the member of a HIDDEN package. Like a child it
+   * has no standalone public page (its /ticket slug 404s), so the same share/QR/
+   * embed affordances are suppressed — they would only publish a dead-end link. */
+  isHiddenPackageMember?: boolean | undefined;
   /** The names of this listing's required children when it is a parent (empty
    * otherwise). Surfaces a warning on the quick add-attendee form: a manual add
    * books the parent alone, where public bookings fold a chosen child. */
@@ -549,14 +553,19 @@ const ListingActionNav = ({
   isOwner,
   hasEmailableAttendees,
   isChild,
+  isHiddenPackageMember,
 }: {
   listing: ListingWithCount;
   hasPaidListing: boolean;
   isOwner: boolean;
   hasEmailableAttendees: boolean;
   isChild: boolean;
+  isHiddenPackageMember: boolean;
 }): JSX.Element => {
   const readOnly = isReadOnly();
+  // A child or a hidden package's member has no standalone public page, so the
+  // booking QR (which points at /ticket/<slug>) would 404.
+  const shareSuppressed = isChild || isHiddenPackageMember;
   return (
     <nav>
       <ul>
@@ -589,7 +598,7 @@ const ListingActionNav = ({
             {t("terms.questions")}
           </a>
         </li>
-        {!readOnly && !isChild && (
+        {!readOnly && !shareSuppressed && (
           <li>
             <a href={`/admin/listing/${listing.id}/qr`}>
               {t("listings_table.booking_qr")}
@@ -855,6 +864,58 @@ const GroupAttendeesRow = ({
   );
 };
 
+/** The public-URL row: the shareable `/ticket/<slug>` link with its embed toggle
+ * and QR, OR a "no standalone page" note when the listing has no public entry
+ * point (a child, or a hidden package's member) and so can't be shared. */
+const PublicUrlRow = ({
+  listing,
+  allowedDomain,
+  ticketUrl,
+  shareSuppressed,
+  isChild,
+}: {
+  listing: ListingWithCount;
+  allowedDomain: string;
+  ticketUrl: string;
+  shareSuppressed: boolean;
+  isChild: boolean;
+}): JSX.Element =>
+  shareSuppressed ? (
+    <tr>
+      <th>{t("common.public_url")}</th>
+      <td>
+        <em>
+          {t(
+            isChild
+              ? "listings_table.child_share_suppressed"
+              : "listings_table.package_member_share_suppressed",
+          )}
+        </em>
+      </td>
+    </tr>
+  ) : (
+    <tr>
+      <th>
+        <label for={`embed-toggle-${listing.id}`}>
+          {t("common.public_url")}
+          <span class="embed-toggle-badge">embed</span>
+        </label>
+      </th>
+      <td>
+        <input
+          class="visually-hidden listing-embed-toggle"
+          id={`embed-toggle-${listing.id}`}
+          type="checkbox"
+        />
+        <a href={ticketUrl}>{`${allowedDomain}/ticket/${listing.slug}`}</a>
+        <small>
+          {" "}
+          (<a href={`/ticket/${listing.slug}/qr`}>{t("common.qr_code")}</a>)
+        </small>
+      </td>
+    </tr>
+  );
+
 /** Listing details table - all listing metadata rows */
 const ListingDetailsTable = ({
   listing,
@@ -871,6 +932,7 @@ const ListingDetailsTable = ({
   groupContext,
   sharedRowsHtml,
   isChild,
+  isHiddenPackageMember,
 }: {
   listing: ListingWithCount;
   aggregateRecalculation?: ListingAggregateRecalculation | undefined;
@@ -886,218 +948,199 @@ const ListingDetailsTable = ({
   groupContext: GroupContext | undefined;
   sharedRowsHtml: string;
   isChild: boolean;
-}): JSX.Element => (
-  <article>
-    <div class="table-scroll">
-      <table class="listing-details-table">
-        <tbody>
-          <tr>
-            <th colspan="2">{listing.name}</th>
-          </tr>
-          {listing.date && (
+  isHiddenPackageMember: boolean;
+}): JSX.Element => {
+  // A child or a hidden package's member has no standalone public page (the
+  // /ticket slug 404s), so suppress the public URL, QR and embed snippets and
+  // explain which case applies.
+  const shareSuppressed = isChild || isHiddenPackageMember;
+  return (
+    <article>
+      <div class="table-scroll">
+        <table class="listing-details-table">
+          <tbody>
             <tr>
-              <th>{t("listings_table.listing_date")}</th>
+              <th colspan="2">{listing.name}</th>
+            </tr>
+            {listing.date && (
+              <tr>
+                <th>{t("listings_table.listing_date")}</th>
+                <td>
+                  <span>
+                    <a
+                      href={`/admin/calendar?date=${listing.date.slice(0, 10)}`}
+                    >
+                      {formatDatetimeLabel(listing.date)}
+                    </a>{" "}
+                    <small>
+                      <em>({formatCountdown(listing.date)})</em>
+                    </small>
+                  </span>
+                </td>
+              </tr>
+            )}
+            {listing.location && (
+              <tr>
+                <th>{t("listings_table.location")}</th>
+                <td>{listing.location}</td>
+              </tr>
+            )}
+            <tr>
+              <th>{t("listings_table.listing_type")}</th>
               <td>
-                <span>
-                  <a href={`/admin/calendar?date=${listing.date.slice(0, 10)}`}>
-                    {formatDatetimeLabel(listing.date)}
-                  </a>{" "}
-                  <small>
-                    <em>({formatCountdown(listing.date)})</em>
-                  </small>
-                </span>
+                {listing.listing_type === "daily"
+                  ? t("listings_table.daily")
+                  : t("listings_table.standard")}
               </td>
             </tr>
-          )}
-          {listing.location && (
+            <ListingPriceRow listing={listing} />
+            {listing.customisable_days && (
+              <CustomisableDaysRow listing={listing} />
+            )}
+            {listing.months_per_unit > 0 && (
+              <tr>
+                <th>{t("listings_table.renewal")}</th>
+                <td>
+                  {listing.months_per_unit}{" "}
+                  {t("listings_table.months_per_ticket")}
+                </td>
+              </tr>
+            )}
+            {listing.non_transferable && (
+              <tr>
+                <th>{t("listings_table.non_transferable")}</th>
+                <td>{t("listings_table.yes_id_verification_required")}</td>
+              </tr>
+            )}
+            {listing.hidden && (
+              <tr>
+                <th>{t("listings_table.hidden")}</th>
+                <td>{t("listings_table.yes_not_shown_in_public_list")}</td>
+              </tr>
+            )}
+            {listing.listing_type === "daily" && (
+              <DailyScheduleRows listing={listing} />
+            )}
             <tr>
-              <th>{t("listings_table.location")}</th>
-              <td>{listing.location}</td>
-            </tr>
-          )}
-          <tr>
-            <th>{t("listings_table.listing_type")}</th>
-            <td>
-              {listing.listing_type === "daily"
-                ? t("listings_table.daily")
-                : t("listings_table.standard")}
-            </td>
-          </tr>
-          <ListingPriceRow listing={listing} />
-          {listing.customisable_days && (
-            <CustomisableDaysRow listing={listing} />
-          )}
-          {listing.months_per_unit > 0 && (
-            <tr>
-              <th>{t("listings_table.renewal")}</th>
+              <th>{t("listings_table.registration_closes")}</th>
               <td>
-                {listing.months_per_unit}{" "}
-                {t("listings_table.months_per_ticket")}
+                {listing.closes_at ? (
+                  <span>
+                    {formatDatetimeLabel(listing.closes_at)}{" "}
+                    <small>
+                      <em>({formatCountdown(listing.closes_at)})</em>
+                    </small>
+                  </span>
+                ) : (
+                  <em>{t("listings_table.no_deadline")}</em>
+                )}
               </td>
             </tr>
-          )}
-          {listing.non_transferable && (
-            <tr>
-              <th>{t("listings_table.non_transferable")}</th>
-              <td>{t("listings_table.yes_id_verification_required")}</td>
-            </tr>
-          )}
-          {listing.hidden && (
-            <tr>
-              <th>{t("listings_table.hidden")}</th>
-              <td>{t("listings_table.yes_not_shown_in_public_list")}</td>
-            </tr>
-          )}
-          {listing.listing_type === "daily" && (
-            <DailyScheduleRows listing={listing} />
-          )}
-          <tr>
-            <th>{t("listings_table.registration_closes")}</th>
-            <td>
-              {listing.closes_at ? (
-                <span>
-                  {formatDatetimeLabel(listing.closes_at)}{" "}
-                  <small>
-                    <em>({formatCountdown(listing.closes_at)})</em>
-                  </small>
-                </span>
-              ) : (
-                <em>{t("listings_table.no_deadline")}</em>
-              )}
-            </td>
-          </tr>
-          {isChild ? (
-            <tr>
-              <th>{t("common.public_url")}</th>
-              <td>
-                <em>{t("listings_table.child_share_suppressed")}</em>
-              </td>
-            </tr>
-          ) : (
-            <tr>
-              <th>
-                <label for={`embed-toggle-${listing.id}`}>
-                  {t("common.public_url")}
-                  <span class="embed-toggle-badge">embed</span>
-                </label>
-              </th>
-              <td>
-                <input
-                  class="visually-hidden listing-embed-toggle"
-                  id={`embed-toggle-${listing.id}`}
-                  type="checkbox"
-                />
-                <a href={ticketUrl}>
-                  {`${allowedDomain}/ticket/${listing.slug}`}
-                </a>
-                <small>
-                  {" "}
-                  (
-                  <a href={`/ticket/${listing.slug}/qr`}>
-                    {t("common.qr_code")}
-                  </a>
-                  )
-                </small>
-              </td>
-            </tr>
-          )}
-          {listing.thank_you_url && (
-            <tr>
-              <th>
-                <label for={`thank-you-url-${listing.id}`}>
-                  {t("listings_table.thank_you_url")}
-                </label>
-              </th>
-              <td>
-                <input
-                  data-select-on-click
-                  id={`thank-you-url-${listing.id}`}
-                  readonly
-                  type="text"
-                  value={listing.thank_you_url}
-                />
-              </td>
-            </tr>
-          )}
-          {listing.webhook_url && (
-            <tr>
-              <th>
-                <label for={`webhook-url-${listing.id}`}>
-                  {t("listings_table.webhook_url")}
-                </label>
-              </th>
-              <td>
-                <input
-                  data-select-on-click
-                  id={`webhook-url-${listing.id}`}
-                  readonly
-                  type="text"
-                  value={listing.webhook_url}
-                />
-              </td>
-            </tr>
-          )}
-          {!isChild && (
-            <tr class="listing-embed-row">
-              <th>
-                <label for={`embed-script-${listing.id}`}>
-                  {t("common.embed_script")}
-                </label>
-              </th>
-              <td>
-                <input
-                  data-select-on-click
-                  id={`embed-script-${listing.id}`}
-                  readonly
-                  type="text"
-                  value={embedScriptCode}
-                />
-              </td>
-            </tr>
-          )}
-          {!isChild && (
-            <tr class="listing-embed-row">
-              <th>
-                <label for={`embed-iframe-${listing.id}`}>
-                  {t("common.embed_iframe")}
-                </label>
-              </th>
-              <td>
-                <input
-                  data-select-on-click
-                  id={`embed-iframe-${listing.id}`}
-                  readonly
-                  type="text"
-                  value={embedIframeCode}
-                />
-              </td>
-            </tr>
-          )}
-          <AttendeesSummaryRow
-            adjustedCount={adjustedCount}
-            completeQuantitySum={completeQuantitySum}
-            dailySuffix={dailySuffix}
-            dateFilter={dateFilter}
-            isDaily={isDaily}
-            listing={listing}
-          />
-          {groupContext && (
-            <GroupAttendeesRow
-              dailySuffix={dailySuffix}
-              group={groupContext.group}
-              groupAttendeeCount={groupContext.attendeeCount}
+            <PublicUrlRow
+              allowedDomain={allowedDomain}
+              isChild={isChild}
+              listing={listing}
+              shareSuppressed={shareSuppressed}
+              ticketUrl={ticketUrl}
             />
-          )}
-          <ListingAggregateMismatchRow
-            aggregateRecalculation={aggregateRecalculation}
-            listing={listing}
-          />
-          <Raw html={sharedRowsHtml} />
-        </tbody>
-      </table>
-    </div>
-  </article>
-);
+            {listing.thank_you_url && (
+              <tr>
+                <th>
+                  <label for={`thank-you-url-${listing.id}`}>
+                    {t("listings_table.thank_you_url")}
+                  </label>
+                </th>
+                <td>
+                  <input
+                    data-select-on-click
+                    id={`thank-you-url-${listing.id}`}
+                    readonly
+                    type="text"
+                    value={listing.thank_you_url}
+                  />
+                </td>
+              </tr>
+            )}
+            {listing.webhook_url && (
+              <tr>
+                <th>
+                  <label for={`webhook-url-${listing.id}`}>
+                    {t("listings_table.webhook_url")}
+                  </label>
+                </th>
+                <td>
+                  <input
+                    data-select-on-click
+                    id={`webhook-url-${listing.id}`}
+                    readonly
+                    type="text"
+                    value={listing.webhook_url}
+                  />
+                </td>
+              </tr>
+            )}
+            {!shareSuppressed && (
+              <tr class="listing-embed-row">
+                <th>
+                  <label for={`embed-script-${listing.id}`}>
+                    {t("common.embed_script")}
+                  </label>
+                </th>
+                <td>
+                  <input
+                    data-select-on-click
+                    id={`embed-script-${listing.id}`}
+                    readonly
+                    type="text"
+                    value={embedScriptCode}
+                  />
+                </td>
+              </tr>
+            )}
+            {!shareSuppressed && (
+              <tr class="listing-embed-row">
+                <th>
+                  <label for={`embed-iframe-${listing.id}`}>
+                    {t("common.embed_iframe")}
+                  </label>
+                </th>
+                <td>
+                  <input
+                    data-select-on-click
+                    id={`embed-iframe-${listing.id}`}
+                    readonly
+                    type="text"
+                    value={embedIframeCode}
+                  />
+                </td>
+              </tr>
+            )}
+            <AttendeesSummaryRow
+              adjustedCount={adjustedCount}
+              completeQuantitySum={completeQuantitySum}
+              dailySuffix={dailySuffix}
+              dateFilter={dateFilter}
+              isDaily={isDaily}
+              listing={listing}
+            />
+            {groupContext && (
+              <GroupAttendeesRow
+                dailySuffix={dailySuffix}
+                group={groupContext.group}
+                groupAttendeeCount={groupContext.attendeeCount}
+              />
+            )}
+            <ListingAggregateMismatchRow
+              aggregateRecalculation={aggregateRecalculation}
+              listing={listing}
+            />
+            <Raw html={sharedRowsHtml} />
+          </tbody>
+        </table>
+      </div>
+    </article>
+  );
+};
 
 /** Attendees filter links (All / Checked In / Checked Out) */
 const AttendeesFilterLinks = ({
@@ -1348,6 +1391,7 @@ export const adminListingPage = ({
   ledger,
   hasEmailableAttendees = false,
   isChild = false,
+  isHiddenPackageMember = false,
   childNames = [],
   systemNotes = [],
 }: AdminListingPageOptions): string => {
@@ -1400,6 +1444,7 @@ export const adminListingPage = ({
         hasEmailableAttendees={hasEmailableAttendees}
         hasPaidListing={hasPaidListing}
         isChild={isChild}
+        isHiddenPackageMember={isHiddenPackageMember}
         isOwner={session.adminLevel === "owner"}
         listing={listing}
       />
@@ -1422,6 +1467,7 @@ export const adminListingPage = ({
         groupContext={groupContext}
         isChild={isChild}
         isDaily={isDaily}
+        isHiddenPackageMember={isHiddenPackageMember}
         listing={listing}
         sharedRowsHtml={renderDetailRows(sharedRows)}
         ticketUrl={ticketUrl}

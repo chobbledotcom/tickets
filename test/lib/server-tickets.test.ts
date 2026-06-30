@@ -483,6 +483,36 @@ describeWithEnv(
       expect(body).not.toContain("Widget");
     });
 
+    test("a non-hidden package card keeps each member's attachment link", async () => {
+      // The package card replaces the per-member ticket cards, so it must still
+      // expose the signed attachment a standalone card would — buyers of the
+      // bundle need their per-listing files.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Welcome Pack",
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        name: "Handbook",
+      });
+      await listingsTable.update(member.id, {
+        attachmentName: "Handbook.pdf",
+        attachmentUrl: "handbook.pdf",
+      });
+      const result = await createAttendeeAtomic({
+        bookings: [{ listingId: member.id, quantity: 1 }],
+        email: "pkg@test.com",
+        name: "Buyer",
+        packageGroupId: group.id,
+      });
+      if (!result.success) throw new Error("package booking failed");
+
+      const body = await fetchTicketBody(result.attendees[0]!.ticket_token);
+      expect(body).toContain("Welcome Pack");
+      expect(body).toContain("Handbook");
+      expect(body).toContain("attachment-link");
+    });
+
     test("two separate package orders are NOT collapsed into one card", async () => {
       // /t/a+b resolves two distinct attendees who happen to share a package
       // group; collapsing them would render a single package card and drop the

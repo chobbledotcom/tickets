@@ -850,6 +850,16 @@ export const anyChildListing = async (
   ids: readonly number[],
 ): Promise<boolean> => (await getChildListingIds(ids)).size > 0;
 
+/** Whether a listing has no standalone public booking page — it is a child
+ * (invariant I3) or a hidden package's member — so any admin/public affordance
+ * linking to its `/ticket/<slug>` page would dead-end (404). The single test the
+ * admin QR generator and the group QR route share. */
+export const lacksStandalonePublicPage = async (
+  listingId: number,
+): Promise<boolean> =>
+  (await anyChildListing([listingId])) ||
+  (await getHiddenPackageMemberIds([listingId])).size > 0;
+
 /**
  * Drop child listings from an indirectly-loaded listing set (group/order pages),
  * so a child never renders as a standalone selectable quantity row (invariant I3).
