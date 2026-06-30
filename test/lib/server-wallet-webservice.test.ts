@@ -184,6 +184,48 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
       );
       expect(response.status).toBe(404);
     });
+
+    test("404s a token mixing a standalone and a package booking, whatever the row order", async () => {
+      // A merge can leave one token with both a standalone row and a package
+      // row. The pass QR's /checkin covers every row, so a single-listing pass
+      // is wrong even if the standalone row sorts first — the gate must inspect
+      // every booking, not just the first.
+      await configureAppleWallet();
+      const group = await createTestGroup({ isPackage: true, name: "Bundle2" });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Hidden Member 2",
+      });
+      const standalone = await createTestListing({
+        maxAttendees: 10,
+        name: "Plain Ticket",
+      });
+      const result = await createAttendeeAtomic({
+        bookings: [
+          { listingId: standalone.id, quantity: 1 },
+          { listingId: member.id, quantity: 1 },
+        ],
+        email: "buyer2@test.com",
+        name: "Buyer Two",
+        packageGroupId: group.id,
+      });
+      if (!result.success) throw new Error("setup failed");
+      // The standalone row isn't part of the package — clear its package id so
+      // the token genuinely mixes a standalone and a package booking.
+      const { getDb } = await import("#shared/db/client.ts");
+      await getDb().execute({
+        args: [standalone.id],
+        sql: "UPDATE listing_attendees SET package_group_id = 0 WHERE listing_id = ?",
+      });
+      const token = result.attendees[0]!.ticket_token;
+
+      const response = await walletRequest(
+        `/v1/passes/pass.com.test.tickets/${token}`,
+      );
+      expect(response.status).toBe(404);
+    });
   });
 
   describe("POST /v1/log", () => {

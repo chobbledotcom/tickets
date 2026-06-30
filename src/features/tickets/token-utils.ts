@@ -14,7 +14,7 @@ import {
   getAttendeesByTokens,
   type ListingAttendeeRow,
 } from "#shared/db/attendees.ts";
-import { getPackageDisplayById } from "#shared/db/groups.ts";
+import { getPackageDisplaysByIds } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -87,8 +87,14 @@ export const lookupSingleTokenPassData = async (
   // booking it would misrepresent the bundle as one member — and for a HIDDEN
   // package it would leak that member's name/location to anyone with the token.
   // The ticket page already omits wallet links for package cards; 404 the direct
-  // pass endpoints to match.
-  if (await getPackageDisplayById(entry.attendee.package_group_id)) {
+  // pass endpoints to match. Check EVERY booking under the token, not just the
+  // first: a merge can leave one token with both a standalone and a package row,
+  // and the pass QR's /checkin covers them all — so a single-listing pass is
+  // wrong whenever ANY row is a package member, even when it doesn't sort first.
+  const packageDisplays = await getPackageDisplaysByIds(
+    entries.map((e) => e.attendee.package_group_id),
+  );
+  if (packageDisplays.size > 0) {
     return { ok: false, response: notFoundResponse() };
   }
   return { ok: true, passData: buildWalletPassData(entry, token) };
