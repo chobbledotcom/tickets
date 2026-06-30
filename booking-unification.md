@@ -86,48 +86,76 @@ model already needs, and the tree may carry a root/group identity:
 
 ```
 BookingTree {
-  rootRef:  none | { kind: "package", groupId }   // the package/group identity
-  nodes:    BookingNode[]                          // top-level nodes
+  // The page root. It owns the page-level header (name/description/terms/action
+  // slug) and, for a package, the single buyer-controlled `packageQty` selector
+  // plus the aggregate package card — which must render even when every member
+  // node is HIDDEN.
+  root:  { kind: "listing" }
+       | { kind: "group",   groupId }                // regular (non-package) group page
+       | { kind: "package", groupId, packageQty }    // package page
+  nodes: BookingNode[]                               // top-level nodes
 }
 
 BookingNode {
   listingId
   quantityRule:  REQUIRED(qty) | FIXED(qty) | OPTIONAL(min,max) | BUYER_CHOICE
+               | CHILDREN_SUM_TO_PARENT  // a parent: chosen child quantities must sum to
+                                         // its resolved qty; a sole child auto-fills
   priceRule:     BASE | OVERRIDE(amount) | PAY_MORE(min,max) | DAY_PRICE
-  visibility:    SHOWN | HIDDEN          // hidden ⇒ never named on a buyer surface
+  visibility:    SHOWN    // own control / row
+               | FOLDED   // booked + signed as its own node, displayed via its parent
+               | HIDDEN    // privacy: dropped from buyer DISPLAY only — kept in form /
+                           // booking semantics (its questions activate, answers attach)
   dateSpan:      NONE | DATE(date) | SPAN(date,duration) | INHERIT(parent)
   children:      BookingNode[]           // empty for a leaf
 }
 ```
 
-Two facets beyond the obvious ones, both required so the model can actually
-represent today's data (Codex review):
+Facets that are easy to under-model — each required so the tree can represent
+today's data and serve a *purely* recursive walk (Codex review):
 
-- **`rootRef` — explicit package/group identity.** Package flows must carry the
-  group id through checkout (`packageGroupId`) and onto persisted rows
-  (`package_group_id`) for hidden-member display and webhook revalidation. The
-  tree needs somewhere to retain that identity, not just member `listingId`s.
-- **`dateSpan` — date/duration facet.** `DAY_PRICE` alone is not enough: daily
-  and `customisable_days` listings persist a selected date/duration
+- **`root` — page identity, not just a member list.** `/ticket/<slug>` serves a
+  listing, a **regular group** (name/description/terms/action slug + buyer-chosen
+  member quantities), or a **package**. The root must carry that identity, and for
+  a package it owns the buyer-controlled `packageQty` and the package-level card —
+  otherwise a recursive renderer loses the group/package header or has nowhere to
+  put the package quantity control (and a fully-hidden package has no usable
+  control at all). It also threads `packageGroupId` through checkout and onto
+  `package_group_id` rows for hidden-member display and revalidation.
+- **`dateSpan` — date/duration facet.** `DAY_PRICE` alone is not enough: daily and
+  `customisable_days` listings persist a selected date/duration
   (`bookingDateFields`), and a parent/child fold resolves the child's duration
-  from the parent. Without a date/span facet (including `INHERIT(parent)`), the
-  recursive walk can't represent daily/customisable listings or daily children
-  accurately.
+  from the parent (`INHERIT(parent)`). Without it the walk can't represent
+  daily/customisable listings or daily children accurately.
+- **`visibility` is three modes, and it is display-only.** `SHOWN`, `FOLDED`
+  (booked + signed as its own node but shown through its parent — a visible
+  package member-parent's auto-included child, which is neither a normal row nor a
+  secret), and `HIDDEN` (privacy). Critically, `HIDDEN` suppresses *display* only:
+  a hidden member's listing-scoped questions still activate and its answers still
+  attach to the booked row, so the walk keeps hidden nodes in form/booking
+  semantics — it does not literally delete them.
+- **`CHILDREN_SUM_TO_PARENT` is a real constraint, not loose `BUYER_CHOICE`.** A
+  parent's chosen child quantities must sum exactly to the parent's resolved
+  quantity (sole child auto-fills); without modelling it the recursive fold could
+  accept under-/over-allocated children unless it kept a parent/child special case.
 
-The three models map onto it directly:
+The models map onto it directly:
 
-- **Normal listing** = a single `BUYER_CHOICE / BASE / SHOWN` leaf with its own
-  `dateSpan`. (The "single item is an array of one" principle from AGENTS.md: a
-  normal booking is a one-node tree, not a special case.)
-- **Parent/child** = a `BUYER_CHOICE` parent whose children are `BUYER_CHOICE`
-  leaves that must total the parent's quantity, inheriting the parent's span.
-  (Today's `foldSelectedChildren`.)
-- **Package** = a `rootRef = {package, groupId}` tree whose top-level nodes are
-  one `FIXED(packageQty × memberQty)` member per `group_listings` row;
-  `OVERRIDE` price per member; `HIDDEN` members when `hide_package_listings`.
+- **Normal listing** = a single `SHOWN` leaf whose `priceRule`/`dateSpan` come
+  from the listing's own fields — `BASE`, or `PAY_MORE` for `can_pay_more`, or
+  `DAY_PRICE`/`SPAN` for daily/`customisable_days` (not always `BASE`). (The
+  "single item is an array of one" principle: a one-node tree, not a special case.)
+- **Regular group** = `root = {group, groupId}` with `SHOWN / BUYER_CHOICE`
+  member nodes (each priced from its own fields), carrying the group's
+  name/description/terms.
+- **Parent/child** = a parent node whose children are `CHILDREN_SUM_TO_PARENT`,
+  inheriting the parent's span. (Today's `foldSelectedChildren`.)
+- **Package** = `root = {package, groupId, packageQty}` whose top-level nodes are
+  one `FIXED(packageQty × memberQty)` member per `group_listings` row; `OVERRIDE`
+  price per member; `HIDDEN` members when `hide_package_listings`.
 - **Package member that is a parent** (the old "auto-include") = a `FIXED` member
-  node that itself has a child node — no new code path, just a tree one level
-  deeper.
+  node with a child node; the child is `FOLDED` on a visible package. No new code
+  path — a tree one level deeper.
 
 ---
 
@@ -136,9 +164,13 @@ The three models map onto it directly:
 Everything the booking system does is one of five tree walks. Unification means
 writing each **once**, recursively, instead of three times.
 
-1. **Render** — walk the tree, emit a control per `SHOWN` node (`FIXED`/`REQUIRED`
-   shown read-only, `BUYER_CHOICE` as an input, `OPTIONAL` as an optional input),
-   omit `HIDDEN` nodes (drop them, never render-then-hide). Today: `ticketPage` +
+1. **Render** — emit the **root** control first (group header; for a package, the
+   single `packageQty` selector + aggregate card, even when all members are
+   `HIDDEN`), then walk the nodes: a control per `SHOWN` node (`FIXED`/`REQUIRED`
+   read-only, `BUYER_CHOICE` input, `OPTIONAL` optional input), a `FOLDED` node
+   shown only through its parent, and a `HIDDEN` node dropped from **display** —
+   but still emitting its hidden form fields (member ids, listing-scoped
+   questions) so submit/answers behave as today. Today: `ticketPage` +
    `packagePageAvailability` + per-child selectors → **one** recursive renderer.
 2. **Fold** — walk the submitted form into priced **per-node line items**
    (not a flat `Map<listingId, qty>`), validating each node's `quantityRule`.
@@ -156,11 +188,21 @@ writing each **once**, recursively, instead of three times.
    sole-child fold fills the child to that parent quantity — so a child's
    contribution is `childBase × (fixed × packageQty)`, reached without a second
    `× packageQty` (double-multiplying overcharges/overbooks for `packageQty > 1`).
+   **Node prices are not the whole total:** opt-in add-ons, promo/answer
+   modifiers, the reservation amount and booking fees flow through
+   `CheckoutIntent.modifiers`/metadata and are re-derived by the webhook. The
+   unified price walk must treat these as part of the signed pricing contract
+   (even though they live outside the node tree), or an order with a discount/
+   add-on can sign one total and revalidate/persist another.
 4. **Capacity** — **every booked node** consumes capacity, not only leaves: a
    parent line is itself sold, so it charges its own listing cap and group pools
-   alongside its children. Aggregate demand **by (listing, group pool), summing**
-   quantities across every path that books a listing (never dedupe — that would
-   validate one unit while the order consumes several). Feed each node through
+   alongside its children. Aggregate demand **by (listing, group pool, resolved
+   date/span), summing** quantities across every path that books a listing (never
+   dedupe — that would validate one unit while the order consumes several). The
+   date/span belongs in the key: daily/`customisable_days` remaining is scoped to
+   the booked span, so combining different spans (or checking against the wrong
+   remaining bucket) would cause false sell-outs or overbooking. Feed each node
+   through
    **both** arms of the cap: its own `maxPurchasable` (own-cap term) *and* its
    group ids/demand (group-pool term) — a listing in no capped group is bounded
    only by the former. Also gate on **active/bookable** state, not just the cap.
@@ -250,9 +292,9 @@ phase touches them; collected here so none is lost.
 
 ### Admin / configuration — one shared edge predicate, every path
 
-Today the parent-in-package state is blocked in **five** save paths. The unified
+Today the parent-in-package state is blocked in **six** save paths. The unified
 model permits a parent member (with deterministic children) and a member that is
-not itself a child; **all five** must move to one shared predicate together, or
+not itself a child; **all six** must move to one shared predicate together, or
 the accepted configuration fails from whichever path wasn't updated:
 
 - `isPackageableMember` (`src/features/admin/groups.ts`) — group create/edit, add-listings;
@@ -260,9 +302,14 @@ the accepted configuration fails from whichever path wasn't updated:
 - `packageChildEdgeConflict` (`src/features/admin/listings-parents.ts:404-410`) — children form;
 - the same `packageChildEdgeConflict` in the **JSON API** (`src/features/admin/api.ts:464-471`);
 - `copyEdgesFromDuplicateSource` (`src/features/admin/listings-edit.ts:160-166`) —
-  the **duplicate/create** path, which currently *drops* copied child edges when
-  the new listing joins a package group (would silently produce a member without
-  its child).
+  the single-listing **duplicate/create** path, which currently *drops* copied
+  child edges when the new listing joins a package group (would silently produce a
+  member without its child);
+- `remapDuplicatedGroupEdges` (via `handleDuplicateGroupPost`) — the **group bulk
+  duplication** path, which clones package memberships and remaps parent/child
+  edges; once packages may hold deterministic parent members it must run the same
+  predicate, or duplicating a valid package bypasses the checks or clones a bundle
+  whose edges differ from the source.
 - A parent member must itself satisfy the packageable rules (standard, not
   `customisable_days`/`can_pay_more`) — the deterministic-child rule is *added on
   top*, not a replacement.
