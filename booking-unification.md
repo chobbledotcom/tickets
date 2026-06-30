@@ -19,6 +19,14 @@ The thesis, in the user's words:
 This doc argues that thesis is **correct** and **achievable**, lays out the
 target model, and stages the migration so each step ships green.
 
+> **Branch context.** This doc is written against the **groups-as-packages
+> branch** (#1462), not `main`. The "Package" model, its schema
+> (`group_listings`, `is_package`, `package_price`, `hide_package_listings`,
+> `package_group_id`) and the `groupPoolUnits` capacity leaf referenced below
+> **exist on that branch**; on `main` they are still *proposed*. Read every
+> "today"/"on this branch" claim as "as of #1462". When this doc lands on `main`
+> it should land together with (or after) #1462.
+
 ---
 
 ## The three models today
@@ -94,19 +102,23 @@ writing each **once**, recursively, instead of three times:
    to the signed `BookingItem.p`. `OVERRIDE` wins, then `PAY_MORE`, then
    `DAY_PRICE`, then `BASE`. Today: `loadPackagePricing` + `expectedItemPrice` +
    child fold price → **one** `effectivePrice(node)`.
-4. **Capacity** — each leaf consumes its own cap and the caps of every group it
-   belongs to; a parent/package bounds its quantity by the tightest child/member
-   pool. Today: `packageQuantityCap` + `childCombinedCap` + per-line availability,
-   all already routing through the shared `groupPoolUnits` leaf — that leaf is the
-   seed of the unified capacity walk.
+4. **Capacity** — **every booked node** consumes capacity, not only the leaves: a
+   parent line is itself sold, so it charges its own listing cap and group pools
+   alongside its chosen child. Demand for a listing reachable by more than one
+   path in the same booking is **summed**, not deduped — the walk aggregates
+   quantities per (listing, group pool), so an order consuming two units is never
+   validated as one. A parent/package then bounds its quantity by the tightest
+   child/member pool. Today: `packageQuantityCap` + `childCombinedCap` + per-line
+   availability, all already routing through the shared `groupPoolUnits` leaf —
+   that leaf is the seed of the unified capacity walk.
 5. **Revalidate (webhook)** — re-walk the tree at payment time and recompute
    price × qty for every node against current config; any drift → `price_changed`
    refund. Today: package revalidation + child revalidation → **one** walk.
 
 The fact that step 4 *already* funnels through one primitive (`groupPoolUnits`,
-added on this branch) is the proof of concept: when we found two capacity code
-paths and asked "can these be one calculation?", the answer was yes. The same is
-true of the other four operations.
+added on the groups-as-packages branch #1462) is the proof of concept: when we
+found two capacity code paths and asked "can these be one calculation?", the
+answer was yes. The same is true of the other four operations.
 
 ---
 
@@ -119,8 +131,11 @@ true of the other four operations.
   `getPackageDisplaysByIds`) that a `visibility: HIDDEN` facet would call into.
 - Capacity already has the shared `groupPoolUnits` leaf and shared SQL predicate.
 - The fold already produces per-(child,parent) allocations and one
-  `listing_attendees` row per allocation — the tree's leaves are already the
-  booking rows.
+  `listing_attendees` row per allocation. Those allocation rows are the *child*
+  leaves — but the **parent line is persisted as its own booked row too**, so the
+  stored order is the full set of booked nodes (parents *and* child allocations),
+  carrying each node's sold quantity and pricing context. Stage 2/3 must preserve
+  parent rows, not collapse the tree down to leaves.
 
 **Not tractable as a big-bang rewrite, because:**
 
@@ -199,8 +214,10 @@ case to fall.
   price walk must produce byte-identical `p` to today's per-model pricing, or
   in-flight checkouts at deploy time refund spuriously.
 - **Capacity double-counting.** A listing reachable as both a package member and a
-  standalone line must consume its pool once per booking, not once per path; the
-  unified capacity walk must dedupe leaves by `listingId`.
+  standalone line must consume its pool the right number of times: the walk
+  **sums** that listing's quantities across every path that books it (aggregating
+  per listing + group pool), rather than deduping to a single contribution.
+  Deduping would validate one unit while the order actually consumes several.
 
 ---
 
@@ -214,8 +231,15 @@ selection — the package books the parent *and* its child as one unit.
 
 ### Scope (the deterministic-children line)
 
-A package member may be a **parent** iff every child folds **deterministically**:
+A package member may be a **parent** iff the parent itself still satisfies the
+existing packageable-member rules **and** every child folds **deterministically**.
+The relaxation *adds* the deterministic-child requirement on top of today's check —
+it does not replace it:
 
+- the **parent itself is packageable** (`isPackageable`: standard, not
+  `customisable_days`, not `can_pay_more`) — the flat package page must still
+  price and book the parent member, so a customisable-days or pay-what-you-want
+  parent is rejected exactly as it is today, **and**
 - the parent has **exactly one** child edge (sole child ⇒ auto-fills to the
   parent's quantity, no buyer choice — `resolveChildSelections`'s sole-child
   branch), **and**
@@ -234,11 +258,15 @@ Multiple children, `BUYER_CHOICE` children, or non-packageable children are
 
 The auto-included child folds at its **own base price**, exactly as the existing
 parent/child fold does everywhere else. The package's `package_price` override
-applies to the **parent** member; the child contributes `child.unit_price ×
-childQty × packageQty` to the bundle. This reuses the existing fold/price path
-unchanged and keeps the operator in control (set the child's base price to set
-its bundle contribution). No new price rule, no `group_listings` row for the
-child (it is pulled in via the edge, not group membership).
+applies to the **parent** member and — like every package member — is scaled by
+the parent's fixed per-package quantity *and* the package quantity:
+`parentOverride × parentMemberQty × packageQty`. The child contributes
+`child.unit_price × childQty × packageQty`. (The bare-`override` shorthand earlier
+drafts used undercharged multi-quantity parents — both sides scale by the package
+quantity.) This reuses the existing fold/price path unchanged and keeps the
+operator in control (set the child's base price to set its bundle contribution).
+No new price rule, no `group_listings` row for the child (it is pulled in via the
+edge, not group membership).
 
 ### Capacity
 
@@ -258,8 +286,12 @@ package cap's per-group demand accumulation.
    makes the child non-packageable, must block while the parent is a package
    member).
 2. **Render** (`packagePageAvailability` / `ticketPage`): a package member-parent
-   renders as one member row; its auto-included child is **not** a separate member
-   row (it rides along), shown or hidden per `hide_package_listings`.
+   renders as one member row. Its auto-included child is **never a member row of
+   its own** — on visible *and* hidden packages alike it is folded into the parent
+   member, contributing price and capacity but surfaced only through the parent.
+   This is the single visible-row invariant for auto-included children (the
+   tickets section below follows it); `hide_package_listings` then governs only
+   whether the parent member rows themselves show, exactly as for a plain package.
 3. **Fold** (`ticket-payment.ts`): the package expansion must run the existing
    `foldSelectedChildren` over its member-parents so the child becomes an ordinary
    line at `parentQty × packageQty`. The sole-child auto-fill branch already does
@@ -274,8 +306,10 @@ package cap's per-group demand accumulation.
 ### Tickets / discovery
 
 - The ticket card already folds a whole package into one card; the auto-included
-  child appears as a member row (or is hidden with the rest when
-  `hide_package_listings`). No new card path.
+  child is folded into that package card the same way — it is **never** its own
+  member line or ticket card, matching the single render invariant above. So a
+  hidden package conceals it and a visible package shows only the parent member.
+  No new card path.
 - Discovery / `/order` / `/order.js`: the package surfaces as today; the
   auto-included child is never independently surfaced (it has no standalone entry
   point — it is a child).
@@ -288,8 +322,10 @@ package cap's per-group demand accumulation.
   and on group save.
 - Fold: booking a package whose member is such a parent produces the parent line
   **and** the child line at `parentQty × packageQty`; allocation rows correct.
-- Pricing: bundle total = parent override + child base × qty × packageQty; signed
-  `p` per line correct.
+- Pricing: bundle total = `parentOverride × parentMemberQty × packageQty` +
+  `childBase × childQty × packageQty`; signed `p` per line correct (parent and
+  child each scaled by the package quantity — assert with `packageQty > 1` and a
+  parent `memberQty > 1` so a missing scale factor fails).
 - Capacity: package availability bounded by the child's own cap and the child's
   group pools.
 - Webhook: child revalidated via the listing-price path; price drift on the child
