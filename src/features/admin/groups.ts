@@ -31,6 +31,7 @@ import {
   getListingsByGroupId,
   getUngroupedListings,
   groupsTable,
+  hiddenPackageHasBookings,
   isGroupSlugTaken,
   type PackageMemberInput,
   resetGroupListings,
@@ -129,13 +130,38 @@ const validatePackageCompatibility = async (
   return null;
 };
 
+/** The error shown when a change would orphan a hidden package's sold tickets:
+ * deleting the group or clearing its `is_package` flag would stop the booking
+ * rows' stored id resolving to a hidden package, falling their tickets back to
+ * the individual members it concealed. Null when the group isn't a hidden
+ * package with bookings (see {@link hiddenPackageHasBookings}); a non-hidden
+ * package never leaks, and revealing the members first — clearing the hide flag
+ * while keeping `is_package` — is the operator's sanctioned escape hatch. */
+const concealedPackageBookingError = async (
+  groupId: number,
+): Promise<string | null> =>
+  (await hiddenPackageHasBookings(groupId))
+    ? t("error.hidden_package_has_bookings")
+    : null;
+
+/** Block deleting a hidden package that has sold tickets (see
+ * {@link concealedPackageBookingError}). Wired as the group CRUD's delete guard
+ * on both the admin form and the JSON API. */
+export const guardGroupDelete = (group: Group): Promise<string | null> =>
+  concealedPackageBookingError(group.id);
+
 /** Combined validation: slug uniqueness plus the package invariant. On create
- * (`id` undefined) the group has no members yet, so only the slug is checked. */
+ * (`id` undefined) the group has no members yet, so only the slug is checked.
+ * On update, un-packaging (clearing `is_package`) is blocked while the group is
+ * a hidden package with sold tickets, for the same reason deletion is. */
 export const validateGroupWithPackage: GroupValidator = async (input, id) => {
   const slugError = await validateGroupSlug(input, id);
   if (slugError) return slugError;
   if (id === undefined) return null;
-  return validatePackageCompatibility(id, input.isPackage);
+  const compatError = await validatePackageCompatibility(id, input.isPackage);
+  if (compatError) return compatError;
+  if (input.isPackage) return null;
+  return concealedPackageBookingError(id);
 };
 
 /** Parse one package-price input to minor units. A blank, non-numeric, or
@@ -229,6 +255,7 @@ const crudConfig = {
   getName: (g: Group) => g.name,
   getRowPath: (g: Group, session: AdminSession) =>
     groupReturnPath(session.adminLevel, g.id),
+  guardDelete: guardGroupDelete,
   listPath: "/admin/groups",
   renderDelete: adminGroupDeletePage,
   renderList: adminGroupsPage,

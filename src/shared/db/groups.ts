@@ -253,6 +253,28 @@ export const anyListingInPackageGroup = async (
   return rows.length > 0;
 };
 
+/** Whether the group is a HIDDEN package that already has sold tickets stamped
+ * with its id (`listing_attendees.package_group_id`). Those bookings render
+ * their ticket display through the group, so deleting it or clearing its
+ * `is_package` flag would orphan that id and fall the tickets back to the
+ * individual members it concealed — the delete/un-package guards block exactly
+ * this. A non-hidden package (or one with no bookings) reads false. */
+export const hiddenPackageHasBookings = async (
+  groupId: number,
+): Promise<boolean> => {
+  const rows = await queryAll<{ one: number }>(
+    `SELECT 1 AS one FROM groups AS groupRow
+      WHERE groupRow.id = ?
+        AND groupRow.is_package = 1
+        AND groupRow.hide_package_listings = 1
+        AND EXISTS (SELECT 1 FROM listing_attendees AS bookingRow
+                     WHERE bookingRow.package_group_id = groupRow.id)
+      LIMIT 1`,
+    [groupId],
+  );
+  return rows.length > 0;
+};
+
 /** Of the given listing ids, those that belong to a HIDDEN package — a package
  * group (`is_package = 1`) with `hide_package_listings = 1`. Buyers must never
  * meet these members standalone: the package name is the only public surface,

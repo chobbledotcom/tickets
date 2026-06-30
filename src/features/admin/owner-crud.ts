@@ -55,6 +55,14 @@ type CrudConfig<Row, Input, Display = Row> = {
   renderEdit?: (row: Row, session: AdminSession, error?: string) => string;
   renderDelete: (row: Row, session: AdminSession, error?: string) => string;
   getName: (row: Row) => string;
+  /** Optional guard blocking deletion with a user-facing message (null = allow).
+   * Surfaced on the confirmation page (GET renders it, POST blocks) via
+   * {@link createConfirmedHandlers}'s `guardError`. */
+  guardDelete?: (
+    row: Row,
+    id: number,
+    session: AdminSession,
+  ) => Promise<string | null>;
 };
 
 type AuthGuards = {
@@ -161,6 +169,7 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
       identifier: cfg.getName,
       identifierLabel: `${cfg.singular} name`,
       load: (id) => cfg.resource.table.findById(id),
+      ...(cfg.guardDelete ? { guardError: cfg.guardDelete } : {}),
       onConfirm: async (row, id) => {
         await cfg.resource.delete(id);
         await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);

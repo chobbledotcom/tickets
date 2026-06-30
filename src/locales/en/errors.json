@@ -60,6 +60,7 @@
   "error.slug_in_use_group": "Slug is already in use",
   "error.package_incompatible_listing": "Packages cannot contain listings with customisable days or pay-what-you-want pricing. Remove those listings before marking this group as a package.",
   "error.package_member_no_children": "a package member cannot require children",
+  "error.hidden_package_has_bookings": "This hidden package has tickets already sold against it. Deleting it or turning off its package status would reveal the member listings it hid on those existing tickets. Reveal the members first (uncheck \"hide member listings\") if you really mean to expose them.",
   "error.new_password_min": "New password must be at least 8 characters",
   "error.new_passwords_mismatch": "New passwords do not match",
   "error.current_password_incorrect": "Current password is incorrect",

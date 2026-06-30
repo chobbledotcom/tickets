@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import {
   getAllGroups,
   getGroupPackagePrices,
@@ -35,6 +36,27 @@ const member = (
   name: string,
   extra: Record<string, unknown> = {},
 ) => createTestListing({ groupId: group.id, name, ...extra });
+
+/** Stamp one sold ticket against `groupId` (as a package checkout would). */
+const sellPackageTicket = async (listingId: number, groupId: number) => {
+  const result = await createAttendeeAtomic({
+    bookings: [{ listingId, quantity: 1 }],
+    email: "buyer@test.com",
+    name: "Buyer",
+    packageGroupId: groupId,
+  });
+  if (!result.success) throw new Error("package booking failed");
+};
+
+/** A HIDDEN package, its sole member, and one sold ticket stamped with the
+ * group id — the state the delete/un-package guards must protect. */
+const hiddenPackageWithBooking = async (name: string, slug: string) => {
+  const group = await createTestGroup({ isPackage: true, name, slug });
+  await groupsTable.update(group.id, { hidePackageListings: true });
+  const memberListing = await member(group, `${name} Member`);
+  await sellPackageTicket(memberListing.id, group.id);
+  return { group, memberListing };
+};
 
 /** POST the edit form with is_package ticked and assert it was rejected by the
  * package invariant, leaving the flag clear. */
@@ -652,5 +674,84 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     const after = await (await adminGet(`/admin/groups/${group.id}`)).text();
     expect(after).not.toContain(`/ticket/${group.slug}`);
     expect(after).toContain("isn't currently bookable");
+  });
+
+  test("blocks deleting a hidden package that has sold tickets", async () => {
+    // Deleting would orphan the booking rows' package id, falling their tickets
+    // back to listing the members the hidden package concealed.
+    const { group } = await hiddenPackageWithBooking("Sold Kit", "sold-kit");
+    const { response } = await adminFormPost(
+      `/admin/groups/${group.id}/delete`,
+      { confirm_identifier: "Sold Kit" },
+    );
+    await expectFlashRedirect(
+      `/admin/groups/${group.id}/delete`,
+      expect.stringContaining("tickets already sold"),
+      false,
+    )(response);
+    expect(await groupsTable.findById(group.id)).not.toBeNull();
+  });
+
+  test("blocks un-packaging a hidden package that has sold tickets", async () => {
+    // Clearing is_package stops the booking rows' package id resolving to a
+    // package, so the same concealed members would surface on existing tickets.
+    const { group } = await hiddenPackageWithBooking("Lock Kit", "lock-kit");
+    const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
+      ...editFields("Lock Kit", "lock-kit"),
+    });
+    await expectFlashRedirect(
+      `/admin/groups/${group.id}/edit`,
+      expect.stringContaining("tickets already sold"),
+      false,
+    )(response);
+    expect((await groupsTable.findById(group.id))!.is_package).toBe(true);
+  });
+
+  test("allows deleting a hidden package with no sold tickets", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Empty Kit",
+      slug: "empty-kit",
+    });
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    await member(group, "Empty Member");
+    const { response } = await adminFormPost(
+      `/admin/groups/${group.id}/delete`,
+      { confirm_identifier: "Empty Kit" },
+    );
+    expect(response.status).toBe(302);
+    expect(await groupsTable.findById(group.id)).toBeNull();
+  });
+
+  test("allows un-packaging a NON-hidden package even with sold tickets", async () => {
+    // A visible package never concealed its members, so un-packaging it can't
+    // reveal anything — the guard only fires for hidden packages.
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Open Kit",
+      slug: "open-kit",
+    });
+    const only = await member(group, "Open Member");
+    await sellPackageTicket(only.id, group.id);
+    const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
+      ...editFields("Open Kit", "open-kit"),
+    });
+    expect(response.status).toBe(302);
+    expect((await groupsTable.findById(group.id))!.is_package).toBe(false);
+  });
+
+  test("the groups API blocks deleting a hidden package with sold tickets", async () => {
+    const { group } = await hiddenPackageWithBooking("Api Kit", "api-kit");
+    await assertJson(
+      apiRequest(`/api/admin/groups/${group.id}`, {
+        body: { confirm_identifier: "Api Kit" },
+        method: "DELETE",
+      }),
+      400,
+      (body) => {
+        expect(body.error).toContain("tickets already sold");
+      },
+    );
+    expect(await groupsTable.findById(group.id)).not.toBeNull();
   });
 });

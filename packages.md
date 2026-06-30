@@ -391,3 +391,33 @@ Each layer needs full coverage:
 | `test/lib/admin-groups.test.ts` | Create/edit form/route tests, API POST/PUT tests, partial-update semantics, membership change tests, group delete cleanup, bulk-duplicate, demo-override |
 | `test/lib/checkout-pricing.test.ts` | Package price substitution, child-item scoping, paid detection, TicketCtx map, metadata round-trip, revalidation tests incl. qty scaling and base-price fallback |
 | `test/lib/public-listings.test.ts` | Partition/sort render tests |
+
+## Known limitations — hidden-package member privacy
+
+A hidden package (`is_package` + `hide_package_listings`) promises buyers only
+ever see the package name, never its member listings. Two edge cases bound that
+promise:
+
+- **Deleting / un-packaging a hidden package with sold tickets is blocked.**
+  Booking rows store `package_group_id`; their ticket view resolves the package
+  through that id. If the group were deleted, or its `is_package` flag cleared,
+  the id would stop resolving and those existing tickets would fall back to
+  listing the individual members the package had concealed. So the group delete
+  and the "untick is_package" edit are both rejected (admin form and JSON API)
+  while such bookings exist — see `hiddenPackageHasBookings` and
+  `guardGroupDelete` / `validateGroupWithPackage` in
+  `src/features/admin/groups.ts`. The sanctioned way to expose the members is to
+  clear the **hide** flag first (which keeps `is_package`), an explicit operator
+  choice to reveal. (A non-hidden package never concealed anything, so it is not
+  guarded.)
+
+- **A listing in both a hidden package and a visible package can surface on the
+  visible package's page.** Membership is many-to-many, so one listing may
+  belong to hidden package A *and* visible package B. On `/ticket/<A>` the member
+  stays hidden, and the member's own `/ticket/<slug>` 404s — but `/ticket/<B>`
+  lists it as one of B's members, because B is itself a package and legitimately
+  shows its own membership (`visibleGroupMembers` returns a package group's full
+  membership). This is accepted as a known limitation rather than special-cased:
+  operators should not place a hidden package's member into a second, visible
+  package if its name must stay concealed. (The alternative — rejecting
+  overlapping package membership outright — was considered and deferred.)
