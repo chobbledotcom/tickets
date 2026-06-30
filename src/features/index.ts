@@ -12,8 +12,8 @@ import {
   getCleanUrl,
   isEmbeddablePath,
   isValidContentType,
-  isWebhookPath,
 } from "#routes/middleware.ts";
+import { bufferRequestBody } from "#routes/request-body.ts";
 import {
   databaseBusyResponse,
   htmlResponse,
@@ -28,12 +28,7 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
-import {
-  getClientIp,
-  normalizePath,
-  parseCookies,
-  parseRequest,
-} from "#routes/url.ts";
+import { getClientIp, parseCookies, parseRequest } from "#routes/url.ts";
 import { runWithClientIp } from "#shared/client-context.ts";
 import {
   loadEffectiveDomain,
@@ -771,30 +766,19 @@ const logAndReturn = (
 };
 
 /**
- * Buffer POST bodies BEFORE entering async context wrappers. The Bunny Edge
- * runtime can garbage-collect the underlying request body resource during
- * awaits, so we must capture it while the resource is still alive.
- * This applies to webhook bodies (JSON) and multipart form uploads (file
- * data backed by Blob resources that are especially prone to GC).
- * Use normalizePath on the raw pathname so trailing-slash variants like
- * /payment/webhook/ are correctly detected (the router normalizes later,
- * but by then the body resource may already be garbage-collected).
+ * Buffer a POST body BEFORE entering the async context wrappers and the
+ * per-request DB init / settings load. The Bunny Edge runtime can
+ * garbage-collect the underlying request body resource during those awaits, so
+ * a handler that reads the body later — a form parse, a webhook payload, a JSON
+ * API call — would otherwise throw "Cannot read body as underlying resource
+ * unavailable" (logged as a generic CDN_REQUEST error). Capturing it here, while
+ * the resource is still alive, closes that window for every body-bearing POST:
+ * form-urlencoded booking/quote posts (`/calculate`, `/ticket`), JSON webhooks
+ * and API calls, and multipart uploads alike. Non-POST methods (GET/HEAD page
+ * reads, the CalDAV verbs) carry their own semantics and pass straight through.
  */
-const bufferRequestIfNeeded = async (request: Request): Promise<Request> => {
-  const { pathname } = new URL(request.url);
-  const contentType = request.headers.get("content-type") ?? "";
-  const needsBodyBuffer =
-    request.method === "POST" &&
-    (isWebhookPath(normalizePath(pathname)) ||
-      contentType.startsWith("multipart/form-data"));
-  if (!needsBodyBuffer) return request;
-  const bufferedBody = new Uint8Array(await request.arrayBuffer());
-  return new Request(request.url, {
-    body: bufferedBody,
-    headers: request.headers,
-    method: request.method,
-  });
-};
+const bufferRequestIfNeeded = async (request: Request): Promise<Request> =>
+  request.method === "POST" ? bufferRequestBody(request) : request;
 
 /**
  * If the GET URL contains tracking parameters (fbclid, utm_*, etc.), return a

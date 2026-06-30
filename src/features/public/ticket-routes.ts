@@ -2,7 +2,6 @@
  * Route definitions, endpoint handlers, and the routeTicket router
  */
 
-import { bufferRequestBody } from "#routes/request-body.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { verifyTokensWithRealLine } from "#routes/tickets/token-utils.ts";
@@ -57,16 +56,9 @@ const slugHandler =
   (mode?: "calculate") =>
   async (request: Request, { slug }: { slug: string }): Promise<Response> => {
     const slugs = parseSlugs(slug);
-    // Buffer the POST body before the listing load, context build and CSRF
-    // signing below: those awaits give the Bunny edge runtime a window to GC the
-    // request body resource out from under the eventual form parse, which then
-    // throws "Cannot read body as underlying resource unavailable" (logged as a
-    // generic CDN_REQUEST error). Reading it up front closes that window — the
-    // same guard webhooks.ts applies to its payload.
-    const buffered = await bufferRequestBody(request);
-    const response = await handleBySlugs(buffered, slugs, mode);
+    const response = await handleBySlugs(request, slugs, mode);
     if (response.status === 404 && slugs.length === 1) {
-      return handleGroupTicketBySlug(buffered, slugs[0]!, mode);
+      return handleGroupTicketBySlug(request, slugs[0]!, mode);
     }
     return response;
   };
