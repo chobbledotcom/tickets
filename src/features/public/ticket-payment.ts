@@ -30,6 +30,7 @@ import {
 import {
   getGroupPackagePrices,
   getHiddenPackageMemberIds,
+  isHiddenPackageMember,
   packageMemberMaps,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
@@ -872,7 +873,7 @@ export const lacksStandalonePublicPage = async (
   listingId: number,
 ): Promise<boolean> =>
   (await anyChildListing([listingId])) ||
-  (await getHiddenPackageMemberIds([listingId])).size > 0;
+  (await isHiddenPackageMember(listingId));
 
 /**
  * Drop child listings from an indirectly-loaded listing set (group/order pages),

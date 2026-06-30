@@ -223,10 +223,7 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
 
     return {
       input: {
-        description:
-          body.description != null
-            ? String(body.description)
-            : existing.description,
+        description: bodyString(body, "description", existing.description),
         hidden: bodyBoolean(body, "hidden", existing.hidden),
         hidePackageListings: bodyBoolean(
           body,
@@ -239,10 +236,11 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
         packageMembers: members.input,
         slug,
         slugIndex,
-        termsAndConditions:
-          body.terms_and_conditions != null
-            ? String(body.terms_and_conditions)
-            : existing.terms_and_conditions,
+        termsAndConditions: bodyString(
+          body,
+          "terms_and_conditions",
+          existing.terms_and_conditions,
+        ),
       },
       ok: true,
     };

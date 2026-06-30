@@ -273,6 +273,13 @@ export const getHiddenPackageMemberIds = async (
   return new Set(rows.map((r) => r.listing_id));
 };
 
+/** Whether a single listing is a HIDDEN package's member — the one-listing form
+ * of `getHiddenPackageMemberIds`, for the buyer-facing guards (API lookup, QR
+ * booking, standalone-page test) that ask this of one listing at a time. */
+export const isHiddenPackageMember = async (
+  listingId: number,
+): Promise<boolean> => (await getHiddenPackageMemberIds([listingId])).size > 0;
+
 /** Whether adding child edges would violate the package invariant: the parent is
  * joining/in a package group, or any chosen child is itself a package member —
  * either way the package page can't render the resulting bundle. An empty

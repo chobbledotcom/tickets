@@ -43,7 +43,7 @@ import {
   isBookingRateLimited,
   recordBookingAttempt,
 } from "#shared/db/booking-attempts.ts";
-import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
+import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import {
@@ -257,7 +257,7 @@ const findActiveListing = async (
 ): Promise<ListingWithCount | Response> => {
   const listing = await getListingWithCountBySlug(slug);
   if (!listing?.active) return apiResponse(LISTING_NOT_FOUND, 404);
-  return (await getHiddenPackageMemberIds([listing.id])).size > 0
+  return (await isHiddenPackageMember(listing.id))
     ? apiResponse(LISTING_NOT_FOUND, 404)
     : listing;
 };
