@@ -66,11 +66,23 @@ captured below as a requirement on the unified build.
   ad-hoc multi-slug cart (`/ticket/<slug+slug>`); regular (non-package) group;
   package; signed QR link with a `payload.v` price override; `/renew` tier picker
   with a `siteToken`; the JSON API booking path (`POST /api/listings/:slug/book`,
-  which already runs the parent/child fold); and the non-tree `/pay/:token`
-  balance settlement. Known buyer surfaces: booking page; `/calculate` running
-  total; Stripe/Square line items; confirmation email + ticket attachments; ticket
-  cards; public `/listings`; the `/order.js` embed widget; the RSS/ICS feeds
-  (`/feeds/listings.{rss,ics}`); the JSON API discovery routes; and discovery
+  which already runs the parent/child fold); the non-tree `/pay/:token`
+  balance settlement; and the **admin attendee writers** that create/edit real
+  `listing_attendees` rows from flat listing lines, bypassing the public
+  render/fold path (`src/features/admin/attendees.ts`,
+  `src/features/admin/attendee-form-routes.ts`) — these either join the unified
+  fold's edge semantics or are explicitly scoped/exempt with a migration note, or
+  an admin can hand-write a parent-only row that violates `childRule`. Known buyer
+  surfaces: booking page; `/calculate` running total; Stripe/Square line items;
+  confirmation email + ticket attachments; ticket cards; public `/listings`; the
+  `/order` no-JS gallery (which runs its own listing/group discovery before
+  redirecting to `/ticket/<slugs>`, `src/features/public/order.ts`) **and** the
+  `/order.js` embed widget; the RSS/ICS feeds (`/feeds/listings.{rss,ics}`); the
+  JSON API discovery routes; the share/QR affordances (`GET /ticket/:slug/qr`
+  gated by `lacksStandalonePublicPage`/`groupBookable`, plus the admin
+  dashboard/listing public-URL/QR/embed snippets); the Apple/Google **wallet**
+  passes (`/wallet`, `/gwallet`, built from a single resolved token entry's
+  name/qty/price, package bookings 404'd); and discovery
   (`packageGroupBookable`). The test matrix covers each relevant entry × surface.
 
 ---
@@ -107,8 +119,12 @@ BookingTree {
   rootRef:  { kind: "listing", slugs } |          // standalone listing(s): /ticket/<slug[+slug…]>
             { kind: "group",   groupId } |        // regular (non-package) group page
             { kind: "package", groupId }          // package page
-  entry:    { qrPriceOverride?, renewal?, balanceAttendeeId? }  // signed NON-line context,
-                                                  // priced/revalidated alongside the tree
+  entry:    { qrPrefill?,        // QR link's signed v/qty/date/name prefill + price override
+              renewal?,          // /renew siteToken/actionUrl
+              balanceAttendeeId?,// /pay balance settlement target
+              parentThankYouUrl?,// parent's post-payment redirect, preserved through fold
+              urlPrefill? }      // /order → /ticket?q_<id>=N render-time quantity prefill
+              // signed/URL NON-line context, priced/revalidated alongside the tree
   nodes:    BookingNode[]                          // top-level nodes
 }
 
@@ -135,11 +151,24 @@ represent today's data (Codex review):
   **package**. Package flows must also carry the group id through checkout
   (`packageGroupId`) and onto persisted rows (`package_group_id`) for
   hidden-member display and revalidation. Beyond the line nodes, an `entry` holds
-  signed **non-line** context — a QR link's `payload.v` price override, the
-  `/renew` `siteToken`/`actionUrl`, and the `/pay` `balanceAttendeeId` — which is
-  priced and revalidated alongside the tree, never as node prices, or a unified
-  builder would charge/revalidate at base price and lose the renewal/balance
-  action.
+  signed/URL **non-line** context — which is priced, prefilled, and revalidated
+  alongside the tree, never as node prices, or a unified builder would
+  charge/revalidate at base price and lose the renewal/balance/prefill/redirect:
+  - a QR link's full signed prefill, not just `payload.v` price override but the
+    quantity/date/name it carries (`src/shared/qr-token.ts`, consumed by
+    `src/features/public/qr-book.ts`) — drop these and a direct-checkout QR opens
+    an empty form or at base price;
+  - the `/renew` `siteToken`/`actionUrl`;
+  - the `/pay` `balanceAttendeeId`;
+  - the explicit parent `thankYouUrl` carried through paid metadata
+    (`src/shared/payments.ts`, set in `src/features/public/ticket-submit.ts`) so
+    folding child lines under a parent doesn't lose the parent's post-payment
+    redirect;
+  - the `/order → /ticket/<slugs>?q_<id>=N` URL quantity prefill: `handleBySlugs`
+    runs `parseQuantityPrefill` so the multi-slug form opens with chosen
+    quantities. The `listing` root carries slugs only, so this render-time query
+    state must live on `entry` (or be explicitly kept outside the tree) or a
+    Phase 1 builder turns an order-cart selection into an empty/default form.
 - **`nodeKey` / `edgeRef` — explicit node identity.** A listing can be reached by
   more than one path (standalone, package member, required child under a package
   member, the same child under two parents). The signed checkout payload and the
@@ -200,7 +229,13 @@ writing each **once**, recursively, instead of three times.
    Collapse by listing **only** when computing capacity demand. Today:
    `foldSelectedChildren` + package expansion → **one** recursive fold. The v2
    signed line shape should therefore carry `nodeKey`/edge provenance in addition
-   to listing id, quantity, and price.
+   to listing id, quantity, and price — but within a **provider metadata budget**:
+   today's checkout metadata is deliberately compact because Square caps entries
+   (≈10) and value lengths and already throws batching errors for oversized
+   `items`/answers/modifiers/packed fields (`src/shared/payment-helpers.ts`).
+   Adding edge/date/display context to every line must use an explicit compact
+   wire shape with limit tests, or sufficiently nested packages/folded children
+   fail hosted checkout even though the tree validates.
 3. **Price** — each node contributes `effectivePrice(node) × resolvedQty` to its
    own canonical signed line. `OVERRIDE` wins, then `PAY_MORE`,
    then `DAY_PRICE`, then `BASE`. Mind the **already-expanded quantity**: a
@@ -297,7 +332,9 @@ identical; golden-test the HTML and assert stable `nodeKey` form field names.
 **Phase 2 — unify fold + price + capacity + revalidate.** Collapse
 `foldSelectedChildren` + package expansion into one recursive fold producing
 per-node line items; introduce v2 checkout metadata carrying `nodeKey`/edge
-provenance; one `effectivePrice(node)`; one aggregate capacity walk seeded by
+provenance within the provider metadata budget (compact wire shape + Square
+entry-count/value-length limit tests); one `effectivePrice(node)`; one aggregate
+capacity walk seeded by
 `groupPoolUnits`; one revalidation walk. Still no edge-store schema change — the
 tree is built from the existing tables each request, and persisted rows continue
 to use `parent_listing_id`/`package_group_id` where those are expressive enough.
@@ -364,9 +401,10 @@ the accepted configuration fails from whichever path wasn't updated:
   feed both the own-cap and group-demand arms, and gate on active/bookable state
   (an inactive node with spare capacity must not advertise) — as in operation 4.
 - **Discovery parity:** `packageGroupBookable` (`src/features/public/discovery.ts:369-397`)
-  must run the same walk as the ticket page, or `/order`/listings, the `/order.js`
-  widget, the RSS/ICS feeds, and the JSON API discovery routes advertise (and
-  issue QRs for) a bundle the ticket page caps at 0.
+  must run the same walk as the ticket page, or the `/order` gallery, `/listings`,
+  the `/order.js` widget, the RSS/ICS feeds, the JSON API discovery routes, and
+  the share/QR affordances advertise (and issue QRs for) a bundle the ticket page
+  caps at 0.
 
 ### Buyer-facing display — a projection, never a mutation of signed items
 
@@ -375,8 +413,16 @@ the booking-page render, the running total (`orderSummary`), the Stripe/Square
 line items, the confirmation email/ticket attachments (`buildTemplateData`), the
 ticket cards, the public `/listings` cards (which today keep child listings in the
 card list and only swap the CTA; an auto-included child has no `group_listings`
-row, so it needs a dedicated suppression path), the `/order.js` embed widget, and
-the RSS/ICS feeds.
+row, so it needs a dedicated suppression path), the `/order` gallery and the
+`/order.js` embed widget, the RSS/ICS feeds, the share/QR affordances
+(`/ticket/:slug/qr` and the admin public-URL/QR/embed snippets — an unbookable
+folded child or hidden member must not get published share links), and the
+Apple/Google **wallet** passes. Wallet data is built from a single resolved
+token entry's `listing.name`/qty/price (`lookupSingleTokenPassData` →
+`buildWalletPassData`, with package bookings 404'd today); once folded child rows
+are signed/persisted separately, `/wallet`/`/gwallet` need an explicit
+projection/suppression rule or a direct request exposes the child as the pass's
+listing (or regresses by disappearing only on that surface).
 
 **Crucially this is display-only.** The provider line items *and* the signed
 booking metadata must no longer be the same mutable array once display folding is
@@ -417,7 +463,9 @@ invariants above demand:
 - **Admin:** the accepted parent-member-with-child configuration succeeds via
   **every** save path (group edit/add-listings, listing save, children form, JSON
   API, single-listing duplicate, group bulk duplicate); incompatible
-  parent/child/cardinality rejected from each.
+  parent/child/cardinality rejected from each. The admin attendee add/edit writers
+  either produce edge-consistent rows or reject a parent-only row that violates
+  `childRule` (no flat-line bypass of the fold's child semantics).
 - **Questions:** a question assigned to several selected listings is rendered and
   validated once; a required question on a folded/hidden child is still collected
   once without printing the hidden listing's name.
@@ -430,9 +478,17 @@ invariants above demand:
   booking on a shared day); an inactive node drops the bundle; discovery
   (cards, `/order.js`, feeds, API) hides/re-shows in lockstep with `/ticket/<group>`.
 - **Display:** visible-package child folded into its parent on summary, provider
-  lines, email, ticket card, `/listings`, and `/order.js` — while the **canonical
-  signed lines still carry the child separately** (assert the webhook
-  receives/persists it).
+  lines, email, ticket card, `/listings`, `/order`, and `/order.js` — while the
+  **canonical signed lines still carry the child separately** (assert the webhook
+  receives/persists it). A folded child / hidden member is not exposed via
+  `/wallet`/`/gwallet` or via share/QR (`/ticket/:slug/qr`, admin embed snippets),
+  and a visible package's wallet pass projects the parent, not the child.
+- **Metadata budget:** a deeply nested package / many folded children stays within
+  Square's entry-count and value-length limits (compact v2 wire shape), asserting
+  hosted checkout doesn't throw on a tree the validator accepts.
+- **Entry round-trips:** a signed QR link's qty/date/name/price prefill and a
+  parent `thankYouUrl` survive a fold that adds child lines; an
+  `/order → /ticket/<slugs>?q_<id>=N` cart opens the form with those quantities.
 - **Webhook:** price drift *and* a removed/swapped edge mid-checkout both take
   `price_changed`; the `/pay` balance and renewal entries settle/extend correctly.
 - **Privacy:** `hide_package_listings` conceals members on every surface.
