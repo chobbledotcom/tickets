@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import { revenueAccount, WRITEOFF } from "#shared/accounting/accounts.ts";
 import { writeoffAdjustmentInserts } from "#shared/accounting/adjustments.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
@@ -61,6 +62,22 @@ describe("db > accounting > postWriteoffAdjustment", () => {
     expect(all.length).toBe(2);
     // The two corrections net the account back to zero.
     expect(await accountBalance(revenue)).toBe(0);
+  });
+
+  test("two opposite corrections in the same millisecond both post", async () => {
+    // Freeze the clock so both posts share one millisecond `occurredAt`. Because
+    // the signed delta is part of the reference, the raise and the lower hash
+    // differently and both land — without it they would collide on
+    // `[...keyParts, occurredAt]` and INSERT OR IGNORE would drop the second.
+    const time = new FakeTime(new Date("2026-06-21T00:00:00.000Z"));
+    try {
+      await postWriteoffAdjustment(revenue, 1000, ["income-adjust", 7]);
+      await postWriteoffAdjustment(revenue, -1000, ["income-adjust", 7]);
+      expect((await allTransfers()).length).toBe(2);
+      expect(await accountBalance(revenue)).toBe(0);
+    } finally {
+      time.restore();
+    }
   });
 
   test("the writeoff account mirrors the opposite of the adjusted figure", async () => {
