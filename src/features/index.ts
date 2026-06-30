@@ -794,7 +794,11 @@ const BUFFERED_POST_CONTENT_TYPES = [
  */
 const bufferRequestIfNeeded = async (request: Request): Promise<Request> => {
   if (request.method !== "POST") return request;
-  const contentType = request.headers.get("content-type") ?? "";
+  // Content-Type is case-insensitive (HTTP). Lowercase before matching so the
+  // buffer gate accepts the same casings `isValidContentType` does — otherwise a
+  // standards-compliant `Application/JSON` would be validated but skip buffering,
+  // reopening the GC window for that casing.
+  const contentType = (request.headers.get("content-type") ?? "").toLowerCase();
   const needsBuffer = BUFFERED_POST_CONTENT_TYPES.some((type) =>
     contentType.startsWith(type),
   );
