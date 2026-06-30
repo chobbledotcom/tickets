@@ -766,19 +766,40 @@ const logAndReturn = (
 };
 
 /**
- * Buffer a POST body BEFORE entering the async context wrappers and the
- * per-request DB init / settings load. The Bunny Edge runtime can
- * garbage-collect the underlying request body resource during those awaits, so
- * a handler that reads the body later — a form parse, a webhook payload, a JSON
- * API call — would otherwise throw "Cannot read body as underlying resource
- * unavailable" (logged as a generic CDN_REQUEST error). Capturing it here, while
- * the resource is still alive, closes that window for every body-bearing POST:
- * form-urlencoded booking/quote posts (`/calculate`, `/ticket`), JSON webhooks
- * and API calls, and multipart uploads alike. Non-POST methods (GET/HEAD page
- * reads, the CalDAV verbs) carry their own semantics and pass straight through.
+ * The POST content types whose bodies a handler actually reads, and which must
+ * therefore be buffered before the GC-prone awaits below. Mirrors the bodies
+ * `isValidContentType` accepts: forms (urlencoded/multipart) and JSON (webhooks
+ * + JSON API). A bodyless POST — `/scheduled`, `/instance/site-credentials`,
+ * sent with no content-type — matches none of these and is left unbuffered, so
+ * we never read a body the handler ignores.
  */
-const bufferRequestIfNeeded = async (request: Request): Promise<Request> =>
-  request.method === "POST" ? bufferRequestBody(request) : request;
+const BUFFERED_POST_CONTENT_TYPES = [
+  "application/x-www-form-urlencoded",
+  "multipart/form-data",
+  "application/json",
+] as const;
+
+/**
+ * Buffer a body-bearing POST body BEFORE the per-request DB init / settings
+ * load. The Bunny Edge runtime can garbage-collect the underlying request body
+ * resource during those awaits, so a handler that reads the body later — a form
+ * parse, a webhook payload, a JSON API call — would otherwise throw "Cannot read
+ * body as underlying resource unavailable" (logged as a generic CDN_REQUEST
+ * error). Capturing it while the resource is still alive closes that window for
+ * the booking/quote posts (`/calculate`, `/ticket`), webhooks, JSON API calls
+ * and multipart uploads alike. Gated on content type so bodyless POSTs and
+ * non-POST methods (GET/HEAD, the CalDAV verbs) pass straight through without an
+ * unnecessary read. The caller runs this inside the routed `try`, so a failed
+ * read is classified by `handleRoutingError` like any other.
+ */
+const bufferRequestIfNeeded = async (request: Request): Promise<Request> => {
+  if (request.method !== "POST") return request;
+  const contentType = request.headers.get("content-type") ?? "";
+  const needsBuffer = BUFFERED_POST_CONTENT_TYPES.some((type) =>
+    contentType.startsWith(type),
+  );
+  return needsBuffer ? bufferRequestBody(request) : request;
+};
 
 /**
  * If the GET URL contains tracking parameters (fbclid, utm_*, etc.), return a
@@ -925,17 +946,24 @@ const handleRoutingError = (
  * error handling, and logging.
  */
 const processRequest = async (
-  effectiveRequest: Request,
+  request: Request,
   server: ServerContext | undefined,
 ): Promise<Response> => {
-  const { url, path, method } = parseRequest(effectiveRequest);
+  const { url, path, method } = parseRequest(request);
   const getElapsed = createRequestTimer();
-  detectIframeMode(effectiveRequest.url);
+  detectIframeMode(request.url);
   clearSavedFormData();
 
   let response!: Response;
   try {
-    const staticResponse = await routeStatic(effectiveRequest, path, method);
+    // Buffer the POST body up front, before the DB init / settings load awaits
+    // below give the Bunny edge runtime a window to GC the body resource. Done
+    // inside this try (and before the first await) so a failed read is logged
+    // and rendered through handleRoutingError, not left to escape the routed
+    // error path.
+    const bufferedRequest = await bufferRequestIfNeeded(request);
+
+    const staticResponse = await routeStatic(bufferedRequest, path, method);
     if (staticResponse) {
       return logAndReturn(
         await applySecurityHeaders(staticResponse, isEmbeddablePath(path)),
@@ -961,9 +989,9 @@ const processRequest = async (
       return logAndReturn(trackingRedirect, method, path, getElapsed);
     }
 
-    await prepareRequestEnvironment(effectiveRequest, path, method);
+    await prepareRequestEnvironment(bufferedRequest, path, method);
 
-    if (!isValidContentType(effectiveRequest, path)) {
+    if (!isValidContentType(bufferedRequest, path)) {
       return logAndReturn(
         contentTypeRejectionResponse(),
         method,
@@ -973,7 +1001,7 @@ const processRequest = async (
     }
 
     response = logAndReturn(
-      await routeAndFinalize(effectiveRequest, path, method, server),
+      await routeAndFinalize(bufferedRequest, path, method, server),
       method,
       path,
       getElapsed,
@@ -1001,10 +1029,7 @@ export const handleRequest = async (
   request: Request,
   server?: ServerContext,
 ): Promise<Response> => {
-  const effectiveRequest = await bufferRequestIfNeeded(request);
-  const locale = parseAcceptLanguage(
-    effectiveRequest.headers.get("accept-language"),
-  );
+  const locale = parseAcceptLanguage(request.headers.get("accept-language"));
 
   return runWithLocale(locale, () =>
     runWithClientIp(getClientIp(request, server), () =>
@@ -1013,9 +1038,7 @@ export const handleRequest = async (
           runWithQueryLogContext(() =>
             runWithFlashContext(() =>
               runWithSessionContext(() =>
-                runWithSettingsAudit(() =>
-                  processRequest(effectiveRequest, server),
-                ),
+                runWithSettingsAudit(() => processRequest(request, server)),
               ),
             ),
           ),
