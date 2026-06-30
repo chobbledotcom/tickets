@@ -14,6 +14,7 @@
   "join.success.heading": "Password Set",
   "join.success.message": "Your password has been set successfully.",
   "join.success.ready": "Your account is ready — you can log in now.",
+  "join.success.login_link": "Log In",
   "join.invalid.title": "Invalid Invite",
   "join.invalid.heading": "Invalid Invite",
   "password.current": "Current Password",

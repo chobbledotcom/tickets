@@ -461,7 +461,12 @@ describeWithEnv("server (setup)", { db: true }, () => {
       });
 
       test("GET /setup/complete shows success page when setup is done", async () => {
-        await assertPublicHtml("/setup/complete", "Setup Complete");
+        await assertPublicHtml(
+          "/setup/complete",
+          "Setup Complete",
+          'href="/admin/login"',
+          "Log In",
+        );
       });
     });
   });

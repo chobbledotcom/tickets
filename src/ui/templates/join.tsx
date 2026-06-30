@@ -6,6 +6,7 @@ import { t } from "#i18n";
 import { joinForm } from "#routes/join.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { ActionButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /**
@@ -41,6 +42,11 @@ export const joinCompletePage = (): string =>
         <p>{t("join.success.message")}</p>
         <p>{t("join.success.ready")}</p>
       </div>
+      <p class="actions">
+        <ActionButton href="/admin/login" icon="log-in">
+          {t("join.success.login_link")}
+        </ActionButton>
+      </p>
     </Layout>,
   );
 

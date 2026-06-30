@@ -105,8 +105,8 @@ export const setupCompletePage = (): string =>
         <p>{t("setup.complete.message")}</p>
       </div>
       <p class="actions">
-        <ActionButton href="/admin/" icon="arrow-right">
-          {t("setup.complete.dashboard_link")}
+        <ActionButton href="/admin/login" icon="log-in">
+          {t("setup.complete.login_link")}
         </ActionButton>
       </p>
     </Layout>,
