@@ -2,7 +2,6 @@
  * Public pages - home, listings, terms, contact
  */
 
-import { mapParallel } from "#fp";
 import { applyFlash, requireMessageField, withCsrfForm } from "#routes/csrf.ts";
 import {
   errorRedirect,
@@ -19,12 +18,11 @@ import {
   sendContactMessage,
 } from "#shared/contact-form.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { getAllGroups } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
-import type { Group, ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 import {
   childCardState,
@@ -37,26 +35,12 @@ import {
   applyParentSoldOut,
   classifyForDiscovery,
   dropHiddenPackageMembers,
-  getVisibleGroupMembers,
-  groupBookable,
+  loadPublicGroups,
 } from "./discovery.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /** Active+visible filter for public listing listings */
 const isPublicListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
-
-/** Load non-hidden groups whose `/listings` Book CTA leads to a bookable page,
- * so a child-only or sold-out group never advertises a dead link. A regular
- * group needs one standalone-bookable member ({@link groupHasBookableMember}); a
- * PACKAGE needs the whole bundle to fit ({@link packageGroupBookable}) — a
- * package with a single sold-out member can't sell, so its CTA is suppressed. */
-const loadPublicGroups = async (): Promise<Group[]> => {
-  const groups = (await getAllGroups()).filter((g) => !g.hidden);
-  const bookable = await mapParallel(async (g: Group) =>
-    groupBookable(g, await getVisibleGroupMembers(g)),
-  )(groups);
-  return groups.filter((_, i) => bookable[i]);
-};
 
 /** Guard: redirect to admin login if public site is disabled */
 const requirePublicSite = <T>(fn: () => T): T | Response =>

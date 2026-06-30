@@ -19,7 +19,7 @@
  * parents.md, "Public listing cards" and "no bookable child ⇒ sold out".
  */
 
-import { mapNotNullish, unique } from "#fp";
+import { mapNotNullish, mapParallel, unique } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import {
@@ -29,6 +29,7 @@ import {
 } from "#shared/db/attendees.ts";
 import {
   getActiveListingsByGroupId,
+  getAllGroups,
   getGroupIdsByListingIds,
   getGroupListingIds,
   getGroupPackagePrices,
@@ -399,6 +400,20 @@ export const groupBookable = (
   group.is_package
     ? packageGroupBookable(members, group.id)
     : groupHasBookableMember(members);
+
+/** Load non-hidden groups whose Book CTA leads to a bookable page, so a
+ * child-only or sold-out group never advertises a dead link. A regular group
+ * needs one standalone-bookable member ({@link groupHasBookableMember}); a
+ * PACKAGE needs the whole bundle to fit ({@link packageGroupBookable}). Shared
+ * by every public surface that lists groups (the `/listings` page and the
+ * `/order` gallery). */
+export const loadPublicGroups = async (): Promise<Group[]> => {
+  const groups = (await getAllGroups()).filter((g) => !g.hidden);
+  const bookable = await mapParallel(async (g: Group) =>
+    groupBookable(g, await getVisibleGroupMembers(g)),
+  )(groups);
+  return groups.filter((_, i) => bookable[i]);
+};
 
 /** Force a {@link TicketListing} into the sold-out state (no Book CTA, no
  * purchasable quantity) — projecting a parent with no bookable child onto the
