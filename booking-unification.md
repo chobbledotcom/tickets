@@ -260,10 +260,18 @@ The auto-included child folds at its **own base price**, exactly as the existing
 parent/child fold does everywhere else. The package's `package_price` override
 applies to the **parent** member and — like every package member — is scaled by
 the parent's fixed per-package quantity *and* the package quantity:
-`parentOverride × parentMemberQty × packageQty`. The child contributes
-`child.unit_price × childQty × packageQty`. (The bare-`override` shorthand earlier
-drafts used undercharged multi-quantity parents — both sides scale by the package
-quantity.) This reuses the existing fold/price path unchanged and keeps the
+`parentOverride × parentMemberQty × packageQty`.
+
+The child contributes `child.unit_price × foldedChildQty`, where `foldedChildQty`
+is the parent member's **already-expanded** quantity. This is the subtle bit:
+`resolvePageQuantities` has *already* set the member quantity to
+`parentMemberQty × packageQty` before folding, and the sole-child branch fills the
+child to that full parent quantity — so the child is folded at
+`parentMemberQty × packageQty` and must **not** be multiplied by `packageQty` a
+second time (doing so double-counts the package multiplier and overcharges/
+overbooks the child). Net effect: child bundle contribution =
+`child.unit_price × parentMemberQty × packageQty`, reached without an extra
+multiply. This reuses the existing fold/price path unchanged and keeps the
 operator in control (set the child's base price to set its bundle contribution).
 No new price rule, no `group_listings` row for the child (it is pulled in via the
 edge, not group membership).
@@ -271,20 +279,40 @@ edge, not group membership).
 ### Capacity
 
 The auto-included child consumes its **own** cap and the caps of **every group it
-belongs to**, like any folded child. `packageQuantityCap` must therefore bound
-the package by the child's pools too, not just the members'. Because the fold
-already turns the child into an ordinary line and the cap already routes through
-`groupPoolUnits`, this is: include the auto-included children's demand in the
-package cap's per-group demand accumulation.
+belongs to**, like any folded child, so `packageQuantityCap` must bound the
+package by the child's pools too. There are **two** bounds to feed, not one:
 
-### The five touch-points
+- **the child's own `maxPurchasable`** must enter the per-member own-cap term
+  (`Math.floor(maxPurchasable / qtyPerPackage)`, computed from the `listings`
+  input at `reservations.tsx:1104-1106`) — otherwise a child whose own cap is the
+  tightest limit, *and which sits in no capped group*, never constrains the
+  advertised package count; and
+- **the child's group ids + demand** must enter the per-group accumulation.
 
-1. **Admin validation** (`src/features/admin/groups.ts`): relax
-   `isPackageableMember` — a parent whose sole child is packageable is now a valid
-   member. Add the rejection messages for the non-deterministic cases. Re-validate
-   on listing save and on group save (a later edit that adds a second child, or
-   makes the child non-packageable, must block while the parent is a package
-   member).
+The clean framing: treat each auto-included child as a **synthetic package
+member** with per-package quantity equal to its parent member's, and run it
+through *both* arms of `packageQuantityCap` (own-cap input and group-demand maps).
+Adding it to the group-demand maps alone is the trap.
+
+### The touch-points
+
+1. **Admin validation — relax _every_ package-edge guard, not just one.** The
+   current branch blocks the parent-in-package state in **four** places that all
+   have to be relaxed together, or the documented accepted case still fails from
+   another save path:
+   - `isPackageableMember` (`src/features/admin/groups.ts`) — group create/edit
+     and add-listings;
+   - `packageMembershipError` (`src/shared/listings-actions.ts:87-90`) — a
+     **listing save** rejecting a member that has any parent/child edge;
+   - `packageChildEdgeConflict` (`src/features/admin/listings-parents.ts:404-410`)
+     — the **listing children form** rejecting a package parent/child edge;
+   - the same `packageChildEdgeConflict` use in the **JSON API**
+     (`src/features/admin/api.ts:464-471`).
+
+   All four must move from "no edges allowed" to "a parent with one packageable
+   child allowed; a member may not be a child," sharing one predicate. Re-validate
+   on listing save and group save too (a later edit adding a second child or making
+   the child non-packageable must block while the parent is a package member).
 2. **Render** (`packagePageAvailability` / `ticketPage`): a package member-parent
    renders as one member row. Its auto-included child is **never a member row of
    its own** — on visible *and* hidden packages alike it is folded into the parent
@@ -294,11 +322,24 @@ package cap's per-group demand accumulation.
    whether the parent member rows themselves show, exactly as for a plain package.
 3. **Fold** (`ticket-payment.ts`): the package expansion must run the existing
    `foldSelectedChildren` over its member-parents so the child becomes an ordinary
-   line at `parentQty × packageQty`. The sole-child auto-fill branch already does
-   the right thing.
-4. **Capacity** (`reservations.tsx`): include auto-included children in
-   `packageQuantityCap`'s demand maps.
-5. **Webhook revalidation** (`payment-processing.ts`): the auto-included child is
+   line at the parent's **already-expanded** quantity. `resolvePageQuantities`
+   (`ticket-submit.ts:587-590`) has already set the member to `fixed × packageQty`,
+   and the sole-child auto-fill branch (`ticket-payment.ts:499-502`) fills the
+   child to that `parentQty` — so the child lands at `fixed × packageQty`
+   correctly, with **no extra `× packageQty`** (an extra multiply double-counts the
+   package quantity for `packageQty > 1`).
+4. **Capacity** (`reservations.tsx`): feed each auto-included child through
+   **both** arms of `packageQuantityCap` — its own `maxPurchasable` into the
+   per-member own-cap term *and* its group ids/demand into the per-group maps (a
+   child in no capped group is bounded only by the former). See Capacity above.
+5. **Questions** (`ticket-submit.ts:679-684` + render): submit requires answers
+   for questions scoped to the folded child, but `renderPackageRows`
+   (`reservations.tsx:1046-1055`) renders no child block — so an auto-included
+   child carrying required custom questions would make an **unanswerable** package
+   form. Stage 0 resolves this by **rejecting at save** a child with required
+   questions (render-the-child's-questions-under-the-parent is deferred to a later
+   stage); document the rejection alongside the other admin guards.
+6. **Webhook revalidation** (`payment-processing.ts`): the auto-included child is
    revalidated via the **normal listing-price path** (it is a base-priced folded
    child, not a package-override member) — the same carve-out packages.md §10
    already documents for folded children.
@@ -316,18 +357,23 @@ package cap's per-group demand accumulation.
 
 ### Tests (100% line + branch, mutation-resistant)
 
-- Admin: parent-with-sole-packageable-child accepted as member; parent-with-two-
-  children rejected; parent-with-`customisable_days`-child rejected; child-as-
-  member rejected; later edit that breaks the invariant blocked on listing save
-  and on group save.
+- Admin (every guard): parent-with-sole-packageable-child accepted as a member
+  via **each** path — group edit/add-listings, listing save, the children form,
+  and the JSON API; `customisable_days`/`can_pay_more` **parent** rejected;
+  two-children / `BUYER_CHOICE` / non-packageable-child rejected; child-as-member
+  rejected; a child with required custom questions rejected; later edit that
+  breaks any invariant blocked on listing save and group save.
 - Fold: booking a package whose member is such a parent produces the parent line
-  **and** the child line at `parentQty × packageQty`; allocation rows correct.
+  **and** the child line at the already-expanded quantity; with `packageQty > 1`
+  the child quantity is `fixed × packageQty` (a regression test that fails if the
+  fold multiplies by `packageQty` twice); allocation rows correct.
 - Pricing: bundle total = `parentOverride × parentMemberQty × packageQty` +
-  `childBase × childQty × packageQty`; signed `p` per line correct (parent and
-  child each scaled by the package quantity — assert with `packageQty > 1` and a
-  parent `memberQty > 1` so a missing scale factor fails).
-- Capacity: package availability bounded by the child's own cap and the child's
-  group pools.
+  `childBase × parentMemberQty × packageQty`; signed `p` per line correct — assert
+  with `packageQty > 1` **and** `parentMemberQty > 1` so a missing or doubled
+  scale factor fails.
+- Capacity: package availability bounded by the child's own cap **even when the
+  child is in no capped group** (the own-cap arm), and by the child's group pools
+  (the group-demand arm); a test where the child's own cap is the tightest limit.
 - Webhook: child revalidated via the listing-price path; price drift on the child
   triggers `price_changed`.
 - Privacy: `hide_package_listings` hides the auto-included child everywhere.
