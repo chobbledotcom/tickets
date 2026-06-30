@@ -338,7 +338,13 @@ Adding it to the group-demand maps alone is the trap.
    child carrying required custom questions would make an **unanswerable** package
    form. Stage 0 resolves this by **rejecting at save** a child with required
    questions (render-the-child's-questions-under-the-parent is deferred to a later
-   stage); document the rejection alongside the other admin guards.
+   stage); document the rejection alongside the other admin guards. Because
+   required questions can also be attached **after** the package/listing is saved,
+   via the question-assignment routes (`POST /admin/questions/:id/listings`,
+   `POST /admin/listing/:id/questions` in `src/features/admin/questions.ts`), those
+   paths must apply the same rejection too — otherwise an already-valid
+   auto-included child silently gains a required question and the package form
+   becomes unanswerable with no re-save to catch it.
 6. **Webhook revalidation** (`payment-processing.ts`): the auto-included child is
    priced via the **normal listing-price path** (it is a base-priced folded child,
    not a package-override member) — the same carve-out packages.md §10 documents.
@@ -356,15 +362,28 @@ Adding it to the group-demand maps alone is the trap.
    is sold out (or constrained by a child-only capped group) would still be
    advertised / issued a QR while `/ticket/<group>` already caps at 0. Apply the
    synthetic-child expansion here too, so discovery hides/re-shows the package in
-   lockstep with the ticket page.
-8. **Checkout summaries & hosted line items**: the parent-only visibility contract
-   must hold on the running total (`orderSummary`) and the Stripe/Square line items
-   too. Both build from `foldedCtx.listings` after `foldSelectedChildren`
-   (`ticket-submit.ts:691-704`) and render `line.item.name`, and the existing
-   name-hiding helper is gated only on `hidePackageListings` — so a *visible*
-   package would otherwise show the auto-included child as its own priced buyer
-   line on `/calculate` and at the provider. Stage 0 must fold the child's amount
-   into its parent's line (aggregate / rename / filter) for every priced display.
+   lockstep with the ticket page. **And gate on active/bookable state, not just
+   the cap:** direct members are protected because `packageGroupBookable` checks
+   active members against `getGroupListingIds`, but an auto-included child has no
+   `group_listings` row, so an **inactive** child with spare capacity would still
+   leave the package advertised while `foldSelectedChildren` rejects it at submit
+   (`childActive`). The synthetic expansion must apply the same active/bookable
+   completeness check, not only the capacity calculation.
+8. **Buyer-facing display surfaces — a display-only projection, never the signed
+   items.** The parent-only contract must hold on *every* buyer display: the
+   running total (`orderSummary`), the Stripe/Square line items, **and the
+   confirmation email / ticket attachments** (`buildTemplateData`, which today
+   collapses entries only when `hideListings`). All build from
+   `foldedCtx.listings` / `CheckoutIntent.items` and render `line.item.name`, so a
+   *visible* package would otherwise show the auto-included child as its own buyer
+   line. **Crucially this is display-only:** the provider line items *and* the
+   signed booking metadata derive from the **same** `CheckoutIntent.items`
+   (`priceCheckout(intent)` for the provider, `toBookingItems(intent.items)` for
+   the metadata), so removing/aggregating the child out of that shared list would
+   also strip it from the signed items the webhook must persist and revalidate
+   (touch-point 6). Keep parent and child as **separate signed booking items**;
+   fold the child into its parent **only in the display projection** (a view over
+   the items, not a mutation of them), across summary, provider lines, and email.
 
 ### Tickets / discovery
 
@@ -385,8 +404,10 @@ Adding it to the group-demand maps alone is the trap.
   via **each** path — group edit/add-listings, listing save, the children form,
   and the JSON API; `customisable_days`/`can_pay_more` **parent** rejected;
   two-children / `BUYER_CHOICE` / non-packageable-child rejected; child-as-member
-  rejected; a child with required custom questions rejected; later edit that
-  breaks any invariant blocked on listing save and group save.
+  rejected; a child with required custom questions rejected — including when the
+  required question is attached **later** via the question-assignment routes
+  (`POST /admin/questions/:id/listings`, `POST /admin/listing/:id/questions`);
+  later edit that breaks any invariant blocked on listing save and group save.
 - Fold: booking a package whose member is such a parent produces the parent line
   **and** the child line at the already-expanded quantity; with `packageQty > 1`
   the child quantity is `fixed × packageQty` (a regression test that fails if the
@@ -403,10 +424,15 @@ Adding it to the group-demand maps alone is the trap.
   `price_changed` path (the edge is re-walked, not just the price).
 - Discovery: a package whose auto-included child is sold out (or whose child-only
   capped group is full) drops from `/order`/listings and stops issuing a QR, in
-  lockstep with `/ticket/<group>` capping at 0.
-- Checkout displays: on a **visible** package, `/calculate`'s running total and the
-  Stripe/Square line items show the child folded into its parent's line, never as
-  its own buyer-facing priced line.
+  lockstep with `/ticket/<group>` capping at 0; **and an _inactive_ auto-included
+  child (with spare capacity) also drops the package** (active/bookable gate, not
+  just the cap).
+- Checkout displays: on a **visible** package, `/calculate`'s running total, the
+  Stripe/Square line items, **and the confirmation email** show the child folded
+  into its parent's line, never as its own buyer-facing line — while the **signed
+  booking items still carry the child separately** (assert the webhook receives
+  and persists the child item, i.e. the display projection didn't mutate the
+  signed list).
 - Privacy: `hide_package_listings` hides the auto-included child everywhere.
 
 ### Why this is the right interim step
