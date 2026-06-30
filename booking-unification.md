@@ -86,27 +86,36 @@ model already needs, and the tree may carry a root/group identity:
 
 ```
 BookingTree {
-  // The page root. It owns the page-level header (name/description/terms/action
-  // slug) and, for a package, the single buyer-controlled `packageQty` selector
-  // plus the aggregate package card — which must render even when every member
-  // node is HIDDEN.
-  root:  { kind: "listing" }
-       | { kind: "group",   groupId }                // regular (non-package) group page
-       | { kind: "package", groupId, packageQty }    // package page
-  nodes: BookingNode[]                               // top-level nodes
+  // The page root / entry context. Owns the page header (name/description/terms/
+  // action slug) and any signed, non-line metadata the entry carries. For a
+  // package it also owns the buyer-controlled `packageQty` + aggregate card
+  // (rendered even when every member node is HIDDEN).
+  root:  { kind: "listing", slugs }              // 1+ standalone listings: /ticket/<slug+slug> (the cart)
+       | { kind: "group",   groupId }            // regular (non-package) group page
+       | { kind: "package", groupId, packageQty } // package page
+  entry: {                                       // signed, non-line context — priced/persisted
+                                                 // alongside the tree, NOT as node prices
+    qrPriceOverride?: amount         // signed QR link payload.v on a fixed-price listing
+    renewal?: { siteToken, actionUrl }  // /renew tier picker → webhook extends a built site
+  }
+  nodes: BookingNode[]
 }
 
 BookingNode {
   listingId
   quantityRule:  REQUIRED(qty) | FIXED(qty) | OPTIONAL(min,max) | BUYER_CHOICE
-               | CHILDREN_SUM_TO_PARENT  // a parent: chosen child quantities must sum to
-                                         // its resolved qty; a sole child auto-fills
+  childRule:     NONE | CHILDREN_SUM_TO_PARENT  // SEPARATE from quantityRule: this node's
+                                                // chosen children must sum to ITS resolved
+                                                // qty (sole child auto-fills). A package
+                                                // member-parent is FIXED(qty) *and* this.
   priceRule:     BASE | OVERRIDE(amount) | PAY_MORE(min,max) | DAY_PRICE
   visibility:    SHOWN    // own control / row
                | FOLDED   // booked + signed as its own node, displayed via its parent
                | HIDDEN    // privacy: dropped from buyer DISPLAY only — kept in form /
                            // booking semantics (its questions activate, answers attach)
   dateSpan:      NONE | DATE(date) | SPAN(date,duration) | INHERIT(parent)
+  fields:        contact-field requirements    // merged into the rendered form even when a
+                                               // candidate child is FOLDED/HIDDEN
   children:      BookingNode[]           // empty for a leaf
 }
 ```
@@ -114,14 +123,19 @@ BookingNode {
 Facets that are easy to under-model — each required so the tree can represent
 today's data and serve a *purely* recursive walk (Codex review):
 
-- **`root` — page identity, not just a member list.** `/ticket/<slug>` serves a
-  listing, a **regular group** (name/description/terms/action slug + buyer-chosen
-  member quantities), or a **package**. The root must carry that identity, and for
-  a package it owns the buyer-controlled `packageQty` and the package-level card —
-  otherwise a recursive renderer loses the group/package header or has nowhere to
-  put the package quantity control (and a fully-hidden package has no usable
-  control at all). It also threads `packageGroupId` through checkout and onto
-  `package_group_id` rows for hidden-member display and revalidation.
+- **`root` + `entry` — page identity and signed non-line context, not just a
+  member list.** `/ticket/<…>` serves several roots: one *or more* standalone
+  listings (`/ticket/<slug+slug>` is the cart's ad-hoc multi-listing page — so the
+  `listing` root carries a slug *list*), a **regular group** (name/description/
+  terms/action slug + buyer-chosen member quantities), or a **package**. Beyond
+  the line nodes, an entry can also carry **signed, non-line context**: a QR link's
+  price override (`payload.v` on a fixed-price listing) and the `/renew` flow's
+  `siteToken` + override `actionUrl` (the webhook extends a built site from it).
+  These price/persist *alongside* the tree, not as node prices — model them as an
+  explicit `entry` contract, or a unified builder will charge/revalidate at base
+  price and lose the renewal action/token. The root also threads `packageGroupId`
+  through checkout and onto `package_group_id` rows for hidden-member display and
+  revalidation, and owns the package `packageQty` control + card.
 - **`dateSpan` — date/duration facet.** `DAY_PRICE` alone is not enough: daily and
   `customisable_days` listings persist a selected date/duration
   (`bookingDateFields`), and a parent/child fold resolves the child's duration
@@ -134,10 +148,20 @@ today's data and serve a *purely* recursive walk (Codex review):
   a hidden member's listing-scoped questions still activate and its answers still
   attach to the booked row, so the walk keeps hidden nodes in form/booking
   semantics — it does not literally delete them.
-- **`CHILDREN_SUM_TO_PARENT` is a real constraint, not loose `BUYER_CHOICE`.** A
-  parent's chosen child quantities must sum exactly to the parent's resolved
-  quantity (sole child auto-fills); without modelling it the recursive fold could
-  accept under-/over-allocated children unless it kept a parent/child special case.
+- **`childRule` is its own facet, separate from `quantityRule`.** A parent's
+  chosen child quantities must sum exactly to the parent's *resolved* quantity
+  (sole child auto-fills). This can't be a `quantityRule` *value*: a package
+  member-parent needs both its own `FIXED(packageQty × memberQty)` quantity **and**
+  the children-sum constraint, and a normal parent needs its buyer-chosen quantity
+  **and** the constraint. So allocation lives in a separate `childRule`, leaving
+  `quantityRule` to own the node's own quantity.
+- **`fields` — contact-field requirements must merge even for folded/hidden
+  candidates.** Today the render includes a possible child's extra contact fields
+  (non-required) so the buyer can fill them, and submit validates the folded set
+  once the child is known. A recursive renderer that folds/hides a child without
+  projecting its `listing.fields` would show an unfillable form and reject it after
+  folding — so merge folded/hidden candidate nodes' fields into the rendered form
+  (or reject such configurations).
 
 The models map onto it directly:
 
@@ -148,8 +172,13 @@ The models map onto it directly:
 - **Regular group** = `root = {group, groupId}` with `SHOWN / BUYER_CHOICE`
   member nodes (each priced from its own fields), carrying the group's
   name/description/terms.
-- **Parent/child** = a parent node whose children are `CHILDREN_SUM_TO_PARENT`,
-  inheriting the parent's span. (Today's `foldSelectedChildren`.)
+- **Parent/child** = a parent node with `childRule = CHILDREN_SUM_TO_PARENT`,
+  whose children inherit the parent's span. (Today's `foldSelectedChildren`.)
+- **Multi-listing cart** = `root = {listing, slugs:[…]}` with one `SHOWN /
+  BUYER_CHOICE` node per slug (the `/ticket/<slug+slug>` page the order cart
+  redirects to). A normal single listing is the one-slug case.
+- **QR / renewal entries** = any root above plus an `entry` (`qrPriceOverride`,
+  or `renewal.siteToken`/`actionUrl`) carried as signed context.
 - **Package** = `root = {package, groupId, packageQty}` whose top-level nodes are
   one `FIXED(packageQty × memberQty)` member per `group_listings` row; `OVERRIDE`
   price per member; `HIDDEN` members when `hide_package_listings`.
@@ -258,6 +287,19 @@ paths and asked "can these be one calculation?", the answer was yes.
 
 Each phase is independently shippable and green. No "Stage 0".
 
+**Phase 0 — enumerate entry contexts and buyer surfaces from the router.** Before
+writing the recursive renderer, walk the route table and list every booking
+*entry* the tree must represent and every *surface* the projection must reach, so
+the model isn't validated against an incomplete set. Known entries: single
+listing; multi-slug cart (`/ticket/<slug+slug>`); regular group; package; signed
+QR link with `payload.v` price override; `/renew` tier picker with `siteToken`.
+Known buyer surfaces: booking page; `/calculate` running total; Stripe/Square line
+items; confirmation email + ticket attachments; ticket cards; public `/listings`;
+the `/order.js` embed widget; discovery (`packageGroupBookable`). The test matrix
+covers each entry × each surface. (This list is the current best enumeration; the
+router is the source of truth — treat anything it surfaces that isn't here as a
+gap to add, not an exception to special-case.)
+
 **Phase 1 — unify render.** One recursive renderer behind `ticketPage` and
 `packagePageAvailability`, emitting the controls both produce today, driven by a
 `BookingTree` built from the existing `listing_parents` + `group_listings` tables
@@ -334,9 +376,13 @@ the accepted configuration fails from whichever path wasn't updated:
 The parent-only/hidden visibility contract must hold on **every** buyer surface:
 the booking-page render, the running total (`orderSummary`), the Stripe/Square
 line items, the confirmation email/ticket attachments (`buildTemplateData`), the
-ticket cards, **and** the public `/listings` cards (which today keep child
-listings in the card list and only swap the CTA; an auto-included child has no
-`group_listings` row, so it needs a dedicated suppression path).
+ticket cards, the public `/listings` cards (which today keep child listings in the
+card list and only swap the CTA; an auto-included child has no `group_listings`
+row, so it needs a dedicated suppression path), **and the external `/order.js`
+embed widget** (`order-js.ts` ships active listing/package slugs from
+`getCatalogListings()`/`loadPublicGroups()` to third-party sites — if the
+visibility/capacity projection isn't wired through it too, embedded carts keep
+advertising a folded child or a package the ticket page suppresses).
 
 **Crucially this is display-only.** The provider line items *and* the signed
 booking metadata derive from the **same** `CheckoutIntent.items`
