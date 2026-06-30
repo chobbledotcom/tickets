@@ -54,14 +54,22 @@ describe("db > accounting > postWriteoffAdjustment", () => {
   });
 
   test("repeated edits of the same figure each post a distinct event", async () => {
-    // The poster mixes a fresh occurredAt into the references, so raising then
-    // lowering the same figure must not collide (idempotent-replay) — both land.
+    // Two edits of the SAME signed figure at DIFFERENT instants must each post:
+    // raising income by 1000, then later raising it by 1000 again. The delta is
+    // identical, so only the fresh `occurredAt` in the references keeps them
+    // distinct — without it the second would collide on `[...keyParts, delta]`
+    // and INSERT OR IGNORE would drop it. Freeze the clock and tick it forward a
+    // millisecond between posts so this exercises the occurredAt axis
+    // deterministically (no reliance on real wall-clock resolution). `using`
+    // restores the real clock at block exit even if an assertion throws, so a
+    // failure here never leaks the frozen clock into later tests.
+    using time = new FakeTime(new Date("2026-06-21T00:00:00.000Z"));
     await postWriteoffAdjustment(revenue, 1000, ["income-adjust", 7]);
-    await postWriteoffAdjustment(revenue, -1000, ["income-adjust", 7]);
-    const all = await allTransfers();
-    expect(all.length).toBe(2);
-    // The two corrections net the account back to zero.
-    expect(await accountBalance(revenue)).toBe(0);
+    time.tick(1);
+    await postWriteoffAdjustment(revenue, 1000, ["income-adjust", 7]);
+    expect((await allTransfers()).length).toBe(2);
+    // Both raises land, so the account rises by the full 2000.
+    expect(await accountBalance(revenue)).toBe(2000);
   });
 
   test("two opposite corrections in the same millisecond both post", async () => {
@@ -69,15 +77,12 @@ describe("db > accounting > postWriteoffAdjustment", () => {
     // the signed delta is part of the reference, the raise and the lower hash
     // differently and both land — without it they would collide on
     // `[...keyParts, occurredAt]` and INSERT OR IGNORE would drop the second.
-    const time = new FakeTime(new Date("2026-06-21T00:00:00.000Z"));
-    try {
-      await postWriteoffAdjustment(revenue, 1000, ["income-adjust", 7]);
-      await postWriteoffAdjustment(revenue, -1000, ["income-adjust", 7]);
-      expect((await allTransfers()).length).toBe(2);
-      expect(await accountBalance(revenue)).toBe(0);
-    } finally {
-      time.restore();
-    }
+    // `using` restores the real clock on block exit, throw or not.
+    using _time = new FakeTime(new Date("2026-06-21T00:00:00.000Z"));
+    await postWriteoffAdjustment(revenue, 1000, ["income-adjust", 7]);
+    await postWriteoffAdjustment(revenue, -1000, ["income-adjust", 7]);
+    expect((await allTransfers()).length).toBe(2);
+    expect(await accountBalance(revenue)).toBe(0);
   });
 
   test("the writeoff account mirrors the opposite of the adjusted figure", async () => {
