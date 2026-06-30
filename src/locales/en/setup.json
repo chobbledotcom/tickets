@@ -24,5 +24,6 @@
   "setup.complete.title": "Setup Complete",
   "setup.complete.heading": "Setup Complete!",
   "setup.complete.message": "Your ticket reservation system has been configured successfully.",
-  "setup.complete.dashboard_link": "Go to Admin Dashboard"
+  "setup.complete.dashboard_link": "Go to Admin Dashboard",
+  "setup.complete.login_link": "Log In"
 }
