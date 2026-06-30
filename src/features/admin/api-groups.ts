@@ -19,6 +19,9 @@ import {
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
 import {
+  bodyBoolean,
+  bodyNumber,
+  bodyString,
   type DeleteBody,
   defineCrudApi,
   type ItemResult,
@@ -190,20 +193,15 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
     const { slug, slugIndex } = await generateUniqueGroupSlug();
     return {
       input: {
-        description:
-          typeof body.description === "string" ? body.description : "",
-        hidden: body.hidden === true,
-        hidePackageListings: body.hide_package_listings === true,
-        isPackage: body.is_package === true,
-        maxAttendees:
-          typeof body.max_attendees === "number" ? body.max_attendees : 0,
+        description: bodyString(body, "description", ""),
+        hidden: bodyBoolean(body, "hidden", false),
+        hidePackageListings: bodyBoolean(body, "hide_package_listings", false),
+        isPackage: bodyBoolean(body, "is_package", false),
+        maxAttendees: bodyNumber(body, "max_attendees", 0),
         name,
         slug,
         slugIndex,
-        termsAndConditions:
-          typeof body.terms_and_conditions === "string"
-            ? body.terms_and_conditions
-            : "",
+        termsAndConditions: bodyString(body, "terms_and_conditions", ""),
       },
       ok: true,
     };
@@ -229,20 +227,14 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
           body.description != null
             ? String(body.description)
             : existing.description,
-        hidden:
-          typeof body.hidden === "boolean" ? body.hidden : existing.hidden,
-        hidePackageListings:
-          typeof body.hide_package_listings === "boolean"
-            ? body.hide_package_listings
-            : existing.hide_package_listings,
-        isPackage:
-          typeof body.is_package === "boolean"
-            ? body.is_package
-            : existing.is_package,
-        maxAttendees:
-          typeof body.max_attendees === "number"
-            ? body.max_attendees
-            : existing.max_attendees,
+        hidden: bodyBoolean(body, "hidden", existing.hidden),
+        hidePackageListings: bodyBoolean(
+          body,
+          "hide_package_listings",
+          existing.hide_package_listings,
+        ),
+        isPackage: bodyBoolean(body, "is_package", existing.is_package),
+        maxAttendees: bodyNumber(body, "max_attendees", existing.max_attendees),
         name: parsed.name,
         packageMembers: members.input,
         slug,

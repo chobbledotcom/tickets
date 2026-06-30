@@ -42,6 +42,31 @@ export const requireString = (
     ? body[key].trim()
     : null;
 
+/**
+ * Read an optional typed scalar from a JSON body, falling back to `fallback`
+ * when the key is absent or holds the wrong type. The create/update parsers use
+ * these instead of repeating `typeof body[key] === "…" ? body[key] : fallback`
+ * for every field, so a malformed value is consistently ignored (create →
+ * default, update → keep existing) rather than coerced.
+ */
+export const bodyString = (
+  body: Record<string, unknown>,
+  key: string,
+  fallback: string,
+): string => (typeof body[key] === "string" ? body[key] : fallback);
+
+export const bodyNumber = (
+  body: Record<string, unknown>,
+  key: string,
+  fallback: number,
+): number => (typeof body[key] === "number" ? body[key] : fallback);
+
+export const bodyBoolean = (
+  body: Record<string, unknown>,
+  key: string,
+  fallback: boolean,
+): boolean => (typeof body[key] === "boolean" ? body[key] : fallback);
+
 /** Result of parsing a JSON body into a typed input */
 export type ParseResult<Input> =
   | { ok: true; input: Input }

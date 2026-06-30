@@ -39,6 +39,7 @@ import {
 } from "#shared/listings-actions.ts";
 import {
   apiErrorResponse,
+  bodyNumber,
   type DeleteBody,
   defineCrudApi,
   type ParseResult,
@@ -250,7 +251,7 @@ export const bodyToCreateInput = async (
       dayPrices: parseDayPrices(body.day_prices),
       groupIds: groups.input,
       maxAttendees: body.max_attendees,
-      maxPrice: typeof body.max_price === "number" ? body.max_price : 0,
+      maxPrice: bodyNumber(body, "max_price", 0),
       name: body.name.trim(),
       slug,
       slugIndex,
@@ -276,10 +277,11 @@ export const bodyToUpdateInput = async (
   if (!groups.ok) return groups;
 
   const existingGroupIds = await getGroupIdsByListingId(existing.id);
-  const maxAttendees =
-    typeof body.max_attendees === "number"
-      ? body.max_attendees
-      : existing.max_attendees;
+  const maxAttendees = bodyNumber(
+    body,
+    "max_attendees",
+    existing.max_attendees,
+  );
   if (maxAttendees < 1) {
     return { error: "max_attendees must be >= 1", ok: false };
   }
@@ -305,10 +307,7 @@ export const bodyToUpdateInput = async (
       // then rewrites the same set — a no-op when unchanged.
       groupIds: groups.input ?? existingGroupIds,
       maxAttendees,
-      maxPrice:
-        typeof body.max_price === "number"
-          ? body.max_price
-          : existing.max_price,
+      maxPrice: bodyNumber(body, "max_price", existing.max_price),
       name: parsedName.name,
       slug,
       slugIndex,
