@@ -74,9 +74,10 @@ const formatMoney = (minorUnits: number): string =>
 const catalogEntry = (slug: string): CatalogEntry | undefined =>
   Object.hasOwn(CATALOG.listings, slug) ? CATALOG.listings[slug] : undefined;
 
-/** Resolve a `data-add-listing` URL to a catalog entry, or null if it is not an
- * enhanceable single-listing URL on the tickets origin. */
-const resolveListing = (raw: string): CatalogEntry | null => {
+/** The `/ticket/<slug>` slug of a single-listing-or-package URL on the tickets
+ * origin, or null if `raw` is not such a URL (cross-origin, multi-slug, or
+ * malformed — all fall through to the link's normal navigation). */
+const ticketSlug = (raw: string): string | null => {
   let url: URL;
   try {
     url = new URL(raw);
@@ -84,9 +85,22 @@ const resolveListing = (raw: string): CatalogEntry | null => {
     return null;
   }
   if (url.origin !== CATALOG.origin) return null;
-  const slug = url.pathname.match(/^\/ticket\/([^/+]+)$/)?.[1];
-  if (!slug) return null;
-  return catalogEntry(slug) ?? null;
+  return url.pathname.match(/^\/ticket\/([^/+]+)$/)?.[1] ?? null;
+};
+
+/** Resolve a `data-add-listing` URL to a catalog LISTING entry (a cart line), or
+ * null when it is not an enhanceable single-listing URL. */
+const resolveListing = (raw: string): CatalogEntry | null => {
+  const slug = ticketSlug(raw);
+  return slug ? (catalogEntry(slug) ?? null) : null;
+};
+
+/** Resolve a `data-add-listing` URL to a PACKAGE group slug, or null. A package
+ * is booked as a whole via its own page, so the widget navigates straight there
+ * rather than adding a cart line. */
+const resolvePackageSlug = (raw: string): string | null => {
+  const slug = ticketSlug(raw);
+  return slug && Object.hasOwn(CATALOG.packages, slug) ? slug : null;
 };
 
 class CartController {
@@ -410,16 +424,27 @@ const init = (): void => {
 
   const enhance = (link: HTMLAnchorElement): void => {
     if (link.dataset.chobbleEnhanced) return;
-    if (!resolveListing(link.dataset.addListing ?? "")) return;
+    const raw = link.dataset.addListing ?? "";
+    if (!resolveListing(raw) && !resolvePackageSlug(raw)) return;
     link.dataset.chobbleEnhanced = "1";
     link.addEventListener("click", (event) => {
       // Re-resolve at click time: an SPA may have repointed `data-add-listing`
       // since enhancement (re-scans skip already-enhanced links). If it now
       // points outside the catalog, fall through to normal navigation.
-      const entry = resolveListing(link.dataset.addListing ?? "");
-      if (!entry) return;
-      event.preventDefault();
-      controller.add(entry, parseAddQuantity(link.dataset.addQuantity));
+      const current = link.dataset.addListing ?? "";
+      const entry = resolveListing(current);
+      if (entry) {
+        event.preventDefault();
+        controller.add(entry, parseAddQuantity(link.dataset.addQuantity));
+        return;
+      }
+      // A package books as a whole bundle: navigate straight to its page rather
+      // than adding a cart line it could never combine with other listings.
+      const packageSlug = resolvePackageSlug(current);
+      if (packageSlug) {
+        event.preventDefault();
+        globalThis.location.assign(`${CATALOG.origin}/ticket/${packageSlug}`);
+      }
     });
   };
 
