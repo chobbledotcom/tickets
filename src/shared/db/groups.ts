@@ -334,9 +334,9 @@ export const packageChildrenDeterministic = async (
 export const packageMemberEdgesOk = async (
   listingId: number,
 ): Promise<boolean> => {
-  const { childIds, parentIds } = await edgeIdsTouching(listingId);
-  if (parentIds.length > 0) return false;
-  return packageChildrenDeterministic(childIds);
+  const edges = await edgeIdsTouching(listingId);
+  if (edges.parentIds.length > 0) return false;
+  return packageChildrenDeterministic(edges.childIds);
 };
 
 /** Whether adding child edges would violate the package invariant. Three ways:
@@ -351,9 +351,10 @@ export const packageChildEdgeConflict = async (
   parentGroupIds: readonly number[],
   childIds: readonly number[],
 ): Promise<boolean> => {
-  if (childIds.length === 0) return false;
   if (await anyListingInPackageGroup(childIds)) return true;
-  if (!(await anyPackageGroup(parentGroupIds))) return false;
+  if (childIds.length === 0 || !(await anyPackageGroup(parentGroupIds))) {
+    return false;
+  }
   return !(await packageChildrenDeterministic(childIds));
 };
 

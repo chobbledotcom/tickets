@@ -263,53 +263,51 @@ const deactivationOrphanedAddOn = async (
 };
 
 /**
+ * Whether a type edit would strand a package member-parent's auto-included
+ * child: the child (`existingId`) is becoming non-packageable
+ * (`wouldBePackageable` false) while it is offered under a parent that is itself
+ * a package member. The child rides inside a flat package page only while it
+ * stays a plain standard fixed-price listing; turning it daily,
+ * customisable-days, or pay-what-you-want would leave the package unable to
+ * price or lay it out. The member-side break (editing the parent itself) is
+ * caught by {@link packageMembershipError} via the parent's group set; this
+ * catches the other side — editing the CHILD, which carries no package group of
+ * its own.
+ */
+const packageChildBecomesUnpackageable = async (
+  existingId: number,
+  wouldBePackageable: boolean,
+): Promise<boolean> => {
+  if (wouldBePackageable) return false;
+  const parentIds = await getParentIds(existingId);
+  return parentIds.length > 0 && anyListingInPackageGroup(parentIds);
+};
+
+/**
  * On an update, re-validate every parent/child edge touching this listing
  * against its would-be field values *and* its would-be `group_id`, so a
  * type/duration/renewal change can't leave a persisted edge the booking gate
  * can't honour, and a group change can't orphan a group-scoped add-on that the
  * edge's child suppresses (Fix 4). Also re-check add-on reachability when the
  * save DEACTIVATES this listing (Fix 5 — the edge-touching walk above misses a
- * no-edge page that is the only one rescuing a child-scoped add-on). No-op for
- * creates (no edges yet, and a fresh listing rescues nothing).
+ * no-edge page that is the only one rescuing a child-scoped add-on). A package
+ * member-parent's child must also stay packageable ({@link packageChildTypeError}).
+ * No-op for creates (no edges yet, and a fresh listing rescues nothing).
  */
-/**
- * Block a type edit that would make a package member-parent's auto-included
- * child non-packageable. The child rides inside a flat package page only while
- * it stays a plain standard fixed-price listing; turning it daily,
- * customisable-days, or pay-what-you-want would leave the package unable to price
- * or lay it out. The member-side break (editing the parent itself) is caught by
- * {@link packageMembershipError} via the parent's group set; this catches the
- * other side — editing the CHILD — which carries no package group of its own.
- * No-op when the would-be listing stays packageable or has no package-member
- * parent.
- */
-const packageChildTypeError = async (
-  input: ListingInput,
-  existingId: number,
-): Promise<string | null> => {
-  if (
-    isPackageableListing({
-      can_pay_more: input.canPayMore ?? false,
-      customisable_days: input.customisableDays ?? false,
-      listing_type: input.listingType ?? "standard",
-    })
-  ) {
-    return null;
-  }
-  const parentIds = await getParentIds(existingId);
-  return parentIds.length > 0 && (await anyListingInPackageGroup(parentIds))
-    ? t("error.package_incompatible_listing")
-    : null;
-};
-
 const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
   if (existingId === undefined) return null;
   const fieldError = await edgeIncompatibilityAfterChange(
     listingInputToEdge(input, existingId),
   );
   if (fieldError) return fieldError;
-  const childTypeError = await packageChildTypeError(input, existingId);
-  if (childTypeError) return childTypeError;
+  const wouldBePackageable = isPackageableListing({
+    can_pay_more: input.canPayMore ?? false,
+    customisable_days: input.customisableDays ?? false,
+    listing_type: input.listingType ?? "standard",
+  });
+  if (await packageChildBecomesUnpackageable(existingId, wouldBePackageable)) {
+    return t("error.package_incompatible_listing");
+  }
   const orphanError = await orphanedAddOnAfterChange(
     existingId,
     input.groupIds ?? [],

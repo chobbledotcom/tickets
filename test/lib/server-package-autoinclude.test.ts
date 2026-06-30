@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
 import {
-  getGroupPackagePrices,
   groupsTable,
+  packageChildEdgeConflict,
   packageChildrenDeterministic,
   packageMemberEdgesOk,
   setGroupPackageMembers,
@@ -15,13 +15,14 @@ import { isPackageableListing, type Listing } from "#shared/types.ts";
 import { packageQuantityCap } from "#templates/public/reservations.tsx";
 import type { TicketListing } from "#templates/public.tsx";
 import {
-  adminFormPost,
   bookingPageHtml,
   createTestGroup,
   createTestListing,
   describeWithEnv,
   duplicateTestListing,
-  expectFlashRedirect,
+  expectPackageAddAccepted,
+  expectPackageAddRejected,
+  expectPackageChildEdgeRejected,
   postCalculate,
   postChildren,
   setupStripe,
@@ -76,6 +77,29 @@ describe("packageQuantityCap (auto-included children)", () => {
       new Map(),
     );
     expect(cap).toBe(4);
+  });
+
+  test("a member missing from the quantities map defaults to ×1", () => {
+    // No quantities entry → ×1, own cap 6 → 6 packages.
+    const cap = packageQuantityCap(
+      [leaf(1, 6)],
+      new Map(),
+      new Map(),
+      new Map(),
+    );
+    expect(cap).toBe(6);
+  });
+
+  test("a leaf's uncapped group does not bound the package", () => {
+    // Member 1 sits in group 7, but 7 has no remaining entry (uncapped), so only
+    // the member's own capacity (5) bounds the package.
+    const cap = packageQuantityCap(
+      [leaf(1, 5)],
+      new Map([[1, 1]]),
+      new Map(),
+      new Map([[1, [7]]]),
+    );
+    expect(cap).toBe(5);
   });
 
   test("bounds the package by the auto-included child's own capacity", () => {
@@ -201,49 +225,55 @@ describeWithEnv("server (package auto-include)", { db: true }, () => {
     expect(await packageMemberEdgesOk(parent.id)).toBe(false);
   });
 
+  // -- packageChildEdgeConflict ---------------------------------------------
+
+  test("packageChildEdgeConflict: clearing edges is never a conflict", async () => {
+    const group = await createTestGroup({ isPackage: true, name: "Clear" });
+    expect(await packageChildEdgeConflict([group.id], [])).toBe(false);
+  });
+
+  test("packageChildEdgeConflict: a child that is a package member conflicts", async () => {
+    const group = await createTestGroup({ isPackage: true, name: "MemAsKid" });
+    const memberListing = await standardListing("Mem", { groupId: group.id });
+    // The parent itself is in no package; the conflict is the chosen child.
+    expect(await packageChildEdgeConflict([], [memberListing.id])).toBe(true);
+  });
+
+  test("packageChildEdgeConflict: a parent in a package keeps a sole packageable child", async () => {
+    const group = await createTestGroup({ isPackage: true, name: "OneKid" });
+    const child = await standardListing("OkKid");
+    expect(await packageChildEdgeConflict([group.id], [child.id])).toBe(false);
+  });
+
+  test("packageChildEdgeConflict: a parent in a package rejects two children", async () => {
+    const group = await createTestGroup({ isPackage: true, name: "TwoKids" });
+    const a = await standardListing("KidA");
+    const b = await standardListing("KidB");
+    expect(await packageChildEdgeConflict([group.id], [a.id, b.id])).toBe(true);
+  });
+
+  test("packageChildEdgeConflict: a parent in a package rejects a non-packageable child", async () => {
+    const group = await createTestGroup({ isPackage: true, name: "BadKid" });
+    const child = await standardListing("PayKid", {
+      canPayMore: true,
+      maxPrice: 5000,
+    });
+    expect(await packageChildEdgeConflict([group.id], [child.id])).toBe(true);
+  });
+
+  test("packageChildEdgeConflict: a parent in no package may take any child", async () => {
+    const child = await standardListing("FreeKid");
+    expect(await packageChildEdgeConflict([], [child.id])).toBe(false);
+  });
+
   // -- group membership validation ------------------------------------------
-
-  /** Add `listingId` to package `group` via the admin form; assert accepted
-   * (a priced member row now exists). */
-  const expectAddAccepted = async (
-    group: { id: number },
-    listingId: number,
-  ): Promise<void> => {
-    const { response } = await adminFormPost(
-      `/admin/groups/${group.id}/add-listings`,
-      { listing_ids: String(listingId) },
-    );
-    expect(response.status).toBe(302);
-    const ids = (await getGroupPackagePrices(group.id)).map(
-      (r) => r.listing_id,
-    );
-    expect(ids).toContain(listingId);
-  };
-
-  /** Add `listingId` to package `group`; assert the package invariant rejected
-   * it, leaving no member rows. */
-  const expectAddRejected = async (
-    group: { id: number },
-    listingId: number,
-  ): Promise<void> => {
-    const { response } = await adminFormPost(
-      `/admin/groups/${group.id}/add-listings`,
-      { listing_ids: String(listingId) },
-    );
-    await expectFlashRedirect(
-      `/admin/groups/${group.id}`,
-      expect.stringContaining("Packages cannot contain"),
-      false,
-    )(response);
-    expect(await getGroupPackagePrices(group.id)).toEqual([]);
-  };
 
   test("a parent whose sole child is packageable is accepted as a member", async () => {
     const group = await createTestGroup({ isPackage: true, name: "P1" });
     const parent = await standardListing("MemberParent");
     const child = await standardListing("AutoChild");
     await setChildIds(parent.id, [child.id]);
-    await expectAddAccepted(group, parent.id);
+    await expectPackageAddAccepted(group, parent.id);
   });
 
   test("a parent with two children is rejected as a member", async () => {
@@ -252,7 +282,7 @@ describeWithEnv("server (package auto-include)", { db: true }, () => {
     const a = await standardListing("Two1");
     const b = await standardListing("Two2");
     await setChildIds(parent.id, [a.id, b.id]);
-    await expectAddRejected(group, parent.id);
+    await expectPackageAddRejected(group, parent.id);
   });
 
   test("a parent whose sole child is non-packageable is rejected", async () => {
@@ -263,7 +293,7 @@ describeWithEnv("server (package auto-include)", { db: true }, () => {
       maxPrice: 5000,
     });
     await setChildIds(parent.id, [child.id]);
-    await expectAddRejected(group, parent.id);
+    await expectPackageAddRejected(group, parent.id);
   });
 
   test("a listing that is itself a child is rejected as a member", async () => {
@@ -271,7 +301,7 @@ describeWithEnv("server (package auto-include)", { db: true }, () => {
     const parent = await standardListing("OuterParent");
     const wouldBeMember = await standardListing("ChildMember");
     await setChildIds(parent.id, [wouldBeMember.id]);
-    await expectAddRejected(group, wouldBeMember.id);
+    await expectPackageAddRejected(group, wouldBeMember.id);
   });
 
   // -- child-edge save validation (postChildren) ----------------------------
@@ -291,12 +321,7 @@ describeWithEnv("server (package auto-include)", { db: true }, () => {
     const a = await standardListing("EdgeC1");
     const b = await standardListing("EdgeC2");
     const response = await postChildren(parent.id, [a.id, b.id]);
-    await expectFlashRedirect(
-      `/admin/listing/${parent.id}/edit`,
-      expect.stringContaining("Packages cannot contain"),
-      false,
-    )(response);
-    expect(await getChildIds(parent.id)).toEqual([]);
+    await expectPackageChildEdgeRejected(parent.id, response);
   });
 
   test("a package member may not be chosen as another listing's child", async () => {
@@ -306,12 +331,7 @@ describeWithEnv("server (package auto-include)", { db: true }, () => {
     });
     const outer = await standardListing("EdgeOuter");
     const response = await postChildren(outer.id, [packageMember.id]);
-    await expectFlashRedirect(
-      `/admin/listing/${outer.id}/edit`,
-      expect.stringContaining("Packages cannot contain"),
-      false,
-    )(response);
-    expect(await getChildIds(outer.id)).toEqual([]);
+    await expectPackageChildEdgeRejected(outer.id, response);
   });
 
   // -- listing-save: editing the child's type -------------------------------
@@ -452,8 +472,19 @@ describeWithEnv("server (package auto-include)", { db: true }, () => {
 
   // -- capacity -------------------------------------------------------------
 
+  /** With parent override 1000 + child base 500, post a crafted count of 5 and
+   * assert it clamped to 2 whole packages → 2×(1000+500) = 3000, never 7500. */
+  const expectClampedToTwoPackages = async (group: {
+    slug: string;
+  }): Promise<void> => {
+    const html = await postCalculate(group.slug, { package_quantity: "5" });
+    expect(html).toContain(formatCurrency(3000));
+    expect(html).not.toContain(formatCurrency(7500));
+  };
+
   test("the package count is bounded by the auto-included child's own capacity", async () => {
     await setupStripe();
+    // The child's own max-quantity of 2 caps the bundle at 2 (parent allows 10).
     const { group } = await autoIncludePackage({
       childBase: 500,
       childMaxQuantity: 2,
@@ -461,17 +492,13 @@ describeWithEnv("server (package auto-include)", { db: true }, () => {
       parentOverride: 1000,
       slug: "ai-childcap",
     });
-
-    // The child caps the bundle at 2; a crafted count of 5 clamps to 2 →
-    // 2×1000 + 2×500 = 3000, never the 5-package 7500.
-    const html = await postCalculate(group.slug, { package_quantity: "5" });
-    expect(html).toContain(formatCurrency(3000));
-    expect(html).not.toContain(formatCurrency(7500));
+    await expectClampedToTwoPackages(group);
   });
 
   test("the package count is bounded by a capped group the child belongs to", async () => {
     await setupStripe();
-    // A separate capped group (2 spots) that only the child belongs to.
+    // A separate capped group (2 spots) that only the child belongs to bounds the
+    // bundle at 2 (parent allows 10), proving the child's pools clamp the package.
     const childGroup = await createTestGroup({
       maxAttendees: 2,
       name: "ChildPool",
@@ -484,12 +511,7 @@ describeWithEnv("server (package auto-include)", { db: true }, () => {
       parentOverride: 1000,
       slug: "ai-childpool",
     });
-
-    // The child's own group holds 2; one package consumes one child spot, so the
-    // bundle clamps to 2 → 3000, never 7500.
-    const html = await postCalculate(group.slug, { package_quantity: "5" });
-    expect(html).toContain(formatCurrency(3000));
-    expect(html).not.toContain(formatCurrency(7500));
+    await expectClampedToTwoPackages(group);
   });
 
   // -- render + privacy -----------------------------------------------------
