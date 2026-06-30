@@ -140,25 +140,35 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       expect(html).not.toContain("Sold Out");
     });
 
-    test("lists a bookable package as a direct book link, not a cart checkbox", async () => {
-      const group = await createTestGroup({
+    test("lists bookable packages as direct book links under a Packages heading", async () => {
+      // Two packages so the name sort actually runs (a single-element sort never
+      // invokes the comparator).
+      const camp = await createTestGroup({
         isPackage: true,
         name: "Camp Bundle",
         slug: "camp-bundle",
       });
-      await createTestListing({ groupId: group.id, name: "Bundle Tent" });
+      await createTestListing({ groupId: camp.id, name: "Bundle Tent" });
+      const beach = await createTestGroup({
+        isPackage: true,
+        name: "Beach Bundle",
+        slug: "beach-bundle",
+      });
+      await createTestListing({ groupId: beach.id, name: "Bundle Towel" });
 
-      // A package is booked as a whole via its own page, so it surfaces as a
+      // A package is booked as a whole via its own page, so each surfaces as a
       // direct book link (the order-card--package anchor to /ticket/<group>),
-      // under the Packages heading — not a selectable cart checkbox. (Its
-      // visible member is still independently selectable in the grid below, the
-      // same as on /listings.)
+      // under the Packages heading — not a selectable cart checkbox. (Their
+      // visible members are still independently selectable in the grid below,
+      // the same as on /listings.)
       await assertPublicHtml(
         "/order",
         "Packages",
         "Camp Bundle",
+        "Beach Bundle",
         "order-card--package",
-        `href="/ticket/${group.slug}"`,
+        `href="/ticket/${camp.slug}"`,
+        `href="/ticket/${beach.slug}"`,
       );
     });
 
