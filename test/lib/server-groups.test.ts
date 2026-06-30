@@ -781,7 +781,11 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
       const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
-      expect(await response.text()).toContain("Free-Standalone Member");
+      const html = await response.text();
+      expect(html).toContain("Free-Standalone Member");
+      // The override makes the package paid, so the page treats it as paid: the
+      // revenue row shows (a non-package or no-override group would hide it).
+      expect(html).toContain("Total Revenue");
     });
 
     test("hides revenue for a package whose free member has no override", async () => {
