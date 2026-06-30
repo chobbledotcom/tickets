@@ -200,14 +200,6 @@ export const validateGroupListingType = async (
 };
 
 /**
- * Get ungrouped listings (members of no group) with attendee counts.
- */
-export const getUngroupedListings = (): Promise<ListingWithCount[]> =>
-  queryListingsWithCounts(
-    "WHERE listing.id NOT IN (SELECT listing_id FROM group_listings)",
-  );
-
-/**
  * Listings that are NOT already in the given group, with attendee counts — the
  * candidates the group detail "add listings" form offers. Membership is
  * many-to-many, so a listing already in another group is still a valid
