@@ -58,9 +58,10 @@ export type TicketSharedContext = {
    * group AND any other capped group members happen to share (many-to-many
    * membership). Empty for non-package pages or when no member's group is capped.
    * Carried on the SHARED context so the render page and the submit clamp use the
-   * same ceiling. */
-  packageGroupRemainingByGroupId?: ReadonlyMap<number, number>;
-  packageMemberGroupIds?: ReadonlyMap<number, number[]>;
+   * same ceiling. Always set by {@link getTicketContext} (empty Maps for a
+   * non-package page), so callers read them without a fallback. */
+  packageGroupRemainingByGroupId: ReadonlyMap<number, number>;
+  packageMemberGroupIds: ReadonlyMap<number, number[]>;
   actionUrl?: string;
   siteToken?: string;
   promoCodesEnabled?: boolean;

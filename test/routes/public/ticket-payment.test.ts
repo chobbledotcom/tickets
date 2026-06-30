@@ -838,6 +838,8 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       childrenByParentId,
       dates: [],
       listings,
+      packageGroupRemainingByGroupId: new Map(),
+      packageMemberGroupIds: new Map(),
       questionListingMap: new Map(),
       questions: [],
       slugs: [],
