@@ -27,4 +27,5 @@ describeWithEnv("custom.css handler", { db: true, triggers: true }, () => {
   test("a non-/custom.css path under the prefix is not handled (404)", async () => {
     const res = await handleRequest(mockRequest("/custom.css/extra"));
     expect(res.status).toBe(404);
-  });});
+  });
+});
