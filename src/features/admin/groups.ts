@@ -430,13 +430,17 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
       attendees.map((a) => a.id),
       privateKey,
     );
-    // The group's public /ticket/<group> page 404s for a package whose bundle is
-    // incomplete or sold out, so suppress its admin share/QR/embed links then.
-    // A non-package group always renders (it shows sold-out members), so it stays
-    // shareable.
+    // Mirror exactly when the public /ticket/<group> page renders vs 404s
+    // (see withActiveGroupListingsBySlug), so the admin never offers a dead
+    // share/QR/embed link: it 404s when the buyer-VISIBLE member list is empty
+    // (e.g. a regular group whose only active members are hidden-package
+    // members, which are dropped) and, for a package, when the bundle isn't
+    // bookable. A regular group with merely sold-out (but visible) members still
+    // renders, so it stays shareable.
+    const visibleMembers = await getVisibleGroupMembers(group);
     const shareable =
-      !group.is_package ||
-      (await groupBookable(group, await getVisibleGroupMembers(group)));
+      visibleMembers.length > 0 &&
+      (!group.is_package || (await groupBookable(group, visibleMembers)));
 
     return htmlResponse(
       adminGroupDetailPage(

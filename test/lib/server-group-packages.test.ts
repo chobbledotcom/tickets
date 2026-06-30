@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import {
+  assignListingsToGroup,
   getAllGroups,
   getGroupPackagePrices,
   groupsTable,
@@ -674,6 +675,24 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     const after = await (await adminGet(`/admin/groups/${group.id}`)).text();
     expect(after).not.toContain(`/ticket/${group.slug}`);
     expect(after).toContain("isn't currently bookable");
+  });
+
+  test("a regular group whose only members are hidden-package members offers no share links", async () => {
+    // The member belongs to a hidden package AND a regular group. The public
+    // /ticket/<regular> drops the hidden member, leaving an empty visible set, so
+    // it 404s — the admin detail must not advertise that dead link.
+    const pkg = await createTestGroup({ isPackage: true, name: "HideOnly" });
+    await groupsTable.update(pkg.id, { hidePackageListings: true });
+    const shared = await member(pkg, "Hidden Shared Member");
+    const regular = await createTestGroup({
+      name: "RegularEmpty",
+      slug: "regular-empty",
+    });
+    await assignListingsToGroup([shared.id], regular.id);
+
+    const html = await (await adminGet(`/admin/groups/${regular.id}`)).text();
+    expect(html).not.toContain(`/ticket/${regular.slug}`);
+    expect(html).toContain("isn't currently bookable");
   });
 
   test("blocks deleting a hidden package that has sold tickets", async () => {
