@@ -127,3 +127,53 @@ src/ui/templates/admin/listing-defaults.tsx:90:19  ?? → ||  # UrlControl value
 src/ui/templates/admin/listing-defaults.tsx:119:42  ?? → ||  # value?.includes(day): boolean|undefined; for boolean b, b ?? false === b || false, and undefined ?? false === undefined || false
 src/shared/listing-defaults.ts:95:52  === → ==  # hidden gate `months_per_unit === 0`: months_per_unit is a number (DB integer column), so === and == never disagree — there is no string/null operand to coerce
 src/shared/listing-defaults.ts:123:59  !== → !=  # setListingDefaultFields "is set" check: ListingDefaults values are boolean|number|string|string[]|undefined and never null, so `!== undefined` and `!= undefined` always agree
+
+# --- External order widget (src/ui/client/order.ts) ----------------------------
+# This is browser DOM-construction code; many operator swaps are provably
+# equivalent. Each `= → +=` below targets a property whose value before the
+# assignment is fixed, so `x = v` and `x += v` produce the same result:
+#  * a freshly created element's `.className`/`.textContent` is always "" (DOM
+#    spec), so `"" + literal === literal`;
+#  * the boolean flags (`memoryOnly`, `dropped`, `hasVariable`) are `false`
+#    before the swapped assignment and are only ever read for truthiness, so
+#    `false + true === 1` is truthy just like `true`.
+src/ui/client/order.ts:97:28  ?? → ||    # catalogEntry(): CatalogEntry|undefined; an object is truthy, undefined and "" never occur
+src/ui/client/order.ts:136:22  = → +=    # memoryOnly: false → 1, only read for truthiness
+src/ui/client/order.ts:152:24  = → +=    # memoryOnly: false → 1, only read for truthiness
+src/ui/client/order.ts:163:22  = → +=    # memoryOnly: false → 1, only read for truthiness
+src/ui/client/order.ts:177:16  = → +=    # dropped: false → 1, only read for truthiness
+src/ui/client/order.ts:180:51  ?? → ||   # merged.get(): merged values are summed positive quantities (>0), never 0
+src/ui/client/order.ts:183:18  = → +=    # this.notice was "" before this assignment
+src/ui/client/order.ts:261:24  = → +=    # heading.textContent: fresh element, "" before
+src/ui/client/order.ts:266:18  = → +=    # p.className: fresh element, "" before
+src/ui/client/order.ts:267:20  = → +=    # p.textContent: fresh element, "" before
+src/ui/client/order.ts:276:43  = → +=    # hasVariable: false → 1, only read for truthiness
+src/ui/client/order.ts:283:22  = → +=    # total.className: fresh element, "" before
+src/ui/client/order.ts:284:24  = → +=    # total.textContent: fresh element, "" before
+src/ui/client/order.ts:289:23  = → +=    # caveat.className: fresh element, "" before
+src/ui/client/order.ts:290:25  = → +=    # caveat.textContent: fresh element, "" before
+src/ui/client/order.ts:296:24  = → +=    # empty.textContent: fresh element, "" before
+src/ui/client/order.ts:305:18  = → +=    # row.className: fresh element, "" before
+src/ui/client/order.ts:307:19  = → +=    # name.className: fresh element, "" before
+src/ui/client/order.ts:308:21  = → +=    # name.textContent: fresh element, "" before
+src/ui/client/order.ts:312:20  = → +=    # price.className: fresh element, "" before
+src/ui/client/order.ts:313:22  = → +=    # price.textContent: fresh element, "" before
+src/ui/client/order.ts:328:21  = → +=    # continue button.className: fresh element, "" before
+src/ui/client/order.ts:329:23  = → +=    # continue button.textContent: fresh element, "" before
+src/ui/client/order.ts:346:19  = → +=    # cart button.className: fresh element, "" before
+src/ui/client/order.ts:347:16  = → +=    # button.hidden: false → 1 (truthy), and render() overwrites it with count===0 immediately
+src/ui/client/order.ts:347:19  true → false  # button.hidden is overwritten by render()'s `count === 0` on the next line of the constructor
+src/ui/client/order.ts:349:18  = → +=    # count span.className: fresh element, "" before
+src/ui/client/order.ts:350:20  = → +=    # count span.textContent: fresh element, "" before
+src/ui/client/order.ts:352:20  = → +=    # label.textContent: fresh element, "" before
+src/ui/client/order.ts:361:19  = → +=    # close button.className: fresh element, "" before
+src/ui/client/order.ts:362:21  = → +=    # close button.textContent: fresh element, "" before
+src/ui/client/order.ts:372:17  = → +=    # stepper wrap.className: fresh element, "" before
+src/ui/client/order.ts:375:18  = → +=    # dec.textContent: fresh element, "" before
+src/ui/client/order.ts:379:20  = → +=    # value span.textContent: fresh element, "" before
+src/ui/client/order.ts:382:18  = → +=    # inc.textContent: fresh element, "" before
+src/ui/client/order.ts:387:21  = → +=    # remove.textContent: fresh element, "" before
+src/ui/client/order.ts:395:20  = → +=    # style.textContent: fresh element, "" before
+src/ui/client/order.ts:429:27  = → +=    # registry[origin]: undefined → a truthy string; only read for the dedup truthiness check, the live controller is the local var
+src/ui/client/order.ts:433:48  ?? → ||   # link.dataset.addListing: string|undefined; the only falsy-non-null value "" equals the "" fallback
+src/ui/client/order.ts:443:59  ?? → ||   # link.dataset.addListing: string|undefined; the only falsy-non-null value "" equals the "" fallback

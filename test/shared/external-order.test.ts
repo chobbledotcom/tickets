@@ -9,6 +9,7 @@ import { testListing } from "#test-utils/factories.ts";
 
 const base = {
   currency: "GBP",
+  debug: false,
   decimalPlaces: 2,
   generatedAt: "2026-06-28T20:00:00Z",
   origin: "https://tickets.test",
@@ -56,8 +57,23 @@ describe("external-order", () => {
       ).toBeNull();
     });
 
+    test("wildcard requires a dot boundary, not just the suffix text", () => {
+      // `bbexample.com` ends with `example.com` but not with the `.example.com`
+      // the wildcard demands — the host-length check alone would wrongly allow
+      // it, so the boundary `&&` must hold.
+      expect(
+        resolveAllowOrigin("https://bbexample.com", ["*.example.com"]),
+      ).toBeNull();
+    });
+
     test("rejects a missing origin against a non-empty list", () => {
       expect(resolveAllowOrigin(null, ["example.com"])).toBeNull();
+    });
+
+    test("rejects an empty-string origin against a non-empty list", () => {
+      // An empty `Origin` header is falsy but still a string; it must be denied
+      // (null), not echoed back as the allowed origin.
+      expect(resolveAllowOrigin("", ["example.com"])).toBeNull();
     });
 
     test("rejects a malformed origin", () => {
@@ -87,6 +103,12 @@ describe("external-order", () => {
       expect(catalog.currency).toBe("GBP");
       expect(catalog.decimalPlaces).toBe(2);
       expect(catalog.generatedAt).toBe("2026-06-28T20:00:00Z");
+      expect(catalog.debug).toBe(false);
+    });
+
+    test("carries the debug flag through to the catalog", () => {
+      const catalog = buildCatalog({ ...base, debug: true, listings: [] });
+      expect(catalog.debug).toBe(true);
     });
 
     test("flags variablePrice for daily, customisable-days, and PWYW", () => {
