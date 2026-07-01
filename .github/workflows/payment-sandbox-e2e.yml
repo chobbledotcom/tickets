@@ -57,10 +57,13 @@ jobs:
       - name: Install cloudflared
         run: |
           set -euo pipefail
-          curl -fsSL -o /usr/local/bin/cloudflared \
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -fsSL -o "$RUNNER_TEMP/bin/cloudflared" \
             https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-          chmod +x /usr/local/bin/cloudflared
-          cloudflared --version
+          chmod +x "$RUNNER_TEMP/bin/cloudflared"
+          # $GITHUB_PATH only affects later steps, so verify via the full path here.
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/cloudflared" --version
 
       - name: Install Deno dependencies
         run: deno install --allow-scripts
