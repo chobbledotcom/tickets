@@ -26,9 +26,10 @@ describe("describeWithEnv storage option", () => {
   });
 
   describe("local backend", () => {
-    // Captured in the first test, asserted removed in the second — proving the
-    // per-test temp dir is created before and torn down after each test.
-    let firstDir: string | null = null;
+    // Each test records the live dir it observed; the afterAll then proves that
+    // dir was torn down. This holds no matter which subset of tests runs (e.g.
+    // under `test:files --filter`), so the cases stay independent.
+    let observedDir: string | null = null;
 
     describeWithEnv("local storage lifecycle", { storage: "local" }, () => {
       test("allocates a real temp dir and selects the local backend", () => {
@@ -37,27 +38,47 @@ describe("describeWithEnv storage option", () => {
         expect(dirExists(dir!)).toBe(true);
         expect(getStorageBackend()).toBe("local");
         expect(isStorageEnabled()).toBe(true);
-        firstDir = dir;
+        observedDir = dir;
       });
 
       test("a per-test withStorageDisabled scope overrides the suite default", () => {
-        // The previous test's dir was cleaned up in its afterEach.
-        expect(firstDir).not.toBeNull();
-        expect(dirExists(firstDir!)).toBe(false);
-        // This test still has its own live dir…
+        // This test has its own live dir…
+        const dir = getTestStoragePath();
+        expect(dir).not.toBeNull();
+        expect(dirExists(dir!)).toBe(true);
         expect(getStorageBackend()).toBe("local");
         // …but an explicit scope wins over the suite's env default.
         withStorageDisabled(() => {
           expect(getStorageBackend()).toBe("none");
         });
+        observedDir = dir;
       });
     });
 
     afterAll(() => {
-      // After the whole suite, the last test's dir is gone too.
+      // After the suite, the last-observed dir is removed and the path cleared —
+      // proving each test's dir is torn down in its afterEach.
+      expect(observedDir).not.toBeNull();
+      expect(dirExists(observedDir!)).toBe(false);
       expect(getTestStoragePath()).toBeNull();
     });
   });
+
+  // Regression: getStorageBackend() checks the Bunny creds before the local
+  // path, so a `storage: "local"` suite must clear any conflicting zone env —
+  // otherwise ambient credentials would resolve it to "bunny", not "local".
+  describeWithEnv(
+    "local backend clears conflicting zone credentials",
+    {
+      env: { STORAGE_ZONE_KEY: "leak", STORAGE_ZONE_NAME: "leak" },
+      storage: "local",
+    },
+    () => {
+      test("selects local even when zone credentials are present in the env", () => {
+        expect(getStorageBackend()).toBe("local");
+      });
+    },
+  );
 
   describeWithEnv("no storage option", {}, () => {
     test("leaves storage disabled by default", () => {

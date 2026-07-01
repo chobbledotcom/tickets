@@ -345,12 +345,23 @@ const setupStorageEnv = async (
   storage: DescribeEnvOptions["storage"],
 ): Promise<Record<string, string | undefined>> => {
   if (storage === "cdn") {
-    return { STORAGE_ZONE_KEY: "testkey", STORAGE_ZONE_NAME: "testzone" };
+    // Clear any ambient local path so the Bunny backend resolves deterministically.
+    return {
+      LOCAL_STORAGE_PATH: undefined,
+      STORAGE_ZONE_KEY: "testkey",
+      STORAGE_ZONE_NAME: "testzone",
+    };
   }
   if (storage === "local") {
     const dir = await Deno.makeTempDir();
     setTestStoragePath(dir);
-    return { LOCAL_STORAGE_PATH: dir };
+    // Clear any ambient Bunny creds — getStorageBackend() checks those before
+    // the local path, so leaving them set would resolve to "bunny", not "local".
+    return {
+      LOCAL_STORAGE_PATH: dir,
+      STORAGE_ZONE_KEY: undefined,
+      STORAGE_ZONE_NAME: undefined,
+    };
   }
   return {};
 };
