@@ -63,6 +63,17 @@ const hiddenPackageWithBooking = async (name: string, slug: string) => {
   return { group, memberListing, token };
 };
 
+/** POST the group edit form with is_package ticked, returning the response. */
+const postIsPackage = (group: {
+  id: number;
+  name: string;
+  slug: string;
+}): Promise<{ response: Response }> =>
+  adminFormPost(`/admin/groups/${group.id}/edit`, {
+    ...editFields(group.name, group.slug),
+    is_package: "1",
+  });
+
 /** POST the edit form with is_package ticked and assert it was rejected by the
  * package invariant, leaving the flag clear. */
 const expectPackageRejected = async (group: {
@@ -70,10 +81,7 @@ const expectPackageRejected = async (group: {
   name: string;
   slug: string;
 }): Promise<void> => {
-  const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
-    ...editFields(group.name, group.slug),
-    is_package: "1",
-  });
+  const { response } = await postIsPackage(group);
   await expectFlashRedirect(
     `/admin/groups/${group.id}/edit`,
     expect.stringContaining("Packages cannot contain"),
@@ -88,10 +96,7 @@ const expectPackageAccepted = async (group: {
   name: string;
   slug: string;
 }): Promise<void> => {
-  const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
-    ...editFields(group.name, group.slug),
-    is_package: "1",
-  });
+  const { response } = await postIsPackage(group);
   expect(response.status).toBe(302);
   expect((await groupsTable.findById(group.id))!.is_package).toBe(true);
 };
