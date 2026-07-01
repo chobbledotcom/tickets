@@ -124,30 +124,30 @@ export const isSitePageSlugTaken = (
   );
 
 /** Create a page, appending it to the end of the root ordering. A new page is
- * always a root (no edges yet). The trailing `sort_order` is claimed under a
- * write transaction *after* the insert, so two concurrent creates serialise on
- * the write lock and get distinct orders — equal orders would make the
- * reorder swap a no-op, leaving the pages unreorderable. */
+ * always a root (no edges yet). The trailing `sort_order` (max + 1) is read and
+ * the row inserted in **one write transaction**, so the whole create rolls back
+ * as a unit — no orphan row on a mid-write failure — and two concurrent creates
+ * serialise on the write lock to get distinct orders (equal orders would make a
+ * reorder swap a no-op, leaving the pages unreorderable). */
 export const createSitePage = async (
   input: Omit<SitePageInput, "sortOrder">,
 ): Promise<SitePage> => {
-  const page = await sitePagesTable.insert({ ...input, sortOrder: 0 });
-  const sortOrder = await withTransaction(async (tx) => {
+  const id = await withTransaction(async (tx) => {
     const res = await tx.execute({
-      args: [page.id],
-      sql: "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM site_pages WHERE id != ?",
+      args: [],
+      sql: "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM site_pages",
     });
-    const next = Number(resultRows<{ next: number }>(res)[0]!.next);
-    await tx.execute({
-      args: [next, page.id],
-      sql: "UPDATE site_pages SET sort_order = ? WHERE id = ?",
+    const sortOrder = Number(resultRows<{ next: number }>(res)[0]!.next);
+    const stmt = await rawSitePagesTable.insertStatement!({
+      ...input,
+      sortOrder,
     });
-    return next;
+    const result = await tx.execute(stmt);
+    return Number(result.lastInsertRowid);
   });
-  // No explicit cache clear needed: the insert above already invalidated the nav
-  // projection, and nothing reads it before this returns, so the next read
-  // re-fetches the freshly assigned order.
-  return { ...page, sort_order: sortOrder };
+  // The transactional insert already clears the nav projection cache (writes
+  // invalidate by table), so just read the row back fully decrypted.
+  return (await getSitePageById(id))!;
 };
 
 /** Update a page's editable fields (all but id/sort_order). The caller passes a

@@ -110,6 +110,22 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       expect(orders[0]).toBeLessThan(orders[1]!);
       expect(orders[1]).toBeLessThan(orders[2]!);
     });
+
+    test("createSitePage clears the nav cache so the new page shows", () =>
+      // The nav projection is request-scoped, so hold one request open across
+      // the populate → create → re-read: the raw transactional insert must
+      // invalidate the cache, or this second read returns the stale projection
+      // without the new page.
+      runWithRequestCache(async () => {
+        await getSitePageNavRows(); // populate the cached projection
+        await createSitePage({
+          name: "Fresh",
+          slug: "fresh-cache",
+          slugIndex: await computeSitePageSlugIndex("fresh-cache"),
+        });
+        const slugs = (await getSitePageNavRows()).map((r) => r.slug);
+        expect(slugs).toContain("fresh-cache");
+      }));
   });
 
   describe("isSitePageSlugTaken", () => {
