@@ -66,6 +66,12 @@ describe("webhook", () => {
     fetchSpy = stub(globalThis, "fetch", impl);
   };
 
+  /** The parsed JSON body of the first webhook POST the fetch stub captured. */
+  const firstWebhookBody = (): WebhookPayload => {
+    const [, options] = fetchSpy.calls[0].args as [string, RequestInit];
+    return JSON.parse(options.body as string) as WebhookPayload;
+  };
+
   /** Drain floating async logError promises, then reset and recreate the test DB */
   const drainAndResetDb = async (): Promise<void> => {
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -574,9 +580,7 @@ describe("webhook", () => {
       await sendRegistrationWebhooks(entries, "GBP");
 
       expect(fetchSpy.calls.length).toBe(1);
-      const [, options] = fetchSpy.calls[0].args as [string, RequestInit];
-      const body = JSON.parse(options.body as string) as WebhookPayload;
-      expect(body.tickets[0]!.unit_price).toBe(900);
+      expect(firstWebhookBody().tickets[0]!.unit_price).toBe(900);
     });
   });
 
