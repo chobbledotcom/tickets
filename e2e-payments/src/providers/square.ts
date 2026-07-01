@@ -5,13 +5,22 @@ import { clickFirst, fillCard } from "./card.ts";
 import { assertConfigured, selectProvider } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
 
-/** Log every button/link on the page and its frames (text + key attributes),
- * so a CI failure reveals exactly what controls a hosted page offers. */
+/** Log the page + every frame: URL, a text snippet, and any interactive
+ * controls. Reveals exactly what a hosted page offers when a click target
+ * can't be found — including whether the real content sits in an iframe. */
 const dumpControls = async (page: Page): Promise<void> => {
-  for (const root of [page, ...page.frames()]) {
+  const roots = [page, ...page.frames()];
+  log(`    page has ${page.frames().length} frame(s)`);
+  for (const root of roots) {
     try {
+      const url = "url" in root ? root.url() : page.url();
+      const text = (await root.locator("body").first().innerText())
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 200);
+      log(`    frame ${url}\n      text: ${text}`);
       const controls = await root
-        .locator('button, a, [role="button"], input[type="submit"]')
+        .locator('button, a, [role="button"], input, [onclick]')
         .evaluateAll((els) =>
           els.slice(0, 40).map((el) => {
             const h = el as HTMLElement;
@@ -28,51 +37,55 @@ const dumpControls = async (page: Page): Promise<void> => {
         );
       for (const c of controls.filter((c) => c.text || c.testid || c.id)) {
         log(
-          `    control: <${c.tag}> "${c.text}"${c.testid ? ` testid=${c.testid}` : ""}${c.id ? ` id=${c.id}` : ""}`,
+          `      control: <${c.tag}> "${c.text}"${c.testid ? ` testid=${c.testid}` : ""}${c.id ? ` id=${c.id}` : ""}`,
         );
       }
     } catch {
-      // frame detached; skip
+      // frame detached / cross-origin body not readable; skip
     }
   }
 };
 
+const PAY_SELECTOR = [
+  'button:has-text("Test Payment")',
+  'button:has-text("Pay")',
+  'button:has-text("Complete")',
+  'button:has-text("Submit")',
+  'button[type="submit"]',
+  '[role="button"]:has-text("Pay")',
+].join(", ");
+
 /**
  * Square SANDBOX payment links redirect to a "sandbox testing panel" (host
  * connect.squareupsandbox.com, path /online-checkout/sandbox-testing-panel/…),
- * not a real card-entry page: you simulate the buyer by clicking a button. Log
- * the panel's controls (so any change is visible in CI) and click the control
- * that completes the payment.
+ * not a real card-entry page: you simulate the buyer by clicking a button
+ * ("Test Payment", per Square's sandbox docs). Poll the page AND every frame
+ * for that button (it may render inside an iframe), then click it; on timeout,
+ * dump the panel's structure so CI shows what it actually contains.
  */
 const completeSandboxPanel = async (page: Page): Promise<void> => {
   log("Square sandbox testing panel detected; completing test payment…");
-  // The panel is a React app that renders its form asynchronously, so wait for
-  // it to settle and for the primary button to appear before clicking. Its
-  // completion control is labelled "Test Payment" (per Square's sandbox docs);
-  // keep a few fallbacks in case the label changes.
   await page.waitForLoadState("networkidle").catch(() => {});
-  const payButton = page
-    .locator(
-      [
-        'button:has-text("Test Payment")',
-        'button:has-text("Pay")',
-        'button:has-text("Complete")',
-        'button:has-text("Submit")',
-        'button[type="submit"]',
-      ].join(", "),
-    )
-    .first();
-  try {
-    await payButton.waitFor({ state: "visible", timeout: 30_000 });
-  } catch {
-    // Button never appeared — dump what the panel does offer so CI shows it.
-    await dumpControls(page);
-    throw new Error(
-      "Square sandbox testing panel: no 'Test Payment' (or equivalent) button appeared",
-    );
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    for (const root of [page, ...page.frames()]) {
+      const btn = root.locator(PAY_SELECTOR).first();
+      try {
+        if (await btn.isVisible({ timeout: 250 })) {
+          await btn.click({ timeout: 5_000 });
+          log("  clicked the sandbox panel's payment button");
+          return;
+        }
+      } catch {
+        // not present in this root yet
+      }
+    }
+    await page.waitForTimeout(500);
   }
-  await payButton.click();
-  log("  clicked the sandbox panel's payment button");
+  await dumpControls(page);
+  throw new Error(
+    "Square sandbox testing panel: no 'Test Payment' (or equivalent) button appeared",
+  );
 };
 
 /**

@@ -32,13 +32,11 @@ export const stripe: PaymentProvider = {
   payHostedCheckout: async (page: Page): Promise<void> => {
     log("Filling Stripe Checkout hosted page…");
     await page.waitForLoadState("domcontentloaded");
-    // Target Stripe Checkout's own field ids (#cardNumber/#cardExpiry/#cardCvc/
-    // #billingPostalCode). Do NOT use the generic cc-* autocomplete selectors:
-    // Stripe seeds hidden top-level autofill "decoy" inputs carrying those
-    // tokens, and filling a decoy leaves the real field empty → Checkout reports
-    // "Required". Email is prefilled from the booking. US ZIP (42424) to match
-    // the account's billing country — a UK postcode gets its letters stripped to
-    // a too-short ZIP ("SW1A 1AA" → "11", "incomplete").
+    // Stripe Checkout renders the card fields at the top level with stable ids
+    // (#cardNumber/#cardExpiry/#cardCvc/#billingName/#billingPostalCode). Email
+    // is prefilled from the booking. US ZIP (42424) to match the account's
+    // billing country — a UK postcode gets its letters stripped to a too-short
+    // ZIP ("SW1A 1AA" → "11", "incomplete").
     await fillFirst(
       page,
       "card number",
@@ -66,6 +64,21 @@ export const stripe: PaymentProvider = {
       "42424",
       { required: false },
     );
+    // Stripe pre-checks "Save my information for faster checkout" (Link), which
+    // makes the phone number field required — leaving it empty blocks Pay with a
+    // "Required" error and the submit button stuck "incomplete". Uncheck it so
+    // no phone number is needed.
+    const linkOptIn = page
+      .locator('#enableStripePass, input[name="enableStripePass"]')
+      .first();
+    try {
+      if (await linkOptIn.isChecked({ timeout: 3_000 })) {
+        await linkOptIn.uncheck({ timeout: 5_000 });
+        log("  unchecked Link 'save my information' opt-in");
+      }
+    } catch {
+      // opt-in not shown on this variant — nothing to do
+    }
     await clickFirst(page, "pay button", [
       'button[data-testid="hosted-payment-submit-button"]',
       ".SubmitButton",
