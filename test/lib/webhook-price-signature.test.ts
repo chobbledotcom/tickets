@@ -479,6 +479,43 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     );
   });
 
+  test("a v2 parent+child booking with intact edges processes (the edge walk finds no drift)", async () => {
+    await setupStripe();
+    const parent = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    const child = await createTestListing({ maxAttendees: 50, unitPrice: 0 });
+    await setChildIds(parent.id, [child.id]);
+    // Edge left intact: the walk reconstructs the child's nodeKey and finds it
+    // still resolves, so the order books normally.
+    const metadata = signedParentChild(parent.id, child.id, "2");
+    await runWebhook({ id: "cs_v2_intact", metadata }, () =>
+      expectProcessed(parent.id),
+    );
+  });
+
+  test("a v2 package booking with a matching bundle processes (the edge walk finds no drift)", async () => {
+    const { group, listing } = await setupPackage();
+    // A v2 package line carries its edge (k:"p", r=group id); the walk rebuilds
+    // the package tree, finds the member's nodeKey resolves, and books it.
+    const metadata = signMeta(
+      webhookMeta({
+        email: "buyer@example.com",
+        items: JSON.stringify([
+          { e: listing.id, k: "p", p: 1500, q: 1, r: group.id },
+        ]),
+        mv: "2",
+        name: "Buyer",
+        package_group_id: String(group.id),
+      }),
+      1500,
+    );
+    await runWebhook({ amount_total: 1500, id: "cs_v2_pkg_ok", metadata }, () =>
+      expectProcessed(listing.id),
+    );
+  });
+
   test("stores the booking, reverses the ledger with the reason code, and flags it", async () => {
     const listing = await setupWithListing();
     // Signed and charged at 999, but the live price is 1000 — a mid-checkout edit.
