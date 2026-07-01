@@ -45,20 +45,34 @@ const dumpControls = async (page: Page): Promise<void> => {
  * that completes the payment.
  */
 const completeSandboxPanel = async (page: Page): Promise<void> => {
-  log("Square sandbox testing panel detected; listing controls…");
-  await dumpControls(page);
-  // The panel's primary action completes/authorises the test payment. Try the
-  // most specific labels first, then a generic submit.
-  await clickFirst(page, "complete-payment control", [
-    'button:has-text("Pay")',
-    'button:has-text("Complete")',
-    'button:has-text("Authorize")',
-    'button:has-text("Authorise")',
-    'button:has-text("Charge")',
-    'button:has-text("Submit")',
-    'button[type="submit"]',
-    '[data-testid*="pay" i]',
-  ]);
+  log("Square sandbox testing panel detected; completing test payment…");
+  // The panel is a React app that renders its form asynchronously, so wait for
+  // it to settle and for the primary button to appear before clicking. Its
+  // completion control is labelled "Test Payment" (per Square's sandbox docs);
+  // keep a few fallbacks in case the label changes.
+  await page.waitForLoadState("networkidle").catch(() => {});
+  const payButton = page
+    .locator(
+      [
+        'button:has-text("Test Payment")',
+        'button:has-text("Pay")',
+        'button:has-text("Complete")',
+        'button:has-text("Submit")',
+        'button[type="submit"]',
+      ].join(", "),
+    )
+    .first();
+  try {
+    await payButton.waitFor({ state: "visible", timeout: 30_000 });
+  } catch {
+    // Button never appeared — dump what the panel does offer so CI shows it.
+    await dumpControls(page);
+    throw new Error(
+      "Square sandbox testing panel: no 'Test Payment' (or equivalent) button appeared",
+    );
+  }
+  await payButton.click();
+  log("  clicked the sandbox panel's payment button");
 };
 
 /**

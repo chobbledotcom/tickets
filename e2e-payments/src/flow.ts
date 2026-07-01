@@ -217,8 +217,12 @@ export const assertPaidBookingConfirmed = async (
     const hostedError = await collectHostedErrors(session);
     throw new Error(
       `did not land on a success page after checkout.\nURL: ${page.url()}\n` +
-        (hostedError ? `Checkout page error(s): ${hostedError}\n` : "") +
-        successBody.slice(0, 500),
+        // Prefer the scraped inline error; only fall back to the raw body when
+        // no error node was found (the body is mostly a huge country <select>
+        // that buries the real message and floods the CI log).
+        (hostedError
+          ? `Checkout page error(s): ${hostedError}`
+          : successBody.slice(0, 400)),
     );
   }
   log(`  ✔ customer saw the success page (${page.url()})`);
