@@ -508,6 +508,22 @@ describeWithEnv(
       expect(body).not.toContain("Widget");
     });
 
+    test("a hidden package card shows the booked quantity without naming members", async () => {
+      const { group, widget } = await hiddenOneMemberPackage();
+      const result = await createAttendeeAtomic({
+        bookings: [{ listingId: widget.id, quantity: 3 }],
+        email: "pkgqty@test.com",
+        name: "Bulk Buyer",
+        packageGroupId: group.id,
+      });
+      if (!result.success) throw new Error("package booking failed");
+      const body = await fetchTicketBody(result.attendees[0]!.ticket_token);
+      expect(body).toContain("Kit Bag");
+      // The count is shown at package level; the member name is not.
+      expect(body).toContain("&times;3");
+      expect(body).not.toContain("Widget");
+    });
+
     test("a non-hidden package card keeps each member's attachment link", async () => {
       // The package card replaces the per-member ticket cards, so it must still
       // expose the signed attachment a standalone card would — buyers of the

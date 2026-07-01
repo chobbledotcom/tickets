@@ -125,8 +125,15 @@ const renderPackageCard = (
           c.entry.listing.attachment_name,
         )}</a>`,
     );
+  // A hidden package shows no member rows, but must still tell the buyer how many
+  // they bought — otherwise a multi-quantity purchase renders only the package
+  // name + QR. Show the package's total booked quantity (summed across members,
+  // matching the collapsed email row) without naming any member.
   const membersHtml = packageInfo.hideListings
-    ? ""
+    ? `<div class="ticket-card-package-qty"><span class="package-member-qty">&times;${cards.reduce(
+        (total, c) => total + c.entry.attendee.quantity,
+        0,
+      )}</span></div>`
     : `<ul class="ticket-card-package-members">${cards
         .map(
           (c) =>
