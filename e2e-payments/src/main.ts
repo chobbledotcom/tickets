@@ -110,7 +110,11 @@ const run = async (): Promise<void> => {
     } else {
       step(`Paying on the ${provider.name} hosted checkout`);
       await assertRedirectedToCheckout(session);
-      await provider.payHostedCheckout(session.page);
+      await provider.payHostedCheckout(session.page, {
+        baseUrl: tunnel.publicBaseUrl,
+        secrets: secrets!,
+        serverLogPath: server.logPath,
+      });
       await assertPaidBookingConfirmed(session, ticketPath);
     }
 

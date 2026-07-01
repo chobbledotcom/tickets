@@ -1,8 +1,9 @@
+import { readFileSync } from "node:fs";
 import type { Page } from "playwright";
 import type { BrowserSession } from "../browser.ts";
-import { log, warn } from "../log.ts";
+import { log } from "../log.ts";
 import { assertConfigured, selectProvider } from "./shared.ts";
-import type { PaymentProvider } from "./types.ts";
+import type { HostedCheckoutContext, PaymentProvider } from "./types.ts";
 
 /**
  * Square. Payment confirmation is asserted via the browser return URL
@@ -12,180 +13,156 @@ import type { PaymentProvider } from "./types.ts";
  * this leg does NOT exercise Square's webhook path; confirmation is the return
  * URL only.
  *
- * Square SANDBOX payment links (CreatePaymentLink → long_url) redirect to
+ * WHY THIS LEG COMPLETES THE PAYMENT VIA THE API, NOT THE BROWSER
+ * ---------------------------------------------------------------
+ * Unlike Stripe and SumUp, Square's SANDBOX has no browser-drivable hosted card
+ * page. A sandbox payment link (CreatePaymentLink → long_url) redirects to
  * Square's "Checkout API Sandbox Testing Panel"
- * (connect.squareupsandbox.com/.../sandbox-testing-panel/…). In sandbox there
- * is no separate buyer card page — the panel's "Preview Link"
- * (sandbox.square.link/u/…) just redirects back here — so the panel IS the
- * checkout: it *simulates* accepting the payment via a stepper (Overview →
- * Test Payment → Checkout → Complete) driven by real <button> controls
- * ("Next", then a completion button). Walking that stepper marks the order
- * paid and redirects to the app's return URL.
+ * (connect.squareupsandbox.com/.../sandbox-testing-panel/…). That panel only
+ * ever exposes Next / "Test Payment" / "Preview Link" / "Preview Checkout"
+ * controls; the buyer "Preview Link" (sandbox.square.link/u/…) just redirects
+ * back to the panel, and nothing there completes the order or redirects to the
+ * app with an orderId. (This was proven by dumping every interactive element on
+ * every step across a full walk — there is simply no card entry in sandbox.)
+ *
+ * Square documents that sandbox payments are completed via the Payments API
+ * using a test card nonce, so this is exactly how a real integration is tested.
+ * We therefore drive the *whole app journey* in the browser as a customer
+ * (setup → listing → booking → redirect to Square), then complete the payment
+ * the way Square's sandbox supports — CreatePayment(cnon:card-nonce-ok) against
+ * the order the app created — and finally drive the browser to the app's real
+ * return URL (/payment/success?orderId=…). The app then runs its genuine
+ * return-handling: retrieveOrder → the order now has a COMPLETED tender → the
+ * session is "paid" → the booking is created and the income ledger is recorded,
+ * all asserted by assertPaidBookingConfirmed. Only Square's non-existent hosted
+ * card UI is bypassed; every line of the app's payment path is exercised.
  */
 
-/** The interactive-element roles we both describe and try to click, so a
- * control that turns out to be a link/menuitem (not a <button>) is still seen
- * and driven — e.g. "Test Payment" opens a menu of test scenarios. */
-const CLICK_ROLES = ["button", "menuitem", "option", "link", "tab"] as const;
+const SQUARE_API = {
+  sandbox: "https://connect.squareupsandbox.com",
+  production: "https://connect.squareup.com",
+} as const;
 
-const onPanel = (page: Page): boolean =>
-  page.url().includes("sandbox-testing-panel");
+// Match the app's Square-Version so request/response shapes agree.
+const SQUARE_API_VERSION = "2025-01-23";
 
-/**
- * Dump every interactive element on the panel (across all frames) with its
- * tag/role/type, accessible-ish name, and visible/disabled state. This is the
- * "describe the elements available" diagnostic: it shows exactly which controls
- * each step exposes — including menu items a button reveals — so the walk can be
- * driven precisely from the CI log instead of clicking blindly.
- */
-const describeInteractive = async (page: Page): Promise<void> => {
-  const selector = [
-    "button",
-    "[role=button]",
-    "a[href]",
-    "[role=link]",
-    "[role=menuitem]",
-    "[role=option]",
-    "[role=tab]",
-    "[role=radio]",
-    "input:not([type=hidden])",
-    "select",
-  ].join(",");
-  for (const frame of page.frames()) {
-    let rows: string[] = [];
-    try {
-      rows = await frame.locator(selector).evaluateAll((els) =>
-        els.slice(0, 50).map((el) => {
-          const e = el as HTMLElement;
-          const tag = e.tagName.toLowerCase();
-          const role = e.getAttribute("role");
-          const type = e.getAttribute("type");
-          const name = (
-            e.getAttribute("aria-label") ||
-            (e as HTMLInputElement).value ||
-            e.innerText ||
-            e.getAttribute("placeholder") ||
-            ""
-          )
-            .trim()
-            .replace(/\s+/g, " ")
-            .slice(0, 50);
-          const s = getComputedStyle(e);
-          const visible =
-            s.display !== "none" &&
-            s.visibility !== "hidden" &&
-            (e.offsetWidth > 0 || e.offsetHeight > 0);
-          const disabled =
-            (e as HTMLButtonElement).disabled === true ||
-            e.getAttribute("aria-disabled") === "true";
-          return (
-            `${tag}` +
-            (role ? `[role=${role}]` : "") +
-            (type ? `[type=${type}]` : "") +
-            ` "${name}"` +
-            (visible ? "" : " (hidden)") +
-            (disabled ? " (disabled)" : "")
-          );
-        }),
-      );
-    } catch {
-      // frame detached mid-scrape; skip
-    }
-    if (rows.length) {
-      const where = frame === page.mainFrame() ? "main" : frame.url();
-      log(`    [${where}] interactive elements:`);
-      for (const r of rows) log(`      · ${r}`);
-    }
-  }
-};
+// Square's universal sandbox "successful Visa" card nonce. Completing a payment
+// with this against the order marks it COMPLETED with a card tender.
+// Docs: https://developer.squareup.com/docs/devtools/sandbox/payments
+const SANDBOX_CARD_NONCE = "cnon:card-nonce-ok";
 
-/**
- * Click the first visible, enabled element (any frame, any of CLICK_ROLES)
- * whose accessible name matches. Returns what was clicked, or null.
- */
-const clickByName = async (
-  page: Page,
-  name: RegExp,
-): Promise<string | null> => {
-  for (const frame of page.frames()) {
-    for (const role of CLICK_ROLES) {
-      const el = frame.getByRole(role, { name }).first();
-      try {
-        if (await el.isVisible({ timeout: 250 })) {
-          await el.click({ timeout: 5_000 });
-          const label = `${role} /${name.source}/`;
-          log(`  clicked ${label}`);
-          return label;
-        }
-      } catch {
-        // not present / not actionable in this frame; try the next
-      }
-    }
-  }
-  return null;
-};
+type SquareMoney = { amount: number; currency: string };
 
-/** Poll for the browser leaving the panel (redirect to the app return URL). */
-const waitToLeavePanel = async (page: Page, ms: number): Promise<boolean> => {
-  const deadline = Date.now() + ms;
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Recover the Square order id the app created for this booking from its server
+ * log (it is logged as `[Square] Payment link created orderId=…`). Polled
+ * briefly because the log write and our read race the redirect. */
+const readOrderId = async (logPath: string): Promise<string> => {
+  const deadline = Date.now() + 10_000;
+  const pattern = /\[Square\] Payment link created orderId=(\S+)/g;
+  let last: string | null = null;
   while (Date.now() < deadline) {
-    if (!onPanel(page)) return true;
-    await page.waitForTimeout(500);
+    let text = "";
+    try {
+      text = readFileSync(logPath, "utf8");
+    } catch {
+      // log not flushed yet
+    }
+    for (const m of text.matchAll(pattern)) last = m[1] ?? last;
+    if (last) return last;
+    await sleep(300);
   }
-  return !onPanel(page);
+  throw new Error(
+    `Square: could not find the created orderId in the app server log (${logPath}). ` +
+      "Expected a '[Square] Payment link created orderId=…' line.",
+  );
+};
+
+/** Authenticated Square REST call; throws with the API body on a non-2xx. */
+const squareFetch = async (
+  base: string,
+  token: string,
+  path: string,
+  init?: { method?: string; body?: unknown },
+): Promise<unknown> => {
+  const res = await fetch(`${base}${path}`, {
+    method: init?.method ?? "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "Square-Version": SQUARE_API_VERSION,
+    },
+    ...(init?.body != null ? { body: JSON.stringify(init.body) } : {}),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`Square API ${path} → HTTP ${res.status}: ${text}`);
+  }
+  return text ? JSON.parse(text) : {};
 };
 
 /**
- * Walk the sandbox testing panel's stepper to completion. Each round: describe
- * every interactive element, then click the most "final" action available
- * (Test Payment / a success scenario / Complete), falling back to advancing the
- * wizard (Next/Continue). After every click, wait patiently for the panel to
- * finish and redirect — the payment simulation takes a few seconds — before
- * re-describing (which surfaces any menu the click opened). Stop as soon as the
- * browser leaves the panel for the app's return URL.
+ * Complete the Square sandbox payment for the order the app created, then send
+ * the browser to the app's real return URL so the app confirms and books it.
  */
-const completeSandboxPanel = async (page: Page): Promise<void> => {
-  log("Square sandbox testing panel detected; walking the stepper…");
-  await page.waitForLoadState("networkidle").catch(() => {});
-  await page.waitForTimeout(1_500);
+const completeViaSandboxApi = async (
+  page: Page,
+  ctx: HostedCheckoutContext,
+): Promise<void> => {
+  const sandbox = ctx.secrets.sandbox === "true";
+  const base = sandbox ? SQUARE_API.sandbox : SQUARE_API.production;
+  const token = ctx.secrets.token;
 
-  for (let round = 0; round < 12; round++) {
-    if (!onPanel(page)) {
-      log(`  left the testing panel → ${page.url()}`);
-      return;
-    }
-    log(`  --- step ${round} @ ${page.url()} ---`);
-    await describeInteractive(page);
+  const orderId = await readOrderId(ctx.serverLogPath);
+  log(`Square sandbox has no hosted card page; completing order ${orderId} via the Payments API…`);
 
-    // Prefer a payment/completion action; a "Test Payment" control may open a
-    // menu of scenarios, so the completion set also matches the success ones.
-    const clicked =
-      (await clickByName(
-        page,
-        /test payment|complete payment|complete|finish|charge|simulate|approve|success|succeed|paid|^pay\b/i,
-      )) ??
-      (await clickByName(
-        page,
-        /^next$|continue|confirm|submit|^done$|^ok$|close/i,
-      ));
-
-    if (!clicked) {
-      warn("  no clickable advance/complete control found on this step");
-      break;
-    }
-    // Give the click time to process and (hopefully) redirect before looking
-    // again; if it merely opened a menu, the next round re-describes it.
-    if (await waitToLeavePanel(page, 8_000)) {
-      log(`  left the testing panel → ${page.url()}`);
-      return;
-    }
-  }
-  if (onPanel(page)) {
+  // Read the order back to pay the exact amount/currency it was created for
+  // (matching the app's signed total — a mismatch would be refused).
+  const orderResp = (await squareFetch(
+    base,
+    token,
+    `/v2/orders/${encodeURIComponent(orderId)}`,
+  )) as {
+    order?: { location_id?: string; total_money?: SquareMoney; net_amount_due_money?: SquareMoney };
+  };
+  const order = orderResp.order;
+  const amountMoney = order?.net_amount_due_money ?? order?.total_money;
+  const locationId = order?.location_id ?? ctx.secrets.locationId;
+  if (!amountMoney || !locationId) {
     throw new Error(
-      "Square: walked the sandbox testing panel stepper but never left it " +
-        "(see the described interactive elements above to tighten the sequence)",
+      `Square: order ${orderId} missing total/location (got ${JSON.stringify(order)})`,
     );
   }
+  log(`  order total ${amountMoney.amount} ${amountMoney.currency} @ location ${locationId}`);
+
+  // CreatePayment with the sandbox test nonce, linked to the order and
+  // auto-completed → the order gains a COMPLETED card tender, which is exactly
+  // what the app's retrieveSession treats as "paid".
+  const payResp = (await squareFetch(base, token, "/v2/payments", {
+    method: "POST",
+    body: {
+      source_id: SANDBOX_CARD_NONCE,
+      idempotency_key: crypto.randomUUID(),
+      amount_money: amountMoney,
+      order_id: orderId,
+      location_id: locationId,
+      autocomplete: true,
+    },
+  })) as { payment?: { id?: string; status?: string } };
+  log(`  payment ${payResp.payment?.id} status=${payResp.payment?.status}`);
+  if (payResp.payment?.status !== "COMPLETED") {
+    throw new Error(
+      `Square: sandbox payment did not complete (status=${payResp.payment?.status})`,
+    );
+  }
+
+  // Drive the browser to the app's real return URL, exactly as Square would on
+  // a live redirect (the app reads orderId → validates the now-paid order).
+  const returnUrl = `${ctx.baseUrl}/payment/success?orderId=${encodeURIComponent(orderId)}`;
+  log(`  navigating the browser to the app return URL: ${returnUrl}`);
+  await page.goto(returnUrl, { waitUntil: "domcontentloaded" });
 };
 
 export const square: PaymentProvider = {
@@ -206,8 +183,11 @@ export const square: PaymentProvider = {
     await assertConfigured(session, "square");
   },
 
-  payHostedCheckout: async (page: Page): Promise<void> => {
+  payHostedCheckout: async (
+    page: Page,
+    ctx: HostedCheckoutContext,
+  ): Promise<void> => {
     await page.waitForLoadState("domcontentloaded");
-    await completeSandboxPanel(page);
+    await completeViaSandboxApi(page, ctx);
   },
 };
