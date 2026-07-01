@@ -120,6 +120,30 @@ const fillIfPresent = async (
   if (await loc.count()) await loc.fill(value);
 };
 
+/**
+ * Before filling a hosted checkout, assert the booking actually left the app
+ * for the provider. If payment-session creation fails server-side the app
+ * re-renders the booking page with an error alert (no redirect), and blindly
+ * hunting for card fields there just times out with a misleading message. Fail
+ * fast with the app's own error instead.
+ */
+export const assertRedirectedToCheckout = async (
+  session: BrowserSession,
+): Promise<void> => {
+  const { page } = session;
+  if (!page.url().startsWith(session.baseUrl)) return; // left for the provider
+  const alert = page.locator('.error, [role="alert"]').first();
+  const detail = (await alert.count())
+    ? (await alert.innerText()).trim()
+    : "(no error alert on the page)";
+  await session.dumpPage("no-redirect-to-checkout");
+  throw new Error(
+    `booking did not redirect to the hosted checkout — still on ${page.url()}. ` +
+      `The app failed to create the payment session. App said: "${detail}". ` +
+      "See the app server log tail above for the provider API error.",
+  );
+};
+
 /** Assert the free-booking thank-you page was reached. */
 export const assertFreeThankYou = async (
   session: BrowserSession,

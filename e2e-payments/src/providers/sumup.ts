@@ -1,7 +1,7 @@
-import type { FrameLocator, Page } from "playwright";
+import type { Page } from "playwright";
 import type { BrowserSession } from "../browser.ts";
 import { log, warn } from "../log.ts";
-import { clickFirst, fillCard } from "./card.ts";
+import { clickFirst, fillCard, fillFirst, fillFrameInput } from "./card.ts";
 import { assertConfigured, selectProvider } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
 
@@ -26,23 +26,6 @@ const CARD = {
   name: "E2E Tester",
 } as const;
 
-/** Fill the single input inside a Braintree hosted-field iframe, if present. */
-const fillBraintreeField = async (
-  frame: FrameLocator,
-  label: string,
-  value: string,
-  timeoutMs: number,
-): Promise<boolean> => {
-  const input = frame.locator("input").first();
-  try {
-    await input.fill(value, { timeout: timeoutMs });
-    log(`  filled ${label} (Braintree hosted field)`);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 export const sumup: PaymentProvider = {
   name: "sumup",
   setupCountry: "GB",
@@ -59,40 +42,37 @@ export const sumup: PaymentProvider = {
     log("Filling SumUp hosted checkout…");
     await page.waitForLoadState("domcontentloaded");
 
-    // Braintree hosted fields: iframes titled "Secure Credit Card Frame - …".
-    const numberFrame = page.frameLocator(
-      'iframe[title*="Card Number" i], iframe[title*="Credit Card Number" i]',
-    );
-    const usedBraintree = await fillBraintreeField(
-      numberFrame,
+    // Braintree hosted fields: each card field is its own iframe titled
+    // "Secure Credit Card Frame - <field>", holding a single <input>.
+    const usedBraintree = await fillFrameInput(
+      page,
       "card number",
+      ["Card Number", "Credit Card Number"],
+      "input",
       CARD.number,
       10_000,
     );
 
     if (usedBraintree) {
-      await fillBraintreeField(
-        page.frameLocator('iframe[title*="Expiration" i]'),
-        "expiry",
-        CARD.expiry,
-        8_000,
+      await fillFrameInput(page, "expiry", ["Expiration"], "input", CARD.expiry);
+      await fillFrameInput(page, "cvc", ["CVV", "CVC"], "input", CARD.cvc);
+      // Cardholder name is required on SumUp's page and renders slightly after
+      // the hosted card fields, so poll for it (across the top level and any
+      // frame) rather than a one-shot presence check — otherwise Pay is blocked
+      // by "Please enter the cardholder name" and the booking never redirects.
+      await fillFirst(
+        page,
+        "cardholder name",
+        [
+          'input[name="card-holder-name"]',
+          'input[name="cardHolder"]',
+          'input[autocomplete="cc-name"]',
+          'input[id*="cardholder" i]',
+          'input[placeholder*="name" i]',
+          'input[aria-label*="name" i]',
+        ],
+        CARD.name,
       );
-      await fillBraintreeField(
-        page.frameLocator('iframe[title*="CVV" i], iframe[title*="CVC" i]'),
-        "cvc",
-        CARD.cvc,
-        8_000,
-      );
-      // Cardholder name is a top-level input on the SumUp page (not a hosted
-      // field); best-effort, some flows omit it.
-      const name = page
-        .locator(
-          'input[name="card-holder-name"], input[name="cardHolder"], input[autocomplete="cc-name"]',
-        )
-        .first();
-      if (await name.count()) {
-        await name.fill(CARD.name, { timeout: 5_000 }).catch(() => {});
-      }
     } else {
       warn("  Braintree hosted fields not found — trying generic card fill");
       await fillCard(page, {

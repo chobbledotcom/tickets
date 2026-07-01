@@ -12,13 +12,15 @@
  * Exit codes: 0 = passed (or skipped for lack of secrets), 1 = failed.
  */
 
+import { readFileSync } from "node:fs";
 import { config, needsTunnel, type Target, providerSecrets } from "./config.ts";
-import { fail, log, step } from "./log.ts";
+import { fail, log, step, warn } from "./log.ts";
 import { launchBrowser } from "./browser.ts";
 import { providers } from "./providers/index.ts";
 import {
   assertFreeThankYou,
   assertPaidBookingConfirmed,
+  assertRedirectedToCheckout,
   createListing,
   login,
   runSetup,
@@ -26,6 +28,25 @@ import {
 } from "./flow.ts";
 import { buildStaticAssets, startAppServer } from "./server.ts";
 import { noTunnel, startTunnel } from "./tunnel.ts";
+
+/**
+ * Print the tail of the app server's log to stdout. On CI the server log is
+ * only saved as an artifact, so a server-side failure (e.g. "Failed to create
+ * payment session" — the real provider API error is logged there, not shown in
+ * the browser) is invisible in the job output. Surfacing it makes the job log
+ * self-diagnosing without downloading artifacts.
+ */
+const dumpServerLog = (logPath: string, lines = 40): void => {
+  try {
+    const all = readFileSync(logPath, "utf8").split("\n");
+    const tail = all.slice(-lines).join("\n");
+    warn(`----- app server log (last ${lines} lines of ${logPath}) -----`);
+    console.error(tail);
+    warn("----- end app server log -----");
+  } catch (err) {
+    warn(`could not read app server log ${logPath}: ${String(err)}`);
+  }
+};
 
 const parseTarget = (): Target => {
   const raw = (process.argv[2] ?? process.env.E2E_PROVIDER ?? "free").toLowerCase();
@@ -80,6 +101,7 @@ const run = async (): Promise<void> => {
       await assertFreeThankYou(session);
     } else {
       step(`Paying on the ${provider.name} hosted checkout`);
+      await assertRedirectedToCheckout(session);
       await provider.payHostedCheckout(session.page);
       await assertPaidBookingConfirmed(session, ticketPath);
     }
@@ -88,6 +110,7 @@ const run = async (): Promise<void> => {
   } catch (err) {
     fail(`FAIL — ${target}: ${err instanceof Error ? err.message : String(err)}`);
     if (session) await session.screenshot(`fail-${target}`);
+    if (server) dumpServerLog(server.logPath);
     throw err;
   } finally {
     if (session) await session.stop();

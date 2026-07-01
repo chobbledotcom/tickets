@@ -74,6 +74,36 @@ export const clickFirst = async (
   throw new Error(`could not locate "${label}" control on the hosted checkout page`);
 };
 
+/**
+ * Fill a single input that lives inside a cross-origin iframe, located by the
+ * iframe's title (case-insensitive substring). frameLocator auto-waits for the
+ * iframe and its input to attach, which is more robust than enumerating
+ * page.frames() and racing their load — the approach that works for the card
+ * fields on Stripe Checkout and the Braintree hosted fields SumUp embeds.
+ * Returns false (rather than throwing) if the frame/input never shows, so
+ * callers can fall back to a same-frame search.
+ */
+export const fillFrameInput = async (
+  page: Page,
+  label: string,
+  titleSubstrings: string[],
+  inputSelector: string,
+  value: string,
+  timeoutMs = 8_000,
+): Promise<boolean> => {
+  const selector = titleSubstrings
+    .map((t) => `iframe[title*="${t}" i]`)
+    .join(", ");
+  const input = page.frameLocator(selector).locator(inputSelector).first();
+  try {
+    await input.fill(value, { timeout: timeoutMs });
+    log(`  filled ${label} (iframe by title)`);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 /** Sandbox card details to enter on a hosted checkout page. */
 export interface CardDetails {
   number: string;
