@@ -22,6 +22,7 @@ import {
   invalidateTestDbCache,
   mockFormRequest,
   mockRequest,
+  TEST_STORAGE_ZONE,
   testCookie,
   testCsrfToken,
   withFetchMock,
@@ -174,35 +175,33 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
         imageUrl: "reset-image.jpg",
       });
 
-      await runWithStorageConfig(
-        { zoneKey: "testkey", zoneName: "testzone" },
-        () =>
-          withFetchMock(async (originalFetch) => {
-            const deletedUrls: string[] = [];
-            installUrlHandler(originalFetch, (url) => {
-              if (url.includes("storage.bunnycdn.com")) {
-                deletedUrls.push(url);
-                return Promise.resolve(
-                  new Response(JSON.stringify({ HttpCode: 200 }), {
-                    status: 200,
-                  }),
-                );
-              }
-              return null;
-            });
+      await runWithStorageConfig(TEST_STORAGE_ZONE, () =>
+        withFetchMock(async (originalFetch) => {
+          const deletedUrls: string[] = [];
+          installUrlHandler(originalFetch, (url) => {
+            if (url.includes("storage.bunnycdn.com")) {
+              deletedUrls.push(url);
+              return Promise.resolve(
+                new Response(JSON.stringify({ HttpCode: 200 }), {
+                  status: 200,
+                }),
+              );
+            }
+            return null;
+          });
 
-            const response = await submitDemoResetForm({
-              confirm_phrase: RESET_DATABASE_PHRASE,
-            });
+          const response = await submitDemoResetForm({
+            confirm_phrase: RESET_DATABASE_PHRASE,
+          });
 
-            expectRedirectWithFlash("/setup/", "Database reset")(response);
-            expect(deletedUrls.some((u) => u.includes("reset-image.jpg"))).toBe(
-              true,
-            );
-            expect(
-              deletedUrls.some((u) => u.includes("reset-attachment.pdf")),
-            ).toBe(true);
-          }),
+          expectRedirectWithFlash("/setup/", "Database reset")(response);
+          expect(deletedUrls.some((u) => u.includes("reset-image.jpg"))).toBe(
+            true,
+          );
+          expect(
+            deletedUrls.some((u) => u.includes("reset-attachment.pdf")),
+          ).toBe(true);
+        }),
       );
 
       invalidateTestDbCache();

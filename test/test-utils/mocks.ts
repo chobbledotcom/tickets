@@ -7,7 +7,10 @@ import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import { setTestEnv } from "#test-utils/env.ts";
-import type { TestRequestOptions } from "#test-utils/internal.ts";
+import {
+  TEST_STORAGE_ZONE,
+  type TestRequestOptions,
+} from "#test-utils/internal.ts";
 
 export const mockRequestWithHost = (
   path: string,
@@ -276,21 +279,36 @@ export const expectFetchSilent = async (
   }
 };
 
+/** Core of the storage-mock helpers: run `body` with a fetch mock whose URL
+ *  `handler` intercepts requests (non-matching URLs fall through to the real
+ *  fetch). When `withConfig` is true (default) the body also runs under the
+ *  standard Bunny test zone, so `isStorageEnabled()` is true and uploads target
+ *  the CDN; pass `false` to exercise the fetch mock with storage unconfigured. */
+const withStorageFetchMock = (
+  handler: (url: string, init?: RequestInit) => Promise<Response> | null,
+  body: () => Promise<void>,
+  withConfig = true,
+): Promise<void> => {
+  const run = (): Promise<void> =>
+    withFetchMock(async (originalFetch) => {
+      installUrlHandler(originalFetch, handler);
+      await body();
+    });
+  return withConfig ? runWithStorageConfig(TEST_STORAGE_ZONE, run) : run();
+};
+
 /** Run `body` under the standard test zone config with a fetch mock that
  * answers every Bunny storage URL via `respond` (other URLs fall through). */
 export const withBunnyStorageStub = (
   respond: (url: string, init?: RequestInit) => Promise<Response> | Response,
   body: () => Promise<void>,
 ): Promise<void> =>
-  runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, () =>
-    withFetchMock(async (originalFetch) => {
-      installUrlHandler(originalFetch, (url, init) =>
-        url.includes("storage.bunnycdn.com")
-          ? Promise.resolve(respond(url, init))
-          : null,
-      );
-      await body();
-    }),
+  withStorageFetchMock(
+    (url, init) =>
+      url.includes("storage.bunnycdn.com")
+        ? Promise.resolve(respond(url, init))
+        : null,
+    body,
   );
 
 /** Run `body` with a fetch mock that records and 200s every Bunny
@@ -304,25 +322,22 @@ export const withBunnyDeleteCapture = (
     extraHandler?: (url: string) => Promise<Response> | null;
   } = {},
 ): Promise<void> => {
-  const run = (): Promise<void> =>
-    withFetchMock(async (originalFetch) => {
-      const deletedUrls: string[] = [];
-      installUrlHandler(originalFetch, (url) => {
-        const extra = opts.extraHandler?.(url);
-        if (extra) return extra;
-        if (url.includes("storage.bunnycdn.com")) {
-          deletedUrls.push(url);
-          return Promise.resolve(
-            new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
-          );
-        }
-        return null;
-      });
-      await body(deletedUrls);
-    });
-  return opts.withConfig === false
-    ? run()
-    : runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, run);
+  const deletedUrls: string[] = [];
+  return withStorageFetchMock(
+    (url) => {
+      const extra = opts.extraHandler?.(url);
+      if (extra) return extra;
+      if (url.includes("storage.bunnycdn.com")) {
+        deletedUrls.push(url);
+        return Promise.resolve(
+          new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
+        );
+      }
+      return null;
+    },
+    () => body(deletedUrls),
+    opts.withConfig !== false,
+  );
 };
 
 export const testRequest = (
@@ -379,32 +394,27 @@ export const cdnOkResponse = (): Response =>
 
 export const withStorageMock = (
   fn: (fetchCalls: string[]) => Promise<void>,
-): Promise<void> =>
-  runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, () =>
-    withFetchMock(async (originalFetch) => {
-      const fetchCalls: string[] = [];
-      installUrlHandler(originalFetch, (url) => {
-        fetchCalls.push(url);
-        if (url.includes("storage.bunnycdn.com") || url.includes("b-cdn.net")) {
-          return Promise.resolve(cdnOkResponse());
-        }
-        return null;
-      });
-      await fn(fetchCalls);
-    }),
+): Promise<void> => {
+  const fetchCalls: string[] = [];
+  return withStorageFetchMock(
+    (url) => {
+      fetchCalls.push(url);
+      if (url.includes("storage.bunnycdn.com") || url.includes("b-cdn.net")) {
+        return Promise.resolve(cdnOkResponse());
+      }
+      return null;
+    },
+    () => fn(fetchCalls),
   );
+};
 
 const withCdnFetch = (
   handle: (url: string) => Promise<Response> | null,
   fn: () => Promise<void>,
 ): Promise<void> =>
-  runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, () =>
-    withFetchMock(async (originalFetch) => {
-      installUrlHandler(originalFetch, (url) =>
-        url.includes("storage.bunnycdn.com") ? handle(url) : null,
-      );
-      await fn();
-    }),
+  withStorageFetchMock(
+    (url) => (url.includes("storage.bunnycdn.com") ? handle(url) : null),
+    fn,
   );
 
 export const withCdnProxy = (
@@ -421,7 +431,7 @@ export const withStorageDisabled = <T>(fn: () => T): T =>
   runWithStorageConfig({ localPath: "", zoneKey: "", zoneName: "" }, fn);
 
 export const withStorageEnabled = <T>(fn: () => T): T =>
-  runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, fn);
+  runWithStorageConfig(TEST_STORAGE_ZONE, fn);
 
 export const withLocalStorageEnabled = async <T>(
   fn: (dir: string) => Promise<T>,

@@ -13,6 +13,7 @@ import {
   describeWithEnv,
   installUrlHandler,
   mockRequest,
+  TEST_STORAGE_ZONE,
   withFetchMock,
   withStorageDisabled,
 } from "#test-utils";
@@ -98,7 +99,7 @@ describeWithEnv(
       data: Uint8Array,
       fn: () => Promise<void>,
     ): Promise<void> =>
-      runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, () =>
+      runWithStorageConfig(TEST_STORAGE_ZONE, () =>
         withFetchMock(async (originalFetch) => {
           const encrypted = await encryptBytes(data);
           installUrlHandler(originalFetch, (url) => {
@@ -137,7 +138,7 @@ describeWithEnv(
 
     /** Shorthand for running a test body with storage enabled */
     const withStorage = <T>(fn: () => T): T =>
-      runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, fn);
+      runWithStorageConfig(TEST_STORAGE_ZONE, fn);
 
     test("returns 403 when query params are missing", async () => {
       await withStorage(async () => {
