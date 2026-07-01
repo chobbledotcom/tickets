@@ -78,9 +78,21 @@ const completeSandboxPanel = async (page: Page): Promise<void> => {
       return;
     }
     await describeButtons(page);
+    // Prefer the most "final" action, then fall back to advancing the wizard.
+    // The sandbox panel's steps are: Overview ("Next") → a step whose primary
+    // action is literally "Test Payment" (this simulates the buyer paying) →
+    // completion, which redirects to the app return URL. "Test Payment" is a
+    // real <button> here (getByRole), not the step-label span that getByText
+    // used to trap on, so it's safe to click by accessible name.
     const advanced =
-      (await clickButtonByName(page, /complete|finish|charge|simulate|^pay/i)) ||
-      (await clickButtonByName(page, /^next$|continue|confirm|submit|^done$/i));
+      (await clickButtonByName(
+        page,
+        /test payment|complete|finish|charge|simulate|approve|succeed|^pay\b/i,
+      )) ||
+      (await clickButtonByName(
+        page,
+        /^next$|continue|confirm|submit|^done$|^ok$|close/i,
+      ));
     if (!advanced) {
       warn("  no advance/complete button found on this step");
       break;
