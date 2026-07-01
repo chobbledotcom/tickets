@@ -66,7 +66,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-01_site_pages",
         "2026-07-01_listing_prices",
       ],
-      schemaHash: "mu35o2",
+      schemaHash: "mw6yc4",
     });
   });
 });
