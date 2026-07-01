@@ -47,6 +47,7 @@ import {
   setTestStoragePath,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
+  TEST_STORAGE_ZONE,
 } from "#test-utils/internal.ts";
 
 type SchemaEntry = (typeof SCHEMA)[number];
@@ -348,8 +349,8 @@ const setupStorageEnv = async (
     // Clear any ambient local path so the Bunny backend resolves deterministically.
     return {
       LOCAL_STORAGE_PATH: undefined,
-      STORAGE_ZONE_KEY: "testkey",
-      STORAGE_ZONE_NAME: "testzone",
+      STORAGE_ZONE_KEY: TEST_STORAGE_ZONE.zoneKey,
+      STORAGE_ZONE_NAME: TEST_STORAGE_ZONE.zoneName,
     };
   }
   if (storage === "local") {
