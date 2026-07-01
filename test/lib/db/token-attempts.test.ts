@@ -50,35 +50,27 @@ describeWithEnv("db > token-attempts", { db: true }, () => {
 
     test("resets expired lockout and returns false", async () => {
       const ip = "10.0.0.3";
-      const time = new FakeTime(1_800_000_000_000);
-      try {
-        await recordTokenFailure(ip, makeTokens("tok-b", MAX_TOKEN_404S));
-        expect(await isTokenRateLimited(ip)).toBe(true);
+      using time = new FakeTime(1_800_000_000_000);
+      await recordTokenFailure(ip, makeTokens("tok-b", MAX_TOKEN_404S));
+      expect(await isTokenRateLimited(ip)).toBe(true);
 
-        time.tick(TOKEN_LOCKOUT_MS + 1);
-        expect(await isTokenRateLimited(ip)).toBe(false);
-      } finally {
-        time.restore();
-      }
+      time.tick(TOKEN_LOCKOUT_MS + 1);
+      expect(await isTokenRateLimited(ip)).toBe(false);
     });
 
     test("deletes the stored row when an expired lockout is checked", async () => {
       const ip = "10.0.0.11";
-      const time = new FakeTime(1_800_000_000_000);
-      try {
-        await recordTokenFailure(ip, makeTokens("exp", MAX_TOKEN_404S));
-        // While locked, the row persists.
-        expect(await rawRow(ip)).not.toBeNull();
+      using time = new FakeTime(1_800_000_000_000);
+      await recordTokenFailure(ip, makeTokens("exp", MAX_TOKEN_404S));
+      // While locked, the row persists.
+      expect(await rawRow(ip)).not.toBeNull();
 
-        time.tick(TOKEN_LOCKOUT_MS + 1);
-        expect(await isTokenRateLimited(ip)).toBe(false);
+      time.tick(TOKEN_LOCKOUT_MS + 1);
+      expect(await isTokenRateLimited(ip)).toBe(false);
 
-        // Checking an expired lockout must clear the row so the next attempt
-        // starts fresh (and no fingerprint is left behind).
-        expect(await rawRow(ip)).toBeNull();
-      } finally {
-        time.restore();
-      }
+      // Checking an expired lockout must clear the row so the next attempt
+      // starts fresh (and no fingerprint is left behind).
+      expect(await rawRow(ip)).toBeNull();
     });
   });
 
@@ -114,20 +106,16 @@ describeWithEnv("db > token-attempts", { db: true }, () => {
 
     test("ignores attempts older than TOKEN_WINDOW_MS", async () => {
       const ip = "10.0.0.7";
-      const time = new FakeTime(1_800_000_000_000);
-      try {
-        for (let i = 0; i < MAX_TOKEN_404S - 1; i++) {
-          await recordTokenFailure(ip, [`old-${i}`]);
-        }
-
-        time.tick(TOKEN_WINDOW_MS + 1);
-
-        const locked = await recordTokenFailure(ip, ["fresh"]);
-        expect(locked).toBe(false);
-        expect(await isTokenRateLimited(ip)).toBe(false);
-      } finally {
-        time.restore();
+      using time = new FakeTime(1_800_000_000_000);
+      for (let i = 0; i < MAX_TOKEN_404S - 1; i++) {
+        await recordTokenFailure(ip, [`old-${i}`]);
       }
+
+      time.tick(TOKEN_WINDOW_MS + 1);
+
+      const locked = await recordTokenFailure(ip, ["fresh"]);
+      expect(locked).toBe(false);
+      expect(await isTokenRateLimited(ip)).toBe(false);
     });
 
     test("empty token list is a no-op", async () => {

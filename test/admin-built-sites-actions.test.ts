@@ -50,21 +50,17 @@ const expectBumpClamps = async (
   months: string,
   expectedMonths: number,
 ): Promise<void> => {
-  const fakeTime = new FakeTime(NOW_MS);
-  try {
-    const site = await createTestBuiltSite({
-      hostingId: scriptId,
-      name: siteName,
-    });
-    const { response } = await siteAction(site, "bump-deadline", { months });
-    expect(response.status).toBe(302);
-    const updated = await findSite(site.id);
-    expect(updated.readOnlyFrom).toBe(
-      addMonthsIso(new Date(NOW_MS).toISOString(), expectedMonths),
-    );
-  } finally {
-    fakeTime.restore();
-  }
+  using _fakeTime = new FakeTime(NOW_MS);
+  const site = await createTestBuiltSite({
+    hostingId: scriptId,
+    name: siteName,
+  });
+  const { response } = await siteAction(site, "bump-deadline", { months });
+  expect(response.status).toBe(302);
+  const updated = await findSite(site.id);
+  expect(updated.readOnlyFrom).toBe(
+    addMonthsIso(new Date(NOW_MS).toISOString(), expectedMonths),
+  );
 };
 
 describeWithEnv("admin built-sites actions", { db: true }, () => {
@@ -176,69 +172,57 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
 
   describe("POST /admin/built-sites/:id/bump-deadline", () => {
     test("bumps from current deadline on future-dated site", async () => {
-      const fakeTime = new FakeTime(NOW_MS);
-      try {
-        const site = await createTestBuiltSite({
-          hostingId: "6010",
-          name: "Bump Future",
-        });
-        await updateBuiltSiteRenewalState(site.id, {
-          readOnlyFrom: new Date(NOW_MS + 10 * 86400000).toISOString(),
-        });
+      using _fakeTime = new FakeTime(NOW_MS);
+      const site = await createTestBuiltSite({
+        hostingId: "6010",
+        name: "Bump Future",
+      });
+      await updateBuiltSiteRenewalState(site.id, {
+        readOnlyFrom: new Date(NOW_MS + 10 * 86400000).toISOString(),
+      });
 
-        await adminFormPost(`/admin/built-sites/${site.id}/bump-deadline`, {
-          months: "3",
-        });
+      await adminFormPost(`/admin/built-sites/${site.id}/bump-deadline`, {
+        months: "3",
+      });
 
-        const updated = await findSite(site.id);
-        const expectedBase = new Date(NOW_MS + 10 * 86400000).toISOString();
-        expect(updated.readOnlyFrom).toBe(addMonthsIso(expectedBase, 3));
-      } finally {
-        fakeTime.restore();
-      }
+      const updated = await findSite(site.id);
+      const expectedBase = new Date(NOW_MS + 10 * 86400000).toISOString();
+      expect(updated.readOnlyFrom).toBe(addMonthsIso(expectedBase, 3));
     });
 
     test("bumps from now on expired site", async () => {
-      const fakeTime = new FakeTime(NOW_MS);
-      try {
-        const site = await createTestBuiltSite({
-          hostingId: "6011",
-          name: "Bump Expired",
-        });
-        await updateBuiltSiteRenewalState(site.id, {
-          readOnlyFrom: new Date(NOW_MS - 30 * 86400000).toISOString(),
-        });
+      using _fakeTime = new FakeTime(NOW_MS);
+      const site = await createTestBuiltSite({
+        hostingId: "6011",
+        name: "Bump Expired",
+      });
+      await updateBuiltSiteRenewalState(site.id, {
+        readOnlyFrom: new Date(NOW_MS - 30 * 86400000).toISOString(),
+      });
 
-        await adminFormPost(`/admin/built-sites/${site.id}/bump-deadline`, {
-          months: "6",
-        });
+      await adminFormPost(`/admin/built-sites/${site.id}/bump-deadline`, {
+        months: "6",
+      });
 
-        const updated = await findSite(site.id);
-        const expected = addMonthsIso(new Date(NOW_MS).toISOString(), 6);
-        expect(updated.readOnlyFrom).toBe(expected);
-      } finally {
-        fakeTime.restore();
-      }
+      const updated = await findSite(site.id);
+      const expected = addMonthsIso(new Date(NOW_MS).toISOString(), 6);
+      expect(updated.readOnlyFrom).toBe(expected);
     });
 
     test("bumps from now on deadline-less site", async () => {
-      const fakeTime = new FakeTime(NOW_MS);
-      try {
-        const site = await createTestBuiltSite({
-          hostingId: "6012",
-          name: "Bump No Deadline",
-        });
+      using _fakeTime = new FakeTime(NOW_MS);
+      const site = await createTestBuiltSite({
+        hostingId: "6012",
+        name: "Bump No Deadline",
+      });
 
-        await adminFormPost(`/admin/built-sites/${site.id}/bump-deadline`, {
-          months: "2",
-        });
+      await adminFormPost(`/admin/built-sites/${site.id}/bump-deadline`, {
+        months: "2",
+      });
 
-        const updated = await findSite(site.id);
-        const expected = addMonthsIso(new Date(NOW_MS).toISOString(), 2);
-        expect(updated.readOnlyFrom).toBe(expected);
-      } finally {
-        fakeTime.restore();
-      }
+      const updated = await findSite(site.id);
+      const expected = addMonthsIso(new Date(NOW_MS).toISOString(), 2);
+      expect(updated.readOnlyFrom).toBe(expected);
     });
 
     test("works without a renewal token (no RENEWAL_URL push)", async () => {
