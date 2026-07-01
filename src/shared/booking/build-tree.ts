@@ -1,6 +1,4 @@
 import { map } from "#fp";
-import type { ListingWithCount } from "#shared/types.ts";
-import type { TicketListing } from "#templates/public/shared.tsx";
 import {
   type BookingNode,
   type BookingTree,
@@ -9,12 +7,14 @@ import {
   type EntryContext,
   groupMemberNodeKey,
   listingNodeKey,
-  packageMemberNodeKey,
   type PriceRule,
+  packageMemberNodeKey,
   type QuantityRule,
   type RootRef,
   type Visibility,
 } from "#shared/booking/tree.ts";
+import type { ListingWithCount } from "#shared/types.ts";
+import type { TicketListing } from "#templates/public/shared.tsx";
 
 /**
  * The pure, DB-free builder that turns the data a booking page has already
@@ -41,7 +41,9 @@ export type BuildTreeInput = {
   /** Members hidden from buyers (`hide_package_listings`). */
   readonly hidePackageListings?: boolean | undefined;
   /** Required children per parent listing id (already hydrated + availability). */
-  readonly childrenByParentId?: ReadonlyMap<number, readonly TicketListing[]> | undefined;
+  readonly childrenByParentId?:
+    | ReadonlyMap<number, readonly TicketListing[]>
+    | undefined;
   readonly entry?: EntryContext | undefined;
 };
 
@@ -78,7 +80,8 @@ const ownDateSpan = (parentId: number | undefined): DateSpan =>
 /** Build a required-child node under `parent` (`edgeRef: parent_child`). A hidden
  * child is `HIDDEN` (its name never shows) but still a node, so the fold/compat
  * scripts keep driving off it. */
-const buildChildNode = (parentId: number) =>
+const buildChildNode =
+  (parentId: number) =>
   (child: TicketListing): BookingNode => ({
     children: [],
     dateSpan: ownDateSpan(parentId),
@@ -124,10 +127,8 @@ const buildListingNode = (
  * per-member override, `HIDDEN` when the package hides its listings. The
  * `× packageQty` multiply happens at fold time, so the render-time quantity is
  * the per-package fixed count. */
-const buildPackageMemberNode = (
-  input: BuildTreeInput,
-  groupId: number,
-) =>
+const buildPackageMemberNode =
+  (input: BuildTreeInput, groupId: number) =>
   (info: TicketListing): BookingNode => {
     const { listing } = info;
     const fixedQty = input.packageQuantities?.get(listing.id) ?? 1;

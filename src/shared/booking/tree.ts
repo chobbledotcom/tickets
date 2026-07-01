@@ -57,7 +57,11 @@ export type QuantityRule =
 export type PriceRule =
   | { readonly kind: "BASE" }
   | { readonly kind: "OVERRIDE"; readonly amountMinor: number }
-  | { readonly kind: "PAY_MORE"; readonly minMinor: number; readonly maxMinor: number }
+  | {
+      readonly kind: "PAY_MORE";
+      readonly minMinor: number;
+      readonly maxMinor: number;
+    }
   | { readonly kind: "DAY_PRICE" };
 
 /** Whether a node is ever named on a buyer surface. A `HIDDEN` node is dropped
@@ -69,7 +73,11 @@ export type Visibility = "SHOWN" | "HIDDEN";
 export type DateSpan =
   | { readonly kind: "NONE" }
   | { readonly kind: "DATE"; readonly date: string }
-  | { readonly kind: "SPAN"; readonly date: string; readonly durationDays: number }
+  | {
+      readonly kind: "SPAN";
+      readonly date: string;
+      readonly durationDays: number;
+    }
   | { readonly kind: "INHERIT" };
 
 /** One listing plus the facets every booking model already needs. `children` is
@@ -105,8 +113,10 @@ export const listingNodeKey = (listingId: number): string =>
 
 /** A regular (non-package) group member: the same listing under a different group
  * is a different node. */
-export const groupMemberNodeKey = (groupId: number, listingId: number): string =>
-  `group:${groupId}/member:${listingId}`;
+export const groupMemberNodeKey = (
+  groupId: number,
+  listingId: number,
+): string => `group:${groupId}/member:${listingId}`;
 
 /** A package member: distinct from the standalone path so a package override and
  * a standalone price on the same listing never collapse. */

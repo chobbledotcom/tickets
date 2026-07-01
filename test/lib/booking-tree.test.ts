@@ -60,10 +60,12 @@ describe("booking tree — form field-name SSOT", () => {
     expect(childQuantityPrefix(2)).toBe("child_qty_2_");
     expect(childPricePrefix(2)).toBe("child_price_2_");
     // The full name is the prefix plus the child id, so a prefix match is safe.
-    expect(childQuantityFieldName(2, 9).startsWith(childQuantityPrefix(2))).toBe(
+    expect(
+      childQuantityFieldName(2, 9).startsWith(childQuantityPrefix(2)),
+    ).toBe(true);
+    expect(childPriceFieldName(2, 9).startsWith(childPricePrefix(2))).toBe(
       true,
     );
-    expect(childPriceFieldName(2, 9).startsWith(childPricePrefix(2))).toBe(true);
   });
 });
 
