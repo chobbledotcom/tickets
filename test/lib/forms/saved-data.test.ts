@@ -7,6 +7,7 @@ import {
   type Field,
   getSavedFormData,
   renderFields,
+  runWithSavedFormContext,
   setSavedFormData,
 } from "#shared/forms.tsx";
 
@@ -194,5 +195,28 @@ describe("saved form data", () => {
     setSavedFormData(new FormParams("name=Alice"));
     clearSavedFormData();
     expect(getSavedFormData()).toBeNull();
+  });
+
+  test("saved data set inside a scope stays within that scope", () => {
+    const scopedForm = new FormParams("name=Scoped");
+    const inside = runWithSavedFormContext(() => {
+      setSavedFormData(scopedForm);
+      return getSavedFormData();
+    });
+    expect(inside).toBe(scopedForm);
+    expect(getSavedFormData()).toBeNull(); // ambient container untouched
+  });
+
+  test("concurrent request scopes do not leak saved form data", async () => {
+    const request = (name: string) =>
+      runWithSavedFormContext(async () => {
+        const form = new FormParams(`name=${name}`);
+        setSavedFormData(form);
+        await new Promise((r) => setTimeout(r, 20));
+        return getSavedFormData()?.getString("name");
+      });
+    const [a, b] = await Promise.all([request("Alice"), request("Bob")]);
+    expect(a).toBe("Alice");
+    expect(b).toBe("Bob");
   });
 });
