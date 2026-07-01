@@ -91,7 +91,6 @@ import {
 } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import {
-  applyPackageOverrides,
   buildRegistrationItems,
   checkAvailability,
   createFreeReservation,
@@ -691,19 +690,16 @@ const prepareOrder = async (
   );
   if (!answersResult.ok) return { error: answersResult.error, ok: false };
 
-  // Build items from the folded set, then apply package overrides to the
-  // top-level page listings only (folded children keep their own price).
-  const pageListingIds = new Set(ctx.listings.map((e) => e.listing.id));
+  // Build items from the folded set; each line is priced by the tree's price rule
+  // (a package member's override is a node facet scoped to the member line, so no
+  // separate override pass is needed), then hidden-package names are masked.
   const items = hidePackageMemberNames(
-    applyPackageOverrides(
-      buildRegistrationItems(
-        foldedCtx.listings,
-        quantities,
-        fold.customPrices,
-        dayCount,
-      ),
-      ctx.packagePrices,
-      pageListingIds,
+    buildRegistrationItems(
+      foldedCtx.listings,
+      quantities,
+      fold.customPrices,
+      fold.priceRuleByListingId,
+      dayCount,
     ),
     ctx.hidePackageListings === true,
     ctx.groupName,

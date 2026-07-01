@@ -20,6 +20,8 @@ import {
   foldBookingTree,
   resolvedByNodeKey,
 } from "#shared/booking/fold-tree.ts";
+import { effectivePrice } from "#shared/booking/price-tree.ts";
+import type { PriceRule } from "#shared/booking/tree.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
@@ -207,22 +209,17 @@ export const bookingDateFields = (
       : 1,
 });
 
-/** Per-ticket price: customisable listings priced by day count, others by their
- * custom/fixed unit price. */
-const itemUnitPrice = (
-  listing: TicketListing["listing"],
-  customPrices: Map<number, number>,
-  dayCount: number,
-): number =>
-  listing.customisable_days
-    ? (dayPriceFor(listing, dayCount) ?? 0)
-    : (customPrices.get(listing.id) ?? listing.unit_price);
-
-/** Build registration items from listings and quantities */
+/** Build registration items from the folded listings, pricing each line by the
+ * tree's price rule via {@link effectivePrice} — a package member's `OVERRIDE`, a
+ * pay-more custom price, a customisable day-price, or the base unit price, each
+ * scoped correctly by construction (the override no longer needs a separate pass).
+ * `priceRuleByListingId` covers every folded listing (top-level rule wins over a
+ * child), so the lookup is always present. */
 export const buildRegistrationItems = (
   listings: TicketListing[],
   quantities: Map<number, number>,
   customPrices: Map<number, number>,
+  priceRuleByListingId: ReadonlyMap<number, PriceRule>,
   dayCount = 1,
 ): CheckoutItem[] => {
   const selected = listings.filter(({ listing }) => {
@@ -234,7 +231,12 @@ export const buildRegistrationItems = (
     name: listing.name,
     quantity: quantities.get(listing.id)!,
     slug: listing.slug,
-    unitPrice: itemUnitPrice(listing, customPrices, dayCount),
+    unitPrice: effectivePrice(
+      priceRuleByListingId.get(listing.id)!,
+      listing,
+      customPrices,
+      dayCount,
+    ),
   }));
 };
 
@@ -254,24 +256,6 @@ export const loadPackageMemberMaps = async (
   groupId: number,
 ): Promise<PackageMemberMaps> => {
   return packageMemberMaps(await getGroupPackagePrices(groupId));
-};
-
-/** Apply package price overrides to the assembled items. Only top-level page
- * listings (`pageListingIds`) carrying an override (a positive price OR an
- * explicit free 0) are replaced; folded children and base-priced members keep
- * their computed price (package overrides never reach a folded child line). */
-export const applyPackageOverrides = (
-  items: CheckoutItem[],
-  packagePrices: ReadonlyMap<number, number> | null | undefined,
-  pageListingIds: ReadonlySet<number>,
-): CheckoutItem[] => {
-  if (!packagePrices || packagePrices.size === 0) return items;
-  return items.map((item) => {
-    const override = pageListingIds.has(item.listingId)
-      ? packagePrices.get(item.listingId)
-      : undefined;
-    return override !== undefined ? { ...item, unitPrice: override } : item;
-  });
 };
 
 /** For a HIDDEN package, replace each checkout item's buyer-facing name with the

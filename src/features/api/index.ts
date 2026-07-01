@@ -752,6 +752,7 @@ const completeFoldedBooking = async (
     fold.listings,
     fold.quantities,
     fold.customPrices,
+    fold.priceRuleByListingId,
     fold.dayCount,
   );
   const total = foldedOrderTotal(items);

@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { parseQuantityValue } from "#routes/public/ticket-form.ts";
 import {
-  applyPackageOverrides,
   bookingDateFields,
   buildRegistrationItems,
   computeSharedDates,
@@ -20,6 +19,7 @@ import {
   revenueAccount,
 } from "#shared/accounting/accounts.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
+import type { PriceRule } from "#shared/booking/tree.ts";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import { addDays } from "#shared/dates.ts";
 import {
@@ -544,75 +544,51 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
   });
 
   describe("buildRegistrationItems", () => {
-    test("prices customisable listings by the chosen day count", () => {
+    // Exhaustive unit-price precedence lives in test/lib/price-tree.test.ts; here
+    // we cover assembly (filter + field mapping) and that each line is priced by
+    // its own tree rule (a package OVERRIDE scoped to that line).
+    const build = (
+      listing: ListingWithCount,
+      quantities: Map<number, number>,
+      rules: Map<number, PriceRule>,
+    ) =>
+      buildRegistrationItems(
+        [buildTicketListing(listing, false, undefined)],
+        quantities,
+        new Map(),
+        rules,
+      );
+
+    test("drops zero-quantity listings and assembles the checkout line", () => {
       const listing = testListingWithCount({
-        customisable_days: true,
-        day_prices: { 1: 1000, 2: 1800 },
-        duration_days: 3,
-        id: 7,
-        unit_price: 0,
+        id: 9,
+        name: "Widget",
+        slug: "wdgt1",
+        unit_price: 500,
       });
-      const items = buildRegistrationItems(
-        [buildTicketListing(listing, false, undefined)],
-        new Map([[7, 1]]),
-        new Map(),
-        2,
-      );
-      expect(items[0]!.unitPrice).toBe(1800);
-    });
-
-    test("prices an unoffered day count at zero for a customisable listing", () => {
-      const listing = testListingWithCount({
-        customisable_days: true,
-        day_prices: { 1: 1000 },
-        duration_days: 3,
-        id: 8,
-      });
-      const items = buildRegistrationItems(
-        [buildTicketListing(listing, false, undefined)],
-        new Map([[8, 1]]),
-        new Map(),
-        2,
-      );
-      expect(items[0]!.unitPrice).toBe(0);
-    });
-
-    test("prices non-customisable listings by custom or unit price", () => {
-      const listing = testListingWithCount({ id: 9, unit_price: 500 });
-      const items = buildRegistrationItems(
-        [buildTicketListing(listing, false, undefined)],
-        new Map([[9, 1]]),
-        new Map(),
-      );
-      expect(items[0]!.unitPrice).toBe(500);
-    });
-  });
-
-  describe("applyPackageOverrides", () => {
-    const item = (listingId: number, unitPrice: number) => ({
-      listingId,
-      name: `L${listingId}`,
-      quantity: 1,
-      slug: `l${listingId}`,
-      unitPrice,
-    });
-
-    test("returns items unchanged when there are no overrides", () => {
-      const items = [item(1, 500)];
-      expect(applyPackageOverrides(items, null, new Set([1]))).toBe(items);
-      expect(applyPackageOverrides(items, new Map(), new Set([1]))).toBe(items);
-    });
-
-    test("overrides only top-level page listings carrying a price", () => {
-      const items = [item(1, 500), item(2, 800), item(3, 0)];
-      const prices = new Map([
-        [1, 1200],
-        [3, 999],
+      const rules = new Map<number, PriceRule>([[9, { kind: "BASE" }]]);
+      expect(build(listing, new Map([[9, 2]]), rules)).toEqual([
+        {
+          listingId: 9,
+          name: "Widget",
+          quantity: 2,
+          slug: "wdgt1",
+          unitPrice: 500,
+        },
       ]);
-      // Listing 1 is a page member with an override; 2 has none; 3 is a folded
-      // child (not in the page set) so its override is ignored.
-      const result = applyPackageOverrides(items, prices, new Set([1, 2]));
-      expect(result.map((i) => i.unitPrice)).toEqual([1200, 800, 0]);
+      expect(build(listing, new Map([[9, 0]]), rules)).toEqual([]);
+    });
+
+    test("prices each line by its tree rule (package override on the member line)", () => {
+      const listing = testListingWithCount({ id: 7, unit_price: 500 });
+      const items = build(
+        listing,
+        new Map([[7, 1]]),
+        new Map<number, PriceRule>([
+          [7, { amountMinor: 1200, kind: "OVERRIDE" }],
+        ]),
+      );
+      expect(items[0]!.unitPrice).toBe(1200);
     });
   });
 

@@ -4,7 +4,12 @@ import {
   formatAtomicError,
   parseCustomPrice,
 } from "#routes/public/ticket-form.ts";
-import type { BookingNode, BookingTree } from "#shared/booking/tree.ts";
+import { priceRuleByListingId } from "#shared/booking/price-tree.ts";
+import type {
+  BookingNode,
+  BookingTree,
+  PriceRule,
+} from "#shared/booking/tree.ts";
 import {
   childPriceFieldName,
   childQuantityFieldName,
@@ -113,6 +118,10 @@ export type FoldChildrenResult =
        * customisable child is priced for the inherited duration, not one day. */
       dayCount: number;
       allocations: ChildAllocation[];
+      /** Each booked listing's price rule (top-level wins over a child), so the
+       * item builder prices every line via {@link effectivePrice} — the package
+       * `OVERRIDE` scoped to the member line by construction. */
+      priceRuleByListingId: ReadonlyMap<number, PriceRule>;
     })
   | { ok: false; error: string };
 
@@ -437,6 +446,7 @@ export const foldBookingTree = (
       base.hasCustomisable || state.customisableDuration !== null,
     listings: state.listings,
     ok: true,
+    priceRuleByListingId: priceRuleByListingId(tree),
     quantities: state.quantities,
     selectedListingIds: state.selectedListingIds,
   };
