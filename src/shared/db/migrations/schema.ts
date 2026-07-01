@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Add listings.use_defaults so listings can inherit the operator's listing defaults live.";
+  "Add site_pages and site_page_items tables backing user-created content pages.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -974,6 +974,62 @@ export const SCHEMA: [name: string, table: Table][] = [
           columns: ["transfer_id"],
           name: "idx_service_costs_transfer",
           unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
+    // User-created content pages (pages.md). All free text is stored encrypted;
+    // slug_index is the plaintext HMAC blind index. sort_order positions the
+    // page among root-level pages.
+    "site_pages",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["slug", "TEXT NOT NULL"],
+        ["slug_index", "TEXT NOT NULL"],
+        ["name", "TEXT NOT NULL"],
+        ["meta_title", "TEXT NOT NULL DEFAULT ''"],
+        ["meta_description", "TEXT NOT NULL DEFAULT ''"],
+        ["content", "TEXT NOT NULL DEFAULT ''"],
+        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [
+        {
+          columns: ["slug_index"],
+          name: "idx_site_pages_slug_index",
+          unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
+    // Ordered membership edges: a listing/group/page sits inside a page. The
+    // single-parent invariant for `page` items is enforced in application code
+    // (the schema can't express a partial-unique index); see pages.md N3.
+    "site_page_items",
+    {
+      columns: [
+        ["page_id", "INTEGER NOT NULL"],
+        ["item_type", "TEXT NOT NULL"],
+        ["item_id", "INTEGER NOT NULL"],
+        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [
+        {
+          columns: ["page_id", "sort_order"],
+          name: "idx_site_page_items_page",
+        },
+        {
+          columns: ["page_id", "item_type", "item_id"],
+          name: "idx_site_page_items_key",
+          unique: true,
+        },
+        {
+          columns: ["item_type", "item_id"],
+          name: "idx_site_page_items_child_page",
         },
       ],
     },
