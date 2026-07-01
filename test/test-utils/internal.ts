@@ -56,7 +56,24 @@ export interface DescribeEnvOptions {
   encryptionKey?: boolean;
   env?: Record<string, string | undefined>;
   triggers?: boolean;
+  /**
+   * Establish an image-storage backend for every test in the suite, instead of
+   * wrapping each body in `withStorageEnabled` / `withLocalStorageEnabled`:
+   * - `"cdn"`: the standard Bunny test zone (`isStorageEnabled()` ⇒ true).
+   * - `"local"`: a fresh temp dir per test (path via `getTestStoragePath()`),
+   *   created before the test and removed after.
+   * An individual test can still override with a per-body `runWithStorageConfig`
+   * scope (e.g. `withStorageDisabled`), which wins over the suite's env default.
+   */
+  storage?: "cdn" | "local";
 }
+
+// The temp dir backing `storage: "local"`; set per test in describeWithEnv's
+// beforeEach and cleared/removed in afterEach. Tests that write through the
+// local backend read the active dir from here.
+export const [getTestStoragePath, setTestStoragePath] = lazyRef<string | null>(
+  () => null,
+);
 
 export interface TestRequestOptions {
   cookie?: string;

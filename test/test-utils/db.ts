@@ -36,6 +36,7 @@ import {
   type DescribeEnvOptions,
   getCachedSetupSettings,
   getCachedSetupUsers,
+  getTestStoragePath,
   type RawListingRange,
   resetTestSession,
   resetTestSlugCounter,
@@ -43,6 +44,7 @@ import {
   setCachedSetupSettings,
   setCachedSetupUsers,
   setTestSession,
+  setTestStoragePath,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
@@ -333,6 +335,34 @@ export const invalidateTestDbCache = (): void => {
   setCachedAdminSession(null);
 };
 
+/**
+ * Env additions that establish the requested `storage` backend for a test.
+ * `"local"` also allocates a fresh temp dir and records it for `getTestStoragePath`.
+ * Storage config is read env-first with an AsyncLocalStorage override, so a
+ * per-test `runWithStorageConfig` scope still overrides this suite default.
+ */
+const setupStorageEnv = async (
+  storage: DescribeEnvOptions["storage"],
+): Promise<Record<string, string | undefined>> => {
+  if (storage === "cdn") {
+    return { STORAGE_ZONE_KEY: "testkey", STORAGE_ZONE_NAME: "testzone" };
+  }
+  if (storage === "local") {
+    const dir = await Deno.makeTempDir();
+    setTestStoragePath(dir);
+    return { LOCAL_STORAGE_PATH: dir };
+  }
+  return {};
+};
+
+/** Remove the `storage: "local"` temp dir and clear the recorded path. */
+const teardownStorageEnv = async (): Promise<void> => {
+  const dir = getTestStoragePath();
+  if (!dir) return;
+  setTestStoragePath(null);
+  await Deno.remove(dir, { recursive: true });
+};
+
 export const describeWithEnv = (
   name: string,
   options: DescribeEnvOptions,
@@ -349,11 +379,17 @@ export const describeWithEnv = (
         settings.googleWallet.setHostConfigForTest(null);
         await createTestDbWithSetup("GB", options.triggers ?? false);
       }
-      if (options.env) restoreEnv = setTestEnv(options.env);
+      const env = {
+        ...options.env,
+        ...(await setupStorageEnv(options.storage)),
+      };
+      if (Object.keys(env).length > 0) restoreEnv = setTestEnv(env);
     });
-    afterEach(() => {
+    afterEach(async () => {
       if (options.db) resetDb();
       if (restoreEnv) restoreEnv();
+      restoreEnv = undefined;
+      await teardownStorageEnv();
     });
     fn();
   });

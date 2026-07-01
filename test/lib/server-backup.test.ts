@@ -18,10 +18,13 @@ import {
   expectHtmlResponse,
   getTestSession,
   testRequiresAuth,
-  withLocalStorageEnabled,
+  withStorageDisabled,
 } from "#test-utils";
 
-describeWithEnv("server (admin backup)", { db: true }, () => {
+// The whole suite runs with a per-test local storage backend so the backup
+// create/restore/download paths have a real filesystem to read and write; the
+// one test that asserts the disabled state opts out with `withStorageDisabled`.
+describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
   describe("GET /admin/backup", () => {
     testRequiresAuth("/admin/backup");
 
@@ -50,23 +53,23 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     });
 
     test("shows storage not configured when disabled", async () => {
-      const response = await adminGet("/admin/backup");
-      const html = await response.text();
-      expect(html).toContain("Storage is not configured");
+      await withStorageDisabled(async () => {
+        const response = await adminGet("/admin/backup");
+        const html = await response.text();
+        expect(html).toContain("Storage is not configured");
+      });
     });
 
     test("cleans up stale restore-pending files on page load", async () => {
-      await withLocalStorageEnabled(async () => {
-        await uploadRaw(new Uint8Array(1), "restore-pending-stale.zip");
+      await uploadRaw(new Uint8Array(1), "restore-pending-stale.zip");
 
-        await adminGet("/admin/backup");
+      await adminGet("/admin/backup");
 
-        // Give the fire-and-forget cleanup a moment to complete
-        await new Promise((r) => setTimeout(r, 50));
+      // Give the fire-and-forget cleanup a moment to complete
+      await new Promise((r) => setTimeout(r, 50));
 
-        const data = await downloadRaw("restore-pending-stale.zip");
-        expect(data).toBeNull();
-      });
+      const data = await downloadRaw("restore-pending-stale.zip");
+      expect(data).toBeNull();
     });
   });
 
@@ -77,36 +80,30 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     });
 
     test("creates backup and redirects with success", async () => {
-      await withLocalStorageEnabled(async () => {
-        await createTestListing({ name: "Backup Test" });
-        const { response } = await adminFormPost("/admin/backup/create");
-        await expectFlashRedirect(
-          "/admin/backup",
-          "Database backup created",
-        )(response);
-      });
+      await createTestListing({ name: "Backup Test" });
+      const { response } = await adminFormPost("/admin/backup/create");
+      await expectFlashRedirect(
+        "/admin/backup",
+        "Database backup created",
+      )(response);
     });
 
     test("lists only valid backup files on backup page", async () => {
-      await withLocalStorageEnabled(async () => {
-        // A non-backup file sharing the folder must not appear in the list.
-        await uploadRaw(new Uint8Array(0), `${backupDir()}backup-stale.tmp`);
-        await adminFormPost("/admin/backup/create");
-        const response = await adminGet("/admin/backup");
-        const html = await response.text();
-        expect(html).not.toContain("backup-stale.tmp");
-        expect(html).toContain(".zip");
-      });
+      // A non-backup file sharing the folder must not appear in the list.
+      await uploadRaw(new Uint8Array(0), `${backupDir()}backup-stale.tmp`);
+      await adminFormPost("/admin/backup/create");
+      const response = await adminGet("/admin/backup");
+      const html = await response.text();
+      expect(html).not.toContain("backup-stale.tmp");
+      expect(html).toContain(".zip");
     });
 
     test("shows the retention summary once a backup exists", async () => {
-      await withLocalStorageEnabled(async () => {
-        await adminFormPost("/admin/backup/create");
-        const response = await adminGet("/admin/backup");
-        const html = await response.text();
-        expect(html).toContain("There is 1 backup");
-        expect(html).toContain("Up to 30 are kept");
-      });
+      await adminFormPost("/admin/backup/create");
+      const response = await adminGet("/admin/backup");
+      const html = await response.text();
+      expect(html).toContain("There is 1 backup");
+      expect(html).toContain("Up to 30 are kept");
     });
   });
 
@@ -121,13 +118,11 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     });
 
     test("returns 404 for missing file", async () => {
-      await withLocalStorageEnabled(async () => {
-        // Validly formatted leaf, but no such backup exists in this DB's folder.
-        const response = await adminGet(
-          "/admin/backup/download/backup-2024-01-15T12-30-00-000Z.zip",
-        );
-        expect(response.status).toBe(404);
-      });
+      // Validly formatted leaf, but no such backup exists in this DB's folder.
+      const response = await adminGet(
+        "/admin/backup/download/backup-2024-01-15T12-30-00-000Z.zip",
+      );
+      expect(response.status).toBe(404);
     });
 
     test("returns 400 for filename with path traversal", async () => {
@@ -138,22 +133,20 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     });
 
     test("downloads existing backup as zip", async () => {
-      await withLocalStorageEnabled(async () => {
-        await adminFormPost("/admin/backup/create");
-        const listResp = await adminGet("/admin/backup");
-        const html = await listResp.text();
-        const linkMatch = html.match(
-          /\/admin\/backup\/download\/(backup-[^"]+\.zip)/,
-        );
-        expect(linkMatch).toBeTruthy();
-        const response = await adminGet(
-          `/admin/backup/download/${linkMatch![1]}`,
-        );
-        expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toBe("application/zip");
-        // The response body must be the actual zip bytes, not an empty slice.
-        expect((await response.arrayBuffer()).byteLength).toBeGreaterThan(0);
-      });
+      await adminFormPost("/admin/backup/create");
+      const listResp = await adminGet("/admin/backup");
+      const html = await listResp.text();
+      const linkMatch = html.match(
+        /\/admin\/backup\/download\/(backup-[^"]+\.zip)/,
+      );
+      expect(linkMatch).toBeTruthy();
+      const response = await adminGet(
+        `/admin/backup/download/${linkMatch![1]}`,
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("application/zip");
+      // The response body must be the actual zip bytes, not an empty slice.
+      expect((await response.arrayBuffer()).byteLength).toBeGreaterThan(0);
     });
   });
 
@@ -185,75 +178,65 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     };
 
     test("shows confirm page after uploading valid zip", async () => {
-      await withLocalStorageEnabled(async () => {
-        const zipData = await createBackupZip();
-        const { cookie, csrfToken } = await getTestSession();
-        const response = await postRestore(cookie, csrfToken, {
-          backup_file: new File([zipData.buffer as ArrayBuffer], "backup.zip"),
-        });
-        expect(response.status).toBe(200);
-        const html = await response.text();
-        expect(html).toContain("Confirm Database Restore");
-        // The statement count must be a real number, not NaN.
-        expect(html).not.toContain("NaN");
-        // A backup whose schema matches must NOT show the mismatch warning.
-        expect(html).not.toContain("Schema mismatch");
-        // The uploaded zip must be stored so the confirm step can read it back.
-        const tempName = html.match(
-          /value="(restore-pending-[^"]+\.zip)"/,
-        )?.[1];
-        expect(tempName).toBeDefined();
-        expect(await downloadRaw(tempName!)).not.toBeNull();
+      const zipData = await createBackupZip();
+      const { cookie, csrfToken } = await getTestSession();
+      const response = await postRestore(cookie, csrfToken, {
+        backup_file: new File([zipData.buffer as ArrayBuffer], "backup.zip"),
       });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Confirm Database Restore");
+      // The statement count must be a real number, not NaN.
+      expect(html).not.toContain("NaN");
+      // A backup whose schema matches must NOT show the mismatch warning.
+      expect(html).not.toContain("Schema mismatch");
+      // The uploaded zip must be stored so the confirm step can read it back.
+      const tempName = html.match(/value="(restore-pending-[^"]+\.zip)"/)?.[1];
+      expect(tempName).toBeDefined();
+      expect(await downloadRaw(tempName!)).not.toBeNull();
     });
 
     test("shows schema mismatch warning for different schema", async () => {
-      await withLocalStorageEnabled(async () => {
-        const encoder = new TextEncoder();
-        const fakeZip = zipSync({
-          "manifest.json": encoder.encode(
-            JSON.stringify({
-              latestUpdate: "",
-              schemaHash: "wrong",
-              tables: {},
-              timestamp: "",
-            }),
-          ),
-          "settings.sql": new Uint8Array(0),
-        });
-        const { cookie, csrfToken } = await getTestSession();
-        const response = await postRestore(cookie, csrfToken, {
-          backup_file: new File([fakeZip.buffer as ArrayBuffer], "backup.zip"),
-        });
-        const html = await response.text();
-        expect(html).toContain("Schema mismatch");
+      const encoder = new TextEncoder();
+      const fakeZip = zipSync({
+        "manifest.json": encoder.encode(
+          JSON.stringify({
+            latestUpdate: "",
+            schemaHash: "wrong",
+            tables: {},
+            timestamp: "",
+          }),
+        ),
+        "settings.sql": new Uint8Array(0),
       });
+      const { cookie, csrfToken } = await getTestSession();
+      const response = await postRestore(cookie, csrfToken, {
+        backup_file: new File([fakeZip.buffer as ArrayBuffer], "backup.zip"),
+      });
+      const html = await response.text();
+      expect(html).toContain("Schema mismatch");
     });
 
     test("rejects missing file field", async () => {
-      await withLocalStorageEnabled(async () => {
-        const { cookie, csrfToken } = await getTestSession();
-        const response = await postRestore(cookie, csrfToken);
-        await expectFlashRedirect(
-          "/admin/backup",
-          "Please select a backup file",
-          false,
-        )(response);
-      });
+      const { cookie, csrfToken } = await getTestSession();
+      const response = await postRestore(cookie, csrfToken);
+      await expectFlashRedirect(
+        "/admin/backup",
+        "Please select a backup file",
+        false,
+      )(response);
     });
 
     test("rejects invalid zip file", async () => {
-      await withLocalStorageEnabled(async () => {
-        const { cookie, csrfToken } = await getTestSession();
-        const response = await postRestore(cookie, csrfToken, {
-          backup_file: new File([new ArrayBuffer(100)], "bad.zip"),
-        });
-        await expectFlashRedirect(
-          "/admin/backup",
-          expect.stringContaining("Invalid backup file"),
-          false,
-        )(response);
+      const { cookie, csrfToken } = await getTestSession();
+      const response = await postRestore(cookie, csrfToken, {
+        backup_file: new File([new ArrayBuffer(100)], "bad.zip"),
       });
+      await expectFlashRedirect(
+        "/admin/backup",
+        expect.stringContaining("Invalid backup file"),
+        false,
+      )(response);
     });
   });
 
@@ -311,41 +294,96 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     });
 
     test("rejects missing backup file", async () => {
-      await withLocalStorageEnabled(async () => {
+      const { response } = await adminFormPost(
+        "/admin/backup/restore/confirm",
+        {
+          backup_filename: "restore-pending-gone.zip",
+          confirm_identifier: RESTORE_CONFIRM_PHRASE,
+        },
+      );
+      await expectFlashRedirect(
+        "/admin/backup",
+        "Backup file expired or not found. Please upload again.",
+        false,
+      )(response);
+    });
+
+    test("successfully restores from backup", async () => {
+      const listing = await createTestListing({ name: "Restore Me" });
+      const zipData = await createBackupZip();
+      // Delete the listing after capturing it in the backup so we can
+      // verify the restore actually writes data back to the DB.
+      const { deleteListing, getAllListings } = await import(
+        "#shared/db/listings.ts"
+      );
+      await deleteListing(listing.id);
+      expect((await getAllListings()).find((e) => e.id === listing.id)).toBe(
+        undefined,
+      );
+
+      await uploadRaw(zipData, "restore-pending-test.zip");
+      const { response } = await adminFormPost(
+        "/admin/backup/restore/confirm",
+        {
+          backup_filename: "restore-pending-test.zip",
+          confirm_identifier: RESTORE_CONFIRM_PHRASE,
+        },
+      );
+      await expectFlashRedirect(
+        "/admin/login",
+        "Database restored from backup",
+      )(response);
+
+      const restored = (await getAllListings()).find(
+        (e) => e.id === listing.id,
+      );
+      expect(restored).toBeDefined();
+      expect(restored!.name).toBe("Restore Me");
+    });
+
+    test("surfaces the full recorded commit so the operator can redeploy the code", async () => {
+      // The running build records its commit into settings; the dump carries
+      // it, so the restore tells the operator which commit to redeploy. The
+      // FULL SHA is shown because the restore-deploy workflow requires one.
+      const fullSha = "0123456789abcdef0123456789abcdef01234567";
+      setBuildCommitForTest(fullSha);
+      try {
+        await getTestSession(); // ensure session row is in DB before backup
+        await recordScriptVersion();
+        const zipData = await createBackupZip();
+        await uploadRaw(zipData, "restore-pending-commit.zip");
+
         const { response } = await adminFormPost(
           "/admin/backup/restore/confirm",
           {
-            backup_filename: "restore-pending-gone.zip",
+            backup_filename: "restore-pending-commit.zip",
             confirm_identifier: RESTORE_CONFIRM_PHRASE,
           },
         );
         await expectFlashRedirect(
-          "/admin/backup",
-          "Backup file expired or not found. Please upload again.",
-          false,
+          "/admin/login",
+          `Database restored from backup. It was running commit ${fullSha} — run the restore-deploy workflow with that commit to restore the code to this point in time.`,
         )(response);
-      });
+      } finally {
+        setBuildCommitForTest(null);
+      }
     });
 
-    test("successfully restores from backup", async () => {
-      await withLocalStorageEnabled(async () => {
-        const listing = await createTestListing({ name: "Restore Me" });
+    test("omits the redeploy hint when the restored commit is not a full SHA", async () => {
+      // An uploaded/old backup may hold a non-SHA commit value; it must not be
+      // echoed into the flash (it's unusable by restore-deploy and could be
+      // oversized), so the message falls back to the plain confirmation.
+      setBuildCommitForTest("not-a-real-sha");
+      try {
+        await getTestSession(); // ensure session row is in DB before backup
+        await recordScriptVersion();
         const zipData = await createBackupZip();
-        // Delete the listing after capturing it in the backup so we can
-        // verify the restore actually writes data back to the DB.
-        const { deleteListing, getAllListings } = await import(
-          "#shared/db/listings.ts"
-        );
-        await deleteListing(listing.id);
-        expect((await getAllListings()).find((e) => e.id === listing.id)).toBe(
-          undefined,
-        );
+        await uploadRaw(zipData, "restore-pending-badsha.zip");
 
-        await uploadRaw(zipData, "restore-pending-test.zip");
         const { response } = await adminFormPost(
           "/admin/backup/restore/confirm",
           {
-            backup_filename: "restore-pending-test.zip",
+            backup_filename: "restore-pending-badsha.zip",
             confirm_identifier: RESTORE_CONFIRM_PHRASE,
           },
         );
@@ -353,226 +391,147 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           "/admin/login",
           "Database restored from backup",
         )(response);
-
-        const restored = (await getAllListings()).find(
-          (e) => e.id === listing.id,
-        );
-        expect(restored).toBeDefined();
-        expect(restored!.name).toBe("Restore Me");
-      });
-    });
-
-    test("surfaces the full recorded commit so the operator can redeploy the code", async () => {
-      await withLocalStorageEnabled(async () => {
-        // The running build records its commit into settings; the dump carries
-        // it, so the restore tells the operator which commit to redeploy. The
-        // FULL SHA is shown because the restore-deploy workflow requires one.
-        const fullSha = "0123456789abcdef0123456789abcdef01234567";
-        setBuildCommitForTest(fullSha);
-        try {
-          await getTestSession(); // ensure session row is in DB before backup
-          await recordScriptVersion();
-          const zipData = await createBackupZip();
-          await uploadRaw(zipData, "restore-pending-commit.zip");
-
-          const { response } = await adminFormPost(
-            "/admin/backup/restore/confirm",
-            {
-              backup_filename: "restore-pending-commit.zip",
-              confirm_identifier: RESTORE_CONFIRM_PHRASE,
-            },
-          );
-          await expectFlashRedirect(
-            "/admin/login",
-            `Database restored from backup. It was running commit ${fullSha} — run the restore-deploy workflow with that commit to restore the code to this point in time.`,
-          )(response);
-        } finally {
-          setBuildCommitForTest(null);
-        }
-      });
-    });
-
-    test("omits the redeploy hint when the restored commit is not a full SHA", async () => {
-      await withLocalStorageEnabled(async () => {
-        // An uploaded/old backup may hold a non-SHA commit value; it must not be
-        // echoed into the flash (it's unusable by restore-deploy and could be
-        // oversized), so the message falls back to the plain confirmation.
-        setBuildCommitForTest("not-a-real-sha");
-        try {
-          await getTestSession(); // ensure session row is in DB before backup
-          await recordScriptVersion();
-          const zipData = await createBackupZip();
-          await uploadRaw(zipData, "restore-pending-badsha.zip");
-
-          const { response } = await adminFormPost(
-            "/admin/backup/restore/confirm",
-            {
-              backup_filename: "restore-pending-badsha.zip",
-              confirm_identifier: RESTORE_CONFIRM_PHRASE,
-            },
-          );
-          await expectFlashRedirect(
-            "/admin/login",
-            "Database restored from backup",
-          )(response);
-        } finally {
-          setBuildCommitForTest(null);
-        }
-      });
+      } finally {
+        setBuildCommitForTest(null);
+      }
     });
 
     test("rejects filename with traversal despite valid prefix and suffix", async () => {
-      await withLocalStorageEnabled(async () => {
-        // Place a decoy at the traversal target — if traversal were allowed,
-        // the restore would attempt to read it. The validation layer must
-        // reject before any filesystem access.
-        await uploadRaw(new Uint8Array(1), "etc-passwd-decoy.zip");
-        const { response } = await adminFormPost(
-          "/admin/backup/restore/confirm",
-          {
-            backup_filename: "restore-pending-x/../../etc-passwd-decoy.zip",
-            confirm_identifier: RESTORE_CONFIRM_PHRASE,
-          },
-        );
-        await expectFlashRedirect(
-          "/admin/backup",
-          "Invalid backup reference",
-          false,
-        )(response);
-      });
+      // Place a decoy at the traversal target — if traversal were allowed,
+      // the restore would attempt to read it. The validation layer must
+      // reject before any filesystem access.
+      await uploadRaw(new Uint8Array(1), "etc-passwd-decoy.zip");
+      const { response } = await adminFormPost(
+        "/admin/backup/restore/confirm",
+        {
+          backup_filename: "restore-pending-x/../../etc-passwd-decoy.zip",
+          confirm_identifier: RESTORE_CONFIRM_PHRASE,
+        },
+      );
+      await expectFlashRedirect(
+        "/admin/backup",
+        "Invalid backup reference",
+        false,
+      )(response);
     });
 
     test("routes pre-reset restore failure to backup page", async () => {
-      await withLocalStorageEnabled(async () => {
-        // Upload raw non-zip bytes — restoreFromZip throws from unzipSync
-        // before any DB reset, so the session is intact and onError redirects
-        // back to /admin/backup.
-        await uploadRaw(
-          new Uint8Array([0, 1, 2, 3]),
-          "restore-pending-badzip.zip",
-        );
-        const { response } = await adminFormPost(
-          "/admin/backup/restore/confirm",
-          {
-            backup_filename: "restore-pending-badzip.zip",
-            confirm_identifier: RESTORE_CONFIRM_PHRASE,
-          },
-        );
-        await expectFlashRedirect(
-          "/admin/backup",
-          expect.any(String),
-          false,
-        )(response);
-      });
+      // Upload raw non-zip bytes — restoreFromZip throws from unzipSync
+      // before any DB reset, so the session is intact and onError redirects
+      // back to /admin/backup.
+      await uploadRaw(
+        new Uint8Array([0, 1, 2, 3]),
+        "restore-pending-badzip.zip",
+      );
+      const { response } = await adminFormPost(
+        "/admin/backup/restore/confirm",
+        {
+          backup_filename: "restore-pending-badzip.zip",
+          confirm_identifier: RESTORE_CONFIRM_PHRASE,
+        },
+      );
+      await expectFlashRedirect(
+        "/admin/backup",
+        expect.any(String),
+        false,
+      )(response);
     });
 
     test("routes post-reset restore failure to setup page", async () => {
-      await withLocalStorageEnabled(async () => {
-        // A valid zip whose SQL is invalid reaches restoreFromSql, which runs
-        // resetDatabase() before executeBatch fails — sessions and settings are
-        // wiped, so onError must send to /setup/ (not /admin/login or /admin/backup).
-        const badSqlZip = zipSync({
-          "settings.sql": new TextEncoder().encode("INVALID SQL SYNTAX;"),
-        });
-        await uploadRaw(badSqlZip, "restore-pending-badsql.zip");
-        const { response } = await adminFormPost(
-          "/admin/backup/restore/confirm",
-          {
-            backup_filename: "restore-pending-badsql.zip",
-            confirm_identifier: RESTORE_CONFIRM_PHRASE,
-          },
-        );
-        await expectFlashRedirect(
-          "/setup/",
-          expect.any(String),
-          false,
-        )(response);
+      // A valid zip whose SQL is invalid reaches restoreFromSql, which runs
+      // resetDatabase() before executeBatch fails — sessions and settings are
+      // wiped, so onError must send to /setup/ (not /admin/login or /admin/backup).
+      const badSqlZip = zipSync({
+        "settings.sql": new TextEncoder().encode("INVALID SQL SYNTAX;"),
       });
+      await uploadRaw(badSqlZip, "restore-pending-badsql.zip");
+      const { response } = await adminFormPost(
+        "/admin/backup/restore/confirm",
+        {
+          backup_filename: "restore-pending-badsql.zip",
+          confirm_identifier: RESTORE_CONFIRM_PHRASE,
+        },
+      );
+      await expectFlashRedirect("/setup/", expect.any(String), false)(response);
     });
 
     test("cleans up temp file even on restore failure", async () => {
-      await withLocalStorageEnabled(async () => {
-        // Upload an invalid zip (valid zip format but contains bad SQL)
-        const badZip = zipSync({
-          "settings.sql": new TextEncoder().encode("INVALID SQL SYNTAX;"),
-        });
-        await uploadRaw(badZip, "restore-pending-fail.zip");
-
-        // Attempt restore — should fail but still clean up the temp file
-        try {
-          await adminFormPost("/admin/backup/restore/confirm", {
-            backup_filename: "restore-pending-fail.zip",
-            confirm_identifier: RESTORE_CONFIRM_PHRASE,
-          });
-        } catch {
-          // Restore failure is expected
-        }
-
-        // Temp file should be cleaned up regardless
-        const data = await downloadRaw("restore-pending-fail.zip");
-        expect(data).toBeNull();
+      // Upload an invalid zip (valid zip format but contains bad SQL)
+      const badZip = zipSync({
+        "settings.sql": new TextEncoder().encode("INVALID SQL SYNTAX;"),
       });
+      await uploadRaw(badZip, "restore-pending-fail.zip");
+
+      // Attempt restore — should fail but still clean up the temp file
+      try {
+        await adminFormPost("/admin/backup/restore/confirm", {
+          backup_filename: "restore-pending-fail.zip",
+          confirm_identifier: RESTORE_CONFIRM_PHRASE,
+        });
+      } catch {
+        // Restore failure is expected
+      }
+
+      // Temp file should be cleaned up regardless
+      const data = await downloadRaw("restore-pending-fail.zip");
+      expect(data).toBeNull();
     });
 
     test("restore clears all entity caches including holidays", async () => {
-      await withLocalStorageEnabled(async () => {
-        const { getAllHolidays } = await import("#shared/db/holidays.ts");
+      const { getAllHolidays } = await import("#shared/db/holidays.ts");
 
-        // Snapshot before creating any holidays — backup has no holidays
-        const zipData = await createBackupZip();
-        await uploadRaw(zipData, "restore-pending-caches.zip");
+      // Snapshot before creating any holidays — backup has no holidays
+      const zipData = await createBackupZip();
+      await uploadRaw(zipData, "restore-pending-caches.zip");
 
-        // Create a holiday after the backup so it exists in the cache but
-        // will be absent from the restored DB
-        await createTestHoliday({ name: "Cache Test Holiday" });
-        const before = await getAllHolidays();
-        expect(before.some((h) => h.name === "Cache Test Holiday")).toBe(true);
+      // Create a holiday after the backup so it exists in the cache but
+      // will be absent from the restored DB
+      await createTestHoliday({ name: "Cache Test Holiday" });
+      const before = await getAllHolidays();
+      expect(before.some((h) => h.name === "Cache Test Holiday")).toBe(true);
 
-        // Restore from the pre-holiday snapshot
-        const { response } = await adminFormPost(
-          "/admin/backup/restore/confirm",
-          {
-            backup_filename: "restore-pending-caches.zip",
-            confirm_identifier: RESTORE_CONFIRM_PHRASE,
-          },
-        );
-        expect(response.status).toBe(302);
+      // Restore from the pre-holiday snapshot
+      const { response } = await adminFormPost(
+        "/admin/backup/restore/confirm",
+        {
+          backup_filename: "restore-pending-caches.zip",
+          confirm_identifier: RESTORE_CONFIRM_PHRASE,
+        },
+      );
+      expect(response.status).toBe(302);
 
-        // The holidays cache must be cleared: the holiday is gone from the DB
-        // and must not be served from a stale cache entry
-        const after = await getAllHolidays();
-        expect(after.some((h) => h.name === "Cache Test Holiday")).toBe(false);
-      });
+      // The holidays cache must be cleared: the holiday is gone from the DB
+      // and must not be served from a stale cache entry
+      const after = await getAllHolidays();
+      expect(after.some((h) => h.name === "Cache Test Holiday")).toBe(false);
     });
 
     test("restore clears session cache so pre-restore sessions are re-validated", async () => {
-      await withLocalStorageEnabled(async () => {
-        // Snapshot before the manager session is created
-        const zipData = await createBackupZip();
-        await uploadRaw(zipData, "restore-pending-sessions.zip");
+      // Snapshot before the manager session is created
+      const zipData = await createBackupZip();
+      await uploadRaw(zipData, "restore-pending-sessions.zip");
 
-        // Create a manager session after the backup — it will not be in the
-        // restored DB, so it must also be evicted from the session cache
-        const managerCookie = await createTestManagerSession(
-          "cache-test-mgr",
-          "cache-test-manager",
-        );
+      // Create a manager session after the backup — it will not be in the
+      // restored DB, so it must also be evicted from the session cache
+      const managerCookie = await createTestManagerSession(
+        "cache-test-mgr",
+        "cache-test-manager",
+      );
 
-        // Restore from the pre-manager snapshot
-        await adminFormPost("/admin/backup/restore/confirm", {
-          backup_filename: "restore-pending-sessions.zip",
-          confirm_identifier: RESTORE_CONFIRM_PHRASE,
-        });
-
-        // After restore the manager token is absent from the DB and the
-        // session cache has been cleared, so using it must fail auth.
-        // /admin/backup returns 403 for authenticated managers and 302 for
-        // unauthenticated requests; a 302 here proves the session was rejected.
-        const response = await awaitTestRequest("/admin/backup", {
-          cookie: managerCookie,
-        });
-        expect(response.status).toBe(302); // redirected to login (not 403)
+      // Restore from the pre-manager snapshot
+      await adminFormPost("/admin/backup/restore/confirm", {
+        backup_filename: "restore-pending-sessions.zip",
+        confirm_identifier: RESTORE_CONFIRM_PHRASE,
       });
+
+      // After restore the manager token is absent from the DB and the
+      // session cache has been cleared, so using it must fail auth.
+      // /admin/backup returns 403 for authenticated managers and 302 for
+      // unauthenticated requests; a 302 here proves the session was rejected.
+      const response = await awaitTestRequest("/admin/backup", {
+        cookie: managerCookie,
+      });
+      expect(response.status).toBe(302); // redirected to login (not 403)
     });
   });
 });
