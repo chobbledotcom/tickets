@@ -148,6 +148,82 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       }
     });
 
+    test("a paid DAILY package books every member on the signed date", async () => {
+      // A dated package rides the order-level `date` metadata; the webhook's
+      // tree revalidation must accept the tagged dated lines (no false drift)
+      // and persist each member's row on that date.
+      await setupStripe();
+      const { getDb } = await import("#shared/db/client.ts");
+      const { addDays } = await import("#shared/dates.ts");
+      const { todayInTz } = await import("#shared/timezone.ts");
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Dated Kit",
+        slug: "dated-kit",
+      });
+      const boat = await createTestListing({
+        groupId: group.id,
+        listingType: "daily",
+        maxAttendees: 50,
+        minimumDaysBefore: 0,
+        name: "Dated Boat",
+        unitPrice: 700,
+      });
+      const hut = await createTestListing({
+        groupId: group.id,
+        listingType: "daily",
+        maxAttendees: 50,
+        minimumDaysBefore: 0,
+        name: "Dated Hut",
+        unitPrice: 300,
+      });
+      const date = addDays(todayInTz("UTC"), 2);
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 1000,
+          id: "cs_pkg_dated",
+          metadata: signMeta(
+            {
+              date,
+              email: "dated@example.com",
+              items: JSON.stringify([
+                { e: boat.id, k: "p", p: 700, q: 1, r: group.id },
+                { e: hut.id, k: "p", p: 300, q: 1, r: group.id },
+              ]),
+              name: "Dated Payer",
+              package_group_id: String(group.id),
+            },
+            1000,
+          ),
+          payment_intent: "pi_pkg_dated",
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        const redirectResponse = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_pkg_dated"),
+        );
+        expectRedirect(redirectResponse, /^\/payment\/success\?tokens=.+$/);
+
+        for (const member of [boat, hut]) {
+          const row = (
+            await getDb().execute({
+              args: [member.id],
+              sql: "SELECT start_at, package_group_id FROM listing_attendees WHERE listing_id = ? ORDER BY id DESC LIMIT 1",
+            })
+          ).rows[0]!;
+          expect(String(row.start_at).slice(0, 10)).toBe(date);
+          expect(Number(row.package_group_id)).toBe(group.id);
+        }
+      } finally {
+        mockRetrieve.restore();
+      }
+    });
+
     test("returns error for invalid ticket metadata", async () => {
       await setupStripe();
 

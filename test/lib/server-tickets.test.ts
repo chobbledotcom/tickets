@@ -448,29 +448,13 @@ describeWithEnv(
       return { group, widget };
     };
 
-    /** Drive the public free-checkout submit for a package group, returning the
-     * (redirect) response. The page GET first seeds the CSRF token the POST
-     * needs. */
+    /** Drive the public free-checkout submit for a package group (quantity 1). */
     const submitFreePackageBooking = async (
       slug: string,
       contact: { email: string; name: string },
     ): Promise<Response> => {
-      const { handleRequest } = await import("#routes");
-      const { mockRequest, mockTicketFormRequest } = await import(
-        "#test-utils/mocks.ts"
-      );
-      const { extractCsrfToken } = await import("#test-utils/csrf.ts");
-      const pageHtml = await (
-        await handleRequest(mockRequest(`/ticket/${slug}`))
-      ).text();
-      const csrf = extractCsrfToken(pageHtml)!;
-      return handleRequest(
-        mockTicketFormRequest(
-          slug,
-          { ...contact, package_quantity: "1" },
-          csrf,
-        ),
-      );
+      const { submitPackageBooking } = await import("#test-utils");
+      return submitPackageBooking(slug, { ...contact, package_quantity: "1" });
     };
 
     test("a standalone booking of a hidden package's listing is NOT collapsed/hidden", async () => {

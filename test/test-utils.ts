@@ -15,6 +15,7 @@ export * from "./test-utils/migrations.ts";
 export * from "./test-utils/mocks.ts";
 export * from "./test-utils/modifiers.ts";
 export * from "./test-utils/parents.ts";
+export * from "./test-utils/packages.ts";
 export * from "./test-utils/random.ts";
 export * from "./test-utils/servicing.ts";
 export * from "./test-utils/session.ts";
