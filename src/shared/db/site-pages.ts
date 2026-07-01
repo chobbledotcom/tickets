@@ -20,6 +20,7 @@ import {
 import { swapSortOrder } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { cachedTable, col } from "#shared/db/table.ts";
+import { nextSortOrder } from "#shared/site-pages/core.ts";
 import type { SitePage, SitePageNavRow } from "#shared/types.ts";
 
 /** Create/update input (camelCase keys → snake_case columns). */
@@ -117,6 +118,22 @@ export const isSitePageSlugTaken = (
     slug,
     excludeId ? { id: excludeId, table: "site_pages" } : undefined,
   );
+
+/** Create a page, appending it to the end of the root ordering. A new page is
+ * always a root (no edges yet), so its `sort_order` goes after every existing
+ * page's; a concurrent-create tie is broken deterministically by id downstream. */
+export const createSitePage = async (
+  input: Omit<SitePageInput, "sortOrder">,
+): Promise<SitePage> => {
+  const orders = (await getSitePageNavRows()).map((r) => r.sort_order);
+  return sitePagesTable.insert({ ...input, sortOrder: nextSortOrder(orders) });
+};
+
+/** Update a page's editable fields (all but id/slug_index/sort_order). */
+export const updateSitePage = (
+  id: number,
+  input: Partial<Omit<SitePageInput, "sortOrder" | "slugIndex">>,
+): Promise<SitePage | null> => sitePagesTable.update(id, input);
 
 /** Swap the `sort_order` of two root pages (the move-up/down apply step). */
 export const swapSitePageOrder = (id1: number, id2: number): Promise<void> =>
