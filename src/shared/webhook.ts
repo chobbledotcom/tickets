@@ -6,6 +6,7 @@
 import { mapNotNullish, sumOf, unique } from "#fp";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
+import { getGroupPackagePrices, packageMemberMaps } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { type EmailEntry, sendRegistrationEmails } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -94,15 +95,45 @@ export type RegistrationEntry = {
   attendee: WebhookAttendee;
 };
 
-/** The per-unit price actually charged for a booking line. A package member's
- * base `unit_price` is 0 — its charge lives in the package override — so for a
- * package booking derive the per-unit from the amount actually paid rather than
- * reporting a misleading 0. Non-package lines report the listing's base price. */
-const ticketUnitPrice = (entry: RegistrationEntry): number => {
+/** Per-group map of listing_id → package override price (a real override: a
+ * positive amount or an explicit free `0`; members with no override are absent).
+ * Loaded once per payload for the order's package groups. */
+type PackageOverrides = ReadonlyMap<number, ReadonlyMap<number, number>>;
+
+/** Load the package price overrides for every package group in `entries`, so a
+ * package member's full unit price can be reported from its configured override
+ * rather than the amount collected. */
+const loadPackageOverrides = async (
+  entries: RegistrationEntry[],
+): Promise<PackageOverrides> => {
+  const groupIds = unique(
+    mapNotNullish((e: RegistrationEntry) =>
+      e.attendee.package_group_id > 0 ? e.attendee.package_group_id : null,
+    )(entries),
+  );
+  const overrides = new Map<number, ReadonlyMap<number, number>>();
+  for (const groupId of groupIds) {
+    const { prices } = packageMemberMaps(await getGroupPackagePrices(groupId));
+    overrides.set(groupId, prices);
+  }
+  return overrides;
+};
+
+/** The full per-unit price for a booking line. A package member's base
+ * `unit_price` is 0 — its charge lives in the package override — so report its
+ * configured override (or the listing's base when the member has none), NOT the
+ * amount collected: a discounted/deposit/free-provider order pays less now than
+ * the ticket is worth, and dividing the paid-now amount would under-report it.
+ * Non-package lines report the listing's base price. */
+const ticketUnitPrice = (
+  entry: RegistrationEntry,
+  overrides: PackageOverrides,
+): number => {
   const { listing, attendee } = entry;
-  if (attendee.package_group_id > 0 && attendee.quantity > 0) {
-    return Math.round(
-      Number.parseInt(attendee.price_paid, 10) / attendee.quantity,
+  if (attendee.package_group_id > 0) {
+    return (
+      overrides.get(attendee.package_group_id)?.get(listing.id) ??
+      listing.unit_price
     );
   }
   return listing.unit_price;
@@ -114,6 +145,7 @@ const ticketUnitPrice = (entry: RegistrationEntry): number => {
 export const buildWebhookPayload = (
   entries: RegistrationEntry[],
   currency: string,
+  overrides: PackageOverrides = new Map(),
 ): WebhookPayload => {
   const first = entries[0]!;
   const totalPricePaid = sumOf((e: RegistrationEntry) =>
@@ -147,7 +179,7 @@ export const buildWebhookPayload = (
       listing_slug: entry.listing.slug,
       quantity: entry.attendee.quantity,
       ticket_token: entry.attendee.ticket_token,
-      unit_price: ticketUnitPrice(entry),
+      unit_price: ticketUnitPrice(entry, overrides),
     })),
     timestamp: nowIso(),
   };
@@ -209,7 +241,11 @@ export const sendRegistrationWebhooks = async (
   );
   if (webhookUrls.length === 0) return;
 
-  const payload = await buildWebhookPayload(entries, currency);
+  const payload = buildWebhookPayload(
+    entries,
+    currency,
+    await loadPackageOverrides(entries),
+  );
   const firstListingId = entries[0]?.listing.id;
   await Promise.allSettled(
     webhookUrls.map((url) => sendWebhook(url, payload, firstListingId)),

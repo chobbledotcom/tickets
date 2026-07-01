@@ -131,27 +131,46 @@ describe("webhook", () => {
       expect(payload.amount_owed).toBe(0);
     });
 
-    test("reports package-override revenue even when the base listing is free", async () => {
-      // A package member's base listing is free (unit_price 0); the buyer was
-      // charged via the package override, recorded on the attendee's price_paid.
+    test("reports the package override as unit_price, not the amount paid now", async () => {
+      // A package member's base listing is free (unit_price 0); its real worth is
+      // the package override. Even when the buyer paid less now (a deposit /
+      // discount / provider-less order), the webhook reports the full override
+      // per unit, not the paid-now amount divided by quantity.
       const entries = [
         makeEntry(
-          { unit_price: 0 },
+          { id: 42, unit_price: 0 },
           {
             package_group_id: 7,
             payment_id: "pi_pkg",
-            price_paid: "5000",
+            price_paid: "3000",
             quantity: 6,
           },
         ),
       ];
+      const overrides = new Map([[7, new Map([[42, 900]])]]);
 
-      const payload = await buildWebhookPayload(entries, "GBP");
+      const payload = buildWebhookPayload(entries, "GBP", overrides);
 
-      // The order reports what was actually paid, not null.
-      expect(payload.price_paid).toBe(5000);
-      // The per-unit price is derived from the charge (5000 / 6), not the base 0.
-      expect(payload.tickets[0]!.unit_price).toBe(Math.round(5000 / 6));
+      // The order reports what was actually paid.
+      expect(payload.price_paid).toBe(3000);
+      // The per-unit price is the full override (900), not 3000 / 6 = 500.
+      expect(payload.tickets[0]!.unit_price).toBe(900);
+    });
+
+    test("falls back to the base price for a package member with no override", async () => {
+      const entries = [
+        makeEntry(
+          { id: 43, unit_price: 1200 },
+          { package_group_id: 7, price_paid: "1200", quantity: 1 },
+        ),
+      ];
+      // No override row for listing 43 → report the listing's base price.
+      const payload = buildWebhookPayload(
+        entries,
+        "GBP",
+        new Map([[7, new Map()]]),
+      );
+      expect(payload.tickets[0]!.unit_price).toBe(1200);
     });
 
     test("reports the order's outstanding balance as amount_owed", async () => {
