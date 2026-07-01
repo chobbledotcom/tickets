@@ -73,11 +73,13 @@ export const needsTunnel = (target: Target): boolean => {
     return config.forceTunnel === "1" || config.forceTunnel === "true";
   }
   // Stripe registers its webhook endpoint against a public HTTPS URL at config
-  // time (and then receives a signed webhook), so it cannot be set up without a
-  // tunnel. Square/SumUp confirm via the browser return URL, which providers
-  // expect to be a public HTTPS URL — hence the tunnel for them too. Note the
-  // tunnel does NOT mean every leg exercises webhooks: Square's webhook needs a
-  // manually-signed subscription and is not tested here; SumUp needs no
+  // time, so it cannot be set up without a tunnel. Square/SumUp confirm via the
+  // browser return URL, which providers expect to be a public HTTPS URL — hence
+  // the tunnel for them too. Note the tunnel does NOT mean any leg *asserts*
+  // webhook delivery: confirmation is asserted via the return URL for every
+  // provider (Stripe additionally exercises webhook registration, but delivery
+  // is not asserted). Square's webhook needs a manually-signed subscription and
+  // is not tested here; SumUp needs no
   // signature. See the providers' notes and the README.
   return target !== "free";
 };
@@ -88,7 +90,17 @@ export const providerSecrets = (
 ): Record<string, string> | null => {
   if (provider === "stripe") {
     const key = env("STRIPE_SECRET_KEY");
-    return key ? { secretKey: key } : null;
+    if (!key) return null;
+    // Fail closed on a live key: this "sandbox" harness registers webhook
+    // endpoints and creates checkout sessions, which must never touch a live
+    // Stripe account. Test keys are sk_test_… (or restricted rk_test_…).
+    if (!/^(sk|rk)_test_/.test(key)) {
+      throw new Error(
+        "STRIPE_SECRET_KEY is not a test-mode key (expected sk_test_ or rk_test_). " +
+          "Refusing to run the sandbox harness against a live Stripe key.",
+      );
+    }
+    return { secretKey: key };
   }
   if (provider === "square") {
     const token = env("SQUARE_ACCESS_TOKEN");
