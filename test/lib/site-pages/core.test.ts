@@ -34,6 +34,13 @@ const edge = (
   sort_order: number,
 ): SitePageItem => ({ item_id, item_type, page_id, sort_order });
 
+/** A linear chain 1 (root) → 2 → 3, reused across ancestry/cycle tests. */
+const chainForest = () =>
+  buildForest(
+    [page(1), page(2), page(3)],
+    [edge(1, "page", 2, 0), edge(2, "page", 3, 0)],
+  );
+
 const leafTarget = (
   type: SitePageItemType,
   id: number,
@@ -88,11 +95,7 @@ describe("site-pages core", () => {
 
   describe("ancestorsOf", () => {
     test("returns the chain root-first, excluding the node", () => {
-      // 1 (root) → 2 → 3
-      const forest = buildForest(
-        [page(1), page(2), page(3)],
-        [edge(1, "page", 2, 0), edge(2, "page", 3, 0)],
-      );
+      const forest = chainForest(); // 1 (root) → 2 → 3
       expect(ancestorsOf(forest, 3)).toEqual([1, 2]);
       expect(ancestorsOf(forest, 1)).toEqual([]);
     });
@@ -118,10 +121,7 @@ describe("site-pages core", () => {
   });
 
   describe("wouldCreateCycle", () => {
-    const forest = buildForest(
-      [page(1), page(2), page(3)],
-      [edge(1, "page", 2, 0), edge(2, "page", 3, 0)],
-    );
+    const forest = chainForest();
     test("true for self and any ancestor of the parent", () => {
       expect(wouldCreateCycle(forest, 3, 3)).toBe(true); // self
       expect(wouldCreateCycle(forest, 3, 1)).toBe(true); // ancestor

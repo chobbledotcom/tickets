@@ -29,6 +29,48 @@ tree at the time of writing.
 
 ---
 
+## Implementation status
+
+**Slice 1 — foundation — ✅ built & green** (schema, migration, pure core, DB
+modules, tests). The pure functional core and the DB layer described below are
+now real code; where this plan and the code differ, the code wins:
+
+- `src/shared/types.ts` — `SitePage`, `SitePageItem`, `SitePageItemType`,
+  `SitePageNavRow` (the narrow nav projection).
+- `src/shared/site-pages/{types,core}.ts` — the pure core. `buildNavModel` marks
+  active **per level** (not by a global key), so a leaf attached to several
+  pages highlights only its chosen-N6-path occurrence. Cycle guard in
+  `ancestorsOf`; `wouldCreateCycle` rejects self + ancestors.
+- `src/shared/db/site-pages.ts` — encrypted table; the nav read selects and
+  decrypts **only** id/slug/name/sort_order (never content/meta) for cold-start
+  efficiency; the full row is loaded one-at-a-time by slug_index/id.
+- `src/shared/db/site-page-items.ts` — edges. `addPageItem` serialises the
+  single-parent check + next-`sort_order` read + insert in **one transaction**;
+  `getItemsForPage` returns full rows incl. `page_id`; composite-key reorder;
+  `deleteSitePageWithEdges` deletes row + all edges atomically;
+  `clearItemEdgesStatement` lets listing/group deletes fold edge cleanup into
+  their own batch; a request-scoped edge cache is cleared on every write.
+
+**Review resolutions baked in (Codex, commit `197c99c`):** single-parent
+race → one transaction; `getItemsForPage` includes `page_id`; edge cache
+invalidation wired; per-level active marking; page items inserted with their
+next order.
+
+**Not yet built (later slices) — the forward-looking guidance below still
+applies:** admin CRUD/item-manager, the public `/page/:slug` route, and the
+recursive nav render. Review points that land in those slices: gate
+`requirePublicSite` **before** the slug lookup (§Public route); add a
+`PREFIX_SETTINGS.page` bundle so `/page` doesn't preload the full settings
+snapshot; the ticket/group pages currently render a bare `Layout` with **no**
+`PublicNav`, so the nav model+render must be added to that flow for the
+contextual chain to appear on `/ticket/:slug`; the page-body item links and the
+nav must share the same `ResolvedTarget.live` (child-listing suppression);
+re-validate submitted page-item targets against the eligible set server-side
+(the form `options` don't enforce membership); and fold the `site_page_items`
+edge cleanup into the group/listing delete batch so it's atomic with the row.
+
+---
+
 ## Naming note (read first)
 
 There is already a `src/features/public/pages.ts` — it is **not** an entity
@@ -422,9 +464,10 @@ ORDER BY sort_order ASC, id ASC")`, `keyOf: (p) => p.slug_index`. Export:
 
 Model on `listing-parents.ts` (an ordered link table with batch replace):
 
-- `getItemsForPage(pageId): Promise<SitePageItem[]>` — `SELECT item_type,
-  item_id, sort_order FROM site_page_items WHERE page_id = ? ORDER BY
-  sort_order` (only the columns needed).
+- `getItemsForPage(pageId): Promise<SitePageItem[]>` — `SELECT page_id,
+  item_type, item_id, sort_order FROM site_page_items WHERE page_id = ? ORDER BY
+  sort_order` (includes `page_id` so the rows are full `SitePageItem`s the core
+  can consume).
 - `getItemsForPages(pageIds)` — batched `WHERE page_id IN (…)` grouped into a
   `Map<number, SitePageItem[]>`, for building the whole nav tree in one query
   (the `groupEdges` shape from `listing-parents.ts`).
@@ -612,10 +655,11 @@ the nav honest (editors already see Site top-level; owners now do too when
 Add a new single-segment prefix **`page`** to the dispatch table
 (`prefixHandlers`, `src/features/index.ts:640`) handling `GET /page/:slug`:
 
-- Resolve `getSitePageBySlugIndex(await computeSitePageSlugIndex(slug))`;
+- **Gate first**, before any slug lookup: `requirePublicSite` — when the site is
+  off, redirect to `/admin/login` like the other public pages, so a disabled
+  site never leaks a content-specific 404 ahead of the redirect.
+- Then resolve `getSitePageBySlugIndex(await computeSitePageSlugIndex(slug))`;
   404 (`notFoundResponse`) if absent.
-- Gate on `settings.showPublicSite` (reuse `requirePublicSite`); when the site
-  is off, redirect to `/admin/login` like the other public pages.
 - Render via the public layout: `<title>` = `meta_title || name || websiteTitle`
   (extend `Layout`'s `headExtra`, `src/ui/templates/layout.tsx:68`, to inject
   `<meta name="description" content=…>` when `meta_description` is set — the
