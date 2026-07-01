@@ -1,6 +1,7 @@
 import type { Page } from "playwright";
 import type { BrowserSession } from "../browser.ts";
-import { log } from "../log.ts";
+import { log, warn } from "../log.ts";
+import { clickFirst, fillCard } from "./card.ts";
 import { assertConfigured, selectProvider } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
 
@@ -14,130 +15,76 @@ import type { PaymentProvider } from "./types.ts";
  *
  * Square SANDBOX payment links (CreatePaymentLink → long_url) redirect to
  * Square's "Checkout API Sandbox Testing Panel"
- * (connect.squareupsandbox.com/.../sandbox-testing-panel/…): a stepper
- * (Overview → Test Payment → Checkout → Complete) that simulates the buyer.
- * Its controls are React elements, not <button>/<a>, so they're located by
- * visible text and clicked. The panel is described to the log on entry (and
- * after each click) so any change to its structure is visible in CI.
+ * (connect.squareupsandbox.com/.../sandbox-testing-panel/…): a React stepper
+ * with a "Next" button and a "Preview Link" to the real buyer checkout
+ * (sandbox.square.link/u/…). We open that buyer checkout and pay with a
+ * sandbox card, which redirects back to the app's return URL.
+ * Sandbox test card: 4111 1111 1111 1111, any future expiry, CVV 111.
+ * Docs: https://developer.squareup.com/docs/devtools/sandbox/payments
  */
 
-/**
- * Log every clickable-looking element on the page and its frames — including
- * non-<button> React controls (role=tab/button, tabindex, or cursor:pointer) —
- * with its tag, role, testid, class and text, so CI reveals exactly what the
- * panel offers and how to target it.
- */
-const describeClickables = async (page: Page): Promise<void> => {
+/** The real buyer checkout is linked from the panel as sandbox.square.link/u/…
+ * Grab that URL so we can drive an actual card payment instead of the panel. */
+const findBuyerCheckoutUrl = async (page: Page): Promise<string | null> => {
   for (const root of [page, ...page.frames()]) {
-    try {
-      const items = (await root.locator("body *").evaluateAll((els) =>
-        els
-          .map((el) => {
-            const h = el as HTMLElement;
-            const text = (
-              h.innerText ||
-              (h as HTMLInputElement).value ||
-              ""
-            ).trim();
-            if (!text || text.length > 50) return null;
-            const role = h.getAttribute("role") || "";
-            const cursor = getComputedStyle(h).cursor;
-            const clickable =
-              h.tagName === "BUTTON" ||
-              h.tagName === "A" ||
-              h.tagName === "INPUT" ||
-              ["button", "tab", "link", "menuitem"].includes(role) ||
-              h.hasAttribute("onclick") ||
-              h.getAttribute("tabindex") !== null ||
-              cursor === "pointer";
-            if (!clickable) return null;
-            return {
-              tag: h.tagName.toLowerCase(),
-              role,
-              testid: h.getAttribute("data-testid") || "",
-              cls: (h.getAttribute("class") || "").slice(0, 50),
-              text,
-            };
-          })
-          .filter((v): v is NonNullable<typeof v> => v !== null),
-      )) as {
-        tag: string;
-        role: string;
-        testid: string;
-        cls: string;
-        text: string;
-      }[];
-      const seen = new Set<string>();
-      for (const it of items) {
-        const key = `${it.tag}|${it.text}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        log(
-          `      clickable <${it.tag}${it.role ? ` role=${it.role}` : ""}` +
-            `${it.testid ? ` testid=${it.testid}` : ""} class="${it.cls}"> "${it.text}"`,
-        );
-      }
-    } catch {
-      // frame detached / body unreadable
-    }
+    const href = await root
+      .locator('a[href*="square.link/u/"]')
+      .first()
+      .getAttribute("href")
+      .catch(() => null);
+    if (href) return href;
   }
+  return null;
 };
 
-/** Click the first visible element (any tag) whose text matches, across the
- * page and its frames. Returns true if something was clicked. */
-const clickByText = async (page: Page, label: string): Promise<boolean> => {
-  for (const root of [page, ...page.frames()]) {
-    const loc = root.getByText(label, { exact: false }).first();
-    try {
-      if (await loc.isVisible({ timeout: 1_000 })) {
-        await loc.click({ timeout: 5_000 });
-        log(`  clicked "${label}"`);
-        return true;
-      }
-    } catch {
-      // not present / not clickable here
-    }
-  }
-  return false;
+/** Fill the Square-hosted buyer checkout's card form and pay. */
+const payBuyerCheckout = async (page: Page): Promise<void> => {
+  log("Filling Square hosted buyer checkout…");
+  // Square renders card inputs inside the Web Payments SDK iframe; the generic
+  // filler searches child frames. Sandbox card 4111 …, CVV 111.
+  await fillCard(page, {
+    number: "4111111111111111",
+    expiry: "12/34",
+    cvc: "111",
+    postal: "94103",
+  });
+  await clickFirst(page, "pay button", [
+    "#rswp-card-button",
+    'button:has-text("Pay")',
+    'button[type="submit"]',
+  ]);
 };
 
 /**
- * Drive the Square sandbox testing panel's stepper to complete the simulated
- * payment. The exact control labels are traced to the log (describeClickables)
- * so the sequence can be tightened from CI output. We advance through the
- * likely steps and stop once the browser leaves the panel (back to the app's
- * return URL, which assertPaidBookingConfirmed then checks).
+ * The sandbox payment link lands on Square's testing panel. Open the buyer
+ * checkout it links to (the real hosted card page) and pay there. Falls back to
+ * walking the panel's "Next" stepper if no buyer link is present.
  */
 const completeSandboxPanel = async (page: Page): Promise<void> => {
-  log("Square sandbox testing panel detected; describing controls…");
   await page.waitForLoadState("networkidle").catch(() => {});
-  await page.waitForTimeout(1_500);
-  await describeClickables(page);
+  await page.waitForTimeout(1_000);
 
-  // Best-effort stepper walk. Labels are tried in order; after each click we
-  // re-describe the panel and bail out as soon as we leave it.
-  const steps = ["Test Payment", "Next", "Checkout", "Complete", "Pay", "Done"];
-  for (let round = 0; round < 8; round++) {
-    if (!page.url().includes("sandbox-testing-panel")) {
-      log("  left the sandbox testing panel");
-      return;
-    }
-    let clicked = false;
-    for (const label of steps) {
-      if (await clickByText(page, label)) {
-        clicked = true;
-        await page.waitForTimeout(1_500);
-        log(`  after "${label}", url=${page.url()}`);
-        await describeClickables(page);
-        break;
-      }
-    }
-    if (!clicked) break;
+  const buyerUrl = await findBuyerCheckoutUrl(page);
+  if (buyerUrl) {
+    log(`Square testing panel → opening buyer checkout: ${buyerUrl}`);
+    await page.goto(buyerUrl, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1_000);
+    await payBuyerCheckout(page);
+    return;
+  }
+
+  // Fallback: no buyer link found — try to advance the panel's stepper. The
+  // "Next" button advances it; keep clicking until we leave the panel.
+  warn("  no sandbox.square.link buyer URL found; walking the panel stepper");
+  for (let i = 0; i < 8 && page.url().includes("sandbox-testing-panel"); i++) {
+    const next = page.getByRole("button", { name: /next|complete|pay|done/i }).first();
+    if (!(await next.isVisible({ timeout: 1_000 }).catch(() => false))) break;
+    await next.click({ timeout: 5_000 }).catch(() => {});
+    await page.waitForTimeout(1_000);
   }
   if (page.url().includes("sandbox-testing-panel")) {
     throw new Error(
-      "Square sandbox testing panel: could not complete the payment stepper " +
-        "(see the described controls above to tighten the click sequence)",
+      "Square: could not reach a payable checkout from the sandbox testing panel",
     );
   }
 };
