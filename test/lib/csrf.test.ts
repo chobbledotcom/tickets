@@ -111,20 +111,12 @@ describe("verifySignedCsrfToken", () => {
     // of "now"; FakeTime cannot move backwards, so verify under a separate
     // present-time clock. The gap (decades) far exceeds the 60s skew window.
     const signedInFuture = await (async () => {
-      const future = new FakeTime(4_000_000_000_000);
-      try {
-        return await signCsrfToken();
-      } finally {
-        future.restore();
-      }
+      using _future = new FakeTime(4_000_000_000_000);
+      return await signCsrfToken();
     })();
 
-    const present = new FakeTime(1_700_000_000_000);
-    try {
-      expect(await verifySignedCsrfToken(signedInFuture)).toBe(false);
-    } finally {
-      present.restore();
-    }
+    using _present = new FakeTime(1_700_000_000_000);
+    expect(await verifySignedCsrfToken(signedInFuture)).toBe(false);
   });
 
   test("rejects a plain (unsigned) token", async () => {
