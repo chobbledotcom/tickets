@@ -137,6 +137,25 @@ export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
   );
 
 /**
+ * One attendee's raw booking rows within one package group (real lines only —
+ * quantity > 0). Lets a listing-scoped action rehydrate the WHOLE package the
+ * selected line belongs to, so a per-member notification resend doesn't treat
+ * a single member row as the complete package.
+ */
+export const getAttendeePackageRowsRaw = (
+  attendeeId: number,
+  packageGroupId: number,
+): Promise<Attendee[]> =>
+  queryAll<Attendee>(
+    `SELECT ${ATTENDEE_JOIN_SELECT}
+     FROM attendees a
+     JOIN listing_attendees ea ON ea.attendee_id = a.id
+     WHERE a.id = ? AND ea.package_group_id = ? AND ea.quantity > 0
+     ORDER BY ea.listing_id ASC`,
+    [attendeeId, packageGroupId],
+  );
+
+/**
  * Get the newest attendees across all listings without decrypting PII.
  * Used for the admin dashboard to show recent registrations.
  */

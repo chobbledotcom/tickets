@@ -82,6 +82,7 @@ export {
   getAttendee,
   getAttendeeKindsByIds,
   getAttendeeNamesByIds,
+  getAttendeePackageRowsRaw,
   getAttendeePiiBlobsForListings,
   getAttendeeRaw,
   getAttendeesByIds,
