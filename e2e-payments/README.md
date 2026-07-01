@@ -88,8 +88,10 @@ A target with missing secrets **skips** (exits 0) rather than failing.
 Other knobs (all optional): `DENO_BIN`, `CLOUDFLARED_BIN`,
 `CHROMIUM_EXECUTABLE` (unset in CI so Playwright uses its own build),
 `HEADLESS`, `SETUP_COUNTRY` (site currency; defaults per provider — GB/GBP for
-Stripe & SumUp, US/USD for Square), `E2E_UNIT_PRICE` (minor units, default 137
-— a non-round amount so the ledger shows decimals),
+Stripe & SumUp, US/USD for Square; must be a 2-decimal currency such as
+GBP/USD/EUR — zero-decimal currencies like JPY are unsupported),
+`E2E_UNIT_PRICE` (minor units, default 137 — a non-round amount so the ledger
+shows decimals),
 `E2E_TUNNEL` (`1`/`0` to force), and the `E2E_*_TIMEOUT_MS` values in
 `src/config.ts`. Screenshots and server logs land in `artifacts/` on failure.
 
