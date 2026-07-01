@@ -74,6 +74,16 @@ describe("site-pages core", () => {
       expect(forest.parentByChild.get(2)).toBe(1);
     });
 
+    test("a non-page item never parents a page that shares its numeric id", () => {
+      // listing item with item_id 2 must NOT make page 2 a child of page 1.
+      const forest = buildForest(
+        [page(1), page(2)],
+        [edge(1, "listing", 2, 0)],
+      );
+      expect(forest.rootIds).toEqual([1, 2]);
+      expect(forest.parentByChild.has(2)).toBe(false);
+    });
+
     test("items are grouped per page and sorted by (sort_order, item_id)", () => {
       const forest = buildForest(
         [page(1)],
@@ -107,6 +117,16 @@ describe("site-pages core", () => {
       );
       expect(() => ancestorsOf(forest, 1)).toThrow(/cycle/);
     });
+
+    test("throws on a cycle among ancestors that excludes the queried node", () => {
+      // parents: 1→2, 2→3, 3→2 (the 2↔3 loop sits above the queried node 1),
+      // so only the visited-set bookkeeping (not the initial node) catches it.
+      const forest = buildForest(
+        [page(1), page(2), page(3)],
+        [edge(2, "page", 1, 0), edge(2, "page", 3, 1), edge(3, "page", 2, 0)],
+      );
+      expect(() => ancestorsOf(forest, 1)).toThrow(/cycle/);
+    });
   });
 
   describe("descendantsOf", () => {
@@ -125,6 +145,17 @@ describe("site-pages core", () => {
         2, 3,
       ]);
       expect([...descendantsOf(forest, 3)]).toEqual([]);
+    });
+
+    test("collects descendants reachable only transitively (recurses)", () => {
+      // 1 → 2 → 3, with 3 NOT a direct child of 1 — only recursion reaches it.
+      const forest = buildForest(
+        [page(1), page(2), page(3)],
+        [edge(1, "page", 2, 0), edge(2, "page", 3, 0)],
+      );
+      expect([...descendantsOf(forest, 1)].sort((a, b) => a - b)).toEqual([
+        2, 3,
+      ]);
     });
   });
 
@@ -252,6 +283,9 @@ describe("site-pages core", () => {
       expect(model.submenuLevels).toHaveLength(1);
       expect(model.submenuLevels[0]?.[0]?.key).toBe("page:2");
       expect(model.submenuLevels[0]?.[0]?.active).toBe(false);
+      // Page nodes are always live (both the root row and the nested node).
+      expect(model.rootPageNodes[0]?.live).toBe(true);
+      expect(model.submenuLevels[0]?.[0]?.live).toBe(true);
     });
 
     test("a page item pointing at a missing page is dropped", () => {
@@ -272,6 +306,31 @@ describe("site-pages core", () => {
       const model = buildNavModel(forest, new Map(), "page:999");
       expect(model.activeRootId).toBeNull();
       expect(model.submenuLevels).toEqual([]);
+    });
+
+    test("a leaf's parent scan matches on type AND id, not either alone", () => {
+      // page 1 holds group:5; the current target is listing:5 (same id, other
+      // type) — so no page is its parent and there's no contextual chain.
+      const forest = buildForest([page(1)], [edge(1, "group", 5, 0)]);
+      const model = buildNavModel(forest, new Map(), "listing:5");
+      expect(model.activeRootId).toBeNull();
+      expect(model.submenuLevels).toEqual([]);
+    });
+
+    test("a root page with id 0 is a valid active root (not coerced to null)", () => {
+      const forest = buildForest([page(0)], []);
+      const model = buildNavModel(forest, new Map(), "page:0");
+      expect(model.activeRootId).toBe(0);
+    });
+
+    test("a leaf whose parent page has id 0 anchors to it (not null)", () => {
+      const forest = buildForest([page(0)], [edge(0, "listing", 5, 0)]);
+      const model = buildNavModel(
+        forest,
+        new Map([leafTarget("listing", 5)]),
+        "listing:5",
+      );
+      expect(model.activeRootId).toBe(0);
     });
 
     test("a leaf with no parent page yields a flat nav (no chain)", () => {
