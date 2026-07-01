@@ -108,6 +108,12 @@ JSON API; the single-listing duplicate and group bulk-duplicate paths).
   *buyer-choice*), not itself a package member (keep the
   `anyListingInPackageGroup` arm), and not itself a parent (parent/child is
   one level deep everywhere already).
+- Only the **parent direction** of today's `hasParentChildEdge` guard is
+  relaxed. A member that is itself a **child** under another parent stays
+  rejected (`edgeIdsTouching(...).parentIds` non-empty): a child-only add-on
+  listing is non-standalone precisely because it is sold under its parent, so
+  admitting it as a package member would sell it directly and bypass that
+  gate.
 - Removing/adding a child edge on a listing that is a package member re-runs
   the same predicate (the children form and API already call
   `packageChildEdgeConflict`; it becomes this predicate).
@@ -123,23 +129,48 @@ page must start passing `childCtx`/`childrenByParentId` through the package
 branch of `buildPageListingRows` (the tree already builds the child nodes; the
 render just drops them today).
 
-Client JS: `src/ui/client/admin/child-selection.ts` already listens to
-`package_quantity` changes; the per-slot required-total becomes
-`pickCount × packageQty` and the running total (`src/ui/client/order.ts`)
-prices chosen candidates — mostly parameterising existing child logic by the
-package multiplier.
+Client JS: listening to `package_quantity` is necessary but **not
+sufficient**. The child enhancement scripts (`child-selection.ts`,
+`child-required.ts`, `child-compat.ts`) decide "parent in cart" and the
+required child total via `parentInCart()`/`quantityValue()`, which read the
+`quantity_<parentId>` control — and a package member deliberately renders no
+such control, so a slot's candidate-scoped questions and required totals
+would read as inactive even though the server fold requires them. Each slot
+therefore needs an explicit in-cart signal: carry the member's fixed
+per-package quantity on the slot's child fieldset (e.g.
+`data-package-member-qty`), and extend `parentInCart`/the required-total
+derivation to compute a slot's active quantity as
+`package_quantity × fixedQty` when that attribute is present (falling back to
+`quantity_<id>` on ordinary pages). The running total
+(`src/ui/client/order.ts`) prices chosen candidates off the same derived
+quantity.
 
 ### C. Capacity + discovery parity
 
 `packageQuantityCap` (`src/shared/booking/capacity-tree.ts`) walks only
-top-level member nodes. For a slot member it must add a candidate term: the
-most whole packages the slot's **bookable candidates can jointly supply**,
-i.e. `floor(childCombinedCap(slot, candidates) / pickCount)` — reusing
-`childCombinedCap` (`reservations.tsx`), which already handles the
-separate-pool / shared-capped-group cohort math — alongside the slot's own-cap
-and group-pool arms. Because `resolvePageQuantities` clamps the posted count
-with the same function, the submit clamp comes along automatically; the atomic
-write predicate remains the authoritative backstop.
+top-level member nodes. Two pieces of work:
+
+- **Extract the cohort math first.** `childCombinedCap` is a *private*
+  render helper in `src/ui/templates/public/reservations.tsx`, and that
+  module already imports `packageQuantityCap` from `capacity-tree.ts` — so
+  the capacity walk cannot reuse it in place without a shared→UI circular
+  dependency. Move the separate-pool / shared-capped-group cohort math into a
+  shared booking module (e.g. `src/shared/booking/child-capacity.ts`)
+  consumed by both the render clamp and the package cap.
+- **Fold candidate demand into the same per-group demand walk — not an
+  independent minimum term.** A slot contributes two constraints: its
+  candidates' combined supply (`⌊combined candidate cap ÷ pickCount⌋`, via
+  the extracted cohort math) **and** `pickCount` units of per-package demand
+  against every capped group its candidates draw from — aggregated into the
+  *same* `demandByGroup` map as the fixed members, because a candidate and a
+  fixed member can share a capped pool. Example: fixed member M and candidate
+  C both in capped group G with 2 remaining; independent terms each allow 2
+  packages, but one package consumes 2 G-spots (1 for M, 1 for C), so only 1
+  fits. Candidate demand is buyer-mix-dependent, so bucket it the way the
+  cohort math already does (conservative on shared pools); the atomic batch
+  write predicate remains the authoritative backstop for whatever the clamp
+  cannot see. `resolvePageQuantities` clamps the posted count with the same
+  function, so the submit clamp comes along automatically.
 
 Discovery: `packageGroupBookable` (`src/features/public/discovery.ts`) builds
 its tree without `childrenByParentId`; it must load candidates so `/listings`,
@@ -164,9 +195,16 @@ package that has one). Revisit only if a real operator needs a "mystery slot".
 
 ### F. Metadata budget
 
-Each pick adds a signed line + allocation. Per `booking-unification.md`, add
-limit tests asserting a multi-slot, multi-pick package stays within Square's
-entry-count/value-length caps.
+Each pick adds a signed line **and** an `allocations` entry, and
+`enforceMetadataLimits` (`src/shared/payment-helpers.ts`) currently
+length-checks `items`, answer ids, `modifiers`, the packed field, and the
+entry count — but **not** `allocations`. Choice slots make `allocations` the
+fastest-growing field, so it must join the per-value length check (with an
+over-cap regression test), or a large multi-slot checkout fails with a raw
+provider error instead of the app's user-facing "book in smaller batches"
+message. Per `booking-unification.md`, also add limit tests asserting a
+multi-slot, multi-pick package stays within Square's entry-count/value-length
+caps.
 
 ## Semantics (accepted, to document)
 
@@ -212,21 +250,28 @@ entry-count/value-length caps.
 - **Admin:** the slot configuration accepted via *every* save path (group
   edit/add-listings, listing save, children form, JSON API, both duplicate
   paths); pay-more/daily/nested/package-member candidates rejected from each;
-  hidden-package × slot rejected both directions.
+  a listing that is itself a **child** under another parent rejected as a
+  member; hidden-package × slot rejected both directions.
 - **Fold:** pick-counts enforced exactly at `packageQty ∈ {1, 2}` ×
   `pickCount ∈ {1, 2}` (regression on a doubled/missing multiplier); mixed
   picks across candidates; repeat picks; tampered candidate ids rejected.
 - **Pricing:** slot `OVERRIDE` per pick + candidate supplement at own price;
   running total (`/calculate`) matches submit matches webhook re-price.
 - **Capacity:** package cap clamped by `⌊candidate combined cap ÷ pickCount⌋`;
-  shared capped pools between candidates and members; a sold-out candidate
-  set ⇒ package sold out everywhere discovery looks (cards, `/order.js`,
-  feeds, API, QR) in lockstep with the ticket page.
+  a candidate and a fixed member sharing one capped pool cap at the *joint*
+  per-package demand (the 2-remaining example above yields 1, not 2); a
+  sold-out candidate set ⇒ package sold out everywhere discovery looks
+  (cards, `/order.js`, feeds, API, QR) in lockstep with the ticket page.
+- **Client enhancement:** with only `package_quantity` set (no
+  `quantity_<id>` controls), a slot's candidate-scoped questions show/require
+  and the required child total reads `pickCount × packageQty`.
 - **Webhook:** removing a candidate/slot edge mid-checkout ⇒ `price_changed`;
   allocations persist one row per (candidate, slot) with `package_group_id`.
 - **Display/privacy:** package ticket card groups slot + chosen candidates;
   no surface names a candidate of a (rejected) hidden configuration.
-- **Metadata budget:** a 3-slot, multi-pick package within provider caps.
+- **Metadata budget:** a 3-slot, multi-pick package within provider caps; an
+  over-cap `allocations` blob surfaces the batching `PaymentUserError`, not a
+  provider rejection.
 
 ## Phasing
 
