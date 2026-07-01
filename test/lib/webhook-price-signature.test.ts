@@ -414,15 +414,13 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     );
   });
 
-  // ---- v2 edge revalidation + v1 drain bridge (Phase 2d) --------------------
+  // ---- signed-edge revalidation ---------------------------------------------
 
-  /** A signed session booking `child` under `parent` (the parent line, the folded
-   * child line, and the allocation). `mv` selects v2 (the edge-resolution walk)
-   * vs v1 (the read-only drain bridge). */
+  /** A signed session booking `child` under `parent`: the parent line, the folded
+   * child line, and the allocation that maps the child under the parent. */
   const signedParentChild = (
     parentId: number,
     childId: number,
-    mv: string,
   ): Record<string, string> =>
     signMeta(
       webhookMeta({
@@ -432,17 +430,16 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
           { e: parentId, p: 1000, q: 1 },
           { e: childId, p: 0, q: 1 },
         ]),
-        mv,
         name: "Buyer",
       }),
       1000,
     );
 
-  /** A child booked under `parentA` while it is also a child of `parentB`, then
-   * re-parented so only `parentB` keeps it — the child stays *reachable* (so the
-   * per-item add-on check passes) but the signed `parentA→child` edge is gone.
-   * Only the v2 nodeKey walk can catch this swap. Returns the signed session. */
-  const setupReparentedChild = async (mv: string) => {
+  test("a booking whose signed child edge was re-parented mid-checkout is stored and refunded", async () => {
+    // The child is booked under parentA while also a child of parentB, then
+    // re-parented so only parentB keeps it: the child stays reachable (so the
+    // per-item add-on check passes) but its signed parentA→child edge is gone,
+    // which only the nodeKey walk can catch.
     await setupStripe();
     const parentA = await createTestListing({
       maxAttendees: 50,
@@ -455,31 +452,14 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     const child = await createTestListing({ maxAttendees: 50, unitPrice: 0 });
     await setChildIds(parentA.id, [child.id]);
     await setChildIds(parentB.id, [child.id]);
-    const metadata = signedParentChild(parentA.id, child.id, mv);
-    // Operator drops parentA→child mid-checkout; parentB still offers the child,
-    // so the child is still reachable and only its signed edge has drifted.
+    const metadata = signedParentChild(parentA.id, child.id);
     await setChildIds(parentA.id, []);
-    return { metadata, parentA };
-  };
-
-  test("a v2 session whose signed child edge was re-parented mid-checkout is stored and refunded", async () => {
-    const { metadata, parentA } = await setupReparentedChild("2");
-    await runWebhook({ id: "cs_v2_edge_swap", metadata }, () =>
+    await runWebhook({ id: "cs_edge_swap", metadata }, () =>
       expectStoredRefund(parentA.id),
     );
   });
 
-  test("a v1 (pre-cutover) session with the same re-parented child still processes via the drain bridge", async () => {
-    // No `mv`: an old-shape session that predates the v2 cutover. The webhook
-    // skips the edge walk and fulfils it as before, booking the child under the
-    // signed parent even though that edge has since drifted.
-    const { metadata, parentA } = await setupReparentedChild("");
-    await runWebhook({ id: "cs_v1_edge_swap", metadata }, () =>
-      expectProcessed(parentA.id),
-    );
-  });
-
-  test("a v2 parent+child booking with intact edges processes (the edge walk finds no drift)", async () => {
+  test("a parent+child booking with intact edges processes (the edge walk finds no drift)", async () => {
     await setupStripe();
     const parent = await createTestListing({
       maxAttendees: 50,
@@ -487,32 +467,30 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     });
     const child = await createTestListing({ maxAttendees: 50, unitPrice: 0 });
     await setChildIds(parent.id, [child.id]);
-    // Edge left intact: the walk reconstructs the child's nodeKey and finds it
-    // still resolves, so the order books normally.
-    const metadata = signedParentChild(parent.id, child.id, "2");
-    await runWebhook({ id: "cs_v2_intact", metadata }, () =>
+    const metadata = signedParentChild(parent.id, child.id);
+    await runWebhook({ id: "cs_edge_intact", metadata }, () =>
       expectProcessed(parent.id),
     );
   });
 
-  test("a v2 package booking with a matching bundle processes (the edge walk finds no drift)", async () => {
+  test("a package booking with a matching bundle processes (the edge walk finds no drift)", async () => {
     const { group, listing } = await setupPackage();
-    // A v2 package line carries its edge (k:"p", r=group id); the walk rebuilds
-    // the package tree, finds the member's nodeKey resolves, and books it.
+    // A package line carries its edge (k:"p", r=group id); the walk rebuilds the
+    // package tree, finds the member's nodeKey resolves, and books it.
     const metadata = signMeta(
       webhookMeta({
         email: "buyer@example.com",
         items: JSON.stringify([
           { e: listing.id, k: "p", p: 1500, q: 1, r: group.id },
         ]),
-        mv: "2",
         name: "Buyer",
         package_group_id: String(group.id),
       }),
       1500,
     );
-    await runWebhook({ amount_total: 1500, id: "cs_v2_pkg_ok", metadata }, () =>
-      expectProcessed(listing.id),
+    await runWebhook(
+      { amount_total: 1500, id: "cs_pkg_edge_ok", metadata },
+      () => expectProcessed(listing.id),
     );
   });
 
@@ -873,12 +851,15 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     return { group, listing };
   };
 
-  /** Signed metadata for a one-line package booking at `price` (the override). */
+  /** Signed metadata for a one-line package booking at `price` (the override).
+   * The line carries its package edge (k:"p", r=group id), as the checkout emits. */
   const packageMetadata = (groupId: number, listingId: number, price: number) =>
     signMeta(
       webhookMeta({
         email: "buyer@example.com",
-        items: singleItem(listingId, 1, price),
+        items: JSON.stringify([
+          { e: listingId, k: "p", p: price, q: 1, r: groupId },
+        ]),
         name: "Buyer",
         package_group_id: String(groupId),
       }),

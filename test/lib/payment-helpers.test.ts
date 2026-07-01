@@ -1188,7 +1188,7 @@ describeWithEnv(
   },
 );
 
-describe("v2 metadata budget (Phase 2d)", () => {
+describe("signed metadata budget", () => {
   test("a package order with a folded child fits Square's entry and value caps", async () => {
     const members = [11, 12, 13, 14, 15];
     const items: CheckoutIntent["items"] = [

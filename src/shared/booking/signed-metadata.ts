@@ -10,16 +10,14 @@ import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import type { BookingItem } from "#shared/payments.ts";
 
 /**
- * v2 signed-metadata edge provenance (Phase 2d).
+ * Signed-metadata edge provenance.
  *
- * A v1 signed line was `{e,q,p}` (listing id, quantity, line total) — keyed by
- * listing id alone, so the webhook could re-price a line but never tell *how* the
- * listing hung off the order. v2 tags each top-level line with a compact edge so
- * the webhook can reconstruct the line's canonical {@link BookingTree} `nodeKey`
- * and re-check it still resolves against current config — catching an operator
- * who removed or swapped an edge (a package member, a required child) while the
- * buyer's checkout was open. The tag is deliberately tiny (`k` one char, `r` a
- * group id) so nested-package metadata still fits the provider entry/value caps.
+ * A signed line tags each top-level line with a compact edge so the webhook can
+ * reconstruct the line's canonical {@link BookingTree} `nodeKey` and re-check it
+ * still resolves against current config — catching an operator who removed or
+ * swapped an edge (a package member, a required child) while the buyer's checkout
+ * was open. The tag is deliberately tiny (`k` one char, `r` a group id) so
+ * nested-package metadata still fits the provider entry/value caps.
  *
  * Only a *package member* top-level line needs a tag: a standalone (or regular
  * group) line reconstructs to `listing:<id>` and a folded child is carried in the
@@ -29,13 +27,8 @@ import type { BookingItem } from "#shared/payments.ts";
  * regular group books its members as standalone listing lines.
  */
 
-/** The `mv` (metadata version) value emitted on every new session. Its presence
- * routes the webhook to the v2 edge-resolution walk; its absence marks a
- * pre-cutover v1 session for the read-only drain bridge. */
-export const SIGNED_METADATA_VERSION = "2";
-
-/** The compact edge fields spread onto a v2 {@link BookingItem}: a package
- * member carries `k:"p"` and its group id in `r`; everything else is untagged. */
+/** The compact edge fields spread onto a {@link BookingItem}: a package member
+ * carries `k:"p"` and its group id in `r`; everything else is untagged. */
 export const signedEdgeFor = (
   packageGroupId: number | undefined,
   isFoldedChild: boolean,

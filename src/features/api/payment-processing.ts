@@ -49,10 +49,7 @@ import { bookingDateFields } from "#routes/public/ticket-payment.ts";
 import { htmlResponse, paymentErrorResponse } from "#routes/response.ts";
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import {
-  edgeDrifted,
-  SIGNED_METADATA_VERSION,
-} from "#shared/booking/signed-metadata.ts";
+import { edgeDrifted } from "#shared/booking/signed-metadata.ts";
 import type { BookingTree } from "#shared/booking/tree.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
@@ -694,13 +691,13 @@ export const packageBundleMismatch = (
   return counts.size > 1;
 };
 
-/** Rebuild the order's booking tree from CURRENT config so the v2 revalidation
- * walk can re-check each signed line's `nodeKey` still resolves (Phase 2d). The
- * top-level nodes reuse the item rows already loaded this request; the required-
- * child edges are reloaded fresh, so a parent→child edge removed or swapped
- * mid-checkout drops that child's `nodeKey` from the tree. `nodeKey`s depend only
- * on membership/edge structure, not availability or price, so the rows are
- * wrapped without re-resolving capacity. */
+/** Rebuild the order's booking tree from CURRENT config so the revalidation walk
+ * can re-check each signed line's `nodeKey` still resolves. The top-level nodes
+ * reuse the item rows already loaded this request; the required-child edges are
+ * reloaded fresh, so a parent→child edge removed or swapped mid-checkout drops
+ * that child's `nodeKey` from the tree. `nodeKey`s depend only on membership/edge
+ * structure, not availability or price, so the rows are wrapped without
+ * re-resolving capacity. */
 const currentOrderTree = async (
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
@@ -729,19 +726,16 @@ const currentOrderTree = async (
   });
 };
 
-/** Whether a v2 session's signed lines no longer resolve against current config
- * — a required child (or package member) whose edge the operator removed/swapped
- * mid-checkout. Only runs for a v2 (`mv`) session that actually carries edges to
- * re-check (folded children or a package); a v1 session skips it entirely (the
- * read-only drain bridge), and a childless standalone order has no edge to drift.
- * Package-membership and per-line price drift are still caught by
+/** Whether the signed lines no longer resolve against current config — a required
+ * child (or package member) whose edge the operator removed/swapped mid-checkout.
+ * Only walks an order that actually carries edges to re-check (folded children or
+ * a package); a childless standalone order has no edge to drift. Package-
+ * membership and per-line price drift are still caught by
  * {@link packageBundleMismatch}/{@link expectedItemPrice}. */
-const v2EdgeDrifted = async (
-  session: ValidatedPaymentSession,
+const orderEdgeDrifted = async (
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
 ): Promise<boolean> => {
-  if (session.metadata.mv !== SIGNED_METADATA_VERSION) return false;
   if (
     (intent.allocations?.length ?? 0) === 0 &&
     intent.packageGroupId === undefined
@@ -813,7 +807,7 @@ const validateAllItems = async (
   if (
     staleHiddenMember ||
     (pkg && packageBundleMismatch(pkg, intent.items, foldedChildIds)) ||
-    (await v2EdgeDrifted(session, intent, validatedItems))
+    (await orderEdgeDrifted(intent, validatedItems))
   ) {
     return {
       items: validatedItems.map((v) => ({ ...v, expectedPrice: null })),

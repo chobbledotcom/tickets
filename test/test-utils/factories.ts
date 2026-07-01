@@ -252,7 +252,6 @@ export const webhookMeta = (
   email: "",
   items: "",
   modifiers: "",
-  mv: "",
   package_group_id: "",
   phone: "",
   price_proof: "",

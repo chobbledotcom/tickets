@@ -4,10 +4,7 @@
  */
 
 import { lazyRef, map } from "#fp";
-import {
-  SIGNED_METADATA_VERSION,
-  signedEdgeFor,
-} from "#shared/booking/signed-metadata.ts";
+import { signedEdgeFor } from "#shared/booking/signed-metadata.ts";
 import type {
   ExtraLine,
   PricedLine,
@@ -355,7 +352,6 @@ export const buildMetadata = (
   _origin: getEffectiveDomain(),
   email: intent.email,
   items: JSON.stringify(intent.items),
-  mv: SIGNED_METADATA_VERSION,
   name: intent.name,
   ...optionalFields(intent),
   ...listingAnswerIdsField(intent.listingAnswerIds),
@@ -445,7 +441,6 @@ const PACKED_KEYS = [
   "balance_attendee_id",
   "site_token_index",
   "package_group_id",
-  "mv",
 ] as const;
 
 /** The single metadata key the packed small fields are stored under. */
@@ -597,7 +592,6 @@ export const extractSessionMetadata = (
     email: get("email"),
     items: get("items"),
     modifiers: get("modifiers"),
-    mv: get("mv"),
     name: metadata.name,
     package_group_id: get("package_group_id"),
     phone: get("phone"),

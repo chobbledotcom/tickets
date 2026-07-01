@@ -114,7 +114,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           metadata: signMeta(
             {
               email: "pkgpaid@example.com",
-              items: singleItem(member.id, 1, 1000),
+              items: JSON.stringify([
+                { e: member.id, k: "p", p: 1000, q: 1, r: group.id },
+              ]),
               name: "Pkg Payer",
               package_group_id: String(group.id),
             },

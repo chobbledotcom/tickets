@@ -4,7 +4,6 @@ import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import {
   edgeDrifted,
   lineNodeKey,
-  SIGNED_METADATA_VERSION,
   signedEdgeFor,
   treeNodeKeys,
 } from "#shared/booking/signed-metadata.ts";
@@ -32,12 +31,6 @@ const packageWithChild = (): BookingTree =>
 const memberLine: BookingItem = { e: 5, k: "p", p: 100, q: 1, r: 3 };
 const childLine: BookingItem = { e: 9, p: 50, q: 1 };
 const childAlloc: ChildAllocation = { childId: 9, parentId: 5, qty: 1 };
-
-describe("SIGNED_METADATA_VERSION", () => {
-  test("is the v2 marker", () => {
-    expect(SIGNED_METADATA_VERSION).toBe("2");
-  });
-});
 
 describe("signedEdgeFor", () => {
   test("tags a package member's top-level line", () => {

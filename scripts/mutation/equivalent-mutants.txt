@@ -141,4 +141,4 @@ src/shared/booking/capacity-tree.ts:45:66  ?? → ||    # groupIdsByListingId.ge
 src/shared/booking/capacity-tree.ts:47:61  ?? → ||    # demandByGroup.get(): undefined (first member) or a running per-package demand ≥1, never 0, so ?? and || coincide
 
 # v2 signed metadata (Phase 2d).
-src/shared/payment-helpers.ts:162:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts:159:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
