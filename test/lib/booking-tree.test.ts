@@ -280,6 +280,27 @@ describe("buildBookingTree — package members", () => {
     });
     expect(tree.nodes[0]!.visibility).toBe("SHOWN");
   });
+
+  test("a package member that is a parent nests its required children", () => {
+    // The doc's model: a package member-parent is "a FIXED member node that
+    // itself has a child node" — the child edge must not be dropped for packages.
+    const tree = buildBookingTree({
+      childrenByParentId: new Map([[7, [resolved({ id: 20, slug: "kid20" })]]]),
+      groupId: 3,
+      isPackage: true,
+      listings: [resolved({ id: 7, slug: "tent1" })],
+      packageQuantities: new Map([[7, 1]]),
+      slugs: ["tent1"],
+    });
+    const member = tree.nodes[0]!;
+    expect(member.quantityRule).toEqual({ kind: "FIXED", qty: 1 });
+    expect(member.children).toHaveLength(1);
+    expect(member.children[0]!.nodeKey).toBe("parent:7/child:20");
+    expect(member.children[0]!.edgeRef).toEqual({
+      kind: "parent_child",
+      parentId: 7,
+    });
+  });
 });
 
 describe("buildBookingTree — price rule precedence", () => {

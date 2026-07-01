@@ -94,6 +94,17 @@ const buildChildNode =
     visibility: child.listing.hidden ? "HIDDEN" : "SHOWN",
   });
 
+/** The required-child nodes of `parentId`, or none when it has no children —
+ * shared by every node kind so a parent is just a node with `children`,
+ * including a package member that is itself a parent (the old "auto-include"). */
+const buildChildren = (
+  input: BuildTreeInput,
+  parentId: number,
+): BookingNode[] =>
+  map(buildChildNode(parentId))([
+    ...(input.childrenByParentId?.get(parentId) ?? []),
+  ]);
+
 /** Build one top-level node for a standalone/cart/regular-group member, wiring in
  * any required children so a parent is just a node with `children`. */
 const buildListingNode = (
@@ -101,7 +112,6 @@ const buildListingNode = (
   info: TicketListing,
 ): BookingNode => {
   const { listing } = info;
-  const children = input.childrenByParentId?.get(listing.id) ?? [];
   const edgeRef =
     input.groupId === undefined
       ? ({ kind: "none" } as const)
@@ -111,7 +121,7 @@ const buildListingNode = (
       ? listingNodeKey(listing.id)
       : groupMemberNodeKey(input.groupId, listing.id);
   return {
-    children: map(buildChildNode(listing.id))([...children]),
+    children: buildChildren(input, listing.id),
     dateSpan: ownDateSpan(undefined),
     edgeRef,
     listing,
@@ -138,7 +148,7 @@ const buildPackageMemberNode =
       : "SHOWN";
     const quantityRule: QuantityRule = { kind: "FIXED", qty: fixedQty };
     return {
-      children: [],
+      children: buildChildren(input, listing.id),
       dateSpan: ownDateSpan(undefined),
       edgeRef: { groupId, kind: "group_member" },
       listing,
