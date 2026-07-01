@@ -48,6 +48,12 @@ import {
 import { bookingDateFields } from "#routes/public/ticket-payment.ts";
 import { htmlResponse, paymentErrorResponse } from "#routes/response.ts";
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
+import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import {
+  edgeDrifted,
+  SIGNED_METADATA_VERSION,
+} from "#shared/booking/signed-metadata.ts";
+import type { BookingTree } from "#shared/booking/tree.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import {
@@ -77,6 +83,7 @@ import {
   groupsTable,
   packageMemberMaps,
 } from "#shared/db/groups.ts";
+import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
@@ -119,6 +126,7 @@ import { bookingLedgerDisposition } from "#shared/session-ledger.ts";
 import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { paymentCancelPage } from "#templates/payment.tsx";
+import { buildTicketListing } from "#templates/public/shared.tsx";
 
 /** User-facing message when the listing price changed between checkout and payment */
 const PRICE_CHANGED_MESSAGE =
@@ -686,6 +694,67 @@ export const packageBundleMismatch = (
   return counts.size > 1;
 };
 
+/** Rebuild the order's booking tree from CURRENT config so the v2 revalidation
+ * walk can re-check each signed line's `nodeKey` still resolves (Phase 2d). The
+ * top-level nodes reuse the item rows already loaded this request; the required-
+ * child edges are reloaded fresh, so a parent→child edge removed or swapped
+ * mid-checkout drops that child's `nodeKey` from the tree. `nodeKey`s depend only
+ * on membership/edge structure, not availability or price, so the rows are
+ * wrapped without re-resolving capacity. */
+const currentOrderTree = async (
+  intent: BookingIntent,
+  validatedItems: ValidatedItem[],
+): Promise<BookingTree> => {
+  const foldedChildIds = new Set(
+    (intent.allocations ?? []).map((a) => a.childId),
+  );
+  const topLevel = validatedItems
+    .filter((v) => !foldedChildIds.has(v.item.e))
+    .map((v) => buildTicketListing(v.listing, false, undefined));
+  const childRows = await getChildrenForParents(
+    topLevel.map((t) => t.listing.id),
+  );
+  const childrenByParentId = new Map(
+    [...childRows].map(([parentId, rows]) => [
+      parentId,
+      rows.map((r) => buildTicketListing(r, false, undefined)),
+    ]),
+  );
+  return buildBookingTree({
+    childrenByParentId,
+    groupId: intent.packageGroupId,
+    isPackage: intent.packageGroupId !== undefined,
+    listings: topLevel,
+    slugs: [],
+  });
+};
+
+/** Whether a v2 session's signed lines no longer resolve against current config
+ * — a required child (or package member) whose edge the operator removed/swapped
+ * mid-checkout. Only runs for a v2 (`mv`) session that actually carries edges to
+ * re-check (folded children or a package); a v1 session skips it entirely (the
+ * read-only drain bridge), and a childless standalone order has no edge to drift.
+ * Package-membership and per-line price drift are still caught by
+ * {@link packageBundleMismatch}/{@link expectedItemPrice}. */
+const v2EdgeDrifted = async (
+  session: ValidatedPaymentSession,
+  intent: BookingIntent,
+  validatedItems: ValidatedItem[],
+): Promise<boolean> => {
+  if (session.metadata.mv !== SIGNED_METADATA_VERSION) return false;
+  if (
+    (intent.allocations?.length ?? 0) === 0 &&
+    intent.packageGroupId === undefined
+  ) {
+    return false;
+  }
+  return edgeDrifted(
+    await currentOrderTree(intent, validatedItems),
+    intent.items,
+    intent.allocations ?? [],
+  );
+};
+
 /** Validate all booking items and return per-item pricing info or a failure result. */
 const validateAllItems = async (
   session: ValidatedPaymentSession,
@@ -743,7 +812,8 @@ const validateAllItems = async (
   // refund rather than booking a partial/stale bundle.
   if (
     staleHiddenMember ||
-    (pkg && packageBundleMismatch(pkg, intent.items, foldedChildIds))
+    (pkg && packageBundleMismatch(pkg, intent.items, foldedChildIds)) ||
+    (await v2EdgeDrifted(session, intent, validatedItems))
   ) {
     return {
       items: validatedItems.map((v) => ({ ...v, expectedPrice: null })),

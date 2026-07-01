@@ -49,8 +49,24 @@ export type ModifierSpec = {
   quantity: number;
 };
 
-/** Compact booking item stored in session metadata (serialized/deserialized as JSON) */
-export type BookingItem = { e: number; q: number; p: number };
+/**
+ * Compact booking item stored in session metadata (serialized/deserialized as
+ * JSON): listing id (`e`), quantity (`q`), line total in minor units (`p`).
+ *
+ * v2 (Phase 2d) tags a top-level line with its edge provenance so the webhook can
+ * reconstruct the line's canonical booking-tree `nodeKey` and re-check it still
+ * resolves: `k` is the edge kind (`"p"` package member, `"g"` group member — see
+ * signed-metadata.ts) and `r` the group id it hangs off. Both are absent on a
+ * standalone line and on a v1 (untagged) line, keeping the wire shape a strict
+ * superset so the drain bridge parses old sessions unchanged.
+ */
+export type BookingItem = {
+  e: number;
+  q: number;
+  p: number;
+  k?: "p" | "g";
+  r?: number;
+};
 
 /** Compact modifier reference stored in session metadata: the modifier id and
  * the quantity taken. The webhook re-fetches the modifier by id and re-derives
@@ -193,6 +209,11 @@ export type SessionMetadata = {
    * one entry rather than two, to stay within providers' metadata-entry caps
    * (Square allows only 10). "" only on legacy/unsigned sessions. */
   price_proof: string;
+  /** Metadata format version. "2" marks a session whose lines carry per-node
+   * edge provenance (Phase 2d), so the webhook runs the tree edge-resolution
+   * walk. "" (absent) is a pre-cutover v1 session, fulfilled by the read-only
+   * drain bridge (its lines re-price but skip the edge walk). */
+  mv: string;
 };
 
 /** Schema for valid payment status values. "failed" is a terminal non-payment

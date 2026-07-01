@@ -139,3 +139,6 @@ src/shared/booking/fold-tree.ts:444:41  ?? → ||    # dayCount: customisableDur
 src/shared/booking/price-tree.ts:37:44  ?? → ||    # effectivePrice DAY_PRICE: dayPriceFor returns a day price or null; a configured 0 and null both map to 0, so ?? and || coincide
 src/shared/booking/capacity-tree.ts:45:66  ?? → ||    # groupIdsByListingId.get(): number[]|undefined — an array is always truthy, undefined→[] either way
 src/shared/booking/capacity-tree.ts:47:61  ?? → ||    # demandByGroup.get(): undefined (first member) or a running per-package demand ≥1, never 0, so ?? and || coincide
+
+# v2 signed metadata (Phase 2d).
+src/shared/payment-helpers.ts:162:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way

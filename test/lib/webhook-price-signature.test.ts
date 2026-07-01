@@ -7,6 +7,7 @@ import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import { execute } from "#shared/db/client.ts";
 import { groupsTable, setGroupPackageMembers } from "#shared/db/groups.ts";
+import { setChildIds } from "#shared/db/listing-parents.ts";
 import { deleteListing, listingsTable } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
@@ -410,6 +411,71 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
         await expectStoredRefund(listing.id);
         expect(refund.calls.length).toBe(1);
       },
+    );
+  });
+
+  // ---- v2 edge revalidation + v1 drain bridge (Phase 2d) --------------------
+
+  /** A signed session booking `child` under `parent` (the parent line, the folded
+   * child line, and the allocation). `mv` selects v2 (the edge-resolution walk)
+   * vs v1 (the read-only drain bridge). */
+  const signedParentChild = (
+    parentId: number,
+    childId: number,
+    mv: string,
+  ): Record<string, string> =>
+    signMeta(
+      webhookMeta({
+        allocations: JSON.stringify([{ childId, parentId, qty: 1 }]),
+        email: "buyer@example.com",
+        items: JSON.stringify([
+          { e: parentId, p: 1000, q: 1 },
+          { e: childId, p: 0, q: 1 },
+        ]),
+        mv,
+        name: "Buyer",
+      }),
+      1000,
+    );
+
+  /** A child booked under `parentA` while it is also a child of `parentB`, then
+   * re-parented so only `parentB` keeps it — the child stays *reachable* (so the
+   * per-item add-on check passes) but the signed `parentA→child` edge is gone.
+   * Only the v2 nodeKey walk can catch this swap. Returns the signed session. */
+  const setupReparentedChild = async (mv: string) => {
+    await setupStripe();
+    const parentA = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    const parentB = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    const child = await createTestListing({ maxAttendees: 50, unitPrice: 0 });
+    await setChildIds(parentA.id, [child.id]);
+    await setChildIds(parentB.id, [child.id]);
+    const metadata = signedParentChild(parentA.id, child.id, mv);
+    // Operator drops parentA→child mid-checkout; parentB still offers the child,
+    // so the child is still reachable and only its signed edge has drifted.
+    await setChildIds(parentA.id, []);
+    return { metadata, parentA };
+  };
+
+  test("a v2 session whose signed child edge was re-parented mid-checkout is stored and refunded", async () => {
+    const { metadata, parentA } = await setupReparentedChild("2");
+    await runWebhook({ id: "cs_v2_edge_swap", metadata }, () =>
+      expectStoredRefund(parentA.id),
+    );
+  });
+
+  test("a v1 (pre-cutover) session with the same re-parented child still processes via the drain bridge", async () => {
+    // No `mv`: an old-shape session that predates the v2 cutover. The webhook
+    // skips the edge walk and fulfils it as before, booking the child under the
+    // signed parent even though that edge has since drifted.
+    const { metadata, parentA } = await setupReparentedChild("");
+    await runWebhook({ id: "cs_v1_edge_swap", metadata }, () =>
+      expectProcessed(parentA.id),
     );
   });
 
