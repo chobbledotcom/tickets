@@ -36,12 +36,20 @@ import { noTunnel, startTunnel } from "./tunnel.ts";
  * the browser) is invisible in the job output. Surfacing it makes the job log
  * self-diagnosing without downloading artifacts.
  */
-const dumpServerLog = (logPath: string, lines = 40): void => {
+const dumpServerLog = (logPath: string, lines = 20): void => {
   try {
     const all = readFileSync(logPath, "utf8").split("\n");
-    const tail = all.slice(-lines).join("\n");
-    warn(`----- app server log (last ${lines} lines of ${logPath}) -----`);
-    console.error(tail);
+    // The app logs one SQL statement per line, so a raw tail is almost all
+    // noise. Pull out the lines that actually explain a failure — provider
+    // API calls and errors — then add a short tail for surrounding context.
+    const RELEVANT =
+      /error|declin|fail|invalid|\[payment\]|\[stripe\]|\[square\]|\[sumup\]/i;
+    const IGNORE = /\[SQL\]|\[Request\]/i;
+    const signal = all.filter((l) => RELEVANT.test(l) && !IGNORE.test(l));
+    warn(`----- app server log: relevant lines (${logPath}) -----`);
+    console.error((signal.length ? signal : all.slice(-lines)).join("\n"));
+    warn(`----- app server log: last ${lines} lines -----`);
+    console.error(all.slice(-lines).join("\n"));
     warn("----- end app server log -----");
   } catch (err) {
     warn(`could not read app server log ${logPath}: ${String(err)}`);

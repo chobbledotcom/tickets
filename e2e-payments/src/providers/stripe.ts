@@ -1,7 +1,7 @@
 import type { Page } from "playwright";
 import type { BrowserSession } from "../browser.ts";
 import { log, warn } from "../log.ts";
-import { clickFirst, fillCard, fillFirst, fillFrameInput } from "./card.ts";
+import { clickFirst, fillCard } from "./card.ts";
 import { assertConfigured, selectProvider } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
 
@@ -32,64 +32,21 @@ export const stripe: PaymentProvider = {
   payHostedCheckout: async (page: Page): Promise<void> => {
     log("Filling Stripe Checkout hosted page…");
     await page.waitForLoadState("domcontentloaded");
-    // Stripe Checkout renders the card fields as separate iframes titled
-    // "Secure card number/expiration date/CVC input frame", each holding an
-    // input named cardnumber/exp-date/cvc. Target those by frame title first;
-    // fall back to the generic filler if Stripe serves a single-frame variant.
-    const usedFrames = await fillFrameInput(
-      page,
-      "card number",
-      ["card number input"],
-      'input[name="cardnumber"], input[autocomplete="cc-number"]',
-      "4242424242424242",
-      10_000,
-    );
-    if (usedFrames) {
-      await fillFrameInput(
-        page,
-        "expiry",
-        ["expiration date input"],
-        'input[name="exp-date"], input[autocomplete="cc-exp"]',
-        "12 / 34",
-      );
-      await fillFrameInput(
-        page,
-        "cvc",
-        ["CVC input", "CVV input"],
-        'input[name="cvc"], input[autocomplete="cc-csc"]',
-        "123",
-      );
-      // Cardholder name and postal are top-level fields on Checkout (US ZIP to
-      // match the account's billing country — see note above).
-      await fillFirst(
-        page,
-        "name on card",
-        ['input[autocomplete="cc-name"]', 'input[name="billingName"]', "#billingName"],
-        "E2E Tester",
-        { required: false },
-      );
-      await fillFirst(
-        page,
-        "postal code",
-        [
-          'input[autocomplete="billing postal-code"]',
-          'input[autocomplete="postal-code"]',
-          'input[name="billingPostalCode"]',
-          "#billingPostalCode",
-        ],
-        "42424",
-        { required: false },
-      );
-    } else {
-      // Email is prefilled from the booking, so it is not filled here.
-      await fillCard(page, {
-        number: "4242424242424242",
-        expiry: "12 / 34",
-        cvc: "123",
-        name: "E2E Tester",
-        postal: "42424",
-      });
-    }
+    // Stripe's hosted Checkout (checkout.stripe.com) exposes the card fields via
+    // the WHATWG cc-* autocomplete tokens the generic filler tries first — it is
+    // NOT the split "Secure card number input frame" iframes of embedded Stripe
+    // Elements, so no frameLocator is needed here. Email is prefilled from the
+    // booking; US ZIP to match the account's billing country (see note above).
+    await fillCard(page, {
+      number: "4242424242424242",
+      expiry: "12 / 34",
+      cvc: "123",
+      name: "E2E Tester",
+      postal: "42424",
+    });
+    // Let Stripe validate the freshly-typed fields before submitting, otherwise
+    // Pay can fire while the card is still "incomplete" and silently no-op.
+    await page.waitForTimeout(1_000);
     await clickFirst(page, "pay button", [
       'button[data-testid="hosted-payment-submit-button"]',
       ".SubmitButton",

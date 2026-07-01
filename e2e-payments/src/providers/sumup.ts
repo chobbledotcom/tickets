@@ -19,8 +19,11 @@ import type { PaymentProvider } from "./types.ts";
  * CVV. Docs: https://developer.sumup.com/online-payments/tools/test-cards
  */
 
+// SumUp sandbox Visa that succeeds with frictionless (no 3DS challenge)
+// authentication. 4000…0002 is a DECLINE card ("Payment Declined").
+// Docs: https://developer.sumup.com/online-payments/testing
 const CARD = {
-  number: "4000000000000002",
+  number: "4200000000000091",
   expiry: "12/34",
   cvc: "123",
   name: "E2E Tester",

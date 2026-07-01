@@ -157,6 +157,40 @@ export const assertFreeThankYou = async (
 };
 
 /**
+ * Scrape any visible error/notification text off a hosted checkout page (the
+ * main frame and its payment iframes). Hosted pages surface the real reason a
+ * payment stalled — "Your card number is incomplete", "Payment declined" — in
+ * small alert/notification nodes that are drowned out by the page's country
+ * <select>, so target likely error containers and keyword hits directly.
+ */
+const collectHostedErrors = async (
+  session: BrowserSession,
+): Promise<string> => {
+  const { page } = session;
+  const selector = [
+    '[role="alert"]',
+    ".error",
+    '[class*="error" i]',
+    '[class*="invalid" i]',
+    '[class*="Notification" i]',
+    '[class*="Message" i]',
+  ].join(", ");
+  const seen = new Set<string>();
+  for (const root of [page, ...page.frames()]) {
+    try {
+      const texts = await root.locator(selector).allInnerTexts();
+      for (const t of texts) {
+        const clean = t.trim().replace(/\s+/g, " ");
+        if (clean && clean.length < 200) seen.add(clean);
+      }
+    } catch {
+      // frame detached mid-scrape; skip
+    }
+  }
+  return [...seen].join(" | ");
+};
+
+/**
  * After returning from a hosted checkout, confirm the booking is recorded as
  * paid: the customer sees a success/ticket page, and the admin listing shows
  * the booker with a captured amount.
@@ -180,8 +214,11 @@ export const assertPaidBookingConfirmed = async (
   const successBody = await session.bodyText();
   if (!/thank you|your ticket|payment (received|successful)|success/i.test(successBody)) {
     await session.screenshot("paid-return-page");
+    const hostedError = await collectHostedErrors(session);
     throw new Error(
-      `did not land on a success page after checkout.\nURL: ${page.url()}\n${successBody.slice(0, 800)}`,
+      `did not land on a success page after checkout.\nURL: ${page.url()}\n` +
+        (hostedError ? `Checkout page error(s): ${hostedError}\n` : "") +
+        successBody.slice(0, 500),
     );
   }
   log(`  ✔ customer saw the success page (${page.url()})`);
