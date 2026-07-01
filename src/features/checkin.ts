@@ -90,14 +90,17 @@ const handleCheckinPost = (
     withLookup(tokens, async (entries) => {
       const checkedIn = form.get("check_in") === "true";
       const decrypted = await decryptEntries(entries);
-      const eligible = filter((e: TokenEntry) => !e.attendee.refunded)(
-        decrypted,
-      ).map((e) => e.attendee);
+      // Refunded rows are never touched, and purchase-only ("No Check-In")
+      // listings' rows are excluded too — a package QR shared with a checkable
+      // member must not silently mark the no-check-in member as attended.
+      const eligible = filter(
+        (e: TokenEntry) => !e.attendee.refunded && !e.listing.purchase_only,
+      )(decrypted).map((e) => e.attendee);
 
       if (eligible.length === 0) {
         return redirectResponse(
           `/checkin/${tokens.join("+")}?message=${encodeURIComponent(
-            "Cannot check in refunded tickets",
+            "No tickets on this token can be checked in",
           )}`,
         );
       }
