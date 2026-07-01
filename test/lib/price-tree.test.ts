@@ -69,7 +69,7 @@ describe("effectivePrice", () => {
     expect(effectivePrice({ kind: "DAY_PRICE" }, l, new Map(), 3)).toBe(0);
   });
 
-  test("BASE returns the unit price", () => {
+  test("BASE uses the unit price, or a seeded custom price (a signed QR override)", () => {
     expect(
       effectivePrice(
         { kind: "BASE" },
@@ -78,6 +78,15 @@ describe("effectivePrice", () => {
         1,
       ),
     ).toBe(500);
+    // A fixed-price listing carrying a QR-token override reads it from customPrices.
+    expect(
+      effectivePrice(
+        { kind: "BASE" },
+        listing({ unit_price: 500 }),
+        new Map([[7, 1500]]),
+        1,
+      ),
+    ).toBe(1500);
   });
 });
 

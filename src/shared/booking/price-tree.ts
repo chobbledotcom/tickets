@@ -14,16 +14,16 @@ import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
  */
 
 /** The per-ticket unit price (minor units) a node's `priceRule` resolves to:
- * `OVERRIDE` (the package price, including an explicit free `0`) wins, then
- * `PAY_MORE` (the buyer's submitted custom price, or `unit_price` when none —
- * note a genuine `0` custom price is honoured, not treated as "unset"), then
- * `DAY_PRICE` (the customisable day-count price), then `BASE` (`unit_price`).
- *
- * A listing is never both `customisable_days` and `can_pay_more` (mutually
- * exclusive at save — `listings-actions.ts`), so at most one of `PAY_MORE`/
- * `DAY_PRICE` ever applies to a given listing; their relative order is therefore
- * immaterial and this matches the checkout's customisable-first `itemUnitPrice`
- * for every reachable config. */
+ * `OVERRIDE` is the package price (including an explicit free `0`); `DAY_PRICE` is
+ * the customisable day-count price; `PAY_MORE` and `BASE` both read the
+ * `customPrices` map (falling back to `unit_price`, honouring a genuine `0`).
+ * `customPrices` carries the buyer's pay-more input for a `PAY_MORE` listing AND a
+ * signed QR-token override for a fixed-price `BASE` listing
+ * (`applyQrTokenOverride` seeds it), so a fixed listing under a QR token is priced
+ * by the override — exactly the checkout's old non-customisable
+ * `customPrices ?? unit_price`. A listing is never both `customisable_days` and
+ * `can_pay_more` (mutually exclusive at save — `listings-actions.ts`), so this
+ * matches the customisable-first `itemUnitPrice` for every reachable config. */
 export const effectivePrice = (
   priceRule: PriceRule,
   listing: ListingWithCount,
@@ -33,12 +33,11 @@ export const effectivePrice = (
   switch (priceRule.kind) {
     case "OVERRIDE":
       return priceRule.amountMinor;
-    case "PAY_MORE":
-      return customPrices.get(listing.id) ?? listing.unit_price;
     case "DAY_PRICE":
       return dayPriceFor(listing, dayCount) ?? 0;
     default:
-      return listing.unit_price;
+      // PAY_MORE (buyer's custom price) and BASE (fixed, optionally QR-overridden).
+      return customPrices.get(listing.id) ?? listing.unit_price;
   }
 };
 
