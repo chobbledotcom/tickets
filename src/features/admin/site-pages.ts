@@ -22,7 +22,7 @@ import {
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllGroupNames } from "#shared/db/groups.ts";
-import { getAllListingNames } from "#shared/db/listings.ts";
+import { getListingPickerNames } from "#shared/db/listings.ts";
 import {
   addPageItem,
   getAllPageItems,
@@ -117,7 +117,7 @@ const buildEditModel = async (page: SitePage): Promise<EditModel> => {
     await Promise.all([
       getSitePageNavRows(),
       getAllPageItems(),
-      getAllListingNames(),
+      getListingPickerNames(),
       getAllGroupNames(),
       getItemsForPage(page.id),
     ]);
@@ -126,7 +126,7 @@ const buildEditModel = async (page: SitePage): Promise<EditModel> => {
   const label = (type: SitePageItemType, id: number): string => {
     const lookup: Record<SitePageItemType, string | undefined> = {
       group: groupNames.get(id),
-      listing: listingNames.get(id),
+      listing: listingNames.get(id)?.name,
       page: pageById.get(id),
     };
     return lookup[type] ?? t("site.pages.item_missing");
@@ -152,10 +152,18 @@ const buildEditModel = async (page: SitePage): Promise<EditModel> => {
     [...names]
       .filter(([id]) => !present.has(targetKey(type, id)))
       .map(([id, name]) => opt(id, name));
+  // The listing picker offers only ACTIVE listings (the plan's picker
+  // contract) — an inactive listing's public page 404s, so adding it would
+  // plant a dead item. Labels above still read the full map.
+  const activeListingNames = new Map(
+    [...listingNames]
+      .filter(([, l]) => l.active)
+      .map(([id, l]) => [id, l.name]),
+  );
   return {
     groupOptions: options(groupNames, "group"),
     items,
-    listingOptions: options(listingNames, "listing"),
+    listingOptions: options(activeListingNames, "listing"),
     page,
     pageOptions: eligibleChildPages(forest, page.id).map((p) =>
       opt(p.id, p.name),
@@ -353,7 +361,10 @@ const isEligibleTarget = async (
   type: SitePageItemType,
   itemId: number,
 ): Promise<boolean> => {
-  if (type === "listing") return (await getAllListingNames()).has(itemId);
+  if (type === "listing") {
+    // Mirror the picker: only an ACTIVE listing may be added.
+    return (await getListingPickerNames()).get(itemId)?.active === true;
+  }
   if (type === "group") return (await getAllGroupNames()).has(itemId);
   return eligibleChildPages((await loadForest()).forest, pageId).some(
     (p) => p.id === itemId,

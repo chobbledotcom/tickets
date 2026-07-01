@@ -3,6 +3,8 @@ import { isContactFormActive } from "#shared/contact-form.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { parseTargetKey } from "#shared/site-pages/core.ts";
+import type { NavModel, NavNode } from "#shared/site-pages/types.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import {
   dayPriceFor,
@@ -14,43 +16,153 @@ import {
 } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
-/** Public site navigation - hides terms/contact/order links when off/empty */
-export const PublicNav = ({
-  hasTerms,
-  hasContact,
-  hasOrder,
+/** Everything {@link PublicNav} renders: the settings-driven page flags plus
+ * the site-pages tree (built per request by `publicNavProps`, site-nav.ts). */
+export type PublicNavProps = {
+  hasTerms: boolean;
+  hasContact: boolean;
+  hasOrder: boolean;
+  pages: NavModel;
+};
+
+/** A nav node as a link — or plain text when the target isn't publicly
+ * reachable (never render a dead link). The active-chain node is marked. */
+export const NodeLink = ({ node }: { node: NavNode }): JSX.Element =>
+  node.live ? (
+    <a class={node.active ? "active" : undefined} href={node.href}>
+      {node.label}
+    </a>
+  ) : (
+    <span>{node.label}</span>
+  );
+
+/** Desktop: the submenu levels nested recursively — level `depth` renders
+ * beneath the active node of the level above (the next page on the active
+ * chain), indenting one step per level like the admin sub-nav. */
+const DesktopLevels = ({
+  levels,
+  depth,
 }: {
-  hasTerms?: boolean;
-  hasContact?: boolean;
-  hasOrder?: boolean;
-}): JSX.Element => (
-  <nav>
-    <ul>
-      <li>
-        <a href="/">{t("nav.public.home")}</a>
-      </li>
-      <li>
-        <a href="/listings">{t("terms.listings")}</a>
-      </li>
-      {hasOrder && (
+  levels: readonly (readonly NavNode[])[];
+  depth: number;
+}): JSX.Element | null =>
+  depth >= levels.length ? null : (
+    <ul class="admin-subnav">
+      {levels[depth]!.map((node) => (
+        <li>
+          <NodeLink node={node} />
+          {node.active && <DesktopLevels depth={depth + 1} levels={levels} />}
+        </li>
+      ))}
+    </ul>
+  );
+
+/** The fixed root links, with the root page nodes spliced between Listings and
+ * the Order/Terms/Contact group ("between listings and contact"). Each page
+ * `<li>` may carry extra children (the desktop nesting), supplied per node. */
+const rootItems = (
+  { hasTerms, hasContact, hasOrder, pages }: PublicNavProps,
+  nested: (node: NavNode) => JSX.Element | null,
+): JSX.Element[] => [
+  <li>
+    <a href="/">{t("nav.public.home")}</a>
+  </li>,
+  <li>
+    <a href="/listings">{t("terms.listings")}</a>
+  </li>,
+  ...pages.rootPageNodes.map((node) => (
+    <li>
+      <NodeLink node={node} />
+      {nested(node)}
+    </li>
+  )),
+  ...(hasOrder
+    ? [
         <li>
           <a href="/order">{t("nav.public.order")}</a>
-        </li>
-      )}
-      {hasTerms && (
+        </li>,
+      ]
+    : []),
+  ...(hasTerms
+    ? [
         <li>
           <a href="/terms">
             <Raw html={t("nav.public.terms")} />
           </a>
-        </li>
-      )}
-      {hasContact && (
+        </li>,
+      ]
+    : []),
+  ...(hasContact
+    ? [
         <li>
           <a href="/contact">{t("nav.public.contact")}</a>
-        </li>
-      )}
-    </ul>
+        </li>,
+      ]
+    : []),
+];
+
+/** One mobile nav bar, named for screen-reader users (stacked-bars pattern). */
+const mobileBar = (label: string, lis: JSX.Element[]): JSX.Element => (
+  <nav aria-label={label} class="admin-nav admin-nav--mobile">
+    <ul>{lis}</ul>
   </nav>
+);
+
+/** Mobile: the root bar, then one bar per active-chain level (root-first),
+ * each named after the page whose children it lists. */
+const MobilePublicNav = (props: PublicNavProps): JSX.Element => {
+  const bars = [
+    mobileBar(
+      t("nav.public.main"),
+      rootItems(props, () => null),
+    ),
+  ];
+  // Level 0 lists the active root's children; the chain page continuing into
+  // level i+1 is the active *page* node within level i.
+  let parent = props.pages.rootPageNodes.find((n) => n.active);
+  for (const level of props.pages.submenuLevels) {
+    bars.push(
+      mobileBar(
+        parent!.label,
+        level.map((node) => (
+          <li>
+            <NodeLink node={node} />
+          </li>
+        )),
+      ),
+    );
+    parent =
+      level.find((n) => n.active && parseTargetKey(n.key).type === "page") ??
+      parent;
+  }
+  return <>{bars}</>;
+};
+
+/**
+ * Public site navigation: the fixed links (Home, Listings, Order/Terms/Contact
+ * when enabled) with the operator's root pages spliced in between, plus the
+ * recursive contextual submenus along the active chain. Mirrors the admin
+ * pattern — one nested sidebar on desktop, separate stacked bars on mobile —
+ * by reusing its proven CSS (`admin-nav--desktop` / `admin-subnav` /
+ * `admin-nav--mobile`; `#main-nav` pins the desktop sidebar).
+ */
+export const PublicNav = (props: PublicNavProps): JSX.Element => (
+  <div class="admin-nav-group">
+    <nav
+      aria-label={t("nav.public.main")}
+      class="admin-nav admin-nav--desktop"
+      id="main-nav"
+    >
+      <ul>
+        {rootItems(props, (node) =>
+          node.active ? (
+            <DesktopLevels depth={0} levels={props.pages.submenuLevels} />
+          ) : null,
+        )}
+      </ul>
+    </nav>
+    <MobilePublicNav {...props} />
+  </div>
 );
 
 /** Compute which public pages have content.

@@ -117,6 +117,10 @@ const loadOrderRoutes = lazyExport(
   () => import("#routes/public/order.ts"),
   "routeOrder",
 );
+const loadSitePageRoutes = lazyExport(
+  () => import("#routes/public/site-page.ts"),
+  "routeSitePage",
+);
 const loadOrderJs = lazyExport(
   () => import("#routes/public/order-js.ts"),
   "handleOrderJs",
@@ -439,6 +443,8 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
     CONFIG_KEYS.EMBED_HOSTS,
     CONFIG_KEYS.COUNTRY,
   ],
+  // --- User-created content pages (full public nav) ---
+  page: PUBLIC_NAV_SETTINGS,
   // --- Checkout / payment (bare layout, no public nav) ---
   pay: PAYMENT_SETTINGS,
   payment: [...PAYMENT_SETTINGS, ...EMAIL_SETTINGS],
@@ -670,6 +676,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   join: lazyRoute(loadJoinRoutes),
   order: lazyRoute(loadOrderRoutes),
   "order.js": orderJsPrefixHandler,
+  page: lazyRoute(loadSitePageRoutes),
   pay: lazyRoute(loadBalanceRoutes),
   payment: lazyRoute(loadPaymentRoutes),
   "read-only": (_request, path, method) =>

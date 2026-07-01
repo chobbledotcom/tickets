@@ -48,7 +48,7 @@ import {
   ticketCountPredicateFor,
   ticketCountSumExpr,
 } from "#shared/db/migrations/schema.ts";
-import { allNamesById, nameMapByIds } from "#shared/db/query.ts";
+import { linkRowsByIds, nameMapByIds } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
@@ -599,10 +599,36 @@ export const getListingNamesByIds = (
     decrypt(raw),
   );
 
-/** Narrow id → name map for every listing (selects + decrypts only the name),
- * for pickers/labels that must not load the whole listings cache. */
-export const getAllListingNames = (): Promise<Map<number, string>> =>
-  allNamesById("listings", "listing", "name", (raw: string) => decrypt(raw));
+/** Narrow id → { name, active } map for every listing (only the name is
+ * decrypted) — the admin picker projection: options come from the active subset
+ * (the plan's "all active listings" picker contract), while labels read the
+ * whole map so an already-added, now-inactive item still names itself. */
+export const getListingPickerNames = async (): Promise<
+  Map<number, { active: boolean; name: string }>
+> => {
+  const rows = await queryAll<{ active: number; id: number; name: string }>(
+    "SELECT listing.id, listing.name, listing.active FROM listings AS listing ORDER BY listing.id ASC",
+  );
+  const entries = await Promise.all(
+    rows.map(
+      async (r) =>
+        [
+          r.id,
+          { active: r.active !== 0, name: await decrypt(r.name) },
+        ] as const,
+    ),
+  );
+  return new Map(entries);
+};
+
+/** Narrow id/slug/name/active rows for the given listings (only slug + name
+ * decrypted) — the public nav's link projection. */
+export const getListingLinkRows = (
+  ids: number[],
+): Promise<{ active: number; id: number; name: string; slug: string }[]> =>
+  linkRowsByIds("listings", "listing", ids, (raw: string) => decrypt(raw), [
+    "active",
+  ] as const);
 
 /**
  * SQL predicate (over the `listing` alias) selecting listings that are

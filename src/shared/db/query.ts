@@ -125,6 +125,38 @@ export const nameMapByIds = <Raw>(
     decryptName,
   );
 
+/** `id, slug, name` rows (+ `extras` plain columns) for the given `ids`,
+ * decrypting only slug and name — the narrow projection link surfaces (the
+ * public nav) need, without loading a full-row cache. Empty `ids` ⇒ no query.
+ * `table`/`alias`/`extras` are internal constants, never user input. */
+export const linkRowsByIds = async <Extra extends string = never>(
+  table: string,
+  alias: string,
+  ids: number[],
+  decryptText: (raw: string) => Promise<string>,
+  extras: readonly Extra[] = [],
+): Promise<
+  ({ id: number; name: string; slug: string } & Record<Extra, number>)[]
+> => {
+  const cols = ["id", "slug", "name", ...extras]
+    .map((c) => `${alias}.${c}`)
+    .join(", ");
+  const rows = await rowsByIds<
+    { id: number; name: string; slug: string } & Record<Extra, number>
+  >(
+    ids,
+    (placeholders) =>
+      `SELECT ${cols} FROM ${table} AS ${alias} WHERE ${alias}.id IN (${placeholders})`,
+  );
+  return Promise.all(
+    rows.map(async (r) => ({
+      ...r,
+      name: await decryptText(r.name),
+      slug: await decryptText(r.slug),
+    })),
+  );
+};
+
 /** `id → name` for **every** row of `table`, decrypting only the name column —
  * the narrow projection the item pickers need, without loading a full-row cache.
  * Ordered by id for a stable list. */

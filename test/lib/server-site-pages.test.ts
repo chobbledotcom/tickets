@@ -363,6 +363,30 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       expect(html).toContain("Name spare");
     });
 
+    test("offers only active listings; labels keep inactive ones named", async () => {
+      const page = await seedPage("actives");
+      const inactive = await createTestListing({ name: "Retired Listing" });
+      await addPageItem(page.id, "listing", inactive.id);
+      const { deactivateTestListing } = await import("#test-utils");
+      await deactivateTestListing(inactive.id);
+      const html = await expectHtmlResponse(
+        await adminGet(`${BASE}/${page.id}/edit`),
+        200,
+      );
+      // The already-added inactive listing still labels its row...
+      expect(html).toContain("Retired Listing");
+      // ...but an inactive listing is never offered as a new option.
+      expect(html).not.toContain(`value="${inactive.id}"`);
+      // And the server revalidation rejects adding an inactive listing.
+      const other = await seedPage("actives-2");
+      const { response } = await adminFormPost(`${BASE}/${other.id}/items`, {
+        item_id: String(inactive.id),
+        item_type: "listing",
+      });
+      expectErrorFlash(response, "can't be added");
+      expect((await getItemsForPage(other.id)).length).toBe(0);
+    });
+
     test("rejects an ineligible / invalid target", async () => {
       const page = await seedPage("guarded");
       // A real listing id that doesn't exist → ineligible (not "invalid").
