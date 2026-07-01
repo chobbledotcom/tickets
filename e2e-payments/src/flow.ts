@@ -10,7 +10,9 @@ import { config } from "./config.ts";
 import { log, step } from "./log.ts";
 
 const LISTING_NAME = "E2E Payment Concert";
-const BOOKER_EMAIL = "e2e-booker@example.com";
+// Not example.com: some processors (Square) reject that reserved domain as an
+// invalid email before redirecting, failing the booking pre-checkout.
+const BOOKER_EMAIL = config.bookerEmail;
 const BOOKER_NAME = "E2E Booker";
 
 /** Run the first-run setup wizard for a fresh install. */

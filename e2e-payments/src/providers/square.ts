@@ -1,7 +1,7 @@
 import type { Page } from "playwright";
 import type { BrowserSession } from "../browser.ts";
 import { log } from "../log.ts";
-import { clickFirst, fillFirst } from "./card.ts";
+import { clickFirst, fillCard } from "./card.ts";
 import { assertConfigured, selectProvider } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
 
@@ -36,21 +36,15 @@ export const square: PaymentProvider = {
   payHostedCheckout: async (page: Page): Promise<void> => {
     log("Filling Square hosted checkout…");
     await page.waitForLoadState("domcontentloaded");
-    await fillFirst(page, "card number", [
-      'input[name="cardNumber"]',
-      "#cardNumber",
-      'input[placeholder*="Card"]',
-    ], "4111111111111111");
-    await fillFirst(page, "expiry", [
-      'input[name="expirationDate"]',
-      "#expirationDate",
-      'input[placeholder*="MM"]',
-    ], "12/34");
-    await fillFirst(page, "cvv", ['input[name="cvv"]', "#cvv"], "111");
-    await fillFirst(page, "postal", [
-      'input[name="postalCode"]',
-      "#postalCode",
-    ], "94103", { required: false });
+    // Square's card inputs live inside the Web Payments SDK iframe; the generic
+    // filler searches child frames and matches the SDK's cc-* autocomplete
+    // tokens. Sandbox card 4111 …, CVV 111, US ZIP 94103.
+    await fillCard(page, {
+      number: "4111111111111111",
+      expiry: "12/34",
+      cvc: "111",
+      postal: "94103",
+    });
     await clickFirst(page, "pay button", [
       'button:has-text("Pay")',
       'button[type="submit"]',

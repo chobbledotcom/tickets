@@ -49,6 +49,12 @@ export const config = {
   adminUsername: env("ADMIN_USERNAME") ?? "admin",
   adminPassword: env("ADMIN_PASSWORD") ?? "password",
   /**
+   * Email used for the booking. NOT a reserved domain: `example.com` is
+   * rejected by some payment processors (Square returns "invalid email"), so
+   * default to a real, disposable-mail domain.
+   */
+  bookerEmail: env("E2E_BOOKER_EMAIL") ?? "e2e-booker@mailinator.com",
+  /**
    * ISO country picked in setup — determines the site currency. Must map to a
    * 2-decimal currency (GBP/USD/EUR, as the provider defaults do): the price
    * entry and paid-amount assertion assume minor units are hundredths, so a

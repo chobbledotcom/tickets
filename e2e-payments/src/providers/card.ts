@@ -73,3 +73,115 @@ export const clickFirst = async (
   }
   throw new Error(`could not locate "${label}" control on the hosted checkout page`);
 };
+
+/** Sandbox card details to enter on a hosted checkout page. */
+export interface CardDetails {
+  number: string;
+  /** Expiry as digits or MM/YY — fields auto-format on input. */
+  expiry: string;
+  cvc: string;
+  name?: string;
+  postal?: string;
+  email?: string;
+}
+
+/**
+ * Standard, provider-agnostic candidate selectors for each card field. Payment
+ * forms follow the WHATWG autocomplete tokens (cc-number/cc-exp/cc-csc/cc-name),
+ * so those are tried first; the rest are common name/id/placeholder/aria
+ * fallbacks. fillFirst also searches child frames, covering SDK iframes.
+ */
+const CARD_SELECTORS: Record<string, string[]> = {
+  number: [
+    'input[autocomplete="cc-number"]',
+    'input[name="cardnumber"]',
+    'input[name="cardNumber"]',
+    'input[name="number"]',
+    'input[id*="card-number" i]',
+    'input[id*="cardnumber" i]',
+    'input[name*="cardnumber" i]',
+    'input[placeholder*="card number" i]',
+    'input[aria-label*="card number" i]',
+    "#cardNumber",
+  ],
+  expiry: [
+    'input[autocomplete="cc-exp"]',
+    'input[name="exp-date"]',
+    'input[name="expiry"]',
+    'input[name="expiration"]',
+    'input[name="expirationDate"]',
+    'input[name="expiryDate"]',
+    'input[name="cardExpiry"]',
+    'input[id*="expir" i]',
+    'input[placeholder*="mm / yy" i]',
+    'input[placeholder*="mm/yy" i]',
+    'input[aria-label*="expir" i]',
+    "#cardExpiry",
+  ],
+  cvc: [
+    'input[autocomplete="cc-csc"]',
+    'input[name="cvc"]',
+    'input[name="cvv"]',
+    'input[name="cvcNumber"]',
+    'input[name="securityCode"]',
+    'input[id*="cvc" i]',
+    'input[id*="cvv" i]',
+    'input[placeholder*="cvc" i]',
+    'input[placeholder*="cvv" i]',
+    'input[aria-label*="security code" i]',
+    "#cardCvc",
+  ],
+  name: [
+    'input[autocomplete="cc-name"]',
+    'input[name="cardholder-name"]',
+    'input[name="cardHolder"]',
+    'input[name="card-holder-name"]',
+    'input[name="name"]',
+    'input[id*="cardholder" i]',
+    'input[placeholder*="name on card" i]',
+    'input[aria-label*="cardholder" i]',
+    "#billingName",
+  ],
+  postal: [
+    'input[autocomplete="postal-code"]',
+    'input[autocomplete="billing postal-code"]',
+    'input[name="postal"]',
+    'input[name="postalCode"]',
+    'input[name="postal-code"]',
+    'input[name="zip"]',
+    'input[id*="postal" i]',
+    'input[id*="zip" i]',
+    "#billingPostalCode",
+  ],
+  email: [
+    'input[autocomplete="email"]',
+    'input[type="email"]',
+    'input[name="email"]',
+    "#email",
+  ],
+};
+
+/** Fill a hosted checkout's card form using the standard selectors. */
+export const fillCard = async (
+  page: Page,
+  card: CardDetails,
+): Promise<void> => {
+  if (card.email) {
+    await fillFirst(page, "email", CARD_SELECTORS.email, card.email, {
+      required: false,
+    });
+  }
+  await fillFirst(page, "card number", CARD_SELECTORS.number, card.number);
+  await fillFirst(page, "expiry", CARD_SELECTORS.expiry, card.expiry);
+  await fillFirst(page, "cvc", CARD_SELECTORS.cvc, card.cvc);
+  if (card.name) {
+    await fillFirst(page, "cardholder name", CARD_SELECTORS.name, card.name, {
+      required: false,
+    });
+  }
+  if (card.postal) {
+    await fillFirst(page, "postal code", CARD_SELECTORS.postal, card.postal, {
+      required: false,
+    });
+  }
+};
