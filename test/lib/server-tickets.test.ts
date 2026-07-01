@@ -508,16 +508,26 @@ describeWithEnv(
       expect(body).not.toContain("Widget");
     });
 
-    test("a hidden package card shows the booked quantity without naming members", async () => {
-      const { group, widget } = await hiddenOneMemberPackage();
+    /** Book `listingId` as a member of package `groupId` and return the rendered
+     * /t ticket body. */
+    const bookPackageTicketBody = async (
+      groupId: number,
+      listingId: number,
+      quantity: number,
+    ): Promise<string> => {
       const result = await createAttendeeAtomic({
-        bookings: [{ listingId: widget.id, quantity: 3 }],
-        email: "pkgqty@test.com",
-        name: "Bulk Buyer",
-        packageGroupId: group.id,
+        bookings: [{ listingId, quantity }],
+        email: "pkgbook@test.com",
+        name: "Package Buyer",
+        packageGroupId: groupId,
       });
       if (!result.success) throw new Error("package booking failed");
-      const body = await fetchTicketBody(result.attendees[0]!.ticket_token);
+      return fetchTicketBody(result.attendees[0]!.ticket_token);
+    };
+
+    test("a hidden package card shows the booked quantity without naming members", async () => {
+      const { group, widget } = await hiddenOneMemberPackage();
+      const body = await bookPackageTicketBody(group.id, widget.id, 3);
       expect(body).toContain("Kit Bag");
       // The count is shown at package level; the member name is not.
       expect(body).toContain("&times;3");
