@@ -14,6 +14,7 @@ import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import { setChildIdsTx } from "#shared/db/listing-parents.ts";
+import { syncListingPrices } from "#shared/db/listing-prices.ts";
 import {
   computeSlugIndex,
   getAllListings,
@@ -452,6 +453,10 @@ const listingApiRoutes = defineCrudApi<
   ListingWithCount,
   PreparedChildEdges
 >({
+  // Keep listing_prices in step on the transactional API write path, which uses
+  // insertStatement/updateStatement and so bypasses the listingsTable wrapper
+  // that syncs the form/direct write paths.
+  afterWrite: syncListingPrices,
   extraRoutes: {
     "DELETE /api/admin/listings/:listingId": handleDeleteListing,
     "POST /api/admin/listings/:listingId/deactivate": (

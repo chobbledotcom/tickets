@@ -236,7 +236,7 @@ const getUsernameFieldBase = (): Field => ({
   maxlength: 32,
   minlength: 2,
   name: "username",
-  pattern: "[a-zA-Z0-9_-]+",
+  pattern: "[a-zA-Z0-9_\\-]+",
   required: true,
   title: t("fields.login.username_title"),
   type: "text",
@@ -742,7 +742,7 @@ export const getSlugField = (): Field => ({
   hint: t("fields.listing.slug_hint_field"),
   label: t("common.slug"),
   name: "slug",
-  pattern: "[a-z0-9_-]+",
+  pattern: "[a-z0-9_\\-]+",
   required: true,
   title: t("fields.listing.slug_title"),
   type: "text",
@@ -993,12 +993,26 @@ const emailField: Field = {
   validate: validateEmail,
 };
 
+/**
+ * HTML `pattern` attribute for the phone input. Browsers compile `pattern` with
+ * the RegExp `v` flag, under which an unescaped `(` `)` inside a character class
+ * is a syntax error — so the parens are escaped. Shared between the ticket
+ * phone field and the admin attendee form so the two can't drift.
+ */
+export const PHONE_INPUT_PATTERN = "[+\\d][\\d\\s\\-\\(\\)]{5,}";
+
+/**
+ * HTML `pattern` attribute for the subdomain input (a DNS label). Escaped for
+ * the same `v`-flag reason (a literal `-` in a character class must be escaped).
+ */
+export const SUBDOMAIN_INPUT_PATTERN = "[a-z0-9]([a-z0-9\\-]{0,61}[a-z0-9])?";
+
 /** Phone field for ticket forms */
 const phoneField: Field = {
   autocomplete: "tel",
   label: "Your Phone Number",
   name: "phone",
-  pattern: "[+\\d][\\d\\s\\-()]{5,}",
+  pattern: PHONE_INPUT_PATTERN,
   required: true,
   title:
     "Phone number (digits, spaces, hyphens, parentheses, optional leading +)",

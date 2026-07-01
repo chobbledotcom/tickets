@@ -146,6 +146,17 @@ describeWithEnv("server (setup)", { db: true }, () => {
         expect(await settingsTableExists()).toBe(false);
       });
 
+      test("custom.css is served as a stylesheet, not the HTML system page", async () => {
+        // The layout links /custom.css on the not-activated page itself, so the
+        // asset must stay text/css even before setup — an HTML fallback trips
+        // the browser's strict MIME check.
+        const response = await handleRequest(mockRequest("/custom.css"));
+
+        expect(response.headers.get("content-type")).toContain("text/css");
+        expect(response.headers.get("content-type")).not.toContain("text/html");
+        expect(await response.text()).toBe("");
+      });
+
       test("health and static assets work when settings DB cannot be read", async () => {
         const { stub } = await import("@std/testing/mock");
         const executeStub = stub(getDb(), "execute", () =>

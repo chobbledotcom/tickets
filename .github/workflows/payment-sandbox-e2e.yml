@@ -53,6 +53,10 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
+          # No npm cache here: e2e-payments/package-lock.json is intentionally
+          # gitignored (the harness installs with `npm install`, not `npm ci`),
+          # so setup-node's cache-dependency-path would resolve to nothing and
+          # fail the job. The Playwright browser cache below is the real win.
 
       - name: Install cloudflared
         run: |
@@ -74,9 +78,30 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
         run: npm install
 
-      - name: Install Playwright Chromium
+      - name: Resolve Playwright version
+        id: pw
+        working-directory: e2e-payments
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      # On a cache hit the browser binary is already restored, so install only
+      # the OS-level libraries (apt) Chromium needs — those can't be cached. On
+      # a miss, download the browser and its OS deps in one go.
+      - name: Install Playwright Chromium (cache miss)
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         working-directory: e2e-payments
         run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright OS dependencies (cache hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        working-directory: e2e-payments
+        run: npx playwright install-deps chromium
 
       - name: Run ${{ matrix.target }} payment e2e
         working-directory: e2e-payments
@@ -91,8 +116,8 @@ jobs:
           SUMUP_MERCHANT_CODE: ${{ secrets.SUMUP_MERCHANT_CODE }}
         run: node --import tsx src/main.ts ${{ matrix.target }}
 
-      - name: Upload failure artifacts
-        if: failure()
+      - name: Upload run artifacts (screenshots, page HTML, server logs)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-${{ matrix.target }}-artifacts

@@ -64,8 +64,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-27_service_costs",
         "2026-06-28_listing_use_defaults",
         "2026-07-01_site_pages",
+        "2026-07-01_listing_prices",
       ],
-      schemaHash: "1ig89xd",
+      schemaHash: "mw6yc4",
     });
   });
 });
