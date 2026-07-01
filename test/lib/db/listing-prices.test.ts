@@ -6,8 +6,9 @@ import {
   listingPriceStatements,
   sourceRowStatements,
   syncListingPrices,
+  syncListingPricesForIds,
 } from "#shared/db/listing-prices.ts";
-import { listingsTable } from "#shared/db/listings.ts";
+import { deleteListing, listingsTable } from "#shared/db/listings.ts";
 import {
   createTestListing,
   describeWithEnv,
@@ -144,6 +145,33 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
     ]);
     // Remove the 2-day price and re-sync: only the managed rows change.
     expect(await resyncedPriceIds(listing.id, { 1: 500 })).toEqual(["", "1"]);
+  });
+
+  test("deleting a listing removes its price rows", async () => {
+    const listing = await createTestListing({ unitPrice: 640 });
+    expect((await priceRows(listing.id)).length).toBe(1);
+    await deleteListing(listing.id);
+    expect(await priceRows(listing.id)).toEqual([]);
+  });
+
+  test("syncListingPricesForIds rebuilds rows for the given listings only", async () => {
+    const a = await createTestListing({ unitPrice: 300 });
+    const b = await createTestListing({ unitPrice: 700 });
+    await seedDayPrices(b.id, { 2: 1300 });
+    await queryAll("DELETE FROM listing_prices");
+    await syncListingPricesForIds([a.id, b.id]);
+    expect(await priceRows(a.id)).toEqual([
+      { price_id: "", price_type: "base", unit_price: 300 },
+    ]);
+    expect(await priceRows(b.id)).toEqual([
+      { price_id: "", price_type: "base", unit_price: 700 },
+      { price_id: "2", price_type: "day_count", unit_price: 1300 },
+    ]);
+  });
+
+  test("syncListingPricesForIds is a no-op for an empty id list", async () => {
+    await syncListingPricesForIds([]);
+    expect(await priceRows(987656)).toEqual([]);
   });
 
   test("syncListingPrices is a no-op for a listing that does not exist", async () => {

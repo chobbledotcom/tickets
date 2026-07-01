@@ -11,6 +11,7 @@ import {
   encryptAttendeeFields,
 } from "#shared/db/attendees.ts";
 import { executeBatch, insert, queryAll, rawSql } from "#shared/db/client.ts";
+import { syncListingPricesForIds } from "#shared/db/listing-prices.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   DEMO_ADDRESSES,
@@ -216,6 +217,10 @@ export const createSeeds = async (
     [listingCount],
   );
   const listingIds = map((r: { id: number }) => r.id)(rows).reverse();
+
+  // The seed inserts listings via raw batch statements (not listingsTable), so
+  // populate their listing_prices rows the same way an admin write would.
+  await syncListingPricesForIds(listingIds);
 
   // Prepare all attendee inserts in parallel, in chunks to avoid memory pressure
   const CHUNK_SIZE = 50;

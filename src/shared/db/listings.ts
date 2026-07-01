@@ -550,6 +550,12 @@ export const deleteListing = async (listingId: number): Promise<void> => {
       sql: "DELETE FROM listing_parents WHERE parent_listing_id = ? OR child_listing_id = ?",
     },
     { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
+    // The generalised price rows have no cascading FK, so drop them with the
+    // listing rather than leaving orphaned base/day_count rows behind.
+    {
+      args: [listingId],
+      sql: "DELETE FROM listing_prices WHERE listing_id = ?",
+    },
     { args: [listingId], sql: "DELETE FROM listings WHERE id = ?" },
   ]);
 };
