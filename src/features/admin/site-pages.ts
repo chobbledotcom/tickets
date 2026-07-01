@@ -342,21 +342,15 @@ const moveRoot = (dir: "up" | "down") =>
 
 // ─── Item manager ───────────────────────────────────────────────
 
-/** Is `(type, id)` a target the current page may contain right now? A target may
- * appear on a page only once (unique edge key), so a repeat is rejected up front.
- * For pages this then applies the full tree-eligibility check (unparented, no
- * cycle); `addPageItem` re-enforces the single-parent/acyclic rules
- * transactionally as a last line of defence against a concurrent add. */
+/** Does `(type, id)` name a target this page may contain? Existence for a leaf;
+ * full tree-eligibility (unparented, no cycle) for a page. Duplicate-edge and
+ * single-parent/cycle races are settled authoritatively by `addPageItem`, which
+ * reports a conflict rather than throwing. */
 const isEligibleTarget = async (
   pageId: number,
   type: SitePageItemType,
   itemId: number,
 ): Promise<boolean> => {
-  const key = targetKey(type, itemId);
-  const present = (await getItemsForPage(pageId)).some(
-    (i) => targetKey(i.item_type, i.item_id) === key,
-  );
-  if (present) return false;
   if (type === "listing") return (await getListingsById()).has(itemId);
   if (type === "group")
     return (await getAllGroups()).some((g) => g.id === itemId);
@@ -371,11 +365,15 @@ const handleAddItem = pagePost(async (page, form) => {
   if (!isItemType(type) || itemId === null) {
     return errorRedirect(editPath(page.id), t("site.pages.error.invalid_item"));
   }
-  // Never trust the submitted select: recompute the eligible set server-side.
-  if (!(await isEligibleTarget(page.id, type, itemId))) {
+  // Never trust the submitted select: re-check eligibility server-side, then let
+  // addPageItem settle any concurrent-add conflict atomically. Either failing is
+  // the same friendly "can't be added" (addPageItem isn't called when the target
+  // is already ineligible).
+  const eligible = await isEligibleTarget(page.id, type, itemId);
+  const added = eligible && (await addPageItem(page.id, type, itemId));
+  if (!added) {
     return errorRedirect(editPath(page.id), t("site.pages.error.ineligible"));
   }
-  await addPageItem(page.id, type, itemId);
   await logActivity(`Item added to page '${page.name}'`);
   return redirect(editPath(page.id), t("site.pages.item_added"), true);
 });

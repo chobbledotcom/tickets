@@ -11,7 +11,6 @@ import {
   getItemsForPage,
   invalidatePageItemsCache,
   removePageItem,
-  SitePageItemConflictError,
   swapPageItemOrder,
 } from "#shared/db/site-page-items.ts";
 import {
@@ -152,8 +151,10 @@ describeWithEnv("db > site-pages", { db: true }, () => {
 
     test("the same item cannot be added to one page twice (unique key)", async () => {
       const p = await makePage("dupe");
-      await addPageItem(p.id, "listing", 7);
-      await expect(addPageItem(p.id, "listing", 7)).rejects.toThrow();
+      expect(await addPageItem(p.id, "listing", 7)).toBe(true);
+      // A repeat is reported as a conflict (false), not inserted a second time.
+      expect(await addPageItem(p.id, "listing", 7)).toBe(false);
+      expect((await getItemsForPage(p.id)).length).toBe(1);
     });
 
     test("a page cannot be nested under two parents (single-parent guard)", async () => {
@@ -161,9 +162,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       const parentB = await makePage("pb");
       const child = await makePage("child");
       await addPageItem(parentA.id, "page", child.id);
-      await expect(
-        addPageItem(parentB.id, "page", child.id),
-      ).rejects.toBeInstanceOf(SitePageItemConflictError);
+      expect(await addPageItem(parentB.id, "page", child.id)).toBe(false);
       // Only the first parent's edge exists.
       const edges = (await getAllPageItems()).filter(
         (e) => e.item_type === "page" && e.item_id === child.id,
@@ -180,9 +179,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
 
     test("a page cannot be nested inside itself (N4 self-loop)", async () => {
       const p = await makePage("self");
-      await expect(addPageItem(p.id, "page", p.id)).rejects.toBeInstanceOf(
-        SitePageItemConflictError,
-      );
+      expect(await addPageItem(p.id, "page", p.id)).toBe(false);
       expect(await getItemsForPage(p.id)).toEqual([]);
     });
 
@@ -191,9 +188,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       const a = await makePage("anc-a");
       const b = await makePage("anc-b");
       await addPageItem(a.id, "page", b.id);
-      await expect(addPageItem(b.id, "page", a.id)).rejects.toBeInstanceOf(
-        SitePageItemConflictError,
-      );
+      expect(await addPageItem(b.id, "page", a.id)).toBe(false);
       expect(await getItemsForPage(b.id)).toEqual([]);
     });
 

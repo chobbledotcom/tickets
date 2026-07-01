@@ -108,11 +108,15 @@ const extractGroupEditInput = async (
 export const deleteGroup = async (
   id: Parameters<typeof groupsTable.findById>[0],
 ) => {
-  await resetGroupListings(Number(id));
-  // Drop any site-page membership edges so no page keeps a dangling
-  // "(missing)" row pointing at this deleted group.
-  await executeBatch([clearItemEdgesStatement("group", Number(id))]);
-  await groupsTable.deleteById(id);
+  const groupId = Number(id);
+  await resetGroupListings(groupId);
+  // Clear site-page membership edges atomically with the group row: a failed
+  // delete must never leave a page pointing at a still-present group, nor strip
+  // edges from a group that survives.
+  await executeBatch([
+    clearItemEdgesStatement("group", groupId),
+    { args: [groupId], sql: "DELETE FROM groups WHERE id = ?" },
+  ]);
 };
 
 /** Shared CRUD handler config. After create/edit, staff land on the group detail
