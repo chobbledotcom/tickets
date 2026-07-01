@@ -151,34 +151,26 @@ describe("qr-token", () => {
     });
 
     test("rejects an expired token", async () => {
-      const time = new FakeTime(1_700_000_000_000);
-      try {
-        const token = await signQrBookToken(
-          "listing",
-          buildQrBookPayload({ name: "Ada", value: 100 }),
-        );
-        // Advance past the max-age window
-        time.tick((QR_TOKEN_MAX_AGE_S + 10) * 1000);
-        expect(await verifyQrBookToken("listing", token)).toBe(null);
-      } finally {
-        time.restore();
-      }
+      using time = new FakeTime(1_700_000_000_000);
+      const token = await signQrBookToken(
+        "listing",
+        buildQrBookPayload({ name: "Ada", value: 100 }),
+      );
+      // Advance past the max-age window
+      time.tick((QR_TOKEN_MAX_AGE_S + 10) * 1000);
+      expect(await verifyQrBookToken("listing", token)).toBe(null);
     });
 
     test("accepts a token still within its validity window", async () => {
-      const time = new FakeTime(1_700_000_000_000);
-      try {
-        const token = await signQrBookToken(
-          "listing",
-          buildQrBookPayload({ name: "Ada", value: 100 }),
-        );
-        // Advance by just under the max-age window
-        time.tick((QR_TOKEN_MAX_AGE_S - 10) * 1000);
-        const result = await verifyQrBookToken("listing", token);
-        expect(result?.n).toBe("Ada");
-      } finally {
-        time.restore();
-      }
+      using time = new FakeTime(1_700_000_000_000);
+      const token = await signQrBookToken(
+        "listing",
+        buildQrBookPayload({ name: "Ada", value: 100 }),
+      );
+      // Advance by just under the max-age window
+      time.tick((QR_TOKEN_MAX_AGE_S - 10) * 1000);
+      const result = await verifyQrBookToken("listing", token);
+      expect(result?.n).toBe("Ada");
     });
 
     test("rejects a token with an unreasonably far-future expiry", async () => {
