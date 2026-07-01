@@ -125,10 +125,17 @@ export const packageMemberNodeKey = (
   listingId: number,
 ): string => `package:${groupId}/member:${listingId}`;
 
-/** A required child under a parent: the same child under two parents is two
- * nodes (its serveable dates and cap differ per parent). */
-export const childNodeKey = (parentId: number, childId: number): string =>
-  `parent:${parentId}/child:${childId}`;
+/** A required child under a parent, addressed by its parent's *full* nodeKey
+ * (the ancestor path) so the same child is a distinct canonical identity under
+ * each provenance: a standalone parent (`listing:5/child:9`), a package-member
+ * parent (`package:3/member:5/child:9`), and a regular-group-member parent
+ * (`group:3/member:5/child:9`) never collapse. Phase 2 signs and revalidates by
+ * `nodeKey`, so a package-scaled / hidden-package child must not share a key with
+ * the standalone parent's child (the same child under two *different* parents was
+ * already distinct via the parent id; embedding the whole path also separates the
+ * same parent listing reached by two different roots). */
+export const childNodeKey = (parentNodeKey: string, childId: number): string =>
+  `${parentNodeKey}/child:${childId}`;
 
 // ---------------------------------------------------------------------------
 // Form field names — the single source of truth render and submit share

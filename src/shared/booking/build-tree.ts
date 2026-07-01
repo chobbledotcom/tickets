@@ -77,31 +77,40 @@ const derivePriceRule = (
 const ownDateSpan = (parentId: number | undefined): DateSpan =>
   parentId === undefined ? { kind: "NONE" } : { kind: "INHERIT" };
 
-/** Build a required-child node under `parent` (`edgeRef: parent_child`). A hidden
- * child is `HIDDEN` (its name never shows) but still a node, so the fold/compat
- * scripts keep driving off it. */
+/** Build a required-child node under `parent` (`edgeRef: parent_child`). Its
+ * `nodeKey` embeds the parent's full nodeKey (`parentNodeKey`) so the same child
+ * under a standalone vs a package/group parent stays a distinct canonical
+ * identity. Visibility is inherited: a child of a `HIDDEN` node (a member of a
+ * hidden package) is itself `HIDDEN` regardless of its own `hidden` flag, so a
+ * `HIDDEN`-dropping projection can never name a descendant of a hidden package
+ * member (hidden-package privacy). A `HIDDEN` child is still a node, so the
+ * fold/compat scripts keep driving off it. */
 const buildChildNode =
-  (parentId: number) =>
+  (parentNodeKey: string, parentId: number, parentHidden: boolean) =>
   (child: TicketListing): BookingNode => ({
     children: [],
     dateSpan: ownDateSpan(parentId),
     edgeRef: { kind: "parent_child", parentId },
     listing: child.listing,
     listingId: child.listing.id,
-    nodeKey: childNodeKey(parentId, child.listing.id),
+    nodeKey: childNodeKey(parentNodeKey, child.listing.id),
     priceRule: derivePriceRule(child.listing, undefined),
     quantityRule: { kind: "BUYER_CHOICE" },
-    visibility: child.listing.hidden ? "HIDDEN" : "SHOWN",
+    visibility: parentHidden || child.listing.hidden ? "HIDDEN" : "SHOWN",
   });
 
-/** The required-child nodes of `parentId`, or none when it has no children —
- * shared by every node kind so a parent is just a node with `children`,
- * including a package member that is itself a parent (the old "auto-include"). */
+/** The required-child nodes of the parent addressed by `parentNodeKey`, or none
+ * when it has no children — shared by every node kind so a parent is just a node
+ * with `children`, including a package member that is itself a parent (the old
+ * "auto-include"). `parentHidden` carries the parent node's own visibility down so
+ * every descendant of a hidden package member is hidden too. */
 const buildChildren = (
   input: BuildTreeInput,
+  parentNodeKey: string,
   parentId: number,
+  parentHidden: boolean,
 ): BookingNode[] =>
-  map(buildChildNode(parentId))([
+  map(buildChildNode(parentNodeKey, parentId, parentHidden))([
     ...(input.childrenByParentId?.get(parentId) ?? []),
   ]);
 
@@ -121,7 +130,8 @@ const buildListingNode = (
       ? listingNodeKey(listing.id)
       : groupMemberNodeKey(input.groupId, listing.id);
   return {
-    children: buildChildren(input, listing.id),
+    // A top-level node is always SHOWN, so its children only hide themselves.
+    children: buildChildren(input, nodeKey, listing.id, false),
     dateSpan: ownDateSpan(undefined),
     edgeRef,
     listing,
@@ -147,13 +157,21 @@ const buildPackageMemberNode =
       ? "HIDDEN"
       : "SHOWN";
     const quantityRule: QuantityRule = { kind: "FIXED", qty: fixedQty };
+    const nodeKey = packageMemberNodeKey(groupId, listing.id);
     return {
-      children: buildChildren(input, listing.id),
+      // A hidden package member hides its whole subtree: pass HIDDEN down so an
+      // auto-included child of a hidden member is never named (privacy).
+      children: buildChildren(
+        input,
+        nodeKey,
+        listing.id,
+        visibility === "HIDDEN",
+      ),
       dateSpan: ownDateSpan(undefined),
       edgeRef: { groupId, kind: "group_member" },
       listing,
       listingId: listing.id,
-      nodeKey: packageMemberNodeKey(groupId, listing.id),
+      nodeKey,
       priceRule: derivePriceRule(listing, overrideMinor),
       quantityRule,
       visibility,

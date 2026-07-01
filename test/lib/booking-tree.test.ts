@@ -30,18 +30,30 @@ describe("booking tree — node identity (nodeKey scheme)", () => {
     expect(listingNodeKey(7)).toBe("listing:7");
     expect(groupMemberNodeKey(3, 7)).toBe("group:3/member:7");
     expect(packageMemberNodeKey(3, 7)).toBe("package:3/member:7");
-    expect(childNodeKey(5, 7)).toBe("parent:5/child:7");
+    expect(childNodeKey(listingNodeKey(5), 7)).toBe("listing:5/child:7");
     const keys = new Set([
       listingNodeKey(7),
       groupMemberNodeKey(3, 7),
       packageMemberNodeKey(3, 7),
-      childNodeKey(5, 7),
+      childNodeKey(listingNodeKey(5), 7),
     ]);
     expect(keys.size).toBe(4);
   });
 
   test("the same child under two parents is two distinct nodes", () => {
-    expect(childNodeKey(1, 9)).not.toBe(childNodeKey(2, 9));
+    expect(childNodeKey(listingNodeKey(1), 9)).not.toBe(
+      childNodeKey(listingNodeKey(2), 9),
+    );
+  });
+
+  test("the same child under a standalone vs a package parent stays distinct", () => {
+    // Parent listing 5 reached standalone vs as package group 3's member: its
+    // required child 9 must NOT collapse to one signed identity, because the
+    // package path carries different provenance (group id, hidden projection,
+    // package-scaled quantity) that Phase 2 signs/revalidates by nodeKey (Codex).
+    expect(childNodeKey(listingNodeKey(5), 9)).not.toBe(
+      childNodeKey(packageMemberNodeKey(3, 5), 9),
+    );
   });
 });
 
@@ -223,10 +235,12 @@ describe("buildBookingTree — node facets", () => {
       slugs: ["ab12c"],
     });
     const [child1, child2] = tree.nodes[0]!.children;
-    expect(child1!.nodeKey).toBe("parent:4/child:9");
+    expect(child1!.nodeKey).toBe("listing:4/child:9");
     expect(child1!.edgeRef).toEqual({ kind: "parent_child", parentId: 4 });
     expect(child1!.dateSpan).toEqual({ kind: "INHERIT" });
-    expect(child2!.nodeKey).toBe("parent:4/child:10");
+    // A shown standalone parent does not hide its (non-hidden) children.
+    expect(child1!.visibility).toBe("SHOWN");
+    expect(child2!.nodeKey).toBe("listing:4/child:10");
   });
 
   test("a hidden child is a HIDDEN node (kept, never named)", () => {
@@ -240,6 +254,19 @@ describe("buildBookingTree — node facets", () => {
 });
 
 describe("buildBookingTree — package members", () => {
+  /** Package group 3 whose member 7 is itself a parent of (non-hidden) child 20,
+   * built either shown or with `hide_package_listings`. */
+  const packageMemberWithChild = (hidePackageListings: boolean) =>
+    buildBookingTree({
+      childrenByParentId: new Map([[7, [resolved({ id: 20, slug: "kid20" })]]]),
+      groupId: 3,
+      hidePackageListings,
+      isPackage: true,
+      listings: [resolved({ id: 7, slug: "tent1" })],
+      packageQuantities: new Map([[7, 1]]),
+      slugs: ["tent1"],
+    });
+
   test("members are FIXED at their per-package quantity, priced by override", () => {
     const tree = buildBookingTree({
       groupId: 3,
@@ -284,22 +311,26 @@ describe("buildBookingTree — package members", () => {
   test("a package member that is a parent nests its required children", () => {
     // The doc's model: a package member-parent is "a FIXED member node that
     // itself has a child node" — the child edge must not be dropped for packages.
-    const tree = buildBookingTree({
-      childrenByParentId: new Map([[7, [resolved({ id: 20, slug: "kid20" })]]]),
-      groupId: 3,
-      isPackage: true,
-      listings: [resolved({ id: 7, slug: "tent1" })],
-      packageQuantities: new Map([[7, 1]]),
-      slugs: ["tent1"],
-    });
+    const tree = packageMemberWithChild(false);
     const member = tree.nodes[0]!;
     expect(member.quantityRule).toEqual({ kind: "FIXED", qty: 1 });
     expect(member.children).toHaveLength(1);
-    expect(member.children[0]!.nodeKey).toBe("parent:7/child:20");
+    expect(member.children[0]!.nodeKey).toBe("package:3/member:7/child:20");
     expect(member.children[0]!.edgeRef).toEqual({
       kind: "parent_child",
       parentId: 7,
     });
+  });
+
+  test("a hidden package member hides its auto-included children too", () => {
+    // hide_package_listings hides the member AND its whole subtree, so a
+    // HIDDEN-dropping projection can never name the child of a hidden member —
+    // even when the child listing is not itself hidden (Codex).
+    const tree = packageMemberWithChild(true);
+    const member = tree.nodes[0]!;
+    expect(member.visibility).toBe("HIDDEN");
+    expect(member.children[0]!.listing.hidden).toBe(false);
+    expect(member.children[0]!.visibility).toBe("HIDDEN");
   });
 });
 
