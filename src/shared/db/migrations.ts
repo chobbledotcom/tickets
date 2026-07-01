@@ -83,6 +83,7 @@ import listingAttendeeLedgerEventGroupIndexMigration from "./migrations/2026-06-
 import attendeesKindNotNullMigration from "./migrations/2026-06-26_attendees_kind_not_null.ts";
 import serviceCostsMigration from "./migrations/2026-06-27_service_costs.ts";
 import listingUseDefaultsMigration from "./migrations/2026-06-28_listing_use_defaults.ts";
+import sitePagesMigration from "./migrations/2026-07-01_site_pages.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -266,6 +267,8 @@ export const MIGRATIONS: Migration[] = [
   serviceCostsMigration,
   // Pure additive column add (use_defaults on listings); appended last.
   listingUseDefaultsMigration,
+  // Two new tables for user-created content pages; appended last (additive).
+  sitePagesMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

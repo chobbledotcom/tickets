@@ -524,6 +524,43 @@ export interface Group {
   terms_and_conditions: string;
 }
 
+/** The kind of thing a {@link SitePageItem} points at. Exhaustive union — a new
+ * member is a compile error at every `Record<SitePageItemType, …>` dispatch. */
+export type SitePageItemType = "listing" | "group" | "page";
+
+/** A user-created content page. All free-text columns are stored encrypted;
+ * `slug_index` is the plaintext HMAC blind index, `sort_order` positions the
+ * page among root-level pages. See pages.md. */
+export interface SitePage {
+  id: number;
+  slug: string;
+  slug_index: string;
+  name: string;
+  meta_title: string;
+  meta_description: string;
+  content: string;
+  sort_order: number;
+}
+
+/** The narrow projection used to build the public nav: enough to render a link
+ * and order it, without decrypting the large `content`/`meta_*` blobs on every
+ * public request (cold-start efficiency — see pages.md "Functional core"). */
+export interface SitePageNavRow {
+  id: number;
+  slug: string;
+  name: string;
+  sort_order: number;
+}
+
+/** One ordered membership edge: `item` (of `item_type`) sits inside `page_id`
+ * at `sort_order`. Keyed on the composite `(page_id, item_type, item_id)`. */
+export interface SitePageItem {
+  page_id: number;
+  item_type: SitePageItemType;
+  item_id: number;
+  sort_order: number;
+}
+
 /** An owner-defined price modifier (surcharge / discount / add-on). `calc_value`
  * is the positive magnitude the owner entered (a fixed amount in major currency
  * units, a percentage, or a multiplier); `direction` chooses charge vs discount. */

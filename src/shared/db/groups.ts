@@ -4,7 +4,7 @@
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { execute, executeBatch, queryAll } from "#shared/db/client.ts";
+import { execute, executeBatch } from "#shared/db/client.ts";
 import {
   cachedEntityTable,
   defineIdTable,
@@ -13,6 +13,7 @@ import {
 } from "#shared/db/common-schema.ts";
 import { queryListingsWithCounts } from "#shared/db/listings.ts";
 import { queryAndMap } from "#shared/db/query.ts";
+import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
 import type { Group, ListingType, ListingWithCount } from "#shared/types.ts";
 
@@ -83,25 +84,14 @@ export const getGroupBySlugIndex = (slugIndex: string): Promise<Group | null> =>
  * Check if a group slug is already in use.
  * Checks both listings and groups for cross-table uniqueness.
  */
-export const isGroupSlugTaken = async (
+export const isGroupSlugTaken = (
   slug: string,
   excludeGroupId?: number,
-): Promise<boolean> => {
-  const slugIndex = await computeGroupSlugIndex(slug);
-
-  const listingHit = await queryAll(
-    "SELECT 1 FROM listings WHERE slug_index = ? LIMIT 1",
-    [slugIndex],
+): Promise<boolean> =>
+  isSlugTakenAnywhere(
+    slug,
+    excludeGroupId ? { id: excludeGroupId, table: "groups" } : undefined,
   );
-  if (listingHit.length > 0) return true;
-
-  const sql = excludeGroupId
-    ? "SELECT 1 FROM groups WHERE slug_index = ? AND id != ? LIMIT 1"
-    : "SELECT 1 FROM groups WHERE slug_index = ? LIMIT 1";
-  const args = excludeGroupId ? [slugIndex, excludeGroupId] : [slugIndex];
-  const groupHit = await queryAll(sql, args);
-  return groupHit.length > 0;
-};
 
 /** Query listings in a group with attendee counts, optionally filtering to active only */
 const queryGroupListings = (
