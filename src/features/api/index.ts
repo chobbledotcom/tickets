@@ -10,6 +10,7 @@ import { isRegistrationClosed } from "#routes/format.ts";
 import {
   classifyForDiscovery,
   dropHiddenPackageMembers,
+  loadPublicGroups,
 } from "#routes/public/discovery.ts";
 import { parseCustomPrice } from "#routes/public/ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-listings.ts";
@@ -384,7 +385,18 @@ const handleListListings = async (): Promise<Response> => {
       ? { ...publicListing, isSoldOut: true, maxPurchasable: 0 }
       : publicListing;
   });
-  return apiResponse({ listings });
+  // Packages are first-class products: a bookable package bundle is listed by
+  // name/slug (booked whole at /ticket/<group-slug>), so a hidden package stays
+  // discoverable even though its member listings are dropped above.
+  const packages = (await loadPublicGroups())
+    .filter((g) => g.is_package)
+    .map((g) => ({
+      description: g.description,
+      name: g.name,
+      slug: g.slug,
+      url: `/ticket/${g.slug}`,
+    }));
+  return apiResponse({ listings, packages });
 };
 
 /** GET /api/listings/:slug — single listing detail */

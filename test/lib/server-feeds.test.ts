@@ -78,7 +78,7 @@ const feedExclusionTests = (feedPath: string, emptyMarker: string) => {
     });
   });
 
-  test("excludes members of a hidden package", async () => {
+  test("syndicates a hidden package's bundle, never its members", async () => {
     await settings.update.showPublicSite(true);
     const group = await createTestGroup({ isPackage: true, name: "Bundle" });
     await groupsTable.update(group.id, { hidePackageListings: true });
@@ -87,8 +87,30 @@ const feedExclusionTests = (feedPath: string, emptyMarker: string) => {
       maxAttendees: 100,
       name: "Hidden Member",
     });
+    // The package is the public product: the bundle itself rides the feed
+    // (linking /ticket/<group-slug>) while its concealed member stays out.
     await expectHtml(await handleRequest(mockRequest(feedPath)), {
-      notContains: ["Hidden Member", emptyMarker],
+      contains: ["Bundle", `/ticket/${group.slug}`],
+      notContains: ["Hidden Member"],
+    });
+  });
+
+  test("omits an unbookable package from the feed", async () => {
+    await settings.update.showPublicSite(true);
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Gone Bundle",
+    });
+    const only = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 100,
+      name: "Last One",
+    });
+    await deactivateTestListing(only.id);
+    // The bundle can't sell (its sole member is inactive), so neither the
+    // package nor the member appears — the feed is empty.
+    await expectHtml(await handleRequest(mockRequest(feedPath)), {
+      notContains: ["Gone Bundle", "Last One", emptyMarker],
     });
   });
 };
@@ -173,7 +195,7 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      expect(body).toContain(`UID:${listing.id}@`);
+      expect(body).toContain(`UID:listing-${listing.id}@`);
       expect(body).toContain("DTSTAMP:");
     });
 

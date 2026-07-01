@@ -1251,10 +1251,18 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       return createTestListing({ groupId: group.id, name: "Secret Member" });
     };
 
-    test("excludes the member from GET /api/listings", async () => {
+    test("lists the bundle, not the member, on GET /api/listings", async () => {
       await hiddenPackageMember();
       const { listings } = await fetchListingsList();
       expect(listings).toEqual([]);
+      // The package itself is a first-class product: discoverable by
+      // name/slug with its /ticket booking URL, members withheld.
+      const raw = await (
+        await handleRequest(jsonRequest("/api/listings"))
+      ).json();
+      expect(raw.packages).toHaveLength(1);
+      expect(raw.packages[0].name).toBe("Hidden Bundle");
+      expect(raw.packages[0].url).toBe(`/ticket/${raw.packages[0].slug}`);
     });
 
     test("404s the member's detail, availability and book endpoints", async () => {
