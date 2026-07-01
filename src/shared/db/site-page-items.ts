@@ -80,7 +80,9 @@ export const addPageItem = (
       args: [pageId],
       sql: "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM site_page_items WHERE page_id = ?",
     });
-    const next = Number(resultRows<{ next: number }>(orderRes)[0]?.next ?? 0);
+    // The aggregate always returns exactly one row, so read it directly rather
+    // than guarding an impossible empty result.
+    const next = Number(resultRows<{ next: number }>(orderRes)[0]!.next);
     await tx.execute({
       args: [pageId, itemType, itemId, next],
       sql: "INSERT INTO site_page_items (page_id, item_type, item_id, sort_order) VALUES (?, ?, ?, ?)",
