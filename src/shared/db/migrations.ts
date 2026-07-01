@@ -86,6 +86,8 @@ import groupListingsMigration from "./migrations/2026-06-28_group_listings.ts";
 import listingUseDefaultsMigration from "./migrations/2026-06-28_listing_use_defaults.ts";
 import attendeePackageGroupMigration from "./migrations/2026-06-29_attendee_package_group.ts";
 import packageQuantitiesMigration from "./migrations/2026-06-29_package_quantities.ts";
+import listingPricesMigration from "./migrations/2026-07-01_listing_prices.ts";
+import sitePagesMigration from "./migrations/2026-07-01_site_pages.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -274,6 +276,10 @@ export const MIGRATIONS: Migration[] = [
   // Stamps package_group_id on each booking row of a package order, so tickets
   // and emails group by the persisted id rather than membership equality.
   attendeePackageGroupMigration,
+  // From main: two new tables for user-created content pages (additive).
+  sitePagesMigration,
+  // From main: listing_prices table + backfill from unit_price/day_prices.
+  listingPricesMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

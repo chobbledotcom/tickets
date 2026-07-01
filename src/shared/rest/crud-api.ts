@@ -193,6 +193,12 @@ export interface CrudApiConfig<
    * atomicity). `Prepared` is the value its `validate` carries forward to its
    * `persist`, inferred per resource. See {@link CrudSideEffect}. */
   sideEffect?: CrudSideEffect<Input, FullRow, Prepared>;
+  /** Run after a create/update has committed and the row has been re-read, keyed
+   * on the row id. Unlike `sideEffect`/`afterWrite` (which run inside the write
+   * transaction), this fires post-commit — for reconciling a derived table that
+   * the form paths keep in sync elsewhere but the transactional `insertStatement`/
+   * `updateStatement` path would otherwise bypass (e.g. listing_prices). */
+  afterCommit?: (id: number) => Promise<void>;
   /** Extra route entries to merge in (can also override generated routes) */
   extraRoutes?: Record<string, RouteHandlerFn>;
   /** Fetch all rows (from cache) — may return a richer row type than the table (e.g. joined counts) */
@@ -357,6 +363,7 @@ export const defineCrudApi = <
     action: string,
     status: number,
   ): Promise<Response> => {
+    if (config.afterCommit) await config.afterCommit(fullRow.id);
     await logAction(action, fullRow);
     return jsonResponse({ [responseKey]: await toResponse(fullRow) }, status);
   };

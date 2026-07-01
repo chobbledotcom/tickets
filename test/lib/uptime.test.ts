@@ -5,13 +5,9 @@ import { getUptimeSeconds } from "#shared/uptime.ts";
 
 describe("getUptimeSeconds", () => {
   test("grows by the wall-clock seconds elapsed since the instance started", () => {
-    const time = new FakeTime();
-    try {
-      const before = getUptimeSeconds();
-      time.tick(3000);
-      expect(getUptimeSeconds() - before).toBeCloseTo(3);
-    } finally {
-      time.restore();
-    }
+    using time = new FakeTime();
+    const before = getUptimeSeconds();
+    time.tick(3000);
+    expect(getUptimeSeconds() - before).toBeCloseTo(3);
   });
 });

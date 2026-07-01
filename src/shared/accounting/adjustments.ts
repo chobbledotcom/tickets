@@ -28,10 +28,14 @@ import { nowIso } from "#shared/now.ts";
  * `delta` (in "credit-the-account" terms), or `null` for a zero delta (which
  * posts nothing). Shared by the own-transaction and in-transaction posters so
  * the leg's direction, amount, and reference derivation live in exactly one
- * place. Each save is its own business event — a fresh `nowIso()` is mixed into
- * the `eventGroup`/`reference` — so editing a figure up, down, then back up
- * posts three distinct adjustments rather than colliding on an earlier event's
- * references.
+ * place. Each save is its own business event — both the `delta` and a fresh
+ * `nowIso()` are mixed into the `eventGroup`/`reference` — so editing a figure
+ * up, down, then back up posts three distinct adjustments rather than colliding
+ * on an earlier event's references. The `delta` is part of the key because
+ * `nowIso()` is only millisecond-resolution: two opposite corrections of the
+ * same figure (a raise then a lower) posted within the same millisecond would
+ * otherwise share `[...keyParts, occurredAt]` and the second would be dropped by
+ * the `INSERT OR IGNORE`; including the (signed) delta keeps them distinct.
  */
 const writeoffAdjustmentLeg = async (
   account: AccountRef,
@@ -40,7 +44,7 @@ const writeoffAdjustmentLeg = async (
 ): Promise<TransferInput | null> => {
   if (delta === 0) return null;
   const occurredAt = nowIso();
-  const parts: RefPart[] = [...keyParts, occurredAt];
+  const parts: RefPart[] = [...keyParts, delta, occurredAt];
   return {
     amount: Math.abs(delta),
     // Crediting the account sources from writeoff (the figure rises);

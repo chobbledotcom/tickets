@@ -85,6 +85,14 @@ const LIBRARY_PATHS = [
   "shared/accounting/queries.ts",
   "shared/accounting/projection.ts",
   "shared/accounting/mappers.ts",
+  // The site-pages feature (pages.md) is being wired in incrementally,
+  // foundation-first: the pure core + DB layer landed before the admin CRUD /
+  // public route / recursive-nav slices that consume them, so — like the
+  // ledger modules above — their exports have no production caller yet. Each
+  // module loses its exemption as the slice that consumes it lands.
+  "shared/site-pages/core.ts",
+  "shared/db/site-pages.ts",
+  "shared/db/site-page-items.ts",
 ];
 
 /** Index modules that only re-export from sub-modules */

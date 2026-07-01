@@ -437,6 +437,7 @@ describe("adminAdvancedSettingsPage", () => {
     businessEmail: "",
     cdnHostname: "",
     confirmationTemplates: { html: "", subject: "", text: "" },
+    customCss: "",
     customDomain: "",
     customDomainLastValidated: "",
     emailApiKeyConfigured: false,

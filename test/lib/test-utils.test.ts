@@ -1623,7 +1623,7 @@ describe("test-utils", () => {
       expect(actions).toEqual([
         "visit:/setup/",
         "submit:Complete Setup",
-        "click:Go to Admin Dashboard",
+        "click:Log In",
         "submit:Login",
         "click:Back to dashboard",
       ]);

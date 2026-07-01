@@ -14,6 +14,7 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import { appendIframeParam } from "#shared/iframe.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { createRequestScoped } from "#shared/request-scoped.ts";
 import { Icon } from "#templates/components/actions.tsx";
 
 const escapeHtml = (str: string): string =>
@@ -397,6 +398,16 @@ const validateSingleField = (
     if (error) return { error, valid: false };
   }
 
+  // Enforce the field's maxlength server-side (the rendered input's maxlength is
+  // only a browser hint). Runs after any custom validator so a field with its
+  // own length rule keeps its domain-specific message.
+  if (field.maxlength && trimmed.length > field.maxlength) {
+    return {
+      error: `${field.label} must be ${field.maxlength} characters or fewer`,
+      valid: false,
+    };
+  }
+
   return { valid: true, value: parseFieldValue(field, trimmed) };
 };
 
@@ -552,16 +563,22 @@ const SENSITIVE_FIELD_TYPES: ReadonlySet<FieldType> = new Set([
  * without any changes to individual form handlers or templates.
  * Only non-sensitive field types (not password/file) are restored.
  */
-const _savedFormData: { form: FormParams | null } = { form: null };
+const savedFormScope = createRequestScoped<{ form: FormParams | null }>(() => ({
+  form: null,
+}));
+
+/** Run a function within a saved-form-data scope (one container per request) */
+export const runWithSavedFormContext = <T,>(fn: () => T): T =>
+  savedFormScope.run(fn);
 
 /** Save form data for restoration after CSRF failure */
 export const setSavedFormData = (form: FormParams): void => {
-  _savedFormData.form = form;
+  savedFormScope.current().form = form;
 };
 
 /** Clear saved form data (called on successful CSRF validation) */
 export const clearSavedFormData = (): void => {
-  _savedFormData.form = null;
+  savedFormScope.current().form = null;
 };
 
 /**
@@ -569,7 +586,8 @@ export const clearSavedFormData = (): void => {
  * Used by `redirect()` to stash a failed submission for re-filling after the
  * follow-up GET.
  */
-export const getSavedFormData = (): FormParams | null => _savedFormData.form;
+export const getSavedFormData = (): FormParams | null =>
+  savedFormScope.current().form;
 
 /**
  * Read a raw saved form value by name, or "" when nothing was restored. Lets the
@@ -578,26 +596,27 @@ export const getSavedFormData = (): FormParams | null => _savedFormData.form;
  * after a failed booking redirect, alongside renderFields for the normal inputs.
  */
 export const savedFormValue = (name: string): string =>
-  _savedFormData.form?.getString(name) ?? "";
+  savedFormScope.current().form?.getString(name) ?? "";
 
 /** Get a saved value for a field, or empty string if not available */
 const getSavedValue = (field: Field): string => {
-  if (!_savedFormData.form || SENSITIVE_FIELD_TYPES.has(field.type)) return "";
+  const form = savedFormScope.current().form;
+  if (!form || SENSITIVE_FIELD_TYPES.has(field.type)) return "";
   if (field.type === "checkbox-group") {
-    return _savedFormData.form
+    return form
       .getAll(field.name)
       .map((v) => v.trim())
       .filter((v) => v)
       .join(",");
   }
   if (field.type === "datetime") {
-    const date = _savedFormData.form.getString(`${field.name}_date`);
-    const time = _savedFormData.form.getString(`${field.name}_time`);
+    const date = form.getString(`${field.name}_date`);
+    const time = form.getString(`${field.name}_time`);
     if (date && time) return `${date}T${time}`;
     if (date) return `${date}T00:00`;
     return "";
   }
-  return _savedFormData.form.getString(field.name);
+  return form.getString(field.name);
 };
 
 /**

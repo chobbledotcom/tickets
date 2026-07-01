@@ -171,20 +171,14 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
         maxAttendees: 10,
         unitPrice: 500,
       });
-      const time = new FakeTime(1_700_000_000_000);
-      try {
-        const token = await signQrBookToken(
-          listing.slug,
-          buildQrBookPayload({ name: "Ada", value: 500 }),
-        );
-        time.tick((QR_TOKEN_MAX_AGE_S + 30) * 1000);
-        const response = await awaitTestRequest(
-          qrBookPath(listing.slug, token),
-        );
-        expect(response.status).toBe(400);
-      } finally {
-        time.restore();
-      }
+      using time = new FakeTime(1_700_000_000_000);
+      const token = await signQrBookToken(
+        listing.slug,
+        buildQrBookPayload({ name: "Ada", value: 500 }),
+      );
+      time.tick((QR_TOKEN_MAX_AGE_S + 30) * 1000);
+      const response = await awaitTestRequest(qrBookPath(listing.slug, token));
+      expect(response.status).toBe(400);
     });
 
     test("deactivated listing is treated like unknown (404)", async () => {

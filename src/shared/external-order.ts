@@ -103,6 +103,10 @@ export interface Catalog {
   currency: string;
   decimalPlaces: number;
   generatedAt: string;
+  /** When true, the served widget emits verbose `console.debug` output so an
+   * integrator can see add-to-cart enhancement, cart state, and navigation as
+   * it happens. Toggled per request with `?debug=true` on `/order.js`. */
+  debug: boolean;
   listings: Record<string, CatalogListing>;
   /** Bookable package groups keyed by group slug. A `data-add-listing` link to
    * one of these navigates straight to `/ticket/<slug>` instead of adding a cart
@@ -146,6 +150,7 @@ export const buildCatalog = (params: {
   currency: string;
   decimalPlaces: number;
   generatedAt: string;
+  debug: boolean;
   listings: CatalogSourceListing[];
   /** Bookable package groups (slug + decrypted name). The caller has already
    * gated these to whole-bundle-bookable, non-hidden packages — the same set
@@ -153,6 +158,7 @@ export const buildCatalog = (params: {
   packages?: CatalogPackage[];
 }): Catalog => ({
   currency: params.currency,
+  debug: params.debug,
   decimalPlaces: params.decimalPlaces,
   generatedAt: params.generatedAt,
   listings: Object.fromEntries(

@@ -15,6 +15,7 @@ import {
   copyPackageMemberOverridesTx,
   setListingGroupsTx,
 } from "#shared/db/groups.ts";
+import { syncListingPrices } from "#shared/db/listing-prices.ts";
 import {
   computeSlugIndex,
   type ListingAggregateValues,
@@ -242,6 +243,10 @@ const writeCreateListingGroups =
  */
 export const buildCreateListingResource = (form: FormParams) =>
   defineResource({
+    // Group membership rides the write transaction; listing_prices reconciles
+    // post-commit (afterCommit) since the transactional insertStatement path
+    // bypasses the listingsTable wrapper that syncs direct writes.
+    afterCommit: syncListingPrices,
     afterWrite: writeCreateListingGroups(form),
     fields: buildListingResourceFields(),
     nameField: "name",
@@ -253,6 +258,7 @@ export const buildCreateListingResource = (form: FormParams) =>
 /** Build a per-request listings update resource (includes the slug field). */
 export const buildUpdateListingResource = (form: FormParams) =>
   defineResource({
+    afterCommit: syncListingPrices,
     afterWrite: writeListingGroups,
     fields: [...buildListingResourceFields(), getSlugField()],
     nameField: "name",

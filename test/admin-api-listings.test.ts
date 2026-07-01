@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { bodyToCreateInput, bodyToUpdateInput } from "#routes/admin/api.ts";
+import { queryAll } from "#shared/db/client.ts";
 import { getGroupIdsByListingId } from "#shared/db/groups.ts";
 import {
   getListingWithCount,
@@ -207,6 +208,34 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
           expect(body.listing.day_prices).toEqual({ 1: 1000, 2: 1800 });
         },
       );
+    });
+
+    test("syncs listing_prices on the transactional API create path", async () => {
+      // The API create goes through the crud-api sideEffect (child-edge) path,
+      // which uses insertStatement and so bypasses the listingsTable wrapper;
+      // the afterWrite hook must still reconcile listing_prices.
+      const response = await apiRequest("/api/admin/listings", {
+        body: {
+          customisable_days: true,
+          day_prices: { 1: 1000, 2: 1800 },
+          duration_days: 2,
+          max_attendees: 20,
+          name: "API Priced",
+          unit_price: 900,
+        },
+        method: "POST",
+      });
+      const { listing } = await response.json();
+      const rows = await queryAll(
+        `SELECT price_type, price_id, unit_price FROM listing_prices
+          WHERE listing_id = ? ORDER BY price_type, price_id`,
+        [listing.id],
+      );
+      expect(rows).toEqual([
+        { price_id: "", price_type: "base", unit_price: 900 },
+        { price_id: "1", price_type: "day_count", unit_price: 1000 },
+        { price_id: "2", price_type: "day_count", unit_price: 1800 },
+      ]);
     });
 
     test("returns 400 when name is missing", async () => {

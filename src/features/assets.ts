@@ -3,6 +3,7 @@
  */
 
 import { dirname, fromFileUrl, join } from "@std/path";
+import { once } from "#fp";
 import { encodeBody } from "#routes/response.ts";
 
 const currentDir = dirname(fromFileUrl(import.meta.url));
@@ -50,6 +51,12 @@ export const handleIframeResizerChildJs = staticHandler(
 /** The raw ESM body of the external-order widget (`/order.js`). Exposed here —
  * rather than read in the handler — so the edge build inlines it the same way
  * it inlines the other static assets (the dynamic `/order.js` route prepends the
- * per-request catalog to this string). Returns the unencoded source text. */
-export const orderWidgetBody = (): string =>
-  Deno.readTextFileSync(join(staticDir, "order.js"));
+ * per-request catalog to this string). Returns the unencoded source text.
+ *
+ * The widget body never changes for the life of the process, and `/order.js` is
+ * hit on every embedding page load, so the file is read once and cached. (The
+ * edge build replaces this whole module with a pre-inlined constant; the cache
+ * only spares the per-request `readTextFileSync` on the Deno dev/Deploy path.) */
+export const orderWidgetBody = once((): string =>
+  Deno.readTextFileSync(join(staticDir, "order.js")),
+);

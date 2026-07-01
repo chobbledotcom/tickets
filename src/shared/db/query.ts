@@ -1,10 +1,10 @@
 import { mapParallel } from "#fp";
 import {
   execute,
-  executeBatch,
   inPlaceholders,
   queryAll,
   resultRows,
+  withTransaction,
 } from "#shared/db/client.ts";
 
 /**
@@ -22,27 +22,32 @@ export const queryAndMap =
  * `sort_order` columns. The current values are read first so callers only need
  * the two ids. `table` is always an internal constant, never user input.
  */
-export const swapSortOrder = async (
+export const swapSortOrder = (
   table: string,
   id1: number,
   id2: number,
-): Promise<void> => {
-  const rows = await queryAll<{ id: number; sort_order: number }>(
-    `SELECT id, sort_order FROM ${table} WHERE id IN (?, ?)`,
-    [id1, id2],
-  );
-  const orderById = new Map(rows.map((r) => [r.id, r.sort_order]));
-  await executeBatch([
-    {
+): Promise<void> =>
+  // Read the two orders and write the swap in one transaction, so concurrent
+  // reorders serialise on the write lock instead of applying the same stale
+  // snapshot and leaving two rows with the same sort_order (there is no
+  // (table, sort_order) uniqueness constraint to repair such drift).
+  withTransaction(async (tx) => {
+    const rows = resultRows<{ id: number; sort_order: number }>(
+      await tx.execute({
+        args: [id1, id2],
+        sql: `SELECT id, sort_order FROM ${table} WHERE id IN (?, ?)`,
+      }),
+    );
+    const orderById = new Map(rows.map((r) => [r.id, r.sort_order]));
+    await tx.execute({
       args: [orderById.get(id2)!, id1],
       sql: `UPDATE ${table} SET sort_order = ? WHERE id = ?`,
-    },
-    {
+    });
+    await tx.execute({
       args: [orderById.get(id1)!, id2],
       sql: `UPDATE ${table} SET sort_order = ? WHERE id = ?`,
-    },
-  ]);
-};
+    });
+  });
 
 /**
  * Run an id-keyed SELECT, short-circuiting to `[]` (no query) when `ids` is

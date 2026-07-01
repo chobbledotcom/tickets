@@ -27,6 +27,14 @@ import type {
 // Injected by the server immediately above this module body.
 declare const CATALOG: Catalog;
 
+/** Verbose console logging, gated on the `?debug=true` flag the server bakes
+ * into the catalog. Off by default so a production embed stays silent; on, it
+ * traces enhancement, cart mutations, and navigation to help an integrator see
+ * why their `data-add-listing` links aren't behaving. */
+const debugLog = (...args: unknown[]): void => {
+  if (CATALOG.debug) console.debug("[chobble-order]", ...args);
+};
+
 interface CartLine {
   slug: string;
   quantity: number;
@@ -140,6 +148,7 @@ class CartController {
       raw = sessionStorage.getItem(this.storageKey);
     } catch {
       this.memoryOnly = true;
+      debugLog("sessionStorage unavailable; cart is memory-only");
       return [];
     }
     if (!raw) return [];
@@ -150,6 +159,7 @@ class CartController {
       return Array.isArray(parsed) ? parsed.filter(isCartLine) : [];
     } catch {
       // Bad JSON from the host page — discard it but keep using storage.
+      debugLog("discarding corrupt stored cart");
       try {
         sessionStorage.removeItem(this.storageKey);
       } catch {
@@ -185,6 +195,7 @@ class CartController {
     }
     if (dropped) {
       this.notice = "Some items are no longer available and were removed.";
+      debugLog("reconcile dropped unavailable cart items");
     }
     return [...merged].map(([slug, quantity]) => ({ quantity, slug }));
   }
@@ -199,6 +210,7 @@ class CartController {
     this.save();
     this.render();
     this.bump();
+    debugLog("add", entry.slug, `x${quantity}`, "cart now", this.lines);
   }
 
   private setQuantity(slug: string, quantity: number): void {
@@ -330,6 +342,7 @@ class CartController {
     button.className = "continue";
     button.textContent = "Continue";
     button.addEventListener("click", () => {
+      debugLog("continue ->", url);
       if (url) globalThis.location.assign(url);
     });
     return button;
@@ -417,16 +430,27 @@ const init = (): void => {
     Record<string, unknown>
   >;
   const registry = (global[REGISTRY_KEY] ??= {});
-  if (registry[CATALOG.origin]) return;
+  if (registry[CATALOG.origin]) {
+    debugLog("already initialised for", CATALOG.origin);
+    return;
+  }
 
+  debugLog("init", {
+    listings: Object.keys(CATALOG.listings).length,
+    origin: CATALOG.origin,
+  });
   const controller = new CartController();
   registry[CATALOG.origin] = controller;
 
   const enhance = (link: HTMLAnchorElement): void => {
     if (link.dataset.chobbleEnhanced) return;
     const raw = link.dataset.addListing ?? "";
-    if (!resolveListing(raw) && !resolvePackageSlug(raw)) return;
+    if (!resolveListing(raw) && !resolvePackageSlug(raw)) {
+      debugLog("skipped un-enhanceable link", link.dataset.addListing);
+      return;
+    }
     link.dataset.chobbleEnhanced = "1";
+    debugLog("enhanced", link.dataset.addListing);
     link.addEventListener("click", (event) => {
       // Re-resolve at click time: an SPA may have repointed `data-add-listing`
       // since enhancement (re-scans skip already-enhanced links). If it now

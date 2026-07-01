@@ -83,7 +83,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("GET /join/complete shows confirmation page", async () => {
-      await assertPublicHtml("/join/complete", "Password Set");
+      await assertPublicHtml(
+        "/join/complete",
+        "Password Set",
+        'href="/admin/login"',
+        "Log In",
+      );
     });
 
     test("POST /join/:code self-activates the invited user", async () => {

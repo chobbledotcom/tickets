@@ -34,6 +34,10 @@ import {
   PARENT_CHILD_GROUP_UNITS,
   sharedGroupRemaining,
 } from "#shared/types.ts";
+import {
+  questionFieldset,
+  questionWrapper,
+} from "#templates/components/question-text.tsx";
 import { getTicketFields, mergeListingFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import {
@@ -270,7 +274,14 @@ const renderTermsAndCheckbox = (terms: string): string => {
 /** Render one question control. `required` is the HTML constraint: page listings
  * emit required controls; folded child questions render non-required (the server
  * enforces requiredness only for the selected child — invariant I9). `listingIds`
- * (when present) lets the visibility script show/hide. */
+ * (when present) lets the visibility script show/hide.
+ *
+ * Question text may contain markdown. When the markdown is simple (plain text in
+ * a single paragraph) it is embedded directly inside the `<label>`/`<legend>` so
+ * the label-click-focuses-control feature works. When complex it is rendered as
+ * a `<div class="prose">` before the control, and the wrapping element becomes a
+ * `<div>` (or the legend is dropped) so the long prose isn't trapped inside a
+ * label. */
 const renderQuestion = (
   q: QuestionWithAnswers,
   required: boolean,
@@ -278,57 +289,49 @@ const renderQuestion = (
 ): JSX.Element => {
   const answered = savedFormValue(`question_${q.id}`);
   const options = q.answers.filter((a) => a.active);
-  // A select is a single control, so a plain <label> names it like the text fields
-  // do; radios are a set of controls, so they need a <fieldset>/<legend> to label
-  // the group. Both carry .custom-question (plus any data-listing-ids) so the
-  // visibility script can show/hide them.
   if (q.display_type === "free_text") {
-    return (
-      <label class="custom-question" data-listing-ids={listingIds}>
-        {q.text}
-        <input
-          maxlength={MAX_TEXTAREA_LENGTH}
-          name={`question_${q.id}`}
-          required={required}
-          type="text"
-          value={answered}
-        />
-      </label>
-    );
+    return questionWrapper(q, listingIds, (labelledBy) => (
+      <input
+        aria-labelledby={labelledBy}
+        maxlength={MAX_TEXTAREA_LENGTH}
+        name={`question_${q.id}`}
+        required={required}
+        type="text"
+        value={answered}
+      />
+    ));
   }
   if (q.display_type === "select") {
-    return (
-      <label class="custom-question" data-listing-ids={listingIds}>
-        {q.text}
-        <select name={`question_${q.id}`} required={required}>
-          <option value="">
-            {t("public.ticket.select_answer_placeholder")}
+    return questionWrapper(q, listingIds, (labelledBy) => (
+      <select
+        aria-labelledby={labelledBy}
+        name={`question_${q.id}`}
+        required={required}
+      >
+        <option value="">{t("public.ticket.select_answer_placeholder")}</option>
+        {options.map((a) => (
+          <option selected={answered === String(a.id)} value={String(a.id)}>
+            {a.text}
           </option>
-          {options.map((a) => (
-            <option selected={answered === String(a.id)} value={String(a.id)}>
-              {a.text}
-            </option>
-          ))}
-        </select>
-      </label>
-    );
+        ))}
+      </select>
+    ));
   }
-  return (
-    <fieldset class="custom-question" data-listing-ids={listingIds}>
-      <legend>{q.text}</legend>
-      {options.map((a) => (
-        <label>
-          <input
-            checked={answered === String(a.id)}
-            name={`question_${q.id}`}
-            required={required}
-            type="radio"
-            value={String(a.id)}
-          />{" "}
-          {a.text}
-        </label>
-      ))}
-    </fieldset>
+  return questionFieldset(
+    q,
+    listingIds,
+    options.map((a) => (
+      <label>
+        <input
+          checked={answered === String(a.id)}
+          name={`question_${q.id}`}
+          required={required}
+          type="radio"
+          value={String(a.id)}
+        />{" "}
+        {a.text}
+      </label>
+    )),
   );
 };
 

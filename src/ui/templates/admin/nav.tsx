@@ -5,8 +5,7 @@
  * top-level links, plus — for the section the page belongs to — that section's
  * sub-nav. It emits two structures and lets CSS show whichever fits:
  *
- *  - a desktop sidebar, where the sub-nav is nested inside its parent <li> (and
- *    the site editor's third level nested again), and
+ *  - a desktop sidebar, where the sub-nav is nested inside its parent <li>, and
  *  - mobile bars, where the sub-nav follows the top-level row as its own bar.
  *
  * Each layout keeps its own correctly-ordered DOM, so tab/reading order always
@@ -36,25 +35,14 @@ interface NavItem {
   label: string;
 }
 
-/** A third navigation level nested beneath one sub-nav item (the site editor's
- * pages, under Settings → Site). */
-interface NestedSub {
-  /** href of the sub-item these items hang beneath (e.g. /admin/site). */
-  under: string;
-  /** Accessible name for this level's mobile nav landmark. */
-  label: string;
-  items: NavItem[];
-}
-
 /** The resolved menu for the active section: which top-level link to highlight,
- * an accessible name for its sub-nav, its items, and an optional third level. */
+ * an accessible name for its sub-nav, and its items. */
 interface Section {
   /** Top-level link highlighted for this section (the page may live deeper). */
   topHref: string;
   /** Accessible name for this section's sub-nav (mobile) landmark. */
   label: string;
   items: NavItem[];
-  nested?: NestedSub;
 }
 
 /** Render read-only or warning banner with optional renewal URL */
@@ -97,8 +85,12 @@ const editorTopLevelItems = (): NavItem[] => [
   { href: "/admin/site", label: t("nav.site") },
 ];
 
-/** Top-level admin links, in order. Users and Settings are owner-only. */
-const topLevelItems = (session: AdminSession): NavItem[] =>
+/** Top-level admin links, in order. Users and Settings are owner-only. `active`
+ * is the highlighted section route — passed so the Site parent stays present
+ * while an owner is on the Site editor even before the public site is enabled
+ * (otherwise the desktop sub-nav, which nests under the matching top item, would
+ * have no parent to hang from). */
+const topLevelItems = (session: AdminSession, active: string): NavItem[] =>
   session.adminLevel === "editor"
     ? editorTopLevelItems()
     : compact([
@@ -114,6 +106,14 @@ const topLevelItems = (session: AdminSession): NavItem[] =>
         { href: "/admin/modifiers", label: t("terms.modifiers") },
         session.adminLevel === "owner"
           ? { href: "/admin/ledger", label: t("nav.ledger") }
+          : null,
+        // Site is a top-level section for owners once the public site is on —
+        // or whenever they're on the Site editor itself, so the section keeps a
+        // desktop parent even before enabling the public site. (Editors always
+        // have it top-level; managers/agents never edit the site.)
+        session.adminLevel === "owner" &&
+        (settings.showPublicSite || active === "/admin/site")
+          ? { href: "/admin/site", label: t("nav.site") }
           : null,
         session.adminLevel === "owner"
           ? { href: "/admin/settings", label: t("nav.settings") }
@@ -137,10 +137,9 @@ const usersSub = (): NavItem[] => [
   { href: "/admin/api-keys", label: t("nav.sub.api_keys") },
 ];
 
-/** Settings sub-nav. Built sites and Support appear only when enabled. Site
- * appears when the public site is enabled, or always when `includeSite` is set
- * (the site editor section, which nests its own pages beneath that link). */
-const settingsSub = (includeSite = false): NavItem[] =>
+/** Settings sub-nav. Built sites and Support appear only when enabled. (Site is
+ * no longer here — it's a top-level section; see `resolveSection`.) */
+const settingsSub = (): NavItem[] =>
   compact([
     { href: "/admin/settings", label: t("nav.sub.settings") },
     { href: "/admin/listing-defaults", label: t("nav.sub.listing_defaults") },
@@ -149,9 +148,6 @@ const settingsSub = (includeSite = false): NavItem[] =>
     { href: "/admin/questions", label: t("terms.questions") },
     { href: "/admin/logistics", label: t("nav.logistics") },
     { href: "/admin/emails", label: t("nav.emails") },
-    includeSite || settings.showPublicSite
-      ? { href: "/admin/site", label: t("nav.site") }
-      : null,
     { href: "/admin/holidays", label: t("terms.holidays") },
     isBuilderEnabled()
       ? { href: "/admin/built-sites", label: t("nav.built_sites") }
@@ -183,11 +179,13 @@ const resolveSection = (
   active: string,
   adminLevel: AdminSession["adminLevel"],
 ): Section | null => {
-  if (adminLevel === "editor") {
-    return active === "/admin/site"
-      ? { items: siteSub(), label: t("nav.site"), topHref: "/admin/site" }
-      : null;
+  // Site is a top-level section with its own sub-nav for both owner and editor.
+  if (active === "/admin/site") {
+    return { items: siteSub(), label: t("nav.site"), topHref: "/admin/site" };
   }
+  // Editors only ever reach the Site section above; everything below is
+  // owner-only (their top-level nav omits these links entirely).
+  if (adminLevel === "editor") return null;
   if (active === "/admin/calendar") {
     const items = calendarSub();
     return items
@@ -205,14 +203,6 @@ const resolveSection = (
     return {
       items: settingsSub(),
       label: t("nav.settings"),
-      topHref: "/admin/settings",
-    };
-  }
-  if (active === "/admin/site") {
-    return {
-      items: settingsSub(true),
-      label: t("nav.settings"),
-      nested: { items: siteSub(), label: t("nav.site"), under: "/admin/site" },
       topHref: "/admin/settings",
     };
   }
@@ -252,18 +242,7 @@ const DesktopNav = ({
         <li>
           {navAnchor(item, highlight)}
           {section && item.href === highlight && (
-            <ul class="admin-subnav">
-              {section.items.map((sub) => (
-                <li>
-                  {navAnchor(sub, "")}
-                  {section.nested && sub.href === section.nested.under && (
-                    <ul class="admin-subnav">
-                      {navItems(section.nested.items, "")}
-                    </ul>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <ul class="admin-subnav">{navItems(section.items, "")}</ul>
           )}
         </li>
       ))}
@@ -293,8 +272,6 @@ const MobileNav = ({
   <>
     {mobileBar(t("nav.admin"), navItems(items, highlight))}
     {section && mobileBar(section.label, navItems(section.items, ""))}
-    {section?.nested &&
-      mobileBar(section.nested.label, navItems(section.nested.items, ""))}
   </>
 );
 
@@ -312,7 +289,7 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
   // Flag this render as an admin page so the Layout emits the admin footer
   // (Chobble link, optional debug menu, and the logout button).
   markAdminFooter(session.adminLevel);
-  const items = topLevelItems(session);
+  const items = topLevelItems(session, active);
   const section = resolveSection(active, session.adminLevel);
   const highlight = section?.topHref ?? active;
   return (

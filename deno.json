@@ -69,6 +69,7 @@
     "marked": "npm:marked@^18.0.0",
     "node-forge": "npm:node-forge@^1.4.0",
     "fflate": "npm:fflate@^0.8.2",
+    "happy-dom": "npm:happy-dom@^15.11.7",
     "auto-console-group": "npm:auto-console-group@^1.3.0",
     "valibot": "npm:valibot@^1.4.1",
     "temporal-polyfill": "npm:temporal-polyfill@^0.3.0",

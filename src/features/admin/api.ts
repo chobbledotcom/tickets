@@ -21,6 +21,7 @@ import {
   setListingGroupsTx,
 } from "#shared/db/groups.ts";
 import { setChildIdsTx } from "#shared/db/listing-parents.ts";
+import { syncListingPrices } from "#shared/db/listing-prices.ts";
 import {
   computeSlugIndex,
   getAllListings,
@@ -523,6 +524,11 @@ const listingApiRoutes = defineCrudApi<
   ListingWithCount,
   PreparedListingJoins
 >({
+  // Keep listing_prices in step on the transactional API write path, which uses
+  // insertStatement/updateStatement and so bypasses the listingsTable wrapper
+  // that syncs the form/direct write paths. Runs post-commit (afterCommit), not
+  // in the write tx, so it reads the just-written row on the primary.
+  afterCommit: syncListingPrices,
   extraRoutes: {
     "DELETE /api/admin/listings/:listingId": handleDeleteListing,
     "POST /api/admin/listings/:listingId/deactivate": (
