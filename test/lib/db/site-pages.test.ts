@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { executeBatch, queryAll } from "#shared/db/client.ts";
-import { runWithRequestCache } from "#shared/request-cache.ts";
 import {
   addPageItem,
   clearItemEdgesStatement,
@@ -24,6 +23,7 @@ import {
   sitePagesTable,
   swapSitePageOrder,
 } from "#shared/db/site-pages.ts";
+import { runWithRequestCache } from "#shared/request-cache.ts";
 import type { SitePage } from "#shared/types.ts";
 import {
   createTestGroup,
