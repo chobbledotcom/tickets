@@ -7,6 +7,7 @@ import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import { execute } from "#shared/db/client.ts";
 import { groupsTable, setGroupPackageMembers } from "#shared/db/groups.ts";
+import { setChildIds } from "#shared/db/listing-parents.ts";
 import { deleteListing, listingsTable } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
@@ -413,6 +414,86 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     );
   });
 
+  // ---- signed-edge revalidation ---------------------------------------------
+
+  /** A signed session booking `child` under `parent`: the parent line, the folded
+   * child line, and the allocation that maps the child under the parent. */
+  const signedParentChild = (
+    parentId: number,
+    childId: number,
+  ): Record<string, string> =>
+    signMeta(
+      webhookMeta({
+        allocations: JSON.stringify([{ childId, parentId, qty: 1 }]),
+        email: "buyer@example.com",
+        items: JSON.stringify([
+          { e: parentId, p: 1000, q: 1 },
+          { e: childId, p: 0, q: 1 },
+        ]),
+        name: "Buyer",
+      }),
+      1000,
+    );
+
+  test("a booking whose signed child edge was re-parented mid-checkout is stored and refunded", async () => {
+    // The child is booked under parentA while also a child of parentB, then
+    // re-parented so only parentB keeps it: the child stays reachable (so the
+    // per-item add-on check passes) but its signed parentA→child edge is gone,
+    // which only the nodeKey walk can catch.
+    await setupStripe();
+    const parentA = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    const parentB = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    const child = await createTestListing({ maxAttendees: 50, unitPrice: 0 });
+    await setChildIds(parentA.id, [child.id]);
+    await setChildIds(parentB.id, [child.id]);
+    const metadata = signedParentChild(parentA.id, child.id);
+    await setChildIds(parentA.id, []);
+    await runWebhook({ id: "cs_edge_swap", metadata }, () =>
+      expectStoredRefund(parentA.id),
+    );
+  });
+
+  test("a parent+child booking with intact edges processes (the edge walk finds no drift)", async () => {
+    await setupStripe();
+    const parent = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    const child = await createTestListing({ maxAttendees: 50, unitPrice: 0 });
+    await setChildIds(parent.id, [child.id]);
+    const metadata = signedParentChild(parent.id, child.id);
+    await runWebhook({ id: "cs_edge_intact", metadata }, () =>
+      expectProcessed(parent.id),
+    );
+  });
+
+  test("a package booking with a matching bundle processes (the edge walk finds no drift)", async () => {
+    const { group, listing } = await setupPackage();
+    // A package line carries its edge (k:"p", r=group id); the walk rebuilds the
+    // package tree, finds the member's nodeKey resolves, and books it.
+    const metadata = signMeta(
+      webhookMeta({
+        email: "buyer@example.com",
+        items: JSON.stringify([
+          { e: listing.id, k: "p", p: 1500, q: 1, r: group.id },
+        ]),
+        name: "Buyer",
+        package_group_id: String(group.id),
+      }),
+      1500,
+    );
+    await runWebhook(
+      { amount_total: 1500, id: "cs_pkg_edge_ok", metadata },
+      () => expectProcessed(listing.id),
+    );
+  });
+
   test("stores the booking, reverses the ledger with the reason code, and flags it", async () => {
     const listing = await setupWithListing();
     // Signed and charged at 999, but the live price is 1000 — a mid-checkout edit.
@@ -770,12 +851,15 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     return { group, listing };
   };
 
-  /** Signed metadata for a one-line package booking at `price` (the override). */
+  /** Signed metadata for a one-line package booking at `price` (the override).
+   * The line carries its package edge (k:"p", r=group id), as the checkout emits. */
   const packageMetadata = (groupId: number, listingId: number, price: number) =>
     signMeta(
       webhookMeta({
         email: "buyer@example.com",
-        items: singleItem(listingId, 1, price),
+        items: JSON.stringify([
+          { e: listingId, k: "p", p: price, q: 1, r: groupId },
+        ]),
         name: "Buyer",
         package_group_id: String(groupId),
       }),

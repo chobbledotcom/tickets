@@ -115,7 +115,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           metadata: signMeta(
             {
               email: "pkgpaid@example.com",
-              items: singleItem(member.id, 1, 1000),
+              items: JSON.stringify([
+                { e: member.id, k: "p", p: 1000, q: 1, r: group.id },
+              ]),
               name: "Pkg Payer",
               package_group_id: String(group.id),
             },
@@ -535,7 +537,12 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           metadata: signedMeta(
             {
               email: "concealed@example.com",
-              items: singleItem(listing.id, 1, 500),
+              // A package member carries its package edge tag (k:"p", r:group)
+              // so the webhook's tree revalidation resolves it as a package
+              // member rather than a standalone listing.
+              items: JSON.stringify([
+                { e: listing.id, k: "p", p: 500, q: 1, r: group.id },
+              ]),
               name: "Concealed Buyer",
               package_group_id: String(group.id),
             },
@@ -589,7 +596,11 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           metadata: signedMeta(
             {
               email: "replay@example.com",
-              items: singleItem(listing.id, 1, 700),
+              // Package member tagged with its edge (k:"p", r:group) so the
+              // webhook's tree revalidation resolves it as a package member.
+              items: JSON.stringify([
+                { e: listing.id, k: "p", p: 700, q: 1, r: group.id },
+              ]),
               name: "Replay Buyer",
               package_group_id: String(group.id),
             },

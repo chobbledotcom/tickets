@@ -4,6 +4,7 @@
  */
 
 import { lazyRef, map } from "#fp";
+import { signedEdgeFor } from "#shared/booking/signed-metadata.ts";
 import type {
   ExtraLine,
   PricedLine,
@@ -149,15 +150,23 @@ export const createWithClient =
     return client ? safeAsync(() => op(client), errorCode) : null;
   };
 
-/** Convert registration line items to compact booking items */
-export const toBookingItems = (items: CheckoutIntent["items"]): BookingItem[] =>
-  map(
+/** Convert registration line items to compact, edge-tagged booking items (v2).
+ * A package order's top-level lines carry their package edge (`k:"p"`, `r`=group
+ * id) so the webhook can revalidate each line's `nodeKey`; folded children (in
+ * `allocations`) and standalone lines stay untagged. See signed-metadata.ts. */
+export const toBookingItems = (intent: CheckoutIntent): BookingItem[] => {
+  const foldedChildIds = new Set(
+    (intent.allocations ?? []).map((a) => a.childId),
+  );
+  return map(
     (i: CheckoutIntent["items"][number]): BookingItem => ({
       e: i.listingId,
       p: i.unitPrice * i.quantity,
       q: i.quantity,
+      ...signedEdgeFor(intent.packageGroupId, foldedChildIds.has(i.listingId)),
     }),
-  )(items);
+  )(intent.items);
+};
 
 /**
  * Spread optional contact/date fields into metadata (only if truthy).
@@ -274,7 +283,7 @@ export const buildItemsMetadata = async (
   } = intent;
   const withoutUrl = buildMetadata({
     ...intentRest,
-    items: toBookingItems(intent.items),
+    items: toBookingItems(intent),
     ...(modifiers !== undefined ? { modifiers } : {}),
     ...(siteTokenIndex !== undefined ? { siteTokenIndex } : {}),
   });

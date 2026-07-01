@@ -49,8 +49,23 @@ export type ModifierSpec = {
   quantity: number;
 };
 
-/** Compact booking item stored in session metadata (serialized/deserialized as JSON) */
-export type BookingItem = { e: number; q: number; p: number };
+/**
+ * Compact booking item stored in session metadata (serialized/deserialized as
+ * JSON): listing id (`e`), quantity (`q`), line total in minor units (`p`).
+ *
+ * A top-level line also carries its edge provenance so the webhook can
+ * reconstruct the line's canonical booking-tree `nodeKey` and re-check it still
+ * resolves: `k` is the edge kind (`"p"` package member, `"g"` group member — see
+ * signed-metadata.ts) and `r` the group id it hangs off. Both are absent on a
+ * standalone line.
+ */
+export type BookingItem = {
+  e: number;
+  q: number;
+  p: number;
+  k?: "p" | "g";
+  r?: number;
+};
 
 /** Compact modifier reference stored in session metadata: the modifier id and
  * the quantity taken. The webhook re-fetches the modifier by id and re-derives

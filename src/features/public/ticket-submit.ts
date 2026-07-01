@@ -11,6 +11,13 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import { packageQuantityCap } from "#shared/booking/capacity-tree.ts";
+import {
+  customPriceFieldName,
+  PACKAGE_QUANTITY_FIELD,
+  quantityFieldName,
+} from "#shared/booking/tree.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import {
   type ModifierApplication,
@@ -62,7 +69,6 @@ import {
   type BookingPrefill,
   orderSummary,
   orderSummaryMessage,
-  packageQuantityCap,
   type TicketListing,
   type TicketPrefill,
 } from "#templates/public.tsx";
@@ -86,10 +92,10 @@ import {
 } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import {
-  applyPackageOverrides,
   buildRegistrationItems,
   checkAvailability,
   createFreeReservation,
+  ctxToBuildTreeInput,
   dropChildListings,
   foldSelectedChildren,
   getTicketContext,
@@ -123,7 +129,7 @@ const validateFormState = (form: FormParams, ctx: TicketCtx): string | null => {
 
   for (const { listing, isClosed } of ctx.listings) {
     const selectedQty =
-      parseNonNegativeInt(form.get(`quantity_${listing.id}`) ?? "0") ?? 0;
+      parseNonNegativeInt(form.get(quantityFieldName(listing.id)) ?? "0") ?? 0;
     if (isClosed && selectedQty > 0) {
       return REGISTRATION_CLOSED_SUBMIT_MESSAGE;
     }
@@ -158,7 +164,7 @@ const parseCustomPrices = (
     if (qty <= 0) continue;
     const priceResult = parseCustomPrice(
       form,
-      `custom_price_${listing.id}`,
+      customPriceFieldName(listing.id),
       listing.unit_price,
       listing.max_price,
     );
@@ -556,7 +562,7 @@ const validatePaymentUpgrade = (
 
 /** The buyer-chosen number of packages (0 when absent/invalid → an empty order). */
 const parsePackageCount = (form: FormParams): number =>
-  parseNonNegativeInt(form.getString("package_quantity")) ?? 0;
+  parseNonNegativeInt(form.getString(PACKAGE_QUANTITY_FIELD)) ?? 0;
 
 /**
  * Resolve the page listings' quantities from the form. For a package group the
@@ -578,9 +584,13 @@ const resolvePageQuantities = (
   if (packageGroupId == null || !packageQuantities) {
     return parseQuantities(form, ctx.listings);
   }
+  // Clamp the posted count to the same tree-driven ceiling the page renders, so a
+  // crafted POST can't exceed a member's remaining capacity or a shared pool.
+  const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
+  const listingById = new Map(ctx.listings.map((e) => [e.listing.id, e]));
   const cap = packageQuantityCap(
-    ctx.listings,
-    packageQuantities,
+    tree,
+    listingById,
     ctx.packageGroupRemainingByGroupId,
     ctx.packageMemberGroupIds,
   );
@@ -686,19 +696,16 @@ const prepareOrder = async (
   );
   if (!answersResult.ok) return { error: answersResult.error, ok: false };
 
-  // Build items from the folded set, then apply package overrides to the
-  // top-level page listings only (folded children keep their own price).
-  const pageListingIds = new Set(ctx.listings.map((e) => e.listing.id));
+  // Build items from the folded set; each line is priced by the tree's price rule
+  // (a package member's override is a node facet scoped to the member line, so no
+  // separate override pass is needed), then hidden-package names are masked.
   const items = hidePackageMemberNames(
-    applyPackageOverrides(
-      buildRegistrationItems(
-        foldedCtx.listings,
-        quantities,
-        fold.customPrices,
-        dayCount,
-      ),
-      ctx.packagePrices,
-      pageListingIds,
+    buildRegistrationItems(
+      foldedCtx.listings,
+      quantities,
+      fold.customPrices,
+      fold.priceRuleByListingId,
+      dayCount,
     ),
     ctx.hidePackageListings === true,
     ctx.groupName,
