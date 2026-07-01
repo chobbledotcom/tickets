@@ -201,8 +201,8 @@ export const isReservedSlug = (slug: string): boolean =>
 
 /** Find the page that anchors the contextual nav for `current`. For a page
  * target it's the page itself; for a leaf it's the containing page, tie-broken
- * deterministically by the parent page's `(sort_order, id)` (N6). Null when the
- * target isn't on the tree. */
+ * deterministically by the occurrence's edge `sort_order`, then page id (N6).
+ * Null when the target isn't on the tree. */
 const anchorPageId = (
   forest: Forest,
   current: TargetKey | null,
@@ -210,14 +210,18 @@ const anchorPageId = (
   if (current === null) return null;
   const { type, id } = parseTargetKey(current);
   if (type === "page") return forest.byId.has(id) ? id : null;
-  const parents: SitePageNavRow[] = [];
+  // A leaf may sit under several pages (N3). Pick by the occurrence's own edge
+  // `sort_order` (its meaningful position — not the parent page's root order,
+  // which is unused while the page is nested), then page id.
+  const candidates: { edgeOrder: number; pageId: number }[] = [];
   for (const [pid, list] of forest.itemsByPage) {
-    if (list.some((i) => i.item_type === type && i.item_id === id)) {
-      const row = forest.byId.get(pid);
-      if (row) parents.push(row);
+    const match = list.find((i) => i.item_type === type && i.item_id === id);
+    if (match && forest.byId.has(pid)) {
+      candidates.push({ edgeOrder: match.sort_order, pageId: pid });
     }
   }
-  return parents.sort(bySortOrderThenId)[0]?.id ?? null;
+  candidates.sort((x, y) => x.edgeOrder - y.edgeOrder || x.pageId - y.pageId);
+  return candidates[0]?.pageId ?? null;
 };
 
 /**

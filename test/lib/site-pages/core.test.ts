@@ -272,6 +272,42 @@ describe("site-pages core", () => {
       expect(leafUnderP?.active).toBe(true); // the chosen occurrence
     });
 
+    test("multi-parent leaf tie-breaks by edge sort_order, then page id (N6)", () => {
+      // listing 7 under page A (root order 0, edge order 10) and page B (root
+      // order 5, edge order 0). Root order favours A, but the lower EDGE order
+      // (B's 0 < A's 10) wins — proving the tie-break is by edge, not page order.
+      const forest = buildForest(
+        [page(1, 0), page(2, 5)],
+        [edge(1, "listing", 7, 10), edge(2, "listing", 7, 0)],
+      );
+      const model = buildNavModel(
+        forest,
+        new Map([leafTarget("listing", 7)]),
+        "listing:7",
+      );
+      expect(model.activeRootId).toBe(2);
+    });
+
+    test("equal edge orders tie-break by page id (lower wins)", () => {
+      const forest = buildForest(
+        [page(1, 9), page(2, 0)],
+        [edge(2, "listing", 7, 0), edge(1, "listing", 7, 0)], // same edge order
+      );
+      const model = buildNavModel(
+        forest,
+        new Map([leafTarget("listing", 7)]),
+        "listing:7",
+      );
+      expect(model.activeRootId).toBe(1); // lower page id breaks the tie
+    });
+
+    test("a leaf under a nonexistent page id is off-tree", () => {
+      // An edge whose page_id has no page row (defensive) is skipped.
+      const forest = buildForest([page(1)], [edge(2, "listing", 5, 0)]);
+      const model = buildNavModel(forest, new Map(), "listing:5");
+      expect(model.activeRootId).toBeNull();
+    });
+
     test("visiting a root page shows its own children (N7), none active", () => {
       const forest = buildForest([page(1), page(2)], [edge(1, "page", 2, 0)]);
       const model = buildNavModel(forest, new Map(), "page:1");

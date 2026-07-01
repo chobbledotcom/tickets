@@ -170,6 +170,25 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       ]);
     });
 
+    test("a page cannot be nested inside itself (N4 self-loop)", async () => {
+      const p = await makePage("self");
+      await expect(addPageItem(p.id, "page", p.id)).rejects.toBeInstanceOf(
+        SitePageItemConflictError,
+      );
+      expect(await getItemsForPage(p.id)).toEqual([]);
+    });
+
+    test("a page cannot be nested under its own descendant (N4 cycle)", async () => {
+      // A contains B; nesting A under B would close an A→B→A loop.
+      const a = await makePage("anc-a");
+      const b = await makePage("anc-b");
+      await addPageItem(a.id, "page", b.id);
+      await expect(addPageItem(b.id, "page", a.id)).rejects.toBeInstanceOf(
+        SitePageItemConflictError,
+      );
+      expect(await getItemsForPage(b.id)).toEqual([]);
+    });
+
     test("removePageItem drops one edge by composite key", async () => {
       const p = await makePage("rm");
       await addPageItem(p.id, "listing", 1);

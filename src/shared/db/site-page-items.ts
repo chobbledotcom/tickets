@@ -18,6 +18,7 @@ import {
   withTransaction,
 } from "#shared/db/client.ts";
 import { requestCache } from "#shared/request-cache.ts";
+import { buildForest, wouldCreateCycle } from "#shared/site-pages/core.ts";
 import type { SitePageItem, SitePageItemType } from "#shared/types.ts";
 
 /** A parameterised statement for a batch / transaction. */
@@ -66,13 +67,24 @@ export const addPageItem = (
 ): Promise<void> =>
   withTransaction(async (tx) => {
     if (itemType === "page") {
-      const existing = await tx.execute({
-        args: [itemId],
-        sql: "SELECT 1 FROM site_page_items WHERE item_type = 'page' AND item_id = ? LIMIT 1",
-      });
-      if (resultRows(existing).length > 0) {
+      // Read all page edges once and enforce both page invariants against the
+      // same in-transaction snapshot, before inserting.
+      const pageEdges = resultRows<SitePageItem>(
+        await tx.execute({
+          args: [],
+          sql: `SELECT ${SELECT_COLS} FROM site_page_items WHERE item_type = 'page'`,
+        }),
+      );
+      // Single-parent (N3): the page must not already be nested elsewhere.
+      if (pageEdges.some((e) => e.item_id === itemId)) {
         throw new SitePageItemConflictError(
           "That page is already nested under another page",
+        );
+      }
+      // Acyclic (N4): nesting it here must not close a loop (self or ancestor).
+      if (wouldCreateCycle(buildForest([], pageEdges), pageId, itemId)) {
+        throw new SitePageItemConflictError(
+          "That would nest a page inside one of its own descendants",
         );
       }
     }
@@ -114,31 +126,35 @@ export type ItemRef = { type: SitePageItemType; id: number };
  * composite key (`item_id` alone isn't unique within a page — a listing, group,
  * and page can share a numeric id). No-op if either row is missing.
  */
-export const swapPageItemOrder = async (
+export const swapPageItemOrder = (
   pageId: number,
   a: ItemRef,
   b: ItemRef,
-): Promise<void> => {
-  const rows = await queryAll<{
-    item_id: number;
-    item_type: SitePageItemType;
-    sort_order: number;
-  }>(
-    `SELECT item_type, item_id, sort_order FROM site_page_items
+): Promise<void> =>
+  // Read the two orders and write the swap in one transaction, so concurrent
+  // reorders serialise instead of applying stale snapshots and duplicating
+  // orders (there is no (page_id, sort_order) constraint to repair drift).
+  withTransaction(async (tx) => {
+    const rows = resultRows<{
+      item_id: number;
+      item_type: SitePageItemType;
+      sort_order: number;
+    }>(
+      await tx.execute({
+        args: [pageId, a.type, a.id, b.type, b.id],
+        sql: `SELECT item_type, item_id, sort_order FROM site_page_items
       WHERE page_id = ? AND ((item_type = ? AND item_id = ?) OR (item_type = ? AND item_id = ?))`,
-    [pageId, a.type, a.id, b.type, b.id],
-  );
-  const orderOf = (ref: ItemRef): number | undefined =>
-    rows.find((r) => r.item_type === ref.type && r.item_id === ref.id)
-      ?.sort_order;
-  const oa = orderOf(a);
-  const ob = orderOf(b);
-  if (oa === undefined || ob === undefined) return;
-  await executeBatch([
-    setOrderStatement(pageId, a, ob),
-    setOrderStatement(pageId, b, oa),
-  ]);
-};
+      }),
+    );
+    const orderOf = (ref: ItemRef): number | undefined =>
+      rows.find((r) => r.item_type === ref.type && r.item_id === ref.id)
+        ?.sort_order;
+    const oa = orderOf(a);
+    const ob = orderOf(b);
+    if (oa === undefined || ob === undefined) return;
+    await tx.execute(setOrderStatement(pageId, a, ob));
+    await tx.execute(setOrderStatement(pageId, b, oa));
+  });
 
 const setOrderStatement = (
   pageId: number,
