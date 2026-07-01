@@ -355,6 +355,43 @@ The last special case to fall.
 
 ---
 
+## Scope honesty — which doors are one-way, and kill-criteria
+
+The abstraction is clean; the **blast radius is not**. Every review pass found
+another surface (wallet, `/order`, QR/share, admin attendee writers, the provider
+metadata budget). That is the real risk of this project — not the model, but the
+long tail of surfaces — so future-us should go in with eyes open and not
+sleepwalk into the expensive parts. Read this before starting each phase.
+
+- **Phases 1, 2, 4 are reversible.** They sit behind compatibility adapters and
+  build the tree from the existing tables each request. If a phase misbehaves in
+  production, revert the branch — no data has changed shape. Phases 1–2 are the
+  high-value, low-regret core: they deliver the unified render/fold/price/capacity
+  and make "package member that is a parent" fall out for free.
+- **Phase 3 is the one-way door.** It is the *only* schema-touching phase: it
+  migrates two live membership tables (`listing_parents`, `group_listings`) under
+  existing bookings. A bad backfill is not a `git revert`. **Earn it:** do not
+  start Phase 3 until Phases 1–2 have proven the model in production for real
+  bookings. Before committing to a full migration, seriously weigh making one
+  table a **view/projection** of the other (or keeping both and unifying only at
+  read time) against physically migrating — the cheaper option may be permanent,
+  not interim. Phase 3's payoff is storage elegance, not user-visible capability;
+  price that honestly.
+- **Phase 4 is optional, not deferred.** "Buyer-choice children inside a package"
+  is the most speculative capability in the doc. If no real operator needs it,
+  the deterministic-children-only rule is a perfectly good **permanent** boundary,
+  not a temporary restriction. Do not build Phase 4 on spec — build it when a
+  concrete booking a customer wants requires it.
+- **Kill / pause criteria.** Stop and reassess rather than pressing on if: a phase
+  can't hold "behaviour identical" behind its adapter without touching the signed
+  wire shape earlier than planned; the surface enumeration keeps growing after
+  Phase 1 ships (a sign the tree isn't actually the seam); or Phase 3's backfill
+  can't be shown to preserve every pre-migration booking's resolution on real
+  data. Shipping Phases 1–2 and stopping is a **successful** outcome, not a
+  failure — most of the compounding special-case cost lives there.
+
+---
+
 ## Invariants the unified build must honor
 
 These came out of pressure-testing (Codex). They apply wherever the relevant
