@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { executeBatch, queryAll } from "#shared/db/client.ts";
+import { runWithRequestCache } from "#shared/request-cache.ts";
 import {
   addPageItem,
   clearItemEdgesStatement,
@@ -224,6 +225,16 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       expect(
         edges.some((e) => e.item_type === "page" && e.item_id === child.id),
       ).toBe(false);
+    });
+
+    test("a page-item write clears the request-scoped edge cache", async () => {
+      const p = await makePage("cachebust");
+      await addPageItem(p.id, "listing", 1); // seed one edge (outside the scope)
+      await runWithRequestCache(async () => {
+        expect((await getAllPageItems()).length).toBe(1); // warm the cache
+        await removePageItem(p.id, "listing", 1); // write auto-invalidates it
+        expect(await getAllPageItems()).toEqual([]); // must re-fetch fresh
+      });
     });
 
     test("clearItemEdgesStatement removes every edge pointing at a listing/group", async () => {
