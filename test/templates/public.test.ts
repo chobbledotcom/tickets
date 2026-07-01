@@ -1192,6 +1192,8 @@ describe("ticketViewPage package grouping", () => {
     expect(html).toContain("&times;6");
     // One shared QR for the whole bundle.
     expect(html).toContain(`/t/${token}/svg`);
+    // No member is non-transferable, so no "ID required" notice.
+    expect(html).not.toContain("ID required at entry");
   });
 
   test("hides member listings for a hidden package, showing only the name", () => {
@@ -1264,6 +1266,57 @@ describe("ticketViewPage package grouping", () => {
     );
     expect(html).toContain("Purchase Bundle");
     expect(html).not.toContain(`/t/${token}/svg`);
+  });
+
+  test("shows a non-transferable notice on a package card without naming the member", () => {
+    // A hidden package conceals its members but must still warn the buyer that
+    // ID is required — the scanner enforces it regardless of the card display.
+    const cards = [
+      {
+        entry: {
+          attendee: testAttendee({ package_group_id: 1, quantity: 1 }),
+          listing: testListingWithCount({
+            name: "Secret Pass",
+            non_transferable: true,
+          }),
+        },
+        token,
+      },
+    ];
+    const html = ticketViewPage(
+      cards,
+      false,
+      false,
+      new Map([[1, { hideListings: true, name: "Secret Bundle" }]]),
+    );
+    expect(html).toContain("ID required at entry");
+    // The warning is package-level: the concealed member is never named.
+    expect(html).not.toContain("Secret Pass");
+  });
+
+  test("omits the non-transferable notice when the non-transferable member is purchase-only", () => {
+    // A purchase-only member is never checked in, so its non-transferable flag
+    // raises no "ID required" warning.
+    const cards = [
+      {
+        entry: {
+          attendee: testAttendee({ package_group_id: 1, quantity: 1 }),
+          listing: testListingWithCount({
+            name: "Pass",
+            non_transferable: true,
+            purchase_only: true,
+          }),
+        },
+        token,
+      },
+    ];
+    const html = ticketViewPage(
+      cards,
+      false,
+      false,
+      new Map([[1, { hideListings: false, name: "Purchase Bundle" }]]),
+    );
+    expect(html).not.toContain("ID required at entry");
   });
 });
 

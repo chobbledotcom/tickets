@@ -133,10 +133,21 @@ const renderPackageCard = (
             `<li>${escapeHtml(c.entry.listing.name)} <span class="package-member-qty">&times;${c.entry.attendee.quantity}</span>${memberAttachment(c)}</li>`,
         )
         .join("")}</ul>`;
+  // The package card replaces the per-member cards, so it must carry the same
+  // "ID required" warning renderTicketCard shows — otherwise a package buyer is
+  // never told a member is non-transferable, yet the scanner still enforces it.
+  // Kept package-level (it never names a member) so a hidden package stays
+  // concealed; purchase-only members aren't checked in, so they don't trigger it.
+  const nonTransferableHtml = cards.some(
+    (c) => c.entry.listing.non_transferable && !c.entry.listing.purchase_only,
+  )
+    ? `<div class="ticket-card-notice">${t("tickets.non_transferable")}</div>`
+    : "";
   return `
     <div class="ticket-card">
       <div class="ticket-card-name">${escapeHtml(packageInfo.name)}</div>
       ${membersHtml}
+      ${nonTransferableHtml}
       ${renderQrBlock(token, purchaseOnly)}
     </div>
   `;

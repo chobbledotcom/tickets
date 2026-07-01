@@ -99,7 +99,12 @@
       }
     },
     {
-      "includes": ["src/index.ts", "src/app/index.ts", "src/shared/logger.ts"],
+      "includes": [
+        "src/index.ts",
+        "src/app/index.ts",
+        "src/shared/logger.ts",
+        "src/ui/client/order.ts"
+      ],
       "linter": {
         "rules": {
           "suspicious": {

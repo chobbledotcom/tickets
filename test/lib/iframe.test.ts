@@ -4,6 +4,7 @@ import {
   appendIframeParam,
   detectIframeMode,
   getIframeMode,
+  runWithIframeContext,
 } from "#shared/iframe.ts";
 
 describe("iframe", () => {
@@ -88,6 +89,44 @@ describe("iframe", () => {
     test("rejects invalid redirect URLs before appending iframe params", () => {
       detectIframeMode("https://example.com/?iframe=true");
       expect(() => appendIframeParam("http://[::1")).toThrow(TypeError);
+    });
+  });
+
+  describe("request-scoped isolation", () => {
+    test("a fresh iframe scope defaults to non-iframe mode", () => {
+      // No detectIframeMode call — the scope's initial container must be
+      // non-iframe, so an embed flag never leaks in as the default.
+      expect(runWithIframeContext(() => getIframeMode())).toBe(false);
+    });
+
+    test("iframe mode set inside a scope stays within that scope", () => {
+      const inside = runWithIframeContext(() => {
+        detectIframeMode("https://example.com/?iframe=true");
+        return getIframeMode();
+      });
+      expect(inside).toBe(true);
+      // The per-request container is gone once the scope ends; the ambient
+      // fallback (reset by afterEach) is unaffected by the scoped write.
+      expect(getIframeMode()).toBe(false);
+    });
+
+    test("concurrent request scopes do not leak iframe mode", async () => {
+      const embedded = () =>
+        runWithIframeContext(async () => {
+          detectIframeMode("https://example.com/?iframe=true");
+          await new Promise((r) => setTimeout(r, 20));
+          return getIframeMode(); // still an iframe request
+        });
+      const normal = () =>
+        runWithIframeContext(async () => {
+          await new Promise((r) => setTimeout(r, 5));
+          detectIframeMode("https://example.com/"); // would clobber a global
+          await new Promise((r) => setTimeout(r, 20));
+          return getIframeMode();
+        });
+      const [a, b] = await Promise.all([embedded(), normal()]);
+      expect(a).toBe(true);
+      expect(b).toBe(false);
     });
   });
 });

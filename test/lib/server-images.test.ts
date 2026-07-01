@@ -24,6 +24,7 @@ import {
   mockRequest,
   PDF_BYTES,
   setupListingAndLogin,
+  TEST_STORAGE_ZONE,
   testCookie,
   testCsrfToken,
   updateTestListing,
@@ -757,21 +758,19 @@ describeWithEnv(
       test("reports error when attachment upload fails", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
-        await runWithStorageConfig(
-          { zoneKey: "testkey", zoneName: "testzone" },
-          () =>
-            withFetchMock(async (originalFetch) => {
-              installUrlHandler(originalFetch, () =>
-                Promise.reject(new Error("CDN unreachable")),
-              );
+        await runWithStorageConfig(TEST_STORAGE_ZONE, () =>
+          withFetchMock(async (originalFetch) => {
+            installUrlHandler(originalFetch, () =>
+              Promise.reject(new Error("CDN unreachable")),
+            );
 
-              const response = await submitEditGuidePdf(
-                listing.id,
-                cookie,
-                csrfToken,
-              );
-              expectImageErrorRedirect(response, "upload failed");
-            }),
+            const response = await submitEditGuidePdf(
+              listing.id,
+              cookie,
+              csrfToken,
+            );
+            expectImageErrorRedirect(response, "upload failed");
+          }),
         );
       });
     });

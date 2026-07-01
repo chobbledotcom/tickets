@@ -64,6 +64,7 @@ import {
 } from "#shared/db/questions.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms.tsx";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
   type AnswerModifierOption,
@@ -74,10 +75,12 @@ import {
   adminQuestionDeletePage,
   adminQuestionPage,
   adminQuestionsPage,
+  questionTextFlat,
 } from "#templates/admin/questions.tsx";
 import {
   type AnswerAggregateFormValues,
   answerAggregateFields,
+  FORMATTING_HINT,
 } from "#templates/fields.ts";
 
 /* jscpd:ignore-end */
@@ -85,11 +88,14 @@ import {
 export const questionTextForm = defineForm({
   fields: [
     {
+      hintHtml: `Shown to attendees above the answer field. ${FORMATTING_HINT}`,
       label: "Question text",
+      markdown: true,
+      maxlength: MAX_TEXTAREA_LENGTH,
       name: "text",
       placeholder: "e.g. What is your T-shirt size?",
       required: true,
-      type: "text",
+      type: "textarea",
     },
     {
       label: "Display as",
@@ -274,7 +280,10 @@ const handleAddAnswer = createAuthedFormRoute<
 
 /** Confirmed-delete handlers for questions */
 const questionDelete = createConfirmedHandlers<QuestionWithAnswers>({
-  identifier: (q) => q.text,
+  // The confirmation page shows the flattened text (newlines → " / "), and a
+  // single-line input can't carry the raw newlines, so verify against the same
+  // flattened form the operator can actually type.
+  identifier: (q) => questionTextFlat(q.text),
   identifierLabel: "Question text",
   load: (id) => getQuestionWithAnswers(id),
   onConfirm: async (q) => {

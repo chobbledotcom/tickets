@@ -42,6 +42,7 @@ import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
+import { syncListingPrices } from "#shared/db/listing-prices.ts";
 import {
   LISTING_AGGREGATE_WRITE_COLUMNS,
   TICKET_COUNTS_PREDICATE,
@@ -50,6 +51,7 @@ import {
 } from "#shared/db/migrations/schema.ts";
 import { nameMapByIds } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
+import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
 import { resolveListingDefaults } from "#shared/listing-defaults.ts";
@@ -470,8 +472,30 @@ const listingsEntity = cachedEntityTable<
 );
 const listingsCache = listingsEntity.cache;
 
-/** Listings table with CRUD operations — writes auto-invalidate the cache */
-export const listingsTable = listingsEntity.table;
+/**
+ * Listings table with CRUD operations — writes auto-invalidate the cache and,
+ * on top of the raw table, re-sync the listing's `listing_prices` rows so the
+ * generalised price table never drifts from the `unit_price`/`day_prices` mirror
+ * columns. Both write paths run the sync from the row's id after a successful
+ * write; `update` skips it when the row is missing (returns null). The sync
+ * reads the canonical columns straight from the row rather than trusting the
+ * returned input shape, so a partial update that never mentions the price fields
+ * still reconciles against the current stored values.
+ */
+const rawTable = listingsEntity.table;
+export const listingsTable: typeof rawTable = {
+  ...rawTable,
+  insert: async (input) => {
+    const row = await rawTable.insert(input);
+    await syncListingPrices(row.id);
+    return row;
+  },
+  update: async (id, input) => {
+    const row = await rawTable.update(id, input);
+    if (row) await syncListingPrices(row.id);
+    return row;
+  },
+};
 
 /**
  * Get a single listing by ID (from cache; fetches just this listing on a miss).
@@ -483,20 +507,14 @@ export const getListing = (id: number): Promise<Listing | null> =>
  * Check if a slug is already in use (optionally excluding a specific listing ID)
  * Uses slug_index for lookup (blind index)
  */
-export const isSlugTaken = async (
+export const isSlugTaken = (
   slug: string,
   excludeListingId?: number,
-): Promise<boolean> => {
-  const slugIndex = await computeSlugIndex(slug);
-  const sql = excludeListingId
-    ? "SELECT 1 WHERE EXISTS (SELECT 1 FROM listings WHERE slug_index = ? AND id != ?) OR EXISTS (SELECT 1 FROM groups WHERE slug_index = ?)"
-    : "SELECT 1 WHERE EXISTS (SELECT 1 FROM listings WHERE slug_index = ?) OR EXISTS (SELECT 1 FROM groups WHERE slug_index = ?)";
-  const args = excludeListingId
-    ? [slugIndex, excludeListingId, slugIndex]
-    : [slugIndex, slugIndex];
-  const result = await execute(sql, args);
-  return result.rows.length > 0;
-};
+): Promise<boolean> =>
+  isSlugTakenAnywhere(
+    slug,
+    excludeListingId ? { id: excludeListingId, table: "listings" } : undefined,
+  );
 
 /**
  * Delete a listing and its own bookings in a single database round-trip.
@@ -539,6 +557,12 @@ export const deleteListing = async (listingId: number): Promise<void> => {
       sql: "DELETE FROM group_listings WHERE listing_id = ?",
     },
     { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
+    // The generalised price rows have no cascading FK, so drop them with the
+    // listing rather than leaving orphaned base/day_count rows behind.
+    {
+      args: [listingId],
+      sql: "DELETE FROM listing_prices WHERE listing_id = ?",
+    },
     { args: [listingId], sql: "DELETE FROM listings WHERE id = ?" },
   ]);
 };

@@ -67,7 +67,7 @@ const withFakeTimeAndStub = async (
   fn: (secretStub: SecretStub) => Promise<void>,
   stubResult: StubResult = { ok: true as const },
 ): Promise<void> => {
-  const fakeTime = new FakeTime(nowMs);
+  using _fakeTime = new FakeTime(nowMs);
   const secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
     Promise.resolve(stubResult),
   );
@@ -75,7 +75,6 @@ const withFakeTimeAndStub = async (
     await fn(secretStub);
   } finally {
     secretStub.restore();
-    fakeTime.restore();
   }
 };
 

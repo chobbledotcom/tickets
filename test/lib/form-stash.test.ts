@@ -31,14 +31,10 @@ const withTimedStash =
   (data: string) =>
   (elapsedMs: number) =>
   <T>(body: (token: string) => T): T => {
-    const time = new FakeTime();
-    try {
-      const token = stashRequired(data);
-      time.tick(elapsedMs);
-      return body(token);
-    } finally {
-      time.restore();
-    }
+    using time = new FakeTime();
+    const token = stashRequired(data);
+    time.tick(elapsedMs);
+    return body(token);
   };
 
 const stashIndexedBodies =

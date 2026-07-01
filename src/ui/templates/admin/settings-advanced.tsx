@@ -11,6 +11,7 @@ import {
   AttendeeColumnOrderForm,
   ListingColumnOrderForm,
 } from "#templates/admin/settings/column-order.tsx";
+import { CustomCssForm } from "#templates/admin/settings/custom-css.tsx";
 import { CustomDomainForm } from "#templates/admin/settings/custom-domain.tsx";
 import { EmailNotificationsForm } from "#templates/admin/settings/email.tsx";
 import { AdminEmailTemplateForm } from "#templates/admin/settings/email-tpl-admin.tsx";
@@ -46,6 +47,7 @@ export type AdvancedSettingsPageState = {
   bunnyDnsSubdomainSuffix: string;
   subdomainPreview: string;
   subdomainPreviewFullDomain: string;
+  customCss: string;
   customDomain: string;
   customDomainLastValidated: string;
   cdnHostname: string;
@@ -88,6 +90,7 @@ export const adminAdvancedSettingsPage = (
       {AdminEmailTemplateForm(s)}
       {ListingColumnOrderForm(s)}
       {AttendeeColumnOrderForm(s)}
+      {CustomCssForm(s)}
       {PublicApiForm(s)}
       {ExternalOrderForm(s)}
       {GoogleWalletForm(s)}

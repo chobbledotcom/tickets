@@ -19,6 +19,7 @@ import { getListingFields } from "#templates/fields.ts";
 import {
   describeWithEnv,
   setupTestEncryptionKey,
+  TEST_STORAGE_ZONE,
   testAttendee,
   testGroup,
   testListingWithCount,
@@ -1859,16 +1860,13 @@ describeWithEnv(
       });
 
       test("shows current image and remove button when image is set", () => {
-        runWithStorageConfig(
-          { zoneKey: "testkey", zoneName: "testzone" },
-          () => {
-            const listing = testListingWithCount({ image_url: "current.jpg" });
-            const html = adminListingEditPage(listing, [], TEST_SESSION);
-            expect(html).toContain("/image/current.jpg");
-            expect(html).toContain("Remove Image");
-            expect(html).toContain("/image/delete");
-          },
-        );
+        runWithStorageConfig(TEST_STORAGE_ZONE, () => {
+          const listing = testListingWithCount({ image_url: "current.jpg" });
+          const html = adminListingEditPage(listing, [], TEST_SESSION);
+          expect(html).toContain("/image/current.jpg");
+          expect(html).toContain("Remove Image");
+          expect(html).toContain("/image/delete");
+        });
       });
 
       test("does not show image field when storage is not enabled", () => {
@@ -1881,30 +1879,24 @@ describeWithEnv(
       });
 
       test("shows full-width image preview when listing has image", () => {
-        runWithStorageConfig(
-          { zoneKey: "testkey", zoneName: "testzone" },
-          () => {
-            const listing = testListingWithCount({ image_url: "preview.jpg" });
-            const html = adminListingEditPage(listing, [], TEST_SESSION);
-            expect(html).toContain("listing-image-full");
-            expect(html).toContain("/image/preview.jpg");
-          },
-        );
+        runWithStorageConfig(TEST_STORAGE_ZONE, () => {
+          const listing = testListingWithCount({ image_url: "preview.jpg" });
+          const html = adminListingEditPage(listing, [], TEST_SESSION);
+          expect(html).toContain("listing-image-full");
+          expect(html).toContain("/image/preview.jpg");
+        });
       });
     });
 
     describe("adminDuplicateListingPage image section", () => {
       test("shows image upload field when storage enabled", () => {
-        runWithStorageConfig(
-          { zoneKey: "testkey", zoneName: "testzone" },
-          () => {
-            const listing = testListingWithCount({ image_url: "" });
-            const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
-            expect(html).toContain('type="file"');
-            expect(html).toContain('name="image"');
-            expect(html).toContain("multipart/form-data");
-          },
-        );
+        runWithStorageConfig(TEST_STORAGE_ZONE, () => {
+          const listing = testListingWithCount({ image_url: "" });
+          const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
+          expect(html).toContain('type="file"');
+          expect(html).toContain('name="image"');
+          expect(html).toContain("multipart/form-data");
+        });
       });
 
       test("does not show image field when storage is not enabled", () => {
@@ -1919,15 +1911,12 @@ describeWithEnv(
 
     describe("adminListingNewPage image section", () => {
       test("shows image upload field on create form when storage enabled", () => {
-        runWithStorageConfig(
-          { zoneKey: "testkey", zoneName: "testzone" },
-          () => {
-            const html = adminListingNewPage([], TEST_SESSION);
-            expect(html).toContain('type="file"');
-            expect(html).toContain('name="image"');
-            expect(html).toContain("multipart/form-data");
-          },
-        );
+        runWithStorageConfig(TEST_STORAGE_ZONE, () => {
+          const html = adminListingNewPage([], TEST_SESSION);
+          expect(html).toContain('type="file"');
+          expect(html).toContain('name="image"');
+          expect(html).toContain("multipart/form-data");
+        });
       });
 
       test("does not show image field on create form when storage is not enabled", () => {

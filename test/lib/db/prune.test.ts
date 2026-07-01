@@ -687,23 +687,19 @@ describeWithEnv("db > prune", { db: true }, () => {
 
   test("a task becomes due exactly PRUNE_INTERVAL_MS after its last run", async () => {
     const start = 1_700_000_000_000;
-    const time = new FakeTime(start);
-    try {
-      await setAllLastPruned(String(start));
-      const old = new Date(
-        start - PRUNE_PAYMENTS_RETENTION_MS - 60_000,
-      ).toISOString();
-      await insertFinalizedPayment("sess_interval", old);
+    using time = new FakeTime(start);
+    await setAllLastPruned(String(start));
+    const old = new Date(
+      start - PRUNE_PAYMENTS_RETENTION_MS - 60_000,
+    ).toISOString();
+    await insertFinalizedPayment("sess_interval", old);
 
-      time.tick(PRUNE_INTERVAL_MS - 1);
-      await maybeRunPrunes();
-      expect(await paymentExists("sess_interval")).toBe(true);
+    time.tick(PRUNE_INTERVAL_MS - 1);
+    await maybeRunPrunes();
+    expect(await paymentExists("sess_interval")).toBe(true);
 
-      time.tick(1);
-      await maybeRunPrunes();
-      expect(await paymentExists("sess_interval")).toBe(false);
-    } finally {
-      time.restore();
-    }
+    time.tick(1);
+    await maybeRunPrunes();
+    expect(await paymentExists("sess_interval")).toBe(false);
   });
 });

@@ -502,28 +502,24 @@ describeWithEnv("QR Scanner", { db: true }, () => {
         "Aged",
         "aged@test.com",
       );
-      const time = new FakeTime();
-      try {
-        const agedToken = await signCsrfToken();
-        // Jump halfway into the scanner window — comfortably past the 1-hour
-        // default that every other endpoint enforces.
-        time.tick(Math.floor(SCANNER_CSRF_MAX_AGE_S / 2) * 1000);
+      using time = new FakeTime();
+      const agedToken = await signCsrfToken();
+      // Jump halfway into the scanner window — comfortably past the 1-hour
+      // default that every other endpoint enforces.
+      time.tick(Math.floor(SCANNER_CSRF_MAX_AGE_S / 2) * 1000);
 
-        // The standard CSRF window would already reject this token...
-        expect(await verifySignedCsrfToken(agedToken)).toBe(false);
+      // The standard CSRF window would already reject this token...
+      expect(await verifySignedCsrfToken(agedToken)).toBe(false);
 
-        // ...but the scanner endpoint still accepts it.
-        const result = await scanAndGetJson(
-          listing.id,
-          { token },
-          session.cookie,
-          agedToken,
-        );
-        expect(result.status).toBe("checked_in");
-        expect(result.name).toBe("Aged");
-      } finally {
-        time.restore();
-      }
+      // ...but the scanner endpoint still accepts it.
+      const result = await scanAndGetJson(
+        listing.id,
+        { token },
+        session.cookie,
+        agedToken,
+      );
+      expect(result.status).toBe("checked_in");
+      expect(result.name).toBe("Aged");
     });
 
     test("returns 400 for missing token in body", async () => {

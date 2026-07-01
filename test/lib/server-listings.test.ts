@@ -57,6 +57,7 @@ import {
   setTestEnv,
   setupListingAndLogin,
   submitTicketForm,
+  TEST_STORAGE_ZONE,
   testCookie,
   testCsrfToken,
   testRequiresAuth,
@@ -3642,36 +3643,30 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         attachmentUrl: "uuid-guide.pdf",
       });
 
-      await runWithStorageConfig(
-        { zoneKey: "testkey", zoneName: "testzone" },
-        async () => {
-          const response = await awaitTestRequest(
-            `/admin/listing/${listing.id}/edit`,
-            { cookie },
-          );
-          const html = await response.text();
-          expect(html).toContain("attachment-info");
-          expect(html).toContain("Listing Guide.pdf");
-          expect(html).toContain("Remove Attachment");
-        },
-      );
+      await runWithStorageConfig(TEST_STORAGE_ZONE, async () => {
+        const response = await awaitTestRequest(
+          `/admin/listing/${listing.id}/edit`,
+          { cookie },
+        );
+        const html = await response.text();
+        expect(html).toContain("attachment-info");
+        expect(html).toContain("Listing Guide.pdf");
+        expect(html).toContain("Remove Attachment");
+      });
     });
 
     test("admin listing edit page does not show attachment info when empty", async () => {
       const { listing, cookie } = await setupListingAndLogin();
 
-      await runWithStorageConfig(
-        { zoneKey: "testkey", zoneName: "testzone" },
-        async () => {
-          const response = await awaitTestRequest(
-            `/admin/listing/${listing.id}/edit`,
-            { cookie },
-          );
-          const html = await response.text();
-          expect(html).not.toContain("attachment-info");
-          expect(html).not.toContain("Remove Attachment");
-        },
-      );
+      await runWithStorageConfig(TEST_STORAGE_ZONE, async () => {
+        const response = await awaitTestRequest(
+          `/admin/listing/${listing.id}/edit`,
+          { cookie },
+        );
+        const html = await response.text();
+        expect(html).not.toContain("attachment-info");
+        expect(html).not.toContain("Remove Attachment");
+      });
     });
   });
 

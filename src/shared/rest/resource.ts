@@ -95,6 +95,12 @@ export interface ResourceConfig<
     input: Input,
     form: FormParams,
   ) => Promise<void>;
+  /** Run after a successful create/update has committed, keyed on the row id.
+   * Unlike `afterWrite` (which shares the write transaction), this fires
+   * post-commit — for reconciling a derived table (e.g. listing_prices) that the
+   * transactional `insertStatement`/`updateStatement` path would otherwise
+   * bypass along with the {@link Table} wrapper. */
+  afterCommit?: (id: number) => Promise<void>;
   table: Table<Row, Input>;
   toInput: (values: Values) => Input | Promise<Input>;
   /** Custom validation (e.g., check uniqueness). Return error message or null. */
@@ -210,6 +216,8 @@ export const defineResource = <
     const row = config.afterWrite
       ? ((await writeInTransaction(null, result.input, form)) as Row)
       : await table.insert(result.input);
+    if (config.afterCommit)
+      await config.afterCommit((row as unknown as { id: number }).id);
     return { ok: true, row };
   };
 
@@ -229,6 +237,9 @@ export const defineResource = <
     const row = config.afterWrite
       ? await writeInTransaction(id as number, result.input, form)
       : await table.update(id, result.input);
+    if (row && config.afterCommit) {
+      await config.afterCommit((row as unknown as { id: number }).id);
+    }
     return toUpdateResult(row);
   };
 

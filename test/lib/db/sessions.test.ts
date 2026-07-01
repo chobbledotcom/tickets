@@ -100,22 +100,18 @@ describeWithEnv("db > sessions", { db: true }, () => {
 
   test("getSession expires cached entry after TTL", async () => {
     const startTime = Date.now();
-    const time = new FakeTime(startTime);
+    using time = new FakeTime(startTime);
 
-    try {
-      await createSession("ttl-test", "csrf-ttl", startTime + 60000, null, 1);
-      const firstCall = await getSession("ttl-test");
-      expect(firstCall).not.toBeNull();
+    await createSession("ttl-test", "csrf-ttl", startTime + 60000, null, 1);
+    const firstCall = await getSession("ttl-test");
+    expect(firstCall).not.toBeNull();
 
-      // Advance time past the 10-second TTL
-      time.now = startTime + 11000;
+    // Advance time past the 10-second TTL
+    time.now = startTime + 11000;
 
-      const afterTtl = await getSession("ttl-test");
-      expect(afterTtl).not.toBeNull();
-      expect(afterTtl?.csrf_token).toBe("csrf-ttl");
-    } finally {
-      time.restore();
-    }
+    const afterTtl = await getSession("ttl-test");
+    expect(afterTtl).not.toBeNull();
+    expect(afterTtl?.csrf_token).toBe("csrf-ttl");
   });
 
   // The following tests observe the cache's *effect* by mutating the DB row
@@ -147,19 +143,15 @@ describeWithEnv("db > sessions", { db: true }, () => {
 
   test("getSession re-queries the DB once the cache TTL expires", async () => {
     const start = Date.now();
-    const time = new FakeTime(start);
-    try {
-      await createSession("ttl-requery", "csrf-old", start + 60000, null, 1);
-      // Within TTL: cached (stale) value is served even after the DB changes.
-      await execute("UPDATE sessions SET csrf_token = 'csrf-new'");
-      expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-old");
+    using time = new FakeTime(start);
+    await createSession("ttl-requery", "csrf-old", start + 60000, null, 1);
+    // Within TTL: cached (stale) value is served even after the DB changes.
+    await execute("UPDATE sessions SET csrf_token = 'csrf-new'");
+    expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-old");
 
-      // Past the 10s TTL: the cache entry expires and the DB is re-read.
-      time.now = start + 11000;
-      expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-new");
-    } finally {
-      time.restore();
-    }
+    // Past the 10s TTL: the cache entry expires and the DB is re-read.
+    time.now = start + 11000;
+    expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-new");
   });
 
   test("repeated reads of a missing session stay null (cached null is safe)", async () => {

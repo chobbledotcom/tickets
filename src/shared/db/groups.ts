@@ -20,6 +20,7 @@ import {
 } from "#shared/db/common-schema.ts";
 import { queryListingsWithCounts } from "#shared/db/listings.ts";
 import { queryAndMap } from "#shared/db/query.ts";
+import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
 import type {
   Group,
@@ -117,25 +118,14 @@ export const getGroupBySlugIndex = (slugIndex: string): Promise<Group | null> =>
  * Check if a group slug is already in use.
  * Checks both listings and groups for cross-table uniqueness.
  */
-export const isGroupSlugTaken = async (
+export const isGroupSlugTaken = (
   slug: string,
   excludeGroupId?: number,
-): Promise<boolean> => {
-  const slugIndex = await computeGroupSlugIndex(slug);
-
-  const listingHit = await queryAll(
-    "SELECT 1 FROM listings WHERE slug_index = ? LIMIT 1",
-    [slugIndex],
+): Promise<boolean> =>
+  isSlugTakenAnywhere(
+    slug,
+    excludeGroupId ? { id: excludeGroupId, table: "groups" } : undefined,
   );
-  if (listingHit.length > 0) return true;
-
-  const sql = excludeGroupId
-    ? "SELECT 1 FROM groups WHERE slug_index = ? AND id != ? LIMIT 1"
-    : "SELECT 1 FROM groups WHERE slug_index = ? LIMIT 1";
-  const args = excludeGroupId ? [slugIndex, excludeGroupId] : [slugIndex];
-  const groupHit = await queryAll(sql, args);
-  return groupHit.length > 0;
-};
 
 /** WHERE fragment matching listings that are members of the given group, via the
  * group_listings join table (subquery form avoids duplicate rows). */

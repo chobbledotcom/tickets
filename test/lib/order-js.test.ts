@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { spy } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { orderWidgetBody } from "#routes/assets.ts";
 import { groupsTable } from "#shared/db/groups.ts";
 import { setChildIds } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
@@ -17,6 +19,9 @@ const orderJs = (origin?: string): Promise<Response> =>
   handleRequest(
     mockRequest("/order.js", origin ? { headers: { origin } } : {}),
   );
+
+const orderJsPath = (path: string): Promise<Response> =>
+  handleRequest(mockRequest(path));
 
 /** Slug of the created listing, looked up by name so the result is independent
  * of insertion order. */
@@ -121,6 +126,29 @@ describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
     const body = await (await orderJs()).text();
     // The bundle can't sell (its sole member is inactive), so it isn't advertised.
     expect(body).not.toContain('"gone-bundle"');
+  });
+
+  test("defaults the catalog debug flag off without the query param", async () => {
+    await settings.update.externalOrderEnabled(true);
+
+    const body = await (await orderJs()).text();
+    expect(body).toContain('"debug":false');
+    expect(body).not.toContain('"debug":true');
+  });
+
+  test("debug=true bakes the verbose-logging flag into the catalog", async () => {
+    await settings.update.externalOrderEnabled(true);
+
+    const body = await (await orderJsPath("/order.js?debug=true")).text();
+    expect(body).toContain('"debug":true');
+    expect(body).not.toContain('"debug":false');
+  });
+
+  test("a non-true debug value leaves verbose logging off", async () => {
+    await settings.update.externalOrderEnabled(true);
+
+    const body = await (await orderJsPath("/order.js?debug=1")).text();
+    expect(body).toContain('"debug":false');
   });
 
   test("marks a pay-what-you-want listing as variable-price in the catalog", async () => {
@@ -228,6 +256,21 @@ describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
     expect(body).toContain("const CATALOG");
     expect(body).toContain(parent.slug);
     expect(body).not.toContain(child.slug);
+  });
+
+  test("caches the widget body so it is not re-read from disk per request", () => {
+    // The first call may or may not have already cached the body (test order is
+    // not fixed), so assert the invariant directly: a *subsequent* call must
+    // not hit the disk again. Without the cache, every call re-reads the file.
+    const readSpy = spy(Deno, "readTextFileSync");
+    try {
+      orderWidgetBody();
+      const afterFirst = readSpy.calls.length;
+      orderWidgetBody();
+      expect(readSpy.calls.length).toBe(afterFirst);
+    } finally {
+      readSpy.restore();
+    }
   });
 
   test("a non-/order.js path under the prefix is not handled (404)", async () => {

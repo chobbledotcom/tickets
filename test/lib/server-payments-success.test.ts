@@ -16,6 +16,7 @@ import {
   mockRequest,
   setTestEnv,
   setupStripe,
+  signedMeta,
   signMeta,
   singleItem,
 } from "#test-utils";
@@ -507,6 +508,119 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           "https://example.com/single-thanks",
           "Click here to view your ticket",
         );
+      } finally {
+        mockRetrieve.restore();
+      }
+    });
+
+    test("suppresses thank_you_url for a hidden package's sole member", async () => {
+      await setupStripe();
+
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Hidden Success Pkg",
+        slug: "hidden-success-pkg",
+      });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      const listing = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 50,
+        name: "Concealed Member",
+        thankYouUrl: "https://example.com/concealed-thanks",
+        unitPrice: 500,
+      });
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 500,
+          id: "cs_hidden_pkg",
+          metadata: signedMeta(
+            {
+              email: "concealed@example.com",
+              items: singleItem(listing.id, 1, 500),
+              name: "Concealed Buyer",
+              package_group_id: String(group.id),
+            },
+            500,
+          ),
+          payment_intent: "pi_hidden_pkg",
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        const redirectResponse = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_hidden_pkg"),
+        );
+        expect(redirectResponse.status).toBe(302);
+        const response = await followRedirect(redirectResponse, handleRequest);
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        // The ticket link still shows, but the concealed member's thank-you URL
+        // (which would meta-refresh to the listing the package hid) must not leak.
+        expect(html).toContain("Click here to view your ticket");
+        expect(html).not.toContain("https://example.com/concealed-thanks");
+      } finally {
+        mockRetrieve.restore();
+      }
+    });
+
+    test("suppresses thank_you_url on replay for a hidden package's sole member", async () => {
+      await setupStripe();
+
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Hidden Replay Pkg",
+        slug: "hidden-replay-pkg",
+      });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      const listing = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 50,
+        name: "Concealed Replay Member",
+        thankYouUrl: "https://example.com/concealed-replay",
+        unitPrice: 700,
+      });
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 700,
+          id: "cs_hidden_replay",
+          metadata: signedMeta(
+            {
+              email: "replay@example.com",
+              items: singleItem(listing.id, 1, 700),
+              name: "Replay Buyer",
+              package_group_id: String(group.id),
+            },
+            700,
+          ),
+          payment_intent: "pi_hidden_replay",
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        // First request redirects with tokens (no stored tokens — a hidden package
+        // carries no explicit thank-you URL, so storeTokens is false).
+        const response1 = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_hidden_replay"),
+        );
+        expect(response1.status).toBe(302);
+        // Replay finds the session already processed with no stored tokens, so it
+        // renders directly via the single-listing fallback — which must suppress
+        // the concealed member's thank-you URL too.
+        const response2 = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_hidden_replay"),
+        );
+        expect(response2.status).toBe(200);
+        const html = await response2.text();
+        expect(html).toContain("Thank you for your order");
+        expect(html).not.toContain("https://example.com/concealed-replay");
       } finally {
         mockRetrieve.restore();
       }

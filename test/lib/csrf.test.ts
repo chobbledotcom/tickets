@@ -1,8 +1,12 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import { base64ToBase64Url } from "#shared/crypto/utils.ts";
 import {
+  getCurrentCsrfToken,
   isSignedCsrfToken,
+  runWithCsrfContext,
   signCsrfToken,
   verifySignedCsrfToken,
 } from "#shared/csrf.ts";
@@ -107,20 +111,12 @@ describe("verifySignedCsrfToken", () => {
     // of "now"; FakeTime cannot move backwards, so verify under a separate
     // present-time clock. The gap (decades) far exceeds the 60s skew window.
     const signedInFuture = await (async () => {
-      const future = new FakeTime(4_000_000_000_000);
-      try {
-        return await signCsrfToken();
-      } finally {
-        future.restore();
-      }
+      using _future = new FakeTime(4_000_000_000_000);
+      return await signCsrfToken();
     })();
 
-    const present = new FakeTime(1_700_000_000_000);
-    try {
-      expect(await verifySignedCsrfToken(signedInFuture)).toBe(false);
-    } finally {
-      present.restore();
-    }
+    using _present = new FakeTime(1_700_000_000_000);
+    expect(await verifySignedCsrfToken(signedInFuture)).toBe(false);
   });
 
   test("rejects a plain (unsigned) token", async () => {
@@ -140,7 +136,58 @@ describe("verifySignedCsrfToken", () => {
     expect(await verifySignedCsrfToken("s1..nonce.hmac")).toBe(false);
   });
 
+  test("rejects a correctly-signed token whose nonce is empty", async () => {
+    // An attacker crafts a token with a valid HMAC but an empty nonce slot.
+    // The signature itself verifies, so only the explicit empty-part guard
+    // rejects it — a weaker guard would accept the malformed token.
+    const timestamp = Math.floor(Date.now() / 1000);
+    const message = `s1.${timestamp}.`; // buildMessage(timestamp, "") — empty nonce
+    const hmac = base64ToBase64Url(await hmacHash(message));
+    const token = `s1.${timestamp}..${hmac}`;
+    expect(await verifySignedCsrfToken(token)).toBe(false);
+  });
+
   test("rejects a token with non-numeric timestamp", async () => {
     expect(await verifySignedCsrfToken("s1.notanumber.nonce.hmac")).toBe(false);
+  });
+});
+
+describe("getCurrentCsrfToken (request-scoped)", () => {
+  beforeEach(() => {
+    setupTestEncryptionKey();
+  });
+
+  test("returns the token signed in the current scope", async () => {
+    const { signed, current } = await runWithCsrfContext(async () => {
+      const signed = await signCsrfToken();
+      return { current: getCurrentCsrfToken(), signed };
+    });
+    expect(current).toBe(signed);
+    expect(isSignedCsrfToken(current)).toBe(true);
+  });
+
+  test("re-signing within a scope replaces the rendered token", async () => {
+    const { first, second, rendered } = await runWithCsrfContext(async () => {
+      const first = await signCsrfToken();
+      const second = await signCsrfToken();
+      return { first, rendered: getCurrentCsrfToken(), second };
+    });
+    expect(second).not.toBe(first);
+    expect(rendered).toBe(second); // replaced outright, not appended to `first`
+  });
+
+  test("concurrent request scopes each render their own token", async () => {
+    const request = () =>
+      runWithCsrfContext(async () => {
+        const signed = await signCsrfToken();
+        await new Promise((r) => setTimeout(r, 20)); // render happens later
+        return { rendered: getCurrentCsrfToken(), signed };
+      });
+    const [a, b] = await Promise.all([request(), request()]);
+    // Each scope's rendered token matches the one it signed — no cross-request
+    // bleed from a shared global.
+    expect(a.rendered).toBe(a.signed);
+    expect(b.rendered).toBe(b.signed);
+    expect(a.rendered).not.toBe(b.rendered);
   });
 });

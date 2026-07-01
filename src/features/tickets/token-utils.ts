@@ -14,7 +14,10 @@ import {
   getAttendeesByTokens,
   type ListingAttendeeRow,
 } from "#shared/db/attendees.ts";
-import { getPackageDisplaysByIds } from "#shared/db/groups.ts";
+import {
+  getPackageDisplaysByIds,
+  type PackageDisplay,
+} from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -91,9 +94,7 @@ export const lookupSingleTokenPassData = async (
   // first: a merge can leave one token with both a standalone and a package row,
   // and the pass QR's /checkin covers them all — so a single-listing pass is
   // wrong whenever ANY row is a package member, even when it doesn't sort first.
-  const packageDisplays = await getPackageDisplaysByIds(
-    entries.map((e) => e.attendee.package_group_id),
-  );
+  const packageDisplays = await packageDisplaysForEntries(entries);
   if (packageDisplays.size > 0) {
     return { ok: false, response: notFoundResponse() };
   }
@@ -156,6 +157,15 @@ const buildAttendeeView = (
   ticket_token: base.ticket_token,
   ticket_token_index: base.ticket_token_index,
 });
+
+/** The package displays for a set of token entries, keyed by package id (only
+ * ids naming a live package appear). The shared input both the ticket view (to
+ * collapse package cards / hide members) and the wallet lookup (to 404 a token
+ * carrying any package row) derive from each entry's `package_group_id`. */
+export const packageDisplaysForEntries = (
+  entries: TokenEntry[],
+): Promise<Map<number, PackageDisplay>> =>
+  getPackageDisplaysByIds(entries.map((e) => e.attendee.package_group_id));
 
 /**
  * Resolve attendees with bookings to token entries.
