@@ -74,9 +74,13 @@ export const buildForest = (
   }
   for (const list of itemsByPage.values()) list.sort(itemOrder);
 
-  // First page-parent wins (the app guarantees at most one — see N3).
+  // First page-parent wins (the app guarantees at most one — see N3). An edge
+  // whose parent page is not in `byId` is ignored — the child stays a root —
+  // so a dangling edge (reads straddling a delete, or a stale add) degrades
+  // gracefully instead of breaking every consumer that dereferences a parent.
   const parentByChild = new Map<number, number>();
   for (const [pageId, list] of itemsByPage) {
+    if (!byId.has(pageId)) continue;
     for (const item of list) {
       if (item.item_type === "page" && !parentByChild.has(item.item_id)) {
         parentByChild.set(item.item_id, pageId);

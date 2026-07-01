@@ -39,12 +39,17 @@ export const swapSortOrder = (
       }),
     );
     const orderById = new Map(rows.map((r) => [r.id, r.sort_order]));
+    const order1 = orderById.get(id1);
+    const order2 = orderById.get(id2);
+    // No-op when either row is gone (a stale click racing a delete): binding
+    // an undefined sort_order would fail the NOT NULL constraint with a 500.
+    if (order1 === undefined || order2 === undefined) return;
     await tx.execute({
-      args: [orderById.get(id2)!, id1],
+      args: [order2, id1],
       sql: `UPDATE ${table} SET sort_order = ? WHERE id = ?`,
     });
     await tx.execute({
-      args: [orderById.get(id1)!, id2],
+      args: [order1, id2],
       sql: `UPDATE ${table} SET sort_order = ? WHERE id = ?`,
     });
   });

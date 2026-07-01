@@ -123,31 +123,44 @@ export const isSitePageSlugTaken = (
     excludeId ? { id: excludeId, table: "site_pages" } : undefined,
   );
 
+/** A create provides every column (no DB-side defaults), so the created row can
+ * be returned as constructed — without a post-commit read-back that could see
+ * replica lag on remote libsql. */
+type SitePageCreateInput = Omit<Required<SitePageInput>, "sortOrder">;
+
 /** Create a page, appending it to the end of the root ordering. A new page is
  * always a root (no edges yet). The trailing `sort_order` (max + 1) is read and
  * the row inserted in **one write transaction**, so the whole create rolls back
  * as a unit — no orphan row on a mid-write failure — and two concurrent creates
  * serialise on the write lock to get distinct orders (equal orders would make a
- * reorder swap a no-op, leaving the pages unreorderable). */
+ * reorder swap a no-op, leaving the pages unreorderable). The returned row is
+ * built from the input + the assigned id/order, never read back. */
 export const createSitePage = async (
-  input: Omit<SitePageInput, "sortOrder">,
+  input: SitePageCreateInput,
 ): Promise<SitePage> => {
-  const id = await withTransaction(async (tx) => {
+  const { id, sortOrder } = await withTransaction(async (tx) => {
     const res = await tx.execute({
       args: [],
       sql: "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM site_pages",
     });
-    const sortOrder = Number(resultRows<{ next: number }>(res)[0]!.next);
+    const nextOrder = Number(resultRows<{ next: number }>(res)[0]!.next);
     const stmt = await rawSitePagesTable.insertStatement!({
       ...input,
-      sortOrder,
+      sortOrder: nextOrder,
     });
     const result = await tx.execute(stmt);
-    return Number(result.lastInsertRowid);
+    return { id: Number(result.lastInsertRowid), sortOrder: nextOrder };
   });
-  // The transactional insert already clears the nav projection cache (writes
-  // invalidate by table), so just read the row back fully decrypted.
-  return (await getSitePageById(id))!;
+  return {
+    content: input.content,
+    id,
+    meta_description: input.metaDescription,
+    meta_title: input.metaTitle,
+    name: input.name,
+    slug: input.slug,
+    slug_index: input.slugIndex,
+    sort_order: sortOrder,
+  };
 };
 
 /** Update a page's editable fields (all but id/sort_order). The caller passes a

@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { executeBatch, queryAll } from "#shared/db/client.ts";
 import { isGroupSlugTaken } from "#shared/db/groups.ts";
-import { isSlugTaken } from "#shared/db/listings.ts";
+import { getListingNamesByIds, isSlugTaken } from "#shared/db/listings.ts";
 import {
   addPageItem,
   clearItemEdgesStatement,
@@ -98,6 +98,9 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       const make = async (slug: string): Promise<number> =>
         (
           await createSitePage({
+            content: "",
+            metaDescription: "",
+            metaTitle: "",
             name: `Name ${slug}`,
             slug,
             slugIndex: await computeSitePageSlugIndex(slug),
@@ -118,13 +121,20 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       // without the new page.
       runWithRequestCache(async () => {
         await getSitePageNavRows(); // populate the cached projection
-        await createSitePage({
+        const created = await createSitePage({
+          content: "Body",
+          metaDescription: "Desc",
+          metaTitle: "Meta",
           name: "Fresh",
           slug: "fresh-cache",
           slugIndex: await computeSitePageSlugIndex("fresh-cache"),
         });
         const slugs = (await getSitePageNavRows()).map((r) => r.slug);
         expect(slugs).toContain("fresh-cache");
+        // The returned row is built from the input (no post-commit read-back),
+        // and matches what a fresh read decrypts.
+        expect(created.meta_title).toBe("Meta");
+        expect(await getSitePageById(created.id)).toEqual(created);
       }));
   });
 
@@ -149,6 +159,12 @@ describeWithEnv("db > site-pages", { db: true }, () => {
     test("collides with an existing listing slug", async () => {
       const listing = await createTestListing({ name: "L" });
       expect(await isSitePageSlugTaken(listing.slug)).toBe(true);
+      // The id-keyed name lookup short-circuits on empty ids (no query) and
+      // decrypts names for real ids — the projection page labels lean on.
+      expect((await getListingNamesByIds([])).size).toBe(0);
+      expect((await getListingNamesByIds([listing.id])).get(listing.id)).toBe(
+        "L",
+      );
     });
 
     test("a page slug blocks a new listing and group (bidirectional)", async () => {
@@ -168,6 +184,19 @@ describeWithEnv("db > site-pages", { db: true }, () => {
         "second",
         "first",
       ]);
+    });
+
+    test("swapSitePageOrder is a no-op when either row is missing", async () => {
+      // A stale reorder click racing a delete must not 500 (binding an
+      // undefined sort_order) — the swap simply does nothing.
+      const a = await makePage("survivor", { sortOrder: 0 });
+      await swapSitePageOrder(a.id, 9999);
+      await swapSitePageOrder(9999, a.id);
+      invalidateSitePagesCache();
+      const row = (await getSitePageNavRows()).find(
+        (r) => r.slug === "survivor",
+      );
+      expect(row?.sort_order).toBe(0);
     });
   });
 
@@ -209,6 +238,15 @@ describeWithEnv("db > site-pages", { db: true }, () => {
           sort_order: 0,
         },
       ]);
+    });
+
+    test("an add is rejected when the host or child page is missing", async () => {
+      const p = await makePage("existing");
+      // Host page vanished (stale add racing a delete): no dangling edge.
+      expect(await addPageItem(9999, "listing", 1)).toBe(false);
+      // Child page vanished: the page edge would dangle, so it is rejected.
+      expect(await addPageItem(p.id, "page", 9999)).toBe(false);
+      expect(await getAllPageItems()).toEqual([]);
     });
 
     test("a page cannot be nested inside itself (N4 self-loop)", async () => {

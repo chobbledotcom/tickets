@@ -73,6 +73,14 @@ describe("site-pages core", () => {
       expect(forest.parentByChild.get(2)).toBe(1);
     });
 
+    test("a dangling edge from a deleted parent leaves the child a root", () => {
+      // Page 9 no longer exists but its edge to page 2 survived a race; the
+      // edge is ignored so page 2 stays a listed, reachable root.
+      const forest = buildForest([page(1), page(2)], [edge(9, "page", 2, 0)]);
+      expect(forest.rootIds).toEqual([1, 2]);
+      expect(forest.parentByChild.has(2)).toBe(false);
+    });
+
     test("a non-page item never parents a page that shares its numeric id", () => {
       // listing item with item_id 2 must NOT make page 2 a child of page 1.
       const forest = buildForest(
