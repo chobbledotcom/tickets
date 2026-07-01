@@ -763,6 +763,10 @@ const completeFoldedBooking = async (
     ...contact,
     date,
     items,
+    // Carry the per-(child,parent) allocations so the paid session signs them and
+    // the webhook's edge-drift revalidation can detect a parent→child edge
+    // removed/re-parented mid-payment — mirroring the web folded-parent path.
+    ...(fold.allocations.length > 0 ? { allocations: fold.allocations } : {}),
     ...(fold.hasCustomisable ? { dayCount: fold.dayCount } : {}),
     // Carry the parent's thank-you URL only once a child was actually folded in
     // (the order gained a listing): a multi-listing order can't recover it from
@@ -803,6 +807,7 @@ const completeFoldedBooking = async (
   // posts no legs.
   const remainingBalance = isPaymentsEnabled() ? 0 : total;
   const reservation = await createFreeReservation({
+    allocations: fold.allocations,
     contact,
     date,
     dayCount: fold.dayCount,

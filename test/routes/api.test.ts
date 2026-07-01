@@ -900,6 +900,56 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(body.booking?.amountOwed).toBe(0);
     });
 
+    test("a free parent+child booking records the child under its parent", async () => {
+      // The free path threads the fold's allocations into createFreeReservation,
+      // so the auto-folded child is stored as its own row under the parent.
+      const { parent, child } = await makeParent({
+        children: [{ maxAttendees: 10, unitPrice: 0 }],
+        parent: { maxAttendees: 10, unitPrice: 0 },
+      });
+      const { body } = await bookListing(parent.slug);
+      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const [attendee] = await getAttendeesByTokens([
+        body.booking!.ticketToken!,
+      ]);
+      const childRow = attendee!.bookings.find(
+        (b) => b.listing_id === child.id,
+      );
+      expect(childRow?.parent_listing_id).toBe(parent.id);
+    });
+
+    test("carries the fold's child allocations on the paid intent for webhook edge revalidation", async () => {
+      await setupStripe();
+      const { parent, child } = await makeParent({
+        children: [{ maxAttendees: 10, unitPrice: 500 }],
+        parent: { maxAttendees: 10, unitPrice: 1000 },
+      });
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      let capturedAllocations: unknown;
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        (intent) => {
+          capturedAllocations = intent.allocations;
+          return Promise.resolve({
+            checkoutUrl: "https://checkout.test/session",
+            sessionId: "sess_test",
+          });
+        },
+      );
+      try {
+        const { response } = await bookListing(parent.slug);
+        expect(response.status).toBe(200);
+      } finally {
+        mockCreate.restore();
+      }
+      expect(capturedAllocations).toEqual([
+        { childId: child.id, parentId: parent.id, qty: 1 },
+      ]);
+    });
+
     test("accepts a pay-more child's custom price in a parent booking", async () => {
       const { parent, child } = await makeParent({
         children: [
