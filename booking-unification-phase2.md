@@ -72,9 +72,27 @@ the group-root builder tests get exercised by the real page path).
 `signPriceSync` (`payment-signature.ts:85`); `expandChildAllocations`
 (`payment-processing.ts:1129`).
 
-Proposed entry: `foldBookingTree(tree, form, {holidays, date, dayCount}) →
+Entry (shipped, 2a): `foldBookingTree(tree, resolved, form, base, holidays) →
 { listings, quantities, customPrices, allocations, dayCount, hasCustomisable,
-selectedListingIds } | error` — same shape as `foldSelectedChildren`.
+selectedListingIds } | error` — the **same shape** as `foldSelectedChildren`, so
+`buildRegistrationItems` / `priceCheckout` / the webhook are untouched.
+`foldSelectedChildren` becomes the async adapter that builds the tree + the
+node→availability `resolved` map and fetches holidays. Child provenance is carried
+by `allocations` (per-(child, parent)), so no current distinction is lost — within
+one order a listing is reached by a single top-level path today.
+
+**Target output (Codex, 2b/2d): carry canonical per-node lines, derive the
+listing-demand map as a capacity adapter.** The listing-keyed
+`quantities`/`customPrices` maps collapse any listing reached through two node
+paths (different `nodeKey`/price/provenance) before pricing and signing can
+preserve it — harmless today, but the wrong SSOT once 2d signs and revalidates by
+`nodeKey` and once Phase 4 buyer-choice lets one listing appear under two edges in
+one order. So evolve the fold result to a list of `{ nodeKey, listingId, edgeRef,
+qty, unitPrice, dateSpan }` lines (the pricing walk fills `unitPrice` in 2b), and
+compute the flat per-listing demand map from those lines **only** as the input to
+the capacity walk (2c) — never as the line identity pricing/metadata read. 2a
+ships the flat shape as the first, behaviour-identical increment; 2b introduces
+the per-node line as pricing starts consuming it.
 
 ---
 
