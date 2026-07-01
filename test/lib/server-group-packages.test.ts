@@ -82,6 +82,20 @@ const expectPackageRejected = async (group: {
   expect((await groupsTable.findById(group.id))!.is_package).toBe(false);
 };
 
+/** POST the edit form with is_package ticked and assert it saved. */
+const expectPackageAccepted = async (group: {
+  id: number;
+  name: string;
+  slug: string;
+}): Promise<void> => {
+  const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
+    ...editFields(group.name, group.slug),
+    is_package: "1",
+  });
+  expect(response.status).toBe(302);
+  expect((await groupsTable.findById(group.id))!.is_package).toBe(true);
+};
+
 /** POST add-listings with `listingId` to a package group and assert the package
  * invariant rejected it, leaving the group with no priced members. */
 const expectAddListingRejected = async (
@@ -305,12 +319,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       date: "2026-09-01T10:00",
       listingType: "daily",
     });
-    const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
-      ...editFields("Daily", "daily-pkg"),
-      is_package: "1",
-    });
-    expect(response.status).toBe(302);
-    expect((await groupsTable.findById(group.id))!.is_package).toBe(true);
+    await expectPackageAccepted(group);
   });
 
   test("edit POST rejects is_package on a group with a parent listing", async () => {
@@ -566,12 +575,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       dayPrices: { 1: 1000 },
       durationDays: 1,
     });
-    const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
-      ...editFields("Cust", "cust"),
-      is_package: "1",
-    });
-    expect(response.status).toBe(302);
-    expect((await groupsTable.findById(group.id))!.is_package).toBe(true);
+    await expectPackageAccepted(group);
   });
 
   test("edit POST rejects is_package on a group with a pay-what-you-want listing", async () => {
