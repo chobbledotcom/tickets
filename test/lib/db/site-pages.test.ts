@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { executeBatch, queryAll } from "#shared/db/client.ts";
+import { isGroupSlugTaken } from "#shared/db/groups.ts";
+import { isSlugTaken } from "#shared/db/listings.ts";
 import {
   addPageItem,
   clearItemEdgesStatement,
@@ -114,6 +116,12 @@ describeWithEnv("db > site-pages", { db: true }, () => {
     test("collides with an existing listing slug", async () => {
       const listing = await createTestListing({ name: "L" });
       expect(await isSitePageSlugTaken(listing.slug)).toBe(true);
+    });
+
+    test("a page slug blocks a new listing and group (bidirectional)", async () => {
+      await makePage("bidi");
+      expect(await isSlugTaken("bidi")).toBe(true); // listings validator
+      expect(await isGroupSlugTaken("bidi")).toBe(true); // groups validator
     });
   });
 

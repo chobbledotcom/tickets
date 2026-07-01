@@ -18,6 +18,7 @@ import {
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
 import { swapSortOrder } from "#shared/db/query.ts";
+import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { cachedTable, col } from "#shared/db/table.ts";
 import type { SitePage, SitePageNavRow } from "#shared/types.ts";
 
@@ -106,26 +107,16 @@ export const getSitePageBySlugIndex = (
 export const getSitePageById = (id: number): Promise<SitePage | null> =>
   querySitePage("id = ?", id);
 
-/** Is `slug` already used by a listing, group, or another page? (Cross-table
- * uniqueness, like groups.) Reserved-word rejection is a separate check. */
-export const isSitePageSlugTaken = async (
+/** Is `slug` already used by a listing, group, or another page? Delegates to the
+ * shared cross-table registry. Reserved-word rejection is a separate check. */
+export const isSitePageSlugTaken = (
   slug: string,
   excludeId?: number,
-): Promise<boolean> => {
-  const slugIndex = await computeSitePageSlugIndex(slug);
-  for (const table of ["listings", "groups"] as const) {
-    const hit = await queryAll(
-      `SELECT 1 FROM ${table} WHERE slug_index = ? LIMIT 1`,
-      [slugIndex],
-    );
-    if (hit.length > 0) return true;
-  }
-  const sql = excludeId
-    ? "SELECT 1 FROM site_pages WHERE slug_index = ? AND id != ? LIMIT 1"
-    : "SELECT 1 FROM site_pages WHERE slug_index = ? LIMIT 1";
-  const args = excludeId ? [slugIndex, excludeId] : [slugIndex];
-  return (await queryAll(sql, args)).length > 0;
-};
+): Promise<boolean> =>
+  isSlugTakenAnywhere(
+    slug,
+    excludeId ? { id: excludeId, table: "site_pages" } : undefined,
+  );
 
 /** Swap the `sort_order` of two root pages (the move-up/down apply step). */
 export const swapSitePageOrder = (id1: number, id2: number): Promise<void> =>
