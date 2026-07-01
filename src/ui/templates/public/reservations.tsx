@@ -1,5 +1,18 @@
 import { filter, mapNotNullish, pipe } from "#fp";
 import { t } from "#i18n";
+import {
+  type BuildTreeInput,
+  buildBookingTree,
+} from "#shared/booking/build-tree.ts";
+import {
+  type BookingNode,
+  childPriceFieldName,
+  childQuantityFieldName,
+  nodePriceFieldName,
+  nodeQuantityFieldName,
+  PACKAGE_QUANTITY_FIELD,
+  quantityFieldName,
+} from "#shared/booking/tree.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import {
   daysAgo,
@@ -407,7 +420,7 @@ const restoredQuantity = (
   maxPurchasable: number,
 ): number =>
   clampSavedQuantity(
-    savedFormValue(`quantity_${listingId}`),
+    savedFormValue(quantityFieldName(listingId)),
     maxPurchasable,
     resolveQuantity(prefill, maxPurchasable),
   );
@@ -417,7 +430,11 @@ const restoredQuantity = (
  * when nothing can be ordered). Without this an error would silently reset a
  * multi-package order to one, risking a wrong-quantity resubmit. */
 const restoredPackageQuantity = (cap: number): number =>
-  clampSavedQuantity(savedFormValue("package_quantity"), cap, Math.min(1, cap));
+  clampSavedQuantity(
+    savedFormValue(PACKAGE_QUANTITY_FIELD),
+    cap,
+    Math.min(1, cap),
+  );
 
 /**
  * Per-parent child rendering inputs threaded down to the listing rows: the page's
@@ -759,7 +776,7 @@ const restoredChildQty = (
   childId: number,
   max: number,
 ): number => {
-  const saved = savedFormValue(`child_qty_${parentId}_${childId}`);
+  const saved = savedFormValue(childQuantityFieldName(parentId, childId));
   if (saved === "") return 0;
   return Math.max(0, Math.min(Number.parseInt(saved, 10) || 0, max));
 };
@@ -812,12 +829,12 @@ const renderChildOption = (
   const parentId = parent.id;
   const { listing } = child;
   const bookable = childBookable(child);
-  const selectName = `child_qty_${parentId}_${listing.id}`;
+  const selectName = childQuantityFieldName(parentId, listing.id);
   const priceHtml =
     listing.can_pay_more && bookable
       ? renderPayMoreInput(
           listing,
-          `child_price_${parentId}_${listing.id}`,
+          childPriceFieldName(parentId, listing.id),
           undefined,
           false,
         )
@@ -871,7 +888,7 @@ const renderSoleChildOption = (
   const priceHtml = listing.can_pay_more
     ? renderPayMoreInput(
         listing,
-        `child_price_${parentId}_${listing.id}`,
+        childPriceFieldName(parentId, listing.id),
         undefined,
         false,
       )
@@ -984,13 +1001,15 @@ const renderChildBlock = (
  * available range) — used by multi-listing scenarios such as the order cart. */
 const renderListingRow = (
   info: TicketListing,
+  node: BookingNode,
   hideQuantity = false,
   prefill?: TicketPrefill,
   childCtx?: ChildRenderCtx,
 ): string => {
   const { listing, isSoldOut, isClosed } = info;
   const maxPurchasable = childCappedMax(info, childCtx);
-  const fieldName = `quantity_${listing.id}`;
+  // A top-level booking node always carries a buyer-chosen quantity field.
+  const fieldName = nodeQuantityFieldName(node)!;
   const imageHtml = renderListingImage(listing);
 
   if (isClosed) {
@@ -1022,7 +1041,6 @@ const renderListingRow = (
       )}</select>`;
 
   const showPayMore = listing.can_pay_more;
-  const priceFieldName = `custom_price_${listing.id}`;
   const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
   const childBlock = childCtx ? renderChildBlock(info, childCtx) : "";
 
@@ -1033,7 +1051,11 @@ const renderListingRow = (
       ${renderListingDescription(listing.description)}
       ${
         showPayMore
-          ? renderPayMoreInput(listing, priceFieldName, prefilledPrice)
+          ? renderPayMoreInput(
+              listing,
+              nodePriceFieldName(node)!,
+              prefilledPrice,
+            )
           : ""
       }
       ${childBlock}
@@ -1070,7 +1092,7 @@ const renderPackageRows = (
   const memberIds = listings.map((e) => e.listing.id).join(" ");
   const selector = `<label>${t(
     "public.package.quantity",
-  )}<select name="package_quantity" data-package-members="${memberIds}">${quantityOptions(
+  )}<select name="${PACKAGE_QUANTITY_FIELD}" data-package-members="${memberIds}">${quantityOptions(
     cap,
     restoredPackageQuantity(cap),
   )}</select></label>`;
@@ -1126,13 +1148,15 @@ export const packageQuantityCap = (
 /** Render controls for a single listing: quantity input + pay-more (no listing name/image/description). */
 const renderSingleListingControls = (
   info: TicketListing,
+  node: BookingNode,
   hideQuantity: boolean,
   prefill?: TicketPrefill,
   childCtx?: ChildRenderCtx,
 ): string => {
   const { listing } = info;
   const maxPurchasable = childCappedMax(info, childCtx);
-  const fieldName = `quantity_${listing.id}`;
+  // A top-level booking node always carries a buyer-chosen quantity field.
+  const fieldName = nodeQuantityFieldName(node)!;
   const prefilledQty = restoredQuantity(listing.id, prefill, maxPurchasable);
   const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
   const quantityHtml = hideQuantity
@@ -1144,11 +1168,10 @@ const renderSingleListingControls = (
         prefilledQty,
       )}</select></label>`;
   const showPayMore = listing.can_pay_more;
-  const priceFieldName = `custom_price_${listing.id}`;
   const childBlock = childCtx ? renderChildBlock(info, childCtx) : "";
   return `${quantityHtml}${
     showPayMore
-      ? renderPayMoreInput(listing, priceFieldName, prefilledPrice)
+      ? renderPayMoreInput(listing, nodePriceFieldName(node)!, prefilledPrice)
       : ""
   }${childBlock}`;
 };
@@ -1583,6 +1606,7 @@ const pageOrChildPaid = (
  * show a compact row each. Both honour per-listing quantity pre-fills. */
 const buildListingRows = (
   listings: TicketListing[],
+  nodeByListingId: ReadonlyMap<number, BookingNode>,
   isSingleListing: boolean,
   hideQuantity: boolean,
   prefill: BookingPrefill | undefined,
@@ -1591,6 +1615,7 @@ const buildListingRows = (
   isSingleListing
     ? renderSingleListingControls(
         listings[0]!,
+        nodeByListingId.get(listings[0]!.listing.id)!,
         hideQuantity,
         prefill?.listings.get(listings[0]!.listing.id),
         childCtx,
@@ -1599,6 +1624,7 @@ const buildListingRows = (
         .map((e) =>
           renderListingRow(
             e,
+            nodeByListingId.get(e.listing.id)!,
             hideQuantity,
             prefill?.listings.get(e.listing.id),
             childCtx,
@@ -1611,6 +1637,7 @@ const buildListingRows = (
 const buildPageListingRows = (opts: {
   isPackage: boolean;
   listings: TicketListing[];
+  nodeByListingId: ReadonlyMap<number, BookingNode>;
   packageQuantities: ReadonlyMap<number, number> | null | undefined;
   packageCap: number;
   hidePackageListings: boolean;
@@ -1630,6 +1657,7 @@ const buildPageListingRows = (opts: {
   }
   return buildListingRows(
     opts.listings,
+    opts.nodeByListingId,
     opts.isSingleListing,
     opts.hideQuantity,
     opts.prefill,
@@ -1705,6 +1733,21 @@ export const ticketPage = ({
 }: TicketPageOptions): string => {
   // getTicketContext always sets packageQuantities alongside packageGroupId.
   const isPackage = packageGroupId != null;
+  // The canonical booking tree drives node identity + the stable form field names
+  // (via nodeQuantityFieldName/nodePriceFieldName); render output is unchanged.
+  const treeInput: BuildTreeInput = {
+    childrenByParentId,
+    groupId: packageGroupId ?? undefined,
+    hidePackageListings,
+    isPackage,
+    listings,
+    packagePrices,
+    packageQuantities,
+    slugs,
+  };
+  const nodeByListingId = new Map(
+    buildBookingTree(treeInput).nodes.map((node) => [node.listingId, node]),
+  );
   const inIframe = getIframeMode();
   const { packageCap, soldOut: allUnavailable } = packagePageAvailability(
     isPackage,
@@ -1753,6 +1796,7 @@ export const ticketPage = ({
     isPackage,
     isSingleListing,
     listings,
+    nodeByListingId,
     packageCap,
     packageQuantities,
     prefill,

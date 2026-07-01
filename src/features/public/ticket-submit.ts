@@ -11,6 +11,11 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import {
+  customPriceFieldName,
+  PACKAGE_QUANTITY_FIELD,
+  quantityFieldName,
+} from "#shared/booking/tree.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import {
   type ModifierApplication,
@@ -123,7 +128,7 @@ const validateFormState = (form: FormParams, ctx: TicketCtx): string | null => {
 
   for (const { listing, isClosed } of ctx.listings) {
     const selectedQty =
-      parseNonNegativeInt(form.get(`quantity_${listing.id}`) ?? "0") ?? 0;
+      parseNonNegativeInt(form.get(quantityFieldName(listing.id)) ?? "0") ?? 0;
     if (isClosed && selectedQty > 0) {
       return REGISTRATION_CLOSED_SUBMIT_MESSAGE;
     }
@@ -158,7 +163,7 @@ const parseCustomPrices = (
     if (qty <= 0) continue;
     const priceResult = parseCustomPrice(
       form,
-      `custom_price_${listing.id}`,
+      customPriceFieldName(listing.id),
       listing.unit_price,
       listing.max_price,
     );
@@ -556,7 +561,7 @@ const validatePaymentUpgrade = (
 
 /** The buyer-chosen number of packages (0 when absent/invalid → an empty order). */
 const parsePackageCount = (form: FormParams): number =>
-  parseNonNegativeInt(form.getString("package_quantity")) ?? 0;
+  parseNonNegativeInt(form.getString(PACKAGE_QUANTITY_FIELD)) ?? 0;
 
 /**
  * Resolve the page listings' quantities from the form. For a package group the

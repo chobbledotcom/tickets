@@ -144,29 +144,18 @@ export const quantityFieldName = (listingId: number): string =>
 export const customPriceFieldName = (listingId: number): string =>
   `custom_price_${listingId}`;
 
-/** The prefix of a parent's per-child quantity controls
- * (`child_qty_<parentId>_`) — client scripts select by this prefix, so it lives
- * here too. */
-export const childQuantityPrefix = (parentId: number): string =>
-  `child_qty_${parentId}_`;
-
 /** One child's per-unit quantity control (`child_qty_<parentId>_<childId>`). */
 export const childQuantityFieldName = (
   parentId: number,
   childId: number,
-): string => `${childQuantityPrefix(parentId)}${childId}`;
-
-/** The prefix of a parent's per-child pay-more price controls
- * (`child_price_<parentId>_`). */
-export const childPricePrefix = (parentId: number): string =>
-  `child_price_${parentId}_`;
+): string => `child_qty_${parentId}_${childId}`;
 
 /** One child's pay-what-you-want price control
  * (`child_price_<parentId>_<childId>`). */
 export const childPriceFieldName = (
   parentId: number,
   childId: number,
-): string => `${childPricePrefix(parentId)}${childId}`;
+): string => `child_price_${parentId}_${childId}`;
 
 /** The single "number of packages" control on a package page. */
 export const PACKAGE_QUANTITY_FIELD = "package_quantity";

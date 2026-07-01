@@ -35,9 +35,9 @@ export type BuildTreeInput = {
   readonly groupId?: number | undefined;
   readonly isPackage?: boolean | undefined;
   /** Fixed units of each member one package includes (by listing id). */
-  readonly packageQuantities?: ReadonlyMap<number, number> | undefined;
+  readonly packageQuantities?: ReadonlyMap<number, number> | null | undefined;
   /** Per-member package price override in minor units (by listing id). */
-  readonly packagePrices?: ReadonlyMap<number, number> | undefined;
+  readonly packagePrices?: ReadonlyMap<number, number> | null | undefined;
   /** Members hidden from buyers (`hide_package_listings`). */
   readonly hidePackageListings?: boolean | undefined;
   /** Required children per parent listing id (already hydrated + availability). */

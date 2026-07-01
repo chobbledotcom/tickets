@@ -8,9 +8,7 @@ import {
   type BookingNode,
   childNodeKey,
   childPriceFieldName,
-  childPricePrefix,
   childQuantityFieldName,
-  childQuantityPrefix,
   customPriceFieldName,
   groupMemberNodeKey,
   listingNodeKey,
@@ -56,16 +54,12 @@ describe("booking tree — form field-name SSOT", () => {
     expect(PACKAGE_QUANTITY_FIELD).toBe("package_quantity");
   });
 
-  test("child prefixes are the exact stems client scripts select by", () => {
-    expect(childQuantityPrefix(2)).toBe("child_qty_2_");
-    expect(childPricePrefix(2)).toBe("child_price_2_");
-    // The full name is the prefix plus the child id, so a prefix match is safe.
-    expect(
-      childQuantityFieldName(2, 9).startsWith(childQuantityPrefix(2)),
-    ).toBe(true);
-    expect(childPriceFieldName(2, 9).startsWith(childPricePrefix(2))).toBe(
-      true,
-    );
+  test("child field names embed both the parent and child id", () => {
+    // The parent id precedes the child id, so a child under two parents differs.
+    expect(childQuantityFieldName(2, 9)).toBe("child_qty_2_9");
+    expect(childQuantityFieldName(3, 9)).not.toBe(childQuantityFieldName(2, 9));
+    expect(childPriceFieldName(2, 9)).toBe("child_price_2_9");
+    expect(childPriceFieldName(3, 9)).not.toBe(childPriceFieldName(2, 9));
   });
 });
 
