@@ -560,6 +560,24 @@ describe("webhook", () => {
 
       expect(fetchSpy.calls.length).toBe(0);
     });
+
+    test("loads package overrides for a package booking's webhook", async () => {
+      // A package member (package_group_id > 0) drives the override load; with no
+      // override row for the member, its unit_price falls back to the base price.
+      const entries = [
+        makeEntry(
+          { id: 1, unit_price: 900, webhook_url: "https://hook.com" },
+          { package_group_id: 5 },
+        ),
+      ];
+
+      await sendRegistrationWebhooks(entries, "GBP");
+
+      expect(fetchSpy.calls.length).toBe(1);
+      const [, options] = fetchSpy.calls[0].args as [string, RequestInit];
+      const body = JSON.parse(options.body as string) as WebhookPayload;
+      expect(body.tickets[0]!.unit_price).toBe(900);
+    });
   });
 
   describeWithEnv("logAndNotifyRegistration", { db: true }, () => {

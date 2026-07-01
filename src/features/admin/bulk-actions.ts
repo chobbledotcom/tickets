@@ -33,6 +33,7 @@ import {
   groupsTable,
   setGroupListingsActive,
 } from "#shared/db/groups.ts";
+import { syncListingPricesForIds } from "#shared/db/listing-prices.ts";
 import {
   getStoredListingWithCount,
   type ListingInput,
@@ -212,6 +213,10 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   const idBySlugIndex = new Map(
     (await getListingsByGroupId(newGroupId)).map((l) => [l.slug_index, l.id]),
   );
+  // The clones were inserted via insertStatement in the batch above, bypassing
+  // the listingsTable wrapper, so sync their listing_prices rows explicitly —
+  // otherwise a priced clone has no matching price rows until it is edited.
+  await syncListingPricesForIds([...idBySlugIndex.values()]);
   const idMap = new Map(
     cloneInputs.map(({ sourceId, input }) => [
       sourceId,

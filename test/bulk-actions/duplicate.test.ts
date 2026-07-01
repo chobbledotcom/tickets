@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { queryAll } from "#shared/db/client.ts";
 import {
   getAllGroups,
   getGroupIdsByListingId,
@@ -104,6 +105,33 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       expect(await getGroupIdsByListingId(sourceListing.id)).toContain(
         group.id,
       );
+    });
+
+    test("syncs listing_prices for cloned listings", async () => {
+      // Clones are inserted via insertStatement in a batch (bypassing the
+      // listingsTable wrapper), so the duplicate flow must sync their price rows.
+      const group = await createTestGroup({ name: "Priced Source" });
+      await createTestListing({
+        groupId: group.id,
+        name: "Priced Item",
+        unitPrice: 850,
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        { new_name: "Priced Copy" },
+      );
+      expect(response.status).toBe(302);
+
+      const newGroup = (await getAllGroups()).find(
+        (g) => g.name === "Priced Copy",
+      )!;
+      const clone = (await getListingsByGroupId(newGroup.id))[0]!;
+      const rows = await queryAll<{ price_type: string; unit_price: number }>(
+        "SELECT price_type, unit_price FROM listing_prices WHERE listing_id = ?",
+        [clone.id],
+      );
+      expect(rows).toEqual([{ price_type: "base", unit_price: 850 }]);
     });
 
     test("clones a use-defaults listing from its stored values, not inherited defaults", async () => {
