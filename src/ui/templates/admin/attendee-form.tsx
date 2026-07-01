@@ -81,6 +81,7 @@ import {
   MaybeButtonLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { PHONE_INPUT_PATTERN } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /** One channel's contact record plus the URL-safe HMAC param that keys its
@@ -804,7 +805,7 @@ const AttendeeEditForm = ({
           autocomplete="off"
           id="phone"
           name="phone"
-          pattern="[+\d][\d\s\-()]{5,}"
+          pattern={PHONE_INPUT_PATTERN}
           title="Phone number (digits, spaces, hyphens, parentheses, optional leading +)"
           type="text"
           value={data.parsed.phone || ""}

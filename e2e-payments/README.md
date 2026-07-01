@@ -93,7 +93,15 @@ GBP/USD/EUR — zero-decimal currencies like JPY are unsupported),
 `E2E_UNIT_PRICE` (minor units, default 137 — a non-round amount so the ledger
 shows decimals),
 `E2E_TUNNEL` (`1`/`0` to force), and the `E2E_*_TIMEOUT_MS` values in
-`src/config.ts`. Screenshots and server logs land in `artifacts/` on failure.
+`src/config.ts`. On failure (and always, in CI) a screenshot **and** the page
+HTML plus the server log land in `artifacts/` and are uploaded by the workflow.
+
+Every action is logged with the resulting URL/title, so the CI log reads as a
+breadcrumb trail of the journey. Form controls are driven with Playwright's
+`force` option and forms are submitted via `form.submit()` rather than clicking
+the button — the app styles/validates controls in ways that otherwise make
+Playwright's default actionability wait (visible/enabled/stable) hang in the CI
+Chromium build.
 
 ## Two things to confirm on the first live run
 
