@@ -39,6 +39,7 @@ import {
   clearSessionCookie,
   parseFlashValue,
 } from "#shared/cookies.ts";
+import { runWithCsrfContext } from "#shared/csrf.ts";
 import { maybeBackfillActivityLog } from "#shared/db/activity-log-backfill.ts";
 import { DatabaseBusyError } from "#shared/db/client.ts";
 import {
@@ -70,8 +71,12 @@ import {
 } from "#shared/flash-context.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { takeForm } from "#shared/form-stash.ts";
-import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
-import { detectIframeMode } from "#shared/iframe.ts";
+import {
+  clearSavedFormData,
+  runWithSavedFormContext,
+  setSavedFormData,
+} from "#shared/forms.tsx";
+import { detectIframeMode, runWithIframeContext } from "#shared/iframe.ts";
 import {
   createRequestTimer,
   ErrorCode,
@@ -1035,19 +1040,27 @@ export const handleRequest = async (
 ): Promise<Response> => {
   const locale = parseAcceptLanguage(request.headers.get("accept-language"));
 
-  return runWithLocale(locale, () =>
-    runWithClientIp(getClientIp(request, server), () =>
-      runWithRequestId(() =>
-        runWithRequestCache(() =>
-          runWithQueryLogContext(() =>
-            runWithFlashContext(() =>
-              runWithSessionContext(() =>
-                runWithSettingsAudit(() => processRequest(request, server)),
-              ),
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
+  // Each request runs inside a stack of AsyncLocalStorage scopes so per-request
+  // state (locale, client IP, caches, flash, iframe mode, CSRF token, saved
+  // form data, …) stays isolated across concurrent requests sharing one edge
+  // isolate. Composed as a fold rather than hand-nested callbacks so the stack
+  // stays flat and adding a scope is a one-line change.
+  const scopes: ((fn: () => Promise<Response>) => Promise<Response>)[] = [
+    (fn) => runWithLocale(locale, fn),
+    (fn) => runWithClientIp(getClientIp(request, server), fn),
+    runWithRequestId,
+    runWithRequestCache,
+    runWithQueryLogContext,
+    runWithFlashContext,
+    runWithSessionContext,
+    runWithIframeContext,
+    runWithCsrfContext,
+    runWithSavedFormContext,
+    runWithSettingsAudit,
+  ];
+
+  return scopes.reduceRight<() => Promise<Response>>(
+    (next, scope) => () => scope(next),
+    () => processRequest(request, server),
+  )();
 };

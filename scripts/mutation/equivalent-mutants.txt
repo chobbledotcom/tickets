@@ -102,6 +102,15 @@ src/shared/largest-remainder.ts:20:40  ?? → ||   # tieBreaker?: function|undef
 src/shared/crypto/utils.ts:18:23  ?? → ||   # bufA[i]: number|undefined, 0 ?? 0 === 0 || 0
 src/shared/crypto/utils.ts:18:40  ?? → ||   # bufB[i]: number|undefined, 0 ?? 0 === 0 || 0
 
+# request-scoped ambient fallback: store.getStore() is T|undefined where T is
+# always a truthy container object (never a falsy-non-null value), so
+# `?? fallback` and `|| fallback` always agree.
+src/shared/request-scoped.ts:41:36  ?? → ||   # getStore(): T|undefined — a container object is always truthy
+
+# savedFormValue: form?.getString(name) is string|undefined; the only falsy
+# non-null string is "" which equals the "" fallback, so ?? and || agree.
+src/shared/forms.tsx:599:49  ?? → ||   # getString(): string|undefined, "" ?? "" === "" || ""
+
 # test-utils/csrf: regex `match` results are either null/undefined or truthy
 # values; the quantity capture is `\d+`, so it can never be an empty string.
 test/test-utils/csrf.ts:13:46  ?? → ||   # input tag match: RegExpMatchArray|null; a non-null array is truthy
