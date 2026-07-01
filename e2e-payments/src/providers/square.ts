@@ -125,7 +125,13 @@ const completeViaSandboxApi = async (
     token,
     `/v2/orders/${encodeURIComponent(orderId)}`,
   )) as {
-    order?: { location_id?: string; total_money?: SquareMoney; net_amount_due_money?: SquareMoney };
+    order?: {
+      location_id?: string;
+      version?: number;
+      state?: string;
+      total_money?: SquareMoney;
+      net_amount_due_money?: SquareMoney;
+    };
   };
   const order = orderResp.order;
   const amountMoney = order?.net_amount_due_money ?? order?.total_money;
@@ -135,7 +141,23 @@ const completeViaSandboxApi = async (
       `Square: order ${orderId} missing total/location (got ${JSON.stringify(order)})`,
     );
   }
-  log(`  order total ${amountMoney.amount} ${amountMoney.currency} @ location ${locationId}`);
+  log(
+    `  order total ${amountMoney.amount} ${amountMoney.currency} @ location ${locationId} (state=${order?.state})`,
+  );
+
+  // A payment link creates its order in DRAFT state, but a payment can only be
+  // taken against an OPEN order ("The order must be OPEN to be paid" → the
+  // authorised payment is otherwise voided). Transition DRAFT → OPEN first.
+  if (order?.state && order.state !== "OPEN") {
+    await squareFetch(base, token, `/v2/orders/${encodeURIComponent(orderId)}`, {
+      method: "PUT",
+      body: {
+        idempotency_key: crypto.randomUUID(),
+        order: { location_id: locationId, version: order.version, state: "OPEN" },
+      },
+    });
+    log(`  transitioned order ${orderId} ${order.state} → OPEN`);
+  }
 
   // CreatePayment with the sandbox test nonce, linked to the order and
   // auto-completed → the order gains a COMPLETED card tender, which is exactly
