@@ -237,10 +237,30 @@ describe("buildBookingTree — node facets", () => {
     const [child1, child2] = tree.nodes[0]!.children;
     expect(child1!.nodeKey).toBe("listing:4/child:9");
     expect(child1!.edgeRef).toEqual({ kind: "parent_child", parentId: 4 });
-    expect(child1!.dateSpan).toEqual({ kind: "INHERIT" });
     // A shown standalone parent does not hide its (non-hidden) children.
     expect(child1!.visibility).toBe("SHOWN");
     expect(child2!.nodeKey).toBe("listing:4/child:10");
+  });
+
+  test("only a daily/customisable child inherits a span; a standard child is date-less", () => {
+    const tree = buildBookingTree({
+      childrenByParentId: new Map([
+        [
+          4,
+          [
+            resolved({ id: 9 }), // standard → date-less
+            resolved({ id: 10, listing_type: "daily" }), // daily → inherits
+            resolved({ customisable_days: true, id: 11 }), // customisable → inherits
+          ],
+        ],
+      ]),
+      listings: [resolved({ id: 4 })],
+      slugs: ["ab12c"],
+    });
+    const [standard, daily, customisable] = tree.nodes[0]!.children;
+    expect(standard!.dateSpan).toEqual({ kind: "NONE" });
+    expect(daily!.dateSpan).toEqual({ kind: "INHERIT" });
+    expect(customisable!.dateSpan).toEqual({ kind: "INHERIT" });
   });
 
   test("a hidden child is a HIDDEN node (kept, never named)", () => {
@@ -367,19 +387,24 @@ describe("buildBookingTree — price rule precedence", () => {
     ).toEqual({ kind: "PAY_MORE", maxMinor: 9000, minMinor: 1000 });
   });
 
-  test("DAY_PRICE for a daily/customisable listing without pay-more", () => {
-    expect(
-      priceOf({
-        listings: [resolved({ id: 7, listing_type: "daily" })],
-        slugs: ["x"],
-      }),
-    ).toEqual({ kind: "DAY_PRICE" });
+  test("DAY_PRICE only for a customisable listing without pay-more", () => {
     expect(
       priceOf({
         listings: [resolved({ customisable_days: true, id: 7 })],
         slugs: ["x"],
       }),
     ).toEqual({ kind: "DAY_PRICE" });
+  });
+
+  test("BASE for a fixed daily listing (charged at its unit price, not day-priced)", () => {
+    // A daily listing that is not `customisable_days` charges `unit_price`; the
+    // date only drives availability, so it must not be day-priced.
+    expect(
+      priceOf({
+        listings: [resolved({ id: 7, listing_type: "daily" })],
+        slugs: ["x"],
+      }),
+    ).toEqual({ kind: "BASE" });
   });
 
   test("BASE for a plain standard listing", () => {

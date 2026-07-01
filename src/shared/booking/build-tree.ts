@@ -48,8 +48,12 @@ export type BuildTreeInput = {
 };
 
 /** Which price a listing charges, in the doc's precedence: a package `OVERRIDE`
- * wins, then pay-what-you-want (`PAY_MORE`), then a daily/customisable
- * `DAY_PRICE`, then `BASE`. */
+ * wins, then pay-what-you-want (`PAY_MORE`), then a **customisable** listing's
+ * per-day-count `DAY_PRICE`, then `BASE`. A *fixed* daily listing
+ * (`customisable_days` false) is NOT day-priced — it charges its `unit_price`
+ * and only uses the date for availability (`dayPriceFor` returns null unless
+ * customisable), so it stays `BASE`/`PAY_MORE`; its date/duration is carried by
+ * the node's `dateSpan`, not its price rule. */
 const derivePriceRule = (
   listing: ListingWithCount,
   overrideMinor: number | undefined,
@@ -64,18 +68,21 @@ const derivePriceRule = (
       minMinor: listing.unit_price,
     };
   }
-  if (listing.customisable_days || listing.listing_type === "daily") {
+  if (listing.customisable_days) {
     return { kind: "DAY_PRICE" };
   }
   return { kind: "BASE" };
 };
 
-/** A top-level or child listing's own date facet at build time. A concrete
- * `DATE`/`SPAN` is only known once the buyer submits a `date`/`day_count`
- * (resolved in Phase 2's fold); at render a standalone daily/customisable node
- * therefore has no chosen span yet, and a child inherits its parent's. */
-const ownDateSpan = (parentId: number | undefined): DateSpan =>
-  parentId === undefined ? { kind: "NONE" } : { kind: "INHERIT" };
+/** A required child's date facet. Only a child that carries date/span semantics
+ * — a daily or customisable listing — `INHERIT`s its parent's resolved span; a
+ * standard child is date-less (`NONE`), matching `bookingDateFields` (which sets
+ * a date only for daily listings) so its cumulative add-on capacity is counted
+ * once, never re-checked per parent-date. */
+const childDateSpan = (child: ListingWithCount): DateSpan =>
+  child.listing_type === "daily" || child.customisable_days
+    ? { kind: "INHERIT" }
+    : { kind: "NONE" };
 
 /** Build a required-child node under `parent` (`edgeRef: parent_child`). Its
  * `nodeKey` embeds the parent's full nodeKey (`parentNodeKey`) so the same child
@@ -89,7 +96,7 @@ const buildChildNode =
   (parentNodeKey: string, parentId: number, parentHidden: boolean) =>
   (child: TicketListing): BookingNode => ({
     children: [],
-    dateSpan: ownDateSpan(parentId),
+    dateSpan: childDateSpan(child.listing),
     edgeRef: { kind: "parent_child", parentId },
     listing: child.listing,
     listingId: child.listing.id,
@@ -132,7 +139,7 @@ const buildListingNode = (
   return {
     // A top-level node is always SHOWN, so its children only hide themselves.
     children: buildChildren(input, nodeKey, listing.id, false),
-    dateSpan: ownDateSpan(undefined),
+    dateSpan: { kind: "NONE" },
     edgeRef,
     listing,
     listingId: listing.id,
@@ -167,7 +174,7 @@ const buildPackageMemberNode =
         listing.id,
         visibility === "HIDDEN",
       ),
-      dateSpan: ownDateSpan(undefined),
+      dateSpan: { kind: "NONE" },
       edgeRef: { groupId, kind: "group_member" },
       listing,
       listingId: listing.id,
