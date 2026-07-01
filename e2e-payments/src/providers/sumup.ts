@@ -57,8 +57,30 @@ export const sumup: PaymentProvider = {
     );
 
     if (usedBraintree) {
-      await fillFrameInput(page, "expiry", ["Expiration"], "input", CARD.expiry);
-      await fillFrameInput(page, "cvc", ["CVV", "CVC"], "input", CARD.cvc);
+      // Once the card-number Braintree iframe is present, expiry and CVV are
+      // REQUIRED to submit. If either can't be filled (its iframe title changed,
+      // or it loaded late), fail fast here with the specific missing field —
+      // otherwise Pay is clicked with an incomplete card and the run dies as a
+      // misleading checkout/confirmation timeout that hides the real cause.
+      const filledExpiry = await fillFrameInput(
+        page,
+        "expiry",
+        ["Expiration"],
+        "input",
+        CARD.expiry,
+      );
+      const filledCvc = await fillFrameInput(page, "cvc", ["CVV", "CVC"], "input", CARD.cvc);
+      if (!filledExpiry || !filledCvc) {
+        const missing = [
+          ...(filledExpiry ? [] : ["expiry"]),
+          ...(filledCvc ? [] : ["cvc"]),
+        ].join(" and ");
+        throw new Error(
+          `SumUp: filled the Braintree card number but could not fill the ${missing} ` +
+            "hosted field(s) — the iframe title likely changed. Refusing to submit an " +
+            "incomplete card.",
+        );
+      }
       // Cardholder name is required on SumUp's page and renders slightly after
       // the hosted card fields, so poll for it (across the top level and any
       // frame) rather than a one-shot presence check — otherwise Pay is blocked
