@@ -117,10 +117,25 @@ Indexes:
 - `idx_site_page_items_key` **unique** on `(page_id, item_type, item_id)` — the
   request's "keyed off … item_type, item_id"; stops the same item being added
   to one page twice.
-- `idx_site_page_items_child_page` **unique partial** on `(item_id) WHERE
-  item_type = 'page'` — enforces the **single-parent invariant** for pages (a
-  page is a child of at most one page), which is what makes the nav a *tree*
-  rather than a DAG. See decision N3.
+- `idx_site_page_items_child_page` on `(item_type, item_id)` — a **plain**
+  (non-unique) index backing the reverse "who is this item's parent?" lookup.
+
+> **The single-parent invariant can't be a partial unique index.** An earlier
+> draft proposed a partial-unique index `(item_id) WHERE item_type = 'page'`.
+> The schema machinery **cannot express a `WHERE` predicate**: `Index` carries
+> only `name`/`columns`/`unique`, and `createIndexSql`
+> (`src/shared/db/migrations/schema-sync.ts:115-117`) emits only
+> `CREATE [UNIQUE] INDEX … ON table(cols)` — anything created outside `SCHEMA`
+> would be dropped by `syncIndexes`. A *non-partial* unique index on `item_id`
+> is wrong too: it would reject a listing and a page that happen to share a
+> numeric id, and block the multi-parent leaves N3 explicitly allows. So the
+> **single-parent invariant for pages is enforced in application code** — the
+> add-item handler rejects adding a `page` item whose id already appears as a
+> `page` item anywhere (`SELECT 1 FROM site_page_items WHERE item_type='page'
+> AND item_id = ?`), failing closed with a clear operator error — not by a DB
+> constraint. (If a DB-level guarantee is later wanted, extend the schema
+> `Index` type with an optional predicate and teach `createIndexSql` /
+> `syncIndexes` about it; that's a schema-machinery change to scope separately.)
 
 > The request wrote "keyed off **category_id**, item_type, item_id". There is no
 > `category_id` on this table; this is read as a typo for **`page_id`** (the
@@ -129,10 +144,10 @@ Indexes:
 
 > **Decision N3 — pages form a tree (single parent).** The recursive nav
 > ("*our* siblings, *our parent's* siblings, …") only has a well-defined meaning
-> if each page has exactly one parent. The partial-unique index above enforces
-> it: adding page P under a second parent fails closed with a clear operator
-> error. **Listings and groups are leaves and may appear under multiple pages**
-> (only the `item_type='page'` rows are constrained). See decision N6 for how
+> if each page has exactly one parent. The **application-level check** above
+> enforces it: adding page P under a second parent fails closed with a clear
+> operator error. **Listings and groups are leaves and may appear under multiple
+> pages** (only `item_type='page'` rows are constrained). See decision N6 for how
 > the contextual nav tie-breaks a multi-parented leaf.
 
 ### Roots and ordering
@@ -180,7 +195,7 @@ adding a fourth item type later is additive:
 ```ts
 // label + href + "is this link live?" per item type
 const ITEM_RESOLVERS: Record<SitePageItemType, ItemResolver> = {
-  listing: …,  // href /ticket/:slug ; live iff active && !hidden
+  listing: …,  // href /ticket/:slug ; live per discovery classification (below)
   group:   …,  // href /ticket/:slug (group slug) ; live iff bookable member
   page:    …,  // href /page/:slug   ; always live (recurse into its items)
 };
@@ -258,20 +273,34 @@ Model on `listing-parents.ts` (an ordered link table with batch replace):
 - `getItemsForPages(pageIds)` — batched `WHERE page_id IN (…)` grouped into a
   `Map<number, SitePageItem[]>`, for building the whole nav tree in one query
   (the `groupEdges` shape from `listing-parents.ts`).
-- `getParentPageId(itemType, itemId): Promise<number | null>` — reverse lookup
-  for the contextual nav (`WHERE item_type = ? AND item_id = ?`). For
-  `item_type='page'` this is unique (decision N3); for leaves see N6.
-- `addItem` / `removeItem` / `swapItemOrder(pageId, id1, id2)` /
-  `assignNextItemSortOrder(pageId)` — items are reordered **within their page**,
-  so the swap is scoped by `page_id` (adapt `swapAnswerOrder`, which already
-  swaps two explicit `(id, sort_order)` pairs).
-- On page **delete**: batch-delete the page's own `site_page_items` rows **and**
-  any rows pointing *at* it (`WHERE (page_id = ?) OR (item_type='page' AND
-  item_id = ?)`) in one `executeBatch`, so no dangling edges survive. Its former
-  children become root-level (they simply stop being referenced). On listing /
-  group delete: also clear `site_page_items WHERE item_type=? AND item_id=?`
-  (hook into the existing listing/group delete paths — "never render a dead
-  link", and don't leave orphan edges).
+- `getParentPages(itemType, itemId): Promise<{ pageId: number; sortOrder:
+  number }[]>` — reverse lookup for the contextual nav, returning **all**
+  candidate parents **ordered by `(sort_order, page_id)`**. A bare `WHERE
+  item_type=? AND item_id=?` returning a single row can't distinguish
+  zero/one/many parents and is nondeterministic. For `item_type='page'` this is
+  0-or-1 (N3); for leaves it may be many, and the caller applies the N6
+  tie-break to the ordered list (the ordering lives in this API so every caller
+  is deterministic).
+- `addItem` / `removeItem` / `swapItemOrder(pageId, keyA, keyB)` /
+  `assignNextItemSortOrder(pageId)` — items are reordered **within their page**.
+  Because a page's items are keyed by the **composite** `(item_type, item_id)`
+  (`item_id` alone is *not* unique within a page — a listing, a group, and a
+  page can share a numeric id, and the `:itemKey` route encodes both), the swap
+  takes **two full item keys**, matching on `(page_id, item_type, item_id)` for
+  each side — never `item_id` alone, which could update the wrong or multiple
+  rows. (Adapt `swapAnswerOrder`, which swaps two explicit `(id, sort_order)`
+  pairs, widening the match to the composite key.)
+- On page **delete**: delete the `site_pages` row **and** its own
+  `site_page_items` rows **and** any rows pointing *at* it (`WHERE (page_id = ?)
+  OR (item_type='page' AND item_id = ?)`) **in one `executeBatch`/transaction**,
+  so a failure can't leave the row gone but edges dangling (or vice versa). This
+  means the page delete must **not** go through the CRUD factory's separate
+  delete (which would delete only the `site_pages` row): hand-wire the delete to
+  batch the row + all edge cleanups atomically. Its former children become
+  root-level (they simply stop being referenced). On listing / group delete:
+  also clear `site_page_items WHERE item_type=? AND item_id=?` in the same batch
+  as the existing listing/group delete (— "never render a dead link", and don't
+  leave orphan edges).
 
 All writes call `invalidateSitePagesCache()` (and reuse the cache-dependency
 registration in `cachedEntityTable` so listing/group edits that could change a
@@ -284,10 +313,15 @@ on `listings`/`groups` if needed).
 
 ### 1. Nav change (`src/ui/templates/admin/nav.tsx`)
 
-- **Add "Site" to `topLevelItems`** for non-editors, gated on
-  `settings.showPublicSite`, positioned near the end (before Settings):
-  `settings.showPublicSite ? { href: "/admin/site", label: t("nav.site") } :
-  null`. Editors already have it top-level (`editorTopLevelItems`) — unchanged.
+- **Add "Site" to `topLevelItems`**, positioned near the end (before Settings).
+  The non-editor branch of `topLevelItems` serves **owner, manager, and agent**
+  (owner-only entries there are already `session.adminLevel === "owner"`
+  guarded). `/admin/site` is gated to `SITE_ADMIN_LEVELS` (owner + editor), so
+  the link must carry **both** guards or managers/agents would see a forbidden
+  link: `session.adminLevel === "owner" && settings.showPublicSite ? { href:
+  "/admin/site", label: t("nav.site") } : null`. Editors already have it
+  top-level (`editorTopLevelItems`) — unchanged. (Managers/agents never get a
+  Site link, matching the 403 the route enforces.)
 - **Remove Site from `settingsSub`** (delete the `includeSite || showPublicSite`
   entry, `nav.tsx:152-154`).
 - **Simplify `resolveSection`**: the Site section now resolves the same way for
@@ -315,6 +349,20 @@ owner-only, matching the rest of the Site editor. If the factory's auth isn't
 parameterisable to `SITE_ADMIN_LEVELS`, follow the holidays hand-wiring
 (`src/features/admin/holidays.ts`) with `SITE_FORM`.
 
+Two factory mismatches to handle explicitly:
+
+- **Create must assign a root `sort_order`.** The factory's create path just
+  inserts the parsed form input and redirects — it has no after-create hook, and
+  `sort_order` is not a form field, so a factory-created page would sit at the
+  SQL default (0), giving every new root page the same order and no predictable
+  move behaviour. Either **hand-wire create** (insert, then
+  `assignNextSitePageSortOrder(id)` before redirect) or add a resource
+  side-effect that runs after insert. The plan assumes hand-wired create.
+- **Edit POST route.** The factory registers edit submissions at
+  **`POST {listPath}/:id/edit`** (`owner-crud.ts:180`), *not* `POST
+  {listPath}/:id`. The route table below and the form `action` use `/:id/edit`
+  to match; if you hand-wire instead, keep handler and form action consistent.
+
 Fields (`defineForm`, `src/shared/forms.tsx`):
 
 - `name` — text, required.
@@ -338,9 +386,9 @@ GET  /admin/site/pages                     list (with add button + reorder)
 GET  /admin/site/pages/new                 add form
 POST /admin/site/pages                     create
 GET  /admin/site/pages/:id/edit            edit form + item manager
-POST /admin/site/pages/:id                 update
-POST /admin/site/pages/:id/delete          delete (ConfirmForm, type-the-name)
-POST /admin/site/pages/:id/move-up         reorder among roots
+POST /admin/site/pages/:id/edit            update (matches factory route)
+POST /admin/site/pages/:id/delete          delete (hand-wired atomic: row + edges)
+POST /admin/site/pages/:id/move-up         reorder among roots (root pages only)
 POST /admin/site/pages/:id/move-down
 POST /admin/site/pages/:id/items           add an item (type + id)
 POST /admin/site/pages/:id/items/:itemKey/remove
@@ -355,10 +403,19 @@ flash message.
 
 ### 3. Templates (`src/ui/templates/admin/site-pages.tsx`)
 
-- **List page**: table of pages ordered by `sort_order`, each row showing name,
-  slug, and the `ReorderControls` up/down arrows
-  (`src/ui/templates/admin/questions.tsx:43-70`), plus Edit / Delete. Add
-  button → `/admin/site/pages/new`. Render `<AdminNav active="/admin/site" …>`.
+- **List page**: table of pages, plus Edit / Delete. Add button →
+  `/admin/site/pages/new`. Render `<AdminNav active="/admin/site" …>`.
+  **Reorder controls apply only to root pages.** Root page order comes from
+  `site_pages.sort_order`; a nested page's placement comes from its containing
+  `site_page_items.sort_order`. Showing the root `ReorderControls`
+  (`src/ui/templates/admin/questions.tsx:43-70`) on a nested page's row would
+  move a field that is *ignored while it's nested* — the arrows appear to work
+  but don't change the public nav. So render up/down arrows **only on root-page
+  rows** (nested pages reorder through their parent's item manager). Either
+  split the list into a "root pages" section (with arrows) and a flat "all
+  pages" section (no arrows, just edit/delete), or annotate nested rows with
+  their parent instead of arrows. Recommendation: a root-pages section with
+  arrows + the rest listed for editing.
 - **Edit page**: the `defineForm` fields for the page, **plus an item manager**
   — the ordered list of the page's items (each: type badge, resolved name,
   up/down reorder, remove), and an "Add item" control: a type `select`
@@ -368,13 +425,18 @@ flash message.
   page's ancestor — to prevent cycles, see N4). Reuse `getSlugField` etc. from
   the fields module.
 
-> **Decision N4 — cycle prevention.** Because pages nest pages, the item picker
-> for "add a page" must exclude the current page and any of its **descendants**
-> (adding an ancestor as a child would make a loop). Compute the descendant set
-> from `getItemsForPages` and filter the `select` options; also re-check
-> server-side on POST and fail closed. The single-parent index (N3) already
-> stops a page being added under two parents, but not a cycle among a chain, so
-> this explicit check is still required.
+> **Decision N4 — cycle prevention.** Adding page X as a child of the current
+> page P creates a cycle iff a path X → … → P already exists — i.e. **X is an
+> ancestor of P** (or X is P itself). So the picker and the server-side guard
+> must **reject P and all of P's ancestors** (equivalently: reject any candidate
+> whose descendants already include P). Note the direction: an earlier draft
+> said "exclude P's *descendants*", which is backwards — a descendant of P
+> already has a parent, so the single-parent check (N3) blocks re-parenting it,
+> but a root ancestor A of P has *no* parent, so N3 does **not** stop adding A
+> under P and closing an A → … → P → A loop. Compute P's ancestor chain by
+> walking parents up to the root, exclude it (plus P) from the `select` options,
+> and **re-check server-side on POST**, failing closed. The recursive nav must
+> never be able to loop.
 
 ### Permissions
 
@@ -494,12 +556,17 @@ on), build the `NavNode[]` for the root nav and the active submenu chain:
    flagged as N7).
 
 4. **Liveness (never render a dead link).** A `listing`/`group` item resolves to
-   a link **only if the target is publicly reachable** (listing `active &&
-   !hidden`; group has a bookable member — mirror `loadPublicGroups` /
-   `groupHasBookableMember`, `src/features/public/pages.ts`,
-   `discovery.ts`). A non-live item renders as **plain text** (or is omitted),
-   never a link that 404s — per AGENTS.md "never render a dead or forbidden
-   link". `page` items are always live.
+   a link **only if the target is publicly reachable**. `active && !hidden` is
+   **not sufficient** for a listing: a *child* listing (see `parents.md`) is
+   suppressed from discovery and its `/ticket/:slug` is rejected by the ticket
+   route (`anyChildListing`), so an active, visible child would emit a **dead
+   `/ticket` link**. The liveness predicate must **mirror the existing discovery
+   classification** — reuse `classifyForDiscovery` / `applyParentSoldOut` /
+   `groupHasBookableMember` (`src/features/public/discovery.ts`, as
+   `loadPublicGroups` does in `src/features/public/pages.ts`), not just the
+   active/hidden flags. A non-live item renders as **plain text** (or is
+   omitted), never a link that 404s — per AGENTS.md "never render a dead or
+   forbidden link". `page` items are always live.
 
 > **Decision N6 — multi-parented leaves.** A listing/group may sit under several
 > pages (N3 only constrains pages). When the visitor is on `/ticket/:slug` for
@@ -599,8 +666,9 @@ passing `deno task precommit`.
   literal `pages`/`page_items` + rename existing `public/pages.ts`.
 - **N2** Blind-index column name: reuse `slug_index` via
   `idAndEncryptedSlugSchema` (recommended) vs literal `slug_hmac`.
-- **N3** Single-parent tree for pages (recommended, enforced by partial-unique
-  index) — confirms the nav is a tree.
+- **N3** Single-parent tree for pages (recommended, enforced by an
+  application-level check — the schema can't express a partial-unique index) —
+  confirms the nav is a tree.
 - **N4** Cycle prevention in the page-item picker (required if pages nest pages).
 - **N5** Public URL: `/page/:slug` (recommended) vs `/p/:slug` vs bare `/:slug`.
 - **N6** Multi-parented leaf ancestry tie-break in the contextual nav.
