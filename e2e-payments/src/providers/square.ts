@@ -37,9 +37,59 @@ const findBuyerCheckoutUrl = async (page: Page): Promise<string | null> => {
   return null;
 };
 
+/** Log every input/iframe on the page and its frames (with the attributes that
+ * identify a card field) so CI reveals the buyer checkout's real structure. */
+const describeInputs = async (page: Page): Promise<void> => {
+  log(`    buyer checkout has ${page.frames().length} frame(s)`);
+  for (const root of [page, ...page.frames()]) {
+    const url = "url" in root ? root.url() : page.url();
+    try {
+      const fields = (await root
+        .locator('input, iframe, [role="textbox"], [contenteditable]')
+        .evaluateAll((els) =>
+          els.slice(0, 30).map((el) => {
+            const h = el as HTMLElement;
+            const a = (n: string) => h.getAttribute(n) || "";
+            return {
+              tag: h.tagName.toLowerCase(),
+              type: a("type"),
+              name: a("name"),
+              id: h.id,
+              ph: a("placeholder"),
+              ac: a("autocomplete"),
+              al: a("aria-label"),
+              title: a("title"),
+            };
+          }),
+        )) as {
+        tag: string;
+        type: string;
+        name: string;
+        id: string;
+        ph: string;
+        ac: string;
+        al: string;
+        title: string;
+      }[];
+      for (const f of fields) {
+        log(
+          `      <${f.tag}> type=${f.type} name=${f.name} id=${f.id} ` +
+            `ph="${f.ph}" ac=${f.ac} al="${f.al}" title="${f.title}" @ ${url.slice(0, 48)}`,
+        );
+      }
+    } catch {
+      // cross-origin frame not readable; skip
+    }
+  }
+};
+
 /** Fill the Square-hosted buyer checkout's card form and pay. */
 const payBuyerCheckout = async (page: Page): Promise<void> => {
-  log("Filling Square hosted buyer checkout…");
+  log(`Filling Square hosted buyer checkout (${page.url()})…`);
+  // Give the Web Payments SDK iframe time to mount, then describe the fields so
+  // CI shows exactly how the card inputs are structured.
+  await page.waitForTimeout(3_000);
+  await describeInputs(page);
   // Square renders card inputs inside the Web Payments SDK iframe; the generic
   // filler searches child frames. Sandbox card 4111 …, CVV 111.
   await fillCard(page, {
