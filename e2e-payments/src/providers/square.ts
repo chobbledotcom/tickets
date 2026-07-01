@@ -1,106 +1,147 @@
 import type { Page } from "playwright";
 import type { BrowserSession } from "../browser.ts";
 import { log } from "../log.ts";
-import { clickFirst, fillCard } from "./card.ts";
 import { assertConfigured, selectProvider } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
-
-/** Log the page + every frame: URL, a text snippet, and any interactive
- * controls. Reveals exactly what a hosted page offers when a click target
- * can't be found — including whether the real content sits in an iframe. */
-const dumpControls = async (page: Page): Promise<void> => {
-  const roots = [page, ...page.frames()];
-  log(`    page has ${page.frames().length} frame(s)`);
-  for (const root of roots) {
-    try {
-      const url = "url" in root ? root.url() : page.url();
-      const text = (await root.locator("body").first().innerText())
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 200);
-      log(`    frame ${url}\n      text: ${text}`);
-      const controls = await root
-        .locator('button, a, [role="button"], input, [onclick]')
-        .evaluateAll((els) =>
-          els.slice(0, 40).map((el) => {
-            const h = el as HTMLElement;
-            const attr = (n: string) => h.getAttribute(n) ?? "";
-            return {
-              tag: h.tagName.toLowerCase(),
-              text: (h.innerText || (h as HTMLInputElement).value || "")
-                .trim()
-                .slice(0, 60),
-              testid: attr("data-testid"),
-              id: h.id,
-            };
-          }),
-        );
-      for (const c of controls.filter((c) => c.text || c.testid || c.id)) {
-        log(
-          `      control: <${c.tag}> "${c.text}"${c.testid ? ` testid=${c.testid}` : ""}${c.id ? ` id=${c.id}` : ""}`,
-        );
-      }
-    } catch {
-      // frame detached / cross-origin body not readable; skip
-    }
-  }
-};
-
-const PAY_SELECTOR = [
-  'button:has-text("Test Payment")',
-  'button:has-text("Pay")',
-  'button:has-text("Complete")',
-  'button:has-text("Submit")',
-  'button[type="submit"]',
-  '[role="button"]:has-text("Pay")',
-].join(", ");
-
-/**
- * Square SANDBOX payment links redirect to a "sandbox testing panel" (host
- * connect.squareupsandbox.com, path /online-checkout/sandbox-testing-panel/…),
- * not a real card-entry page: you simulate the buyer by clicking a button
- * ("Test Payment", per Square's sandbox docs). Poll the page AND every frame
- * for that button (it may render inside an iframe), then click it; on timeout,
- * dump the panel's structure so CI shows what it actually contains.
- */
-const completeSandboxPanel = async (page: Page): Promise<void> => {
-  log("Square sandbox testing panel detected; completing test payment…");
-  await page.waitForLoadState("networkidle").catch(() => {});
-  const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline) {
-    for (const root of [page, ...page.frames()]) {
-      const btn = root.locator(PAY_SELECTOR).first();
-      try {
-        if (await btn.isVisible({ timeout: 250 })) {
-          await btn.click({ timeout: 5_000 });
-          log("  clicked the sandbox panel's payment button");
-          return;
-        }
-      } catch {
-        // not present in this root yet
-      }
-    }
-    await page.waitForTimeout(500);
-  }
-  await dumpControls(page);
-  throw new Error(
-    "Square sandbox testing panel: no 'Test Payment' (or equivalent) button appeared",
-  );
-};
 
 /**
  * Square. Payment confirmation is asserted via the browser return URL
  * (validatePaidSession → processPaymentSession). Square webhooks require a
  * signed subscription created manually in the dashboard against a fixed
  * notification URL, which can't be provisioned for an ephemeral tunnel — so
- * this leg does NOT exercise Square's webhook path (the app rejects unsigned
- * Square webhooks). Scope is the return path only; see README.
+ * this leg does NOT exercise Square's webhook path; confirmation is the return
+ * URL only.
  *
- * Square's hosted checkout renders card inputs inside the Web Payments SDK
- * iframe, so the card-fill helper searches child frames too.
- * Sandbox test card: 4111 1111 1111 1111, any future expiry, CVV 111,
- * postal 94103. Docs: https://developer.squareup.com/docs/devtools/sandbox/payments
+ * Square SANDBOX payment links (CreatePaymentLink → long_url) redirect to
+ * Square's "Checkout API Sandbox Testing Panel"
+ * (connect.squareupsandbox.com/.../sandbox-testing-panel/…): a stepper
+ * (Overview → Test Payment → Checkout → Complete) that simulates the buyer.
+ * Its controls are React elements, not <button>/<a>, so they're located by
+ * visible text and clicked. The panel is described to the log on entry (and
+ * after each click) so any change to its structure is visible in CI.
  */
+
+/**
+ * Log every clickable-looking element on the page and its frames — including
+ * non-<button> React controls (role=tab/button, tabindex, or cursor:pointer) —
+ * with its tag, role, testid, class and text, so CI reveals exactly what the
+ * panel offers and how to target it.
+ */
+const describeClickables = async (page: Page): Promise<void> => {
+  for (const root of [page, ...page.frames()]) {
+    try {
+      const items = (await root.locator("body *").evaluateAll((els) =>
+        els
+          .map((el) => {
+            const h = el as HTMLElement;
+            const text = (
+              h.innerText ||
+              (h as HTMLInputElement).value ||
+              ""
+            ).trim();
+            if (!text || text.length > 50) return null;
+            const role = h.getAttribute("role") || "";
+            const cursor = getComputedStyle(h).cursor;
+            const clickable =
+              h.tagName === "BUTTON" ||
+              h.tagName === "A" ||
+              h.tagName === "INPUT" ||
+              ["button", "tab", "link", "menuitem"].includes(role) ||
+              h.hasAttribute("onclick") ||
+              h.getAttribute("tabindex") !== null ||
+              cursor === "pointer";
+            if (!clickable) return null;
+            return {
+              tag: h.tagName.toLowerCase(),
+              role,
+              testid: h.getAttribute("data-testid") || "",
+              cls: (h.getAttribute("class") || "").slice(0, 50),
+              text,
+            };
+          })
+          .filter((v): v is NonNullable<typeof v> => v !== null),
+      )) as {
+        tag: string;
+        role: string;
+        testid: string;
+        cls: string;
+        text: string;
+      }[];
+      const seen = new Set<string>();
+      for (const it of items) {
+        const key = `${it.tag}|${it.text}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        log(
+          `      clickable <${it.tag}${it.role ? ` role=${it.role}` : ""}` +
+            `${it.testid ? ` testid=${it.testid}` : ""} class="${it.cls}"> "${it.text}"`,
+        );
+      }
+    } catch {
+      // frame detached / body unreadable
+    }
+  }
+};
+
+/** Click the first visible element (any tag) whose text matches, across the
+ * page and its frames. Returns true if something was clicked. */
+const clickByText = async (page: Page, label: string): Promise<boolean> => {
+  for (const root of [page, ...page.frames()]) {
+    const loc = root.getByText(label, { exact: false }).first();
+    try {
+      if (await loc.isVisible({ timeout: 1_000 })) {
+        await loc.click({ timeout: 5_000 });
+        log(`  clicked "${label}"`);
+        return true;
+      }
+    } catch {
+      // not present / not clickable here
+    }
+  }
+  return false;
+};
+
+/**
+ * Drive the Square sandbox testing panel's stepper to complete the simulated
+ * payment. The exact control labels are traced to the log (describeClickables)
+ * so the sequence can be tightened from CI output. We advance through the
+ * likely steps and stop once the browser leaves the panel (back to the app's
+ * return URL, which assertPaidBookingConfirmed then checks).
+ */
+const completeSandboxPanel = async (page: Page): Promise<void> => {
+  log("Square sandbox testing panel detected; describing controls…");
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForTimeout(1_500);
+  await describeClickables(page);
+
+  // Best-effort stepper walk. Labels are tried in order; after each click we
+  // re-describe the panel and bail out as soon as we leave it.
+  const steps = ["Test Payment", "Next", "Checkout", "Complete", "Pay", "Done"];
+  for (let round = 0; round < 8; round++) {
+    if (!page.url().includes("sandbox-testing-panel")) {
+      log("  left the sandbox testing panel");
+      return;
+    }
+    let clicked = false;
+    for (const label of steps) {
+      if (await clickByText(page, label)) {
+        clicked = true;
+        await page.waitForTimeout(1_500);
+        log(`  after "${label}", url=${page.url()}`);
+        await describeClickables(page);
+        break;
+      }
+    }
+    if (!clicked) break;
+  }
+  if (page.url().includes("sandbox-testing-panel")) {
+    throw new Error(
+      "Square sandbox testing panel: could not complete the payment stepper " +
+        "(see the described controls above to tighten the click sequence)",
+    );
+  }
+};
+
 export const square: PaymentProvider = {
   name: "square",
   // The Square sandbox account/location has a FIXED currency and rejects a
@@ -121,26 +162,6 @@ export const square: PaymentProvider = {
 
   payHostedCheckout: async (page: Page): Promise<void> => {
     await page.waitForLoadState("domcontentloaded");
-    // In sandbox, payment links land on the testing panel (button-driven), not a
-    // card form. Handle that; otherwise fall back to real card entry.
-    if (page.url().includes("sandbox-testing-panel")) {
-      await completeSandboxPanel(page);
-      return;
-    }
-    log("Filling Square hosted checkout…");
-    // Square's card inputs live inside the Web Payments SDK iframe; the generic
-    // filler searches child frames and matches the SDK's cc-* autocomplete
-    // tokens. Sandbox card 4111 …, CVV 111, postal 94103.
-    await fillCard(page, {
-      number: "4111111111111111",
-      expiry: "12/34",
-      cvc: "111",
-      postal: "94103",
-    });
-    await clickFirst(page, "pay button", [
-      'button:has-text("Pay")',
-      'button[type="submit"]',
-      "#rswp-card-button",
-    ]);
+    await completeSandboxPanel(page);
   },
 };
