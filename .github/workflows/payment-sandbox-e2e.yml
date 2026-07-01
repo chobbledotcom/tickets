@@ -1,0 +1,97 @@
+# Browser-driven end-to-end payment tests against the REAL provider sandboxes.
+#
+# Unlike the main suite (which uses stripe-mock and stubs), this boots the real
+# app server, exposes it through a cloudflared quick tunnel, and drives a real
+# Chromium through a full paid booking — including entering a sandbox test card
+# on the provider's hosted checkout page and the webhook/return-URL round-trip.
+#
+# It is deliberately NOT a PR gate: it needs network to third-party sandboxes
+# and is inherently slower/flakier than mocked tests. It runs nightly and on
+# demand. A provider leg with no configured secrets SKIPS (passes) rather than
+# failing, so you can enable providers one at a time.
+#
+# Required repository secrets (add only the providers you use):
+#   STRIPE_SECRET_KEY          — sk_test_… (Stripe test mode)
+#   SQUARE_ACCESS_TOKEN        — Square sandbox access token
+#   SQUARE_LOCATION_ID         — Square sandbox location id
+#   SUMUP_API_KEY              — SumUp sandbox secret API key
+#   SUMUP_MERCHANT_CODE        — SumUp sandbox merchant code
+# The "free" leg needs no secrets — it is a harness/app self-test.
+
+name: Payment sandbox e2e
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 03:17 UTC nightly (off-peak, avoids the top-of-hour rush).
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: payment-sandbox-e2e
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [free, stripe, square, sumup]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.5.6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install cloudflared
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /usr/local/bin/cloudflared \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x /usr/local/bin/cloudflared
+          cloudflared --version
+
+      - name: Install Deno dependencies
+        run: deno install --allow-scripts
+
+      - name: Install e2e harness dependencies
+        working-directory: e2e-payments
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: npm install
+
+      - name: Install Playwright Chromium
+        working-directory: e2e-payments
+        run: npx playwright install --with-deps chromium
+
+      - name: Run ${{ matrix.target }} payment e2e
+        working-directory: e2e-payments
+        env:
+          # Throwaway key for the ephemeral local DB — not a real secret.
+          DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          SQUARE_ACCESS_TOKEN: ${{ secrets.SQUARE_ACCESS_TOKEN }}
+          SQUARE_LOCATION_ID: ${{ secrets.SQUARE_LOCATION_ID }}
+          SQUARE_SANDBOX: "true"
+          SUMUP_API_KEY: ${{ secrets.SUMUP_API_KEY }}
+          SUMUP_MERCHANT_CODE: ${{ secrets.SUMUP_MERCHANT_CODE }}
+        run: node --import tsx src/main.ts ${{ matrix.target }}
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ matrix.target }}-artifacts
+          path: e2e-payments/artifacts/
+          if-no-files-found: ignore
