@@ -188,3 +188,7 @@ src/ui/client/order.ts:433:48  ?? → ||   # link.dataset.addListing: string|und
 src/ui/client/order.ts:443:59  ?? → ||   # link.dataset.addListing: string|undefined; the only falsy-non-null value "" equals the "" fallback
 src/shared/site-pages/core.ts:120:50  ?? → ||    # descendantsOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
 src/shared/site-pages/core.ts:301:43  ?? → ||    # levelOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
+
+# listing_prices sync (listing-prices.ts): `?? → ||` where the operand's only
+# falsy-non-null value equals the fallback.
+src/shared/db/listing-prices.ts:76:19  ?? → ||    # sourceRowStatements row.unit_price: number|null; the only falsy-non-null value is 0 and 0 ?? 0 === 0 || 0

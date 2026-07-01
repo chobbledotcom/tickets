@@ -83,6 +83,7 @@ import listingAttendeeLedgerEventGroupIndexMigration from "./migrations/2026-06-
 import attendeesKindNotNullMigration from "./migrations/2026-06-26_attendees_kind_not_null.ts";
 import serviceCostsMigration from "./migrations/2026-06-27_service_costs.ts";
 import listingUseDefaultsMigration from "./migrations/2026-06-28_listing_use_defaults.ts";
+import listingPricesMigration from "./migrations/2026-07-01_listing_prices.ts";
 import sitePagesMigration from "./migrations/2026-07-01_site_pages.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
@@ -269,6 +270,8 @@ export const MIGRATIONS: Migration[] = [
   listingUseDefaultsMigration,
   // Two new tables for user-created content pages; appended last (additive).
   sitePagesMigration,
+  // New listing_prices table + backfill from unit_price/day_prices; appended last.
+  listingPricesMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(
