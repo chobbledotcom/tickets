@@ -110,6 +110,17 @@ describeWithEnv("AdminNav", {}, () => {
       expect(html).not.toContain('href="/admin/site"');
     }));
 
+  test("owner keeps the Site parent on the Site editor even when disabled", () =>
+    withSetting({ show_public_site: false }, () => {
+      const html = String(
+        AdminNav({ active: "/admin/site", session: { adminLevel: "owner" } }),
+      );
+      // The top-level Site parent stays so the desktop sub-nav has something to
+      // nest under (otherwise Homepage/Contact/Order vanish on desktop).
+      expect(html).toContain('href="/admin/site"');
+      expect(html).toContain('href="/admin/site/contact"');
+    }));
+
   test("managers and agents never see the Site link", () =>
     withSetting({ show_public_site: true }, () => {
       for (const adminLevel of ["manager", "agent"] as const) {

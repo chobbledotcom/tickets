@@ -85,8 +85,12 @@ const editorTopLevelItems = (): NavItem[] => [
   { href: "/admin/site", label: t("nav.site") },
 ];
 
-/** Top-level admin links, in order. Users and Settings are owner-only. */
-const topLevelItems = (session: AdminSession): NavItem[] =>
+/** Top-level admin links, in order. Users and Settings are owner-only. `active`
+ * is the highlighted section route — passed so the Site parent stays present
+ * while an owner is on the Site editor even before the public site is enabled
+ * (otherwise the desktop sub-nav, which nests under the matching top item, would
+ * have no parent to hang from). */
+const topLevelItems = (session: AdminSession, active: string): NavItem[] =>
   session.adminLevel === "editor"
     ? editorTopLevelItems()
     : compact([
@@ -103,10 +107,12 @@ const topLevelItems = (session: AdminSession): NavItem[] =>
         session.adminLevel === "owner"
           ? { href: "/admin/ledger", label: t("nav.ledger") }
           : null,
-        // Site is a top-level section for owners once the public site is on
-        // (editors always have it top-level via editorTopLevelItems). Managers
-        // and agents never edit the site, so it stays off their nav.
-        session.adminLevel === "owner" && settings.showPublicSite
+        // Site is a top-level section for owners once the public site is on —
+        // or whenever they're on the Site editor itself, so the section keeps a
+        // desktop parent even before enabling the public site. (Editors always
+        // have it top-level; managers/agents never edit the site.)
+        session.adminLevel === "owner" &&
+        (settings.showPublicSite || active === "/admin/site")
           ? { href: "/admin/site", label: t("nav.site") }
           : null,
         session.adminLevel === "owner"
@@ -283,7 +289,7 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
   // Flag this render as an admin page so the Layout emits the admin footer
   // (Chobble link, optional debug menu, and the logout button).
   markAdminFooter(session.adminLevel);
-  const items = topLevelItems(session);
+  const items = topLevelItems(session, active);
   const section = resolveSection(active, session.adminLevel);
   const highlight = section?.topHref ?? active;
   return (
