@@ -20,9 +20,12 @@ import type { PaymentProvider } from "./types.ts";
  */
 export const square: PaymentProvider = {
   name: "square",
-  // US/USD is Square's default sandbox currency; override with SETUP_COUNTRY if
-  // your sandbox location uses a different currency.
-  setupCountry: "US",
+  // The Square sandbox account/location has a FIXED currency and rejects a
+  // payment link whose amount is in any other currency ("This business can only
+  // process payments in GBP but amount was provided in USD"). This sandbox is
+  // GBP, so set the site up as GB. Override with SETUP_COUNTRY to match a
+  // differently-configured Square sandbox location.
+  setupCountry: "GB",
 
   configure: async (session: BrowserSession, secrets): Promise<void> => {
     await selectProvider(session, "square");

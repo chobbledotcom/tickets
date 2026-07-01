@@ -37,13 +37,19 @@ export const stripe: PaymentProvider = {
     // NOT the split "Secure card number input frame" iframes of embedded Stripe
     // Elements, so no frameLocator is needed here. Email is prefilled from the
     // booking; US ZIP to match the account's billing country (see note above).
-    await fillCard(page, {
-      number: "4242424242424242",
-      expiry: "12 / 34",
-      cvc: "123",
-      name: "E2E Tester",
-      postal: "42424",
-    });
+    await fillCard(
+      page,
+      {
+        number: "4242424242424242",
+        expiry: "12 / 34",
+        cvc: "123",
+        name: "E2E Tester",
+        postal: "42424",
+      },
+      // Type as real keystrokes: Stripe's card iframe ignores a programmatic
+      // fill and reports the field as "Required" on submit.
+      { type: true },
+    );
     // Let Stripe validate the freshly-typed fields before submitting, otherwise
     // Pay can fire while the card is still "incomplete" and silently no-op.
     await page.waitForTimeout(1_000);

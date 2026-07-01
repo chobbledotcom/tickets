@@ -21,7 +21,7 @@ export const fillFirst = async (
   label: string,
   selectors: string[],
   value: string,
-  { required = true }: { required?: boolean } = {},
+  { required = true, type = false }: { required?: boolean; type?: boolean } = {},
 ): Promise<boolean> => {
   const deadline = Date.now() + FILL_TIMEOUT;
   while (Date.now() < deadline) {
@@ -30,7 +30,18 @@ export const fillFirst = async (
         const loc: Locator = root.locator(selector).first();
         try {
           if (await loc.isVisible({ timeout: 250 })) {
-            await loc.fill(value, { timeout: FILL_TIMEOUT });
+            if (type) {
+              // Some hosted fields (Stripe's card iframe) track real keystrokes
+              // and ignore a programmatic .fill(), reporting the field as still
+              // "Required" — so click and type the value character by character.
+              await loc.click({ timeout: FILL_TIMEOUT });
+              await loc.pressSequentially(value, {
+                delay: 25,
+                timeout: FILL_TIMEOUT,
+              });
+            } else {
+              await loc.fill(value, { timeout: FILL_TIMEOUT });
+            }
             log(`  filled ${label} via "${selector}"`);
             return true;
           }
@@ -191,27 +202,37 @@ const CARD_SELECTORS: Record<string, string[]> = {
   ],
 };
 
-/** Fill a hosted checkout's card form using the standard selectors. */
+/**
+ * Fill a hosted checkout's card form using the standard selectors. Pass
+ * `type: true` to enter values as real keystrokes (needed for Stripe Checkout,
+ * whose card iframe ignores a programmatic fill).
+ */
 export const fillCard = async (
   page: Page,
   card: CardDetails,
+  { type = false }: { type?: boolean } = {},
 ): Promise<void> => {
   if (card.email) {
     await fillFirst(page, "email", CARD_SELECTORS.email, card.email, {
       required: false,
+      type,
     });
   }
-  await fillFirst(page, "card number", CARD_SELECTORS.number, card.number);
-  await fillFirst(page, "expiry", CARD_SELECTORS.expiry, card.expiry);
-  await fillFirst(page, "cvc", CARD_SELECTORS.cvc, card.cvc);
+  await fillFirst(page, "card number", CARD_SELECTORS.number, card.number, {
+    type,
+  });
+  await fillFirst(page, "expiry", CARD_SELECTORS.expiry, card.expiry, { type });
+  await fillFirst(page, "cvc", CARD_SELECTORS.cvc, card.cvc, { type });
   if (card.name) {
     await fillFirst(page, "cardholder name", CARD_SELECTORS.name, card.name, {
       required: false,
+      type,
     });
   }
   if (card.postal) {
     await fillFirst(page, "postal code", CARD_SELECTORS.postal, card.postal, {
       required: false,
+      type,
     });
   }
 };
