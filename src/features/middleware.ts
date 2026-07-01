@@ -65,8 +65,11 @@ export const buildCspHeader = (
   } else if (payment?.provider === "stripe") {
     directives.push("form-action 'self' https://checkout.stripe.com");
   } else if (payment?.provider === "sumup") {
-    // SumUp hosted checkout redirects the booking form to pay.sumup.com.
-    directives.push("form-action 'self' https://pay.sumup.com");
+    // SumUp hosted checkout redirects the booking form to its hosted page.
+    // Docs return checkout.sumup.com; pay.sumup.com is also used, so allow both.
+    directives.push(
+      "form-action 'self' https://checkout.sumup.com https://pay.sumup.com",
+    );
   } else {
     directives.push("form-action 'self'");
   }

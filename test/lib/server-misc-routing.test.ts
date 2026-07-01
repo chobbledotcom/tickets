@@ -207,7 +207,7 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
           },
         },
         {
-          domainSubstring: "pay.sumup.com",
+          domainSubstring: "checkout.sumup.com",
           label: "SumUp",
           setup: () => settings.update.paymentProvider("sumup"),
         },
