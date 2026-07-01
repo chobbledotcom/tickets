@@ -63,4 +63,14 @@ describeWithEnv("custom.css handler", { db: true, triggers: true }, () => {
     const res = await handleRequest(mockRequest("/custom.css/extra"));
     expect(res.status).toBe(404);
   });
+
+  test("preserves the tracking-param redirect instead of coercing to empty CSS", async () => {
+    // The CSS coercion must not swallow the 301 that strips tracking params;
+    // the clean URL is where the real stylesheet is then served.
+    const res = await handleRequest(
+      mockRequest("/custom.css?v=1&utm_source=x"),
+    );
+    expect(res.status).toBe(301);
+    expect(res.headers.get("location")).toBe("/custom.css?v=1");
+  });
 });

@@ -955,6 +955,10 @@ const handleRoutingError = (
 
 const CUSTOM_CSS_PATH = "/custom.css";
 
+/** True for a 3xx redirect response (bodyless — never a stray stylesheet). */
+const isRedirectResponse = (response: Response): boolean =>
+  response.status >= 300 && response.status < 400;
+
 /**
  * The core request pipeline that runs inside all async context wrappers.
  * Performs parsing, early redirects, content-type validation, routing,
@@ -972,12 +976,18 @@ const processRequest = async (
   // The public layout links /custom.css on every page, including the system
   // pages the pipeline answers before the dynamic CSS route runs (setup /
   // site-not-activated, migration-in-progress, transient error). Serving those
-  // HTML fallbacks for this asset trips the browser's strict MIME check, so any
-  // non-CSS response for /custom.css is coerced to an empty stylesheet. On a
+  // HTML fallbacks for this asset trips the browser's strict MIME check, so an
+  // HTML response for /custom.css is coerced to an empty stylesheet. On a
   // healthy site the route already returns text/css, making this a no-op.
+  // Redirects (3xx) pass through untouched — a bodyless redirect isn't a stray
+  // stylesheet, and coercing one would swallow the tracking-param cleanup that
+  // rewrites e.g. /custom.css?utm_source=x to the clean URL before the CSS is
+  // served.
   const finish = (response: Response): Response =>
     logAndReturn(
-      path === CUSTOM_CSS_PATH && !isCssResponse(response)
+      path === CUSTOM_CSS_PATH &&
+        !isRedirectResponse(response) &&
+        !isCssResponse(response)
         ? emptyCustomCssResponse()
         : response,
       method,
