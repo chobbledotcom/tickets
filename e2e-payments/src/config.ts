@@ -51,8 +51,13 @@ export const config = {
   /** ISO country picked in setup — determines the site currency. */
   setupCountry: env("SETUP_COUNTRY") ?? "GB",
 
-  /** Ticket price in minor units (e.g. 100 = £1.00 / $1.00). */
-  unitPrice: num("E2E_UNIT_PRICE", 100),
+  /**
+   * Ticket price in minor units (e.g. 137 = £1.37 / $1.37). Deliberately a
+   * non-round amount: the admin income ledger formats via `stripIfInteger`, so
+   * a whole price like 100 would render "£1" (no decimals) — a non-round price
+   * keeps its decimals, making the paid-amount assertion specific.
+   */
+  unitPrice: num("E2E_UNIT_PRICE", 137),
 
   /** Timeouts (ms). Hosted checkout pages can be slow, so keep these generous. */
   serverBootTimeoutMs: num("E2E_SERVER_BOOT_TIMEOUT_MS", 60_000),

@@ -177,22 +177,32 @@ export const assertPaidBookingConfirmed = async (
   // income ledger projects from the payment ledger, so a regression that
   // creates the attendee but drops the payment (price_paid = 0) leaves the
   // recognised income at zero. Assert the captured amount shows up rather than
-  // just that a row exists. The amount is in major units (e.g. "1.00"), which
-  // appears regardless of the currency symbol (£1.00 / $1.00 / €1.00).
-  const expectedAmount = (config.unitPrice / 100).toFixed(2);
+  // just that a row exists.
+  //
+  // Match the app's rendering: formatCurrency uses `trailingZeroDisplay:
+  // "stripIfInteger"`, so a whole amount renders "£1" (no decimals) while a
+  // non-round amount keeps them ("£1.37"). We assume a 2-decimal sandbox
+  // currency (GBP/USD/EUR, per SETUP_COUNTRY); the digits match regardless of
+  // the symbol. Accept both the decimal and the stripped-whole forms so an
+  // E2E_UNIT_PRICE override to a whole amount still matches.
+  const withDecimals = (config.unitPrice / 100).toFixed(2); // "1.37" / "2.00"
+  const strippedWhole = withDecimals.replace(/\.00$/, ""); //  "1.37" / "2"
   const ledger = session.page.locator("#income-ledger");
   const paidRegion = (await ledger.count())
     ? await ledger.innerText()
     : adminBody;
-  if (!paidRegion.includes(expectedAmount)) {
+  if (
+    !paidRegion.includes(withDecimals) &&
+    !paidRegion.includes(strippedWhole)
+  ) {
     await session.screenshot("paid-admin-no-income");
     throw new Error(
-      `payment not reflected in the listing's income (expected amount ${expectedAmount}). ` +
+      `payment not reflected in the listing's income (expected ${withDecimals}). ` +
         `Attendee row exists but the paid amount is missing — likely a lost payment ledger. ` +
         `Income region:\n${paidRegion.slice(0, 600)}`,
     );
   }
   log(
-    `  ✔ admin listing shows the paid booker (${BOOKER_EMAIL}) and captured amount (${expectedAmount})`,
+    `  ✔ admin listing shows the paid booker (${BOOKER_EMAIL}) and captured amount (${withDecimals})`,
   );
 };
