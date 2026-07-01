@@ -206,6 +206,11 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
             await settings.update.square.sandbox(true);
           },
         },
+        {
+          domainSubstring: "pay.sumup.com",
+          label: "SumUp",
+          setup: () => settings.update.paymentProvider("sumup"),
+        },
       ];
 
       for (const { domainSubstring, label, setup } of paymentProviders) {
