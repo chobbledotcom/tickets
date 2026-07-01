@@ -12,7 +12,7 @@ import {
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
 import { queryListingsWithCounts } from "#shared/db/listings.ts";
-import { queryAndMap } from "#shared/db/query.ts";
+import { allNamesById, queryAndMap } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
 import type { Group, ListingType, ListingWithCount } from "#shared/types.ts";
@@ -73,6 +73,11 @@ export const invalidateGroupsCache = (): void => groupsCache.invalidate();
  * Get all groups, decrypted, ordered by id (from cache)
  */
 export const getAllGroups = (): Promise<Group[]> => groupsCache.getAll();
+
+/** Narrow id → name map for every group (selects + decrypts only the name), for
+ * pickers/labels that must not load the whole groups cache. */
+export const getAllGroupNames = (): Promise<Map<number, string>> =>
+  allNamesById("groups", "grp", "name", (raw: string) => decrypt(raw));
 
 /**
  * Get a single group by slug_index (from cache)

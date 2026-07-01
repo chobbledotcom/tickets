@@ -21,8 +21,8 @@ import {
 } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAllGroups } from "#shared/db/groups.ts";
-import { getListingsById } from "#shared/db/listings.ts";
+import { getAllGroupNames } from "#shared/db/groups.ts";
+import { getAllListingNames } from "#shared/db/listings.ts";
 import {
   addPageItem,
   getAllPageItems,
@@ -111,21 +111,22 @@ const buildListModel = async (): Promise<ListModel> => {
 
 /** Resolve a page's items to display rows + the add-item picker options. */
 const buildEditModel = async (page: SitePage): Promise<EditModel> => {
-  const [navRows, allItems, listingsById, groups, pageItems] =
+  // Pickers/labels need only id + name, so use the narrow name projections
+  // rather than the full listings/groups caches (no decrypting every column).
+  const [navRows, allItems, listingNames, groupNames, pageItems] =
     await Promise.all([
       getSitePageNavRows(),
       getAllPageItems(),
-      getListingsById(),
-      getAllGroups(),
+      getAllListingNames(),
+      getAllGroupNames(),
       getItemsForPage(page.id),
     ]);
   const forest = buildForest(navRows, allItems);
   const pageById = new Map(navRows.map((r) => [r.id, r.name]));
-  const groupById = new Map(groups.map((g) => [g.id, g.name]));
   const label = (type: SitePageItemType, id: number): string => {
     const lookup: Record<SitePageItemType, string | undefined> = {
-      group: groupById.get(id),
-      listing: listingsById.get(id)?.name,
+      group: groupNames.get(id),
+      listing: listingNames.get(id),
       page: pageById.get(id),
     };
     return lookup[type] ?? t("site.pages.item_missing");
@@ -144,16 +145,17 @@ const buildEditModel = async (page: SitePage): Promise<EditModel> => {
   const present = new Set(
     pageItems.map((i) => targetKey(i.item_type, i.item_id)),
   );
-  const freeOf = (type: SitePageItemType, id: number): boolean =>
-    !present.has(targetKey(type, id));
+  const options = (
+    names: Map<number, string>,
+    type: SitePageItemType,
+  ): PickerOption[] =>
+    [...names]
+      .filter(([id]) => !present.has(targetKey(type, id)))
+      .map(([id, name]) => opt(id, name));
   return {
-    groupOptions: groups
-      .filter((g) => freeOf("group", g.id))
-      .map((g) => opt(g.id, g.name)),
+    groupOptions: options(groupNames, "group"),
     items,
-    listingOptions: [...listingsById.values()]
-      .filter((l) => freeOf("listing", l.id))
-      .map((l) => opt(l.id, l.name)),
+    listingOptions: options(listingNames, "listing"),
     page,
     pageOptions: eligibleChildPages(forest, page.id).map((p) =>
       opt(p.id, p.name),
@@ -351,9 +353,8 @@ const isEligibleTarget = async (
   type: SitePageItemType,
   itemId: number,
 ): Promise<boolean> => {
-  if (type === "listing") return (await getListingsById()).has(itemId);
-  if (type === "group")
-    return (await getAllGroups()).some((g) => g.id === itemId);
+  if (type === "listing") return (await getAllListingNames()).has(itemId);
+  if (type === "group") return (await getAllGroupNames()).has(itemId);
   return eligibleChildPages((await loadForest()).forest, pageId).some(
     (p) => p.id === itemId,
   );

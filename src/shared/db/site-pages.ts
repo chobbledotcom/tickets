@@ -11,7 +11,12 @@
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { queryAll, queryOne } from "#shared/db/client.ts";
+import {
+  queryAll,
+  queryOne,
+  resultRows,
+  withTransaction,
+} from "#shared/db/client.ts";
 import {
   defineIdTable,
   encryptedNameSchema,
@@ -20,7 +25,6 @@ import {
 import { swapSortOrder } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { cachedTable, col } from "#shared/db/table.ts";
-import { nextSortOrder } from "#shared/site-pages/core.ts";
 import type { SitePage, SitePageNavRow } from "#shared/types.ts";
 
 /** Create/update input (camelCase keys → snake_case columns). */
@@ -120,13 +124,30 @@ export const isSitePageSlugTaken = (
   );
 
 /** Create a page, appending it to the end of the root ordering. A new page is
- * always a root (no edges yet), so its `sort_order` goes after every existing
- * page's; a concurrent-create tie is broken deterministically by id downstream. */
+ * always a root (no edges yet). The trailing `sort_order` is claimed under a
+ * write transaction *after* the insert, so two concurrent creates serialise on
+ * the write lock and get distinct orders — equal orders would make the
+ * reorder swap a no-op, leaving the pages unreorderable. */
 export const createSitePage = async (
   input: Omit<SitePageInput, "sortOrder">,
 ): Promise<SitePage> => {
-  const orders = (await getSitePageNavRows()).map((r) => r.sort_order);
-  return sitePagesTable.insert({ ...input, sortOrder: nextSortOrder(orders) });
+  const page = await sitePagesTable.insert({ ...input, sortOrder: 0 });
+  const sortOrder = await withTransaction(async (tx) => {
+    const res = await tx.execute({
+      args: [page.id],
+      sql: "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM site_pages WHERE id != ?",
+    });
+    const next = Number(resultRows<{ next: number }>(res)[0]!.next);
+    await tx.execute({
+      args: [next, page.id],
+      sql: "UPDATE site_pages SET sort_order = ? WHERE id = ?",
+    });
+    return next;
+  });
+  // No explicit cache clear needed: the insert above already invalidated the nav
+  // projection, and nothing reads it before this returns, so the next read
+  // re-fetches the freshly assigned order.
+  return { ...page, sort_order: sortOrder };
 };
 
 /** Update a page's editable fields (all but id/sort_order). The caller passes a

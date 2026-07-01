@@ -7,7 +7,6 @@ import {
   descendantsOf,
   eligibleChildPages,
   isReservedSlug,
-  nextSortOrder,
   parseTargetKey,
   planReorder,
   targetKey,
@@ -182,13 +181,6 @@ describe("site-pages core", () => {
       // Candidates to add under 2: exclude 2 (self), 1 (ancestor), 2-already? ;
       // 3 and 4 are unparented and no cycle → eligible.
       expect(eligibleChildPages(forest, 2).map((p) => p.id)).toEqual([3, 4]);
-    });
-  });
-
-  describe("nextSortOrder", () => {
-    test("0 when empty, max+1 otherwise", () => {
-      expect(nextSortOrder([])).toBe(0);
-      expect(nextSortOrder([0, 3, 1])).toBe(4);
     });
   });
 

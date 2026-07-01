@@ -48,7 +48,7 @@ import {
   ticketCountPredicateFor,
   ticketCountSumExpr,
 } from "#shared/db/migrations/schema.ts";
-import { nameMapByIds } from "#shared/db/query.ts";
+import { allNamesById, nameMapByIds } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
@@ -598,6 +598,11 @@ export const getListingNamesByIds = (
   nameMapByIds("listings", "listing", "name", ids, (raw: string) =>
     decrypt(raw),
   );
+
+/** Narrow id → name map for every listing (selects + decrypts only the name),
+ * for pickers/labels that must not load the whole listings cache. */
+export const getAllListingNames = (): Promise<Map<number, string>> =>
+  allNamesById("listings", "listing", "name", (raw: string) => decrypt(raw));
 
 /**
  * SQL predicate (over the `listing` alias) selecting listings that are

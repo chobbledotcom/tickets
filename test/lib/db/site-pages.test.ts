@@ -15,6 +15,7 @@ import {
 } from "#shared/db/site-page-items.ts";
 import {
   computeSitePageSlugIndex,
+  createSitePage,
   getSitePageById,
   getSitePageBySlugIndex,
   getSitePageNavRows,
@@ -91,6 +92,23 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       const idx = await computeSitePageSlugIndex("terms-of-use");
       const found = await getSitePageBySlugIndex(idx);
       expect(found?.slug).toBe("terms-of-use");
+    });
+
+    test("createSitePage assigns distinct, increasing trailing orders", async () => {
+      const make = async (slug: string): Promise<number> =>
+        (
+          await createSitePage({
+            name: `Name ${slug}`,
+            slug,
+            slugIndex: await computeSitePageSlugIndex(slug),
+          })
+        ).sort_order;
+      const orders = [await make("o-a"), await make("o-b"), await make("o-c")];
+      // Distinct + strictly increasing ⇒ the pages are reliably reorderable
+      // (equal orders would make the move-up/down swap a no-op).
+      expect(new Set(orders).size).toBe(3);
+      expect(orders[0]).toBeLessThan(orders[1]!);
+      expect(orders[1]).toBeLessThan(orders[2]!);
     });
   });
 

@@ -159,10 +159,6 @@ export const eligibleChildPages = (
     )
     .sort(bySortOrderThenId);
 
-/** The next `sort_order` to append after `existing` (max + 1; 0 when empty). */
-export const nextSortOrder = (existing: readonly number[]): number =>
-  existing.length === 0 ? 0 : Math.max(...existing) + 1;
-
 /**
  * Plan an adjacent-swap reorder: the two keys whose `sort_order` to exchange to
  * move `target` one step in `dir`, or null at a boundary / when absent. One
