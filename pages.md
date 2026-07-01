@@ -47,10 +47,9 @@ code, even though it is "Pages" in the UI:
 The UI text, menu label, and slugs still read "Pages". Only the code
 identifiers carry the `site_` prefix.
 
-> **Open decision N1.** If you'd rather keep the DB table literally named
-> `pages`/`page_items` (as the request wrote them) and rename the *existing*
-> `public/pages.ts` to `public/basic-pages.ts` instead, that's also clean — but
-> it touches more existing files. Recommendation: `site_pages` prefix, above.
+> **Decision N1 — ✅ DECIDED: `site_pages` / `site_page_items`.** The tables and
+> code identifiers carry the `site_` prefix (the existing `public/pages.ts` keeps
+> its name); the UI still reads "Pages".
 
 ---
 
@@ -67,7 +66,7 @@ plaintext (they must be queryable/sortable).
 | ------------------ | ------------------------------------------------ | ----- |
 | `id`               | `INTEGER PRIMARY KEY AUTOINCREMENT`              | `col.generated` |
 | `slug`             | `TEXT NOT NULL` — **encrypted**                  | `col.encrypted(encrypt, decrypt)` |
-| `slug_hmac`        | `TEXT NOT NULL` — plaintext HMAC blind index     | see decision N2 below |
+| `slug_index`       | `TEXT NOT NULL` — plaintext HMAC blind index     | from `idAndEncryptedSlugSchema` (decided, N2) |
 | `name`             | `TEXT NOT NULL` — **encrypted**                  | menu label + `<h1>` |
 | `meta_title`       | `TEXT NOT NULL DEFAULT ''` — **encrypted**, ≤ 64 | `<title>` override |
 | `meta_description` | `TEXT NOT NULL DEFAULT ''` — **encrypted**, ≤ 160| `<meta name=description>` |
@@ -78,25 +77,20 @@ plaintext (they must be queryable/sortable).
   match the existing convention (`questions.sort_order`,
   `answers.sort_order` — `swapSortOrder`, `src/shared/db/questions.ts`) and
   avoid quoting. The request's "order (int)" maps to `sort_order`.
-- Unique index `idx_site_pages_slug_hmac` on `(slug_hmac)` — the blind-index
+- Unique index `idx_site_pages_slug_index` on `(slug_index)` — the blind-index
   lookup path, identical to `idx_listings_slug_index` /
   `idx_groups_slug_index`.
 - Field length caps (64 / 160 / `MAX_TEXTAREA_LENGTH`) are enforced in the form
   layer (`field.maxlength`, checked server-side in `validateSingleField`,
   `src/shared/forms.tsx:404-409`), not in SQL.
 
-> **Decision N2 — `slug_hmac` vs the established `slug_index`.** Listings and
-> groups name this column **`slug_index`** and get it for free from the shared
-> `idAndEncryptedSlugSchema(encrypt, decrypt)` helper
-> (`src/shared/db/common-schema.ts:49-66`), with the HMAC computed by
-> `hmacHash` (`src/shared/crypto/hashing.ts:136-150`). The request asked for
-> `slug_hmac`. **Recommendation: name it `slug_index` and reuse
-> `idAndEncryptedSlugSchema`** rather than hand-rolling a differently-named
-> column and duplicating the schema — it's the same thing under a name the whole
-> codebase already uses, and it keeps `slug`+index generation/lookup on the one
-> shared mechanism. If the literal name `slug_hmac` is required, we forgo the
-> shared helper and declare `slug` + `slug_hmac` by hand. The plan below assumes
-> **`slug_index`**; substitute the name if you decide otherwise.
+> **Decision N2 — ✅ DECIDED: `slug_index`.** The column is named **`slug_index`**
+> and comes for free from the shared `idAndEncryptedSlugSchema(encrypt, decrypt)`
+> helper (`src/shared/db/common-schema.ts:49-66`), with the HMAC computed by
+> `hmacHash` (`src/shared/crypto/hashing.ts:136-150`) — exactly as listings and
+> groups do it. This keeps `slug` + blind-index generation/lookup on the one
+> shared mechanism the whole codebase already uses (no bespoke `slug_hmac`
+> column, no duplicated schema).
 
 ### Table `site_page_items`
 
@@ -142,7 +136,7 @@ Indexes:
 > only foreign key present). If a real `category_id` concept was intended,
 > that's a larger scope change — flag it. Plan assumes `page_id`.
 
-> **Decision N3 — pages form a tree (single parent).** The recursive nav
+> **Decision N3 — ✅ DECIDED: pages form a tree (single parent).** The recursive nav
 > ("*our* siblings, *our parent's* siblings, …") only has a well-defined meaning
 > if each page has exactly one parent. The **application-level check** above
 > enforces it: adding page P under a second parent fails closed with a clear
@@ -192,14 +186,175 @@ Resolution of an item to a nav link is a fold over an **exhaustive
 `Record<SitePageItemType, …>`** (a missing arm becomes a compile error), so
 adding a fourth item type later is additive:
 
+This `Record` is the seed of the whole design; the next section makes it the
+spine.
+
+---
+
+## Functional core: a pure, schema-driven pipeline
+
+The whole feature is deliberately shaped as **three rings**, so that all the
+logic worth testing lives in the middle ring as pure, total functions over plain
+data — no DB, no crypto, no `Request`, no JSX:
+
+```
+┌── impure shell: acquire ──────────────────────────────────────────────┐
+│   DB reads (cached), decryption, discovery/liveness classification,    │
+│   session/params  →  produce PLAIN DATA (arrays, maps, primitives)     │
+│                                                                        │
+│   ┌── pure core (src/shared/site-pages/core.ts) ──────────────────┐   │
+│   │  forest build · ancestry · cycle check · nav-model build ·    │   │
+│   │  reorder planning · next-order · input validation.            │   │
+│   │  Total functions: plain data in → plain data out. No I/O.     │   │
+│   └───────────────────────────────────────────────────────────────┘   │
+│                                                                        │
+│   impure shell: apply  →  DB writes / batches, redirects, HTML render  │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+**Everything flows through the core.** A handler's job shrinks to: authorise →
+load plain data → **call one core function** → apply the result (write or
+render). The DB modules produce plain rows; the templates consume a plain view
+model; the interesting decisions all happen in `core.ts`, which imports nothing
+but types.
+
+### The data the core speaks
+
+Beyond the raw `SitePage` / `SitePageItem` rows, the core uses three plain
+shapes (all in `src/shared/site-pages/types.ts`, no imports):
+
 ```ts
-// label + href + "is this link live?" per item type
-const ITEM_RESOLVERS: Record<SitePageItemType, ItemResolver> = {
-  listing: …,  // href /ticket/:slug ; live per discovery classification (below)
-  group:   …,  // href /ticket/:slug (group slug) ; live iff bookable member
-  page:    …,  // href /page/:slug   ; always live (recurse into its items)
+// A stable string key for any item — the composite (type,id) the whole
+// system is keyed on. One function mints it; everything compares by it.
+export type TargetKey = `${SitePageItemType}:${number}`;
+export const targetKey = (t: SitePageItemType, id: number): TargetKey => `${t}:${id}`;
+
+// A leaf's resolved presentation + reachability, produced by the acquire ring
+// (this is where discovery/liveness classification for listings/groups lands).
+export interface ResolvedTarget { href: string; label: string; live: boolean; }
+export type TargetMap = ReadonlyMap<TargetKey, ResolvedTarget>;
+
+// The adjacency view the core builds once and reuses. Pure, serialisable.
+export interface Forest {
+  byId: ReadonlyMap<number, SitePage>;        // page id → row
+  itemsByPage: ReadonlyMap<number, readonly SitePageItem[]>; // page id → items, sorted
+  parentByChild: ReadonlyMap<number, number>; // child page id → parent page id
+  rootIds: readonly number[];                  // pages with no page-parent, sorted
+}
+
+// The view model the templates render — a recursive tree, nothing DB-shaped.
+export interface NavNode {
+  key: TargetKey;
+  href: string;
+  label: string;
+  live: boolean;                 // false ⇒ render as text, never a link
+  active: boolean;               // on the current node's ancestor chain
+  children: readonly NavNode[];
+}
+export interface NavModel {
+  rootPageNodes: readonly NavNode[];   // splice between Listings and Contact
+  submenuLevels: readonly (readonly NavNode[])[]; // stacked ancestor sibling-sets, root-first
+  activeRootId: number | null;         // which root page to highlight
+}
+```
+
+### The core functions (pure, total, unit-tested in isolation)
+
+`src/shared/site-pages/core.ts` — every function here is deterministic and
+side-effect-free; each gets a direct table-driven / property test.
+
+```ts
+// 1. Build the adjacency model. Sorts inputs by (sort_order, id) ITSELF, so the
+//    core is independent of DB row order (tests feed unordered fixtures). Uses a
+//    visited guard so a corrupt cyclic row set terminates and throws loudly
+//    rather than looping — the app guarantees acyclic (N3/N4), so a cycle here
+//    is an impossible state to surface, not to absorb (AGENTS: trust invariants).
+buildForest(pages: readonly SitePage[], items: readonly SitePageItem[]): Forest
+
+// 2. Ancestry (root-first, excludes the node itself) and descendants.
+ancestorsOf(forest: Forest, pageId: number): number[]
+descendantsOf(forest: Forest, pageId: number): Set<number>
+
+// 3. Cycle guard for the item picker + POST re-check (N4). Placing `candidate`
+//    under `parent` loops iff candidate === parent OR candidate ∈ ancestors(parent).
+wouldCreateCycle(forest: Forest, parentPageId: number, candidatePageId: number): boolean
+eligibleChildPages(forest: Forest, currentPageId: number): SitePage[] // picker options
+
+// 4. THE nav computation — the heart. Pure: forest + resolved leaves + "where am
+//    I" → the full view model (root nodes, active chain, stacked submenu levels).
+buildNavModel(forest: Forest, targets: TargetMap, current: TargetKey | null): NavModel
+
+// 5. Reorder planning — ONE function both root-page and within-page reorder flow
+//    through. Given the ordered keys and a move, returns the adjacent pair to
+//    swap, or null at a boundary. The impure shell just executes the swap.
+planReorder(orderedKeys: readonly TargetKey[], target: TargetKey, dir: "up" | "down"):
+  readonly [TargetKey, TargetKey] | null
+nextSortOrder(existing: readonly number[]): number   // max+1, or 0 when empty
+
+// 6. Input validation (schema-driven, reused by create + update).
+validateSitePageInput(input: SitePageInput): string | null
+isReservedSlug(slug: string): boolean                 // shadows home/listings/contact/…
+```
+
+### Node building is one exhaustive `Record` (the schema spine)
+
+The `ITEM_RESOLVERS` sketch above becomes a total `Record` inside the core that
+turns each item into a `NavNode`. It is the *only* place the item-type union is
+branched on — a new type is a compile error until every arm is filled:
+
+```ts
+type NodeBuilder = (ctx: BuildCtx, item: SitePageItem) => NavNode;
+
+const NODE_BUILDERS: Record<SitePageItemType, NodeBuilder> = {
+  // leaves: presentation + liveness come from the pre-resolved TargetMap
+  listing: buildLeaf,
+  group:   buildLeaf,
+  // page: label from the forest row, href /page/:slug, always live, RECURSE
+  page:    buildPageNode,
 };
 ```
+
+`buildLeaf` reads the `TargetMap` (so *all* the listing/group liveness rules —
+`classifyForDiscovery`, child-listing suppression, `groupHasBookableMember` — are
+computed once in the acquire ring and handed in as data); `buildPageNode` recurses
+through `forest.itemsByPage`. Both are pure. `buildNavModel` folds
+`NODE_BUILDERS[item.item_type]` over the forest and marks `active` on the
+`ancestorsOf(current) ∪ {current}` set.
+
+### How each ring plugs in
+
+- **Acquire (`src/shared/db/site-pages.ts` + `site-page-items.ts` + a small
+  `resolve-targets.ts`).** Load pages + items (cached), and build the `TargetMap`
+  from listings/groups via an **exhaustive `Record<SitePageItemType, loader>`**
+  (`page` targets resolve from the pages themselves). This is the only ring that
+  touches the DB, crypto, and discovery classification.
+- **Core.** Everything in the list above. Zero imports beyond types.
+- **Apply — admin handlers.** `planReorder` → `swapSitePageOrder` /
+  `swapItemOrder`; `validateSitePageInput` before insert/update;
+  `eligibleChildPages` to render the picker and `wouldCreateCycle` to re-check the
+  POST; `nextSortOrder` for create. The handler is a 4-line shell.
+- **Apply — public nav/render.** `buildForest` + `buildNavModel` → the recursive
+  desktop/mobile renderers (which are themselves pure `NavNode[] → JSX`, see the
+  public-nav section). The route handler just supplies `current`.
+
+### Why this shape
+
+- **Testing is cheap and strong.** The core is plain-data-in/plain-data-out, so
+  it gets exhaustive table-driven and property tests without a DB or a rendered
+  page: e.g. *rootPageNodes = roots sorted by sort_order*; *active chain = exactly
+  `ancestorsOf(current) ∪ {current}`*; *every leaf `node.live` equals its
+  `TargetMap` entry*; *`planReorder` at either boundary is `null` and is its own
+  inverse*; *`wouldCreateCycle` is true for every ancestor and false otherwise*;
+  *`buildForest` is order-independent*. These are exactly the assertions that kill
+  mutants (`test:quality-audit` / `deno task mutation`), so the 100 % coverage the
+  repo requires is *meaningful* coverage, not incidental.
+- **The shells barely need testing.** One integration test per route confirms the
+  wiring; all the logic is already proven in the core.
+- **It matches the house style.** Exhaustive `Record`s keyed by a union, a typed
+  tree instead of hand-nested markup, and pure folds over data are precisely the
+  "schema over organic structure" / "shared interfaces over branch-per-case"
+  patterns AGENTS.md calls for — and `planReorder` unifies the two reorder paths
+  into one (the "unify systems" rule).
 
 ---
 
@@ -500,16 +655,10 @@ The public feature needs the **same behaviour, recursively, to arbitrary depth**
 
 Per "unify systems — the answer is yes", model the nav as **data** (a recursive
 tree) and render it with **one** component that emits both a nested-`<ul>`
-desktop tree and a set of stacked mobile bars:
-
-```ts
-interface NavNode {
-  href: string;
-  label: string;
-  active?: boolean;          // highlight the current node / ancestor chain
-  children?: NavNode[];      // present ⇒ has a submenu
-}
-```
+desktop tree and a set of stacked mobile bars. The tree is the `NavModel` /
+`NavNode` produced by the pure core (see "Functional core" above) — the
+renderers are themselves pure `NavNode[] → JSX`, so they too are unit-tested by
+feeding plain node fixtures and asserting the emitted structure:
 
 - **`RecursiveDesktopNav(nodes)`** — nested `<ul>`/`<li>`, each node with
   `children` emits a nested `<ul class="admin-subnav">` (reuse the proven CSS
@@ -526,17 +675,13 @@ the admin migration as a follow-up so this change stays bounded.
 
 ### Building the tree for a given request
 
-Given the current page context (which public page/listing/group the visitor is
-on), build the `NavNode[]` for the root nav and the active submenu chain:
+This is just the acquire-ring + `buildForest`/`buildNavModel` flow from the
+"Functional core" section, made concrete for a request:
 
-1. **Load once.** `getAllSitePages()` + `getItemsForPages(allPageIds)` (two
-   cached reads) give the whole forest in memory. Compute:
-   - `rootPages` = pages not referenced as a `page` item, ordered by
-     `sort_order`.
-   - `childrenOf(pageId)` = that page's items in `sort_order`, each resolved via
-     `ITEM_RESOLVERS` to `{ href, label, live }` (+ `children` for `page`
-     items).
-   - `parentOf(pageId)` from the reverse edges (unique for pages, N3).
+1. **Load once (acquire).** `getAllSitePages()` + `getItemsForPages(allPageIds)`
+   (two cached reads) plus the resolved `TargetMap` for the leaves. `buildForest`
+   turns the rows into the `Forest` (roots ordered by `sort_order`, `itemsByPage`,
+   `parentByChild`).
 
 2. **Root nav** (`PublicNav`): Home, Listings, **then each root page** (ordered),
    then Order?/Terms?/Contact (the existing `navFlags`,
@@ -611,14 +756,24 @@ manager strings, and confirm-delete copy. Follow the existing `site.*` /
 
 Per AGENTS.md: **100% line+branch coverage**, **0% duplication**, mutation
 survivors on changed files must be 0, and `deno task precommit` is the final
-gate. Concretely:
+gate. Concretely (the pure core carries the bulk of the assertions — see
+"Functional core"):
 
+- **Functional core (`core.ts`)**: the heaviest test target, and the cheapest —
+  plain-data-in/plain-data-out, no DB or render. Table-driven + property tests
+  for `buildForest` (order-independence; roots = pages with no page-parent),
+  `ancestorsOf`/`descendantsOf`, `wouldCreateCycle` (true for every ancestor and
+  self, false otherwise), `buildNavModel` (root nodes = roots by `sort_order`;
+  `active` set = `ancestorsOf(current) ∪ {current}`; each leaf's `live` mirrors
+  its `TargetMap` entry), `planReorder` (null at both boundaries; self-inverse),
+  and `nextSortOrder`. These are the mutation-resistant assertions that make the
+  100 % coverage meaningful.
 - **DB**: unit tests for `site-pages.ts` / `site-page-items.ts` — insert round-
   trips **through encryption** (assert the stored `slug`/`name`/`content` are
   ciphertext in the raw row and decrypt back), slug-index lookup, ordering,
-  swap-order, the single-parent unique constraint (adding a page under a second
-  parent throws), cascade cleanup on delete (no dangling edges), and cycle
-  rejection.
+  swap-order, the app-level single-parent check (adding a page under a second
+  parent fails closed), atomic cascade cleanup on delete (no dangling edges),
+  and cycle rejection.
 - **Migration**: covered by the schema-guard/round-trip suites once `SCHEMA` and
   the migration agree; add a `migration-restore`-style assertion if needed.
 - **Admin**: per-route tests for list/new/create/edit/update/delete/reorder and
@@ -660,19 +815,26 @@ passing `deno task precommit`.
 
 ---
 
-## Open decisions (consolidated — need a call before/while building)
+## Decisions (consolidated)
 
-- **N1** Code naming: `site_pages`/`site_page_items` prefix (recommended) vs
-  literal `pages`/`page_items` + rename existing `public/pages.ts`.
-- **N2** Blind-index column name: reuse `slug_index` via
-  `idAndEncryptedSlugSchema` (recommended) vs literal `slug_hmac`.
-- **N3** Single-parent tree for pages (recommended, enforced by an
-  application-level check — the schema can't express a partial-unique index) —
-  confirms the nav is a tree.
-- **N4** Cycle prevention in the page-item picker (required if pages nest pages).
-- **N5** Public URL: `/page/:slug` (recommended) vs `/p/:slug` vs bare `/:slug`.
-- **N6** Multi-parented leaf ancestry tie-break in the contextual nav.
-- **N7** Whether the deepest submenu shows the current node's own children
-  (recommended: yes).
-- **"category_id"** in the `page_items` spec read as a typo for **`page_id`** —
-  confirm.
+**Settled:**
+
+- **N1 ✅** Code naming: `site_pages` / `site_page_items` (UI reads "Pages"; the
+  existing `public/pages.ts` keeps its name).
+- **N2 ✅** Blind-index column is `slug_index` via `idAndEncryptedSlugSchema`.
+- **N3 ✅** Single-parent tree for pages, enforced by an application-level check
+  (the schema can't express a partial-unique index).
+- **Admin list ✅** Root-pages section with reorder arrows, the rest listed for
+  editing without arrows.
+- **`category_id` ✅** Read as a typo for **`page_id`** (the only FK on
+  `site_page_items`).
+
+**Still open (recommendation in parentheses; not blocking — sensible defaults
+chosen):**
+
+- **N4** Cycle prevention rejects the current page + its ancestors (required;
+  design fixed, just flagging the invariant).
+- **N5** Public URL: **`/page/:slug`** (recommended) vs `/p/:slug`.
+- **N6** Multi-parented leaf ancestry tie-break: lowest `(sort_order, page_id)`
+  (recommended) vs contextual nav only on `/page/:slug` views.
+- **N7** Deepest submenu shows the current node's own children (recommended: yes).
