@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { BrowserSession } from "../browser.ts";
-import { log } from "../log.ts";
+import { log, warn } from "../log.ts";
 import { clickFirst, fillFirst } from "./card.ts";
 import { assertConfigured, selectProvider } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
@@ -39,5 +39,40 @@ export const stripe: PaymentProvider = {
       ".SubmitButton",
       'button:has-text("Pay")',
     ]);
+  },
+
+  // Each run registers a webhook endpoint for its ephemeral *.trycloudflare.com
+  // URL, and the throwaway DB forgets the id — so without cleanup they pile up
+  // and Stripe eventually rejects new ones (accounts cap webhook endpoints).
+  // Delete every endpoint pointing at a trycloudflare tunnel, which also sweeps
+  // up any orphans left by earlier runs.
+  cleanup: async (secrets): Promise<void> => {
+    const headers = { Authorization: `Bearer ${secrets.secretKey}` };
+    try {
+      const res = await fetch(
+        "https://api.stripe.com/v1/webhook_endpoints?limit=100",
+        { headers },
+      );
+      if (!res.ok) {
+        warn(`  Stripe webhook cleanup: list failed (HTTP ${res.status})`);
+        return;
+      }
+      const body = (await res.json()) as {
+        data?: { id: string; url?: string }[];
+      };
+      const stale = (body.data ?? []).filter((e) =>
+        e.url?.includes("trycloudflare.com"),
+      );
+      for (const endpoint of stale) {
+        await fetch(
+          `https://api.stripe.com/v1/webhook_endpoints/${endpoint.id}`,
+          { method: "DELETE", headers },
+        ).catch(() => {});
+        log(`  deleted stale Stripe webhook endpoint ${endpoint.id}`);
+      }
+      if (stale.length === 0) log("  no stale Stripe webhook endpoints to clean");
+    } catch (err) {
+      warn(`  Stripe webhook cleanup skipped: ${String(err)}`);
+    }
   },
 };

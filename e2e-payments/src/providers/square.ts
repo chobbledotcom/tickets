@@ -6,9 +6,12 @@ import { assertConfigured, selectProvider } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
 
 /**
- * Square. Payment confirmation flows through the browser return URL
- * (validatePaidSession → processPaymentSession), so the webhook signature key
- * (a manual dashboard step) is not needed for the e2e assertion — we skip it.
+ * Square. Payment confirmation is asserted via the browser return URL
+ * (validatePaidSession → processPaymentSession). Square webhooks require a
+ * signed subscription created manually in the dashboard against a fixed
+ * notification URL, which can't be provisioned for an ephemeral tunnel — so
+ * this leg does NOT exercise Square's webhook path (the app rejects unsigned
+ * Square webhooks). Scope is the return path only; see README.
  *
  * Square's hosted checkout renders card inputs inside the Web Payments SDK
  * iframe, so the card-fill helper searches child frames too.

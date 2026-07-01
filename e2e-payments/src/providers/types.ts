@@ -24,4 +24,10 @@ export interface PaymentProvider {
    * to the app's return URL.
    */
   payHostedCheckout: (page: Page) => Promise<void>;
+  /**
+   * Optional teardown against the provider's own account (not the app), run in
+   * `finally` after each run. Used to remove ephemeral resources the run
+   * created in the sandbox — e.g. the per-tunnel Stripe webhook endpoint.
+   */
+  cleanup?: (secrets: Record<string, string>) => Promise<void>;
 }

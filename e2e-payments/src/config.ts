@@ -72,10 +72,13 @@ export const needsTunnel = (target: Target): boolean => {
   if (config.forceTunnel !== undefined) {
     return config.forceTunnel === "1" || config.forceTunnel === "true";
   }
-  // Stripe registers its webhook endpoint against a public HTTPS URL at
-  // config time, so it cannot be set up without a tunnel. Square/SumUp confirm
-  // via the browser return URL, but running them behind the tunnel too gives a
-  // genuine end-to-end webhook round-trip, so default them on as well.
+  // Stripe registers its webhook endpoint against a public HTTPS URL at config
+  // time (and then receives a signed webhook), so it cannot be set up without a
+  // tunnel. Square/SumUp confirm via the browser return URL, which providers
+  // expect to be a public HTTPS URL — hence the tunnel for them too. Note the
+  // tunnel does NOT mean every leg exercises webhooks: Square's webhook needs a
+  // manually-signed subscription and is not tested here; SumUp needs no
+  // signature. See the providers' notes and the README.
   return target !== "free";
 };
 

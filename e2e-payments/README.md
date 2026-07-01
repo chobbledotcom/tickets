@@ -23,8 +23,8 @@ For a target (`stripe` | `square` | `sumup` | `free`):
 1. Builds the static client assets and boots `src/index.ts` against a throwaway
    local libsql file DB on a random port.
 2. Starts a `cloudflared` quick tunnel so the app has a public HTTPS origin
-   (required by Stripe to register its webhook; also gives Square/SumUp a real
-   webhook + return-URL round-trip). `free` skips the tunnel.
+   (required by Stripe to register its webhook; and because providers expect a
+   public HTTPS return URL). `free` skips the tunnel.
 3. Launches Chromium (Playwright) and, navigating as a human would:
    - runs first-run setup and logs in as admin;
    - selects and configures the payment provider from its secrets;
@@ -33,6 +33,22 @@ For a target (`stripe` | `square` | `sumup` | `free`):
      provider's sandbox test card;
    - lands back on the app return URL and asserts the booking shows as paid
      (customer success page **and** the booker appears on the admin listing).
+
+### What is (and isn't) exercised per provider
+
+Confirmation is asserted via the **browser return URL** for every provider (the
+success handler validates the session with the provider's API and records the
+booking). Webhook coverage differs:
+
+| Provider | Return-URL confirmation | Webhook exercised? |
+| --- | --- | --- |
+| Stripe | ✅ | ✅ — endpoint registered for the tunnel and a signed webhook is received. |
+| SumUp | ✅ | Best-effort — SumUp needs no signature, so a delivered webhook is processed; not separately asserted. |
+| Square | ✅ | ❌ — Square requires a manually-signed subscription against a fixed URL, which can't be provisioned for an ephemeral tunnel. Return path only. |
+
+For Stripe, each run leaves a webhook endpoint pointing at that run's tunnel;
+the harness deletes all `*.trycloudflare.com` webhook endpoints on teardown
+(sweeping up any orphans too) so they don't accumulate in the sandbox account.
 
 `free` runs the same journey with a £0 listing and no provider — a
 secrets-free self-test of the harness and the app booking flow.

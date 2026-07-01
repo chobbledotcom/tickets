@@ -49,15 +49,23 @@ const run = async (): Promise<void> => {
   const country =
     process.env.SETUP_COUNTRY?.trim() || provider?.setupCountry || config.setupCountry;
 
-  await buildStaticAssets();
-  const server = await startAppServer();
-  const tunnel = needsTunnel(target)
-    ? await startTunnel(server.port)
-    : noTunnel(server.localBaseUrl);
-  const session = await launchBrowser(tunnel.publicBaseUrl);
-  log(`Driving the app at ${tunnel.publicBaseUrl}`);
+  // Resources are declared up front and acquired inside the try, so a failure
+  // during startup (tunnel/browser) still tears down whatever was created —
+  // otherwise the app-server child keeps the Node process alive and the CI job
+  // hangs instead of failing cleanly.
+  let server: Awaited<ReturnType<typeof startAppServer>> | null = null;
+  let tunnel: Awaited<ReturnType<typeof startTunnel>> | null = null;
+  let session: Awaited<ReturnType<typeof launchBrowser>> | null = null;
 
   try {
+    await buildStaticAssets();
+    server = await startAppServer();
+    tunnel = needsTunnel(target)
+      ? await startTunnel(server.port)
+      : noTunnel(server.localBaseUrl);
+    session = await launchBrowser(tunnel.publicBaseUrl);
+    log(`Driving the app at ${tunnel.publicBaseUrl}`);
+
     await runSetup(session, country);
     await login(session);
 
@@ -79,12 +87,17 @@ const run = async (): Promise<void> => {
     step(`PASS — ${target} end-to-end booking completed`);
   } catch (err) {
     fail(`FAIL — ${target}: ${err instanceof Error ? err.message : String(err)}`);
-    await session.screenshot(`fail-${target}`);
+    if (session) await session.screenshot(`fail-${target}`);
     throw err;
   } finally {
-    await session.stop();
-    await tunnel.stop();
-    await server.stop();
+    if (session) await session.stop();
+    if (tunnel) await tunnel.stop();
+    // Remove any ephemeral provider-side resources (e.g. Stripe webhook
+    // endpoints) regardless of pass/fail, before stopping the server.
+    if (provider?.cleanup && secrets) {
+      await provider.cleanup(secrets).catch(() => {});
+    }
+    if (server) await server.stop();
   }
 };
 
