@@ -19,7 +19,6 @@ import {
   checkAvailability,
   constrainParentDailyDates,
   createFreeReservation,
-  type FoldChildrenResult,
   foldSelectedChildren,
   getTicketContext,
   parentRequiresChild,
@@ -29,6 +28,7 @@ import { jsonResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getBaseUrl, getClientIp } from "#routes/url.ts";
+import type { FoldChildrenResult } from "#shared/booking/fold-tree.ts";
 import { processBooking } from "#shared/booking.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
