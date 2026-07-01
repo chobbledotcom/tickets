@@ -42,6 +42,7 @@ import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
+import { syncListingPrices } from "#shared/db/listing-prices.ts";
 import {
   LISTING_AGGREGATE_WRITE_COLUMNS,
   TICKET_COUNTS_PREDICATE,
@@ -469,8 +470,30 @@ const listingsEntity = cachedEntityTable<
 );
 const listingsCache = listingsEntity.cache;
 
-/** Listings table with CRUD operations — writes auto-invalidate the cache */
-export const listingsTable = listingsEntity.table;
+/**
+ * Listings table with CRUD operations — writes auto-invalidate the cache and,
+ * on top of the raw table, re-sync the listing's `listing_prices` rows so the
+ * generalised price table never drifts from the `unit_price`/`day_prices` mirror
+ * columns. Both write paths run the sync from the row's id after a successful
+ * write; `update` skips it when the row is missing (returns null). The sync
+ * reads the canonical columns straight from the row rather than trusting the
+ * returned input shape, so a partial update that never mentions the price fields
+ * still reconciles against the current stored values.
+ */
+const rawTable = listingsEntity.table;
+export const listingsTable: typeof rawTable = {
+  ...rawTable,
+  insert: async (input) => {
+    const row = await rawTable.insert(input);
+    await syncListingPrices(row.id);
+    return row;
+  },
+  update: async (id, input) => {
+    const row = await rawTable.update(id, input);
+    if (row) await syncListingPrices(row.id);
+    return row;
+  },
+};
 
 /**
  * Get a single listing by ID (from cache; fetches just this listing on a miss).

@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Add site_pages and site_page_items tables backing user-created content pages.";
+  "Add a listing_prices table (generalised per-listing pricing dimensions), backfilled from listings.unit_price and day_prices.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -122,6 +122,37 @@ export const SCHEMA: [name: string, table: Table][] = [
           columns: ["slug_index"],
           name: "idx_listings_slug_index",
           unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
+    // Generalised per-listing pricing, keyed by a pricing *dimension*: a
+    // `price_type` (e.g. "base", "day_count", and — reserved for later —
+    // "group"/"start_day") and a `price_id` selecting within it ("" for base,
+    // the day count "2", a group id, a weekday). One row per (listing,
+    // dimension, key) so future dimensions (weekday pricing, package overrides)
+    // slot in with no schema change. Today it is backfilled from and kept in
+    // sync with `listings.unit_price` ("base","") and `listings.day_prices`
+    // ("day_count","<n>"); those columns remain as read mirrors for now.
+    "listing_prices",
+    {
+      columns: [
+        ["listing_id", "INTEGER NOT NULL"],
+        ["price_type", "TEXT NOT NULL"],
+        ["price_id", "TEXT NOT NULL DEFAULT ''"],
+        ["unit_price", "INTEGER NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["listing_id", "price_type", "price_id"],
+          name: "idx_listing_prices_key",
+          unique: true,
+        },
+        {
+          columns: ["listing_id"],
+          name: "idx_listing_prices_listing",
         },
       ],
     },
