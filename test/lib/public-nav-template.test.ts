@@ -6,8 +6,9 @@ import {
   targetKey,
 } from "#shared/site-pages/core.ts";
 import type { TargetMap } from "#shared/site-pages/types.ts";
-import type { SitePageItem, SitePageNavRow } from "#shared/types.ts";
+import type { SitePage, SitePageItem, SitePageNavRow } from "#shared/types.ts";
 import { PublicNav, type PublicNavProps } from "#templates/public/shared.tsx";
+import { sitePagePage } from "#templates/public/site-page.tsx";
 
 // ---------------------------------------------------------------------------
 // Pure render tests for the recursive public nav: feed plain NavModel fixtures
@@ -75,5 +76,36 @@ describe("PublicNav (leaf-current render)", () => {
     const html = String(PublicNav(props(false)));
     expect(html).toContain("<span>Leaf Listing</span>");
     expect(html).not.toContain('href="/ticket/leaf"');
+  });
+});
+
+describe("sitePagePage (nav-model race)", () => {
+  test("renders without items when the model no longer contains the page", () => {
+    // A concurrent delete between the slug lookup and the nav reads leaves a
+    // model with no chain for the page: the body renders with no item list.
+    const gone: SitePage = {
+      content: "Still **here**",
+      id: 99,
+      meta_description: "",
+      meta_title: "",
+      name: "Racy Page",
+      slug: "racy",
+      slug_index: "idx",
+      sort_order: 0,
+    };
+    const model = buildNavModel(
+      buildForest([page(1)], []),
+      new Map(),
+      targetKey("page", gone.id),
+    );
+    const html = sitePagePage(gone, {
+      hasContact: false,
+      hasOrder: false,
+      hasTerms: false,
+      pages: model,
+    });
+    expect(html).toContain("<h1>Racy Page</h1>");
+    expect(html).toContain("<strong>here</strong>");
+    expect(html).not.toContain('class="page-items"');
   });
 });

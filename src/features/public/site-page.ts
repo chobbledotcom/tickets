@@ -26,10 +26,7 @@ const handleSitePage = async (slug: string): Promise<Response> => {
   const page = await getSitePageBySlugIndex(slugIndex);
   if (!page) return notFoundResponse();
   const nav = await publicNavProps(targetKey("page", page.id));
-  // The current target is always on the tree, so the chain (and its deepest
-  // level — this page's own children) is always present.
-  const items = nav.pages.submenuLevels.at(-1)!;
-  return htmlResponse(sitePagePage(page, items, nav, settings.websiteTitle));
+  return htmlResponse(sitePagePage(page, nav, settings.websiteTitle));
 };
 
 /** Route `/page/*` requests (public-site gate first, then slug resolution). */

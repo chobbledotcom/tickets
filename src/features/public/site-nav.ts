@@ -83,7 +83,9 @@ const resolveTargets = async (
 
 /** Build the public nav view model for the current target (`null` on the fixed
  * pages — home, listings, order, terms, contact — which show just the root
- * row). */
+ * row). With no current target there is no active chain, so no submenu level
+ * can render a leaf: skip the leaf resolution entirely and keep the hot fixed
+ * pages to the two cached reads. */
 export const publicNavModel = async (
   current: TargetKey | null,
 ): Promise<NavModel> => {
@@ -91,11 +93,8 @@ export const publicNavModel = async (
     getSitePageNavRows(),
     getAllPageItems(),
   ]);
-  return buildNavModel(
-    buildForest(pages, items),
-    await resolveTargets(items),
-    current,
-  );
+  const targets = current === null ? new Map() : await resolveTargets(items);
+  return buildNavModel(buildForest(pages, items), targets, current);
 };
 
 /** The full prop set {@link PublicNav} renders: the settings-driven page flags

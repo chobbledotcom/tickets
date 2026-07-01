@@ -193,3 +193,4 @@ src/ui/templates/public/shared.tsx:135:75  ?? → ||   # mobile chain: find() �
 # listing_prices sync (listing-prices.ts): `?? → ||` where the operand's only
 # falsy-non-null value equals the fallback.
 src/shared/db/listing-prices.ts:76:19  ?? → ||    # sourceRowStatements row.unit_price: number|null; the only falsy-non-null value is 0 and 0 ?? 0 === 0 || 0
+src/ui/templates/public/site-page.tsx:29:67  ?? → ||   # submenuLevels.at(-1) → NavNode[]|undefined — an array is always truthy

@@ -447,8 +447,9 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
     CONFIG_KEYS.EMBED_HOSTS,
     CONFIG_KEYS.COUNTRY,
   ],
-  // --- User-created content pages (full public nav) ---
-  page: PUBLIC_NAV_SETTINGS,
+  // --- User-created content pages (full public nav; country because the
+  // nav's group-liveness check reaches the timezone-aware calendar reads) ---
+  page: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY],
   // --- Checkout / payment (bare layout, no public nav) ---
   pay: PAYMENT_SETTINGS,
   payment: [...PAYMENT_SETTINGS, ...EMAIL_SETTINGS],
@@ -498,6 +499,8 @@ const READ_ONLY_GET_PATTERNS = [
   /^\/admin\/listing\/\d+\/duplicate$/,
   /^\/admin\/groups\/new$/,
   /^\/admin\/groups\/\d+\/edit$/,
+  /^\/admin\/site\/pages\/new$/,
+  /^\/admin\/site\/pages\/\d+\/edit$/,
   /^\/admin\/attendees\/new$/,
   /^\/admin\/ledger\/[^/]+\/[^/]+\/add$/,
   /^\/admin\/ledger\/entries\/\d+\/edit$/,
