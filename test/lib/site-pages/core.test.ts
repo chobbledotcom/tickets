@@ -110,12 +110,20 @@ describe("site-pages core", () => {
   });
 
   describe("descendantsOf", () => {
-    test("collects all transitive child pages", () => {
+    test("collects transitive child pages, skipping non-page items and revisits", () => {
+      // 1 → {page 2, listing 99, page 3}; 2 → page 3 (already reached via 1).
       const forest = buildForest(
-        [page(1), page(2), page(3), page(4)],
-        [edge(1, "page", 2, 0), edge(2, "page", 3, 0), edge(1, "page", 4, 1)],
+        [page(1), page(2), page(3)],
+        [
+          edge(1, "page", 2, 0),
+          edge(1, "listing", 99, 1), // non-page item → skipped
+          edge(1, "page", 3, 2), // reached directly
+          edge(2, "page", 3, 0), // revisit of 3 → the out.has guard fires
+        ],
       );
-      expect([...descendantsOf(forest, 1)].sort()).toEqual([2, 3, 4]);
+      expect([...descendantsOf(forest, 1)].sort((a, b) => a - b)).toEqual([
+        2, 3,
+      ]);
       expect([...descendantsOf(forest, 3)]).toEqual([]);
     });
   });
@@ -250,6 +258,20 @@ describe("site-pages core", () => {
       const forest = buildForest([page(1)], [edge(1, "page", 99, 0)]);
       const model = buildNavModel(forest, new Map(), "page:1");
       expect(model.submenuLevels[0]).toEqual([]);
+    });
+
+    test("a childless root page as current yields one empty submenu level", () => {
+      const forest = buildForest([page(1)], []);
+      const model = buildNavModel(forest, new Map(), "page:1");
+      expect(model.activeRootId).toBe(1);
+      expect(model.submenuLevels).toEqual([[]]);
+    });
+
+    test("a current page id that doesn't exist is off-tree", () => {
+      const forest = buildForest([page(1)], []);
+      const model = buildNavModel(forest, new Map(), "page:999");
+      expect(model.activeRootId).toBeNull();
+      expect(model.submenuLevels).toEqual([]);
     });
 
     test("a leaf with no parent page yields a flat nav (no chain)", () => {
