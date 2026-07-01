@@ -13,6 +13,10 @@ import {
   isEmbeddablePath,
   isValidContentType,
 } from "#routes/middleware.ts";
+import {
+  emptyCustomCssResponse,
+  isCssResponse,
+} from "#routes/public/custom-css.ts";
 import { bufferRequestBody } from "#routes/request-body.ts";
 import {
   databaseBusyResponse,
@@ -949,6 +953,12 @@ const handleRoutingError = (
   return temporaryErrorResponse();
 };
 
+const CUSTOM_CSS_PATH = "/custom.css";
+
+/** True for a 3xx redirect response (bodyless — never a stray stylesheet). */
+const isRedirectResponse = (response: Response): boolean =>
+  response.status >= 300 && response.status < 400;
+
 /**
  * The core request pipeline that runs inside all async context wrappers.
  * Performs parsing, early redirects, content-type validation, routing,
@@ -963,6 +973,28 @@ const processRequest = async (
   detectIframeMode(request.url);
   clearSavedFormData();
 
+  // The public layout links /custom.css on every page, including the system
+  // pages the pipeline answers before the dynamic CSS route runs (setup /
+  // site-not-activated, migration-in-progress, transient error). Serving those
+  // HTML fallbacks for this asset trips the browser's strict MIME check, so an
+  // HTML response for /custom.css is coerced to an empty stylesheet. On a
+  // healthy site the route already returns text/css, making this a no-op.
+  // Redirects (3xx) pass through untouched — a bodyless redirect isn't a stray
+  // stylesheet, and coercing one would swallow the tracking-param cleanup that
+  // rewrites e.g. /custom.css?utm_source=x to the clean URL before the CSS is
+  // served.
+  const finish = (response: Response): Response =>
+    logAndReturn(
+      path === CUSTOM_CSS_PATH &&
+        !isRedirectResponse(response) &&
+        !isCssResponse(response)
+        ? emptyCustomCssResponse()
+        : response,
+      method,
+      path,
+      getElapsed,
+    );
+
   let response!: Response;
   try {
     // Buffer the POST body up front, before the DB init / settings load awaits
@@ -974,11 +1006,8 @@ const processRequest = async (
 
     const staticResponse = await routeStatic(bufferedRequest, path, method);
     if (staticResponse) {
-      return logAndReturn(
+      return finish(
         await applySecurityHeaders(staticResponse, isEmbeddablePath(path)),
-        method,
-        path,
-        getElapsed,
       );
     }
 
@@ -990,41 +1019,28 @@ const processRequest = async (
 
     const notActivated = await initializeDatabaseForPath(path);
     if (notActivated) {
-      return logAndReturn(notActivated, method, path, getElapsed);
+      return finish(notActivated);
     }
 
     const trackingRedirect = trackingParamRedirect(url, method);
     if (trackingRedirect) {
-      return logAndReturn(trackingRedirect, method, path, getElapsed);
+      return finish(trackingRedirect);
     }
 
     await prepareRequestEnvironment(bufferedRequest, path, method);
 
     if (!isValidContentType(bufferedRequest, path)) {
-      return logAndReturn(
-        contentTypeRejectionResponse(),
-        method,
-        path,
-        getElapsed,
-      );
+      return finish(contentTypeRejectionResponse());
     }
 
-    response = logAndReturn(
+    response = finish(
       await routeAndFinalize(bufferedRequest, path, method, server),
-      method,
-      path,
-      getElapsed,
     );
     // Dev/test safety net: prove this route declared every setting it read.
     // No-op in production (audit scope is never entered).
     assertSettingsReadsDeclared(`${method} ${path}`);
   } catch (error) {
-    response = logAndReturn(
-      handleRoutingError(error, method, path),
-      method,
-      path,
-      getElapsed,
-    );
+    response = finish(handleRoutingError(error, method, path));
   } finally {
     await flushPendingWork();
   }
