@@ -59,6 +59,20 @@ captured below as a requirement on the unified build.
   byte-identical signed metadata for sessions created by the old code. Existing
   persisted bookings still must render and remain editable, but the paid checkout
   metadata can move to a clean v2 shape instead of carrying old wire compromises.
+  - **Caveat — drain the in-flight sessions, don't just stop new ones (Codex
+    P1).** Making a site inactive stops *new* booking pages; it does **not**
+    cancel Stripe/Square/SumUp hosted-checkout sessions already created before the
+    cutover, and `/payment/webhook` can still receive those paid sessions
+    afterwards, carrying the **old** `items` metadata shape. A webhook/parser-only
+    v2 (no bridge) would leave a buyer who completes a pre-existing hosted checkout
+    with a paid session that can't be fulfilled or revalidated. So the cutover
+    must do **one** of: (a) keep a **read-only v1 metadata bridge** in the webhook
+    for a bounded drain window (parse old `items`, fulfil, but never *emit* v1);
+    or (b) actively **expire/cancel** all open provider sessions at deploy and
+    reconcile any that still land as refunds. The plan assumes (a) — a v1-read
+    shim retired after the drain window — so "clean v2" applies to *emitting*
+    metadata, not to *reading* already-signed sessions. A regression test drives an
+    old-shape webhook through the shim during the window.
 - **Phase 1 starts by enumerating, from the route table, every booking *entry*
   the tree must represent and every buyer *surface* the projection must reach** —
   the router is the source of truth, so a flow that isn't in the lists below is a
@@ -66,13 +80,23 @@ captured below as a requirement on the unified build.
   ad-hoc multi-slug cart (`/ticket/<slug+slug>`); regular (non-package) group;
   package; signed QR link with a `payload.v` price override; `/renew` tier picker
   with a `siteToken`; the JSON API booking path (`POST /api/listings/:slug/book`,
-  which already runs the parent/child fold); the non-tree `/pay/:token`
-  balance settlement; and the **admin attendee writers** that create/edit real
-  `listing_attendees` rows from flat listing lines, bypassing the public
-  render/fold path (`src/features/admin/attendees.ts`,
-  `src/features/admin/attendee-form-routes.ts`) — these either join the unified
+  which already runs the parent/child fold but **rejects `customisable_days`
+  listings** because it has no `day_count` input — the unified normal-listing
+  mapping allows `DAY_PRICE`/`SPAN` nodes, so the API entry must either add a
+  `day_count` contract to its schema or **keep the explicit unsupported-listing
+  rejection**, tested as a round-trip, so API clients can't book/revalidate a
+  customisable-day listing at a wrong/default span, Codex); the non-tree
+  `/pay/:token` balance settlement; the **admin attendee writers** that
+  create/edit real `listing_attendees` rows from flat listing lines, bypassing the
+  public render/fold path (`src/features/admin/attendees.ts`,
+  `src/features/admin/attendee-form-routes.ts`); and the **servicing-hold writers**
+  (`POST /admin/servicing/new` and edit → `createServicingEvent` → flat
+  `ListingBooking[]` → `createAttendeeAtomic`, `src/shared/db/attendees/servicing.ts`),
+  which also create real capacity rows — all of these either join the unified
   fold's edge semantics or are explicitly scoped/exempt with a migration note, or
-  an admin can hand-write a parent-only row that violates `childRule`. Known buyer
+  an admin/servicing hold can hand-write a parent-only/package/folded-child row
+  that public capacity and later renders interpret differently (e.g. a parent-only
+  row that violates `childRule`). Known buyer
   surfaces: booking page; `/calculate` running total; Stripe/Square line items;
   confirmation email + ticket attachments; ticket cards; public `/listings`; the
   `/order` no-JS gallery (which runs its own listing/group discovery before
@@ -81,9 +105,18 @@ captured below as a requirement on the unified build.
   JSON API discovery routes; the share/QR affordances (`GET /ticket/:slug/qr`
   gated by `lacksStandalonePublicPage`/`groupBookable`, plus the admin
   dashboard/listing public-URL/QR/embed snippets); the Apple/Google **wallet**
-  passes (`/wallet`, `/gwallet`, built from a single resolved token entry's
-  name/qty/price, package bookings 404'd); and discovery
-  (`packageGroupBookable`). The test matrix covers each relevant entry × surface.
+  passes — the direct `/wallet`/`/gwallet` downloads **and** the Apple Wallet
+  web-service **refresh** endpoint (`GET /v1/passes/:passType/:token`,
+  `src/features/wallet/webservice.ts`, which serves already-installed passes via
+  the same `buildPkpassForToken` as the direct download), all built from a single
+  resolved token entry's name/qty/price with package bookings 404'd; the
+  buyer-facing **payment retry** surfaces (`/payment/cancel`/failed-provider
+  redirects, whose `cancelPageResponse` today rebuilds its link from `items[0].e`
+  and only special-cases `packageGroupId` — v2 must rebuild the retry URL from
+  `rootRef`/`entry` so a folded/hidden first line, a regular group, a multi-slug
+  cart, QR prefill, a renewal action URL, or URL quantity prefill each returns to
+  the right page); and discovery (`packageGroupBookable`). The test matrix covers
+  each relevant entry × surface.
 
 ---
 
@@ -420,6 +453,18 @@ the accepted configuration fails from whichever path wasn't updated:
 - A parent member must itself satisfy the packageable rules (standard, not
   `customisable_days`/`can_pay_more`) — the deterministic-child rule is *added on
   top*, not a replacement.
+- **The child edges must be deterministic too, not just the parent (Codex).**
+  Checking only that the *parent* member is packageable still admits child edges
+  that need buyer input or an order date, which a package page cannot collect
+  before Phase 4 (it gathers only `package_quantity`). The current child fold
+  reads `child_price_<parent>_<child>` for a `can_pay_more` child and `childDateOk`
+  rejects a daily child with no resolved date — so the shared predicate must also
+  reject a package parent whose required children are pay-more or date-bearing
+  (daily/`customisable_days`). Otherwise Phase 2 can accept a package the buyer
+  can't price or date, or one that submits as sold out. Until those child
+  sub-fields are actually rendered on a package page (Phase 4), package children
+  must be **fixed-price, date-less deterministic**; test both the accept and the
+  reject for pay-more and daily children.
 - **Questions:** answers are **not** product-instance/node scoped. A buyer should
   answer each relevant question once per order, even when several selected nodes
   require it. Relevance is the union of the selected tree's listings (including
@@ -430,6 +475,16 @@ the accepted configuration fails from whichever path wasn't updated:
   system to print hidden listing names; operators remain responsible for writing
   question copy that collects the information they need without relying on repeated
   per-product prompts.
+  - **Fan the single answer back out to every relevant listing row (Codex).**
+    Rendering one prompt does not mean storing one answer: the answer-modifier
+    resolver charges by `listingAnswerIds` keyed to a listing and that listing's
+    quantity, and attendee answers are grouped back onto each listing row. So a
+    de-duplicated prompt must still **associate its chosen answer with every
+    selected listing/node that made it relevant** through the existing
+    listing-keyed answer flow — store it under one listing only (or an order-level
+    key) and scoped answer modifiers undercharge while the other booked rows lose
+    their required answer. Model and test this fan-out (one prompt → N listing-row
+    answers), including a scoped-modifier charge across a multi-node order.
 
 ### Capacity — every booked node, summed, both arms, active-gated, everywhere
 
@@ -457,9 +512,13 @@ folded child or hidden member must not get published share links), and the
 Apple/Google **wallet** passes. Wallet data is built from a single resolved
 token entry's `listing.name`/qty/price (`lookupSingleTokenPassData` →
 `buildWalletPassData`, with package bookings 404'd today); once folded child rows
-are signed/persisted separately, `/wallet`/`/gwallet` need an explicit
-projection/suppression rule or a direct request exposes the child as the pass's
-listing (or regresses by disappearing only on that surface).
+are signed/persisted separately, `/wallet`/`/gwallet` **and the Apple Wallet
+refresh endpoint** (`GET /v1/passes/:passType/:token`,
+`src/features/wallet/webservice.ts`, which serves already-installed passes via the
+same `buildPkpassForToken`) need one explicit projection/suppression rule — apply
+it at the shared builder, not per route, or an installed pass refreshing through
+`/v1/passes` still exposes a folded child or hidden member as the pass listing
+even after the direct download is fixed.
 
 **Crucially this is display-only.** The provider line items *and* the signed
 booking metadata must no longer be the same mutable array once display folding is
@@ -481,14 +540,36 @@ Keep parent rows as their own booked rows; the tree is not only its leaves. Any
 edge-store migration must keep pre-migration bookings resolving
 (`package_group_id`, allocations, `getPackageDisplaysByIds`).
 
+**Row-level admin actions must move with node identity (Codex).** Once v2 can
+persist the *same* listing through two different node paths, every row consumer
+that keys only by `(listing, date, parent)` becomes a collapse hazard and must
+learn `package_group_id`/`nodeKey` before duplicate listing ids across paths are
+allowed:
+
+- **Attendee merge** builds its conflict keys from `listingId/startAt/parentListingId`
+  (`src/shared/merge/attendee-merge.ts`) — ignoring `package_group_id`/`nodeKey`,
+  it can treat two distinct package/edge rows for one listing as the same and
+  move/void one.
+- **Check-in** updates by `attendee_id` + `listing_id` only, so it can check in
+  two distinct edge rows for the same listing together.
+
+Add these row-level admin actions (merge conflict-keying, check-in targeting) to
+the persistence tests *before* Phase 3 allows duplicate listing ids across paths.
+
 ### Metadata v2 consistency
 
-No byte-identical old/new metadata guarantee is required for in-flight checkouts:
-sites are inactive during deployment. The requirement is instead that the v2
-metadata is internally consistent — the amount sent to the provider, the signed
-proof, the webhook re-price, and the ledger booking all derive from the same
-canonical per-node lines (plus the non-line components: modifiers, fees,
-reservation, and the `/pay` balance settlement).
+No byte-identical old/new metadata guarantee is required for *emitting* metadata:
+sites are inactive during deployment, so new sessions use the clean v2 shape. The
+requirement is instead that the v2 metadata is internally consistent — the amount
+sent to the provider, the signed proof, the webhook re-price, and the ledger
+booking all derive from the same canonical per-node lines (plus the non-line
+components: modifiers, fees, reservation, and the `/pay` balance settlement).
+
+But *reading* is not v2-only during the cutover: provider sessions created before
+deploy can still pay through `/payment/webhook` afterwards with **old** `items`
+metadata (see the drain caveat under "Branch & sequencing"). So the webhook keeps
+a **read-only v1 bridge** for a bounded drain window — it parses and fulfils old
+sessions but never emits v1 — retired once no open pre-cutover session can remain.
 
 ---
 
@@ -500,12 +581,20 @@ invariants above demand:
 - **Admin:** the accepted parent-member-with-child configuration succeeds via
   **every** save path (group edit/add-listings, listing save, children form, JSON
   API, single-listing duplicate, group bulk duplicate); incompatible
-  parent/child/cardinality rejected from each. The admin attendee add/edit writers
-  either produce edge-consistent rows or reject a parent-only row that violates
-  `childRule` (no flat-line bypass of the fold's child semantics).
+  parent/child/cardinality rejected from each — **including** a package parent
+  whose child is pay-more or daily/`customisable_days` (rejected until Phase 4).
+  The admin attendee add/edit writers **and the servicing-hold writers**
+  (`POST /admin/servicing/new`) either produce edge-consistent rows or reject a
+  parent-only row that violates `childRule` (no flat-line bypass of the fold's
+  child semantics).
 - **Questions:** a question assigned to several selected listings is rendered and
   validated once; a required question on a folded/hidden child is still collected
-  once without printing the hidden listing's name.
+  once without printing the hidden listing's name; and the one answer fans out to
+  **every** relevant listing row — a scoped answer modifier charges across all of
+  them (not just one), no booked row is left missing its required answer.
+- **Row-level admin:** attendee merge does not collapse two distinct
+  package/edge rows for one listing into one conflict key; check-in targets a
+  single edge row, not every row sharing a `listing_id`.
 - **Fold/pricing:** with `packageQty > 1` **and** `memberQty > 1`, parent and
   child quantities/prices are each `fixed × packageQty` exactly once (a regression
   that fails on a doubled or missing scale factor); v2 signed per-node lines are
@@ -518,16 +607,23 @@ invariants above demand:
   lines, email, ticket card, `/listings`, `/order`, and `/order.js` — while the
   **canonical signed lines still carry the child separately** (assert the webhook
   receives/persists it). A folded child / hidden member is not exposed via
-  `/wallet`/`/gwallet` or via share/QR (`/ticket/:slug/qr`, admin embed snippets),
-  and a visible package's wallet pass projects the parent, not the child.
+  `/wallet`/`/gwallet` **or the `/v1/passes` refresh endpoint** or via share/QR
+  (`/ticket/:slug/qr`, admin embed snippets), and a visible package's wallet pass
+  projects the parent, not the child, on both the direct download and the refresh.
 - **Metadata budget:** a deeply nested package / many folded children stays within
   Square's entry-count and value-length limits (compact v2 wire shape), asserting
   hosted checkout doesn't throw on a tree the validator accepts.
 - **Entry round-trips:** a signed QR link's qty/date/name/price prefill and a
   parent `thankYouUrl` survive a fold that adds child lines; an
-  `/order → /ticket/<slugs>?q_<id>=N` cart opens the form with those quantities.
+  `/order → /ticket/<slugs>?q_<id>=N` cart opens the form with those quantities;
+  the JSON API either honours a `day_count` for a `customisable_days` listing or
+  keeps rejecting it (no wrong/default span); and `/payment/cancel` rebuilds the
+  correct retry URL from `rootRef`/`entry` for a folded-first-line order, a
+  regular group, a multi-slug cart, a QR/renewal/URL-prefill entry.
 - **Webhook:** price drift *and* a removed/swapped edge mid-checkout both take
-  `price_changed`; the `/pay` balance and renewal entries settle/extend correctly.
+  `price_changed`; the `/pay` balance and renewal entries settle/extend correctly;
+  and an **old-shape (v1) session paid during the drain window** is still parsed
+  and fulfilled by the read-only bridge (then the bridge's removal is safe).
 - **Privacy:** `hide_package_listings` conceals members on every surface.
 
 ---
