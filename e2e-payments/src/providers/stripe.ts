@@ -1,7 +1,7 @@
 import type { Page } from "playwright";
 import type { BrowserSession } from "../browser.ts";
 import { log, warn } from "../log.ts";
-import { clickFirst, fillCard } from "./card.ts";
+import { clickFirst, fillFirst } from "./card.ts";
 import { assertConfigured, selectProvider } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
 
@@ -32,27 +32,40 @@ export const stripe: PaymentProvider = {
   payHostedCheckout: async (page: Page): Promise<void> => {
     log("Filling Stripe Checkout hosted page…");
     await page.waitForLoadState("domcontentloaded");
-    // Stripe's hosted Checkout (checkout.stripe.com) exposes the card fields via
-    // the WHATWG cc-* autocomplete tokens the generic filler tries first — it is
-    // NOT the split "Secure card number input frame" iframes of embedded Stripe
-    // Elements, so no frameLocator is needed here. Email is prefilled from the
-    // booking; US ZIP to match the account's billing country (see note above).
-    await fillCard(
+    // Target Stripe Checkout's own field ids (#cardNumber/#cardExpiry/#cardCvc/
+    // #billingPostalCode). Do NOT use the generic cc-* autocomplete selectors:
+    // Stripe seeds hidden top-level autofill "decoy" inputs carrying those
+    // tokens, and filling a decoy leaves the real field empty → Checkout reports
+    // "Required". Email is prefilled from the booking. US ZIP (42424) to match
+    // the account's billing country — a UK postcode gets its letters stripped to
+    // a too-short ZIP ("SW1A 1AA" → "11", "incomplete").
+    await fillFirst(
       page,
-      {
-        number: "4242424242424242",
-        expiry: "12 / 34",
-        cvc: "123",
-        name: "E2E Tester",
-        postal: "42424",
-      },
-      // Type as real keystrokes: Stripe's card iframe ignores a programmatic
-      // fill and reports the field as "Required" on submit.
-      { type: true },
+      "card number",
+      ["#cardNumber", 'input[name="cardNumber"]'],
+      "4242424242424242",
     );
-    // Let Stripe validate the freshly-typed fields before submitting, otherwise
-    // Pay can fire while the card is still "incomplete" and silently no-op.
-    await page.waitForTimeout(1_000);
+    await fillFirst(
+      page,
+      "expiry",
+      ["#cardExpiry", 'input[name="cardExpiry"]'],
+      "12 / 34",
+    );
+    await fillFirst(page, "cvc", ["#cardCvc", 'input[name="cardCvc"]'], "123");
+    await fillFirst(
+      page,
+      "name on card",
+      ["#billingName", 'input[name="billingName"]'],
+      "E2E Tester",
+      { required: false },
+    );
+    await fillFirst(
+      page,
+      "postal code",
+      ["#billingPostalCode", 'input[name="billingPostalCode"]'],
+      "42424",
+      { required: false },
+    );
     await clickFirst(page, "pay button", [
       'button[data-testid="hosted-payment-submit-button"]',
       ".SubmitButton",

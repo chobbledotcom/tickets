@@ -5,6 +5,62 @@ import { clickFirst, fillCard } from "./card.ts";
 import { assertConfigured, selectProvider } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
 
+/** Log every button/link on the page and its frames (text + key attributes),
+ * so a CI failure reveals exactly what controls a hosted page offers. */
+const dumpControls = async (page: Page): Promise<void> => {
+  for (const root of [page, ...page.frames()]) {
+    try {
+      const controls = await root
+        .locator('button, a, [role="button"], input[type="submit"]')
+        .evaluateAll((els) =>
+          els.slice(0, 40).map((el) => {
+            const h = el as HTMLElement;
+            const attr = (n: string) => h.getAttribute(n) ?? "";
+            return {
+              tag: h.tagName.toLowerCase(),
+              text: (h.innerText || (h as HTMLInputElement).value || "")
+                .trim()
+                .slice(0, 60),
+              testid: attr("data-testid"),
+              id: h.id,
+            };
+          }),
+        );
+      for (const c of controls.filter((c) => c.text || c.testid || c.id)) {
+        log(
+          `    control: <${c.tag}> "${c.text}"${c.testid ? ` testid=${c.testid}` : ""}${c.id ? ` id=${c.id}` : ""}`,
+        );
+      }
+    } catch {
+      // frame detached; skip
+    }
+  }
+};
+
+/**
+ * Square SANDBOX payment links redirect to a "sandbox testing panel" (host
+ * connect.squareupsandbox.com, path /online-checkout/sandbox-testing-panel/…),
+ * not a real card-entry page: you simulate the buyer by clicking a button. Log
+ * the panel's controls (so any change is visible in CI) and click the control
+ * that completes the payment.
+ */
+const completeSandboxPanel = async (page: Page): Promise<void> => {
+  log("Square sandbox testing panel detected; listing controls…");
+  await dumpControls(page);
+  // The panel's primary action completes/authorises the test payment. Try the
+  // most specific labels first, then a generic submit.
+  await clickFirst(page, "complete-payment control", [
+    'button:has-text("Pay")',
+    'button:has-text("Complete")',
+    'button:has-text("Authorize")',
+    'button:has-text("Authorise")',
+    'button:has-text("Charge")',
+    'button:has-text("Submit")',
+    'button[type="submit"]',
+    '[data-testid*="pay" i]',
+  ]);
+};
+
 /**
  * Square. Payment confirmation is asserted via the browser return URL
  * (validatePaidSession → processPaymentSession). Square webhooks require a
@@ -37,11 +93,17 @@ export const square: PaymentProvider = {
   },
 
   payHostedCheckout: async (page: Page): Promise<void> => {
-    log("Filling Square hosted checkout…");
     await page.waitForLoadState("domcontentloaded");
+    // In sandbox, payment links land on the testing panel (button-driven), not a
+    // card form. Handle that; otherwise fall back to real card entry.
+    if (page.url().includes("sandbox-testing-panel")) {
+      await completeSandboxPanel(page);
+      return;
+    }
+    log("Filling Square hosted checkout…");
     // Square's card inputs live inside the Web Payments SDK iframe; the generic
     // filler searches child frames and matches the SDK's cc-* autocomplete
-    // tokens. Sandbox card 4111 …, CVV 111, US ZIP 94103.
+    // tokens. Sandbox card 4111 …, CVV 111, postal 94103.
     await fillCard(page, {
       number: "4111111111111111",
       expiry: "12/34",
