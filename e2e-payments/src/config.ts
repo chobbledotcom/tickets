@@ -68,6 +68,10 @@ export const config = {
   serverBootTimeoutMs: num("E2E_SERVER_BOOT_TIMEOUT_MS", 60_000),
   tunnelTimeoutMs: num("E2E_TUNNEL_TIMEOUT_MS", 60_000),
   navTimeoutMs: num("E2E_NAV_TIMEOUT_MS", 45_000),
+  /** Per-element action timeout. Kept short: with force interactions an element
+   * is acted on as soon as it is attached, so a long wait here only delays a
+   * genuine failure (and its screenshot). */
+  actionTimeoutMs: num("E2E_ACTION_TIMEOUT_MS", 15_000),
   paymentConfirmTimeoutMs: num("E2E_PAYMENT_CONFIRM_TIMEOUT_MS", 90_000),
 
   /** Force the tunnel on/off. Stripe always needs it; default follows target. */

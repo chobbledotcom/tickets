@@ -105,8 +105,7 @@ export const submitBooking = async (
   const submit = page
     .getByRole("button", { name: /continue|book|pay|checkout|reserve/i })
     .first();
-  await submit.click();
-  await page.waitForLoadState("domcontentloaded");
+  await session.submitLocator(submit);
   log(`  booking submitted; now at ${page.url()}`);
 };
 
