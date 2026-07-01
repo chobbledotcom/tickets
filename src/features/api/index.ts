@@ -761,12 +761,13 @@ const completeFoldedBooking = async (
   // 3) — mirroring the web path's conditional `dayCount` on its intent.
   const intent: CheckoutIntent = {
     ...contact,
-    date,
-    items,
     // Carry the per-(child,parent) allocations so the paid session signs them and
     // the webhook's edge-drift revalidation can detect a parent→child edge
-    // removed/re-parented mid-payment — mirroring the web folded-parent path.
-    ...(fold.allocations.length > 0 ? { allocations: fold.allocations } : {}),
+    // removed/re-parented mid-payment. This is the folded path, so there is
+    // always at least one; buildMetadata omits an empty array anyway.
+    allocations: fold.allocations,
+    date,
+    items,
     ...(fold.hasCustomisable ? { dayCount: fold.dayCount } : {}),
     // Carry the parent's thank-you URL only once a child was actually folded in
     // (the order gained a listing): a multi-listing order can't recover it from
