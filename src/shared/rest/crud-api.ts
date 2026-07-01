@@ -215,9 +215,6 @@ export interface CrudApiConfig<
   nameField: keyof FullRow & string;
   /** Custom delete logic (e.g. cascade). If not provided, uses table.deleteById */
   onDelete?: (id: InValue) => Promise<void>;
-  /** Guard blocking deletion with a user-facing message (null = allow). Runs
-   * after the row loads and the identifier is verified; a message becomes a 400. */
-  guardDelete?: (row: FullRow) => Promise<string | null>;
   /** Auth policy for all generated routes. Defaults to ADMIN_API (any admin);
    * pass OWNER_API for resources whose web management is owner-only. */
   policy?: AuthPolicy<"json">;
@@ -517,11 +514,6 @@ export const defineCrudApi = <
       `${singular} name`,
     );
     if (error) return apiErrorResponse(error);
-
-    if (config.guardDelete) {
-      const blocked = await config.guardDelete(existing);
-      if (blocked) return apiErrorResponse(blocked);
-    }
 
     if (config.onDelete) {
       await config.onDelete(existing.id);

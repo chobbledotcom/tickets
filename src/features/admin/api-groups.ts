@@ -5,7 +5,6 @@
 import {
   deleteGroup,
   generateUniqueGroupSlug,
-  guardGroupDelete,
   validateGroupWithPackage,
 } from "#routes/admin/groups.ts";
 import type { TxScope } from "#shared/db/client.ts";
@@ -142,7 +141,6 @@ const toMember = (m: GroupListing): PackageMemberBody => ({
 export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   afterWrite: writePackageMembers,
   getAll: getAllGroups,
-  guardDelete: guardGroupDelete,
   // Hydrate a package group's member overrides onto every response so an API
   // client can read back the listing_id/price/quantity values it PUT and
   // round-trip the configuration. Non-package groups carry no members.
