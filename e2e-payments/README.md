@@ -32,19 +32,23 @@ For a target (`stripe` | `square` | `sumup` | `free`):
    - books, is redirected to the provider's hosted checkout, and pays with the
      provider's sandbox test card;
    - lands back on the app return URL and asserts the booking shows as paid
-     (customer success page **and** the booker appears on the admin listing).
+     (customer success page, the booker on the admin listing, **and** the
+     captured amount in the listing's income ledger).
 
 ### What is (and isn't) exercised per provider
 
 Confirmation is asserted via the **browser return URL** for every provider (the
 success handler validates the session with the provider's API and records the
-booking). Webhook coverage differs:
+booking as paid — the harness then asserts the captured amount shows in the
+listing's income ledger, not merely that an attendee row exists). No provider
+leg *asserts* webhook delivery; webhook involvement differs only in what setup
+each requires:
 
-| Provider | Return-URL confirmation | Webhook exercised? |
+| Provider | Confirmation asserted | Webhook involvement |
 | --- | --- | --- |
-| Stripe | ✅ | ✅ — endpoint registered for the tunnel and a signed webhook is received. |
-| SumUp | ✅ | Best-effort — SumUp needs no signature, so a delivered webhook is processed; not separately asserted. |
-| Square | ✅ | ❌ — Square requires a manually-signed subscription against a fixed URL, which can't be provisioned for an ephemeral tunnel. Return path only. |
+| Stripe | Return URL + captured amount | Endpoint **registration** is exercised (required to save the key); delivery is **not** asserted — the return handler records the payment, and a webhook may arrive before teardown but nothing waits on it. |
+| SumUp | Return URL + captured amount | Needs no signature; a delivered webhook would be processed, but delivery is not asserted. |
+| Square | Return URL + captured amount | None — Square requires a manually-signed subscription against a fixed URL, which can't be provisioned for an ephemeral tunnel. |
 
 For Stripe, each run leaves a webhook endpoint pointing at that run's tunnel;
 the harness deletes all `*.trycloudflare.com` webhook endpoints on teardown
@@ -84,7 +88,8 @@ A target with missing secrets **skips** (exits 0) rather than failing.
 Other knobs (all optional): `DENO_BIN`, `CLOUDFLARED_BIN`,
 `CHROMIUM_EXECUTABLE` (unset in CI so Playwright uses its own build),
 `HEADLESS`, `SETUP_COUNTRY` (site currency; defaults per provider — GB/GBP for
-Stripe & SumUp, US/USD for Square), `E2E_UNIT_PRICE` (minor units, default 100),
+Stripe & SumUp, US/USD for Square), `E2E_UNIT_PRICE` (minor units, default 137
+— a non-round amount so the ledger shows decimals),
 `E2E_TUNNEL` (`1`/`0` to force), and the `E2E_*_TIMEOUT_MS` values in
 `src/config.ts`. Screenshots and server logs land in `artifacts/` on failure.
 
