@@ -64,7 +64,29 @@ export const launchBrowser = async (baseUrl: string): Promise<BrowserSession> =>
       await page.check(s);
     },
     clickButton: async (text) => {
-      await page.getByRole("button", { name: text, exact: false }).first().click();
+      const btn = page.getByRole("button", { name: text, exact: false }).first();
+      await btn.waitFor({ state: "attached" });
+      try {
+        await btn.click();
+      } catch (err) {
+        // A submit button can transiently fail click-actionability (visible/
+        // enabled/stable) — e.g. layout still settling over a slow tunnel, or
+        // admin.js's initFormSubmitDisable racing the click. Fall back to
+        // submitting the form programmatically: requestSubmit() fires a real
+        // submit (validation + CSRF + this button as submitter) without needing
+        // the element to be actionable. Falls back to a JS click for a
+        // non-submit button.
+        log(
+          `  clickButton("${text}") could not be clicked (${
+            String(err).split("\n")[0]
+          }); submitting its form directly`,
+        );
+        await btn.evaluate((el) => {
+          const button = el as HTMLButtonElement;
+          if (button.form) button.form.requestSubmit(button);
+          else button.click();
+        });
+      }
       await page.waitForLoadState("domcontentloaded");
     },
     clickLink: async (text) => {
