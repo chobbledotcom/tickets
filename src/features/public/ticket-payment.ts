@@ -343,7 +343,7 @@ export const resolveDayCount = async (
  * regular group carries no id on the ctx yet, so its members build as standalone
  * listing nodes (identical fold field names — the group-root identity is threaded
  * in a later sub-step, for capacity/metadata). */
-const ctxToBuildTreeInput = (ctx: TicketCtx): BuildTreeInput => ({
+export const ctxToBuildTreeInput = (ctx: TicketCtx): BuildTreeInput => ({
   childrenByParentId: ctx.childrenByParentId,
   groupId: ctx.packageGroupId ?? undefined,
   hidePackageListings: ctx.hidePackageListings,

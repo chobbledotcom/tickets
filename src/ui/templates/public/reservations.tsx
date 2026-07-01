@@ -4,8 +4,10 @@ import {
   type BuildTreeInput,
   buildBookingTree,
 } from "#shared/booking/build-tree.ts";
+import { packageQuantityCap } from "#shared/booking/capacity-tree.ts";
 import {
   type BookingNode,
+  type BookingTree,
   childPriceFieldName,
   childQuantityFieldName,
   nodePriceFieldName,
@@ -1106,45 +1108,6 @@ const renderPackageRows = (
   return selector + members;
 };
 
-/** The most packages the buyer can order. Two kinds of bound apply: each
- * member's own remaining capacity divided by how many of it one package includes
- * (a closed/sold-out member has `maxPurchasable` 0, capping the package at 0);
- * and every CAPPED group its members belong to — one package consumes the SUM of
- * its members' fixed quantities from each such group, so that pool fits
- * `floor(remaining / demand)` packages. The package's own group is just one such
- * group; a second group some members also share is bounded the same way (Codex),
- * without which two members sharing a near-full pool would each look individually
- * available while fewer whole packages actually fit. Exported so the submit path
- * clamps the posted count to the same ceiling. */
-export const packageQuantityCap = (
-  listings: TicketListing[],
-  quantities: ReadonlyMap<number, number>,
-  groupRemainingByGroupId: ReadonlyMap<number, number>,
-  groupIdsByListingId: ReadonlyMap<number, number[]>,
-): number => {
-  const qtyOf = (e: TicketListing) => quantities.get(e.listing.id) ?? 1;
-  const perMember = Math.min(
-    ...listings.map((e) => Math.floor(e.maxPurchasable / qtyOf(e))),
-  );
-  // Combined per-package demand against each capped group its members sit in.
-  const demandByGroup = new Map<number, number>();
-  for (const e of listings) {
-    const q = qtyOf(e);
-    for (const groupId of groupIdsByListingId.get(e.listing.id) ?? []) {
-      if (!groupRemainingByGroupId.has(groupId)) continue; // uncapped
-      demandByGroup.set(groupId, (demandByGroup.get(groupId) ?? 0) + q);
-    }
-  }
-  let cap = perMember;
-  for (const [groupId, demand] of demandByGroup) {
-    cap = Math.min(
-      cap,
-      groupPoolUnits(groupRemainingByGroupId.get(groupId)!, demand),
-    );
-  }
-  return cap;
-};
-
 /** Render controls for a single listing: quantity input + pay-more (no listing name/image/description). */
 const renderSingleListingControls = (
   info: TicketListing,
@@ -1674,15 +1637,15 @@ const buildPageListingRows = (opts: {
  * through to "select at least one ticket". */
 const packagePageAvailability = (
   isPackage: boolean,
+  tree: BookingTree,
   listings: TicketListing[],
-  packageQuantities: ReadonlyMap<number, number> | null | undefined,
   groupRemainingByGroupId: ReadonlyMap<number, number>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
 ): { packageCap: number; soldOut: boolean } => {
   const cap = isPackage
     ? packageQuantityCap(
-        listings,
-        packageQuantities ?? new Map(),
+        tree,
+        new Map(listings.map((e) => [e.listing.id, e])),
         groupRemainingByGroupId,
         groupIdsByListingId,
       )
@@ -1745,14 +1708,15 @@ export const ticketPage = ({
     packageQuantities,
     slugs,
   };
+  const tree = buildBookingTree(treeInput);
   const nodeByListingId = new Map(
-    buildBookingTree(treeInput).nodes.map((node) => [node.listingId, node]),
+    tree.nodes.map((node) => [node.listingId, node]),
   );
   const inIframe = getIframeMode();
   const { packageCap, soldOut: allUnavailable } = packagePageAvailability(
     isPackage,
+    tree,
     listings,
-    packageQuantities,
     packageGroupRemainingByGroupId,
     packageMemberGroupIds,
   );

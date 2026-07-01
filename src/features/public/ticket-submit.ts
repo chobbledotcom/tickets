@@ -11,6 +11,8 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import { packageQuantityCap } from "#shared/booking/capacity-tree.ts";
 import {
   customPriceFieldName,
   PACKAGE_QUANTITY_FIELD,
@@ -67,7 +69,6 @@ import {
   type BookingPrefill,
   orderSummary,
   orderSummaryMessage,
-  packageQuantityCap,
   type TicketListing,
   type TicketPrefill,
 } from "#templates/public.tsx";
@@ -94,6 +95,7 @@ import {
   buildRegistrationItems,
   checkAvailability,
   createFreeReservation,
+  ctxToBuildTreeInput,
   dropChildListings,
   foldSelectedChildren,
   getTicketContext,
@@ -582,9 +584,13 @@ const resolvePageQuantities = (
   if (packageGroupId == null || !packageQuantities) {
     return parseQuantities(form, ctx.listings);
   }
+  // Clamp the posted count to the same tree-driven ceiling the page renders, so a
+  // crafted POST can't exceed a member's remaining capacity or a shared pool.
+  const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
+  const listingById = new Map(ctx.listings.map((e) => [e.listing.id, e]));
   const cap = packageQuantityCap(
-    ctx.listings,
-    packageQuantities,
+    tree,
+    listingById,
     ctx.packageGroupRemainingByGroupId,
     ctx.packageMemberGroupIds,
   );

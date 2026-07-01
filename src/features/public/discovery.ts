@@ -21,6 +21,8 @@
 
 import { mapNotNullish, mapParallel, unique } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
+import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import { packageQuantityCap } from "#shared/booking/capacity-tree.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import {
   getGroupRemainingByGroupId,
@@ -56,7 +58,6 @@ import {
   childOpen,
   combinedGroupDemandFits,
   fixedParentSpan,
-  packageQuantityCap,
   type TicketListing,
 } from "#templates/public.tsx";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
@@ -387,13 +388,16 @@ export const packageGroupBookable = async (
   const remaining = await getGroupRemainingByGroupId([
     ...new Set([...groupIdsByListingId.values()].flat()),
   ]);
+  const tree = buildBookingTree({
+    groupId,
+    isPackage: true,
+    listings: ticketListings,
+    packageQuantities: packageMemberMaps(rows).quantities,
+    slugs: members.map((m) => m.slug),
+  });
+  const listingById = new Map(ticketListings.map((e) => [e.listing.id, e]));
   return (
-    packageQuantityCap(
-      ticketListings,
-      packageMemberMaps(rows).quantities,
-      remaining,
-      groupIdsByListingId,
-    ) >= 1
+    packageQuantityCap(tree, listingById, remaining, groupIdsByListingId) >= 1
   );
 };
 
