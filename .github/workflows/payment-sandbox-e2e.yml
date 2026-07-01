@@ -53,8 +53,10 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: e2e-payments/package-lock.json
+          # No npm cache here: e2e-payments/package-lock.json is intentionally
+          # gitignored (the harness installs with `npm install`, not `npm ci`),
+          # so setup-node's cache-dependency-path would resolve to nothing and
+          # fail the job. The Playwright browser cache below is the real win.
 
       - name: Install cloudflared
         run: |
