@@ -48,7 +48,12 @@ export const config = {
   /** Admin credentials created by the setup wizard. Password must be 8+ chars. */
   adminUsername: env("ADMIN_USERNAME") ?? "admin",
   adminPassword: env("ADMIN_PASSWORD") ?? "password",
-  /** ISO country picked in setup — determines the site currency. */
+  /**
+   * ISO country picked in setup — determines the site currency. Must map to a
+   * 2-decimal currency (GBP/USD/EUR, as the provider defaults do): the price
+   * entry and paid-amount assertion assume minor units are hundredths, so a
+   * zero-decimal currency (e.g. JPY via JP) is unsupported.
+   */
   setupCountry: env("SETUP_COUNTRY") ?? "GB",
 
   /**
@@ -96,13 +101,16 @@ export const providerSecrets = (
   if (provider === "stripe") {
     const key = env("STRIPE_SECRET_KEY");
     if (!key) return null;
-    // Fail closed on a live key: this "sandbox" harness registers webhook
-    // endpoints and creates checkout sessions, which must never touch a live
-    // Stripe account. Test keys are sk_test_… (or restricted rk_test_…).
-    if (!/^(sk|rk)_test_/.test(key)) {
+    // Fail closed unless this is a Stripe test-mode secret key. The harness
+    // registers webhook endpoints and creates checkout sessions, which must
+    // never touch a live account. Match the app exactly: detectStripeKeyMode
+    // (src/shared/stripe.ts) only recognises sk_test_/sk_live_, so accepting a
+    // restricted rk_test_ key here would just fail confusingly at the settings
+    // form. Require sk_test_.
+    if (!key.startsWith("sk_test_")) {
       throw new Error(
-        "STRIPE_SECRET_KEY is not a test-mode key (expected sk_test_ or rk_test_). " +
-          "Refusing to run the sandbox harness against a live Stripe key.",
+        "STRIPE_SECRET_KEY is not a Stripe test-mode secret key (expected sk_test_). " +
+          "Refusing to run the sandbox harness against a live or unrecognised key.",
       );
     }
     return { secretKey: key };

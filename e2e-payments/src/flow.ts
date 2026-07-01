@@ -173,33 +173,40 @@ export const assertPaidBookingConfirmed = async (
     );
   }
 
-  // …and, crucially, that the payment was actually captured. The listing's
-  // income ledger projects from the payment ledger, so a regression that
-  // creates the attendee but drops the payment (price_paid = 0) leaves the
-  // recognised income at zero. Assert the captured amount shows up rather than
-  // just that a row exists.
-  //
+  // …and, crucially, that the payment was actually captured. Assert against the
+  // listing's INCOME LEDGER specifically — it projects from the payment ledger,
+  // so a regression that creates the attendee but drops the payment
+  // (price_paid = 0) records no income and the ledger section does not render.
+  // Do NOT fall back to scanning the whole page: the listing detail also shows
+  // the configured ticket price, which would give a false pass with no payment.
+  const ledger = session.page.locator("#income-ledger");
+  if ((await ledger.count()) === 0) {
+    await session.screenshot("paid-admin-no-income-ledger");
+    throw new Error(
+      "the listing's income ledger (#income-ledger) did not render — no recognised " +
+        "income was recorded for the paid booking (lost/failed payment?)",
+    );
+  }
+  const paidRegion = await ledger.innerText();
+
   // Match the app's rendering: formatCurrency uses `trailingZeroDisplay:
   // "stripIfInteger"`, so a whole amount renders "£1" (no decimals) while a
-  // non-round amount keeps them ("£1.37"). We assume a 2-decimal sandbox
-  // currency (GBP/USD/EUR, per SETUP_COUNTRY); the digits match regardless of
-  // the symbol. Accept both the decimal and the stripped-whole forms so an
+  // non-round amount keeps them ("£1.37"). This assumes a 2-decimal currency —
+  // the provider defaults (GBP/USD/EUR via SETUP_COUNTRY) are all 2-decimal;
+  // zero-decimal currencies (e.g. JPY) are unsupported, as the price entry
+  // itself would need currency-aware decimals. The digits match regardless of
+  // the symbol; accept both the decimal and stripped-whole forms so an
   // E2E_UNIT_PRICE override to a whole amount still matches.
   const withDecimals = (config.unitPrice / 100).toFixed(2); // "1.37" / "2.00"
   const strippedWhole = withDecimals.replace(/\.00$/, ""); //  "1.37" / "2"
-  const ledger = session.page.locator("#income-ledger");
-  const paidRegion = (await ledger.count())
-    ? await ledger.innerText()
-    : adminBody;
   if (
     !paidRegion.includes(withDecimals) &&
     !paidRegion.includes(strippedWhole)
   ) {
     await session.screenshot("paid-admin-no-income");
     throw new Error(
-      `payment not reflected in the listing's income (expected ${withDecimals}). ` +
-        `Attendee row exists but the paid amount is missing — likely a lost payment ledger. ` +
-        `Income region:\n${paidRegion.slice(0, 600)}`,
+      `captured payment not reflected in the listing's income ledger (expected ${withDecimals}). ` +
+        `Income ledger:\n${paidRegion.slice(0, 600)}`,
     );
   }
   log(
