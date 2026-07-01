@@ -93,10 +93,10 @@ const packageMembershipError = async (
 };
 
 const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
-  const incompatibleByType =
-    (input.listingType ?? "standard") !== "standard" ||
-    (input.canPayMore ?? false) ||
-    (input.customisableDays ?? false);
+  // Only pay-what-you-want pricing is package-incompatible: a package needs an
+  // operator-set price per member. Daily/customisable members are packageable
+  // (the group keeps members homogeneous, sharing one date/day-count selector).
+  const incompatibleByType = input.canPayMore ?? false;
   for (const groupId of input.groupIds ?? []) {
     const group = await groupsTable.findById(groupId);
     if (!group) return "Selected group does not exist";

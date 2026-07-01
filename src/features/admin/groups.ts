@@ -90,17 +90,16 @@ const validateGroupSlug: GroupValidator = async (input, id) => {
 };
 
 /** A package prices each member individually and the buyer picks a single
- * package quantity, so every member must be a plain standard listing with a
- * single fixed price: daily listings (date-driven), `customisable_days`, and
- * `can_pay_more` listings (price chosen at booking time) cannot be packaged. */
+ * package quantity, so every member needs an operator-set price: only
+ * `can_pay_more` listings (price chosen by the buyer at booking time) cannot be
+ * packaged. Daily and customisable-day members are fine — the group invariant
+ * (see validateGroupListingType) keeps a group's members homogeneous, so a
+ * dated package books every member from one shared date/day-count selector. */
 const isPackageable = (listing: {
   listing_type: ListingType;
   customisable_days: boolean;
   can_pay_more: boolean;
-}): boolean =>
-  listing.listing_type === "standard" &&
-  !listing.customisable_days &&
-  !listing.can_pay_more;
+}): boolean => !listing.can_pay_more;
 
 /** Whether a listing can be a package member: a plain standard listing (see
  * {@link isPackageable}) that is not part of any parent/child relationship. */
@@ -438,7 +437,8 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
 
 /** Validate that all listing types match the group; returns error message or
  * null. When the group is a package, also reject listings that can't be packaged
- * (customisable-day or pay-what-you-want listings — see {@link isPackageable}). */
+ * (pay-what-you-want listings or ones with parent/child edges — see
+ * {@link isPackageableMember}). */
 const validateListingTypesForGroup = async (
   groupId: number,
   listingIds: number[],

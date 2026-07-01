@@ -297,13 +297,20 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     expect(after.status).toBe(404);
   });
 
-  test("edit POST rejects is_package on a group with a daily listing", async () => {
+  test("edit POST accepts is_package on a group with a daily listing", async () => {
+    // Daily members are packageable: the bundle books every member from one
+    // shared date selector (the group invariant keeps members homogeneous).
     const group = await createTestGroup({ name: "Daily", slug: "daily-pkg" });
     await member(group, "Daily Member", {
       date: "2026-09-01T10:00",
       listingType: "daily",
     });
-    await expectPackageRejected(group);
+    const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
+      ...editFields("Daily", "daily-pkg"),
+      is_package: "1",
+    });
+    expect(response.status).toBe(302);
+    expect((await groupsTable.findById(group.id))!.is_package).toBe(true);
   });
 
   test("edit POST rejects is_package on a group with a parent listing", async () => {
@@ -552,14 +559,19 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     expect((await getTestPackagePrices(group.id)).size).toBe(0);
   });
 
-  test("edit POST rejects is_package on a group with a customisable-days listing", async () => {
+  test("edit POST accepts is_package on a group with a customisable-days listing", async () => {
     const group = await createTestGroup({ name: "Cust", slug: "cust" });
     await member(group, "Flexible", {
       customisableDays: true,
       dayPrices: { 1: 1000 },
       durationDays: 1,
     });
-    await expectPackageRejected(group);
+    const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
+      ...editFields("Cust", "cust"),
+      is_package: "1",
+    });
+    expect(response.status).toBe(302);
+    expect((await groupsTable.findById(group.id))!.is_package).toBe(true);
   });
 
   test("edit POST rejects is_package on a group with a pay-what-you-want listing", async () => {
@@ -605,11 +617,27 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     );
   });
 
-  test("add-listings rejects a listing that can't be packaged", async () => {
+  test("add-listings rejects a pay-what-you-want listing", async () => {
+    // The one remaining type restriction: a package needs an operator-set
+    // price per member, so buyer-priced listings can't join.
     const group = await createTestGroup({
       isPackage: true,
       name: "PkgAdd",
       slug: "pkg-add",
+    });
+    const donate = await createTestListing({
+      canPayMore: true,
+      name: "Donate Add",
+    });
+
+    await expectAddListingRejected(group, donate.id);
+  });
+
+  test("add-listings accepts a customisable-days listing into a package group", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "PkgFlex",
+      slug: "pkg-flex",
     });
     const flexible = await createTestListing({
       customisableDays: true,
@@ -617,8 +645,13 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       durationDays: 1,
       name: "Flex Add",
     });
-
-    await expectAddListingRejected(group, flexible.id);
+    const { response } = await adminFormPost(
+      `/admin/groups/${group.id}/add-listings`,
+      { listing_ids: String(flexible.id) },
+    );
+    expect(response.status).toBe(302);
+    const prices = await getGroupPackagePrices(group.id);
+    expect(prices.map((r) => r.listing_id)).toContain(flexible.id);
   });
 
   test("add-listings accepts a fixed-price listing into a package group", async () => {
