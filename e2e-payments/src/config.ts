@@ -73,6 +73,10 @@ export const config = {
   /** Timeouts (ms). Hosted checkout pages can be slow, so keep these generous. */
   serverBootTimeoutMs: num("E2E_SERVER_BOOT_TIMEOUT_MS", 60_000),
   tunnelTimeoutMs: num("E2E_TUNNEL_TIMEOUT_MS", 60_000),
+  /** How many times to (re)spawn cloudflared before giving up. trycloudflare
+   * quick tunnels intermittently fail to register, so retry rather than fail
+   * the whole leg on the first miss. */
+  tunnelAttempts: num("E2E_TUNNEL_ATTEMPTS", 3),
   navTimeoutMs: num("E2E_NAV_TIMEOUT_MS", 45_000),
   /** Per-element action timeout. Kept short: with force interactions an element
    * is acted on as soon as it is attached, so a long wait here only delays a
