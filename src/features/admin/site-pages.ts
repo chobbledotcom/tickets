@@ -139,10 +139,21 @@ const buildEditModel = async (page: SitePage): Promise<EditModel> => {
     label: name,
     value: String(id),
   });
+  // A leaf may sit on a page only once (unique (page_id, item_type, item_id)),
+  // so drop targets already present from the pickers.
+  const present = new Set(
+    pageItems.map((i) => targetKey(i.item_type, i.item_id)),
+  );
+  const freeOf = (type: SitePageItemType, id: number): boolean =>
+    !present.has(targetKey(type, id));
   return {
-    groupOptions: groups.map((g) => opt(g.id, g.name)),
+    groupOptions: groups
+      .filter((g) => freeOf("group", g.id))
+      .map((g) => opt(g.id, g.name)),
     items,
-    listingOptions: [...listingsById.values()].map((l) => opt(l.id, l.name)),
+    listingOptions: [...listingsById.values()]
+      .filter((l) => freeOf("listing", l.id))
+      .map((l) => opt(l.id, l.name)),
     page,
     pageOptions: eligibleChildPages(forest, page.id).map((p) =>
       opt(p.id, p.name),
@@ -276,7 +287,11 @@ const handleCreate = (request: Request): Promise<Response> =>
 const handleUpdate = pagePost(async (page, form) => {
   const fields = await validateFields(form, editPath(page.id), page.id);
   if (!fields.ok) return fields.response;
-  await updateSitePage(page.id, contentFields(form, fields.name, fields.slug));
+  await updateSitePage(page.id, {
+    ...contentFields(form, fields.name, fields.slug),
+    // Recompute the blind index so a renamed slug stays findable/reservable.
+    slugIndex: await computeSitePageSlugIndex(fields.slug),
+  });
   await logActivity(`Page '${fields.name}' updated`);
   return redirect(editPath(page.id), t("site.pages.updated"), true);
 });
@@ -327,15 +342,21 @@ const moveRoot = (dir: "up" | "down") =>
 
 // ─── Item manager ───────────────────────────────────────────────
 
-/** Is `(type, id)` a target the current page may contain right now? For pages
- * this is the full tree-eligibility check (unparented, no cycle); `addPageItem`
- * re-enforces the single-parent/acyclic rules transactionally as a last line of
- * defence against a concurrent add. */
+/** Is `(type, id)` a target the current page may contain right now? A target may
+ * appear on a page only once (unique edge key), so a repeat is rejected up front.
+ * For pages this then applies the full tree-eligibility check (unparented, no
+ * cycle); `addPageItem` re-enforces the single-parent/acyclic rules
+ * transactionally as a last line of defence against a concurrent add. */
 const isEligibleTarget = async (
   pageId: number,
   type: SitePageItemType,
   itemId: number,
 ): Promise<boolean> => {
+  const key = targetKey(type, itemId);
+  const present = (await getItemsForPage(pageId)).some(
+    (i) => targetKey(i.item_type, i.item_id) === key,
+  );
+  if (present) return false;
   if (type === "listing") return (await getListingsById()).has(itemId);
   if (type === "group")
     return (await getAllGroups()).some((g) => g.id === itemId);

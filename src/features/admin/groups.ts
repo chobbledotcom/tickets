@@ -16,6 +16,7 @@ import { createAuthedHandler } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { decryptAttendees } from "#shared/db/attendees.ts";
+import { executeBatch } from "#shared/db/client.ts";
 import {
   assignListingsToGroup,
   computeGroupSlugIndex,
@@ -32,6 +33,7 @@ import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAttendeesByListingIds, getListing } from "#shared/db/listings.ts";
 import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
+import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
 import { GROUP_DEMO_FIELDS, wrapResourceForDemo } from "#shared/demo.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -107,6 +109,9 @@ export const deleteGroup = async (
   id: Parameters<typeof groupsTable.findById>[0],
 ) => {
   await resetGroupListings(Number(id));
+  // Drop any site-page membership edges so no page keeps a dangling
+  // "(missing)" row pointing at this deleted group.
+  await executeBatch([clearItemEdgesStatement("group", Number(id))]);
   await groupsTable.deleteById(id);
 };
 

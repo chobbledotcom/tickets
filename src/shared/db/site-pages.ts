@@ -129,10 +129,12 @@ export const createSitePage = async (
   return sitePagesTable.insert({ ...input, sortOrder: nextSortOrder(orders) });
 };
 
-/** Update a page's editable fields (all but id/slug_index/sort_order). */
+/** Update a page's editable fields (all but id/sort_order). The caller passes a
+ * freshly computed `slugIndex` alongside the slug so the blind index never drifts
+ * from the encrypted slug (lookups + cross-table uniqueness key on slug_index). */
 export const updateSitePage = (
   id: number,
-  input: Partial<Omit<SitePageInput, "sortOrder" | "slugIndex">>,
+  input: Partial<Omit<SitePageInput, "sortOrder">>,
 ): Promise<SitePage | null> => sitePagesTable.update(id, input);
 
 /** Swap the `sort_order` of two root pages (the move-up/down apply step). */

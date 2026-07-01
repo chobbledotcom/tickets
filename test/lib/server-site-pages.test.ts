@@ -5,6 +5,7 @@ import {
   computeSitePageSlugIndex,
   createSitePage,
   getSitePageById,
+  getSitePageBySlugIndex,
   getSitePageNavRows,
 } from "#shared/db/site-pages.ts";
 import type { SitePage } from "#shared/types.ts";
@@ -161,6 +162,16 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       expectFlash(response, "Page updated", true);
       expect((await getSitePageById(page.id))?.name).toBe("Renamed");
       expect(await wasLogged("Page 'Renamed' updated")).toBe(true);
+      // The blind index is recomputed, so the new slug is findable and the old
+      // one is freed (both key off slug_index).
+      const byNew = await getSitePageBySlugIndex(
+        await computeSitePageSlugIndex("renamed"),
+      );
+      expect(byNew?.id).toBe(page.id);
+      const byOld = await getSitePageBySlugIndex(
+        await computeSitePageSlugIndex("orig"),
+      );
+      expect(byOld).toBeNull();
     });
 
     test("update rejects a slug taken by another page", async () => {
@@ -268,6 +279,52 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         "page",
       ]);
       expect(await wasLogged("Item added to page 'Name host'")).toBe(true);
+    });
+
+    test("pickers omit items already on the page", async () => {
+      const page = await seedPage("pick");
+      const kept = await createTestListing({ name: "Kept" });
+      const added = await createTestListing({ name: "Added" });
+      // An un-added group must still be offered in the group picker.
+      await createTestGroup({ name: "KeptG", slug: "kg" });
+      await addPageItem(page.id, "listing", added.id);
+      const html = await expectHtmlResponse(
+        await adminGet(`${BASE}/${page.id}/edit`),
+        200,
+      );
+      // The un-added listing is still offered; the added one is not.
+      expect(html).toContain(`value="${kept.id}"`);
+      expect(html).not.toContain(`value="${added.id}"`);
+      // The un-added group is offered too.
+      expect(html).toContain(">KeptG<");
+    });
+
+    test("rejects re-adding an item already on the page", async () => {
+      const page = await seedPage("nodupe");
+      const listing = await createTestListing({ name: "Once" });
+      await addPageItem(page.id, "listing", listing.id);
+      const { response } = await adminFormPost(`${BASE}/${page.id}/items`, {
+        item_id: String(listing.id),
+        item_type: "listing",
+      });
+      expectErrorFlash(response, "can't be added");
+      expect((await getItemsForPage(page.id)).length).toBe(1);
+    });
+
+    test("deleting a listing or group clears its page edges", async () => {
+      const page = await seedPage("edges");
+      const listing = await createTestListing({ name: "Doomed listing" });
+      const group = await createTestGroup({ name: "Doomed group", slug: "dg" });
+      await addPageItem(page.id, "listing", listing.id);
+      await addPageItem(page.id, "group", group.id);
+      expect((await getItemsForPage(page.id)).length).toBe(2);
+
+      const { deleteListing } = await import("#shared/db/listings.ts");
+      const { deleteGroup } = await import("#routes/admin/groups.ts");
+      await deleteListing(listing.id);
+      await deleteGroup(group.id);
+      // No dangling edges remain pointing at the deleted targets.
+      expect((await getItemsForPage(page.id)).length).toBe(0);
     });
 
     test("edit resolves item labels and flags a missing target", async () => {

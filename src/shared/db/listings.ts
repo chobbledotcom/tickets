@@ -50,6 +50,7 @@ import {
 } from "#shared/db/migrations/schema.ts";
 import { nameMapByIds } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
+import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
@@ -526,6 +527,9 @@ export const deleteListing = async (listingId: number): Promise<void> => {
       args: [listingId, listingId],
       sql: "DELETE FROM listing_parents WHERE parent_listing_id = ? OR child_listing_id = ?",
     },
+    // Drop any site-page membership edges so no page is left with a dangling
+    // "(missing)" row pointing at this deleted listing.
+    clearItemEdgesStatement("listing", listingId),
     { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
     { args: [listingId], sql: "DELETE FROM listings WHERE id = ?" },
   ]);
