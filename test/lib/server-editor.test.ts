@@ -69,6 +69,9 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         ["groups index", "/admin/groups"],
         ["new group", "/admin/groups/new"],
         ["edit group", `/admin/groups/${group.id}/edit`],
+        ["catalog import", "/admin/catalog/import"],
+        ["listing export", `/admin/listing/${listing.id}/export.json`],
+        ["group export", `/admin/groups/${group.id}/export.json`],
         ["site home", "/admin/site"],
         ["site contact", "/admin/site/contact"],
         ["site order", "/admin/site/order"],
@@ -77,6 +80,35 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         const response = await getAs(path, cookie);
         expect(response.status, `${label} (${path})`).toBe(200);
       }
+    });
+
+    test("editor can import a listing from a JSON file", async () => {
+      const { cookie } = await createTestEditorSession();
+      const csrf_token = await signCsrfToken();
+      const blob = {
+        kind: "listing",
+        listing: { maxAttendees: 5, name: "Editor Import" },
+        version: 1,
+      };
+      const response = await handleRequest(
+        mockMultipartRequest(
+          "/admin/catalog/import",
+          { csrf_token },
+          cookie,
+          {
+            contentType: "application/json",
+            data: new TextEncoder().encode(JSON.stringify(blob)),
+            fieldName: "catalog_file",
+            name: "listing.json",
+          },
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain("/admin/listings");
+      const { getAllListings } = await import("#shared/db/listings.ts");
+      expect(
+        (await getAllListings()).some((l) => l.name === "Editor Import"),
+      ).toBe(true);
     });
 
     test("editor renders every Site → Pages screen and can create; manager is 403", async () => {

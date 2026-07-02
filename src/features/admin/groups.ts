@@ -126,7 +126,7 @@ const isPackageableMember = (
 ): boolean => {
   if (!isPackageable(listing)) return false;
   if (edges.parentIds.length > 0) return false;
-  return !(hideListings && edges.childIds.length > 0);
+  return !(hideListings || edges.childIds.length > 0);
 };
 
 /** Whether every listing can be a package member, judged against ONE batched
