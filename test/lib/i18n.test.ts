@@ -17,9 +17,12 @@ describe("i18n", () => {
       expect(t("common.yes")).toBe("Yes");
     });
 
-    test("returns key for unknown key", () => {
-      expect(t("unknown.key.that.does.not.exist")).toBe(
-        "unknown.key.that.does.not.exist",
+    test("throws for an unknown key", () => {
+      // A missing translation is a programming error (typically a dynamically
+      // built key whose value was never added), so t() fails loudly rather than
+      // silently rendering the raw key to users.
+      expect(() => t("unknown.key.that.does.not.exist")).toThrow(
+        'Missing translation for key "unknown.key.that.does.not.exist"',
       );
     });
 
@@ -163,12 +166,12 @@ describe("i18n", () => {
       });
     });
 
-    test("never rewrites the fallback key of a missing translation", () => {
-      // A missing key is returned verbatim; "key" must not become "code"
-      // even though the substring matches.
+    test("a missing translation throws rather than being rebranded", () => {
+      // Replacements rewrite copy, never keys — a missing key throws outright,
+      // so "key" is never reachable to be turned into "code".
       withReplacements("key|code", () => {
-        expect(t("unknown.key.that.does.not.exist")).toBe(
-          "unknown.key.that.does.not.exist",
+        expect(() => t("unknown.key.that.does.not.exist")).toThrow(
+          'Missing translation for key "unknown.key.that.does.not.exist"',
         );
       });
     });
