@@ -829,10 +829,10 @@ export const getListingWithAttendeesRaw = async (
     {
       args: [id],
       sql: `SELECT ${ATTENDEE_JOIN_SELECT}
-            FROM attendees a
-            JOIN listing_attendees ea ON ea.attendee_id = a.id
-            WHERE ea.listing_id = ? AND a.kind = '${ATTENDEE_KIND}'
-            ORDER BY a.created DESC`,
+            FROM attendees AS attendee
+            JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+            WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}'
+            ORDER BY attendee.created DESC`,
     },
   ]);
 
@@ -853,11 +853,11 @@ export const getDailyListingAttendeeDates = async (): Promise<string[]> => {
   const rows = await queryAll<{ start_at: string; end_at: string }>(
     // quantity > 0: a no-quantity sentinel line is not an operational booking, so
     // it must not mark a calendar date as occupied.
-    `SELECT DISTINCT ea.start_at, ea.end_at FROM listing_attendees ea
-     INNER JOIN listings AS listing ON ea.listing_id = listing.id
+    `SELECT DISTINCT listingAttendee.start_at, listingAttendee.end_at FROM listing_attendees AS listingAttendee
+     INNER JOIN listings AS listing ON listingAttendee.listing_id = listing.id
      WHERE listing.listing_type = 'daily'
-       AND ea.start_at IS NOT NULL AND ea.end_at IS NOT NULL
-       AND ea.quantity > 0`,
+       AND listingAttendee.start_at IS NOT NULL AND listingAttendee.end_at IS NOT NULL
+       AND listingAttendee.quantity > 0`,
   );
   // Expand each booking's [start_at, end_at) span into every calendar date it
   // covers, so multi-day bookings mark every day they occupy as selectable.
@@ -887,12 +887,12 @@ export const getDailyListingAttendeesByDate = (
   return queryAll<Attendee>(
     // quantity > 0: exclude no-quantity sentinel lines from the daily calendar.
     `SELECT ${ATTENDEE_JOIN_SELECT}
-     FROM attendees a
-     JOIN listing_attendees ea ON ea.attendee_id = a.id
-     JOIN listings AS listing ON ea.listing_id = listing.id
-     WHERE listing.listing_type = 'daily' AND ea.start_at < ? AND ea.end_at > ?
-       AND ea.quantity > 0
-     ORDER BY a.created DESC`,
+     FROM attendees AS attendee
+     JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+     JOIN listings AS listing ON listingAttendee.listing_id = listing.id
+     WHERE listing.listing_type = 'daily' AND listingAttendee.start_at < ? AND listingAttendee.end_at > ?
+       AND listingAttendee.quantity > 0
+     ORDER BY attendee.created DESC`,
     [endAt, startAt],
   );
 };
@@ -928,8 +928,8 @@ const listingAttendeeFilter = (
 
 const attendeeKindClause = (kindScope: ListingAttendeeKindScope): string =>
   kindScope === "attendees-and-servicing"
-    ? `a.kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}')`
-    : `a.kind = '${ATTENDEE_KIND}'`;
+    ? `attendee.kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}')`
+    : `attendee.kind = '${ATTENDEE_KIND}'`;
 
 export const getAttendeesByListingIds = (
   listingIds: number[],
@@ -939,12 +939,12 @@ export const getAttendeesByListingIds = (
   const { activeOnly, kindScope } = listingAttendeeFilter(filter);
   return queryAll<Attendee>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
-     FROM attendees a
-     JOIN listing_attendees ea ON ea.attendee_id = a.id
-     WHERE ea.listing_id IN (${inPlaceholders(listingIds)})
+     FROM attendees AS attendee
+     JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+     WHERE listingAttendee.listing_id IN (${inPlaceholders(listingIds)})
        AND ${attendeeKindClause(kindScope)}
-       ${activeOnly ? "AND ea.quantity > 0" : ""}
-     ORDER BY a.created DESC`,
+       ${activeOnly ? "AND listingAttendee.quantity > 0" : ""}
+     ORDER BY attendee.created DESC`,
     listingIds,
   );
 };
@@ -972,9 +972,9 @@ export const getListingWithAttendeeRaw = async (
     {
       args: [attendeeId],
       sql: `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
-            FROM attendees a
-            LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-            WHERE a.id = ? AND a.kind = '${ATTENDEE_KIND}'`,
+            FROM attendees AS attendee
+            LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+            WHERE attendee.id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,
     },
   ]);
 

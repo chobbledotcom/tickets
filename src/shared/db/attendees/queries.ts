@@ -35,7 +35,7 @@ import type { Attendee } from "#shared/types.ts";
  * `refund_cash` leg whose SOURCE is the attendee — both live and backfilled
  * historical refunds set this). Returns 0/1 aliased `refunded`, matching the
  * `number` shape the booking row type carries. A LEFT JOIN with no matching
- * `listing_attendees` row has `ea.attendee_id` NULL, so the EXISTS is false (0).
+ * `listing_attendees` row has `listingAttendee.attendee_id` NULL, so the EXISTS is false (0).
  */
 const refundedFromLedger = (attendeeIdExpr: string): string =>
   `(SELECT EXISTS(SELECT 1 FROM transfers WHERE kind = 'refund_cash'` +
@@ -79,17 +79,17 @@ export const remainingBalanceFromLedger = (attendeeIdExpr: string): string =>
  * All PII is read from the encrypted pii_blob; per-listing status lives on
  * listing_attendees. `remaining_balance` projects from the ledger like the others.
  */
-const ATTENDEE_COLS = `a.id, a.created, a.kind, a.ticket_token_index, a.pii_blob, a.status_id, ${remainingBalanceFromLedger(
-  "a.id",
-)}, a.split_logistics_agents`;
+const ATTENDEE_COLS = `attendee.id, attendee.created, attendee.kind, attendee.ticket_token_index, attendee.pii_blob, attendee.status_id, ${remainingBalanceFromLedger(
+  "attendee.id",
+)}, attendee.split_logistics_agents`;
 
 /** The two ledger-projected money columns (refunded flag + per-row amount paid)
  *  for a listing_attendees row reached through the `ea` alias. Shared by the
  *  INNER and LEFT JOIN selects so the projections never drift apart. */
-const EA_LEDGER_MONEY_COLS = `${refundedFromLedger("ea.attendee_id")}, ${pricePaidFromLedger(
-  "ea.attendee_id",
-  "ea.listing_id",
-  "ea.ledger_event_group",
+const EA_LEDGER_MONEY_COLS = `${refundedFromLedger("listingAttendee.attendee_id")}, ${pricePaidFromLedger(
+  "listingAttendee.attendee_id",
+  "listingAttendee.listing_id",
+  "listingAttendee.ledger_event_group",
 )}`;
 
 /** Columns sourced from listing_attendees (per-listing data). `package_group_id`
@@ -97,7 +97,7 @@ const EA_LEDGER_MONEY_COLS = `${refundedFromLedger("ea.attendee_id")}, ${pricePa
  * membership — without it the email/webhook renderers treat a hidden package
  * booking as a standalone member and can leak the hidden listing or its base
  * price. */
-const EA_COLS = `ea.listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, ea.quantity, ea.checked_in, ${EA_LEDGER_MONEY_COLS}, ea.attachment_downloads, ea.package_group_id`;
+const EA_COLS = `listingAttendee.listing_id, SUBSTR(listingAttendee.start_at, 1, 10) as date, SUBSTR(listingAttendee.end_at, 1, 10) as end_date, listingAttendee.quantity, listingAttendee.checked_in, ${EA_LEDGER_MONEY_COLS}, listingAttendee.attachment_downloads, listingAttendee.package_group_id`;
 
 /** SELECT clause for attendee + listing_attendees JOINs (INNER JOIN context).
  * Derives `date` from start_at for the Attendee type shape. */
@@ -106,7 +106,7 @@ export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ${EA_COLS}`;
 /** SELECT clause for LEFT JOIN context — COALESCEs nullable join columns so
  * attendees with broken/missing listing_attendees linkage still appear in results
  * (with listing_id=0 as an obvious corruption indicator). */
-export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.listing_id, 0) as listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in, 0) as checked_in, ${EA_LEDGER_MONEY_COLS}, COALESCE(ea.attachment_downloads, 0) as attachment_downloads, COALESCE(ea.package_group_id, 0) as package_group_id`;
+export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(listingAttendee.listing_id, 0) as listing_id, SUBSTR(listingAttendee.start_at, 1, 10) as date, SUBSTR(listingAttendee.end_at, 1, 10) as end_date, COALESCE(listingAttendee.quantity, 0) as quantity, COALESCE(listingAttendee.checked_in, 0) as checked_in, ${EA_LEDGER_MONEY_COLS}, COALESCE(listingAttendee.attachment_downloads, 0) as attachment_downloads, COALESCE(listingAttendee.package_group_id, 0) as package_group_id`;
 
 /**
  * Columns for a `ListingAttendeeRow` read straight from `listing_attendees`
@@ -129,10 +129,10 @@ export const LISTING_ATTENDEE_ROW_COLS = `listing_id, start_at, end_at, quantity
 export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
   queryAll<Attendee>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
-     FROM attendees a
-     JOIN listing_attendees ea ON ea.attendee_id = a.id
-     WHERE ea.listing_id = ? AND a.kind = '${ATTENDEE_KIND}'
-     ORDER BY a.created DESC`,
+     FROM attendees AS attendee
+     JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+     WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}'
+     ORDER BY attendee.created DESC`,
     [listingId],
   );
 
@@ -148,10 +148,10 @@ export const getAttendeePackageRowsRaw = (
 ): Promise<Attendee[]> =>
   queryAll<Attendee>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
-     FROM attendees a
-     JOIN listing_attendees ea ON ea.attendee_id = a.id
-     WHERE a.id = ? AND ea.package_group_id = ? AND ea.quantity > 0
-     ORDER BY ea.listing_id ASC`,
+     FROM attendees AS attendee
+     JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+     WHERE attendee.id = ? AND listingAttendee.package_group_id = ? AND listingAttendee.quantity > 0
+     ORDER BY listingAttendee.listing_id ASC`,
     [attendeeId, packageGroupId],
   );
 
@@ -160,16 +160,16 @@ export const getAttendeePackageRowsRaw = (
  * Used for the admin dashboard to show recent registrations.
  */
 export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
-  // Order by a.id DESC, not a.created: id is AUTOINCREMENT so it is
+  // Order by attendee.id DESC, not attendee.created: id is AUTOINCREMENT so it is
   // co-monotonic with created (newest attendee = highest id), but ordering by
   // the rowid drives the scan off the primary key with no sort over the whole
   // (unbounded) attendees table.
   queryAll<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
-     FROM attendees a
-     LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-     WHERE a.kind = '${ATTENDEE_KIND}'
-     ORDER BY a.id DESC LIMIT ?`,
+     FROM attendees AS attendee
+     LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+     WHERE attendee.kind = '${ATTENDEE_KIND}'
+     ORDER BY attendee.id DESC LIMIT ?`,
     [limit],
   );
 
@@ -218,19 +218,19 @@ export const getAttendeesPage = async ({
   // text, so neither is user-controlled — only the bound args are.
   const dir = sort === "oldest" ? "ASC" : "DESC";
   const where = listingIds
-    ? `WHERE a.kind = '${ATTENDEE_KIND}' AND ea.listing_id IN (${inPlaceholders(
+    ? `WHERE attendee.kind = '${ATTENDEE_KIND}' AND listingAttendee.listing_id IN (${inPlaceholders(
         listingIds,
       )})`
-    : `WHERE a.kind = '${ATTENDEE_KIND}'`;
+    : `WHERE attendee.kind = '${ATTENDEE_KIND}'`;
   const limit = ATTENDEES_PAGE_SIZE + 1;
   const offset = page * ATTENDEES_PAGE_SIZE;
   const args = listingIds ? [...listingIds, limit, offset] : [limit, offset];
   const rows = await queryAll<Attendee>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
-     FROM attendees a
-     JOIN listing_attendees ea ON ea.attendee_id = a.id
+     FROM attendees AS attendee
+     JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
      ${where}
-     ORDER BY a.id ${dir}
+     ORDER BY attendee.id ${dir}
      LIMIT ? OFFSET ?`,
     args,
   );
@@ -383,9 +383,9 @@ export const attendeeIdByLedgerEventGroup = async (
 export const getAttendeeRaw = (id: number): Promise<Attendee | null> => {
   return queryOne<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
-     FROM attendees a
-     LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-     WHERE a.id = ? AND a.kind = '${ATTENDEE_KIND}'`,
+     FROM attendees AS attendee
+     LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+     WHERE attendee.id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,
     [id],
   );
 };
@@ -400,9 +400,9 @@ export const getAttendeesByIds = (ids: number[]): Promise<Attendee[]> => {
   if (ids.length === 0) return Promise.resolve([]);
   return queryAll<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
-     FROM attendees a
-     LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-     WHERE a.kind = '${ATTENDEE_KIND}' AND a.id IN (${inPlaceholders(ids)})`,
+     FROM attendees AS attendee
+     LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+     WHERE attendee.kind = '${ATTENDEE_KIND}' AND attendee.id IN (${inPlaceholders(ids)})`,
     ids,
   );
 };
@@ -491,7 +491,7 @@ export const getAttendeesByTokens = async (
   }
 
   // Query 2: Get all listing links for these attendees
-  const attendeeIds = attendeeRows.map((a) => a.id);
+  const attendeeIds = attendeeRows.map((row) => row.id);
   const bookingRows = await queryAll<
     ListingAttendeeRow & { attendee_id: number }
   >(

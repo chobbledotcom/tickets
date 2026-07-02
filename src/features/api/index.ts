@@ -7,6 +7,11 @@
 
 import * as v from "valibot";
 import { compact, filter, pipe, sumOf } from "#fp";
+import {
+  type ApiChildSelection,
+  ChildrenSchema,
+  PackageChildrenSchema,
+} from "#routes/api/request-schemas.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
   classifyForDiscovery,
@@ -675,38 +680,6 @@ const resolveCustomPrice = (
  * with an optional pay-more price. A PACKAGE booking's entries also carry the
  * member (`parent`) slug the child folds under, since a bundle can contain more
  * than one parent member. */
-/** A positive integer accepted as a JSON number or a digit string ("2"). */
-const ApiQuantitySchema = v.pipe(
-  v.union([v.number(), v.pipe(v.string(), v.digits(), v.transform(Number))]),
-  v.integer(),
-  v.minValue(1),
-);
-
-const NonEmptyStringSchema = v.pipe(v.string(), v.nonEmpty());
-
-/** One `children` entry of a booking body — declared once as a schema, so the
- * accepted shape, its validation (a NaN/garbage `customPrice` is a parse error,
- * never a stored price), and the {@link ApiChildSelection} type stay one
- * artifact. The package book endpoint layers a required `parent` member slug on
- * top ({@link PackageChildrenSchema}); an absent `children` field is an empty
- * selection (the fold auto-fills a sole child, or rejects a multi-child parent
- * with a "choose more" error). */
-const childSelectionEntries = {
-  customPrice: v.optional(v.pipe(v.number(), v.finite(), v.minValue(0))),
-  parent: v.optional(NonEmptyStringSchema),
-  quantity: ApiQuantitySchema,
-  slug: NonEmptyStringSchema,
-};
-
-const ChildrenSchema = v.optional(v.array(v.object(childSelectionEntries)), []);
-const PackageChildrenSchema = v.optional(
-  v.array(v.object({ ...childSelectionEntries, parent: NonEmptyStringSchema })),
-  [],
-);
-
-type ApiChildSelection = v.InferOutput<
-  ReturnType<typeof v.object<typeof childSelectionEntries>>
->;
 
 /** Parse the `children` array of a booking body against `schema`, or null (the
  * caller's 400) when it is present but malformed. */

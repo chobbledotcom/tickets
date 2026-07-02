@@ -6,6 +6,7 @@
  * output, so a shape change will break the test and force an update.
  */
 
+import * as v from "valibot";
 import {
   type CreateListingBody,
   type DeleteListingBody,
@@ -22,6 +23,7 @@ import type {
   DeleteHolidayBody,
   UpdateHolidayBody,
 } from "#routes/admin/api-holidays.ts";
+import { PackageChildrenSchema } from "#routes/api/request-schemas.ts";
 import {
   API_EXAMPLE_LISTING,
   API_EXAMPLE_PUBLIC_LISTING,
@@ -139,6 +141,13 @@ export type EndpointDoc = {
 
 const json = (data: unknown): string => JSON.stringify(data, null, 2);
 
+/** The package-book example's `children`, parsed through the LIVE request
+ * schema ({@link PackageChildrenSchema}) — a drifted example is a build-time
+ * parse error, so the docs can never show a body the endpoint rejects. */
+const PACKAGE_BOOK_CHILDREN_EXAMPLE = v.parse(PackageChildrenSchema, [
+  { parent: "tent-pitch", quantity: 1, slug: "extra-bedding" },
+]);
+
 /** The booking-created response shape shared by the listing and package book endpoints. */
 const API_EXAMPLE_BOOKING_RESPONSE = json({
   booking: {
@@ -210,7 +219,7 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
     method: "POST",
     path: "/api/packages/:slug/book",
     request: json({
-      children: [{ parent: "tent-pitch", quantity: 1, slug: "extra-bedding" }],
+      children: PACKAGE_BOOK_CHILDREN_EXAMPLE,
       date: "2025-08-20",
       email: "alice@example.com",
       name: "Alice Smith",

@@ -224,19 +224,19 @@ export const getServicingEvent = async (
   id: number,
 ): Promise<ServicingEvent | null> => {
   const rows = await queryAll<ServicingRow>(
-    `SELECT ${ATTENDEE_JOIN_SELECT}, a.kind
-       FROM attendees a
-       JOIN listing_attendees ea ON ea.attendee_id = a.id
-      WHERE a.id = ? AND a.kind = ?
-      ORDER BY ea.start_at, ea.listing_id`,
+    `SELECT ${ATTENDEE_JOIN_SELECT}, attendee.kind
+       FROM attendees AS attendee
+       JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+      WHERE attendee.id = ? AND attendee.kind = ?
+      ORDER BY listingAttendee.start_at, listingAttendee.listing_id`,
     [id, SERVICING_KIND],
   );
   if (rows.length > 0) return rowsToServicingEvent(rows);
   const orphan = await queryOne<ServicingRow>(
-    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}, a.kind
-       FROM attendees a
-       LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-      WHERE a.id = ? AND a.kind = ?`,
+    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}, attendee.kind
+       FROM attendees AS attendee
+       LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+      WHERE attendee.id = ? AND attendee.kind = ?`,
     [id, SERVICING_KIND],
   );
   return orphan ? rowsToServicingEvent([orphan]) : null;
@@ -310,15 +310,15 @@ const getServicingEventRows = (today?: string): Promise<ServicingRow[]> => {
   const upcomingClause =
     today === undefined
       ? ""
-      : "AND (ea.start_at IS NULL OR DATE(ea.start_at) >= ?)";
+      : "AND (listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ?)";
   return queryAll<ServicingRow>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
-       FROM attendees a
-       JOIN listing_attendees ea ON ea.attendee_id = a.id
-      WHERE a.kind = ?
-        AND ea.quantity > 0
+       FROM attendees AS attendee
+       JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+      WHERE attendee.kind = ?
+        AND listingAttendee.quantity > 0
         ${upcomingClause}
-      ORDER BY COALESCE(ea.start_at, a.created), a.id`,
+      ORDER BY COALESCE(listingAttendee.start_at, attendee.created), attendee.id`,
     today === undefined ? [SERVICING_KIND] : [SERVICING_KIND, today],
   );
 };
