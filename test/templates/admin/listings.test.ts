@@ -1111,8 +1111,12 @@ describe("adminListingPage filter links", () => {
       session: TEST_SESSION,
     });
     expect(html).toContain("<strong>All</strong>");
-    expect(html).toContain(`href="/admin/listing/${listing.id}/in#attendees"`);
-    expect(html).toContain(`href="/admin/listing/${listing.id}/out#attendees"`);
+    expect(html).toContain(
+      `href="/admin/listing/${listing.id}/attendees?filter=in"`,
+    );
+    expect(html).toContain(
+      `href="/admin/listing/${listing.id}/attendees?filter=out"`,
+    );
   });
 
   test("bolds Checked In when filter is in", () => {
@@ -1126,7 +1130,7 @@ describe("adminListingPage filter links", () => {
       session: TEST_SESSION,
     });
     expect(html).toContain("<strong>Checked In</strong>");
-    expect(html).toContain(`href="/admin/listing/${listing.id}#attendees"`);
+    expect(html).toContain(`href="/admin/listing/${listing.id}/attendees"`);
   });
 
   test("bolds Checked Out when filter is out", () => {

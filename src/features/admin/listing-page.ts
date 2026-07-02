@@ -22,10 +22,17 @@ import {
   type EntityPage,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
-import { requireSessionOr } from "#routes/auth.ts";
+import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 import { targetQuery } from "#shared/bulk-email-targets.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { isPaidListing } from "#shared/types.ts";
+import { isPaidListing, isStaffRole } from "#shared/types.ts";
+
+/** Tab visibility for the staff-only surfaces (roster, money, actions): the
+ *  content-only `editor` role may edit a listing but never saw its detail page,
+ *  so every tab except Edit is gated to staff, and an editor's default tab
+ *  resolves to Edit. */
+const staffOnly = (_entity: unknown, session: AuthSession): boolean =>
+  isStaffRole(session.adminLevel);
 import { ListingDeactivatedBanner } from "#templates/admin/listings.tsx";
 import {
   type LoadedListing,
@@ -106,6 +113,8 @@ const overviewTab: TabDef<LoadedListing> = {
     },
   ],
   slug: "",
+  // Info + money: staff only (the old detail page was staff-only).
+  visible: staffOnly,
 };
 
 /** The tabbed listing page. */
@@ -113,7 +122,9 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
   banner: ({ listing }) =>
     Promise.resolve(ListingDeactivatedBanner({ active: listing.active })),
   basePath: (id) => `/admin/listing/${id}`,
-  guard: requireSessionOr,
+  // The content-only editor role may edit; every other tab is staff-gated, so
+  // an editor's page resolves to just the Edit tab.
+  guard: requireContentOr,
   load: (id) => loadListingForPage(id),
   navActive: "/admin/",
   tabs: [
@@ -122,6 +133,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       labelKey: "entity.tab.attendees",
       sections: [{ kind: "custom", load: loadListingRosterPanel }],
       slug: "attendees",
+      visible: staffOnly,
     },
     {
       labelKey: "entity.tab.edit",
@@ -150,16 +162,22 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
     },
     {
       labelKey: "entity.tab.qr",
-      sections: [{ kind: "custom", load: (entity) => loadListingQrPanel(entity) }],
+      sections: [
+        { kind: "custom", load: (entity) => loadListingQrPanel(entity) },
+      ],
       slug: "qr",
-      // A child / hidden-package listing has no standalone booking page, so its
-      // booking QR would point at a dead /ticket link — hide the tab entirely.
-      visible: (entity) => !entity.isChild && !entity.isHiddenPackageMember,
+      // Staff-only, and a child / hidden-package listing has no standalone
+      // booking page, so its booking QR would point at a dead /ticket link.
+      visible: (entity, session) =>
+        staffOnly(entity, session) &&
+        !entity.isChild &&
+        !entity.isHiddenPackageMember,
     },
     {
       labelKey: "entity.tab.activity",
       sections: [{ kind: "activity", load: loadListingActivity }],
       slug: "activity",
+      visible: staffOnly,
     },
     {
       labelKey: "entity.tab.actions",
@@ -171,6 +189,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
         },
       ],
       slug: "actions",
+      visible: staffOnly,
     },
   ],
   titleOf: ({ listing }) =>

@@ -3,7 +3,7 @@
  */
 
 import { t } from "#i18n";
-import { redirect, redirectResponse } from "#routes/response.ts";
+import { redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -169,22 +169,19 @@ const handleAttendeeCheckin = attendeeFormAction(
       attendeeId,
     );
 
+    // The roster's check-in form threads its filtered-view URL through
+    // return_url; when absent (e.g. the scanner) fall back to the Attendees tab,
+    // preserving any check-in filter. Either way the confirmation shows as a
+    // flash on the landing tab — the old ?checkin_name= surface is gone.
     const returnUrl = form.getString("return_url");
-    if (returnUrl) {
-      return redirect(
-        returnUrl,
-        `Checked ${data.attendee.name} ${status}`,
-        true,
-      );
-    }
-
-    const name = encodeURIComponent(data.attendee.name);
     const filterValue = form.getString("return_filter");
-    const suffix =
-      filterValue === "in" ? "/in" : filterValue === "out" ? "/out" : "";
-    return redirectResponse(
-      `/admin/listing/${listingId}${suffix}?checkin_name=${name}&checkin_status=${status}#message`,
-    );
+    const filterQs =
+      filterValue === "in" || filterValue === "out"
+        ? `?filter=${filterValue}`
+        : "";
+    const target =
+      returnUrl || `/admin/listing/${listingId}/attendees${filterQs}`;
+    return redirect(target, `Checked ${data.attendee.name} ${status}`, true);
   },
 );
 

@@ -15,7 +15,7 @@ import {
   insertModifier,
   linkModifierGroup,
   linkModifierListing,
-  listingDetailPageHtml,
+  listingRosterPageHtml,
   listingEditPageHtml,
   patchModifier,
   postChildren,
@@ -215,13 +215,13 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const parent = await createTestListing({ name: "Base unit" });
     const child = await createTestListing({ name: "Add-on" });
     await postChildren(parent.id, [child.id]);
-    const html = await listingDetailPageHtml(parent.id);
+    const html = await listingRosterPageHtml(parent.id);
     expect(html).toContain("This listing requires a child listing (Add-on)");
   });
 
   test("a non-parent's detail page shows no manual-add child warning", async () => {
     const standalone = await createTestListing({ name: "Standalone" });
-    const html = await listingDetailPageHtml(standalone.id);
+    const html = await listingRosterPageHtml(standalone.id);
     expect(html).not.toContain("requires a child listing");
   });
 
