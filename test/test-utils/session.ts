@@ -485,7 +485,7 @@ export const setupAdminTest = async (
 };
 
 export const adminAttendeeAction =
-  (action: string) =>
+  (action: string, scope: "listing" | "attendee" = "attendee") =>
   (formData: Record<string, string> = {}) =>
   async (
     listingOverrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
@@ -493,9 +493,13 @@ export const adminAttendeeAction =
     const ctx = await setupAdminTest(listingOverrides);
     const { handleRequest } = await import("#routes");
     const { mockFormRequest } = await import("#test-utils/mocks.ts");
+    const url =
+      scope === "listing"
+        ? `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`
+        : `/admin/attendees/${ctx.attendee.id}/${action}`;
     const response = await handleRequest(
       mockFormRequest(
-        `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`,
+        url,
         { csrf_token: ctx.csrfToken, ...formData },
         ctx.cookie,
       ),

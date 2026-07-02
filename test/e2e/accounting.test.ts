@@ -54,6 +54,7 @@ import {
   createTestAttendeeDirect,
   createTestListing,
   describeWithEnv,
+  expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
@@ -213,7 +214,7 @@ const mergePreview = async (
   sourceToken: string,
 ): Promise<{ version: string; bookingField: string }> => {
   const page = await adminGet(
-    `/admin/attendees/${targetId}/merge?token=${encodeURIComponent(
+    `/admin/attendees/${targetId}/actions?token=${encodeURIComponent(
       sourceToken,
     )}`,
   );
@@ -422,12 +423,11 @@ const withRefundMock = (
 
 /** POST the real single-attendee admin refund form as the owner. */
 const submitRefund = async (
-  listingId: number,
   attendeeId: number,
   confirmName: string,
 ): Promise<Response> => {
   const { response } = await adminFormPost(
-    `/admin/listing/${listingId}/attendee/${attendeeId}/refund`,
+    `/admin/attendees/${attendeeId}/refund`,
     { confirm_identifier: confirmName },
   );
   return response;
@@ -619,8 +619,8 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     // (the ledger statement shows this), while the edit page (gross-minus-write-
     // offs, refund-agnostic) still shows £50 − £30 = £20. Conservation still holds.
     await withRefundMock(true, async (mockRefund) => {
-      const refund = await submitRefund(listing.id, attendeeId, "Gala Guest");
-      expectRedirect(refund, new RegExp(`^/admin/listing/${listing.id}`));
+      const refund = await submitRefund(attendeeId, "Gala Guest");
+      expectRedirect(refund, /\/admin\/attendees\/\d+\/actions/);
       expect(mockRefund.calls.length).toBe(1);
     });
     expect(await owedBy(attendeeId)).toBe(0);
@@ -752,9 +752,9 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     expect(await incomeOf(listing.id)).toBe(4500);
 
     await withRefundMock(true, async (mockRefund) => {
-      const response = await submitRefund(listing.id, attendeeId, "Refundee");
+      const response = await submitRefund(attendeeId, "Refundee");
       await expectFlashRedirect(
-        `/admin/listing/${listing.id}`,
+        `/admin/attendees/${attendeeId}/actions`,
         "Refund issued",
       )(response);
       expect(mockRefund.calls.length).toBe(1);
@@ -835,8 +835,8 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
 
     // Refund order #1.
     await withRefundMock(true, async (mockRefund) => {
-      const response = await submitRefund(listing.id, refundedId, "Mixed One");
-      expectRedirect(response, new RegExp(`^/admin/listing/${listing.id}`));
+      const response = await submitRefund(refundedId, "Mixed One");
+      expectRedirect(response, /\/admin\/attendees\/\d+\/actions/);
       expect(mockRefund.calls.length).toBe(1);
     });
 
@@ -904,8 +904,8 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
 
     // Refunding reverses sale + fee + payment; fee income returns to zero.
     await withRefundMock(true, async (mockRefund) => {
-      const refund = await submitRefund(listing.id, attendeeId, "Fee Payer");
-      expectRedirect(refund, new RegExp(`^/admin/listing/${listing.id}`));
+      const refund = await submitRefund(attendeeId, "Fee Payer");
+      expectRedirect(refund, /\/admin\/attendees\/\d+\/actions/);
       expect(mockRefund.calls.length).toBe(1);
     });
     expect(await incomeOf(listing.id)).toBe(0);
@@ -963,8 +963,8 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
 
     // Refund reverses the modifier leg too, returning its revenue to zero.
     await withRefundMock(true, async (mockRefund) => {
-      const refund = await submitRefund(listing.id, attendeeId, "Svc Buyer");
-      expectRedirect(refund, new RegExp(`^/admin/listing/${listing.id}`));
+      const refund = await submitRefund(attendeeId, "Svc Buyer");
+      expectRedirect(refund, /\/admin\/attendees\/\d+\/actions/);
       expect(mockRefund.calls.length).toBe(1);
     });
     expect(await modifierRevenueOf(modifier.id)).toBe(0);
@@ -1072,10 +1072,10 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     expect(await incomeOf(listing.id)).toBe(4500);
 
     await withRefundMock(false, async (mockRefund) => {
-      const response = await submitRefund(listing.id, attendeeId, "No Refund");
+      const response = await submitRefund(attendeeId, "No Refund");
       // The route surfaces the failure as a flash error and does NOT issue it.
       await expectFlashRedirect(
-        `/admin/listing/${listing.id}/attendee/${attendeeId}/refund`,
+        `/admin/attendees/${attendeeId}/refund`,
         expect.stringContaining("Refund failed"),
         false,
       )(response);
@@ -1187,8 +1187,8 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
       ).response,
     );
     await withRefundMock(true, async (mockRefund) => {
-      const refund = await submitRefund(listing.id, attendeeId, "Recon Buyer");
-      expectRedirect(refund, new RegExp(`^/admin/listing/${listing.id}`));
+      const refund = await submitRefund(attendeeId, "Recon Buyer");
+      expectRedirect(refund, /\/admin\/attendees\/\d+\/actions/);
       expect(mockRefund.calls.length).toBe(1);
     });
 
@@ -1294,9 +1294,9 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     );
 
     await withRefundMock(true, async (mockRefund) => {
-      const refund = await submitRefund(listing.id, attendeeId, "Logged Guest");
+      const refund = await submitRefund(attendeeId, "Logged Guest");
       await expectFlashRedirect(
-        `/admin/listing/${listing.id}`,
+        `/admin/attendees/${attendeeId}/actions`,
         "Refund issued",
       )(refund);
       expect(mockRefund.calls.length).toBe(1);
@@ -1317,9 +1317,9 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     // Idempotency: a second refund is refused (already refunded) without calling
     // the provider, and no second reversal is posted.
     await withRefundMock(true, async (mockRefund) => {
-      const again = await submitRefund(listing.id, attendeeId, "Logged Guest");
+      const again = await submitRefund(attendeeId, "Logged Guest");
       await expectFlashRedirect(
-        `/admin/listing/${listing.id}/attendee/${attendeeId}/refund`,
+        `/admin/attendees/${attendeeId}/refund`,
         expect.stringContaining("already been refunded"),
         false,
       )(again);
@@ -1416,9 +1416,10 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
       merge_version: version,
       source_token: sourceToken,
     });
-    // Re-rendered (200), not redirected (302); the apply never ran.
-    expect(refused.status).toBe(200);
-    expect(await refused.text()).toContain("money decision");
+    // Bounced back to the Actions tab's merge panel with the validation
+    // error flashed; the apply never ran.
+    expect(refused.status).toBe(302);
+    expectFlash(refused, expect.stringContaining("money decision"), false);
 
     // Nothing changed: both tickets' income still counts and both attendees survive.
     expect(await incomeOf(listingId)).toBe(10000);
@@ -1451,7 +1452,7 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
 
     // The preview shows the conflict row but NOT the money-decision UI.
     const preview = await adminGet(
-      `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+      `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
         sourceToken,
       )}`,
     );

@@ -27,6 +27,7 @@ import { loadAccountLedger } from "#routes/admin/ledger.ts";
 import type { AuthSession, SessionGuard } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import { getBaseUrl } from "#routes/url.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import {
   resolveTabSlug,
@@ -58,6 +59,9 @@ export interface PageCtx {
   tabHref: (slug: string) => string;
   /** The request's query string (e.g. a `return_url` a caller threaded in). */
   query: URLSearchParams;
+  /** The request's origin (for absolute links, e.g. the customer pay link).
+   * Empty on POST failure re-renders, which never build absolute links. */
+  baseUrl: string;
 }
 
 /** An operator action. `visible` must gate on the SAME condition the target
@@ -180,6 +184,7 @@ export interface RenderPageOpts<E> {
   status?: number;
   sections?: (entity: E, ctx: PageCtx) => Promise<LoadedSection[]>;
   query?: URLSearchParams;
+  baseUrl?: string;
 }
 
 /** The bound page: `renderTab` for the two GET routes, `renderPage` for
@@ -222,6 +227,7 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
     if (activeSlug === null) return notFoundResponse();
     const active = def.tabs.find((tab) => tab.slug === activeSlug)!;
     const ctx: PageCtx = {
+      baseUrl: opts.baseUrl ?? "",
       query: opts.query ?? new URLSearchParams(),
       returnUrl: path(id, activeSlug),
       session,
@@ -256,6 +262,7 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
     def.guard(request, (session) => {
       applyFlash(request);
       return renderPage(session, id, requestedTab, {
+        baseUrl: getBaseUrl(request),
         query: new URL(request.url).searchParams,
       });
     });

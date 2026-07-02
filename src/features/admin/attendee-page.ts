@@ -15,6 +15,7 @@
  */
 
 import { t } from "#i18n";
+import { loadAttendeeBalancePanel } from "#routes/admin/attendee-balance.ts";
 import { attendeeBookingsFromLines } from "#routes/admin/attendee-form-model.ts";
 import {
   buildEditFormFromAttendee,
@@ -27,6 +28,7 @@ import {
   loadContactRecords,
   loadQuestionsForExisting,
 } from "#routes/admin/attendee-page-data.ts";
+import { loadMergePanel } from "#routes/admin/attendees-merge.ts";
 import {
   type ActionDef,
   defineEntityPage,
@@ -52,7 +54,6 @@ import {
   attendeeBanner,
   attendeeSummaryRows,
   ContactHistory,
-  MergeSection,
 } from "#templates/admin/attendee-page.tsx";
 import { PaymentDetails } from "#templates/admin/attendees.tsx";
 
@@ -61,9 +62,9 @@ import { PaymentDetails } from "#templates/admin/attendees.tsx";
 const isRefundable = (attendee: Attendee): boolean =>
   !!attendee.payment_id && !attendee.refunded;
 
-/** The booking-scoped action routes are keyed on the attendee's home listing. */
+/** The attendee-scoped action routes live under the entity's own base. */
 const actionBase = ({ attendee }: LoadedAttendee): string =>
-  `/admin/listing/${attendee.listing_id}/attendee/${attendee.id}`;
+  `/admin/attendees/${attendee.id}`;
 
 /** Thread the current tab back through a sub-action's confirm page. */
 const withReturn = (href: string, ctx: PageCtx): string =>
@@ -162,8 +163,17 @@ const overviewTab: TabDef<LoadedAttendee> = {
     },
     {
       kind: "custom",
-      load: ({ attendee }) =>
-        Promise.resolve(Raw({ html: PaymentDetails({ attendee }) })),
+      load: ({ attendee }, ctx) =>
+        Promise.resolve(
+          Raw({
+            html: PaymentDetails({
+              attendee,
+              // The balance link targets the owner-only Balance tab, so it
+              // must only render for owners (never render a forbidden link).
+              showBalanceLink: ctx.session.adminLevel === "owner",
+            }),
+          }),
+        ),
     },
     {
       kind: "activity",
@@ -219,6 +229,20 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
       visible: (_entity, session) => session.adminLevel === "owner",
     },
     {
+      labelKey: "entity.tab.balance",
+      sections: [
+        {
+          kind: "custom",
+          load: ({ attendee }, ctx) =>
+            loadAttendeeBalancePanel(attendee.id, ctx.baseUrl),
+        },
+      ],
+      slug: "balance",
+      // The balance panel exposes order money and the customer pay link, so
+      // it is owner-only like the Ledger tab (and the old /balance route).
+      visible: (_entity, session) => session.adminLevel === "owner",
+    },
+    {
       labelKey: "entity.tab.activity",
       sections: [
         {
@@ -238,7 +262,8 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
         },
         {
           kind: "custom",
-          load: ({ attendee }) => Promise.resolve(MergeSection({ attendee })),
+          load: ({ attendee }, ctx) =>
+            loadMergePanel(attendee, ctx.query.get("token") ?? ""),
         },
       ],
       slug: "actions",

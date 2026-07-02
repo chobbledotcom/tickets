@@ -18,10 +18,7 @@ import { renderMarkdown } from "#shared/markdown.ts";
 import type { Attendee } from "#shared/types.ts";
 import { AttendeeNotesSection } from "#templates/admin/attendee-notes.tsx";
 import type { SummaryRow } from "#templates/admin/entity-pages.tsx";
-import {
-  MaybeButtonLink,
-  SubmitButton,
-} from "#templates/components/actions.tsx";
+import { MaybeButtonLink } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 
@@ -216,39 +213,6 @@ export const ContactHistory = ({
     </article>
   );
 };
-
-/** The "Merge Attendee" search form (Actions tab). */
-export const MergeSection = ({
-  attendee,
-}: {
-  attendee: Attendee;
-}): JSX.Element => (
-  <article>
-    <div class="prose">
-      <h3>{t("attendee_form.merge_heading")}</h3>
-      <p>{t("attendee_form.merge_hint")}</p>
-    </div>
-    <form
-      action={`/admin/attendees/${attendee.id}/merge`}
-      class="inline-row"
-      method="get"
-    >
-      <label for="merge_token">
-        {t("attendee_form.merge_token")}
-        <input
-          id="merge_token"
-          name="token"
-          placeholder={t("attendee_form.merge_placeholder")}
-          required
-          type="text"
-        />
-      </label>
-      <SubmitButton icon="search">
-        {t("attendee_form.merge_search")}
-      </SubmitButton>
-    </form>
-  </article>
-);
 
 /**
  * The always-visible banner above the tab strip: the attendee's status (only
