@@ -435,14 +435,20 @@ const handleCostPost = async (
   const occurredAt = serviceDate
     ? `${serviceDate}T00:00:00.000Z`
     : new Date().toISOString();
-  await recordServiceCost({
-    amount,
-    listingId,
-    memo: form.getString("memo"),
-    occurredAt,
-    reference: form.getString("cost_idempotency_key") || undefined,
-    servicingId: id,
-  });
+  try {
+    await recordServiceCost({
+      amount,
+      listingId,
+      memo: form.getString("memo"),
+      occurredAt,
+      reference: form.getString("cost_idempotency_key") || undefined,
+      servicingId: id,
+    });
+  } catch (err) {
+    // A reused idempotency key whose payload changed (or any other recording
+    // failure) is a recoverable form error, not a 500.
+    return redirect(`/admin/servicing/${id}`, (err as Error).message, false);
+  }
   return redirect(
     `/admin/servicing/${id}`,
     `Recorded cost ${form.getString("amount")}`,

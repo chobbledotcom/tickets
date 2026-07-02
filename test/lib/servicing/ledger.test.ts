@@ -50,6 +50,7 @@ import {
   editServiceCost,
   expectCostAfterRecording,
   expectRejects,
+  parseFlashCookie,
   recordServiceCost,
   renderAdminPage,
 } from "#test-utils";
@@ -249,6 +250,89 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     await postCost(crypto.randomUUID());
     expect((await transfersOfKind("service_cost")).length).toBe(2);
     expect(await costOf(listing.id)).toBe(18000);
+  });
+
+  test("reusing an idempotency key with a changed amount errors, never a silent false success", async () => {
+    // Bug: recordServiceCost short-circuited on the stored reference without
+    // checking the payload, so a reused key (e.g. a bfcached form the operator
+    // edited before resubmitting) reported success for the NEW amount while
+    // recording nothing. The second submit must either post the change or fail
+    // — never silently keep the old £90 while claiming to record £50.
+    const { id, listing } = await createServicingHold();
+    const key = crypto.randomUUID();
+    const postCost = (amount: string) =>
+      adminPost(`/admin/servicing/${id}`, {
+        amount,
+        cost_idempotency_key: key,
+        memo: "Boiler part",
+        target_listing_id: String(listing.id),
+      });
+    await postCost("90.00");
+    const changed = await postCost("50.00"); // same key, different amount
+    // Exactly one cost leg exists, and it is NOT a silent success storing £50.
+    expect((await transfersOfKind("service_cost")).length).toBe(1);
+    expect(await costOf(listing.id)).toBe(9000);
+    // The distinguishing signal from the old false-success: the second submit
+    // carries an ERROR flash, not a "Recorded cost 50.00" success flash.
+    expect(parseFlashCookie(changed).success).toBeUndefined();
+    expect(parseFlashCookie(changed).error).toBeDefined();
+    const { getServicingCosts } = await import(
+      "#shared/db/attendees/servicing.ts"
+    );
+    const costs = await getServicingCosts(id);
+    expect(costs.map((c) => c.amount)).toEqual([9000]);
+  });
+
+  test("reusing an idempotency key with only the memo changed does not silently keep the old memo", async () => {
+    // The cost reference derived from amount/listing/date omits the memo, so a
+    // memo-only change under the same key would previously short-circuit and
+    // preserve the stale memo while reporting success.
+    const { id, listing } = await createServicingHold();
+    const key = crypto.randomUUID();
+    const postCost = (memo: string) =>
+      adminPost(`/admin/servicing/${id}`, {
+        amount: "90.00",
+        cost_idempotency_key: key,
+        memo,
+        target_listing_id: String(listing.id),
+      });
+    await postCost("Original memo");
+    const changed = await postCost("Edited memo"); // same key, changed memo
+    expect(changed.status).toBe(302);
+    // Rejected with an error flash, not a false success.
+    expect(parseFlashCookie(changed).success).toBeUndefined();
+    // Still exactly one cost, and the stored memo is the original — the edit was
+    // rejected, not silently swallowed.
+    const { getServicingCosts } = await import(
+      "#shared/db/attendees/servicing.ts"
+    );
+    const costs = await getServicingCosts(id);
+    expect(costs).toHaveLength(1);
+    expect(costs[0]!.memo).toBe("Original memo");
+  });
+
+  test("recordServiceCost throws COST_REPLAY_MISMATCH when a stored reference's payload changed", async () => {
+    // The data-layer guard behind the route form-error: same reference, changed
+    // amount → a loud throw, never a stale-leg replay.
+    const { id, listing } = await createServicingHold();
+    const { COST_REPLAY_MISMATCH } = await import(
+      "#shared/db/attendees/servicing.ts"
+    );
+    const base = {
+      listingId: listing.id,
+      memo: "Boiler part",
+      occurredAt: SERVICE_DATE,
+      reference: "reused-key",
+      servicingId: id,
+    };
+    await recordServiceCost({ ...base, amount: 9000 });
+    await expectRejects(
+      recordServiceCost({ ...base, amount: 5000 }),
+      new RegExp(COST_REPLAY_MISMATCH.slice(0, 20)),
+    );
+    // Nothing new landed.
+    expect((await transfersOfKind("service_cost")).length).toBe(1);
+    expect(await costOf(listing.id)).toBe(9000);
   });
 
   test("editing a cost posts a correcting adjustment, never mutates a row", async () => {

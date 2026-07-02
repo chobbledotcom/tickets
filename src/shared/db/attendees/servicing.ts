@@ -553,6 +553,56 @@ const serviceCostTransfer = async (
   source: costAccount(input.listingId),
 });
 
+/** Message thrown when an idempotency key (or a payload-derived reference) is
+ *  reused for a service cost whose payload has since changed. Surfaced by the
+ *  route as a form error rather than a false success. */
+export const COST_REPLAY_MISMATCH =
+  "A different service cost was already recorded for this request. " +
+  "Reload the page and re-enter the cost.";
+
+/**
+ * The transfer id of an existing service cost stored under `reference`, but ONLY
+ * when its stored leg matches the WHOLE submitted payload — amount, servicing
+ * event, listing, date, and (decrypted) memo. Returns null when no leg is stored
+ * for the reference (a fresh cost). Throws {@link COST_REPLAY_MISMATCH} when a
+ * leg IS stored but differs from the new payload: the cost form's per-render
+ * idempotency key is an opaque token, so a stale/bfcached form the operator
+ * edited before resubmitting would otherwise resolve to the old leg and report a
+ * false success while recording nothing. The memo is checked too — a
+ * payload-derived reference omits it, so "same amount/date, changed memo only"
+ * must not silently keep the old memo.
+ */
+const matchingServiceCostReplayId = async (
+  input: RecordServiceCostInput,
+  reference: string,
+): Promise<number | null> => {
+  const stored = await queryOne<{
+    transfer_id: number;
+    amount: number;
+    servicing_attendee_id: number;
+    listing_id: number;
+    occurred_at: string;
+    memo: string;
+  }>(
+    `SELECT transfer.id AS transfer_id, transfer.amount,
+            cost.servicing_attendee_id, cost.listing_id, cost.occurred_at,
+            cost.memo
+       FROM transfers AS transfer
+       JOIN service_costs AS cost ON cost.transfer_id = transfer.id
+      WHERE transfer.reference = ?`,
+    [reference],
+  );
+  if (!stored) return null;
+  const matches =
+    stored.amount === input.amount &&
+    stored.servicing_attendee_id === input.servicingId &&
+    stored.listing_id === input.listingId &&
+    stored.occurred_at === input.occurredAt &&
+    (await decrypt(stored.memo)) === input.memo;
+  if (!matches) throw new Error(COST_REPLAY_MISMATCH);
+  return stored.transfer_id;
+};
+
 export const recordServiceCost = async (
   input: RecordServiceCostInput,
 ): Promise<number> => {
@@ -564,15 +614,14 @@ export const recordServiceCost = async (
   const encryptedMemo = transfer.memo!;
   // Idempotent on the transfer reference: the cost form carries a per-render
   // idempotency key the route passes as `reference`, so a browser retry /
-  // double-click of the same form re-posts the same reference. Short-circuit
-  // and return the already-recorded cost id *before* re-posting — a fresh
-  // per-request `occurredAt` would otherwise trip the ledger's replay-equality
-  // guard ("stored leg differs in occurredAt") and surface a 500.
-  const existing = await queryOne<{ id: number }>(
-    "SELECT id FROM transfers WHERE reference = ?",
-    [transfer.reference],
-  );
-  if (existing) return existing.id;
+  // double-click of the same form re-posts the same reference. Return the
+  // already-recorded cost id *before* re-posting — a fresh per-request
+  // `occurredAt` would otherwise trip the ledger's replay-equality guard and
+  // surface a 500 — but ONLY when the stored leg matches the whole payload, so a
+  // reused key with a changed amount/memo/etc. fails loudly instead of reporting
+  // a false success.
+  const priorId = await matchingServiceCostReplayId(input, transfer.reference);
+  if (priorId !== null) return priorId;
   // Post the cost leg AND its first-class `service_costs` record in one
   // transaction, so the per-event cost list can never miss a posted cost (a
   // leg without a service_costs row would count in costOf but be unlistable).
