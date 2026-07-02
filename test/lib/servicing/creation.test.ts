@@ -32,6 +32,7 @@ import {
   kindOf,
   SMUGGLED_CONTACT_FIELDS,
   servicingRowsForListing,
+  tokenIndexOf,
 } from "#test-utils";
 
 // jscpd:ignore-end
@@ -71,14 +72,17 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
     await expectLogisticsDisabled(event.id);
   });
 
-  test("a servicing event still gets a ticket token (token index populated)", async () => {
+  test("a servicing event's stored token index is the HMAC of its ticket token", async () => {
     const { event } = await createServicingHold();
-    const row = await queryOne<{ idx: string }>(
-      "SELECT ticket_token_index AS idx FROM attendees WHERE id = ?",
-      [event.id],
+    const { computeTicketTokenIndex } = await import(
+      "#shared/crypto/hashing.ts"
     );
-    expect(row?.idx).toBeTruthy();
-    expect(event.ticketToken).toBeTruthy();
+    // A real (non-empty) token, and the stored index is exactly its HMAC — so a
+    // mutant that stores a blank or wrong index (breaking token lookups) fails.
+    expect(event.ticketToken).toMatch(/\S/);
+    expect(await tokenIndexOf(event.id)).toBe(
+      await computeTicketTokenIndex(event.ticketToken),
+    );
   });
 
   test("creating a servicing event records no contact activity", async () => {

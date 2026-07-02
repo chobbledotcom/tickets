@@ -60,6 +60,7 @@ import { BookingStatusBadges } from "#templates/admin/attendee-detail.tsx";
 import { EditQuestions } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Icon } from "#templates/components/actions.tsx";
+import { PriceInput } from "#templates/components/price-input.tsx";
 import { PHONE_INPUT_PATTERN } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -480,13 +481,10 @@ const StatusAndBalanceFields = ({
       )}
       <label for={REMAINING_BALANCE_FIELD}>
         {t("attendee_form.outstanding_balance")}
-        <input
+        <PriceInput
           id={REMAINING_BALANCE_FIELD}
-          inputmode="decimal"
           min="0"
           name={REMAINING_BALANCE_FIELD}
-          step="0.01"
-          type="number"
           value={toMajorUnits(remainingBalance)}
         />
         <small>{t("attendee_form.outstanding_balance_hint")}</small>

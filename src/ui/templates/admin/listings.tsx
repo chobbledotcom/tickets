@@ -86,6 +86,7 @@ import {
   MaybeButtonLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { PriceInput } from "#templates/components/price-input.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import {
   getAddAttendeeFields,
@@ -1650,13 +1651,10 @@ const ListingIncomeAdjustSection = ({
       </label>
       <label for="income">
         {t("listings_table.adjust_income_new_label")}
-        <input
+        <PriceInput
           id="income"
-          inputmode="decimal"
           min="0"
           name="income"
-          step="0.01"
-          type="number"
           value={toMajorUnits(listing.income)}
         />
       </label>

@@ -34,6 +34,7 @@ import {
   GuideLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { PriceInput } from "#templates/components/price-input.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { modifierAggregateFields, modifierFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -195,12 +196,9 @@ const ModifierRevenueAdjustSection = ({
     </label>
     <label for="total_revenue">
       {t("modifiers.adjust_revenue_new_label")}
-      <input
+      <PriceInput
         id="total_revenue"
-        inputmode="decimal"
         name="total_revenue"
-        step="0.01"
-        type="number"
         value={toMajorUnits(modifier.total_revenue)}
       />
     </label>

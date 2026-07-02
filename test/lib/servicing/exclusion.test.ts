@@ -20,6 +20,7 @@ import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import {
   getAllAttendeePiiBlobs,
+  getAttendeeKindsByIds,
   getAttendeePiiBlobsForListings,
   getAttendeesByTokens,
   getAttendeesPage,
@@ -61,17 +62,6 @@ const decryptNames = async (
   return (await decryptAttendees(rows, pk)).map((a) => a.name);
 };
 
-const kindsFor = async (ids: number[]): Promise<string[]> => {
-  const { queryAll } = await import("#shared/db/client.ts");
-  if (ids.length === 0) return [];
-  const placeholders = ids.map(() => "?").join(",");
-  const rows = await queryAll<{ kind: string }>(
-    `SELECT kind FROM attendees WHERE id IN (${placeholders})`,
-    ids,
-  );
-  return rows.map((r) => r.kind);
-};
-
 describeWithEnv(
   "servicing §7 — exclusion from customer surfaces",
   { db: true },
@@ -98,8 +88,8 @@ describeWithEnv(
       const newestRows = await getNewestAttendeesRaw(10);
       const ids = newestRows.map((a) => a.id);
       expect(ids).toContain(newest.id);
-      const kinds = await kindsFor(ids);
-      expect(kinds.every((k) => k !== SERVICING_KIND)).toBe(true);
+      const kinds = [...(await getAttendeeKindsByIds(ids)).values()];
+      expect(kinds).not.toContain(SERVICING_KIND);
     });
 
     test("bulk-email targets exclude servicing (all + per-listing)", async () => {

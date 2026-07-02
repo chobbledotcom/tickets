@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAdminPath } from "#shared/attendee-links.ts";
+import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { ATTENDEE_JOIN_SELECT } from "#shared/db/attendees/queries.ts";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -53,10 +54,10 @@ describe("servicing §20 — one shared kind-aware link builder (no second copy)
   });
 
   test("attendeeAdminPath is callable for both kinds (the shared builder is real)", () => {
-    expect(attendeeAdminPath({ id: 1, kind: "servicing" })).toBe(
+    expect(attendeeAdminPath({ id: 1, kind: SERVICING_KIND })).toBe(
       "/admin/servicing/1",
     );
-    expect(attendeeAdminPath({ id: 1, kind: "attendee" })).toBe(
+    expect(attendeeAdminPath({ id: 1, kind: ATTENDEE_KIND })).toBe(
       "/admin/attendees/1",
     );
   });
