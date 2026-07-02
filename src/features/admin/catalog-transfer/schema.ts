@@ -18,20 +18,43 @@
  */
 
 import * as v from "valibot";
-import { DAY_NAMES } from "#shared/dates.ts";
-import { ListingTypeSchema, MAX_DURATION_DAYS } from "#shared/types.ts";
+import {
+  isContactField,
+  ListingTypeSchema,
+  MAX_DURATION_DAYS,
+} from "#shared/types.ts";
 
-/** True when `value` is storable as a datetime — empty (no value) or a string
- * the datetime column normaliser can parse. Mirrors that normaliser's leniency:
- * a missing timezone suffix is treated as UTC. An unparseable value would be
- * logged and silently stored as empty, so it must be a field error on import. */
+/**
+ * True when `value` is storable in a datetime column: empty (no value), or a
+ * real calendar datetime — a naive `YYYY-MM-DDTHH:MM[:SS]` or an offset instant
+ * (the exported shape). Impossible dates like `2026-02-30` are rejected (a bare
+ * `Date` would silently roll them into March). Deliberately self-contained (no
+ * Temporal/timezone import) so this early-loaded schema module stays free of the
+ * settings-loading graph; it matches the strictness of the form's validator.
+ */
 const isStorableDatetime = (value: string): boolean => {
   if (value === "") return true;
-  const withTz = /(?:Z|[+-]\d{2}:\d{2})$/i.test(value) ? value : `${value}Z`;
-  return !Number.isNaN(new Date(withTz).getTime());
+  const m = value.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/,
+  );
+  if (!m) return false;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const h = Number(m[4]);
+  const mi = Number(m[5]);
+  const s = m[6] === undefined ? 0 : Number(m[6]);
+  if (mo < 1 || mo > 12 || d < 1 || h > 23 || mi > 59 || s > 59) return false;
+  // Round-trip through UTC: a rolled-over impossible date won't match its parts.
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return (
+    dt.getUTCFullYear() === y &&
+    dt.getUTCMonth() === mo - 1 &&
+    dt.getUTCDate() === d
+  );
 };
 
-/** A datetime column value: empty, or a parseable datetime (see above). */
+/** A datetime column value: empty, or a real calendar datetime (see above). */
 const DatetimeSchema = v.pipe(
   v.string(),
   v.check(isStorableDatetime, "must be a valid datetime"),
@@ -48,6 +71,43 @@ const intAtLeast = (min: number) =>
 const NonNegativeIntSchema = intAtLeast(0);
 /** A whole positive integer (durations, quantities). */
 const PositiveIntSchema = intAtLeast(1);
+/** A booking duration in whole days: 1..MAX_DURATION_DAYS, matching the listing
+ * form's cap so an over-limit blob is a field error, not silently clamped. */
+const DurationDaysSchema = v.pipe(
+  v.number(),
+  v.integer(),
+  v.minValue(1),
+  v.maxValue(MAX_DURATION_DAYS, `must be at most ${MAX_DURATION_DAYS} days`),
+);
+/** A single valid contact-field name (email/phone/address/…). */
+const ContactFieldSchema = v.custom<string>(
+  (value) => typeof value === "string" && isContactField(value),
+  "must be a known contact field",
+);
+/** The `fields` column: a comma-separated list of valid contact-field names, so
+ * a typo ("fax") is a field error rather than a silently-dropped entry. */
+const FieldsSchema = v.pipe(
+  v.string(),
+  v.transform((value) =>
+    value
+      .split(",")
+      .map((part) => part.trim())
+      .filter((part) => part),
+  ),
+  v.array(ContactFieldSchema),
+  v.transform((parts) => parts.join(",")),
+);
+/** A bookable weekday name — validated so a typo ("Funday") is a field error
+ * rather than a day that never matches an availability check. */
+const BookableDaySchema = v.picklist([
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+]);
 /** A minor-unit price — a non-negative integer. */
 const PriceSchema = intAtLeast(0);
 /** A required, trimmed, non-empty name reference. */
@@ -84,17 +144,15 @@ const optPositiveInt = v.optional(PositiveIntSchema);
 export const ListingDataSchema = v.object({
   active: optBoolean,
   assignBuiltSite: optBoolean,
-  // Only real weekday names are bookable; a typo ("Funday") would leave a daily
-  // listing with dates that never match, so it is a field error on import.
-  bookableDays: v.optional(v.array(v.picklist(DAY_NAMES))),
+  bookableDays: v.optional(v.array(BookableDaySchema)),
   canPayMore: optBoolean,
   closesAt: v.optional(v.nullable(DatetimeSchema)),
   customisableDays: optBoolean,
   date: v.optional(DatetimeSchema),
   dayPrices: v.optional(DayPricesSchema),
   description: optString,
-  durationDays: optPositiveInt,
-  fields: optString,
+  durationDays: v.optional(DurationDaysSchema),
+  fields: v.optional(FieldsSchema),
   hidden: optBoolean,
   initialSiteMonths: optNonNegInt,
   listingType: v.optional(ListingTypeSchema),

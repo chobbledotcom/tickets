@@ -30,6 +30,7 @@ import {
   type ListingInput,
   listingsTable,
 } from "#shared/db/listings.ts";
+import { validateListingFieldValues } from "#shared/listing-field-validators.ts";
 import {
   deleteOrphanedAddOnError,
   generateUniqueListingSlug,
@@ -518,6 +519,16 @@ const hydrateListingGroupIds = async (
   );
 };
 
+/** The JSON API builds a `ListingInput` directly, so — like the catalog import
+ * — it must run the form's per-field value rules (which `validateListingInput`
+ * itself does not) in addition to the cross-entity checks. */
+const validateListingApiInput = async (
+  input: ListingInput,
+  existingId?: number,
+): Promise<string | null> =>
+  validateListingFieldValues(input) ??
+  (await validateListingInput(input, existingId));
+
 const listingApiRoutes = defineCrudApi<
   Listing,
   ListingInput,
@@ -566,7 +577,7 @@ const listingApiRoutes = defineCrudApi<
   table: listingsTable,
   toCreateInput: bodyToCreateInput,
   toUpdateInput: bodyToUpdateInput,
-  validate: validateListingInput,
+  validate: validateListingApiInput,
 });
 
 export const adminApiRoutes = {
