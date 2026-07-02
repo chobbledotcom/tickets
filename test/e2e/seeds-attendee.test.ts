@@ -47,10 +47,11 @@ describe("e2e: seeded attendee views", () => {
     const freeListingName = DEMO_LISTING_NAMES[1]!;
     expect(browser.containsText(freeListingName)).toBe(true);
 
-    // Navigate to the free listing's page.
+    // Navigate to the free listing's page (Overview), then its roster tab.
     await browser.clickLink(freeListingName);
     expect(browser.currentUrl).toMatch(/^\/admin\/listing\/\d+$/);
     expect(browser.containsText(freeListingName)).toBe(true);
+    await browser.visit(`${browser.currentUrl}/attendees`);
 
     // Navigate to the attendee's edit page via the "Edit" link in the attendee
     // table (href /admin/attendees/:id).
