@@ -2096,6 +2096,50 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       });
       expect(response.status).toBe(302);
     });
+
+    test("creates a free listing when unit_price is blank (no price)", async () => {
+      // Exercises the optional-price parse's blank path: a blank unit_price
+      // resolves to no price, and the listing stores 0 (free).
+      const { response } = await adminFormPost("/admin/listing", {
+        max_attendees: "50",
+        max_quantity: "1",
+        name: "Free Listing",
+        thank_you_url: "https://example.com/thanks",
+        unit_price: "",
+      });
+      expect(response.status).toBe(302);
+      expect((await getListingWithCount(1))?.unit_price).toBe(0);
+    });
+  });
+
+  describe("POST /admin/listing day-price validation", () => {
+    test("rejects a create when a day price is over-precise for the currency", async () => {
+      // 10.005 has 3 decimals — invalid in GBP (2). Without validation this
+      // would be silently dropped; instead the save is rejected.
+      const { response } = await adminFormPost("/admin/listing", {
+        day_price_1: "10.005",
+        max_attendees: "50",
+        max_quantity: "1",
+        name: "Bad Day Price",
+        thank_you_url: "https://example.com/thanks",
+      });
+      expect(response.status).toBe(400);
+      expect(await response.text()).toContain("valid day price");
+      // Nothing was created.
+      expect(await getListingWithCount(1)).toBeNull();
+    });
+
+    test("accepts a create with a valid day price and stores it", async () => {
+      const { response } = await adminFormPost("/admin/listing", {
+        day_price_1: "10.00",
+        max_attendees: "50",
+        max_quantity: "1",
+        name: "Good Day Price",
+        thank_you_url: "https://example.com/thanks",
+      });
+      expect(response.status).toBe(302);
+      expect((await getListingWithCount(1))?.day_prices).toEqual({ 1: 1000 });
+    });
   });
 
   describe("POST /admin/listing with can_pay_more", () => {

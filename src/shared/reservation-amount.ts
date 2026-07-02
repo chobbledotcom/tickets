@@ -38,21 +38,21 @@ const decimalPlaces = (numStr: string): number => {
 
 /**
  * Parse a reservation-amount string into its kind and numeric value, or null
- * when the string is malformed. A `flat` or `perItem` value is a currency
- * amount, so it's rejected when it carries more decimal places than the active
- * currency represents (e.g. `"10.005"` in GBP, which `toMinorUnits` would
- * otherwise round); a `percent` value keeps its precision (`"33.33%"`).
+ * when the string is malformed. Deliberately currency-tolerant: this is on the
+ * checkout deposit-calculation path ({@link computeReservationDeposit}), which
+ * must keep computing a deposit for values stored before the save-time
+ * precision rule below — so an over-precise `flat`/`perItem` amount still parses
+ * here (and `toMinorUnits` rounds it) rather than silently collecting no
+ * deposit. Precision is enforced on save by {@link validateReservationAmount}.
  */
 export const parseReservationAmount = (
   raw: string,
 ): ReservationAmount | null => {
   const match = RESERVATION_AMOUNT_RE.exec(raw.trim());
   if (!match) return null;
-  const numStr = match[1]!;
-  // numStr is `\d+(\.\d+)?`, so this always parses to a finite number.
-  const value = Number.parseFloat(numStr);
+  // match[1] is `\d+(\.\d+)?`, so this always parses to a finite number.
+  const value = Number.parseFloat(match[1]!);
   if (match[2] === "%") return { kind: "percent", value };
-  if (decimalPlaces(numStr) > getDecimalPlaces(settings.currency)) return null;
   if (match[2] === "x") return { kind: "perItem", value };
   return { kind: "flat", value };
 };
@@ -60,10 +60,23 @@ export const parseReservationAmount = (
 /**
  * Validate a reservation-amount string for form input. Returns an error
  * message, or null when valid. Empty input is rejected — the field must be
- * filled in (use "0" for no deposit).
+ * filled in (use "0" for no deposit). A `flat`/`perItem` amount is a currency
+ * value, so it's rejected here (on save) when it carries more decimal places
+ * than the active currency represents (e.g. `"10.005"` in GBP); a `percent`
+ * keeps its precision (`"33.33%"`). The calc path stays tolerant of any value
+ * already stored.
  */
-export const validateReservationAmount = (raw: string): string | null =>
-  parseReservationAmount(raw) === null ? RESERVATION_AMOUNT_HINT : null;
+export const validateReservationAmount = (raw: string): string | null => {
+  const parsed = parseReservationAmount(raw);
+  if (parsed === null) return RESERVATION_AMOUNT_HINT;
+  if (parsed.kind === "percent") return null;
+  // The numeric part is match[1]; strip the trailing % / x suffix to count its
+  // decimal places against the currency.
+  const numStr = raw.trim().replace(/[%x]$/, "");
+  return decimalPlaces(numStr) > getDecimalPlaces(settings.currency)
+    ? RESERVATION_AMOUNT_HINT
+    : null;
+};
 
 /**
  * Parse `raw`, turn the parsed amount into a deposit via `fromParsed`, and

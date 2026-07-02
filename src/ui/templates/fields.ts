@@ -4,7 +4,7 @@
 
 import * as v from "valibot";
 import { t } from "#i18n";
-import { formatCurrency } from "#shared/currency.ts";
+import { formatCurrency, getDecimalPlaces } from "#shared/currency.ts";
 import { DAY_NAMES } from "#shared/dates.ts";
 import { isUpdateTier } from "#shared/db/built-sites.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
@@ -502,7 +502,9 @@ export const getListingFields = (): Field[] => [
     type: "checkbox-group",
   },
   {
-    defaultValue: "100.00",
+    // 100 currency units, formatted to the currency's decimals so the default
+    // is valid for a zero-decimal currency (JPY "100") as well as GBP "100.00".
+    defaultValue: (100).toFixed(getDecimalPlaces(settings.currency)),
     hint: t("fields.listing.max_price_hint", { amount: formatCurrency(100) }),
     inputmode: "decimal",
     label: t("fields.listing.max_price"),

@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe } from "@std/testing/bdd";
-import { moneyStep, PriceInput } from "#templates/components/price-input.tsx";
+import {
+  moneyPattern,
+  moneyStep,
+  PriceInput,
+} from "#templates/components/price-input.tsx";
 import { testWithSetting } from "#test-utils";
 
 describe("moneyStep", () => {
@@ -25,6 +29,32 @@ describe("moneyStep", () => {
     { currency: "KWD" },
     () => {
       expect(moneyStep()).toBe("0.001");
+    },
+  );
+});
+
+describe("moneyPattern", () => {
+  testWithSetting(
+    "allows up to N decimals for an N-decimal currency (GBP)",
+    { currency: "GBP" },
+    () => {
+      expect(moneyPattern()).toBe("\\d+(\\.\\d{1,2})?");
+    },
+  );
+
+  testWithSetting(
+    "allows no decimals for a zero-decimal currency (JPY)",
+    { currency: "JPY" },
+    () => {
+      expect(moneyPattern()).toBe("\\d+");
+    },
+  );
+
+  testWithSetting(
+    "allows up to 3 decimals for a 3-decimal currency (KWD)",
+    { currency: "KWD" },
+    () => {
+      expect(moneyPattern()).toBe("\\d+(\\.\\d{1,3})?");
     },
   );
 });
