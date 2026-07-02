@@ -23,6 +23,7 @@ import {
   testCookie,
   testCsrfToken,
   testListingWithCount,
+  withLaggingRead,
 } from "#test-utils";
 
 describeWithEnv("Admin API - Listings", { db: true }, () => {
@@ -93,6 +94,31 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
           expect(body.listing.id).toBeGreaterThan(0);
           expect(body.listing.slug_index).toBeUndefined();
         },
+      );
+    });
+
+    test("still creates when the read-back replica lags the just-committed write", async () => {
+      // Regression: the JSON API read the created listing back through the
+      // cache-backed lookup, whose miss fetches with a plain "read"-mode query
+      // Turso can serve from a replica lagging the commit — returning null, then
+      // crashing on `row.id`. The read-back now runs on the primary. Simulate the
+      // lag by serving the single-listing count read stale.
+      await withLaggingRead(
+        (sql) =>
+          sql.includes("AS attendee_count") &&
+          sql.includes("WHERE listing.id = ?"),
+        () =>
+          assertJson(
+            apiRequest("/api/admin/listings", {
+              body: { max_attendees: 50, name: "Lagged API Listing" },
+              method: "POST",
+            }),
+            201,
+            (body) => {
+              expect(body.listing.name).toBe("Lagged API Listing");
+              expect(body.listing.id).toBeGreaterThan(0);
+            },
+          ),
       );
     });
 

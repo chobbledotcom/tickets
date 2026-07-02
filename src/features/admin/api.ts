@@ -26,6 +26,7 @@ import {
   computeSlugIndex,
   getAllListings,
   getListingWithCount,
+  getListingWithCountPrimary,
   getStoredListingWithCount,
   type ListingInput,
   listingsTable,
@@ -551,6 +552,10 @@ const listingApiRoutes = defineCrudApi<
   linkActivityToRow: true,
   listExtras: (session) => ({ admin_level: session.adminLevel }),
   lookup: getListingWithCount,
+  // Reading the row back after its own write must hit the primary — a replica
+  // read (as the cache-backed `lookup` does on a miss) can lag the commit and
+  // return null, crashing the write response on `.id`.
+  lookupAfterWrite: getListingWithCountPrimary,
   name: "listings",
   nameField: "name",
   // The required-child gate and group membership are atomic side effects (Fix

@@ -214,13 +214,30 @@ export const executeWithoutCacheInvalidation = async (
   args?: InValue[],
 ): Promise<ResultSet> => executeTrackedStatement(sql, args);
 
-/** Query single row, returning null if not found */
+/** The first row of a result set, or null when it returned none. */
+const firstRowOrNull = <T>(result: ResultSet): T | null => {
+  const rows = resultRows<T>(result);
+  return rows.length === 0 ? null : rows[0]!;
+};
+
+/**
+ * Query a single row, returning null if not found.
+ *
+ * Pass `primary` to pin the read to the primary (read-your-writes). Use that
+ * when reading a row back immediately after committing its own write: a plain
+ * "read"-mode query is routed by Turso to a replica that can lag behind the
+ * just-committed write and so miss the row (returning null); "write" mode always
+ * hits the primary. Mirrors the same guard on {@link syncListingPrices}.
+ */
 export const queryOne = async <T>(
   sql: string,
   args?: InValue[],
+  primary = false,
 ): Promise<T | null> => {
-  const rows = resultRows<T>(await execute(sql, args));
-  return rows.length === 0 ? null : rows[0]!;
+  const result = primary
+    ? (await queryBatchPrimary([{ args: args ?? [], sql }]))[0]!
+    : await execute(sql, args);
+  return firstRowOrNull<T>(result);
 };
 
 /** Query all rows, returning a typed array */

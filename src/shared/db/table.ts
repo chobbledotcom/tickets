@@ -144,6 +144,19 @@ export interface Table<Row, Input> {
   /** Find a row by primary key */
   findById: (id: InValue) => Promise<Row | null>;
 
+  /**
+   * Find a row by primary key, pinned to the primary (read-your-writes). Use
+   * when reading a row back immediately after committing its own write: a plain
+   * {@link findById} runs in "read" mode, which Turso may serve from a replica
+   * that lags behind the just-committed write and so miss the row (returning
+   * null). This reads on the primary, which always reflects the write.
+   *
+   * Optional, like {@link insertStatement}/{@link updateStatement}: only the
+   * transactional CRUD-side-effect write path reads a row back this way, so a
+   * façade table that never takes that path may omit it.
+   */
+  findByIdPrimary?: (id: InValue) => Promise<Row | null>;
+
   /** Transform a row from DB (apply read transforms) */
   fromDb: (row: Row) => Promise<Row>;
   inputKeyMap: Record<string, string>;
@@ -365,14 +378,24 @@ export const defineTable = <Row, Input = Row>(config: {
     return row ? fromDb(row) : null;
   };
 
-  // Find by ID implementation
-  const findById = async (id: InValue): Promise<Row | null> => {
+  // Find by ID; `primary` pins the read to the primary (read-your-writes) for
+  // reading a row back right after its own write (see Table.findByIdPrimary).
+  const findByIdVia = async (
+    id: InValue,
+    primary: boolean,
+  ): Promise<Row | null> => {
     const row = await queryOne<Row>(
       `SELECT * FROM ${name} WHERE ${primaryKey} = ?`,
       [id],
+      primary,
     );
     return row ? fromDb(row) : null;
   };
+
+  const findById = (id: InValue): Promise<Row | null> => findByIdVia(id, false);
+
+  const findByIdPrimary = (id: InValue): Promise<Row | null> =>
+    findByIdVia(id, true);
 
   // Delete by ID implementation
   const deleteById = async (id: InValue): Promise<void> => {
@@ -408,6 +431,7 @@ export const defineTable = <Row, Input = Row>(config: {
     deleteById,
     findAll,
     findById,
+    findByIdPrimary,
     fromDb,
     inputKeyMap,
     insert,

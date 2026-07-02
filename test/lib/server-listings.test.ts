@@ -62,6 +62,7 @@ import {
   testCsrfToken,
   testRequiresAuth,
   updateTestListing,
+  withLaggingRead,
 } from "#test-utils";
 import { postAttendeeRefund, postListingSale } from "#test-utils/ledger.ts";
 
@@ -207,6 +208,32 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const listing = await getListing(1);
       expect(listing).not.toBeNull();
       expect(listing?.name).toBe("New Listing");
+    });
+
+    test("still creates when the read-back replica lags the just-committed write", async () => {
+      // Regression: the create resource wrote the row in a transaction (on the
+      // primary), then read it back with a plain "read"-mode query. Turso can
+      // route that read to a replica still lagging the commit, so the read-back
+      // returned null and the handler crashed dereferencing `row.id`
+      // ("Cannot read properties of null (reading 'id')"). The read-back now runs
+      // on the primary (read-your-writes). Simulate the lag on the by-id single-
+      // row read — the create must succeed regardless.
+      await withLaggingRead(
+        (sql) => sql === "SELECT * FROM listings WHERE id = ?",
+        async () => {
+          const { response } = await adminMultipartPost("/admin/listing", {
+            max_attendees: "50",
+            max_quantity: "1",
+            name: "Lagged Listing",
+            thank_you_url: "https://example.com/thanks",
+          });
+          await expectFlashRedirect("/admin", "Listing created")(response);
+        },
+      );
+
+      // The row really was written, so a normal read finds it after the lag.
+      const listing = await getListing(1);
+      expect(listing?.name).toBe("Lagged Listing");
     });
 
     test("clears webhook URL when creating listing in demo mode", async () => {

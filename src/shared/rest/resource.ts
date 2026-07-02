@@ -207,7 +207,12 @@ export const defineResource = <
     const id = await writeRowInTransaction(statement, existingId, (tx, rowId) =>
       config.afterWrite!(tx, rowId, input, form),
     );
-    return table.findById(id);
+    // Read the just-committed row back on the primary: a "read"-mode findById can
+    // hit a replica that still lags the commit and return null, which the create
+    // path would then dereference (`row.id`) and crash on. See findByIdPrimary.
+    // Present on every table that reaches this transactional path (it is set
+    // alongside insertStatement/updateStatement, asserted just above).
+    return table.findByIdPrimary!(id);
   };
 
   const create = async (form: FormParams): Promise<CreateResult<Row>> => {
