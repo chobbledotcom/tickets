@@ -15,6 +15,7 @@ import {
 import { getParentIds, setChildIds } from "#shared/db/listing-parents.ts";
 import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
 import { getListing } from "#shared/db/listings.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   createTestGroup,
   createTestListing,
@@ -438,6 +439,120 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
 
   test("clears assign-built-site when the builder is not configured", async () => {
     expect(await importBuiltSiteListing("No Builder")).toBe(false);
+  });
+
+  test("rejects a non-date closesAt", async () => {
+    const result = await importCatalog({
+      kind: "listing",
+      listing: { closesAt: "not-a-date", maxAttendees: 1, name: "Bad Close" },
+      version: 1,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("closesAt");
+  });
+
+  test("rejects a non-date event date", async () => {
+    const result = await importCatalog({
+      kind: "listing",
+      listing: { date: "soon", maxAttendees: 1, name: "Bad Date" },
+      version: 1,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("date");
+  });
+
+  test("accepts datetimes with and without a timezone suffix", async () => {
+    const result = await importCatalog({
+      kind: "listing",
+      listing: {
+        // With an explicit offset and without one (treated as UTC).
+        closesAt: "2026-06-01T12:00:00Z",
+        date: "2026-06-02T09:00:00",
+        maxAttendees: 1,
+        name: "Timed Listing",
+      },
+      version: 1,
+    });
+    if (!result.ok) throw new Error(result.error);
+    const imported = (await getListing(result.id))!;
+    expect(imported.closes_at).toContain("2026-06-01");
+  });
+
+  test("accepts an explicitly empty closesAt (never closes)", async () => {
+    const result = await importCatalog({
+      kind: "listing",
+      listing: { closesAt: "", maxAttendees: 1, name: "Open Listing" },
+      version: 1,
+    });
+    if (!result.ok) throw new Error(result.error);
+    expect((await getListing(result.id))!.closes_at).toBeNull();
+  });
+
+  test("rejects an invalid bookable day name", async () => {
+    const result = await importCatalog({
+      kind: "listing",
+      listing: {
+        bookableDays: ["Funday"],
+        listingType: "daily",
+        maxAttendees: 1,
+        name: "Bad Days",
+      },
+      version: 1,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("bookableDays");
+  });
+
+  test("accepts valid bookable day names", async () => {
+    const result = await importCatalog({
+      kind: "listing",
+      listing: {
+        bookableDays: ["Monday", "Wednesday"],
+        listingType: "daily",
+        maxAttendees: 1,
+        name: "Good Days",
+      },
+      version: 1,
+    });
+    if (!result.ok) throw new Error(result.error);
+    expect((await getListing(result.id))!.bookable_days).toContain("Monday");
+  });
+
+  test("clears uses-logistics when logistics is disabled", async () => {
+    const result = await importCatalog({
+      kind: "listing",
+      listing: { maxAttendees: 1, name: "Logi Off", usesLogistics: true },
+      version: 1,
+    });
+    if (!result.ok) throw new Error(result.error);
+    expect((await getListing(result.id))!.uses_logistics).toBe(false);
+  });
+
+  test("keeps uses-logistics when logistics is enabled", async () => {
+    settings.setForTest({ has_logistics: true });
+    const result = await importCatalog({
+      kind: "listing",
+      listing: { maxAttendees: 1, name: "Logi On", usesLogistics: true },
+      version: 1,
+    });
+    if (!result.ok) throw new Error(result.error);
+    expect((await getListing(result.id))!.uses_logistics).toBe(true);
+  });
+
+  test("hides the webhook URL from an editor export", async () => {
+    const listing = await createTestListing({
+      name: "Hooked",
+      webhookUrl: "https://example.com/hook",
+    });
+    // The editor blob must not carry the PII sink URL the edit form hides…
+    const editorBlob = (await exportListing(listing.id, "editor"))!;
+    expect(editorBlob.listing.webhookUrl).toBeUndefined();
+    // …but staff still round-trip it.
+    const ownerBlob = (await exportListing(listing.id, "owner"))!;
+    expect(ownerBlob.listing.webhookUrl).toBe("https://example.com/hook");
   });
 
   test("batches many memberships into at most two statements", async () => {

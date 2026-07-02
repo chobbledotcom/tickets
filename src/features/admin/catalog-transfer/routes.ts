@@ -8,7 +8,12 @@
  */
 
 import { t } from "#i18n";
-import { CONTENT_MULTIPART, requireContentOr, withAuth } from "#routes/auth.ts";
+import {
+  type AuthSession,
+  CONTENT_MULTIPART,
+  requireContentOr,
+  withAuth,
+} from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import {
   encodeBody,
@@ -44,16 +49,18 @@ const catalogFilename = (kind: string, name: string): string => {
 };
 
 /** Content-gated export download: load the blob by id (404 when absent) and
- * stream it as a named JSON attachment. Shared by both entity kinds. */
+ * stream it as a named JSON attachment. `load` receives the session so an
+ * export can apply role policy (e.g. hide editor-forbidden columns). Shared by
+ * both entity kinds. */
 const downloadExport = <T>(
   request: Request,
   id: number,
-  load: (id: number) => Promise<T | null>,
+  load: (id: number, session: AuthSession) => Promise<T | null>,
   kind: string,
   nameOf: (blob: T) => string,
 ): Promise<Response> =>
-  requireContentOr(request, async () => {
-    const blob = await load(id);
+  requireContentOr(request, async (session) => {
+    const blob = await load(id, session);
     return blob
       ? jsonDownload(blob, catalogFilename(kind, nameOf(blob)))
       : notFoundResponse();
@@ -63,13 +70,25 @@ const downloadExport = <T>(
 const handleListingExport: TypedRouteHandler<
   "GET /admin/listing/:id/export.json"
 > = (request, { id }) =>
-  downloadExport(request, id, exportListing, "listing", (b) => b.listing.name);
+  downloadExport(
+    request,
+    id,
+    (listingId, session) => exportListing(listingId, session.adminLevel),
+    "listing",
+    (b) => b.listing.name,
+  );
 
 /** GET /admin/groups/:id/export.json — download a group's export blob. */
 const handleGroupExport: TypedRouteHandler<
   "GET /admin/groups/:id/export.json"
 > = (request, { id }) =>
-  downloadExport(request, id, exportGroup, "group", (b) => b.group.name);
+  downloadExport(
+    request,
+    id,
+    (groupId) => exportGroup(groupId),
+    "group",
+    (b) => b.group.name,
+  );
 
 /** GET /admin/catalog/import — the import upload form. */
 const handleImportGet: TypedRouteHandler<"GET /admin/catalog/import"> = (

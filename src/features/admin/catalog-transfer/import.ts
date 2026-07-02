@@ -36,6 +36,7 @@ import {
   type NameIndex,
   normalizeEntityName,
 } from "#shared/db/name-registry.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   type EdgeListing,
   edgeFieldError,
@@ -218,8 +219,9 @@ const validateParentEdges = async (
 
 /** Apply role/site policy the interactive create paths enforce but a raw blob
  * bypasses: an `editor` may not set a webhook URL (it receives attendee PII) or
- * toggle `use_defaults`, and a listing can only assign a built site where the
- * builder is configured. */
+ * toggle `use_defaults`; a listing can only assign a built site where the
+ * builder is configured; and logistics can only be required where logistics is
+ * enabled (the form forces `uses_logistics` off otherwise). */
 const applyImportPolicy = (
   input: ListingInput,
   adminLevel: AdminLevel | undefined,
@@ -232,6 +234,9 @@ const applyImportPolicy = (
   if (!isBuilderEnabled()) {
     policed.assignBuiltSite = false;
     policed.initialSiteMonths = 0;
+  }
+  if (!settings.hasLogistics) {
+    policed.usesLogistics = false;
   }
   return policed;
 };

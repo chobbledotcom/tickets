@@ -26,6 +26,7 @@ import {
   getStoredListingWithCount,
   listingsTable,
 } from "#shared/db/listings.ts";
+import type { AdminLevel } from "#shared/types.ts";
 import { getListingGroupMemberships } from "./membership.ts";
 import {
   CATALOG_TRANSFER_VERSION,
@@ -47,6 +48,13 @@ const LISTING_EXPORT_EXCLUDED = [
   "image_url",
   "attachment_url",
   "attachment_name",
+] as const;
+
+/** `webhook_url` receives attendee PII, so — like the edit form — it is hidden
+ * from an editor; an editor's export must not reveal a URL they can't read. */
+const EDITOR_EXPORT_EXCLUDED = [
+  ...LISTING_EXPORT_EXCLUDED,
+  "webhook_url",
 ] as const;
 
 /** Group columns that never travel — the slug pair (regenerated on import). */
@@ -90,6 +98,7 @@ const overrideFields = (
  */
 export const exportListing = async (
   id: number,
+  adminLevel?: AdminLevel,
 ): Promise<ListingTransfer | null> => {
   const listing = await getStoredListingWithCount(id);
   if (!listing) return null;
@@ -124,7 +133,12 @@ export const exportListing = async (
     kind: "listing",
     listing: v.parse(
       ListingDataSchema,
-      listingsTable.rowToInput(listing, LISTING_EXPORT_EXCLUDED),
+      listingsTable.rowToInput(
+        listing,
+        adminLevel === "editor"
+          ? EDITOR_EXPORT_EXCLUDED
+          : LISTING_EXPORT_EXCLUDED,
+      ),
     ),
     parents,
     version: CATALOG_TRANSFER_VERSION,

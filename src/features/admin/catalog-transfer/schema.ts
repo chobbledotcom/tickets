@@ -18,7 +18,24 @@
  */
 
 import * as v from "valibot";
+import { DAY_NAMES } from "#shared/dates.ts";
 import { ListingTypeSchema, MAX_DURATION_DAYS } from "#shared/types.ts";
+
+/** True when `value` is storable as a datetime — empty (no value) or a string
+ * the datetime column normaliser can parse. Mirrors that normaliser's leniency:
+ * a missing timezone suffix is treated as UTC. An unparseable value would be
+ * logged and silently stored as empty, so it must be a field error on import. */
+const isStorableDatetime = (value: string): boolean => {
+  if (value === "") return true;
+  const withTz = /(?:Z|[+-]\d{2}:\d{2})$/i.test(value) ? value : `${value}Z`;
+  return !Number.isNaN(new Date(withTz).getTime());
+};
+
+/** A datetime column value: empty, or a parseable datetime (see above). */
+const DatetimeSchema = v.pipe(
+  v.string(),
+  v.check(isStorableDatetime, "must be a valid datetime"),
+);
 
 /** Bump when the format changes incompatibly; a blob at another version is
  * rejected with an intelligible message rather than mis-imported. */
@@ -67,11 +84,13 @@ const optPositiveInt = v.optional(PositiveIntSchema);
 export const ListingDataSchema = v.object({
   active: optBoolean,
   assignBuiltSite: optBoolean,
-  bookableDays: v.optional(v.array(v.string())),
+  // Only real weekday names are bookable; a typo ("Funday") would leave a daily
+  // listing with dates that never match, so it is a field error on import.
+  bookableDays: v.optional(v.array(v.picklist(DAY_NAMES))),
   canPayMore: optBoolean,
-  closesAt: v.optional(v.nullable(v.string())),
+  closesAt: v.optional(v.nullable(DatetimeSchema)),
   customisableDays: optBoolean,
-  date: optString,
+  date: v.optional(DatetimeSchema),
   dayPrices: v.optional(DayPricesSchema),
   description: optString,
   durationDays: optPositiveInt,
