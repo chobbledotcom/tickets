@@ -639,14 +639,46 @@ export const getListingNamesByIds = (
     decrypt(raw),
   );
 
-/** A listing's picker-relevant flags: name plus the fields the caller needs to
- * decide offerability (active status and the renewal-tier predicate shape). */
-export type ListingPickerRow = {
+/** The flag columns that decide whether a listing may be offered on a site
+ * page: active status plus the renewal-tier predicate shape. */
+export type ListingOfferFlags = {
   active: boolean;
   hidden: boolean;
   months_per_unit: number;
-  name: string;
   purchase_only: boolean;
+};
+
+/** A listing's picker-relevant fields: the offer flags plus its name. */
+export type ListingPickerRow = ListingOfferFlags & { name: string };
+
+/** The raw integer-flag row shape the two projections below select. */
+type RawOfferFlagRow = {
+  active: number;
+  hidden: number;
+  months_per_unit: number;
+  purchase_only: number;
+};
+
+const OFFER_FLAG_COLUMNS =
+  "listing.active, listing.hidden, listing.months_per_unit, listing.purchase_only";
+
+const offerFlagsOf = (r: RawOfferFlagRow): ListingOfferFlags => ({
+  active: r.active !== 0,
+  hidden: r.hidden !== 0,
+  months_per_unit: r.months_per_unit,
+  purchase_only: r.purchase_only !== 0,
+});
+
+/** The offer flags of ONE listing — the add-item revalidation's single-row
+ * read (no decryption, never the whole catalog). Undefined when absent. */
+export const getListingOfferFlags = async (
+  id: number,
+): Promise<ListingOfferFlags | undefined> => {
+  const row = await queryOne<RawOfferFlagRow>(
+    `SELECT ${OFFER_FLAG_COLUMNS} FROM listings AS listing WHERE listing.id = ? LIMIT 1`,
+    [id],
+  );
+  return row ? offerFlagsOf(row) : undefined;
 };
 
 /** Narrow id → picker-flags map for every listing (only the name is decrypted)
@@ -657,29 +689,13 @@ export type ListingPickerRow = {
 export const getListingPickerNames = async (): Promise<
   Map<number, ListingPickerRow>
 > => {
-  const rows = await queryAll<{
-    active: number;
-    hidden: number;
-    id: number;
-    months_per_unit: number;
-    name: string;
-    purchase_only: number;
-  }>(
-    "SELECT listing.id, listing.name, listing.active, listing.hidden, listing.months_per_unit, listing.purchase_only FROM listings AS listing ORDER BY listing.id ASC",
+  const rows = await queryAll<RawOfferFlagRow & { id: number; name: string }>(
+    `SELECT listing.id, listing.name, ${OFFER_FLAG_COLUMNS} FROM listings AS listing ORDER BY listing.id ASC`,
   );
   const entries = await Promise.all(
     rows.map(
       async (r) =>
-        [
-          r.id,
-          {
-            active: r.active !== 0,
-            hidden: r.hidden !== 0,
-            months_per_unit: r.months_per_unit,
-            name: await decrypt(r.name),
-            purchase_only: r.purchase_only !== 0,
-          },
-        ] as const,
+        [r.id, { ...offerFlagsOf(r), name: await decrypt(r.name) }] as const,
     ),
   );
   return new Map(entries);

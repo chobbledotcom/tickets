@@ -4,7 +4,12 @@
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { execute, executeBatch } from "#shared/db/client.ts";
+import {
+  execute,
+  executeBatch,
+  inPlaceholders,
+  queryOne,
+} from "#shared/db/client.ts";
 import {
   cachedEntityTable,
   defineIdTable,
@@ -123,6 +128,34 @@ const queryGroupListings = (
 export const getActiveListingsByGroupId = (
   groupId: number,
 ): Promise<ListingWithCount[]> => queryGroupListings(groupId, true);
+
+/** Does a group row exist? The add-item revalidation's single-row check — no
+ * name decryption, never the whole table. */
+export const groupExists = async (id: number): Promise<boolean> =>
+  (await queryOne<{ id: number }>(
+    "SELECT id FROM groups WHERE id = ? LIMIT 1",
+    [id],
+  )) !== null;
+
+/** Active listings of several groups in one bounded query, keyed by group id
+ * (a group with no active member gets no entry). The public nav's one-shot
+ * liveness read — never one query per group. Empty input ⇒ no query. */
+export const getActiveListingsByGroupIds = async (
+  groupIds: readonly number[],
+): Promise<Map<number, ListingWithCount[]>> => {
+  if (groupIds.length === 0) return new Map();
+  const rows = await queryListingsWithCounts(
+    `WHERE listing.active = 1 AND listing.group_id IN (${inPlaceholders(groupIds)})`,
+    [...groupIds],
+  );
+  const byGroup = new Map<number, ListingWithCount[]>();
+  for (const row of rows) {
+    const members = byGroup.get(row.group_id);
+    if (members) members.push(row);
+    else byGroup.set(row.group_id, [row]);
+  }
+  return byGroup;
+};
 
 /**
  * Get all listings in a group with attendee counts (including inactive).

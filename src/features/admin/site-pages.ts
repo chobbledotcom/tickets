@@ -21,11 +21,12 @@ import {
 } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAllGroupNames } from "#shared/db/groups.ts";
+import { getAllGroupNames, groupExists } from "#shared/db/groups.ts";
 import { getChildListingIds } from "#shared/db/listing-parents.ts";
 import {
+  getListingOfferFlags,
   getListingPickerNames,
-  type ListingPickerRow,
+  type ListingOfferFlags,
 } from "#shared/db/listings.ts";
 import {
   addPageItem,
@@ -82,7 +83,7 @@ import { sitePageForm } from "./site-pages-form.ts";
  * invariant I3, so its `/ticket` page 404s too). */
 const offerableListing = (
   id: number,
-  row: ListingPickerRow,
+  row: ListingOfferFlags,
   childIds: ReadonlySet<number>,
 ): boolean => row.active && !isQualifyingTierListing(row) && !childIds.has(id);
 
@@ -129,14 +130,15 @@ const buildListModel = async (): Promise<ListModel> => {
 const buildEditModel = async (page: SitePage): Promise<EditModel> => {
   // Pickers/labels need only id + name, so use the narrow name projections
   // rather than the full listings/groups caches (no decrypting every column).
-  const [navRows, allItems, listingNames, groupNames, pageItems] =
-    await Promise.all([
-      getSitePageNavRows(),
-      getAllPageItems(),
-      getListingPickerNames(),
-      getAllGroupNames(),
-      getItemsForPage(page.id),
-    ]);
+  const [navRows, allItems, listingNames, groupNames] = await Promise.all([
+    getSitePageNavRows(),
+    getAllPageItems(),
+    getListingPickerNames(),
+    getAllGroupNames(),
+  ]);
+  // The page's own items are a filter over the already-loaded edge set (same
+  // (sort_order, item_id) ordering as the per-page query) — not a fifth read.
+  const pageItems = allItems.filter((i) => i.page_id === page.id);
   const forest = buildForest(navRows, allItems);
   const pageById = new Map(navRows.map((r) => [r.id, r.name]));
   const label = (type: SitePageItemType, id: number): string => {
@@ -381,15 +383,15 @@ const isEligibleTarget = async (
   itemId: number,
 ): Promise<boolean> => {
   if (type === "listing") {
-    // Mirror the picker: only an offerable listing may be added.
-    const [names, childIds] = await Promise.all([
-      getListingPickerNames(),
+    // Mirror the picker: only an offerable listing may be added. Single-row
+    // reads — a POST validation never decrypts or scans the whole catalog.
+    const [flags, childIds] = await Promise.all([
+      getListingOfferFlags(itemId),
       getChildListingIds([itemId]),
     ]);
-    const row = names.get(itemId);
-    return row !== undefined && offerableListing(itemId, row, childIds);
+    return flags !== undefined && offerableListing(itemId, flags, childIds);
   }
-  if (type === "group") return (await getAllGroupNames()).has(itemId);
+  if (type === "group") return groupExists(itemId);
   return eligibleChildPages((await loadForest()).forest, pageId).some(
     (p) => p.id === itemId,
   );

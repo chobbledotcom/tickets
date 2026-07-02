@@ -96,13 +96,34 @@ export const buildForest = (
   return { byId, itemsByPage, parentByChild, rootIds };
 };
 
+/** The minimal projection the ancestry/cycle walks read — a full {@link Forest}
+ * satisfies it, and the in-transaction cycle guard builds just this. */
+export type ParentLinks = Pick<Forest, "parentByChild">;
+
+/** The child → parent map over raw `page`-type edges (first edge wins — the
+ * app guarantees at most one parent, N3). The in-transaction cycle guard's
+ * projection: inside the write transaction the edge set is the app-enforced
+ * single-parent tree with no dangling parents (deletes cascade atomically),
+ * so no page-row filtering or edge ordering is needed. */
+export const pageParentMapFromEdges = (
+  edges: readonly SitePageItem[],
+): ReadonlyMap<number, number> => {
+  const parentByChild = new Map<number, number>();
+  for (const edge of edges) {
+    if (edge.item_type === "page" && !parentByChild.has(edge.item_id)) {
+      parentByChild.set(edge.item_id, edge.page_id);
+    }
+  }
+  return parentByChild;
+};
+
 /**
  * The ancestor page ids of `pageId`, root-first, excluding the node itself.
  * Uses a visited guard so a corrupt cyclic edge set throws loudly rather than
  * looping — the app guarantees an acyclic tree (N3/N4), so a cycle here is an
  * impossible state to surface, not to absorb.
  */
-export const ancestorsOf = (forest: Forest, pageId: number): number[] => {
+export const ancestorsOf = (forest: ParentLinks, pageId: number): number[] => {
   const chain: number[] = [];
   const seen = new Set<number>([pageId]);
   let cursor = forest.parentByChild.get(pageId);
@@ -138,7 +159,7 @@ export const descendantsOf = (forest: Forest, pageId: number): Set<number> => {
  * a cycle risk here; it's blocked by the single-parent rule instead.
  */
 export const wouldCreateCycle = (
-  forest: Forest,
+  forest: ParentLinks,
   parentPageId: number,
   candidatePageId: number,
 ): boolean =>

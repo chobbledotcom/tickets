@@ -245,6 +245,17 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       expect(html).not.toContain('aria-label="Page solo"');
     });
 
+    test("a page whose only item is a member-less group renders it dead", async () => {
+      // The liveness pass has nothing to classify here (no listings anywhere
+      // in the model) — the group must still resolve, as a dead entry.
+      const page = await makePage("ghost-town");
+      const empty = await createTestGroup({ name: "Ghost Group", slug: "gg" });
+      await addPageItem(page.id, "group", empty.id);
+      const html = await assertPublicHtml("/page/ghost-town");
+      expect(html).toContain("<span>Ghost Group</span>");
+      expect(html).not.toContain('href="/ticket/gg"');
+    });
+
     test("an item-less page renders no empty submenu or mobile bar", async () => {
       // The page's own (deepest) level is empty: a <ul> with no <li> children
       // is invalid markup, and an empty aria-labelled nav bar is announced to

@@ -15,9 +15,8 @@
  * QR). Page targets are always live.
  */
 
-import { mapParallel } from "#fp";
 import {
-  getActiveListingsByGroupId,
+  getActiveListingsByGroupIds,
   getGroupLinkRows,
 } from "#shared/db/groups.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings.ts";
@@ -37,7 +36,7 @@ import type {
 } from "#shared/site-pages/types.ts";
 import type { SitePageItem, SitePageItemType } from "#shared/types.ts";
 import { navFlags, type PublicNavProps } from "#templates/public.tsx";
-import { classifyForDiscovery, groupHasBookableMember } from "./discovery.ts";
+import { classifyForDiscovery } from "./discovery.ts";
 
 /** The distinct item ids of one leaf type among the loaded edges. */
 const leafIds = (
@@ -57,6 +56,9 @@ const resolveTargets = async (
     getListingsWithCountsByIds(listingIds),
     getGroupLinkRows(groupIds),
   ]);
+  const membersByGroup = await getActiveListingsByGroupIds(
+    groupRows.map((row) => row.id),
+  );
   const targets = new Map<TargetKey, ResolvedTarget>();
   const setLeaf = (
     type: SitePageItemType,
@@ -69,29 +71,32 @@ const resolveTargets = async (
       live,
     });
   };
-  // Full rows (bounded to the referenced ids — never the whole catalog) so the
-  // liveness test is the same classification as /listings: child suppression
-  // and sold-out-parent projection, plus the renewal-tier and active checks.
-  if (referenced.length > 0) {
-    const { childIds, soldOutParentIds } =
-      await classifyForDiscovery(referenced);
-    for (const listing of referenced) {
-      setLeaf(
-        "listing",
-        listing,
-        listing.active &&
-          !isQualifyingTierListing(listing) &&
-          !childIds.has(listing.id) &&
-          !soldOutParentIds.has(listing.id),
-      );
-    }
+  // ONE classification over the union of every listing the nav must judge —
+  // the referenced listings plus every group's active members (all bounded to
+  // the referenced ids, never the whole catalog). A listing's class depends
+  // only on its own parent/child relations, so the union classifies exactly
+  // as per-listing/per-group calls would, in a fixed number of queries. The
+  // liveness test is then the same classification as /listings: child
+  // suppression and sold-out-parent projection, plus tier/active checks.
+  const judged = [...membersByGroup.values()].flat().concat(referenced);
+  const { childIds, soldOutParentIds } =
+    judged.length > 0
+      ? await classifyForDiscovery(judged)
+      : { childIds: new Set<number>(), soldOutParentIds: new Set<number>() };
+  const bookable = (listing: { id: number }): boolean =>
+    !childIds.has(listing.id) && !soldOutParentIds.has(listing.id);
+  for (const listing of referenced) {
+    setLeaf(
+      "listing",
+      listing,
+      listing.active && !isQualifyingTierListing(listing) && bookable(listing),
+    );
   }
-  const groupLive = await mapParallel(async (row: { id: number }) =>
-    groupHasBookableMember(await getActiveListingsByGroupId(row.id)),
-  )(groupRows);
-  groupRows.forEach((row, i) => {
-    setLeaf("group", row, groupLive[i]!);
-  });
+  // A group is live iff it has a standalone-bookable active member — the same
+  // gate as `groupHasBookableMember`, applied to the batched member rows.
+  for (const row of groupRows) {
+    setLeaf("group", row, (membersByGroup.get(row.id) ?? []).some(bookable));
+  }
   return targets;
 };
 

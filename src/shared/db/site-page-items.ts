@@ -13,12 +13,16 @@ import type { InValue } from "@libsql/client";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   executeBatch,
+  inPlaceholders,
   queryAll,
   resultRows,
   withTransaction,
 } from "#shared/db/client.ts";
 import { requestCache } from "#shared/request-cache.ts";
-import { buildForest, wouldCreateCycle } from "#shared/site-pages/core.ts";
+import {
+  pageParentMapFromEdges,
+  wouldCreateCycle,
+} from "#shared/site-pages/core.ts";
 import type { SitePageItem, SitePageItemType } from "#shared/types.ts";
 
 /** A parameterised statement for a batch / transaction. */
@@ -66,14 +70,19 @@ export const addPageItem = (
   itemId: number,
 ): Promise<boolean> =>
   withTransaction(async (tx) => {
-    // The page-id set, read in the SAME transaction: the host page (and, for a
-    // page item, the child page) must still exist, so a stale add racing a
-    // delete can never insert a dangling page edge.
+    // Existence, read in the SAME transaction and bounded to the ids at hand:
+    // the host page (and, for a page item, the child page) must still exist,
+    // so a stale add racing a delete can never insert a dangling page edge.
+    const requiredIds = [
+      ...new Set([pageId, ...(itemType === "page" ? [itemId] : [])]),
+    ];
     const pageRows = resultRows<{ id: number }>(
-      await tx.execute({ args: [], sql: "SELECT id FROM site_pages" }),
+      await tx.execute({
+        args: requiredIds,
+        sql: `SELECT id FROM site_pages WHERE id IN (${inPlaceholders(requiredIds)})`,
+      }),
     );
-    const pageIds = new Set(pageRows.map((r) => r.id));
-    if (!pageIds.has(pageId)) return false;
+    if (pageRows.length !== requiredIds.length) return false;
     // Duplicate edge (the unique (page_id, item_type, item_id) key): checked
     // in-transaction so a concurrent repeat can't slip past to the raw index.
     const duplicate = resultRows<SitePageItem>(
@@ -84,7 +93,6 @@ export const addPageItem = (
     );
     if (duplicate.length > 0) return false;
     if (itemType === "page") {
-      if (!pageIds.has(itemId)) return false;
       // Read all page edges once and enforce both page invariants against the
       // same in-transaction snapshot, before inserting.
       const pageEdges = resultRows<SitePageItem>(
@@ -96,15 +104,9 @@ export const addPageItem = (
       // Single-parent (N3): the page must not already be nested elsewhere.
       if (pageEdges.some((e) => e.item_id === itemId)) return false;
       // Acyclic (N4): nesting it here must not close a loop (self or ancestor).
-      // The forest is built over the id set only (a narrow projection — the
-      // cycle walk never reads name/slug/order).
-      const rows = pageRows.map((r) => ({
-        id: r.id,
-        name: "",
-        slug: "",
-        sort_order: 0,
-      }));
-      if (wouldCreateCycle(buildForest(rows, pageEdges), pageId, itemId)) {
+      // The walk needs only the child → parent edge map — never a page row.
+      const parentByChild = pageParentMapFromEdges(pageEdges);
+      if (wouldCreateCycle({ parentByChild }, pageId, itemId)) {
         return false;
       }
     }
