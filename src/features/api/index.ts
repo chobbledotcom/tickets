@@ -160,13 +160,19 @@ export const toPublicListing = (
   closed: boolean,
   availableDates: string[] | undefined,
   groupRemaining: number | undefined,
-): PublicListing => {
-  const { isSoldOut, maxPurchasable } = buildTicketListing(
-    listing,
-    closed,
-    groupRemaining,
+): PublicListing =>
+  resolvedToPublicListing(
+    { ...buildTicketListing(listing, closed, groupRemaining), listing },
+    availableDates,
   );
 
+/** The public shape of an ALREADY availability-resolved {@link TicketListing}
+ * (the booking ctx hydrates members and their children once — no re-query). */
+export const resolvedToPublicListing = (
+  resolved: TicketListing,
+  availableDates: string[] | undefined,
+): PublicListing => {
+  const { isClosed: closed, isSoldOut, listing, maxPurchasable } = resolved;
   const result: PublicListing = {
     canPayMore: listing.can_pay_more,
     customisableDays: listing.customisable_days,
@@ -1142,19 +1148,30 @@ const handleGetPackage = async (
     : [];
   // A hidden package never names its members (or their children) — buyers see
   // only the bundle. `packageQuantities` covers every member by construction.
+  // Members and their children are already availability-resolved on the ctx
+  // (ONE hydration pass), so the response is built without re-querying edges,
+  // holidays, or group remaining per member.
+  const holidays = await getActiveHolidays();
   const members = group.hide_package_listings
     ? undefined
-    : await Promise.all(
-        ctx.listings.map(async (e) => {
-          const children = await buildChildPublicListings(e.listing);
-          return {
-            name: e.listing.name,
-            quantity: ctx.packageQuantities!.get(e.listing.id)!,
-            slug: e.listing.slug,
-            ...(children.length > 0 ? { children } : {}),
-          };
-        }),
-      );
+    : ctx.listings.map((e) => {
+        const children = (ctx.childrenByParentId.get(e.listing.id) ?? [])
+          .filter((child) => child.listing.active)
+          .map((child) =>
+            resolvedToPublicListing(
+              child,
+              child.listing.listing_type === "daily"
+                ? getAvailableDates(child.listing, holidays)
+                : undefined,
+            ),
+          );
+        return {
+          name: e.listing.name,
+          quantity: ctx.packageQuantities!.get(e.listing.id)!,
+          slug: e.listing.slug,
+          ...(children.length > 0 ? { children } : {}),
+        };
+      });
   return apiResponse({
     package: {
       description: group.description,
@@ -1286,7 +1303,7 @@ const handleBookPackage = async (
   if (limited) return limited;
   const pkg = await loadPackageContext(slug);
   if (!pkg) return apiResponse(PACKAGE_NOT_FOUND, 404);
-  const { cap, ctx, group } = pkg;
+  const { cap, ctx, group, tree } = pkg;
 
   const bodyOrError = await parseApiJsonBody(request);
   if (bodyOrError instanceof Response) return bodyOrError;
@@ -1314,13 +1331,18 @@ const handleBookPackage = async (
   const selectionError = applyPackageChildSelections(form, ctx, selections);
   if (selectionError) return selectionError;
 
-  const fold = await foldSelectedChildren(ctx, form, {
-    customPrices: new Map(),
-    date,
-    dayCount,
-    hasCustomisable: ctx.listings.some((e) => e.listing.customisable_days),
-    quantities,
-  });
+  const fold = await foldSelectedChildren(
+    ctx,
+    form,
+    {
+      customPrices: new Map(),
+      date,
+      dayCount,
+      hasCustomisable: ctx.listings.some((e) => e.listing.customisable_days),
+      quantities,
+    },
+    tree,
+  );
   if (!fold.ok) return apiResponse({ error: fold.error }, 400);
 
   // Paid-ness must come from the tree's price rules, not `isPaidListing`: a

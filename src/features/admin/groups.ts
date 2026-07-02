@@ -2,7 +2,7 @@
  * Admin group management routes - accessible to owners and managers
  */
 
-import { map } from "#fp";
+import { compact, map } from "#fp";
 import { t } from "#i18n";
 import {
   createContentCrudHandlers,
@@ -38,7 +38,7 @@ import {
   validateGroupListingType,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { edgeIdsTouching } from "#shared/db/listing-parents.ts";
+import { edgeIdsTouchingMany } from "#shared/db/listing-parents.ts";
 import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
 import { getAttendeesByListingIds, getListing } from "#shared/db/listings.ts";
 import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
@@ -110,20 +110,32 @@ const isPackageable = (listing: {
  * (the package page renders its child selector like any parent row) but not on
  * a hidden one, where members are collapsed to the package name and a child
  * selector would leak them. */
-const isPackageableMember = async (
+const isPackageableMember = (
   listing: {
     id: number;
     listing_type: ListingType;
     customisable_days: boolean;
     can_pay_more: boolean;
   },
+  edges: { childIds: number[]; parentIds: number[] },
   // Undefined (an input that omitted the flag) reads as "not hidden".
   hideListings: boolean | undefined,
-): Promise<boolean> => {
+): boolean => {
   if (!isPackageable(listing)) return false;
-  const { childIds, parentIds } = await edgeIdsTouching(listing.id);
-  if (parentIds.length > 0) return false;
-  return !(hideListings && childIds.length > 0);
+  if (edges.parentIds.length > 0) return false;
+  return !(hideListings && edges.childIds.length > 0);
+};
+
+/** Whether every listing can be a package member, judged against ONE batched
+ * edge load (two queries for the whole member list, never per member). */
+const allPackageableMembers = async (
+  listings: readonly Parameters<typeof isPackageableMember>[0][],
+  hideListings: boolean | undefined,
+): Promise<boolean> => {
+  const edges = await edgeIdsTouchingMany(listings.map((l) => l.id));
+  return listings.every((listing) =>
+    isPackageableMember(listing, edges.get(listing.id)!, hideListings),
+  );
 };
 
 /** Reject marking a group as a package when any current member can't be packaged
@@ -137,12 +149,9 @@ const validatePackageCompatibility = async (
 ): Promise<string | null> => {
   if (!isPackage) return null;
   const listings = await getListingsByGroupId(groupId);
-  for (const listing of listings) {
-    if (!(await isPackageableMember(listing, hideListings))) {
-      return t("error.package_incompatible_listing");
-    }
-  }
-  return null;
+  return (await allPackageableMembers(listings, hideListings))
+    ? null
+    : t("error.package_incompatible_listing");
 };
 
 /** Combined validation: slug uniqueness plus the package invariant. On create
@@ -502,22 +511,22 @@ const validateListingTypesForGroup = async (
   group: Group,
   listingIds: number[],
 ): Promise<string | null> => {
-  for (const listingId of listingIds) {
-    const listing = await getListing(listingId);
-    if (listing) {
-      const typeError = await validateGroupListingType(
-        group.id,
-        listing.listing_type,
-        listing.customisable_days,
-      );
-      if (typeError) return typeError;
-      if (
-        group.is_package &&
-        !(await isPackageableMember(listing, group.hide_package_listings))
-      ) {
-        return t("error.package_incompatible_listing");
-      }
-    }
+  const listings = compact(
+    await Promise.all(listingIds.map((listingId) => getListing(listingId))),
+  );
+  for (const listing of listings) {
+    const typeError = await validateGroupListingType(
+      group.id,
+      listing.listing_type,
+      listing.customisable_days,
+    );
+    if (typeError) return typeError;
+  }
+  if (
+    group.is_package &&
+    !(await allPackageableMembers(listings, group.hide_package_listings))
+  ) {
+    return t("error.package_incompatible_listing");
   }
   return null;
 };

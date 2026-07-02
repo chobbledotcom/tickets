@@ -122,11 +122,12 @@ export const getGroupDayPrices = async (
   groupId: number,
 ): Promise<Map<number, Map<number, number>>> => {
   const result = await execute(
-    `SELECT lp.listing_id, lp.price_id, lp.unit_price
-       FROM listing_prices AS lp
-       JOIN group_listings AS gl
-         ON gl.listing_id = lp.listing_id AND gl.group_id = ?
-      WHERE lp.price_type = ? AND lp.price_id LIKE ?`,
+    `SELECT listingPrice.listing_id, listingPrice.price_id, listingPrice.unit_price
+       FROM listing_prices AS listingPrice
+       JOIN group_listings AS groupListing
+         ON groupListing.listing_id = listingPrice.listing_id
+        AND groupListing.group_id = ?
+      WHERE listingPrice.price_type = ? AND listingPrice.price_id LIKE ?`,
     [groupId, PRICE_TYPE_GROUP_DAY, groupDayPriceId(groupId, "%")],
   );
   return foldGroupDayRows(result.rows as unknown as GroupDayRow[]);
@@ -144,12 +145,12 @@ export const getGroupDayPricesByGroupIds = async (
   if (groupIds.length === 0) return new Map();
   const wanted = new Set(groupIds);
   const rows = await execute(
-    `SELECT lp.listing_id, lp.price_id, lp.unit_price
-       FROM listing_prices AS lp
-       JOIN group_listings AS gl
-         ON gl.listing_id = lp.listing_id
-        AND lp.price_id LIKE (gl.group_id || '/%')
-      WHERE lp.price_type = ?`,
+    `SELECT listingPrice.listing_id, listingPrice.price_id, listingPrice.unit_price
+       FROM listing_prices AS listingPrice
+       JOIN group_listings AS groupListing
+         ON groupListing.listing_id = listingPrice.listing_id
+        AND listingPrice.price_id LIKE (groupListing.group_id || '/%')
+      WHERE listingPrice.price_type = ?`,
     [PRICE_TYPE_GROUP_DAY],
   );
   const rowsByGroup = new Map<number, GroupDayRow[]>();

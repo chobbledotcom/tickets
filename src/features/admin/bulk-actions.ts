@@ -40,7 +40,6 @@ import {
 } from "#shared/db/listing-prices.ts";
 import {
   getStoredListingWithCount,
-  type ListingInput,
   listingsTable,
 } from "#shared/db/listings.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -161,18 +160,19 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   // taken from each listing's *stored* values, not the resolved view, so a
   // duplicate made while a default is set doesn't bake that default into the
   // new row (matching the single-listing edit/duplicate path).
-  const cloneInputs: { sourceId: number; input: ListingInput }[] = [];
-  for (const listing of listings) {
-    const stored = (await getStoredListingWithCount(listing.id))!;
-    cloneInputs.push({
-      input: await buildDuplicateListingInput(stored, {
-        closesAt: shiftUtcIsoByDays(stored.closes_at ?? "", dayOffset),
-        date: shiftUtcIsoByDays(stored.date, dayOffset),
-        name: applyNameReplacement(stored.name, nameFind, nameReplace),
-      }),
-      sourceId: listing.id,
-    });
-  }
+  const cloneInputs = await Promise.all(
+    listings.map(async (listing) => {
+      const stored = (await getStoredListingWithCount(listing.id))!;
+      return {
+        input: await buildDuplicateListingInput(stored, {
+          closesAt: shiftUtcIsoByDays(stored.closes_at ?? "", dayOffset),
+          date: shiftUtcIsoByDays(stored.date, dayOffset),
+          name: applyNameReplacement(stored.name, nameFind, nameReplace),
+        }),
+        sourceId: listing.id,
+      };
+    }),
+  );
   const memberBySource = new Map(
     (await getGroupPackagePrices(group.id)).map((row) => [row.listing_id, row]),
   );

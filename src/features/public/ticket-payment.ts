@@ -21,7 +21,7 @@ import {
   resolvedByNodeKey,
 } from "#shared/booking/fold-tree.ts";
 import { effectivePrice } from "#shared/booking/price-tree.ts";
-import type { PriceRule } from "#shared/booking/tree.ts";
+import type { BookingTree, PriceRule } from "#shared/booking/tree.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
@@ -374,8 +374,11 @@ export const foldSelectedChildren = async (
   ctx: TicketCtx,
   form: FormParams,
   base: FoldBase,
+  prebuiltTree?: BookingTree,
 ): Promise<FoldChildrenResult> => {
-  const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
+  // A caller that already built the ctx's tree (the API book path builds it
+  // for the cap) passes it in rather than walking the graph twice per request.
+  const tree = prebuiltTree ?? buildBookingTree(ctxToBuildTreeInput(ctx));
   const resolved = resolvedByNodeKey(
     ctx.listings,
     ctx.childrenByParentId,
@@ -879,15 +882,19 @@ export const getTicketContext = async (
   // For a package group, load the per-listing overrides (price + quantity) once
   // here so both the quote and submit paths can price/derive against them with
   // no extra query.
-  const packageMaps =
-    group?.is_package === true ? await loadPackageMemberMaps(group.id) : null;
-  const packageCapMaps =
+  const [packageMaps, packageCapMaps] =
     group?.is_package === true
-      ? await loadPackageCapGroupMaps(activeListings, childrenByParentId)
-      : {
-          groupIdsByListingId: new Map<number, number[]>(),
-          groupRemainingByGroupId: new Map<number, number>(),
-        };
+      ? await Promise.all([
+          loadPackageMemberMaps(group.id),
+          loadPackageCapGroupMaps(activeListings, childrenByParentId),
+        ])
+      : [
+          null,
+          {
+            groupIdsByListingId: new Map<number, number[]>(),
+            groupRemainingByGroupId: new Map<number, number>(),
+          },
+        ];
   return {
     addOns,
     childDatesById,

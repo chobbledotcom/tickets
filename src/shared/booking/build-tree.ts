@@ -5,7 +5,6 @@ import {
   type BookingTree,
   childNodeKey,
   type DateSpan,
-  type EntryContext,
   groupMemberNodeKey,
   listingNodeKey,
   type PriceRule,
@@ -51,7 +50,6 @@ export type BuildTreeInput = {
   readonly childrenByParentId?:
     | ReadonlyMap<number, readonly TicketListing[]>
     | undefined;
-  readonly entry?: EntryContext | undefined;
 };
 
 /** Which price a listing charges, in the doc's precedence: a package `OVERRIDE`
@@ -221,5 +219,5 @@ export const buildBookingTree = (input: BuildTreeInput): BookingTree => {
       : map((info: TicketListing) => buildListingNode(input, info))([
           ...input.listings,
         ]);
-  return { entry: input.entry ?? {}, nodes, rootRef };
+  return { nodes, rootRef };
 };

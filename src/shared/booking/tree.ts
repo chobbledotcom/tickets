@@ -23,18 +23,6 @@ export type RootRef =
   | { readonly kind: "group"; readonly groupId: number }
   | { readonly kind: "package"; readonly groupId: number };
 
-/** Signed/URL **non-line** context priced and revalidated *alongside* the node
- * tree, never as node prices (a QR price override, a renewal action, a balance
- * settlement, the parent post-payment redirect, and the `/order` URL quantity
- * prefill). Phase 1 only threads what render needs; Phase 2 signs the rest. */
-export type EntryContext = {
-  readonly qrPriceOverrideMinor?: number;
-  readonly renewalSiteToken?: string;
-  readonly balanceAttendeeId?: number;
-  readonly parentThankYouUrl?: string;
-  readonly urlPrefillByListingId?: ReadonlyMap<number, number>;
-};
-
 /** How a node hangs off its parent/root. `none` is a top-level standalone node;
  * the others record the edge (and its owning group/parent) a member/child came
  * through, so a listing reachable by more than one path stays distinguishable. */
@@ -102,11 +90,10 @@ export type BookingNode = {
   readonly children: readonly BookingNode[];
 };
 
-/** A whole booking: the root/page identity, the non-line entry context, and the
+/** A whole booking: the root/page identity and the
  * top-level nodes. */
 export type BookingTree = {
   readonly rootRef: RootRef;
-  readonly entry: EntryContext;
   readonly nodes: readonly BookingNode[];
 };
 

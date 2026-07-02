@@ -128,11 +128,16 @@ const loadPackageOverrides = async (
       e.attendee.package_group_id > 0 ? e.attendee.package_group_id : null,
     )(entries),
   );
-  const overrides = new Map<number, PackageGroupPricing>();
-  for (const groupId of groupIds) {
-    overrides.set(groupId, await loadPackageMemberPricing(groupId));
-  }
-  return overrides;
+  return new Map(
+    await Promise.all(
+      groupIds.map(
+        async (groupId): Promise<[number, PackageGroupPricing]> => [
+          groupId,
+          await loadPackageMemberPricing(groupId),
+        ],
+      ),
+    ),
+  );
 };
 
 /** The full per-unit price for a booking line: the shared checkout evaluation

@@ -156,7 +156,6 @@ describe("packageQuantityCap", () => {
       visibility: "SHOWN",
     };
     const tree: BookingTree = {
-      entry: {},
       nodes: [node],
       rootRef: { groupId: 5, kind: "package" },
     };

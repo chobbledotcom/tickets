@@ -413,27 +413,3 @@ describe("buildBookingTree — price rule precedence", () => {
     });
   });
 });
-
-describe("buildBookingTree — entry context", () => {
-  test("passes the non-line entry context through unchanged", () => {
-    const entry = {
-      balanceAttendeeId: 42,
-      parentThankYouUrl: "https://example.com/thanks",
-      qrPriceOverrideMinor: 1234,
-    };
-    const tree = buildBookingTree({
-      entry,
-      listings: [resolved({ id: 7 })],
-      slugs: ["x"],
-    });
-    expect(tree.entry).toEqual(entry);
-  });
-
-  test("defaults to an empty entry context when none is given", () => {
-    const tree = buildBookingTree({
-      listings: [resolved({ id: 7 })],
-      slugs: ["x"],
-    });
-    expect(tree.entry).toEqual({});
-  });
-});
