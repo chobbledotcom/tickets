@@ -106,7 +106,8 @@ describe("db > accounting > conflicts", () => {
       expect(voided.reversesId).toBe(origId);
       const orig = (await transfersByEventGroup("e0"))[0]!;
       expect(orig.reversesId).toBeUndefined();
-      expect(orig.kind).toBe("");
+      // A kindless leg round-trips to an omitted kind, like reverses_id.
+      expect(orig.kind).toBeUndefined();
     });
   });
 

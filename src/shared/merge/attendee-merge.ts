@@ -13,6 +13,7 @@ import {
   revenueAccount,
 } from "#shared/accounting/accounts.ts";
 import { writeoffAdjustmentInserts } from "#shared/accounting/adjustments.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
 import { transfersByEventGroup } from "#shared/accounting/queries.ts";
 import { repointAttendeeStatements } from "#shared/accounting/repoint.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
@@ -266,7 +267,7 @@ const bookingSaleAmount = async (
   return legs
     .filter(
       (leg) =>
-        leg.kind === "sale" &&
+        leg.kind === KIND.sale &&
         leg.source.type === account.type &&
         leg.source.id === account.id &&
         leg.destination.type === revenue.type &&

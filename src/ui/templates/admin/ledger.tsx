@@ -13,8 +13,19 @@
  * plain "<Entity> #<id>" text with no link, mirroring the activity log.
  */
 
-import { joinStrings, map, pipe } from "#fp";
+import * as v from "valibot";
+import { map } from "#fp";
 import { t } from "#i18n";
+import {
+  ATTENDEE,
+  isRowAccountType,
+  isSingletonAccountType,
+  REVENUE,
+  type RowAccountType,
+  type SingletonAccountType,
+  WRITEOFF_TYPE,
+} from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
 import {
   isManualLedgerTransfer,
   type ManualLedgerEntryOption,
@@ -79,8 +90,10 @@ type RowAccountKind = {
   fallbackKey: string;
 };
 
-/** Row-backed account resolvers keyed by ledger account type. */
-const ROW_ACCOUNT_KINDS: Record<string, RowAccountKind> = {
+/** Row-backed account resolvers keyed by ledger account type — exhaustive over
+ * {@link RowAccountType}, so a new row-backed type cannot render without
+ * deciding its label source and link target here. */
+const ROW_ACCOUNT_KINDS: Record<RowAccountType, RowAccountKind> = {
   attendee: {
     fallbackKey: "admin.ledger.fallback.attendee",
     href: (id) => `/admin/attendees/${id}`,
@@ -103,9 +116,17 @@ const ROW_ACCOUNT_KINDS: Record<string, RowAccountKind> = {
   },
 };
 
+/** The bounded id→name lookup for one row-backed account type — the single
+ * accessor the label resolver and the route layer's existence checks share. */
+export const rowAccountNames = (
+  type: RowAccountType,
+  names: LedgerNames,
+): Map<number, string> => ROW_ACCOUNT_KINDS[type].names(names);
+
 /** Singleton accounts get a friendly, link-free name from i18n, matched on the
- * account type alone (`writeoff:*` is one logical account regardless of id). */
-const SINGLETON_LABEL_KEYS: Record<string, string> = {
+ * account type alone (`writeoff:*` is one logical account regardless of id).
+ * Exhaustive over {@link SingletonAccountType}. */
+const SINGLETON_LABEL_KEYS: Record<SingletonAccountType, string> = {
   external: "admin.ledger.account.external",
   fee_income: "admin.ledger.account.fee_income",
   writeoff: "admin.ledger.account.writeoff",
@@ -122,10 +143,13 @@ export const resolveAccountLabel = (
   account: AccountRef,
   names: LedgerNames,
 ): AccountLabel => {
-  const singleton = SINGLETON_LABEL_KEYS[account.type];
-  if (singleton) return { text: t(singleton) };
+  if (isSingletonAccountType(account.type)) {
+    return { text: t(SINGLETON_LABEL_KEYS[account.type]) };
+  }
+  if (!isRowAccountType(account.type)) {
+    return { text: `${account.type}:${account.id}` };
+  }
   const kind = ROW_ACCOUNT_KINDS[account.type];
-  if (!kind) return { text: `${account.type}:${account.id}` };
   const id = Number(account.id);
   const name = kind.names(names).get(id);
   return name === undefined
@@ -178,46 +202,73 @@ const amountCell = (
     <a href={ledgerEntryEditHref(transfer.id, returnUrl)}>{label}</a>
   );
 
-/** A transfer's kind, or an em dash when it carries none. */
-const kindLabel = (transfer: Transfer): string => transfer.kind ?? "—";
+/** A transfer's kind, or an em dash when it carries none. `||`, not `??`: the
+ * store maps a kindless row back to an omitted kind, but a synthetic empty
+ * string must read as "no kind" too, never as a blank cell. */
+const kindLabel = (transfer: Transfer): string => transfer.kind || "—";
 
-/** One row of the historical transfer list. */
-const LedgerRow = ({
-  transfer,
-  names,
-  returnUrl,
+/** One column of a ledger-style table: its header key, how a row renders into
+ * its cell, and an optional alignment class applied to both. */
+type LedgerColumn<Row> = {
+  headerKey: string;
+  cell: (row: Row) => JSX.Element | string;
+  class?: string;
+};
+
+/** The right-aligned money column shape shared by every ledger table. */
+const amountColumn = <Row,>(
+  headerKey: string,
+  cell: (row: Row) => JSX.Element | string,
+): LedgerColumn<Row> => ({ cell, class: colClass("amount"), headerKey });
+
+/**
+ * Render a scrollable table from a column spec — the one place a ledger
+ * table's header row, body rows, and empty-state row are assembled. The
+ * empty-state colspan derives from the spec's length, so it can never drift
+ * from the column count the way a hand-written `colspan="4"` could.
+ */
+const LedgerColumnsTable = <Row,>({
+  columns,
+  rows,
 }: {
-  transfer: Transfer;
-  names: LedgerNames;
-  returnUrl?: string | undefined;
-}): string =>
-  String(
-    <tr>
-      <td>{formatDatetimeShort(transfer.occurredAt)}</td>
-      <td>{kindLabel(transfer)}</td>
-      <td>
-        {accountCell(transfer.source, names)} &rarr;{" "}
-        {accountCell(transfer.destination, names)}
-      </td>
-      <td class={colClass("amount")}>
-        {amountCell(transfer, formatCurrency(transfer.amount), returnUrl)}
-      </td>
-    </tr>,
-  );
+  columns: LedgerColumn<Row>[];
+  rows: Row[];
+}): JSX.Element => (
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          {columns.map((column) => (
+            <th class={column.class}>{t(column.headerKey)}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.length > 0 ? (
+          rows.map((row) => (
+            <tr>
+              {columns.map((column) => (
+                <td class={column.class}>{column.cell(row)}</td>
+              ))}
+            </tr>
+          ))
+        ) : (
+          <tr>
+            <td colspan={columns.length}>{t("admin.ledger.empty")}</td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  </div>
+);
 
-/** The historical transfer rows, or a single empty-state row spanning the table
- * when there are none — mirroring the activity log's empty row. */
-const ledgerRows = (
-  transfers: Transfer[],
-  names: LedgerNames,
-  returnUrl?: string,
-): string =>
-  transfers.length > 0
-    ? pipe(
-        map((transfer: Transfer) => LedgerRow({ names, returnUrl, transfer })),
-        joinStrings,
-      )(transfers)
-    : `<tr><td colspan="4">${t("admin.ledger.empty")}</td></tr>`;
+/** The shared leading column: a transfer's business time. */
+const timeColumn = <Row,>(
+  occurredAt: (row: Row) => string,
+): LedgerColumn<Row> => ({
+  cell: (row) => formatDatetimeShort(occurredAt(row)),
+  headerKey: "admin.ledger.col.time",
+});
 
 /**
  * The historical transfer list: every leg as From → To with its kind, time, and
@@ -231,23 +282,26 @@ export const LedgerTable = ({
   transfers: Transfer[];
   names: LedgerNames;
   returnUrl?: string;
-}): JSX.Element => (
-  <div class="table-scroll">
-    <table>
-      <thead>
-        <tr>
-          <th>{t("admin.ledger.col.time")}</th>
-          <th>{t("admin.ledger.col.event")}</th>
-          <th>{t("admin.ledger.col.from_to")}</th>
-          <th class={colClass("amount")}>{t("admin.ledger.col.amount")}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <Raw html={ledgerRows(transfers, names, returnUrl)} />
-      </tbody>
-    </table>
-  </div>
-);
+}): JSX.Element =>
+  LedgerColumnsTable({
+    columns: [
+      timeColumn((transfer: Transfer) => transfer.occurredAt),
+      { cell: kindLabel, headerKey: "admin.ledger.col.event" },
+      {
+        cell: (transfer) => (
+          <>
+            {accountCell(transfer.source, names)} &rarr;{" "}
+            {accountCell(transfer.destination, names)}
+          </>
+        ),
+        headerKey: "admin.ledger.col.from_to",
+      },
+      amountColumn<Transfer>("admin.ledger.col.amount", (transfer) =>
+        amountCell(transfer, formatCurrency(transfer.amount), returnUrl),
+      ),
+    ],
+    rows: transfers,
+  });
 
 const humanAccount = (transfer: Transfer, type: string): AccountRef | null => {
   if (transfer.source.type === type) return transfer.source;
@@ -294,8 +348,8 @@ const adjustmentDescription = (
   names: LedgerNames,
 ): JSX.Element => {
   if (
-    transfer.source.type === "attendee" &&
-    transfer.destination.type === "writeoff"
+    transfer.source.type === ATTENDEE &&
+    transfer.destination.type === WRITEOFF_TYPE
   ) {
     return sentenceWithAccount(
       "admin.ledger.human.manual_attendee_charge",
@@ -304,8 +358,8 @@ const adjustmentDescription = (
     );
   }
   if (
-    transfer.source.type === "writeoff" &&
-    transfer.destination.type === "attendee"
+    transfer.source.type === WRITEOFF_TYPE &&
+    transfer.destination.type === ATTENDEE
   ) {
     return sentenceWithAccount(
       "admin.ledger.human.manual_attendee_writeoff",
@@ -313,14 +367,14 @@ const adjustmentDescription = (
       names,
     );
   }
-  if (transfer.source.type === "writeoff") {
+  if (transfer.source.type === WRITEOFF_TYPE) {
     return sentenceWithAccount(
       "admin.ledger.human.adjustment_increase",
       transfer.destination,
       names,
     );
   }
-  if (transfer.destination.type === "writeoff") {
+  if (transfer.destination.type === WRITEOFF_TYPE) {
     return sentenceWithAccount(
       "admin.ledger.human.adjustment_reduce",
       transfer.source,
@@ -335,31 +389,31 @@ const humanDescription = (
   names: LedgerNames,
 ): JSX.Element => {
   switch (transfer.kind) {
-    case "sale":
+    case KIND.sale:
       return saleDescription(transfer, names);
-    case "payment":
+    case KIND.payment:
       return sentenceWithAccount(
         "admin.ledger.human.payment",
-        humanAccount(transfer, "attendee"),
+        humanAccount(transfer, ATTENDEE),
         names,
       );
-    case "refund_cash":
+    case KIND.refundCash:
       return sentenceWithAccount(
         "admin.ledger.human.refund_cash",
-        humanAccount(transfer, "attendee"),
+        humanAccount(transfer, ATTENDEE),
         names,
       );
-    case "refund_sale":
+    case KIND.refundSale:
       return sentenceWithAccount(
         "admin.ledger.human.refund_sale",
-        humanAccount(transfer, "revenue"),
+        humanAccount(transfer, REVENUE),
         names,
       );
-    case "fee":
+    case KIND.fee:
       return <>{t("admin.ledger.human.fee")}</>;
-    case "refund_fee":
+    case KIND.refundFee:
       return <>{t("admin.ledger.human.refund_fee")}</>;
-    case "adjustment":
+    case KIND.adjustment:
       return adjustmentDescription(transfer, names);
     default: {
       const spec =
@@ -374,24 +428,6 @@ const humanDescription = (
   }
 };
 
-const HumanLedgerRow = ({
-  transfer,
-  names,
-  returnUrl,
-}: {
-  transfer: Transfer;
-  names: LedgerNames;
-  returnUrl?: string | undefined;
-}): JSX.Element => (
-  <tr>
-    <td>{formatDatetimeShort(transfer.occurredAt)}</td>
-    <td>{humanDescription(transfer, names)}</td>
-    <td class={colClass("amount")}>
-      {amountCell(transfer, formatCurrency(transfer.amount), returnUrl)}
-    </td>
-  </tr>
-);
-
 export const HumanLedgerTable = ({
   transfers,
   names,
@@ -400,34 +436,20 @@ export const HumanLedgerTable = ({
   transfers: Transfer[];
   names: LedgerNames;
   returnUrl?: string;
-}): JSX.Element => (
-  <div class="table-scroll">
-    <table>
-      <thead>
-        <tr>
-          <th>{t("admin.ledger.col.time")}</th>
-          <th>{t("admin.ledger.col.activity")}</th>
-          <th class={colClass("amount")}>{t("admin.ledger.col.amount")}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {transfers.length > 0 ? (
-          transfers.map((transfer) => (
-            <HumanLedgerRow
-              names={names}
-              returnUrl={returnUrl}
-              transfer={transfer}
-            />
-          ))
-        ) : (
-          <tr>
-            <td colspan="3">{t("admin.ledger.empty")}</td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  </div>
-);
+}): JSX.Element =>
+  LedgerColumnsTable({
+    columns: [
+      timeColumn((transfer: Transfer) => transfer.occurredAt),
+      {
+        cell: (transfer) => humanDescription(transfer, names),
+        headerKey: "admin.ledger.col.activity",
+      },
+      amountColumn<Transfer>("admin.ledger.col.amount", (transfer) =>
+        amountCell(transfer, formatCurrency(transfer.amount), returnUrl),
+      ),
+    ],
+    rows: transfers,
+  });
 
 /** The signed delta of a statement line, formatted with an explicit sign so a
  * credit and a debit of the same magnitude never read alike. */
@@ -459,54 +481,6 @@ const counterparty = (line: StatementLine, account: AccountRef): AccountRef =>
     ? line.transfer.source
     : line.transfer.destination;
 
-/** One row of an account statement: time, kind, counterparty, signed delta, and
- * the running balance after the leg. */
-const StatementRow = ({
-  line,
-  account,
-  names,
-  returnUrl,
-}: {
-  line: StatementLine;
-  account: AccountRef;
-  names: LedgerNames;
-  returnUrl?: string | undefined;
-}): string =>
-  String(
-    <tr>
-      <td>{formatDatetimeShort(line.transfer.occurredAt)}</td>
-      <td>{kindLabel(line.transfer)}</td>
-      <td>{accountCell(counterparty(line, account), names)}</td>
-      <td class={colClass("amount")}>
-        {amountCell(
-          line.transfer,
-          signedAmount(shownFigure(line.signed, account)),
-          returnUrl,
-        )}
-      </td>
-      <td class={colClass("amount")}>
-        {formatCurrency(shownFigure(line.running, account))}
-      </td>
-    </tr>,
-  );
-
-/** The statement rows, or an empty-state row spanning the table when the account
- * has no history. */
-const statementRows = (
-  lines: StatementLine[],
-  account: AccountRef,
-  names: LedgerNames,
-  returnUrl?: string,
-): string =>
-  lines.length > 0
-    ? pipe(
-        map((line: StatementLine) =>
-          StatementRow({ account, line, names, returnUrl }),
-        ),
-        joinStrings,
-      )(lines)
-    : `<tr><td colspan="5">${t("admin.ledger.empty")}</td></tr>`;
-
 /**
  * One account's running-balance statement: each leg as a counterparty plus the
  * signed delta and the balance after it. The account's own label and final
@@ -522,24 +496,31 @@ export const AccountStatementTable = ({
   lines: StatementLine[];
   names: LedgerNames;
   returnUrl?: string;
-}): JSX.Element => (
-  <div class="table-scroll">
-    <table>
-      <thead>
-        <tr>
-          <th>{t("admin.ledger.col.time")}</th>
-          <th>{t("admin.ledger.col.event")}</th>
-          <th>{t("admin.ledger.col.counterparty")}</th>
-          <th class={colClass("amount")}>{t("admin.ledger.col.delta")}</th>
-          <th class={colClass("amount")}>{t("admin.ledger.col.balance")}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <Raw html={statementRows(lines, account, names, returnUrl)} />
-      </tbody>
-    </table>
-  </div>
-);
+}): JSX.Element =>
+  LedgerColumnsTable({
+    columns: [
+      timeColumn((line: StatementLine) => line.transfer.occurredAt),
+      {
+        cell: (line) => kindLabel(line.transfer),
+        headerKey: "admin.ledger.col.event",
+      },
+      {
+        cell: (line) => accountCell(counterparty(line, account), names),
+        headerKey: "admin.ledger.col.counterparty",
+      },
+      amountColumn<StatementLine>("admin.ledger.col.delta", (line) =>
+        amountCell(
+          line.transfer,
+          signedAmount(shownFigure(line.signed, account)),
+          returnUrl,
+        ),
+      ),
+      amountColumn<StatementLine>("admin.ledger.col.balance", (line) =>
+        formatCurrency(shownFigure(line.running, account)),
+      ),
+    ],
+    rows: lines,
+  });
 
 /** The plain display text for an account (no link), for headings/captions. */
 export const accountLabelText = (
@@ -655,7 +636,11 @@ export type LedgerFilterState = {
   view: LedgerViewMode;
 };
 
-export type LedgerViewMode = "human" | "dual";
+/** The two renderings of the transfer list — plain-language and double-entry —
+ *  round-tripped through the `?view=` param. Picklist so the type, the param
+ *  parse, and the toggle all derive from one declaration. */
+export const LedgerViewModeSchema = v.picklist(["human", "dual"]);
+export type LedgerViewMode = v.InferOutput<typeof LedgerViewModeSchema>;
 
 /** One option for the by-listing filter select. */
 export type LedgerListingOption = { id: number; name: string };
@@ -780,23 +765,18 @@ const ListingFilter = ({ data }: { data: LedgerPageData }): SafeHtml => (
   </p>
 );
 
+/** The view toggle renders every mode from the picklist: the active one as
+ *  plain bold text (never a dead link to itself), the rest as links. */
 const LedgerViewToggle = ({ data }: { data: LedgerPageData }): SafeHtml => (
   <p class="table-action-btns">
-    {data.filters.view === "human" ? (
-      <>
-        <strong>{t("admin.ledger.view.human")}</strong>
-        <a href={ledgerHref(data.filters, { view: "dual" })}>
-          {t("admin.ledger.view.dual")}
-        </a>
-      </>
-    ) : (
-      <>
-        <a href={ledgerHref(data.filters, { view: "human" })}>
-          {t("admin.ledger.view.human")}
-        </a>
-        <strong>{t("admin.ledger.view.dual")}</strong>
-      </>
-    )}
+    {LedgerViewModeSchema.options.map((mode) => {
+      const label = t(`admin.ledger.view.${mode}`);
+      return data.filters.view === mode ? (
+        <strong>{label}</strong>
+      ) : (
+        <a href={ledgerHref(data.filters, { view: mode })}>{label}</a>
+      );
+    })}
   </p>
 );
 

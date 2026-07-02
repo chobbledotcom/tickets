@@ -194,6 +194,8 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/storage.ts:MAX_ATTACHMENT_SIZE",
   // AsyncLocalStorage-based storage config for concurrent test isolation
   "shared/storage.ts:runWithStorageConfig",
+  // Suite-level storage config setter for describeWithEnv's `storage` option
+  "shared/storage.ts:setStorageConfigForTest",
   // readLimit used in production (module-level constants) but test pattern doesn't detect same-file usage
   "shared/limits.ts:readLimit",
   // Set log suppression directly to avoid env var races between parallel tests

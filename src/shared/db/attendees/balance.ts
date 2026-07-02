@@ -11,6 +11,7 @@
 import type { InValue } from "@libsql/client";
 import { compact, mapParallel, sumOf } from "#fp";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
 import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { guardedInsertStatement } from "#shared/accounting/rows.ts";
@@ -215,9 +216,9 @@ export const settleAttendeeBalance = async (
         amount: expectedAmount,
         destination: attendeeAccount(attendeeId),
         eventGroup: await balanceEventGroup(settle.id),
-        kind: "payment",
+        kind: KIND.payment,
         occurredAt: settle.occurredAt,
-        reference: await legReference(["balance", settle.id, "payment"]),
+        reference: await legReference(["balance", settle.id, KIND.payment]),
         source: WORLD,
       },
       nowIso(),

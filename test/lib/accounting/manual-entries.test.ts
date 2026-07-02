@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  deleteManualLedgerEntry,
   MANUAL_ATTENDEE_CHARGE,
   MANUAL_ATTENDEE_PAYMENT,
   MANUAL_ATTENDEE_WRITEOFF,
@@ -8,26 +9,22 @@ import {
   MANUAL_LISTING_INCOME,
   MANUAL_MODIFIER_INCOME,
   MANUAL_MODIFIER_REDUCTION,
+  type ManualLedgerEntryType,
+  manualLedgerEntryOptionsFor,
   postManualLedgerEntry,
-  updateTransferAmountAndTime,
+  updateManualLedgerEntry,
 } from "#shared/accounting/manual-entries.ts";
 import { allTransfers } from "#shared/accounting/queries.ts";
+import { postTransfers } from "#shared/accounting/store.ts";
 import { account } from "#shared/ledger/account.ts";
-import type { AccountRef } from "#shared/ledger/types.ts";
-import { useTransactionalDb } from "#test-utils/ledger.ts";
+import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
+import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 
 const world = account("external", "world");
 const writeoff = account("writeoff", "default");
 
 type ManualEntryCase = {
-  type:
-    | typeof MANUAL_ATTENDEE_PAYMENT
-    | typeof MANUAL_ATTENDEE_CHARGE
-    | typeof MANUAL_ATTENDEE_WRITEOFF
-    | typeof MANUAL_LISTING_INCOME
-    | typeof MANUAL_LISTING_COST
-    | typeof MANUAL_MODIFIER_INCOME
-    | typeof MANUAL_MODIFIER_REDUCTION;
+  type: ManualLedgerEntryType;
   account: AccountRef;
   source: AccountRef;
   destination: AccountRef;
@@ -129,7 +126,88 @@ describe("db > accounting > manual ledger entries", () => {
     const [transfer] = await allTransfers();
 
     await expect(
-      updateTransferAmountAndTime(transfer!, -1, transfer!.occurredAt),
+      updateManualLedgerEntry(transfer!, -1, transfer!.occurredAt),
     ).rejects.toThrow("invalid transfer update");
+  });
+
+  test("offers each account type ONLY its own entry options", () => {
+    // The option filter keys on the spec table's accountType; an inverted
+    // match would offer listing entries on an attendee account.
+    const offered = manualLedgerEntryOptionsFor(account("attendee", 1)).map(
+      (option) => option.type,
+    );
+    expect(offered).toEqual([
+      MANUAL_ATTENDEE_PAYMENT,
+      MANUAL_ATTENDEE_CHARGE,
+      MANUAL_ATTENDEE_WRITEOFF,
+    ]);
+    expect(
+      manualLedgerEntryOptionsFor(account("revenue", 1)).map((o) => o.type),
+    ).toEqual([MANUAL_LISTING_INCOME, MANUAL_LISTING_COST]);
+  });
+
+  test("updates an owner-entered entry's amount and business time", async () => {
+    await postManualLedgerEntry({
+      account: account("attendee", 1),
+      amount: 100,
+      occurredAt: "2026-06-22T09:30:00.000Z",
+      postedBy: "1",
+      type: MANUAL_ATTENDEE_PAYMENT,
+    });
+    const [before] = await allTransfers();
+
+    await updateManualLedgerEntry(before!, 250, "2026-06-23T10:00:00.000Z");
+
+    const [after] = await allTransfers();
+    expect(after!.amount).toBe(250);
+    expect(after!.occurredAt).toBe("2026-06-23T10:00:00.000Z");
+    // Identity and provenance are untouched by an amount/time edit.
+    expect(after!.id).toBe(before!.id);
+    expect(after!.reference).toBe(before!.reference);
+  });
+
+  test("deletes an owner-entered entry", async () => {
+    await postManualLedgerEntry({
+      account: account("attendee", 1),
+      amount: 100,
+      occurredAt: "2026-06-22T09:30:00.000Z",
+      postedBy: "1",
+      type: MANUAL_ATTENDEE_PAYMENT,
+    });
+    const [entry] = await allTransfers();
+    await deleteManualLedgerEntry(entry!);
+    expect(await allTransfers()).toEqual([]);
+  });
+
+  /** Post one checkout-history leg (a `sale`) and read back its stored row. */
+  const storedSaleLeg = async (): Promise<Transfer> => {
+    await postTransfers([tx({ kind: "sale", reference: "sale-guard" })]);
+    return (await allTransfers())[0]!;
+  };
+
+  test("refuses to edit a checkout-event transfer, leaving it untouched", async () => {
+    const sale = await storedSaleLeg();
+    await expect(
+      updateManualLedgerEntry(sale, 999, sale.occurredAt),
+    ).rejects.toThrow("not an owner-entered ledger entry");
+    expect((await allTransfers())[0]!.amount).toBe(sale.amount);
+  });
+
+  test("refuses to touch a kindless transfer, naming its empty kind", async () => {
+    // A kindless stored leg reads back with kind omitted; the guard must refuse
+    // it too and render the missing kind as "" in the error.
+    await postTransfers([tx({ reference: "kindless-guard" })]);
+    const [kindless] = await allTransfers();
+    await expect(
+      updateManualLedgerEntry(kindless!, 999, kindless!.occurredAt),
+    ).rejects.toThrow('not an owner-entered ledger entry (kind "")');
+  });
+
+  test("refuses to delete a checkout-event transfer, leaving it stored", async () => {
+    const sale = await storedSaleLeg();
+    await expect(deleteManualLedgerEntry(sale)).rejects.toThrow(
+      "not an owner-entered ledger entry",
+    );
+    expect(await allTransfers()).toHaveLength(1);
   });
 });

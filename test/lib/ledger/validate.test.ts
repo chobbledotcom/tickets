@@ -2,7 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { account } from "#shared/ledger/account.ts";
 import type { LedgerError, TransferInput } from "#shared/ledger/types.ts";
-import { validateTransfer } from "#shared/ledger/validate.ts";
+import {
+  assertValidTransfer,
+  validateTransfer,
+} from "#shared/ledger/validate.ts";
 
 const base: TransferInput = {
   amount: 1000,
@@ -102,5 +105,17 @@ describe("validateTransfer", () => {
     expect(codes).toContain("non_positive_amount");
     expect(codes).toContain("self_transfer");
     expect(codes).toContain("empty_reference");
+  });
+});
+
+describe("assertValidTransfer", () => {
+  it("passes a well-formed transfer through silently", () => {
+    expect(() => assertValidTransfer(base, "test post")).not.toThrow();
+  });
+
+  it("throws naming the context and every error code", () => {
+    expect(() =>
+      assertValidTransfer({ ...base, amount: 0, reference: "" }, "test post"),
+    ).toThrow("test post: non_positive_amount, empty_reference");
   });
 });

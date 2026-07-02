@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { type Spy, spy, stub } from "@std/testing/mock";
+import { stub } from "@std/testing/mock";
 import {
   bestEffort,
   ErrorCode,
@@ -15,23 +15,7 @@ import {
   resetDb,
   setTestEnv,
 } from "#test-utils";
-
-/** Scoped console.error spy — call inside a describe block. */
-const setupErrorSpy = () => {
-  let errorSpy: Spy;
-  beforeEach(() => {
-    errorSpy = spy(console, "error");
-  });
-  afterEach(() => {
-    errorSpy.restore();
-  });
-  return {
-    get calls() {
-      return errorSpy.calls;
-    },
-    lastMessage: () => errorSpy.calls.at(-1)?.args[0] as string | undefined,
-  };
-};
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 // Outer describe ensures sequential execution — createTestListing() calls
 // handleRequest which sets a request-scoped ID via AsyncLocalStorage.

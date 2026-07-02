@@ -3,6 +3,8 @@
  */
 
 import { map, unique } from "#fp";
+import { ATTENDEE } from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
 import {
   accountPredicate,
   attendeeOwedSubquery,
@@ -37,8 +39,8 @@ import type { Attendee } from "#shared/types.ts";
  * `listing_attendees` row has `listingAttendee.attendee_id` NULL, so the EXISTS is false (0).
  */
 const refundedFromLedger = (attendeeIdExpr: string): string =>
-  `(SELECT EXISTS(SELECT 1 FROM transfers WHERE kind = 'refund_cash'` +
-  ` AND ${accountPredicate("source", "attendee", attendeeIdExpr)})) AS refunded`;
+  `(SELECT EXISTS(SELECT 1 FROM transfers WHERE kind = '${KIND.refundCash}'` +
+  ` AND ${accountPredicate("source", ATTENDEE, attendeeIdExpr)})) AS refunded`;
 
 /**
  * Per-row amount paid, projected from the ledger instead of a stored column: the

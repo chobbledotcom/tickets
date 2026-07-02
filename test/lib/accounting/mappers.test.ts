@@ -237,6 +237,26 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
       return { all: [...order, ...refund], refund };
     };
 
+    test("stamps the caller's memo and actor on every refund leg", async () => {
+      // The memo (a PII-free reason code) and postedBy are the refund's audit
+      // trail; a leg that loses either loses the "why" of the reversal.
+      const order = await bookingOrder();
+      const refund = await mapRefund({
+        memo: "auto_refund:sold_out",
+        occurredAt: REFUND_AT,
+        orderLegs: order,
+        postedBy: "user:5",
+      });
+      expect(refund.length).toBeGreaterThan(0);
+      for (const leg of refund) {
+        expect(leg.memo).toBe("auto_refund:sold_out");
+        expect(leg.postedBy).toBe("user:5");
+      }
+      // A memo-less refund omits the field rather than stamping undefined.
+      const bare = await mapRefund({ occurredAt: REFUND_AT, orderLegs: order });
+      expect(bare.every((leg) => !("memo" in leg))).toBe(true);
+    });
+
     test("reverses every leg so revenue, the attendee and cash return to zero", async () => {
       const order = await bookingOrder(paidBookingNettingToZero);
       const { all } = await refundAndAll(order);

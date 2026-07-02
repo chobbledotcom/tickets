@@ -20,6 +20,7 @@
 
 import { groupBy } from "#fp";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
 import { mapBooking, mapRefund } from "#shared/accounting/mappers.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { postTransferGroups, postTransfers } from "#shared/accounting/store.ts";
@@ -32,7 +33,7 @@ import { nowIso } from "#shared/now.ts";
  *  listing with a paid surcharge has a `modifier`/`fee` leg but no `sale`, while
  *  a balance settlement posts only a `payment` leg. */
 const recognisesRevenue = (kind: string | undefined): boolean =>
-  kind === "sale" || kind === "fee" || kind === "modifier";
+  kind === KIND.sale || kind === KIND.fee || kind === KIND.modifier;
 
 /**
  * The booking legs to reverse when — and only when — a full provider refund of
@@ -69,7 +70,7 @@ const computeAttendeeRefund = async (
   // Already refunded (e.g. an idempotent re-submit): the `refund_cash` leg is the
   // durable refund record, so report success without re-posting — and without
   // rebuilding legs under a fresh `nowIso()`.
-  if (legs.some((leg) => leg.kind === "refund_cash")) {
+  if (legs.some((leg) => leg.kind === KIND.refundCash)) {
     return { legs: [], posted: true };
   }
   const order = soleBookingOrder(legs);
@@ -219,7 +220,7 @@ export const recordPlaceholderRefund = async (
     // terminal outcome before reaching here — so there is never a prior reversal.
     const payments = (
       await transfersByAccount(attendeeAccount(facts.attendeeId))
-    ).filter((leg) => leg.kind === "payment");
+    ).filter((leg) => leg.kind === KIND.payment);
     await postTransfers(
       await mapRefund({
         memo,

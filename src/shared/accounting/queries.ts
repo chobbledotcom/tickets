@@ -11,12 +11,23 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { SERVICE_COST_KIND } from "#shared/accounting/accounts.ts";
+import {
+  ATTENDEE,
+  COST,
+  EXTERNAL,
+  FEE_INCOME,
+  MODIFIER,
+  REVENUE,
+  WRITEOFF_TYPE,
+} from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
+import { MANUAL_LISTING_INCOME } from "#shared/accounting/manual-entries.ts";
 import {
   accountBalanceSubquery,
   attendeeOwedSubquery,
   creditsLessWriteoffDebits,
   LEG_COLUMNS,
+  signedSumCase,
 } from "#shared/accounting/projection-sql.ts";
 import {
   andPrefixed,
@@ -32,6 +43,7 @@ import {
 import {
   inPlaceholders,
   queryAll,
+  queryOne,
   resultRows,
   rowExists,
   type TxScope,
@@ -89,9 +101,8 @@ export const recentTransfers = (limit: number): Promise<Transfer[]> =>
  * owner-entered manual rows and service cost legs remain visible even when they
  * record an external cost. */
 const VISIBLE_TRANSFER_SCOPE =
-  "(source_type != 'external' AND dest_type != 'external' OR kind LIKE 'manual\\_%' ESCAPE '\\' OR kind = '" +
-  SERVICE_COST_KIND +
-  "')";
+  `(source_type != '${EXTERNAL}' AND dest_type != '${EXTERNAL}'` +
+  ` OR kind LIKE 'manual\\_%' ESCAPE '\\' OR kind = '${KIND.serviceCost}')`;
 
 /** A listing-account scope (revenue OR cost legs touching this listing's
  *  accounts) for the by-listing filter, with its bound args. Empty for "all
@@ -103,17 +114,12 @@ const revenueLegScope = (
   listingId === null
     ? { args: [], clause: "" }
     : {
-        args: [
-          String(listingId),
-          String(listingId),
-          String(listingId),
-          String(listingId),
-        ],
+        args: Array(4).fill(String(listingId)),
         clause:
-          " AND (dest_type = 'revenue' AND dest_id = ?" +
-          " OR source_type = 'revenue' AND source_id = ?" +
-          " OR source_type = 'cost' AND source_id = ?" +
-          " OR dest_type = 'cost' AND dest_id = ?)",
+          ` AND (dest_type = '${REVENUE}' AND dest_id = ?` +
+          ` OR source_type = '${REVENUE}' AND source_id = ?` +
+          ` OR source_type = '${COST}' AND source_id = ?` +
+          ` OR dest_type = '${COST}' AND dest_id = ?)`,
       };
 
 /**
@@ -144,15 +150,16 @@ export const transferActivityBounds = async (): Promise<{
   minMs: number;
   maxMs: number;
 } | null> => {
-  const rows = await queryAll<{
+  // An ungrouped aggregate always yields exactly one row; MIN and MAX are NULL
+  // together iff the table is empty.
+  const row = (await queryOne<{
     min_ms: number | bigint | null;
     max_ms: number | bigint | null;
   }>(
     "SELECT MIN(occurred_at) AS min_ms, MAX(occurred_at) AS max_ms FROM transfers",
     [],
-  );
-  const row = rows[0];
-  if (!row || row.min_ms === null || row.max_ms === null) return null;
+  ))!;
+  if (row.min_ms === null || row.max_ms === null) return null;
   return { maxMs: Number(row.max_ms), minMs: Number(row.min_ms) };
 };
 
@@ -192,27 +199,21 @@ export const ledgerTotals = async (
   range: LedgerRange,
 ): Promise<LedgerTotals> => {
   const r = occurredAtRange(range);
-  const rows = await queryAll<LedgerTotalsRow>(
+  // An ungrouped aggregate always yields exactly one row.
+  const row = (await queryOne<LedgerTotalsRow>(
     `SELECT
        COALESCE(SUM(CASE
-         WHEN kind = 'sale' AND dest_type = 'revenue' THEN amount
-         WHEN kind = 'manual_listing_income' AND dest_type = 'revenue' THEN amount
-         WHEN kind = 'adjustment' AND dest_type = 'revenue' AND source_type = 'writeoff' THEN amount
-         WHEN kind = 'adjustment' AND source_type = 'revenue' AND dest_type = 'writeoff' THEN -amount
+         WHEN kind = '${KIND.sale}' AND dest_type = '${REVENUE}' THEN amount
+         WHEN kind = '${MANUAL_LISTING_INCOME}' AND dest_type = '${REVENUE}' THEN amount
+         WHEN kind = '${KIND.adjustment}' AND dest_type = '${REVENUE}' AND source_type = '${WRITEOFF_TYPE}' THEN amount
+         WHEN kind = '${KIND.adjustment}' AND source_type = '${REVENUE}' AND dest_type = '${WRITEOFF_TYPE}' THEN -amount
          ELSE 0 END), 0) AS income,
-       COALESCE(SUM(CASE
-         WHEN source_type = 'attendee' THEN amount
-         WHEN dest_type = 'attendee' THEN -amount
-         ELSE 0 END), 0) AS due,
-       COALESCE(SUM(CASE WHEN kind = 'refund_cash' THEN amount ELSE 0 END), 0) AS refunded,
-       COALESCE(SUM(CASE
-         WHEN dest_type = 'fee_income' THEN amount
-         WHEN source_type = 'fee_income' THEN -amount
-         ELSE 0 END), 0) AS fees
+       ${signedSumCase(`source_type = '${ATTENDEE}'`, `dest_type = '${ATTENDEE}'`)} AS due,
+       COALESCE(SUM(CASE WHEN kind = '${KIND.refundCash}' THEN amount ELSE 0 END), 0) AS refunded,
+       ${signedSumCase(`dest_type = '${FEE_INCOME}'`, `source_type = '${FEE_INCOME}'`)} AS fees
      FROM transfers${wherePrefixed(r.clause)}`,
     r.args,
-  );
-  const row = rows[0]!;
+  ))!;
   return {
     due: Number(row.due),
     fees: Number(row.fees),
@@ -289,13 +290,12 @@ export const accountBalance = async (acct: AccountRef): Promise<number> => {
   // Each predicate binds (type, id) and appears four times — both CASE arms and
   // both WHERE arms — so the account's pair repeats four times, in that order.
   const pair: InValue[] = [acct.type, acct.id];
-  const rows = await queryAll<{ balance: number | bigint }>(
-    `SELECT COALESCE(SUM(CASE WHEN ${asDest} THEN amount` +
-      ` WHEN ${asSource} THEN -amount ELSE 0 END), 0) AS balance` +
+  const row = (await queryOne<{ balance: number | bigint }>(
+    `SELECT ${signedSumCase(asDest, asSource)} AS balance` +
       ` FROM transfers WHERE ${asDest} OR ${asSource}`,
     [...pair, ...pair, ...pair, ...pair],
-  );
-  return Number(rows[0]!.balance);
+  ))!;
+  return Number(row.balance);
 };
 
 /**
@@ -333,7 +333,7 @@ export const listingIncomeTx = (
 ): Promise<number> =>
   readProjectedFigureTx(
     tx,
-    creditsLessWriteoffDebits("revenue", String(listingId)),
+    creditsLessWriteoffDebits(REVENUE, String(listingId)),
   );
 
 /** A modifier's currently projected net revenue (balanceOf(modifier)) read
@@ -344,5 +344,5 @@ export const modifierRevenueTx = (
 ): Promise<number> =>
   readProjectedFigureTx(
     tx,
-    accountBalanceSubquery("modifier", String(modifierId)),
+    accountBalanceSubquery(MODIFIER, String(modifierId)),
   );

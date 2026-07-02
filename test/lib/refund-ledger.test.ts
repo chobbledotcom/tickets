@@ -28,6 +28,7 @@ import {
   soleBookingOrder,
 } from "#shared/refund-ledger.ts";
 import { describeWithEnv } from "#test-utils";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 const ATTENDEE = 3;
 const BOOKING_AT = "2026-06-21T00:00:00.000Z";
@@ -127,6 +128,8 @@ describe("refund-ledger > soleBookingOrder", () => {
 // -- recordAttendeeRefund (integration) ---------------------------------- //
 
 describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
+  const errors = setupErrorSpy();
+
   test("reverses the booking so revenue and the attendee return to zero", async () => {
     await postBooking({
       amountPaid: 5000,
@@ -271,6 +274,9 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     expect(
       refundLegsOf(await transfersByAccount(attendeeAccount(ATTENDEE))).length,
     ).toBe(0);
+    // "Logs" is part of the contract: the operator's only breadcrumb for a
+    // stranded refund is the classified error.
+    expect(errors.lastMessage()).toContain("E_LEDGER_POST");
   });
 });
 
@@ -280,6 +286,8 @@ describeWithEnv(
   "refund-ledger > recordAttendeeRefundsBatch",
   { db: true },
   () => {
+    const errors = setupErrorSpy();
+
     test("posts every clean reversal in one batch and reports each posted", async () => {
       await postBooking({ attendeeId: 11, eventId: "sess-11" });
       await postBooking({ attendeeId: 12, eventId: "sess-12" });
@@ -414,6 +422,13 @@ describeWithEnv(
       expect(
         refundLegsOf(await transfersByAccount(attendeeAccount(18))).length,
       ).toBe(0);
+      // Both the batch fallback and 18's per-attendee failure must log the
+      // classified error — the operator's only breadcrumb.
+      const logged = errors.calls.map((call) => String(call.args[0]));
+      expect(
+        logged.some((message) => message.includes("bulk refund batch failed")),
+      ).toBe(true);
+      expect(errors.lastMessage()).toContain("E_LEDGER_POST");
     });
 
     test("treats an empty attendee list as a no-op", async () => {
@@ -425,6 +440,7 @@ describeWithEnv(
 // -- recordPlaceholderRefund (cash round-trip, no sale leg) -------------- //
 
 describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
+  const errors = setupErrorSpy();
   const PH = {
     amount: 5000,
     attendeeId: 7,
@@ -480,5 +496,7 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
     expect(await recordPlaceholderRefund(PH, "sold_out", true)).toEqual({
       posted: false,
     });
+    // The classified error is the operator's only breadcrumb for the miss.
+    expect(errors.lastMessage()).toContain("E_LEDGER_POST");
   });
 });
