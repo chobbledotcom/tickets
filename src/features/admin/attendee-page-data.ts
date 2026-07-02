@@ -17,13 +17,13 @@ import {
   resolveSharedDates,
 } from "#routes/admin/attendee-form-model.ts";
 import { buildAttendeeLogisticsData } from "#routes/admin/attendee-logistics.ts";
+import { withDecryptedAttendee } from "#routes/admin/attendees-route-helpers.ts";
 import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
 import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import {
   checkLinesCapacity,
   type ExistingLine,
-  getAttendee,
   loadExistingLines,
 } from "#shared/db/attendees.ts";
 import {
@@ -56,15 +56,14 @@ import type {
 export type LoadedAttendee = { attendee: Attendee; existing: ExistingLine[] };
 
 /** Load an attendee + all its lines, or null (→ 404) when it doesn't exist. */
-export const loadAttendeeForEdit = async (
+export const loadAttendeeForEdit: (
   attendeeId: number,
-): Promise<LoadedAttendee | null> => {
-  const pk = await requireRequestPrivateKey();
-  const attendee = await getAttendee(attendeeId, pk);
-  if (!attendee) return null;
-  const existing = await loadExistingLines(attendeeId);
-  return { attendee, existing };
-};
+) => Promise<LoadedAttendee | null> = withDecryptedAttendee(
+  async (attendee) => ({
+    attendee,
+    existing: await loadExistingLines(attendee.id),
+  }),
+);
 
 /** Index listings by id. */
 export const listingsByIdMap = (

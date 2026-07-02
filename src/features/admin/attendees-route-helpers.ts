@@ -57,6 +57,21 @@ export const loadAttendeeForListing = async (
 /** Load attendee with auth, returning 404 if not found */
 export const withAttendee = withEntityLoader(loadAttendeeForListing);
 
+/** Load and decrypt one attendee by id with the request's session key. */
+const getDecryptedAttendee = async (
+  attendeeId: number,
+): Promise<Attendee | null> =>
+  getAttendee(attendeeId, await requireRequestPrivateKey());
+
+/** Curried loader: decrypt the attendee (null → 404), then complete the
+ * load with whatever else the caller needs alongside it. */
+export const withDecryptedAttendee =
+  <T>(complete: (attendee: Attendee) => Promise<T | null>) =>
+  async (attendeeId: number): Promise<T | null> => {
+    const attendee = await getDecryptedAttendee(attendeeId);
+    return attendee === null ? null : complete(attendee);
+  };
+
 /**
  * Load an attendee (by id alone) plus its HOME listing — the attendee-scoped
  * counterpart of {@link loadAttendeeForListing} for the action routes under
@@ -64,16 +79,14 @@ export const withAttendee = withEntityLoader(loadAttendeeForListing);
  * listing is the attendee's first booking, exactly what the Actions tab keys
  * its links on; an orphan attendee (no bookings) 404s, as it always has.
  */
-export const loadAttendeeWithHomeListing = async (
+export const loadAttendeeWithHomeListing: (
   attendeeId: number,
-): Promise<AttendeeWithListing | null> => {
-  const pk = await requireRequestPrivateKey();
-  const attendee = await getAttendee(attendeeId, pk);
-  if (!attendee) return null;
-  const listing = await getListingWithCount(attendee.listing_id);
-  if (!listing) return null;
-  return { attendee, listing };
-};
+) => Promise<AttendeeWithListing | null> = withDecryptedAttendee(
+  async (attendee) => {
+    const listing = await getListingWithCount(attendee.listing_id);
+    return listing ? { attendee, listing } : null;
+  },
+);
 
 /** Route params for listing-scoped routes */
 export type ListingRouteParams = { id: number };
