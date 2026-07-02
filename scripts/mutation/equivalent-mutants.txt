@@ -209,3 +209,9 @@ src/shared/db/listing-prices.ts:109:45  ?? → ||    # foldGroupDayRows result.g
 # value equals the "" fallback.
 src/features/admin/attendee-page.ts:266:60  ?? → ||    # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
 src/features/admin/entity-pages.ts:230:28  ?? → ||    # opts.baseUrl: string|undefined; the only falsy-non-null value "" equals the "" fallback
+src/shared/db/name-registry.ts:85:51  ?? → ||    # matchName index.get(): number[]|undefined — an array is always truthy
+src/shared/db/name-registry.ts:105:20  ?? → ||    # isNameTakenAnywhere index.get(): number[]|undefined — an array is always truthy
+src/features/admin/catalog-transfer/import.ts:114:27  ?? → ||    # membershipSpec quantity: from the PositiveInt schema (≥1) or undefined — never 0, so ?? and || coincide
+src/features/admin/catalog-transfer/import.ts:161:39  ?? → ||    # validateParentEdges input.groupIds: number[]|undefined — an array is always truthy
+src/features/admin/catalog-transfer/schema.ts:158:18  ?? → ||    # formatTransferIssues flat.root: string[]|undefined — an array is always truthy
+src/features/admin/catalog-transfer/schema.ts:159:34  ?? → ||    # formatTransferIssues flat.nested: object|undefined — an object is always truthy

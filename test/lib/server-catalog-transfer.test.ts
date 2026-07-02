@@ -10,6 +10,7 @@ import {
   createTestListing,
   describeWithEnv,
   expectFlashRedirect,
+  getAllActivityLog,
   getTestSession,
   mockMultipartRequest,
   testRequiresAuth,
@@ -106,6 +107,9 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       )!;
       expect(created.unit_price).toBe(900);
       expect(await getGroupIdsByListingId(created.id)).toEqual([group.id]);
+      // The import is recorded in the activity log.
+      const log = await getAllActivityLog();
+      expect(log.some((e) => e.message.includes("Imported One"))).toBe(true);
     });
 
     test("creates a group from an uploaded blob", async () => {
@@ -119,6 +123,8 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
         "/admin/groups",
         "Imported group Imported Group",
       )(response);
+      const log = await getAllActivityLog();
+      expect(log.some((e) => e.message.includes("Imported Group"))).toBe(true);
     });
 
     test("rejects an invalid JSON file", async () => {

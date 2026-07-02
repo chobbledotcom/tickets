@@ -150,16 +150,15 @@ export type CatalogTransfer = v.InferOutput<typeof CatalogTransferSchema>;
 export const formatTransferIssues = (
   issues: readonly [v.BaseIssue<unknown>, ...v.BaseIssue<unknown>[]],
 ): string => {
+  // Every failure of these (object variant) schemas lands in `root` (the whole
+  // blob is the wrong type) or `nested` (a keyed field is wrong), so those two
+  // buckets always carry at least one message — no empty-parts fallback needed.
   const flat = v.flatten(issues);
-  const parts: string[] = [];
-  if (flat.root) parts.push(...flat.root);
-  for (const [path, messages] of Object.entries(flat.nested ?? {})) {
-    if (messages && messages.length > 0) {
-      parts.push(`${path}: ${messages.join("; ")}`);
-    }
-  }
-  if (flat.other) parts.push(...flat.other);
-  return parts.length > 0
-    ? `Invalid catalog file — ${parts.join("; ")}`
-    : "Invalid catalog file — expected a listing or group export.";
+  const parts = [
+    ...(flat.root ?? []),
+    ...Object.entries(flat.nested ?? {}).map(
+      ([path, messages]) => `${path}: ${(messages as string[]).join("; ")}`,
+    ),
+  ];
+  return `Invalid catalog file — ${parts.join("; ")}`;
 };

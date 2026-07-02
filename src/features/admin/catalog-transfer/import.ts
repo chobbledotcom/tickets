@@ -130,7 +130,7 @@ const listingDataToInput = (
     ...rest,
     attachmentName: "",
     attachmentUrl: "",
-    closesAt: closesAt ?? undefined,
+    closesAt: closesAt === null ? undefined : closesAt,
     dayPrices: dayPrices === undefined ? undefined : parseDayPrices(dayPrices),
     groupIds,
     imageUrl: "",
