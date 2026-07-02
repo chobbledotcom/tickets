@@ -106,6 +106,20 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       const parent = await createTestListing({ name: "Parent Listing" });
       const child = await createTestListing({ name: "Child Listing" });
       await setChildIds(parent.id, [child.id]);
+      // A parent whose only child is unavailable is projected sold out —
+      // discovery hides its booking CTA, so the nav must not link it either.
+      const soldOutParent = await createTestListing({ name: "Starved Parent" });
+      const starvedChild = await createTestListing({ name: "Starved Child" });
+      await setChildIds(soldOutParent.id, [starvedChild.id]);
+      await deactivateTestListing(starvedChild.id);
+      // A renewal tier bought via a normal public link would take payment
+      // without extending the site, so it must never be linked.
+      const tier = await createTestListing({
+        hidden: true,
+        monthsPerUnit: 1,
+        name: "Tier Listing",
+        purchaseOnly: true,
+      });
       const fullGroup = await createTestGroup({
         name: "Full Group",
         slug: "fg",
@@ -119,6 +133,9 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
         ["listing", live.id],
         ["listing", dead.id],
         ["listing", child.id],
+        ["listing", parent.id],
+        ["listing", soldOutParent.id],
+        ["listing", tier.id],
         ["group", fullGroup.id],
         ["group", emptyGroup.id],
       ] as const) {
@@ -126,15 +143,21 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       }
       const html = await assertPublicHtml("/page/catalogue");
       expect(html).toContain('class="page-items"');
-      // Reachable targets link; unreachable ones are plain text (never a
-      // dead link): inactive listing, child listing, member-less group.
+      // Reachable targets link — including a parent with a bookable child;
+      // unreachable ones are plain text (never a dead link): inactive listing,
+      // child listing, sold-out parent, renewal tier, member-less group.
       expect(html).toContain(`href="/ticket/${live.slug}"`);
+      expect(html).toContain(`href="/ticket/${parent.slug}"`);
       expect(html).toContain(`href="/ticket/fg"`);
       expect(html).toContain("<span>Dead Listing</span>");
       expect(html).toContain("<span>Child Listing</span>");
+      expect(html).toContain("<span>Starved Parent</span>");
+      expect(html).toContain("<span>Tier Listing</span>");
       expect(html).toContain("<span>Empty Group</span>");
       expect(html).not.toContain(`href="/ticket/${dead.slug}"`);
       expect(html).not.toContain(`href="/ticket/${child.slug}"`);
+      expect(html).not.toContain(`href="/ticket/${soldOutParent.slug}"`);
+      expect(html).not.toContain(`href="/ticket/${tier.slug}"`);
       expect(html).not.toContain(`href="/ticket/eg"`);
     });
   });

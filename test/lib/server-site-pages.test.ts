@@ -375,15 +375,30 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       );
       // The already-added inactive listing still labels its row...
       expect(html).toContain("Retired Listing");
-      // ...but an inactive listing is never offered as a new option.
+      // ...but an inactive listing is never offered as a new option, and
+      // neither is a renewal tier (a normal public link would take payment
+      // without extending the site).
       expect(html).not.toContain(`value="${inactive.id}"`);
-      // And the server revalidation rejects adding an inactive listing.
-      const other = await seedPage("actives-2");
-      const { response } = await adminFormPost(`${BASE}/${other.id}/items`, {
-        item_id: String(inactive.id),
-        item_type: "listing",
+      const tier = await createTestListing({
+        hidden: true,
+        monthsPerUnit: 1,
+        name: "Tier Listing",
+        purchaseOnly: true,
       });
-      expectErrorFlash(response, "can't be added");
+      const html2 = await expectHtmlResponse(
+        await adminGet(`${BASE}/${page.id}/edit`),
+        200,
+      );
+      expect(html2).not.toContain(`value="${tier.id}"`);
+      // And the server revalidation rejects both.
+      const other = await seedPage("actives-2");
+      for (const id of [inactive.id, tier.id]) {
+        const { response } = await adminFormPost(`${BASE}/${other.id}/items`, {
+          item_id: String(id),
+          item_type: "listing",
+        });
+        expectErrorFlash(response, "can't be added");
+      }
       expect((await getItemsForPage(other.id)).length).toBe(0);
     });
 

@@ -1,27 +1,29 @@
 /**
  * Acquire ring for the public site-pages nav (pages.md "Functional core"): load
  * the forest's rows plus the resolved leaf targets as plain data, then hand it
- * to the pure `buildNavModel`. Cold-start efficiency: the page/edge reads are
- * the request-cached narrow projections, and leaves resolve through
- * `linkRowsByIds` (only slug + name decrypted, only for referenced ids).
+ * to the pure `buildNavModel`. The page/edge reads are the request-cached
+ * narrow projections; leaf resolution runs only on `/page/:slug` renders (the
+ * fixed pages pass a null current and skip it entirely).
  *
- * Liveness mirrors the reachability rules the ticket routes enforce, so the
- * nav never renders a dead link (AGENTS.md): a listing is live iff it is
- * active and not a child (a booking can never start from a child, invariant
- * I3 — the ticket route rejects child slugs), and a group is live iff it has a
- * standalone-bookable member (the same gate as its QR — the group page offers
- * nothing to book otherwise). Page targets are always live.
+ * Liveness mirrors the discovery classification the rest of the public site
+ * uses, so the nav never renders a link the site otherwise hides (AGENTS.md):
+ * a listing is live iff it is active, not a renewal tier (the renewal flow
+ * needs a site token the normal ticket flow never supplies), not a child (a
+ * booking can never start from a child, invariant I3), and not a parent
+ * projected sold out (its `/ticket` page would offer nothing to book); a
+ * group is live iff it has a standalone-bookable member (the same gate as its
+ * QR). Page targets are always live.
  */
 
-import { mapParallel } from "#fp";
+import { mapNotNullish, mapParallel } from "#fp";
 import {
   getActiveListingsByGroupId,
   getGroupLinkRows,
 } from "#shared/db/groups.ts";
-import { getChildListingIds } from "#shared/db/listing-parents.ts";
-import { getListingLinkRows } from "#shared/db/listings.ts";
+import { getListingsById } from "#shared/db/listings.ts";
 import { getAllPageItems } from "#shared/db/site-page-items.ts";
 import { getSitePageNavRows } from "#shared/db/site-pages.ts";
+import { isQualifyingTierListing } from "#shared/site-assignment.ts";
 import {
   buildForest,
   buildNavModel,
@@ -35,7 +37,7 @@ import type {
 } from "#shared/site-pages/types.ts";
 import type { SitePageItem, SitePageItemType } from "#shared/types.ts";
 import { navFlags, type PublicNavProps } from "#templates/public.tsx";
-import { groupHasBookableMember } from "./discovery.ts";
+import { classifyForDiscovery, groupHasBookableMember } from "./discovery.ts";
 
 /** The distinct item ids of one leaf type among the loaded edges. */
 const leafIds = (
@@ -51,9 +53,8 @@ const resolveTargets = async (
 ): Promise<TargetMap> => {
   const listingIds = leafIds(items, "listing");
   const groupIds = leafIds(items, "group");
-  const [listingRows, childIds, groupRows] = await Promise.all([
-    getListingLinkRows(listingIds),
-    getChildListingIds(listingIds),
+  const [listingsById, groupRows] = await Promise.all([
+    getListingsById(),
     getGroupLinkRows(groupIds),
   ]);
   const targets = new Map<TargetKey, ResolvedTarget>();
@@ -68,9 +69,25 @@ const resolveTargets = async (
       live,
     });
   };
-  for (const row of listingRows) {
-    // Reachable ⇔ the ticket route would serve it: active and not a child.
-    setLeaf("listing", row, row.active !== 0 && !childIds.has(row.id));
+  // Full rows (from the shared TTL cache every discovery surface uses) so the
+  // liveness test is the same classification as /listings: child suppression
+  // and sold-out-parent projection, plus the renewal-tier and active checks.
+  const referenced = mapNotNullish((id: number) => listingsById.get(id))(
+    listingIds,
+  );
+  if (referenced.length > 0) {
+    const { childIds, soldOutParentIds } =
+      await classifyForDiscovery(referenced);
+    for (const listing of referenced) {
+      setLeaf(
+        "listing",
+        listing,
+        listing.active &&
+          !isQualifyingTierListing(listing) &&
+          !childIds.has(listing.id) &&
+          !soldOutParentIds.has(listing.id),
+      );
+    }
   }
   const groupLive = await mapParallel(async (row: { id: number }) =>
     groupHasBookableMember(await getActiveListingsByGroupId(row.id)),

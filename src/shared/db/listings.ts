@@ -49,7 +49,7 @@ import {
   ticketCountPredicateFor,
   ticketCountSumExpr,
 } from "#shared/db/migrations/schema.ts";
-import { linkRowsByIds, nameMapByIds } from "#shared/db/query.ts";
+import { nameMapByIds } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
@@ -628,36 +628,51 @@ export const getListingNamesByIds = (
     decrypt(raw),
   );
 
-/** Narrow id → { name, active } map for every listing (only the name is
- * decrypted) — the admin picker projection: options come from the active subset
- * (the plan's "all active listings" picker contract), while labels read the
- * whole map so an already-added, now-inactive item still names itself. */
+/** A listing's picker-relevant flags: name plus the fields the caller needs to
+ * decide offerability (active status and the renewal-tier predicate shape). */
+export type ListingPickerRow = {
+  active: boolean;
+  hidden: boolean;
+  months_per_unit: number;
+  name: string;
+  purchase_only: boolean;
+};
+
+/** Narrow id → picker-flags map for every listing (only the name is decrypted)
+ * — the admin picker projection: options come from the offerable subset (the
+ * plan's "all active listings" contract, minus renewal tiers), while labels
+ * read the whole map so an already-added, now-inactive item still names
+ * itself. */
 export const getListingPickerNames = async (): Promise<
-  Map<number, { active: boolean; name: string }>
+  Map<number, ListingPickerRow>
 > => {
-  const rows = await queryAll<{ active: number; id: number; name: string }>(
-    "SELECT listing.id, listing.name, listing.active FROM listings AS listing ORDER BY listing.id ASC",
+  const rows = await queryAll<{
+    active: number;
+    hidden: number;
+    id: number;
+    months_per_unit: number;
+    name: string;
+    purchase_only: number;
+  }>(
+    "SELECT listing.id, listing.name, listing.active, listing.hidden, listing.months_per_unit, listing.purchase_only FROM listings AS listing ORDER BY listing.id ASC",
   );
   const entries = await Promise.all(
     rows.map(
       async (r) =>
         [
           r.id,
-          { active: r.active !== 0, name: await decrypt(r.name) },
+          {
+            active: r.active !== 0,
+            hidden: r.hidden !== 0,
+            months_per_unit: r.months_per_unit,
+            name: await decrypt(r.name),
+            purchase_only: r.purchase_only !== 0,
+          },
         ] as const,
     ),
   );
   return new Map(entries);
 };
-
-/** Narrow id/slug/name/active rows for the given listings (only slug + name
- * decrypted) — the public nav's link projection. */
-export const getListingLinkRows = (
-  ids: number[],
-): Promise<{ active: number; id: number; name: string; slug: string }[]> =>
-  linkRowsByIds("listings", "listing", ids, (raw: string) => decrypt(raw), [
-    "active",
-  ] as const);
 
 /**
  * SQL predicate (over the `listing` alias) selecting listings that are

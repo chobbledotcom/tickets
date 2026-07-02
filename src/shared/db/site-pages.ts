@@ -90,14 +90,19 @@ export const invalidateSitePagesCache = (): void => navCache.invalidate();
 export const getSitePageNavRows = (): Promise<SitePageNavRow[]> =>
   navCache.getAll();
 
-/** Load one full page (all columns, fully decrypted) — for the public/admin
- * single-page views. Null when absent. */
+/** Every {@link SitePage} column, listed explicitly (AGENTS.md) so a future
+ * column can't silently widen what the single-page reads fetch and decrypt. */
+const SITE_PAGE_COLUMNS =
+  "id, slug, slug_index, name, meta_title, meta_description, content, sort_order";
+
+/** Load one full page (fully decrypted) — for the public/admin single-page
+ * views. Null when absent. */
 const querySitePage = async (
   where: string,
   arg: number | string,
 ): Promise<SitePage | null> => {
   const row = await queryOne<SitePage>(
-    `SELECT * FROM site_pages WHERE ${where} LIMIT 1`,
+    `SELECT ${SITE_PAGE_COLUMNS} FROM site_pages WHERE ${where} LIMIT 1`,
     [arg],
   );
   return row ? rawSitePagesTable.fromDb(row) : null;
