@@ -87,6 +87,19 @@ export const creditsLessWriteoffDebits = (
 };
 
 /**
+ * The bare signed-sum aggregate every net-balance read shares:
+ * amounts matching `plus` add, amounts matching `minus` subtract, zero when no
+ * leg matches either. The single home for the ledger's sign convention in SQL —
+ * {@link accountBalanceSubquery}, the parameterised `accountBalance`, and the
+ * `ledgerTotals` due/fees columns all render from it, so no two balance reads
+ * can disagree on which side credits. Predicates are SQL fragment bodies and may
+ * carry `?` placeholders bound by the caller.
+ */
+export const signedSumCase = (plus: string, minus: string): string =>
+  `COALESCE(SUM(CASE WHEN ${plus} THEN amount` +
+  ` WHEN ${minus} THEN -amount ELSE 0 END), 0)`;
+
+/**
  * A `SUM(...) FILTER`-style conditional sum aliased `alias`: total `amount` over
  * the rows matching `where`, zero when none. Unlike {@link sumAmountFromTransfers}
  * this is a *bare* aggregate expression (no `SELECT … FROM transfers`), so several
@@ -164,11 +177,7 @@ export const accountBalanceSubquery = (
 ): string => {
   const asDest = accountPredicate("dest", type, idExpr);
   const asSource = accountPredicate("source", type, idExpr);
-  return (
-    "(SELECT COALESCE(SUM(" +
-    `CASE WHEN ${asDest} THEN amount WHEN ${asSource} THEN -amount ELSE 0 END` +
-    `), 0) FROM transfers WHERE ${asDest} OR ${asSource})`
-  );
+  return `(SELECT ${signedSumCase(asDest, asSource)} FROM transfers WHERE ${asDest} OR ${asSource})`;
 };
 
 /**

@@ -17,6 +17,7 @@ import {
   attendeeOwedSubquery,
   creditsLessWriteoffDebits,
   LEG_COLUMNS,
+  signedSumCase,
 } from "#shared/accounting/projection-sql.ts";
 import {
   andPrefixed,
@@ -201,15 +202,9 @@ export const ledgerTotals = async (
          WHEN kind = 'adjustment' AND dest_type = 'revenue' AND source_type = 'writeoff' THEN amount
          WHEN kind = 'adjustment' AND source_type = 'revenue' AND dest_type = 'writeoff' THEN -amount
          ELSE 0 END), 0) AS income,
-       COALESCE(SUM(CASE
-         WHEN source_type = 'attendee' THEN amount
-         WHEN dest_type = 'attendee' THEN -amount
-         ELSE 0 END), 0) AS due,
+       ${signedSumCase("source_type = 'attendee'", "dest_type = 'attendee'")} AS due,
        COALESCE(SUM(CASE WHEN kind = 'refund_cash' THEN amount ELSE 0 END), 0) AS refunded,
-       COALESCE(SUM(CASE
-         WHEN dest_type = 'fee_income' THEN amount
-         WHEN source_type = 'fee_income' THEN -amount
-         ELSE 0 END), 0) AS fees
+       ${signedSumCase("dest_type = 'fee_income'", "source_type = 'fee_income'")} AS fees
      FROM transfers${wherePrefixed(r.clause)}`,
     r.args,
   ))!;
@@ -290,8 +285,7 @@ export const accountBalance = async (acct: AccountRef): Promise<number> => {
   // both WHERE arms — so the account's pair repeats four times, in that order.
   const pair: InValue[] = [acct.type, acct.id];
   const row = (await queryOne<{ balance: number | bigint }>(
-    `SELECT COALESCE(SUM(CASE WHEN ${asDest} THEN amount` +
-      ` WHEN ${asSource} THEN -amount ELSE 0 END), 0) AS balance` +
+    `SELECT ${signedSumCase(asDest, asSource)} AS balance` +
       ` FROM transfers WHERE ${asDest} OR ${asSource}`,
     [...pair, ...pair, ...pair, ...pair],
   ))!;
