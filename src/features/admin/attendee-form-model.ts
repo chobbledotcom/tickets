@@ -197,7 +197,7 @@ export const isRetainedLine = (line: AttendeeFormLine): boolean =>
 export const bookingDurationDays = (
   booking: ListingAttendeeRow,
 ): number | null => {
-  if (!booking.start_at || !booking.end_at) return null;
+  if (  booking.start_at || !booking.end_at) return null;
   const ms =
     new Date(booking.end_at).getTime() - new Date(booking.start_at).getTime();
   const days = Math.round(ms / 86_400_000);

@@ -24,9 +24,46 @@ page + separate edit page" (listings) without adding anything to the admin nav.
 Migration is gradual, hardest first: **attendees**, then **listings**, then the
 remaining collections one PR at a time.
 
-This document is the **plan**. Nothing is built yet. Where it names concrete
-files/lines they are the current code the work builds on, verified against the
-tree at the time of writing.
+This document is the plan. Where it names concrete files/lines they are the
+code the work builds on, verified against the tree at the time of writing.
+
+---
+
+## Implementation status
+
+**Slice 1 — framework + attendees — ✅ built & green.** Where this plan and
+the code differ, the code wins:
+
+- `src/shared/entity-pages/core.ts` — the pure core (tab resolution, strip
+  building, path minting, action splitting).
+- `src/features/admin/entity-pages.ts` — `defineEntityPage<E, Id>` (the
+  shell): guard → load → resolve tab → load ONLY the active tab's sections →
+  render. Ids are generic (`number | string`) so `/admin/history/:hmac` can
+  migrate. Exposes `renderPage(session, id, slug, { status, sections })` for
+  in-place failure re-renders.
+- `src/ui/templates/admin/entity-pages.tsx` — the renderer: page shell,
+  tab strip (links + `aria-current`), exhaustive `SECTION_RENDERERS`.
+- `src/features/admin/attendee-page.ts` + `attendee-page-data.ts` +
+  `src/ui/templates/admin/attendee-page.tsx` — the attendee page:
+  Overview / Edit / Ledger (owner-only) / Activity / Actions, banner =
+  status + notes on every tab.
+
+**Review resolutions baked in (Codex):** route keys stay literal (handlers,
+not generated keys); per-tab `visible` IS authorization (hidden tab 404s,
+role-aware default tab); Ledger stays owner-only; ids generic for history;
+refund POSTs honor `return_url`; summary rows conditional by construction;
+i18n enforced by the coverage ratchet + render assertions; and **failure
+feedback is an in-place 400 through the framework renderer, never a
+stash-dependent PRG bounce** (the section below reflects this).
+
+**Divergences from the sketch, deliberate:** no separate `form`/`notes`
+section kinds yet — with no framework behavior of their own they'd duplicate
+`custom` (the Edit tab and the notes banner are `custom`/banner content);
+they become kinds when a second entity gives them shared behavior. The
+`EntityFormAdapter` shrank to "render the form" for the same reason.
+
+**Not yet built:** slices 2+ (listings, modifiers, the rest) — the
+forward-looking guidance below still applies.
 
 ---
 
