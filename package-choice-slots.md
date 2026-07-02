@@ -115,16 +115,17 @@ reach for.
    package at 0. No save-time validation warns about it. Cheap fix: reject
    (or warn on) a parent member whose per-order cap is below its member
    quantity.
-2. **Overlapping candidate sets across slots.** Nothing enforces the plan's
-   "pairwise disjoint candidate sets" rule, and the paid path still maps
-   created attendees to listings **by index** (`validatedItems[i]!` in
-   `payment-processing.ts`) while `expandChildAllocations` emits one row per
-   allocation — a candidate chosen under two member-parents of one package
-   folds to one summed line with two allocations, the documented multi-parent
-   corner (`order-parents.ts`). Packages with several parent members make
-   that corner easier to reach than a multi-slug cart ever did. Either
-   enforce disjointness at save or fix the paid-path entry mapping — the
-   full row-identity fix is designed in `multi-parent-bookable-alone.md`.
+2. **Overlapping candidate sets across slots.** The schema half of the
+   multi-parent story shipped — the `listing_attendees` unique index already
+   includes `parent_listing_id`, so per-parent rows coexist faithfully — but
+   the paid path still maps created attendees to listings **by index**
+   (`validatedItems[i]!` in `payment-processing.ts`) while
+   `expandChildAllocations` emits one row per allocation: a candidate chosen
+   under two member-parents of one package (one summed line, two allocation
+   rows) mis-aligns that pairing. Packages with several parent members make
+   this easier to reach than a multi-slug cart ever did. Fix the paid-path
+   entry mapping — planned as workstream 1 in
+   `multi-parent-bookable-alone.md`.
 3. **`allocations` metadata length limit.** `enforceMetadataLimits` still
    length-checks `items`, answers, `modifiers`, entry count, and the packed
    field but not `allocations` — the fastest-growing field once every pick

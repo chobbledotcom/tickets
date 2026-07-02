@@ -89,86 +89,180 @@ arm of the gate is independent and still wins), and the package-member rules
 (a package member still can't be a child; `bookable_alone` doesn't touch
 membership).
 
-## Finding 3: the same-order multi-parent corner must be fixed first
+## Finding 3: the row-identity work is half done on main
 
-Two latent row-identity problems become mainstream the moment multi-parent
-pickers and `bookable_alone` are used together. Both live in
-`expandChildAllocations` (`src/shared/db/attendees/order-parents.ts`) and the
-paid path (`src/features/api/payment-processing.ts`):
+The schema half already landed with #1462: the `listing_attendees` unique
+index is `(listing_id, attendee_id, start_at, parent_listing_id)` — its
+comment says outright that "the SAME child chosen under two parents is two
+distinct booking rows (one per parent, faithful provenance)". Inserts are
+plain capacity-gated `INSERT … SELECT`s (no `OR IGNORE`), so per-parent rows
+insert cleanly and a true duplicate fails loudly. Attendee-merge conflict
+keys already include `parentListingId`.
 
-1. **Same child under two parents in one order.** The fold emits one summed
-   line + two allocations; expansion emits one row per allocation; the unique
-   `(listing_id, attendee_id, start_at)` row index collapses them to one row
-   recording the *first* parent (documented as a "rare multi-parent corner"
-   — rare because today only a multi-slug cart of two parents sharing a
-   child can reach it). And `processPaidBooking` maps created attendees back
-   to listings **positionally** (`validatedItems[i]!`), which mis-aligns
-   whenever expansion changes the row count. "Pick any of these widgets"
-   pickers make this an everyday configuration.
-2. **Standalone + folded units of the same child in one order** — newly
-   reachable via `bookable_alone` (e.g. `/ticket/<parent+widget>` with the
-   widget both bought alone and chosen under the parent). Expansion
-   currently emits rows **only** for allocations: the standalone remainder
-   units (and their proportional `pricePaid` share) are silently dropped.
-   Unreachable today, so not a live bug — but a hard prerequisite: the
-   expansion must emit a remainder row (`qty = total − Σ allocations`, no
-   parent) for the unallocated units.
+Three residuals did not follow the index:
 
-The honest fix for both is the row-identity upgrade `booking-unification.md`
-already flags for Phase 3, scoped down to just this table:
+1. **The paid path still maps positionally.** `processPaidBooking` pairs
+   `created.attendees[i]` with `validatedItems[i]!.listing`
+   (`src/features/api/payment-processing.ts`), but
+   `expandChildAllocations` can emit MORE booking rows than signed items (a
+   child under two parents = one summed line, two allocation rows), so the
+   pairing mis-aligns or crashes exactly when the widened index does its
+   job. The free path already pairs by `attendee.listing_id`
+   (`ticket-payment.ts`) — the paid path must do the same.
+2. **The expansion drops unallocated units.** For a booking whose listing
+   has allocations, `expandChildAllocations` emits one row **per
+   allocation** and nothing else: units of that child bought WITHOUT a
+   parent in the same order (impossible today, routine under
+   `bookable_alone`) would vanish, along with their proportional
+   `pricePaid` share. A remainder row (`qty = total − Σ allocations`, no
+   parent, `pricePaid = total − Σ emitted shares` so rounding conserves
+   money exactly) must be emitted.
+3. **The `order-parents.ts` module doc is stale.** Its header still
+   describes the old three-column index "folding a child chosen under two
+   parents into one row" — the exact behaviour the schema comment says was
+   deliberately removed. Update it with the fix so the file stops
+   contradicting the schema.
 
-- widen the unique index to `(listing_id, attendee_id, start_at,
-  parent_listing_id)` (dated migration) so per-parent rows coexist — ticket
-  views then show one line per provenance, which is also the *right* display;
-- key the paid path's attendee↔item mapping by listing id (grouping rows per
-  signed line) instead of array position;
-- emit the unallocated remainder row in `expandChildAllocations`;
-- extend the row-consumer checks `booking-unification.md` lists (attendee
-  merge conflict keys, check-in targeting) with `parent_listing_id`
-  awareness, since duplicate `(listing, attendee, start_at)` rows become
-  legal.
-
-Until that lands, the cheap guard from the package-choice-slots audit
-applies: reject the *configuration* that reaches the corner (the same
-candidate under two members of one package; a `bookable_alone` child sold on
-a page that also folds it), keeping the feature while fencing the bug.
+One consumer needs a *decision*, not a fix: check-in
+(`src/shared/db/attendees/update.ts`) flips `checked_in` per
+`(attendee_id, listing_id)`, so both per-parent rows of one widget check in
+together. That matches the existing semantic — a single row with
+`quantity: 3` already checks in wholesale — so treating "all units of this
+listing for this person" as one check-in unit is consistent; it just needs a
+test locking it in. The admin atomic-update path (`atomic-update.ts`, the
+attendee edit form's desired-lines diff) should get the same audit: assert
+its keying behaves sanely when two rows share `(listing, attendee,
+start_at)` and differ only by parent.
 
 ## The combination the ask describes, end to end
 
-With the above in place:
-
 - "Pick any of these widgets" = a parent listing whose children are the
-  widgets, added to a package as a member with `quantity: 2` (a pick-2 slot —
-  works today).
+  widgets, added to a package as a member with `quantity: 2` (a pick-2 slot
+  — works today).
 - The same widgets under another picker = second parent edges (works today).
 - Widgets sold on their own = `bookable_alone: true` (new flag).
 - A widget in two pickers of the *same* package, or bought alone alongside a
-  fold of itself = the row-identity fix (or the interim configuration guard).
+  fold of itself = workstream 1 below.
 
-## Suggested sequencing
+---
 
-1. **Row-identity fix** (index + mapping + remainder row + merge/check-in
-   keys) — it hardens *today's* multi-parent carts too, and everything else
-   stands on it.
-2. **`bookable_alone` flag** — migration, predicate split across the known
-   surface list, admin checkbox, discovery card copy, add-on-block
-   relaxation.
-3. Optional polish: per-child flag surfaced in the children picker (so an
-   operator sees at a glance which candidates also sell alone), and the
-   package-choice-slots follow-ups (chooser cap validation, `allocations`
-   metadata limit) which share the same code paths.
+# Implementation plan
 
-## Test posture (the cases that matter)
+## Workstream 1 — finish the row-identity fix
 
-- Same child chosen under two parents in one order books two rows with exact
-  parents, correct split `pricePaid`, and a paid webhook that maps every
-  attendee to the right listing (the positional-mapping regression).
-- Standalone + folded units of one child in one order persist the remainder
-  row (money and quantity both conserved).
-- A `bookable_alone` child: books via `/ticket/<slug>` and the API; appears
-  in catalogs/feeds/QR; still folds under every parent; its hidden-package
-  arm still conceals it when applicable; flag OFF restores every 404/drop.
-- Attendee merge and check-in on duplicate `(listing, attendee)` rows with
-  different parents act on the intended row only.
-- Capacity: mixed-provenance demand (alone + under P1 + under P2) sums
-  against the child's own cap and its group pools exactly once per unit.
+No schema change (the index is already right). Small, self-contained, and it
+hardens *today's* multi-slug carts; everything in workstream 2 stands on it.
+
+1. **Paid-path mapping by listing, not position**
+   (`src/features/api/payment-processing.ts`). Replace
+   `created.attendees.map((attendee, i) => ({ attendee, listing:
+   validatedItems[i]!.listing }))` with a lookup by `attendee.listing_id`
+   against the validated items (mirroring the free path in
+   `ticket-payment.ts`). Regression test first: a paid order booking one
+   child under two parents (multi-slug cart of both parents, or a package
+   with two slots sharing the candidate) currently mis-pairs; after the fix
+   every entry's `attendee.listing_id === entry.listing.id`. This also
+   retires the "pairwise disjoint candidate sets" guard proposed in
+   `package-choice-slots.md` item 2.
+2. **Remainder row in `expandChildAllocations`**
+   (`src/shared/db/attendees/order-parents.ts`). After emitting the
+   per-allocation rows for a booking, if `total − Σ alloc.qty > 0`, emit one
+   more row with that quantity, no `parentListingId`, and
+   `pricePaid = booking.pricePaid − Σ emitted shares` (subtraction, not
+   another rounded share, so money is conserved to the cent). The module is
+   pure — direct unit tests, no harness: remainder emitted; zero remainder ⇒
+   no extra row; rounding conservation property across odd splits.
+3. **Fix the stale module doc** in the same file (it still describes the
+   pre-widening index collapse).
+4. **Semantics tests, no code change:** check-in flips all of one listing's
+   per-parent rows for an attendee together (locking the wholesale
+   semantic); attendee merge keeps two per-parent rows distinct in its
+   conflict keys; the admin attendee-edit desired-lines diff behaves with
+   duplicate `(listing, attendee, start_at)` rows differing only by parent.
+5. **End-to-end regression:** free + paid bookings of "child under P1 and
+   P2 in one order" persist two rows with faithful parents and split
+   `pricePaid`; the ticket page/email show both lines; capacity charged
+   once per unit.
+
+Per house rules: regression tests written first and failing for the right
+reason; `deno task precommit` green including the changed-file mutation gate.
+
+## Workstream 2 — `bookable_alone`
+
+**Migration.** `2026-07-xx_bookable_alone`: `ALTER TABLE listings ADD COLUMN
+bookable_alone INTEGER NOT NULL DEFAULT 0` (+ `verify()` column assertion,
+`LATEST_UPDATE` bump). Default false ⇒ every existing child keeps today's
+behaviour; the column rides the wide listings cache reads and
+backup/restore automatically.
+
+**Model + admin.** `col.boolean(false)` on the listings table def;
+`ListingInput.bookableAlone`; the create/update form field and JSON API
+field; an admin checkbox on the listing form next to the `offeredUnder`
+list ("Can be booked by itself — keep this listing's own booking page while
+it is offered under other listings"); i18n keys
+(`fields.listing.bookable_alone` + hint). Duplication paths copy it like any
+listing column (nothing bespoke).
+
+**The predicate split.** Today "is a child" implies "no standalone page".
+Introduce the narrowed DB read once —
+`getNonStandaloneChildIds(ids)` / `anyNonStandaloneChild(ids)` in
+`src/shared/db/listing-parents.ts` (children joined to
+`listings.bookable_alone = 0`) — and move the GATE consumers onto it, while
+STRUCTURAL consumers keep the unfiltered child set:
+
+| Call site | Meaning | Action |
+|---|---|---|
+| `lacksStandalonePublicPage` (`ticket-payment.ts`) | gate | switch |
+| `withActiveListings` child-slug rejection | gate | switch |
+| QR scan guard (`qr-book.ts`) + QR issuance gating | gate | switch |
+| JSON API `findActiveListing` / list filter (`api/index.ts`) | gate | switch |
+| `getCatalogListings` child-exclusion SQL (`db/listings.ts`) | gate | add `AND NOT bookable_alone` |
+| `/listings` classification `classifyForDiscovery` `childIds` (`discovery.ts`) | gate | switch (flagged child ⇒ normal card + CTA, not the add-on note) |
+| `/order` gallery, `/order.js`, feeds, site-nav/pages | gate | switch (mostly via the shared discovery/catalog reads) |
+| Admin dashboard builder `unbookableIds` (`dashboard.ts`) | gate | switch |
+| Admin share/QR flags `isChild` (`listings-view.ts`) | gate | switch |
+| Fold/render `childrenByParentId`, tree building | structural | keep |
+| `signed-metadata`, `order-parents` | structural | keep |
+| Children editor nesting blocks (`listings-parents.ts`) | structural | keep |
+| Package-member blocks (`anyListingInPackageGroup`) | structural | keep |
+| `dropChildListings` (group/indirect pages) | structural | keep (decision below) |
+| Child-only add-on block (`childOnlyAddOnName` callers) | gate | **relax**: a `bookable_alone` child's own page can sell its scoped add-on, so the hard block skips flagged children |
+
+**Two scoped decisions (recommendations inline):**
+
+- **Group pages keep dropping child rows** even when flagged: on a page that
+  also shows a parent of the child, a standalone row AND a fold selector for
+  the same listing is confusing UX; the flag's new surfaces are the child's
+  own page and catalog entries. Revisit only on operator demand.
+- **Mixing standalone + folded units of one child in one order is allowed**
+  (multi-slug cart `/ticket/<parent+child>`), because workstream 1's
+  remainder row persists it faithfully. No extra guard.
+
+**Interactions needing no code:** pricing (own price on both paths),
+capacity (per-listing rows, path-blind atomic predicate), questions
+(listing-keyed), hidden-package concealment (independent arm of the gate,
+still wins over the flag), package membership rules (untouched).
+
+**Tests.**
+- Flag ON: `/ticket/<child>` 200 + books; API lookup/book succeeds; appears
+  in catalog, `/listings` card with CTA, `/order`, `/order.js`, feeds,
+  `/api/listings`; QR issuance + scan work; dashboard builder offers it;
+  admin share links render; still folds under every parent on parent/package
+  pages; child-scoped add-on accepted at edge save and sellable on its page.
+- Flag OFF (regression floor): every existing 404/drop/suppression test
+  keeps passing untouched.
+- Flag ON + hidden-package member: still concealed everywhere (the
+  hidden-member arm outranks the flag).
+- One order mixing standalone + folded units: rows, parents, and money
+  conserved (workstream 1's remainder row exercised through the real flow).
+- Mutation gate: the new predicate's `bookable_alone = 0` arm and the
+  add-on-block relaxation are prime operator-flip mutants — assert both
+  polarities explicitly.
+
+## Sequencing
+
+1. Workstream 1 (one PR): pure fixes + tests, no schema, no behaviour change
+   for existing configurations beyond correcting the multi-parent corner.
+2. Workstream 2 (one PR): migration + flag + predicate split + surfaces.
+3. Follow-ups that share these code paths, from `package-choice-slots.md`:
+   chooser-cap save validation and the `allocations` metadata length limit.
