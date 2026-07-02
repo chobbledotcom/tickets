@@ -14,6 +14,7 @@ import {
   assignListingsToGroup,
   computeGroupSlugIndex,
   getActiveListingsByGroupId,
+  getActiveListingsByGroupIds,
   getAllGroups,
   getGroupBySlugIndex,
   getGroupIdsByListingId,
@@ -594,6 +595,41 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
 
       expect(await getGroupRemainingForListing(e2, "2026-11-15")).toBe(3);
       expect(await getGroupRemainingForListing(e2, "2026-11-16")).toBe(5);
+    });
+  });
+
+  describe("getActiveListingsByGroupIds", () => {
+    test("keys each active listing under every REQUESTED group it belongs to", async () => {
+      // Membership is many-to-many: the shared listing sits in both groups,
+      // but only the requested group's entry may carry it — the other group's
+      // membership edge is filtered out, and an inactive member never appears.
+      const wanted = await createTestGroup({ name: "NavA", slug: "nav-a" });
+      const other = await createTestGroup({ name: "NavB", slug: "nav-b" });
+      const shared = await createTestListing({
+        groupId: wanted.id,
+        name: "Nav Shared",
+      });
+      await assignListingsToGroup([shared.id], other.id);
+      await createTestListing({ groupId: wanted.id, name: "Nav Second" });
+      const inactive = await createTestListing({
+        groupId: wanted.id,
+        name: "Nav Inactive",
+      });
+      const { deactivateTestListing } = await import("#test-utils");
+      await deactivateTestListing(inactive.id);
+
+      const byGroup = await getActiveListingsByGroupIds([wanted.id]);
+      expect([...byGroup.keys()]).toEqual([wanted.id]);
+      expect(
+        byGroup
+          .get(wanted.id)!
+          .map((e) => e.name)
+          .toSorted(),
+      ).toEqual(["Nav Second", "Nav Shared"]);
+    });
+
+    test("returns an empty map for no group ids", async () => {
+      expect((await getActiveListingsByGroupIds([])).size).toBe(0);
     });
   });
 

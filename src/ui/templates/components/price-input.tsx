@@ -22,6 +22,15 @@ export const moneyStep = (): string => {
   return places === 0 ? "1" : `0.${"0".repeat(places - 1)}1`;
 };
 
+/** The `<input pattern>` (regex source) for a non-negative amount in the active
+ *  currency: `\d+` with up to `getDecimalPlaces` fractional digits (none for a
+ *  zero-decimal currency). Use on a `type="text"` money input so native
+ *  validation accepts exactly what the shared money schema does. */
+export const moneyPattern = (): string => {
+  const places = getDecimalPlaces(settings.currency);
+  return places === 0 ? "\\d+" : `\\d+(\\.\\d{1,${places}})?`;
+};
+
 /**
  * A price/amount input in MAJOR units (e.g. `10.50`). `step` is always derived
  * from the currency; pass `min` for a lower bound (`"0"` for a non-negative

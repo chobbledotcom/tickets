@@ -3,9 +3,7 @@
  */
 
 import { t } from "#i18n";
-import { handleAttendeeBalanceGet } from "#routes/admin/attendee-balance.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse, redirect, redirectResponse } from "#routes/response.ts";
+import { redirect, redirectResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -23,7 +21,6 @@ import { validateForm } from "#shared/forms.tsx";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
-  type AdminSession,
   availableDayCounts,
   isPaidListing,
   type ListingWithCount,
@@ -48,39 +45,24 @@ import {
   handleAttendeesCsvExport,
   handleAttendeesListGet,
 } from "./attendees-list.ts";
-import { handleMergeGet, handleMergePost } from "./attendees-merge.ts";
+import { handleMergePost } from "./attendees-merge.ts";
 import {
   type AttendeeWithListing,
+  attendeeActionPage,
   attendeeFormAction,
-  attendeeGetRoute,
-  getReturnUrl,
-  verifiedAttendeeForm,
+  verifiedAttendeeAction,
 } from "./attendees-route-helpers.ts";
 
-/** Signature shared by all attendee GET page renderers */
-type AttendeePageRenderer = (
-  data: AttendeeWithListing,
-  session: AdminSession,
-  returnUrl?: string,
-  error?: string,
-) => string;
+/** Handle GET /admin/attendees/:attendeeId/delete */
+const handleAdminAttendeeDeleteGet = attendeeActionPage(
+  adminDeleteAttendeePage,
+);
 
-/** Create a GET handler that renders an attendee page with flash error */
-const attendeePageRoute = (render: AttendeePageRenderer) =>
-  attendeeGetRoute((data, session, request) => {
-    const flash = applyFlash(request);
-    return htmlResponse(
-      render(data, session, getReturnUrl(request), flash.error),
-    );
-  });
-
-/** Handle GET /admin/listing/:listingId/attendee/:attendeeId/delete */
-const handleAdminAttendeeDeleteGet = attendeePageRoute(adminDeleteAttendeePage);
-
-/** Delete an attendee, log the activity, and redirect back to the listing. */
+/** Delete an attendee, log the activity, and redirect. */
 const deleteAttendeeAndRedirect = async (
   attendeeId: number,
   listingId: number,
+  redirectTo: string,
   activityMessage: string,
   flashMessage: string,
   opts?: Parameters<typeof redirect>[3],
@@ -88,17 +70,20 @@ const deleteAttendeeAndRedirect = async (
 ): Promise<Response> => {
   await deleteAttendee(attendeeId, { releaseBookings });
   await logActivity(activityMessage, listingId, attendeeId);
-  return redirect(`/admin/listing/${listingId}`, flashMessage, true, opts);
+  return redirect(redirectTo, flashMessage, true, opts);
 };
 
-/** Handle POST /admin/listing/:listingId/attendee/:attendeeId/delete */
-const handleAttendeeDelete = verifiedAttendeeForm(
+/** Handle POST /admin/attendees/:attendeeId/delete. The deleted attendee's
+ * pages are gone, so the fallback landing is the attendees roster (a
+ * submitted return_url still wins via the redirect's form option). */
+const handleAttendeeDelete = verifiedAttendeeAction(
   "delete",
   "deletion",
-  (data, form, listingId, attendeeId) =>
+  (data, form) =>
     deleteAttendeeAndRedirect(
-      attendeeId,
-      listingId,
+      data.attendee.id,
+      data.listing.id,
+      "/admin/attendees",
       `Attendee deleted from '${data.listing.name}'`,
       t("success.attendee_deleted"),
       { form },
@@ -137,6 +122,7 @@ const handleDeleteIncomplete = attendeeFormAction(
     return deleteAttendeeAndRedirect(
       attendeeId,
       listingId,
+      `/admin/listing/${listingId}`,
       `Incomplete attendee deleted from '${data.listing.name}'`,
       t("success.incomplete_removed"),
     );
@@ -302,8 +288,8 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
     preprocessForm: (form) => applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS),
   });
 
-/** Handle GET /admin/listing/:listingId/attendee/:attendeeId/resend-notification */
-const handleAdminResendNotificationGet = attendeePageRoute(
+/** Handle GET /admin/attendees/:attendeeId/resend-notification */
+const handleAdminResendNotificationGet = attendeeActionPage(
   adminResendNotificationPage,
 );
 
@@ -329,18 +315,19 @@ const resendEntries = async (
   );
 };
 
-/** Handle POST /admin/listing/:listingId/attendee/:attendeeId/resend-notification */
-const handleResendNotification = verifiedAttendeeForm(
+/** Handle POST /admin/attendees/:attendeeId/resend-notification */
+const handleResendNotification = verifiedAttendeeAction(
   "resend-notification",
   undefined,
-  async (data, form, listingId, attendeeId) => {
-    // Refuse on a no-quantity ghost row: this listing-scoped route builds the
-    // customer email/webhook from the supplied listing, so it must not fire for
-    // a non-booking (nor retarget to a real line on another listing).
+  async (data, form) => {
+    const attendeeId = data.attendee.id;
+    const actionsTab = `/admin/attendees/${attendeeId}/actions`;
+    // Refuse on a no-quantity ghost row: the customer email/webhook is built
+    // from the home listing, so it must not fire for a non-booking.
     const noLineRedirect = await redirectIfNoActiveBookingLine(
       attendeeId,
-      listingId,
-      `/admin/listing/${listingId}`,
+      data.listing.id,
+      actionsTab,
       "Cannot re-send a notification for a no-quantity line",
       { form },
     );
@@ -350,18 +337,13 @@ const handleResendNotification = verifiedAttendeeForm(
       logAndNotifyRegistration(await resendEntries(data)),
       logActivity(
         `Notification re-sent for attendee '${data.attendee.name}'`,
-        listingId,
-        data.attendee.id,
+        data.listing.id,
+        attendeeId,
       ),
     ]);
-    return redirect(
-      `/admin/listing/${listingId}`,
-      t("success.notification_resent"),
-      true,
-      {
-        form,
-      },
-    );
+    return redirect(actionsTab, t("success.notification_resent"), true, {
+      form,
+    });
   },
 );
 
@@ -375,32 +357,27 @@ const handleResendNotification = verifiedAttendeeForm(
  * Refunds: attendee-refunds.ts
  */
 export const attendeesRoutes = defineRoutes({
-  "DELETE /admin/listing/:listingId/attendee/:attendeeId/delete":
-    handleAttendeeDelete,
+  "DELETE /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
   "GET /admin/attendees": handleAttendeesListGet,
   "GET /admin/attendees/:attendeeId": (request, { attendeeId }) =>
     attendeePage.renderTab(request, attendeeId, ""),
   "GET /admin/attendees/:attendeeId/:tab": (request, { attendeeId, tab }) =>
     attendeePage.renderTab(request, attendeeId, tab),
-  "GET /admin/attendees/:attendeeId/balance": handleAttendeeBalanceGet,
-  "GET /admin/attendees/:attendeeId/merge": handleMergeGet,
+  "GET /admin/attendees/:attendeeId/delete": handleAdminAttendeeDeleteGet,
+  "GET /admin/attendees/:attendeeId/resend-notification":
+    handleAdminResendNotificationGet,
   "GET /admin/attendees/csv": handleAttendeesCsvExport,
   "GET /admin/attendees/new": handleAttendeeNewGet,
-  "GET /admin/listing/:listingId/attendee/:attendeeId/delete":
-    handleAdminAttendeeDeleteGet,
-  "GET /admin/listing/:listingId/attendee/:attendeeId/resend-notification":
-    handleAdminResendNotificationGet,
   "POST /admin/attendees/:attendeeId": handleAttendeeEditPost,
+  "POST /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
   "POST /admin/attendees/:attendeeId/merge": handleMergePost,
   "POST /admin/attendees/:attendeeId/refresh-payment": handleRefreshPayment,
+  "POST /admin/attendees/:attendeeId/resend-notification":
+    handleResendNotification,
   "POST /admin/attendees/new": handleAttendeeNewPost,
   "POST /admin/listing/:listingId/attendee": handleAddAttendee,
   "POST /admin/listing/:listingId/attendee/:attendeeId/checkin":
     handleAttendeeCheckin,
-  "POST /admin/listing/:listingId/attendee/:attendeeId/delete":
-    handleAttendeeDelete,
   "POST /admin/listing/:listingId/attendee/:attendeeId/delete-incomplete":
     handleDeleteIncomplete,
-  "POST /admin/listing/:listingId/attendee/:attendeeId/resend-notification":
-    handleResendNotification,
 });

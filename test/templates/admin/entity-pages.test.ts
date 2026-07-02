@@ -106,17 +106,17 @@ describe("actions section", () => {
         plain: [
           {
             danger: false,
-            descriptionKey: "attendee_form.merge_hint",
+            descriptionKey: "attendee_form.outstanding_balance_hint",
             href: "/admin/x/merge",
             icon: undefined,
-            labelKey: "attendee_form.merge_search",
+            labelKey: "attendee_form.action_resend",
           },
         ],
         titleKey: "entity.tab.actions",
       }),
     );
     expect(html).toContain(
-      '<span class="muted small">Search for another attendee',
+      '<span class="muted small">What the attendee still owes',
     );
   });
 

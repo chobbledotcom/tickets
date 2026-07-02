@@ -237,7 +237,7 @@ describeWithEnv(
     // DELETE mutations (non-API) are now blocked by default-deny.
     const deleteBlockedPaths = [
       "/admin/listing/1/delete",
-      "/admin/listing/1/attendee/2/delete",
+      "/admin/attendees/2/delete",
     ];
     for (const path of deleteBlockedPaths) {
       test(`DELETE ${path} is blocked by default-deny`, async () => {

@@ -37,6 +37,7 @@ import {
   type ListingType,
   parseDayPrices,
 } from "#shared/types.ts";
+import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import type {
   ListingAggregateFormValues,
   ListingEditFormValues,
@@ -108,10 +109,35 @@ const parseDayPricesFromForm = (
 ): DayPrices => {
   const result: DayPrices = {};
   for (let n = 1; n <= maxDays; n++) {
-    const raw = form.getString(`day_price_${n}`).trim();
-    if (raw !== "") result[n] = toMinorUnits(Number.parseFloat(raw));
+    // Optional per-day price: blank ⇒ skip (that day isn't offered). A non-blank
+    // value that fails to parse is caught by validateDayPricesFromForm before
+    // the save, so here a null result is only ever a blank.
+    const price = parseOptionalMinorUnits(form.getString(`day_price_${n}`));
+    if (price !== null) result[n] = price;
   }
   return parseDayPrices(result);
+};
+
+/**
+ * Reject the save when a `day_price_*` field carries a non-blank value that
+ * isn't a valid amount for the currency (e.g. `10.005` in GBP, `10.5` in JPY, or
+ * `abc`). Without this, an invalid value would be silently dropped by
+ * {@link parseDayPricesFromForm} — on an update that would remove an existing
+ * day price rather than surfacing the error. Blank fields are skipped (that
+ * duration simply isn't offered). Returns an error message, or null when every
+ * present day price is valid. These dynamic fields aren't part of the static
+ * field schema, so they're validated here through the resource's `validate` hook.
+ */
+const validateDayPricesFromForm = (form: FormParams): string | null => {
+  const hasInvalid = [...form.entries()].some(
+    ([field, raw]) =>
+      field.startsWith("day_price_") &&
+      raw.trim() !== "" &&
+      parseOptionalMinorUnits(raw) === null,
+  );
+  return hasInvalid
+    ? "Enter a valid day price for each duration, or leave it blank."
+    : null;
 };
 
 /** Normalize an optional datetime field to UTC, passing through blanks/undefined. */
@@ -119,10 +145,6 @@ const normalizeOptionalDatetime = (
   raw: string | undefined,
   field: string,
 ): string | undefined => (raw ? normalizeDatetime(raw, field) : raw);
-
-/** Parse an optional minor-units price field, undefined when blank. */
-const parseOptionalPrice = (raw: string | undefined): number | undefined =>
-  raw ? toMinorUnits(Number.parseFloat(raw)) : undefined;
 
 /** Extract common listing fields from validated form values, normalizing datetimes to UTC */
 const extractCommonFields = (
@@ -133,7 +155,10 @@ const extractCommonFields = (
   const webhookUrl = isDemoMode() ? "" : values.webhook_url || "";
   const durationDays = values.duration_days ?? 1;
   const listingType = resolveListingType(values.listing_type);
-  const unitPrice = parseOptionalPrice(values.unit_price);
+  // Blank/invalid unit price ⇒ unset (the column defaults to 0 = free); a valid
+  // value is the currency-checked minor-units amount. `unit_price` is always a
+  // string here, so no nullish fallback is needed before parsing.
+  const unitPrice = parseOptionalMinorUnits(values.unit_price) ?? undefined;
   const bookableDays = parseBookableDays(
     values.bookable_days,
     listingType,
@@ -241,6 +266,14 @@ const writeCreateListingGroups =
  * raw form, so the dynamic `day_price_*` inputs can be read alongside the
  * validated fields (the resource only hands `toInput` the validated values).
  */
+/** The listing validation for a request: reject an invalid day price first
+ *  (the dynamic fields the static schema can't see), then the standard input
+ *  validation. Closes over the raw `form` so both create and update share it. */
+const listingValidate =
+  (form: FormParams) =>
+  async (input: ListingInput, id?: number): Promise<string | null> =>
+    validateDayPricesFromForm(form) ?? (await validateListingInput(input, id));
+
 export const buildCreateListingResource = (form: FormParams) =>
   defineResource({
     // Group membership rides the write transaction; listing_prices reconciles
@@ -252,7 +285,7 @@ export const buildCreateListingResource = (form: FormParams) =>
     nameField: "name",
     table: listingsTable,
     toInput: (values: ListingFormValues) => extractListingInput(values, form),
-    validate: validateListingInput,
+    validate: listingValidate(form),
   });
 
 /** Build a per-request listings update resource (includes the slug field). */
@@ -265,5 +298,5 @@ export const buildUpdateListingResource = (form: FormParams) =>
     table: listingsTable,
     toInput: (values: ListingEditFormValues) =>
       extractListingUpdateInput(values, form),
-    validate: validateListingInput,
+    validate: listingValidate(form),
   });

@@ -60,7 +60,7 @@ import {
   type ListingType,
   type ListingWithCount,
 } from "#shared/types.ts";
-import { parseNonNegativeMinorUnits } from "#shared/validation/money.ts";
+import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import {
   adminGroupDeletePage,
   adminGroupDetailPage,
@@ -196,11 +196,12 @@ export const validateGroupWithPackage: GroupValidator = async (input, id) => {
  * negative value is `null` — "no override; use the listing's own price" — so a
  * typo can't fail the save or store a negative override. An explicit `0` is a
  * real value: the listing is FREE within this package, distinct from "no
- * override". {@link parseNonNegativeMinorUnits} enforces the whole-string-numeric
- * rule, so a typo like `12abc`/`1,50` falls back to no override rather than a
- * partial `12`/`1`. */
+ * override". {@link parseOptionalMinorUnits} is exactly this optional-field
+ * shape (blank ⇒ unset, never a real 0) and enforces the whole-string,
+ * currency-decimal rule, so a typo like `12abc`/`1,50` falls back to no
+ * override rather than a partial `12`/`1`. */
 const parsePackagePrice = (raw: string): number | null =>
-  parseNonNegativeMinorUnits(raw);
+  parseOptionalMinorUnits(raw);
 
 /** Parse one package-quantity input. A blank, non-numeric, or sub-1 value
  * defaults to 1 (a package always includes at least one of each member). The

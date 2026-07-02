@@ -86,7 +86,10 @@ import {
   MaybeButtonLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
-import { PriceInput } from "#templates/components/price-input.tsx";
+import {
+  moneyPattern,
+  PriceInput,
+} from "#templates/components/price-input.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import {
   getAddAttendeeFields,
@@ -1539,7 +1542,7 @@ export const renderDayPricesFieldset = (listing?: ListingWithCount): string => {
       return (
         `<label>${t("listings_table.day_price_row_label", { n })}` +
         `<input type="text" inputmode="decimal" name="day_price_${n}" ` +
-        `value="${escapeHtml(value)}" pattern="\\d+(\\.\\d{1,2})?" ` +
+        `value="${escapeHtml(value)}" pattern="${moneyPattern()}" ` +
         `placeholder="${t("listings_table.day_price_placeholder")}" title="${t(
           "listings_table.day_price_input_title",
         )}" />` +

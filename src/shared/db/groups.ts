@@ -203,7 +203,8 @@ export const getActiveListingsByGroupIds = async (
   const requested = new Set(groupIds);
   const byGroup = new Map<number, ListingWithCount[]>();
   for (const row of rows) {
-    for (const groupId of membership.get(row.id) ?? []) {
+    // Every row came from the group_listings subquery, so membership is total.
+    for (const groupId of membership.get(row.id)!) {
       if (!requested.has(groupId)) continue;
       const members = byGroup.get(groupId);
       if (members) members.push(row);

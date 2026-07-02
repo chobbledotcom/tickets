@@ -4,7 +4,7 @@
 
 import * as v from "valibot";
 import { t } from "#i18n";
-import { formatCurrency } from "#shared/currency.ts";
+import { formatCurrency, getDecimalPlaces } from "#shared/currency.ts";
 import { DAY_NAMES } from "#shared/dates.ts";
 import { isUpdateTier } from "#shared/db/built-sites.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
@@ -40,6 +40,8 @@ import {
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import { EmailFormatSchema } from "#shared/validation/email.ts";
+import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
+import { moneyPattern } from "#templates/components/price-input.tsx";
 
 // ---------------------------------------------------------------------------
 // Typed form value interfaces
@@ -178,15 +180,15 @@ const validateHttpsDomainUrl = (value: string): string | null =>
   validateSafeServerFetchUrl(value, t("fields.validation.url_https"));
 
 /**
- * Validate price is non-negative
+ * Validate a required non-negative price. Currency-aware: rejects a blank, a
+ * negative, a non-numeric value, AND an amount carrying more decimal places than
+ * the active currency allows (so `1.005` in GBP is a validation error rather
+ * than a value that later rounds to 101 pence).
  */
-const validateNonNegativePrice = (value: string): string | null => {
-  const num = Number.parseFloat(value);
-  if (Number.isNaN(num) || num < 0) {
-    return t("fields.validation.price_min");
-  }
-  return null;
-};
+const validateNonNegativePrice = (value: string): string | null =>
+  parseOptionalMinorUnits(value) === null
+    ? t("fields.validation.price_min")
+    : null;
 
 const validateNonNegativeInteger =
   (label: string) =>
@@ -488,7 +490,7 @@ export const getListingFields = (): Field[] => [
     inputmode: "decimal",
     label: t("fields.listing.price"),
     name: "unit_price",
-    pattern: "\\d+(\\.\\d{1,2})?",
+    pattern: moneyPattern(),
     placeholder: t("fields.listing.price_placeholder"),
     title: t("fields.listing.price_title"),
     type: "text",
@@ -502,12 +504,14 @@ export const getListingFields = (): Field[] => [
     type: "checkbox-group",
   },
   {
-    defaultValue: "100.00",
+    // 100 currency units, formatted to the currency's decimals so the default
+    // is valid for a zero-decimal currency (JPY "100") as well as GBP "100.00".
+    defaultValue: (100).toFixed(getDecimalPlaces(settings.currency)),
     hint: t("fields.listing.max_price_hint", { amount: formatCurrency(100) }),
     inputmode: "decimal",
     label: t("fields.listing.max_price"),
     name: "max_price",
-    pattern: "\\d+(\\.\\d{1,2})?",
+    pattern: moneyPattern(),
     placeholder: t("fields.listing.max_price_placeholder"),
     title: t("fields.listing.max_price_title"),
     type: "text",

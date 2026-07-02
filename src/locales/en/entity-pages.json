@@ -3,6 +3,7 @@
   "entity.tab.overview": "Overview",
   "entity.tab.edit": "Edit",
   "entity.tab.ledger": "Ledger",
+  "entity.tab.balance": "Balance",
   "entity.tab.activity": "Activity",
   "entity.tab.actions": "Actions",
   "entity.view_all_activity": "View all activity",

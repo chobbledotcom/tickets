@@ -16,6 +16,7 @@ import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { moneyPattern } from "#templates/components/price-input.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 const EXPIRY_LABEL = `${Math.round(QR_TOKEN_MAX_AGE_S / 60)} minutes`;
@@ -74,7 +75,7 @@ const PriceInput = ({
         max={max}
         min={min}
         name="value"
-        pattern="\d+(\.\d{1,2})?"
+        pattern={moneyPattern()}
         title={t("listing_qr.price_input_title")}
         type="text"
         value={value}
