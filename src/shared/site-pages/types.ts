@@ -54,13 +54,26 @@ export interface NavNode {
   children: readonly NavNode[];
 }
 
+/** One stacked submenu level: the items of one active-chain page. */
+export interface NavLevel {
+  /** The name of the page whose items this level lists — the mobile bar's
+   * accessible label. */
+  label: string;
+  /** The level's nodes, in edge order. Never empty — an item-less level is
+   * omitted from the model entirely (nothing to render). */
+  nodes: readonly NavNode[];
+}
+
 /** The full view model the templates render. */
 export interface NavModel {
   /** Root page nodes, ordered — spliced between Listings and Contact. */
   rootPageNodes: readonly NavNode[];
-  /** Stacked ancestor sibling-sets for the active chain, root-first; empty when
-   * the current target has no parent page. */
-  submenuLevels: readonly (readonly NavNode[])[];
+  /** Stacked ancestor sibling-sets for the active chain, root-first, each
+   * labelled by its page; empty when the current target has no parent page. */
+  submenuLevels: readonly NavLevel[];
   /** Which root page to highlight, or null when off-tree. */
   activeRootId: number | null;
+  /** The current PAGE target's own items — what `/page/:slug` lists below its
+   * content. Empty for a leaf/off-tree/absent current. */
+  currentChildren: readonly NavNode[];
 }

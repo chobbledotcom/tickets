@@ -74,9 +74,13 @@ export const buildForest = (
   }
   for (const list of itemsByPage.values()) list.sort(itemOrder);
 
-  // First page-parent wins (the app guarantees at most one — see N3).
+  // First page-parent wins (the app guarantees at most one — see N3). An edge
+  // whose parent page is not in `byId` is ignored — the child stays a root —
+  // so a dangling edge (reads straddling a delete, or a stale add) degrades
+  // gracefully instead of breaking every consumer that dereferences a parent.
   const parentByChild = new Map<number, number>();
   for (const [pageId, list] of itemsByPage) {
+    if (!byId.has(pageId)) continue;
     for (const item of list) {
       if (item.item_type === "page" && !parentByChild.has(item.item_id)) {
         parentByChild.set(item.item_id, pageId);
@@ -92,13 +96,34 @@ export const buildForest = (
   return { byId, itemsByPage, parentByChild, rootIds };
 };
 
+/** The minimal projection the ancestry/cycle walks read — a full {@link Forest}
+ * satisfies it, and the in-transaction cycle guard builds just this. */
+export type ParentLinks = Pick<Forest, "parentByChild">;
+
+/** The child → parent map over raw `page`-type edges (first edge wins — the
+ * app guarantees at most one parent, N3). The in-transaction cycle guard's
+ * projection: inside the write transaction the edge set is the app-enforced
+ * single-parent tree with no dangling parents (deletes cascade atomically),
+ * so no page-row filtering or edge ordering is needed. */
+export const pageParentMapFromEdges = (
+  edges: readonly SitePageItem[],
+): ReadonlyMap<number, number> => {
+  const parentByChild = new Map<number, number>();
+  for (const edge of edges) {
+    if (edge.item_type === "page" && !parentByChild.has(edge.item_id)) {
+      parentByChild.set(edge.item_id, edge.page_id);
+    }
+  }
+  return parentByChild;
+};
+
 /**
  * The ancestor page ids of `pageId`, root-first, excluding the node itself.
  * Uses a visited guard so a corrupt cyclic edge set throws loudly rather than
  * looping — the app guarantees an acyclic tree (N3/N4), so a cycle here is an
  * impossible state to surface, not to absorb.
  */
-export const ancestorsOf = (forest: Forest, pageId: number): number[] => {
+export const ancestorsOf = (forest: ParentLinks, pageId: number): number[] => {
   const chain: number[] = [];
   const seen = new Set<number>([pageId]);
   let cursor = forest.parentByChild.get(pageId);
@@ -134,7 +159,7 @@ export const descendantsOf = (forest: Forest, pageId: number): Set<number> => {
  * a cycle risk here; it's blocked by the single-parent rule instead.
  */
 export const wouldCreateCycle = (
-  forest: Forest,
+  forest: ParentLinks,
   parentPageId: number,
   candidatePageId: number,
 ): boolean =>
@@ -158,10 +183,6 @@ export const eligibleChildPages = (
         !wouldCreateCycle(forest, currentPageId, p.id),
     )
     .sort(bySortOrderThenId);
-
-/** The next `sort_order` to append after `existing` (max + 1; 0 when empty). */
-export const nextSortOrder = (existing: readonly number[]): number =>
-  existing.length === 0 ? 0 : Math.max(...existing) + 1;
 
 /**
  * Plan an adjacent-swap reorder: the two keys whose `sort_order` to exchange to
@@ -306,11 +327,25 @@ export const buildNavModel = (
       .filter((n): n is NavNode => n !== null);
   };
 
+  // Each chain page yields one labelled level; an item-less level (only ever
+  // the deepest — every level above holds the next chain page) is dropped:
+  // there is nothing to render, and an empty <ul>/nav bar is invalid markup.
+  const rawLevels = chain.map((pageId, i) => ({
+    label: forest.byId.get(pageId)!.name,
+    nodes: levelOf(pageId, i),
+  }));
+
   return {
     activeRootId,
+    // A page current's own items are the deepest level's nodes (N7); a leaf
+    // current's deepest level lists its siblings, which are not children.
+    currentChildren:
+      currentIsLeaf || rawLevels.length === 0
+        ? []
+        : rawLevels[rawLevels.length - 1]!.nodes,
     rootPageNodes: forest.rootIds
       .map((id) => pageNode(id, id === activeRootId))
       .filter((n): n is NavNode => n !== null),
-    submenuLevels: chain.map(levelOf),
+    submenuLevels: rawLevels.filter((level) => level.nodes.length > 0),
   };
 };

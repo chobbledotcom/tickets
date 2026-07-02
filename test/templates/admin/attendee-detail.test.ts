@@ -10,11 +10,10 @@ import { statementFor } from "#shared/ledger/project.ts";
 import {
   AttendeeAnswersTable,
   AttendeeBookingsTable,
-  AttendeeDetail,
-  AttendeeLedgerSection,
-  AttendeeLogSection,
   BookingStatusBadges,
 } from "#templates/admin/attendee-detail.tsx";
+import { attendeeSummaryRows } from "#templates/admin/attendee-page.tsx";
+import { renderSection } from "#templates/admin/entity-pages.tsx";
 import { emptyLedgerNames } from "#templates/admin/ledger.tsx";
 import {
   expectListingRowQuantity,
@@ -48,11 +47,14 @@ const renderDetail = (
   hasRealLine = true,
 ): string =>
   String(
-    AttendeeDetail({
-      allowedDomain: ALLOWED_DOMAIN,
-      attendee,
-      hasRealLine,
-      phonePrefix,
+    renderSection({
+      kind: "summary",
+      rows: attendeeSummaryRows({
+        allowedDomain: ALLOWED_DOMAIN,
+        attendee,
+        hasRealLine,
+        phonePrefix,
+      }),
     }),
   );
 
@@ -60,7 +62,7 @@ beforeAll(() => {
   setupTestEncryptionKey();
 });
 
-describe("AttendeeDetail", () => {
+describe("attendee summary section", () => {
   test("always shows name, ticket link and registered", () => {
     const html = renderDetail(
       testAttendee({ name: "Jane Doe", ticket_token: "tok-123" }),
@@ -314,7 +316,7 @@ describe("AttendeeAnswersTable", () => {
   });
 });
 
-describe("AttendeeLogSection", () => {
+describe("attendee activity section", () => {
   const entries: ActivityLogEntry[] = [
     {
       attendee_id: 7,
@@ -325,28 +327,48 @@ describe("AttendeeLogSection", () => {
     },
   ];
 
-  test("renders a collapsed details disclosure with the log table", () => {
-    const html = String(AttendeeLogSection({ entries }));
-    expect(html).toContain("<details>");
-    // Collapsed by default — no open attribute.
-    expect(html).not.toContain("<details open");
-    expect(html).toContain("<summary>Activity Log</summary>");
+  test("renders the log table with the same Time/Activity columns as /admin/log", () => {
+    const html = String(
+      renderSection({ entries, kind: "activity", viewAllHref: null }),
+    );
     expect(html).toContain("Attendee 'Jane Doe' updated");
-    // Same Time/Activity columns as /admin/log.
     expect(html).toContain("<th>Time</th>");
     expect(html).toContain("<th>Activity</th>");
+    // The full tab has no preview link.
+    expect(html).not.toContain("View all activity");
+  });
+
+  test("a preview links through to the full Activity tab", () => {
+    const html = String(
+      renderSection({
+        entries,
+        kind: "activity",
+        viewAllHref: "/admin/attendees/7/activity",
+      }),
+    );
+    expect(html).toContain('href="/admin/attendees/7/activity"');
+    expect(html).toContain("View all activity");
   });
 
   test("shows the empty state when the attendee has no log entries", () => {
-    const html = String(AttendeeLogSection({ entries: [] }));
+    const html = String(
+      renderSection({ entries: [], kind: "activity", viewAllHref: null }),
+    );
     expect(html).toContain("No activity recorded yet");
   });
 });
 
-describe("AttendeeLedgerSection", () => {
+describe("attendee ledger section", () => {
   const acct = account("attendee", 7);
+  const LEDGER_TAB = "/admin/attendees/7/ledger";
+  const renderLedger = (ledger: {
+    account: typeof acct;
+    lines: ReturnType<ReturnType<typeof statementFor>>;
+    names: ReturnType<typeof emptyLedgerNames>;
+  }): string =>
+    String(renderSection({ kind: "ledger", ledger, returnUrl: LEDGER_TAB }));
 
-  test("embeds the shared statement in a collapsed Ledger disclosure with the balance and a full-ledger action", () => {
+  test("embeds the shared statement with the balance and a full-ledger action", () => {
     // A single sale debits the attendee account, so the ledger holds -5000; the
     // attendee view flips it to show the +5000 they owe as the balance.
     const lines = statementFor(acct)([
@@ -362,15 +384,11 @@ describe("AttendeeLedgerSection", () => {
         source: acct,
       },
     ]);
-    const html = String(
-      AttendeeLedgerSection({
-        ledger: { account: acct, lines, names: emptyLedgerNames() },
-      }),
-    );
-    // Collapsed in a details/summary like the activity log — no fieldset/legend.
-    expect(html).toContain("<details>");
-    expect(html).toContain("<summary>Ledger</summary>");
-    expect(html).not.toContain("<legend>Ledger</legend>");
+    const html = renderLedger({
+      account: acct,
+      lines,
+      names: emptyLedgerNames(),
+    });
     // The statement controls group the balance, action row, and ledger table.
     expect(html).toContain('class="table-controls"');
     expect(html).toContain('class="table-action-btns"');
@@ -385,31 +403,27 @@ describe("AttendeeLedgerSection", () => {
   });
 
   test("shows the empty state for an attendee with no transfers", () => {
-    const html = String(
-      AttendeeLedgerSection({
-        ledger: { account: acct, lines: [], names: emptyLedgerNames() },
-      }),
-    );
+    const html = renderLedger({
+      account: acct,
+      lines: [],
+      names: emptyLedgerNames(),
+    });
     expect(html).toContain("No transfers recorded yet");
     expect(html).toContain(`Balance: ${formatCurrency(0)}`);
   });
 
-  test("shows an add-entry action when the attendee account exists", () => {
-    const html = String(
-      AttendeeLedgerSection({
-        ledger: {
-          account: acct,
-          lines: [],
-          names: {
-            ...emptyLedgerNames(),
-            attendees: new Map([[7, "Ada Lovelace"]]),
-          },
-        },
-      }),
-    );
+  test("shows an add-entry action returning to the Ledger tab", () => {
+    const html = renderLedger({
+      account: acct,
+      lines: [],
+      names: {
+        ...emptyLedgerNames(),
+        attendees: new Map([[7, "Ada Lovelace"]]),
+      },
+    });
     expect(html).toContain("Add entry");
     expect(html).toContain(
-      'href="/admin/ledger/attendee/7/add?return_url=%2Fadmin%2Fattendees%2F7"',
+      'href="/admin/ledger/attendee/7/add?return_url=%2Fadmin%2Fattendees%2F7%2Fledger"',
     );
   });
 });

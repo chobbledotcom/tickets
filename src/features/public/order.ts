@@ -34,6 +34,7 @@ import {
   dropHiddenPackageMembers,
   loadPublicGroups,
 } from "./discovery.ts";
+import { publicNavProps } from "./site-nav.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /* jscpd:ignore-end */
@@ -123,6 +124,7 @@ const handleOrder = async (request: Request): Promise<Response> => {
     orderGalleryPage(
       ticketListings,
       packageGroups,
+      await publicNavProps(null),
       settings.websiteTitle,
       settings.orderIntroText || null,
     ),

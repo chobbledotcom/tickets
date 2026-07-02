@@ -25,7 +25,7 @@ import {
   PRICE_TYPE_GROUP_DAY,
 } from "#shared/db/listing-prices.ts";
 import { queryListingsWithCounts } from "#shared/db/listings.ts";
-import { queryAndMap } from "#shared/db/query.ts";
+import { allNamesById, linkRowsByIds, queryAndMap } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
 import type {
@@ -122,6 +122,18 @@ export const invalidateGroupsCache = (): void => groupsCache.invalidate();
  */
 export const getAllGroups = (): Promise<Group[]> => groupsCache.getAll();
 
+/** Narrow id → name map for every group (selects + decrypts only the name), for
+ * pickers/labels that must not load the whole groups cache. */
+export const getAllGroupNames = (): Promise<Map<number, string>> =>
+  allNamesById("groups", "groupRecord", "name", (raw: string) => decrypt(raw));
+
+/** Narrow id/slug/name rows for the given groups (only slug + name decrypted)
+ * — the public nav's link projection. */
+export const getGroupLinkRows = (
+  ids: number[],
+): Promise<{ id: number; name: string; slug: string }[]> =>
+  linkRowsByIds("groups", "groupRecord", ids, (raw: string) => decrypt(raw));
+
 /**
  * Get a single group by slug_index (from cache)
  */
@@ -164,6 +176,42 @@ const queryGroupListings = (
 export const getActiveListingsByGroupId = (
   groupId: number,
 ): Promise<ListingWithCount[]> => queryGroupListings(groupId, true);
+
+/** Does a group row exist? The add-item revalidation's single-row check — no
+ * name decryption, never the whole table. */
+export const groupExists = async (id: number): Promise<boolean> =>
+  (await queryOne<{ id: number }>(
+    "SELECT id FROM groups WHERE id = ? LIMIT 1",
+    [id],
+  )) !== null;
+
+/** Active listings of several groups in two bounded queries, keyed by group id
+ * (a group with no active member gets no entry). The public nav's one-shot
+ * liveness read — never one query per group. Membership is many-to-many
+ * (`group_listings`), so a listing appears under EVERY requested group it
+ * belongs to. Empty input ⇒ no query. */
+export const getActiveListingsByGroupIds = async (
+  groupIds: readonly number[],
+): Promise<Map<number, ListingWithCount[]>> => {
+  if (groupIds.length === 0) return new Map();
+  const rows = await queryListingsWithCounts(
+    `WHERE listing.active = 1 AND listing.id IN
+       (SELECT listing_id FROM group_listings WHERE group_id IN (${inPlaceholders(groupIds)}))`,
+    [...groupIds],
+  );
+  const membership = await getGroupIdsByListingIds(rows.map((row) => row.id));
+  const requested = new Set(groupIds);
+  const byGroup = new Map<number, ListingWithCount[]>();
+  for (const row of rows) {
+    for (const groupId of membership.get(row.id) ?? []) {
+      if (!requested.has(groupId)) continue;
+      const members = byGroup.get(groupId);
+      if (members) members.push(row);
+      else byGroup.set(groupId, [row]);
+    }
+  }
+  return byGroup;
+};
 
 /**
  * Get all listings in a group with attendee counts (including inactive).

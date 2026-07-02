@@ -235,7 +235,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const result = await bookAttendee(parent, { name: "Ada" });
     const attendee = (result as { success: true; attendees: { id: number }[] })
       .attendees[0]!;
-    const response = await adminGet(`/admin/attendees/${attendee.id}`);
+    const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
     const html = await response.text();
     expect(html).toContain(
       "requires one of its child listings to be booked too (Add-on)",

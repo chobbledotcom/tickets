@@ -118,6 +118,12 @@ export const openAttendeeEditor = async (
   const link = browser.links.find((l) => l.href.includes("/admin/attendees/"));
   if (!link) throw new Error("no attendee edit link on the current page");
   await browser.visit(link.href);
+  // The form lives on the Edit tab of the attendee entity page; the strip
+  // always links it, so follow it like an operator would.
+  const editTab = browser.links.find((l) =>
+    /\/admin\/attendees\/\d+\/edit$/.test(l.href),
+  )!;
+  await browser.visit(editTab.href);
 };
 
 /** The first customer `/t` ticket token linked on the current page. */

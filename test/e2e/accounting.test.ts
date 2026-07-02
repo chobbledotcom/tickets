@@ -464,7 +464,7 @@ const correctOwedBalance = async (
   email: string,
   targetMajor: string,
 ): Promise<Response> => {
-  const editHtml = await adminPageHtml(`/admin/attendees/${attendeeId}`);
+  const editHtml = await adminPageHtml(`/admin/attendees/${attendeeId}/edit`);
   const { response } = await adminFormPost(`/admin/attendees/${attendeeId}`, {
     ...scrapeEditFields(editHtml),
     email,
@@ -664,7 +664,7 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
       "25.00",
     );
     await expectFlashRedirect(
-      `/admin/attendees/${attendee.id}#attendee-form`,
+      `/admin/attendees/${attendee.id}/edit?form=attendee-form#attendee-form`,
       "Updated Balance Edith",
     )(down);
     expect(await owedBy(attendee.id)).toBe(2500);
@@ -679,7 +679,7 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
       "40.00",
     );
     await expectFlashRedirect(
-      `/admin/attendees/${attendee.id}#attendee-form`,
+      `/admin/attendees/${attendee.id}/edit?form=attendee-form#attendee-form`,
       "Updated Balance Edith",
     )(up);
     expect(await owedBy(attendee.id)).toBe(4000);

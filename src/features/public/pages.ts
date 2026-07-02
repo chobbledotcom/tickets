@@ -41,29 +41,35 @@ import {
   dropHiddenPackageMembers,
   loadPublicGroups,
 } from "./discovery.ts";
+import { publicNavProps } from "./site-nav.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /** Active+visible filter for public listing listings */
 const isPublicListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
 
 /** Guard: redirect to admin login if public site is disabled */
-const requirePublicSite = <T>(fn: () => T): T | Response =>
+export const requirePublicSite = <T>(fn: () => T): T | Response =>
   settings.showPublicSite ? fn() : redirectResponse("/admin/login");
 
 /** Render a public site page with website title and content */
 const renderPublicPage = (
   pageType: PublicPageType,
   getContent: () => string | null,
-): Response =>
-  requirePublicSite(() => {
+): Response | Promise<Response> =>
+  requirePublicSite(async () => {
     const content = getContent();
     return htmlResponse(
-      publicSitePage(pageType, settings.websiteTitle, content),
+      publicSitePage(
+        pageType,
+        await publicNavProps(null),
+        settings.websiteTitle,
+        content,
+      ),
     );
   });
 
 /** Handle GET / (home page) - redirect to admin or show public site */
-export const handleHome = (): Response =>
+export const handleHome = (): Response | Promise<Response> =>
   renderPublicPage("home", () => settings.homepageText);
 
 /** The booked span a daily listing's card availability is judged over: a
@@ -131,9 +137,10 @@ export const handlePublicListings = (
   request: Request,
 ): Response | Promise<Response> =>
   requirePublicSite(async () => {
-    const [groups, { listings: allListings }] = await Promise.all([
+    const [groups, { listings: allListings }, nav] = await Promise.all([
       loadPublicGroups(),
       loadSortedListings(isPublicListing),
+      publicNavProps(null),
     ]);
     // A hidden package's members never appear standalone — only the package
     // name is public — so drop them before building the individual cards.
@@ -155,16 +162,22 @@ export const handlePublicListings = (
         groups,
         childCardState(classification.childIds, classification.addOnChildIds),
         dateFilter,
+        nav,
       ),
     );
   });
 
 /** Handle GET /terms - public terms and conditions page (404 when empty) */
-export const handlePublicTerms = (): Response =>
-  requirePublicSite(() =>
+export const handlePublicTerms = (): Response | Promise<Response> =>
+  requirePublicSite(async () =>
     settings.terms
       ? htmlResponse(
-          publicSitePage("terms", settings.websiteTitle, settings.terms),
+          publicSitePage(
+            "terms",
+            await publicNavProps(null),
+            settings.websiteTitle,
+            settings.terms,
+          ),
         )
       : notFoundResponse(),
   );
@@ -183,6 +196,7 @@ const renderContactPage = async (request: Request): Promise<Response> => {
       content: settings.contactPageText || null,
       ...(flash.error !== undefined ? { error: flash.error } : {}),
       formActive,
+      nav: await publicNavProps(null),
       ...(flash.success !== undefined ? { success: flash.success } : {}),
       websiteTitle: settings.websiteTitle,
     }),

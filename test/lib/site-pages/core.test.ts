@@ -7,7 +7,7 @@ import {
   descendantsOf,
   eligibleChildPages,
   isReservedSlug,
-  nextSortOrder,
+  pageParentMapFromEdges,
   parseTargetKey,
   planReorder,
   targetKey,
@@ -60,6 +60,32 @@ describe("site-pages core", () => {
     });
   });
 
+  describe("pageParentMapFromEdges", () => {
+    test("maps only page edges, child to parent, first edge winning", () => {
+      // Leaf edges must never enter the map (a listing id could collide with
+      // a page id and poison the cycle walk); page edges map child -> parent.
+      const map = pageParentMapFromEdges([
+        edge(1, "listing", 7, 0),
+        edge(1, "group", 8, 1),
+        edge(1, "page", 3, 2),
+        edge(2, "page", 3, 0), // second parent for 3 - first edge wins
+        edge(3, "page", 4, 0),
+      ]);
+      expect(map).toEqual(
+        new Map([
+          [3, 1],
+          [4, 3],
+        ]),
+      );
+    });
+
+    test("no page edges yields an empty map", () => {
+      expect(pageParentMapFromEdges([edge(1, "listing", 7, 0)])).toEqual(
+        new Map(),
+      );
+    });
+  });
+
   describe("buildForest", () => {
     test("is order-independent: roots sorted by (sort_order, id)", () => {
       const pages = [page(3, 5), page(1, 5), page(2, 1)];
@@ -72,6 +98,14 @@ describe("site-pages core", () => {
       const forest = buildForest([page(1), page(2)], [edge(1, "page", 2, 0)]);
       expect(forest.rootIds).toEqual([1]);
       expect(forest.parentByChild.get(2)).toBe(1);
+    });
+
+    test("a dangling edge from a deleted parent leaves the child a root", () => {
+      // Page 9 no longer exists but its edge to page 2 survived a race; the
+      // edge is ignored so page 2 stays a listed, reachable root.
+      const forest = buildForest([page(1), page(2)], [edge(9, "page", 2, 0)]);
+      expect(forest.rootIds).toEqual([1, 2]);
+      expect(forest.parentByChild.has(2)).toBe(false);
     });
 
     test("a non-page item never parents a page that shares its numeric id", () => {
@@ -185,13 +219,6 @@ describe("site-pages core", () => {
     });
   });
 
-  describe("nextSortOrder", () => {
-    test("0 when empty, max+1 otherwise", () => {
-      expect(nextSortOrder([])).toBe(0);
-      expect(nextSortOrder([0, 3, 1])).toBe(4);
-    });
-  });
-
   describe("planReorder", () => {
     const keys: TargetKey[] = ["page:1", "listing:2", "group:3"];
     test("swaps with the correct neighbour", () => {
@@ -208,6 +235,28 @@ describe("site-pages core", () => {
       expect(planReorder(keys, "page:1", "up")).toBeNull();
       expect(planReorder(keys, "group:3", "down")).toBeNull();
       expect(planReorder(keys, "listing:99", "up")).toBeNull();
+    });
+
+    test("a move followed by its opposite restores the order (self-inverse)", () => {
+      // pages.md's promised property: applying planReorder's swap and then the
+      // opposite move's swap is the identity, for every non-boundary position.
+      const applySwap = (
+        order: readonly TargetKey[],
+        [a, b]: readonly [TargetKey, TargetKey],
+      ): TargetKey[] => order.map((k) => (k === a ? b : k === b ? a : k));
+      for (const [target, dir, opposite] of [
+        ["listing:2", "down", "up"],
+        ["listing:2", "up", "down"],
+        ["page:1", "down", "up"],
+        ["group:3", "up", "down"],
+      ] as const) {
+        const swap = planReorder(keys, target, dir);
+        expect(swap, `${target} ${dir}`).not.toBeNull();
+        const moved = applySwap(keys, swap!);
+        const back = planReorder(moved, target, opposite);
+        expect(back, `${target} ${opposite} back`).not.toBeNull();
+        expect(applySwap(moved, back!)).toEqual(keys);
+      }
     });
   });
 
@@ -239,9 +288,13 @@ describe("site-pages core", () => {
       );
       const targets: TargetMap = new Map([leafTarget("listing", 10)]); // no group:20
       const model = buildNavModel(forest, targets, "page:1");
-      const level = model.submenuLevels[0] ?? [];
+      const level = model.submenuLevels[0]?.nodes ?? [];
       expect(level.map((n) => n.key)).toEqual(["listing:10"]); // group dropped
       expect(level[0]?.href).toBe("/ticket/listing-10");
+      // The level is labelled by the page whose items it lists, and a page
+      // current's own items surface as currentChildren (the /page item list).
+      expect(model.submenuLevels[0]?.label).toBe("page-1");
+      expect(model.currentChildren).toEqual(level);
     });
 
     test("highlights only the chosen-path occurrence of a multi-parent leaf", () => {
@@ -261,15 +314,22 @@ describe("site-pages core", () => {
       expect(model.activeRootId).toBe(1);
       expect(model.submenuLevels).toHaveLength(2);
 
-      const level0 = model.submenuLevels[0] ?? [];
+      const level0 = model.submenuLevels[0]?.nodes ?? [];
       const pNode = level0.find((n) => n.key === "page:2");
       const leafUnderR = level0.find((n) => n.key === "listing:10");
       expect(pNode?.active).toBe(true); // chain continues through P
       expect(leafUnderR?.active).toBe(false); // NOT the chosen occurrence
 
-      const level1 = model.submenuLevels[1] ?? [];
+      const level1 = model.submenuLevels[1]?.nodes ?? [];
       const leafUnderP = level1.find((n) => n.key === "listing:10");
       expect(leafUnderP?.active).toBe(true); // the chosen occurrence
+      // Each level is labelled by its page, root-first.
+      expect(model.submenuLevels.map((l) => l.label)).toEqual([
+        "page-1",
+        "page-2",
+      ]);
+      // A LEAF current has no children of its own to list.
+      expect(model.currentChildren).toEqual([]);
     });
 
     test("multi-parent leaf tie-breaks by edge sort_order, then page id (N6)", () => {
@@ -317,24 +377,31 @@ describe("site-pages core", () => {
       );
       // One level (page 1's own items): the child page 2, not active.
       expect(model.submenuLevels).toHaveLength(1);
-      expect(model.submenuLevels[0]?.[0]?.key).toBe("page:2");
-      expect(model.submenuLevels[0]?.[0]?.active).toBe(false);
+      expect(model.submenuLevels[0]?.nodes[0]?.key).toBe("page:2");
+      expect(model.submenuLevels[0]?.nodes[0]?.active).toBe(false);
       // Page nodes are always live (both the root row and the nested node).
       expect(model.rootPageNodes[0]?.live).toBe(true);
-      expect(model.submenuLevels[0]?.[0]?.live).toBe(true);
+      expect(model.submenuLevels[0]?.nodes[0]?.live).toBe(true);
+      // The current page's items double as its rendered children list.
+      expect(model.currentChildren.map((n) => n.key)).toEqual(["page:2"]);
     });
 
     test("a page item pointing at a missing page is dropped", () => {
       const forest = buildForest([page(1)], [edge(1, "page", 99, 0)]);
       const model = buildNavModel(forest, new Map(), "page:1");
-      expect(model.submenuLevels[0]).toEqual([]);
+      // Its level ends up item-less, so the model omits it entirely.
+      expect(model.submenuLevels).toEqual([]);
+      expect(model.currentChildren).toEqual([]);
     });
 
-    test("a childless root page as current yields one empty submenu level", () => {
+    test("a childless root page as current yields no submenu levels", () => {
+      // An empty <ul>/nav bar is invalid markup, so the model never carries
+      // an item-less level — the templates render exactly what they receive.
       const forest = buildForest([page(1)], []);
       const model = buildNavModel(forest, new Map(), "page:1");
       expect(model.activeRootId).toBe(1);
-      expect(model.submenuLevels).toEqual([[]]);
+      expect(model.submenuLevels).toEqual([]);
+      expect(model.currentChildren).toEqual([]);
     });
 
     test("a current page id that doesn't exist is off-tree", () => {
@@ -367,6 +434,40 @@ describe("site-pages core", () => {
         "listing:5",
       );
       expect(model.activeRootId).toBe(0);
+    });
+
+    test("active flags equal chain membership exactly, across every node", () => {
+      // pages.md's promised set-equality property, checked over EVERY node of
+      // a deep multi-sibling model: at each level the one active node is the
+      // next chain page — every sibling (and every non-chain root) is not.
+      // Forest: roots 1 and 6; 1 → {4, 2}; 2 → {5, 3}; current is page 3.
+      const forest = buildForest(
+        [page(1), page(2), page(3), page(4), page(5), page(6)],
+        [
+          edge(1, "page", 4, 0),
+          edge(1, "page", 2, 1),
+          edge(2, "page", 5, 0),
+          edge(2, "page", 3, 1),
+        ],
+      );
+      const model = buildNavModel(forest, new Map(), "page:3");
+      for (const root of model.rootPageNodes) {
+        expect(root.active, root.key).toBe(root.key === "page:1");
+      }
+      const chainKeyByLevel = ["page:2", "page:3"];
+      expect(model.submenuLevels.map((l) => l.label)).toEqual([
+        "page-1",
+        "page-2",
+      ]);
+      model.submenuLevels.forEach((level, i) => {
+        for (const node of level.nodes) {
+          expect(node.active, `${node.key} at level ${i}`).toBe(
+            node.key === chainKeyByLevel[i],
+          );
+        }
+      });
+      // The current page (3) has no items, so no third level and no children.
+      expect(model.currentChildren).toEqual([]);
     });
 
     test("a leaf with no parent page yields a flat nav (no chain)", () => {

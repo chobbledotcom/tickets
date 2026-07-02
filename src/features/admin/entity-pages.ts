@@ -1,0 +1,264 @@
+/**
+ * Entity pages — the impure shell of the tabbed admin "edit X" framework
+ * (edit-pages.md). `defineEntityPage` turns one declarative page definition
+ * (tabs of typed sections) into handlers the feature file binds under its
+ * literal route keys:
+ *
+ *   "GET /admin/attendees/:attendeeId": (request, { attendeeId }) =>
+ *     attendeePage.renderTab(request, attendeeId, ""),
+ *   "GET /admin/attendees/:attendeeId/:tab": (request, { attendeeId, tab }) =>
+ *     attendeePage.renderTab(request, attendeeId, tab),
+ *
+ * The GET flow: auth guard → load the entity (null → 404) → resolve the
+ * requested tab against the viewer's visible set (unknown/hidden → 404) →
+ * run ONLY the active tab's section loaders (per-tab loading is the
+ * cold-start win) → render through the shared template. Tab resolution and
+ * strip building are the pure core (#shared/entity-pages/core.ts); the
+ * section loader below is the framework's one exhaustive kind-dispatch.
+ *
+ * POST failure feedback renders the SAME page in place at 400 via
+ * {@link EntityPage.renderPage} with a sections override carrying the
+ * submitted values and their errors — never a PRG bounce that depends on the
+ * best-effort form stash surviving to the follow-up GET. Successes PRG to
+ * {@link EntityPage.path} as everywhere else.
+ */
+
+import { loadAccountLedger } from "#routes/admin/ledger.ts";
+import type { AuthSession, SessionGuard } from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
+import {
+  resolveTabSlug,
+  splitActions,
+  type TabState,
+  tabLinks,
+  tabPath,
+} from "#shared/entity-pages/core.ts";
+import type { AccountRef } from "#shared/ledger/types.ts";
+import {
+  entityPageView,
+  type LoadedSection,
+  type ResolvedAction,
+  type SummaryRow,
+} from "#templates/admin/entity-pages.tsx";
+import type { IconName } from "#templates/components/actions.tsx";
+
+/** Entity row key: numeric ids for ordinary tables, strings for blind-index
+ * keyed pages like /admin/history/:hmac. */
+export type EntityId = number | string;
+
+/** Per-request context handed to every loader and href builder. */
+export interface PageCtx {
+  session: AuthSession;
+  /** The canonical URL of the active tab — what sub-actions return to. */
+  returnUrl: string;
+  /** Mint a sibling tab's URL (e.g. an Overview preview linking to the full
+   * Activity tab). The only sanctioned way to build a tab URL. */
+  tabHref: (slug: string) => string;
+  /** The request's query string (e.g. a `return_url` a caller threaded in). */
+  query: URLSearchParams;
+}
+
+/** An operator action. `visible` must gate on the SAME condition the target
+ * route enforces — a forbidden or dead action link is never rendered. */
+export interface ActionDef<E> {
+  labelKey: string;
+  descriptionKey?: string;
+  icon?: IconName;
+  href: (entity: E, ctx: PageCtx) => string;
+  visible?: (entity: E, session: AuthSession) => boolean;
+  /** Renders in the visually separated danger zone (delete, deactivate…). */
+  danger?: boolean;
+}
+
+/**
+ * The closed union of section kinds. The loader below dispatches on `kind`
+ * exhaustively — a new kind is a compile error there and in the renderer's
+ * `SECTION_RENDERERS` until both arms exist.
+ */
+export type Section<E> =
+  | {
+      kind: "summary";
+      rows: (entity: E, ctx: PageCtx) => Promise<SummaryRow[]>;
+    }
+  | { kind: "ledger"; account: (entity: E) => AccountRef }
+  | {
+      kind: "activity";
+      load: (entity: E) => Promise<ActivityLogEntry[]>;
+      /** Link "view all" into this tab (an Overview preview sets it). */
+      viewAllTab?: string;
+    }
+  | { kind: "actions"; titleKey: string; actions: readonly ActionDef<E>[] }
+  | {
+      kind: "custom";
+      load: (entity: E, ctx: PageCtx) => Promise<JSX.Element | null>;
+    };
+
+/** One tab: a URL segment, a strip label, and its ordered sections.
+ * `visible` is evaluated server-side and IS authorization: a hidden tab is
+ * absent from the strip and 404s when named directly. */
+export interface TabDef<E> {
+  slug: string;
+  labelKey: string;
+  visible?: (entity: E, session: AuthSession) => boolean;
+  sections: readonly Section<E>[];
+}
+
+/** One entity's whole page, as data. */
+export interface EntityPageDef<E, Id extends EntityId = number> {
+  /** Concrete base URL for an id — URL minting only, never a route pattern. */
+  basePath: (id: Id) => string;
+  titleOf: (entity: E) => string;
+  /** Section highlighted in the admin nav. */
+  navActive: string;
+  /** The GET auth floor — the weakest role that may see any tab. */
+  guard: SessionGuard<AuthSession>;
+  load: (id: Id, session: AuthSession) => Promise<E | null>;
+  /** Always-visible region above the tab strip (alerts, notes, status). */
+  banner?: (entity: E, ctx: PageCtx) => Promise<JSX.Element | null>;
+  tabs: readonly TabDef<E>[];
+}
+
+/** Evaluate an action list's predicates and mint each href. */
+const resolveActions = <E>(
+  actions: readonly ActionDef<E>[],
+  entity: E,
+  ctx: PageCtx,
+): ResolvedAction[] =>
+  actions
+    .filter((action) => action.visible?.(entity, ctx.session) !== false)
+    .map((action) => ({
+      danger: action.danger === true,
+      descriptionKey: action.descriptionKey,
+      href: action.href(entity, ctx),
+      icon: action.icon,
+      labelKey: action.labelKey,
+    }));
+
+/** Run one section's IO, producing the renderer's plain view model. The
+ * switch is exhaustive: without a `default`, a new kind fails to compile
+ * until it returns here. */
+const loadSection = async <E>(
+  section: Section<E>,
+  entity: E,
+  ctx: PageCtx,
+): Promise<LoadedSection> => {
+  switch (section.kind) {
+    case "summary":
+      return { kind: "summary", rows: await section.rows(entity, ctx) };
+    case "ledger":
+      return {
+        kind: "ledger",
+        ledger: await loadAccountLedger(section.account(entity)),
+        returnUrl: ctx.returnUrl,
+      };
+    case "activity":
+      return {
+        entries: await section.load(entity),
+        kind: "activity",
+        viewAllHref:
+          section.viewAllTab === undefined
+            ? null
+            : ctx.tabHref(section.viewAllTab),
+      };
+    case "actions": {
+      const { plain, danger } = splitActions(
+        resolveActions(section.actions, entity, ctx),
+      );
+      return { danger, kind: "actions", plain, titleKey: section.titleKey };
+    }
+    case "custom":
+      return { html: await section.load(entity, ctx), kind: "custom" };
+  }
+};
+
+/** Options for {@link EntityPage.renderPage}: an HTTP status (400 for
+ * failure re-renders) and an optional replacement for the active tab's
+ * sections (the failing form, submitted values and errors intact). */
+export interface RenderPageOpts<E> {
+  status?: number;
+  sections?: (entity: E, ctx: PageCtx) => Promise<LoadedSection[]>;
+  query?: URLSearchParams;
+}
+
+/** The bound page: `renderTab` for the two GET routes, `renderPage` for
+ * POST failure re-renders, `path` for minting tab URLs everywhere else. */
+export interface EntityPage<E, Id extends EntityId = number> {
+  renderTab: (
+    request: Request,
+    id: Id,
+    requestedTab: string,
+  ) => Promise<Response>;
+  renderPage: (
+    session: AuthSession,
+    id: Id,
+    requestedTab: string,
+    opts?: RenderPageOpts<E>,
+  ) => Promise<Response>;
+  path: (id: Id, slug?: string) => string;
+}
+
+/** Turn one page definition into its handlers + path helper. */
+export const defineEntityPage = <E, Id extends EntityId = number>(
+  def: EntityPageDef<E, Id>,
+): EntityPage<E, Id> => {
+  const path = (id: Id, slug = ""): string => tabPath(def.basePath(id), slug);
+
+  const renderPage = async (
+    session: AuthSession,
+    id: Id,
+    requestedTab: string,
+    opts: RenderPageOpts<E> = {},
+  ): Promise<Response> => {
+    const entity = await def.load(id, session);
+    if (!entity) return notFoundResponse();
+    const tabStates: TabState[] = def.tabs.map((tab) => ({
+      labelKey: tab.labelKey,
+      slug: tab.slug,
+      visible: tab.visible?.(entity, session) !== false,
+    }));
+    const activeSlug = resolveTabSlug(tabStates, requestedTab);
+    if (activeSlug === null) return notFoundResponse();
+    const active = def.tabs.find((tab) => tab.slug === activeSlug)!;
+    const ctx: PageCtx = {
+      query: opts.query ?? new URLSearchParams(),
+      returnUrl: path(id, activeSlug),
+      session,
+      tabHref: (slug) => path(id, slug),
+    };
+    const sections: LoadedSection[] = [];
+    if (opts.sections) {
+      sections.push(...(await opts.sections(entity, ctx)));
+    } else {
+      for (const section of active.sections) {
+        sections.push(await loadSection(section, entity, ctx));
+      }
+    }
+    return htmlResponse(
+      entityPageView({
+        banner: def.banner ? await def.banner(entity, ctx) : null,
+        navActive: def.navActive,
+        sections,
+        session,
+        tabs: tabLinks(tabStates, def.basePath(id), activeSlug),
+        title: def.titleOf(entity),
+      }),
+      opts.status ?? 200,
+    );
+  };
+
+  const renderTab = (
+    request: Request,
+    id: Id,
+    requestedTab: string,
+  ): Promise<Response> =>
+    def.guard(request, (session) => {
+      applyFlash(request);
+      return renderPage(session, id, requestedTab, {
+        query: new URL(request.url).searchParams,
+      });
+    });
+
+  return { path, renderPage, renderTab };
+};

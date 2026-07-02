@@ -20,6 +20,7 @@ import {
   createTestInvite,
   createTestListing,
   createTestManagerSession,
+  createTestSitePage,
   describeWithEnv,
   getTestSession,
   mockFormRequest,
@@ -76,6 +77,40 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         const response = await getAs(path, cookie);
         expect(response.status, `${label} (${path})`).toBe(200);
       }
+    });
+
+    test("editor renders every Site → Pages screen and can create; manager is 403", async () => {
+      const { cookie } = await createTestEditorSession();
+      const page = await createTestSitePage("role-matrix");
+      const screens: Array<[string, string]> = [
+        ["pages list", "/admin/site/pages"],
+        ["new page", "/admin/site/pages/new"],
+        ["edit page", `/admin/site/pages/${page.id}/edit`],
+        ["delete page", `/admin/site/pages/${page.id}/delete`],
+      ];
+      for (const [label, path] of screens) {
+        const response = await getAs(path, cookie);
+        expect(response.status, `editor ${label} (${path})`).toBe(200);
+      }
+      // The pages CRUD is SITE_FORM-gated, so an editor's POST goes through…
+      const created = await postFormAs("/admin/site/pages", cookie, {
+        name: "By Editor",
+        slug: "by-editor",
+      });
+      expect(created.status).toBe(302);
+      expect(created.headers.get("location")).toContain("/admin/site/pages/");
+      // …while a manager — content is not their remit (role downgrade removes
+      // access) — is 403 on every screen and on the write.
+      const managerCookie = await createTestManagerSession();
+      for (const [label, path] of screens) {
+        const response = await getAs(path, managerCookie);
+        expect(response.status, `manager ${label} (${path})`).toBe(403);
+      }
+      const denied = await postFormAs("/admin/site/pages", managerCookie, {
+        name: "By Manager",
+        slug: "by-manager",
+      });
+      expect(denied.status).toBe(403);
     });
 
     test("editor is redirected from the dashboard to listings", async () => {

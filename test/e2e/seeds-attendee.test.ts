@@ -55,7 +55,7 @@ describe("e2e: seeded attendee views", () => {
     // Navigate to the attendee's edit page via the "Edit" link in the attendee
     // table (href /admin/attendees/:id).
     await openAttendeeEditor(browser);
-    expect(browser.currentUrl).toMatch(/^\/admin\/attendees\/\d+$/);
+    expect(browser.currentUrl).toMatch(/^\/admin\/attendees\/\d+\/edit$/);
     // The edit form exposes the name field for PII editing.
     expect(browser.currentHtml).toContain('name="name"');
   });

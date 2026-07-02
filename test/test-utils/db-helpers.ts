@@ -13,6 +13,7 @@ import {
   type LogisticsAssignment,
   setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
+import type { SitePageWriteInput } from "#shared/db/site-pages.ts";
 import type {
   Attendee,
   DayPrices,
@@ -20,6 +21,7 @@ import type {
   Holiday,
   Listing,
   ListingWithCount,
+  SitePage,
 } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import {
@@ -1100,4 +1102,21 @@ export const decryptFirstAttendee = async (
   const attendees = await decryptAttendees(raw, privateKey);
   expect(attendees.length).toBe(1);
   return attendees[0]!;
+};
+
+/** Create a site page directly at the DB layer (the admin create flow has its
+ * own suite). The blind index is computed inside `createSitePage` from the
+ * slug, so tests never hand-roll it. */
+export const createTestSitePage = async (
+  slug: string,
+  extra: Partial<Omit<SitePageWriteInput, "slug">> = {},
+): Promise<SitePage> => {
+  const { createSitePage } = await import("#shared/db/site-pages.ts");
+  return createSitePage({
+    content: extra.content ?? "",
+    metaDescription: extra.metaDescription ?? "",
+    metaTitle: extra.metaTitle ?? "",
+    name: extra.name ?? `Page ${slug}`,
+    slug,
+  });
 };

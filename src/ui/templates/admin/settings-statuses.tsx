@@ -14,6 +14,7 @@ import {
   DeleteSection,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { ReorderArrows } from "#templates/components/reorder.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -43,30 +44,15 @@ const statusBadges = (s: AttendeeStatus): JSX.Element => (
 
 /** Move-up / move-down controls for reordering a status. */
 const moveControls = (s: AttendeeStatus, i: number, count: number) => (
-  <>
-    {i > 0 && (
-      <CsrfForm action={`${LIST_PATH}/${s.id}/move-up`} class="inline">
-        <button
-          class="link-button small"
-          title={t("statuses.move_up_title")}
-          type="submit"
-        >
-          &#9650;
-        </button>
-      </CsrfForm>
-    )}{" "}
-    {i < count - 1 && (
-      <CsrfForm action={`${LIST_PATH}/${s.id}/move-down`} class="inline">
-        <button
-          class="link-button small"
-          title={t("statuses.move_down_title")}
-          type="submit"
-        >
-          &#9660;
-        </button>
-      </CsrfForm>
-    )}
-  </>
+  <ReorderArrows
+    action={(d) => `${LIST_PATH}/${s.id}/move-${d}`}
+    count={count}
+    index={i}
+    titles={{
+      down: t("statuses.move_down_title"),
+      up: t("statuses.move_up_title"),
+    }}
+  />
 );
 
 /** List of attendee statuses with reorder, edit and delete controls. */

@@ -8,8 +8,9 @@ import type { Group } from "#shared/types.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import {
   FEED_DISCOVERY_TAGS,
-  navFlags,
+  LoginFooter,
   PublicNav,
+  type PublicNavProps,
   type TicketListing,
 } from "./shared.tsx";
 
@@ -175,6 +176,7 @@ export const homepagePage = (
   groups: Group[],
   childStateOf: (id: number) => ChildCardState,
   dateFilter: DailyDateFilter | null,
+  nav: PublicNavProps,
 ): string => {
   const listingsTitle = t("terms.listings");
   const title = websiteTitle
@@ -185,15 +187,11 @@ export const homepagePage = (
     return String(
       <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
         {websiteTitle && <h1>{websiteTitle}</h1>}
-        <PublicNav {...navFlags()} />
+        <PublicNav {...nav} />
         <p>
           <em>{t("public.no_listings_listed")}</em>
         </p>
-        <footer class="homepage-footer">
-          <p>
-            <a href="/admin/login">{t("common.login")}</a>
-          </p>
-        </footer>
+        <LoginFooter />
       </Layout>,
     );
   }
@@ -215,7 +213,7 @@ export const homepagePage = (
   return String(
     <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
-      <PublicNav {...navFlags()} />
+      <PublicNav {...nav} />
       {dateFilter !== null && <Raw html={renderDateFilter(dateFilter)} />}
       {packageGroups.length > 0 && (
         <>
@@ -226,11 +224,7 @@ export const homepagePage = (
       <h2>{t("public.all_bookable_listings")}</h2>
       <Raw html={renderGroupCards(regularGroups)} />
       <Raw html={listingListings} />
-      <footer class="homepage-footer">
-        <p>
-          <a href="/admin/login">{t("common.login")}</a>
-        </p>
-      </footer>
+      <LoginFooter />
     </Layout>,
   );
 };

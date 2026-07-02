@@ -1,7 +1,21 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { orderGalleryPage } from "#templates/public/order-gallery.tsx";
+import type { PublicNavProps } from "#templates/public/shared.tsx";
 import { testGroup } from "#test-utils";
+
+/** A nav with no operator pages and every optional link off. */
+const emptyNav: PublicNavProps = {
+  hasContact: false,
+  hasOrder: true,
+  hasTerms: false,
+  pages: {
+    activeRootId: null,
+    currentChildren: [],
+    rootPageNodes: [],
+    submenuLevels: [],
+  },
+};
 
 describe("orderGalleryPage packages", () => {
   afterEach(() => {
@@ -27,6 +41,7 @@ describe("orderGalleryPage packages", () => {
           slug: "alpha",
         }),
       ],
+      emptyNav,
     );
     expect(html).toContain("Packages");
     expect(html).toContain('class="order-card order-card--package"');
@@ -46,6 +61,7 @@ describe("orderGalleryPage packages", () => {
     const html = orderGalleryPage(
       [],
       [testGroup({ is_package: true, name: "Frozen Bundle", slug: "frozen" })],
+      emptyNav,
     );
     expect(html).toContain("Frozen Bundle");
     expect(html).toContain("order-card--unavailable");

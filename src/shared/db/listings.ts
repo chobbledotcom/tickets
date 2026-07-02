@@ -51,6 +51,7 @@ import {
 } from "#shared/db/migrations/schema.ts";
 import { nameMapByIds } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
+import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
@@ -429,6 +430,17 @@ const queryOneListingWithCount = async (
 ): Promise<ListingWithCount | null> =>
   (await queryListingsWithCounts(`WHERE ${where}`, args))[0] ?? null;
 
+/** The given listings with counts — bounded: one `IN` query, only these rows
+ * decrypted (never the whole cache). Empty `ids` ⇒ empty list, no query. */
+export const getListingsWithCountsByIds = (
+  ids: readonly number[],
+): Promise<ListingWithCount[]> =>
+  ids.length === 0
+    ? Promise.resolve([])
+    : queryListingsWithCounts(`WHERE listing.id IN (${inPlaceholders(ids)})`, [
+        ...ids,
+      ]);
+
 /**
  * Listings cache: single-record reads (by id / slug) load and decrypt only the
  * one listing they need; getAll/getByType load the whole set.
@@ -556,6 +568,9 @@ export const deleteListing = async (listingId: number): Promise<void> => {
       args: [listingId],
       sql: "DELETE FROM group_listings WHERE listing_id = ?",
     },
+    // Drop any site-page membership edges so no page is left with a dangling
+    // "(missing)" row pointing at this deleted listing.
+    clearItemEdgesStatement("listing", listingId),
     { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
     // The generalised price rows have no cascading FK, so drop them with the
     // listing rather than leaving orphaned base/day_count rows behind.
@@ -630,6 +645,68 @@ export const getListingNamesByIds = (
   nameMapByIds("listings", "listing", "name", ids, (raw: string) =>
     decrypt(raw),
   );
+
+/** The flag columns that decide whether a listing may be offered on a site
+ * page: active status plus the renewal-tier predicate shape. */
+export type ListingOfferFlags = {
+  active: boolean;
+  hidden: boolean;
+  months_per_unit: number;
+  purchase_only: boolean;
+};
+
+/** A listing's picker-relevant fields: the offer flags plus its name. */
+export type ListingPickerRow = ListingOfferFlags & { name: string };
+
+/** The raw integer-flag row shape the two projections below select. */
+type RawOfferFlagRow = {
+  active: number;
+  hidden: number;
+  months_per_unit: number;
+  purchase_only: number;
+};
+
+const OFFER_FLAG_COLUMNS =
+  "listing.active, listing.hidden, listing.months_per_unit, listing.purchase_only";
+
+const offerFlagsOf = (r: RawOfferFlagRow): ListingOfferFlags => ({
+  active: r.active !== 0,
+  hidden: r.hidden !== 0,
+  months_per_unit: r.months_per_unit,
+  purchase_only: r.purchase_only !== 0,
+});
+
+/** The offer flags of ONE listing — the add-item revalidation's single-row
+ * read (no decryption, never the whole catalog). Undefined when absent. */
+export const getListingOfferFlags = async (
+  id: number,
+): Promise<ListingOfferFlags | undefined> => {
+  const row = await queryOne<RawOfferFlagRow>(
+    `SELECT ${OFFER_FLAG_COLUMNS} FROM listings AS listing WHERE listing.id = ? LIMIT 1`,
+    [id],
+  );
+  return row ? offerFlagsOf(row) : undefined;
+};
+
+/** Narrow id → picker-flags map for every listing (only the name is decrypted)
+ * — the admin picker projection: options come from the offerable subset (the
+ * plan's "all active listings" contract, minus renewal tiers), while labels
+ * read the whole map so an already-added, now-inactive item still names
+ * itself. */
+export const getListingPickerNames = async (): Promise<
+  Map<number, ListingPickerRow>
+> => {
+  const rows = await queryAll<RawOfferFlagRow & { id: number; name: string }>(
+    `SELECT listing.id, listing.name, ${OFFER_FLAG_COLUMNS} FROM listings AS listing ORDER BY listing.id ASC`,
+  );
+  const entries = await Promise.all(
+    rows.map(
+      async (r) =>
+        [r.id, { ...offerFlagsOf(r), name: await decrypt(r.name) }] as const,
+    ),
+  );
+  return new Map(entries);
+};
 
 /**
  * SQL predicate (over the `listing` alias) selecting listings that are
