@@ -1382,7 +1382,28 @@ const computeAttendeeStats = (
  * (and the composed {@link adminListingPage}) read from this so the roster
  * stats, capacity rows, and filter URLs are computed in exactly one place.
  */
-const deriveListingView = (opts: AdminListingPageOptions) => {
+/** The always-visible "this listing is deactivated" warning, rendered in the
+ *  listing entity page's banner region (above the tab strip) and in the legacy
+ *  detail page. Null when the listing is active, so nothing renders. */
+export const ListingDeactivatedBanner = ({
+  active,
+}: {
+  active: boolean;
+}): JSX.Element | null =>
+  active ? null : (
+    <div class="error" role="alert">
+      {t("listings_table.listing_deactivated_warning")}
+    </div>
+  );
+
+/** The listing detail data the Overview / Roster panels render — everything
+ *  {@link AdminListingPageOptions} carries except the viewer session, which the
+ *  panels (unlike the page frame) never read. The entity page's tab loaders
+ *  build this directly; {@link adminListingPage} passes its full options through
+ *  (a session-bearing superset is structurally assignable). */
+export type ListingPanelOptions = Omit<AdminListingPageOptions, "session">;
+
+const deriveListingView = (opts: ListingPanelOptions) => {
   const {
     listing,
     attendees,
@@ -1458,7 +1479,7 @@ const deriveListingView = (opts: AdminListingPageOptions) => {
  * the legacy {@link adminListingPage} detail view.
  */
 export const ListingOverviewPanel = (
-  opts: AdminListingPageOptions,
+  opts: ListingPanelOptions,
 ): JSX.Element => {
   const v = deriveListingView(opts);
   const {
@@ -1516,7 +1537,7 @@ export const ListingOverviewPanel = (
  * Attendees tab and composed into the legacy {@link adminListingPage}.
  */
 export const ListingRosterPanel = (
-  opts: AdminListingPageOptions,
+  opts: ListingPanelOptions,
 ): JSX.Element => {
   const v = deriveListingView(opts);
   const {

@@ -158,7 +158,7 @@ export const loadListingQuestionData = async (
  * ungrouped or uncapped groups. A listing can belong to several capped groups;
  * the one with the FEWEST remaining spots is the binding constraint (a booking
  * is blocked by the tightest group — see capacity.ts), so surface that one. */
-const loadGroupContext = async (
+export const loadGroupContext = async (
   listing: ListingWithCount,
   dateFilter: string | null,
 ): Promise<GroupContext | undefined> => {
