@@ -1861,12 +1861,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         "noted@example.com",
       );
       const { createOwnerNote } = await import("#shared/db/system-notes.ts");
-      const { settings } = await import("#shared/db/settings.ts");
-      await createOwnerNote(
-        attendee.id,
-        "Allergic to peanuts",
-        settings.publicKey,
-      );
+      await createOwnerNote(attendee.id, "Allergic to peanuts");
       const html = await (
         await adminGet(`/admin/attendees/${attendee.id}/activity`)
       ).text();
