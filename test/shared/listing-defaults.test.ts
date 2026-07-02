@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import en from "#locales/en/index.ts";
 import {
   hasAnyListingDefault,
   LISTING_DEFAULT_FIELDS,
@@ -15,6 +16,8 @@ import {
   setListingDefaultFields,
 } from "#shared/listing-defaults.ts";
 import { testListing } from "#test-utils";
+
+const messages = en as Record<string, string>;
 
 const fullDefaults: ListingDefaults = {
   bookableDays: ["Monday", "Wednesday"],
@@ -232,5 +235,18 @@ describe("shared > listing-defaults > LISTING_DEFAULT_FIELDS", () => {
     const fields = LISTING_DEFAULT_FIELDS.map((f) => f.field);
     expect(new Set(keys).size).toBe(keys.length);
     expect(new Set(fields).size).toBe(fields.length);
+  });
+
+  test("every field has a label and hint translation", () => {
+    // The label/hint keys are built dynamically, so the static forward i18n
+    // coverage scan can't verify them — adding a field without translations
+    // (as `hidden` once was) would otherwise ship a raw key to the page. With
+    // t() now throwing on a missing key, this guards the whole set at its source.
+    const missing = LISTING_DEFAULT_FIELDS.flatMap((f) =>
+      [listingDefaultLabelKey(f), listingDefaultHintKey(f)].filter(
+        (key) => !(key in messages),
+      ),
+    );
+    expect(missing).toEqual([]);
   });
 });

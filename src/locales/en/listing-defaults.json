@@ -22,6 +22,8 @@
   "listing_defaults.field.webhook_url.hint": "A URL that receives a POST when a booking is made.",
   "listing_defaults.field.thank_you_url.label": "Thank you URL",
   "listing_defaults.field.thank_you_url.hint": "Where buyers are redirected after a successful purchase.",
+  "listing_defaults.field.hidden.label": "Hidden",
+  "listing_defaults.field.hidden.hint": "Whether new listings are hidden from public listing pages.",
   "listing_defaults.use_defaults_toggle": "Use defaults",
   "listing_defaults.use_defaults_hint": "Inherit the fields you've set defaults for. Turn this off to edit them on this listing."
 }
