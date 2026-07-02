@@ -19,12 +19,7 @@ import {
   generateUniqueGroupSlug,
 } from "#routes/admin/groups.ts";
 import { writeRowInTransaction } from "#shared/db/client.ts";
-import {
-  addGroupMembershipTx,
-  type GroupInput,
-  groupsTable,
-  type ImportedMembership,
-} from "#shared/db/groups.ts";
+import { type GroupInput, groupsTable } from "#shared/db/groups.ts";
 import { addParentEdgesTx } from "#shared/db/listing-parents.ts";
 import { syncListingPrices } from "#shared/db/listing-prices.ts";
 import {
@@ -54,6 +49,7 @@ import {
   normalizeDurationDays,
   parseDayPrices,
 } from "#shared/types.ts";
+import { addGroupMembershipTx, type ImportedMembership } from "./membership.ts";
 import {
   CatalogTransferSchema,
   formatTransferIssues,

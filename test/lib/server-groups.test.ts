@@ -1068,6 +1068,12 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
       expect(await getGroupIdsByListingId(listing1.id)).toContain(group.id);
       expect(await getGroupIdsByListingId(listing2.id)).toEqual([]);
+      // The assignment is recorded in the activity log.
+      const { getAllActivityLog } = await import("#test-utils");
+      const log = await getAllActivityLog();
+      expect(
+        log.some((e) => e.message.includes("added to group 'Assign Group'")),
+      ).toBe(true);
     });
 
     test("handles empty selection gracefully", async () => {

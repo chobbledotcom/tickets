@@ -22,7 +22,6 @@ import {
 import {
   getGroupDayPrices,
   groupDayPriceStatements,
-  listingGroupDayInsertStatements,
   PRICE_TYPE_GROUP_DAY,
 } from "#shared/db/listing-prices.ts";
 import { queryListingsWithCounts } from "#shared/db/listings.ts";
@@ -447,56 +446,6 @@ export const getPackageDisplayForBookings = (
   return shared === null
     ? Promise.resolve(null)
     : getPackageDisplayById(shared);
-};
-
-/** Every group a listing belongs to, with this listing's per-package override
- * and quantity — the membership facet a catalog export captures for one listing.
- * A `null` `package_price` means "no override"; `quantity` defaults to 1. */
-export const getListingGroupMemberships = (
-  listingId: number,
-): Promise<GroupListing[]> =>
-  queryAll<GroupListing>(
-    "SELECT group_id, listing_id, package_price, quantity FROM group_listings WHERE listing_id = ? ORDER BY group_id ASC",
-    [listingId],
-  );
-
-/** One membership to (re)create on catalog import: which listing joins which
- * group, with its package override, quantity, and per-day overrides. */
-export type ImportedMembership = {
-  groupId: number;
-  listingId: number;
-  packagePrice: number | null;
-  quantity: number;
-  dayPrices: DayPrices;
-};
-
-/** Insert ONE membership row (with its package override + quantity) plus that
- * member's `group_day` per-day overrides, inside an existing write transaction —
- * the catalog-import writer for a freshly-created listing or group. Targeted (it
- * never deletes), so importing a listing into an already-populated package can't
- * disturb the group's other members. Shared by both import directions so a
- * listing joining its groups and a group gaining its members write memberships
- * identically. */
-export const addGroupMembershipTx = async (
-  tx: TxScope,
-  membership: ImportedMembership,
-): Promise<void> => {
-  await tx.execute({
-    args: [
-      membership.groupId,
-      membership.listingId,
-      membership.packagePrice,
-      membership.quantity,
-    ],
-    sql: "INSERT INTO group_listings (group_id, listing_id, package_price, quantity) VALUES (?, ?, ?, ?)",
-  });
-  for (const stmt of listingGroupDayInsertStatements(
-    membership.groupId,
-    membership.listingId,
-    membership.dayPrices,
-  )) {
-    await tx.execute(stmt);
-  }
 };
 
 /** The listing ids that are members of a group, ascending. */

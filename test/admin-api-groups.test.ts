@@ -250,6 +250,28 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       );
     });
 
+    test("rejects a group name already used by another group", async () => {
+      await assertJson(
+        apiRequest("/api/admin/groups", {
+          body: { name: "Unique API Group" },
+          method: "POST",
+        }),
+        201,
+      );
+      await assertJson(
+        apiRequest("/api/admin/groups", {
+          body: { name: "Unique API Group" },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(
+            "Name is already in use by another listing or group",
+          );
+        },
+      );
+    });
+
     test("auto-generates unique slug", async () => {
       const result1 = await assertJson(
         apiRequest("/api/admin/groups", {

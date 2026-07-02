@@ -14,7 +14,6 @@ import { mapNotNullish } from "#fp";
 import {
   getAllGroupNames,
   getGroupPackagePrices,
-  getListingGroupMemberships,
   groupsTable,
 } from "#shared/db/groups.ts";
 import { getParentIds } from "#shared/db/listing-parents.ts";
@@ -27,6 +26,7 @@ import {
   getStoredListingWithCount,
   listingsTable,
 } from "#shared/db/listings.ts";
+import { getListingGroupMemberships } from "./membership.ts";
 import {
   CATALOG_TRANSFER_VERSION,
   GroupDataSchema,
