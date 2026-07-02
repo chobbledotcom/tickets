@@ -289,6 +289,55 @@ describeWithEnv("email-renderer", { db: true }, () => {
       expect(data.entries[0]!.listing.is_paid).toBe(true);
     });
 
+    test("a dated hidden package collapses keeping the widest member's range", async () => {
+      // Members share the booked start date but carry different durations;
+      // the collapsed row must keep the package-level date and the WIDEST
+      // member's range label — hiding members must not lose the booked dates.
+      const { groupsTable } = await import("#shared/db/groups.ts");
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Dated Kit",
+      });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      const spans: [name: string, endDate: string][] = [
+        ["Narrow A", "2026-08-02"],
+        ["Wide", "2026-08-04"],
+        ["Narrow B", "2026-08-02"],
+      ];
+      const entries = [];
+      for (const [name, endDate] of spans) {
+        const listing = await createTestListing({
+          groupId: group.id,
+          name,
+          unitPrice: 500,
+        });
+        entries.push(
+          makeEntry(
+            { id: listing.id, name, unit_price: 500 },
+            {
+              date: "2026-08-01",
+              end_date: endDate,
+              package_group_id: group.id,
+              price_paid: "500",
+              quantity: 1,
+            },
+          ),
+        );
+      }
+      const data = await buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+        { hidePackageMembers: true },
+      );
+      expect(data.entries.length).toBe(1);
+      expect(data.entries[0]!.attendee.date).toBe("2026-08-01");
+      // end_date is exclusive, so the 3-night Wide member spans 1–3 August.
+      expect(data.entries[0]!.attendee.date_range_label).toBe(
+        "1–3 August 2026",
+      );
+    });
+
     test("a hidden package still shows members in the admin notification", async () => {
       const entries = await buildPackageEntries(true);
       const data = await buildTemplateData(

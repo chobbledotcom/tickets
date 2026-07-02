@@ -649,7 +649,14 @@ const prepareOrder = async (
   const baseHasCustomisable = pageSelected.some(
     ({ listing }) => listing.customisable_days,
   );
-  const dayResult = await resolveDayCount(pageSelected, form, date);
+  // A HIDDEN package's day-count errors must name the package, not a concealed
+  // member; `groupName` is always set alongside `hidePackageListings`.
+  const dayResult = await resolveDayCount(
+    pageSelected,
+    form,
+    date,
+    ctx.hidePackageListings ? ctx.groupName : undefined,
+  );
   if ("error" in dayResult) return { error: dayResult.error, ok: false };
 
   // Parse the page listings' pay-more prices, then apply any signed QR override

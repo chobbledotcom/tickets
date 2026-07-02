@@ -1216,6 +1216,7 @@ const resolvePackageOrder = async (
   body: Record<string, unknown>,
   ctx: TicketCtx,
   cap: number,
+  hiddenName: string | undefined,
 ): Promise<
   | Response
   | {
@@ -1252,6 +1253,7 @@ const resolvePackageOrder = async (
     listingsWithQuantity(ctx.listings, quantities),
     form,
     date,
+    hiddenName,
   );
   if ("error" in dayResult) {
     return apiResponse({ error: dayResult.error }, 400);
@@ -1280,7 +1282,12 @@ const handleBookPackage = async (
   if (bodyOrError instanceof Response) return bodyOrError;
   const body = bodyOrError;
 
-  const order = await resolvePackageOrder(body, ctx, cap);
+  const order = await resolvePackageOrder(
+    body,
+    ctx,
+    cap,
+    group.hide_package_listings ? group.name : undefined,
+  );
   if (order instanceof Response) return order;
   const { date, dayCount, form, quantities } = order;
 

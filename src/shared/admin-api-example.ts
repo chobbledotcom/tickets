@@ -139,6 +139,15 @@ export type EndpointDoc = {
 
 const json = (data: unknown): string => JSON.stringify(data, null, 2);
 
+/** The booking-created response shape shared by the listing and package book endpoints. */
+const API_EXAMPLE_BOOKING_RESPONSE = json({
+  booking: {
+    amountOwed: 0,
+    ticketToken: "A1B2C3D4E5",
+    ticketUrl: "/t/A1B2C3D4E5",
+  },
+});
+
 export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
   {
     description: "List all active, non-hidden listings",
@@ -173,13 +182,40 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
       name: "Alice Smith",
       quantity: 2,
     }),
+    response: API_EXAMPLE_BOOKING_RESPONSE,
+  },
+  {
+    description:
+      "Get a package bundle by slug: its whole-bundle price (per day count for customisable-days bundles), capacity, dates, and members with their required children",
+    method: "GET",
+    path: "/api/packages/:slug",
     response: json({
-      booking: {
-        amountOwed: 0,
-        ticketToken: "A1B2C3D4E5",
-        ticketUrl: "/t/A1B2C3D4E5",
+      package: {
+        description: "Two nights' camping with firepit hire",
+        maxPurchasable: 5,
+        members: [
+          { name: "Tent Pitch", quantity: 1, slug: "tent-pitch" },
+          { name: "Firepit", quantity: 1, slug: "firepit" },
+        ],
+        name: "Camping Weekend",
+        priceMinor: 5500,
+        slug: "camping-weekend",
       },
     }),
+  },
+  {
+    description:
+      "Book whole package bundles (optional: date for dated bundles, dayCount for customisable ones, children choosing each parent member's add-ons)",
+    method: "POST",
+    path: "/api/packages/:slug/book",
+    request: json({
+      children: [{ parent: "tent-pitch", quantity: 1, slug: "extra-bedding" }],
+      date: "2025-08-20",
+      email: "alice@example.com",
+      name: "Alice Smith",
+      quantity: 1,
+    }),
+    response: API_EXAMPLE_BOOKING_RESPONSE,
   },
 ];
 

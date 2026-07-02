@@ -131,6 +131,25 @@ export const sumEntryPrices = (entries: EmailEntry[]): number =>
 export const sumEntryQuantities = (entries: EmailEntry[]): number =>
   sumOf((e: EmailEntry) => e.attendee.quantity)(entries);
 
+/** The dated entry whose booked range ends last — the stay covering the whole
+ * bundle — or null for a date-less (standard) package. A collapsed hidden
+ * package keeps its booking date at package level from this entry: the date is
+ * shared, but members can carry different durations. */
+export const widestDatedEntry = (entries: EmailEntry[]): EmailEntry | null => {
+  let widest: EmailEntry | null = null;
+  for (const entry of entries) {
+    if (!entry.attendee.date) continue;
+    if (
+      !widest ||
+      String(entry.attendee.end_date ?? "") >
+        String(widest.attendee.end_date ?? "")
+    ) {
+      widest = entry;
+    }
+  }
+  return widest;
+};
+
 /** The package display for an order's entries (keyed by their persisted
  * package_group_id), or null when the order is not a single package. */
 export const getPackageDisplayForEntries = (
@@ -146,11 +165,15 @@ const collapsedPackageEntry = (
   packageName: string,
 ): TemplateEntry => {
   const base = toTemplateEntry(entries[0]!);
+  // A dated bundle keeps its booking date/range at PACKAGE level (the widest
+  // member's stay) — hiding members must not lose the date the buyer booked.
+  const widest = widestDatedEntry(entries);
+  const dated = widest ? toTemplateEntry(widest).attendee : null;
   return {
     attendee: {
       ...base.attendee,
-      date: null,
-      date_range_label: "",
+      date: dated?.date ?? null,
+      date_range_label: dated?.date_range_label ?? "",
       price_paid: String(sumEntryPrices(entries)),
       quantity: sumEntryQuantities(entries),
     },

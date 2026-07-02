@@ -434,6 +434,71 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       }
     });
 
+    test("a package session whose group was deleted refunds without naming members", async () => {
+      await setupStripe();
+      // A package checkout signed while the group existed; the group is then
+      // deleted and a member deactivated before /payment/success. The stale
+      // group can no longer say whether it hid its listings, so the refund
+      // fails SAFE as hidden and must not name the member.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Gone Kit",
+      });
+      const keeper = await createTestListing({
+        groupId: group.id,
+        name: "Surviving Member",
+        unitPrice: 500,
+      });
+      const vanished = await createTestListing({
+        groupId: group.id,
+        name: "Vanished Member XYZ",
+        unitPrice: 500,
+      });
+      await deactivateTestListing(vanished.id);
+      await groupsTable.deleteById(group.id);
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 1000,
+          id: "cs_stale_pkg_group",
+          metadata: signMeta(
+            {
+              email: "stale-pkg@example.com",
+              items: JSON.stringify([
+                { e: keeper.id, p: 500, q: 1 },
+                { e: vanished.id, p: 500, q: 1 },
+              ]),
+              name: "Stale Package Buyer",
+              package_group_id: String(group.id),
+            },
+            1000,
+          ),
+          payment_intent: "pi_stale_pkg_group",
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_stale_pkg_refund" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >),
+      );
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_stale_pkg_group"),
+        );
+        expect(response.status).toBe(410);
+        const body = await response.text();
+        expect(body).toContain("no longer accepting registrations");
+        expect(body).not.toContain("Vanished Member XYZ");
+        expect(mockRefund.calls[0]!.args).toEqual(["pi_stale_pkg_group"]);
+      } finally {
+        mockRetrieve.restore();
+        mockRefund.restore();
+      }
+    });
+
     test("refunds ticket payment when listing is inactive", async () => {
       await setupStripe();
 

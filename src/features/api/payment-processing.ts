@@ -770,10 +770,14 @@ const validateAllItems = async (
 ): Promise<{ ok: true; items: ValidatedItem[] } | PaymentFailureResult> => {
   const isPackageIntent = intent.packageGroupId !== undefined;
   // For a hidden package, a per-member failure message would reveal a member name
-  // on /payment/success, so never include the listing name in those errors.
+  // on /payment/success, so never include the listing name in those errors. A
+  // package intent whose group no longer resolves (deleted/un-packaged
+  // mid-checkout) fails SAFE as hidden: the stale group may have been a hidden
+  // package, and the refund path must not name its members either way.
   const hiddenPackage =
     intent.packageGroupId !== undefined &&
-    (await getPackageDisplayById(intent.packageGroupId))?.hideListings === true;
+    ((await getPackageDisplayById(intent.packageGroupId))?.hideListings ??
+      true);
   // A standalone session started before its listing joined a HIDDEN package must
   // not book the now-hidden member: its /ticket/<slug> 404s and /t/<token> would
   // render the member name/details. Detected here, failed closed after pricing so

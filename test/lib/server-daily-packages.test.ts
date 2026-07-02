@@ -264,6 +264,28 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     expect(fragment).not.toContain("£27");
   });
 
+  test("a hidden package's day-count error names the package, not the member", async () => {
+    const { createFlexPackage } = await import("#test-utils/packages.ts");
+    const { parseFlashCookie } = await import("#test-utils/assertions.ts");
+    const { groupsTable } = await import("#shared/db/groups.ts");
+    const { group } = await createFlexPackage("Hush Kit", "hush-kit");
+    await groupsTable.update(group.id, { hidePackageListings: true });
+
+    // Neither member offers a 5-day span, so the submit bounces with the
+    // day-count error — which must name the PACKAGE, never a hidden member.
+    const submit = await submitPackageBooking(group.slug, {
+      date: bookingDate(),
+      day_count: "5",
+      email: "hush@test.com",
+      name: "Hush",
+      package_quantity: "1",
+    });
+    expect([302, 303]).toContain(submit.status);
+    expect(parseFlashCookie(submit).error).toBe(
+      "Hush Kit does not offer a 5-day booking",
+    );
+  });
+
   test("a flat package override still wins over a per-day override", async () => {
     const { postCalculate } = await import("#test-utils/parents.ts");
     const { group } = await overriddenFlexPackage("Flat Flex", "flat-flex", {

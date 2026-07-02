@@ -15,6 +15,7 @@ import {
   renderEmailContent,
   sumEntryPrices,
   sumEntryQuantities,
+  widestDatedEntry,
 } from "#shared/email-renderer.ts";
 import { getEnv } from "#shared/env.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
@@ -343,7 +344,9 @@ const collapsedSvgTicketData = (
   currency: string,
   packageName: string,
 ): SvgTicketData => ({
-  attendeeDate: null,
+  // A dated bundle keeps the booked start date at package level, exactly like
+  // a standalone ticket attachment — hiding members must not lose the date.
+  attendeeDate: widestDatedEntry(entries)?.attendee.date ?? null,
   checkinUrl: buildCheckinUrl(entries[0]!.attendee.ticket_token),
   currency,
   listingDate: "",

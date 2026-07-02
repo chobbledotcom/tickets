@@ -299,12 +299,15 @@ const buildBookings = (
  * Parse and validate the chosen day count for "customisable days" listings.
  * Returns `{ dayCount }` (1 when nothing selected is customisable), or `{ error }`
  * when the choice is missing, unpriced, or — for daily listings — runs the range
- * into a holiday or past the booking window.
+ * into a holiday or past the booking window. `hiddenName` (a HIDDEN package's
+ * name) replaces the listing names in errors, so a concealed member is never
+ * named in the flash the buyer is bounced back with.
  */
 export const resolveDayCount = async (
   selected: ListingQty[],
   form: FormParams,
   date: string | null,
+  hiddenName?: string,
 ): Promise<{ dayCount: number } | { error: string }> => {
   const customisable = selected.filter(
     ({ listing }) => listing.customisable_days,
@@ -317,7 +320,9 @@ export const resolveDayCount = async (
   }
   for (const { listing } of customisable) {
     if (dayPriceFor(listing, raw) === null) {
-      return { error: `${listing.name} does not offer a ${raw}-day booking` };
+      return {
+        error: `${hiddenName ?? listing.name} does not offer a ${raw}-day booking`,
+      };
     }
   }
   const dailyCustomisable = customisable.filter(
@@ -328,7 +333,7 @@ export const resolveDayCount = async (
     for (const { listing } of dailyCustomisable) {
       if (!isBookingRangeValid(listing, date, raw, holidays)) {
         return {
-          error: `${listing.name}: ${raw} days aren't all available from that date — choose fewer days or a different start date`,
+          error: `${hiddenName ?? listing.name}: ${raw} days aren't all available from that date — choose fewer days or a different start date`,
         };
       }
     }
