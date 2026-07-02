@@ -91,6 +91,9 @@ export type CreateListingBody = {
   hidden?: boolean;
   /** Inherit the operator's listing defaults (live) for the defaulted fields. */
   use_defaults?: boolean;
+  /** Keep this listing's own standalone booking page/catalog entry while it is
+   * also offered under one or more parents (only meaningful for a child). */
+  bookable_alone?: boolean;
   /** Listing ids the buyer must choose one of when this listing is booked (the
    * required-child gate). Only honoured when the parents feature is enabled;
    * self-edges and unknown ids are dropped, and the same nesting/field/add-on
@@ -147,6 +150,7 @@ const optionalFields: FieldMapping[] = [
   ["customisable_days", "customisableDays", "boolean"],
   ["hidden", "hidden", "boolean"],
   ["use_defaults", "useDefaults", "boolean"],
+  ["bookable_alone", "bookableAlone", "boolean"],
 ];
 
 /**

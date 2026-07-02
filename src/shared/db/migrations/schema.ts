@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Add a listing_prices table (generalised per-listing pricing dimensions), backfilled from listings.unit_price and day_prices.";
+  "Add bookable_alone to listings so a child listing can keep its own standalone booking page while offered under parents.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -105,6 +105,7 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["day_prices", "TEXT NOT NULL DEFAULT '{}'"],
         ["uses_logistics", "INTEGER NOT NULL DEFAULT 0"],
         ["use_defaults", "INTEGER NOT NULL DEFAULT 0"],
+        ["bookable_alone", "INTEGER NOT NULL DEFAULT 0"],
         // Precomputed counts over listing_attendees, maintained by the
         // LISTING_AGGREGATE_TRIGGERS so listing reads and the active-listing
         // stats never COUNT the listing_attendees table. booked_quantity is

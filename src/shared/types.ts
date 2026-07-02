@@ -389,6 +389,12 @@ export interface Listing {
    * (see {@link resolveListingDefaults}). A single per-listing flag, never a
    * per-field one, so a stored `false` is never ambiguous. */
   use_defaults: boolean;
+  /** When true, a listing that is also a child (offered under one or more
+   * parents) keeps its OWN standalone booking page, catalog entry and API
+   * eligibility, instead of existing only as a foldable add-on. Default false
+   * ⇒ being a child strips standalone existence, the historic behaviour. The
+   * hidden-package-member arm of the gate still outranks this flag. */
+  bookable_alone: boolean;
 }
 
 /** A logistics agent (typically a van) used for drop-off and collection. */

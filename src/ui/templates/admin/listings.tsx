@@ -1563,6 +1563,7 @@ const listingFieldFormatters: Partial<
   Record<keyof ListingWithCount, (e: ListingWithCount) => string | null>
 > = {
   assign_built_site: (e) => booleanToCheckbox(e.assign_built_site),
+  bookable_alone: (e) => booleanToCheckbox(e.bookable_alone),
   bookable_days: (e) => formatBookableDays(e.bookable_days),
   can_pay_more: (e) => booleanToCheckbox(e.can_pay_more),
   closes_at: (e) => formatDatetimeLocal(e.closes_at),
@@ -1955,6 +1956,7 @@ const OPTION_FIELDS = [
   "fields",
   "non_transferable",
   "purchase_only",
+  "bookable_alone",
   "uses_logistics",
   "hidden",
 ] as const;

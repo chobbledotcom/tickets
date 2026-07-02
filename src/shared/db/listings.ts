@@ -113,6 +113,7 @@ export type ListingInput = {
   dayPrices?: DayPrices;
   usesLogistics?: boolean;
   useDefaults?: boolean;
+  bookableAlone?: boolean;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -184,6 +185,7 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   assign_built_site: col.boolean(false),
   attachment_name: col.encryptedText(encrypt, decrypt),
   attachment_url: col.encryptedText(encrypt, decrypt),
+  bookable_alone: col.boolean(false),
   bookable_days: col.converted<string[]>({
     default: () => [...DEFAULT_BOOKABLE_DAYS],
     read: (v) => {
