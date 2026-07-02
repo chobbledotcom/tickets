@@ -28,7 +28,6 @@ import {
   ctxToBuildTreeInput,
   foldSelectedChildren,
   getTicketContext,
-  hidePackageMemberNames,
   parentRequiresChild,
   resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
@@ -66,6 +65,13 @@ import {
   getListingWithCountBySlug,
 } from "#shared/db/listings.ts";
 import { FormParams } from "#shared/form-data.ts";
+import {
+  concealMemberNames,
+  memberStandInName,
+  namesConcealed,
+  type PackagePrivacy,
+  packagePrivacy,
+} from "#shared/package-privacy.ts";
 import {
   type CheckoutIntent,
   type CheckoutItem,
@@ -818,8 +824,8 @@ const foldedIntent = (
  *
  * A PACKAGE order sets `packageGroupId` so the id is stamped onto every booking
  * row and signed into the paid metadata (driving the webhook's package
- * revalidation), and — for a HIDDEN package — `hiddenPackageName`, which
- * replaces member names on the hosted checkout's line items so the provider
+ * revalidation); the order's {@link PackagePrivacy} conceals a HIDDEN
+ * package's member names on the hosted checkout's line items so the provider
  * page never reveals them. */
 const completeFoldedBooking = async (
   request: Request,
@@ -829,10 +835,10 @@ const completeFoldedBooking = async (
   opts: {
     parentThankYouUrl?: string;
     packageGroupId?: number;
-    hiddenPackageName?: string;
+    privacy?: PackagePrivacy;
   },
 ): Promise<Response> => {
-  const items = hidePackageMemberNames(
+  const items = concealMemberNames(
     buildRegistrationItems(
       fold.listings,
       fold.quantities,
@@ -840,8 +846,7 @@ const completeFoldedBooking = async (
       fold.priceRuleByListingId,
       fold.dayCount,
     ),
-    opts.hiddenPackageName !== undefined,
-    opts.hiddenPackageName,
+    opts.privacy ?? packagePrivacy(false, ""),
   );
   const total = foldedOrderTotal(items);
   const intent = foldedIntent(contact, date, fold, items, opts);
@@ -1148,7 +1153,9 @@ const handleGetPackage = async (
   // holidays, or group remaining per member.
   const holidays = await getActiveHolidays();
   const memberQuantities = fixedQuantitiesByListingId(tree);
-  const members = group.hide_package_listings
+  const members = namesConcealed(
+    packagePrivacy(group.hide_package_listings, group.name),
+  )
     ? undefined
     : ctx.listings.map((e) => {
         const children = (ctx.childrenByParentId.get(e.listing.id) ?? [])
@@ -1308,12 +1315,13 @@ const handleBookPackage = async (
   if (bodyOrError instanceof Response) return bodyOrError;
   const body = bodyOrError;
 
+  const privacy = packagePrivacy(group.hide_package_listings, group.name);
   const order = await resolvePackageOrder(
     body,
     ctx,
     tree,
     cap,
-    group.hide_package_listings ? group.name : undefined,
+    memberStandInName(privacy),
   );
   if (order instanceof Response) return order;
   const { date, dayCount, form, quantities } = order;
@@ -1363,7 +1371,7 @@ const handleBookPackage = async (
   if (valResult instanceof Response) return valResult;
   return completeFoldedBooking(request, extractContact(valResult), date, fold, {
     packageGroupId: group.id,
-    ...(group.hide_package_listings ? { hiddenPackageName: group.name } : {}),
+    privacy,
   });
 };
 

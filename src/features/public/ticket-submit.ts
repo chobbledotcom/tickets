@@ -52,6 +52,11 @@ import {
 } from "#shared/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import {
+  concealMemberNames,
+  memberStandInName,
+  packagePrivacyOfCtx,
+} from "#shared/package-privacy.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
@@ -101,7 +106,6 @@ import {
   foldSelectedChildren,
   getTicketContext,
   handlePaymentFlow,
-  hidePackageMemberNames,
   resolveDayCount,
   withActiveListings,
 } from "./ticket-payment.ts";
@@ -659,7 +663,7 @@ const prepareOrder = async (
     pageSelected,
     form,
     date,
-    ctx.hidePackageListings ? ctx.groupName : undefined,
+    memberStandInName(packagePrivacyOfCtx(ctx)),
   );
   if ("error" in dayResult) return { error: dayResult.error, ok: false };
 
@@ -710,7 +714,7 @@ const prepareOrder = async (
   // Build items from the folded set; each line is priced by the tree's price rule
   // (a package member's override is a node facet scoped to the member line, so no
   // separate override pass is needed), then hidden-package names are masked.
-  const items = hidePackageMemberNames(
+  const items = concealMemberNames(
     buildRegistrationItems(
       foldedCtx.listings,
       quantities,
@@ -718,8 +722,7 @@ const prepareOrder = async (
       fold.priceRuleByListingId,
       dayCount,
     ),
-    ctx.hidePackageListings === true,
-    ctx.groupName,
+    packagePrivacyOfCtx(ctx),
   );
 
   const info: AnswerInfo = {

@@ -7,7 +7,6 @@ import * as v from "valibot";
 import { chunk, lazyRef, map } from "#fp";
 import { t } from "#i18n";
 import { toBase64 } from "#shared/crypto/utils.ts";
-import type { PackageDisplay } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   buildTemplateData,
@@ -18,6 +17,10 @@ import {
 import { getEnv } from "#shared/env.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import {
+  type PackagePrivacy,
+  packagePrivacyOfDisplay,
+} from "#shared/package-privacy.ts";
 import { generateSvgTicket, type SvgTicketData } from "#shared/svg-ticket.ts";
 import { buildCheckinUrl, buildTicketUrl } from "#shared/ticket-url.ts";
 import {
@@ -363,11 +366,14 @@ const collapsedSvgTicketData = (
 export const buildTicketAttachments = async (
   entries: EmailEntry[],
   currency: string,
-  hiddenPackage?: PackageDisplay | null,
+  privacy: PackagePrivacy = { kind: "visible" },
 ): Promise<EmailAttachment[]> => {
-  const ticketDataList = hiddenPackage
-    ? [collapsedSvgTicketData(entries, currency, hiddenPackage.name)]
-    : map((entry: EmailEntry) => buildSvgTicketData(entry, currency))(entries);
+  const ticketDataList =
+    privacy.kind === "hidden"
+      ? [collapsedSvgTicketData(entries, currency, privacy.packageName)]
+      : map((entry: EmailEntry) => buildSvgTicketData(entry, currency))(
+          entries,
+        );
   const svgs = await Promise.all(
     ticketDataList.map((data) => generateSvgTicket(data)),
   );
@@ -401,15 +407,17 @@ export const sendRegistrationEmails = async (
   if (attendeeEmail) {
     const replyTo = businessEmail || undefined;
     // The buyer's confirmation hides a hidden package's member listings — both
-    // in the email body and in the attached ticket SVGs.
-    const pkg = await getPackageDisplayForEntries(entries);
-    const hiddenPackage = pkg?.hideListings === true ? pkg : null;
+    // in the email body and in the attached ticket SVGs — via the one
+    // package-privacy chokepoint.
+    const privacy = packagePrivacyOfDisplay(
+      await getPackageDisplayForEntries(entries),
+    );
     const data = await buildTemplateData(entries, currency, ticketUrl, {
       hidePackageMembers: true,
     });
     const [confirmation, attachments] = await Promise.all([
       renderEmailContent("confirmation", data),
-      buildTicketAttachments(entries, currency, hiddenPackage),
+      buildTicketAttachments(entries, currency, privacy),
     ]);
     promises.push(
       sendEmail(config, {

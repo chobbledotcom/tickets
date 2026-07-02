@@ -21,6 +21,7 @@ import type {
 import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { packagePrivacyOfDisplay } from "#shared/package-privacy.ts";
 import { isPaidListing, normalizeDurationDays } from "#shared/types.ts";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
@@ -191,10 +192,13 @@ export const buildTemplateData = async (
   options: { hidePackageMembers?: boolean } = {},
 ): Promise<TemplateData> => {
   const pkg = await getPackageDisplayForEntries(entries);
-  const collapse = pkg?.hideListings === true && options.hidePackageMembers;
-  const templateEntries: TemplateEntry[] = collapse
-    ? [collapsedPackageEntry(entries, pkg.name)]
-    : map(toTemplateEntry)(entries);
+  // The buyer's confirmation (hidePackageMembers) collapses a hidden package's
+  // rows; the admin notification keeps them.
+  const privacy = packagePrivacyOfDisplay(pkg);
+  const templateEntries: TemplateEntry[] =
+    privacy.kind === "hidden" && options.hidePackageMembers
+      ? [collapsedPackageEntry(entries, privacy.packageName)]
+      : map(toTemplateEntry)(entries);
 
   return {
     // remaining_balance is order-level (identical on every entry), so read it

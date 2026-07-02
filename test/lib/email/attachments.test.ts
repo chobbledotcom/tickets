@@ -105,8 +105,8 @@ describe("buildTicketAttachments", () => {
       ),
     ];
     const attachments = await buildTicketAttachments(entries, "GBP", {
-      hideListings: true,
-      name: "Weekend Bundle",
+      kind: "hidden",
+      packageName: "Weekend Bundle",
     });
 
     expect(attachments.length).toBe(1);
@@ -133,8 +133,8 @@ describe("buildTicketAttachments", () => {
       ),
     ];
     const attachments = await buildTicketAttachments(entries, "GBP", {
-      hideListings: true,
-      name: "Dated Bundle",
+      kind: "hidden",
+      packageName: "Dated Bundle",
     });
     const decoded = decodeAttachmentContent(attachments[0]!);
     expect(decoded).toContain("Dated Bundle");

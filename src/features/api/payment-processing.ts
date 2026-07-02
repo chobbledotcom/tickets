@@ -80,7 +80,6 @@ import {
 } from "#shared/db/attendees.ts";
 import {
   getHiddenPackageMemberIds,
-  getPackageDisplayById,
   getPackageGroupById,
   groupsTable,
   loadPackageMemberPricing,
@@ -112,6 +111,7 @@ import {
 } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import { resolveNamesConcealed } from "#shared/package-privacy.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import {
   type BookingItem,
@@ -750,15 +750,10 @@ const validateAllItems = async (
   intent: BookingIntent,
 ): Promise<{ ok: true; items: ValidatedItem[] } | PaymentFailureResult> => {
   const isPackageIntent = intent.packageGroupId !== undefined;
-  // For a hidden package, a per-member failure message would reveal a member name
-  // on /payment/success, so never include the listing name in those errors. A
-  // package intent whose group no longer resolves (deleted/un-packaged
-  // mid-checkout) fails SAFE as hidden: the stale group may have been a hidden
-  // package, and the refund path must not name its members either way.
-  const hiddenPackage =
-    intent.packageGroupId !== undefined &&
-    ((await getPackageDisplayById(intent.packageGroupId))?.hideListings ??
-      true);
+  // For a hidden package, a per-member failure message would reveal a member
+  // name on /payment/success, so never include the listing name in those errors
+  // (fail-safe resolution — see resolveNamesConcealed).
+  const hiddenPackage = await resolveNamesConcealed(intent.packageGroupId);
   // A standalone session started before its listing joined a HIDDEN package must
   // not book the now-hidden member: its /ticket/<slug> 404s and /t/<token> would
   // render the member name/details. Detected here, failed closed after pricing so
