@@ -436,6 +436,15 @@ describeWithEnv("public API packages", { db: true }, () => {
     expect(malformed.response.status).toBe(400);
     expect(malformed.body.error).toContain("parent");
 
+    // A garbage customPrice is a schema parse failure — never NaN stored as a
+    // price.
+    const badPrice = await apiBookPackage(group.slug, {
+      children: [
+        { customPrice: "x", parent: a.slug, quantity: 1, slug: child.slug },
+      ],
+    });
+    expect(badPrice.response.status).toBe(400);
+
     // A member that gates no children accepts no child selections either.
     const { b } = await fixedPackage("Childless Kit", "childless-kit");
     const childless = await apiBookPackage("childless-kit", {

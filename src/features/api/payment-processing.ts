@@ -30,6 +30,7 @@
  * `webhooks.ts` and calls into this module.
  */
 
+import * as v from "valibot";
 import { sumOf } from "#fp";
 import type {
   BookingIntent,
@@ -114,6 +115,7 @@ import { sendNtfyError } from "#shared/ntfy.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import {
   type BookingItem,
+  BookingItemsSchema,
   type CheckoutIntent,
   getActivePaymentProvider,
   type ModifierRef,
@@ -494,10 +496,11 @@ const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
   } catch {
     return null;
   }
-
-  if (!Array.isArray(parsed) || parsed.length === 0) return null;
-
-  return parsed as BookingItem[];
+  // Schema-validated, never blind-cast: a malformed or drifted blob fails the
+  // parse loudly (the session is then unsigned/ignored) instead of feeding
+  // wrong nodeKeys or NaN prices into revalidation.
+  const result = v.safeParse(BookingItemsSchema, parsed);
+  return result.success ? result.output : null;
 };
 
 /** Parse the compact modifier references from session metadata. Our own JSON,

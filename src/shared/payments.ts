@@ -59,13 +59,25 @@ export type ModifierSpec = {
  * signed-metadata.ts) and `r` the group id it hangs off. Both are absent on a
  * standalone line.
  */
-export type BookingItem = {
-  e: number;
-  q: number;
-  p: number;
-  k?: "p" | "g";
-  r?: number;
-};
+/** One signed booking line, schema-first: `e` listing id, `q` quantity, `p`
+ * signed unit price, and the optional edge tag (`k` code + `r` group id) the
+ * webhook's nodeKey revalidation reconstructs. The writer (signedEdgeFor) and
+ * every reader parse against THIS schema, so a drifted or tampered blob is a
+ * loud parse failure — never a silently-wrong nodeKey. */
+export const BookingItemSchema = v.object({
+  e: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  k: v.optional(v.union([v.literal("p"), v.literal("g")])),
+  p: v.pipe(v.number(), v.finite()),
+  q: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  r: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1))),
+});
+
+export const BookingItemsSchema = v.pipe(
+  v.array(BookingItemSchema),
+  v.minLength(1),
+);
+
+export type BookingItem = v.InferOutput<typeof BookingItemSchema>;
 
 /** Compact modifier reference stored in session metadata: the modifier id and
  * the quantity taken. The webhook re-fetches the modifier by id and re-derives

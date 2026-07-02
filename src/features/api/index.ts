@@ -5,6 +5,7 @@
  * with the same data and validation as the web UI.
  */
 
+import * as v from "valibot";
 import { compact, filter, pipe, sumOf } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
@@ -78,10 +79,7 @@ import {
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
-import {
-  parseNonNegativeInt,
-  parsePositiveInt,
-} from "#shared/validation/number.ts";
+import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import {
   extractContact,
@@ -671,54 +669,47 @@ const resolveCustomPrice = (
  * with an optional pay-more price. A PACKAGE booking's entries also carry the
  * member (`parent`) slug the child folds under, since a bundle can contain more
  * than one parent member. */
-type ApiChildSelection = {
-  parent?: string;
-  slug: string;
-  quantity: number;
-  customPrice?: number;
+/** A positive integer accepted as a JSON number or a digit string ("2"). */
+const ApiQuantitySchema = v.pipe(
+  v.union([v.number(), v.pipe(v.string(), v.digits(), v.transform(Number))]),
+  v.integer(),
+  v.minValue(1),
+);
+
+const NonEmptyStringSchema = v.pipe(v.string(), v.nonEmpty());
+
+/** One `children` entry of a booking body — declared once as a schema, so the
+ * accepted shape, its validation (a NaN/garbage `customPrice` is a parse error,
+ * never a stored price), and the {@link ApiChildSelection} type stay one
+ * artifact. The package book endpoint layers a required `parent` member slug on
+ * top ({@link PackageChildrenSchema}); an absent `children` field is an empty
+ * selection (the fold auto-fills a sole child, or rejects a multi-child parent
+ * with a "choose more" error). */
+const childSelectionEntries = {
+  customPrice: v.optional(v.pipe(v.number(), v.finite(), v.minValue(0))),
+  parent: v.optional(NonEmptyStringSchema),
+  quantity: ApiQuantitySchema,
+  slug: NonEmptyStringSchema,
 };
 
-/** Parse the `children` array of a booking body. An absent field yields an
- * empty selection (the fold auto-fills a sole child, or rejects a multi-child
- * parent with a "choose more" error); a present-but-malformed field — not an
- * array, or an entry missing a non-empty slug or a positive quantity (or, when
- * `requireParent` is set, a non-empty `parent` member slug) — yields null so
- * the caller returns a 400. */
-/** Parse one `children` entry ({@link parseApiChildSelections}), or null when
- * it is malformed. */
-const parseApiChildSelection = (
-  entry: unknown,
-  requireParent: boolean,
-): ApiChildSelection | null => {
-  const record = (entry ?? {}) as Record<string, unknown>;
-  const parent = String(record.parent ?? "");
-  const slug = String(record.slug ?? "");
-  const quantity = parsePositiveInt(String(record.quantity ?? ""));
-  if (slug === "" || quantity === null) return null;
-  if (requireParent && parent === "") return null;
-  return {
-    quantity,
-    slug,
-    ...(requireParent ? { parent } : {}),
-    ...(record.customPrice !== undefined
-      ? { customPrice: Number(record.customPrice) }
-      : {}),
-  };
-};
+const ChildrenSchema = v.optional(v.array(v.object(childSelectionEntries)), []);
+const PackageChildrenSchema = v.optional(
+  v.array(v.object({ ...childSelectionEntries, parent: NonEmptyStringSchema })),
+  [],
+);
 
+type ApiChildSelection = v.InferOutput<
+  ReturnType<typeof v.object<typeof childSelectionEntries>>
+>;
+
+/** Parse the `children` array of a booking body against `schema`, or null (the
+ * caller's 400) when it is present but malformed. */
 const parseApiChildSelections = (
   body: Record<string, unknown>,
-  requireParent = false,
+  schema: typeof ChildrenSchema | typeof PackageChildrenSchema = ChildrenSchema,
 ): ApiChildSelection[] | null => {
-  const raw = body.children ?? [];
-  if (!Array.isArray(raw)) return null;
-  const selections: ApiChildSelection[] = [];
-  for (const entry of raw) {
-    const selection = parseApiChildSelection(entry, requireParent);
-    if (!selection) return null;
-    selections.push(selection);
-  }
-  return selections;
+  const result = v.safeParse(schema, body.children);
+  return result.success ? result.output : null;
 };
 
 /** Translate one parent's resolved child selections into the `child_qty_*` /
@@ -1327,7 +1318,7 @@ const handleBookPackage = async (
   if (order instanceof Response) return order;
   const { date, dayCount, form, quantities } = order;
 
-  const selections = parseApiChildSelections(body, true);
+  const selections = parseApiChildSelections(body, PackageChildrenSchema);
   if (selections === null) {
     return apiResponse(
       {
