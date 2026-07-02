@@ -27,11 +27,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  costAccount,
-  revenueAccount,
-  SERVICE_COST_KIND,
-} from "#shared/accounting/accounts.ts";
+import { costAccount, revenueAccount } from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
 import { costOf, profitOf } from "#shared/accounting/projection.ts";
 import {
   accountBalance,
@@ -99,7 +96,7 @@ const expectCostFormError = async (
   expect(response.headers.get("location")).toContain(
     `/admin/servicing/${servicingId}`,
   );
-  expect((await transfersOfKind(SERVICE_COST_KIND)).length).toBe(before);
+  expect((await transfersOfKind(KIND.serviceCost)).length).toBe(before);
 };
 
 describe("servicing §22 — costAccount id validation (reuses rowAccount)", () => {
@@ -127,7 +124,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
   test("recording a cost posts one cost:L → world leg, kind='service_cost', dated at the service date", async () => {
     const { id, listing } = await createServicingHold();
     await recordBoilerCost(id, listing.id);
-    const costLegs = await transfersOfKind(SERVICE_COST_KIND);
+    const costLegs = await transfersOfKind(KIND.serviceCost);
     expect(costLegs.length).toBe(1);
     const leg = costLegs[0]!;
     expect(leg.source).toEqual(account("cost", listing.id));
@@ -227,7 +224,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
       reference: ref,
       servicingId: id,
     });
-    expect((await transfersOfKind(SERVICE_COST_KIND)).length).toBe(1);
+    expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
     expect(await costOf(listing.id)).toBe(9000);
   });
 
@@ -253,11 +250,11 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     // The retry is a success flash, NOT a COST_REPLAY_MISMATCH error.
     expect(parseFlashCookie(retried).error).toBeUndefined();
     expect(parseFlashCookie(retried).success).toBeDefined();
-    expect((await transfersOfKind(SERVICE_COST_KIND)).length).toBe(1);
+    expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
     expect(await costOf(listing.id)).toBe(9000);
     // A separate submission (fresh key) posts a second, independent cost.
     await postCost(crypto.randomUUID());
-    expect((await transfersOfKind(SERVICE_COST_KIND)).length).toBe(2);
+    expect((await transfersOfKind(KIND.serviceCost)).length).toBe(2);
     expect(await costOf(listing.id)).toBe(18000);
   });
 
@@ -279,7 +276,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     await postCost("90.00");
     const changed = await postCost("50.00"); // same key, different amount
     // Exactly one cost leg exists, and it is NOT a silent success storing £50.
-    expect((await transfersOfKind(SERVICE_COST_KIND)).length).toBe(1);
+    expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
     expect(await costOf(listing.id)).toBe(9000);
     // The distinguishing signal from the old false-success: the second submit
     // carries an ERROR flash, not a "Recorded cost 50.00" success flash.
@@ -340,17 +337,17 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
       new RegExp(COST_REPLAY_MISMATCH.slice(0, 20)),
     );
     // Nothing new landed.
-    expect((await transfersOfKind(SERVICE_COST_KIND)).length).toBe(1);
+    expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
     expect(await costOf(listing.id)).toBe(9000);
   });
 
   test("editing a cost posts a correcting adjustment, never mutates a row", async () => {
     const { id, listing } = await createServicingHold();
     const costId = await recordBoilerCost(id, listing.id);
-    const beforeRows = (await transfersOfKind(SERVICE_COST_KIND)).length;
+    const beforeRows = (await transfersOfKind(KIND.serviceCost)).length;
     // Lower £90 → £60: a −3000 delta leg is posted; no row is UPDATEd.
     await editServiceCost(costId, { amount: 6000 });
-    const afterRows = (await transfersOfKind(SERVICE_COST_KIND)).length;
+    const afterRows = (await transfersOfKind(KIND.serviceCost)).length;
     expect(afterRows).toBe(beforeRows + 1);
     expect(await costOf(listing.id)).toBe(6000);
     const legs = await transfersByAccount(costAccount(listing.id));
@@ -360,9 +357,9 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
   test("editing a cost to the same amount is a no-op", async () => {
     const { id, listing } = await createServicingHold();
     const costId = await recordBoilerCost(id, listing.id);
-    const beforeRows = (await transfersOfKind(SERVICE_COST_KIND)).length;
+    const beforeRows = (await transfersOfKind(KIND.serviceCost)).length;
     await editServiceCost(costId, { amount: 9000 });
-    expect((await transfersOfKind(SERVICE_COST_KIND)).length).toBe(beforeRows);
+    expect((await transfersOfKind(KIND.serviceCost)).length).toBe(beforeRows);
     expect(await costOf(listing.id)).toBe(9000);
   });
 
@@ -386,7 +383,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     const { id, listing } = await createServicingHold();
     const costId = await recordBoilerCost(id, listing.id);
     await editServiceCost(costId, { amount: 6000 });
-    const reduction = (await transfersOfKind(SERVICE_COST_KIND)).find(
+    const reduction = (await transfersOfKind(KIND.serviceCost)).find(
       (leg) => leg.destination.type === "cost",
     );
     if (!reduction) throw new Error("missing cost reduction leg");
@@ -425,7 +422,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     // Empty, negative, non-numeric, and zero amounts must be rejected at the
     // route as a form-error redirect, never reach the ledger, and never 500.
     const { id, listing } = await createServicingHold();
-    const before = (await transfersOfKind(SERVICE_COST_KIND)).length;
+    const before = (await transfersOfKind(KIND.serviceCost)).length;
     for (const amount of ["", "-5", "abc", "0"]) {
       const response = await adminPost(`/admin/servicing/${id}`, {
         amount,
@@ -439,7 +436,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
 
   test("an invalid create target_listing_id writes no service_cost transfer", async () => {
     const { id, listing } = await createServicingHold();
-    const before = (await transfersOfKind(SERVICE_COST_KIND)).length;
+    const before = (await transfersOfKind(KIND.serviceCost)).length;
     for (const target of ["", "abc", "0", "-3"]) {
       const response = await adminPost(`/admin/servicing/${id}`, {
         amount: "90.00",
@@ -447,7 +444,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
         target_listing_id: target,
       });
       expect(response.status).toBe(302);
-      expect((await transfersOfKind(SERVICE_COST_KIND)).length).toBe(before);
+      expect((await transfersOfKind(KIND.serviceCost)).length).toBe(before);
     }
     // listing.id is a positive int but the event does not hold a different
     // listing, so the allocation rule still blocks it (form error, no 500).
@@ -458,14 +455,14 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
       target_listing_id: String(other.id),
     });
     expect(response.status).toBe(302);
-    expect((await transfersOfKind(SERVICE_COST_KIND)).length).toBe(before);
+    expect((await transfersOfKind(KIND.serviceCost)).length).toBe(before);
     expect(await costOf(listing.id)).toBe(0);
   });
 
   test("invalid edit cost amounts write no service_cost transfer (form error, not 500)", async () => {
     const { id, listing } = await createServicingHold();
     const costId = await recordBoilerCost(id, listing.id);
-    const before = (await transfersOfKind(SERVICE_COST_KIND)).length;
+    const before = (await transfersOfKind(KIND.serviceCost)).length;
     for (const amount of ["", "-5", "abc", "0"]) {
       const response = await adminPost(
         `/admin/servicing/${id}/cost/${costId}`,
@@ -648,7 +645,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
       servicingId: id,
     });
     const rows = await queryAll<{ memo: string | null }>(
-      `SELECT memo FROM transfers WHERE kind = '${SERVICE_COST_KIND}'`,
+      `SELECT memo FROM transfers WHERE kind = '${KIND.serviceCost}'`,
     );
     for (const r of rows) {
       expect(r.memo ?? "").not.toContain("07700 900000");
@@ -689,7 +686,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
       memo: "Boiler part",
       target_listing_id: String(listing.id),
     });
-    const legs = await transfersOfKind(SERVICE_COST_KIND);
+    const legs = await transfersOfKind(KIND.serviceCost);
     expect(legs.length).toBe(1);
     expect(legs[0]!.occurredAt).toBe("2026-07-01T00:00:00.000Z");
   });
@@ -700,7 +697,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     const { id, listing } = await createServicingHold();
     await recordBoilerCost(id, listing.id); // £90
     const legs = await visibleTransfers(emptyRange, listing.id, 100);
-    expect(legs.some((t) => t.kind === SERVICE_COST_KIND)).toBe(true);
+    expect(legs.some((t) => t.kind === KIND.serviceCost)).toBe(true);
   });
 
   test("editing back to a previously-used target amount after an intermediate edit applies the correct delta", async () => {

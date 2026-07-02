@@ -10,7 +10,7 @@ import {
   statementFor,
   sumOfKind,
 } from "#shared/ledger/project.ts";
-import { makeTransfer } from "./factory.ts";
+import { makeTransfer } from "#test-utils/transfer-factory.ts";
 
 const world = account("external", "world");
 const attendee = account("attendee", 88);
@@ -196,6 +196,39 @@ describe("statementFor", () => {
     const lines = statementFor(attendee)([later, earlier, sale]);
     expect(lines.map((l) => l.transfer.id)).toEqual([1, 9, 5]);
     expect(lines.map((l) => l.running)).toEqual([-10000, -8000, 0]);
+  });
+
+  it("ends its running balance exactly at balanceOf, whatever the input order", () => {
+    // The statement and the balance must be the same fold: if the last running
+    // figure ever drifted from balanceOf, the two surfaces would disagree on
+    // what the account holds.
+    const ts = [
+      makeTransfer({
+        amount: 10000,
+        destination: revenue,
+        id: 1,
+        source: attendee,
+      }),
+      makeTransfer({
+        amount: 4000,
+        destination: attendee,
+        id: 2,
+        occurredAt: "2026-02-01T00:00:00.000Z",
+        source: world,
+      }),
+      makeTransfer({
+        amount: 200,
+        destination: fee,
+        id: 3,
+        occurredAt: "2026-03-01T00:00:00.000Z",
+        source: attendee,
+      }),
+    ];
+    const permutations = [ts, [...ts].reverse(), [ts[1]!, ts[2]!, ts[0]!]];
+    for (const permuted of permutations) {
+      const lines = statementFor(attendee)(permuted);
+      expect(lines.at(-1)?.running).toBe(balanceOf(attendee)(permuted));
+    }
   });
 
   it("continues from an opening balance for a date-ranged slice", () => {

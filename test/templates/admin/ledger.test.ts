@@ -162,15 +162,17 @@ describe("LedgerTable", () => {
     expect(html).toContain("<td>—</td>");
   });
 
-  test("renders an empty kind as an empty cell, not the no-kind placeholder", () => {
+  test("renders a synthetic empty-string kind as the no-kind placeholder", () => {
+    // The store maps a kindless stored row back to an omitted kind, so "" only
+    // arises synthetically — it must still read as "no kind", never a blank cell.
     const html = String(
       LedgerTable({
         names: names(),
         transfers: [transfer({ kind: "" })],
       }),
     );
-    expect(html).toContain("<td></td>");
-    expect(html).not.toContain("<td>—</td>");
+    expect(html).toContain("<td>—</td>");
+    expect(html).not.toContain("<td></td>");
   });
 
   test("renders the empty state row spanning all four columns", () => {
