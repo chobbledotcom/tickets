@@ -156,7 +156,9 @@ export const t = (key: string, values?: Record<string, unknown>): string => {
   const locale = getLocale();
   const fmt = getFormat(locale, key);
   if (!fmt) {
-    throw new Error(`Missing translation for key "${key}" (locale "${locale}")`);
+    throw new Error(
+      `Missing translation for key "${key}" (locale "${locale}")`,
+    );
   }
   return String(fmt.format(values));
 };

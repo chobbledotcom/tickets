@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import en from "#locales/en/index.ts";
 import {
   hasAnyListingDefault,
   LISTING_DEFAULT_FIELDS,
@@ -14,7 +15,6 @@ import {
   serializeListingDefaults,
   setListingDefaultFields,
 } from "#shared/listing-defaults.ts";
-import en from "#locales/en/index.ts";
 import { testListing } from "#test-utils";
 
 const messages = en as Record<string, string>;
