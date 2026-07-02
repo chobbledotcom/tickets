@@ -11,6 +11,7 @@ import {
   map,
   once,
   pipe,
+  sumByKey,
   ttlCache,
 } from "#fp";
 
@@ -414,6 +415,43 @@ describe("fp", () => {
       expect(freshResult).toEqual([1, 2, 3]);
       // Now the cache IS populated with fresh data
       expect(cache.size()).toBe(3);
+    });
+  });
+
+  describe("sumByKey", () => {
+    test("accumulates amounts into a map keyed by keyOf, summing repeats", () => {
+      const items = [
+        { id: 1, n: 10 },
+        { id: 2, n: 5 },
+        { id: 1, n: 3 }, // same key → adds to the existing 10
+      ];
+      const totals = sumByKey(
+        (x: { id: number; n: number }) => x.id,
+        (x) => x.n,
+      )(items);
+      expect(totals).toEqual(
+        new Map([
+          [1, 13],
+          [2, 5],
+        ]),
+      );
+    });
+
+    test("sums signed amounts and returns an empty map for no items", () => {
+      const signed = sumByKey(
+        (x: { k: string; v: number }) => x.k,
+        (x) => x.v,
+      )([
+        { k: "a", v: 4 },
+        { k: "a", v: -6 },
+      ]);
+      expect(signed.get("a")).toBe(-2);
+      expect(
+        sumByKey(
+          (x: { k: string }) => x.k,
+          () => 1,
+        )([]),
+      ).toEqual(new Map());
     });
   });
 });

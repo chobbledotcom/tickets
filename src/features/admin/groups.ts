@@ -18,7 +18,6 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { groupReturnPath } from "#shared/admin-paths.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { parseNonNegativeMinorUnits } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { decryptAttendees } from "#shared/db/attendees.ts";
 import type { TxScope } from "#shared/db/client.ts";
@@ -59,6 +58,7 @@ import {
   type ListingType,
   type ListingWithCount,
 } from "#shared/types.ts";
+import { parseNonNegativeMinorUnits } from "#shared/validation/money.ts";
 import {
   adminGroupDeletePage,
   adminGroupDetailPage,

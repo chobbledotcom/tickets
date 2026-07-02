@@ -12,7 +12,7 @@
  *     close a day entirely, §2 / §"servicing may overbook"). Flipping the
  *     flag changes the SQL — the assertion is mutation-resistant.
  *
- * Implementation contract (test-first — code not yet written):
+ * Implementation contract (implemented — this describes the shipped behavior):
  *   - `#shared/db/attendees/capacity.ts` currently keeps `overlapsDay` and
  *     `expandDailyRange` module-private. The implementation must EXPORT them
  *     so these unit tests can exercise them directly (the alternative —

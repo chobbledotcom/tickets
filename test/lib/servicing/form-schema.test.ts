@@ -11,18 +11,15 @@
  *   • normalises by `kind='servicing'` — contact / status / balance fields
  *     are coerced empty / null / zero server-side regardless of what the POST
  *     body carried (§3 / §19 contract guard);
- *   • reuses `validateAttendeeBlock` for the name-required rule so name-only
- *     is valid and a blank name is rejected (`error.name_required`). To make
- *     that reuse observable here, the implementation must EXPORT
- *     `validateAttendeeBlock` (currently module-private in
- *     `attendee-form-model.ts`).
+ *   • reuses `validateAttendeeBlock` (exported from `attendee-form-model.ts`)
+ *     for the name-required rule so name-only is valid and a blank name is
+ *     rejected (`error.name_required`).
  *
- * Implementation contract (test-first):
- *   - `#routes/admin/servicing-form-model.ts` exports `buildServicingFieldSchema`,
+ * Modules under test:
+ *   - `#routes/admin/servicing-form-model.ts` — `buildServicingFieldSchema`,
  *     `parseServicingForm`, `toServicingCreateInput`, `normalizeServicingForSave`,
  *     `ServicingCreateInput`.
- *   - `#routes/admin/attendee-form-model.ts` must export `validateAttendeeBlock`
- *     (add `export` to the existing private const).
+ *   - `#routes/admin/attendee-form-model.ts` — the shared `validateAttendeeBlock`.
  */
 // jscpd:ignore-start
 import { expect } from "@std/expect";
@@ -41,6 +38,7 @@ import {
   parseServicingForm,
   toServicingCreateInput,
 } from "#routes/admin/servicing-form-model.ts";
+import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms.tsx";
 
@@ -120,7 +118,7 @@ describe("servicing §0 — parse servicing form maps to a kind='servicing' crea
     });
     const parsed = parseServicingForm(form, listingsById);
     const input = toServicingCreateInput(parsed);
-    expect(input.kind).toBe("servicing");
+    expect(input.kind).toBe(SERVICING_KIND);
     expect(input.name).toBe("Boiler Service");
     expect(input.bookings).toEqual([
       expect.objectContaining({
@@ -153,7 +151,7 @@ describe("servicing §0 — parse servicing form maps to a kind='servicing' crea
     });
     const parsed = parseServicingForm(form, listingsById);
     const normalised = normalizeServicingForSave(parsed);
-    expect(normalised.kind).toBe("servicing");
+    expect(normalised.kind).toBe(SERVICING_KIND);
     expect(normalised).not.toHaveProperty("email");
     expect(normalised).not.toHaveProperty("phone");
     expect(normalised).not.toHaveProperty("address");
@@ -213,18 +211,18 @@ describe("servicing §0 — servicing skips order/status/balance resolution", ()
     statusId: 3, // smuggled — must be ignored
   } as const;
 
-  test("no status is coerced (statusId is null regardless of parsed.statusId)", () => {
-    const out = normalizeServicingForSave(parsedShape as never);
-    // statusId must be null — a mutant that forwards parsed.statusId fails.
-    // (Returning a literal statusId field of null is one shape; not carrying
-    // the field at all is another — assert no live statusId leaks through.)
-    expect((out as Record<string, unknown>).statusId ?? null).toBeNull();
-  });
-
-  test("no balance notice is produced", () => {
-    const out = normalizeServicingForSave(parsedShape as never);
-    expect((out as Record<string, unknown>).balanceNotice ?? null).toBeNull();
-    expect((out as Record<string, unknown>).remainingBalance ?? 0).toBe(0);
+  test("the saved shape carries only name + bookings + kind — no customer fields", () => {
+    // The exact keys of the saved input: a mutant that forwards a smuggled
+    // statusId / remainingBalance / balanceNotice adds a key and fails here.
+    // (`?? null` on a missing key would hide that leak.)
+    const out = normalizeServicingForSave(parsedShape as never) as Record<
+      string,
+      unknown
+    >;
+    expect(Object.keys(out).sort()).toEqual(["bookings", "kind", "name"]);
+    expect(out).not.toHaveProperty("statusId");
+    expect(out).not.toHaveProperty("remainingBalance");
+    expect(out).not.toHaveProperty("balanceNotice");
   });
 
   test("quantity-0 sentinel lines are stripped from servicing saves (not passed to creation)", () => {

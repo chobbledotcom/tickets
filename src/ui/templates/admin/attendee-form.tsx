@@ -81,6 +81,8 @@ import {
   MaybeButtonLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { PriceInput } from "#templates/components/price-input.tsx";
+import { PHONE_INPUT_PATTERN } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /** One channel's contact record plus the URL-safe HMAC param that keys its
@@ -720,13 +722,10 @@ const StatusAndBalanceFields = ({
       )}
       <label for={REMAINING_BALANCE_FIELD}>
         Outstanding balance
-        <input
+        <PriceInput
           id={REMAINING_BALANCE_FIELD}
-          inputmode="decimal"
           min="0"
           name={REMAINING_BALANCE_FIELD}
-          step="0.01"
-          type="number"
           value={toMajorUnits(remainingBalance)}
         />
         <small>
@@ -804,7 +803,7 @@ const AttendeeEditForm = ({
           autocomplete="off"
           id="phone"
           name="phone"
-          pattern="[+\d][\d\s\-()]{5,}"
+          pattern={PHONE_INPUT_PATTERN}
           title="Phone number (digits, spaces, hyphens, parentheses, optional leading +)"
           type="text"
           value={data.parsed.phone || ""}

@@ -16,11 +16,7 @@ import {
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import {
-  formatCurrency,
-  parsePositiveMinorUnits,
-  toMajorUnits,
-} from "#shared/currency.ts";
+import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import {
   costBelongsToServicing,
@@ -38,6 +34,7 @@ import {
   updateServicingEvent,
 } from "#shared/db/attendees/servicing.ts";
 import { getAllListings } from "#shared/db/listings.ts";
+import { applyDemoOverrides, SERVICING_DEMO_FIELDS } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -47,10 +44,12 @@ import {
 } from "#shared/order-select.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { ListingWithCount } from "#shared/types.ts";
+import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
-import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { PriceInput } from "#templates/components/price-input.tsx";
+import { Layout } from "#templates/layout.tsx";
 
 const SERVICING_FORM_ID = "servicing-form";
 
@@ -110,36 +109,53 @@ const firstBookingDate = (
 const firstBookingDuration = (event: ServicingEvent | null): number =>
   event?.bookings.find((booking) => booking.durationDays)?.durationDays ?? 1;
 
-const listingRows = (
+/** The per-listing quantity to prefill: 0 by default, overridden by any prefill
+ *  selection, then by the event's existing booking for that listing. */
+const listingFormQuantities = (
   listings: ListingWithCount[],
   event: ServicingEvent | null,
-  { quantities }: ServicingPrefill,
-): string => {
-  const formQuantities = new Map<number, number>();
-  for (const listing of listings) {
-    formQuantities.set(listing.id, 0);
-  }
+  quantities: Map<number, number>,
+): Map<number, number> => {
+  const formQuantities = new Map<number, number>(
+    listings.map((listing) => [listing.id, 0]),
+  );
   for (const [listingId, quantity] of quantities) {
     formQuantities.set(listingId, quantity);
   }
   for (const booking of event?.bookings ?? []) {
     formQuantities.set(booking.listingId, booking.quantity!);
   }
-  let rows = "";
-  for (const listing of listings) {
-    const inactiveMarker = listing.active ? "" : " <em>(inactive)</em>";
-    rows += `<tr><td>${escapeHtml(listing.name)}${inactiveMarker}</td><td><input min="0" name="quantity_${listing.id}" type="number" value="${formQuantities.get(listing.id)!}"></td></tr>`;
-  }
-  return rows;
+  return formQuantities;
 };
 
-const costListingOptions = (listings: ListingWithCount[]): string =>
-  listings
-    .map(
-      (listing) =>
-        `<option value="${listing.id}">${escapeHtml(listing.name)}</option>`,
-    )
-    .join("");
+const listingRows = (
+  listings: ListingWithCount[],
+  event: ServicingEvent | null,
+  { quantities }: ServicingPrefill,
+) => {
+  const formQuantities = listingFormQuantities(listings, event, quantities);
+  return listings.map((listing) => (
+    <tr>
+      <td>
+        {listing.name}
+        {listing.active ? "" : <em> (inactive)</em>}
+      </td>
+      <td>
+        <input
+          min="0"
+          name={`quantity_${listing.id}`}
+          type="number"
+          value={String(formQuantities.get(listing.id)!)}
+        />
+      </td>
+    </tr>
+  ));
+};
+
+const costListingOptions = (listings: ListingWithCount[]) =>
+  listings.map((listing) => (
+    <option value={String(listing.id)}>{listing.name}</option>
+  ));
 
 const renderServicingPage = ({
   costs = [],
@@ -157,7 +173,6 @@ const renderServicingPage = ({
   session: AuthSession;
 }): string => {
   const title = event ? event.name : "New service event";
-  const rows = listingRows(listings, event, prefill);
   const listingNames = new Map(
     listings.map((listing) => [listing.id, listing.name]),
   );
@@ -190,9 +205,7 @@ const renderServicingPage = ({
                 <th>Quantity</th>
               </tr>
             </thead>
-            <tbody>
-              <Raw html={rows} />
-            </tbody>
+            <tbody>{listingRows(listings, event, prefill)}</tbody>
           </table>
         </div>
         <SubmitButton icon={event ? "save" : "plus"}>
@@ -217,7 +230,7 @@ const renderServicingPage = ({
             />
             <label>
               Amount
-              <input name="amount" step="0.01" type="number" />
+              <PriceInput name="amount" />
             </label>
             <label>
               Memo
@@ -226,7 +239,7 @@ const renderServicingPage = ({
             <label>
               Listing
               <select name="target_listing_id">
-                <Raw html={costListingOptions(listings)} />
+                {costListingOptions(listings)}
               </select>
             </label>
             <SubmitButton icon="plus">Record Cost</SubmitButton>
@@ -255,10 +268,8 @@ const renderServicingPage = ({
                         <CsrfForm
                           action={`/admin/servicing/${event.id}/cost/${cost.id}`}
                         >
-                          <input
+                          <PriceInput
                             name="amount"
-                            step="0.01"
-                            type="number"
                             value={toMajorUnits(cost.amount)}
                           />
                           <SubmitButton icon="save">Edit</SubmitButton>
@@ -279,23 +290,30 @@ const renderServicingPage = ({
 const serviceEventListRows = (
   events: Awaited<ReturnType<typeof getAllServicingEvents>>,
   listings: ListingWithCount[],
-): string => {
+) => {
   const listingNames = new Map(
     listings.map((listing) => [listing.id, listing.name]),
   );
-  let rows = "";
-  for (const event of events) {
-    // One row per service event: a multi-listing hold's listings are joined
-    // inside the Listing cell, and its quantity is the event total — not one
-    // row per booking line.
-    const date = event.date === null ? "" : formatDateLabel(event.date);
+  // One row per service event: a multi-listing hold's listings are joined
+  // inside the Listing cell, and its quantity is the event total — not one row
+  // per booking line. JSX escapes each cell (the listing names are joined raw,
+  // then escaped as one string — the comma separators carry no markup).
+  return events.map((event) => {
     const listingsCell = event.bookings
-      .map((booking) => escapeHtml(listingNames.get(booking.listingId) ?? ""))
+      .map((booking) => listingNames.get(booking.listingId) ?? "")
       .filter(Boolean)
       .join(", ");
-    rows += `<tr class="servicing-event" data-servicing="true"><td><a href="/admin/servicing/${event.id}">${escapeHtml(event.name)}</a></td><td>${date}</td><td>${listingsCell}</td><td>${event.totalQuantity}</td></tr>`;
-  }
-  return rows;
+    return (
+      <tr class="servicing-event" data-servicing="true">
+        <td>
+          <a href={`/admin/servicing/${event.id}`}>{event.name}</a>
+        </td>
+        <td>{event.date === null ? "" : formatDateLabel(event.date)}</td>
+        <td>{listingsCell}</td>
+        <td>{event.totalQuantity}</td>
+      </tr>
+    );
+  });
 };
 
 const renderServicingList = async (session: AuthSession): Promise<string> => {
@@ -324,8 +342,8 @@ const renderServicingList = async (session: AuthSession): Promise<string> => {
             </tr>
           </thead>
           <tbody>
-            {rows ? (
-              <Raw html={rows} />
+            {rows.length > 0 ? (
+              rows
             ) : (
               <tr>
                 <td colspan="4">No service events yet</td>
@@ -405,6 +423,11 @@ const handleServicingGet: TypedRouteHandler<"GET /admin/servicing/:id"> = (
   });
 
 const parseCreateInput = async (form: FormParams) => {
+  // In demo mode, swap the operator's submitted servicing name for a demo
+  // servicing reason before parsing — mirroring the attendee form's
+  // applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS). SERVICING_DEMO_FIELDS maps
+  // only `name` (to a job, not a person), and it's a no-op outside demo mode.
+  applyDemoOverrides(form, SERVICING_DEMO_FIELDS);
   const listings = await getAllListings();
   const parsed = parseServicingForm(form, listingsByIdMap(listings));
   return toServicingCreateInput(parsed);
@@ -438,14 +461,20 @@ const handleCostPost = async (
   const occurredAt = serviceDate
     ? `${serviceDate}T00:00:00.000Z`
     : new Date().toISOString();
-  await recordServiceCost({
-    amount,
-    listingId,
-    memo: form.getString("memo"),
-    occurredAt,
-    reference: form.getString("cost_idempotency_key") || undefined,
-    servicingId: id,
-  });
+  try {
+    await recordServiceCost({
+      amount,
+      listingId,
+      memo: form.getString("memo"),
+      occurredAt,
+      reference: form.getString("cost_idempotency_key") || undefined,
+      servicingId: id,
+    });
+  } catch (err) {
+    // A reused idempotency key whose payload changed (or any other recording
+    // failure) is a recoverable form error, not a 500.
+    return redirect(`/admin/servicing/${id}`, (err as Error).message, false);
+  }
   return redirect(
     `/admin/servicing/${id}`,
     `Recorded cost ${form.getString("amount")}`,

@@ -19,6 +19,8 @@ export interface AppServer {
   /** Local base URL, e.g. http://127.0.0.1:38123 */
   localBaseUrl: string;
   port: number;
+  /** Path to the app server's captured stdout/stderr log. */
+  logPath: string;
   stop: () => Promise<void>;
 }
 
@@ -96,6 +98,7 @@ export const startAppServer = async (): Promise<AppServer> => {
         return {
           localBaseUrl,
           port,
+          logPath,
           stop: () =>
             new Promise<void>((resolveP) => {
               child.once("exit", () => resolveP());

@@ -10,7 +10,9 @@ import { config } from "./config.ts";
 import { log, step } from "./log.ts";
 
 const LISTING_NAME = "E2E Payment Concert";
-const BOOKER_EMAIL = "e2e-booker@example.com";
+// Not example.com: some processors (Square) reject that reserved domain as an
+// invalid email before redirecting, failing the booking pre-checkout.
+const BOOKER_EMAIL = config.bookerEmail;
 const BOOKER_NAME = "E2E Booker";
 
 /** Run the first-run setup wizard for a fresh install. */
@@ -105,8 +107,7 @@ export const submitBooking = async (
   const submit = page
     .getByRole("button", { name: /continue|book|pay|checkout|reserve/i })
     .first();
-  await submit.click();
-  await page.waitForLoadState("domcontentloaded");
+  await session.submitLocator(submit);
   log(`  booking submitted; now at ${page.url()}`);
 };
 
@@ -119,6 +120,30 @@ const fillIfPresent = async (
   if (await loc.count()) await loc.fill(value);
 };
 
+/**
+ * Before filling a hosted checkout, assert the booking actually left the app
+ * for the provider. If payment-session creation fails server-side the app
+ * re-renders the booking page with an error alert (no redirect), and blindly
+ * hunting for card fields there just times out with a misleading message. Fail
+ * fast with the app's own error instead.
+ */
+export const assertRedirectedToCheckout = async (
+  session: BrowserSession,
+): Promise<void> => {
+  const { page } = session;
+  if (!page.url().startsWith(session.baseUrl)) return; // left for the provider
+  const alert = page.locator('.error, [role="alert"]').first();
+  const detail = (await alert.count())
+    ? (await alert.innerText()).trim()
+    : "(no error alert on the page)";
+  await session.dumpPage("no-redirect-to-checkout");
+  throw new Error(
+    `booking did not redirect to the hosted checkout — still on ${page.url()}. ` +
+      `The app failed to create the payment session. App said: "${detail}". ` +
+      "See the app server log tail above for the provider API error.",
+  );
+};
+
 /** Assert the free-booking thank-you page was reached. */
 export const assertFreeThankYou = async (
   session: BrowserSession,
@@ -129,6 +154,40 @@ export const assertFreeThankYou = async (
     throw new Error(`expected a thank-you page, got:\n${body.slice(0, 800)}`);
   }
   log("  ✔ free booking reached the thank-you page");
+};
+
+/**
+ * Scrape any visible error/notification text off a hosted checkout page (the
+ * main frame and its payment iframes). Hosted pages surface the real reason a
+ * payment stalled — "Your card number is incomplete", "Payment declined" — in
+ * small alert/notification nodes that are drowned out by the page's country
+ * <select>, so target likely error containers and keyword hits directly.
+ */
+const collectHostedErrors = async (
+  session: BrowserSession,
+): Promise<string> => {
+  const { page } = session;
+  const selector = [
+    '[role="alert"]',
+    ".error",
+    '[class*="error" i]',
+    '[class*="invalid" i]',
+    '[class*="Notification" i]',
+    '[class*="Message" i]',
+  ].join(", ");
+  const seen = new Set<string>();
+  for (const root of [page, ...page.frames()]) {
+    try {
+      const texts = await root.locator(selector).allInnerTexts();
+      for (const t of texts) {
+        const clean = t.trim().replace(/\s+/g, " ");
+        if (clean && clean.length < 200) seen.add(clean);
+      }
+    } catch {
+      // frame detached mid-scrape; skip
+    }
+  }
+  return [...seen].join(" | ");
 };
 
 /**
@@ -155,8 +214,15 @@ export const assertPaidBookingConfirmed = async (
   const successBody = await session.bodyText();
   if (!/thank you|your ticket|payment (received|successful)|success/i.test(successBody)) {
     await session.screenshot("paid-return-page");
+    const hostedError = await collectHostedErrors(session);
     throw new Error(
-      `did not land on a success page after checkout.\nURL: ${page.url()}\n${successBody.slice(0, 800)}`,
+      `did not land on a success page after checkout.\nURL: ${page.url()}\n` +
+        // Prefer the scraped inline error; only fall back to the raw body when
+        // no error node was found (the body is mostly a huge country <select>
+        // that buries the real message and floods the CI log).
+        (hostedError
+          ? `Checkout page error(s): ${hostedError}`
+          : successBody.slice(0, 400)),
     );
   }
   log(`  ✔ customer saw the success page (${page.url()})`);

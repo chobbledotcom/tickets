@@ -49,6 +49,12 @@ export const config = {
   adminUsername: env("ADMIN_USERNAME") ?? "admin",
   adminPassword: env("ADMIN_PASSWORD") ?? "password",
   /**
+   * Email used for the booking. NOT a reserved domain: `example.com` is
+   * rejected by some payment processors (Square returns "invalid email"), so
+   * default to a real, disposable-mail domain.
+   */
+  bookerEmail: env("E2E_BOOKER_EMAIL") ?? "e2e-booker@mailinator.com",
+  /**
    * ISO country picked in setup — determines the site currency. Must map to a
    * 2-decimal currency (GBP/USD/EUR, as the provider defaults do): the price
    * entry and paid-amount assertion assume minor units are hundredths, so a
@@ -67,7 +73,15 @@ export const config = {
   /** Timeouts (ms). Hosted checkout pages can be slow, so keep these generous. */
   serverBootTimeoutMs: num("E2E_SERVER_BOOT_TIMEOUT_MS", 60_000),
   tunnelTimeoutMs: num("E2E_TUNNEL_TIMEOUT_MS", 60_000),
+  /** How many times to (re)spawn cloudflared before giving up. trycloudflare
+   * quick tunnels intermittently fail to register, so retry rather than fail
+   * the whole leg on the first miss. */
+  tunnelAttempts: num("E2E_TUNNEL_ATTEMPTS", 3),
   navTimeoutMs: num("E2E_NAV_TIMEOUT_MS", 45_000),
+  /** Per-element action timeout. Kept short: with force interactions an element
+   * is acted on as soon as it is attached, so a long wait here only delays a
+   * genuine failure (and its screenshot). */
+  actionTimeoutMs: num("E2E_ACTION_TIMEOUT_MS", 15_000),
   paymentConfirmTimeoutMs: num("E2E_PAYMENT_CONFIRM_TIMEOUT_MS", 90_000),
 
   /** Force the tunnel on/off. Stripe always needs it; default follows target. */

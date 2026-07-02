@@ -18,7 +18,6 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { getAttendeeKindsByIds } from "#shared/db/attendees.ts";
 import { getAttendeesByListingIds } from "#shared/db/listings.ts";
 import {
@@ -92,10 +91,11 @@ describeWithEnv("servicing §8 — calendar, groups & feeds", { db: true }, () =
       name: "Group Service",
     });
     const rows = await getAttendeesByListingIds([a.id], true);
-    expect(
-      rows.every((r) => (r as { kind?: string }).kind !== SERVICING_KIND),
-    ).toBe(true);
-    expect(rows.length).toBe(0);
+    // The only booking on the listing is the servicing hold, and servicing is
+    // excluded from this reader — so no rows come back. Asserting the empty set
+    // directly; a `rows.every(kind !== SERVICING)` would be vacuously true on
+    // the empty array and prove nothing.
+    expect(rows).toEqual([]);
   });
 
   test("kind lookups return an empty map for an empty attendee id list", async () => {
