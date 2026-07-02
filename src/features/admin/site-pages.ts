@@ -37,7 +37,6 @@ import {
   swapPageItemOrder,
 } from "#shared/db/site-page-items.ts";
 import {
-  computeSitePageSlugIndex,
   createSitePage,
   getSitePageById,
   getSitePageNavRows,
@@ -57,11 +56,12 @@ import {
 } from "#shared/site-pages/core.ts";
 import type { Forest } from "#shared/site-pages/types.ts";
 import { normalizeSlug } from "#shared/slug.ts";
-import type {
-  AdminSession,
-  SitePage,
-  SitePageItemType,
-  SitePageNavRow,
+import {
+  type AdminSession,
+  isSitePageItemType,
+  type SitePage,
+  type SitePageItemType,
+  type SitePageNavRow,
 } from "#shared/types.ts";
 /* jscpd:ignore-end */
 import {
@@ -90,10 +90,6 @@ const offerableListing = (
 const LIST_PATH = "/admin/site/pages";
 const newPath = `${LIST_PATH}/new`;
 const editPath = (id: number): string => `${LIST_PATH}/${id}/edit`;
-
-const ITEM_TYPES: readonly SitePageItemType[] = ["listing", "group", "page"];
-const isItemType = (v: string): v is SitePageItemType =>
-  (ITEM_TYPES as readonly string[]).includes(v);
 
 // ─── Loaders ────────────────────────────────────────────────────
 
@@ -273,7 +269,9 @@ const pageGet = (
     ),
   );
 
-/** SITE_FORM POST handler keyed on `(:id, :itemType, :itemId)`. */
+/** SITE_FORM POST handler keyed on `(:id, :itemType, :itemId)`. The router's
+ * numeric-param rule has already turned `:id`/`:itemId` into numbers; only the
+ * `:itemType` segment needs validating here. */
 const itemPost =
   (
     handler: (ref: ItemRef, id: number, form: FormParams) => Promise<Response>,
@@ -282,10 +280,11 @@ const itemPost =
     request: Request,
     { id, itemType, itemId }: { id: number; itemType: string; itemId: number },
   ): Promise<Response> =>
-    withAuth(request, SITE_FORM, (_session, form) => {
-      const ref = parseItemRef(itemType, itemId);
-      return ref ? handler(ref, id, form) : notFoundResponse();
-    });
+    withAuth(request, SITE_FORM, (_session, form) =>
+      isSitePageItemType(itemType)
+        ? handler({ id: itemId, type: itemType }, id, form)
+        : notFoundResponse(),
+    );
 
 // ─── Page CRUD ──────────────────────────────────────────────────
 
@@ -307,10 +306,9 @@ const handleCreate = (request: Request): Promise<Response> =>
   withAuth(request, SITE_FORM, async (_session, form) => {
     const fields = await validateFields(form, newPath);
     if (!fields.ok) return fields.response;
-    const page = await createSitePage({
-      ...contentFields(form, fields.name, fields.slug),
-      slugIndex: await computeSitePageSlugIndex(fields.slug),
-    });
+    const page = await createSitePage(
+      contentFields(form, fields.name, fields.slug),
+    );
     await logActivity(`Page '${fields.name}' created`);
     return redirect(editPath(page.id), t("site.pages.created"), true);
   });
@@ -318,11 +316,7 @@ const handleCreate = (request: Request): Promise<Response> =>
 const handleUpdate = pagePost(async (page, form) => {
   const fields = await validateFields(form, editPath(page.id), page.id);
   if (!fields.ok) return fields.response;
-  await updateSitePage(page.id, {
-    ...contentFields(form, fields.name, fields.slug),
-    // Recompute the blind index so a renamed slug stays findable/reservable.
-    slugIndex: await computeSitePageSlugIndex(fields.slug),
-  });
+  await updateSitePage(page.id, contentFields(form, fields.name, fields.slug));
   await logActivity(`Page '${fields.name}' updated`);
   return redirect(editPath(page.id), t("site.pages.updated"), true);
 });
@@ -400,7 +394,7 @@ const isEligibleTarget = async (
 const handleAddItem = pagePost(async (page, form) => {
   const type = form.getString("item_type");
   const itemId = form.getOptionalInt("item_id");
-  if (!isItemType(type) || itemId === null) {
+  if (!isSitePageItemType(type) || itemId === null) {
     return errorRedirect(editPath(page.id), t("site.pages.error.invalid_item"));
   }
   // Never trust the submitted select: re-check eligibility server-side, then let
@@ -415,13 +409,6 @@ const handleAddItem = pagePost(async (page, form) => {
   await logActivity(`Item added to page '${page.name}'`);
   return redirect(editPath(page.id), t("site.pages.item_added"), true);
 });
-
-/** Parse the `(itemType, itemId)` route params into a validated {@link ItemRef}. */
-const parseItemRef = (itemType: unknown, itemId: unknown): ItemRef | null => {
-  const type = String(itemType);
-  const id = Number(itemId);
-  return isItemType(type) && Number.isInteger(id) ? { id, type } : null;
-};
 
 const handleRemoveItem = itemPost((ref, id) =>
   loadPageOr404(id, async (page) => {

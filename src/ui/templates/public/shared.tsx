@@ -4,8 +4,7 @@ import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
-import { parseTargetKey } from "#shared/site-pages/core.ts";
-import type { NavModel, NavNode } from "#shared/site-pages/types.ts";
+import type { NavLevel, NavModel, NavNode } from "#shared/site-pages/types.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import {
   dayPriceFor,
@@ -40,19 +39,18 @@ export const NodeLink = ({ node }: { node: NavNode }): JSX.Element =>
 
 /** Desktop: the submenu levels nested recursively — level `depth` renders
  * beneath the active node of the level above (the next page on the active
- * chain), indenting one step per level like the admin sub-nav. An empty level
- * (the current page has no items) renders nothing: a `<ul>` with no `<li>`
- * children is invalid markup. */
+ * chain), indenting one step per level like the admin sub-nav. The model
+ * never carries an empty level, so every rendered `<ul>` has children. */
 const DesktopLevels = ({
   levels,
   depth,
 }: {
-  levels: readonly (readonly NavNode[])[];
+  levels: readonly NavLevel[];
   depth: number;
 }): JSX.Element | null =>
-  depth >= levels.length || levels[depth]!.length === 0 ? null : (
+  depth >= levels.length ? null : (
     <ul class="admin-subnav">
-      {levels[depth]!.map((node) => (
+      {levels[depth]!.nodes.map((node) => (
         <li>
           <NodeLink node={node} />
           {node.active && <DesktopLevels depth={depth + 1} levels={levels} />}
@@ -106,38 +104,25 @@ const rootItems = (
 ];
 
 /** Mobile: the root bar, then one bar per active-chain level (root-first),
- * each named after the page whose children it lists. */
-const MobilePublicNav = (props: PublicNavProps): JSX.Element => {
-  const bars = [
-    mobileNavBar(
+ * each carrying its page's name as the bar's accessible label. */
+const MobilePublicNav = (props: PublicNavProps): JSX.Element => (
+  <>
+    {mobileNavBar(
       t("nav.public.main"),
       rootItems(props, () => null),
-    ),
-  ];
-  // Level 0 lists the active root's children; the chain page continuing into
-  // level i+1 is the active *page* node within level i. An empty level (the
-  // current page has no items — only ever the deepest, since every level
-  // above holds the next chain page) gets no bar: screen readers would
-  // announce an empty navigation landmark.
-  let parent = props.pages.rootPageNodes.find((n) => n.active);
-  for (const level of props.pages.submenuLevels) {
-    if (level.length === 0) continue;
-    bars.push(
+    )}
+    {props.pages.submenuLevels.map((level) =>
       mobileNavBar(
-        parent!.label,
-        level.map((node) => (
+        level.label,
+        level.nodes.map((node) => (
           <li>
             <NodeLink node={node} />
           </li>
         )),
       ),
-    );
-    parent =
-      level.find((n) => n.active && parseTargetKey(n.key).type === "page") ??
-      parent;
-  }
-  return <>{bars}</>;
-};
+    )}
+  </>
+);
 
 /**
  * Public site navigation: the fixed links (Home, Listings, Order/Terms/Contact

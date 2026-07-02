@@ -22,10 +22,9 @@ export const sitePagePage = (
   nav: PublicNavProps,
   websiteTitle?: string | null,
 ): string => {
-  // The deepest submenu level is this page's own children (N7). The chain
-  // normally anchors on the page itself; if a concurrent delete raced the nav
-  // reads the model may no longer contain it — render no items, not a crash.
-  const items: readonly NavNode[] = nav.pages.submenuLevels.at(-1) ?? [];
+  // The page's own items, straight off the model (empty when a concurrent
+  // delete raced the nav reads and the page is no longer on the tree).
+  const items: readonly NavNode[] = nav.pages.currentChildren;
   const base = page.meta_title || page.name;
   const title = websiteTitle ? `${base} - ${websiteTitle}` : base;
   const metaTag = page.meta_description

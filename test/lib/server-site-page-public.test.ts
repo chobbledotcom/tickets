@@ -5,11 +5,6 @@ import { setChildIds } from "#shared/db/listing-parents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { addPageItem } from "#shared/db/site-page-items.ts";
 import {
-  computeSitePageSlugIndex,
-  createSitePage,
-} from "#shared/db/site-pages.ts";
-import type { SitePage } from "#shared/types.ts";
-import {
   assertPublicHtml,
   createTestGroup,
   createTestListing,
@@ -17,24 +12,9 @@ import {
   describeWithEnv,
   expectRedirect,
   expectStatus,
+  createTestSitePage as makePage,
   mockRequest,
 } from "#test-utils";
-
-/** Create a page directly (the admin flow is covered elsewhere). */
-const makePage = async (
-  slug: string,
-  extra: Partial<
-    Pick<SitePage, "content" | "meta_description" | "meta_title">
-  > = {},
-): Promise<SitePage> =>
-  createSitePage({
-    content: extra.content ?? "",
-    metaDescription: extra.meta_description ?? "",
-    metaTitle: extra.meta_title ?? "",
-    name: `Page ${slug}`,
-    slug,
-    slugIndex: await computeSitePageSlugIndex(slug),
-  });
 
 const enablePublicSite = (): void => {
   beforeEach(async () => {
@@ -71,8 +51,8 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
     test("renders the name, markdown content, and SEO meta", async () => {
       await makePage("about-us", {
         content: "Hello **world**",
-        meta_description: 'We sell "things" & fun',
-        meta_title: "About | Acme",
+        metaDescription: 'We sell "things" & fun',
+        metaTitle: "About | Acme",
       });
       const html = await assertPublicHtml("/page/about-us");
       expect(html).toContain("<h1>Page about-us</h1>");

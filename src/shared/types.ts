@@ -524,9 +524,16 @@ export interface Group {
   terms_and_conditions: string;
 }
 
+/** Schema for the kind of thing a {@link SitePageItem} points at. */
+export const SitePageItemTypeSchema = v.picklist(["listing", "group", "page"]);
+
 /** The kind of thing a {@link SitePageItem} points at. Exhaustive union — a new
  * member is a compile error at every `Record<SitePageItemType, …>` dispatch. */
-export type SitePageItemType = "listing" | "group" | "page";
+export type SitePageItemType = v.InferOutput<typeof SitePageItemTypeSchema>;
+
+/** Type guard: is this string a valid {@link SitePageItemType}? */
+export const isSitePageItemType = (s: string): s is SitePageItemType =>
+  v.is(SitePageItemTypeSchema, s);
 
 /** A user-created content page. All free-text columns are stored encrypted;
  * `slug_index` is the plaintext HMAC blind index, `sort_order` positions the

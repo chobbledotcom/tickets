@@ -128,10 +128,14 @@ export const isSitePageSlugTaken = (
     excludeId ? { id: excludeId, table: "site_pages" } : undefined,
   );
 
-/** A create provides every column (no DB-side defaults), so the created row can
- * be returned as constructed — without a post-commit read-back that could see
- * replica lag on remote libsql. */
-type SitePageCreateInput = Omit<Required<SitePageInput>, "sortOrder">;
+/** A create/update provides every editable column; the blind index is computed
+ * HERE from the slug (never caller-supplied), so `slug` and `slug_index` move
+ * together by construction — a drifted index would break lookups and the
+ * cross-table uniqueness check, both of which key on `slug_index`. */
+export type SitePageWriteInput = Omit<
+  Required<SitePageInput>,
+  "sortOrder" | "slugIndex"
+>;
 
 /** Create a page, appending it to the end of the root ordering. A new page is
  * always a root (no edges yet). The trailing `sort_order` (max + 1) is read and
@@ -141,8 +145,9 @@ type SitePageCreateInput = Omit<Required<SitePageInput>, "sortOrder">;
  * reorder swap a no-op, leaving the pages unreorderable). The returned row is
  * built from the input + the assigned id/order, never read back. */
 export const createSitePage = async (
-  input: SitePageCreateInput,
+  input: SitePageWriteInput,
 ): Promise<SitePage> => {
+  const slugIndex = await computeSitePageSlugIndex(input.slug);
   const { id, sortOrder } = await withTransaction(async (tx) => {
     const res = await tx.execute({
       args: [],
@@ -151,6 +156,7 @@ export const createSitePage = async (
     const nextOrder = Number(resultRows<{ next: number }>(res)[0]!.next);
     const stmt = await rawSitePagesTable.insertStatement!({
       ...input,
+      slugIndex,
       sortOrder: nextOrder,
     });
     const result = await tx.execute(stmt);
@@ -163,18 +169,22 @@ export const createSitePage = async (
     meta_title: input.metaTitle,
     name: input.name,
     slug: input.slug,
-    slug_index: input.slugIndex,
+    slug_index: slugIndex,
     sort_order: sortOrder,
   };
 };
 
-/** Update a page's editable fields (all but id/sort_order). The caller passes a
- * freshly computed `slugIndex` alongside the slug so the blind index never drifts
- * from the encrypted slug (lookups + cross-table uniqueness key on slug_index). */
-export const updateSitePage = (
+/** Update a page's editable fields (all but id/sort_order) — every field, every
+ * time (the edit form posts them all), with the blind index recomputed from the
+ * slug here so a renamed slug stays findable/reservable. */
+export const updateSitePage = async (
   id: number,
-  input: Partial<Omit<SitePageInput, "sortOrder">>,
-): Promise<SitePage | null> => sitePagesTable.update(id, input);
+  input: SitePageWriteInput,
+): Promise<SitePage | null> =>
+  sitePagesTable.update(id, {
+    ...input,
+    slugIndex: await computeSitePageSlugIndex(input.slug),
+  });
 
 /** Swap the `sort_order` of two root pages (the move-up/down apply step). */
 export const swapSitePageOrder = (id1: number, id2: number): Promise<void> =>

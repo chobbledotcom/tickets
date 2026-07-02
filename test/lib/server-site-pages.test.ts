@@ -343,7 +343,6 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         metaTitle: "",
         name: "",
         slug: "blank-page",
-        slugIndex: await computeSitePageSlugIndex("blank-page"),
       });
       await addPageItem(page.id, "listing", listing.id);
       await addPageItem(page.id, "group", group.id);

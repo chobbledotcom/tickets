@@ -239,9 +239,13 @@ describe("site-pages core", () => {
       );
       const targets: TargetMap = new Map([leafTarget("listing", 10)]); // no group:20
       const model = buildNavModel(forest, targets, "page:1");
-      const level = model.submenuLevels[0] ?? [];
+      const level = model.submenuLevels[0]?.nodes ?? [];
       expect(level.map((n) => n.key)).toEqual(["listing:10"]); // group dropped
       expect(level[0]?.href).toBe("/ticket/listing-10");
+      // The level is labelled by the page whose items it lists, and a page
+      // current's own items surface as currentChildren (the /page item list).
+      expect(model.submenuLevels[0]?.label).toBe("page-1");
+      expect(model.currentChildren).toEqual(level);
     });
 
     test("highlights only the chosen-path occurrence of a multi-parent leaf", () => {
@@ -261,15 +265,22 @@ describe("site-pages core", () => {
       expect(model.activeRootId).toBe(1);
       expect(model.submenuLevels).toHaveLength(2);
 
-      const level0 = model.submenuLevels[0] ?? [];
+      const level0 = model.submenuLevels[0]?.nodes ?? [];
       const pNode = level0.find((n) => n.key === "page:2");
       const leafUnderR = level0.find((n) => n.key === "listing:10");
       expect(pNode?.active).toBe(true); // chain continues through P
       expect(leafUnderR?.active).toBe(false); // NOT the chosen occurrence
 
-      const level1 = model.submenuLevels[1] ?? [];
+      const level1 = model.submenuLevels[1]?.nodes ?? [];
       const leafUnderP = level1.find((n) => n.key === "listing:10");
       expect(leafUnderP?.active).toBe(true); // the chosen occurrence
+      // Each level is labelled by its page, root-first.
+      expect(model.submenuLevels.map((l) => l.label)).toEqual([
+        "page-1",
+        "page-2",
+      ]);
+      // A LEAF current has no children of its own to list.
+      expect(model.currentChildren).toEqual([]);
     });
 
     test("multi-parent leaf tie-breaks by edge sort_order, then page id (N6)", () => {
@@ -317,24 +328,31 @@ describe("site-pages core", () => {
       );
       // One level (page 1's own items): the child page 2, not active.
       expect(model.submenuLevels).toHaveLength(1);
-      expect(model.submenuLevels[0]?.[0]?.key).toBe("page:2");
-      expect(model.submenuLevels[0]?.[0]?.active).toBe(false);
+      expect(model.submenuLevels[0]?.nodes[0]?.key).toBe("page:2");
+      expect(model.submenuLevels[0]?.nodes[0]?.active).toBe(false);
       // Page nodes are always live (both the root row and the nested node).
       expect(model.rootPageNodes[0]?.live).toBe(true);
-      expect(model.submenuLevels[0]?.[0]?.live).toBe(true);
+      expect(model.submenuLevels[0]?.nodes[0]?.live).toBe(true);
+      // The current page's items double as its rendered children list.
+      expect(model.currentChildren.map((n) => n.key)).toEqual(["page:2"]);
     });
 
     test("a page item pointing at a missing page is dropped", () => {
       const forest = buildForest([page(1)], [edge(1, "page", 99, 0)]);
       const model = buildNavModel(forest, new Map(), "page:1");
-      expect(model.submenuLevels[0]).toEqual([]);
+      // Its level ends up item-less, so the model omits it entirely.
+      expect(model.submenuLevels).toEqual([]);
+      expect(model.currentChildren).toEqual([]);
     });
 
-    test("a childless root page as current yields one empty submenu level", () => {
+    test("a childless root page as current yields no submenu levels", () => {
+      // An empty <ul>/nav bar is invalid markup, so the model never carries
+      // an item-less level — the templates render exactly what they receive.
       const forest = buildForest([page(1)], []);
       const model = buildNavModel(forest, new Map(), "page:1");
       expect(model.activeRootId).toBe(1);
-      expect(model.submenuLevels).toEqual([[]]);
+      expect(model.submenuLevels).toEqual([]);
+      expect(model.currentChildren).toEqual([]);
     });
 
     test("a current page id that doesn't exist is off-tree", () => {

@@ -15,6 +15,7 @@
  * QR). Page targets are always live.
  */
 
+import { filter, map, pipe, unique } from "#fp";
 import {
   getActiveListingsByGroupIds,
   getGroupLinkRows,
@@ -42,9 +43,12 @@ import { classifyForDiscovery } from "./discovery.ts";
 const leafIds = (
   items: readonly SitePageItem[],
   type: SitePageItemType,
-): number[] => [
-  ...new Set(items.filter((i) => i.item_type === type).map((i) => i.item_id)),
-];
+): number[] =>
+  pipe(
+    filter((i: SitePageItem) => i.item_type === type),
+    map((i: SitePageItem) => i.item_id),
+    unique,
+  )([...items]);
 
 /** Resolve every referenced listing/group to its presentation + liveness. */
 const resolveTargets = async (

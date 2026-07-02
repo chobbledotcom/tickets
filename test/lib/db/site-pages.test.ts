@@ -103,7 +103,6 @@ describeWithEnv("db > site-pages", { db: true }, () => {
             metaTitle: "",
             name: `Name ${slug}`,
             slug,
-            slugIndex: await computeSitePageSlugIndex(slug),
           })
         ).sort_order;
       const orders = [await make("o-a"), await make("o-b"), await make("o-c")];
@@ -127,7 +126,6 @@ describeWithEnv("db > site-pages", { db: true }, () => {
           metaTitle: "Meta",
           name: "Fresh",
           slug: "fresh-cache",
-          slugIndex: await computeSitePageSlugIndex("fresh-cache"),
         });
         const slugs = (await getSitePageNavRows()).map((r) => r.slug);
         expect(slugs).toContain("fresh-cache");

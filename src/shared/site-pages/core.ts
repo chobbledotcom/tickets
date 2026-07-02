@@ -327,11 +327,25 @@ export const buildNavModel = (
       .filter((n): n is NavNode => n !== null);
   };
 
+  // Each chain page yields one labelled level; an item-less level (only ever
+  // the deepest — every level above holds the next chain page) is dropped:
+  // there is nothing to render, and an empty <ul>/nav bar is invalid markup.
+  const rawLevels = chain.map((pageId, i) => ({
+    label: forest.byId.get(pageId)!.name,
+    nodes: levelOf(pageId, i),
+  }));
+
   return {
     activeRootId,
+    // A page current's own items are the deepest level's nodes (N7); a leaf
+    // current's deepest level lists its siblings, which are not children.
+    currentChildren:
+      currentIsLeaf || rawLevels.length === 0
+        ? []
+        : rawLevels[rawLevels.length - 1]!.nodes,
     rootPageNodes: forest.rootIds
       .map((id) => pageNode(id, id === activeRootId))
       .filter((n): n is NavNode => n !== null),
-    submenuLevels: chain.map(levelOf),
+    submenuLevels: rawLevels.filter((level) => level.nodes.length > 0),
   };
 };
