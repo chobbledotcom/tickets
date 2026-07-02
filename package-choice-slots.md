@@ -75,12 +75,26 @@ the package `OVERRIDE` (top-level wins) while each chosen candidate folds at its
 £0 candidates is a pure chooser; a candidate with a positive `unit_price` is a
 "+£5 supplement"; the slot's `package_price` charges per pick.
 
-### 4. Persistence and display already hold
+### 4. Persistence and display hold — for disjoint candidate sets
 
 The fold emits one `ChildAllocation` per (candidate, slot) and one persisted
 row per allocation; the slot (parent) row is booked as its own row — exactly
 the "keep parent rows" invariant. Every row carries `package_group_id`, so the
 existing package ticket-card/email grouping applies unchanged.
+
+**Caveat: this holds only while each chosen candidate appears under one slot.**
+A candidate shared by two slots folds to ONE summed child line but TWO
+allocations; the paid webhook's `expandChildAllocations` then produces more
+booking rows than `intent.items`, and `processPaidBooking` maps created
+attendees back to listings **by index** (`validatedItems[i]!`,
+`src/features/api/payment-processing.ts`) — a mismatch that can crash or
+mis-label rows after payment. The unique `(listing_id, attendee_id, start_at)`
+row index also folds multi-parent children into one row today, documented as a
+"rare multi-parent corner" (`src/shared/db/attendees/order-parents.ts`) —
+overlapping slots would make that corner mainstream. Phase A therefore
+**requires a package's slot candidate sets to be pairwise disjoint** (enforced
+by the shared predicate, section A); lifting that means fixing the paid-path
+entry mapping first (phase B).
 
 ### 5. Webhook revalidation already covers it
 
@@ -114,6 +128,10 @@ JSON API; the single-listing duplicate and group bulk-duplicate paths).
   listing is non-standalone precisely because it is sold under its parent, so
   admitting it as a package member would sell it directly and bypass that
   gate.
+- **Candidate sets of a package's slot members must be pairwise disjoint**
+  (phase A): a candidate under two slots folds to one summed line with two
+  allocations, which the paid path's index-based attendee↔listing mapping and
+  the unique row index cannot represent (see the caveat under "Persistence").
 - Removing/adding a child edge on a listing that is a package member re-runs
   the same predicate (the children form and API already call
   `packageChildEdgeConflict`; it becomes this predicate).
@@ -206,6 +224,23 @@ message. Per `booking-unification.md`, also add limit tests asserting a
 multi-slot, multi-pick package stays within Square's entry-count/value-length
 caps.
 
+### G. No standalone booking of a slot listing
+
+Marking a slot listing `hidden` only removes it from discovery — the
+explicit-slug entry points still resolve active hidden listings: a parent is a
+valid `/ticket/<slug>` entry that folds its children, `withActiveListings`
+404s only children and hidden-package members, and the JSON API's
+`findActiveListing` resolves it too. A £0 (or price-divided) chooser parent
+could therefore be bought outside the package, bypassing the fixed members and
+the package pricing. Fix at the shared gate: extend
+`lacksStandalonePublicPage` (`src/features/public/ticket-payment.ts`) — child
+OR hidden-package member OR **package member with child edges** — and apply
+the same predicate in `withActiveListings`, the JSON API lookup, and QR
+issuance. Admin public-URL/QR/embed affordances already route through
+`lacksStandalonePublicPage`, so they gate automatically ("never render a dead
+or forbidden link"). Ordinary (childless) package members stay
+standalone-bookable at their own price — existing, deliberate behaviour.
+
 ## Semantics (accepted, to document)
 
 - **Exact-sum.** "Must select N" — matches the ask. Optional slots ("up to N")
@@ -241,9 +276,10 @@ caps.
 3. **Admin-UX-only objection to the chosen model** — "operators must create a
    fake listing per slot" — is real but belongs in the UI layer, not storage:
    a follow-up "add choice slot" affordance on the group edit page can mint
-   the parent listing + child edges in one step. Slot listings can be marked
-   `hidden` to stay out of standalone discovery (children/parents already have
-   standalone-page gating).
+   the parent listing + child edges in one step. Slot listings are kept off
+   every standalone surface by the extended `lacksStandalonePublicPage` gate
+   (section G) — `hidden` alone is not enough, since direct `/ticket/<slug>`
+   and the JSON API resolve active hidden listings.
 
 ## Test matrix (beyond 100% coverage)
 
@@ -251,7 +287,8 @@ caps.
   edit/add-listings, listing save, children form, JSON API, both duplicate
   paths); pay-more/daily/nested/package-member candidates rejected from each;
   a listing that is itself a **child** under another parent rejected as a
-  member; hidden-package × slot rejected both directions.
+  member; two slots of one package sharing a candidate rejected;
+  hidden-package × slot rejected both directions.
 - **Fold:** pick-counts enforced exactly at `packageQty ∈ {1, 2}` ×
   `pickCount ∈ {1, 2}` (regression on a doubled/missing multiplier); mixed
   picks across candidates; repeat picks; tampered candidate ids rejected.
@@ -269,6 +306,9 @@ caps.
   allocations persist one row per (candidate, slot) with `package_group_id`.
 - **Display/privacy:** package ticket card groups slot + chosen candidates;
   no surface names a candidate of a (rejected) hidden configuration.
+- **Standalone bypass:** a slot listing 404s on direct `/ticket/<slug>`, the
+  JSON API lookup, and QR issuance — even when active and non-hidden — and
+  admin URL/QR/embed affordances render no link for it.
 - **Metadata budget:** a 3-slot, multi-pick package within provider caps; an
   over-cap `allocations` blob surfaces the batching `PaymentUserError`, not a
   provider rejection.
