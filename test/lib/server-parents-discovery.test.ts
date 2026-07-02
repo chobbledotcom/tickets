@@ -21,14 +21,9 @@ import {
   describeWithEnv,
   makeParent,
   mockRequest,
+  publicBody,
+  ticketPageStatus,
 } from "#test-utils";
-
-/** Fetch a public page body with the public site enabled. */
-const publicBody = async (path: string): Promise<string> => {
-  await settings.update.showPublicSite(true);
-  const response = await handleRequest(mockRequest(path));
-  return response.text();
-};
 
 /** Fetch the gallery body with the public site + order page enabled. */
 const galleryBody = async (): Promise<string> => {
@@ -237,12 +232,7 @@ describeWithEnv(
         // advertised-as-unavailable child must not be standalone-bookable (Fix 1).
         const { parent, child } = await makeDefaultParentChild();
         await deactivateTestListing(parent.id);
-        await settings.update.showPublicSite(true);
-        const response = await handleRequest(
-          mockRequest(`/ticket/${child.slug}`),
-        );
-        response.body?.cancel();
-        expect(response.status).toBe(404);
+        expect(await ticketPageStatus(child.slug)).toBe(404);
       });
 
       test("a child with a bookable parent shows the add-on note", async () => {

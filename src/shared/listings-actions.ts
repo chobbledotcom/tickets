@@ -254,48 +254,61 @@ const orphanedAddOnAfterChange = async (
  * Callers only invoke this for DEACTIVATION — activating or leaving a listing
  * active can only ADD reachable pages, never orphan an add-on.
  */
-export const deactivationOrphanedAddOnError = async (
-  inactiveIds: ReadonlySet<number>,
+/**
+ * Run the shared child-scoped-add-on reachability over a would-be listing set:
+ * apply `override` (a save's inactive/group-move state) to the in-memory
+ * listings, then treat `forceSuppressed` ids as non-standalone children even
+ * when the DB still reads them otherwise (a just-cleared `bookable_alone` flag,
+ * which the pending save hasn't committed yet). Being in the suppressed set also
+ * drops those ids from the reachable pages. Returns the first orphaned add-on's
+ * error, or null. Shared by the deactivation and false-transition guards so
+ * their reachability computation can't drift.
+ */
+const orphanedAddOnOverWouldBe = async (
+  override: (listing: ListingWithCount) => Partial<ListingGroupMembership>,
+  forceSuppressed: readonly number[] = [],
 ): Promise<string | null> => {
+  const wouldBe = await listingsWithGroups(override);
+  const childIds = await getNonStandaloneChildIds(wouldBe.map((l) => l.id));
+  for (const id of forceSuppressed) childIds.add(id);
+  return firstChildUnreachableAddOnForListings(wouldBe, childIds);
+};
+
+export const deactivationOrphanedAddOnError = (
+  inactiveIds: ReadonlySet<number>,
+): Promise<string | null> =>
   // Apply the would-be inactive state of every target listing to the in-memory set.
-  const wouldBe = await listingsWithGroups((listing) =>
+  orphanedAddOnOverWouldBe((listing) =>
     inactiveIds.has(listing.id) ? { active: false } : {},
   );
-  const childIds = await getNonStandaloneChildIds(wouldBe.map((l) => l.id));
-  return firstChildUnreachableAddOnForListings(wouldBe, childIds);
-};
-
-const deactivationOrphanedAddOn = async (
-  input: ListingInput,
-  existingId: number,
-): Promise<string | null> => {
-  if (input.active !== false) return null;
-  return deactivationOrphanedAddOnError(new Set([existingId]));
-};
 
 /**
- * Clearing `bookable_alone` (true → false) strips a child's own booking page, so
- * an opt-in add-on that ONLY that page kept reachable becomes a dead end — the
- * same orphaning a deactivation causes, which is why the false transition must
- * re-run the shared reachability guard (parents.md, the two-sided add-on
- * reachability note). The DB still reads the child flagged at validation time, so
- * the just-cleared child is forced into the suppressed (non-standalone) set by
- * hand; being suppressed also drops it from the reachable pages. No-op unless the
- * flag is actually transitioning true → false AND the listing is a child (the
- * flag is inert for a listing with no parents).
+ * Re-check add-on reachability when a listing save STRIPS a page that could
+ * rescue a child-scoped opt-in add-on: a DEACTIVATION (`active` → false), or
+ * clearing `bookable_alone` on a child (true → false), which removes the child's
+ * own booking page. Both leave an add-on that only that page kept reachable a
+ * dead end, so both re-run the shared reachability guard over the would-be
+ * listing set (parents.md, the two-sided add-on reachability note). The
+ * false-transition path forces the just-cleared child into the suppressed set by
+ * hand, since the DB still reads it flagged at validation time; it is inert
+ * unless the flag really transitions true → false for a listing that is a child.
  */
-const clearedBookableAloneOrphanedAddOn = async (
+const strippedPageOrphanedAddOn = async (
   input: ListingInput,
   existingId: number,
 ): Promise<string | null> => {
-  if (input.bookableAlone !== false) return null;
-  const existing = await getListingWithCount(existingId);
-  if (!existing?.bookable_alone) return null;
-  if ((await getParentIds(existingId)).length === 0) return null;
-  const wouldBe = await listingsWithGroups(() => ({}));
-  const childIds = await getNonStandaloneChildIds(wouldBe.map((l) => l.id));
-  childIds.add(existingId);
-  return firstChildUnreachableAddOnForListings(wouldBe, childIds);
+  if (input.active === false) {
+    const error = await deactivationOrphanedAddOnError(new Set([existingId]));
+    if (error) return error;
+  }
+  if (input.bookableAlone === false) {
+    const existing = await getListingWithCount(existingId);
+    const isChild = (await getParentIds(existingId)).length > 0;
+    if (existing?.bookable_alone && isChild) {
+      return orphanedAddOnOverWouldBe(() => ({}), [existingId]);
+    }
+  }
+  return null;
 };
 
 /**
@@ -319,9 +332,7 @@ const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
     input.groupIds ?? [],
   );
   if (orphanError) return orphanError;
-  const deactivationError = await deactivationOrphanedAddOn(input, existingId);
-  if (deactivationError) return deactivationError;
-  return clearedBookableAloneOrphanedAddOn(input, existingId);
+  return strippedPageOrphanedAddOn(input, existingId);
 };
 
 /** Validate listing input (slug uniqueness on update, group, max price, listing type) */

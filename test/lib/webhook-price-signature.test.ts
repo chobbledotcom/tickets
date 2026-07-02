@@ -1124,4 +1124,59 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       },
     );
   });
+
+  test("a standalone session for a child whose bookable_alone was cleared is refunded, not booked", async () => {
+    await setupStripe();
+    // The child was `bookable_alone` when the buyer opened a STANDALONE checkout
+    // for it; the operator then cleared the flag. The parent/child EDGE is
+    // unchanged (so orderEdgeDrifted still passes), but the child now has no
+    // standalone page — completing it would book a leaking ticket whose
+    // /ticket/<slug> 404s. The stale-non-standalone-child guard must fail it
+    // closed to a stored refund. Isolates that guard from orderEdgeDrifted.
+    const parent = await createTestListing({ name: "Picker" });
+    const child = await createTestListing({
+      bookableAlone: true,
+      maxAttendees: 50,
+      name: "Solo Widget",
+      unitPrice: 1000,
+    });
+    await setChildIds(parent.id, [child.id]);
+    await listingsTable.update(child.id, { bookableAlone: false });
+    await runWebhook(
+      {
+        amount_total: 1000,
+        id: "cs_stale_bookable_alone",
+        metadata: signedMeta(1000, { items: singleItem(child.id, 1, 1000) }),
+      },
+      async (refund) => {
+        await expectStoredRefund(child.id);
+        expect(refund.calls.length).toBe(1);
+      },
+    );
+  });
+
+  test("a standalone session for a still-bookable_alone child completes normally", async () => {
+    await setupStripe();
+    // The contrast: the flag is STILL set, so the standalone child books
+    // normally — the guard must not fire on a flag that never changed.
+    const parent = await createTestListing({ name: "Picker" });
+    const child = await createTestListing({
+      bookableAlone: true,
+      maxAttendees: 50,
+      name: "Solo Widget",
+      unitPrice: 1000,
+    });
+    await setChildIds(parent.id, [child.id]);
+    await runWebhook(
+      {
+        amount_total: 1000,
+        id: "cs_live_bookable_alone",
+        metadata: signedMeta(1000, { items: singleItem(child.id, 1, 1000) }),
+      },
+      async (refund) => {
+        await expectProcessed(child.id);
+        expect(refund.calls.length).toBe(0);
+      },
+    );
+  });
 });
