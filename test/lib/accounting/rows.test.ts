@@ -98,4 +98,21 @@ describe("accounting > rows > stored-row round-trip", () => {
     expect(first!.reversesId).toBeUndefined();
     expect(second!.reversesId).toBe(999);
   });
+
+  test("a kindless leg stores as '' and reads back with kind omitted", async () => {
+    const kindless: TransferInput = {
+      amount: 100,
+      destination: account("revenue", 7),
+      eventGroup: "evt-kindless",
+      occurredAt: "2026-06-21T00:00:00.000Z",
+      reference: "ref-kindless",
+      source: account("attendee", 3),
+    };
+    await executeBatch([insertStatement(kindless, recordedAt)]);
+    const [stored] = await selectTransfers(fromDb, "", []);
+    // Omitted, not "": a stored transfer and a never-stored input must agree
+    // on what "no kind" looks like (mirroring reverses_id).
+    expect(stored!.kind).toBeUndefined();
+    expect("kind" in stored!).toBe(false);
+  });
 });

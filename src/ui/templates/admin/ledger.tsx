@@ -178,8 +178,10 @@ const amountCell = (
     <a href={ledgerEntryEditHref(transfer.id, returnUrl)}>{label}</a>
   );
 
-/** A transfer's kind, or an em dash when it carries none. */
-const kindLabel = (transfer: Transfer): string => transfer.kind ?? "—";
+/** A transfer's kind, or an em dash when it carries none. `||`, not `??`: the
+ * store maps a kindless row back to an omitted kind, but a synthetic empty
+ * string must read as "no kind" too, never as a blank cell. */
+const kindLabel = (transfer: Transfer): string => transfer.kind || "—";
 
 /** One row of the historical transfer list. */
 const LedgerRow = ({
