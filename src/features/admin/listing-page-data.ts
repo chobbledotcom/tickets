@@ -22,6 +22,10 @@ import { decryptAttendees } from "#shared/db/attendees.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import {
+  getAllQuestionsWithAnswers,
+  getListingQuestionIds,
+} from "#shared/db/questions.ts";
+import {
   getListingAggregateRecalculation,
   getListingWithAttendeesRaw,
   getListingWithCount,
@@ -29,14 +33,21 @@ import {
 } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { loadNotesForAttendees } from "#shared/db/system-notes.ts";
+import { listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
+import { ListingQrPanel } from "#templates/admin/listing-qr.tsx";
 import {
   type AttendeeFilter,
   ListingEditPanel,
   ListingOverviewPanel,
   ListingRosterPanel,
 } from "#templates/admin/listings.tsx";
+import { ListingQuestionsPanel } from "#templates/admin/questions.tsx";
+import {
+  EMPTY_QR_VALUES,
+  loadBookableDates,
+} from "./listing-qr.ts";
 import { getListingAndGroups } from "./listings-edit.ts";
 import { loadListingParentsSection } from "./listings-parents.ts";
 import { loadGroupContext, loadListingQuestionData } from "./listings-view.ts";
@@ -211,5 +222,42 @@ export const loadListingEditPanel = async (
     // the stored set, so their group changes aren't silently dropped.
     selectedGroupIds: selectedGroupIds ?? ctxData.selectedGroupIds,
     session: ctx.session,
+  });
+};
+
+/** Build the Questions tab: assign the site's questions to this listing. The
+ *  tab is owner-only (matching the route's own gate). `error` is set only on an
+ *  in-place 400 re-render. */
+export const loadListingQuestionsPanel = async (
+  { listing }: LoadedListing,
+  error?: string,
+): Promise<JSX.Element> => {
+  const [allQuestions, assignedIds] = await Promise.all([
+    getAllQuestionsWithAnswers(),
+    getListingQuestionIds(listing.id),
+  ]);
+  return ListingQuestionsPanel({
+    allQuestions,
+    assignedIds: new Set(assignedIds),
+    error,
+    listing,
+  });
+};
+
+/** Build the QR tab: the booking-QR generation form. The tab is hidden for a
+ *  child / hidden-package listing (no standalone booking page), so the loader
+ *  assumes a QR-eligible listing. */
+export const loadListingQrPanel = async ({
+  listing,
+}: LoadedListing): Promise<JSX.Element> => {
+  const [bookableDates, canDirectCheckout] = await Promise.all([
+    loadBookableDates(listing),
+    listingSupportsDirectCheckout(listing),
+  ]);
+  return ListingQrPanel({
+    bookableDates,
+    canDirectCheckout,
+    listing,
+    values: EMPTY_QR_VALUES,
   });
 };

@@ -40,7 +40,7 @@ import type {
 } from "#templates/admin/listing-qr.tsx";
 import { adminListingQrPage } from "#templates/admin/listing-qr.tsx";
 
-const EMPTY_VALUES: AdminListingQrValues = {
+export const EMPTY_QR_VALUES: AdminListingQrValues = {
   customer_name: "",
   date: "",
   quantity: "1",
@@ -56,7 +56,7 @@ const EMPTY_VALUES: AdminListingQrValues = {
  * `constrainParentDailyDates`) — the same union the scanned booking form
  * enforces — so an admin can't mint a QR for a date the child-constrained
  * booking form would reject. A no-op for a daily listing with no child edges. */
-const loadBookableDates = async (
+export const loadBookableDates = async (
   listing: ListingWithCount,
 ): Promise<string[]> => {
   if (listing.listing_type !== "daily") return [];
@@ -125,7 +125,7 @@ const handleGet: TypedRouteHandler<"GET /admin/listing/:id/qr"> = (
   request,
   { id },
 ) =>
-  requireSessionOr(request, (session) => renderPage(id, session, EMPTY_VALUES));
+  requireSessionOr(request, (session) => renderPage(id, session, EMPTY_QR_VALUES));
 
 /** Extract raw form values without validation */
 const extractRawValues = (form: FormParams): AdminListingQrValues => ({

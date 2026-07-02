@@ -33,6 +33,8 @@ import {
   loadListingEditPanel,
   loadListingForPage,
   loadListingOverviewPanel,
+  loadListingQrPanel,
+  loadListingQuestionsPanel,
   loadListingRosterPanel,
 } from "./listing-page-data.ts";
 
@@ -132,6 +134,27 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       // Editors and above may reach the edit form; read-only mode is enforced by
       // the POST handler, and the details tabs stay visible either way.
       slug: "edit",
+    },
+    {
+      labelKey: "entity.tab.questions",
+      sections: [
+        {
+          kind: "custom",
+          load: (entity) => loadListingQuestionsPanel(entity),
+        },
+      ],
+      slug: "questions",
+      // The questions route is owner-only; visibility IS authorization, so a
+      // non-owner never sees (or can name) the tab.
+      visible: (_entity, session) => session.adminLevel === "owner",
+    },
+    {
+      labelKey: "entity.tab.qr",
+      sections: [{ kind: "custom", load: (entity) => loadListingQrPanel(entity) }],
+      slug: "qr",
+      // A child / hidden-package listing has no standalone booking page, so its
+      // booking QR would point at a dead /ticket link — hide the tab entirely.
+      visible: (entity) => !entity.isChild && !entity.isHiddenPackageMember,
     },
     {
       labelKey: "entity.tab.activity",

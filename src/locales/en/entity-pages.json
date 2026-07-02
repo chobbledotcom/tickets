@@ -5,6 +5,8 @@
   "entity.tab.ledger": "Ledger",
   "entity.tab.balance": "Balance",
   "entity.tab.attendees": "Attendees",
+  "entity.tab.questions": "Questions",
+  "entity.tab.qr": "Booking QR",
   "entity.tab.activity": "Activity",
   "entity.tab.actions": "Actions",
   "entity.view_all_activity": "View all activity",
