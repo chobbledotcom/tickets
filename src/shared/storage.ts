@@ -7,7 +7,7 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import * as BunnyStorageSDK from "@bunny.net/storage-sdk";
-import { sort } from "#fp";
+import { lazyRef, sort } from "#fp";
 import { decryptBytes, encryptBytes } from "#shared/crypto/encryption.ts";
 import { getEnv } from "#shared/env.ts";
 import {
@@ -37,9 +37,34 @@ export const runWithStorageConfig = <T>(
   fn: () => T,
 ): T => storageConfigStore.run(config, fn);
 
-/** Read storage config: AsyncLocalStorage context first, then env vars. */
+// Suite-level storage config for tests (describeWithEnv's `storage` option).
+// Layered *under* the per-call runWithStorageConfig scope and *over* the process
+// env, so a whole suite can declare its backend once — without wrapping each test
+// body or mutating STORAGE_ZONE_*/LOCAL_STORAGE_PATH env vars. Held as a typed
+// StorageConfig object, not env strings, so it can't reintroduce the env-var
+// races runWithStorageConfig exists to avoid; a per-test runWithStorageConfig
+// scope still wins over it.
+const [getTestStorageConfig, storageConfigRef] = lazyRef<StorageConfig | null>(
+  () => null,
+);
+
+/**
+ * Test-only: set the suite-level storage config that describeWithEnv's `storage`
+ * option applies. A directly-exported named function (not an `export {}` list,
+ * which the test-hook scanner does not detect, nor a module-level alias) so it is
+ * visible to and registered in `ALLOWED_TEST_HOOKS`
+ * (test/lib/code-quality.test.ts), alongside `runWithStorageConfig`.
+ */
+export function setStorageConfigForTest(config: StorageConfig | null): void {
+  storageConfigRef(config);
+}
+
+/**
+ * Read storage config: per-call AsyncLocalStorage scope first, then the
+ * suite-level test default, then env vars.
+ */
 const getStorageConfig = (): StorageConfig => {
-  const ctx = storageConfigStore.getStore();
+  const ctx = storageConfigStore.getStore() ?? getTestStorageConfig();
   if (ctx) return ctx;
   return {
     zoneKey: getEnv("STORAGE_ZONE_KEY") ?? "",
@@ -52,7 +77,7 @@ const getStorageConfig = (): StorageConfig => {
  * Returns null if local storage is not configured or explicitly disabled.
  */
 const getLocalStoragePath = (): string | null => {
-  const ctx = storageConfigStore.getStore();
+  const ctx = storageConfigStore.getStore() ?? getTestStorageConfig();
   if (ctx && "localPath" in ctx) {
     return ctx.localPath || null;
   }

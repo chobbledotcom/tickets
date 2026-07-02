@@ -31,6 +31,7 @@ import {
   setHostEmailConfigForTest,
 } from "#shared/email.ts";
 import { getEnv } from "#shared/env.ts";
+import { setStorageConfigForTest } from "#shared/storage.ts";
 import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
   type DescribeEnvOptions,
@@ -49,6 +50,7 @@ import {
   TEST_ADMIN_USERNAME,
   TEST_STORAGE_ZONE,
 } from "#test-utils/internal.ts";
+import { maybeReclaimLeakedFds } from "#test-utils/reclaim-fds.ts";
 
 type SchemaEntry = (typeof SCHEMA)[number];
 type SchemaIndex = NonNullable<SchemaEntry[1]["indexes"]>[number];
@@ -107,6 +109,9 @@ const getOrCreateGoldenDb: () => Promise<string> = once(
 );
 
 const prepareTestClient = async (triggers = false): Promise<void> => {
+  // Keep libsql's leaked file descriptors from exhausting the process limit
+  // under high `--parallel` worker counts (see reclaim-fds.ts).
+  maybeReclaimLeakedFds();
   setupTestEncryptionKey();
   settings.setup.clearCache();
   resetSessionCache();
@@ -156,6 +161,9 @@ export const createTestDb = async (triggers = false): Promise<void> => {
 export const setupTransactionalTestDb = async (): Promise<
   () => Promise<void>
 > => {
+  // Same libsql fd leak as prepareTestClient: this path also mints a fresh
+  // file-backed client per test and runs many `withTransaction` writes.
+  maybeReclaimLeakedFds();
   setupTestEncryptionKey();
   const goldenPath = await getOrCreateGoldenDb();
   const path = await Deno.makeTempFile({ suffix: ".db" });
@@ -337,38 +345,37 @@ export const invalidateTestDbCache = (): void => {
 };
 
 /**
- * Env additions that establish the requested `storage` backend for a test.
- * `"local"` also allocates a fresh temp dir and records it for `getTestStoragePath`.
- * Storage config is read env-first with an AsyncLocalStorage override, so a
- * per-test `runWithStorageConfig` scope still overrides this suite default.
+ * Establish the requested `storage` backend for a test as a typed suite-level
+ * `StorageConfig` (read via `#shared/storage.ts`, layered under any per-test
+ * `runWithStorageConfig` scope and over env). Each backend fully specifies both
+ * dimensions so it resolves deterministically regardless of ambient env — no
+ * `STORAGE_ZONE_*` / `LOCAL_STORAGE_PATH` vars are touched:
+ * - `"cdn"`: the Bunny test zone, with `localPath: ""` so an ambient local path
+ *   can't route uploads to disk instead of the CDN.
+ * - `"local"`: a fresh temp dir (recorded for `getTestStoragePath`) with empty
+ *   zone creds, so ambient Bunny creds can't shadow the local backend.
  */
-const setupStorageEnv = async (
+const applyStorageConfig = async (
   storage: DescribeEnvOptions["storage"],
-): Promise<Record<string, string | undefined>> => {
+): Promise<void> => {
   if (storage === "cdn") {
-    // Clear any ambient local path so the Bunny backend resolves deterministically.
-    return {
-      LOCAL_STORAGE_PATH: undefined,
-      STORAGE_ZONE_KEY: TEST_STORAGE_ZONE.zoneKey,
-      STORAGE_ZONE_NAME: TEST_STORAGE_ZONE.zoneName,
-    };
+    setStorageConfigForTest({
+      localPath: "",
+      zoneKey: TEST_STORAGE_ZONE.zoneKey,
+      zoneName: TEST_STORAGE_ZONE.zoneName,
+    });
+    return;
   }
   if (storage === "local") {
     const dir = await Deno.makeTempDir();
     setTestStoragePath(dir);
-    // Clear any ambient Bunny creds — getStorageBackend() checks those before
-    // the local path, so leaving them set would resolve to "bunny", not "local".
-    return {
-      LOCAL_STORAGE_PATH: dir,
-      STORAGE_ZONE_KEY: undefined,
-      STORAGE_ZONE_NAME: undefined,
-    };
+    setStorageConfigForTest({ localPath: dir, zoneKey: "", zoneName: "" });
   }
-  return {};
 };
 
-/** Remove the `storage: "local"` temp dir and clear the recorded path. */
-const teardownStorageEnv = async (): Promise<void> => {
+/** Clear the suite-level storage config and remove any `"local"` temp dir. */
+const teardownStorageConfig = async (): Promise<void> => {
+  setStorageConfigForTest(null);
   const dir = getTestStoragePath();
   if (!dir) return;
   setTestStoragePath(null);
@@ -391,17 +398,14 @@ export const describeWithEnv = (
         settings.googleWallet.setHostConfigForTest(null);
         await createTestDbWithSetup("GB", options.triggers ?? false);
       }
-      const env = {
-        ...options.env,
-        ...(await setupStorageEnv(options.storage)),
-      };
-      if (Object.keys(env).length > 0) restoreEnv = setTestEnv(env);
+      if (options.env) restoreEnv = setTestEnv(options.env);
+      await applyStorageConfig(options.storage);
     });
     afterEach(async () => {
       if (options.db) resetDb();
       if (restoreEnv) restoreEnv();
       restoreEnv = undefined;
-      await teardownStorageEnv();
+      await teardownStorageConfig();
     });
     fn();
   });

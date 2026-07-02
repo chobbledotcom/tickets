@@ -86,4 +86,31 @@ describe("describeWithEnv storage option", () => {
       expect(getTestStoragePath()).toBeNull();
     });
   });
+
+  // Regression: the storage option must resolve the backend through a typed
+  // StorageConfig (layered under runWithStorageConfig, over env) and must NOT
+  // mutate STORAGE_ZONE_*/LOCAL_STORAGE_PATH — reintroducing that env-var route
+  // is exactly the race AsyncLocalStorage was added to avoid. A suite that pins
+  // sentinel values for all three vars must still resolve local from config, and
+  // find every sentinel untouched afterwards. Fails on the prior env-based
+  // implementation, which overwrote LOCAL_STORAGE_PATH and cleared the zone vars.
+  describeWithEnv(
+    "storage option resolves via config, not env vars",
+    {
+      env: {
+        LOCAL_STORAGE_PATH: "sentinel-path",
+        STORAGE_ZONE_KEY: "sentinel-key",
+        STORAGE_ZONE_NAME: "sentinel-name",
+      },
+      storage: "local",
+    },
+    () => {
+      test("selects local from config while leaving the env sentinels intact", () => {
+        expect(getStorageBackend()).toBe("local");
+        expect(Deno.env.get("LOCAL_STORAGE_PATH")).toBe("sentinel-path");
+        expect(Deno.env.get("STORAGE_ZONE_KEY")).toBe("sentinel-key");
+        expect(Deno.env.get("STORAGE_ZONE_NAME")).toBe("sentinel-name");
+      });
+    },
+  );
 });
