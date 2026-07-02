@@ -38,6 +38,7 @@ import {
   classifyForDiscovery,
   groupHasBookableMember,
 } from "./discovery.ts";
+import { publicNavProps } from "./site-nav.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /** Active+visible filter for public listing listings */
@@ -56,23 +57,28 @@ const loadPublicGroups = async (): Promise<Group[]> => {
 };
 
 /** Guard: redirect to admin login if public site is disabled */
-const requirePublicSite = <T>(fn: () => T): T | Response =>
+export const requirePublicSite = <T>(fn: () => T): T | Response =>
   settings.showPublicSite ? fn() : redirectResponse("/admin/login");
 
 /** Render a public site page with website title and content */
 const renderPublicPage = (
   pageType: PublicPageType,
   getContent: () => string | null,
-): Response =>
-  requirePublicSite(() => {
+): Response | Promise<Response> =>
+  requirePublicSite(async () => {
     const content = getContent();
     return htmlResponse(
-      publicSitePage(pageType, settings.websiteTitle, content),
+      publicSitePage(
+        pageType,
+        await publicNavProps(null),
+        settings.websiteTitle,
+        content,
+      ),
     );
   });
 
 /** Handle GET / (home page) - redirect to admin or show public site */
-export const handleHome = (): Response =>
+export const handleHome = (): Response | Promise<Response> =>
   renderPublicPage("home", () => settings.homepageText);
 
 /** Handle GET /listings - public listings listing. Shows every active, visible
@@ -80,9 +86,10 @@ export const handleHome = (): Response =>
  * listings dashboard, not the public page.) */
 export const handlePublicListings = (): Response | Promise<Response> =>
   requirePublicSite(async () => {
-    const [groups, { listings }] = await Promise.all([
+    const [groups, { listings }, nav] = await Promise.all([
       loadPublicGroups(),
       loadSortedListings(isPublicListing),
+      publicNavProps(null),
     ]);
     // Parents with no bookable child read as sold out; a (visible) child keeps
     // its card but loses its standalone Book CTA (invariants I3/I6).
@@ -97,16 +104,22 @@ export const handlePublicListings = (): Response | Promise<Response> =>
         settings.websiteTitle,
         groups,
         childCardState(classification.childIds, classification.addOnChildIds),
+        nav,
       ),
     );
   });
 
 /** Handle GET /terms - public terms and conditions page (404 when empty) */
-export const handlePublicTerms = (): Response =>
-  requirePublicSite(() =>
+export const handlePublicTerms = (): Response | Promise<Response> =>
+  requirePublicSite(async () =>
     settings.terms
       ? htmlResponse(
-          publicSitePage("terms", settings.websiteTitle, settings.terms),
+          publicSitePage(
+            "terms",
+            await publicNavProps(null),
+            settings.websiteTitle,
+            settings.terms,
+          ),
         )
       : notFoundResponse(),
   );
@@ -125,6 +138,7 @@ const renderContactPage = async (request: Request): Promise<Response> => {
       content: settings.contactPageText || null,
       ...(flash.error !== undefined ? { error: flash.error } : {}),
       formActive,
+      nav: await publicNavProps(null),
       ...(flash.success !== undefined ? { success: flash.success } : {}),
       websiteTitle: settings.websiteTitle,
     }),

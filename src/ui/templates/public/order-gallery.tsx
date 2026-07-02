@@ -9,8 +9,9 @@ import { Icon } from "#templates/components/actions.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import {
   FEED_DISCOVERY_TAGS,
-  navFlags,
+  LoginFooter,
   PublicNav,
+  type PublicNavProps,
   renderListingImage,
   type TicketListing,
 } from "./shared.tsx";
@@ -66,6 +67,7 @@ const renderOrderCard = (info: TicketListing): string => {
  */
 export const orderGalleryPage = (
   listings: TicketListing[],
+  nav: PublicNavProps,
   websiteTitle?: string | null,
   introText?: string | null,
 ): string => {
@@ -76,7 +78,7 @@ export const orderGalleryPage = (
   return String(
     <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
-      <PublicNav {...navFlags()} />
+      <PublicNav {...nav} />
       {introText && (
         <div class="prose">
           <Raw html={renderMarkdown(introText)} />
@@ -101,11 +103,7 @@ export const orderGalleryPage = (
           </button>
         </form>
       )}
-      <footer class="homepage-footer">
-        <p>
-          <a href="/admin/login">{t("common.login")}</a>
-        </p>
-      </footer>
+      <LoginFooter />
     </Layout>,
   );
 };

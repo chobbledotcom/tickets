@@ -28,6 +28,7 @@ import {
   GuideLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { ReorderArrows } from "#templates/components/reorder.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { answerAggregateFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -52,20 +53,7 @@ const ReorderControls = ({
   count: number;
 }): JSX.Element => (
   <td class={colClass("reorder")}>
-    {index > 0 && (
-      <CsrfForm action={action("up")} class="inline">
-        <button class="link-button small" type="submit">
-          &#9650;
-        </button>
-      </CsrfForm>
-    )}{" "}
-    {index < count - 1 && (
-      <CsrfForm action={action("down")} class="inline">
-        <button class="link-button small" type="submit">
-          &#9660;
-        </button>
-      </CsrfForm>
-    )}
+    <ReorderArrows action={action} count={count} index={index} />
   </td>
 );
 

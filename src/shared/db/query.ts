@@ -39,12 +39,17 @@ export const swapSortOrder = (
       }),
     );
     const orderById = new Map(rows.map((r) => [r.id, r.sort_order]));
+    const order1 = orderById.get(id1);
+    const order2 = orderById.get(id2);
+    // No-op when either row is gone (a stale click racing a delete): binding
+    // an undefined sort_order would fail the NOT NULL constraint with a 500.
+    if (order1 === undefined || order2 === undefined) return;
     await tx.execute({
-      args: [orderById.get(id2)!, id1],
+      args: [order2, id1],
       sql: `UPDATE ${table} SET sort_order = ? WHERE id = ?`,
     });
     await tx.execute({
-      args: [orderById.get(id1)!, id2],
+      args: [order1, id2],
       sql: `UPDATE ${table} SET sort_order = ? WHERE id = ?`,
     });
   });
@@ -71,32 +76,102 @@ export const mapByIds = async <Row>(
 ): Promise<Map<number, number>> =>
   new Map((await rowsByIds<Row>(ids, buildSql)).map(toEntry));
 
+type NameRow<Raw> = { id: number; name: Raw };
+type Decryptor<Raw> = (raw: Raw) => Promise<string>;
+type NameMap = Promise<Map<number, string>>;
+
+/** Decrypt each fetched row's name into an `id → name` map. */
+const decryptNameMap = async <Raw>(
+  rows: Promise<NameRow<Raw>[]>,
+  decryptName: Decryptor<Raw>,
+): NameMap => {
+  const entries = await Promise.all(
+    (await rows).map(async (r) => [r.id, await decryptName(r.name)] as const),
+  );
+  return new Map(entries);
+};
+
+/** Project `alias.id, alias.nameColumn` from `table`, with an optional tail. */
+const nameSelect = (
+  table: string,
+  alias: string,
+  nameColumn: string,
+  tail: string,
+): string =>
+  `SELECT ${alias}.id, ${alias}.${nameColumn} AS name FROM ${table} AS ${alias} ${tail}`;
+
 /**
- * Map each row's `id` to a decrypted display name (`id → name`) for the rows of
- * `table` whose id is in `ids`. `alias` is the table's singular-word alias and
- * qualifies the selected columns (per the repo's SQL convention); `nameColumn`
- * is the (encrypted) column to read; `decryptName` turns its raw stored value
- * into the plaintext name — so this stays decryption-agnostic. `table`/`alias`/
- * `nameColumn` are internal constants, never user input. Empty `ids` ⇒ empty
- * map and no query.
+ * `id → name` for the rows of `table` whose id is in `ids`, decrypting only the
+ * name column. `alias` qualifies the selected columns (repo SQL convention);
+ * `decryptName` turns the raw stored value into plaintext (decryption-agnostic).
+ * `table`/`alias`/`nameColumn` are internal constants. Empty `ids` ⇒ empty map.
  */
-export const nameMapByIds = async <Raw>(
+export const nameMapByIds = <Raw>(
   table: string,
   alias: string,
   nameColumn: string,
   ids: number[],
-  decryptName: (raw: Raw) => Promise<string>,
-): Promise<Map<number, string>> => {
-  const rows = await rowsByIds<{ id: number; name: Raw }>(
+  decryptName: Decryptor<Raw>,
+): NameMap =>
+  decryptNameMap(
+    rowsByIds<NameRow<Raw>>(ids, (placeholders) =>
+      nameSelect(
+        table,
+        alias,
+        nameColumn,
+        `WHERE ${alias}.id IN (${placeholders})`,
+      ),
+    ),
+    decryptName,
+  );
+
+/** `id, slug, name` rows (+ `extras` plain columns) for the given `ids`,
+ * decrypting only slug and name — the narrow projection link surfaces (the
+ * public nav) need, without loading a full-row cache. Empty `ids` ⇒ no query.
+ * `table`/`alias`/`extras` are internal constants, never user input. */
+export const linkRowsByIds = async <Extra extends string = never>(
+  table: string,
+  alias: string,
+  ids: number[],
+  decryptText: (raw: string) => Promise<string>,
+  extras: readonly Extra[] = [],
+): Promise<
+  ({ id: number; name: string; slug: string } & Record<Extra, number>)[]
+> => {
+  const cols = ["id", "slug", "name", ...extras]
+    .map((c) => `${alias}.${c}`)
+    .join(", ");
+  const rows = await rowsByIds<
+    { id: number; name: string; slug: string } & Record<Extra, number>
+  >(
     ids,
     (placeholders) =>
-      `SELECT ${alias}.id, ${alias}.${nameColumn} AS name FROM ${table} AS ${alias} WHERE ${alias}.id IN (${placeholders})`,
+      `SELECT ${cols} FROM ${table} AS ${alias} WHERE ${alias}.id IN (${placeholders})`,
   );
-  const entries = await Promise.all(
-    rows.map(async (row) => [row.id, await decryptName(row.name)] as const),
+  return Promise.all(
+    rows.map(async (r) => ({
+      ...r,
+      name: await decryptText(r.name),
+      slug: await decryptText(r.slug),
+    })),
   );
-  return new Map(entries);
 };
+
+/** `id → name` for **every** row of `table`, decrypting only the name column —
+ * the narrow projection the item pickers need, without loading a full-row cache.
+ * Ordered by id for a stable list. */
+export const allNamesById = <Raw>(
+  table: string,
+  alias: string,
+  nameColumn: string,
+  decryptName: Decryptor<Raw>,
+): NameMap =>
+  decryptNameMap(
+    queryAll<NameRow<Raw>>(
+      nameSelect(table, alias, nameColumn, `ORDER BY ${alias}.id ASC`),
+    ),
+    decryptName,
+  );
 
 /**
  * Map each row's `id` to one of its integer columns (`id → column`) for the

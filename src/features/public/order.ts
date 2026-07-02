@@ -28,6 +28,7 @@ import { loadSortedListings } from "#shared/sort-listings.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { orderGalleryPage, type TicketListing } from "#templates/public.tsx";
 import { applyParentSoldOut, classifyForDiscovery } from "./discovery.ts";
+import { publicNavProps } from "./site-nav.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /** Active, visible listings are the items offered on the order page. */
@@ -103,6 +104,7 @@ const handleOrder = async (request: Request): Promise<Response> => {
   return htmlResponse(
     orderGalleryPage(
       ticketListings,
+      await publicNavProps(null),
       settings.websiteTitle,
       settings.orderIntroText || null,
     ),
