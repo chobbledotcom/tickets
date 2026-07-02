@@ -235,6 +235,9 @@ export interface CrudApiConfig<
   ) => ParseResult<Input> | Promise<ParseResult<Input>>;
   /** Optional validation (return error message or null) */
   validate?: (input: Input, id?: number) => Promise<string | null>;
+  /** Optional delete guard: a returned message blocks the deletion with a 400
+   * (e.g. a sold hidden package whose tickets still resolve through it). */
+  validateDelete?: (id: number) => Promise<string | null>;
   /** Side-effect run with the written row's id and the parsed input to persist
    * join-table rows (a listing's groups, a group's package members) that live
    * outside the main table. Runs inside the SAME transaction as the row write
@@ -514,6 +517,11 @@ export const defineCrudApi = <
       `${singular} name`,
     );
     if (error) return apiErrorResponse(error);
+
+    const deleteError = config.validateDelete
+      ? await config.validateDelete(Number(existing.id))
+      : null;
+    if (deleteError) return apiErrorResponse(deleteError);
 
     if (config.onDelete) {
       await config.onDelete(existing.id);

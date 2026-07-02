@@ -10,6 +10,7 @@ import {
   executeBatch,
   inPlaceholders,
   queryAll,
+  queryOne,
   type TxScope,
 } from "#shared/db/client.ts";
 import {
@@ -344,6 +345,16 @@ export const getPackageDisplayById = async (
     ? null
     : { hideListings: group.hide_package_listings, name: group.name };
 };
+
+/** Whether any booking row is stamped with this package's group id — sold
+ * tickets whose display (and hidden-member concealment) resolves through the
+ * live package row. Refund placeholders (quantity 0) don't count. */
+export const hasPackageBookings = async (groupId: number): Promise<boolean> =>
+  (await queryOne<{ one: number }>(
+    `SELECT 1 AS one FROM listing_attendees
+      WHERE package_group_id = ? AND quantity > 0 LIMIT 1`,
+    [groupId],
+  )) !== null;
 
 /** The package displays for a set of (possibly repeated or zero)
  * `package_group_id`s — only ids naming a live package appear in the map. Lets

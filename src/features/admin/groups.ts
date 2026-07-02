@@ -30,6 +30,7 @@ import {
   getListingsByGroupId,
   getListingsNotInGroup,
   groupsTable,
+  hasPackageBookings,
   isGroupSlugTaken,
   type PackageMemberInput,
   resetGroupListings,
@@ -154,15 +155,35 @@ const validatePackageCompatibility = async (
     : t("error.package_incompatible_listing");
 };
 
+/** Error when the group is a HIDDEN package with sold tickets. Booking rows
+ * keep its `package_group_id`, and a stale id resolves to NO package display —
+ * existing /t tickets and confirmation emails would fall back to per-member
+ * cards/rows, revealing the member names the hide flag concealed. Un-packaging
+ * or deleting such a group is rejected until the operator clears the hide flag
+ * first (an explicit reveal); a VISIBLE package still un-groups freely. */
+export const soldHiddenPackageError = async (
+  id: number,
+): Promise<string | null> => {
+  const group = await groupsTable.findById(id);
+  if (!group?.is_package || !group.hide_package_listings) return null;
+  return (await hasPackageBookings(id)) ? t("error.sold_hidden_package") : null;
+};
+
 /** Combined validation: slug uniqueness plus the package invariant. On create
  * (`id` undefined) the group has no members yet, so only the slug is checked.
- * Deleting or un-packaging a package with sold tickets is allowed: the group's
- * items are simply un-grouped — the booking rows' stored `package_group_id`
- * stops resolving, and existing tickets fall back to per-member cards. */
+ * Deleting or un-packaging a package with sold tickets is allowed for a
+ * VISIBLE package: the group's items are simply un-grouped — the booking rows'
+ * stored `package_group_id` stops resolving, and existing tickets fall back to
+ * per-member cards. A HIDDEN sold package must not take that fall-back path
+ * ({@link soldHiddenPackageError}). */
 export const validateGroupWithPackage: GroupValidator = async (input, id) => {
   const slugError = await validateGroupSlug(input, id);
   if (slugError) return slugError;
   if (id === undefined) return null;
+  if (!input.isPackage) {
+    const hiddenError = await soldHiddenPackageError(Number(id));
+    if (hiddenError) return hiddenError;
+  }
   return validatePackageCompatibility(
     id,
     input.isPackage,
@@ -284,6 +305,7 @@ export const deleteGroup = async (
  * decrypts attendee PII), so they return to the group edit form instead — a
  * successful save never bounces them to a forbidden page. */
 const crudConfig = {
+  deleteGuard: (_group: Group, id: number) => soldHiddenPackageError(id),
   getAll: getAllGroups,
   getName: (g: Group) => g.name,
   getRowPath: (g: Group, session: AdminSession) =>

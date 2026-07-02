@@ -5,6 +5,7 @@
 import {
   deleteGroup,
   generateUniqueGroupSlug,
+  soldHiddenPackageError,
   validateGroupWithPackage,
 } from "#routes/admin/groups.ts";
 import type { TxScope } from "#shared/db/client.ts";
@@ -313,4 +314,5 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
     };
   },
   validate: validateGroupWithPackage,
+  validateDelete: soldHiddenPackageError,
 });
