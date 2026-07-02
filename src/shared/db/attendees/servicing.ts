@@ -809,7 +809,9 @@ type DecodedCostLeg = {
 const loadServiceCostLegs = async (
   listingIds: number[],
 ): Promise<DecodedCostLeg[]> => {
-  if (listingIds.length === 0) return [];
+  // Both callers pass a non-empty set (getServicingCosts guards on
+  // records.length; editServiceCost passes the cost's single listing), so no
+  // empty-set guard — an empty `IN ()` would be a caller bug, not a silent [].
   const ids = listingIds.map(String);
   const legs = await queryAll<CostRow>(
     `SELECT ${COST_ROW_SELECT}, memo FROM transfers

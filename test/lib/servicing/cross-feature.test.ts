@@ -35,11 +35,12 @@ describeWithEnv(
     test("a servicing hold on a purchase_only listing is accepted (no payment required)", async () => {
       // `purchase_only` listings refuse the public booking flow (no payment =
       // no booking). A servicing hold is free and admin-created, so it bypasses
-      // the purchase gate — the hold must land.
-      const { id } = await createServicingHold({
+      // the purchase gate — the hold must actually land on that listing (not
+      // merely return an id), so assert the persisted booking.
+      const { event, listing } = await createServicingHold({
         listing: { name: "Purchase Only L", purchaseOnly: true },
       });
-      expect(id).toBeGreaterThan(0);
+      expect(event.bookings.map((b) => b.listingId)).toEqual([listing.id]);
     });
 
     test("a servicing hold on a listing with a webhook configured does not fire the webhook", async () => {
