@@ -256,8 +256,10 @@ export const edgeIncompatibilityAfterChange = async (
 ): Promise<string | null> => {
   const byId = await getListingsById();
   return firstTouchingEdgeError(updated.id, ({ self, otherId }) => {
-    const other = byId.get(otherId);
-    if (!other) return null;
+    // edgeIdsTouching hydrates through the same listings cache, dropping any
+    // edge whose opposite endpoint no longer exists — so `other` always
+    // resolves here.
+    const other = byId.get(otherId)!;
     // `updated` stays on its fixed side: parent of each child, child under each parent.
     return self === "parent"
       ? edgeFieldError(updated, other)
