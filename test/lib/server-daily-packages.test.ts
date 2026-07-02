@@ -218,40 +218,15 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     expect(fragment).not.toContain("£30");
   });
 
-  /** A two-member customisable package (boat 1000/1800, hut 500/900) whose
-   * members' per-day PACKAGE overrides are set directly, for pricing tests. */
+  /** The shared two-member customisable package (boat 1000/1800, hut 500/900)
+   * with the boat's per-day PACKAGE overrides applied, for pricing tests. */
   const overriddenFlexPackage = async (
     name: string,
     slug: string,
     boatOverrides: { price: number | null; dayPrices?: Record<number, number> },
   ) => {
-    const { setGroupPackageMembers } = await import("#shared/db/groups.ts");
-    const group = await createTestGroup({ isPackage: true, name, slug });
-    const boat = await createTestListing({
-      customisableDays: true,
-      dayPrices: { 1: 1000, 2: 1800 },
-      durationDays: 2,
-      groupId: group.id,
-      listingType: "daily",
-      minimumDaysBefore: 0,
-      name: `${name} Boat`,
-      unitPrice: 1000,
-    });
-    const hut = await createTestListing({
-      customisableDays: true,
-      dayPrices: { 1: 500, 2: 900 },
-      durationDays: 2,
-      groupId: group.id,
-      listingType: "daily",
-      minimumDaysBefore: 0,
-      name: `${name} Hut`,
-      unitPrice: 500,
-    });
-    await setGroupPackageMembers(group.id, [
-      { listingId: boat.id, ...boatOverrides },
-      { listingId: hut.id, price: null },
-    ]);
-    return { boat, group, hut };
+    const { createFlexPackage } = await import("#test-utils/packages.ts");
+    return createFlexPackage(name, slug, boatOverrides);
   };
 
   test("a per-day package override reprices that span, beating the member's own day price", async () => {
