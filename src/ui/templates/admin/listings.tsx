@@ -590,6 +590,11 @@ const ListingActionNav = ({
             {t("listings_table.log")}
           </a>
         </li>
+        <li>
+          <a href={`/admin/listing/${listing.id}/export.json`}>
+            {t("catalog_transfer.export_link")}
+          </a>
+        </li>
         {!listing.purchase_only && (
           <li>
             <a href={`/admin/listing/${listing.id}/scanner`}>

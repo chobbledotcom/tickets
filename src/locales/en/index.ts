@@ -10,6 +10,7 @@ import builder from "./builder.json" with { type: "json" };
 import builtSites from "./built-sites.json" with { type: "json" };
 import bulkActions from "./bulk-actions.json" with { type: "json" };
 import bulkEmail from "./bulk-email.json" with { type: "json" };
+import catalogTransfer from "./catalog-transfer.json" with { type: "json" };
 import common from "./common.json" with { type: "json" };
 import csv from "./csv.json" with { type: "json" };
 import datePicker from "./date-picker.json" with { type: "json" };
@@ -55,6 +56,7 @@ const en: Record<string, string> = {
   ...builtSites,
   ...bulkActions,
   ...bulkEmail,
+  ...catalogTransfer,
   ...common,
   ...csv,
   ...datePicker,

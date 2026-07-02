@@ -67,6 +67,9 @@ export const adminGroupsPage = (
       <Flash success={successMessage} />
       {!isReadOnly() && (
         <p class="actions">
+          <ActionButton href="/admin/catalog/import" variant="outline">
+            {t("catalog_transfer.import_button")}
+          </ActionButton>
           <ActionButton href="/admin/groups/new" icon="plus">
             {t("groups.add_group")}
           </ActionButton>
@@ -570,6 +573,11 @@ export const adminGroupDetailPage = (
               </li>
             </>
           )}
+          <li>
+            <a href={`/admin/groups/${group.id}/export.json`}>
+              {t("catalog_transfer.export_link")}
+            </a>
+          </li>
           <li>
             <a class="danger" href={`/admin/groups/${group.id}/delete`}>
               {t("groups.detail.delete_group")}
