@@ -50,6 +50,7 @@ import {
   TEST_ADMIN_USERNAME,
   TEST_STORAGE_ZONE,
 } from "#test-utils/internal.ts";
+import { maybeReclaimLeakedFds } from "#test-utils/reclaim-fds.ts";
 
 type SchemaEntry = (typeof SCHEMA)[number];
 type SchemaIndex = NonNullable<SchemaEntry[1]["indexes"]>[number];
@@ -108,6 +109,9 @@ const getOrCreateGoldenDb: () => Promise<string> = once(
 );
 
 const prepareTestClient = async (triggers = false): Promise<void> => {
+  // Keep libsql's leaked file descriptors from exhausting the process limit
+  // under high `--parallel` worker counts (see reclaim-fds.ts).
+  maybeReclaimLeakedFds();
   setupTestEncryptionKey();
   settings.setup.clearCache();
   resetSessionCache();
