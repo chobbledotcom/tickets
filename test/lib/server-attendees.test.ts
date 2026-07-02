@@ -2537,6 +2537,40 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "Merge and Delete Source Attendee",
       );
     });
+
+    test("the token search box focuses when idle and echoes the searched token", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const { attendee: target } = await createTestAttendeeDirect(
+        listing.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        listing.id,
+        "John Smith",
+        "john@example.com",
+      );
+      // Idle panel: the search box is the tab's one job, so it takes focus
+      // and starts empty.
+      const idle = await expectHtmlResponse(
+        await adminGet(`/admin/attendees/${target.id}/actions`),
+        200,
+      );
+      expect(idle).toContain(" autofocus");
+      expect(extractInputValue(idle, "token")).toBe("");
+      // After a successful search the box echoes the token back (so the admin
+      // can see what matched) and cedes focus to the decision form.
+      const searched = await expectHtmlResponse(
+        await adminGet(
+          `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
+            sourceToken,
+          )}`,
+        ),
+        200,
+      );
+      expect(searched).not.toContain("autofocus");
+      expect(extractInputValue(searched, "token")).toBe(sourceToken);
+    });
   });
 
   /** Extract merge_version from the merge preview HTML page */
