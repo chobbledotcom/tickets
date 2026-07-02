@@ -134,11 +134,6 @@ const normalizeOptionalDatetime = (
   field: string,
 ): string | undefined => (raw ? normalizeDatetime(raw, field) : raw);
 
-/** Parse an optional minor-units price field: undefined when blank or invalid,
- *  else the currency-validated non-negative amount. */
-const parseOptionalPrice = (raw: string | undefined): number | undefined =>
-  parseOptionalMinorUnits(raw ?? "") ?? undefined;
-
 /** Extract common listing fields from validated form values, normalizing datetimes to UTC */
 const extractCommonFields = (
   values: ListingFormValues,
@@ -148,7 +143,10 @@ const extractCommonFields = (
   const webhookUrl = isDemoMode() ? "" : values.webhook_url || "";
   const durationDays = values.duration_days ?? 1;
   const listingType = resolveListingType(values.listing_type);
-  const unitPrice = parseOptionalPrice(values.unit_price);
+  // Blank/invalid unit price ⇒ unset (the column defaults to 0 = free); a valid
+  // value is the currency-checked minor-units amount. `unit_price` is always a
+  // string here, so no nullish fallback is needed before parsing.
+  const unitPrice = parseOptionalMinorUnits(values.unit_price) ?? undefined;
   const bookableDays = parseBookableDays(
     values.bookable_days,
     listingType,
