@@ -60,6 +60,39 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     expect(html).toContain("Total");
   });
 
+  test("a hidden package's quote fragment names the package, never a member", async () => {
+    // /calculate shares prepareOrder with the submit path, so the quote's line
+    // rows must carry the SAME masking a hidden package's checkout applies — a
+    // refactor that scoped hidePackageMemberNames to the submit branch alone
+    // would leak the concealed member here.
+    await setupStripe();
+    const group = await createTestGroup({
+      hidden: false,
+      isPackage: true,
+      name: "Mystery Box",
+      slug: "mystery-box",
+    });
+    const { groupsTable } = await import("#shared/db/groups.ts");
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    const member = await createTestListing({
+      groupId: group.id,
+      name: "Secret Contents",
+      unitPrice: 1200,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: null },
+    ]);
+
+    const response = await calculate(group.slug, group.slug, {
+      package_quantity: "1",
+    });
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Mystery Box");
+    expect(html).toContain(formatCurrency(1200));
+    expect(html).not.toContain("Secret Contents");
+  });
+
   test("quotes a package member at its override price, not its base price", async () => {
     await setupStripe();
     const group = await createTestGroup({

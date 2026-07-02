@@ -934,6 +934,85 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     await expectPackageRefund("cs_pkg_changed", listing.id, metadata);
   });
 
+  /** A customisable one-member package: the member's own day prices are
+   * 1:700/2:1200 with a per-day PACKAGE override of 1000 for the 2-day span. */
+  const setupCustomisablePackage = async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Flex Pkg",
+      slug: "flex-pkg",
+    });
+    const listing = await createTestListing({
+      customisableDays: true,
+      dayPrices: { 1: 700, 2: 1200 },
+      durationDays: 2,
+      groupId: group.id,
+      listingType: "daily",
+      maxAttendees: 50,
+      minimumDaysBefore: 0,
+      unitPrice: 700,
+    });
+    await setGroupPackageMembers(group.id, [
+      { dayPrices: { 2: 1000 }, listingId: listing.id, price: null },
+    ]);
+    return { group, listing };
+  };
+
+  /** Signed metadata for a 2-day customisable package line at `price`. */
+  const customisableMetadata = async (
+    groupId: number,
+    listingId: number,
+    price: number,
+  ) => {
+    const { addDays } = await import("#shared/dates.ts");
+    const { todayInTz } = await import("#shared/timezone.ts");
+    return signMeta(
+      webhookMeta({
+        date: addDays(todayInTz("UTC"), 2),
+        day_count: "2",
+        email: "buyer@example.com",
+        items: JSON.stringify([
+          { e: listingId, k: "p", p: price, q: 1, r: groupId },
+        ]),
+        name: "Buyer",
+        package_group_id: String(groupId),
+      }),
+      price,
+    );
+  };
+
+  test("a customisable package's webhook accepts the signed per-day override price", async () => {
+    // The webhook is the authoritative money path (the buyer may never hit the
+    // redirect), so day-count revalidation must run here too: the 2-day span is
+    // package-overridden to 1000, and a session signed at 1000 books.
+    const { group, listing } = await setupCustomisablePackage();
+    await runWebhook(
+      {
+        amount_total: 1000,
+        id: "cs_pkg_flex_wh_ok",
+        metadata: await customisableMetadata(group.id, listing.id, 1000),
+      },
+      () => expectProcessed(listing.id),
+    );
+  });
+
+  test("a customisable package's webhook refunds when the per-day override changed after checkout", async () => {
+    const { group, listing } = await setupCustomisablePackage();
+    const metadata = await customisableMetadata(group.id, listing.id, 1000);
+    // Operator reprices the 2-day span after the buyer signed at 1000.
+    await setGroupPackageMembers(group.id, [
+      { dayPrices: { 2: 1600 }, listingId: listing.id, price: null },
+    ]);
+    await runWebhook(
+      { amount_total: 1000, id: "cs_pkg_flex_wh_drift", metadata },
+      async (refund) => {
+        await expectStoredRefund(listing.id);
+        expect(refund.calls.length).toBe(1);
+      },
+    );
+  });
+
   test("a package booking refunds when the group is no longer a package", async () => {
     const { group, listing } = await setupPackage();
     const metadata = packageMetadata(group.id, listing.id, 1500);
