@@ -125,33 +125,35 @@ const ContactRecordSection = ({
   const { hashParam, record } = channel;
   return (
     <section>
-      <h4>{label}</h4>
-      <ul>
-        <li>
-          <strong>{t("attendee_form.online_bookings")}:</strong>{" "}
-          {record.publicBookingCount}
-        </li>
-        <li>
-          <strong>{t("attendee_form.admin_bookings")}:</strong>{" "}
-          {record.adminBookingCount}
-        </li>
-        <li>
-          <strong>{t("attendee_form.total_messages")}:</strong>{" "}
-          {record.contactCount}
-        </li>
-        {record.lastContact && (
+      <div class="prose">
+        <h4>{label}</h4>
+        <ul>
           <li>
-            <strong>{t("attendee_form.last_contacted")}:</strong>{" "}
-            {formatDatetimeShort(record.lastContact)}
+            <strong>{t("attendee_form.online_bookings")}:</strong>{" "}
+            {record.publicBookingCount}
           </li>
-        )}
-        {record.lastSubject && (
           <li>
-            <strong>{t("attendee_form.last_subject")}:</strong>{" "}
-            {record.lastSubject}
+            <strong>{t("attendee_form.admin_bookings")}:</strong>{" "}
+            {record.adminBookingCount}
           </li>
-        )}
-      </ul>
+          <li>
+            <strong>{t("attendee_form.total_messages")}:</strong>{" "}
+            {record.contactCount}
+          </li>
+          {record.lastContact && (
+            <li>
+              <strong>{t("attendee_form.last_contacted")}:</strong>{" "}
+              {formatDatetimeShort(record.lastContact)}
+            </li>
+          )}
+          {record.lastSubject && (
+            <li>
+              <strong>{t("attendee_form.last_subject")}:</strong>{" "}
+              {record.lastSubject}
+            </li>
+          )}
+        </ul>
+      </div>
       {record.adminNotes && (
         <div class="contact-notes">
           <Raw html={renderMarkdown(record.adminNotes)} />
@@ -179,22 +181,24 @@ export const ContactHistory = ({
   const hasEmail = Boolean(attendee.email);
   return (
     <article>
-      <h3>{t("attendee_form.contact_history")}</h3>
-      {contactRecords.email ? (
+      {/* Heading and any "no X on file" lines are one prose chunk; the record
+          panels (their own sections) follow. */}
+      <div class="prose">
+        <h3>{t("attendee_form.contact_history")}</h3>
+        {!contactRecords.email && <p>{t("attendee_form.no_email_on_file")}</p>}
+        {!contactRecords.phone && <p>{t("attendee_form.no_phone_on_file")}</p>}
+      </div>
+      {contactRecords.email && (
         <ContactRecordSection
           channel={contactRecords.email}
           label={t("attendee_form.stats_for", { value: attendee.email })}
         />
-      ) : (
-        <p>{t("attendee_form.no_email_on_file")}</p>
       )}
-      {contactRecords.phone ? (
+      {contactRecords.phone && (
         <ContactRecordSection
           channel={contactRecords.phone}
           label={t("attendee_form.stats_for", { value: attendee.phone })}
         />
-      ) : (
-        <p>{t("attendee_form.no_phone_on_file")}</p>
       )}
       {isOwner && (
         <p>
