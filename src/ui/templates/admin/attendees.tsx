@@ -24,7 +24,7 @@ import type {
   ListingWithCount,
 } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import { BackButton, SubmitButton } from "#templates/components/actions.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import {
   questionFieldset,
   questionWrapper,
@@ -35,7 +35,7 @@ import { Layout } from "#templates/layout.tsx";
  * Admin delete attendee confirmation page
  */
 export const adminDeleteAttendeePage = (
-  { listing, attendee }: { listing: ListingWithCount; attendee: Attendee },
+  { attendee }: { listing: ListingWithCount; attendee: Attendee },
   session: AdminSession,
   returnUrl?: string,
   error?: string,
@@ -46,7 +46,7 @@ export const adminDeleteAttendeePage = (
       <Flash error={error} />
 
       <ConfirmForm
-        action={`/admin/listing/${listing.id}/attendee/${attendee.id}/delete`}
+        action={`/admin/attendees/${attendee.id}/delete`}
         buttonText={t("admin.attendees.delete_submit")}
         label={t("admin.attendees.delete_label")}
         name={attendee.name}
@@ -87,7 +87,7 @@ export const adminDeleteAttendeePage = (
  * Admin refund attendee confirmation page
  */
 export const adminRefundAttendeePage = (
-  { listing, attendee }: { listing: ListingWithCount; attendee: Attendee },
+  { attendee }: { listing: ListingWithCount; attendee: Attendee },
   session: AdminSession,
   error?: string,
   returnUrl?: string,
@@ -98,7 +98,7 @@ export const adminRefundAttendeePage = (
       <Flash error={error} />
 
       <ConfirmForm
-        action={`/admin/listing/${listing.id}/attendee/${attendee.id}/refund`}
+        action={`/admin/attendees/${attendee.id}/refund`}
         buttonText={t("admin.attendees.refund_submit")}
         label={t("admin.attendees.delete_label")}
         name={attendee.name}
@@ -170,8 +170,12 @@ export const adminRefundAllAttendeesPage = (
  * add/edit attendee form. */
 export const PaymentDetails = ({
   attendee,
+  showBalanceLink,
 }: {
   attendee: Attendee;
+  /** The balance link targets the owner-only Balance tab, so callers gate it
+   * on the viewer's role (never render a forbidden link). */
+  showBalanceLink: boolean;
 }): string => {
   if (!attendee.payment_id) return "";
   const pricePaid = Number.parseInt(attendee.price_paid, 10);
@@ -209,10 +213,15 @@ export const PaymentDetails = ({
         {attendee.remaining_balance > 0 && (
           <p>
             <strong>Balance outstanding:</strong>{" "}
-            {formatCurrency(attendee.remaining_balance)} —{" "}
-            <a href={`/admin/attendees/${attendee.id}/balance`}>
-              view balance &amp; payment link
-            </a>
+            {formatCurrency(attendee.remaining_balance)}
+            {showBalanceLink && (
+              <>
+                {" — "}
+                <a href={`/admin/attendees/${attendee.id}/balance`}>
+                  view balance &amp; payment link
+                </a>
+              </>
+            )}
           </p>
         )}
       </div>
@@ -551,134 +560,123 @@ const MergeBookingsDecisionTable = ({
 };
 
 /**
- * Admin merge attendee page — search and confirm merge
+ * Attendee merge panel (the Actions tab) — search for a source attendee by
+ * ticket token, then choose what to keep and confirm the merge.
  */
-export const adminMergeAttendeePage = (
+export const AttendeeMergePanel = (
   target: Attendee,
   source: MergeSourceInfo | null,
   searchToken: string | null,
-  session: AdminSession,
   error?: string,
   mergeDiff?: AttendeeMergeDiff,
-): string =>
-  String(
-    <Layout title={`Merge Attendee: ${target.name}`}>
-      <AdminNav active="/admin/attendees" session={session} />
-      <Flash error={error} />
+): JSX.Element => (
+  <article>
+    <Flash error={error} />
 
-      <h2>{t("admin.attendees.merge_attendee")}</h2>
-      <p>
-        <BackButton href={`/admin/attendees/${target.id}`}>
-          Back to {target.name}
-        </BackButton>
-      </p>
+    <h3>{t("admin.attendees.merge_attendee")}</h3>
 
-      {/* Token search form */}
-      <h3>{t("admin.attendees.search_by_token")}</h3>
-      <form
-        action={`/admin/attendees/${target.id}/merge`}
-        class="inline-row"
-        method="get"
-      >
-        <label for="token">
-          Ticket token to merge from
+    {/* Token search form — GETs back to this tab with ?token=… */}
+    <h4>{t("admin.attendees.search_by_token")}</h4>
+    <form
+      action={`/admin/attendees/${target.id}/actions`}
+      class="inline-row"
+      method="get"
+    >
+      <label for="token">
+        Ticket token to merge from
+        <input
+          autofocus={!source}
+          id="token"
+          name="token"
+          placeholder={t("attendee_form.enter_ticket_token_placeholder")}
+          required
+          type="text"
+          value={searchToken || ""}
+        />
+      </label>
+      <SubmitButton icon="search">
+        {t("attendee_form.search_button")}
+      </SubmitButton>
+    </form>
+
+    {source && mergeDiff && (
+      <div>
+        <div class="prose">
+          <h3>{t("admin.attendees.merge_preview")}</h3>
+          <p>
+            Choose which value to keep for each field. Resolve any conflicts
+            below. The source attendee will then be deleted.
+          </p>
+        </div>
+
+        <CsrfForm action={`/admin/attendees/${target.id}/merge`}>
           <input
-            autofocus={!source}
-            id="token"
-            name="token"
-            placeholder={t("attendee_form.enter_ticket_token_placeholder")}
-            required
-            type="text"
-            value={searchToken || ""}
+            name="source_token"
+            type="hidden"
+            value={source.ticket_token}
           />
-        </label>
-        <SubmitButton icon="search">
-          {t("attendee_form.search_button")}
-        </SubmitButton>
-      </form>
+          <input name="merge_version" type="hidden" value={mergeDiff.version} />
 
-      {source && mergeDiff && (
-        <div>
-          <div class="prose">
-            <h3>{t("admin.attendees.merge_preview")}</h3>
-            <p>
-              Choose which value to keep for each field. Resolve any conflicts
-              below. The source attendee will then be deleted.
-            </p>
+          {/* PII decisions */}
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t("admin.attendees.field")}</th>
+                  <th>
+                    Keep (current): <strong>{target.name}</strong>
+                  </th>
+                  <th>
+                    Take from: <strong>{source.name}</strong>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {mergeDiff.piiFields.map((f) => (
+                  <Raw
+                    html={MergePiiField({
+                      field: f.field,
+                      label: f.label,
+                      multiline: f.multiline,
+                      sourceValue: f.sourceValue,
+                      targetValue: f.targetValue,
+                    })}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
 
-          <CsrfForm action={`/admin/attendees/${target.id}/merge`}>
-            <input
-              name="source_token"
-              type="hidden"
-              value={source.ticket_token}
-            />
-            <input
-              name="merge_version"
-              type="hidden"
-              value={mergeDiff.version}
-            />
+          {/* Answer decisions */}
+          <Raw
+            html={MergeAnswersDecisionTable({
+              diff: mergeDiff,
+              sourceName: source.name,
+              targetName: target.name,
+            })}
+          />
 
-            {/* PII decisions */}
-            <div class="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t("admin.attendees.field")}</th>
-                    <th>
-                      Keep (current): <strong>{target.name}</strong>
-                    </th>
-                    <th>
-                      Take from: <strong>{source.name}</strong>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mergeDiff.piiFields.map((f) => (
-                    <Raw
-                      html={MergePiiField({
-                        field: f.field,
-                        label: f.label,
-                        multiline: f.multiline,
-                        sourceValue: f.sourceValue,
-                        targetValue: f.targetValue,
-                      })}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {/* Booking decisions */}
+          <Raw html={MergeBookingsDecisionTable({ diff: mergeDiff })} />
 
-            {/* Answer decisions */}
-            <Raw
-              html={MergeAnswersDecisionTable({
-                diff: mergeDiff,
-                sourceName: source.name,
-                targetName: target.name,
-              })}
-            />
-
-            {/* Booking decisions */}
-            <Raw html={MergeBookingsDecisionTable({ diff: mergeDiff })} />
-
-            <p>
-              <strong>Warning:</strong> This will permanently delete the source
-              attendee. This action cannot be undone.
-            </p>
-            <SubmitButton class="danger" icon="trash-2">
-              Merge and Delete Source Attendee
-            </SubmitButton>
-          </CsrfForm>
-        </div>
-      )}
-    </Layout>,
-  );
+          <p>
+            <strong>Warning:</strong> This will permanently delete the source
+            attendee. This action cannot be undone.
+          </p>
+          <SubmitButton class="danger" icon="trash-2">
+            Merge and Delete Source Attendee
+          </SubmitButton>
+        </CsrfForm>
+      </div>
+    )}
+  </article>
+);
 
 /**
  * Admin re-send notification confirmation page
  */
 export const adminResendNotificationPage = (
-  { listing, attendee }: { listing: ListingWithCount; attendee: Attendee },
+  { attendee }: { listing: ListingWithCount; attendee: Attendee },
   session: AdminSession,
   returnUrl?: string,
   error?: string,
@@ -689,7 +687,7 @@ export const adminResendNotificationPage = (
       <Flash error={error} />
 
       <ConfirmForm
-        action={`/admin/listing/${listing.id}/attendee/${attendee.id}/resend-notification`}
+        action={`/admin/attendees/${attendee.id}/resend-notification`}
         buttonText={t("admin.attendees.resend_submit")}
         danger={false}
         label={t("admin.attendees.delete_label")}

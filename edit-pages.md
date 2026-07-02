@@ -62,6 +62,14 @@ section kinds yet — with no framework behavior of their own they'd duplicate
 they become kinds when a second entity gives them shared behavior. The
 `EntityFormAdapter` shrank to "render the form" for the same reason.
 
+**Follow-up (built):** the attendee URL surface is fully tab-native — the
+listing-scoped action routes (`/admin/listing/:l/attendee/:a/{refund,delete,
+resend-notification}`) moved to `/admin/attendees/:id/*` (check-in and
+delete-incomplete stay listing-scoped: they are roster actions), the balance
+page became an owner-only Balance tab at its old URL, and the merge flow
+folded into the Actions tab (`?token=` drives the preview; the POST stays).
+No legacy URLs are kept alive.
+
 **Not yet built:** slices 2+ (listings, modifiers, the rest) — the
 forward-looking guidance below still applies.
 
