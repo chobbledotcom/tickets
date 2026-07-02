@@ -14,7 +14,8 @@
  */
 
 import { sum, sumOf } from "#fp";
-import { toMinorUnits } from "#shared/currency.ts";
+import { getDecimalPlaces, toMinorUnits } from "#shared/currency.ts";
+import { settings } from "#shared/db/settings.ts";
 import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
 
 /** A parsed reservation amount. `value` is the bare number (not minor units). */
@@ -29,18 +30,29 @@ const RESERVATION_AMOUNT_RE = /^(\d+(?:\.\d+)?)(%|x)?$/;
 export const RESERVATION_AMOUNT_HINT =
   "Enter an amount like 10 (currency units), 10% (of the total) or 10x (per item)";
 
+/** Digits after the decimal point in a numeric string (0 when there is none). */
+const decimalPlaces = (numStr: string): number => {
+  const dot = numStr.indexOf(".");
+  return dot === -1 ? 0 : numStr.length - dot - 1;
+};
+
 /**
  * Parse a reservation-amount string into its kind and numeric value, or null
- * when the string is malformed.
+ * when the string is malformed. A `flat` or `perItem` value is a currency
+ * amount, so it's rejected when it carries more decimal places than the active
+ * currency represents (e.g. `"10.005"` in GBP, which `toMinorUnits` would
+ * otherwise round); a `percent` value keeps its precision (`"33.33%"`).
  */
 export const parseReservationAmount = (
   raw: string,
 ): ReservationAmount | null => {
   const match = RESERVATION_AMOUNT_RE.exec(raw.trim());
   if (!match) return null;
-  // match[1] is `\d+(\.\d+)?`, so this always parses to a finite number.
-  const value = Number.parseFloat(match[1]!);
+  const numStr = match[1]!;
+  // numStr is `\d+(\.\d+)?`, so this always parses to a finite number.
+  const value = Number.parseFloat(numStr);
   if (match[2] === "%") return { kind: "percent", value };
+  if (decimalPlaces(numStr) > getDecimalPlaces(settings.currency)) return null;
   if (match[2] === "x") return { kind: "perItem", value };
   return { kind: "flat", value };
 };

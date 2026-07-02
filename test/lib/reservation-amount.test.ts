@@ -51,6 +51,32 @@ describe("reservation-amount", () => {
       });
     });
 
+    testWithSetting(
+      "rejects a flat/perItem amount more precise than the currency, but keeps percentages",
+      { currency: "GBP" },
+      () => {
+        // "10.005" flat would round to 1001 pence via toMinorUnits — reject it.
+        expect(parseReservationAmount("10.005")).toBeNull();
+        expect(parseReservationAmount("10.005x")).toBeNull();
+        // A percentage keeps its precision — it's not a currency amount.
+        expect(parseReservationAmount("33.335%")).toEqual({
+          kind: "percent",
+          value: 33.335,
+        });
+      },
+    );
+
+    testWithSetting(
+      "accepts 3-decimal flat amounts in a 3-decimal currency (KWD)",
+      { currency: "KWD" },
+      () => {
+        expect(parseReservationAmount("10.005")).toEqual({
+          kind: "flat",
+          value: 10.005,
+        });
+      },
+    );
+
     test("rejects malformed input", () => {
       const malformed = [
         "",

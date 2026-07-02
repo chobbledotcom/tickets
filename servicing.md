@@ -71,24 +71,31 @@ The fuller registry-driven variant (resolve the route first, consult a per-route
 `readOnly: "allow"` flag) remains an optional future refactor; the current
 path-based allowlist already fails closed.
 
-### Holistic 2 — One money schema (servicing slice + ledger done; broader migration remaining)
+### Holistic 2 — One money schema (largely done)
 
-`src/shared/validation/money.ts` now houses the shared currency-aware positive
-parser, and both the service-cost routes and the ledger use it. The remaining
-work is to migrate the **other** money call sites onto the shared family and
-delete their ad-hoc `toMinorUnits(Number.parseFloat(...))` / unrestricted-regex
-parses — and to add the non-negative / optional-override / signed variants those
-sites need (see the axes below). Until then, those fields keep their old parsing:
+`src/shared/validation/money.ts` houses the shared currency-aware family across
+both axes — **bound** (positive / non-negative / signed) × **blank handling**
+(required blank ⇒ `0`, optional blank ⇒ `null` — never a real `0`): plus a
+currency-aware `validatePrice`. The migrated sites now reject a prefix, comma
+group, or over-precise amount instead of `Number.parseFloat`-coercing/rounding:
 
-- `validatePrice` (public/QR prices) — still `Number.parseFloat`, accepts prefixes.
-- listing `unit_price`, modifier `min_subtotal` / `calc_value`, balance-adjust,
-  reservation amounts (flat/per-item), the QR price override, and custom day
-  prices — ad-hoc parses.
+- service costs + ledger entries (positive);
+- listing `unit_price` + custom day prices (optional) and the non-negative price
+  validator behind `unit_price` / `max_price`;
+- public / QR prices (`validatePrice`);
+- balance / income / modifier-revenue corrections (signed `money-adjust`);
+- reservation `flat` / `perItem` amounts (currency-precise; percentages keep
+  their precision).
 
-The bound axes for the full family are **bound** (positive / non-negative /
-signed) × **blank handling** (required vs optional, where blank ≠ zero for the
-optional-override fields). Build them from one `ledgerAmountPattern`-style
-decimal check; do **not** collapse "unset" into a real zero. The browser-side
-`PriceInput` already derives `step` from the currency for every site that adopts
-it; the two hard-coded `pattern="\d+(\.\d{1,2})?"` inputs (QR override price,
-custom day prices) still need the same treatment.
+The browser side matches via `PriceInput`'s `moneyStep()` and a shared
+`moneyPattern()`, now used for `unit_price`, `max_price`, the QR override price,
+and custom day prices (so KWD's 3 decimals are typeable and JPY isn't offered
+cents).
+
+**Remaining:** the modifier `calc_value` / `min_subtotal` fields. These are NOT
+plain money fields — `calc_value` is polymorphic (a currency amount only when
+`calc_kind === "fixed"`, otherwise a percentage or a bare multiplier) and is
+stored in **major** units (converted at resolve time), and both use `parse`/
+`validate` field callbacks. Making the fixed case currency-aware needs
+cross-field (calc_kind-aware) validation rather than the single-field swap the
+other sites took, so it's left as a separate, self-contained change.
