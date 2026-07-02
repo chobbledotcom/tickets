@@ -1,92 +1,215 @@
 # TODO — remaining follow-ups
 
-The root-level planning/design docs were removed once their work shipped. This
-file captures the follow-ups that were *not* yet done when those docs were
-retired. Each item names the doc it came from — the full design detail is
-recoverable from git history (e.g. `git show HEAD~1:<file>.md`).
+This file tracks work that was planned but **not yet done** when the root-level
+planning/design docs were retired (they had served their purpose once the bulk
+of each feature shipped). Each section is written to stand on its own — you
+should not need the deleted docs to pick up an item. If you do want the full
+original design, it is in git history:
 
-## Booking unification (from `booking-unification.md`, `booking-unification-phase2.md`)
+```
+git log --diff-filter=D --name-only -- '*.md'      # find the deletion commit
+git show <deletion-commit>^:booking-unification.md  # read the old doc
+```
 
-Phases 1 & 2 (unified booking-node tree: builder, one recursive renderer,
-unified fold/price/capacity/revalidate, v2 signed per-node metadata) shipped in
-#1462. Remaining:
+The retired docs and their git-recoverable filenames: `parents.md`,
+`editors.md`, `packages.md`, `listing-templates.md`, `tests.md`, `review.md`,
+`settings-plan.md`, `pages.md`, `edit-pages.md`, `servicing.md`,
+`TEST_QUALITY_IMPROVEMENTS.md`, `booking-unification.md`,
+`booking-unification-phase2.md`. All were fully or substantially shipped;
+everything still outstanding is captured below.
 
-- **Row-level admin identity (Phase 3 prerequisite).** Attendee-merge
-  `bookingKey` (`src/shared/merge/attendee-merge.ts`) and check-in targeting key
-  only by `listingId:startAt:parentListingId` — both must learn
-  `package_group_id`/`nodeKey` before duplicate listing ids across paths become
-  possible. Add these cases to the persistence tests first. Not a live defect
-  today (no duplicate listing-ids-across-paths without Phase 3).
-- **Phase 3 — unified edge store (optional, one-way door).** Migrate
+---
+
+## Booking unification — phases 3 & 4
+
+*Origin: `booking-unification.md`, `booking-unification-phase2.md`.*
+
+**Background.** Bookings used to have three independently-grown models: a normal
+listing, parent/child listings (`listing_parents`), and packages (`is_package`
+groups, `group_listings`). The unification collapses all three into one
+**booking-node tree** (`BookingTree`/`BookingNode`) where required / optional /
+fixed / hidden items are just configurations of one structure, walked by five
+generalized passes: render, fold, price, capacity, revalidate.
+
+**Already shipped (phases 1 & 2, PR #1462) — do not redo:**
+- Tree model + pure builder: `src/shared/booking/tree.ts`, `build-tree.ts`
+  (`buildBookingTree`). The public renderer `src/ui/templates/public/
+  reservations.tsx` drives field names/rendering off the tree.
+- Unified walks: `fold-tree.ts` (`foldBookingTree`), `price-tree.ts`
+  (`effectivePrice`, `priceRuleByListingId`, `packageMemberPriceRule`),
+  `capacity-tree.ts` (`packageQuantityCap`, own-cap + group-pool arms).
+- `foldSelectedChildren` (`src/features/public/ticket-payment.ts`) is now a thin
+  adapter over `foldBookingTree`. Pricing flows through `effectivePrice` in
+  `ticket-payment.ts`, `ticket-submit.ts`, `api/index.ts`,
+  `payment-processing.ts`, `webhook.ts`.
+- v2 signed per-node metadata: `BookingItemSchema` (`src/shared/.../payments.ts`,
+  ~line 67) is `{e,q,p}` plus optional edge tags `k` (`"p"`/`"g"`) and `r`
+  (group id); `signed-metadata.ts` (`signedEdgeFor`); webhook re-walk in
+  `payment-processing.ts` (`validateAllItems`, `packageBundleMismatch`,
+  `classifySession`).
+- A package member may itself be a parent: `isPackageableMember`
+  (`src/shared/.../groups.ts`, ~line 115) now permits it.
+
+**Remaining:**
+
+- **Row-level admin identity — do this BEFORE phase 3.** Attendee-merge's
+  `bookingKey` (`src/shared/merge/attendee-merge.ts`, ~lines 70–79) and the
+  check-in targeting key are both `listingId:startAt:parentListingId`. Once
+  phase 3 allows the *same* listing id to appear via more than one path (as a
+  parent's child AND as a package member), those keys collide and merge/check-in
+  target the wrong row. They must additionally key on `package_group_id` /
+  `nodeKey`. Write the persistence tests (merge conflict-keying, check-in
+  targeting for a listing reachable two ways) FIRST, then extend the key. Not a
+  live defect today because phase 3 hasn't introduced duplicate ids yet.
+
+- **Phase 3 — unified edge store (optional; one-way door).** Collapse
   `listing_parents` and `group_listings` into a single edge table (or make one a
-  view of the other). Shipping Phases 1–2 and stopping is a successful outcome;
-  only earn this once it's demanded.
-- **Phase 4 — buyer-choice children inside a package (optional).** Build on
-  demand when a concrete booking requires it.
-- **Confirm v1 drain bridge.** The planned read-only v1 metadata bridge + its
-  drain-window regression test were not built as a distinct piece. The v2 schema
-  added `k`/`r` as *optional* fields to the existing `e/q/p` line shape, so
-  pre-cutover sessions still parse — confirm this was an intentional
-  simplification rather than a gap.
+  view of the other). This is the only schema-migrating, hard-to-reverse phase,
+  so only take it once a concrete need demands it. Shipping phases 1–2 and
+  stopping here is an explicitly *successful* outcome, not a half-finished one.
 
-## Entity pages migration (from `edit-pages.md`)
+- **Phase 4 — buyer-choice children inside a package (optional).** Let a package
+  member offer a buyer-selected child (the parent/child choice UI, nested under a
+  package). Build on demand when a real booking requires it.
 
-The `defineEntityPage` framework + the attendees migration (slice 1) shipped
-(#1500, #1502, #1503). Remaining slices:
+- **Confirm the v1 drain bridge is genuinely unnecessary.** The original plan
+  called for a bounded-window read-only parser for pre-cutover (v1) signed
+  metadata plus a regression test for an old-shape session paid during the
+  cutover window. No dedicated bridge was built. In practice the v2 schema added
+  `k`/`r` as *optional* fields to the existing `e/q/p` line shape, so old
+  sessions still parse (as standalone lines). Verify this covers every
+  in-flight-session case and, if so, close this out; otherwise add the bridge +
+  drain-window test.
 
-- **Listings** — collapse detail + edit into one entity page.
-- **Modifiers** — the third copy of the composition.
-- **Groups, users, questions, built-sites, attendee-statuses, holidays,
-  history/:hmac** — one small PR each.
-- **Generalize `system_notes`** from attendee-only to `(entity_type, entity_id)`
-  so any entity page can carry a notes section.
+---
 
-## Pages / admin nav (from `pages.md`)
+## Entity pages migration — slices 2–5
 
-Site → Pages (admin CRUD, public `/page` route, recursive public nav) shipped
-(#1496). Remaining (optional, flagged non-blocking in the plan):
+*Origin: `edit-pages.md`.*
 
-- **Step 6** — migrate the admin nav onto the shared recursive renderer to
-  delete the last of the fixed-depth `Section`/`NestedSub` code in
-  `src/ui/templates/admin/nav.tsx`.
+**Background.** "Entity pages" is one declarative, schema-driven, tabbed
+framework (`defineEntityPage`) that replaces every hand-assembled admin "edit X"
+page. A page becomes data: tabs of typed sections (summary / form / ledger /
+activity / notes / actions / custom) rendered through an exhaustive `Record`,
+with per-tab authorization, path-segment tabs, and in-place 400-error re-render.
+Migration is deliberately gradual and hardest-first.
 
-## Servicing (from `servicing.md`)
+**Already shipped (slice 1, PRs #1500, #1502, #1503) — do not redo:**
+- Framework: `src/shared/entity-pages/core.ts`, `src/features/admin/
+  entity-pages.ts`, `src/ui/templates/admin/entity-pages.tsx`.
+- Attendees fully migrated onto it: `src/features/admin/attendee-page.ts`
+  (the only current caller of `defineEntityPage`); legacy attendee action URLs
+  removed; tabs left-aligned, section-panel grouping added.
 
-All P1/P2 fixes and the unified money schema shipped (#1499, #1501). Remaining:
+**Remaining slices (each is roughly one PR; keep them small):**
 
-- **Modifier money fields.** Make the modifier `calc_value` / `min_subtotal`
-  fields currency-aware via the shared money schema. They still parse via
-  `Number.parseFloat` in `src/ui/templates/fields.ts` (~lines 924, 970).
-  `calc_value` is polymorphic and stored in *major* units, so the fixed case
-  needs cross-field (`calc_kind`-aware) validation — left as a self-contained
-  change.
-- **Read-only default-deny registry (optional).** The current path-based
-  allowlist already fails closed; a registry-driven per-route `readOnly` flag
-  remains an optional future refactor.
+- **Slice 2 — Listings.** Collapse the separate listing detail + edit pages into
+  one entity page. `src/features/admin/listings*.ts` and
+  `src/ui/templates/admin/listings.tsx` do NOT yet use `defineEntityPage`. This
+  is the second copy of the tab/section composition, so it's the natural next
+  proof after attendees.
+- **Slice 3 — Modifiers.** The third copy of the composition
+  (`src/features/admin/modifiers.ts`). Migrating it validates the framework
+  generalizes.
+- **Slice 4 — the long tail.** Groups, users, questions, built-sites,
+  attendee-statuses, holidays, and `history/:hmac` — one small PR each.
+- **Slice 5 — generalize `system_notes`** from attendee-only to
+  `(entity_type, entity_id)` so any entity page can carry a notes section. The
+  notes DB module currently has no `entity_type` column; this is a small
+  migration + query change that unblocks notes tabs on the other entities.
 
-## Test quality (from `TEST_QUALITY_IMPROVEMENTS.md`)
+---
 
-Mutation testing (the priority-1 item) shipped as a precommit gate
-(`deno task mutation`, `precommit:mutation`). Remaining:
+## Admin nav on the recursive renderer
 
-- **Property-based tests (item 5)** — `fast-check` is used in only one test.
-  Add the proposed properties: slug generation, CSV round-trips (commas/quotes/
-  CRLF), date formatting across timezones, token parsers, URL safety.
-- **Weak-assertion audit lifecycle (item 6)** — `scripts/test-quality-audit.ts`
-  exists; wire its escalation into CI (informational → warning → review gate for
-  touched files).
-- **Production-shape checks (item 7)** — stand up a scheduled/release-blocking
-  suite: edge-bundle smoke, backup/restore drills, concurrent-reservation,
-  webhook replay/idempotency, load tests, security scans.
-- **Ongoing ratchets (items 2 & 3)** — keep replacing compound-boolean
-  assertions and strengthening presence checks in new/touched files.
-- **Metrics** — surface mutation-score baselines / surviving-mutant counts as a
-  tracked artifact.
+*Origin: `pages.md` (step 6, flagged optional/non-blocking).*
 
-## Settings on-demand loading (from `settings-plan.md`)
+**Background.** Site → Pages shipped (PR #1496): user-created content pages
+(`site_pages` / `site_page_items`), an admin CRUD + item manager, a public
+`/page` route, and a recursive contextual public nav built from `buildNavModel`
+(`src/features/public/site-nav.ts`, consumed in
+`src/ui/templates/public/shared.tsx`).
 
-The keyed on-demand settings loader shipped (`loadAll` removed, per-route
-bundles, dev read-audit). Remaining (deferred by design):
+**Remaining.** The *admin* nav (`src/ui/templates/admin/nav.tsx`) still uses
+hand-coded fixed-depth `Section` / `NestedSub` markup. Migrate it onto the same
+shared recursive renderer the public nav uses, deleting the last of the
+fixed-depth code. Purely a simplification — no behaviour change expected.
 
-- **Generation counter** for concurrent partial-load/write races — only add if
-  profiling shows real concurrency.
+---
+
+## Servicing — modifier money fields
+
+*Origin: `servicing.md` (+ its review docs `review.md`, `tests.md`).*
+
+**Background.** The servicing-events feature (attendee-kind rows that hold
+listing capacity without being customers) shipped and was hardened across PRs
+#1395, #1499, #1501: all P0/P1/P2 review defects fixed, a unified currency-aware
+money schema introduced at `src/shared/validation/money.ts`
+(`parsePositiveMinorUnits` / `validatePrice`), and the read-only default-deny
+guard added (path-based allowlist, fails closed).
+
+**Remaining:**
+
+- **Make modifier `calc_value` / `min_subtotal` currency-aware.** These two
+  fields in `src/ui/templates/fields.ts` (~lines 924 and 970) still parse via
+  `Number.parseFloat` instead of the shared money schema. They were left out of
+  the app-wide money-parsing unification on purpose: `calc_value` is
+  **polymorphic** (its meaning depends on `calc_kind`) and is stored in **major**
+  units, not minor, so making the fixed/amount case currency-aware needs
+  cross-field, `calc_kind`-aware validation rather than a drop-in swap. Do it as
+  a self-contained change with its own tests.
+- **Registry-driven read-only default-deny (optional).** The current path-based
+  allowlist already fails closed. The fuller variant — resolve the route first,
+  then consult a per-route `readOnly: "allow"` flag — is an optional future
+  refactor, not a fix.
+
+---
+
+## Test quality
+
+*Origin: `TEST_QUALITY_IMPROVEMENTS.md`.*
+
+**Background.** The goal is to move past coverage-as-floor toward proving
+*assertion strength*. The priority-1 initiative — **mutation testing as a gate**
+— is fully shipped: `scripts/mutation.ts` + `scripts/mutation/`, `deno task
+mutation` and `precommit:mutation` (staged-file gate, batched to bound file
+descriptors — PRs #1478 and others). A weak-assertion audit script also exists:
+`scripts/test-quality-audit.ts`.
+
+**Remaining:**
+
+- **Property-based tests (item 5).** `fast-check` is currently used in only one
+  test (`test/lib/fold-tree.test.ts`). Add properties for: slug generation, CSV
+  round-trips (commas / quotes / CRLF), date formatting across timezones, token
+  parsers, and URL safety.
+- **Weak-assertion audit lifecycle (item 6).** The script exists but isn't wired
+  into CI. Escalate it: informational → CI warning → review gate for touched
+  files.
+- **Production-shape checks (item 7).** Stand up a scheduled or release-blocking
+  suite distinct from the unit run: edge-bundle smoke test, backup/restore
+  drills, concurrent-reservation race, webhook replay/idempotency, load tests,
+  security scans.
+- **Ongoing ratchets (items 2 & 3).** In new/touched files, keep replacing
+  compound-boolean assertions with specific ones and strengthening bare presence
+  checks. These are permanent review habits, not a one-time sweep.
+- **Metrics.** Surface mutation-score baselines / surviving-mutant counts as a
+  tracked artifact so regressions in assertion strength are visible.
+
+---
+
+## Settings on-demand loading — generation counter
+
+*Origin: `settings-plan.md`.*
+
+**Background.** The eager `settings.loadAll()` (decrypt every settings row on
+every request) was replaced by keyed, on-demand loading:
+`prepareRequestEnvironment` calls `settings.loadKeys(settingsForPath(path))`,
+per-route bundles live in `PREFIX_SETTINGS`, `loadAll` is deleted, and a
+dev-mode read-audit (`src/shared/db/settings-audit.ts`, wired into `snap()`)
+keeps the bundles honest by failing when a route reads a key it didn't declare.
+
+**Remaining (deferred by design):**
+
+- **Generation counter for concurrent partial-load/write races.** Only add this
+  if profiling shows real concurrency between a partial load and a settings
+  write. Not needed today.
