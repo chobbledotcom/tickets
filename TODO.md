@@ -137,7 +137,7 @@ fixed-depth code. Purely a simplification — no behaviour change expected.
 
 ---
 
-## Servicing — modifier money fields
+## Servicing — read-only guard (optional variant)
 
 *Origin: `servicing.md` (+ its review docs `review.md`, `tests.md`).*
 
@@ -146,22 +146,18 @@ listing capacity without being customers) shipped and was hardened across PRs
 #1395, #1499, #1501: all P0/P1/P2 review defects fixed, a unified currency-aware
 money schema introduced at `src/shared/validation/money.ts`
 (`parsePositiveMinorUnits` / `validatePrice`), and the read-only default-deny
-guard added (path-based allowlist, fails closed).
+guard added (path-based allowlist, fails closed). The last money site — the
+modifier `calc_value` / `min_subtotal` fields — was then made currency-aware:
+`min_subtotal` through the shared `parseOptionalMinorUnits`, and the polymorphic
+fixed `calc_value` through a `calc_kind`-aware `exceedsCurrencyPrecision` guard
+in `validateModifier` (so a percentage or multiplier keeps its precision).
 
-**Remaining:**
+**Remaining (optional):**
 
-- **Make modifier `calc_value` / `min_subtotal` currency-aware.** These two
-  fields in `src/ui/templates/fields.ts` (~lines 924 and 970) still parse via
-  `Number.parseFloat` instead of the shared money schema. They were left out of
-  the app-wide money-parsing unification on purpose: `calc_value` is
-  **polymorphic** (its meaning depends on `calc_kind`) and is stored in **major**
-  units, not minor, so making the fixed/amount case currency-aware needs
-  cross-field, `calc_kind`-aware validation rather than a drop-in swap. Do it as
-  a self-contained change with its own tests.
-- **Registry-driven read-only default-deny (optional).** The current path-based
-  allowlist already fails closed. The fuller variant — resolve the route first,
-  then consult a per-route `readOnly: "allow"` flag — is an optional future
-  refactor, not a fix.
+- **Registry-driven read-only default-deny.** The current path-based allowlist
+  already fails closed. The fuller variant — resolve the route first, then
+  consult a per-route `readOnly: "allow"` flag — is an optional future refactor,
+  not a fix.
 
 ---
 

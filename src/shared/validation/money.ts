@@ -111,6 +111,18 @@ export const parseOptionalMinorUnits = (raw: string): number | null =>
 export const parseSignedMinorUnits = (raw: string): number | null =>
   parseWith(SignedMoneySchema, raw);
 
+/**
+ * True when a numeric amount in MAJOR units carries more decimal places than the
+ * active currency can represent — the value {@link toMinorUnits} would silently
+ * round. The string parsers above reject over-precise input up front; use this
+ * at a call site that only holds the already-parsed number (e.g. a modifier's
+ * fixed `calc_value`, checked after `Number.parseFloat` alongside its kind).
+ * `value` must be finite (round it through the currency's decimal places and
+ * compare): `10.005` in GBP is over-precise, `10.01` is not.
+ */
+export const exceedsCurrencyPrecision = (value: number): boolean =>
+  Number(value.toFixed(getDecimalPlaces(settings.currency))) !== value;
+
 /** Result of validating a public/QR price against a min/max bound. */
 export type PriceResult =
   | { ok: true; price: number }

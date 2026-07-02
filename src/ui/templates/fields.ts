@@ -964,17 +964,17 @@ export const modifierFields: Field[] = [
     inputmode: "decimal",
     label: "Minimum order (optional)",
     name: "min_subtotal",
-    // Optional: blank means no minimum (0). A provided value must be a
-    // non-negative number; `validateSingleField` only runs `validate` when the
-    // field is non-empty, and `parse` maps blank to 0.
+    // Optional: blank means no minimum (0). `parse` maps blank to 0;
+    // `validateSingleField` only runs `validate` on a non-empty value.
     parse: (value: string) => (value ? Number.parseFloat(value) : 0),
     type: "text",
-    validate: (value: string) => {
-      const n = Number.parseFloat(value);
-      return Number.isFinite(n) && n >= 0
-        ? null
-        : "Minimum order must be a positive number";
-    },
+    // A present value is a currency amount, so reject a negative, a non-number,
+    // or one with more decimals than the currency allows (which `toMinorUnits`
+    // would otherwise round at save) rather than silently coercing it.
+    validate: (value: string) =>
+      parseOptionalMinorUnits(value) === null
+        ? "Minimum order must be a valid amount for your currency"
+        : null,
   },
   {
     hint: "Only apply to a returning customer with at least this many previous bookings. 0 (or blank) applies to everyone; 1 means seen at least once before.",

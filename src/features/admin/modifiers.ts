@@ -70,6 +70,7 @@ import {
 } from "#shared/price-modifier.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import type { Modifier } from "#shared/types.ts";
+import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
 import {
   type AnswerLinks,
   adminModifierDeletePage,
@@ -218,6 +219,21 @@ const childAddOnInputError = async (
   });
 };
 
+/** The value error for a modifier: the kind-aware magnitude/sign rules
+ * ({@link validateCalcValue}), plus a currency-precision guard for a fixed
+ * amount — it's a currency value (converted major→minor when the modifier
+ * resolves), so an over-precise amount is rejected rather than letting
+ * `toMinorUnits` silently round it at apply time. A percentage or multiplier is
+ * not a currency amount, so it keeps its precision. Null when the value is
+ * valid. */
+const modifierValueError = (kind: CalcKind, value: number): string | null => {
+  const valueError = validateCalcValue(kind, value);
+  if (valueError) return valueError;
+  return kind === "fixed" && exceedsCurrencyPrecision(value)
+    ? "Amount has more decimal places than your currency allows"
+    : null;
+};
+
 /** Validate a modifier's kind, direction, trigger, scope, and value (the select
  * options can be bypassed by a crafted POST, so re-check membership here), then
  * — when the parents feature is on — block an opt-in add-on whose would-be scope
@@ -254,7 +270,7 @@ const validateModifier = (
   if (isOptionalAddOn && requiresPreviousBookings) {
     return Promise.resolve("Optional add-ons cannot require previous bookings");
   }
-  const valueError = validateCalcValue(input.calcKind, input.calcValue);
+  const valueError = modifierValueError(input.calcKind, input.calcValue);
   if (valueError) return Promise.resolve(valueError);
   return childAddOnInputError(input, id);
 };
