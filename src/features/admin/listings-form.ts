@@ -31,6 +31,7 @@ import {
   type ListingType,
   parseDayPrices,
 } from "#shared/types.ts";
+import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import type {
   ListingAggregateFormValues,
   ListingEditFormValues,
@@ -96,8 +97,10 @@ const parseDayPricesFromForm = (
 ): DayPrices => {
   const result: DayPrices = {};
   for (let n = 1; n <= maxDays; n++) {
-    const raw = form.getString(`day_price_${n}`).trim();
-    if (raw !== "") result[n] = toMinorUnits(Number.parseFloat(raw));
+    // Optional per-day price: blank ⇒ skip (that day isn't offered), an amount
+    // with more decimals than the currency allows ⇒ skip (rejected, not rounded).
+    const price = parseOptionalMinorUnits(form.getString(`day_price_${n}`));
+    if (price !== null) result[n] = price;
   }
   return parseDayPrices(result);
 };
@@ -108,9 +111,10 @@ const normalizeOptionalDatetime = (
   field: string,
 ): string | undefined => (raw ? normalizeDatetime(raw, field) : raw);
 
-/** Parse an optional minor-units price field, undefined when blank. */
+/** Parse an optional minor-units price field: undefined when blank or invalid,
+ *  else the currency-validated non-negative amount. */
 const parseOptionalPrice = (raw: string | undefined): number | undefined =>
-  raw ? toMinorUnits(Number.parseFloat(raw)) : undefined;
+  parseOptionalMinorUnits(raw ?? "") ?? undefined;
 
 /** Extract common listing fields from validated form values, normalizing datetimes to UTC */
 const extractCommonFields = (

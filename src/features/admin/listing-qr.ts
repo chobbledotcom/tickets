@@ -25,7 +25,6 @@ import {
   type FormValidator,
 } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { validatePrice } from "#shared/currency.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
@@ -33,6 +32,7 @@ import { FormParams } from "#shared/form-data.ts";
 import { generateQrSvg, listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
+import { validatePrice } from "#shared/validation/money.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import type {
   AdminListingQrResult,

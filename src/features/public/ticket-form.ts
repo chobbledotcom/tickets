@@ -5,7 +5,6 @@
 import { filter, map } from "#fp";
 import { capacityErrorFormatter } from "#routes/format.ts";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
-import { validatePrice } from "#shared/currency.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type {
   AttendeeAnswerSet,
@@ -16,6 +15,7 @@ import type {
 } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ListingFields } from "#shared/types.ts";
+import { validatePrice } from "#shared/validation/money.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { extractContact, mergeListingFields } from "#templates/fields.ts";
 import { type TicketListing, ticketPage } from "#templates/public.tsx";

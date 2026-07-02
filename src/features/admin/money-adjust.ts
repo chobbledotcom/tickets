@@ -20,9 +20,8 @@
 
 import { OWNER_FORM, withAuth } from "#routes/auth.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
-import { toMinorUnits } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import type { FormParams } from "#shared/form-data.ts";
+import { parseSignedMinorUnits } from "#shared/validation/money.ts";
 
 /** Configuration for one entity's money-correction handler. */
 type MoneyAdjustConfig<Entity> = {
@@ -41,16 +40,6 @@ type MoneyAdjustConfig<Entity> = {
   editPath: (id: number) => string;
 };
 
-/** Parse a money field in major units to minor units. Blank or non-finite input
- * is rejected (null); a finite value — including a negative, which a modifier's
- * net revenue can legitimately be — converts to integer minor units. */
-const parseMoneyField = (form: FormParams, field: string): number | null => {
-  const raw = form.getString(field).trim();
-  if (raw === "") return null;
-  const parsed = Number.parseFloat(raw);
-  return Number.isFinite(parsed) ? toMinorUnits(parsed) : null;
-};
-
 /**
  * Build the POST handler for one entity's money correction. Owner-only; loads the
  * entity, parses the new figure, posts the delta as a `writeoff` adjustment, logs
@@ -62,7 +51,7 @@ export const makeMoneyAdjustHandler =
     withAuth(request, OWNER_FORM, async (_session, form) => {
       const entity = await config.load(id);
       if (!entity) return notFoundResponse();
-      const target = parseMoneyField(form, config.field);
+      const target = parseSignedMinorUnits(form.getString(config.field));
       if (target === null) {
         return errorRedirect(config.editPath(id), "Enter a valid amount");
       }

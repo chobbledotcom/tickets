@@ -40,6 +40,8 @@ import {
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import { EmailFormatSchema } from "#shared/validation/email.ts";
+import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
+import { moneyPattern } from "#templates/components/price-input.tsx";
 
 // ---------------------------------------------------------------------------
 // Typed form value interfaces
@@ -176,15 +178,15 @@ const validateHttpsDomainUrl = (value: string): string | null =>
   validateSafeServerFetchUrl(value, t("fields.validation.url_https"));
 
 /**
- * Validate price is non-negative
+ * Validate a required non-negative price. Currency-aware: rejects a blank, a
+ * negative, a non-numeric value, AND an amount carrying more decimal places than
+ * the active currency allows (so `1.005` in GBP is a validation error rather
+ * than a value that later rounds to 101 pence).
  */
-const validateNonNegativePrice = (value: string): string | null => {
-  const num = Number.parseFloat(value);
-  if (Number.isNaN(num) || num < 0) {
-    return t("fields.validation.price_min");
-  }
-  return null;
-};
+const validateNonNegativePrice = (value: string): string | null =>
+  parseOptionalMinorUnits(value) === null
+    ? t("fields.validation.price_min")
+    : null;
 
 const validateNonNegativeInteger =
   (label: string) =>
@@ -486,7 +488,7 @@ export const getListingFields = (): Field[] => [
     inputmode: "decimal",
     label: t("fields.listing.price"),
     name: "unit_price",
-    pattern: "\\d+(\\.\\d{1,2})?",
+    pattern: moneyPattern(),
     placeholder: t("fields.listing.price_placeholder"),
     title: t("fields.listing.price_title"),
     type: "text",
@@ -505,7 +507,7 @@ export const getListingFields = (): Field[] => [
     inputmode: "decimal",
     label: t("fields.listing.max_price"),
     name: "max_price",
-    pattern: "\\d+(\\.\\d{1,2})?",
+    pattern: moneyPattern(),
     placeholder: t("fields.listing.max_price_placeholder"),
     title: t("fields.listing.max_price_title"),
     type: "text",
