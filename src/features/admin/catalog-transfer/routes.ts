@@ -43,25 +43,33 @@ const catalogFilename = (kind: string, name: string): string => {
   return `${kind}-${slug || kind}.json`;
 };
 
+/** Content-gated export download: load the blob by id (404 when absent) and
+ * stream it as a named JSON attachment. Shared by both entity kinds. */
+const downloadExport = <T>(
+  request: Request,
+  id: number,
+  load: (id: number) => Promise<T | null>,
+  kind: string,
+  nameOf: (blob: T) => string,
+): Promise<Response> =>
+  requireContentOr(request, async () => {
+    const blob = await load(id);
+    return blob
+      ? jsonDownload(blob, catalogFilename(kind, nameOf(blob)))
+      : notFoundResponse();
+  });
+
 /** GET /admin/listing/:id/export.json — download a listing's export blob. */
 const handleListingExport: TypedRouteHandler<
   "GET /admin/listing/:id/export.json"
 > = (request, { id }) =>
-  requireContentOr(request, async () => {
-    const blob = await exportListing(id);
-    if (!blob) return notFoundResponse();
-    return jsonDownload(blob, catalogFilename("listing", blob.listing.name));
-  });
+  downloadExport(request, id, exportListing, "listing", (b) => b.listing.name);
 
 /** GET /admin/groups/:id/export.json — download a group's export blob. */
 const handleGroupExport: TypedRouteHandler<
   "GET /admin/groups/:id/export.json"
 > = (request, { id }) =>
-  requireContentOr(request, async () => {
-    const blob = await exportGroup(id);
-    if (!blob) return notFoundResponse();
-    return jsonDownload(blob, catalogFilename("group", blob.group.name));
-  });
+  downloadExport(request, id, exportGroup, "group", (b) => b.group.name);
 
 /** GET /admin/catalog/import — the import upload form. */
 const handleImportGet: TypedRouteHandler<"GET /admin/catalog/import"> = (
@@ -78,7 +86,7 @@ const handleImportGet: TypedRouteHandler<"GET /admin/catalog/import"> = (
 const handleImportPost: TypedRouteHandler<"POST /admin/catalog/import"> = (
   request,
 ) =>
-  withAuth(request, CONTENT_MULTIPART, async (_session, formData) => {
+  withAuth(request, CONTENT_MULTIPART, async (session, formData) => {
     const file = formData.get("catalog_file");
     if (!(file instanceof File) || file.size === 0) {
       return errorRedirect(IMPORT_PATH, t("catalog_transfer.no_file"));
@@ -91,7 +99,7 @@ const handleImportPost: TypedRouteHandler<"POST /admin/catalog/import"> = (
       return errorRedirect(IMPORT_PATH, t("catalog_transfer.invalid_json"));
     }
 
-    const result = await importCatalog(parsed);
+    const result = await importCatalog(parsed, session.adminLevel);
     if (!result.ok) return errorRedirect(IMPORT_PATH, result.error);
 
     if (result.kind === "listing") {

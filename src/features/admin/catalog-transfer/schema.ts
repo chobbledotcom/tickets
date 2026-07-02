@@ -18,22 +18,44 @@
  */
 
 import * as v from "valibot";
-import { ListingTypeSchema } from "#shared/types.ts";
+import { ListingTypeSchema, MAX_DURATION_DAYS } from "#shared/types.ts";
 
 /** Bump when the format changes incompatibly; a blob at another version is
  * rejected with an intelligible message rather than mis-imported. */
 export const CATALOG_TRANSFER_VERSION = 1;
 
-/** A whole non-negative minor-unit price. */
-const PriceSchema = v.pipe(v.number(), v.integer(), v.minValue(0));
-/** A whole non-negative integer (counts, day windows). */
-const NonNegativeIntSchema = v.pipe(v.number(), v.integer(), v.minValue(0));
+/** A whole integer of at least `min`. */
+const intAtLeast = (min: number) =>
+  v.pipe(v.number(), v.integer(), v.minValue(min));
+/** A whole non-negative integer (counts, day windows, minor-unit prices). */
+const NonNegativeIntSchema = intAtLeast(0);
 /** A whole positive integer (durations, quantities). */
-const PositiveIntSchema = v.pipe(v.number(), v.integer(), v.minValue(1));
+const PositiveIntSchema = intAtLeast(1);
+/** A minor-unit price — a non-negative integer. */
+const PriceSchema = NonNegativeIntSchema;
 /** A required, trimmed, non-empty name reference. */
 const NameRefSchema = v.pipe(v.string(), v.trim(), v.minLength(1));
-/** Per-day-count price overrides as they appear in JSON (string day keys). */
-const DayPricesSchema = v.record(v.string(), PriceSchema);
+/** A day-count JSON key: a positive whole number within the bookable range, so a
+ * typo key ("weekday") or an out-of-range count is a field error rather than a
+ * silently-dropped override. */
+const DayCountKeySchema = v.pipe(
+  v.string(),
+  v.regex(/^[1-9]\d*$/, "day count must be a positive whole number"),
+  v.check(
+    (key) => Number(key) <= MAX_DURATION_DAYS,
+    `day count must be between 1 and ${MAX_DURATION_DAYS}`,
+  ),
+);
+/** Per-day-count price overrides as they appear in JSON (validated string keys). */
+const DayPricesSchema = v.record(DayCountKeySchema, PriceSchema);
+
+// Reused optional-field shapes — aliased so the schemas below read as data and
+// don't repeat the same `v.optional(...)` token runs (which the duplication gate
+// flags across the parallel listing/group schemas).
+const optString = v.optional(v.string());
+const optBoolean = v.optional(v.boolean());
+const optNonNegInt = v.optional(NonNegativeIntSchema);
+const optPositiveInt = v.optional(PositiveIntSchema);
 
 /**
  * The transferable columns of a listing, keyed in camelCase to match
@@ -43,48 +65,50 @@ const DayPricesSchema = v.record(v.string(), PriceSchema);
  * defaults; `name` and `maxAttendees` are the only structural requirements.
  */
 export const ListingDataSchema = v.object({
-  active: v.optional(v.boolean()),
-  assignBuiltSite: v.optional(v.boolean()),
+  active: optBoolean,
+  assignBuiltSite: optBoolean,
   bookableDays: v.optional(v.array(v.string())),
-  canPayMore: v.optional(v.boolean()),
+  canPayMore: optBoolean,
   closesAt: v.optional(v.nullable(v.string())),
-  customisableDays: v.optional(v.boolean()),
-  date: v.optional(v.string()),
+  customisableDays: optBoolean,
+  date: optString,
   dayPrices: v.optional(DayPricesSchema),
-  description: v.optional(v.string()),
-  durationDays: v.optional(PositiveIntSchema),
-  fields: v.optional(v.string()),
-  hidden: v.optional(v.boolean()),
-  initialSiteMonths: v.optional(NonNegativeIntSchema),
+  description: optString,
+  durationDays: optPositiveInt,
+  fields: optString,
+  hidden: optBoolean,
+  initialSiteMonths: optNonNegInt,
   listingType: v.optional(ListingTypeSchema),
-  location: v.optional(v.string()),
-  maxAttendees: NonNegativeIntSchema,
-  maximumDaysAfter: v.optional(NonNegativeIntSchema),
+  location: optString,
+  // A listing's capacity must be at least 1, matching the form/API create paths
+  // (a 0-capacity listing can never accept a booking).
+  maxAttendees: PositiveIntSchema,
+  maximumDaysAfter: optNonNegInt,
   maxPrice: v.optional(PriceSchema, 0),
-  maxQuantity: v.optional(PositiveIntSchema),
-  minimumDaysBefore: v.optional(NonNegativeIntSchema),
-  monthsPerUnit: v.optional(NonNegativeIntSchema),
+  maxQuantity: optPositiveInt,
+  minimumDaysBefore: optNonNegInt,
+  monthsPerUnit: optNonNegInt,
   name: NameRefSchema,
-  nonTransferable: v.optional(v.boolean()),
-  purchaseOnly: v.optional(v.boolean()),
-  thankYouUrl: v.optional(v.string()),
+  nonTransferable: optBoolean,
+  purchaseOnly: optBoolean,
+  thankYouUrl: optString,
   unitPrice: v.optional(PriceSchema),
-  useDefaults: v.optional(v.boolean()),
-  usesLogistics: v.optional(v.boolean()),
-  webhookUrl: v.optional(v.string()),
+  useDefaults: optBoolean,
+  usesLogistics: optBoolean,
+  webhookUrl: optString,
 });
 export type ListingData = v.InferOutput<typeof ListingDataSchema>;
 
 /** The transferable columns of a group, keyed to match `GroupInput` (members
  * live on the envelope, not here). */
 export const GroupDataSchema = v.object({
-  description: v.optional(v.string()),
-  hidden: v.optional(v.boolean()),
-  hidePackageListings: v.optional(v.boolean()),
-  isPackage: v.optional(v.boolean()),
-  maxAttendees: v.optional(NonNegativeIntSchema),
+  description: optString,
+  hidden: optBoolean,
+  hidePackageListings: optBoolean,
+  isPackage: optBoolean,
+  maxAttendees: optNonNegInt,
   name: NameRefSchema,
-  termsAndConditions: v.optional(v.string()),
+  termsAndConditions: optString,
 });
 export type GroupData = v.InferOutput<typeof GroupDataSchema>;
 

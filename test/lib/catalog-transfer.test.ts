@@ -21,6 +21,23 @@ import {
   describeWithEnv,
 } from "#test-utils";
 
+/** Import a listing that asks for a built site, returning the persisted
+ * `assign_built_site` flag — true only where the builder is configured. */
+const importBuiltSiteListing = async (name: string): Promise<boolean> => {
+  const result = await importCatalog({
+    kind: "listing",
+    listing: {
+      assignBuiltSite: true,
+      initialSiteMonths: 12,
+      maxAttendees: 5,
+      name,
+    },
+    version: 1,
+  });
+  if (!result.ok) throw new Error(result.error);
+  return (await getListing(result.id))!.assign_built_site;
+};
+
 describeWithEnv("catalog-transfer", { db: true }, () => {
   describe("listing round-trip", () => {
     test("re-creates a listing with its group membership and parent", async () => {
@@ -323,5 +340,228 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
   test("exporting a missing listing or group returns null", async () => {
     expect(await exportListing(9999)).toBeNull();
     expect(await exportGroup(9999)).toBeNull();
+  });
+});
+
+describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
+  test("rejects a zero-capacity listing", async () => {
+    const result = await importCatalog({
+      kind: "listing",
+      listing: { maxAttendees: 0, name: "Zero Cap" },
+      version: 1,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("listing.maxAttendees");
+  });
+
+  test("rejects a day-price key that is not a day count", async () => {
+    const result = await importCatalog({
+      kind: "listing",
+      listing: {
+        dayPrices: { weekday: 100 },
+        maxAttendees: 1,
+        name: "Bad Day",
+      },
+      version: 1,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("day count");
+  });
+
+  test("rejects a duplicate parent reference", async () => {
+    await createTestListing({ name: "Dup Parent" });
+    const result = await importCatalog({
+      kind: "listing",
+      listing: { maxAttendees: 1, name: "Dup Child" },
+      parents: ["Dup Parent", "Dup Parent"],
+      version: 1,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("referenced more than once");
+  });
+
+  test("rejects a parent that is itself a child (single-level nesting)", async () => {
+    const grandparent = await createTestListing({ name: "Grandparent" });
+    const parent = await createTestListing({ name: "Middle" });
+    await setChildIds(grandparent.id, [parent.id]);
+    const result = await importCatalog({
+      kind: "listing",
+      listing: { maxAttendees: 1, name: "Deep Child" },
+      parents: ["Middle"],
+      version: 1,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("offered as a child");
+  });
+
+  test("strips webhook URL and use-defaults for an editor import", async () => {
+    const result = await importCatalog(
+      {
+        kind: "listing",
+        listing: {
+          maxAttendees: 5,
+          name: "Editor Listing",
+          useDefaults: true,
+          webhookUrl: "https://example.com/hook",
+        },
+        version: 1,
+      },
+      "editor",
+    );
+    if (!result.ok) throw new Error(result.error);
+    const imported = (await getListing(result.id))!;
+    expect(imported.webhook_url).toBe("");
+    expect(imported.use_defaults).toBe(false);
+  });
+
+  test("keeps the webhook URL for a non-editor import", async () => {
+    const result = await importCatalog(
+      {
+        kind: "listing",
+        listing: {
+          maxAttendees: 5,
+          name: "Owner Listing",
+          webhookUrl: "https://example.com/hook",
+        },
+        version: 1,
+      },
+      "owner",
+    );
+    if (!result.ok) throw new Error(result.error);
+    const imported = (await getListing(result.id))!;
+    expect(imported.webhook_url).toBe("https://example.com/hook");
+  });
+
+  test("clears assign-built-site when the builder is not configured", async () => {
+    expect(await importBuiltSiteListing("No Builder")).toBe(false);
+  });
+
+  test("batches many memberships into at most two statements", async () => {
+    // The interactive transaction caps at 30 statements, so a large group's
+    // memberships must not be one statement each. membershipStatements collapses
+    // them into one group_listings insert plus one group_day insert.
+    const { membershipStatements } = await import(
+      "#routes/admin/catalog-transfer/membership.ts"
+    );
+    const memberships = Array.from({ length: 40 }, (_, i) => ({
+      dayPrices: { 1: 500 },
+      groupId: 7,
+      listingId: i + 1,
+      packagePrice: null,
+      quantity: 1,
+    }));
+    const statements = membershipStatements(memberships);
+    expect(statements.length).toBe(2);
+    // Every member appears in the single group_listings insert (4 args each).
+    expect(statements[0]!.args.length).toBe(40 * 4);
+  });
+});
+
+describeWithEnv(
+  "catalog-transfer with the builder enabled",
+  { db: true, env: { CAN_BUILD_SITES: "true" } },
+  () => {
+    test("keeps assign-built-site when the builder is configured", async () => {
+      expect(await importBuiltSiteListing("Builder On")).toBe(true);
+    });
+  },
+);
+
+describeWithEnv("catalog-transfer branch coverage", { db: true }, () => {
+  test("rejects an ambiguous (duplicate-named) reference", async () => {
+    const { computeSlugIndex, listingsTable } = await import(
+      "#shared/db/listings.ts"
+    );
+    for (const slug of ["twin-a", "twin-b"]) {
+      await listingsTable.insert({
+        maxAttendees: 1,
+        maxPrice: 0,
+        name: "Twin Parent",
+        slug,
+        slugIndex: await computeSlugIndex(slug),
+      });
+    }
+    const result = await importCatalog({
+      kind: "listing",
+      listing: { maxAttendees: 1, name: "Ambiguous Child" },
+      parents: ["Twin Parent"],
+      version: 1,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("names must be unique to import");
+  });
+
+  test("surfaces a listing-validation error (group type mismatch)", async () => {
+    const group = await createTestGroup({ name: "Std Group" });
+    await createTestListing({
+      groupId: group.id,
+      listingType: "standard",
+      name: "Std Member",
+    });
+    const result = await importCatalog({
+      groups: [{ group: "Std Group" }],
+      kind: "listing",
+      listing: { listingType: "daily", maxAttendees: 5, name: "Daily Joiner" },
+      version: 1,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("same type");
+  });
+
+  test("rejects a group name already in use", async () => {
+    await createTestGroup({ name: "Taken Group" });
+    const result = await importCatalog({
+      group: { name: "Taken Group" },
+      kind: "group",
+      members: [],
+      version: 1,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("already exists");
+  });
+
+  test("rejects group members that disagree on customisable days", async () => {
+    await createTestListing({ listingType: "standard", name: "Fixed Days" });
+    await createTestListing({
+      customisableDays: true,
+      dayPrices: { 1: 100 },
+      durationDays: 1,
+      listingType: "standard",
+      name: "Flexible Days",
+    });
+    const result = await importCatalog({
+      group: { name: "Mixed Days" },
+      kind: "group",
+      members: [{ listing: "Fixed Days" }, { listing: "Flexible Days" }],
+      version: 1,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("customisable days");
+  });
+
+  test("rejects a package group with a non-packageable member", async () => {
+    await createTestListing({
+      canPayMore: true,
+      maxPrice: 5000,
+      name: "Pay What You Want",
+      unitPrice: 1000,
+    });
+    const result = await importCatalog({
+      group: { isPackage: true, name: "Bad Package" },
+      kind: "group",
+      members: [{ listing: "Pay What You Want" }],
+      version: 1,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("Packages cannot contain");
   });
 });

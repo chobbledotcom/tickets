@@ -65,6 +65,18 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       expect(blob.group.name).toBe("Group X");
     });
 
+    test("falls back to the kind when a name has no slug characters", async () => {
+      // A name of only punctuation slugifies to empty, so the filename uses the
+      // entity kind rather than producing a dangling "listing-.json".
+      const listing = await createTestListing({ name: "★☆★" });
+      const response = await adminGet(
+        `/admin/listing/${listing.id}/export.json`,
+      );
+      expect(response.headers.get("content-disposition")).toContain(
+        'filename="listing-listing.json"',
+      );
+    });
+
     test("returns 404 for a missing listing", async () => {
       const response = await adminGet("/admin/listing/9999/export.json");
       expect(response.status).toBe(404);

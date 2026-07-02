@@ -103,24 +103,16 @@ export const exportListing = async (
     memberships.map((m) => m.group_id),
   );
 
-  const groups: ListingMembership[] = mapNotNullish(
-    (m: {
-      group_id: number;
-      package_price: number | null;
-      quantity: number;
-    }) => {
-      const name = groupNames.get(m.group_id);
-      if (name === undefined) return undefined;
-      return {
-        group: name,
-        ...overrideFields(
-          m.package_price,
-          m.quantity,
-          groupDayPrices.get(m.group_id)?.get(id),
-        ),
-      };
-    },
-  )(memberships);
+  // Every membership row references an existing group (FK), and `groupNames`
+  // covers all groups, so the name lookup always resolves.
+  const groups: ListingMembership[] = memberships.map((m) => ({
+    group: groupNames.get(m.group_id)!,
+    ...overrideFields(
+      m.package_price,
+      m.quantity,
+      groupDayPrices.get(m.group_id)?.get(id),
+    ),
+  }));
 
   const parentNames = await getListingNamesByIds(parentIds);
   const parents = mapNotNullish((parentId: number) =>
@@ -156,24 +148,16 @@ export const exportGroup = async (
     getGroupDayPrices(id),
   ]);
 
-  const members: GroupMember[] = mapNotNullish(
-    (row: {
-      listing_id: number;
-      package_price: number | null;
-      quantity: number;
-    }) => {
-      const name = listingNames.get(row.listing_id);
-      if (name === undefined) return undefined;
-      return {
-        listing: name,
-        ...overrideFields(
-          row.package_price,
-          row.quantity,
-          dayPrices.get(row.listing_id),
-        ),
-      };
-    },
-  )(rows);
+  // Every package row references an existing listing (FK), and `listingNames`
+  // covers exactly those ids, so the name lookup always resolves.
+  const members: GroupMember[] = rows.map((row) => ({
+    listing: listingNames.get(row.listing_id)!,
+    ...overrideFields(
+      row.package_price,
+      row.quantity,
+      dayPrices.get(row.listing_id),
+    ),
+  }));
 
   return {
     group: v.parse(

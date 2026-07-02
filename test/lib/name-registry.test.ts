@@ -73,6 +73,27 @@ describeWithEnv("name-registry", { db: true }, () => {
     });
   });
 
+  test("an unnamed legacy row is dropped from the index", async () => {
+    // A whitespace-only name (legacy data predating the required-name rule)
+    // must not occupy the empty-string key — it never participates in
+    // uniqueness or name lookup.
+    const slug = "blank-name";
+    await listingsTable.insert({
+      maxAttendees: 1,
+      maxPrice: 0,
+      name: "   ",
+      slug,
+      slugIndex: await computeSlugIndex(slug),
+    });
+    const real = await createTestListing({ name: "Named One" });
+    const index = await loadCatalogNameIndex();
+    expect(index.listing.has("")).toBe(false);
+    expect(matchName(index.listing, "Named One")).toEqual({
+      id: real.id,
+      ok: true,
+    });
+  });
+
   test("matchName reports a missing name", async () => {
     const index = await loadCatalogNameIndex();
     expect(matchName(index.listing, "Ghost")).toEqual({
