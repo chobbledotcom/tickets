@@ -162,6 +162,16 @@ JSON API; the single-listing duplicate and group bulk-duplicate paths).
 - Removing/adding a child edge on a listing that is a package member re-runs
   the same predicate (the children form and API already call
   `packageChildEdgeConflict`; it becomes this predicate).
+- **The chooser's own caps must accommodate the pick count.** The slot
+  listing is a real booked line, so its own `max_quantity`/remaining seats
+  feed `packageQuantityCap` (member `maxPurchasable ÷ fixedQty`) — a
+  newly-created chooser left at the default `max_quantity: 1` under a pick-2
+  slot caps the whole package at 0 before any candidate is considered. The
+  shared predicate rejects a slot whose own per-order cap is below its pick
+  count, and the "add choice slot" affordance (alternatives §3) creates the
+  chooser with generous caps by default; a deliberately low chooser
+  `max_attendees` remains a legitimate operator lever for bounding total
+  packages.
 - **Editing a candidate's own fields re-runs it too.** Candidate eligibility
   depends on the child listing's fields (`can_pay_more`, `listing_type`,
   `customisable_days`, `hidden`, renewal tier), and the listing-save edge
@@ -207,16 +217,23 @@ derivation to compute a slot's active quantity as
 (`src/ui/client/order.ts`) prices chosen candidates off the same derived
 quantity.
 
-**Per-candidate select ranges must be residual, not raw.** The ordinary child
-block caps each `child_qty` select via `childOrderCap` against the raw
-parent/child context; on a package page that over-offers whenever a candidate
-shares a capped pool with fixed members. Example: fixed member M and
-candidate C share group G with 2 remaining, and the pick-2 slot also offers
-outside candidate D — one package is feasible only with at most one C, yet
-the raw cap offers C=2 (it sees both G spots), letting the buyer submit a mix
-the atomic write rejects. Derive each candidate's select ceiling from the
-same residual context the capacity solver uses at the selected package
-quantity, and recompute it in the client JS when `package_quantity` changes.
+**Per-candidate select ranges must be residual, not raw — and the chosen mix
+needs a joint check.** The ordinary child block caps each `child_qty` select
+via `childOrderCap` against the raw parent/child context; on a package page
+that over-offers whenever a candidate shares a capped pool with fixed
+members. Example: fixed member M and candidate C share group G with 2
+remaining, and the pick-2 slot also offers outside candidate D — one package
+is feasible only with at most one C, yet the raw cap offers C=2 (it sees
+both G spots), letting the buyer submit a mix the atomic write rejects.
+Derive each candidate's select ceiling from the same residual context the
+capacity solver uses at the selected package quantity, and recompute it in
+the client JS when `package_quantity` changes. Independent ceilings alone
+are still insufficient across slots: two pick-1 slots each offering a
+G-candidate (ceiling 1 each) plus an outside alternative can jointly consume
+2 G-spots when only 1 remains. The client enhancement therefore validates
+the **whole selected mix** against the same residual system (cheap at these
+sizes) and warns/disables before submit; the no-JS floor stays the existing
+reject-never-clamp submit error from the fold/batch check.
 
 ### C. Capacity + discovery parity
 
@@ -349,14 +366,14 @@ gets, from **one** extended predicate — `lacksStandalonePublicPage`
 (`src/features/public/ticket-payment.ts`) becomes child OR hidden-package
 member OR **package member with child edges** — applied on every surface
 where children are handled today. **Layering:** the new test itself must live
-at the DB layer (a shared helper/SQL predicate alongside
-`getHiddenPackageMemberIds`, e.g. `getSlotListingIds` in
-`src/shared/db/groups.ts` joining `group_listings` × `listing_parents`),
-because catalog consumers like `getCatalogListings` live in
-`src/shared/db/listings.ts` and cannot import
-`features/public/ticket-payment.ts` without a shared→feature cycle;
-`lacksStandalonePublicPage` delegates to it. Enumerating the surfaces (each
-is a real bypass otherwise):
+at the DB layer — but NOT in `src/shared/db/groups.ts`, which already imports
+`queryListingsWithCounts` from `src/shared/db/listings.ts`, so `listings.ts`
+(`getCatalogListings`) importing a slot helper back from `groups.ts` would be
+a DB-layer cycle. Put the reusable `group_listings × listing_parents` SQL
+predicate in a lower-level module neither imports the other from (or inline
+the `NOT EXISTS` fragment in the catalog query), with
+`lacksStandalonePublicPage` and the feature-layer callers delegating to it.
+Enumerating the surfaces (each is a real bypass otherwise):
 
 - **Direct slug entries:** `withActiveListings` (web) and the JSON API's
   `findActiveListing`.
@@ -463,7 +480,8 @@ price — existing, deliberate behaviour.
   add-on candidates rejected (the existing edge blockers still apply);
   editing an existing candidate to pay-more/daily/hidden rejected at listing
   save; flipping the listing-defaults Hidden to true rejected (or re-checked)
-  while a `use_defaults` slot candidate exists; a listing
+  while a `use_defaults` slot candidate exists; a chooser whose own
+  `max_quantity` is below its pick count rejected; a listing
   that is itself a **child** under another parent rejected as a member; two
   slots of one package sharing a candidate rejected; hidden-package × slot
   rejected both directions.
@@ -496,7 +514,10 @@ price — existing, deliberate behaviour.
   page.
 - **Client enhancement:** with only `package_quantity` set (no
   `quantity_<id>` controls), a slot's candidate-scoped questions show/require
-  and the required child total reads `pickCount × packageQty`.
+  and the required child total reads `pickCount × packageQty`; a jointly
+  infeasible cross-slot mix (two G-candidates over one residual G-spot) is
+  flagged before submit while the no-JS submit still rejects it with the
+  capacity error.
 - **Webhook:** removing a candidate/slot edge mid-checkout ⇒ `price_changed`;
   a package member gaining its FIRST child edge mid-checkout ⇒
   `price_changed` (never books the slot parent without a candidate); a
