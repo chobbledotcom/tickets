@@ -741,27 +741,22 @@ const currentOrderTree = async (
 };
 
 /** Whether the signed lines no longer resolve against current config — a required
- * child (or package member) whose edge the operator removed/swapped mid-checkout.
- * Only walks an order that actually carries edges to re-check (folded children or
- * a package); a childless standalone order has no edge to drift. Package-
- * membership and per-line price drift are still caught by
+ * child (or package member) whose edge the operator removed/swapped mid-checkout,
+ * or an edge ADDED mid-checkout: a line's listing gained required children the
+ * signed order carries no allocation for, so booking it would skip an add-on the
+ * current page requires. Every order is walked against a fresh tree (a childless
+ * signed order is exactly how an added edge presents). Package-membership and
+ * per-line price drift are still caught by
  * {@link packageBundleMismatch}/{@link expectedItemPrice}. */
 const orderEdgeDrifted = async (
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
-): Promise<boolean> => {
-  if (
-    (intent.allocations?.length ?? 0) === 0 &&
-    intent.packageGroupId === undefined
-  ) {
-    return false;
-  }
-  return edgeDrifted(
+): Promise<boolean> =>
+  edgeDrifted(
     await currentOrderTree(intent, validatedItems),
     intent.items,
     intent.allocations ?? [],
   );
-};
 
 /** Validate all booking items and return per-item pricing info or a failure result. */
 const validateAllItems = async (

@@ -63,14 +63,37 @@ export const treeNodeKeys = (tree: BookingTree): Set<string> => {
   return keys;
 };
 
+/** Each current PARENT node's required-child listing ids, keyed by its
+ * `nodeKey`. A signed line resolving to a parent node must carry SOME of that
+ * parent's children — as allocations or as their own lines — because the
+ * booking page never folds a parent without a child mix. */
+const childIdsByParentNodeKey = (tree: BookingTree): Map<string, number[]> => {
+  const byKey = new Map<string, number[]>();
+  const walk = (node: BookingNode): void => {
+    if (node.children.length > 0) {
+      byKey.set(
+        node.nodeKey,
+        node.children.map((child) => child.listingId),
+      );
+    }
+    for (const child of node.children) walk(child);
+  };
+  for (const node of tree.nodes) walk(node);
+  return byKey;
+};
+
 /**
  * Whether any signed line's edge no longer resolves against the current tree — a
  * package member that is no longer a member, or a folded child whose parent edge
  * was removed/swapped mid-checkout. Each top-level (non-folded) line must map to
- * a current `nodeKey`; each allocation's child must resolve under its parent
- * line's reconstructed `nodeKey` (and that parent line must itself be present).
- * The caller fails such an order closed so it takes the `price_changed` refund
- * rather than booking a stale bundle. Per-line price drift is checked separately.
+ * a current `nodeKey`; a line whose current node carries required-child edges
+ * must have SOME of those children in the order — an allocation for the parent
+ * or a child's own line — else an edge ADDED mid-checkout would book the parent
+ * without the add-on the current page requires; each allocation's child must
+ * resolve under its parent line's reconstructed `nodeKey` (and that parent line
+ * must itself be present). The caller fails such an order closed so it takes
+ * the `price_changed` refund rather than booking a stale bundle. Per-line price
+ * drift is checked separately.
  */
 export const edgeDrifted = (
   tree: BookingTree,
@@ -78,11 +101,22 @@ export const edgeDrifted = (
   allocations: readonly ChildAllocation[],
 ): boolean => {
   const keys = treeNodeKeys(tree);
+  const childIdsByParentKey = childIdsByParentNodeKey(tree);
   const foldedChildIds = new Set(allocations.map((a) => a.childId));
+  const allocatedParentIds = new Set(allocations.map((a) => a.parentId));
   const lineByListing = new Map(items.map((item) => [item.e, item]));
   for (const line of items) {
     if (foldedChildIds.has(line.e)) continue;
-    if (!keys.has(lineNodeKey(line))) return true;
+    const key = lineNodeKey(line);
+    if (!keys.has(key)) return true;
+    const childIds = childIdsByParentKey.get(key);
+    if (
+      childIds &&
+      !allocatedParentIds.has(line.e) &&
+      !childIds.some((id) => lineByListing.has(id))
+    ) {
+      return true;
+    }
   }
   for (const alloc of allocations) {
     const parent = lineByListing.get(alloc.parentId);

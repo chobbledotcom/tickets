@@ -192,6 +192,7 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
     response: json({
       package: {
         description: "Two nights' camping with firepit hire",
+        fields: "email,phone",
         maxPurchasable: 5,
         members: [
           { name: "Tent Pitch", quantity: 1, slug: "tent-pitch" },

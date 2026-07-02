@@ -106,6 +106,8 @@ describeWithEnv("public API packages", { db: true }, () => {
     expect(pkg.priceMinor).toBe(2500);
     // A takes 2 units per package from 10 spots → 5 whole bundles fit.
     expect(pkg.maxPurchasable).toBe(5);
+    // The merged member field setting, so a client knows what to submit.
+    expect(pkg.fields).toBe("email");
     expect(pkg.availableDates).toBeUndefined();
     expect(pkg.dayCounts).toBeUndefined();
     expect(pkg.members).toEqual([
@@ -156,6 +158,88 @@ describeWithEnv("public API packages", { db: true }, () => {
     expect(hidden.name).toBe("Parent Kit");
   });
 
+  test("GET merges a member's child fields into the package fields", async () => {
+    // A hidden package's members 404 through the listing API, so the bundle's
+    // field requirement — including what a chosen add-on can demand — must be
+    // discoverable at package level.
+    const { a, group } = await fixedPackage("Hidden Fields", "hidden-fields");
+    const child = await createTestListing({
+      fields: "email,phone",
+      maxAttendees: 10,
+      name: "Fields Addon",
+      unitPrice: 0,
+    });
+    await setChildIds(a.id, [child.id]);
+    const { groupsTable } = await import("#shared/db/groups.ts");
+    await groupsTable.update(group.id, { hidePackageListings: true });
+
+    const { package: pkg } = await (
+      await apiGet(`/api/packages/${group.slug}`)
+    ).json();
+    expect(pkg.members).toBeUndefined();
+    expect(pkg.fields).toBe("email,phone");
+  });
+
+  test("GET drops day counts no member's required child can serve", async () => {
+    // The flex members share spans {1,2}, but the boat's only add-on is a
+    // fixed 2-day daily child — a 1-day bundle could never fold, so it must
+    // not be advertised (the web selector applies the same constraint).
+    const { boat, group } = await customisablePackage("Span Gate", "span-gate");
+    const child = await createTestListing({
+      durationDays: 2,
+      listingType: "daily",
+      maxAttendees: 10,
+      minimumDaysBefore: 0,
+      name: "Two Day Addon",
+      unitPrice: 200,
+    });
+    await setChildIds(boat.id, [child.id]);
+
+    const { package: pkg } = await (
+      await apiGet(`/api/packages/${group.slug}`)
+    ).json();
+    expect(pkg.dayCounts).toEqual([{ days: 2, priceMinor: 2400 }]);
+  });
+
+  test("a member's required-child capacity bounds the package cap and the booking clamp", async () => {
+    // The member has 10 spots, but its add-ons can only serve 2 units — a
+    // 3-bundle order could never fold, so neither GET nor POST may offer it.
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Tight Kit",
+      slug: "tight-kit",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+      maxQuantity: 10,
+      name: "Tight Kit Member",
+      unitPrice: 500,
+    });
+    const child = await createTestListing({
+      maxAttendees: 2,
+      maxQuantity: 2,
+      name: "Tight Kit Addon",
+      unitPrice: 100,
+    });
+    await setChildIds(member.id, [child.id]);
+
+    const { package: pkg } = await (
+      await apiGet(`/api/packages/${group.slug}`)
+    ).json();
+    expect(pkg.maxPurchasable).toBe(2);
+
+    const { body, response } = await apiBookPackage(group.slug, {
+      children: [{ parent: member.slug, quantity: 2, slug: child.slug }],
+      quantity: 99,
+    });
+    expect(response.status).toBe(200);
+    // 2 bundles × (500 member + 100 add-on).
+    expect(body.booking!.amountOwed).toBe(1200);
+    expect((await bookingRows(member.id))[0]!.quantity).toBe(2);
+    expect((await bookingRows(child.id))[0]!.quantity).toBe(2);
+  });
+
   test("POST books whole bundles, clamped to the cap, stamping the group", async () => {
     const { a, b, group } = await fixedPackage("Book Kit", "book-kit");
     // 99 requested, but member A's 10 spots ÷ 2 per package cap it at 5.
@@ -180,6 +264,53 @@ describeWithEnv("public API packages", { db: true }, () => {
     expect(zero.response.status).toBe(400);
     const bad = await apiBookPackage(group.slug, {}, "not json");
     expect(bad.response.status).toBe(400);
+  });
+
+  test("POST treats a malformed quantity as 1 bundle", async () => {
+    const { a, b, group } = await fixedPackage("Default Kit", "default-kit");
+    const { body, response } = await apiBookPackage(group.slug, {
+      quantity: "lots",
+    });
+    expect(response.status).toBe(200);
+    expect(body.booking!.amountOwed).toBe(2500);
+    expect((await bookingRows(a.id))[0]!.quantity).toBe(2);
+    expect((await bookingRows(b.id))[0]!.quantity).toBe(1);
+  });
+
+  test("POST rejects a booking missing the required contact fields", async () => {
+    const { group } = await fixedPackage("Fields Kit", "fields-kit");
+    const { body, response } = await apiBookPackage(
+      group.slug,
+      {},
+      JSON.stringify({ name: "No Email" }),
+    );
+    expect(response.status).toBe(400);
+    expect(body.error).toMatch(/email/i);
+  });
+
+  test("POST rejects a child mix that does not total the member's units", async () => {
+    const { a, group } = await fixedPackage("Mix Kit", "mix-kit");
+    const child = await createTestListing({
+      maxAttendees: 10,
+      maxQuantity: 10,
+      name: "Mix Kit Addon",
+      unitPrice: 300,
+    });
+    const childB = await createTestListing({
+      maxAttendees: 10,
+      maxQuantity: 10,
+      name: "Mix Kit Addon B",
+      unitPrice: 400,
+    });
+    await setChildIds(a.id, [child.id, childB.id]);
+
+    // Member A books 2 units per package; a single chosen add-on undershoots.
+    const { body, response } = await apiBookPackage(group.slug, {
+      children: [{ parent: a.slug, quantity: 1, slug: child.slug }],
+    });
+    expect(response.status).toBe(400);
+    expect(body.error).toBeDefined();
+    expect(await bookingRows(a.id)).toHaveLength(0);
   });
 
   test("POST returns 404 for an unknown package", async () => {

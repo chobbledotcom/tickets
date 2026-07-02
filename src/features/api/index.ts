@@ -88,7 +88,8 @@ import {
 } from "#templates/fields.ts";
 import {
   buildTicketListing,
-  sharedDayCounts,
+  packageChildUnitCaps,
+  packageSharedDayCounts,
   type TicketListing,
 } from "#templates/public.tsx";
 
@@ -1111,20 +1112,46 @@ const loadPackageContext = async (slug: string) => {
     slugs: [slug],
   };
   const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
+  // Child-side shared-pool nuances beyond the members' own capped groups are
+  // the submit fold's job; the members' maps cover the cap's group terms here.
   const cap = packageQuantityCap(
     tree,
     new Map(ticketListings.map((e) => [e.listing.id, e])),
     ctx.packageGroupRemainingByGroupId,
     ctx.packageMemberGroupIds,
+    packageChildUnitCaps(
+      ticketListings,
+      ctx.childrenByParentId,
+      ctx.packageGroupRemainingByGroupId,
+      ctx.packageMemberGroupIds,
+    ),
   );
   return { cap, ctx, group: loaded.group, tree };
 };
 
 const PACKAGE_NOT_FOUND = { error: "Package not found" } as const;
 
+/** The contact-field requirement a package booking can validate against: the
+ * members' settings merged with their children's (a chosen add-on can add a
+ * field). Published as one package-level value, so an API client — which cannot
+ * see a hidden package's members through the listing API — knows what to submit
+ * before POSTing. */
+const packageMergedFields = (ctx: TicketCtx): string => {
+  const settings: string[] = [];
+  for (const e of ctx.listings) {
+    settings.push(e.listing.fields);
+    for (const child of ctx.childrenByParentId.get(e.listing.id) ?? []) {
+      settings.push(child.listing.fields);
+    }
+  }
+  return mergeListingFields(settings);
+};
+
 /** GET /api/packages/:slug — package bundle detail. A fixed-price bundle
  * reports one `priceMinor`; a customisable one reports each offered day count
- * with its whole-bundle total. A HIDDEN package omits its members entirely. */
+ * with its whole-bundle total (only counts every member's required-child mix
+ * can serve — an empty list means no span is currently bookable). A HIDDEN
+ * package omits its members entirely. */
 const handleGetPackage = async (
   _request: Request,
   { slug }: { slug: string },
@@ -1132,7 +1159,10 @@ const handleGetPackage = async (
   const pkg = await loadPackageContext(slug);
   if (!pkg) return apiResponse(PACKAGE_NOT_FOUND, 404);
   const { cap, ctx, group, tree } = pkg;
-  const dayCounts = sharedDayCounts(ctx.listings);
+  const customisable = ctx.listings.some((e) => e.listing.customisable_days);
+  const dayCounts = customisable
+    ? packageSharedDayCounts(ctx.listings, ctx.childrenByParentId)
+    : [];
   // A hidden package never names its members (or their children) — buyers see
   // only the bundle. `packageQuantities` covers every member by construction.
   const members = group.hide_package_listings
@@ -1151,11 +1181,12 @@ const handleGetPackage = async (
   return apiResponse({
     package: {
       description: group.description,
+      fields: packageMergedFields(ctx),
       maxPurchasable: cap,
       name: group.name,
       slug: group.slug,
       ...(ctx.dates.length > 0 ? { availableDates: ctx.dates } : {}),
-      ...(dayCounts.length > 0
+      ...(customisable
         ? {
             dayCounts: dayCounts.map((days) => ({
               days,

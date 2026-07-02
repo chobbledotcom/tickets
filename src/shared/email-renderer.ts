@@ -137,15 +137,15 @@ export const sumEntryQuantities = (entries: EmailEntry[]): number =>
  * shared, but members can carry different durations. */
 export const widestDatedEntry = (entries: EmailEntry[]): EmailEntry | null => {
   let widest: EmailEntry | null = null;
+  // A dated entry may carry no end_date (a single-day booking); it sorts below
+  // any ranged stay.
+  let widestEnd = "";
   for (const entry of entries) {
     if (!entry.attendee.date) continue;
-    if (
-      !widest ||
-      String(entry.attendee.end_date ?? "") >
-        String(widest.attendee.end_date ?? "")
-    ) {
-      widest = entry;
-    }
+    const end = String(entry.attendee.end_date ?? "");
+    if (widest !== null && end <= widestEnd) continue;
+    widest = entry;
+    widestEnd = end;
   }
   return widest;
 };

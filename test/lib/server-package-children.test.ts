@@ -111,6 +111,29 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
     expect(body).toContain(`name="child_qty_${parent.id}_${childB.id}"`);
     expect(body).toContain("Kit Addon");
     expect(body).toContain('name="package_quantity"');
+    // The member has no quantity control, so its fieldset carries the fixed
+    // per-package quantity the client scripts derive its booked units from.
+    expect(body).toContain(
+      `data-parent-id="${parent.id}" data-package-fixed-qty="1"`,
+    );
+  });
+
+  test("the package selector is capped by a member's child capacity", async () => {
+    // The members have 10 spots each, but the parent's two add-ons can serve
+    // only 3 units combined (2 + 1) — the selector must stop at 3 bundles.
+    const { child, childB, group } = await packageWithChild(
+      "Capped",
+      "capped-child-pkg",
+    );
+    const { listingsTable } = await import("#shared/db/listings.ts");
+    await listingsTable.update(child.id, { maxAttendees: 2, maxQuantity: 2 });
+    await listingsTable.update(childB.id, { maxAttendees: 1, maxQuantity: 1 });
+
+    const body = await (
+      await handleRequest(mockRequest(`/ticket/${group.slug}`))
+    ).text();
+    expect(body).toContain('<option value="3">3</option>');
+    expect(body).not.toContain('<option value="4">4</option>');
   });
 
   test("a free package booking folds the chosen child under its member", async () => {
@@ -241,6 +264,72 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
       expect(mockRefund.calls.length).toBe(1);
       expect(await bookingRows(child.id)).toHaveLength(0);
       expect(await bookingRows(parent.id)).toHaveLength(0);
+    } finally {
+      mockRetrieve.restore();
+      mockRefund.restore();
+      resetStripeClient();
+    }
+  });
+
+  test("a child edge added mid-checkout refunds instead of booking without the add-on", async () => {
+    await setupStripe();
+    const { stub } = await import("@std/testing/mock");
+    const { createTestGroup, createTestListing, signMeta } = await import(
+      "#test-utils"
+    );
+    // The package had NO children when the buyer checked out, so the signed
+    // intent carries no allocations.
+    const group = await createTestGroup({ isPackage: true, name: "Grown Kit" });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+      name: "Grown Member",
+      unitPrice: 1000,
+    });
+    const addon = await createTestListing({
+      maxAttendees: 10,
+      name: "Grown Addon",
+      unitPrice: 300,
+    });
+    const mockRefund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_grown" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1000,
+        id: "cs_pkg_grown",
+        metadata: signMeta(
+          {
+            email: "grown@example.com",
+            items: JSON.stringify([
+              { e: member.id, k: "p", p: 1000, q: 1, r: group.id },
+            ]),
+            name: "Grown Buyer",
+            package_group_id: String(group.id),
+          },
+          1000,
+        ),
+        payment_intent: "pi_pkg_grown",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+
+    try {
+      // The operator gives the member a required add-on while the customer is
+      // paying: the current page would demand a child mix the signed order
+      // never chose, so the order refunds rather than booking without it.
+      await setChildIds(member.id, [addon.id]);
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_pkg_grown"),
+      );
+      await response.body?.cancel();
+      expect(mockRefund.calls.length).toBe(1);
+      expect(await bookingRows(member.id)).toHaveLength(0);
+      expect(await bookingRows(addon.id)).toHaveLength(0);
     } finally {
       mockRetrieve.restore();
       mockRefund.restore();

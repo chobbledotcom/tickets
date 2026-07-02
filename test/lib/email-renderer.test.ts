@@ -299,7 +299,9 @@ describeWithEnv("email-renderer", { db: true }, () => {
         name: "Dated Kit",
       });
       await groupsTable.update(group.id, { hidePackageListings: true });
-      const spans: [name: string, endDate: string][] = [
+      const spans: [name: string, endDate: string | null][] = [
+        // A dated single-day member with no end_date sorts below any ranged stay.
+        ["Day Only", null],
         ["Narrow A", "2026-08-02"],
         ["Wide", "2026-08-04"],
         ["Narrow B", "2026-08-02"],

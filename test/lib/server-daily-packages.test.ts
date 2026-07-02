@@ -264,6 +264,30 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     expect(fragment).not.toContain("£27");
   });
 
+  test("the package page drops day counts no member's required child can serve", async () => {
+    const { createFlexPackage } = await import("#test-utils/packages.ts");
+    const { setChildIds } = await import("#shared/db/listing-parents.ts");
+    const { boat, group } = await createFlexPackage("Gated Flex", "gated-flex");
+    // The boat's only add-on is a fixed 2-day daily child: a 1-day bundle could
+    // never fold, so the shared selector must not offer it even without JS.
+    const child = await createTestListing({
+      durationDays: 2,
+      listingType: "daily",
+      maxAttendees: 10,
+      minimumDaysBefore: 0,
+      name: "Gated Addon",
+      unitPrice: 200,
+    });
+    await setChildIds(boat.id, [child.id]);
+
+    const body = await (
+      await handleRequest(mockRequest(`/ticket/${group.slug}`))
+    ).text();
+    expect(body).toContain('name="day_count"');
+    expect(body).toContain("2 days — £27");
+    expect(body).not.toContain("1 day —");
+  });
+
   test("a hidden package's day-count error names the package, not the member", async () => {
     const { createFlexPackage } = await import("#test-utils/packages.ts");
     const { parseFlashCookie } = await import("#test-utils/assertions.ts");

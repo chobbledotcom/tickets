@@ -202,6 +202,33 @@ const constrainDayCountsByChildUnion = (
   );
 };
 
+/** A PACKAGE's day-count options: the members' shared counts constrained by
+ * EVERY parent member's selectable-child union. Unlike a general multi-listing
+ * page — where an unselected parent's children must not remove a span another
+ * listing needs — a package books all of its members, so a span no selectable
+ * child of some parent member can serve is unbookable: the fold would reject
+ * it. Constraining here keeps the web selector (no-JS included) and the API
+ * detail from advertising counts checkout cannot complete. */
+export const packageSharedDayCounts = (
+  listings: TicketListing[],
+  childrenByParentId: Map<number, TicketListing[]>,
+): number[] => {
+  let counts = sharedDayCounts(listings);
+  for (const member of listings) {
+    const children = childrenByParentId.get(member.listing.id);
+    if (!children || children.length === 0) continue;
+    const current = counts;
+    counts = constrainOptionsByChildUnion(
+      current,
+      children,
+      childSelectableIgnoringSpan,
+      // "any" child (no span constraint) keeps every offered span; otherwise its own.
+      (child) => childSupportedSpans(child) ?? current,
+    );
+  }
+  return counts;
+};
+
 /** Render the "number of days" selector for customisable-days listings. When a
  * single listing drives the page, each option shows its price for that span.
  * The submitted day count is restored when a validation error re-renders. */
@@ -656,6 +683,36 @@ const childCombinedCap = (
   return separateSum + sharedCohortCap + cappedGroupsCap;
 };
 
+/** Each parent MEMBER's required children's combined unit capacity (see
+ * {@link childCombinedCap}), keyed by member listing id — only members with
+ * children get an entry. Feeds {@link packageQuantityCap}: a package's count is
+ * bounded by each parent member's child-side capacity too (every booked member
+ * unit consumes one child unit), so the selector and the API never offer a
+ * bundle count the required add-ons can't serve. */
+export const packageChildUnitCaps = (
+  listings: TicketListing[],
+  childrenByParentId: Map<number, TicketListing[]> | undefined,
+  groupRemainingByGroupId: ReadonlyMap<number, number>,
+  groupIdsByListingId: ReadonlyMap<number, number[]>,
+): Map<number, number> => {
+  const caps = new Map<number, number>();
+  if (!childrenByParentId) return caps;
+  for (const member of listings) {
+    const children = childrenByParentId.get(member.listing.id);
+    if (!children || children.length === 0) continue;
+    caps.set(
+      member.listing.id,
+      childCombinedCap(
+        member,
+        children.filter(childBookable),
+        groupRemainingByGroupId,
+        groupIdsByListingId,
+      ),
+    );
+  }
+  return caps;
+};
+
 /**
  * The quantity cap to offer for a parent's own selector, clamped to its required
  * children's COMBINED capacity (Codex 485/565, Fix 2): `min(parentMaxPurchasable,
@@ -922,6 +979,7 @@ const renderSoleChildOption = (
 const renderChildBlock = (
   parentInfo: TicketListing,
   ctx: ChildRenderCtx,
+  packageFixedQty?: number,
 ): string => {
   const parent = parentInfo.listing;
   const parentId = parent.id;
@@ -996,8 +1054,15 @@ const renderChildBlock = (
   const legend = sole
     ? ""
     : `<legend>${escapeHtml(t("public.ticket.choose_option", { name: parent.name }))}</legend>`;
+  // A package member parent has no quantity_<id> control, so the client scripts
+  // derive its booked units from this fixed per-package quantity × the chosen
+  // package count.
+  const fixedQtyAttr =
+    packageFixedQty === undefined
+      ? ""
+      : ` data-package-fixed-qty="${packageFixedQty}"`;
   return (
-    `<fieldset class="child-selector" data-parent-id="${parentId}">` +
+    `<fieldset class="child-selector" data-parent-id="${parentId}"${fixedQtyAttr}>` +
     `${legend}${note}${options}${questionsHtml}</fieldset>`
   );
 };
@@ -1084,7 +1149,7 @@ const renderPackageMemberRow = (
       ${renderListingImage(info.listing)}
       <label>${escapeHtml(info.listing.name)} <span class="package-member-qty">&times;${fixedQty}</span></label>
       ${renderListingDescription(info.listing.description)}
-      ${childCtx ? renderChildBlock(info, childCtx) : ""}
+      ${childCtx ? renderChildBlock(info, childCtx, fixedQty) : ""}
     </div>
   `;
 
@@ -1516,6 +1581,7 @@ const dayConfig = (
   listings: TicketListing[],
   singleListing: ListingWithCount | null,
   childrenByParentId: Map<number, TicketListing[]> | undefined,
+  isPackage: boolean,
 ): {
   hasCustomisable: boolean;
   dayCounts: number[];
@@ -1529,11 +1595,17 @@ const dayConfig = (
   dayCountPriceFor: singleListing?.customisable_days
     ? (days: number) => dayPriceFor(singleListing, days)
     : undefined,
-  dayCounts: constrainDayCountsByChildUnion(
-    listings,
-    sharedDayCounts(listings),
-    childrenByParentId,
-  ),
+  // A package books every member, so each parent member's child union
+  // constrains the bundle's spans; other pages constrain only the
+  // single-listing-parent case.
+  dayCounts:
+    isPackage && childrenByParentId
+      ? packageSharedDayCounts(listings, childrenByParentId)
+      : constrainDayCountsByChildUnion(
+          listings,
+          sharedDayCounts(listings),
+          childrenByParentId,
+        ),
   hasCustomisable: listings.some((e) => e.listing.customisable_days),
 });
 
@@ -1715,6 +1787,7 @@ const packagePageAvailability = (
   listings: TicketListing[],
   groupRemainingByGroupId: ReadonlyMap<number, number>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
+  childUnitsCapByListingId: ReadonlyMap<number, number>,
 ): { packageCap: number; soldOut: boolean } => {
   const cap = isPackage
     ? packageQuantityCap(
@@ -1722,6 +1795,7 @@ const packagePageAvailability = (
         new Map(listings.map((e) => [e.listing.id, e])),
         groupRemainingByGroupId,
         groupIdsByListingId,
+        childUnitsCapByListingId,
       )
     : null;
   const membersUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
@@ -1759,7 +1833,7 @@ export const ticketPage = ({
   promoCodesEnabled,
   childrenByParentId,
   childDatesById,
-  groupRemainingByGroupId,
+  groupRemainingByGroupId = new Map(),
   groupIdsByListingId = new Map(),
   packagePrices,
   packageDayPrices,
@@ -1795,6 +1869,12 @@ export const ticketPage = ({
     listings,
     packageGroupRemainingByGroupId,
     packageMemberGroupIds,
+    packageChildUnitCaps(
+      listings,
+      childrenByParentId,
+      groupRemainingByGroupId,
+      groupIdsByListingId,
+    ),
   );
   const allClosed = listings.every((e) => e.isClosed);
   const fields: Field[] = buildContactFields(
@@ -1815,7 +1895,12 @@ export const ticketPage = ({
   const isSingleListing = singleListing !== null;
   const pastDays = singleListing?.date ? daysAgo(singleListing.date) : null;
 
-  const dayCfg = dayConfig(listings, singleListing, childrenByParentId);
+  const dayCfg = dayConfig(
+    listings,
+    singleListing,
+    childrenByParentId,
+    isPackage,
+  );
   const { hasCustomisable, dayCounts, dateDurationDays } = dayCfg;
   const dayCountPriceFor = resolveDayCountPriceFor(isPackage, tree, dayCfg);
 
@@ -1829,7 +1914,7 @@ export const ticketPage = ({
     questions ?? [],
     questionListingMap,
     childrenByParentId,
-    groupRemainingByGroupId ?? new Map(),
+    groupRemainingByGroupId,
     childDatesById ?? new Map(),
     groupIdsByListingId,
   );

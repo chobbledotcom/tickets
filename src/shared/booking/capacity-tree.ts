@@ -20,7 +20,11 @@ import {
  * `FIXED` package-member node carries its per-package quantity as its
  * `quantityRule`, so demand comes from the tree rather than a parallel quantity
  * map. Two bounds, the tighter wins:
- *  - **own cap** — each member's `floor(maxPurchasable / perPackageQty)`; and
+ *  - **own cap** — each member's `floor(maxPurchasable / perPackageQty)`,
+ *    additionally clamped by the member's required children's combined
+ *    capacity (`childUnitsCapByListingId`, present only for parent members):
+ *    each booked member unit consumes one child unit, so a bundle count the
+ *    children can't serve must not be offered; and
  *  - **group pool** — for every capped group the members share,
  *    `groupPoolUnits(remaining, Σ per-package demand)` (a member counts its
  *    per-package quantity toward each capped group it sits in).
@@ -33,12 +37,15 @@ export const packageQuantityCap = (
   listingById: ReadonlyMap<number, TicketListing>,
   groupRemainingByGroupId: ReadonlyMap<number, number>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
+  childUnitsCapByListingId: ReadonlyMap<number, number> = new Map(),
 ): number => {
   const perPackageQty = nodeFixedQuantity;
-  const ownCap = (node: BookingNode): number =>
-    Math.floor(
-      listingById.get(node.listingId)!.maxPurchasable / perPackageQty(node),
-    );
+  const ownCap = (node: BookingNode): number => {
+    const own = listingById.get(node.listingId)!.maxPurchasable;
+    const childUnits = childUnitsCapByListingId.get(node.listingId);
+    const units = childUnits === undefined ? own : Math.min(own, childUnits);
+    return Math.floor(units / perPackageQty(node));
+  };
   const perMember = Math.min(...tree.nodes.map(ownCap));
 
   // Combined per-package demand against each capped group its members sit in.
