@@ -10,8 +10,8 @@
 import { t } from "#i18n";
 import { parseEditableAggregateForm } from "#routes/admin/aggregate-recalculation.ts";
 import {
-  adminLandingPath,
   type AuthSession,
+  adminLandingPath,
   CONTENT_MULTIPART,
   requireContentOr,
   withAuth,
@@ -64,8 +64,8 @@ import {
 import type { ListingAggregateFormValues } from "#templates/fields.ts";
 import { listingAggregateFields } from "#templates/fields.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
-import { loadListingEditPanel } from "./listing-page-data.ts";
 import { listingPage } from "./listing-page.ts";
+import { loadListingEditPanel } from "./listing-page-data.ts";
 import {
   buildCreateListingResource,
   buildUpdateListingResource,

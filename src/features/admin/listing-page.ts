@@ -26,13 +26,6 @@ import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 import { targetQuery } from "#shared/bulk-email-targets.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { isPaidListing, isStaffRole } from "#shared/types.ts";
-
-/** Tab visibility for the staff-only surfaces (roster, money, actions): the
- *  content-only `editor` role may edit a listing but never saw its detail page,
- *  so every tab except Edit is gated to staff, and an editor's default tab
- *  resolves to Edit. */
-const staffOnly = (_entity: unknown, session: AuthSession): boolean =>
-  isStaffRole(session.adminLevel);
 import { ListingDeactivatedBanner } from "#templates/admin/listings.tsx";
 import {
   type LoadedListing,
@@ -45,6 +38,13 @@ import {
   loadListingQuestionsPanel,
   loadListingRosterPanel,
 } from "./listing-page-data.ts";
+
+/** Tab visibility for the staff-only surfaces (roster, money, actions): the
+ *  content-only `editor` role may edit a listing but never saw its detail page,
+ *  so every tab except Edit is gated to staff, and an editor's default tab
+ *  resolves to Edit. */
+const staffOnly = (_entity: unknown, session: AuthSession): boolean =>
+  isStaffRole(session.adminLevel);
 
 /** URL of a sub-action on this listing. */
 const actionUrl = ({ listing }: LoadedListing, action: string): string =>

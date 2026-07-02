@@ -51,11 +51,11 @@ export const listingsRoutes = {
     "DELETE /admin/listing/:id/delete": handleAdminListingDelete,
     "GET /admin/listing/:id": (request, { id }) =>
       listingPage.renderTab(request, id, ""),
+    "GET /admin/listing/:id/:tab": (request, { id, tab }) =>
+      listingPage.renderTab(request, id, tab),
     "GET /admin/listing/:id/attendees.csv": handleAdminListingExport,
     "GET /admin/listing/:id/duplicate": handleAdminListingDuplicateGet,
     "GET /admin/listing/:id/export": handleAdminListingExport,
-    "GET /admin/listing/:id/:tab": (request, { id, tab }) =>
-      listingPage.renderTab(request, id, tab),
     "GET /admin/listing/new": handleNewListingGet,
     "GET /admin/listings/recalculate/:listingId": handleListingRecalculateGet,
     "POST /admin/listing": handleCreateListing,

@@ -7,7 +7,6 @@ import { withCookie } from "#routes/response.ts";
 import { addDays } from "#shared/dates.ts";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import { getDb, insert } from "#shared/db/client.ts";
-import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
 import {
   assignListingsToGroup,
   getGroupIdsByListingId,
@@ -20,6 +19,7 @@ import {
   listingsTable,
   updateListingAggregateValues,
 } from "#shared/db/listings.ts";
+import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
 import {
   answersTable,
   questionsTable,

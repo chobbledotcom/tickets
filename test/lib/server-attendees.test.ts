@@ -1546,9 +1546,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await adminGet(
-        `/admin/listing/${listing.id}/attendees`,
-      );
+      const response = await adminGet(`/admin/listing/${listing.id}/attendees`);
       await expectHtmlResponse(
         response,
         200,

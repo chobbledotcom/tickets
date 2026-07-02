@@ -1547,9 +1547,7 @@ export const ListingOverviewPanel = (
  * form (suppressed in read-only mode). Rendered as the listing entity page's
  * Attendees tab and composed into the legacy {@link adminListingPage}.
  */
-export const ListingRosterPanel = (
-  opts: ListingPanelOptions,
-): JSX.Element => {
+export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
   const v = deriveListingView(opts);
   const {
     listing,
@@ -2464,7 +2462,7 @@ const ChildCandidateLabel = ({
       />
       {` ${candidate.listing.name}`}
       {candidate.ineligibleReason !== null && (
-        <span class="muted small"> — {candidate.ineligibleReason}</span>
+        <span class="muted small">— {candidate.ineligibleReason}</span>
       )}
     </label>
   );

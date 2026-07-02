@@ -23,16 +23,16 @@ import { decryptAttendees } from "#shared/db/attendees.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import {
-  getAllQuestionsWithAnswers,
-  getListingQuestionIds,
-} from "#shared/db/questions.ts";
-import {
   getListingAggregateRecalculation,
   getListingWithAttendeesRaw,
   getListingWithCount,
   listingRevenueBreakdown,
 } from "#shared/db/listings.ts";
 import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
+import {
+  getAllQuestionsWithAnswers,
+  getListingQuestionIds,
+} from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { loadNotesForAttendees } from "#shared/db/system-notes.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -77,7 +77,10 @@ export const loadListingForPage = async (
 };
 
 /** The roster's on-screen date + check-in filter, read from a tab's query. */
-export type RosterFilter = { activeFilter: AttendeeFilter; dateFilter: string | null };
+export type RosterFilter = {
+  activeFilter: AttendeeFilter;
+  dateFilter: string | null;
+};
 
 /** Read the roster tab's `?filter=` / `?date=` selection from the query. Only
  *  daily listings honour the date; a non-daily listing has no date column so
@@ -106,8 +109,10 @@ const loadDecryptedListingAttendees = async (
 };
 
 /** Attendees filtered to a single date (daily listings), else the full set. */
-const filterByDate = (attendees: Attendee[], date: string | null): Attendee[] =>
-  date ? attendees.filter((a) => a.date === date) : attendees;
+const filterByDate = (
+  attendees: Attendee[],
+  date: string | null,
+): Attendee[] => (date ? attendees.filter((a) => a.date === date) : attendees);
 
 /** The distinct booking dates present on a daily listing, ascending, as the
  *  roster's date-picker options; empty for a non-daily listing. */
