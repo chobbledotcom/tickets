@@ -169,7 +169,8 @@ const MemberDayPriceInputs = ({
           <input
             inputmode="decimal"
             name={`package_day_price_${listing.id}_${days}`}
-            placeholder={toMajorUnits(dayPriceFor(listing, days) ?? 0)}
+            // Every count from availableDayCounts has a configured day price.
+            placeholder={toMajorUnits(dayPriceFor(listing, days)!)}
             type="text"
             value={override === undefined ? "" : toMajorUnits(override)}
           />
