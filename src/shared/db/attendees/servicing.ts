@@ -1,9 +1,6 @@
 import { sumByKey, sumOf, unique } from "#fp";
-import {
-  costAccount,
-  SERVICE_COST_KIND,
-  WORLD,
-} from "#shared/accounting/accounts.ts";
+import { costAccount, WORLD } from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { postTransfers, postTransfersTx } from "#shared/accounting/store.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
@@ -552,7 +549,7 @@ const assertServicingHoldsListing = async (
 
 const costReferenceParts = (input: RecordServiceCostInput) =>
   [
-    "service_cost",
+    KIND.serviceCost,
     input.reference ?? input.servicingId,
     input.listingId,
     input.occurredAt,
@@ -565,7 +562,7 @@ const serviceCostTransfer = async (
   amount: input.amount,
   destination: WORLD,
   eventGroup: await eventGroup([...costReferenceParts(input)]),
-  kind: SERVICE_COST_KIND,
+  kind: KIND.serviceCost,
   memo: await encrypt(input.memo),
   occurredAt: input.occurredAt,
   reference:
@@ -690,7 +687,7 @@ const getCostRow = async (costId: number): Promise<CostRow | null> =>
   queryOne<CostRow>(
     `SELECT ${COST_ROW_SELECT}
        FROM transfers
-      WHERE id = ? AND kind = '${SERVICE_COST_KIND}'`,
+      WHERE id = ? AND kind = '${KIND.serviceCost}'`,
     [costId],
   );
 
@@ -763,7 +760,7 @@ export const editServiceCost = async (
       amount,
       destination: delta > 0 ? WORLD : cost,
       eventGroup: await eventGroup([...editRefParts]),
-      kind: SERVICE_COST_KIND,
+      kind: KIND.serviceCost,
       memo: await encrypt(`${ADJ_MEMO_PREFIX}${costId}`),
       occurredAt: nowIso(),
       reference: await legReference([...editRefParts]),
@@ -815,7 +812,7 @@ const loadServiceCostLegs = async (
   const ids = listingIds.map(String);
   const legs = await queryAll<CostRow>(
     `SELECT ${COST_ROW_SELECT}, memo FROM transfers
-      WHERE kind = '${SERVICE_COST_KIND}'
+      WHERE kind = '${KIND.serviceCost}'
         AND ((source_type = 'cost' AND source_id IN (${inPlaceholders(ids)}))
           OR (dest_type = 'cost' AND dest_id IN (${inPlaceholders(ids)})))
       ORDER BY id`,

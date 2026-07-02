@@ -12,6 +12,7 @@
 
 import type { InValue } from "@libsql/client";
 import { WRITEOFF } from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
 import {
   eventGroup,
   legReference,
@@ -51,7 +52,7 @@ const writeoffAdjustmentLeg = async (
     // debiting it sinks back to writeoff (the figure falls).
     destination: delta > 0 ? account : WRITEOFF,
     eventGroup: await eventGroup(parts),
-    kind: "adjustment",
+    kind: KIND.adjustment,
     occurredAt,
     reference: await legReference(parts),
     source: delta > 0 ? WRITEOFF : account,

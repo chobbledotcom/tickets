@@ -13,8 +13,19 @@
  * plain "<Entity> #<id>" text with no link, mirroring the activity log.
  */
 
+import * as v from "valibot";
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
+import {
+  ATTENDEE,
+  isRowAccountType,
+  isSingletonAccountType,
+  REVENUE,
+  type RowAccountType,
+  type SingletonAccountType,
+  WRITEOFF_TYPE,
+} from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
 import {
   isManualLedgerTransfer,
   type ManualLedgerEntryOption,
@@ -79,8 +90,10 @@ type RowAccountKind = {
   fallbackKey: string;
 };
 
-/** Row-backed account resolvers keyed by ledger account type. */
-const ROW_ACCOUNT_KINDS: Record<string, RowAccountKind> = {
+/** Row-backed account resolvers keyed by ledger account type — exhaustive over
+ * {@link RowAccountType}, so a new row-backed type cannot render without
+ * deciding its label source and link target here. */
+const ROW_ACCOUNT_KINDS: Record<RowAccountType, RowAccountKind> = {
   attendee: {
     fallbackKey: "admin.ledger.fallback.attendee",
     href: (id) => `/admin/attendees/${id}`,
@@ -103,9 +116,17 @@ const ROW_ACCOUNT_KINDS: Record<string, RowAccountKind> = {
   },
 };
 
+/** The bounded id→name lookup for one row-backed account type — the single
+ * accessor the label resolver and the route layer's existence checks share. */
+export const rowAccountNames = (
+  type: RowAccountType,
+  names: LedgerNames,
+): Map<number, string> => ROW_ACCOUNT_KINDS[type].names(names);
+
 /** Singleton accounts get a friendly, link-free name from i18n, matched on the
- * account type alone (`writeoff:*` is one logical account regardless of id). */
-const SINGLETON_LABEL_KEYS: Record<string, string> = {
+ * account type alone (`writeoff:*` is one logical account regardless of id).
+ * Exhaustive over {@link SingletonAccountType}. */
+const SINGLETON_LABEL_KEYS: Record<SingletonAccountType, string> = {
   external: "admin.ledger.account.external",
   fee_income: "admin.ledger.account.fee_income",
   writeoff: "admin.ledger.account.writeoff",
@@ -122,10 +143,13 @@ export const resolveAccountLabel = (
   account: AccountRef,
   names: LedgerNames,
 ): AccountLabel => {
-  const singleton = SINGLETON_LABEL_KEYS[account.type];
-  if (singleton) return { text: t(singleton) };
+  if (isSingletonAccountType(account.type)) {
+    return { text: t(SINGLETON_LABEL_KEYS[account.type]) };
+  }
+  if (!isRowAccountType(account.type)) {
+    return { text: `${account.type}:${account.id}` };
+  }
   const kind = ROW_ACCOUNT_KINDS[account.type];
-  if (!kind) return { text: `${account.type}:${account.id}` };
   const id = Number(account.id);
   const name = kind.names(names).get(id);
   return name === undefined
@@ -296,8 +320,8 @@ const adjustmentDescription = (
   names: LedgerNames,
 ): JSX.Element => {
   if (
-    transfer.source.type === "attendee" &&
-    transfer.destination.type === "writeoff"
+    transfer.source.type === ATTENDEE &&
+    transfer.destination.type === WRITEOFF_TYPE
   ) {
     return sentenceWithAccount(
       "admin.ledger.human.manual_attendee_charge",
@@ -306,8 +330,8 @@ const adjustmentDescription = (
     );
   }
   if (
-    transfer.source.type === "writeoff" &&
-    transfer.destination.type === "attendee"
+    transfer.source.type === WRITEOFF_TYPE &&
+    transfer.destination.type === ATTENDEE
   ) {
     return sentenceWithAccount(
       "admin.ledger.human.manual_attendee_writeoff",
@@ -315,14 +339,14 @@ const adjustmentDescription = (
       names,
     );
   }
-  if (transfer.source.type === "writeoff") {
+  if (transfer.source.type === WRITEOFF_TYPE) {
     return sentenceWithAccount(
       "admin.ledger.human.adjustment_increase",
       transfer.destination,
       names,
     );
   }
-  if (transfer.destination.type === "writeoff") {
+  if (transfer.destination.type === WRITEOFF_TYPE) {
     return sentenceWithAccount(
       "admin.ledger.human.adjustment_reduce",
       transfer.source,
@@ -337,31 +361,31 @@ const humanDescription = (
   names: LedgerNames,
 ): JSX.Element => {
   switch (transfer.kind) {
-    case "sale":
+    case KIND.sale:
       return saleDescription(transfer, names);
-    case "payment":
+    case KIND.payment:
       return sentenceWithAccount(
         "admin.ledger.human.payment",
-        humanAccount(transfer, "attendee"),
+        humanAccount(transfer, ATTENDEE),
         names,
       );
-    case "refund_cash":
+    case KIND.refundCash:
       return sentenceWithAccount(
         "admin.ledger.human.refund_cash",
-        humanAccount(transfer, "attendee"),
+        humanAccount(transfer, ATTENDEE),
         names,
       );
-    case "refund_sale":
+    case KIND.refundSale:
       return sentenceWithAccount(
         "admin.ledger.human.refund_sale",
-        humanAccount(transfer, "revenue"),
+        humanAccount(transfer, REVENUE),
         names,
       );
-    case "fee":
+    case KIND.fee:
       return <>{t("admin.ledger.human.fee")}</>;
-    case "refund_fee":
+    case KIND.refundFee:
       return <>{t("admin.ledger.human.refund_fee")}</>;
-    case "adjustment":
+    case KIND.adjustment:
       return adjustmentDescription(transfer, names);
     default: {
       const spec =
@@ -657,7 +681,11 @@ export type LedgerFilterState = {
   view: LedgerViewMode;
 };
 
-export type LedgerViewMode = "human" | "dual";
+/** The two renderings of the transfer list — plain-language and double-entry —
+ *  round-tripped through the `?view=` param. Picklist so the type, the param
+ *  parse, and the toggle all derive from one declaration. */
+export const LedgerViewModeSchema = v.picklist(["human", "dual"]);
+export type LedgerViewMode = v.InferOutput<typeof LedgerViewModeSchema>;
 
 /** One option for the by-listing filter select. */
 export type LedgerListingOption = { id: number; name: string };

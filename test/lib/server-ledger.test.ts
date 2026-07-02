@@ -14,6 +14,7 @@ import {
   MANUAL_MODIFIER_REDUCTION,
 } from "#shared/accounting/manual-entries.ts";
 import { allTransfers } from "#shared/accounting/queries.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { adjustListingIncome } from "#shared/db/listings.ts";
@@ -37,6 +38,7 @@ import {
   postAttendeeRefund,
   postListingSale,
   postModifierLeg,
+  tx,
 } from "#test-utils/ledger.ts";
 
 /** Seed a listing + a registered attendee, then post a fully-paid sale so the
@@ -804,6 +806,25 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     expect(html).toContain("Workshop");
     // The counterparty of the sale leg is the paying attendee.
     expect(html).toContain("Ada Lovelace");
+  });
+
+  test("renders a listing's servicing-cost statement", async () => {
+    // The cost account is row-backed like revenue, so the registry gives it a
+    // statement route too (it used to 404 as an unregistered type).
+    const { listingId } = await seededSale("Workshop", 4000);
+    await postTransfers([
+      tx({
+        destination: account("external", "world"),
+        eventGroup: "evt-cost",
+        kind: KIND.serviceCost,
+        reference: "ref-cost",
+        source: account("cost", listingId),
+      }),
+    ]);
+    const response = await adminGet(`/admin/ledger/cost/${listingId}`);
+    expect(response.status).toBe(200);
+    // The cost account labels itself with the listing's name.
+    expect(await response.text()).toContain("Workshop");
   });
 
   test("resolves a real modifier's name and links its leg to the edit page", async () => {

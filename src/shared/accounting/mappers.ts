@@ -6,6 +6,7 @@
  */
 
 import { sumByKey } from "#fp";
+import { KIND } from "#shared/accounting/kinds.ts";
 import {
   attendeeAccount,
   BOOKING_FEE_INCOME,
@@ -44,10 +45,10 @@ export const bookingEventGroup = (eventId: string): Promise<string> =>
  * the booking's.
  */
 const REFUND_KIND: Readonly<Record<string, string>> = {
-  fee: "refund_fee",
-  modifier: "refund_modifier",
-  payment: "refund_cash",
-  sale: "refund_sale",
+  [KIND.fee]: KIND.refundFee,
+  [KIND.modifier]: KIND.refundModifier,
+  [KIND.payment]: KIND.refundCash,
+  [KIND.sale]: KIND.refundSale,
 };
 
 const refundKind = (kind: string): string =>
@@ -97,14 +98,14 @@ const modifierLeg = (
     ? {
         amount: modifier.delta,
         destination: modAccount,
-        kind: "modifier",
+        kind: KIND.modifier,
         refParts,
         source: attendee,
       }
     : {
         amount: -modifier.delta,
         destination: attendee,
-        kind: "modifier",
+        kind: KIND.modifier,
         refParts,
         source: modAccount,
       };
@@ -124,8 +125,8 @@ const bookingLegSpecs = (
   const sales: LegSpec[] = [...grossByListing].map(([listingId, gross]) => ({
     amount: gross,
     destination: revenueAccount(listingId),
-    kind: "sale",
-    refParts: ["sale", listingId],
+    kind: KIND.sale,
+    refParts: [KIND.sale, listingId],
     source: attendee,
   }));
   const modifiers = facts.modifiers
@@ -133,14 +134,14 @@ const bookingLegSpecs = (
     .map((modifier) => modifierLeg(attendee, modifier));
   const fee = optionalLeg(facts.bookingFee, {
     destination: BOOKING_FEE_INCOME,
-    kind: "fee",
-    refParts: ["fee"],
+    kind: KIND.fee,
+    refParts: [KIND.fee],
     source: attendee,
   });
   const payment = optionalLeg(facts.amountPaid, {
     destination: attendee,
-    kind: "payment",
-    refParts: ["payment"],
+    kind: KIND.payment,
+    refParts: [KIND.payment],
     source: WORLD,
   });
   return [...sales, ...modifiers, ...fee, ...payment];

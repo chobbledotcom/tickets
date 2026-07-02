@@ -4,6 +4,7 @@
  * this module is where "attendee 3" becomes the account `attendee:3`.
  */
 
+import * as v from "valibot";
 import { account } from "#shared/ledger/account.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 
@@ -12,16 +13,42 @@ import type { AccountRef } from "#shared/ledger/types.ts";
  *  and render its id as an in-batch subquery rather than a literal. */
 export const ATTENDEE = "attendee";
 export const COST = "cost";
+export const REVENUE = "revenue";
+export const MODIFIER = "modifier";
+export const FEE_INCOME = "fee_income";
+export const EXTERNAL = "external";
+export const WRITEOFF_TYPE = "writeoff";
 
-/** Transfer `kind` for an operator-recorded service cost (and its correcting
- *  adjustment legs). The single source of truth for the literal so the servicing
- *  reader/writer and the ledger's revenue-scope predicate can't drift apart. */
-export const SERVICE_COST_KIND = "service_cost";
-const REVENUE = "revenue";
-const MODIFIER = "modifier";
-const FEE_INCOME = "fee_income";
-const EXTERNAL = "external";
-const WRITEOFF_TYPE = "writeoff";
+/**
+ * The row-backed account types — each account of these types belongs to one
+ * domain row (attendee/listing/modifier), with the stringified row id as the
+ * account id. The picklist is the single source of truth: the TS union, the
+ * runtime guard, and every exhaustive `Record` dispatcher (route parsing,
+ * label/link resolution) derive from it, so a new account type is a compile
+ * error in each dispatcher rather than a silently missing arm.
+ */
+export const RowAccountTypeSchema = v.picklist([
+  ATTENDEE,
+  COST,
+  MODIFIER,
+  REVENUE,
+]);
+export type RowAccountType = v.InferOutput<typeof RowAccountTypeSchema>;
+export const isRowAccountType = (s: string): s is RowAccountType =>
+  v.is(RowAccountTypeSchema, s);
+
+/** The singleton account types — one fixed account per type (see
+ *  {@link SINGLETON_ACCOUNTS}). Same picklist pattern as the row-backed types. */
+export const SingletonAccountTypeSchema = v.picklist([
+  EXTERNAL,
+  FEE_INCOME,
+  WRITEOFF_TYPE,
+]);
+export type SingletonAccountType = v.InferOutput<
+  typeof SingletonAccountTypeSchema
+>;
+export const isSingletonAccountType = (s: string): s is SingletonAccountType =>
+  v.is(SingletonAccountTypeSchema, s);
 
 /** The outside world — cash in via cards/bank, the source of every payment. */
 export const WORLD: AccountRef = account(EXTERNAL, "world");
@@ -68,3 +95,30 @@ export const costAccount = rowAccount(COST);
 
 /** One discount/surcharge modifier's net effect. */
 export const modifierAccount = rowAccount(MODIFIER);
+
+/**
+ * Every singleton account, keyed by its type — the one dispatch table for
+ * resolving `external`/`fee_income`/`writeoff` (e.g. from a statement route).
+ * Exhaustive over {@link SingletonAccountType}, so declaring a new singleton
+ * type without its account is a compile error.
+ */
+export const SINGLETON_ACCOUNTS: Record<SingletonAccountType, AccountRef> = {
+  [EXTERNAL]: WORLD,
+  [FEE_INCOME]: BOOKING_FEE_INCOME,
+  [WRITEOFF_TYPE]: WRITEOFF,
+};
+
+/**
+ * The row-backed account constructor for each type — exhaustive over
+ * {@link RowAccountType}, so a new row-backed type must declare how its rows
+ * map to accounts before any dispatcher can forget it.
+ */
+export const ROW_ACCOUNT_CONSTRUCTORS: Record<
+  RowAccountType,
+  (id: number) => AccountRef
+> = {
+  [ATTENDEE]: attendeeAccount,
+  [COST]: costAccount,
+  [MODIFIER]: modifierAccount,
+  [REVENUE]: revenueAccount,
+};

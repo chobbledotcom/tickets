@@ -11,7 +11,17 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { SERVICE_COST_KIND } from "#shared/accounting/accounts.ts";
+import {
+  ATTENDEE,
+  COST,
+  EXTERNAL,
+  FEE_INCOME,
+  MODIFIER,
+  REVENUE,
+  WRITEOFF_TYPE,
+} from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
+import { MANUAL_LISTING_INCOME } from "#shared/accounting/manual-entries.ts";
 import {
   accountBalanceSubquery,
   attendeeOwedSubquery,
@@ -91,9 +101,8 @@ export const recentTransfers = (limit: number): Promise<Transfer[]> =>
  * owner-entered manual rows and service cost legs remain visible even when they
  * record an external cost. */
 const VISIBLE_TRANSFER_SCOPE =
-  "(source_type != 'external' AND dest_type != 'external' OR kind LIKE 'manual\\_%' ESCAPE '\\' OR kind = '" +
-  SERVICE_COST_KIND +
-  "')";
+  `(source_type != '${EXTERNAL}' AND dest_type != '${EXTERNAL}'` +
+  ` OR kind LIKE 'manual\\_%' ESCAPE '\\' OR kind = '${KIND.serviceCost}')`;
 
 /** A listing-account scope (revenue OR cost legs touching this listing's
  *  accounts) for the by-listing filter, with its bound args. Empty for "all
@@ -105,17 +114,12 @@ const revenueLegScope = (
   listingId === null
     ? { args: [], clause: "" }
     : {
-        args: [
-          String(listingId),
-          String(listingId),
-          String(listingId),
-          String(listingId),
-        ],
+        args: Array(4).fill(String(listingId)),
         clause:
-          " AND (dest_type = 'revenue' AND dest_id = ?" +
-          " OR source_type = 'revenue' AND source_id = ?" +
-          " OR source_type = 'cost' AND source_id = ?" +
-          " OR dest_type = 'cost' AND dest_id = ?)",
+          ` AND (dest_type = '${REVENUE}' AND dest_id = ?` +
+          ` OR source_type = '${REVENUE}' AND source_id = ?` +
+          ` OR source_type = '${COST}' AND source_id = ?` +
+          ` OR dest_type = '${COST}' AND dest_id = ?)`,
       };
 
 /**
@@ -197,14 +201,14 @@ export const ledgerTotals = async (
   const row = (await queryOne<LedgerTotalsRow>(
     `SELECT
        COALESCE(SUM(CASE
-         WHEN kind = 'sale' AND dest_type = 'revenue' THEN amount
-         WHEN kind = 'manual_listing_income' AND dest_type = 'revenue' THEN amount
-         WHEN kind = 'adjustment' AND dest_type = 'revenue' AND source_type = 'writeoff' THEN amount
-         WHEN kind = 'adjustment' AND source_type = 'revenue' AND dest_type = 'writeoff' THEN -amount
+         WHEN kind = '${KIND.sale}' AND dest_type = '${REVENUE}' THEN amount
+         WHEN kind = '${MANUAL_LISTING_INCOME}' AND dest_type = '${REVENUE}' THEN amount
+         WHEN kind = '${KIND.adjustment}' AND dest_type = '${REVENUE}' AND source_type = '${WRITEOFF_TYPE}' THEN amount
+         WHEN kind = '${KIND.adjustment}' AND source_type = '${REVENUE}' AND dest_type = '${WRITEOFF_TYPE}' THEN -amount
          ELSE 0 END), 0) AS income,
-       ${signedSumCase("source_type = 'attendee'", "dest_type = 'attendee'")} AS due,
-       COALESCE(SUM(CASE WHEN kind = 'refund_cash' THEN amount ELSE 0 END), 0) AS refunded,
-       ${signedSumCase("dest_type = 'fee_income'", "source_type = 'fee_income'")} AS fees
+       ${signedSumCase(`source_type = '${ATTENDEE}'`, `dest_type = '${ATTENDEE}'`)} AS due,
+       COALESCE(SUM(CASE WHEN kind = '${KIND.refundCash}' THEN amount ELSE 0 END), 0) AS refunded,
+       ${signedSumCase(`dest_type = '${FEE_INCOME}'`, `source_type = '${FEE_INCOME}'`)} AS fees
      FROM transfers${wherePrefixed(r.clause)}`,
     r.args,
   ))!;
@@ -327,7 +331,7 @@ export const listingIncomeTx = (
 ): Promise<number> =>
   readProjectedFigureTx(
     tx,
-    creditsLessWriteoffDebits("revenue", String(listingId)),
+    creditsLessWriteoffDebits(REVENUE, String(listingId)),
   );
 
 /** A modifier's currently projected net revenue (balanceOf(modifier)) read
@@ -338,5 +342,5 @@ export const modifierRevenueTx = (
 ): Promise<number> =>
   readProjectedFigureTx(
     tx,
-    accountBalanceSubquery("modifier", String(modifierId)),
+    accountBalanceSubquery(MODIFIER, String(modifierId)),
   );

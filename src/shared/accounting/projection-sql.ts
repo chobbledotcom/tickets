@@ -10,6 +10,17 @@
  * the parameterised `transfersByAccount` in `./queries.ts` instead.
  */
 
+import {
+  ATTENDEE,
+  REVENUE,
+  WRITEOFF_TYPE,
+} from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
+import {
+  MANUAL_LISTING_COST,
+  MANUAL_LISTING_INCOME,
+} from "#shared/accounting/manual-entries.ts";
+
 /** Account type/id columns for one leg side of a `transfers` row — the single
  *  home for these names, so every projection (the interpolated subqueries here
  *  AND the parameterised balance reads in `./queries.ts`) refers to them once. */
@@ -47,9 +58,9 @@ export const saleLegPredicate = (
   listingIdExpr: string,
   eventGroupExpr: string,
 ): string =>
-  `kind = 'sale'` +
-  ` AND ${accountPredicate("source", "attendee", attendeeIdExpr)}` +
-  ` AND ${accountPredicate("dest", "revenue", listingIdExpr)}` +
+  `kind = '${KIND.sale}'` +
+  ` AND ${accountPredicate("source", ATTENDEE, attendeeIdExpr)}` +
+  ` AND ${accountPredicate("dest", REVENUE, listingIdExpr)}` +
   ` AND event_group = ${eventGroupExpr}`;
 
 /**
@@ -78,7 +89,7 @@ export const creditsLessWriteoffDebits = (
   idExpr: string,
 ): string => {
   const credited = accountPredicate("dest", type, idExpr);
-  const writtenOff = `${accountPredicate("source", type, idExpr)} AND dest_type = 'writeoff'`;
+  const writtenOff = `${accountPredicate("source", type, idExpr)} AND dest_type = '${WRITEOFF_TYPE}'`;
   return (
     "(SELECT COALESCE(SUM(" +
     `CASE WHEN ${credited} THEN amount WHEN ${writtenOff} THEN -amount ELSE 0 END` +
@@ -129,25 +140,25 @@ const conditionalSumColumn = (where: string, alias: string): string =>
  * the listing id in the surrounding query.
  */
 export const revenueBreakdownColumns = (idExpr: string): string => {
-  const credited = accountPredicate("dest", "revenue", idExpr);
-  const debited = accountPredicate("source", "revenue", idExpr);
+  const credited = accountPredicate("dest", REVENUE, idExpr);
+  const debited = accountPredicate("source", REVENUE, idExpr);
   return [
-    conditionalSumColumn(`kind = 'sale' AND ${credited}`, "gross_sales"),
+    conditionalSumColumn(`kind = '${KIND.sale}' AND ${credited}`, "gross_sales"),
     conditionalSumColumn(
-      `kind = 'manual_listing_income' AND ${credited}`,
+      `kind = '${MANUAL_LISTING_INCOME}' AND ${credited}`,
       "external_income",
     ),
     conditionalSumColumn(
-      `kind = 'adjustment' AND ${credited} AND source_type = 'writeoff'`,
+      `kind = '${KIND.adjustment}' AND ${credited} AND source_type = '${WRITEOFF_TYPE}'`,
       "write_ups",
     ),
     conditionalSumColumn(
-      `kind = 'adjustment' AND ${debited} AND dest_type = 'writeoff'`,
+      `kind = '${KIND.adjustment}' AND ${debited} AND dest_type = '${WRITEOFF_TYPE}'`,
       "write_downs",
     ),
-    conditionalSumColumn(`kind = 'refund_sale' AND ${debited}`, "refunds"),
+    conditionalSumColumn(`kind = '${KIND.refundSale}' AND ${debited}`, "refunds"),
     conditionalSumColumn(
-      `kind = 'manual_listing_cost' AND ${debited}`,
+      `kind = '${MANUAL_LISTING_COST}' AND ${debited}`,
       "external_costs",
     ),
   ].join(", ");
@@ -188,4 +199,4 @@ export const accountBalanceSubquery = (
  * (`… AS remaining_balance`) or compare it in a guard (`… = ?`).
  */
 export const attendeeOwedSubquery = (idExpr: string): string =>
-  `-${accountBalanceSubquery("attendee", idExpr)}`;
+  `-${accountBalanceSubquery(ATTENDEE, idExpr)}`;

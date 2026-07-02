@@ -35,6 +35,7 @@
 import type { InValue } from "@libsql/client";
 import { groupBy, sumOf } from "#fp";
 import { ATTENDEE } from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
 import {
   asOrderLegs,
   mapBooking,
@@ -166,8 +167,8 @@ const stampFromExistingStatement = (
   args: [String(attendeeId), attendeeId],
   sql:
     "UPDATE listing_attendees SET ledger_event_group = COALESCE(" +
-    "(SELECT event_group FROM transfers WHERE source_type = 'attendee'" +
-    " AND source_id = ? AND kind = 'sale' LIMIT 1), '') WHERE attendee_id = ?",
+    `(SELECT event_group FROM transfers WHERE source_type = '${ATTENDEE}'` +
+    ` AND source_id = ? AND kind = '${KIND.sale}' LIMIT 1), '') WHERE attendee_id = ?`,
 });
 
 /** The leg-INSERT and row-stamp statements for one not-yet-ledgered attendee.

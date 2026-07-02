@@ -46,13 +46,16 @@ import {
 } from "#routes/response.ts";
 /* jscpd:ignore-end */
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import * as v from "valibot";
 import {
-  attendeeAccount,
-  BOOKING_FEE_INCOME,
-  modifierAccount,
-  revenueAccount,
-  WORLD,
-  WRITEOFF,
+  ATTENDEE,
+  COST,
+  isRowAccountType,
+  isSingletonAccountType,
+  MODIFIER,
+  REVENUE,
+  ROW_ACCOUNT_CONSTRUCTORS,
+  SINGLETON_ACCOUNTS,
 } from "#shared/accounting/accounts.ts";
 import {
   deleteManualLedgerEntry,
@@ -108,6 +111,8 @@ import {
   type LedgerListingOption,
   type LedgerNames,
   type LedgerViewMode,
+  LedgerViewModeSchema,
+  rowAccountNames,
 } from "#templates/admin/ledger.tsx";
 import type { DatePickerDate } from "#templates/date-picker.tsx";
 
@@ -136,9 +141,14 @@ const referencedAccountIds = (accounts: AccountRef[], type: string): number[] =>
 export const loadLedgerNamesForAccounts = async (
   accounts: AccountRef[],
 ): Promise<LedgerNames> => {
-  const attendeeIds = referencedAccountIds(accounts, "attendee");
-  const listingIds = referencedAccountIds(accounts, "revenue");
-  const modifierIds = new Set(referencedAccountIds(accounts, "modifier"));
+  const attendeeIds = referencedAccountIds(accounts, ATTENDEE);
+  // A listing is named by BOTH its accounts: revenue legs and servicing-cost
+  // legs each resolve to the listing row's name.
+  const listingIds = unique([
+    ...referencedAccountIds(accounts, REVENUE),
+    ...referencedAccountIds(accounts, COST),
+  ]);
+  const modifierIds = new Set(referencedAccountIds(accounts, MODIFIER));
   const [attendees, listings, modifiers] = await Promise.all([
     loadAttendeeNames(attendeeIds),
     getListingNamesByIds(listingIds),
@@ -182,8 +192,11 @@ const listingParam = (params: URLSearchParams): number | null => {
   return value ? parsePositiveIntId(value) : null;
 };
 
-const viewParam = (params: URLSearchParams): LedgerViewMode =>
-  params.get("view") === "dual" ? "dual" : "human";
+/** Parse the `?view=` mode via its picklist, defaulting to the human view. */
+const viewParam = (params: URLSearchParams): LedgerViewMode => {
+  const parsed = v.safeParse(LedgerViewModeSchema, params.get("view"));
+  return parsed.success ? parsed.output : "human";
+};
 
 /** Turn a `from`/`to` day filter into the epoch-ms range the ledger queries
  *  bound against: `from` at the start of its day, `to` exclusive at the start of
@@ -344,28 +357,20 @@ export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
     );
   });
 
-/** Build the {@link AccountRef} for a `:type`/`:ref` route pair, or null when the
- * type is unknown or a row-backed ref is not a positive integer. Singletons map
- * to their fixed account regardless of the `:ref` segment. */
+/** Build the {@link AccountRef} for a `:type`/`:ref` route pair, or null when
+ * the type is unknown or a row-backed ref is not a positive integer. Singletons
+ * map to their fixed account regardless of the `:ref` segment. Dispatch is the
+ * two exhaustive registries in the chart of accounts, so a new account type
+ * gets a statement route by declaring itself there — never by adding an arm
+ * here. */
 export const accountFromRoute = (
   type: string,
   ref: string,
 ): AccountRef | null => {
-  if (type === "external") return WORLD;
-  if (type === "fee_income") return BOOKING_FEE_INCOME;
-  if (type === "writeoff") return WRITEOFF;
-  const makeAccount = ROW_ACCOUNT_CONSTRUCTORS[type];
-  if (!makeAccount) return null;
-  const numericId = Number(ref);
-  if (!Number.isSafeInteger(numericId) || numericId <= 0) return null;
-  return makeAccount(numericId);
-};
-
-/** Row-backed account constructors keyed by route `:type`. */
-const ROW_ACCOUNT_CONSTRUCTORS: Record<string, (id: number) => AccountRef> = {
-  attendee: attendeeAccount,
-  modifier: modifierAccount,
-  revenue: revenueAccount,
+  if (isSingletonAccountType(type)) return SINGLETON_ACCOUNTS[type];
+  if (!isRowAccountType(type)) return null;
+  const id = parsePositiveIntId(ref);
+  return id === null ? null : ROW_ACCOUNT_CONSTRUCTORS[type](id);
 };
 
 /** Load one account's full statement and the labels for both that account and
@@ -496,23 +501,13 @@ const addOptions = (account: AccountRef): LedgerEntryAddOption[] =>
     label: t(option.labelKey),
   }));
 
-const addableAccountNames = {
-  attendee: (names: LedgerNames) => names.attendees,
-  modifier: (names: LedgerNames) => names.modifiers,
-  revenue: (names: LedgerNames) => names.listings,
-};
-
-type AddableAccountType = keyof typeof addableAccountNames;
-type AddableAccountRef = AccountRef & { type: AddableAccountType };
-
-const isAddableAccount = (account: AccountRef): account is AddableAccountRef =>
-  Object.hasOwn(addableAccountNames, account.type);
-
-const accountExistsInNames = (
-  account: AddableAccountRef,
-  names: LedgerNames,
-): boolean => addableAccountNames[account.type](names).has(Number(account.id));
-
+/**
+ * Resolve an account an owner-entered entry may be added to: the account
+ * exists, its row still exists (its name resolves), and the manual-entry spec
+ * table offers at least one entry type for it. Addability is thereby driven by
+ * that spec table — an account type gains an add form by gaining specs, never
+ * by another parallel type list here.
+ */
 const loadAddableAccount = async (
   type: string,
   ref: string,
@@ -522,11 +517,11 @@ const loadAddableAccount = async (
   options: LedgerEntryAddOption[];
 } | null> => {
   const account = accountFromRoute(type, ref);
-  if (!account) return null;
-  if (!isAddableAccount(account)) return null;
+  if (!account || !isRowAccountType(account.type)) return null;
   const options = addOptions(account);
+  if (options.length === 0) return null;
   const names = await loadLedgerNamesForAccounts([account]);
-  return accountExistsInNames(account, names)
+  return rowAccountNames(account.type, names).has(Number(account.id))
     ? { account, names, options }
     : null;
 };
