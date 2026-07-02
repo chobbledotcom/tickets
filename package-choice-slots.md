@@ -171,7 +171,14 @@ JSON API; the single-listing duplicate and group bulk-duplicate paths).
   existing valid candidate could be edited to pay-more/daily and stay under
   a slot the package page cannot price. The listing-save path must invoke
   the slot-candidate predicate for every edge touching the edited listing
-  (whether it is the candidate or the slot).
+  (whether it is the candidate or the slot). **`hidden` can also change
+  without any listing save:** a `use_defaults` listing resolves Hidden from
+  `settings.listingDefaults` (`decryptListingWithCount` overlays it), so
+  flipping the default Hidden to true via `/admin/listing-defaults` would
+  silently hide an already-configured candidate. The defaults save path must
+  therefore also run the predicate over `use_defaults` slot candidates
+  (rejecting the change, or the predicate evaluates the *resolved* hidden
+  value and the defaults save re-checks affected slots).
 
 ### B. Package-page render
 
@@ -343,7 +350,12 @@ is a real bypass otherwise):
   `withActiveListings`; it rejects only children and hidden-package members
   before dispatching to `handleTicket`. A QR minted just before a listing
   became a slot would keep booking it standalone for the token's lifetime, so
-  the scan handler runs the same predicate.
+  the scan handler runs the same predicate. **And the rejection must not use
+  the standard QR error page unchanged:** `qrBookErrorPage`
+  (`src/ui/templates/public/errors.tsx`) always renders a fallback
+  `/ticket/<slug>` link, which for a slot is guaranteed to hit the new
+  standalone guard and 404 — the slot-blocked path needs a
+  no-fallback/generic response ("never render a dead link").
 - **Regular (non-package) group pages.** Membership is many-to-many, and
   `visibleGroupMembers` drops only hidden-package members for non-package
   groups — a slot listing that also joined a regular group would render there
@@ -425,7 +437,8 @@ price — existing, deliberate behaviour.
   renewal-tier (`months_per_unit > 0`), `hidden`, and child-only opt-in
   add-on candidates rejected (the existing edge blockers still apply);
   editing an existing candidate to pay-more/daily/hidden rejected at listing
-  save; a listing
+  save; flipping the listing-defaults Hidden to true rejected (or re-checked)
+  while a `use_defaults` slot candidate exists; a listing
   that is itself a **child** under another parent rejected as a member; two
   slots of one package sharing a candidate rejected; hidden-package × slot
   rejected both directions.
@@ -465,7 +478,8 @@ price — existing, deliberate behaviour.
   no surface names a candidate of a (rejected) hidden configuration.
 - **Standalone bypass:** a slot listing 404s on direct `/ticket/<slug>`, the
   JSON API lookup, QR issuance, AND the QR **scan** path (a token minted
-  before the listing became a slot) — even when active and non-hidden; it is
+  before the listing became a slot, whose rejection page renders no
+  `/ticket/<slot>` fallback link) — even when active and non-hidden; it is
   dropped from a regular group's `/ticket/<group>` page it also belongs to;
   it appears on no catalog surface (`/listings`, `/order`, `/order.js`,
   feeds, `/api/listings`); the admin dashboard multi-booking builder does not
