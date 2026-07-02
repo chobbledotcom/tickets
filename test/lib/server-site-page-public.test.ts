@@ -201,6 +201,24 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       expect(html).not.toContain('aria-label="Page solo"');
     });
 
+    test("a group is live when ANY member is bookable, not just the first", async () => {
+      // Members iterate newest-first (created DESC), so create the bookable
+      // member before the unbookable child: the liveness fold must accumulate
+      // past the dead first row to find the bookable one.
+      const page = await makePage("mixed-group");
+      const grp = await createTestGroup({ name: "Mixed Group", slug: "mg" });
+      await createTestListing({ groupId: grp.id, name: "Bookable Member" });
+      const parent = await createTestListing({ name: "Outside Parent" });
+      const childMember = await createTestListing({
+        groupId: grp.id,
+        name: "Child Member",
+      });
+      await setChildIds(parent.id, [childMember.id]);
+      await addPageItem(page.id, "group", grp.id);
+      const html = await assertPublicHtml("/page/mixed-group");
+      expect(html).toContain('href="/ticket/mg"');
+    });
+
     test("a page whose only item is a member-less group renders it dead", async () => {
       // The liveness pass has nothing to classify here (no listings anywhere
       // in the model) — the group must still resolve, as a dead entry.

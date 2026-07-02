@@ -64,6 +64,21 @@ describeWithEnv("AdminNav", {}, () => {
     expect(html).toContain('class="active" href="/admin/ledger"');
   });
 
+  test("the desktop sub-nav nests only under the one active section link", () => {
+    const html = String(
+      AdminNav({
+        active: "/admin/settings",
+        session: { adminLevel: "owner" },
+      }),
+    );
+    // Exactly ONE nested sub-nav, and it sits directly after the active
+    // Settings anchor — never under the other top-level items.
+    expect((html.match(/admin-subnav/g) ?? []).length).toBe(1);
+    expect(html).toContain(
+      '<a class="active" href="/admin/settings">Settings</a><ul class="admin-subnav">',
+    );
+  });
+
   test("AdminNav marks the attendees link active on the attendees page", () => {
     const html = String(
       AdminNav({

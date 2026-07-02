@@ -7,6 +7,7 @@ import {
   descendantsOf,
   eligibleChildPages,
   isReservedSlug,
+  pageParentMapFromEdges,
   parseTargetKey,
   planReorder,
   targetKey,
@@ -56,6 +57,32 @@ describe("site-pages core", () => {
         const parsed = parseTargetKey(targetKey(type, 42));
         expect(parsed).toEqual({ id: 42, type });
       }
+    });
+  });
+
+  describe("pageParentMapFromEdges", () => {
+    test("maps only page edges, child to parent, first edge winning", () => {
+      // Leaf edges must never enter the map (a listing id could collide with
+      // a page id and poison the cycle walk); page edges map child -> parent.
+      const map = pageParentMapFromEdges([
+        edge(1, "listing", 7, 0),
+        edge(1, "group", 8, 1),
+        edge(1, "page", 3, 2),
+        edge(2, "page", 3, 0), // second parent for 3 - first edge wins
+        edge(3, "page", 4, 0),
+      ]);
+      expect(map).toEqual(
+        new Map([
+          [3, 1],
+          [4, 3],
+        ]),
+      );
+    });
+
+    test("no page edges yields an empty map", () => {
+      expect(pageParentMapFromEdges([edge(1, "listing", 7, 0)])).toEqual(
+        new Map(),
+      );
     });
   });
 
