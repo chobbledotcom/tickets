@@ -9,7 +9,9 @@ import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   createAttendeeAtomic,
+  decryptAttendeeOrNull,
   deleteAttendee,
+  getAttendeePackageRowsRaw,
   hasActiveBookingLine,
   updateCheckedIn,
 } from "#shared/db/attendees.ts";
@@ -17,6 +19,7 @@ import { getListingWithCount } from "#shared/db/listings.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import { validateForm } from "#shared/forms.tsx";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   availableDayCounts,
   isPaidListing,
@@ -44,6 +47,7 @@ import {
 } from "./attendees-list.ts";
 import { handleMergePost } from "./attendees-merge.ts";
 import {
+  type AttendeeWithListing,
   attendeeActionPage,
   attendeeFormAction,
   verifiedAttendeeAction,
@@ -289,6 +293,28 @@ const handleAdminResendNotificationGet = attendeeActionPage(
   adminResendNotificationPage,
 );
 
+/** The entries a resend notifies. A standalone line notifies alone; a line
+ * belonging to a package rehydrates EVERY line of that attendee's package, so
+ * the confirmation doesn't treat a single member row as the whole package
+ * (collapsing a hidden package to one row's quantity/price, or heading a
+ * visible one with a lone member). */
+const resendEntries = async (
+  data: AttendeeWithListing,
+): Promise<{ attendee: typeof data.attendee; listing: ListingWithCount }[]> => {
+  const groupId = data.attendee.package_group_id;
+  if (groupId <= 0) return [{ attendee: data.attendee, listing: data.listing }];
+  const pk = await requireRequestPrivateKey();
+  const rows = await getAttendeePackageRowsRaw(data.attendee.id, groupId);
+  return Promise.all(
+    // The route already verified this attendee's active line, so its package
+    // rows exist, decrypt with the same key, and each names a live listing.
+    rows.map(async (row) => ({
+      attendee: (await decryptAttendeeOrNull(row, pk))!,
+      listing: (await getListingWithCount(row.listing_id))!,
+    })),
+  );
+};
+
 /** Handle POST /admin/attendees/:attendeeId/resend-notification */
 const handleResendNotification = verifiedAttendeeAction(
   "resend-notification",
@@ -308,9 +334,7 @@ const handleResendNotification = verifiedAttendeeAction(
     if (noLineRedirect) return noLineRedirect;
 
     await Promise.all([
-      logAndNotifyRegistration([
-        { attendee: data.attendee, listing: data.listing },
-      ]),
+      logAndNotifyRegistration(await resendEntries(data)),
       logActivity(
         `Notification re-sent for attendee '${data.attendee.name}'`,
         data.listing.id,

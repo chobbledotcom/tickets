@@ -259,17 +259,11 @@ export const childActive = (child: TicketListing): boolean =>
 /** The child is not registration-closed. */
 export const childOpen = (child: TicketListing): boolean => !child.isClosed;
 
-/** Date-LESS cumulative sold-out check, **standard only**: a STANDARD child's
- * capacity is cumulative and date-independent, so `isSoldOut` is authoritative;
- * a DAILY child's date-less `isSoldOut` aggregate is meaningless (it reads true
- * once full on ANY single date), so it is exempt here and judged per-date
- * downstream. */
-export const childStandardInStock = (child: TicketListing): boolean =>
-  child.listing.listing_type === "daily" || !child.isSoldOut;
-
-/** Strict date-less sold-out check applied to **every** kind (the booking-page
- * render variant): the child option renders enabled only when not sold out,
- * including a daily child judged by its date-less aggregate. */
+/** Date-less sold-out check: a STANDARD child's capacity is cumulative and
+ * date-independent, so `isSoldOut` is authoritative; a DAILY child never reads
+ * sold out date-lessly ({@link buildTicketListing} makes no date-less capacity
+ * claim for daily listings — its per-date capacity is judged downstream once a
+ * date is known), so this is safe for every kind. */
 export const childInStock = (child: TicketListing): boolean => !child.isSoldOut;
 
 /** Whether a DAILY child has at least one bookable start that COVERS `span` on
@@ -363,6 +357,14 @@ export const combinedGroupDemandFits = (cap: SharedGroupCapacity): boolean =>
   (cap.staticCap === undefined || cap.staticCap >= PARENT_CHILD_GROUP_UNITS) &&
   (cap.remaining === undefined || cap.remaining >= PARENT_CHILD_GROUP_UNITS);
 
+/** How many whole orders fit in one capped group pool when each order consumes
+ * `demand` (≥ 1) spots: `floor(remaining / demand)`. The single source of the
+ * shared-group pool division reused by every render-time capacity cap — a
+ * package bundle (demand = Σ member quantities in the group) and a parent+child
+ * cohort (demand = {@link PARENT_CHILD_GROUP_UNITS}). */
+export const groupPoolUnits = (remaining: number, demand: number): number =>
+  Math.floor(remaining / demand);
+
 /** Combine a list of child-availability atoms into one predicate that ANDs them
  * all. Callers compose exactly the atoms their site needs (via {@link
  * compact} to drop the optional ones they don't), keeping behaviour identical. */
@@ -372,14 +374,27 @@ export const selectableChild =
     atoms.every((atom) => atom(child));
 
 /** Whether a required child clears the date- AND span-INDEPENDENT disqualifiers:
- * active, not registration-closed, and — for a STANDARD child — not sold out (a
- * daily child's date-less aggregate is judged per-date downstream). The single
+ * active, not registration-closed, and not sold out (a daily child never reads
+ * sold out date-lessly; its per-date capacity is judged downstream). The single
  * source of truth both the date union (ticket-payment.ts) and the day-count
  * union (reservations.tsx) use to drop children the fold would categorically
  * reject (parents.md Fixes 2–4). Span- and date-dependent checks layer on top in
  * the caller that knows the inherited span/date. */
 export const childSelectableIgnoringSpan: (child: TicketListing) => boolean =
-  selectableChild([childActive, childOpen, childStandardInStock]);
+  selectableChild([childActive, childOpen, childInStock]);
+
+/** The ids of every currently-bookable child on a page (span-independent
+ * disqualifiers only), for surfaces that price or cap over the tree's child
+ * nodes — bookability is a render fact the tree doesn't carry. */
+export const bookableChildIds = (
+  childrenByParentId: ReadonlyMap<number, TicketListing[]> | undefined,
+): ReadonlySet<number> =>
+  new Set(
+    [...(childrenByParentId?.values() ?? [])]
+      .flat()
+      .filter(childSelectableIgnoringSpan)
+      .map((child) => child.listing.id),
+  );
 
 /** Single source of truth for the duration a parent's children inherit
  * (invariant I4), parameterised by what each surface uses when the parent's span
@@ -455,7 +470,16 @@ export const buildTicketListing = (
   closed: boolean,
   groupRemaining: number | undefined,
 ): TicketListing => {
-  const listingRemaining = listing.max_attendees - listing.attendee_count;
+  // A DAILY listing's `attendee_count` is cumulative across every date, so it
+  // is not a date-less capacity fact: full on one date must not read "sold
+  // out" for all the empty ones. Date-less surfaces therefore make NO capacity
+  // claim for a daily listing (mirroring getGroupRemainingByListingId, which
+  // drops daily group pools without a date) — the buyer picks a date and the
+  // per-date clamp plus the atomic write judge that date authoritatively.
+  const listingRemaining =
+    listing.listing_type === "daily"
+      ? Number.POSITIVE_INFINITY
+      : listing.max_attendees - listing.attendee_count;
   const spotsRemaining =
     groupRemaining === undefined
       ? listingRemaining

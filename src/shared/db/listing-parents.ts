@@ -179,16 +179,33 @@ export const getParentsOf = async (
 
 /** Both sides of every edge a listing participates in: its children and the
  * parents it is offered under. The shared first step of {@link
- * firstTouchingEdgeError}, the traversal both save-time re-checks run through. */
-const edgeIdsTouching = async (
-  listingId: number,
-): Promise<{ childIds: number[]; parentIds: number[] }> => {
-  const [childIds, parentIds] = await Promise.all([
-    getChildIds(listingId),
-    getParentIds(listingId),
+ * firstTouchingEdgeError}, the traversal both save-time re-checks run through;
+ * also reused to reject parent/child listings as package members. */
+/** The parent/child edge ids touching EACH of `listingIds`, loaded with two
+ * batched queries (never per-listing). Every requested id gets an entry (empty
+ * arrays when untouched), so callers index without a fallback. */
+export const edgeIdsTouchingMany = async (
+  listingIds: readonly number[],
+): Promise<Map<number, { childIds: number[]; parentIds: number[] }>> => {
+  const [childrenByParent, parentsByChild] = await Promise.all([
+    getChildrenForParents(listingIds),
+    getParentsForChildren(listingIds),
   ]);
-  return { childIds, parentIds };
+  return new Map(
+    listingIds.map((id) => [
+      id,
+      {
+        childIds: (childrenByParent.get(id) ?? []).map((l) => l.id),
+        parentIds: (parentsByChild.get(id) ?? []).map((l) => l.id),
+      },
+    ]),
+  );
 };
+
+export const edgeIdsTouching = async (
+  listingId: number,
+): Promise<{ childIds: number[]; parentIds: number[] }> =>
+  (await edgeIdsTouchingMany([listingId])).get(listingId)!;
 
 /** One directed edge touching the saved listing, with the saved listing's own id
  * fixed on one side (the caller closes over it): `self: "parent"` means it is the
@@ -239,8 +256,10 @@ export const edgeIncompatibilityAfterChange = async (
 ): Promise<string | null> => {
   const byId = await getListingsById();
   return firstTouchingEdgeError(updated.id, ({ self, otherId }) => {
-    const other = byId.get(otherId);
-    if (!other) return null;
+    // edgeIdsTouching hydrates through the same listings cache, dropping any
+    // edge whose opposite endpoint no longer exists — so `other` always
+    // resolves here.
+    const other = byId.get(otherId)!;
     // `updated` stays on its fixed side: parent of each child, child under each parent.
     return self === "parent"
       ? edgeFieldError(updated, other)

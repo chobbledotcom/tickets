@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { validateGroupListingType } from "#shared/db/groups.ts";
+import {
+  getGroupIdsByListingId,
+  setGroupPackageMembers,
+  validateGroupListingType,
+} from "#shared/db/groups.ts";
 import { updateListingAggregateValues } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
@@ -379,7 +383,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         groupId: group.id,
         name: "Grouped Listing",
       });
-      expect(listing.group_id).toBe(group.id);
+      expect(await getGroupIdsByListingId(listing.id)).toContain(group.id);
 
       await deleteTestGroup(group.id);
 
@@ -389,7 +393,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(await groupsTable.findById(group.id)).toBeNull();
       const existingListing = await getListing(listing.id);
       expect(existingListing).not.toBeNull();
-      expect(existingListing?.group_id).toBe(0);
+      // Group delete prunes membership rows, leaving the listing ungrouped.
+      expect(await getGroupIdsByListingId(listing.id)).toEqual([]);
     });
 
     test("returns 404 when deleting a non-existent group", async () => {
@@ -482,6 +487,57 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "Embed Iframe",
         "iframe",
       );
+    });
+
+    test("add-listings form offers listings from other groups, not this group's own members", async () => {
+      // Membership is many-to-many, so a listing already in another group is a
+      // valid candidate to also join this one; only this group's current members
+      // are excluded from the add form.
+      const groupA = await createTestGroup({
+        name: "Group A",
+        slug: "group-a",
+      });
+      const inOtherGroup = await createTestListing({
+        groupId: groupA.id,
+        name: "Other Group Member",
+      });
+      const target = await createTestGroup({
+        name: "Target",
+        slug: "target-g",
+      });
+      const ownMember = await createTestListing({
+        groupId: target.id,
+        name: "Target Member",
+      });
+
+      const html = await (await adminGet(`/admin/groups/${target.id}`)).text();
+      // The listing already in Group A is offered as an add candidate…
+      expect(html).toContain(`value="${inOtherGroup.id}"`);
+      // …while the target's own member is not (no add-form checkbox for it).
+      expect(html).not.toContain(`value="${ownMember.id}"`);
+    });
+
+    test("group revenue comes from the ledger and survives attendee deletion", async () => {
+      const { bookAttendee } = await import("#test-utils");
+      const { deleteAttendee } = await import("#shared/db/attendees.ts");
+      const group = await createTestGroup({ name: "Rev", slug: "rev-group" });
+      const listing = await createTestListing({
+        groupId: group.id,
+        name: "Paid Listing",
+        unitPrice: 2500,
+      });
+      const result = await bookAttendee(listing, { pricePaid: 2500 });
+      if (!result.success) throw new Error("booking failed");
+      const attendeeId = result.attendees[0]!.id;
+
+      const before = await adminGet(`/admin/groups/${group.id}`);
+      await expectHtmlResponse(before, 200, "Total Revenue", "£25");
+
+      // Deleting the attendee purges its rows but not the ledger sale leg, so the
+      // ledger-projected revenue still counts it — an attendee-sum would not.
+      await deleteAttendee(attendeeId);
+      const after = await adminGet(`/admin/groups/${group.id}`);
+      await expectHtmlResponse(after, 200, "Total Revenue", "£25");
     });
 
     test("shows hidden status on detail page when group is hidden", async () => {
@@ -727,6 +783,114 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(html).toContain("Total Revenue");
     });
 
+    test("decrypts the roster for a package whose member is paid only via its override", async () => {
+      // A package member can be free on its own (unit_price 0) yet paid through
+      // its package_price override; the roster must still decrypt payment data.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Override Paid",
+        slug: "override-paid",
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Free-Standalone Member",
+        unitPrice: 0,
+      });
+      await setGroupPackageMembers(group.id, [
+        { listingId: member.id, price: 2500 },
+      ]);
+      await createTestAttendee(
+        member.id,
+        member.slug,
+        "Buyer",
+        "buyer@test.com",
+      );
+
+      const response = await adminGet(`/admin/groups/${group.id}`);
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain("Free-Standalone Member");
+      // The override makes the package paid, so the page treats it as paid: the
+      // revenue row shows (a non-package or no-override group would hide it).
+      expect(html).toContain("Total Revenue");
+    });
+
+    test("decrypts the roster for a package paid only via a per-day override", async () => {
+      // Same principle one layer deeper: a customisable member free on its own
+      // (zero base and day prices) can still charge through a per-day package
+      // override, so the paid check must consult the group_day rows too.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Day Override Paid",
+        slug: "day-override-paid",
+      });
+      const member = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 0, 2: 0 },
+        durationDays: 2,
+        groupId: group.id,
+        listingType: "daily",
+        maxAttendees: 10,
+        name: "Free-Days Member",
+        unitPrice: 0,
+      });
+      await setGroupPackageMembers(group.id, [
+        { dayPrices: { 2: 2500 }, listingId: member.id, price: null },
+      ]);
+      // A daily member needs a dated booking; the form helper posts date-less,
+      // so book atomically like the checkout would.
+      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+      const { addDays } = await import("#shared/dates.ts");
+      const { todayInTz } = await import("#shared/timezone.ts");
+      const booked = await createAttendeeAtomic({
+        bookings: [
+          {
+            date: addDays(todayInTz("UTC"), 2),
+            listingId: member.id,
+            quantity: 1,
+          },
+        ],
+        email: "daybuyer@test.com",
+        name: "Buyer",
+        packageGroupId: group.id,
+      });
+      if (!booked.success) throw new Error("day-override booking failed");
+
+      const response = await adminGet(`/admin/groups/${group.id}`);
+      expectStatus(200)(response);
+      expect(await response.text()).toContain("Total Revenue");
+    });
+
+    test("hides revenue for a package whose free member has no override", async () => {
+      // A package group still reaches the override check (unlike a non-package
+      // group, which returns early): a free member with a null override (no
+      // positive price anywhere) is not paid, so no revenue row is shown.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Override Free",
+        slug: "override-free",
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Truly-Free Member",
+        unitPrice: 0,
+      });
+      await createTestAttendee(
+        member.id,
+        member.slug,
+        "Guest",
+        "guest@test.com",
+      );
+
+      const response = await adminGet(`/admin/groups/${group.id}`);
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain("Truly-Free Member");
+      expect(html).not.toContain("Total Revenue");
+    });
+
     const createGroupWithListing = async (
       groupName: string,
       groupSlug: string,
@@ -842,8 +1006,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const listing1 = await createTestListing({ name: "Listing A" });
       const listing2 = await createTestListing({ name: "Listing B" });
 
-      expect(listing1.group_id).toBe(0);
-      expect(listing2.group_id).toBe(0);
+      expect(await getGroupIdsByListingId(listing1.id)).toEqual([]);
+      expect(await getGroupIdsByListingId(listing2.id)).toEqual([]);
 
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
@@ -863,11 +1027,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "Listings added to group",
       )(response);
 
-      const { getListing } = await import("#shared/db/listings.ts");
-      const updated1 = await getListing(listing1.id);
-      const updated2 = await getListing(listing2.id);
-      expect(updated1?.group_id).toBe(group.id);
-      expect(updated2?.group_id).toBe(0);
+      expect(await getGroupIdsByListingId(listing1.id)).toContain(group.id);
+      expect(await getGroupIdsByListingId(listing2.id)).toEqual([]);
     });
 
     test("handles empty selection gracefully", async () => {
@@ -927,9 +1088,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       )(response);
 
       // Verify listing was NOT assigned
-      const { getListing } = await import("#shared/db/listings.ts");
-      const unchanged = await getListing(dailyListing.id);
-      expect(unchanged?.group_id).toBe(0);
+      expect(await getGroupIdsByListingId(dailyListing.id)).toEqual([]);
     });
   });
 

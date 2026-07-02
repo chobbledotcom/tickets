@@ -212,11 +212,11 @@ export const servicingRowsForListing = (
 ): Promise<Attendee[]> =>
   queryAll<Attendee>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
-       FROM attendees a
-       JOIN listing_attendees ea ON ea.attendee_id = a.id
-      WHERE ea.listing_id = ?
-        AND a.kind = ?
-      ORDER BY a.id`,
+       FROM attendees AS attendee
+       JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+      WHERE listingAttendee.listing_id = ?
+        AND attendee.kind = ?
+      ORDER BY attendee.id`,
     [listingId, SERVICING_KIND],
   );
 

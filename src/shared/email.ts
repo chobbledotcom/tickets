@@ -10,11 +10,17 @@ import { toBase64 } from "#shared/crypto/utils.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   buildTemplateData,
+  collapsedPackageSummary,
+  getPackageDisplayForEntries,
   renderEmailContent,
 } from "#shared/email-renderer.ts";
 import { getEnv } from "#shared/env.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import {
+  type PackagePrivacy,
+  packagePrivacyOfDisplay,
+} from "#shared/package-privacy.ts";
 import { generateSvgTicket, type SvgTicketData } from "#shared/svg-ticket.ts";
 import { buildCheckinUrl, buildTicketUrl } from "#shared/ticket-url.ts";
 import {
@@ -34,7 +40,6 @@ export type EmailListing = WebhookListing & {
   assign_built_site: boolean;
   initial_site_months: number;
   listing_type: "standard" | "daily";
-  duration_days: number;
 };
 
 /** Attendee + listing pair for email rendering */
@@ -330,21 +335,53 @@ export const buildSvgTicketData = (
   quantity: entry.attendee.quantity,
 });
 
-/** Generate SVG ticket attachments for all entries */
+/** Build one SVG ticket standing in for a hidden package: the package name and
+ * the bundle's summed quantity/price, on the shared check-in token, so the
+ * attachment never reveals the member listings (mirrors {@link
+ * collapsedPackageEntry} in the email body). */
+const collapsedSvgTicketData = (
+  entries: EmailEntry[],
+  currency: string,
+  packageName: string,
+): SvgTicketData => {
+  // The same summed price/quantity and widest dated stay the email body's
+  // collapsed row shows — one summary, so the SVG and the email can't disagree.
+  const summary = collapsedPackageSummary(entries);
+  return {
+    attendeeDate: summary.widestDated?.attendee.date ?? null,
+    checkinUrl: buildCheckinUrl(entries[0]!.attendee.ticket_token),
+    currency,
+    listingDate: "",
+    listingLocation: "",
+    listingName: packageName,
+    pricePaid: summary.pricePaid,
+    purchaseOnly: entries.every((e) => e.listing.purchase_only),
+    quantity: summary.quantity,
+  };
+};
+
+/** Generate SVG ticket attachments for all entries. A HIDDEN package collapses
+ * to a single package-level SVG so the buyer's attachments don't reveal the
+ * member listings the email body hides. */
 export const buildTicketAttachments = async (
   entries: EmailEntry[],
   currency: string,
+  privacy: PackagePrivacy = { kind: "visible" },
 ): Promise<EmailAttachment[]> => {
-  const ticketDataList = map((entry: EmailEntry) =>
-    buildSvgTicketData(entry, currency),
-  )(entries);
+  const ticketDataList =
+    privacy.kind === "hidden"
+      ? [collapsedSvgTicketData(entries, currency, privacy.packageName)]
+      : map((entry: EmailEntry) => buildSvgTicketData(entry, currency))(
+          entries,
+        );
   const svgs = await Promise.all(
     ticketDataList.map((data) => generateSvgTicket(data)),
   );
   return svgs.map((svg, i) => ({
     content: toBase64(new TextEncoder().encode(svg)),
     contentType: "image/svg+xml",
-    filename: entries.length === 1 ? "ticket.svg" : `ticket-${i + 1}.svg`,
+    filename:
+      ticketDataList.length === 1 ? "ticket.svg" : `ticket-${i + 1}.svg`,
   }));
 };
 
@@ -365,14 +402,22 @@ export const sendRegistrationEmails = async (
   const attendeeEmail = attendeeRaw ? parseEmail(attendeeRaw) : null;
   const businessEmail = parseEmail(settings.businessEmail);
   const ticketUrl = buildTicketUrl(entries);
-  const data = buildTemplateData(entries, currency, ticketUrl);
   const promises: Promise<number | undefined>[] = [];
 
   if (attendeeEmail) {
     const replyTo = businessEmail || undefined;
+    // The buyer's confirmation hides a hidden package's member listings — both
+    // in the email body and in the attached ticket SVGs — via the one
+    // package-privacy chokepoint.
+    const privacy = packagePrivacyOfDisplay(
+      await getPackageDisplayForEntries(entries),
+    );
+    const data = await buildTemplateData(entries, currency, ticketUrl, {
+      hidePackageMembers: true,
+    });
     const [confirmation, attachments] = await Promise.all([
       renderEmailContent("confirmation", data),
-      buildTicketAttachments(entries, currency),
+      buildTicketAttachments(entries, currency, privacy),
     ]);
     promises.push(
       sendEmail(config, {
@@ -385,6 +430,8 @@ export const sendRegistrationEmails = async (
   }
 
   if (businessEmail) {
+    // The admin notification always shows package members, even when hidden.
+    const data = await buildTemplateData(entries, currency, ticketUrl);
     const notification = await renderEmailContent("admin", data);
     promises.push(
       sendEmail(config, {

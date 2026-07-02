@@ -8,18 +8,25 @@ import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import {
   createTokenRoute,
   lookupAttendees,
+  packageDisplaysForEntries,
   resolveEntries,
   type TokenEntry,
   type TokenRouteFn,
   withTokenRateLimit,
 } from "#routes/tickets/token-utils.ts";
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
+import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import { type TicketCard, ticketViewPage } from "#templates/tickets.tsx";
 
-/** Build a ticket card for a single token/entry pair */
+/** Build a ticket card for one entry, keyed by that entry's OWN token. Keying on
+ * the row's real token (not the URL's first token) keeps a multi-token page's
+ * distinct attendees on distinct cards/QRs and lets package collapsing bucket by
+ * (token, package) without merging two attendees. This view doesn't decrypt, so
+ * the token is re-derived from the URL by index rather than read off the
+ * attendee (whose `ticket_token` is only populated after decryption). */
 const buildTicketCard = async (
   entry: TokenEntry,
   token: string,
@@ -50,15 +57,35 @@ const withResolvedEntries =
 /** Handle GET /t/:tokens. One token can map to several cards (multi-listing);
  * they share the first URL token (same attendee). */
 const handleTicketView = withResolvedEntries(async (entries, tokens) => {
-  const token = tokens[0]!;
-  const cards = await Promise.all(
-    entries.map((entry) => buildTicketCard(entry, token)),
+  // This view doesn't decrypt, so each resolved attendee carries only its token
+  // INDEX. Map every URL token to its index, then re-attach the matching token to
+  // each card so cards key by their real token.
+  const tokenByIndex = new Map(
+    await Promise.all(
+      tokens.map(async (t) => [await computeTicketTokenIndex(t), t] as const),
+    ),
   );
+  const cards = await Promise.all(
+    entries.map((entry) =>
+      buildTicketCard(
+        entry,
+        tokenByIndex.get(entry.attendee.ticket_token_index)!,
+      ),
+    ),
+  );
+  // Collapse each package's rows into one card (members grouped, or hidden),
+  // keyed by (token, package). Each card carries its own attendee token, so a
+  // multi-token URL (`/t/a+b`) keeps distinct attendees' cards — and check-in
+  // QRs — separate while still collapsing each package. Disabling collapsing for
+  // multi-token pages would render a hidden package's member rows as normal cards
+  // and leak the concealed names, so it is always enabled.
+  const packageDisplays = await packageDisplaysForEntries(entries);
   return htmlResponse(
     ticketViewPage(
       cards,
       settings.appleWallet.hasConfig,
       settings.googleWallet.hasConfig,
+      packageDisplays,
     ),
   );
 });

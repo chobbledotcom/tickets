@@ -292,6 +292,35 @@ describeWithEnv(
         await assertBookable(parent.slug);
       });
 
+      test("a child in a roomy SHARED group is bookable despite a tighter NON-shared group (Codex #3)", async () => {
+        // The child belongs to the parent's capped group A (10 spots) AND its own
+        // tighter capped group B (1 spot). The combined-demand check must use the
+        // SHARED group's remaining (A = 10), not the child's tightest group overall
+        // (B = 1): one parent+child order needs two of A's ten spots, so it fits and
+        // the parent keeps its Book link. The pre-fix code took the child's
+        // per-listing minimum (1) and marked the parent sold out.
+        const groupA = await createTestGroup({
+          maxAttendees: 10,
+          name: "Shared",
+        });
+        const groupB = await createTestGroup({
+          maxAttendees: 1,
+          name: "Tighter",
+        });
+        const parent = await createTestListing({
+          groupIds: [groupA.id],
+          maxAttendees: 100,
+          name: "Base unit",
+        });
+        const child = await createTestListing({
+          groupIds: [groupA.id, groupB.id],
+          maxAttendees: 100,
+          name: "Add-on",
+        });
+        await setChildIds(parent.id, [child.id]);
+        await assertBookable(parent.slug);
+      });
+
       test("a daily parent + daily child sharing a 1-cap group is sold out date-less (static cap)", async () => {
         // A daily child's per-date group-remaining is unknown without a
         // submitted date, so the dynamic combined-demand check cannot see the

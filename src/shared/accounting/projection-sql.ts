@@ -6,7 +6,7 @@
  * `dest_type` / the `CAST(… AS TEXT)` can't silently skew a single read.
  *
  * They build raw SQL by interpolating caller-supplied column *expressions*
- * (e.g. `ea.attendee_id`), not bound values — for binding a known account use
+ * (e.g. `listingAttendee.attendee_id`), not bound values — for binding a known account use
  * the parameterised `transfersByAccount` in `./queries.ts` instead.
  */
 

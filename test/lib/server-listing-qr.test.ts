@@ -89,5 +89,43 @@ describeWithEnv("ticket QR code", { db: true }, () => {
       });
       await expectQrCode(response);
     });
+
+    test("returns a QR for a fully-bookable package group", async () => {
+      const pkg = await createTestGroup({ isPackage: true });
+      await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 50,
+        name: "PM1",
+      });
+      await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 50,
+        name: "PM2",
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${pkg.slug}/qr`),
+      );
+      await expectQrCode(response);
+    });
+
+    test("404s the QR for a package group with a sold-out member", async () => {
+      // A package is all-or-nothing, so one sold-out member makes the bundle
+      // unbookable — the QR must 404 like the suppressed /listings CTA.
+      const pkg = await createTestGroup({ isPackage: true });
+      await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 50,
+        name: "OK",
+      });
+      await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 0,
+        name: "Full",
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${pkg.slug}/qr`),
+      );
+      expect(response.status).toBe(404);
+    });
   });
 });

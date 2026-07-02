@@ -166,8 +166,8 @@ describeWithEnv(
         maxAttendees: 10,
         name: "standard-in-group",
       });
-      const { listingsTable } = await import("#shared/db/listings.ts");
-      await listingsTable.update(standard.id, { groupId: group.id });
+      const { assignListingsToGroup } = await import("#shared/db/groups.ts");
+      await assignListingsToGroup([standard.id], group.id);
       // Pre-book the standard listing with qty 2 (cumulative against group cap).
       const { createTestAttendeeDirect } = await import("#test-utils");
       await createTestAttendeeDirect(standard.id, "Real", "r@example.com", 2);

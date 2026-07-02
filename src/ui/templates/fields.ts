@@ -100,6 +100,8 @@ export type GroupCreateFormValues = {
   terms_and_conditions: string;
   max_attendees: number | null;
   hidden: string;
+  is_package: string;
+  hide_package_listings: string;
 };
 
 /** Typed values from group edit form validation (includes slug) */
@@ -753,13 +755,6 @@ export const getSlugField = (): Field => ({
   validate: (value: string) => validateSlug(normalizeSlug(value)),
 });
 
-/** Group selection field (validated even when rendered manually) */
-export const getGroupIdField = (): Field => ({
-  label: t("terms.group"),
-  name: "group_id",
-  type: "text",
-});
-
 /** Max attendees field for group forms */
 const getGroupMaxAttendeesField = (): Field => ({
   hint: t("fields.group.max_attendees_hint"),
@@ -771,6 +766,28 @@ const getGroupMaxAttendeesField = (): Field => ({
 /** Group description field */
 const getGroupDescriptionField = (): Field =>
   buildDescriptionField(t("fields.group.description_hint"), FORMATTING_HINT);
+
+/** "Is a package" checkbox for group forms. Toggling it reveals the per-listing
+ * price override table on the edit page via the CSS sibling trick. */
+const getIsPackageField = (): Field => ({
+  hint: t("fields.group.is_package_hint"),
+  label: t("fields.group.is_package"),
+  name: "is_package",
+  options: [{ label: t("fields.group.is_package_label"), value: "1" }],
+  type: "checkbox-group",
+});
+
+/** "Hide listings within package" checkbox. Only meaningful for packages, so the
+ * edit page reveals it via the same CSS trick as the price table. */
+const getHidePackageListingsField = (): Field => ({
+  hint: t("fields.group.hide_package_listings_hint"),
+  label: t("fields.group.hide_package_listings"),
+  name: "hide_package_listings",
+  options: [
+    { label: t("fields.group.hide_package_listings_label"), value: "1" },
+  ],
+  type: "checkbox-group",
+});
 
 /** Group form fields for creation (no slug - auto-generated) */
 export const getGroupCreateFields = (): Field[] => {
@@ -799,6 +816,8 @@ export const getGroupCreateFields = (): Field[] => {
           : null,
     },
     groupHiddenField,
+    getIsPackageField(),
+    getHidePackageListingsField(),
   ];
 };
 
@@ -812,6 +831,8 @@ export const getGroupFields = (): Field[] => {
     creates[2]!,
     creates[3]!,
     buildHiddenField("Group"),
+    getIsPackageField(),
+    getHidePackageListingsField(),
   ];
 };
 

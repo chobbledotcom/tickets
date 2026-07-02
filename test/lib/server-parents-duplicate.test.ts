@@ -1,7 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import { getAllGroups, getListingsByGroupId } from "#shared/db/groups.ts";
+import {
+  getAllGroups,
+  getGroupPackagePrices,
+  getListingsByGroupId,
+  setGroupPackageMembers,
+} from "#shared/db/groups.ts";
 import { getChildIds } from "#shared/db/listing-parents.ts";
 import {
   adminFormPost,
@@ -48,6 +53,7 @@ const setChildren = async (
 const duplicateListingResponse = async (
   sourceId: number,
   name: string,
+  groupId?: number,
 ): Promise<{ response: Response; copy: { id: number } }> => {
   const { csrfToken, cookie } = await getTestSession();
   const { handleRequest } = await import("#routes");
@@ -58,6 +64,7 @@ const duplicateListingResponse = async (
         ...baseListingForm,
         csrf_token: csrfToken,
         duplicated_from: String(sourceId),
+        ...(groupId !== undefined ? { group_ids: String(groupId) } : {}),
         name,
       },
       cookie,
@@ -398,6 +405,88 @@ describeWithEnv(
       );
       response.body?.cancel();
       expect(response.status).toBe(404);
+    });
+
+    test("duplicating a package member copies its price, quantity, and per-day overrides", async () => {
+      const { getGroupDayPrices } = await import(
+        "#shared/db/listing-prices.ts"
+      );
+      const group = await createTestGroup({ isPackage: true, name: "Bundle" });
+      const source = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Member",
+      });
+      // The duplicate form clones a standard listing (a customisable source
+      // would trip the homogeneity invariant against the standard clone), so
+      // the per-day row is seeded directly — the copy mechanics are group_day
+      // rows riding the same duplicate, whatever the member's type.
+      await setGroupPackageMembers(group.id, [
+        {
+          dayPrices: { 2: 1600 },
+          listingId: source.id,
+          price: 1500,
+          quantity: 2,
+        },
+      ]);
+
+      const { copy } = await duplicateListingResponse(
+        source.id,
+        "Member copy",
+        group.id,
+      );
+
+      // The copy joins at the source's override, not its base price/quantity 1.
+      const row = (await getGroupPackagePrices(group.id)).find(
+        (r) => r.listing_id === copy.id,
+      );
+      expect(row?.package_price).toBe(1500);
+      expect(row?.quantity).toBe(2);
+      // The per-day override rides the same copy (same group, so the same
+      // "<groupId>/<n>" price_id applies to the clone verbatim).
+      expect((await getGroupDayPrices(group.id)).get(copy.id)?.get(2)).toBe(
+        1600,
+      );
+    });
+
+    test("duplicating a parent into a package keeps children when visible, drops them when hidden", async () => {
+      const { groupsTable } = await import("#shared/db/groups.ts");
+      const child = await createTestListing({ name: "Child" });
+      const parent = await createTestListing({
+        maxAttendees: 10,
+        name: "Parent",
+      });
+      await setChildren(parent.id, [child.id]);
+
+      // A VISIBLE package renders the member's child selector, so the copy
+      // keeps the inherited gate.
+      const visible = await createTestGroup({ isPackage: true, name: "Pkg" });
+      const { copy } = await duplicateListingResponse(
+        parent.id,
+        "Parent copy",
+        visible.id,
+      );
+      expect(
+        (await getGroupPackagePrices(visible.id)).some(
+          (r) => r.listing_id === copy.id,
+        ),
+      ).toBe(true);
+      expect(await getChildIds(copy.id)).toEqual([child.id]);
+
+      // A HIDDEN package collapses members to the package name, so its copy
+      // must NOT inherit the child edges — the member stays valid and the
+      // operator is told the gate wasn't carried over.
+      const hidden = await createTestGroup({
+        isPackage: true,
+        name: "Hidden Pkg",
+      });
+      await groupsTable.update(hidden.id, { hidePackageListings: true });
+      const { copy: hiddenCopy } = await duplicateListingResponse(
+        parent.id,
+        "Parent hidden copy",
+        hidden.id,
+      );
+      expect(await getChildIds(hiddenCopy.id)).toEqual([]);
     });
   },
 );

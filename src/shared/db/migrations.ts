@@ -82,7 +82,10 @@ import builtSitesUpdatesMigration from "./migrations/2026-06-24_built_sites_upda
 import listingAttendeeLedgerEventGroupIndexMigration from "./migrations/2026-06-25_listing_attendee_ledger_event_group_index.ts";
 import attendeesKindNotNullMigration from "./migrations/2026-06-26_attendees_kind_not_null.ts";
 import serviceCostsMigration from "./migrations/2026-06-27_service_costs.ts";
+import groupListingsMigration from "./migrations/2026-06-28_group_listings.ts";
 import listingUseDefaultsMigration from "./migrations/2026-06-28_listing_use_defaults.ts";
+import attendeePackageGroupMigration from "./migrations/2026-06-29_attendee_package_group.ts";
+import packageQuantitiesMigration from "./migrations/2026-06-29_package_quantities.ts";
 import listingPricesMigration from "./migrations/2026-07-01_listing_prices.ts";
 import sitePagesMigration from "./migrations/2026-07-01_site_pages.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
@@ -266,11 +269,16 @@ export const MIGRATIONS: Migration[] = [
   listingAttendeeLedgerEventGroupIndexMigration,
   attendeesKindNotNullMigration,
   serviceCostsMigration,
-  // Pure additive column add (use_defaults on listings); appended last.
+  // Pure additive column add (use_defaults on listings); from main.
   listingUseDefaultsMigration,
-  // Two new tables for user-created content pages; appended last (additive).
+  groupListingsMigration,
+  packageQuantitiesMigration,
+  // Stamps package_group_id on each booking row of a package order, so tickets
+  // and emails group by the persisted id rather than membership equality.
+  attendeePackageGroupMigration,
+  // From main: two new tables for user-created content pages (additive).
   sitePagesMigration,
-  // New listing_prices table + backfill from unit_price/day_prices; appended last.
+  // From main: listing_prices table + backfill from unit_price/day_prices.
   listingPricesMigration,
 ].map((build) => build(migrationContext));
 
@@ -413,9 +421,9 @@ export const verifyMigrationWithRetry = (migration: Migration): Promise<void> =>
       if (!willRetry) return;
       logDebug(
         "Migration",
-        `verify ${migration.id} failed on attempt ${
-          attempt + 1
-        }, retrying: ${error instanceof Error ? error.message : String(error)}`,
+        `verify ${migration.id} failed on attempt ${attempt + 1}, retrying: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     },
   );

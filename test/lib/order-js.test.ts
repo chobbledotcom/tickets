@@ -3,10 +3,17 @@ import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { orderWidgetBody } from "#routes/assets.ts";
+import { groupsTable } from "#shared/db/groups.ts";
 import { setChildIds } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
-import { createTestListing, describeWithEnv, mockRequest } from "#test-utils";
+import {
+  createTestGroup,
+  createTestListing,
+  deactivateTestListing,
+  describeWithEnv,
+  mockRequest,
+} from "#test-utils";
 
 const orderJs = (origin?: string): Promise<Response> =>
   handleRequest(
@@ -48,6 +55,77 @@ describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
     expect(body).toContain("const CATALOG");
     expect(body).toContain(slug);
     expect(body).toContain("isExternalOrderModule");
+  });
+
+  test("excludes a hidden package's members from the catalog", async () => {
+    await settings.update.externalOrderEnabled(true);
+    const group = await createTestGroup({ isPackage: true, name: "Bundle" });
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    await createTestListing({ groupId: group.id, name: "Hidden Member" });
+    await createTestListing({ name: "Standalone" });
+    const memberSlug = await slugByName("Hidden Member");
+    const standaloneSlug = await slugByName("Standalone");
+
+    const body = await (await orderJs()).text();
+    // The standalone listing is advertised; the hidden package's member is not.
+    expect(body).toContain(standaloneSlug);
+    expect(body).not.toContain(memberSlug);
+  });
+
+  test("advertises a bookable package's bundle slug in the catalog packages", async () => {
+    await settings.update.externalOrderEnabled(true);
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Camp Bundle",
+      slug: "camp-bundle",
+    });
+    await createTestListing({ groupId: group.id, name: "Tent" });
+
+    const body = await (await orderJs()).text();
+    // The bundle is bookable via /ticket/<group>, so its slug rides in the
+    // packages map even though it's not a listing cart line.
+    expect(body).toContain('"packages"');
+    expect(body).toContain('"camp-bundle"');
+  });
+
+  test("a hidden package's bundle is still bookable from the widget", async () => {
+    await settings.update.externalOrderEnabled(true);
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Secret Bundle",
+      slug: "secret-bundle",
+    });
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    const member = await createTestListing({
+      groupId: group.id,
+      name: "Concealed",
+    });
+    const memberSlug = await slugByName("Concealed");
+
+    const body = await (await orderJs()).text();
+    // The bundle slug is offered (the package books as a whole) while its hidden
+    // member is withheld from the listing catalog.
+    expect(body).toContain('"secret-bundle"');
+    expect(body).not.toContain(`"${memberSlug}"`);
+    expect(body).not.toContain(member.name);
+  });
+
+  test("omits an unbookable package (an inactive member) from the catalog", async () => {
+    await settings.update.externalOrderEnabled(true);
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Gone Bundle",
+      slug: "gone-bundle",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      name: "Last One",
+    });
+    await deactivateTestListing(member.id);
+
+    const body = await (await orderJs()).text();
+    // The bundle can't sell (its sole member is inactive), so it isn't advertised.
+    expect(body).not.toContain('"gone-bundle"');
   });
 
   test("defaults the catalog debug flag off without the query param", async () => {

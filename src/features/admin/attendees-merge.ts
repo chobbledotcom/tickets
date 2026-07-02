@@ -48,9 +48,9 @@ const loadMergeTarget = async (
   const pk = await requireRequestPrivateKey();
   const raw = await queryOne<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
-     FROM attendees a
-     LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-     WHERE a.id = ? AND a.kind = ?`,
+     FROM attendees AS attendee
+     LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+     WHERE attendee.id = ? AND attendee.kind = ?`,
     [attendeeId, ATTENDEE_KIND],
   );
   return decryptAttendeeOrNull(raw, pk);

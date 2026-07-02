@@ -84,9 +84,44 @@ export const childSelectorParentIds = (): string[] => {
   return ids;
 };
 
-/** Whether the given parent is in the cart (`quantity_<parentId> > 0`). */
+/** The chosen package count on a package page, or 0 (no selector, none chosen). */
+const packageQuantity = (): number =>
+  controlQty(
+    document.querySelector<HTMLSelectElement>('[name="package_quantity"]'),
+  );
+
+/** A parent's effective booked units: its own `quantity_<parentId>` control, or
+ * — for a package member, which has no own control — its fixed per-package
+ * quantity (the fieldset's `data-package-fixed-qty`) × the chosen package
+ * count, matching the total the submit fold requires the child mix to reach. */
+export const parentUnits = (parentId: string): number => {
+  const own = document.querySelector<HTMLSelectElement | HTMLInputElement>(
+    `[name="quantity_${parentId}"]`,
+  );
+  if (own !== null) return controlQty(own);
+  const fieldset = document.querySelector<HTMLElement>(
+    `fieldset.child-selector[data-parent-id="${parentId}"]`,
+  );
+  const fixed = Number.parseInt(fieldset?.dataset.packageFixedQty ?? "", 10);
+  return Number.isNaN(fixed) ? 0 : fixed * packageQuantity();
+};
+
+/** Whether the given parent is in the cart: its own quantity control > 0, or —
+ * for a package member parent — at least one package selected. */
 export const parentInCart = (parentId: string): boolean =>
-  quantityValue(parentId) > 0;
+  parentUnits(parentId) > 0;
+
+/** The member listing ids of an in-cart package: the ids encoded on the
+ * `package_quantity` selector (`data-package-members`) when at least one package
+ * is selected, else empty. Empty on non-package pages (no such selector). */
+export const selectedPackageMemberIds = (): string[] => {
+  if (packageQuantity() <= 0) return [];
+  const selector = document.querySelector<HTMLSelectElement>(
+    '[name="package_quantity"]',
+  );
+  const raw = selector?.getAttribute("data-package-members") ?? "";
+  return raw.split(" ").filter((id) => id.length > 0);
+};
 
 /** The effective set of "active" listing ids: every page listing with quantity
  * > 0, plus every child given a positive `child_qty_*` under an in-cart parent.
@@ -100,6 +135,11 @@ export const selectedListingIds = (): Set<string> => {
     const id = control.getAttribute("name")!.slice("quantity_".length);
     if (quantityValue(id) > 0) ids.add(id);
   }
+  // A package page offers only the `package_quantity` selector (members have no
+  // own quantity control), but the submit path derives a quantity for every
+  // member from the package count — so once a package is selected, EVERY member
+  // listing is active and its scoped questions must show/require.
+  for (const id of selectedPackageMemberIds()) ids.add(id);
   for (const parentId of childSelectorParentIds()) {
     if (!parentInCart(parentId)) continue;
     for (const childId of chosenChildIds(parentId)) ids.add(childId);
@@ -143,9 +183,13 @@ export const onChangeOf = (selector: string, listener: () => void): void => {
 };
 
 /** Run `listener` whenever a selection that can change the active-listing set
- * changes: any quantity control, or any per-child quantity control. */
+ * changes: any quantity control, any per-child quantity control, or the package
+ * count selector (which activates every package member at once). */
 export const onSelectionChange = (listener: () => void): void =>
-  onChangeOf('[name^="quantity_"], [name^="child_qty_"]', listener);
+  onChangeOf(
+    '[name^="quantity_"], [name^="child_qty_"], [name="package_quantity"]',
+    listener,
+  );
 
 /** Shared init scaffold for the parent/child enhancement scripts: no-op when the
  * page has no child selector, otherwise run `perParent` for every parent id on

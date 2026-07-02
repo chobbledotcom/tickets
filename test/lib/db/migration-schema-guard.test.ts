@@ -63,10 +63,13 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-26_attendees_kind_not_null",
         "2026-06-27_service_costs",
         "2026-06-28_listing_use_defaults",
+        "2026-06-28_group_listings",
+        "2026-06-29_package_quantities",
+        "2026-06-29_attendee_package_group",
         "2026-07-01_site_pages",
         "2026-07-01_listing_prices",
       ],
-      schemaHash: "mw6yc4",
+      schemaHash: "1d0ta9l",
     });
   });
 });
