@@ -10,6 +10,7 @@ import {
   MANUAL_MODIFIER_INCOME,
   MANUAL_MODIFIER_REDUCTION,
   type ManualLedgerEntryType,
+  manualLedgerEntryOptionsFor,
   postManualLedgerEntry,
   updateManualLedgerEntry,
 } from "#shared/accounting/manual-entries.ts";
@@ -127,6 +128,55 @@ describe("db > accounting > manual ledger entries", () => {
     await expect(
       updateManualLedgerEntry(transfer!, -1, transfer!.occurredAt),
     ).rejects.toThrow("invalid transfer update");
+  });
+
+  test("offers each account type ONLY its own entry options", () => {
+    // The option filter keys on the spec table's accountType; an inverted
+    // match would offer listing entries on an attendee account.
+    const offered = manualLedgerEntryOptionsFor(account("attendee", 1)).map(
+      (option) => option.type,
+    );
+    expect(offered).toEqual([
+      MANUAL_ATTENDEE_PAYMENT,
+      MANUAL_ATTENDEE_CHARGE,
+      MANUAL_ATTENDEE_WRITEOFF,
+    ]);
+    expect(
+      manualLedgerEntryOptionsFor(account("revenue", 1)).map((o) => o.type),
+    ).toEqual([MANUAL_LISTING_INCOME, MANUAL_LISTING_COST]);
+  });
+
+  test("updates an owner-entered entry's amount and business time", async () => {
+    await postManualLedgerEntry({
+      account: account("attendee", 1),
+      amount: 100,
+      occurredAt: "2026-06-22T09:30:00.000Z",
+      postedBy: "1",
+      type: MANUAL_ATTENDEE_PAYMENT,
+    });
+    const [before] = await allTransfers();
+
+    await updateManualLedgerEntry(before!, 250, "2026-06-23T10:00:00.000Z");
+
+    const [after] = await allTransfers();
+    expect(after!.amount).toBe(250);
+    expect(after!.occurredAt).toBe("2026-06-23T10:00:00.000Z");
+    // Identity and provenance are untouched by an amount/time edit.
+    expect(after!.id).toBe(before!.id);
+    expect(after!.reference).toBe(before!.reference);
+  });
+
+  test("deletes an owner-entered entry", async () => {
+    await postManualLedgerEntry({
+      account: account("attendee", 1),
+      amount: 100,
+      occurredAt: "2026-06-22T09:30:00.000Z",
+      postedBy: "1",
+      type: MANUAL_ATTENDEE_PAYMENT,
+    });
+    const [entry] = await allTransfers();
+    await deleteManualLedgerEntry(entry!);
+    expect(await allTransfers()).toEqual([]);
   });
 
   /** Post one checkout-history leg (a `sale`) and read back its stored row. */

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  bookingLegBatchInsert,
   fromDb,
   insertStatement,
   selectTransfers,
@@ -48,6 +49,39 @@ describe("accounting > rows > insertStatement", () => {
     const absent = insertStatement(base, recordedAt);
     expect(boundValue(absent, "posted_by")).toBe("system");
     expect(boundValue(absent, "reverses_id")).toBe(null);
+  });
+});
+
+describe("accounting > rows > bookingLegBatchInsert", () => {
+  const recordedAt = "2026-06-21T12:00:00.000Z";
+  // Distinct attendee (3) and revenue (9) ids, so a swapped side is visible:
+  // the attendee literal must vanish (replaced by the subquery) while the
+  // revenue literal stays bound.
+  const leg: TransferInput = {
+    amount: 5000,
+    destination: account("revenue", 9),
+    eventGroup: "evt",
+    kind: "sale",
+    occurredAt: "2026-06-21T00:00:00.000Z",
+    reference: "ref",
+    source: account("attendee", 3),
+  };
+  const guard = { args: ["g"], sql: "? = 'g'" };
+
+  test("renders ONLY the attendee side via the in-batch id subquery", () => {
+    const built = bookingLegBatchInsert(leg, recordedAt, "MAX(id)", 7, guard);
+    // source is the attendee account -> subquery; destination (revenue) stays a
+    // bound literal. Swapping the two would post the sale to a phantom account.
+    expect(built.sql).toContain("CAST(MAX(id) AS TEXT)");
+    expect(built.sql.indexOf("CAST(MAX(id) AS TEXT)")).toBe(
+      built.sql.lastIndexOf("CAST(MAX(id) AS TEXT)"),
+    );
+    expect(built.args).toContain(7); // the subquery's bound arg
+    expect(built.args).toContain("9"); // revenue id still a bound literal
+    expect(built.args).not.toContain("3"); // attendee id replaced by subquery
+    expect(built.args.at(-1)).toBe("g"); // guard args come last
+    expect(built.sql).toMatch(/^INSERT OR IGNORE INTO transfers /);
+    expect(built.sql).toContain("WHERE ? = 'g'");
   });
 });
 

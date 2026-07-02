@@ -163,6 +163,18 @@ describe("db > accounting > store", () => {
       expect((await allTransfers()).length).toBe(0);
     });
 
+    test("rejects an invalid transfer before writing anything", async () => {
+      // The pre-DB validation is part of this path's contract too, not just
+      // the batch poster's: a malformed leg must abort the whole transaction.
+      const error = await rejection(
+        withTransaction((t) =>
+          postTransfersTx(t, [tx({ amount: -5, reference: "bad" })]),
+        ),
+      );
+      expect(error.message).toContain("non_positive_amount");
+      expect((await allTransfers()).length).toBe(0);
+    });
+
     test("skips an already-posted event as an idempotent replay", async () => {
       // The in-transaction poster the booking path uses must be idempotent too:
       // re-posting an event whose legs already match writes nothing rather than

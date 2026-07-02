@@ -150,14 +150,16 @@ export const transferActivityBounds = async (): Promise<{
   minMs: number;
   maxMs: number;
 } | null> => {
-  const row = await queryOne<{
+  // An ungrouped aggregate always yields exactly one row; MIN and MAX are NULL
+  // together iff the table is empty.
+  const row = (await queryOne<{
     min_ms: number | bigint | null;
     max_ms: number | bigint | null;
   }>(
     "SELECT MIN(occurred_at) AS min_ms, MAX(occurred_at) AS max_ms FROM transfers",
     [],
-  );
-  if (!row || row.min_ms === null || row.max_ms === null) return null;
+  ))!;
+  if (row.min_ms === null || row.max_ms === null) return null;
   return { maxMs: Number(row.max_ms), minMs: Number(row.min_ms) };
 };
 
