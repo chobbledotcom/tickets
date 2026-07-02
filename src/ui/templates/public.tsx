@@ -32,6 +32,7 @@ export {
   ticketPage,
 } from "./public/reservations.tsx";
 export {
+  bookableChildIds,
   buildTicketListing,
   type ChildSpanDates,
   childActive,

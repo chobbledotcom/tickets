@@ -98,6 +98,7 @@ import {
   tryValidateTicketFields,
 } from "#templates/fields.ts";
 import {
+  bookableChildIds,
   buildTicketListing,
   packageBundleCap,
   packageSharedDayCounts,
@@ -1126,6 +1127,7 @@ const handleGetPackage = async (
   // holidays, or group remaining per member.
   const holidays = await getActiveHolidays();
   const memberQuantities = fixedQuantitiesByListingId(tree);
+  const bookableChildren = bookableChildIds(ctx.childrenByParentId);
   const members = namesConcealed(
     packagePrivacy(group.hide_package_listings, group.name),
   )
@@ -1160,10 +1162,10 @@ const handleGetPackage = async (
         ? {
             dayCounts: dayCounts.map((days) => ({
               days,
-              priceMinor: packageBundleTotal(tree, days),
+              priceMinor: packageBundleTotal(tree, days, bookableChildren),
             })),
           }
-        : { priceMinor: packageBundleTotal(tree, 1) }),
+        : { priceMinor: packageBundleTotal(tree, 1, bookableChildren) }),
       ...(members ? { members } : {}),
     },
   });

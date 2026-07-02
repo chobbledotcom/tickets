@@ -685,6 +685,31 @@ const singleDailyParent = (
   return { children, fixedSpan: fixedParentSpan(parent.listing) };
 };
 
+/** A PACKAGE's shared dates constrained by EVERY daily parent member's child
+ * union. A package books all its members together, so a date one member's
+ * required children can't serve is unbookable for the whole bundle — unlike an
+ * ad-hoc multi-listing page, where listings are independently optional and
+ * removing a date one parent's children can't serve could hide it from a
+ * different listing a buyer wanted alone ({@link singleDailyParent}'s scoping).
+ * Members without children (or non-daily members) leave the set untouched. */
+const constrainPackageDatesByChildren = (
+  members: TicketListing[],
+  childrenByParentId: ChildrenByParentId,
+  dates: string[],
+  holidays: Holiday[],
+): string[] =>
+  members.reduce((acc, member) => {
+    if (member.listing.listing_type !== "daily") return acc;
+    const children = childrenByParentId.get(member.listing.id);
+    if (!children || children.length === 0) return acc;
+    return constrainDatesByChildUnion(
+      acc,
+      children,
+      fixedParentSpan(member.listing),
+      holidays,
+    );
+  }, dates);
+
 /**
  * The parent→children relationship for the page's listings, each child hydrated to
  * a {@link TicketListing} so its availability resolves for the gate/render.
@@ -858,7 +883,14 @@ export const getTicketContext = async (
         dailyParent.fixedSpan,
         holidays,
       )
-    : sharedDates;
+    : group?.is_package === true
+      ? constrainPackageDatesByChildren(
+          activeListings,
+          childrenByParentId,
+          sharedDates,
+          holidays,
+        )
+      : sharedDates;
   const childDatesById = buildChildDatesById(
     activeListings,
     childrenByParentId,

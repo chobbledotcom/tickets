@@ -79,17 +79,43 @@ export const effectivePrice = (
   }
 };
 
+/** The minimum unavoidable child charge for ONE unit of a parent member: the
+ * fold requires chosen children to total exactly the parent quantity (a sole
+ * bookable child is auto-selected), so every booked parent unit carries at
+ * least its cheapest bookable child's price. `bookableChildIds` scopes the
+ * minimum to children a buyer can actually choose (a render fact the tree
+ * doesn't carry); 0 for a childless member — and for a parent with NO bookable
+ * child, which the bookable gate rejects before any price is advertised. */
+const minBookableChildPrice = (
+  node: BookingNode,
+  days: number,
+  bookableChildIds: ReadonlySet<number>,
+): number => {
+  const prices = node.children
+    .filter((child) => bookableChildIds.has(child.listingId))
+    .map((child) =>
+      effectivePrice(child.priceRule, child.listing, NO_CUSTOM_PRICES, days),
+    );
+  return prices.length === 0 ? 0 : Math.min(...prices);
+};
+
 /** The bundle's total price (minor units) for ONE package at the given day
  * count: each member's effective unit price (flat override → per-day override →
- * the listing's own day/base price) × its fixed per-package quantity — the same
- * tree walk checkout uses, shared by the API detail and the booking page's
- * day-count labels so an advertised price can never drift from what a booking
- * charges. */
-export const packageBundleTotal = (tree: BookingTree, days: number): number =>
+ * the listing's own day/base price) plus its minimum unavoidable child charge
+ * ({@link minBookableChildPrice} — checkout always folds children totalling the
+ * member quantity), × its fixed per-package quantity — the same tree walk
+ * checkout uses, shared by the API detail and the booking page's day-count
+ * labels so an advertised price can never undercut what a booking charges. */
+export const packageBundleTotal = (
+  tree: BookingTree,
+  days: number,
+  bookableChildIds: ReadonlySet<number>,
+): number =>
   tree.nodes.reduce(
     (sum, node) =>
       sum +
-      effectivePrice(node.priceRule, node.listing, NO_CUSTOM_PRICES, days) *
+      (effectivePrice(node.priceRule, node.listing, NO_CUSTOM_PRICES, days) +
+        minBookableChildPrice(node, days, bookableChildIds)) *
         nodeFixedQuantity(node),
     0,
   );

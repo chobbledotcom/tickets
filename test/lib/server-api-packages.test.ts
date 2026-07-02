@@ -7,6 +7,7 @@ import { setChildIds } from "#shared/db/listing-parents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 import {
+  createDailyTestListing,
   createTestGroup,
   createTestListing,
   describeWithEnv,
@@ -170,6 +171,40 @@ describeWithEnv("public API packages", { db: true }, () => {
     expect(hidden.name).toBe("Parent Kit");
   });
 
+  test("GET includes the unavoidable child charge in the bundle price", async () => {
+    // The fold books children totalling each parent member's quantity (a sole
+    // bookable child is auto-selected), so the advertised bundle total must
+    // carry each parent member's cheapest bookable child: A's own 1000 × 2
+    // plus the 300 add-on × 2 plus B's 500 override.
+    const { a, group } = await fixedPackage("Priced Kit", "priced-kit");
+    const cheap = await createTestListing({
+      maxAttendees: 10,
+      maxQuantity: 10,
+      name: "Cheap Addon",
+      unitPrice: 300,
+    });
+    const dear = await createTestListing({
+      maxAttendees: 10,
+      maxQuantity: 10,
+      name: "Dear Addon",
+      unitPrice: 700,
+    });
+    await setChildIds(a.id, [cheap.id, dear.id]);
+    const { package: pkg } = await (
+      await apiGet(`/api/packages/${group.slug}`)
+    ).json();
+    expect(pkg.priceMinor).toBe(3100);
+
+    // A child a buyer can't choose must not price the bundle: with the cheap
+    // add-on deactivated, the dear one is the cheapest bookable child.
+    const { deactivateTestListing } = await import("#test-utils");
+    await deactivateTestListing(cheap.id);
+    const { package: repriced } = await (
+      await apiGet(`/api/packages/${group.slug}`)
+    ).json();
+    expect(repriced.priceMinor).toBe(3900);
+  });
+
   test("GET merges a member's child fields into the package fields", async () => {
     // A hidden package's members 404 through the listing API, so the bundle's
     // field requirement — including what a chosen add-on can demand — must be
@@ -211,7 +246,8 @@ describeWithEnv("public API packages", { db: true }, () => {
     const { package: pkg } = await (
       await apiGet(`/api/packages/${group.slug}`)
     ).json();
-    expect(pkg.dayCounts).toEqual([{ days: 2, priceMinor: 2400 }]);
+    // 2400 for the members plus the boat's unavoidable 200 add-on charge.
+    expect(pkg.dayCounts).toEqual([{ days: 2, priceMinor: 2600 }]);
   });
 
   test("a member's required-child capacity bounds the package cap and the booking clamp", async () => {
@@ -279,6 +315,73 @@ describeWithEnv("public API packages", { db: true }, () => {
       unitPrice: 100,
     });
     const pkg = await withAddonGetPackage(member.id, child.id, group.slug);
+    expect(pkg.maxPurchasable).toBe(1);
+  });
+
+  test("package dates are constrained by a daily member's required children", async () => {
+    // A package books every member together, so a date the member's sole
+    // required add-on can't serve (it is bookable only on Mondays) must not
+    // be advertised — the fold would reject it at submit.
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Date Gate",
+      slug: "date-gate",
+    });
+    // TWO members, so the single-listing-page union can't be what constrains
+    // the dates — the package-wide member walk must.
+    const member = await createDailyTestListing({
+      groupId: group.id,
+      name: "Date Gate Boat",
+      unitPrice: 500,
+    });
+    await createDailyTestListing({
+      groupId: group.id,
+      name: "Date Gate Hut",
+      unitPrice: 300,
+    });
+    const child = await createDailyTestListing({
+      bookableDays: ["Monday"],
+      name: "Monday Addon",
+      unitPrice: 100,
+    });
+    await setChildIds(member.id, [child.id]);
+    const { package: pkg } = await (
+      await apiGet(`/api/packages/${group.slug}`)
+    ).json();
+    expect(pkg.availableDates.length).toBeGreaterThan(0);
+    for (const date of pkg.availableDates) {
+      expect(new Date(`${date}T00:00:00Z`).getUTCDay()).toBe(1);
+    }
+  });
+
+  test("two parents sharing one sole add-on aggregate their demand in the cap", async () => {
+    // One bundle folds BOTH members' units into the same sole add-on, so its
+    // 2 spots serve exactly 1 bundle — the per-member caps each read 2 and
+    // their minimum would advertise 2, a count the fold rejects.
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Drain Kit",
+      slug: "drain-kit",
+    });
+    const memberOpts = {
+      groupId: group.id,
+      maxAttendees: 10,
+      maxQuantity: 10,
+      unitPrice: 500,
+    };
+    const m1 = await createTestListing({ ...memberOpts, name: "Drain A" });
+    const m2 = await createTestListing({ ...memberOpts, name: "Drain B" });
+    const addon = await createTestListing({
+      maxAttendees: 2,
+      maxQuantity: 10,
+      name: "Shared Addon",
+      unitPrice: 100,
+    });
+    await setChildIds(m1.id, [addon.id]);
+    await setChildIds(m2.id, [addon.id]);
+    const { package: pkg } = await (
+      await apiGet(`/api/packages/${group.slug}`)
+    ).json();
     expect(pkg.maxPurchasable).toBe(1);
   });
 

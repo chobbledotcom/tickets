@@ -11,6 +11,7 @@ import {
   type BookingTree,
   childPriceFieldName,
   childQuantityFieldName,
+  fixedQuantitiesByListingId,
   nodePriceFieldName,
   nodeQuantityFieldName,
   PACKAGE_QUANTITY_FIELD,
@@ -57,6 +58,7 @@ import {
 import { getTicketFields, mergeListingFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import {
+  bookableChildIds,
   type ChildSpanDates,
   childActive,
   childDateKey,
@@ -710,13 +712,93 @@ const packageChildUnitCaps = (
   return caps;
 };
 
+/** The tightest whole-bundle count the parents' UNAVOIDABLE child demand fits.
+ * The per-member child caps ({@link packageChildUnitCaps}) can't see two parent
+ * members draining ONE pool — each reports the pool's full capacity and the
+ * tree cap takes their minimum, so the page could offer a bundle whose fold
+ * sums both parents' demand and rejects. Demand on a pool is unavoidable when
+ * EVERY one of a parent's bookable children draws from it: a sole STANDARD
+ * child's own cumulative cap (a daily child's capacity is per-date, judged at
+ * submit), or a capped group holding ALL the parent's bookable children.
+ * Per-package demand is the member's fixed quantity; each pool divided by its
+ * summed demand bounds the count. `Infinity` when no such pool exists — the
+ * other caps stand. */
+/** The capped group ids EVERY one of a parent's bookable children sits in —
+ * pools the parent's per-package child demand cannot avoid whichever child the
+ * buyer picks. */
+const cappedGroupsOfAllChildren = (
+  bookable: TicketListing[],
+  groupRemainingByGroupId: ReadonlyMap<number, number>,
+  groupIdsByListingId: ReadonlyMap<number, number[]>,
+): number[] => {
+  const [firstChildIds, ...restChildIds] = bookable.map(
+    (child) =>
+      new Set(
+        (groupIdsByListingId.get(child.listing.id) ?? []).filter((g) =>
+          groupRemainingByGroupId.has(g),
+        ),
+      ),
+  );
+  return [...firstChildIds!].filter((g) =>
+    restChildIds.every((ids) => ids.has(g)),
+  );
+};
+
+const crossParentChildDemandCap = (
+  tree: BookingTree,
+  listings: TicketListing[],
+  childrenByParentId: Map<number, TicketListing[]> | undefined,
+  groupRemainingByGroupId: ReadonlyMap<number, number>,
+  groupIdsByListingId: ReadonlyMap<number, number[]>,
+): number => {
+  // Every package member node carries a FIXED per-package quantity, so the
+  // tree's quantity map is total over the members.
+  const memberQty = fixedQuantitiesByListingId(tree);
+  const soleChildPools = new Map<number, { cap: number; demand: number }>();
+  const groupDemand = new Map<number, number>();
+  for (const member of listings) {
+    const bookable = (childrenByParentId?.get(member.listing.id) ?? []).filter(
+      childBookable,
+    );
+    if (bookable.length === 0) continue;
+    const qty = memberQty.get(member.listing.id)!;
+    const sole = bookable.length === 1 ? bookable[0]! : null;
+    if (sole && sole.listing.listing_type !== "daily") {
+      const pool = soleChildPools.get(sole.listing.id) ?? {
+        cap: sole.maxPurchasable,
+        demand: 0,
+      };
+      pool.demand += qty;
+      soleChildPools.set(sole.listing.id, pool);
+    }
+    for (const g of cappedGroupsOfAllChildren(
+      bookable,
+      groupRemainingByGroupId,
+      groupIdsByListingId,
+    )) {
+      groupDemand.set(g, (groupDemand.get(g) ?? 0) + qty);
+    }
+  }
+  const poolUnits = [
+    ...[...soleChildPools.values()].map(({ cap, demand }) =>
+      groupPoolUnits(cap, demand),
+    ),
+    ...[...groupDemand].map(([g, demand]) =>
+      groupPoolUnits(groupRemainingByGroupId.get(g)!, demand),
+    ),
+  ];
+  return Math.min(Number.POSITIVE_INFINITY, ...poolUnits);
+};
+
 /** THE whole-bundle count cap — the one computation every surface shares: the
  * page selector, the submit clamp, the API detail/book cap, and the /listings
- * bookable gate. Members' own capacity, every capped group's pool, and each
- * parent member's required-child capacity all bound it, so no surface can
- * advertise (or accept) a bundle count another surface rejects. The group maps
- * must cover the members AND their children (getTicketContext's package maps
- * do), so a child's shared capped pool clamps here too. */
+ * bookable gate. Members' own capacity, every capped group's pool, each
+ * parent member's required-child capacity, and the parents' combined
+ * unavoidable child demand ({@link crossParentChildDemandCap}) all bound it,
+ * so no surface can advertise (or accept) a bundle count another surface
+ * rejects. The group maps must cover the members AND their children
+ * (getTicketContext's package maps do), so a child's shared capped pool
+ * clamps here too. */
 export const packageBundleCap = (
   tree: BookingTree,
   listings: TicketListing[],
@@ -724,12 +806,21 @@ export const packageBundleCap = (
   groupRemainingByGroupId: ReadonlyMap<number, number>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
 ): number =>
-  packageQuantityCap(
-    tree,
-    new Map(listings.map((e) => [e.listing.id, e])),
-    groupRemainingByGroupId,
-    groupIdsByListingId,
-    packageChildUnitCaps(
+  Math.min(
+    packageQuantityCap(
+      tree,
+      new Map(listings.map((e) => [e.listing.id, e])),
+      groupRemainingByGroupId,
+      groupIdsByListingId,
+      packageChildUnitCaps(
+        listings,
+        childrenByParentId,
+        groupRemainingByGroupId,
+        groupIdsByListingId,
+      ),
+    ),
+    crossParentChildDemandCap(
+      tree,
       listings,
       childrenByParentId,
       groupRemainingByGroupId,
@@ -1565,13 +1656,14 @@ const TicketPageForm = ({
 /** On a customisable PACKAGE page, one whole bundle's price for a given day
  * count: each member node's effective per-unit price for that span (its flat
  * package override, else its per-day package override, else its own entered day
- * price — never base × days) times its fixed per-package quantity. Walks the
- * canonical tree so the selector's labels can't drift from what the checkout
- * charges. `customPrices` is empty: pay-more listings can't join a package. */
+ * price — never base × days) plus its minimum unavoidable child charge, times
+ * its fixed per-package quantity. Walks the canonical tree so the selector's
+ * labels can't drift from what the checkout charges. `customPrices` is empty:
+ * pay-more listings can't join a package. */
 const packageDayCountPriceFor =
-  (tree: BookingTree) =>
+  (tree: BookingTree, bookableChildren: ReadonlySet<number>) =>
   (days: number): number =>
-    packageBundleTotal(tree, days);
+    packageBundleTotal(tree, days, bookableChildren);
 
 /** The day-count option pricer for a page: a customisable PACKAGE prices each
  * option as the whole bundle's total; every other page keeps the pricer
@@ -1579,13 +1671,14 @@ const packageDayCountPriceFor =
 const resolveDayCountPriceFor = (
   isPackage: boolean,
   tree: BookingTree,
+  bookableChildren: ReadonlySet<number>,
   dayCfg: {
     hasCustomisable: boolean;
     dayCountPriceFor?: ((days: number) => number | null) | undefined;
   },
 ): ((days: number) => number | null) | undefined =>
   isPackage && dayCfg.hasCustomisable
-    ? packageDayCountPriceFor(tree)
+    ? packageDayCountPriceFor(tree, bookableChildren)
     : dayCfg.dayCountPriceFor;
 
 /**
@@ -1916,7 +2009,12 @@ export const ticketPage = ({
     isPackage,
   );
   const { hasCustomisable, dayCounts, dateDurationDays } = dayCfg;
-  const dayCountPriceFor = resolveDayCountPriceFor(isPackage, tree, dayCfg);
+  const dayCountPriceFor = resolveDayCountPriceFor(
+    isPackage,
+    tree,
+    bookableChildIds(childrenByParentId),
+    dayCfg,
+  );
 
   const availableListings = listings.filter((e) => !e.isSoldOut && !e.isClosed);
   const hideQuantity =

@@ -265,6 +265,19 @@ export const selectableChild =
 export const childSelectableIgnoringSpan: (child: TicketListing) => boolean =
   selectableChild([childActive, childOpen, childInStock]);
 
+/** The ids of every currently-bookable child on a page (span-independent
+ * disqualifiers only), for surfaces that price or cap over the tree's child
+ * nodes — bookability is a render fact the tree doesn't carry. */
+export const bookableChildIds = (
+  childrenByParentId: ReadonlyMap<number, TicketListing[]> | undefined,
+): ReadonlySet<number> =>
+  new Set(
+    [...(childrenByParentId?.values() ?? [])]
+      .flat()
+      .filter(childSelectableIgnoringSpan)
+      .map((child) => child.listing.id),
+  );
+
 /** Single source of truth for the duration a parent's children inherit
  * (invariant I4), parameterised by what each surface uses when the parent's span
  * is NOT fixed at the call: a CUSTOMISABLE parent yields `customisableValue` (the

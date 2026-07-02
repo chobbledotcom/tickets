@@ -331,7 +331,8 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       await handleRequest(mockRequest(`/ticket/${group.slug}`))
     ).text();
     expect(body).toContain('name="day_count"');
-    expect(body).toContain("2 days — £27");
+    // 2700 for the members plus the boat's unavoidable 200 add-on charge.
+    expect(body).toContain("2 days — £29");
     expect(body).not.toContain("1 day —");
   });
 
