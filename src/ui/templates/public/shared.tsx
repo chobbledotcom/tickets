@@ -38,7 +38,9 @@ export const NodeLink = ({ node }: { node: NavNode }): JSX.Element =>
 
 /** Desktop: the submenu levels nested recursively — level `depth` renders
  * beneath the active node of the level above (the next page on the active
- * chain), indenting one step per level like the admin sub-nav. */
+ * chain), indenting one step per level like the admin sub-nav. An empty level
+ * (the current page has no items) renders nothing: a `<ul>` with no `<li>`
+ * children is invalid markup. */
 const DesktopLevels = ({
   levels,
   depth,
@@ -46,7 +48,7 @@ const DesktopLevels = ({
   levels: readonly (readonly NavNode[])[];
   depth: number;
 }): JSX.Element | null =>
-  depth >= levels.length ? null : (
+  depth >= levels.length || levels[depth]!.length === 0 ? null : (
     <ul class="admin-subnav">
       {levels[depth]!.map((node) => (
         <li>
@@ -118,9 +120,13 @@ const MobilePublicNav = (props: PublicNavProps): JSX.Element => {
     ),
   ];
   // Level 0 lists the active root's children; the chain page continuing into
-  // level i+1 is the active *page* node within level i.
+  // level i+1 is the active *page* node within level i. An empty level (the
+  // current page has no items — only ever the deepest, since every level
+  // above holds the next chain page) gets no bar: screen readers would
+  // announce an empty navigation landmark.
   let parent = props.pages.rootPageNodes.find((n) => n.active);
   for (const level of props.pages.submenuLevels) {
+    if (level.length === 0) continue;
     bars.push(
       mobileBar(
         parent!.label,
@@ -144,15 +150,14 @@ const MobilePublicNav = (props: PublicNavProps): JSX.Element => {
  * recursive contextual submenus along the active chain. Mirrors the admin
  * pattern — one nested sidebar on desktop, separate stacked bars on mobile —
  * by reusing its proven CSS (`admin-nav--desktop` / `admin-subnav` /
- * `admin-nav--mobile`; `#main-nav` pins the desktop sidebar).
+ * `admin-nav--mobile`; `.admin-nav-group` pins the desktop sidebar). It must
+ * NOT carry the admin nav's `#main-nav` id: the stylesheet reads that id as
+ * "this is an admin page" (full-bleed main, admin textarea sizing), while a
+ * public page keeps the shared 800px reading width.
  */
 export const PublicNav = (props: PublicNavProps): JSX.Element => (
   <div class="admin-nav-group">
-    <nav
-      aria-label={t("nav.public.main")}
-      class="admin-nav admin-nav--desktop"
-      id="main-nav"
-    >
+    <nav aria-label={t("nav.public.main")} class="admin-nav admin-nav--desktop">
       <ul>
         {rootItems(props, (node) =>
           node.active ? (

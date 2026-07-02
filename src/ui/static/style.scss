@@ -380,7 +380,7 @@ nav ul li {
    links — no boxes or borders — with each section's sub-nav nested and indented
    beneath its parent link. */
 @media (min-width: 769px) {
-  body:has(#main-nav) main {
+  body:has(.admin-nav-group) main {
     display: grid;
     grid-template-columns: var(--admin-nav-width) minmax(0, 1fr);
     gap: 0 var(--space-xl);
@@ -408,14 +408,14 @@ nav ul li {
   }
 
   /* Everything that isn't the sidebar flows down column 2... */
-  body:has(#main-nav) main > :not(.admin-nav-group) {
+  body:has(.admin-nav-group) main > :not(.admin-nav-group) {
     grid-column: 2;
     min-width: 0;
   }
 
   /* ...with margins re-creating the inter-block gap, since a real row-gap would
      be multiplied across the 9999 spanned (empty) rows. */
-  body:has(#main-nav) main > :not(.admin-nav-group) ~ :not(.admin-nav-group) {
+  body:has(.admin-nav-group) main > :not(.admin-nav-group) ~ :not(.admin-nav-group) {
     margin-top: var(--space-xl);
   }
 
@@ -2291,8 +2291,8 @@ button.secondary:hover,
     display: none;
   }
 
-  /* Drop the two-column admin layout for print: no sidebar, full-width content */
-  body:has(#main-nav) main {
+  /* Drop the two-column sidebar layout for print: full-width content */
+  body:has(.admin-nav-group) main {
     display: block;
   }
 

@@ -245,6 +245,26 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       expect(html).not.toContain('aria-label="Page solo"');
     });
 
+    test("an item-less page renders no empty submenu or mobile bar", async () => {
+      // The page's own (deepest) level is empty: a <ul> with no <li> children
+      // is invalid markup, and an empty aria-labelled nav bar is announced to
+      // screen-reader users as a navigation landmark with nothing in it.
+      await makePage("bare");
+      const html = await assertPublicHtml("/page/bare");
+      expect(html).not.toContain('class="admin-subnav"');
+      expect(html).not.toContain('aria-label="Page bare"');
+    });
+
+    test("the public nav never carries the admin #main-nav id", async () => {
+      // The stylesheet reads #main-nav as "this is an admin page" (full-bleed
+      // main, admin textarea sizing); a public page must keep the shared
+      // reading width, while .admin-nav-group still pins the desktop sidebar.
+      await makePage("styled");
+      const html = await assertPublicHtml("/page/styled");
+      expect(html).not.toContain('id="main-nav"');
+      expect(html).toContain('class="admin-nav-group"');
+    });
+
     test("the order gallery carries the root pages too", async () => {
       await settings.update.orderEnabled(true);
       try {

@@ -22,6 +22,7 @@ import {
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllGroupNames } from "#shared/db/groups.ts";
+import { getChildListingIds } from "#shared/db/listing-parents.ts";
 import {
   getListingPickerNames,
   type ListingPickerRow,
@@ -75,10 +76,15 @@ import {
 import { sitePageForm } from "./site-pages-form.ts";
 
 /** May this listing be placed on a page? Active (its public page must not
- * 404) and not a renewal tier ({@link isQualifyingTierListing} — the renewal
- * flow requires a site token the normal ticket flow never supplies). */
-const offerableListing = (row: ListingPickerRow): boolean =>
-  row.active && !isQualifyingTierListing(row);
+ * 404), not a renewal tier ({@link isQualifyingTierListing} — the renewal
+ * flow requires a site token the normal ticket flow never supplies), and not
+ * a child listing (`childIds` — a booking can never start from a child,
+ * invariant I3, so its `/ticket` page 404s too). */
+const offerableListing = (
+  id: number,
+  row: ListingPickerRow,
+  childIds: ReadonlySet<number>,
+): boolean => row.active && !isQualifyingTierListing(row) && !childIds.has(id);
 
 const LIST_PATH = "/admin/site/pages";
 const newPath = `${LIST_PATH}/new`;
@@ -163,12 +169,14 @@ const buildEditModel = async (page: SitePage): Promise<EditModel> => {
       .filter(([id]) => !present.has(targetKey(type, id)))
       .map(([id, name]) => opt(id, name));
   // The listing picker offers only OFFERABLE listings — active (an inactive
-  // listing's public page 404s) and not a renewal tier (a tier bought through
-  // a normal public link would take payment without extending the site).
+  // listing's public page 404s), not a renewal tier (a tier bought through a
+  // normal public link would take payment without extending the site), and
+  // not a child (its public page 404s by construction — invariant I3).
   // Labels above still read the full map.
+  const childIds = await getChildListingIds([...listingNames.keys()]);
   const activeListingNames = new Map(
     [...listingNames]
-      .filter(([, l]) => offerableListing(l))
+      .filter(([id, l]) => offerableListing(id, l, childIds))
       .map(([id, l]) => [id, l.name]),
   );
   return {
@@ -374,8 +382,12 @@ const isEligibleTarget = async (
 ): Promise<boolean> => {
   if (type === "listing") {
     // Mirror the picker: only an offerable listing may be added.
-    const row = (await getListingPickerNames()).get(itemId);
-    return row !== undefined && offerableListing(row);
+    const [names, childIds] = await Promise.all([
+      getListingPickerNames(),
+      getChildListingIds([itemId]),
+    ]);
+    const row = names.get(itemId);
+    return row !== undefined && offerableListing(itemId, row, childIds);
   }
   if (type === "group") return (await getAllGroupNames()).has(itemId);
   return eligibleChildPages((await loadForest()).forest, pageId).some(

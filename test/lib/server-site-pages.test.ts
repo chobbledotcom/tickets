@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { setChildIds } from "#shared/db/listing-parents.ts";
 import { addPageItem, getItemsForPage } from "#shared/db/site-page-items.ts";
 import {
   computeSitePageSlugIndex,
@@ -390,9 +391,21 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         200,
       );
       expect(html2).not.toContain(`value="${tier.id}"`);
-      // And the server revalidation rejects both.
+      // A child listing's public page 404s by construction (a booking can
+      // never start from a child, I3), so it is never offered either — while
+      // its parent still is.
+      const parent = await createTestListing({ name: "Parent Listing" });
+      const child = await createTestListing({ name: "Child Listing" });
+      await setChildIds(parent.id, [child.id]);
+      const html3 = await expectHtmlResponse(
+        await adminGet(`${BASE}/${page.id}/edit`),
+        200,
+      );
+      expect(html3).toContain(">Parent Listing<");
+      expect(html3).not.toContain(">Child Listing<");
+      // And the server revalidation rejects all three.
       const other = await seedPage("actives-2");
-      for (const id of [inactive.id, tier.id]) {
+      for (const id of [inactive.id, tier.id, child.id]) {
         const { response } = await adminFormPost(`${BASE}/${other.id}/items`, {
           item_id: String(id),
           item_type: "listing",
