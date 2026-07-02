@@ -166,8 +166,10 @@ describe("e2e: full booking flow", () => {
       );
     }
 
-    // 12. On admin dashboard, click the listing to see attendees
+    // 12. On admin dashboard, open the listing's roster (Attendees tab)
     await browser.clickLink("Summer Concert");
+    const rosterId = browser.currentUrl.match(/\/admin\/listing\/(\d+)/)?.[1];
+    await browser.visit(`/admin/listing/${rosterId}/attendees`);
     expect(browser.containsText("Jane Doe")).toBe(true);
     expect(browser.containsText("jane@example.com")).toBe(true);
 
@@ -264,6 +266,8 @@ describe("e2e: full booking flow", () => {
       // 24. Verify the listing and attendee are back
       expect(browser.containsText("Summer Concert")).toBe(true);
       await browser.clickLink("Summer Concert");
+      const backId = browser.currentUrl.match(/\/admin\/listing\/(\d+)/)?.[1];
+      await browser.visit(`/admin/listing/${backId}/attendees`);
       expect(browser.containsText("Jane Doe")).toBe(true);
       expect(browser.containsText("jane@example.com")).toBe(true);
     });

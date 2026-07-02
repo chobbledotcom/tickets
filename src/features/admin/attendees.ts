@@ -276,8 +276,10 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
         params.listingId,
         createResult.attendees[0]!.id,
       );
+      // Land on the roster (Attendees tab), where the new attendee and the
+      // quick-add form live, so the flash and the added row are both in view.
       return redirect(
-        `/admin/listing/${params.listingId}`,
+        `/admin/listing/${params.listingId}/attendees`,
         `Added ${values.name}`,
         true,
       );
