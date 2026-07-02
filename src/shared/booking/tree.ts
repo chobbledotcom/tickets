@@ -166,6 +166,14 @@ export const PACKAGE_QUANTITY_FIELD = "package_quantity";
 export const nodeFixedQuantity = (node: BookingNode): number =>
   node.quantityRule.kind === "FIXED" ? node.quantityRule.qty : 1;
 
+/** Each top-level node's fixed per-package quantity keyed by listing id — the
+ * tree-derived member quantity map, so consumers holding a tree never re-read
+ * (and non-null-assert) the ctx's parallel packageQuantities. */
+export const fixedQuantitiesByListingId = (
+  tree: BookingTree,
+): Map<number, number> =>
+  new Map(tree.nodes.map((node) => [node.listingId, nodeFixedQuantity(node)]));
+
 /** The quantity form field a node's control posts, or `null` when the node has
  * no buyer-chosen quantity of its own (a package member — its quantity is the
  * package count × its fixed per-package quantity, submitted via

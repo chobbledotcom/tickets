@@ -39,6 +39,10 @@ import { getBaseUrl, getClientIp } from "#routes/url.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import type { FoldChildrenResult } from "#shared/booking/fold-tree.ts";
 import { packageBundleTotal } from "#shared/booking/price-tree.ts";
+import {
+  type BookingTree,
+  fixedQuantitiesByListingId,
+} from "#shared/booking/tree.ts";
 import { processBooking } from "#shared/booking.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
@@ -1152,6 +1156,7 @@ const handleGetPackage = async (
   // (ONE hydration pass), so the response is built without re-querying edges,
   // holidays, or group remaining per member.
   const holidays = await getActiveHolidays();
+  const memberQuantities = fixedQuantitiesByListingId(tree);
   const members = group.hide_package_listings
     ? undefined
     : ctx.listings.map((e) => {
@@ -1167,7 +1172,7 @@ const handleGetPackage = async (
           );
         return {
           name: e.listing.name,
-          quantity: ctx.packageQuantities!.get(e.listing.id)!,
+          quantity: memberQuantities.get(e.listing.id)!,
           slug: e.listing.slug,
           ...(children.length > 0 ? { children } : {}),
         };
@@ -1242,6 +1247,7 @@ const applyPackageChildSelections = (
 const resolvePackageOrder = async (
   body: Record<string, unknown>,
   ctx: TicketCtx,
+  tree: BookingTree,
   cap: number,
   hiddenName: string | undefined,
 ): Promise<
@@ -1258,10 +1264,12 @@ const resolvePackageOrder = async (
     return apiResponse({ error: "Quantity must be at least 1" }, 400);
   }
   const packageQty = Math.min(parsedQuantity ?? 1, cap);
-  const quantities = new Map<number, number>();
-  for (const [listingId, fixed] of ctx.packageQuantities!) {
-    quantities.set(listingId, fixed * packageQty);
-  }
+  const quantities = new Map(
+    [...fixedQuantitiesByListingId(tree)].map(([listingId, fixed]) => [
+      listingId,
+      fixed * packageQty,
+    ]),
+  );
 
   let date: string | null = null;
   if (ctx.dates.length > 0) {
@@ -1312,6 +1320,7 @@ const handleBookPackage = async (
   const order = await resolvePackageOrder(
     body,
     ctx,
+    tree,
     cap,
     group.hide_package_listings ? group.name : undefined,
   );

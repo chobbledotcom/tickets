@@ -188,18 +188,30 @@ const constrainDayCountsByChildUnion = (
   listings: TicketListing[],
   parentDayCounts: number[],
   childrenByParentId: Map<number, TicketListing[]> | undefined,
-): number[] => {
-  if (!childrenByParentId || listings.length !== 1) return parentDayCounts;
-  const all = childrenByParentId.get(listings[0]!.listing.id);
-  if (!all || all.length === 0) return parentDayCounts;
-  return constrainOptionsByChildUnion(
-    parentDayCounts,
-    all,
-    childSelectableIgnoringSpan,
-    // "any" child (no span constraint) keeps every parent span; otherwise its own.
-    (child) => childSupportedSpans(child) ?? parentDayCounts,
-  );
-};
+): number[] =>
+  !childrenByParentId || listings.length !== 1
+    ? parentDayCounts
+    : constrainCountsForMembers(listings, parentDayCounts, childrenByParentId);
+
+/** Fold each member's selectable-child span union over `counts` — the ONE
+ * per-parent day-count constraint (a single-listing page is a member list of
+ * one). A member without children leaves the counts untouched; an "any" child
+ * (no span constraint) keeps every offered span, otherwise its own spans. */
+const constrainCountsForMembers = (
+  members: TicketListing[],
+  counts: number[],
+  childrenByParentId: Map<number, TicketListing[]>,
+): number[] =>
+  members.reduce((current, member) => {
+    const children = childrenByParentId.get(member.listing.id);
+    if (!children || children.length === 0) return current;
+    return constrainOptionsByChildUnion(
+      current,
+      children,
+      childSelectableIgnoringSpan,
+      (child) => childSupportedSpans(child) ?? current,
+    );
+  }, counts);
 
 /** A PACKAGE's day-count options: the members' shared counts constrained by
  * EVERY parent member's selectable-child union. Unlike a general multi-listing
@@ -211,22 +223,12 @@ const constrainDayCountsByChildUnion = (
 export const packageSharedDayCounts = (
   listings: TicketListing[],
   childrenByParentId: Map<number, TicketListing[]>,
-): number[] => {
-  let counts = sharedDayCounts(listings);
-  for (const member of listings) {
-    const children = childrenByParentId.get(member.listing.id);
-    if (!children || children.length === 0) continue;
-    const current = counts;
-    counts = constrainOptionsByChildUnion(
-      current,
-      children,
-      childSelectableIgnoringSpan,
-      // "any" child (no span constraint) keeps every offered span; otherwise its own.
-      (child) => childSupportedSpans(child) ?? current,
-    );
-  }
-  return counts;
-};
+): number[] =>
+  constrainCountsForMembers(
+    listings,
+    sharedDayCounts(listings),
+    childrenByParentId,
+  );
 
 /** Render the "number of days" selector for customisable-days listings. When a
  * single listing drives the page, each option shows its price for that span.
@@ -753,18 +755,17 @@ const childCappedMax = (
   info: TicketListing,
   childCtx: ChildRenderCtx | undefined,
 ): number => {
-  const children = childCtx?.children.get(info.listing.id);
-  if (!childCtx || !children || children.length === 0) {
-    return info.maxPurchasable;
-  }
-  const bookable = children.filter(childBookable);
-  const childCap = childCombinedCap(
-    info,
-    bookable,
+  if (!childCtx) return info.maxPurchasable;
+  const caps = packageChildUnitCaps(
+    [info],
+    childCtx.children,
     childCtx.groupRemainingByGroupId,
     childCtx.groupIdsByListingId,
   );
-  return Math.min(info.maxPurchasable, childCap);
+  const childCap = caps.get(info.listing.id);
+  return childCap === undefined
+    ? info.maxPurchasable
+    : Math.min(info.maxPurchasable, childCap);
 };
 
 /** The questions assigned to a child listing, in page order, that have not yet

@@ -14,6 +14,7 @@ import { getBaseUrl } from "#routes/url.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import {
   customPriceFieldName,
+  fixedQuantitiesByListingId,
   PACKAGE_QUANTITY_FIELD,
   quantityFieldName,
 } from "#shared/booking/tree.ts";
@@ -597,11 +598,12 @@ const resolvePageQuantities = (
     ctx.packageMemberGroupIds,
   );
   const packageQty = Math.max(0, Math.min(parsePackageCount(form), cap));
-  const quantities = new Map<number, number>();
-  for (const [listingId, fixed] of packageQuantities) {
-    quantities.set(listingId, fixed * packageQty);
-  }
-  return quantities;
+  return new Map(
+    [...fixedQuantitiesByListingId(tree)].map(([listingId, fixed]) => [
+      listingId,
+      fixed * packageQty,
+    ]),
+  );
 };
 
 /** A parsed-and-priced submission, or the message explaining why it could not
