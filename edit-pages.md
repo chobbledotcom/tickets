@@ -103,8 +103,13 @@ One declaration per entity, in the entity's feature area:
 // src/shared/entity-pages/types.ts — plain types, no imports beyond domain types
 
 /** One row of the read-only summary table. `href` renders the value as an
- *  internal link; `external` as target=_blank; neither ⇒ plain text. A row
- *  whose `visible` is false is omitted entirely (never a dead link). */
+ *  internal link; `external` as target=_blank; neither ⇒ plain text.
+ *  Conditional rows are handled by CONSTRUCTION, not a visible flag: the
+ *  section's `rows(e, ctx)` builder is the one place rows are minted, and it
+ *  simply doesn't emit a row (or emits it unlinked) when the viewer can't
+ *  follow it — same compact()-over-nullable shape as the existing
+ *  AttendeeDetail. "Never render a forbidden link" is enforced where the
+ *  link is built, against the same condition the target enforces. */
 export interface SummaryRow {
   labelKey: string;                 // locale key, e.g. "entity.attendee.summary.email"
   value: string | JSX.Element;
@@ -157,7 +162,10 @@ export interface TabDef<E> {
 
 export interface EntityPageDef<E> {
   key: string;                      // "attendee" | "listing" | …
-  basePath: (id: number) => string; // "/admin/attendees/5" — URL minting only
+  basePath: (id: Id) => string;     // "/admin/attendees/5" — URL minting only.
+                                    // Id is generic (number | string): numeric
+                                    // rows use number; /admin/history/:hmac's
+                                    // blind-index token migrates as a string id
   titleOf: (e: E) => string;        // page <h1> / <title>
   navActive: string;                // passed to AdminNav
   auth: PageAuth;                   // GET guard, per existing authPage guards
@@ -196,7 +204,8 @@ directly, so visibility IS authorization here, not decoration). This matters
 for split-permission entities: today the listing/group *detail* GETs are
 staff-only (attendee PII, money) while their `/edit` GETs are content-gated
 so editors can change copy. Migrated, the page floor is the content guard,
-the Overview/Ledger/Activity tabs carry staff-only `visible` predicates, and
+the Overview/Activity tabs carry staff-only `visible` predicates (Ledger
+stays owner-only — it exposes the money ledger, matching `/admin/ledger*`), and
 the **default tab is role-aware**: `GET {base}/:id` renders the first tab
 visible to the viewer (an editor lands on Edit; staff land on Overview) —
 never a 403 on the bare URL, never a forbidden tab in the strip.
@@ -345,27 +354,27 @@ export interface EntityFormAdapter<E> {
   does **not** require rewriting the quantity-table model — that's what makes
   the migration tractable.
 
-**In-place re-render on validation failure** (the attendee page's current
-behaviour) is replaced by the PRG + stash pattern the rest of the app uses —
-one feedback mechanism, not two. The stash (`maybeStashForm`,
-`src/features/response.ts:148`) already preserves submitted values across the
-bounce; field-level errors surface through the flash next to the form
-(`formId` targeting). This is a deliberate unification (AGENTS.md: the answer
-is yes).
+**Failure feedback: in-place 400 through the framework renderer — never a
+stash dependency.** An earlier draft replaced the attendee page's in-place
+validation re-render with PRG plus a validation replay from the saved-form
+stash. That replay is not correctness-preserving: the stash
+(`src/shared/form-stash.ts`) is explicitly a warm-isolate optimisation — a
+cold or different edge isolate, expiry, eviction, or an over-size form all
+miss, and the operator's entered values and per-line errors would be lost.
+So the framework keeps the split the codebase's hardest pages already use
+(`renderListingEditError`, `listings-edit.ts:384` renders at HTTP 400):
 
-**Field/line-level errors survive the bounce via validation replay, not an
-error stash.** The attendee page's inline feedback is richer than one flash
-string — per-line quantity errors, a date error, an attendee-field error —
-and simply flashing a joined message would regress it. But no new state is
-needed: the stashed submission *is* the validator's input, so the Edit tab's
-GET loader, when a stash is present, re-parses it through the same
-`parseAttendeeForm` and re-runs the same `validateParsedForm` the POST just
-ran. Deterministic replay of a pure function over data we already carry —
-the re-rendered form shows exactly the errors the POST computed, positioned
-exactly where they are today, and the flash carries only the summary line.
-`defineForm`-backed entities get the same for free (their validators are
-pure too); the adapter grows an optional `replayErrors(stash, e)` hook the
-loader calls.
+- **Success → PRG.** `redirect(entityPage.path(id, "edit"), msg, true,
+  { formId })` — flash on the tab that owns the form.
+- **Validation/save failure → render the SAME tab page in place at 400.**
+  `defineEntityPage` exposes `renderPage(session, id, slug, { status,
+  sections })` — the identical shell (banner, strip, nav) with the failing
+  tab's sections overridden to carry the submitted values and their errors.
+  One rendering path, deterministic feedback, nothing ever lost.
+
+This still unifies the mechanisms — both paths go through the one entity-page
+renderer — it just refuses to make error feedback depend on best-effort
+cache state.
 
 **Multipart forms stay multipart.** `createAuthedFormRoute` is built on the
 URL-encoded `AuthPolicy<"form">`/`FormParams` path, but the listing
@@ -491,8 +500,9 @@ fully on the framework — no half-migrated pages living in both worlds.
    coexistence is safe) or 301 to the Overview tab with a filter query —
    audit every `GET /admin/listing/:id/*` route the same way before deleting
    it. Per-tab auth applies here too: the page floor is the content guard so
-   editors keep Edit; Overview/Ledger/Activity carry staff-only `visible`
-   predicates and the bare URL lands each role on its first visible tab.
+   editors keep Edit; Overview/Activity carry staff-only `visible`
+   predicates, Ledger stays owner-only exactly as `/admin/ledger*` is today,
+   and the bare URL lands each role on its first visible tab.
 3. **Modifiers** — the third copy of the composition; after listings this is
    mostly deletion.
 4. **Groups, users, questions, built-sites, attendee-statuses, holidays,

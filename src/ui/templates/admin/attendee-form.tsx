@@ -1,30 +1,30 @@
 /**
- * Unified add/edit attendee page template.
+ * The editable attendee form (create + edit).
  *
- * Renders the same form for `/admin/attendees/new` (create) and
- * `/admin/attendees/:id` (edit). An attendee has ONE shared date range — a
- * start date plus a length — applied to every daily listing they book. The
- * listing editor is a fixed table with one quantity box per bookable listing
- * (plus any inactive listing the attendee already booked); quantity ≥ 1 books
- * it, 0 leaves it out, so there are no add/remove-line buttons. When something
- * is already booked (an edit, or a create pre-filled from the calendar) the
- * not-booked rows hide behind a "Show all listings" toggle (pure CSS); a bare
- * create form has nothing booked, so it drops the toggle and shows every
- * listing. The form works without JavaScript.
+ * An attendee has ONE shared date range — a start date plus a length —
+ * applied to every daily listing they book. The listing editor is a fixed
+ * table with one quantity box per bookable listing (plus any inactive
+ * listing the attendee already booked); quantity ≥ 1 books it, 0 leaves it
+ * out, so there are no add/remove-line buttons. When something is already
+ * booked (an edit, or a create pre-filled from the calendar) the not-booked
+ * rows hide behind a "Show all listings" toggle (pure CSS); a bare create
+ * form has nothing booked, so it drops the toggle and shows every listing.
+ * The form works without JavaScript.
+ *
+ * `attendeeFormPage` is the standalone /admin/attendees/new page;
+ * {@link AttendeeFormPanel} is the same warnings + errors + form block the
+ * attendee entity page's Edit tab embeds (edit-pages.md).
  */
 
 import { t } from "#i18n";
 import {
   ATTENDEE_FORM_ID,
-  type AttendeeBooking,
   type AttendeeFormLine,
-  type BalanceNotice,
   DAY_COUNT_FIELD,
   isPaymentLockedLine,
   isRetainedLine,
   LINE_KEY_PREFIX,
   NO_QUANTITY_PREFIX,
-  PAID_NO_QUANTITY_MESSAGE,
   type ParsedAttendeeForm,
   QTY_PREFIX,
   REMAINING_BALANCE_FIELD,
@@ -40,62 +40,28 @@ import {
   startAgentField,
   startTimeField,
 } from "#routes/admin/attendee-logistics.ts";
-import { targetQuery } from "#shared/bulk-email.ts";
 import { toMajorUnits } from "#shared/currency.ts";
-import {
-  addDays,
-  formatDateLabel,
-  formatDateRangeLabel,
-  formatDatetimeShort,
-} from "#shared/dates.ts";
-import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
+import { addDays, formatDateLabel, formatDateRangeLabel } from "#shared/dates.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import type { ContactRecord } from "#shared/db/contact-preferences.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
-import type { SystemNote } from "#shared/db/system-notes.ts";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { renderMarkdown } from "#shared/markdown.ts";
+import { CsrfForm } from "#shared/forms.tsx";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {
   type AdminSession,
   type Attendee,
-  hasTicketQuantity,
   MAX_DURATION_DAYS,
 } from "#shared/types.ts";
-import {
-  AttendeeAnswersTable,
-  AttendeeBookingsTable,
-  AttendeeDetail,
-  type AttendeeLedgerData,
-  AttendeeLedgerSection,
-  AttendeeLogSection,
-  BookingStatusBadges,
-} from "#templates/admin/attendee-detail.tsx";
-import { AttendeeNotesSection } from "#templates/admin/attendee-notes.tsx";
-import { EditQuestions, PaymentDetails } from "#templates/admin/attendees.tsx";
+import type { BalanceNotice } from "#routes/admin/attendee-form-model.ts";
+import { BookingStatusBadges } from "#templates/admin/attendee-detail.tsx";
+import { EditQuestions } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import {
-  ActionButton,
-  Icon,
-  MaybeButtonLink,
-  SubmitButton,
-} from "#templates/components/actions.tsx";
+import { Icon } from "#templates/components/actions.tsx";
 import { PHONE_INPUT_PATTERN } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
-/** One channel's contact record plus the URL-safe HMAC param that keys its
- * /admin/history editor link. Null when the attendee has no value for that
- * channel. */
-export type ContactChannelData = { hashParam: string; record: ContactRecord };
-
-/** Per-channel contact records shown in the read-only history panel. */
-export type ContactRecordsByChannel = {
-  email: ContactChannelData | null;
-  phone: ContactChannelData | null;
-};
-
-/** Template data for the unified attendee form. */
+/** Template data for the attendee form: everything the editable form itself
+ * renders. The other tabs' data (log, ledger, notes, contact history) lives
+ * with those tabs, not here. */
 export type AttendeeFormTemplateData = {
   /** "create" or "edit". */
   mode: "create" | "edit";
@@ -118,45 +84,26 @@ export type AttendeeFormTemplateData = {
   attendeeError: string | null;
   /** Shared-date error (e.g. missing start date for a booked daily listing). */
   dateError: string | null;
-  /** Form-wide error shown at the top of the page (e.g. a paid line was marked
+  /** Form-wide error shown above the form (e.g. a paid line was marked
    * no-quantity), kept out of the per-line quantity table. */
   formError: string | null;
-  /** Save outcome shown inside the form. */
-  flashError?: string | undefined;
-  flashSuccess?: string | undefined;
+  /** A recoverable save failure (capacity, no lines) shown above the form on
+   * the in-place 400 re-render. */
+  saveError?: string | undefined;
   /** Custom questions across the attendee's booked listings. */
   questions: QuestionWithAnswers[];
   /** Currently-selected answer ids for the rendered questions. */
   selectedAnswerIds: number[];
   /** Currently-entered free-text answers, keyed by question id. */
   selectedTextAnswers: Map<number, string>;
-  /** Today's ISO date. */
-  todayIso: string;
   /** Optional return URL the caller came from. */
   returnUrl?: string | undefined;
-  /** Contact history by channel (edit mode only). */
-  contactRecords: ContactRecordsByChannel;
-  /** Public site domain, for the read-only ticket link (edit mode). */
-  allowedDomain: string;
-  /** Country dialling code, for the read-only phone links. */
-  phonePrefix: string;
-  /** This attendee's activity log entries, newest first (edit mode only). */
-  activityLog: ActivityLogEntry[];
-  /** This attendee's ledger account statement (edit mode only; undefined in
-   * create mode, where the attendee has no account yet). */
-  ledger?: AttendeeLedgerData | undefined;
-  /** The attendee's current bookings, for the read-only summary table at the top
-   * of the page (edit mode; empty in create mode). */
-  bookings: AttendeeBooking[];
   /** Overbooking / over-duration warnings per listing id (booked lines only). */
   lineWarnings: Map<number, string[]>;
-  /** All warnings flattened, for the top-of-page summary. */
+  /** All warnings flattened, for the top-of-form summary. */
   topWarnings: string[];
   /** Logistics selectors data, or undefined when logistics doesn't apply. */
   logistics?: AttendeeLogisticsData | undefined;
-  /** Operator/system notes for this attendee, oldest first (edit mode; empty in
-   * create mode). Rendered as a prominent notes block above the form. */
-  systemNotes: SystemNote[];
 };
 
 /** One row of the listing editor — a listing and its quantity box. */
@@ -177,22 +124,26 @@ const ListingRow = ({
     <tr class={booked ? "attendee-line" : "attendee-line attendee-line-empty"}>
       <td>
         <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
-        {listing.active ? "" : <span class="muted small">(inactive)</span>}
+        {listing.active ? (
+          ""
+        ) : (
+          <span class="muted small">({t("common.inactive")})</span>
+        )}
         {BookingStatusBadges({
           checkedIn: Boolean(line.existingBooking?.checked_in),
           refunded: Boolean(line.existingBooking?.refunded),
         })}
       </td>
       <td>
-        {isDaily ? (
-          <span class="muted small">Shared dates</span>
-        ) : (
-          <span class="muted small">Fixed date</span>
-        )}
+        <span class="muted small">
+          {isDaily
+            ? t("attendee_form.shared_dates")
+            : t("attendee_form.fixed_date")}
+        </span>
       </td>
       <td class="attendee-line-qty">
         <input
-          aria-label={`Quantity for ${listing.name}`}
+          aria-label={t("attendee_form.qty_aria", { title: listing.name })}
           class="line-qty"
           max={listing.max_quantity}
           min="0"
@@ -207,11 +158,15 @@ const ListingRow = ({
             class="no-quantity-toggle"
             disabled={paymentLocked}
             name={`${NO_QUANTITY_PREFIX}${listing.id}`}
-            title={paymentLocked ? PAID_NO_QUANTITY_MESSAGE : undefined}
+            title={
+              paymentLocked
+                ? t("attendee_form.paid_no_quantity_line")
+                : undefined
+            }
             type="checkbox"
             value="1"
           />
-          No quantity
+          {t("attendee_form.no_quantity")}
         </label>
         <input
           name={`${LINE_KEY_PREFIX}${listing.id}`}
@@ -270,16 +225,16 @@ const ListingEditor = ({
             name={SHOW_ALL_FIELD}
             type="checkbox"
           />
-          Show all listings
+          {t("attendee_form.show_all_listings")}
         </label>
       )}
       <div class="table-scroll">
         <table class="line-editor">
           <thead>
             <tr>
-              <th>Listing</th>
-              <th>Dates</th>
-              <th>Qty</th>
+              <th>{t("terms.listing")}</th>
+              <th>{t("attendee_form.col_dates")}</th>
+              <th>{t("attendee_form.col_qty")}</th>
               <th></th>
             </tr>
           </thead>
@@ -312,25 +267,35 @@ const LogisticsLeg = ({
   listingId?: number;
 }): JSX.Element => {
   const isStart = leg === "start";
-  const label = isStart ? "Start time & agent:" : "End time & agent:";
+  const label = isStart
+    ? t("attendee_form.start_leg")
+    : t("attendee_form.end_leg");
   const time = isStart ? assignment.startTime : assignment.endTime;
   const agentId = isStart ? assignment.startAgentId : assignment.endAgentId;
   return (
     <div class="logistics-leg">
       <span class="logistics-leg-label">{label}</span>
       <input
-        aria-label={isStart ? "Start time" : "End time"}
+        aria-label={
+          isStart
+            ? t("attendee_form.leg_time_start")
+            : t("attendee_form.leg_time_end")
+        }
         name={(isStart ? startTimeField : endTimeField)(listingId)}
         type="time"
         value={time}
       />
       <select
-        aria-label={isStart ? "Start agent" : "End agent"}
+        aria-label={
+          isStart
+            ? t("attendee_form.leg_agent_start")
+            : t("attendee_form.leg_agent_end")
+        }
         class="logistics-leg-agent"
         name={(isStart ? startAgentField : endAgentField)(listingId)}
       >
         <option selected={agentId === null} value="">
-          — None —
+          {t("attendee_form.agent_none")}
         </option>
         {agents.map((agent) => (
           <option selected={agent.id === agentId} value={agent.id}>
@@ -357,7 +322,7 @@ const LogisticsSection = ({
   if (!logistics) return null;
   return (
     <fieldset class="logistics-agents listing-section">
-      <legend>Logistics</legend>
+      <legend>{t("attendee_form.logistics_heading")}</legend>
       <label class="split-agents">
         <input
           checked={logistics.split}
@@ -366,7 +331,7 @@ const LogisticsSection = ({
           type="checkbox"
           value="1"
         />
-        Use different agents per item
+        {t("attendee_form.split_agents")}
       </label>
       <div class="logistics-single">
         <LogisticsLeg
@@ -412,10 +377,11 @@ const dayCountOptions = (
   const options: JSX.Element[] = [];
   for (let n = 1; n <= MAX_DURATION_DAYS; n++) {
     const label = startDate
-      ? `${n} day${n === 1 ? "" : "s"}: ${formatDateLabel(
-          addDays(startDate, n - 1),
-        )}`
-      : `${n} day${n === 1 ? "" : "s"}`;
+      ? t("attendee_form.day_count_option_with_end", {
+          count: n,
+          end: formatDateLabel(addDays(startDate, n - 1)),
+        })
+      : t("attendee_form.day_count_option", { count: n });
     options.push(
       <option selected={n === selected} value={n}>
         {label}
@@ -446,18 +412,15 @@ const SharedDateFields = ({
   const noticeHidden = !(data.mode === "create" && !data.parsed.startDate);
   return (
     <>
-      <h3>Dates</h3>
-      <p class="small">
-        Optional — the date only affects daily listings. A start date is
-        required once you book a daily listing below.
-      </p>
+      <h3>{t("attendee_form.dates_heading")}</h3>
+      <p class="small">{t("attendee_form.dates_hint")}</p>
       {data.dateError && (
         <output class="error" role="alert">
           {data.dateError}
         </output>
       )}
       <label for={START_DATE_FIELD}>
-        Start date
+        {t("attendee_form.start_date")}
         <input
           id={START_DATE_FIELD}
           name={START_DATE_FIELD}
@@ -466,224 +429,16 @@ const SharedDateFields = ({
         />
       </label>
       <output class="warning" data-availability-notice hidden={noticeHidden}>
-        Availability is inaccurate until dates have been saved.
+        {t("attendee_form.availability_notice")}
       </output>
       <label data-day-count-label for={DAY_COUNT_FIELD}>
-        Length
+        {t("attendee_form.length")}
         <select id={DAY_COUNT_FIELD} name={DAY_COUNT_FIELD}>
           {dayCountOptions(data.parsed.startDate, data.parsed.dayCount)}
         </select>
       </label>
     </>
   );
-};
-
-/** Render one channel's contact record: the per-source booking/message counts,
- * the markdown-rendered private note, and an Edit link to its history page. */
-const ContactRecordSection = ({
-  channel,
-  label,
-}: {
-  channel: ContactChannelData;
-  label: string;
-}): JSX.Element => {
-  const { hashParam, record } = channel;
-  return (
-    <section>
-      <h4>{label}</h4>
-      <ul>
-        <li>
-          <strong>{t("attendee_form.online_bookings")}:</strong>{" "}
-          {record.publicBookingCount}
-        </li>
-        <li>
-          <strong>{t("attendee_form.admin_bookings")}:</strong>{" "}
-          {record.adminBookingCount}
-        </li>
-        <li>
-          <strong>{t("attendee_form.total_messages")}:</strong>{" "}
-          {record.contactCount}
-        </li>
-        {record.lastContact && (
-          <li>
-            <strong>{t("attendee_form.last_contacted")}:</strong>{" "}
-            {formatDatetimeShort(record.lastContact)}
-          </li>
-        )}
-        {record.lastSubject && (
-          <li>
-            <strong>{t("attendee_form.last_subject")}:</strong>{" "}
-            {record.lastSubject}
-          </li>
-        )}
-      </ul>
-      {record.adminNotes && (
-        <div class="contact-notes">
-          <Raw html={renderMarkdown(record.adminNotes)} />
-        </div>
-      )}
-      <p>
-        <a href={`/admin/history/${hashParam}`}>
-          {t("attendee_form.edit_contact_record")}
-        </a>
-      </p>
-    </section>
-  );
-};
-
-/** Render contact history for each available channel (edit mode only). */
-const ContactHistory = ({
-  attendee,
-  contactRecords,
-  isOwner,
-}: {
-  attendee: Attendee;
-  contactRecords: ContactRecordsByChannel;
-  isOwner: boolean;
-}): JSX.Element => {
-  const hasEmail = Boolean(attendee.email);
-  return (
-    <article>
-      <h3>{t("attendee_form.contact_history")}</h3>
-      {contactRecords.email ? (
-        <ContactRecordSection
-          channel={contactRecords.email}
-          label={t("attendee_form.stats_for", { value: attendee.email })}
-        />
-      ) : (
-        <p>{t("attendee_form.no_email_on_file")}</p>
-      )}
-      {contactRecords.phone ? (
-        <ContactRecordSection
-          channel={contactRecords.phone}
-          label={t("attendee_form.stats_for", { value: attendee.phone })}
-        />
-      ) : (
-        <p>{t("attendee_form.no_phone_on_file")}</p>
-      )}
-      {isOwner && (
-        <p>
-          <MaybeButtonLink
-            class="btn"
-            disabled={!hasEmail}
-            href={`/admin/emails${targetQuery({
-              kind: "attendee",
-              token: attendee.ticket_token,
-            })}`}
-            {...(hasEmail
-              ? {}
-              : { title: t("attendee_form.no_email_disabled_title") })}
-          >
-            {t("attendee_form.send_email_to_attendee")}
-          </MaybeButtonLink>
-        </p>
-      )}
-    </article>
-  );
-};
-
-/** An attendee is refundable when they have a captured payment that has not
- * already been refunded. */
-const isRefundable = (attendee: Attendee): boolean =>
-  !!attendee.payment_id && !attendee.refunded;
-
-/**
- * Per-attendee actions (edit mode only) — refund, re-send notification, and
- * delete. These used to live in the attendee table's "Actions" column; they now
- * sit on the edit page, each routed through its own typed-name confirmation
- * page. The booking-scoped routes are keyed on the attendee's home listing.
- */
-const AttendeeActions = ({ attendee }: { attendee: Attendee }): JSX.Element => {
-  const base = `/admin/listing/${attendee.listing_id}/attendee/${attendee.id}`;
-  const ret = `?return_url=${encodeURIComponent(
-    `/admin/attendees/${attendee.id}`,
-  )}`;
-  return (
-    <article>
-      <h3>Actions</h3>
-      <p class="actions">
-        {isRefundable(attendee) && (
-          <ActionButton
-            href={`${base}/refund${ret}`}
-            icon="credit-card"
-            variant="secondary"
-          >
-            Refund
-          </ActionButton>
-        )}
-        <ActionButton
-          href={`${base}/resend-notification${ret}`}
-          icon="rotate-ccw"
-          variant="secondary"
-        >
-          Re-send notification
-        </ActionButton>
-        <ActionButton
-          href={`/admin/sms?listing=${attendee.listing_id}&attendee=${attendee.id}`}
-          icon="arrow-right"
-          variant="secondary"
-        >
-          Send text
-        </ActionButton>
-        <ActionButton
-          href={`${base}/delete`}
-          icon="trash-2"
-          variant="secondary"
-        >
-          Delete attendee
-        </ActionButton>
-      </p>
-    </article>
-  );
-};
-
-/** Render the "Merge Attendee" section (edit mode only). */
-const MergeSection = ({ attendee }: { attendee: Attendee }): JSX.Element => (
-  <article>
-    <div class="prose">
-      <h3>Merge Attendee</h3>
-      <p>
-        Search for another attendee by their ticket token and merge their
-        listing registrations into this attendee.
-      </p>
-    </div>
-    <form
-      action={`/admin/attendees/${attendee.id}/merge`}
-      class="inline-row"
-      method="get"
-    >
-      <label for="merge_token">
-        Ticket token
-        <input
-          id="merge_token"
-          name="token"
-          placeholder="Enter ticket token…"
-          required
-          type="text"
-        />
-      </label>
-      <SubmitButton icon="search">Search</SubmitButton>
-    </form>
-  </article>
-);
-
-/** Page title for the layout. */
-const pageTitle = (data: AttendeeFormTemplateData): string =>
-  data.mode === "create"
-    ? "Add new attendee"
-    : `Attendee: ${data.attendee!.name}`;
-
-/** The attendee's current status as an `<h2>`, shown only with >1 status. */
-const StatusHeading = ({
-  data,
-}: {
-  data: AttendeeFormTemplateData;
-}): JSX.Element | null => {
-  if (data.mode !== "edit" || !data.attendee || data.statuses.length <= 1) {
-    return null;
-  }
-  const status = data.statuses.find((s) => s.id === data.attendee!.status_id);
-  return <h2>Status: {status ? status.name : "None"}</h2>;
 };
 
 /**
@@ -699,7 +454,7 @@ const StatusAndBalanceFields = ({
   const selectedId = resolveStatusId(statusId, data.statuses);
   return (
     <>
-      <h3>Status &amp; Balance</h3>
+      <h3>{t("attendee_form.status_balance_heading")}</h3>
       {data.balanceNotice && (
         <output class={data.balanceNotice.tone}>
           {data.balanceNotice.message}
@@ -709,7 +464,7 @@ const StatusAndBalanceFields = ({
         <input name={STATUS_FIELD} type="hidden" value={selectedId} />
       ) : (
         <label for={STATUS_FIELD}>
-          Status
+          {t("common.status")}
           <select id={STATUS_FIELD} name={STATUS_FIELD}>
             {data.statuses.map((s) => (
               <option selected={s.id === selectedId} value={s.id}>
@@ -720,7 +475,7 @@ const StatusAndBalanceFields = ({
         </label>
       )}
       <label for={REMAINING_BALANCE_FIELD}>
-        Outstanding balance
+        {t("attendee_form.outstanding_balance")}
         <input
           id={REMAINING_BALANCE_FIELD}
           inputmode="decimal"
@@ -730,16 +485,10 @@ const StatusAndBalanceFields = ({
           type="number"
           value={toMajorUnits(remainingBalance)}
         />
-        <small>
-          What the attendee still owes. Set to 0 when fully paid; the public
-          payment link clears it automatically when they pay.
-        </small>
+        <small>{t("attendee_form.outstanding_balance_hint")}</small>
       </label>
       <div class="error" role="alert">
-        Changing the outstanding balance posts a correcting entry to the money
-        ledger — the source of truth for what is owed. Corrections are appended,
-        never destructive: only the difference from the current figure is
-        recorded as a write-off adjustment.
+        {t("attendee_form.balance_ledger_note")}
       </div>
     </>
   );
@@ -747,7 +496,8 @@ const StatusAndBalanceFields = ({
 
 /**
  * The editable attendee form: contact details, the shared date range, optional
- * custom questions, and the listing editor — all inside one CsrfForm.
+ * custom questions, and the listing editor — all inside one CsrfForm. The
+ * CsrfForm renders the flash inline when a redirect targeted this form's id.
  */
 const AttendeeEditForm = ({
   data,
@@ -761,20 +511,14 @@ const AttendeeEditForm = ({
       : `/admin/attendees/${data.attendee!.id}`;
   return (
     <CsrfForm action={formAction} id={ATTENDEE_FORM_ID}>
-      <Flash
-        {...(data.flashError !== undefined ? { error: data.flashError } : {})}
-        {...(data.flashSuccess !== undefined
-          ? { success: data.flashSuccess }
-          : {})}
-      />
       {data.returnUrl && (
         <input name="return_url" type="hidden" value={data.returnUrl} />
       )}
 
-      {!isEdit && <h3>Attendee Details</h3>}
+      {!isEdit && <h3>{t("attendee_form.details_heading")}</h3>}
 
       <label for="name">
-        Name
+        {t("common.name")}
         <input
           autocomplete="off"
           autofocus
@@ -789,7 +533,7 @@ const AttendeeEditForm = ({
       <StatusAndBalanceFields data={data} />
 
       <label for="email">
-        Email
+        {t("common.email")}
         <input
           autocomplete="off"
           id="email"
@@ -800,20 +544,20 @@ const AttendeeEditForm = ({
       </label>
 
       <label for="phone">
-        Phone
+        {t("common.phone")}
         <input
           autocomplete="off"
           id="phone"
           name="phone"
           pattern={PHONE_INPUT_PATTERN}
-          title="Phone number (digits, spaces, hyphens, parentheses, optional leading +)"
+          title={t("attendee_form.phone_title")}
           type="text"
           value={data.parsed.phone || ""}
         />
       </label>
 
       <label for="address">
-        Address
+        {t("common.address")}
         <textarea
           autocomplete="off"
           id="address"
@@ -826,7 +570,7 @@ const AttendeeEditForm = ({
       </label>
 
       <label for="special_instructions">
-        Special Instructions
+        {t("common.special_instructions")}
         <textarea
           autocomplete="off"
           id="special_instructions"
@@ -840,7 +584,7 @@ const AttendeeEditForm = ({
 
       {data.questions.length > 0 && (
         <>
-          <h3>Custom Questions</h3>
+          <h3>{t("attendee_form.custom_questions")}</h3>
           <EditQuestions
             questions={data.questions}
             selectedAnswerIds={data.selectedAnswerIds}
@@ -851,11 +595,10 @@ const AttendeeEditForm = ({
 
       <SharedDateFields data={data} />
 
-      <h3>Listing Registrations</h3>
+      <h3>{t("attendee_form.registrations_heading")}</h3>
       {data.hasMixedTimings && (
         <output class="warning">
-          This attendee's existing daily listings have different start dates or
-          lengths. Saving will put them all on the one date range above.
+          {t("attendee_form.mixed_timings_warning")}
         </output>
       )}
       <ListingEditor data={data} />
@@ -867,7 +610,9 @@ const AttendeeEditForm = ({
       <p class="form-actions">
         <button class="primary" type="submit">
           <Icon name="save" />
-          <span>{isEdit ? "Save Attendee" : "Create Attendee"}</span>
+          <span>
+            {isEdit ? t("attendee_form.save") : t("attendee_form.create")}
+          </span>
         </button>
       </p>
     </CsrfForm>
@@ -875,98 +620,57 @@ const AttendeeEditForm = ({
 };
 
 /**
- * Render the unified attendee form page (create or edit). In edit mode the
- * read-only summary is the primary view and the form sits in a collapsed
- * disclosure; in create mode the form is the page.
+ * The full form block: save/form errors, the warnings summary, the
+ * attendee-level error, then the form itself. Rendered as the whole create
+ * page and as the entity page's Edit tab.
  */
+export const AttendeeFormPanel = ({
+  data,
+}: {
+  data: AttendeeFormTemplateData;
+}): JSX.Element => (
+  <>
+    {data.saveError && (
+      <output class="error" role="alert">
+        {data.saveError}
+      </output>
+    )}
+    {data.formError && (
+      <output class="error" role="alert">
+        {data.formError}
+      </output>
+    )}
+    {data.topWarnings.length > 0 && (
+      <output class="warning" role="alert">
+        <strong>{t("attendee_form.double_check")}</strong>
+        <ul>
+          {data.topWarnings.map((w) => (
+            <li>{w}</li>
+          ))}
+        </ul>
+      </output>
+    )}
+    {data.attendeeError && (
+      <div class="error" role="alert">
+        {data.attendeeError}
+      </div>
+    )}
+    <AttendeeEditForm data={data} />
+  </>
+);
+
+/** Render the standalone create page (/admin/attendees/new). Edit renders
+ * through the attendee entity page instead. */
 export const attendeeFormPage = (
   data: AttendeeFormTemplateData,
   session: AdminSession,
-): string => {
-  const isEdit = data.mode === "edit";
-  const a = data.attendee;
-  const editForm = <AttendeeEditForm data={data} />;
-
-  return String(
-    <Layout title={pageTitle(data)}>
+): string =>
+  String(
+    <Layout title={t("attendee_form.title_create")}>
       <AdminNav active="/admin/attendees" session={session} />
-
       <div class="prose">
-        <h1>{pageTitle(data)}</h1>
-        <StatusHeading data={data} />
+        <h1>{t("attendee_form.title_create")}</h1>
       </div>
-
-      {isEdit && a && (
-        <AttendeeNotesSection attendeeId={a.id} notes={data.systemNotes} />
-      )}
-
-      {data.formError && (
-        <output class="error" role="alert">
-          {data.formError}
-        </output>
-      )}
-
-      {data.topWarnings.length > 0 && (
-        <output class="warning" role="alert">
-          <strong>Please double-check:</strong>
-          <ul>
-            {data.topWarnings.map((w) => (
-              <li>{w}</li>
-            ))}
-          </ul>
-        </output>
-      )}
-
-      {isEdit && a && (
-        <AttendeeDetail
-          allowedDomain={data.allowedDomain}
-          attendee={a}
-          hasRealLine={data.bookings.some(hasTicketQuantity)}
-          phonePrefix={data.phonePrefix}
-        />
-      )}
-
-      {isEdit && <AttendeeBookingsTable bookings={data.bookings} />}
-
-      {isEdit && (
-        <AttendeeAnswersTable
-          questions={data.questions}
-          selectedAnswerIds={data.selectedAnswerIds}
-        />
-      )}
-
-      {isEdit && a && <Raw html={PaymentDetails({ attendee: a })} />}
-
-      {isEdit && a && <AttendeeActions attendee={a} />}
-
-      {isEdit && <AttendeeLogSection entries={data.activityLog} />}
-
-      {isEdit && data.ledger && <AttendeeLedgerSection ledger={data.ledger} />}
-
-      {data.attendeeError && (
-        <div class="error" role="alert">
-          {data.attendeeError}
-        </div>
-      )}
-
-      {isEdit ? (
-        <details>
-          <summary>Edit Attendee Details</summary>
-          {editForm}
-        </details>
-      ) : (
-        editForm
-      )}
-
-      {isEdit && a && (
-        <ContactHistory
-          attendee={a}
-          contactRecords={data.contactRecords}
-          isOwner={session.adminLevel === "owner"}
-        />
-      )}
-
-      {isEdit && a && <MergeSection attendee={a} />}
+      <AttendeeFormPanel data={data} />
     </Layout>,
   );
-};

@@ -35,11 +35,11 @@ import {
   getAddAttendeeFields,
 } from "#templates/fields.ts";
 import {
-  handleAttendeeEditGet,
   handleAttendeeEditPost,
   handleAttendeeNewGet,
   handleAttendeeNewPost,
 } from "./attendee-form-routes.ts";
+import { attendeePage } from "./attendee-page.ts";
 import { handleRefreshPayment } from "./attendees-edit.ts";
 import {
   handleAttendeesCsvExport,
@@ -355,7 +355,10 @@ export const attendeesRoutes = defineRoutes({
   "DELETE /admin/listing/:listingId/attendee/:attendeeId/delete":
     handleAttendeeDelete,
   "GET /admin/attendees": handleAttendeesListGet,
-  "GET /admin/attendees/:attendeeId": handleAttendeeEditGet,
+  "GET /admin/attendees/:attendeeId": (request, { attendeeId }) =>
+    attendeePage.renderTab(request, attendeeId, ""),
+  "GET /admin/attendees/:attendeeId/:tab": (request, { attendeeId, tab }) =>
+    attendeePage.renderTab(request, attendeeId, tab),
   "GET /admin/attendees/:attendeeId/balance": handleAttendeeBalanceGet,
   "GET /admin/attendees/:attendeeId/merge": handleMergeGet,
   "GET /admin/attendees/csv": handleAttendeesCsvExport,

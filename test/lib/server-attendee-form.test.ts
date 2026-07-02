@@ -210,7 +210,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
       const attendeeId = result.success ? result.attendees[0]!.id : 0;
 
-      const response = await adminGet(`/admin/attendees/${attendeeId}`);
+      const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
       const html = await response.text();
       // The shared day-count select preselects the booking's current 2-day span.
       expect(html).toContain('id="day_count"');
@@ -226,7 +226,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
       const result = await bookAttendee(listing);
       const attendeeId = result.success ? result.attendees[0]!.id : 0;
-      const response = await adminGet(`/admin/attendees/${attendeeId}`);
+      const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
       const html = await expectHtmlResponse(response, 200, "Show all listings");
       expect(html).toContain('name="show_all"');
       expect(html).not.toContain("listing-editor show-all-listings");
@@ -560,7 +560,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       await markNoQuantity(attendee.id, listing.id, "Ghost");
 
       const html = await (
-        await adminGet(`/admin/attendees/${attendee.id}`)
+        await adminGet(`/admin/attendees/${attendee.id}/edit`)
       ).text();
       // Alphabetical attribute order puts `checked` first when ticked.
       expect(html).toContain(
@@ -770,11 +770,11 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
   });
 
-  describe("ledger panel on the edit page", () => {
-    /** Seed an attendee with a fully-paid sale (so the embedded statement has a
-     * sale leg whose counterparty is the listing and a payment leg whose
-     * counterparty is the card/bank singleton), then GET its edit page. */
-    const seedAndGetEdit = async (cookie: string): Promise<string> => {
+  describe("ledger tab on the attendee page", () => {
+    /** Seed an attendee with a fully-paid sale (so the statement has a sale
+     * leg whose counterparty is the listing and a payment leg whose
+     * counterparty is the card/bank singleton). */
+    const seedLedgerAttendee = async (): Promise<number> => {
       const listing = await createTestListing({
         maxAttendees: 50,
         name: "Pottery Class",
@@ -790,30 +790,36 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         gross: 2500,
         listingId: listing.id,
       });
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
-        { cookie },
-      );
-      return expectHtmlResponse(response, 200);
+      return attendee.id;
     };
 
     test("an owner sees the attendee's running-balance statement with counterparties", async () => {
-      const html = await seedAndGetEdit(await testCookie());
-      // The shared statement renders inside a collapsed Ledger disclosure.
-      expect(html).toContain("<summary>Ledger</summary>");
+      const id = await seedLedgerAttendee();
+      const response = await awaitTestRequest(`/admin/attendees/${id}/ledger`, {
+        cookie: await testCookie(),
+      });
+      const html = await expectHtmlResponse(response, 200);
       expect(html).toContain("<th>Counterparty</th>");
       // The sale's counterparty links to the listing; the payment's is card/bank.
       expect(html).toContain("Pottery Class");
       expect(html).toContain("Card / bank");
     });
 
-    test("a manager does NOT see the ledger panel (owner-only money movements)", async () => {
-      // The panel exposes payment/refund/writeoff legs, so it is owner-only —
-      // matching the standalone /admin/ledger* routes. A manager session loads
-      // the same edit page but the panel is omitted entirely.
+    test("a manager's Ledger tab 404s and is absent from the strip (owner-only money movements)", async () => {
+      // The tab exposes payment/refund/writeoff legs, so it is owner-only —
+      // matching the standalone /admin/ledger* routes. Naming the URL directly
+      // 404s (visibility IS authorization), and the strip never links it.
+      const id = await seedLedgerAttendee();
       const managerCookie = await createTestManagerSession();
-      const html = await seedAndGetEdit(managerCookie);
-      expect(html).not.toContain("<legend>Ledger</legend>");
+      const direct = await awaitTestRequest(`/admin/attendees/${id}/ledger`, {
+        cookie: managerCookie,
+      });
+      expect(direct.status).toBe(404);
+      const overview = await awaitTestRequest(`/admin/attendees/${id}`, {
+        cookie: managerCookie,
+      });
+      const html = await expectHtmlResponse(overview, 200);
+      expect(html).not.toContain(`/admin/attendees/${id}/ledger`);
       expect(html).not.toContain("<th>Counterparty</th>");
     });
   });
@@ -848,7 +854,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       if (!result.success) throw new Error("setup");
       const attendee = result.attendees[0]!;
 
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       const html = await response.text();
       expect(html).toContain("different start dates or lengths");
     });
@@ -878,7 +884,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       if (!result.success) throw new Error("setup");
       const attendee = result.attendees[0]!;
 
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       const html = await response.text();
       expect(html).not.toContain("different start dates or lengths");
     });
@@ -903,7 +909,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         name: "Over",
       });
       const attendeeId = result.success ? result.attendees[0]!.id : 0;
-      const response = await adminGet(`/admin/attendees/${attendeeId}`);
+      const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
       const html = await expectHtmlResponse(response, 200);
       // Per-listing warnings (singular + plural) and a top-of-page summary.
       expect(html).toContain(
@@ -925,7 +931,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         durationDays: 3,
       });
       const attendeeId = result.success ? result.attendees[0]!.id : 0;
-      const response = await adminGet(`/admin/attendees/${attendeeId}`);
+      const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
       const html = await expectHtmlResponse(response, 200);
       expect(html).not.toContain("Please double-check");
     });
@@ -1028,7 +1034,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       // The booking fills the listing, but it is the attendee's own row — the
       // self-excluding check means no overbooking warning.
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       const html = await expectHtmlResponse(response, 200);
       expect(html).not.toContain("is overbooked");
     });
@@ -1554,7 +1560,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
 
     const getEdit = async (id: number): Promise<string> => {
-      const response = await adminGet(`/admin/attendees/${id}`);
+      const response = await adminGet(`/admin/attendees/${id}/edit`);
       return expectHtmlResponse(response, 200, "Status &amp; Balance");
     };
 

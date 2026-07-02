@@ -11,7 +11,7 @@ import {
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { errorRedirect, htmlResponse } from "#routes/response.ts";
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { hasActiveBookingLine } from "#shared/db/attendees.ts";
@@ -44,14 +44,18 @@ import {
 /** Max refunds per request to stay within Bunny Edge fetch limits */
 const REFUND_BATCH_LIMIT = 30;
 
-/** Render refund error redirect for a single attendee */
+/** Render refund error redirect for a single attendee, keeping the caller's
+ * return_url threaded through so a retry still lands back where it started. */
 const refundError = (
   listingId: number,
   attendeeId: number,
   msg: string,
+  returnUrl = "",
 ): Response =>
   errorRedirect(
-    `/admin/listing/${listingId}/attendee/${attendeeId}/refund`,
+    `/admin/listing/${listingId}/attendee/${attendeeId}/refund${
+      returnUrl ? `?return_url=${encodeURIComponent(returnUrl)}` : ""
+    }`,
     msg,
   );
 
@@ -106,7 +110,8 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute(
 const handleAttendeeRefund = verifiedAttendeeForm(
   "refund",
   "refund",
-  async (data, _form, listingId, attendeeId) => {
+  async (data, form, listingId, attendeeId) => {
+    const returnUrl = form.getString("return_url");
     // Refuse a refund on a no-quantity ghost row (checked against the exact
     // (attendee, listing) pair) rather than refunding the shared payment from a
     // listing the charge doesn't belong to.
@@ -115,6 +120,7 @@ const handleAttendeeRefund = verifiedAttendeeForm(
         listingId,
         attendeeId,
         t("error.no_payment_to_refund"),
+        returnUrl,
       );
     }
     if (!data.attendee.payment_id) {
@@ -122,14 +128,22 @@ const handleAttendeeRefund = verifiedAttendeeForm(
         listingId,
         attendeeId,
         t("error.no_payment_to_refund"),
+        returnUrl,
       );
     }
     if (data.attendee.refunded) {
-      return refundError(listingId, attendeeId, t("error.already_refunded"));
+      return refundError(
+        listingId,
+        attendeeId,
+        t("error.already_refunded"),
+        returnUrl,
+      );
     }
 
     const provider = await getActivePaymentProvider();
-    if (!provider) return refundError(listingId, attendeeId, NO_PROVIDER_ERROR);
+    if (!provider) {
+      return refundError(listingId, attendeeId, NO_PROVIDER_ERROR, returnUrl);
+    }
 
     const refunded = await provider.refundPayment(data.attendee.payment_id);
     if (!refunded) {
@@ -138,7 +152,7 @@ const handleAttendeeRefund = verifiedAttendeeForm(
         detail: `Admin refund failed for attendee ${data.attendee.id}, payment ${data.attendee.payment_id}`,
         listingId,
       });
-      return refundError(listingId, attendeeId, t("error.refund_failed"));
+      return refundError(listingId, attendeeId, t("error.refund_failed"), returnUrl);
     }
 
     const { posted } = await recordAttendeeRefund(data.attendee.id);
@@ -151,9 +165,21 @@ const handleAttendeeRefund = verifiedAttendeeForm(
     // now ledger-only), surface it so the admin makes a manual adjustment rather
     // than re-refunding an already-refunded payment.
     if (!posted) {
-      return refundError(listingId, attendeeId, t("error.refund_not_recorded"));
+      return refundError(
+        listingId,
+        attendeeId,
+        t("error.refund_not_recorded"),
+        returnUrl,
+      );
     }
-    return ok(`/admin/listing/${listingId}`, t("success.refund_issued"));
+    // Honor the caller's return_url (e.g. the attendee page's Actions tab);
+    // fall back to the listing page for refunds started from the roster.
+    return redirect(
+      `/admin/listing/${listingId}`,
+      t("success.refund_issued"),
+      true,
+      { form },
+    );
   },
 );
 

@@ -12,19 +12,10 @@
 import { compact, mapNotNullish, sumOf } from "#fp";
 import { t } from "#i18n";
 import type { AttendeeBooking } from "#routes/admin/attendee-form-model.ts";
-import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
-import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
+import { formatDateRangeLabel } from "#shared/dates.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { Attendee } from "#shared/types.ts";
-import { ActivityLogTable } from "#templates/admin/activityLog.tsx";
-import {
-  type AccountLedgerData,
-  AccountStatementSection,
-} from "#templates/admin/ledger.tsx";
 import { questionTextFlat } from "#templates/admin/questions.tsx";
-import { MapsLinks } from "#templates/components/maps-links.tsx";
-import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 
 /** One key/value row of a detail table. */
@@ -40,74 +31,6 @@ const DetailTableRow = ({
     <td>{children}</td>
   </tr>
 );
-
-/** Preserve the author's line breaks for multi-line free text. */
-const Multiline = ({ text }: { text: string }): JSX.Element => (
-  <span style="white-space:pre-wrap">{text}</span>
-);
-
-/**
- * The main read-only details table for a single attendee. Optional contact
- * fields are omitted when blank so the table only spells out what's on file.
- */
-export const AttendeeDetail = ({
-  attendee,
-  allowedDomain,
-  phonePrefix,
-  hasRealLine,
-}: {
-  attendee: Attendee;
-  allowedDomain: string;
-  phonePrefix: string;
-  /** Whether the attendee has any real (quantity > 0) booking. A no-quantity-only
-   * attendee has no live customer ticket — its /t page 404s — so we show the
-   * no-quantity indicator instead of a link that fails on click. */
-  hasRealLine: boolean;
-}): JSX.Element => {
-  const rows = compact([
-    <DetailTableRow label={t("common.name")}>{attendee.name}</DetailTableRow>,
-    attendee.email ? (
-      <DetailTableRow label={t("common.email")}>
-        <a href={`mailto:${attendee.email}`}>{attendee.email}</a>
-      </DetailTableRow>
-    ) : null,
-    attendee.phone ? (
-      <DetailTableRow label={t("common.phone")}>
-        <PhoneLinks phone={attendee.phone} phonePrefix={phonePrefix} />
-      </DetailTableRow>
-    ) : null,
-    attendee.address ? (
-      <DetailTableRow label={t("common.address")}>
-        <Multiline text={attendee.address} />
-        <MapsLinks query={attendee.address} />
-      </DetailTableRow>
-    ) : null,
-    attendee.special_instructions ? (
-      <DetailTableRow label={t("common.special_instructions")}>
-        <Multiline text={attendee.special_instructions} />
-      </DetailTableRow>
-    ) : null,
-    <DetailTableRow label={t("terms.ticket")}>
-      {hasRealLine ? (
-        <a href={`https://${allowedDomain}/t/${attendee.ticket_token}`}>
-          {attendee.ticket_token}
-        </a>
-      ) : (
-        <span class="muted small">{t("admin.attendee_table.no_quantity")}</span>
-      )}
-    </DetailTableRow>,
-    <DetailTableRow label={t("common.registered")}>
-      {formatDatetimeShort(attendee.created)}
-    </DetailTableRow>,
-  ]);
-  return (
-    <div class="table-scroll">
-      <table class="listing-details-table">
-        <tbody>{rows}</tbody>
-      </table>
-    </div>
-  );
-};
 
 /**
  * "Checked in" / "Refunded" status badges for a booking, or null when neither
@@ -274,47 +197,3 @@ export const AttendeeAnswersTable = ({
     </>
   );
 };
-
-/**
- * The attendee's activity log, collapsed by default. Renders the same
- * Time/Activity table the /admin/log pages use, filtered to this attendee.
- */
-export const AttendeeLogSection = ({
-  entries,
-}: {
-  entries: ActivityLogEntry[];
-}): JSX.Element => (
-  <details>
-    <summary>{t("attendee_detail.activity_log")}</summary>
-    <ActivityLogTable entries={entries} />
-  </details>
-);
-
-/** The attendee's ledger account, its statement lines, and the counterparties'
- * display names — everything the embedded statement panel needs. The feature
- * loader builds these for the attendee's own account. */
-export type AttendeeLedgerData = AccountLedgerData;
-
-/**
- * The attendee's money ledger embedded on the edit page (decision 15 names the
- * edit-attendee page as a renderer surface): the same shared running-balance
- * statement the standalone /admin/ledger account page shows, scoped to this
- * attendee's account. Collapsed in a details/summary like the activity log, with
- * the balance, a "view full ledger" action row, then the scrollable statement.
- */
-export const AttendeeLedgerSection = ({
-  ledger,
-}: {
-  ledger: AttendeeLedgerData;
-}): JSX.Element => (
-  <details>
-    <summary>{t("attendee_detail.ledger")}</summary>
-    <AccountStatementSection
-      account={ledger.account}
-      fullLedgerHref={`/admin/ledger/${ledger.account.type}/${ledger.account.id}`}
-      lines={ledger.lines}
-      names={ledger.names}
-      returnUrl={`/admin/attendees/${ledger.account.id}`}
-    />
-  </details>
-);

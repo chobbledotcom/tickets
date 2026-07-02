@@ -1,41 +1,49 @@
 /**
- * Routes for the unified add/edit attendee page.
+ * Routes for creating and saving attendees.
  *
  *   GET  /admin/attendees/new      — render the create form
  *   POST /admin/attendees/new      — handle create submission
- *   GET  /admin/attendees/:id      — render the edit form, preloaded
  *   POST /admin/attendees/:id      — handle edit submission
+ *
+ * (GET /admin/attendees/:id and its tabs render through the attendee entity
+ * page — attendee-page.ts.)
  *
  * The editor is a fixed table — one quantity box per bookable listing (plus any
  * inactive listing the attendee already booked) — and one shared date range, so
  * a submission is a single self-contained save with no add/remove-line round
  * trips. Create can be deep-linked from the calendar availability checker with
  * `?select_<id>=1&start_date=…` to pre-fill the chosen listings and date.
+ *
+ * Feedback: a successful save PRG-redirects to the Edit tab; a validation or
+ * recoverable save failure re-renders the submitted form IN PLACE (through the
+ * entity page for edits) so entered data and per-line errors are never lost —
+ * deliberately not a stash-dependent bounce (edit-pages.md).
  */
 
-/* jscpd:ignore-start */
-import { compact, filter, unique } from "#fp";
+import { t } from "#i18n";
 import {
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
-  attendeeBalanceNotice,
-  attendeeBookingsFromLines,
   isBookedLine,
   isNoQuantityLine,
   type ParsedAttendeeForm,
   parseAttendeeForm,
-  resolveSharedDates,
   resolveStatusId,
   toCreateInput,
   toDesiredLines,
   toLedgerOrder,
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
+import { parseLogisticsPlan } from "#routes/admin/attendee-logistics.ts";
+import { attendeePage } from "#routes/admin/attendee-page.ts";
 import {
-  buildAttendeeLogisticsData,
-  parseLogisticsPlan,
-} from "#routes/admin/attendee-logistics.ts";
-import { loadAccountLedger } from "#routes/admin/ledger.ts";
+  buildCreateForm,
+  buildTemplateData,
+  getRenderListings,
+  listingsByIdMap,
+  loadAttendeeForEdit,
+  loadQuestionsForExisting,
+} from "#routes/admin/attendee-page-data.ts";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -43,39 +51,25 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
+import { htmlResponse, redirect } from "#routes/response.ts";
+import { notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
-import { getEffectiveDomain } from "#shared/config.ts";
-import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import {
   applyAttendeeAtomicEdit,
   buildPiiBlob,
   type CreateAttendeeResult,
-  checkLinesCapacity,
   createAttendeeAtomic,
-  type ExistingLine,
   encryptPiiBlob,
   ensureAllBookings,
-  getAttendee,
   hasPaidLine,
   type ListingAttendeeRow,
-  loadExistingLines,
   updateAttendeeOrder,
 } from "#shared/db/attendees.ts";
 import { hasAssignedBuiltSite } from "#shared/db/built-sites.ts";
-import {
-  getContactRecord,
-  getRepairFallbackRecord,
-  hashEmail,
-  hashPhone,
-  toContactHashParam,
-} from "#shared/db/contact-preferences.ts";
-import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
   type LogisticsAssignment,
@@ -83,418 +77,26 @@ import {
 } from "#shared/db/logistics.ts";
 import { getAllLogisticsAgents } from "#shared/db/logistics-agents.ts";
 import {
-  getAttendeeTextAnswers,
-  loadAttendeeQuestionData,
   parseQuestionAnswers,
   type QuestionWithAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
-import { getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   selectedListingQuantities,
   selectedStartDate,
 } from "#shared/order-select.ts";
-import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { todayInTz } from "#shared/timezone.ts";
-import type { Attendee, ListingWithCount } from "#shared/types.ts";
-import { isIsoDate } from "#shared/validation/date.ts";
-import type { AttendeeLedgerData } from "#templates/admin/attendee-detail.tsx";
+import type { Attendee } from "#shared/types.ts";
 import {
   type AttendeeFormTemplateData,
+  AttendeeFormPanel,
   attendeeFormPage,
-  type ContactChannelData,
-  type ContactRecordsByChannel,
 } from "#templates/admin/attendee-form.tsx";
 
-/* jscpd:ignore-end */
-
 // ---------------------------------------------------------------------------
-// Shared loaders / helpers
-// ---------------------------------------------------------------------------
-
-/** Index listings by id. */
-const listingsByIdMap = (
-  listings: ListingWithCount[],
-): Map<number, ListingWithCount> => new Map(listings.map((l) => [l.id, l]));
-
-/** Listings to render rows for: every active listing, plus any inactive listing
- * the attendee already books (so an existing inactive registration still shows
- * its quantity and can be edited). Active first, then inactive-booked. */
-const getRenderListings = async (
-  existing: ExistingLine[],
-): Promise<ListingWithCount[]> => {
-  const all = await getAllListings();
-  const active = filter((l: ListingWithCount) => l.active)(all);
-  const bookedIds = new Set(existing.map((e) => e.booking.listing_id));
-  const inactiveBooked = filter(
-    (l: ListingWithCount) => !l.active && bookedIds.has(l.id),
-  )(all);
-  return [...active, ...inactiveBooked];
-};
-
-/** First (earliest) existing booking per listing. A legacy attendee with two
- * bookings of the same listing binds the row to the earliest; the rest fall out
- * of the desired set on save, normalising onto the one shared range. */
-const firstExistingByListingId = (
-  existing: ExistingLine[],
-): Map<number, ExistingLine> => {
-  const map = new Map<number, ExistingLine>();
-  for (const e of existing) {
-    if (!map.has(e.booking.listing_id)) map.set(e.booking.listing_id, e);
-  }
-  return map;
-};
-
-/** Build one editor line per rendered listing: the existing booking's quantity
- * and key when present, otherwise the pre-selected quantity (0 = not booked). */
-const buildFormLines = (
-  renderListings: ListingWithCount[],
-  existingByListingId: Map<number, ExistingLine>,
-  preselectedQty: Map<number, number>,
-): AttendeeFormLine[] =>
-  renderListings.map((listing) => {
-    const existing = existingByListingId.get(listing.id);
-    const quantity = existing
-      ? existing.booking.quantity
-      : (preselectedQty.get(listing.id) ?? 0);
-    return {
-      error: null,
-      existingBooking: existing?.booking ?? null,
-      key: existing?.key ?? "",
-      listing,
-      listingId: listing.id,
-      // A stored quantity-0 line renders with the "no quantity" box ticked.
-      noQuantity: Boolean(existing) && quantity === 0,
-      quantity,
-    };
-  });
-
-/** Build a create-mode form: a line per active listing (quantity from any
- * pre-selection) and the shared start date from the deep link. */
-const buildCreateForm = (
-  renderListings: ListingWithCount[],
-  preselectedQty: Map<number, number>,
-  startDate: string,
-): ParsedAttendeeForm => ({
-  address: "",
-  dayCount: 1,
-  email: "",
-  lines: buildFormLines(renderListings, new Map(), preselectedQty),
-  name: "",
-  phone: "",
-  remainingBalance: 0,
-  returnUrl: "",
-  special_instructions: "",
-  startDate,
-  statusId: null,
-});
-
-/** Build the edit-mode form from a loaded attendee + its bookings, seeding the
- * shared range from the existing daily bookings. */
-const buildEditFormFromAttendee = (
-  attendee: Attendee,
-  existing: ExistingLine[],
-  renderListings: ListingWithCount[],
-): { parsed: ParsedAttendeeForm; hasMixedTimings: boolean } => {
-  const shared = resolveSharedDates(existing.map((e) => e.booking));
-  return {
-    hasMixedTimings: shared.hasMixedTimings,
-    parsed: {
-      address: attendee.address || "",
-      dayCount: shared.dayCount,
-      email: attendee.email || "",
-      lines: buildFormLines(
-        renderListings,
-        firstExistingByListingId(existing),
-        new Map(),
-      ),
-      name: attendee.name,
-      phone: attendee.phone || "",
-      remainingBalance: attendee.remaining_balance,
-      returnUrl: "",
-      special_instructions: attendee.special_instructions || "",
-      startDate: shared.startDate,
-      statusId: attendee.status_id,
-    },
-  };
-};
-
-/** How many of an attendee's activity-log entries to show on the edit page. */
-const ATTENDEE_LOG_LIMIT = 1000;
-
-/** Load the attendee's ledger account statement for the embedded panel: its full
- * transfer history, the running-balance lines, and the counterparties' display
- * names (the shared ledger loader, so names resolve exactly as /admin/ledger). */
-const loadAttendeeLedger = async (
-  attendeeId: number,
-): Promise<AttendeeLedgerData> =>
-  loadAccountLedger(attendeeAccount(attendeeId));
-
-/** The ledger panel exposes money movements (payment/refund/writeoff legs), so
- * it is owner-only — matching the standalone `/admin/ledger*` routes
- * (`requireOwnerOr`). A non-owner staff session gets `undefined`, which the
- * template renders as no panel at all. */
-const loadAttendeeLedgerForSession = (
-  session: AuthSession,
-  attendeeId: number,
-): Promise<AttendeeLedgerData | undefined> =>
-  session.adminLevel === "owner"
-    ? loadAttendeeLedger(attendeeId)
-    : Promise.resolve(undefined);
-
-/** A booked daily listing booked for longer than its own duration allows —
- * permitted (every daily listing shares one range), so a warning not an error. */
-const overDurationWarning = (
-  line: AttendeeFormLine,
-  dayCount: number,
-): string | null => {
-  const listing = line.listing!;
-  if (listing.listing_type !== "daily" || dayCount <= listing.duration_days) {
-    return null;
-  }
-  const max = listing.duration_days;
-  return `${listing.name} is designed for up to ${max} day${
-    max === 1 ? "" : "s"
-  }, but the booking spans ${dayCount}.`;
-};
-
-/** The capacity-check booking shape for a booked line on the shared range
- * (daily) or no date (standard). */
-const lineBookingFor = (line: AttendeeFormLine, parsed: ParsedAttendeeForm) => {
-  const isDaily = line.listing!.listing_type === "daily";
-  return {
-    date: isDaily ? parsed.startDate : null,
-    durationDays: isDaily ? parsed.dayCount : 1,
-    listingId: line.listingId,
-    quantity: line.quantity!,
-  };
-};
-
-/** The set of booked listing ids that overbook capacity, judged with one
- * batched self-excluding check (the same one the save uses). A daily line with
- * no valid shared date is skipped — the date error already blocks saving. */
-const overbookedListingIds = async (
-  booked: AttendeeFormLine[],
-  parsed: ParsedAttendeeForm,
-  excludeAttendeeId: number | undefined,
-): Promise<Set<number>> => {
-  const checkable = booked.filter(
-    (line) =>
-      line.listing!.listing_type !== "daily" || isIsoDate(parsed.startDate),
-  );
-  const fits = await checkLinesCapacity(
-    checkable.map((line) => lineBookingFor(line, parsed)),
-    excludeAttendeeId,
-  );
-  const overbooked = new Set<number>();
-  checkable.forEach((line, i) => {
-    if (!fits[i]) overbooked.add(line.listingId);
-  });
-  return overbooked;
-};
-
-/** Overbooking message for a booked line. */
-const overbookMessage = (line: AttendeeFormLine): string =>
-  `${
-    line.listing!.name
-  } is overbooked — there isn't capacity for ${line.quantity} on these dates.`;
-
-/**
- * Incomplete-parent warnings, keyed by parent listing id: a booked line that is
- * a parent (has required-child edges) whose required child is NOT also booked on
- * this attendee. The manual add/edit form books plain lines and never folds a
- * child the way the public booking flow enforces, so an operator who books a
- * parent alone — or opens an attendee already in that state — would otherwise
- * have a booking the gate considers incomplete. The message names the children
- * to add so it is obvious and easily fixed (usability #6). Reuses the
- * relationship accessor; no-op (no query) when no booked line is a parent.
- */
-const incompleteParentWarnings = async (
-  booked: AttendeeFormLine[],
-): Promise<Map<number, string>> => {
-  const bookedIds = new Set(booked.map((line) => line.listingId));
-  const childrenByParent = await getChildrenForParents([...bookedIds]);
-  const warnings = new Map<number, string>();
-  for (const line of booked) {
-    // getChildrenForParents only returns listings that ARE parents (≥1 child).
-    const children = childrenByParent.get(line.listingId);
-    if (!children || children.some((child) => bookedIds.has(child.id)))
-      continue;
-    warnings.set(
-      line.listingId,
-      `${line.listing!.name} requires one of its child listings to be booked too (${children
-        .map((child) => child.name)
-        .join(", ")}) — public bookings choose one automatically; add it here.`,
-    );
-  }
-  return warnings;
-};
-
-/**
- * Over-duration + overbooking + incomplete-parent warnings for every booked
- * line, keyed by listing id plus a flat list for the top-of-page summary. All
- * are allowed for admin saves, so they surface as warnings, not errors. The
- * capacity side is one batched query for the whole form, not one per line.
- */
-const computeWarnings = async (
-  parsed: ParsedAttendeeForm,
-  excludeAttendeeId: number | undefined,
-): Promise<{ byListing: Map<number, string[]>; top: string[] }> => {
-  const booked = parsed.lines.filter(isBookedLine);
-  const [overbooked, incompleteParents] = await Promise.all([
-    overbookedListingIds(booked, parsed, excludeAttendeeId),
-    incompleteParentWarnings(booked),
-  ]);
-  const byListing = new Map<number, string[]>();
-  const top: string[] = [];
-  for (const line of booked) {
-    const warns = compact([
-      overDurationWarning(line, parsed.dayCount),
-      overbooked.has(line.listingId) ? overbookMessage(line) : null,
-      incompleteParents.get(line.listingId) ?? null,
-    ]);
-    if (warns.length > 0) {
-      byListing.set(line.listingId, warns);
-      top.push(...warns);
-    }
-  }
-  return { byListing, top };
-};
-
-/** Build the template data for re-rendering the form. */
-const buildTemplateData = async (
-  mode: "create" | "edit",
-  parsed: ParsedAttendeeForm,
-  attendee: Attendee | null,
-  opts: {
-    attendeeError?: string | null | undefined;
-    dateError?: string | null | undefined;
-    flashError?: string | undefined;
-    flashSuccess?: string | undefined;
-    formError?: string | null | undefined;
-    hasMixedTimings?: boolean | undefined;
-    returnUrl?: string | undefined;
-    questions?: QuestionWithAnswers[] | undefined;
-    selectedAnswerIds?: number[] | undefined;
-    selectedTextAnswers?: Map<number, string> | undefined;
-    contactRecords?: ContactRecordsByChannel | undefined;
-    ledger?: AttendeeLedgerData | undefined;
-  } = {},
-): Promise<AttendeeFormTemplateData> => {
-  const statuses = await getAllAttendeeStatuses();
-  // The order totals come from the saved booking (edit only); create has none.
-  const summary = attendee ? await getAttendeeOrderSummary(attendee.id) : null;
-  const balanceNotice = attendeeBalanceNotice(
-    statuses.find((s) => s.id === parsed.statusId) ?? null,
-    parsed.remainingBalance,
-    summary?.fullPrice ?? 0,
-    summary?.depositPaid ?? 0,
-    summary?.listedFullPrice ?? 0,
-  );
-  const activityLog = attendee
-    ? await getAttendeeActivityLog(attendee.id, ATTENDEE_LOG_LIMIT)
-    : [];
-  // Owner notes are owner-key encrypted, so decrypting needs the request private
-  // key — already unwrapped on the edit path (PII/contact reads use it). Create
-  // mode has no attendee and so no notes (and never forces a key unwrap).
-  const systemNotes = attendee
-    ? await getNotesForAttendee(attendee.id, await requireRequestPrivateKey())
-    : [];
-  const warnings = await computeWarnings(parsed, attendee?.id);
-  const logistics = await buildAttendeeLogisticsData(parsed.lines, attendee);
-  return {
-    activityLog,
-    allowedDomain: getEffectiveDomain(),
-    attendee,
-    attendeeError: opts.attendeeError ?? null,
-    balanceNotice,
-    bookings: attendeeBookingsFromLines(parsed.lines),
-    contactRecords: opts.contactRecords ?? EMPTY_CONTACT_RECORDS,
-    dateError: opts.dateError ?? null,
-    flashError: opts.flashError,
-    flashSuccess: opts.flashSuccess,
-    formError: opts.formError ?? null,
-    // The shared date range only affects daily listings; the form's rendered
-    // lines cover every active listing plus any inactive one this attendee
-    // already books, so a daily line here is exactly when the dates matter.
-    hasDailyListings: parsed.lines.some(
-      (l) => l.listing?.listing_type === "daily",
-    ),
-    hasMixedTimings: opts.hasMixedTimings ?? false,
-    ledger: opts.ledger,
-    lineWarnings: warnings.byListing,
-    logistics,
-    mode,
-    parsed,
-    phonePrefix: settings.phonePrefix,
-    questions: opts.questions ?? [],
-    returnUrl: opts.returnUrl,
-    selectedAnswerIds: opts.selectedAnswerIds ?? [],
-    selectedTextAnswers: opts.selectedTextAnswers ?? new Map(),
-    statuses,
-    systemNotes,
-    todayIso: todayInTz(settings.timezone),
-    topWarnings: warnings.top,
-  };
-};
-
-/** Load custom questions + currently-selected answers across ALL of the
- * attendee's booked listings (edit mode only). The request's private key is
- * only derived when there are questions whose free-text answers need
- * decrypting, so an attendee with no questions never forces a key unwrap. */
-const loadQuestionsForExisting = async (
-  attendeeId: number,
-  existing: ExistingLine[],
-): Promise<{
-  questions: QuestionWithAnswers[];
-  selectedAnswerIds: number[];
-  selectedTextAnswers: Map<number, string>;
-}> => {
-  const listingIds = unique(existing.map((e) => e.booking.listing_id));
-  const data = await loadAttendeeQuestionData(listingIds, [attendeeId]);
-  if (!data) {
-    return {
-      questions: [],
-      selectedAnswerIds: [],
-      selectedTextAnswers: new Map(),
-    };
-  }
-  return {
-    questions: data.questions,
-    selectedAnswerIds: data.attendeeAnswerMap.get(attendeeId) ?? [],
-    selectedTextAnswers: await getAttendeeTextAnswers(
-      attendeeId,
-      await requireRequestPrivateKey(),
-    ),
-  };
-};
-
-/** Render the attendee form page as an HTML response. */
-const renderForm = (
-  session: AuthSession,
-  data: AttendeeFormTemplateData,
-): Response => htmlResponse(attendeeFormPage(data, session));
-
-/** Render a GET of the form, surfacing any post-save flash (cookie). */
-const renderAttendeeFormPage = (
-  request: Request,
-  data: AttendeeFormTemplateData,
-  session: AuthSession,
-): Response => {
-  const flash = applyFlash(request);
-  return renderForm(session, {
-    ...data,
-    ...(flash.error !== undefined ? { flashError: flash.error } : {}),
-    ...(flash.success !== undefined ? { flashSuccess: flash.success } : {}),
-  });
-};
-
-// ---------------------------------------------------------------------------
-// GET handlers
+// GET /admin/attendees/new
 // ---------------------------------------------------------------------------
 
 /** Handle GET /admin/attendees/new — render the create form, pre-filled from a
@@ -503,6 +105,7 @@ export const handleAttendeeNewGet: TypedRouteHandler<
   "GET /admin/attendees/new"
 > = (request) =>
   requireSessionOr(request, async (session) => {
+    applyFlash(request);
     const renderListings = await getRenderListings([]);
     const params = new URL(request.url).searchParams;
     const parsed = buildCreateForm(
@@ -513,101 +116,12 @@ export const handleAttendeeNewGet: TypedRouteHandler<
     const data = await buildTemplateData("create", parsed, null, {
       returnUrl: getSearchParam(request, "return_url"),
     });
-    return renderAttendeeFormPage(request, data, session);
+    return htmlResponse(attendeeFormPage(data, session));
   });
 
-/** Handle GET /admin/attendees/:id — render the edit form preloaded. */
-export const handleAttendeeEditGet: TypedRouteHandler<
-  "GET /admin/attendees/:attendeeId"
-> = (request, { attendeeId }) =>
-  requireSessionOr(request, async (session) => {
-    const loaded = await loadAttendeeForEdit(attendeeId);
-    if (!loaded) return notFoundResponse();
-    const renderListings = await getRenderListings(loaded.existing);
-    const { parsed, hasMixedTimings } = buildEditFormFromAttendee(
-      loaded.attendee,
-      loaded.existing,
-      renderListings,
-    );
-    const { questions, selectedAnswerIds, selectedTextAnswers } =
-      await loadQuestionsForExisting(attendeeId, loaded.existing);
-    const contactRecords = await loadContactRecords(loaded.attendee);
-    const ledger = await loadAttendeeLedgerForSession(session, attendeeId);
-    const data = await buildTemplateData("edit", parsed, loaded.attendee, {
-      contactRecords,
-      hasMixedTimings,
-      ledger,
-      questions,
-      returnUrl: getSearchParam(request, "return_url"),
-      selectedAnswerIds,
-      selectedTextAnswers,
-    });
-    return renderAttendeeFormPage(request, data, session);
-  });
-
-const EMPTY_CONTACT_RECORDS: ContactRecordsByChannel = {
-  email: null,
-  phone: null,
-};
-
-/** Load and decrypt one channel's contact record (null when no value on file).
- * Notes are owner-encrypted, so this needs the session private key. */
-const loadChannelRecord = async (
-  value: string,
-  hashOf: (value: string) => Promise<string>,
-  privateKey: CryptoKey,
-): Promise<ContactChannelData | null> => {
-  if (!value.trim()) return null;
-  const hash = await hashOf(value);
-  try {
-    return {
-      hashParam: toContactHashParam(hash),
-      record: await getContactRecord(hash, privateKey),
-    };
-  } catch (error) {
-    // A corrupt/undecryptable stats_blob for one contact must not take down
-    // the whole attendee edit page. Surface it for repair and keep the channel
-    // with its surviving counts and (crucially) its /admin/history link, so the
-    // operator can still open the editor and overwrite the bad row — dropping
-    // the channel here would hide the only path to fix it.
-    logError({
-      code: ErrorCode.DECRYPT_FAILED,
-      detail: `contact history ${toContactHashParam(hash)}: ${error}`,
-    });
-    return {
-      hashParam: toContactHashParam(hash),
-      record: await getRepairFallbackRecord(hash),
-    };
-  }
-};
-
-/** Read the attendee's per-channel contact history for the read-only panel.
- * The private key is only needed (and only requested) when there is at least
- * one contact value to decrypt, so an attendee with no email/phone never forces
- * a key prompt. */
-const loadContactRecords = async (
-  attendee: Attendee,
-): Promise<ContactRecordsByChannel> => {
-  if (!attendee.email.trim() && !attendee.phone.trim()) {
-    return EMPTY_CONTACT_RECORDS;
-  }
-  const pk = await requireRequestPrivateKey();
-  return {
-    email: await loadChannelRecord(attendee.email, hashEmail, pk),
-    phone: await loadChannelRecord(attendee.phone, hashPhone, pk),
-  };
-};
-
-/** Load an attendee + all its listing_attendees rows for the edit page. */
-const loadAttendeeForEdit = async (
-  attendeeId: number,
-): Promise<{ attendee: Attendee; existing: ExistingLine[] } | null> => {
-  const pk = await requireRequestPrivateKey();
-  const attendee = await getAttendee(attendeeId, pk);
-  if (!attendee) return null;
-  const existing = await loadExistingLines(attendeeId);
-  return { attendee, existing };
-};
+// ---------------------------------------------------------------------------
+// POST handlers — shared submit logic
+// ---------------------------------------------------------------------------
 
 /** Everything the submit handler needs about an attendee being edited. */
 type EditContext = {
@@ -647,9 +161,20 @@ const loadEditContext = async (
   };
 };
 
-// ---------------------------------------------------------------------------
-// POST handlers — shared submit logic
-// ---------------------------------------------------------------------------
+/** Re-render the submitted form in place: the bare create page in create
+ * mode, the entity page's Edit tab in edit mode — entered values and their
+ * errors survive deterministically, with no redirect or stash involved. */
+const renderSubmittedForm = (
+  session: AuthSession,
+  data: AttendeeFormTemplateData,
+): Promise<Response> =>
+  data.mode === "create" || !data.attendee
+    ? Promise.resolve(htmlResponse(attendeeFormPage(data, session)))
+    : attendeePage.renderPage(session, data.attendee.id, "edit", {
+        sections: () => Promise.resolve([
+          { html: AttendeeFormPanel({ data }), kind: "custom" as const },
+        ]),
+      });
 
 /** Common submit handler for create + edit. `attendeeId` is null in create. */
 const handleSubmit =
@@ -691,11 +216,6 @@ const handleSubmitInner = async (
     statusId: resolveStatusId(rawParsed.statusId, statuses),
   };
   const renderOpts = {
-    // Edit re-renders keep the embedded ledger panel (owner-only); create has no
-    // account yet.
-    ledger: attendee
-      ? await loadAttendeeLedgerForSession(session, attendee.id)
-      : undefined,
     questions,
     returnUrl: parsed.returnUrl,
     selectedAnswerIds,
@@ -703,19 +223,16 @@ const handleSubmitInner = async (
   };
 
   const result = validateParsedForm(parsed);
-  const dataForRerender = await buildTemplateData(
-    mode,
-    result.values,
-    attendee,
-    renderOpts,
-  );
   if (!result.valid) {
-    return renderForm(session, {
-      ...dataForRerender,
-      attendeeError: result.attendeeError?.message ?? null,
-      dateError: result.dateError,
-      formError: result.formError,
-    });
+    return renderSubmittedForm(
+      session,
+      await buildTemplateData(mode, result.values, attendee, {
+        ...renderOpts,
+        attendeeError: result.attendeeError?.message ?? null,
+        dateError: result.dateError,
+        formError: result.formError,
+      }),
+    );
   }
 
   // The logistics plan is read from the submitted agent selects (only when the
@@ -742,27 +259,19 @@ const handleSubmitInner = async (
           logisticsPlan,
         );
   if (outcome.ok) return outcome.response;
-  return renderForm(session, {
-    ...dataForRerender,
-    flashError: outcome.flashError,
-  });
+  return renderSubmittedForm(
+    session,
+    await buildTemplateData(mode, result.values, attendee, {
+      ...renderOpts,
+      saveError: outcome.saveError,
+    }),
+  );
 };
 
 /** Outcome of an atomic create/edit attempt. */
 type SaveOutcome =
   | { ok: true; response: Response }
-  | { ok: false; flashError: string };
-
-/** Shown when a submission has no booked listing. */
-const NO_LINES_ERROR = "Book at least one listing before saving";
-
-/** Shown when a no-quantity tick targets a line that still holds a built site. */
-const BUILT_SITE_NO_QTY_ERROR =
-  "Unassign the built site from this booking before marking it no quantity.";
-
-/** Shown when a no-quantity tick targets a line that still has a recorded payment. */
-const PAID_NO_QTY_ERROR =
-  "Refund this booking's payment before marking it no quantity.";
+  | { ok: false; saveError: string };
 
 /**
  * True when any no-quantity line satisfies a check, judged from the live DB (not
@@ -783,23 +292,24 @@ const anyNoQuantityLineMatches = (
     : Promise.resolve(false);
 };
 
-/** Shown when capacity can't fit the submitted lines. */
-const CAPACITY_SAVE_ERROR =
-  "Not enough spots available for one or more selected listings — nothing was saved. Please review the quantities and try again.";
+/** The Edit tab for an attendee, carrying the return_url through. */
+const attendeeEditPath = (id: number, returnUrl: string): string => {
+  const editPath = attendeePage.path(id, "edit");
+  return returnUrl
+    ? `${editPath}?return_url=${encodeURIComponent(returnUrl)}`
+    : editPath;
+};
 
-/** The edit page for an attendee, carrying the return_url through. */
-const attendeePath = (id: number, returnUrl: string): string =>
-  returnUrl
-    ? `/admin/attendees/${id}?return_url=${encodeURIComponent(returnUrl)}`
-    : `/admin/attendees/${id}`;
-
-/** Redirect back to the saved attendee's own form, scrolling to it. */
+/** Redirect back to the saved attendee's Edit tab, with the flash targeted
+ * at (and scrolled to) the form. */
 const savedRedirect = (
   id: number,
   returnUrl: string,
   message: string,
 ): Response =>
-  redirect(`${attendeePath(id, returnUrl)}#${ATTENDEE_FORM_ID}`, message, true);
+  redirect(attendeeEditPath(id, returnUrl), message, true, {
+    formId: ATTENDEE_FORM_ID,
+  });
 
 /** The submitted logistics assignment plan, or null when logistics is off. */
 type LogisticsPlan = {
@@ -823,7 +333,7 @@ const applyCreate = async (
 ): Promise<SaveOutcome> => {
   const input = toCreateInput(parsed);
   if (input.bookings.length === 0) {
-    return { flashError: NO_LINES_ERROR, ok: false };
+    return { ok: false, saveError: t("attendee_form.error_no_lines") };
   }
   // A no-quantity-only attendee has no real line to pay into, so never give it an
   // unpayable balance (the public pay gate refuses such attendees).
@@ -853,7 +363,7 @@ const applyCreate = async (
     "admin",
   );
   if (!check.ok) {
-    return { flashError: CAPACITY_SAVE_ERROR, ok: false };
+    return { ok: false, saveError: t("attendee_form.error_capacity") };
   }
   const { attendees } = createResult as Extract<
     CreateAttendeeResult,
@@ -869,7 +379,11 @@ const applyCreate = async (
   );
   return {
     ok: true,
-    response: savedRedirect(newId, parsed.returnUrl, `Added ${parsed.name}`),
+    response: savedRedirect(
+      newId,
+      parsed.returnUrl,
+      t("attendee_form.saved_added", { value: parsed.name }),
+    ),
   };
 };
 
@@ -890,12 +404,15 @@ const applyEdit = async (
       hasAssignedBuiltSite,
     )
   ) {
-    return { flashError: BUILT_SITE_NO_QTY_ERROR, ok: false };
+    return {
+      ok: false,
+      saveError: t("attendee_form.error_built_site_no_qty"),
+    };
   }
   // Block marking a paid line no-quantity, even when a stale form key hid the
   // existing booking from the per-line model guard.
   if (await anyNoQuantityLineMatches(attendeeId, parsed.lines, hasPaidLine)) {
-    return { flashError: PAID_NO_QTY_ERROR, ok: false };
+    return { ok: false, saveError: t("attendee_form.error_paid_no_qty") };
   }
 
   const encryptedPiiBlob = (await encryptPiiBlob(
@@ -921,9 +438,9 @@ const applyEdit = async (
   );
   if (!editResult.success) {
     if (editResult.reason === "no_lines") {
-      return { flashError: NO_LINES_ERROR, ok: false };
+      return { ok: false, saveError: t("attendee_form.error_no_lines") };
     }
-    return { flashError: CAPACITY_SAVE_ERROR, ok: false };
+    return { ok: false, saveError: t("attendee_form.error_capacity") };
   }
 
   // When the save leaves no real line the public pay gate refuses payment, so
@@ -955,7 +472,7 @@ const applyEdit = async (
     response: savedRedirect(
       attendeeId,
       parsed.returnUrl,
-      `Updated ${parsed.name}`,
+      t("attendee_form.saved_updated", { value: parsed.name }),
     ),
   };
 };
