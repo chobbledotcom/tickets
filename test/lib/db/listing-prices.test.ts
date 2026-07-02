@@ -6,6 +6,7 @@ import {
   getGroupDayPrices,
   getGroupDayPricesByGroupIds,
   groupDayPriceStatements,
+  groupFlatPriceStatements,
   listingPriceStatements,
   sourceRowStatements,
   syncListingPrices,
@@ -97,6 +98,50 @@ describe("groupDayPriceStatements", () => {
     expect(stmts.map((s) => s.args)).toEqual([
       ["group_day", "3/%"],
       [9, "group_day", "3/4", 800],
+    ]);
+  });
+});
+
+describe("groupFlatPriceStatements", () => {
+  test("emits a group-scoped delete, then one insert per member with an override", () => {
+    const stmts = groupFlatPriceStatements(12, [
+      // A positive override and an explicit free (0) both get a row.
+      { listingId: 5, price: 1500 },
+      { listingId: 6, price: 0 },
+    ]);
+    expect(stmts.map((s) => s.args)).toEqual([
+      ["group", "12"],
+      [5, "group", "12", 1500],
+      [6, "group", "12", 0],
+    ]);
+    // The delete scopes to this group's flat rows by exact price_id (not LIKE),
+    // and every following statement is an insert.
+    expect(stmts[0]!.sql).toBe(
+      "DELETE FROM listing_prices WHERE price_type = ? AND price_id = ?",
+    );
+    expect(
+      stmts
+        .slice(1)
+        .every((s) => s.sql.startsWith("INSERT INTO listing_prices")),
+    ).toBe(true);
+  });
+
+  test("skips members with a null or absent price (no override → no row)", () => {
+    const stmts = groupFlatPriceStatements(3, [
+      { listingId: 9, price: null },
+      { listingId: 10 },
+      { listingId: 11, price: 250 },
+    ]);
+    // Only the delete plus the one real override survive.
+    expect(stmts.map((s) => s.args)).toEqual([
+      ["group", "3"],
+      [11, "group", "3", 250],
+    ]);
+  });
+
+  test("emits only the group-scoped delete when there are no members", () => {
+    expect(groupFlatPriceStatements(7, []).map((s) => s.args)).toEqual([
+      ["group", "7"],
     ]);
   });
 });

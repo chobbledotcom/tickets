@@ -6,19 +6,23 @@
  *                            `listings.unit_price`).
  *  - `("day_count", "<n>")`— the price for an n-day booking (mirrors an entry of
  *                            `listings.day_prices`).
+ *  - `("group", "<groupId>")` — a package group's flat per-member price override:
+ *    the per-unit price this member charges inside that package, whatever the
+ *    span. These rows are the SOURCE of truth (the legacy
+ *    `group_listings.package_price` column was migrated in and dropped); a member
+ *    with no override has no row. {@link groupFlatPriceStatements} writes them and
+ *    the `getGroupPackagePrices` subquery in `db/groups.ts` reads them back.
  *  - `("group_day", "<groupId>/<n>")` — a package group's per-day override for
  *    this member: the member's per-unit price for an n-day booking of that
- *    package. Unlike the mirrors above, these rows are the SOURCE of truth (no
- *    legacy column exists); {@link getGroupDayPrices} is their read API.
- *  - reserved for later: `("group", "<groupId>")` (flat group overrides — the
- *    flat package price still lives on `group_listings.package_price`),
- *    `("start_day", "friday")` (weekday pricing) — the shape admits them with no
- *    schema change; nothing writes them yet.
+ *    package. Like `group`, these rows are the SOURCE of truth (no legacy column
+ *    exists); {@link getGroupDayPrices} is their read API.
+ *  - reserved for later: `("start_day", "friday")` (weekday pricing) — the shape
+ *    admits it with no schema change; nothing writes it yet.
  *
  * The `base`/`day_count` rows are backfilled from, and kept in step with,
  * `listings.unit_price`/`day_prices`, which stay as the source-of-truth mirror
  * columns every display/API/charge caller still reads. This module owns writing
- * those rows.
+ * those rows, plus the `group`/`group_day` package-override rows.
  */
 
 import {
@@ -32,6 +36,7 @@ import { type DayPrices, parseDayPrices } from "#shared/types.ts";
 
 export const PRICE_TYPE_BASE = "base";
 export const PRICE_TYPE_DAY_COUNT = "day_count";
+export const PRICE_TYPE_GROUP = "group";
 export const PRICE_TYPE_GROUP_DAY = "group_day";
 
 /** The `price_id` composition for one (package group, day count) override. The
@@ -91,6 +96,43 @@ export const groupDayPriceStatements = (
         ]),
       );
     }
+  }
+  return statements;
+};
+
+/** One member's flat package override as applied by the group save. `price` is
+ * the per-unit minor override; `null`/absent means "no override" — no row is
+ * written (the member charges its own price), matching the old NULLable column. */
+export type GroupFlatPriceInput = {
+  listingId: number;
+  price?: number | null;
+};
+
+/** The delete-then-insert statements that make a package group's flat `group`
+ * rows exactly match the submitted members — a full replace per group (keyed by
+ * the group id in `price_id`), so a removed member's stale override can't outlive
+ * it. Only members with a real override (a non-null `price`, including an explicit
+ * free `0`) get a row; the rest are simply absent, exactly like the old NULL. */
+export const groupFlatPriceStatements = (
+  groupId: number,
+  members: readonly GroupFlatPriceInput[],
+): PriceStatement[] => {
+  const statements: PriceStatement[] = [
+    {
+      args: [PRICE_TYPE_GROUP, String(groupId)],
+      sql: "DELETE FROM listing_prices WHERE price_type = ? AND price_id = ?",
+    },
+  ];
+  for (const member of members) {
+    if (member.price === null || member.price === undefined) continue;
+    statements.push(
+      insertPriceStatement([
+        member.listingId,
+        PRICE_TYPE_GROUP,
+        String(groupId),
+        member.price,
+      ]),
+    );
   }
   return statements;
 };

@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Add a listing_prices table (generalised per-listing pricing dimensions), backfilled from listings.unit_price and day_prices.";
+  "Migrate group_listings.package_price into the listing_prices 'group' dimension and drop the column.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -128,13 +128,14 @@ export const SCHEMA: [name: string, table: Table][] = [
 
   [
     // Generalised per-listing pricing, keyed by a pricing *dimension*: a
-    // `price_type` (e.g. "base", "day_count", and — reserved for later —
-    // "group"/"start_day") and a `price_id` selecting within it ("" for base,
-    // the day count "2", a group id, a weekday). One row per (listing,
-    // dimension, key) so future dimensions (weekday pricing, package overrides)
-    // slot in with no schema change. Today it is backfilled from and kept in
-    // sync with `listings.unit_price` ("base","") and `listings.day_prices`
-    // ("day_count","<n>"); those columns remain as read mirrors for now.
+    // `price_type` (e.g. "base", "day_count", "group", "group_day", and —
+    // reserved for later — "start_day") and a `price_id` selecting within it (""
+    // for base, the day count "2", a group id, "<groupId>/<n>", a weekday). One
+    // row per (listing, dimension, key) so future dimensions (weekday pricing)
+    // slot in with no schema change. "base"/"day_count" are kept in sync with the
+    // `listings.unit_price`/`day_prices` read mirrors; "group" (flat package
+    // override, migrated from group_listings.package_price) and "group_day"
+    // (per-day package override) are the SOURCE of truth for package pricing.
     "listing_prices",
     {
       columns: [
@@ -526,19 +527,16 @@ export const SCHEMA: [name: string, table: Table][] = [
     // listing_id belongs to group_id. Replaces the old single listings.group_id
     // FK so a listing can sit in several groups at once. No FKs (house style);
     // the app keeps it consistent and the group/listing delete paths prune both
-    // sides. `package_price` (minor units) is the per-listing price when this
-    // group is a package — unused for non-package groups. It is NULLABLE on
-    // purpose: NULL means "no override, charge the listing's own price", 0 means
-    // "explicitly free in this package", and a positive value is a price
-    // override. `quantity` is how many of this listing one unit of the package
-    // includes (≥1; default 1). The PK covers group→listings lookups; the extra
-    // index serves listing→groups.
+    // sides. `quantity` is how many of this listing one unit of the package
+    // includes (≥1; default 1). The per-listing flat price override lives in
+    // `listing_prices` ("group" dimension), not here (the old `package_price`
+    // column was migrated in and dropped). The PK covers group→listings lookups;
+    // the extra index serves listing→groups.
     "group_listings",
     {
       columns: [
         ["group_id", "INTEGER NOT NULL"],
         ["listing_id", "INTEGER NOT NULL"],
-        ["package_price", "INTEGER"],
         ["quantity", "INTEGER NOT NULL DEFAULT 1"],
       ],
       indexes: [

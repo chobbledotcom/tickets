@@ -39,8 +39,8 @@ export type TicketSharedContext = {
   groupName?: string;
   groupDescription?: string;
   /** Set when the booking page is a package group: the group's id (for signed
-   * metadata) and listing-id → override price map (only members with a non-zero
-   * `package_price`). `null`/absent for non-package pages. */
+   * metadata) and listing-id → override price map (only members with a flat
+   * `group` override in listing_prices). `null`/absent for non-package pages. */
   packageGroupId?: number | null;
   packagePrices?: ReadonlyMap<number, number> | null;
   /** Set on a package page: each customisable member's per-day overrides

@@ -115,7 +115,8 @@ type CheckoutMetaFields = {
   allocations?: ChildAllocation[] | undefined;
   /** Set when the booking is for a package group: its id, carried through the
    * signed metadata so the webhook re-derives each member's expected price from
-   * the group's current `group_listings.package_price`. Absent otherwise. */
+   * the group's current package overrides (the `group` dimension of
+   * listing_prices). Absent otherwise. */
   packageGroupId?: number | undefined;
 };
 

@@ -22,6 +22,8 @@ import {
 import {
   getGroupDayPrices,
   groupDayPriceStatements,
+  groupFlatPriceStatements,
+  PRICE_TYPE_GROUP,
   PRICE_TYPE_GROUP_DAY,
 } from "#shared/db/listing-prices.ts";
 import { queryListingsWithCounts } from "#shared/db/listings.ts";
@@ -506,35 +508,31 @@ export const assignListingsToGroup = (
  * and the cloned listing by the slug_index each was just inserted with, so the
  * whole clone (group + listings + memberships) runs as one batch — one
  * round-trip, atomic, and clear of the interactive-transaction round-trip guard.
- * Carries the source member's package_price/quantity so the duplicate packages
- * identically. */
+ * Carries the source member's per-package `quantity`; the flat price override
+ * lives in `listing_prices` and is copied separately (keyed to the new group). */
 export const cloneGroupMembershipStatement = (member: {
   groupSlugIndex: string;
   listingSlugIndex: string;
-  packagePrice: number | null;
   quantity: number;
 }): { sql: string; args: InValue[] } => ({
-  args: [
-    member.groupSlugIndex,
-    member.listingSlugIndex,
-    member.packagePrice,
-    member.quantity,
-  ],
-  sql: `INSERT INTO group_listings (group_id, listing_id, package_price, quantity)
+  args: [member.groupSlugIndex, member.listingSlugIndex, member.quantity],
+  sql: `INSERT INTO group_listings (group_id, listing_id, quantity)
         SELECT (SELECT id FROM groups WHERE slug_index = ?),
-               (SELECT id FROM listings WHERE slug_index = ?), ?, ?`,
+               (SELECT id FROM listings WHERE slug_index = ?), ?`,
 });
 
 /**
  * Replace a listing's full set of group memberships (the listing-form
- * checkboxes). Rows for groups that remain are left untouched so their
- * `package_price` overrides survive; only newly-ticked groups are inserted and
- * unticked ones removed.
+ * checkboxes). Rows for groups that remain are left untouched so their per-package
+ * `quantity` (and the listing's `group`/`group_day` price overrides in
+ * `listing_prices`, keyed by listing + group) survive; only newly-ticked groups
+ * are inserted and unticked ones removed.
  */
-/** The DELETE/INSERT statements to move a listing from its `current` group set
- * to the `desired` one, preserving rows (and their package_price overrides) for
- * groups in both. Shared by {@link setListingGroups} (its own batch) and
- * {@link setListingGroupsTx} (on a caller's transaction) so they can't drift. */
+/** The DELETE/INSERT statements to move a listing from its `current` group set to
+ * the `desired` one, preserving the membership rows (and their `listing_prices`
+ * overrides) for groups in both. Shared by {@link setListingGroups} (its own
+ * batch) and {@link setListingGroupsTx} (on a caller's transaction) so they can't
+ * drift. */
 const listingGroupDiffStatements = (
   listingId: number,
   current: Set<number>,
@@ -597,28 +595,48 @@ export const setListingGroupsTx = async (
 };
 
 /**
- * Remove every listing from a group (used when the group is deleted), along
- * with the group's per-day package overrides — its `group_day` price rows key
- * on the group id, so they'd otherwise outlive the deletion.
+ * Remove every listing from a group (used when the group is deleted), along with
+ * the group's package price overrides — its flat `group` and per-day `group_day`
+ * price rows key on the group id, so they'd otherwise outlive the deletion.
  */
 export const resetGroupListings = async (groupId: number): Promise<void> => {
   await execute("DELETE FROM group_listings WHERE group_id = ?", [groupId]);
-  for (const stmt of groupDayPriceStatements(groupId, [])) {
+  for (const stmt of [
+    ...groupFlatPriceStatements(groupId, []),
+    ...groupDayPriceStatements(groupId, []),
+  ]) {
     await execute(stmt.sql, stmt.args);
   }
 };
+
+/** Correlated subquery projecting a membership row's flat package override from
+ * the `group` dimension of `listing_prices` (the source of truth since the
+ * `group_listings.package_price` column was retired). NULL when the member has no
+ * override — exactly the old NULLable column's "charge the listing's own price".
+ * `groupIdExpr` is the outer group id column (a `groupListing` alias is assumed). */
+const groupFlatPriceSubquery = (groupIdExpr: string): string =>
+  `(SELECT listingPrice.unit_price FROM listing_prices AS listingPrice
+      WHERE listingPrice.listing_id = groupListing.listing_id
+        AND listingPrice.price_type = '${PRICE_TYPE_GROUP}'
+        AND listingPrice.price_id = CAST(${groupIdExpr} AS TEXT)) AS package_price`;
 
 /**
  * Every membership row for a group, carrying its `package_price` override and
  * per-package `quantity`. A `null` `package_price` means "no override — use the
  * listing's own price", `0` means explicitly free in this package, and a
- * positive value overrides the price; `quantity` defaults to 1.
+ * positive value overrides the price; `quantity` defaults to 1. The override is
+ * read from the `group` dimension of `listing_prices`; `quantity` from the
+ * membership row.
  */
 export const getGroupPackagePrices = (
   groupId: number,
 ): Promise<GroupListing[]> =>
   queryAll<GroupListing>(
-    "SELECT group_id, listing_id, package_price, quantity FROM group_listings WHERE group_id = ? ORDER BY listing_id ASC",
+    `SELECT groupListing.group_id, groupListing.listing_id,
+            ${groupFlatPriceSubquery("groupListing.group_id")},
+            groupListing.quantity
+       FROM group_listings AS groupListing
+      WHERE groupListing.group_id = ? ORDER BY groupListing.listing_id ASC`,
     [groupId],
   );
 
@@ -662,9 +680,12 @@ export const getGroupPackagePricesByGroupIds = async (
   const result = new Map<number, GroupListing[]>();
   if (groupIds.length === 0) return result;
   const rows = await queryAll<GroupListing>(
-    `SELECT group_id, listing_id, package_price, quantity FROM group_listings
-       WHERE group_id IN (${inPlaceholders(groupIds)})
-     ORDER BY listing_id ASC`,
+    `SELECT groupListing.group_id, groupListing.listing_id,
+            ${groupFlatPriceSubquery("groupListing.group_id")},
+            groupListing.quantity
+       FROM group_listings AS groupListing
+      WHERE groupListing.group_id IN (${inPlaceholders(groupIds)})
+   ORDER BY groupListing.listing_id ASC`,
     groupIds,
   );
   for (const row of rows) {
@@ -675,21 +696,19 @@ export const getGroupPackagePricesByGroupIds = async (
   return result;
 };
 
-/** The statement that copies a source listing's per-package price/quantity onto a
+/** The statement that copies a source listing's per-package `quantity` onto a
  * freshly-duplicated listing's membership rows, for every package group they
- * share. Without this a duplicated package member would join at its base price
- * with quantity 1, silently changing the bundle's contents and checkout total.
+ * share. Without this a duplicated package member would join with quantity 1,
+ * silently changing the bundle's contents. The flat price override lives in
+ * `listing_prices` and is copied by {@link copyPackageMemberOverridesTx}.
  * Regular (non-package) shared groups carry no override, so they are untouched. */
 const copyPackageOverridesStatement = (
   sourceListingId: number,
   newListingId: number,
 ) => ({
-  args: [sourceListingId, sourceListingId, newListingId, sourceListingId],
+  args: [sourceListingId, newListingId, sourceListingId],
   sql: `UPDATE group_listings AS dst
-        SET package_price = (
-              SELECT src.package_price FROM group_listings AS src
-               WHERE src.group_id = dst.group_id AND src.listing_id = ?),
-            quantity = (
+        SET quantity = (
               SELECT src.quantity FROM group_listings AS src
                WHERE src.group_id = dst.group_id AND src.listing_id = ?)
       WHERE dst.listing_id = ?
@@ -701,9 +720,9 @@ const copyPackageOverridesStatement = (
 /** Copy the source's package overrides onto the duplicate's membership rows in
  * the SAME transaction that inserted them (the create write's `afterWrite`), so a
  * failure rolls the whole duplicate back rather than leaving a live member at the
- * default price. The source's per-day `group_day` rows are copied too — the
- * clone joins the same package groups, so the same `"<groupId>/<n>"` price_ids
- * apply to it verbatim. */
+ * default price. The flat `group` and per-day `group_day` price rows are copied
+ * straight across — the clone joins the same package groups, so the same
+ * `"<groupId>"` / `"<groupId>/<n>"` price_ids apply to it verbatim. */
 export const copyPackageMemberOverridesTx = async (
   tx: TxScope,
   sourceListingId: number,
@@ -713,38 +732,42 @@ export const copyPackageMemberOverridesTx = async (
     copyPackageOverridesStatement(sourceListingId, newListingId),
   );
   await tx.execute({
-    args: [newListingId, sourceListingId, PRICE_TYPE_GROUP_DAY],
+    args: [
+      newListingId,
+      sourceListingId,
+      PRICE_TYPE_GROUP,
+      PRICE_TYPE_GROUP_DAY,
+    ],
     sql: `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price)
           SELECT ?, price_type, price_id, unit_price FROM listing_prices
-           WHERE listing_id = ? AND price_type = ?`,
+           WHERE listing_id = ? AND price_type IN (?, ?)`,
   });
 };
 
-/** Reset-every-member-to-no-override statement (price NULL / quantity 1). */
+/** Reset-every-member-to-default-quantity statement (quantity 1). The flat price
+ * overrides are cleared separately via {@link groupFlatPriceStatements}. */
 const clearMembersStatement = (groupId: number) => ({
   args: [groupId],
-  sql: "UPDATE group_listings SET package_price = NULL, quantity = 1 WHERE group_id = ?",
+  sql: "UPDATE group_listings SET quantity = 1 WHERE group_id = ?",
 });
 
-/** The single CASE-UPDATE that applies each valid member's price/quantity,
- * resetting every other member to no-override (NULL price / quantity 1) via the
- * ELSE branches. One statement regardless of size, staying clear of the
- * round-trip guard. A member's price may be null (no override), 0 (free), or a
- * positive override. */
-const memberOverrideStatement = (
+/** The single CASE-UPDATE that applies each valid member's `quantity`, resetting
+ * every other member to the default (quantity 1) via the ELSE branch. One
+ * statement regardless of size, staying clear of the round-trip guard. The flat
+ * price overrides ride {@link groupFlatPriceStatements}, per-day overrides
+ * {@link groupDayPriceStatements}. */
+const memberQuantityStatement = (
   groupId: number,
   valid: PackageMemberInput[],
 ) => {
-  const priceCases = valid.map(() => "WHEN ? THEN ?").join(" ");
   const qtyCases = valid.map(() => "WHEN ? THEN ?").join(" ");
-  const args: (number | null)[] = [];
-  for (const { listingId, price } of valid) args.push(listingId, price);
+  const args: number[] = [];
   for (const { listingId, quantity } of valid)
     args.push(listingId, quantity ?? 1);
   args.push(groupId);
   return {
     args,
-    sql: `UPDATE group_listings SET package_price = CASE listing_id ${priceCases} ELSE NULL END, quantity = CASE listing_id ${qtyCases} ELSE 1 END WHERE group_id = ?`,
+    sql: `UPDATE group_listings SET quantity = CASE listing_id ${qtyCases} ELSE 1 END WHERE group_id = ?`,
   };
 };
 
@@ -759,9 +782,10 @@ const validMembers = (
  * Apply package-member overrides via the caller-supplied reader and runner, so
  * the batch and transactional variants share one decision tree. An explicit
  * empty array clears all overrides; a non-empty list that matches no current
- * member is a no-op (it isn't treated as "clear all"). The members' per-day
- * overrides are replaced in the same pass ({@link groupDayPriceStatements}), so
- * the `group_day` rows always match the flat overrides they were saved with.
+ * member is a no-op (it isn't treated as "clear all"). Both the flat `group` and
+ * per-day `group_day` price rows are full-replaced in the same pass
+ * ({@link groupFlatPriceStatements} / {@link groupDayPriceStatements}) so the
+ * price table always matches the members it was saved with.
  */
 const applyPackageMembers = async (
   groupId: number,
@@ -772,19 +796,28 @@ const applyPackageMembers = async (
     sql: string;
   }) => Promise<unknown>,
 ): Promise<void> => {
+  const applyMembers = async (
+    quantityStmt: { args: (number | string | null)[]; sql: string },
+    priceMembers: PackageMemberInput[],
+  ): Promise<void> => {
+    await run(quantityStmt);
+    for (const stmt of groupFlatPriceStatements(groupId, priceMembers))
+      await run(stmt);
+    for (const stmt of groupDayPriceStatements(groupId, priceMembers))
+      await run(stmt);
+  };
   if (members.length === 0) {
-    await run(clearMembersStatement(groupId));
-    for (const stmt of groupDayPriceStatements(groupId, [])) await run(stmt);
+    await applyMembers(clearMembersStatement(groupId), []);
     return;
   }
   const valid = validMembers(members, await readCurrentIds());
   if (valid.length === 0) return;
-  await run(memberOverrideStatement(groupId, valid));
-  for (const stmt of groupDayPriceStatements(groupId, valid)) await run(stmt);
+  await applyMembers(memberQuantityStatement(groupId, valid), valid);
 };
 
-/** Set the `package_price` / `quantity` on a group's membership rows. Pass `tx`
- * to run inside an existing write transaction (the admin API update path, so the
+/** Set a group's package member overrides — the flat `group` price rows in
+ * `listing_prices` plus the per-package `quantity` on the membership rows. Pass
+ * `tx` to run inside an existing write transaction (the admin API update path, so the
  * overrides commit atomically with the group row write); omit it to run as the
  * function's own statements. See {@link applyPackageMembers} for the
  * partial-update rules. */
