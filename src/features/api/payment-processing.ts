@@ -45,7 +45,14 @@ import {
   capacityErrorFormatter,
   isRegistrationClosed,
 } from "#routes/format.ts";
-import { bookingDateFields } from "#routes/public/ticket-payment.ts";
+import {
+  getVisibleGroupMembers,
+  groupBookable,
+} from "#routes/public/discovery.ts";
+import {
+  bookingDateFields,
+  lacksStandalonePublicPage,
+} from "#routes/public/ticket-payment.ts";
 import { htmlResponse, paymentErrorResponse } from "#routes/response.ts";
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
@@ -84,7 +91,11 @@ import {
   groupsTable,
   loadPackageMemberPricing,
 } from "#shared/db/groups.ts";
-import { getChildrenForParents } from "#shared/db/listing-parents.ts";
+import {
+  getChildrenForParents,
+  getNonStandaloneChildIds,
+  getParentsForChildren,
+} from "#shared/db/listing-parents.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
@@ -187,20 +198,35 @@ export const cancelPageResponse = async (
   }
   // A package checkout retries against the bundle's own page, not a member's
   // standalone page (which may hide members or use override prices/quantities).
-  const retryHref = await retryHrefFor(intent, listing.slug);
+  const retryHref = await retryHrefFor(intent, listing);
   return htmlResponse(paymentCancelPage(listing, retryHref));
 };
 
 /** The retry link for a cancelled checkout: the package group's page when the
- * order was a package, else the (first) listing's own page. Falls back to the
- * listing slug if the group is gone. */
+ * order was a package, else the (first) listing's own page. Returns null (no
+ * retry link) whenever the target page would no longer serve, so a "Try again"
+ * link never dead-ends:
+ *   - a standalone order whose listing has since lost its own booking page (it
+ *     became a non-standalone child or a hidden package member mid-checkout);
+ *   - a package order whose bundle is no longer bookable (a member was
+ *     deactivated, or the package cap dropped to 0) — the same {@link
+ *     groupBookable} gate the bundle page itself applies, so the link matches
+ *     what `/ticket/<group>` would render. When the bundle is dead we fall back
+ *     to the member's own page only if it still has one, else null. */
 const retryHrefFor = async (
   intent: BookingIntent | null,
-  listingSlug: string,
-): Promise<string> => {
-  if (intent?.packageGroupId === undefined) return `/ticket/${listingSlug}`;
+  listing: { id: number; slug: string },
+): Promise<string | null> => {
+  const standaloneHref = async () =>
+    (await lacksStandalonePublicPage(listing.id))
+      ? null
+      : `/ticket/${listing.slug}`;
+  if (intent?.packageGroupId === undefined) return standaloneHref();
   const group = await groupsTable.findById(intent.packageGroupId);
-  return `/ticket/${group?.slug ?? listingSlug}`;
+  const bundleServes =
+    group !== null &&
+    (await groupBookable(group, await getVisibleGroupMembers(group)));
+  return bundleServes ? `/ticket/${group.slug}` : standaloneHref();
 };
 
 export const validatePaidSession = async (
@@ -577,6 +603,29 @@ type ValidatedItem = {
   expectedPrice: number | null;
 };
 
+/**
+ * Pair each created booking row with its listing **by listing id**, not by
+ * position. `expandChildAllocations` can emit more rows than there are signed
+ * items — a child chosen under two parents is one signed item but two per-parent
+ * rows, plus any parent-less remainder — so a positional `validatedItems[i]`
+ * pairing would mis-align or read past the end (and throw). Every created row's
+ * listing is a signed item by construction, so the by-id lookup is total.
+ * Mirrors the free path (`ticket-payment.ts`). Exported for direct unit testing
+ * of the multi-parent count mismatch.
+ */
+export const pairEntriesByListing = <A extends { listing_id: number }>(
+  attendees: readonly A[],
+  validatedItems: readonly { listing: ListingWithCount }[],
+): { attendee: A; listing: ListingWithCount }[] => {
+  const listingByItemId = new Map(
+    validatedItems.map((v) => [v.listing.id, v.listing]),
+  );
+  return attendees.map((attendee) => ({
+    attendee,
+    listing: listingByItemId.get(attendee.listing_id)!,
+  }));
+};
+
 /** Handle the "already reserved" branch of reserveSession */
 const handleReservationConflict = async (
   intent: BookingIntent,
@@ -744,6 +793,60 @@ const orderEdgeDrifted = async (
     intent.allocations ?? [],
   );
 
+/**
+ * Whether the order books any STANDALONE unit of a child that can no longer be
+ * booked on its own — a child listing whose "can be booked by itself" flag was
+ * cleared after this checkout session opened. Completing such a unit would create
+ * a ticket whose `/ticket/<slug>` page now 404s at every fresh entry point, so it
+ * is failed closed to a price_changed refund. The order-structure drift check
+ * elsewhere only notices added/removed parent edges, not this flag flip, so it is
+ * guarded here.
+ *
+ * A unit is standalone unless it is folded under one of the child's parents in
+ * the same order. Folding happens two ways: an explicit per-parent allocation, or
+ * — when the order carries no allocations — the child being listed alongside a
+ * parent that adopts it. So a child's standalone unit count is its booked
+ * quantity minus its allocated quantity, unless the whole quantity is adopted by
+ * an in-order parent. Any positive standalone count on a now-non-standalone child
+ * is stale.
+ */
+const hasStaleStandaloneChild = async (
+  intent: BookingIntent,
+): Promise<boolean> => {
+  const orderIds = intent.items.map((item) => item.e);
+  const nonStandaloneChildIds = await getNonStandaloneChildIds(orderIds);
+  if (nonStandaloneChildIds.size === 0) return false;
+  const orderIdSet = new Set(orderIds);
+  const allocatedByChild = new Map<number, number>();
+  for (const allocation of intent.allocations ?? []) {
+    const prior = allocatedByChild.get(allocation.childId) ?? 0;
+    allocatedByChild.set(allocation.childId, prior + allocation.qty);
+  }
+  const parentsByChild = await getParentsForChildren([
+    ...nonStandaloneChildIds,
+  ]);
+  const adoptedByInOrderParent = new Set<number>();
+  for (const [childId, parents] of parentsByChild) {
+    if (parents.some((parent) => orderIdSet.has(parent.id))) {
+      adoptedByInOrderParent.add(childId);
+    }
+  }
+  return intent.items.some((item) => {
+    if (!nonStandaloneChildIds.has(item.e)) return false;
+    const allocated = allocatedByChild.get(item.e) ?? 0;
+    // Allocated units fold under their named parent; any surplus is standalone.
+    // With no allocation, the whole quantity folds only if an in-order parent
+    // adopts it — otherwise every unit is standalone.
+    const standalone =
+      allocated > 0
+        ? item.q - allocated
+        : adoptedByInOrderParent.has(item.e)
+          ? 0
+          : item.q;
+    return standalone > 0;
+  });
+};
+
 /** Validate all booking items and return per-item pricing info or a failure result. */
 const validateAllItems = async (
   session: ValidatedPaymentSession,
@@ -771,6 +874,8 @@ const validateAllItems = async (
   const foldedChildIds = new Set(
     (intent.allocations ?? []).map((a) => a.childId),
   );
+  const staleNonStandaloneChild =
+    !isPackageIntent && (await hasStaleStandaloneChild(intent));
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
     const vp = await validateListingForPayment(item.e, includeListingName);
@@ -797,6 +902,7 @@ const validateAllItems = async (
   // refund rather than booking a partial/stale bundle.
   if (
     staleHiddenMember ||
+    staleNonStandaloneChild ||
     (pkg && packageBundleMismatch(pkg, intent.items, foldedChildIds)) ||
     (await orderEdgeDrifted(intent, validatedItems))
   ) {
@@ -1175,7 +1281,7 @@ const createAttendeeForSession = async (
     ...bookingDateFields(listing, intent.date, intent.dayCount),
   }));
   // Expand summed child bookings into per-parent rows when allocations were
-  // carried through the signed metadata (Stage C paid-path provenance): each
+  // carried through the signed metadata (paid-path provenance): each
   // allocation becomes its own listing_attendees row with the correct
   // parentListingId and proportional pricePaid, mirroring the free-path behaviour
   // in createFreeReservation.
@@ -1245,10 +1351,7 @@ const createAttendeeForSession = async (
   }
   const created = result as Extract<typeof result, { success: true }>;
 
-  const entries = created.attendees.map((attendee, i) => ({
-    attendee,
-    listing: validatedItems[i]!.listing,
-  }));
+  const entries = pairEntriesByListing(created.attendees, validatedItems);
   return { entries, ok: true };
 };
 

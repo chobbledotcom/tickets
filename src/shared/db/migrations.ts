@@ -88,6 +88,7 @@ import attendeePackageGroupMigration from "./migrations/2026-06-29_attendee_pack
 import packageQuantitiesMigration from "./migrations/2026-06-29_package_quantities.ts";
 import listingPricesMigration from "./migrations/2026-07-01_listing_prices.ts";
 import sitePagesMigration from "./migrations/2026-07-01_site_pages.ts";
+import bookableAloneMigration from "./migrations/2026-07-02_bookable_alone.ts";
 import dropListingsDayPricesMigration from "./migrations/2026-07-02_drop_listings_day_prices.ts";
 import groupFlatPricesMigration from "./migrations/2026-07-02_group_flat_prices.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
@@ -282,6 +283,8 @@ export const MIGRATIONS: Migration[] = [
   sitePagesMigration,
   // From main: listing_prices table + backfill from unit_price/day_prices.
   listingPricesMigration,
+  // From main: pure additive column add (bookable_alone on listings).
+  bookableAloneMigration,
   // Move the flat package override off group_listings into listing_prices'
   // "group" dimension and drop the column — package pricing now lives entirely
   // in listing_prices.

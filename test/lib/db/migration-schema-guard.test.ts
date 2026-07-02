@@ -68,10 +68,11 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-29_attendee_package_group",
         "2026-07-01_site_pages",
         "2026-07-01_listing_prices",
+        "2026-07-02_bookable_alone",
         "2026-07-02_group_flat_prices",
         "2026-07-02_drop_listings_day_prices",
       ],
-      schemaHash: "76rh1a",
+      schemaHash: "zv2582",
     });
   });
 });

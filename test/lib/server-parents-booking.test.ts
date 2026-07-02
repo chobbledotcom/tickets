@@ -63,8 +63,7 @@ describeWithEnv(
         contains: '"1"',
         // The parent offers up to 5, but its single auto-selected child is capped
         // at 1, so child quantity (slaved to the parent) can only be 1 — the page
-        // must offer only quantity 0–1, not 2–5 the submit fold would reject
-        // (Codex 565).
+        // must offer only quantity 0–1, not 2–5 the submit fold would reject.
         name: "a parent's quantity is clamped to a single child's capacity",
         notContains: ['"2"', '"5"'],
         setup: () =>
@@ -76,7 +75,7 @@ describeWithEnv(
       {
         contains: '"3"',
         // With the child capped at 3, the parent offering 5 must offer up to 3 and
-        // no higher (Codex 565).
+        // no higher.
         name: "a parent's quantity is clamped to a child capped at three",
         notContains: ['"4"', '"5"'],
         setup: () =>
@@ -90,7 +89,7 @@ describeWithEnv(
         // Parent and its only child share a capped group, so each order consumes
         // TWO group spots (parent + auto-selected child). With two spots free the
         // selector must offer quantity 1 and never 2, which the submit-side
-        // combined-demand check would reject (Fix 3, invariant I7).
+        // combined-demand check would reject.
         name: "a parent + child sharing a capped group with 2 spots offers only qty 1",
         notContains: ['"2"'],
         setup: () =>
@@ -103,7 +102,7 @@ describeWithEnv(
       {
         contains: '"2"',
         // With four shared spots free, two parent+child orders fit (four units), so
-        // the selector offers up to quantity 2 and no higher (Fix 3).
+        // the selector offers up to quantity 2 and no higher.
         name: "a parent + child sharing a capped group with 4 spots offers up to qty 2",
         notContains: ['"3"'],
         setup: () =>
@@ -120,7 +119,7 @@ describeWithEnv(
         // spots from that one pool, so only one combined order fits. The parent
         // quantity selector must offer 1 and never 2 — summing each child's own cap
         // (1 + 1 = 2) over-offered, and `checkBatchAvailability` would reject a 2.
-        name: "an ungrouped parent + two children sharing a 1-spot capped group offers parent max 1 (Fix 3)",
+        name: "an ungrouped parent + two children sharing a 1-spot capped group offers parent max 1",
         notContains: ['"2"'],
         setup: async () => {
           const childGroup = await createTestGroup({
@@ -142,7 +141,7 @@ describeWithEnv(
         // total across the two children, so the parent offers up to 3 and no higher
         // — proving the cohort is clamped by the pool's remaining (3), not summed
         // per child (5 + 5) and not floor-divided (this group has no parent in it).
-        name: "an ungrouped parent + two children sharing a 3-spot capped group offers parent max 3 (Fix 3)",
+        name: "an ungrouped parent + two children sharing a 3-spot capped group offers parent max 3",
         notContains: ['"4"'],
         setup: async () => {
           const childGroup = await createTestGroup({
@@ -164,9 +163,9 @@ describeWithEnv(
         // would fit the pool — but the single child itself caps at 1, so only ONE
         // order can actually be fulfilled. The parent quantity (which the sole child
         // is auto-filled to) must be clamped to 1, never offering 2 the submit fold
-        // would reject. Before Fix 5 the shared-group cap ignored the child's own
-        // `maxPurchasable` and offered up to 5.
-        name: "a parent + child sharing a big capped group is clamped by the child's own capacity (Fix 5)",
+        // would reject. A naive shared-group cap that ignored the child's own
+        // `maxPurchasable` would offer up to 5.
+        name: "a parent + child sharing a big capped group is clamped by the child's own capacity",
         notContains: ['"2"'],
         setup: () =>
           makeParent({
@@ -189,7 +188,7 @@ describeWithEnv(
       });
     }
 
-    test("a shared-group child's per-unit select is clamped by its own capacity (Fix 5)", async () => {
+    test("a shared-group child's per-unit select is clamped by its own capacity", async () => {
       // With a second (separate-pool) child the shared child renders a per-unit
       // select. The shared group has 10 spots (floor(10/2)=5 orders), but the
       // shared child caps at 1, so its OWN select must offer max 1 — the separate
@@ -453,7 +452,7 @@ describeWithEnv(
       expect((await getAttendeesRaw(listing.id)).length).toBe(1);
     });
 
-    test("a paid API parent booking with a parent customPrice charges that price (Fix 4)", async () => {
+    test("a paid API parent booking with a parent customPrice charges that price", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
       // The PARENT is pay-more; the request's `customPrice` must be parsed and
@@ -503,7 +502,7 @@ describeWithEnv(
       }
     });
 
-    test("an API parent booking rejects an out-of-range parent customPrice (Fix 4)", async () => {
+    test("an API parent booking rejects an out-of-range parent customPrice", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
       // The pay-more parent's submitted price exceeds its max_price, so the
@@ -522,7 +521,7 @@ describeWithEnv(
       expect(res.status).toBe(400);
     });
 
-    test("a paid API parent booking carries the folded dayCount for a customisable child (Fix 3)", async () => {
+    test("a paid API parent booking carries the folded dayCount for a customisable child", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
       // The parent is a FIXED 3-day daily listing (not customisable, so bookable
@@ -589,7 +588,7 @@ describeWithEnv(
       }
     });
 
-    test("a paid API parent booking for a sold-out folded order returns 409 (Fix 5)", async () => {
+    test("a paid API parent booking for a sold-out folded order returns 409", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
       // The paid path must run the folded checkAvailability preflight before
@@ -683,7 +682,7 @@ describeWithEnv(
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
       // A child with no capacity is its parent's only child, so the parent has
-      // no bookable child and is sold out (invariant I6).
+      // no bookable child and is sold out.
       const { parent } = await makeParent({ children: [{ maxAttendees: 0 }] });
       const res = await apiGet(`/api/listings/${parent.slug}`);
       expect(res.status).toBe(200);
@@ -738,7 +737,7 @@ describeWithEnv(
       expect(body.listing.children).toBeUndefined();
     });
 
-    test("API detail omits an inactive child from a parent's children (Fix 2)", async () => {
+    test("API detail omits an inactive child from a parent's children", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
       // An inactive child with spare capacity would, unfiltered, read
@@ -780,7 +779,7 @@ describeWithEnv(
       );
     });
 
-    test("API availability reports an inactive child unavailable (Fix 1)", async () => {
+    test("API availability reports an inactive child unavailable", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
       // A second active child keeps the parent itself bookable, so the response
@@ -806,7 +805,7 @@ describeWithEnv(
       );
     });
 
-    test("API availability reports a registration-closed child unavailable (Fix 1)", async () => {
+    test("API availability reports a registration-closed child unavailable", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
       // The second child's registration has closed (closes_at in the past); like
@@ -850,14 +849,14 @@ describeWithEnv(
       expect(body.children).toEqual([{ available: true, slug: child.slug }]);
     });
 
-    test("a daily parent's availability is false for a date no child can serve (Fix 1)", async () => {
+    test("a daily parent's availability is false for a date no child can serve", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
       // The parent is bookable every weekday, but its only (daily) child is
       // bookable only on Mondays. A date the child cannot serve must report
       // `available: false` even though the parent's OWN row has capacity — the
       // availability endpoint must honour the child-date union, matching the
-      // detail endpoint and the booking fold (Fix 1).
+      // detail endpoint and the booking fold.
       const { parent, child } = await makeParent({
         children: [{ bookableDays: ["Monday"], daily: true }],
         parent: { daily: true },
@@ -892,7 +891,7 @@ describeWithEnv(
       expect(open.available).toBe(true);
     });
 
-    test("API availability reports a daily child unavailable when it can't serve the date (Fix B)", async () => {
+    test("API availability reports a daily child unavailable when it can't serve the date", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
       // Parent has two daily children: A serves all days, B serves only Monday.
@@ -990,12 +989,12 @@ describeWithEnv(
       expect(body).toContain(`name="quantity_${b.id}"`);
     });
 
-    test("GET /api/listings reports a no-bookable-child parent as sold out (Fix 3)", async () => {
+    test("GET /api/listings reports a no-bookable-child parent as sold out", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
       // The parent's only child has no capacity, so the parent has no bookable
-      // child and is sold out (invariant I6) — the list response must project
-      // that, matching the detail/availability endpoints (Fix 3), not advertise
+      // child and is sold out — the list response must project
+      // that, matching the detail/availability endpoints, not advertise
       // the parent's own standalone capacity as bookable.
       const { parent } = await makeParent({ children: [{ maxAttendees: 0 }] });
       const body = (await (await apiGet("/api/listings")).json()) as {
@@ -1010,7 +1009,7 @@ describeWithEnv(
       expect(row.maxPurchasable).toBe(0);
     });
 
-    test("GET /api/listings keeps a parent with a bookable child bookable (Fix 3)", async () => {
+    test("GET /api/listings keeps a parent with a bookable child bookable", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
       const { parent } = await makeParent();
@@ -1026,13 +1025,13 @@ describeWithEnv(
       expect(row.maxPurchasable).toBeGreaterThan(0);
     });
 
-    test("API detail availableDates of a daily parent equal the child-constrained intersection (Fix 4)", async () => {
+    test("API detail availableDates of a daily parent equal the child-constrained intersection", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
       // The parent is bookable every weekday, but its only (daily) child is
       // bookable only on Mondays. The API detail must advertise only the dates a
       // child can serve — the intersection — so it never offers a date the web
-      // selector removes and the fold rejects (Fix 4).
+      // selector removes and the fold rejects.
       const { parent, child } = await makeParent({
         children: [{ bookableDays: ["Monday"], daily: true }],
         parent: { daily: true },
@@ -1061,7 +1060,7 @@ describeWithEnv(
       expect(expected.length).toBeLessThan(parentDates.length);
     });
 
-    test("a plain daily listing API detail keeps its full calendar (Fix 4 no-op)", async () => {
+    test("a plain daily listing API detail keeps its full calendar", async () => {
       // A daily listing with no child edges is not a parent, so the child-date
       // constraint is a no-op: the API still advertises its own full calendar.
       const { settings } = await import("#shared/db/settings.ts");
@@ -1082,11 +1081,11 @@ describeWithEnv(
       expect(expected.length).toBeGreaterThan(0);
     });
 
-    test("a group whose only member is a child returns 404 (Fix 6)", async () => {
+    test("a group whose only member is a child returns 404", async () => {
       // Every member of the group is a child of a parent outside the group, so
       // dropping children empties the page — there is nothing standalone-bookable
       // and a booking can never start from a child, so the group page 404s rather
-      // than rendering a 200 empty booking page (Fix 6).
+      // than rendering a 200 empty booking page.
       const group = await createTestGroup({ name: "Child-only group" });
       await makeParent({ children: [{ groupId: group.id }] });
       const res = await ticketGet(group.slug);
@@ -1094,7 +1093,7 @@ describeWithEnv(
       expect(res.status).toBe(404);
     });
 
-    test("a group with a child-only set suppresses its CTA on /listings (Fix 6)", async () => {
+    test("a group with a child-only set suppresses its CTA on /listings", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicSite(true);
       const group = await createTestGroup({ name: "Child-only listed group" });
@@ -1140,10 +1139,10 @@ describeWithEnv(
       expect(listingsBody).not.toContain(`href="/ticket/${group.slug}"`);
     });
 
-    test("a group QR 404s when its only active member is a child (Fix 3)", async () => {
+    test("a group QR 404s when its only active member is a child", async () => {
       // The group's only active member is a child of a parent outside the group,
       // so `/ticket/<group>` drops it and 404s — its QR encodes that dead link,
-      // so the QR route must 404 too (Fix 3).
+      // so the QR route must 404 too.
       const group = await createTestGroup({ name: "Child-only QR group" });
       await makeParent({ children: [{ groupId: group.id }] });
       const { handleRequest } = await import("#routes");
@@ -1182,7 +1181,7 @@ describeWithEnv(
       expect(res.status).toBe(404);
     });
 
-    test("an ordinary group's QR still renders (Fix 3)", async () => {
+    test("an ordinary group's QR still renders", async () => {
       const group = await createTestGroup({ name: "Plain QR group" });
       await createTestListing({ groupId: group.id, name: "A" });
       await createTestListing({ groupId: group.id, name: "B" });
@@ -1203,7 +1202,7 @@ describeWithEnv(
         " two rows with distinct parentListingId",
       async () => {
         // The buyer books parentA (qty 1) and parentB (qty 1) in one cart.
-        // Both require the same shared child. With Stage B, expandChildAllocations
+        // Both require the same shared child. expandChildAllocations
         // splits the folded child into two listing_attendees rows (one per
         // parent), each carrying the correct parentListingId.
         const child = await createTestListing({

@@ -1,5 +1,5 @@
 /**
- * Public `/page/:slug` — a user-created content page (pages.md).
+ * Public `/page/:slug` — a user-created content page.
  *
  * Gate order matters: `requirePublicSite` runs FIRST, before any slug lookup,
  * so a disabled site redirects to the admin login without leaking whether a

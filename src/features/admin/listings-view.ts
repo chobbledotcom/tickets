@@ -13,7 +13,6 @@ import {
   listingAttendeesLoader,
 } from "#routes/admin/actions.ts";
 import type { AuthSession } from "#routes/auth.ts";
-import { anyChildListing } from "#routes/public/ticket-payment.ts";
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -24,7 +23,10 @@ import {
   getHiddenPackageMemberIds,
   groupsTable,
 } from "#shared/db/groups.ts";
-import { getChildrenForParents } from "#shared/db/listing-parents.ts";
+import {
+  anyNonStandaloneChild,
+  getChildrenForParents,
+} from "#shared/db/listing-parents.ts";
 import {
   getListingAggregateRecalculation,
   listingRevenueBreakdown,
@@ -225,9 +227,10 @@ const renderListingPage = async (
             loadListingQuestionData(listing.id, attendeeIds),
             loadGroupContext(listing, dateFilter),
             getListingAggregateRecalculation(listing),
-            // A child has no standalone share/QR affordance (invariant I3);
-            // `anyChildListing` no-ops (no query) when the feature is off.
-            anyChildListing([listing.id]),
+            // A non-standalone child has no standalone share/QR affordance;
+            // a `bookable_alone` child keeps them. The predicate
+            // no-ops (no query) when the feature is off.
+            anyNonStandaloneChild([listing.id]),
             // A hidden package's member has no standalone public page either (its
             // /ticket slug 404s), so its share/QR/embed affordances are suppressed
             // the same way a child's are.

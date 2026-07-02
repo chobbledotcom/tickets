@@ -107,7 +107,7 @@ export const successPage = ({
  */
 export const paymentCancelPage = (
   _listing: Listing,
-  ticketUrl: string,
+  ticketUrl: string | null,
 ): string =>
   String(
     <Layout title={t("payment.cancel.title")}>
@@ -116,11 +116,20 @@ export const paymentCancelPage = (
           <h1>{t("payment.cancel.heading")}</h1>
           <p>{t("payment.cancel.message")}</p>
         </div>
+        {/* No retry link when the listing has lost its own booking page mid-
+            checkout (now a non-standalone child or hidden package member): the
+            /ticket/<slug> link would 404. Offer a way home instead. */}
         <p>
-          <a class="btn outline" href={ticketUrl}>
-            <Icon name="rotate-ccw" />
-            <span>{t("payment.cancel.try_again")}</span>
-          </a>
+          {ticketUrl ? (
+            <a class="btn outline" href={ticketUrl}>
+              <Icon name="rotate-ccw" />
+              <span>{t("payment.cancel.try_again")}</span>
+            </a>
+          ) : (
+            <a class="btn outline" href="/">
+              <span>{t("payment.cancel.return_home")}</span>
+            </a>
+          )}
         </p>
       </div>
     </Layout>,

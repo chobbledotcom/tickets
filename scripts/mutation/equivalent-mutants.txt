@@ -209,3 +209,7 @@ src/shared/db/listing-prices.ts:109:45  ?? → ||    # foldGroupDayRows result.g
 # value equals the "" fallback.
 src/features/admin/attendee-page.ts:266:60  ?? → ||    # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
 src/features/admin/entity-pages.ts:230:28  ?? → ||    # opts.baseUrl: string|undefined; the only falsy-non-null value "" equals the "" fallback
+
+# attendee merge/refund route: mutants with no observable effect.
+src/features/admin/attendees-merge.ts:356:10  === → !=    # toBookingChoice: keep_target and skip_source are consumed identically (attendee-merge.ts "do nothing for this booking"), so normalizing one to the other is unobservable
+src/features/admin/attendee-refunds.ts:172:24  ?? → ||    # flash.error: string|undefined from applyFlash; a refund error flash is always a non-empty message, so the only falsy-non-null value "" never occurs and ?? / || agree

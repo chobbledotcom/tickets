@@ -3,8 +3,8 @@ import type { ListingWithCount } from "#shared/types.ts";
 /**
  * The canonical **booking-node tree** — one in-memory model that represents a
  * standalone listing, an ad-hoc multi-slug cart, a regular group, a package, and
- * parent/child folding as configurations of the *same* structure (see
- * `booking-unification.md`). Phase 1 introduces the model and a pure builder
+ * parent/child folding as configurations of the *same* structure. Phase 1
+ * introduces the model and a pure builder
  * ({@link import("./build-tree.ts").buildBookingTree}); later phases move the
  * fold, pricing, capacity, and revalidation walks onto it.
  *

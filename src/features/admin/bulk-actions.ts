@@ -104,7 +104,7 @@ const groupTogglePost = (opts: { active: boolean; action: string }) =>
       // orphan a child-scoped opt-in add-on rescued only by those members'
       // pages. Run the same shared guard the single-listing/API paths use,
       // with all members' ids marked inactive together, and block before the
-      // batch UPDATE (parents.md Fix 5). Reactivation can only add pages.
+      // batch UPDATE. Reactivation can only add pages.
       if (!opts.active) {
         const members = await getListingsByGroupId(group.id);
         const error = await deactivationOrphanedAddOnError(

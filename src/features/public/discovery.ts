@@ -4,19 +4,18 @@
  * Every discovery surface (public listing cards, the order gallery, RSS/ICS feeds,
  * the admin multi-booking link builder, per-listing share/QR generators) advertises
  * a standalone `/ticket/<slug>` entry point. Because a booking can never start from
- * a child (invariant I3), a *visible* child must not advertise such a link, and a
+ * a child, a *visible* child must not advertise such a link, and a
  * parent whose required children are **all unavailable** must read as sold out
- * (invariant I6) — else the surface publishes a link the booking gate then rejects.
+ * — else the surface publishes a link the booking gate then rejects.
  * This module is the single source of truth those surfaces share.
  *
  * Availability note: discovery has no submitted date/duration, so child bookability
  * is evaluated at the minimum order (a single day) using the card-level
  * sold-out/closed state — "no child is individually bookable" ⇒ parent sold out.
  * The combined-group-demand refinement (a parent and its auto-selected child sharing
- * a capped group consume two spots) is described in parents.md ("the *combined*
- * parent+child demand check"); the date-/duration-specific evaluation lives in the
- * booking gate, the authority that ultimately rejects an unbookable order. See
- * parents.md, "Public listing cards" and "no bookable child ⇒ sold out".
+ * a capped group consume two spots) is the *combined* parent+child demand check;
+ * the date-/duration-specific evaluation lives in the booking gate, the authority
+ * that ultimately rejects an unbookable order.
  */
 
 import { mapNotNullish, mapParallel, unique } from "#fp";
@@ -29,6 +28,7 @@ import {
 } from "#shared/db/attendees.ts";
 import {
   getActiveListingsByGroupId,
+  getActiveListingsByGroupIds,
   getAllGroups,
   getGroupIdsByListingIds,
   getGroupListingIds,
@@ -40,6 +40,7 @@ import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   getChildListingIds,
   getChildrenForParents,
+  getNonStandaloneChildIds,
   getParentsForChildren,
 } from "#shared/db/listing-parents.ts";
 import {
@@ -103,26 +104,73 @@ export const getVisibleGroupMembers = async (
 ): Promise<ListingWithCount[]> =>
   visibleGroupMembers(group, await getActiveListingsByGroupId(group.id));
 
+/** Batched {@link getVisibleGroupMembers}: the buyer-visible active members of
+ * SEVERAL groups keyed by group id, loaded in a bounded number of reads (one
+ * member batch plus one hidden-package lookup) rather than per group. The
+ * site-page nav resolves many group leaves at once, so it uses this to avoid a
+ * member query per group; each group's members still pass the same hidden-drop
+ * {@link visibleGroupMembers} applies, computed here from one shared hidden set.
+ * (A package's own whole-bundle cap is still judged per group in {@link
+ * packageGroupBookable} — that is genuinely per-package work.) */
+export const getVisibleGroupMembersByGroupIds = async (
+  groups: readonly Group[],
+): Promise<Map<number, ListingWithCount[]>> => {
+  const membersByGroup = await getActiveListingsByGroupIds(
+    groups.map((group) => group.id),
+  );
+  const hidden = await getHiddenPackageMemberIds([
+    ...new Set(
+      [...membersByGroup.values()].flatMap((members) =>
+        members.map((member) => member.id),
+      ),
+    ),
+  ]);
+  return new Map(
+    groups.map((group) => {
+      // getActiveListingsByGroupIds seeds an entry for every id it is passed, so
+      // this is always defined for a group we asked about.
+      const members = membersByGroup.get(group.id)!;
+      return [
+        group.id,
+        // Mirror visibleGroupMembers without a per-group hidden query: a package
+        // IS its membership; any other group drops a hidden package's members.
+        group.is_package
+          ? members
+          : members.filter((member) => !hidden.has(member.id)),
+      ];
+    }),
+  );
+};
+
 /**
  * How a discovery surface should treat each listing:
- * - `childIds` — **every** child of some parent. A booking can never start from a
- *   child (invariant I3) — the slug guard rejects *all* child slugs regardless of
- *   parent.active — so a child's standalone CTA (and feed/gallery/builder/share
- *   affordance) is suppressed in every case, matching what `getChildListingIds`
- *   rejects at the booking entry point.
- * - `addOnChildIds` — the subset of `childIds` with at least one **bookable**
- *   parent (active AND not sold out AND not registration-closed, its own date-less
- *   row availability). Such a child has a live parent page that can offer and fold
- *   it, so its card shows the "available as an add-on" note. A child whose every
- *   parent is inactive/sold out/closed has *no* parent page to offer it (a dead
- *   end), so the note would point at nothing: it renders **unavailable** instead
- *   (parents.md, "Public listing cards", Fix 1).
+ * - `childIds` — **every** child of some parent (the STRUCTURAL set). Used by the
+ *   group-liveness gate, which must treat a flagged child as a non-member of the
+ *   group page: a group whose only members are `bookable_alone` children is not
+ *   advertised live, since its `/ticket/<group>` page still folds them away. A
+ *   flagged child's *own* page and catalog card are its surfaces, not the group's.
+ * - `nonStandaloneChildIds` — the subset of `childIds` that are NOT sold on their
+ *   own (`bookable_alone = 0`), the GATE set. A booking can never start from such
+ *   a child, so its standalone CTA (and feed/gallery/builder/share
+ *   affordance) is suppressed, matching what `getNonStandaloneChildIds` rejects at
+ *   the booking entry point. A `bookable_alone` child is excluded here, so its own
+ *   card/detail/API entry renders normally even though it still folds under its
+ *   parents.
+ * - `addOnChildIds` — the subset of `nonStandaloneChildIds` with at least one
+ *   **bookable** parent (active AND not sold out AND not registration-closed, its
+ *   own date-less row availability). Such a child has a live parent page that can
+ *   offer and fold it, so its card shows the "available as an add-on" note. A
+ *   child whose every parent is inactive/sold out/closed has *no* parent page to
+ *   offer it (a dead end), so the note would point at nothing: it renders
+ *   **unavailable** instead. A
+ *   `bookable_alone` child is never added — its card shows its own Book CTA.
  * - `soldOutParentIds` — parents with no bookable child (combined parent+child
- *   demand, invariant I7); their card must render sold out (and be omitted from
+ *   demand); their card must render sold out (and be omitted from
  *   feeds/gallery), since the booking gate would reject the order.
  */
 export type DiscoveryClassification = {
   childIds: ReadonlySet<number>;
+  nonStandaloneChildIds: ReadonlySet<number>;
   addOnChildIds: ReadonlySet<number>;
   soldOutParentIds: ReadonlySet<number>;
 };
@@ -130,14 +178,14 @@ export type DiscoveryClassification = {
 /** Whether a built child is individually bookable at render (no submitted date):
  * active, not closed, and — for its capacity component — *potentially* bookable.
  *
- * The capacity component splits by listing kind (Codex 63). A STANDARD child's
+ * The capacity component splits by listing kind. A STANDARD child's
  * `isSoldOut` is a date-less cumulative fact, so it applies directly. A DAILY
  * child never reads sold out date-lessly (`buildTicketListing` makes no
  * date-less capacity claim for daily, #51); what CAN disqualify it here is its
  * calendar — it must have at least one bookable start covering a span the
  * parent offers. Its true per-date capacity is the submit-side fold's job
  * (rejects — never clamps — a full date). Hidden children stay bookable —
- * `hidden` governs the index, not eligibility (parents.md, Edge cases). */
+ * `hidden` governs the index, not eligibility. */
 const childBookable = (
   child: TicketListing,
   holidays: Holiday[],
@@ -149,7 +197,7 @@ const childBookable = (
   // A daily child counts as bookable when it can serve ANY span the parent
   // actually offers (the buyer picks one) — not merely a one-day start. A
   // customisable parent that only prices longer runs offers no 1-day booking,
-  // so a one-day fallback would advertise a child it can never fold (Codex).
+  // so a one-day fallback would advertise a child it can never fold.
   parentSpans.some((span) =>
     childCalendarOrInStockForSpan(holidays, span, parentDates)(child),
   );
@@ -167,7 +215,7 @@ const parentOfferedSpans = (parent: ListingWithCount): (number | null)[] =>
     ? availableDayCounts(parent)
     : [fixedParentSpan(parent)];
 
-/** Whether a *parent* can currently offer its children as add-ons (Fix 1): its own
+/** Whether a *parent* can currently offer its children as add-ons: its own
  * row must be active AND not sold out AND not registration-closed. An inactive/sold
  * out/closed parent cannot fold a child into a booking, so a child whose only
  * parents are all such has no live parent page to be offered under — a dead end.
@@ -187,7 +235,7 @@ const parentBookable = (
 };
 
 /** A daily parent's own bookable start dates (its booking page's candidate dates),
- * against which a daily child's calendar must overlap (Fix 5); `null` for a
+ * against which a daily child's calendar must overlap; `null` for a
  * non-daily parent, which has NO date selector — a daily child under it inherits no
  * parent date, so no overlap applies (the child is judged by its own calendar /
  * fixed span). */
@@ -201,7 +249,7 @@ const parentDatesOf = (
 
 /** The capacity inputs a child-bookability check needs: the child's OWN per-listing
  * group-remaining (for its sold-out state) plus the PER-GROUP capacity maps and
- * group membership (for the SPECIFIC group it shares with the parent, Codex #3). */
+ * group membership (for the SPECIFIC group it shares with the parent). */
 export type ChildCapacityCtx = {
   childOwnRemaining: ReadonlyMap<number, number>;
   remainingByGroupId: ReadonlyMap<number, number>;
@@ -211,11 +259,11 @@ export type ChildCapacityCtx = {
 
 /** Whether a child is bookable *for a given parent* on a discovery surface:
  * individually bookable (active, not sold out/closed at the minimum single-day
- * order), bookable on a date the PARENT can serve (Fix 5), AND combined
- * parent+child demand fits the shared group capacity (invariant I7).
+ * order), bookable on a date the PARENT can serve, AND combined
+ * parent+child demand fits the shared group capacity.
  *
  * The shared-group facts are computed over the group the parent and child SHARE
- * (the per-group maps), not the child's tightest group overall (Codex #3): a child
+ * (the per-group maps), not the child's tightest group overall: a child
  * also in a tighter non-shared group must not be wrongly rejected. The shared
  * `staticCap` is date-INDEPENDENT, so a parent+daily-child sharing a group too
  * small to ever hold both is rejected even date-less. */
@@ -234,7 +282,7 @@ const childBookableForParent = (
     holidays,
     parentOfferedSpans(parent),
     // A daily child must be bookable on a date the PARENT can serve, not merely on
-    // its own calendar (Fix 5): else disjoint weekdays leave the parent advertised
+    // its own calendar: else disjoint weekdays leave the parent advertised
     // while `getTicketContext`'s date union renders no valid date. A non-daily
     // parent has no date calendar (null), which the daily-only overlap test ignores
     // for a (necessarily standard) child.
@@ -255,18 +303,20 @@ const childBookableForParent = (
  *
  * `soldOutParentIds` contains a parent only when it has at least one child edge and
  * *none* of its children are bookable for the combined parent+child demand
- * (invariant I7) — a parent with no edges is an ordinary listing, never forced sold
+ * — a parent with no edges is an ordinary listing, never forced sold
  * out here.
  */
 export const classifyForDiscovery = async (
   listings: readonly ListingWithCount[],
 ): Promise<DiscoveryClassification> => {
   const ids = listings.map((l) => l.id);
-  const [childIds, childrenByParent, parentsByChild] = await Promise.all([
-    getChildListingIds(ids),
-    getChildrenForParents(ids),
-    getParentsForChildren(ids),
-  ]);
+  const [childIds, nonStandaloneChildIds, childrenByParent, parentsByChild] =
+    await Promise.all([
+      getChildListingIds(ids),
+      getNonStandaloneChildIds(ids),
+      getChildrenForParents(ids),
+      getParentsForChildren(ids),
+    ]);
   const byId = new Map(listings.map((l) => [l.id, l]));
   const everyChild = [...childrenByParent.values()].flat();
   // Displayed children whose add-on label we are deciding (keys of parentsByChild
@@ -296,7 +346,7 @@ export const classifyForDiscovery = async (
       ]),
     ),
   ]);
-  // Per-GROUP shared facts (the group a parent+child SHARE, Codex #3) plus each
+  // Per-GROUP shared facts (the group a parent+child SHARE) plus each
   // child's OWN per-listing remaining (its sold-out state). `membership` covers
   // parents and children alike, so it stands in for `childCaps.membership`.
   const caps: ChildCapacityCtx = {
@@ -306,14 +356,18 @@ export const classifyForDiscovery = async (
     staticCapByGroupId: childCaps.staticCap,
   };
   // A child is an add-on only when at least one parent is itself bookable AND can
-  // offer THIS child given the *combined* parent+child group demand (invariant I7,
-  // Fix 5). Using only `parentBookable` (the parent's own row) would mark a child
+  // offer THIS child given the *combined* parent+child group demand. Using only
+  // `parentBookable` (the parent's own row) would mark a child
   // available while the parent's sold-out projection below (via childBookableForParent)
   // reads the parent sold out, leaving the note a dead end (e.g. a child whose only
   // parent shares a 1-spot capped group with it: one parent+child order needs two
   // spots). Reuse the same combined-demand check both surfaces use.
   const addOnChildIds = new Set<number>();
   for (const [childId, parents] of parentsByChild) {
+    // A `bookable_alone` child gets its own Book CTA rather than the add-on note,
+    // so it never enters this set — otherwise `childCardState` would short-circuit
+    // to "addon" before it could read as a normal standalone card.
+    if (!nonStandaloneChildIds.has(childId)) continue;
     // childId comes from the displayed `ids`, so it is always present in `byId`.
     const child = byId.get(childId)!;
     const offerable = parents.some(
@@ -333,12 +387,12 @@ export const classifyForDiscovery = async (
       );
     if (!anyBookable) soldOutParentIds.add(parentId);
   }
-  return { addOnChildIds, childIds, soldOutParentIds };
+  return { addOnChildIds, childIds, nonStandaloneChildIds, soldOutParentIds };
 };
 
 /**
  * Whether a group has an active member that is actually bookable standalone:
- * neither a child (a booking can never start from a child, invariant I3) NOR a
+ * neither a child (a booking can never start from a child) NOR a
  * parent the classifier projects sold out (its required children all
  * unavailable). The single gate behind both the `/listings` group Book CTA
  * (pages.ts) and the group QR (`/ticket/<group>/qr`, ticket-routes.ts), so the
@@ -456,16 +510,16 @@ export const applyParentSoldOut = (
 
 /**
  * Project the booking page's own listings to sold-out for any parent whose children
- * are ALL unavailable (invariant I6), reusing the page's already-built
+ * are ALL unavailable, reusing the page's already-built
  * `childrenByParentId` rather than re-querying. Mirrors discovery/feed behaviour on
  * `/ticket/<parent>` so a parent with no bookable child renders sold out (no
  * quantity selector / Book control) instead of a form that could only fail with the
- * child-sold-out error at submit (Codex 914). A listing with no child edge is left
+ * child-sold-out error at submit. A listing with no child edge is left
  * untouched; the authoritative date-specific rejection still happens in the submit
  * fold.
  *
- * `caps` carries the PER-GROUP shared facts (the group a parent and child SHARE,
- * Codex #3) so the test uses the *combined* parent+child demand (invariant I7): a
+ * `caps` carries the PER-GROUP shared facts (the group a parent and child SHARE)
+ * so the test uses the *combined* parent+child demand: a
  * parent and its child in the same capped group consume two spots, so a parent with
  * a single remaining group spot reads sold out here too — matching what submit-time
  * `checkBatchAvailability` would reject. The shared `staticCap` is date-INDEPENDENT,
@@ -473,7 +527,7 @@ export const applyParentSoldOut = (
  * out even when that child is daily (no per-date remaining without a date).
  *
  * `holidays` lets a daily child's render-time bookability be judged by its own
- * calendar rather than the date-less `isSoldOut` aggregate (Codex 63 — see
+ * calendar rather than the date-less `isSoldOut` aggregate (see
  * {@link childBookable}), so a daily child full on one date doesn't force its
  * parent's page sold out for every date.
  */

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { attendeesApi } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
@@ -407,6 +407,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
       const deleted = await getAttendeeRaw(attendee.id);
       expect(deleted).toBeNull();
+
+      // The deletion is recorded in the listing activity log.
+      const { getListingActivityLog } = await import("#test-utils");
+      const log = (await getListingActivityLog(listing.id)).find((l) =>
+        l.message.includes("Incomplete attendee deleted"),
+      );
+      expect(log).toBeDefined();
+
+      // The delete releases the booking by default, so the reserved spot is
+      // freed (booked count returns to zero).
+      const counted = await getListingWithCount(listing.id);
+      expect(counted?.attendee_count).toBe(0);
     });
 
     test("refuses to delete complete attendee via delete-incomplete", async () => {
@@ -572,6 +584,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "checkin_name=John",
         "#message",
       );
+
+      // The check-in is recorded in the listing activity log.
+      const { getListingActivityLog } = await import("#test-utils");
+      const log = (await getListingActivityLog(listing.id)).find((l) =>
+        l.message.includes("checked in"),
+      );
+      expect(log).toBeDefined();
     });
 
     test("redirects to filtered page when return_filter is set", async () => {
@@ -729,7 +748,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "checkin",
         "listing",
       );
-      expectFlash(response, "Cannot check in a no-quantity line", false);
+      // With no return_url the refusal lands back on the listing page (not an
+      // empty redirect), carrying the flash.
+      await expectFlashRedirect(
+        `/admin/listing/${listingId}`,
+        "Cannot check in a no-quantity line",
+        false,
+      )(response);
       const row = await getDb().execute({
         args: [listingId],
         sql: "SELECT checked_in FROM listing_attendees WHERE listing_id = ?",
@@ -820,6 +845,52 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
+
+      // The manual add is recorded in the listing activity log, naming the
+      // attendee.
+      const { getListingActivityLog } = await import("#test-utils");
+      const log = (await getListingActivityLog(listing.id)).find((l) =>
+        l.message.includes("added manually"),
+      );
+      expect(log?.message).toContain("Jane Doe");
+    });
+
+    test("persists every submitted contact field, not just the name", async () => {
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+        fields: "email,phone,address,special_instructions",
+        maxAttendees: 100,
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/listing/${listing.id}/attendee`,
+          {
+            address: "9 Persistence Way",
+            csrf_token: csrfToken,
+            email: "persist@example.com",
+            name: "Persist Person",
+            phone: "555-7777",
+            quantity: "1",
+            special_instructions: "Aisle seat",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      // Each contact field round-trips to the edit form; a field dropped to ""
+      // on the way in would be missing here.
+      const [added] = await getAttendeesRaw(listing.id);
+      const edit = await adminGet(`/admin/attendees/${added!.id}/edit`);
+      await expectHtmlResponse(
+        edit,
+        200,
+        "Persist Person",
+        "persist@example.com",
+        "555-7777",
+        "9 Persistence Way",
+        "Aisle seat",
+      );
     });
 
     test("adds a customisable daily attendee spanning the chosen day count", async () => {
@@ -962,20 +1033,31 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
             }),
           ),
         async () => {
-          const response = await handleRequest(
-            mockFormRequest(
-              `/admin/listing/${listing.id}/attendee`,
-              {
-                csrf_token: csrfToken,
-                email: "enc@example.com",
-                name: "Enc Fail",
-                quantity: "1",
-              },
-              cookie,
-            ),
-          );
-          expect(response.status).toBe(302);
-          expectFlash(response, expect.stringContaining("Encryption"), false);
+          const errorSpy = spy(console, "error");
+          try {
+            const response = await handleRequest(
+              mockFormRequest(
+                `/admin/listing/${listing.id}/attendee`,
+                {
+                  csrf_token: csrfToken,
+                  email: "enc@example.com",
+                  name: "Enc Fail",
+                  quantity: "1",
+                },
+                cookie,
+              ),
+            );
+            expect(response.status).toBe(302);
+            expectFlash(response, expect.stringContaining("Encryption"), false);
+            // An encryption failure (and only that reason) is logged to the
+            // error log — a capacity failure is a normal outcome and isn't.
+            const logged = errorSpy.calls.map((c) => String(c.args[0]));
+            expect(logged.some((s) => s.includes("manual add attendee"))).toBe(
+              true,
+            );
+          } finally {
+            errorSpy.restore();
+          }
         },
       );
     });
@@ -2689,10 +2771,22 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         { merge_version: mergeVersion, source_token: sourceToken },
       );
 
+      // The flash names both attendees, and with no PII chosen the kept name is
+      // the target's — so it reads "into Jane Doe", never "into John Smith".
       await expectFlashRedirect(
         `/admin/attendees/${target.id}`,
-        expect.stringContaining("Merged"),
+        expect.stringContaining("Merged John Smith into Jane Doe"),
       )(response);
+
+      // The merge is recorded on the target's listing activity log, naming the
+      // source and the kept (target) attendee.
+      const { getListingActivityLog } = await import("#test-utils");
+      const mergeLog = (await getListingActivityLog(listing1.id)).find((l) =>
+        l.message.includes("merged into"),
+      );
+      expect(mergeLog?.message).toContain(
+        "Attendee 'John Smith' merged into 'Jane Doe'",
+      );
 
       // Source attendee should be deleted
       const { getAttendeeRaw } = await import("#shared/db/attendees.ts");

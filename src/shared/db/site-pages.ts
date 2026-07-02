@@ -1,5 +1,5 @@
 /**
- * `site_pages` table operations — user-created content pages (see pages.md).
+ * `site_pages` table operations — user-created content pages.
  *
  * Cold-start efficiency is deliberate here: the public nav only needs a **narrow
  * projection** (id, slug, name, sort_order) and must not decrypt the large

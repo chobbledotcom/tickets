@@ -17,7 +17,7 @@
  * Feedback: a successful save PRG-redirects to the Edit tab; a validation or
  * recoverable save failure re-renders the submitted form IN PLACE (through the
  * entity page for edits) so entered data and per-line errors are never lost —
- * deliberately not a stash-dependent bounce (edit-pages.md).
+ * deliberately not a stash-dependent bounce.
  */
 
 import { t } from "#i18n";

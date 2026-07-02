@@ -558,6 +558,13 @@ export const getListingFields = (): Field[] => [
     options: [{ label: t("fields.listing.purchase_only_label"), value: "1" }],
     type: "checkbox-group",
   },
+  {
+    hint: t("fields.listing.bookable_alone_hint"),
+    label: t("fields.listing.bookable_alone"),
+    name: "bookable_alone",
+    options: [{ label: t("fields.listing.bookable_alone_label"), value: "1" }],
+    type: "checkbox-group",
+  },
 ];
 
 /**

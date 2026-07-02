@@ -108,6 +108,7 @@ export const SCHEMA: [name: string, table: Table][] = [
         // base price, mirrored by the listing_prices "base" row.
         ["uses_logistics", "INTEGER NOT NULL DEFAULT 0"],
         ["use_defaults", "INTEGER NOT NULL DEFAULT 0"],
+        ["bookable_alone", "INTEGER NOT NULL DEFAULT 0"],
         // Precomputed counts over listing_attendees, maintained by the
         // LISTING_AGGREGATE_TRIGGERS so listing reads and the active-listing
         // stats never COUNT the listing_attendees table. booked_quantity is
@@ -1051,7 +1052,7 @@ export const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
-    // User-created content pages (pages.md). All free text is stored encrypted;
+    // User-created content pages. All free text is stored encrypted;
     // slug_index is the plaintext HMAC blind index. sort_order positions the
     // page among root-level pages.
     "site_pages",
@@ -1079,7 +1080,7 @@ export const SCHEMA: [name: string, table: Table][] = [
   [
     // Ordered membership edges: a listing/group/page sits inside a page. The
     // single-parent invariant for `page` items is enforced in application code
-    // (the schema can't express a partial-unique index); see pages.md N3.
+    // (the schema can't express a partial-unique index).
     "site_page_items",
     {
       columns: [

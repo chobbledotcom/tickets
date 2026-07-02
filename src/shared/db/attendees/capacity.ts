@@ -211,7 +211,7 @@ export const getGroupStaticCapByGroupId = (
  * `remaining` and date-independent `staticCap` keyed by GROUP id (not per
  * listing), plus each listing's group `membership`, so the {@link
  * SharedGroupCapacity} vocabulary can reason about the SPECIFIC group a parent and
- * child share rather than a child's tightest group overall (Codex #3). */
+ * child share rather than a child's tightest group overall. */
 export const getSharedGroupCapacities = async (
   listings: ListingForGroupLookup[],
 ): Promise<{

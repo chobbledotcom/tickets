@@ -22,7 +22,7 @@ import {
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllGroupNames, groupExists } from "#shared/db/groups.ts";
-import { getChildListingIds } from "#shared/db/listing-parents.ts";
+import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
 import {
   getListingOfferFlags,
   getListingPickerNames,
@@ -80,7 +80,7 @@ import { sitePageForm } from "./site-pages-form.ts";
  * 404), not a renewal tier ({@link isQualifyingTierListing} — the renewal
  * flow requires a site token the normal ticket flow never supplies), and not
  * a child listing (`childIds` — a booking can never start from a child,
- * invariant I3, so its `/ticket` page 404s too). */
+ * so its `/ticket` page 404s too). */
 const offerableListing = (
   id: number,
   row: ListingOfferFlags,
@@ -169,9 +169,10 @@ const buildEditModel = async (page: SitePage): Promise<EditModel> => {
   // The listing picker offers only OFFERABLE listings — active (an inactive
   // listing's public page 404s), not a renewal tier (a tier bought through a
   // normal public link would take payment without extending the site), and
-  // not a child (its public page 404s by construction — invariant I3).
-  // Labels above still read the full map.
-  const childIds = await getChildListingIds([...listingNames.keys()]);
+  // not a non-standalone child (its public page 404s by construction;
+  // a `bookable_alone` child keeps its page, so it stays
+  // offerable). Labels above still read the full map.
+  const childIds = await getNonStandaloneChildIds([...listingNames.keys()]);
   const activeListingNames = new Map(
     [...listingNames]
       .filter(([id, l]) => offerableListing(id, l, childIds))
@@ -381,7 +382,7 @@ const isEligibleTarget = async (
     // reads — a POST validation never decrypts or scans the whole catalog.
     const [flags, childIds] = await Promise.all([
       getListingOfferFlags(itemId),
-      getChildListingIds([itemId]),
+      getNonStandaloneChildIds([itemId]),
     ]);
     return flags !== undefined && offerableListing(itemId, flags, childIds);
   }

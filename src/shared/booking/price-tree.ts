@@ -8,8 +8,8 @@ import { type DayPricedListing, dayPriceFor } from "#shared/types.ts";
 
 /**
  * The unified **unit price** derivation — one evaluation of a node's `priceRule`
- * that replaces the old `itemUnitPrice` + `applyPackageOverrides` pair (see
- * `booking-unification-phase2.md`, 2b). `priceCheckout` still layers the non-line
+ * that replaces the old `itemUnitPrice` + `applyPackageOverrides` pair.
+ * `priceCheckout` still layers the non-line
  * components (modifiers, reservation deposit, booking fee, the `/pay` balance)
  * over these line prices — this module only decides the per-ticket line price.
  */

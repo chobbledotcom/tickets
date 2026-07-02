@@ -84,9 +84,9 @@ const bookingUrlFor = (selected: TicketListing[]): string => {
  * redirect into the pre-filled multi-listing booking page.
  *
  * Children are never offered as selectable gallery items (a booking can't start
- * from a child — invariant I3), so the redirect can only ever contain parents
+ * from a child), so the redirect can only ever contain parents
  * and ordinary listings; a parent with no bookable child is projected to
- * sold-out (I6) so it renders dimmed and is never pre-filled with a quantity.
+ * sold-out so it renders dimmed and is never pre-filled with a quantity.
  */
 const handleOrder = async (request: Request): Promise<Response> => {
   const blocked = orderUnavailable();
@@ -105,9 +105,12 @@ const handleOrder = async (request: Request): Promise<Response> => {
   // package card its bundle would be unbuyable from /order entirely.)
   const packageGroups = publicGroups.filter((g) => g.is_package);
   const classification = await classifyForDiscovery(listings);
-  // Drop children entirely (not selectable), then build cards and project
-  // child-derived sold-out onto the surviving parents.
-  const offered = listings.filter((e) => !classification.childIds.has(e.id));
+  // Drop non-standalone children (not selectable), then build cards and project
+  // child-derived sold-out onto the surviving parents. A `bookable_alone` child
+  // keeps its card (a direct book link to its own page).
+  const offered = listings.filter(
+    (e) => !classification.nonStandaloneChildIds.has(e.id),
+  );
   const ticketListings = applyParentSoldOut(
     await buildTicketListingsWithGroupCapacity(offered),
     classification,

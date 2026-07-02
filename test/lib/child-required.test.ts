@@ -109,7 +109,7 @@ describe("child required toggling", () => {
     expect(byHint(roots, "101").textContent).toBe("3 / 3");
   });
 
-  test("requires a sole auto-selected pay-more child's price when the parent is in the cart (Fix 2)", () => {
+  test("requires a sole auto-selected pay-more child's price when the parent is in the cart", () => {
     // A sole bookable child renders informational (no `child_qty_*` control), so
     // `chosenChildIds` never reports it. Its pay-more price input is still
     // collected and the server fold rejects a blank one, so it must be required
@@ -126,7 +126,7 @@ describe("child required toggling", () => {
     expect(byName(roots, "child_price_101_202").required).toBe(true);
   });
 
-  test("does not require a sole pay-more child's price when the parent is at zero quantity (Fix 2)", () => {
+  test("does not require a sole pay-more child's price when the parent is at zero quantity", () => {
     const roots = installFakeDom([
       quantity("101", "0"),
       childSelector("101"),

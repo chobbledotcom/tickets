@@ -27,8 +27,11 @@ import {
   PRICE_TYPE_GROUP_DAY,
   removeListingGroupPricesStatement,
 } from "#shared/db/listing-prices.ts";
-import { queryListingsWithCounts } from "#shared/db/listings.ts";
-import { allNamesById, linkRowsByIds, queryAndMap } from "#shared/db/query.ts";
+import {
+  getListingsWithCountsByIds,
+  queryListingsWithCounts,
+} from "#shared/db/listings.ts";
+import { allNamesById, queryAndMap } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
 import type {
@@ -130,13 +133,6 @@ export const getAllGroups = (): Promise<Group[]> => groupsCache.getAll();
 export const getAllGroupNames = (): Promise<Map<number, string>> =>
   allNamesById("groups", "groupRecord", "name", (raw: string) => decrypt(raw));
 
-/** Narrow id/slug/name rows for the given groups (only slug + name decrypted)
- * — the public nav's link projection. */
-export const getGroupLinkRows = (
-  ids: number[],
-): Promise<{ id: number; name: string; slug: string }[]> =>
-  linkRowsByIds("groups", "groupRecord", ids, (raw: string) => decrypt(raw));
-
 /**
  * Get a single group by slug_index (from cache)
  */
@@ -180,6 +176,46 @@ export const getActiveListingsByGroupId = (
   groupId: number,
 ): Promise<ListingWithCount[]> => queryGroupListings(groupId, true);
 
+/**
+ * The active members of SEVERAL groups at once, keyed by group id — the batched
+ * form of {@link getActiveListingsByGroupId} for a multi-group surface (the
+ * site-page nav's liveness gate). A page with many group leaves would otherwise
+ * run one member query per group; this loads the join once and the member
+ * listings once, then assembles each group's list in memory. Every group id maps
+ * to an entry (empty when it has no active member), and each list preserves the
+ * same newest-first order the single-group query returns (the member listings
+ * come back sorted, and the per-group filter keeps that order).
+ */
+export const getActiveListingsByGroupIds = async (
+  groupIds: readonly number[],
+): Promise<Map<number, ListingWithCount[]>> => {
+  const byGroup = new Map<number, ListingWithCount[]>(
+    groupIds.map((id) => [id, []]),
+  );
+  if (groupIds.length === 0) return byGroup;
+  const edges = await queryAll<{ group_id: number; listing_id: number }>(
+    `SELECT group_id, listing_id FROM group_listings
+      WHERE group_id IN (${inPlaceholders(groupIds)})`,
+    [...groupIds],
+  );
+  const members = await getListingsWithCountsByIds([
+    ...new Set(edges.map((edge) => edge.listing_id)),
+  ]);
+  const memberIdsByGroup = new Map<number, Set<number>>();
+  for (const { group_id, listing_id } of edges) {
+    const ids = memberIdsByGroup.get(group_id) ?? new Set<number>();
+    ids.add(listing_id);
+    memberIdsByGroup.set(group_id, ids);
+  }
+  for (const [groupId, ids] of memberIdsByGroup) {
+    byGroup.set(
+      groupId,
+      members.filter((member) => member.active && ids.has(member.id)),
+    );
+  }
+  return byGroup;
+};
+
 /** Does a group row exist? The add-item revalidation's single-row check — no
  * name decryption, never the whole table. */
 export const groupExists = async (id: number): Promise<boolean> =>
@@ -187,35 +223,6 @@ export const groupExists = async (id: number): Promise<boolean> =>
     "SELECT id FROM groups WHERE id = ? LIMIT 1",
     [id],
   )) !== null;
-
-/** Active listings of several groups in two bounded queries, keyed by group id
- * (a group with no active member gets no entry). The public nav's one-shot
- * liveness read — never one query per group. Membership is many-to-many
- * (`group_listings`), so a listing appears under EVERY requested group it
- * belongs to. Empty input ⇒ no query. */
-export const getActiveListingsByGroupIds = async (
-  groupIds: readonly number[],
-): Promise<Map<number, ListingWithCount[]>> => {
-  if (groupIds.length === 0) return new Map();
-  const rows = await queryListingsWithCounts(
-    `WHERE listing.active = 1 AND listing.id IN
-       (SELECT listing_id FROM group_listings WHERE group_id IN (${inPlaceholders(groupIds)}))`,
-    [...groupIds],
-  );
-  const membership = await getGroupIdsByListingIds(rows.map((row) => row.id));
-  const requested = new Set(groupIds);
-  const byGroup = new Map<number, ListingWithCount[]>();
-  for (const row of rows) {
-    // Every row came from the group_listings subquery, so membership is total.
-    for (const groupId of membership.get(row.id)!) {
-      if (!requested.has(groupId)) continue;
-      const members = byGroup.get(groupId);
-      if (members) members.push(row);
-      else byGroup.set(groupId, [row]);
-    }
-  }
-  return byGroup;
-};
 
 /**
  * Get all listings in a group with attendee counts (including inactive).

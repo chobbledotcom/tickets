@@ -25,7 +25,6 @@ import {
 } from "#routes/public/ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-listings.ts";
 import {
-  anyChildListing,
   buildRegistrationItems,
   checkAvailability,
   constrainParentDailyDates,
@@ -64,7 +63,10 @@ import {
 } from "#shared/db/booking-attempts.ts";
 import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getChildrenForParents } from "#shared/db/listing-parents.ts";
+import {
+  anyNonStandaloneChild,
+  getChildrenForParents,
+} from "#shared/db/listing-parents.ts";
 import {
   getAllListings,
   getListingWithCountBySlug,
@@ -254,7 +256,7 @@ const mapParentChildren = async <T>(
  * one (and pay the right amount) before booking; a daily child reports its own
  * bookable start dates. Empty array for a non-parent listing.
  *
- * An inactive (`active=0`) child is omitted (Fix 2): `toPublicListing` doesn't
+ * An inactive (`active=0`) child is omitted: `toPublicListing` doesn't
  * expose `active`, so an inactive child with spare capacity would otherwise read
  * `isClosed:false` with a positive `maxPurchasable` while the booking fold
  * rejects it (`childActive` in shared.tsx) — so the detail endpoint must not
@@ -329,13 +331,13 @@ const withActiveListing =
   };
 
 // =============================================================================
-// Parent/child discovery guard (Fix 2)
+// Parent/child discovery guard
 // =============================================================================
 
 /** How a single listing should read on the detail/availability surfaces under
  * the parent/child feature: a child is not standalone-bookable (404, matching
  * how the web booking page rejects a child slug), and a parent with no bookable
- * child reads sold out / unavailable (invariant I6). */
+ * child reads sold out / unavailable. */
 type ListingDiscoveryState = { isChild: boolean; isSoldOutParent: boolean };
 
 /** Classify one listing for the detail/availability endpoints, reusing the same
@@ -345,16 +347,17 @@ type ListingDiscoveryState = { isChild: boolean; isSoldOutParent: boolean };
 const listingDiscoveryState = async (
   listing: ListingWithCount,
 ): Promise<ListingDiscoveryState> => {
-  const { childIds, soldOutParentIds } = await classifyForDiscovery([listing]);
+  const { nonStandaloneChildIds, soldOutParentIds } =
+    await classifyForDiscovery([listing]);
   return {
-    isChild: childIds.has(listing.id),
+    isChild: nonStandaloneChildIds.has(listing.id),
     isSoldOutParent: soldOutParentIds.has(listing.id),
   };
 };
 
 /** Guard the detail/availability endpoints against a child listing: returns a
- * 404 response when the listing is a child (not standalone-bookable, invariant
- * I3), or `{ isSoldOutParent }` to proceed. Shared by the detail and
+ * 404 response when the listing is a child (not standalone-bookable), or
+ * `{ isSoldOutParent }` to proceed. Shared by the detail and
  * availability handlers so the child-rejection logic is never duplicated. */
 const guardChildListing = async (
   listing: ListingWithCount,
@@ -365,7 +368,7 @@ const guardChildListing = async (
 };
 
 /** Combines withActiveListing and guardChildListing: resolves the listing by
- * slug, rejects child listings with a 404 (invariant I3), then calls the
+ * slug, rejects child listings with a 404, then calls the
  * handler with the listing and its isSoldOutParent flag. */
 const withGuardedListing = (
   handler: (
@@ -393,19 +396,20 @@ const handleListListings = async (): Promise<Response> => {
     filter((e: ListingWithCount) => e.active && !e.hidden),
     (active) => sortListings(active, holidays),
   )(allListings);
-  // A child is never standalone-bookable (invariant I3), so omit children from
+  // A child is never standalone-bookable, so omit children from
   // the discovery list — a client must not find one here and then hit the
-  // booking 400 (Fix 2, parents.md "Discovery responses"). A parent with no
-  // bookable child is sold out (invariant I6): its OWN row capacity ignores its
+  // booking 400. A parent with no
+  // bookable child is sold out: its OWN row capacity ignores its
   // children, so the list must project it to sold-out / not-bookable to stay
-  // consistent with the detail/availability endpoints (Fix 3) — otherwise a
+  // consistent with the detail/availability endpoints — otherwise a
   // client lists it as bookable then hits the parent-sold-out outcome at detail.
-  const { childIds, soldOutParentIds } =
+  const { nonStandaloneChildIds, soldOutParentIds } =
     await classifyForDiscovery(visibleListings);
   // Drop the members of a HIDDEN package too: they have no standalone page (their
-  // /ticket slug 404s), so the API must not list them as bookable either.
+  // /ticket slug 404s), so the API must not list them as bookable either. A
+  // `bookable_alone` child is NOT dropped — it keeps its own catalog entry.
   const bookableListings = await dropHiddenPackageMembers(
-    visibleListings.filter((e) => !childIds.has(e.id)),
+    visibleListings.filter((e) => !nonStandaloneChildIds.has(e.id)),
   );
   const groupRemaining = await getGroupRemainingByListingId(bookableListings);
   const listings = bookableListings.map((e) => {
@@ -442,7 +446,7 @@ const handleGetListing = withGuardedListing(
       // A daily parent's API dates must match what the web selector offers: a date
       // no required child can serve (for the inherited span) is removed from the
       // parent's own calendar, so the API never advertises a date the fold rejects
-      // (Fix 4). For a non-parent daily listing this is a no-op.
+      // For a non-parent daily listing this is a no-op.
       availableDates = await constrainParentDailyDates(
         listing,
         getAvailableDates(listing, holidays),
@@ -457,7 +461,7 @@ const handleGetListing = withGuardedListing(
     // (slug, price, inputs, dates) before the booking POST.
     const withChildren =
       children.length > 0 ? { ...publicListing, children } : publicListing;
-    // A parent with no bookable child is sold out (invariant I6); the route
+    // A parent with no bookable child is sold out; the route
     // listing's own capacity ignores its children, so project the discovery
     // sold-out outcome onto the response rather than advertising it as bookable.
     return apiResponse({
@@ -471,7 +475,7 @@ const handleGetListing = withGuardedListing(
 /** Per-child availability for a parent's required children at a date/quantity, or
  * null when the listing is not a parent. A daily child takes the parent's date;
  * a standard child is date-less. An inactive (`active=0`) or registration-closed
- * child reports `available: false` regardless of spare capacity (Fix 1): the
+ * child reports `available: false` regardless of spare capacity: the
  * booking fold rejects it (`childActive`/`childOpen` in shared.tsx), so reusing
  * the same `active` + `isRegistrationClosed` predicates the fold uses keeps the
  * availability endpoint from advertising a child the booking POST would refuse. */
@@ -506,7 +510,7 @@ const buildChildAvailability = (
 /** GET /api/listings/:slug/availability — check if spots are available */
 const handleCheckAvailability = withGuardedListing(
   async (request, listing, isSoldOutParent) => {
-    // A parent with no bookable child is sold out (invariant I6): its own capacity
+    // A parent with no bookable child is sold out: its own capacity
     // ignores its children, so report it unavailable rather than letting the
     // route listing's standalone spots advertise it as bookable.
     if (isSoldOutParent) return apiResponse({ available: false });
@@ -514,7 +518,7 @@ const handleCheckAvailability = withGuardedListing(
     const quantity =
       parseNonNegativeInt(url.searchParams.get("quantity") ?? "1") ?? 1;
     const date = url.searchParams.get("date") || undefined;
-    // A daily parent's availability must honour the child-date union (Fix 1): the
+    // A daily parent's availability must honour the child-date union: the
     // route listing's own capacity ignores its children, so it could answer
     // `available: true` for a date the (child-constrained) detail endpoint omits
     // and the booking fold then rejects. Constrain the requested date through the
@@ -658,7 +662,7 @@ const resolveQuantityAndDate = async (
  * `customPrice` field): the validated price for a `can_pay_more` listing,
  * `undefined` for a fixed-price one (nothing to parse), or a 400 response when
  * the submitted price is out of range. Shared by the standalone booking path and
- * the parent-booking path (which seeds the fold's customPrices with it, Fix 4) so
+ * the parent-booking path (which seeds the fold's customPrices with it) so
  * the two never parse the pay-more price differently. */
 const resolveCustomPrice = (
   listing: ListingWithCount,
@@ -697,7 +701,7 @@ const parseApiChildSelections = (
  * submitted slug against the parent's actual children (repeated slugs sum).
  * Returns a 400 response naming a slug that is not a child of this parent, or a
  * 400 when repeated entries for one child disagree on the pay-more
- * `customPrice` (Fix 4); null when the fields were applied cleanly. */
+ * `customPrice`; null when the fields were applied cleanly. */
 const applyChildSelectionsToForm = (
   form: FormParams,
   parentId: number,
@@ -709,7 +713,7 @@ const applyChildSelectionsToForm = (
   // entries for the same child specifying different `customPrice` values (or one
   // specifying a price and another leaving it default) can't both be honoured —
   // a `form.set` would silently let the last entry's price win and book every
-  // unit at it (Fix 4). Track each child's submitted price and reject a conflict
+  // unit at it. Track each child's submitted price and reject a conflict
   // with a 400 rather than charging the wrong amount; a single aggregated entry
   // (or repeats agreeing on the price) is accepted.
   const priceByChild = new Map<number, number | undefined>();
@@ -777,7 +781,7 @@ const foldedIntent = (
   // Carry the parent's thank-you URL only once a child was actually folded in
   // (the order gained a listing): a multi-listing order can't recover it from
   // the booked listing ids, while a degenerate single-listing fold still
-  // resolves the same URL by the success handler's default rule (Fix 1).
+  // resolves the same URL by the success handler's default rule.
   ...(opts.parentThankYouUrl && fold.listings.length > 1
     ? { thankYouUrl: opts.parentThankYouUrl }
     : {}),
@@ -792,7 +796,7 @@ const foldedIntent = (
  * `parentThankYouUrl` is the single parent's configured redirect: folding a child
  * makes the order multi-listing, so the success handler's single-listing-id
  * derivation would otherwise drop it. We carry it on the paid intent so the
- * success page honours it (Fix 1) — mirroring the web folded-parent path
+ * success page honours it — mirroring the web folded-parent path
  * (`ticket-submit.ts`), which sets `intent.thankYouUrl` only once a child was
  * actually folded in.
  *
@@ -826,7 +830,7 @@ const completeFoldedBooking = async (
   const intent = foldedIntent(contact, date, fold, items, opts);
   if (isPaymentsEnabled() && total > 0) {
     // Reject a folded order whose parent or any child has exhausted capacity
-    // before creating a checkout session (Fix 5): the web paid path runs the same
+    // before creating a checkout session: the web paid path runs the same
     // `checkAvailability` preflight, so without it the API would hand back a
     // checkout URL for a sold-out order the webhook then can't create.
     const available = await checkAvailability(
@@ -874,7 +878,7 @@ const completeFoldedBooking = async (
   }
   // Notify only after stock is committed, exactly like the standalone API booking
   // (`processBooking`) and the web free path (`handleFreePath`) do after
-  // `createFreeReservation` (Fix 3): without this the folded free/provider-less
+  // `createFreeReservation`: without this the folded free/provider-less
   // parent booking silently skips the confirmation email, registration webhook,
   // and activity log every other booking path fires.
   await logAndNotifyRegistration(reservation.entries);
@@ -945,7 +949,7 @@ const processParentApiBooking = async (
   );
   if (selectionError) return selectionError;
 
-  // A pay-more PARENT carries its own custom price (Fix 4): without seeding it the
+  // A pay-more PARENT carries its own custom price: without seeding it the
   // fold prices the parent at its `unit_price` and undercharges. Resolve it the
   // same way the standalone path does and seed the fold's customPrices map; a
   // fixed-price parent contributes nothing here.
@@ -976,16 +980,18 @@ const processParentApiBooking = async (
   if (valResult instanceof Response) return valResult;
   return completeFoldedBooking(request, extractContact(valResult), date, fold, {
     // The fold always starts from this single parent, so its configured
-    // thank-you URL is the one a folded order would otherwise drop (Fix 1).
+    // thank-you URL is the one a folded order would otherwise drop.
     parentThankYouUrl: listing.thank_you_url,
   });
 };
 
 /** POST /api/listings/:slug/book — create a booking */
 const handleBook = withActiveListing(async (request, listing, server) => {
-  // A booking can never start from a child (invariant I3): a child is only
-  // bookable through one of its parents, so reject it as a direct API entry.
-  if (await anyChildListing([listing.id])) {
+  // A booking can never start from a non-standalone child: such a
+  // child is only bookable through one of its parents, so reject it as a direct
+  // API entry. A `bookable_alone` child has its own page/API eligibility, so it
+  // books directly here.
+  if (await anyNonStandaloneChild([listing.id])) {
     return apiResponse(
       { error: "This listing must be booked through its parent listing." },
       400,
@@ -1009,7 +1015,7 @@ const handleBook = withActiveListing(async (request, listing, server) => {
   if (qtyAndDate instanceof Response) return qtyAndDate;
   const { quantity, date } = qtyAndDate;
 
-  // A parent requires the buyer to choose its children (invariant I1): fold the
+  // A parent requires the buyer to choose its children: fold the
   // submitted `children` into a multi-item order rather than booking the parent
   // alone, which would bypass the gate.
   if (await parentRequiresChild(listing.id)) {

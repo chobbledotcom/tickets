@@ -45,13 +45,13 @@ describeWithEnv(
       const childRows = await getAttendeesRaw(child.id);
       expect(parentRows.length).toBe(1);
       expect(parentRows[0]?.quantity).toBe(2);
-      // Child quantity follows the parent (invariant I2).
+      // Child quantity follows the parent.
       expect(childRows.length).toBe(1);
       expect(childRows[0]?.quantity).toBe(2);
     });
 
-    test("a sole child whose cap exceeds the chosen parent qty books at the parent qty (Fix 1)", async () => {
-      // Regression for Fix 1: when the sole child's cap (5) exceeds the chosen
+    test("a sole child whose cap exceeds the chosen parent qty books at the parent qty", async () => {
+      // When the sole child's cap (5) exceeds the chosen
       // parent quantity (1), the render must NOT post a fixed child quantity — that
       // would over-submit a total of 5 and the fold would reject it as 'too many'.
       // The page is informational and the fold auto-fills exactly Q (= 1).
@@ -77,9 +77,9 @@ describeWithEnv(
       expect(childRows[0]?.quantity).toBe(1);
     });
 
-    test("the /calculate quote for a sole-child parent below the child cap succeeds (Fix 1)", async () => {
-      // The live quote runs the same fold; before Fix 1 it failed identically
-      // ('too many') because the form posted the child's max as the quantity.
+    test("the /calculate quote for a sole-child parent below the child cap succeeds", async () => {
+      // The live quote runs the same fold; a form that posted the child's max as
+      // the quantity would fail identically ('too many').
       const { parent } = await makeParent({
         children: [{ maxQuantity: 5, unitPrice: 500 }],
         parent: { maxQuantity: 5, unitPrice: 1000 },
@@ -94,7 +94,7 @@ describeWithEnv(
       expect(fragment).toContain("£15");
     });
 
-    test("a sole pay-more child auto-fills and still collects its price without a posted qty (Fix 1)", async () => {
+    test("a sole pay-more child auto-fills and still collects its price without a posted qty", async () => {
       // The informational sole-child render posts NO `child_qty_*` field, yet the
       // pay-more price input is still rendered and the fold auto-fills the child
       // to the parent quantity and charges the submitted custom price.
@@ -373,7 +373,7 @@ describeWithEnv(
     });
 
     test("a shared child under two parents produces one row per parent", async () => {
-      // Stage B: expandChildAllocations splits the fold into per-parent rows so
+      // expandChildAllocations splits the fold into per-parent rows so
       // each row carries its true parentListingId rather than collapsing into one
       // summed row that loses the per-parent provenance.
       const parentA = await createTestListing({
@@ -901,8 +901,8 @@ describeWithEnv(
     test("a paid parent's thank-you URL is carried into the checkout intent", async () => {
       // The paid path folds a required paid child, making the order
       // multi-listing; the webhook's single-listing thank-you derivation would
-      // drop the parent's URL, so it must be set explicitly on the intent
-      // (Codex 742). Capture the intent handed to the provider and assert it.
+      // drop the parent's URL, so it must be set explicitly on the intent.
+      // Capture the intent handed to the provider and assert it.
       const { setupStripe } = await import("#test-utils");
       const { stub } = await import("@std/testing/mock");
       const { stripePaymentProvider } = await import(
@@ -1018,7 +1018,7 @@ describeWithEnv(
       });
       expect(res.status).toBe(302);
       // The date the only child can't serve is no longer offered by the parent's
-      // selector (Codex 758, constrainDatesByChildUnion), so it fails the
+      // selector (constrainDatesByChildUnion), so it fails the
       // date-validation gate before the fold — still a rejection, no parent row.
       expectFlash(res, "Please select a valid date", false);
       expect((await getAttendeesRaw(parent.id)).length).toBe(0);
@@ -1091,7 +1091,7 @@ describeWithEnv(
       // A 1-capacity daily child is fully booked on day A. Its date-less
       // `isSoldOut` aggregate reads true, but a parent booking on day B (where
       // the child still has capacity) must fold the child fine — the date-less
-      // flag must not block a daily child (Codex 336). A booking on day A is
+      // flag must not block a daily child. A booking on day A is
       // still rejected, by the folded per-date availability check.
       const { bookAttendee } = await import("#test-utils");
       const { getBookableStartDates } = await import("#shared/dates.ts");
@@ -1140,8 +1140,8 @@ describeWithEnv(
       expect(parentRows[0]?.date).toBe(dayB);
     });
 
-    test("a daily child full on one date still renders bookable; the parent qty is not clamped to 0 (Fix 3)", async () => {
-      // Render regression for Fix 3: a 1-capacity daily child full on ANY single
+    test("a daily child full on one date still renders bookable; the parent qty is not clamped to 0", async () => {
+      // Render regression: a 1-capacity daily child full on ANY single
       // date reads `isSoldOut` date-lessly, but the render predicate must NOT use
       // that aggregate for a daily child (its per-date capacity is the fold's
       // job). Before the fix the child rendered disabled and `childCappedMax`
@@ -1180,14 +1180,14 @@ describeWithEnv(
       );
     });
 
-    // Fix 2: don't apply the date-less GROUP cap to a daily parent's children. A
+    // Don't apply the date-less GROUP cap to a daily parent's children. A
     // daily parent's group is type-homogeneous (group members share listing_type),
     // so any co-grouped child is itself daily — and a daily listing is excluded
     // from the date-less group aggregate (its cap is per-date), so it is never
     // pre-marked sold out by another date's bookings. Its per-date group capacity
     // is the date-aware checkBatchAvailability's job at submit. (A *standard*
     // child can't share a daily parent's group at all — the homogeneity rule
-    // blocks it — so the date-less-clamp state parents.md Fix 2 describes is
+    // blocks it — so that date-less-clamp state is
     // unreachable; these tests lock in the correct date-A/date-B behavior.)
     test("a daily parent + daily child in a group full on one date still book on a free date", async () => {
       const { bookAttendee } = await import("#test-utils");
@@ -1215,7 +1215,7 @@ describeWithEnv(
       expect(booked.success).toBe(true);
 
       // A parent booking on date B folds the daily child and reserves — date A's
-      // cumulative bookings do not clamp the child date-lessly (Fix 2).
+      // cumulative bookings do not clamp the child date-lessly.
       const okRes = await postBooking(parent.slug, {
         date: dayB,
         email: "a@b.com",
@@ -1239,7 +1239,7 @@ describeWithEnv(
       // and let the same add-on be oversold across different parent dates. The
       // fold carries it as an ordinary line and `bookingDateFields` nulls its date
       // by listing type, so the stored child row is date-less while the parent's
-      // row keeps the booked date (Codex "Keep dateless children date-less").
+      // row keeps the booked date.
       const { parent, child } = await makeParent({ parent: { daily: true } });
 
       const { getBookableStartDates } = await import("#shared/dates.ts");
@@ -1302,11 +1302,11 @@ describeWithEnv(
       expect((await getAttendeesRaw(child.id)).length).toBe(0);
     });
 
-    test("a daily child required by two parents carries each parent's own data-child-dates (Fix 4)", async () => {
+    test("a daily child required by two parents carries each parent's own data-child-dates", async () => {
       // The SAME daily child is required by two daily parents on different
       // calendars (parent A bookable only Mondays, parent B only Tuesdays). Each
       // parent's block must carry the child's serveable dates FOR THAT PARENT —
-      // keyed by the (parent, child) pair. Before Fix 4 the map was keyed by child
+      // keyed by the (parent, child) pair. A map keyed by child
       // id alone, so the second parent overwrote the first and both blocks showed
       // the same (later parent's) dates.
       const { getBookableStartDates } = await import("#shared/dates.ts");
@@ -1419,7 +1419,7 @@ describeWithEnv(
       // The parent can only offer a 3-day span; the child is priced 1 day £10,
       // 3 days £25. The label must show the price for a span the parent can
       // actually book (£25), not the child's own cheapest span (£10) the parent
-      // can never select (Codex 398).
+      // can never select.
       {
         contains: ["(from £25"],
         name: "a 'from' price uses the parent∩child spans, not the child's lowest",
@@ -1570,7 +1570,7 @@ describeWithEnv(
       // A customisable daily parent offering 1 or 3 days, with a fixed 3-day
       // daily child. A 1-day booking can't fold the 3-day child (its span would
       // not match the parent's), so the parent is sold out; a 3-day booking
-      // folds the child fine (Codex 449).
+      // folds the child fine.
       const { parent, child } = await makeParent({
         children: [{ daily: true, durationDays: 3 }],
         parent: {
@@ -1620,7 +1620,7 @@ describeWithEnv(
     test("a parent's pay-more children render non-required price inputs", async () => {
       // The no-JS baseline emits a price input for EVERY pay-more child of a
       // parent; none may be HTML-required or the browser blocks submit demanding
-      // a price for an unselected child (Codex 379).
+      // a price for an unselected child.
       // A bookable but NON-pay-more sibling must get no price input at all.
       const { parent, children } = await makeParent({
         children: [
@@ -1668,7 +1668,7 @@ describeWithEnv(
       // rendered as a disabled (fixed-0) quantity control and never selectable,
       // leaving the lone active child as the sole bookable option — which, being
       // the only bookable child, renders informational (auto-filled by the fold)
-      // and posts NO quantity field of its own (Fix 1).
+      // and posts NO quantity field of its own.
       const { parent, children } = await makeParent({ children: [{}, {}] });
       const [liveChild, deadChild] = [children[0]!, children[1]!];
       await deactivateTestListing(deadChild.id);
@@ -1718,7 +1718,7 @@ describeWithEnv(
     });
 
     test("a sole pay-more child auto-fills and still renders its price input", async () => {
-      // The single-bookable-child path is informational (no quantity field, Fix 1)
+      // The single-bookable-child path is informational (no quantity field)
       // but still renders a pay-more child's non-required price input so a buyer
       // can name a price without choosing.
       const { parent, child } = await makeParent({
@@ -1732,7 +1732,7 @@ describeWithEnv(
       expect(html).toContain(`name="child_price_${parent.id}_${child.id}"`);
     });
 
-    test("a sole bookable child renders informational with no submitted quantity field (Fix 1)", async () => {
+    test("a sole bookable child renders informational with no submitted quantity field", async () => {
       // A sole bookable child must NOT post a fixed quantity (it would over-submit
       // when the parent qty is below the child's cap and the fold would reject it
       // as 'too many'). It renders informational; the fold auto-fills Q.
@@ -1775,7 +1775,7 @@ describeWithEnv(
 
     test("a sole hidden child renders no name or price label but keeps its markers and price input", async () => {
       // A hidden listing the operator has chosen not to surface publicly: the
-      // auto-selected sole child still folds in (invariant I12), so its data
+      // auto-selected sole child still folds in, so its data
       // marker and pay-more price input stay in the DOM for the fold/compat
       // scripts — but nothing identifying (name or price label) is shown.
       const { parent, child } = await makeParent({
@@ -1845,7 +1845,7 @@ describeWithEnv(
       // The daily parent is bookable every day, but its only (daily) child is
       // bookable on a single weekday. The rendered date selector must offer only
       // the child's dates (parentDates ∩ child union), never a parent-only date
-      // the submit fold would reject (Codex 758).
+      // the submit fold would reject.
       const { DAY_NAMES, getBookableStartDates } = await import(
         "#shared/dates.ts"
       );
@@ -1880,7 +1880,7 @@ describeWithEnv(
 
     test("a daily parent with a dateless child keeps all its dates", async () => {
       // A STANDARD (dateless) child imposes no date constraint, so the parent
-      // keeps every one of its own bookable dates (Codex 758).
+      // keeps every one of its own bookable dates.
       const { getBookableStartDates } = await import("#shared/dates.ts");
       const { getActiveHolidays } = await import("#shared/db/holidays.ts");
       const { getListingWithCount } = await import("#shared/db/listings.ts");
@@ -1912,7 +1912,7 @@ describeWithEnv(
     }[] = [
       // The parent prices {1,2} days; its only child prices only 2 days. The
       // rendered day-count selector must offer only the 2-day option — the
-      // 1-day option the submit fold would reject is gone (Codex 1030).
+      // 1-day option the submit fold would reject is gone.
       {
         contains: [">2 days"],
         name: "a customisable parent offers only day counts its child can serve",
@@ -1935,7 +1935,7 @@ describeWithEnv(
         },
       },
       // The child prices both 1 and 2 days, so the parent keeps both options
-      // (the union covers every parent span) — Codex 1030.
+      // (the union covers every parent span).
       {
         contains: [">1 day", ">2 days"],
         name: "a customisable parent keeps day counts a child supports both of",
@@ -2031,7 +2031,7 @@ describeWithEnv(
     test("a daily parent builds its date union from SELECTABLE children only", async () => {
       // ACTIVE child bookable only Monday, INACTIVE child bookable only Tuesday.
       // The inactive child must contribute NOTHING to the union, so only Monday
-      // is offered — its Tuesday must never become selectable (Fix 2).
+      // is offered — its Tuesday must never become selectable.
       const { DAY_NAMES, getBookableStartDates } = await import(
         "#shared/dates.ts"
       );
@@ -2070,7 +2070,7 @@ describeWithEnv(
       // A fixed 3-day parent with a customisable child priced for 3 days but
       // bookable only on Mondays: a 3-day span starting Monday needs Mon+Tue+Wed
       // all bookable for the child, which it is not, so Monday must NOT be offered
-      // (Fix 3: the union validates the inherited fixed span with
+      // (the union validates the inherited fixed span with
       // isBookingRangeValid, not single-day starts).
       const { DAY_NAMES, getBookableStartDates } = await import(
         "#shared/dates.ts"
@@ -2164,7 +2164,7 @@ describeWithEnv(
     test("a customisable parent builds its day-count union from SELECTABLE children only", async () => {
       // An INACTIVE 1-day child must contribute no spans (and must not preserve
       // every parent span via its "any" null result); the ACTIVE 2-day child
-      // alone drives the union, so only the 2-day option renders (Fix 4).
+      // alone drives the union, so only the 2-day option renders.
       const { parent, children } = await makeParent({
         children: [
           { maxPrice: 0, unitPrice: 0 },
@@ -2194,10 +2194,10 @@ describeWithEnv(
       // A 1-capacity daily child fully booked on one date reads date-less
       // isSoldOut=true, but the parent page must still render a bookable form —
       // the daily child is potentially bookable on the dates it still has room
-      // for (Codex 63). The submit fold rejects only a genuinely full date.
-      // Fix 3 also keeps the daily child a BOOKABLE option (its date-less
+      // for. The submit fold rejects only a genuinely full date.
+      // The render also keeps the daily child a BOOKABLE option (its date-less
       // sold-out aggregate is exempt), so it auto-selects as the sole child
-      // instead of rendering a disabled control. (See the Fix-3 render test above
+      // instead of rendering a disabled control. (See the render test above
       // for the parent-quantity-not-clamped-to-0 outcome.)
       const { bookAttendee } = await import("#test-utils");
       const { getBookableStartDates } = await import("#shared/dates.ts");
@@ -2220,7 +2220,7 @@ describeWithEnv(
       const html = await bookingPageHtml(parent.slug);
       // The parent renders a normal bookable form, not the sold-out message.
       expect(html).toContain(`name="quantity_${parent.id}"`);
-      // The daily child is the sole bookable option (Fix 3), rendered
+      // The daily child is the sole bookable option, rendered
       // informational — never as a disabled control.
       expect(html).toContain(`data-sole-child="${child.id}"`);
       expect(html).not.toContain("Sorry, this listing is full.");
@@ -2229,7 +2229,7 @@ describeWithEnv(
     test("a standard child sold out cumulatively still makes its parent render sold out", async () => {
       // A STANDARD child uses the date-less cumulative sold-out, which is correct
       // — a cumulatively full standard child leaves the parent with no bookable
-      // child, so its page renders sold out (Codex 63, standard branch).
+      // child, so its page renders sold out (standard branch).
       const parent = await createTestListing({ name: "Base unit" });
       const child = await createTestListing({
         maxAttendees: 1,
@@ -2246,7 +2246,7 @@ describeWithEnv(
     test("a parent + child in a 1-spot capped group renders sold out", async () => {
       // Parent and child share a capped group, so the minimum order consumes two
       // group spots. With one spot left, the booking page projects the parent to
-      // sold out — matching the card and the submit-time rejection (Fix 4).
+      // sold out — matching the card and the submit-time rejection.
       const { group, parent } = await makeParent({
         group: { maxAttendees: 2, name: "Pool" },
       });
@@ -2263,7 +2263,7 @@ describeWithEnv(
 
     test("a parent + child in a 2-spot capped group renders a bookable form", async () => {
       // With two spots free the combined demand fits, so the parent renders a
-      // normal quantity selector and child block (Fix 4).
+      // normal quantity selector and child block.
       const { parent, child } = await makeParent({
         group: { maxAttendees: 2, name: "Pool" },
       });
@@ -2346,10 +2346,11 @@ describeWithEnv(
       expect(sharedOptions).not.toContain(">2</option>");
     });
 
-    test("two separate-pool children each cap 1 offer parent quantity up to 2 (Fix 2)", async () => {
+    test("two separate-pool children each cap 1 offer parent quantity up to 2", async () => {
       // Under per-unit distribution separate-pool children COMBINE: two children
       // each capped at 1 together serve a parent quantity of 2 (1 + 1). The old
-      // per-child MAX wrongly clamped the parent selector to 1; Fix 2 sums them.
+      // per-child MAX wrongly clamped the parent selector to 1; summing them is
+      // correct.
       const { parent } = await makeParent({
         children: [{ maxAttendees: 1 }, { maxAttendees: 1 }],
         parent: { maxAttendees: 100, maxQuantity: 5 },
@@ -2368,7 +2369,7 @@ describeWithEnv(
       expect(quantityOptionsHtml).not.toContain(">3</option>");
     });
 
-    test("a 1+1 booking across two separate-pool children each cap 1 succeeds (Fix 2)", async () => {
+    test("a 1+1 booking across two separate-pool children each cap 1 succeeds", async () => {
       // The fold accepts a parent quantity of 2 split 1 of A + 1 of B, which the
       // selector now offers — proving the combined-cap render matches the fold.
       const { parent, children } = await makeParent({
@@ -2389,7 +2390,7 @@ describeWithEnv(
       expect((await getAttendeesRaw(childB.id))[0]?.quantity).toBe(1);
     });
 
-    test("two children sharing one capped group with the parent cap by combined demand, not naive sum (Fix 2)", async () => {
+    test("two children sharing one capped group with the parent cap by combined demand, not naive sum", async () => {
       // Parent + both children share ONE capped group with 5 spots left. Each
       // combined order consumes PARENT_CHILD_GROUP_UNITS (2) spots regardless of
       // how many co-grouped children exist, so the parent ceiling is
@@ -2416,7 +2417,7 @@ describeWithEnv(
       expect(quantityOptionsHtml).not.toContain(">3</option>");
     });
 
-    test("a child sharing a roomy group with the parent is NOT sold out by a tighter NON-shared group (Codex #3)", async () => {
+    test("a child sharing a roomy group with the parent is NOT sold out by a tighter NON-shared group", async () => {
       // The child belongs to the parent's capped group A (10 spots) AND its own
       // tighter capped group B (1 spot). The shared-pool calc must use group A's
       // remaining (10) — the group it SHARES with the parent — not the child's
@@ -2449,7 +2450,7 @@ describeWithEnv(
       expect(html).toContain(`name="quantity_${parent.id}"`);
     });
 
-    test("two children sharing one capped group but differing OTHER memberships cap by that group (Codex #2)", async () => {
+    test("two children sharing one capped group but differing OTHER memberships cap by that group", async () => {
       // Both children draw on capped group A with 1 spot left. Child1 is in {A},
       // Child2 in {A, B} (B is a roomy private group). They draw on the SAME pool
       // (A), so the parent quantity cap is min(1, Σ own caps) = 1 — NOT 2. The
@@ -2495,7 +2496,7 @@ describeWithEnv(
     test("a parent whose only child is sold out renders sold out on its own page", async () => {
       // On /ticket/<parent> the page must project a no-bookable-child parent to
       // sold out (no quantity selector / Book control), mirroring discovery,
-      // instead of a normal form that could only fail at submit (Codex 914).
+      // instead of a normal form that could only fail at submit.
       const { parent } = await makeParent({ children: [{ maxAttendees: 0 }] });
 
       const html = await bookingPageHtml(parent.slug);
@@ -2510,8 +2511,8 @@ describeWithEnv(
       // Square requires an email for paid orders, but the page itself is free
       // (only a POSSIBLE child is paid); the email field must be present so a
       // buyer who picks the paid child can fill it, yet non-required so picking
-      // the free child / leaving the parent at zero doesn't block submit (Codex
-      // 920). Server-side validation enforces it when the folded order is paid.
+      // the free child / leaving the parent at zero doesn't block submit.
+      // Server-side validation enforces it when the folded order is paid.
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.paymentProvider("square");
       try {
@@ -2543,9 +2544,9 @@ describeWithEnv(
       expect(html).not.toMatch(/name="phone"[^>]*\srequired/);
     });
 
-    test("a sole daily child carries its compatibility data on the informational marker (Fix 1)", async () => {
+    test("a sole daily child carries its compatibility data on the informational marker", async () => {
       // On a parent page the sole child renders informationally (no quantity
-      // control). Before Fix 1 it carried NO `data-child-dates`, so on a group /
+      // control). Without carrying `data-child-dates`, on a group /
       // multi-listing page the client compat script couldn't tell the auto-selected
       // sole child can't serve the chosen date — the buyer saw "Includes …" and hit
       // the submit-side rejection. The marker must now carry the same compat data a
@@ -2566,14 +2567,14 @@ describeWithEnv(
       ).join(",");
 
       const html = await bookingPageHtml(parent.slug);
-      // The sole-child marker carries the span-keyed serveable dates (Fix 1/4).
+      // The sole-child marker carries the span-keyed serveable dates.
       const marker = html.slice(html.indexOf(`data-sole-child="${child.id}"`));
       const block = marker.slice(0, marker.indexOf(">"));
       expect(block).toContain(`data-child-dates="1:${childDates}"`);
       expect(childDates.length).toBeGreaterThan(0);
     });
 
-    test("a customisable parent's daily child advertises a date set per span (Fix 4)", async () => {
+    test("a customisable parent's daily child advertises a date set per span", async () => {
       // A customisable daily parent offers spans {1,2}. A daily child can start a
       // given day for a 1-day span, but a holiday on the next day makes the 2-day
       // span starting that day invalid. The child's `data-child-dates` must carry
@@ -2629,7 +2630,7 @@ describeWithEnv(
       expect(dates).toBe(`1:${oneDay.join(",")}|2:${twoDay.join(",")}`);
     });
 
-    test("a daily parent's daily child carries its serveable dates as data-child-dates (Codex 430)", async () => {
+    test("a daily parent's daily child carries its serveable dates as data-child-dates", async () => {
       const { DAY_NAMES, getBookableStartDates } = await import(
         "#shared/dates.ts"
       );
@@ -2671,7 +2672,7 @@ describeWithEnv(
       // Child B's control advertises exactly its own (single-weekday) serveable
       // dates — the holiday-aware set the server computed, not the parent's. The
       // fixed daily parent's one inherited span (1) keys the span-aware encoding
-      // `span:dates` (Fix 4).
+      // `span:dates`.
       expect(html).toContain(
         `name="child_qty_${parent.id}_${childB.id}" data-child-qty="${childB.id}" data-child-dates="1:${childBDates}"`,
       );
@@ -2683,7 +2684,7 @@ describeWithEnv(
       );
     });
 
-    test("a customisable child carries its supported spans as data-child-spans (Codex 430)", async () => {
+    test("a customisable child carries its supported spans as data-child-spans", async () => {
       // Two children so the per-child selectors render: a customisable child
       // (priced 1 & 3 days) advertises its supported spans; a plain standard
       // child carries no span attribute (always compatible).
