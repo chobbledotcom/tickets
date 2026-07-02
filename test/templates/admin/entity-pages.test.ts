@@ -98,6 +98,28 @@ describe("actions section", () => {
     expect(html.indexOf('href="/admin/x/refund"')).toBeLessThan(zoneStart);
   });
 
+  test("renders an action's description under its button", () => {
+    const html = String(
+      renderSection({
+        danger: [],
+        kind: "actions",
+        plain: [
+          {
+            danger: false,
+            descriptionKey: "attendee_form.merge_hint",
+            href: "/admin/x/merge",
+            icon: undefined,
+            labelKey: "attendee_form.merge_search",
+          },
+        ],
+        titleKey: "entity.tab.actions",
+      }),
+    );
+    expect(html).toContain(
+      '<span class="muted small">Search for another attendee',
+    );
+  });
+
   test("omits the danger zone when no action is dangerous", () => {
     const html = String(
       renderSection({

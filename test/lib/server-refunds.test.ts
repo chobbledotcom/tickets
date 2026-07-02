@@ -351,6 +351,30 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       });
     });
 
+    test("a refund success honors the form's return_url (e.g. the Actions tab)", async () => {
+      const ctx = await setupRefundTest("pi_test_return");
+      const returnUrl = `/admin/attendees/${ctx.attendee.id}/actions`;
+
+      await withRefundMock(true, async () => {
+        const response = await submitRefund(ctx, { return_url: returnUrl });
+        await expectFlashRedirect(returnUrl, "Refund issued")(response);
+      });
+    });
+
+    test("a refund error keeps return_url threaded so a retry returns to its origin", async () => {
+      const ctx = await setupRefundTest("pi_test_return_err");
+      const returnUrl = `/admin/attendees/${ctx.attendee.id}/actions`;
+
+      await withRefundMock(false, async () => {
+        const response = await submitRefund(ctx, { return_url: returnUrl });
+        await expectFlashRedirect(
+          `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/refund?return_url=${encodeURIComponent(returnUrl)}`,
+          expect.stringContaining("failed"),
+          false,
+        )(response);
+      });
+    });
+
     test("shows error when refund fails", async () => {
       const ctx = await setupRefundTest("pi_test_fail");
 
