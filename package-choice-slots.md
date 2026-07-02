@@ -160,6 +160,15 @@ JSON API; the single-listing duplicate and group bulk-duplicate paths).
 - Removing/adding a child edge on a listing that is a package member re-runs
   the same predicate (the children form and API already call
   `packageChildEdgeConflict`; it becomes this predicate).
+- **Editing a candidate's own fields re-runs it too.** Candidate eligibility
+  depends on the child listing's fields (`can_pay_more`, `listing_type`,
+  `customisable_days`, renewal tier), and the listing-save edge revalidation
+  (`validateListingEdges` → `edgeIncompatibilityAfterChange` →
+  `edgeFieldError`) checks only the generic parent/child field rules — an
+  existing valid candidate could be edited to pay-more/daily and stay under
+  a slot the package page cannot price. The listing-save path must invoke
+  the slot-candidate predicate for every edge touching the edited listing
+  (whether it is the candidate or the slot).
 
 ### B. Package-page render
 
@@ -226,18 +235,33 @@ top-level member nodes. Two pieces of work:
     but reserve-then-parent+child math leaves residual 1 and reports
     `⌊1/2⌋ = 0`. The extracted helper needs a child-only/residual mode for
     package slots (divide by candidate demand alone).
-  - **Cross-slot joint demand on shared pools.** Checking each slot
-    independently against the residual overstates capacity when two slots'
-    candidates draw on the same capped pool: two pick-1 slots with disjoint
-    candidates C1 and C2 both only in group G with 1 spot left each pass
-    alone at `q = 1`, but one package needs 2 G-spots. Aggregate each pool's
-    **forced** demand across slots — a slot whose candidates all sit inside
-    the pool must place `pickCount × q` there (C1/C2 ⇒ 2 > 1, infeasible),
-    while a slot with an outside alternative forces 0 (keeping the M/C/D
-    example at 2). Partial-overlap mixes stay approximate by design; the
-    atomic batch write predicate remains the authoritative backstop for the
-    buyer's actual mix. `resolvePageQuantities` clamps the posted count with
-    the same function, so the submit clamp comes along automatically.
+  - **Cross-slot feasibility is a joint assignment, not per-slot checks.**
+    Checking each slot independently against the residual overstates capacity
+    when slots' candidates draw on shared capped pools: two pick-1 slots with
+    disjoint candidates C1 and C2 both only in group G with 1 spot left each
+    pass alone at `q = 1`, but one package needs 2 G-spots. Nor is
+    aggregating only each pool's *forced* demand (slots confined to the pool)
+    enough — with three pick-1 slots whose candidates all draw from pools G
+    or H at 1 spot each, no single pool is forced and every slot has supply,
+    yet 3 units cannot fit a 2-seat union, so discovery would advertise a
+    package every submitted mix fails (a dead CTA). The check at count `q`
+    is therefore a small **joint feasibility** problem: slots on one side,
+    residual capped pools (plus an uncapped sink for out-of-pool candidates)
+    on the other — a bipartite flow / Hall-condition check over pool subsets.
+    Package configs are tiny (a handful of slots and pools), so exactness is
+    cheap; the atomic batch write predicate remains the final authority for
+    the buyer's actual mix (per-date dimensions and races it alone can see).
+    `resolvePageQuantities` clamps the posted count with the same function,
+    so the submit clamp comes along automatically.
+  - **The render/submit cap context must include candidate pools.**
+    `getTicketContext` builds `packageMemberGroupIds` /
+    `packageGroupRemainingByGroupId` from **top-level member ids only**, so a
+    capped group that only candidates sit in is invisible to
+    `packageQuantityCap` on `/ticket/<package>` and to the
+    `resolvePageQuantities` clamp — two candidates in a one-spot group would
+    render/submit capacity for two packages even after discovery is fixed.
+    Widen the package cap context to candidate listing ids and their capped
+    groups' remaining on render and submit as well as discovery.
 
 Discovery: `packageGroupBookable` (`src/features/public/discovery.ts`) builds
 its tree without `childrenByParentId`; it must load candidates so `/listings`,
@@ -322,6 +346,12 @@ is a real bypass otherwise):
   `childIds ∪ hiddenMemberIds` (`src/features/admin/dashboard.ts`) — an
   active non-hidden slot would stay selectable and emit a URL the direct-slug
   guard rejects.
+- **Payment cancel/retry page.** `cancelPageResponse`/`retryHrefFor`
+  (`src/features/api/payment-processing.ts`) build a non-package intent's
+  retry URL from `intent.items[0]`, so a standalone session opened before
+  the listing became a slot and then cancelled would render a retry link to
+  the now-404 `/ticket/<slot>`. Run the same predicate there and suppress or
+  redirect the retry CTA for stale-slot sessions.
 - **Admin share affordances — explicitly, not "automatically".** The admin
   listing view computes `shareSuppressed = isChild || isHiddenPackageMember`
   from flags `listings-view.ts` passes into the template — it does **not**
@@ -378,7 +408,8 @@ price — existing, deliberate behaviour.
   edit/add-listings, listing save, children form, JSON API, both duplicate
   paths); pay-more/daily/nested/package-member candidates rejected from each;
   renewal-tier (`months_per_unit > 0`) and child-only opt-in add-on
-  candidates rejected (the existing edge blockers still apply); a listing
+  candidates rejected (the existing edge blockers still apply); editing an
+  existing candidate to pay-more/daily rejected at listing save; a listing
   that is itself a **child** under another parent rejected as a member; two
   slots of one package sharing a candidate rejected; hidden-package × slot
   rejected both directions.
@@ -394,8 +425,11 @@ price — existing, deliberate behaviour.
   over-constrained (the M/C/D example yields 2, not 1); a slot and its sole
   candidate sharing one pool with 2 remaining yield 1, not 0 (child-only
   residual mode, no parent+child double-count); two slots whose candidate
-  sets both sit inside one 1-spot pool yield 0, not 1 (cross-slot forced
-  demand); a sold-out candidate set ⇒ package sold out everywhere discovery
+  sets both sit inside one 1-spot pool yield 0, not 1; three pick-1 slots
+  over two pools with 1 spot each yield 0, not 1 (joint assignment, not
+  per-slot or forced-demand checks); a candidate-only capped pool clamps the
+  `/ticket/<package>` render and POST, not just discovery; a sold-out
+  candidate set ⇒ package sold out everywhere discovery
   looks (cards, `/order.js`, feeds, API, QR) in lockstep with the ticket
   page.
 - **Client enhancement:** with only `package_quantity` set (no
@@ -415,7 +449,8 @@ price — existing, deliberate behaviour.
   dropped from a regular group's `/ticket/<group>` page it also belongs to;
   it appears on no catalog surface (`/listings`, `/order`, `/order.js`,
   feeds, `/api/listings`); the admin dashboard multi-booking builder does not
-  offer it; and admin URL/QR/embed affordances render no link for it.
+  offer it; a cancelled stale standalone session renders no `/ticket/<slot>`
+  retry link; and admin URL/QR/embed affordances render no link for it.
 - **Metadata budget:** a 3-slot, multi-pick package within provider caps; an
   over-cap `allocations` blob surfaces the batching `PaymentUserError`, not a
   provider rejection.
