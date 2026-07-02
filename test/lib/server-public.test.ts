@@ -507,6 +507,35 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       expect(html).not.toContain(`href="/ticket/${listing.slug}"`);
     });
 
+    test("a daily listing full on one date is not sold out date-lessly", async () => {
+      // #51: a daily listing's cumulative bookings span every date, so its
+      // card and booking page must not claim "sold out" without a date — the
+      // date-aware submit gate judges the chosen date instead.
+      await settings.update.showPublicSite(true);
+      const listing = await createTestListing({
+        listingType: "daily",
+        maxAttendees: 1,
+        minimumDaysBefore: 0,
+        name: "Daily Hire",
+      });
+      await bookAttendee(listing, {
+        date: addDays(todayInTz("UTC"), 2),
+        email: "first@test.com",
+        name: "First",
+        quantity: 1,
+      });
+      const html = await assertPublicHtml("/listings", "Daily Hire");
+      expect(html).not.toContain("Sold Out");
+      expect(html).toContain(`href="/ticket/${listing.slug}"`);
+      // The booking page still offers the date selector rather than a
+      // sold-out label.
+      const page = await assertPublicHtml(
+        `/ticket/${listing.slug}`,
+        'name="date"',
+      );
+      expect(page).not.toContain("Sold Out");
+    });
+
     test("shows registration closed for listings past closes_at", async () => {
       await settings.update.showPublicSite(true);
       const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
@@ -3647,7 +3676,8 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         name: "First User",
       });
 
-      // Second booking for same date should fail
+      // Second booking for same date is rejected by the date-aware gate
+      // (#51: the page itself stays live — capacity is a per-date fact).
       const response = await submitTicketForm(listing.slug, {
         date: validDate,
         email: "second@example.com",
@@ -3656,7 +3686,7 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("not enough spots available"),
+        expect.stringContaining("no longer has enough spots available"),
         false,
       );
     });

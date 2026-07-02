@@ -3,11 +3,14 @@ import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { handleRequest } from "#routes";
+import { addDays } from "#shared/dates.ts";
 import { groupsTable } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
+import { todayInTz } from "#shared/timezone.ts";
 import {
   assertJson,
+  bookAttendee,
   createDailyTestListing,
   createTestAttendeeDirect,
   createTestGroup,
@@ -209,6 +212,23 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(listings[0]!.maxPurchasable).toBe(0);
     });
 
+    test("a daily listing full on one date is not sold out date-lessly", async () => {
+      // #51: cumulative bookings span every date, so without a date the API
+      // makes no capacity claim for a daily listing — the date-aware
+      // availability endpoint answers for a specific date.
+      const listing = await createDailyTestListing({
+        maxAttendees: 1,
+        maxQuantity: 4,
+      });
+      await bookAttendee(listing, {
+        date: addDays(todayInTz("UTC"), 2),
+        quantity: 1,
+      });
+      const { listings } = await fetchListingsList();
+      expect(listings[0]!.isSoldOut).toBe(false);
+      expect(listings[0]!.maxPurchasable).toBe(4);
+    });
+
     test("sets isSoldOut when sibling listing has filled the group cap", async () => {
       const group = await createTestGroup({
         maxAttendees: 2,
@@ -350,6 +370,19 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       await createTestAttendeeDirect(listing.id, "Alice", "a@test.com");
       const { body } = await fetchAvailability(listing.slug);
       expect(body.available).toBe(false);
+    });
+
+    test("a daily listing answers per date, not by the cumulative aggregate", async () => {
+      const listing = await createDailyTestListing({ maxAttendees: 1 });
+      const date = addDays(todayInTz("UTC"), 2);
+      await bookAttendee(listing, { date, quantity: 1 });
+      const full = await fetchAvailability(listing.slug, `date=${date}`);
+      expect(full.body.available).toBe(false);
+      const free = await fetchAvailability(
+        listing.slug,
+        `date=${addDays(date, 1)}`,
+      );
+      expect(free.body.available).toBe(true);
     });
 
     test("respects quantity parameter", async () => {

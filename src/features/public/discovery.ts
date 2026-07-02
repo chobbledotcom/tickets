@@ -130,16 +130,14 @@ export type DiscoveryClassification = {
 /** Whether a built child is individually bookable at render (no submitted date):
  * active, not closed, and — for its capacity component — *potentially* bookable.
  *
- * The sold-out component splits by listing kind (Codex 63). `buildTicketListing`'s
- * `isSoldOut` comes from the date-LESS cumulative aggregate, meaningful only for a
- * STANDARD child. For a DAILY child it is wrong: a 1-capacity daily child booked on
- * one date reads `isSoldOut=true`, globalising that one full date into "sold out for
- * EVERY date" and forcing its parent's card/page sold out on dates the child still
- * has room for. So a daily child is "potentially bookable" whenever active, not
- * closed, and has at least one bookable start date on its own calendar; its true
- * per-date capacity is the submit-side fold's job (rejects — never clamps — a full
- * date). Hidden children stay bookable — `hidden` governs the index, not eligibility
- * (parents.md, Edge cases). */
+ * The capacity component splits by listing kind (Codex 63). A STANDARD child's
+ * `isSoldOut` is a date-less cumulative fact, so it applies directly. A DAILY
+ * child never reads sold out date-lessly (`buildTicketListing` makes no
+ * date-less capacity claim for daily, #51); what CAN disqualify it here is its
+ * calendar — it must have at least one bookable start covering a span the
+ * parent offers. Its true per-date capacity is the submit-side fold's job
+ * (rejects — never clamps — a full date). Hidden children stay bookable —
+ * `hidden` governs the index, not eligibility (parents.md, Edge cases). */
 const childBookable = (
   child: TicketListing,
   holidays: Holiday[],

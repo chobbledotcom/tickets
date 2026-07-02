@@ -60,9 +60,9 @@ import {
   type ChildSpanDates,
   childActive,
   childDateKey,
+  childInStock,
   childOpen,
   childSelectableIgnoringSpan,
-  childStandardInStock,
   constrainOptionsByChildUnion,
   encodeChildSpanDates,
   groupPoolUnits,
@@ -501,32 +501,28 @@ export type ChildRenderCtx = {
 };
 
 /** Whether a child is currently bookable (its quantity controls render enabled):
- * active, not registration-closed, and — for a STANDARD child — not sold out. The
- * server fold rejects an inactive child, so an inactive option must never render
- * enabled or auto-checked: it would always fail at submit. Unavailable children
- * render disabled (parents.md, invariant I6).
- *
- * Fix 3: a DAILY child must NOT be disqualified by the date-LESS `isSoldOut`
- * aggregate ({@link childStandardInStock} exempts daily) — that flag reads true
- * once the child is full on ANY single date, so the strict check wrongly disabled
- * a daily child (and clamped the parent to 0) on EVERY date even when other dates
- * still have capacity. A daily child's per-date capacity is enforced by the
- * date-aware submit fold / `checkBatchAvailability`. Standard children keep the
- * date-less sold-out check. */
+ * active, not registration-closed, and not sold out. The server fold rejects an
+ * inactive child, so an inactive option must never render enabled or
+ * auto-checked: it would always fail at submit. Unavailable children render
+ * disabled (parents.md, invariant I6). A DAILY child never reads sold out
+ * date-lessly (`buildTicketListing` makes no date-less capacity claim for
+ * daily, Fix 3/#51); its per-date capacity is enforced by the date-aware
+ * submit fold / `checkBatchAvailability`. */
 const childBookable: (child: TicketListing) => boolean = selectableChild([
   childActive,
   childOpen,
-  childStandardInStock,
+  childInStock,
 ]);
 
 /**
  * A bookable child's date-LESS own capacity for the render cap. A STANDARD child's
  * `maxPurchasable` is cumulative and authoritative. A DAILY child's date-less
- * `maxPurchasable` is meaningless at render — it reads 0 once the child is full on
- * ANY single date — so it must NOT clamp the parent's quantity (Fix 3); its real
- * per-date capacity is enforced by the date-aware submit fold once a date is chosen.
- * So a daily child contributes the parent's own max (no date-less ceiling),
- * mirroring how {@link childBookable} exempts it from the sold-out disqualifier. */
+ * `maxPurchasable` carries no capacity fact (it is just its `max_quantity`
+ * preference; daily capacity is per-date, #51) — so it must NOT clamp the
+ * parent's quantity (Fix 3); its real per-date capacity is enforced by the
+ * date-aware submit fold once a date is chosen. So a daily child contributes
+ * the parent's own max (no date-less ceiling), mirroring how
+ * {@link childBookable}'s sold-out disqualifier never fires for daily. */
 const childOwnRenderCap = (
   parent: TicketListing,
   child: TicketListing,

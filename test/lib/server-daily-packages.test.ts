@@ -96,12 +96,11 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     expect(await bookingRows(firepit.id)).toHaveLength(0);
   });
 
-  test("a full member makes the bundle unavailable, matching the standalone daily gate", async () => {
-    // Page-level daily capacity is date-blind app-wide: a standalone daily
-    // listing whose bookings reach max_attendees shows "this listing is full"
-    // regardless of date (the per-date atomic write gate underneath is strictly
-    // looser, so it can never over-admit). The package gate mirrors that: a
-    // member at its cap makes the whole bundle unbookable.
+  test("a member full on one date leaves the bundle bookable on other dates", async () => {
+    // #51: a DAILY member's cumulative bookings are not a date-less capacity
+    // fact, so filling one date must not read "sold out" for every other date.
+    // The package page stays live, the full date is still rejected by the
+    // date-aware submit gate, and the next day books normally.
     const { group, tent } = await dailyPackage("Tight", "tight-pkg");
     const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
     const { listingsTable } = await import("#shared/db/listings.ts");
@@ -114,28 +113,30 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     });
     if (!fill.success) throw new Error("fill booking failed");
 
-    // The bundle can no longer fit, so the package page itself is gone…
+    // The bundle still has empty dates, so the package page stays live.
     const page = await handleRequest(mockRequest(`/ticket/${group.slug}`));
     await page.body?.cancel();
-    expect(page.status).toBe(404);
+    expect(page.status).toBe(200);
 
-    // …and no crafted POST can book past the full member.
-    const { mockTicketFormRequest } = await import("#test-utils/mocks.ts");
-    const blocked = await handleRequest(
-      mockTicketFormRequest(
-        group.slug,
-        {
-          date: addDays(dateA, 1),
-          email: "late@test.com",
-          name: "Late",
-          package_quantity: "1",
-        },
-        // No live page means no CSRF token to seed; the gate 404s first anyway.
-        "",
-      ),
-    );
-    expect(blocked.status).toBe(404);
+    // The full date itself is still rejected by the date-aware gate…
+    const sameDate = await submitPackageBooking(group.slug, {
+      date: dateA,
+      email: "late@test.com",
+      name: "Late",
+      package_quantity: "1",
+    });
+    expect([302, 303]).toContain(sameDate.status);
     expect(await bookingRows(tent.id)).toHaveLength(1);
+
+    // …while the next day books normally.
+    const nextDay = await submitPackageBooking(group.slug, {
+      date: addDays(dateA, 1),
+      email: "next@test.com",
+      name: "Next",
+      package_quantity: "1",
+    });
+    await expectPackageBookingAccepted(nextDay);
+    expect(await bookingRows(tent.id)).toHaveLength(2);
   });
 
   test("a capped daily package's pool is not drained by bookings on other dates", async () => {

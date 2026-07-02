@@ -42,7 +42,6 @@ export {
   childOpen,
   childPricedForSpan,
   childSelectableIgnoringSpan,
-  childStandardInStock,
   combinedGroupDemandFits,
   constrainOptionsByChildUnion,
   encodeChildSpanDates,
