@@ -89,16 +89,20 @@ const optInAddOnScopedTo = async (
   for (const id of listingIds) await linkModifierListing(modifier.id, id);
 };
 
-/** Duplicate a whole group and return the cloned group's listings. */
+/** Duplicate a whole group and return the cloned group's listings. A name
+ *  find/replace is required so the clones don't reuse the source names (which
+ *  the cross-entity uniqueness rule forbids). */
 const duplicateGroup = async (
   groupId: number,
   newName: string,
+  nameFind: string,
+  nameReplace: string,
 ): Promise<Awaited<ReturnType<typeof getListingsByGroupId>>> => {
   await adminFormPost(`/admin/groups/${groupId}/bulk-actions/duplicate`, {
     date_find: "",
     date_replace: "",
-    name_find: "",
-    name_replace: "",
+    name_find: nameFind,
+    name_replace: nameReplace,
     new_name: newName,
   });
   const newGroup = (await getAllGroups()).find((g) => g.name === newName);
@@ -108,18 +112,20 @@ const duplicateGroup = async (
 /** Duplicate a whole group, returning the raw redirect Response (without
  *  following it) so callers can assert a warning flash. The body is cancelled
  *  because the warning-tests never render the redirect target — they only
- *  inspect the flash cookie. */
+ *  inspect the flash cookie. A name find/replace keeps clone names unique. */
 const duplicateGroupResponse = async (
   groupId: number,
   newName: string,
+  nameFind: string,
+  nameReplace: string,
 ): Promise<Response> => {
   const { response } = await adminFormPost(
     `/admin/groups/${groupId}/bulk-actions/duplicate`,
     {
       date_find: "",
       date_replace: "",
-      name_find: "",
-      name_replace: "",
+      name_find: nameFind,
+      name_replace: nameReplace,
       new_name: newName,
     },
   );
@@ -229,10 +235,15 @@ describeWithEnv(
         parent: { name: "Group parent" },
       });
 
-      const copies = await duplicateGroup(group!.id, "Bundle copy");
+      const copies = await duplicateGroup(
+        group!.id,
+        "Bundle copy",
+        "Group",
+        "Cloned",
+      );
 
-      const parentCopy = copies.find((l) => l.name === "Group parent")!;
-      const childCopy = copies.find((l) => l.name === "Group child")!;
+      const parentCopy = copies.find((l) => l.name === "Cloned parent")!;
+      const childCopy = copies.find((l) => l.name === "Cloned child")!;
       // The cloned parent requires the cloned child, not the original.
       expect(await getChildIds(parentCopy.id)).toEqual([childCopy.id]);
       expect(childCopy.id).not.toBe(child.id);
@@ -247,9 +258,14 @@ describeWithEnv(
       const outsideChild = await createTestListing({ name: "Outside child" });
       await setChildren(parent.id, [outsideChild.id]);
 
-      const copies = await duplicateGroup(group.id, "External copy");
+      const copies = await duplicateGroup(
+        group.id,
+        "External copy",
+        "Inside",
+        "Cloned",
+      );
 
-      const parentCopy = copies.find((l) => l.name === "Inside parent")!;
+      const parentCopy = copies.find((l) => l.name === "Cloned parent")!;
       // The external child is referenced by its original id (not cloned).
       expect(await getChildIds(parentCopy.id)).toEqual([outsideChild.id]);
     });
@@ -267,9 +283,14 @@ describeWithEnv(
       });
       await setChildren(outsideParent.id, [child.id]);
 
-      const copies = await duplicateGroup(group.id, "Child only copy");
+      const copies = await duplicateGroup(
+        group.id,
+        "Child only copy",
+        "Inside",
+        "Cloned",
+      );
 
-      const childCopy = copies.find((l) => l.name === "Inside child")!;
+      const childCopy = copies.find((l) => l.name === "Cloned child")!;
       // The outside parent now gates BOTH the original child and its clone.
       expect((await getChildIds(outsideParent.id)).sort()).toEqual(
         [child.id, childCopy.id].sort(),
@@ -312,13 +333,15 @@ describeWithEnv(
       const response = await duplicateGroupResponse(
         group.id,
         "Stranded bundle copy",
+        "Bundle parent",
+        "Cloned parent",
       );
 
       const newGroup = (await getAllGroups()).find(
         (g) => g.name === "Stranded bundle copy",
       )!;
       const copies = await getListingsByGroupId(newGroup.id);
-      const parentCopy = copies.find((l) => l.name === "Bundle parent")!;
+      const parentCopy = copies.find((l) => l.name === "Cloned parent")!;
       // The cloned parent has NO gate (the invalid edge was not written) rather
       // than a silently-gateless standalone reported as success.
       expect(await getChildIds(parentCopy.id)).toEqual([]);
@@ -356,13 +379,15 @@ describeWithEnv(
       const response = await duplicateGroupResponse(
         group.id,
         "Incoming bundle copy",
+        "Bundled",
+        "Cloned",
       );
 
       const newGroup = (await getAllGroups()).find(
         (g) => g.name === "Incoming bundle copy",
       )!;
       const childCopy = (await getListingsByGroupId(newGroup.id)).find(
-        (l) => l.name === "Bundled add-on",
+        (l) => l.name === "Cloned add-on",
       )!;
       // The incoming edge `outsideParent -> childCopy` was NOT written (the full
       // set re-validation failed), so the external parent keeps only its
@@ -395,8 +420,13 @@ describeWithEnv(
       await settings.update.showPublicSite(true);
       const { group } = await makeExternalBundle("Outside-parent bundle");
 
-      const copies = await duplicateGroup(group.id, "Outside-parent bundle 2");
-      const childCopy = copies.find((l) => l.name === "Bundled add-on")!;
+      const copies = await duplicateGroup(
+        group.id,
+        "Outside-parent bundle 2",
+        "Bundled",
+        "Cloned",
+      );
+      const childCopy = copies.find((l) => l.name === "Cloned add-on")!;
 
       const { handleRequest } = await import("#routes");
       const { mockRequest } = await import("#test-utils");

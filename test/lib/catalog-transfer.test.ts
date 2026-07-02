@@ -542,6 +542,34 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
     expect((await getListing(result.id))!.uses_logistics).toBe(true);
   });
 
+  test("imports a listing with many parents in one batched insert", async () => {
+    // More parents than the per-request N+1 guard (25) and the transaction
+    // round-trip cap (~30) would allow one query/insert each — proves the
+    // batched nested-parent check and the set-wise edge insert.
+    const { computeSlugIndex, listingsTable } = await import(
+      "#shared/db/listings.ts"
+    );
+    const parentNames = Array.from({ length: 30 }, (_, i) => `Parent ${i}`);
+    for (const name of parentNames) {
+      const slug = name.toLowerCase().replace(/\s+/g, "-");
+      await listingsTable.insert({
+        maxAttendees: 1,
+        maxPrice: 0,
+        name,
+        slug,
+        slugIndex: await computeSlugIndex(slug),
+      });
+    }
+    const result = await importCatalog({
+      kind: "listing",
+      listing: { maxAttendees: 1, name: "Many Kids" },
+      parents: parentNames,
+      version: 1,
+    });
+    if (!result.ok) throw new Error(result.error);
+    expect((await getParentIds(result.id)).length).toBe(30);
+  });
+
   test("hides the webhook URL from an editor export", async () => {
     const listing = await createTestListing({
       name: "Hooked",

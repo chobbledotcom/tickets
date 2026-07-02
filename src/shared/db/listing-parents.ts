@@ -96,17 +96,22 @@ export const setChildIds = (
 
 /** Add `childId` as a child under each of `parentIds` inside an existing write
  * transaction — the catalog-import writer for a freshly-created listing that is
- * a child of already-existing parents. Additive (one INSERT per parent), so it
- * never disturbs a parent's other children the way {@link setChildIdsTx}'s
- * replace would. */
+ * a child of already-existing parents. Additive (never a group-wide delete), so
+ * it can't disturb a parent's other children the way {@link setChildIdsTx}'s
+ * replace would. One batched multi-row INSERT regardless of parent count, so a
+ * many-parent import stays within the interactive-transaction round-trip cap. */
 export const addParentEdgesTx = async (
   tx: TxScope,
   childId: number,
   parentIds: readonly number[],
 ): Promise<void> => {
-  for (const parentId of parentIds) {
-    await tx.execute({ args: [parentId, childId], sql: INSERT_EDGE });
-  }
+  if (parentIds.length === 0) return;
+  await tx.execute({
+    args: parentIds.flatMap((parentId) => [parentId, childId]),
+    sql: `INSERT INTO listing_parents (parent_listing_id, child_listing_id) VALUES ${parentIds
+      .map(() => "(?, ?)")
+      .join(", ")}`,
+  });
 };
 
 /** Replace a parent's child edges inside an existing write transaction, so the

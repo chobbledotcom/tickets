@@ -21,7 +21,10 @@ import {
 } from "#routes/admin/groups.ts";
 import { writeRowInTransaction } from "#shared/db/client.ts";
 import { type GroupInput, groupsTable } from "#shared/db/groups.ts";
-import { addParentEdgesTx, getParentIds } from "#shared/db/listing-parents.ts";
+import {
+  addParentEdgesTx,
+  getChildListingIds,
+} from "#shared/db/listing-parents.ts";
 import { syncListingPrices } from "#shared/db/listing-prices.ts";
 import {
   getListingsById,
@@ -199,14 +202,20 @@ const validateParentEdges = async (
     return `"${input.name}" is a member of the package "${pkg.name}", so it cannot also be an add-on child of another listing.`;
   }
   const childEdge = listingInputToEdge(input, 0);
-  const byId = await getListingsById();
+  // Two batched reads (never one query per parent): the listing rows, and the
+  // subset of parents that are themselves children — a many-parent import must
+  // not trip the request's N+1 guard.
+  const [byId, nestedParents] = await Promise.all([
+    getListingsById(),
+    getChildListingIds(parentIds),
+  ]);
   for (const parentId of parentIds) {
     // parentIds were resolved by name from the same cached catalog byId reads,
     // so every id is present (trust the invariant rather than guard a dead path).
     const parent = byId.get(parentId)!;
     // Single-level nesting only: a parent that is itself a child of another
     // listing can't gain a child (the edge editor rejects the same shape).
-    if ((await getParentIds(parentId)).length > 0) {
+    if (nestedParents.has(parentId)) {
       return t("listings_table.children_err_parent_is_child", {
         name: parent.name,
       });
