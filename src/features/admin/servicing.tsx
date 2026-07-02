@@ -16,11 +16,7 @@ import {
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import {
-  formatCurrency,
-  parsePositiveMinorUnits,
-  toMajorUnits,
-} from "#shared/currency.ts";
+import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import {
   costBelongsToServicing,
@@ -47,6 +43,7 @@ import {
 } from "#shared/order-select.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { ListingWithCount } from "#shared/types.ts";
+import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
