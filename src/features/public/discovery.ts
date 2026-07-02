@@ -22,10 +22,8 @@
 import { mapNotNullish, mapParallel, unique } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import { packageQuantityCap } from "#shared/booking/capacity-tree.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import {
-  getDatelessGroupRemaining,
   getGroupRemainingByListingId,
   getSharedGroupCapacities,
 } from "#shared/db/attendees.ts";
@@ -58,9 +56,14 @@ import {
   childOpen,
   combinedGroupDemandFits,
   fixedParentSpan,
+  packageBundleCap,
   type TicketListing,
 } from "#templates/public.tsx";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
+import {
+  loadChildrenByParentId,
+  loadPackageCapGroupMaps,
+} from "./ticket-payment.ts";
 
 /**
  * Drop members of a HIDDEN package from a buyer-facing listing set: such a
@@ -372,34 +375,38 @@ export const packageGroupBookable = async (
   groupId: number,
 ): Promise<boolean> => {
   if (members.length === 0) return false;
-  const [allMemberIds, ticketListings, rows, groupIdsByListingId] =
-    await Promise.all([
-      getGroupListingIds(groupId),
-      buildTicketListingsWithGroupCapacity([...members]),
-      getGroupPackagePrices(groupId),
-      getGroupIdsByListingIds(members.map((m) => m.id)),
-    ]);
+  const [allMemberIds, ticketListings, rows] = await Promise.all([
+    getGroupListingIds(groupId),
+    buildTicketListingsWithGroupCapacity([...members]),
+    getGroupPackagePrices(groupId),
+  ]);
   // An inactive member is absent from `members` (active only) but still a group
   // row, so fewer active members than total means the bundle is incomplete.
   if (members.length < allMemberIds.length) return false;
-  // Remaining for EVERY capped group any member sits in — the package's own
-  // group and any other group members happen to share — so the cap reflects all
-  // shared pools, not just this group's. Daily members contribute no date-less
-  // pool clamp (their pools are per-date facts, checked at booking).
-  const remaining = await getDatelessGroupRemaining(
-    members,
-    groupIdsByListingId,
-  );
+  // The gate must judge the SAME whole-bundle cap the page, submit clamp, and
+  // API compute (packageBundleCap): membership and date-less remaining over
+  // members AND their required children (a child-exhausted bundle must not be
+  // advertised), with daily listings contributing no date-less pool clamp
+  // (their pools are per-date facts, checked at booking).
+  const childrenByParentId = await loadChildrenByParentId(ticketListings);
+  const { groupIdsByListingId, groupRemainingByGroupId: remaining } =
+    await loadPackageCapGroupMaps(ticketListings, childrenByParentId);
   const tree = buildBookingTree({
+    childrenByParentId,
     groupId,
     isPackage: true,
     listings: ticketListings,
     packageQuantities: packageMemberMaps(rows).quantities,
     slugs: members.map((m) => m.slug),
   });
-  const listingById = new Map(ticketListings.map((e) => [e.listing.id, e]));
   return (
-    packageQuantityCap(tree, listingById, remaining, groupIdsByListingId) >= 1
+    packageBundleCap(
+      tree,
+      ticketListings,
+      childrenByParentId,
+      remaining,
+      groupIdsByListingId,
+    ) >= 1
   );
 };
 

@@ -85,6 +85,17 @@ const fixedPackage = async (name: string, slug: string) => {
 const customisablePackage = (name: string, slug: string) =>
   createFlexPackage(name, slug, { dayPrices: { 2: 1500 }, price: null });
 
+/** Attach `child` as the member's sole add-on and fetch the package detail. */
+const withAddonGetPackage = async (
+  memberId: number,
+  childId: number,
+  slug: string,
+  // deno-lint-ignore no-explicit-any
+): Promise<any> => {
+  await setChildIds(memberId, [childId]);
+  return (await (await apiGet(`/api/packages/${slug}`)).json()).package;
+};
+
 describeWithEnv("public API packages", { db: true }, () => {
   beforeEach(async () => {
     await settings.update.showPublicApi(true);
@@ -136,6 +147,7 @@ describeWithEnv("public API packages", { db: true }, () => {
     const { a, group } = await fixedPackage("Parent Kit", "parent-kit");
     const child = await createTestListing({
       maxAttendees: 10,
+      maxQuantity: 10,
       name: "Kit Addon",
       unitPrice: 300,
     });
@@ -166,6 +178,7 @@ describeWithEnv("public API packages", { db: true }, () => {
     const child = await createTestListing({
       fields: "email,phone",
       maxAttendees: 10,
+      maxQuantity: 10,
       name: "Fields Addon",
       unitPrice: 0,
     });
@@ -222,11 +235,7 @@ describeWithEnv("public API packages", { db: true }, () => {
       name: "Tight Kit Addon",
       unitPrice: 100,
     });
-    await setChildIds(member.id, [child.id]);
-
-    const { package: pkg } = await (
-      await apiGet(`/api/packages/${group.slug}`)
-    ).json();
+    const pkg = await withAddonGetPackage(member.id, child.id, group.slug);
     expect(pkg.maxPurchasable).toBe(2);
 
     const { body, response } = await apiBookPackage(group.slug, {
@@ -238,6 +247,39 @@ describeWithEnv("public API packages", { db: true }, () => {
     expect(body.booking!.amountOwed).toBe(1200);
     expect((await bookingRows(member.id))[0]!.quantity).toBe(2);
     expect((await bookingRows(child.id))[0]!.quantity).toBe(2);
+  });
+
+  test("a child's capped group bounds the API cap like the web page", async () => {
+    // The add-on has plenty of own capacity but sits in a capped group with 1
+    // spot: the API's cap must see that shared pool exactly as the web render
+    // does (the group maps cover members AND children), so it advertises 1 —
+    // never a count checkout would reject.
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Pool Kit",
+      slug: "pool-kit",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+      maxQuantity: 10,
+      name: "Pool Kit Member",
+      unitPrice: 500,
+    });
+    const childPool = await createTestGroup({
+      maxAttendees: 1,
+      name: "Addon Pool",
+      slug: "addon-pool",
+    });
+    const child = await createTestListing({
+      groupId: childPool.id,
+      maxAttendees: 10,
+      maxQuantity: 10,
+      name: "Pool Kit Addon",
+      unitPrice: 100,
+    });
+    const pkg = await withAddonGetPackage(member.id, child.id, group.slug);
+    expect(pkg.maxPurchasable).toBe(1);
   });
 
   test("POST books whole bundles, clamped to the cap, stamping the group", async () => {

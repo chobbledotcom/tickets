@@ -43,7 +43,9 @@ describe("packageQuantityCap", () => {
       [1, tl(1, 10)],
       [2, tl(2, 6)],
     ]);
-    expect(packageQuantityCap(tree, listingById, new Map(), new Map())).toBe(3);
+    expect(
+      packageQuantityCap(tree, listingById, new Map(), new Map(), new Map()),
+    ).toBe(3);
   });
 
   test("a shared capped group can bound below the own caps", () => {
@@ -69,6 +71,7 @@ describe("packageQuantityCap", () => {
         listingById,
         new Map([[9, 5]]),
         groupIdsByListingId,
+        new Map(),
       ),
     ).toBe(1);
   });
@@ -85,6 +88,7 @@ describe("packageQuantityCap", () => {
         listingById,
         new Map([[9, 4]]),
         groupIdsByListingId,
+        new Map(),
       ),
     ).toBe(4);
   });
@@ -115,6 +119,7 @@ describe("packageQuantityCap", () => {
           [9, 5],
         ]),
         groupIdsByListingId,
+        new Map(),
       ),
     ).toBe(2);
   });
@@ -130,7 +135,9 @@ describe("packageQuantityCap", () => {
       [1, tl(1, 0)],
       [2, tl(2, 5)],
     ]);
-    expect(packageQuantityCap(tree, listingById, new Map(), new Map())).toBe(0);
+    expect(
+      packageQuantityCap(tree, listingById, new Map(), new Map(), new Map()),
+    ).toBe(0);
   });
 
   test("a non-FIXED member counts as one unit per package", () => {
@@ -159,6 +166,7 @@ describe("packageQuantityCap", () => {
         new Map([[1, tl(1, 100)]]),
         new Map([[9, 3]]),
         new Map([[1, [9]]]),
+        new Map(),
       ),
     ).toBe(3);
   });

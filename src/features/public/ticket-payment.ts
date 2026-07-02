@@ -804,6 +804,35 @@ export const buildChildDatesById = (
 
 /** Shared context for ticket pages: dates, terms, questions. A group's terms
  * override global terms and its name/description are included. */
+/** Membership and date-less remaining over a package's members AND their
+ * required children — the group maps {@link packageBundleCap} judges. One
+ * loader shared by the booking ctx and the discovery gate, so no surface can
+ * compute the bundle cap from narrower pools: one package consumes the sum of
+ * its members' fixed quantities (plus one child unit per booked parent unit)
+ * from each capped group any of them sit in. */
+export const loadPackageCapGroupMaps = async (
+  members: TicketListing[],
+  childrenByParentId: ChildrenByParentId,
+): Promise<{
+  groupIdsByListingId: Map<number, number[]>;
+  groupRemainingByGroupId: ReadonlyMap<number, number>;
+}> => {
+  const capListings = [
+    ...members.map((e) => e.listing),
+    ...[...childrenByParentId.values()].flat().map((e) => e.listing),
+  ];
+  const groupIdsByListingId = await getGroupIdsByListingIds(
+    capListings.map((l) => l.id),
+  );
+  return {
+    groupIdsByListingId,
+    groupRemainingByGroupId: await getDatelessGroupRemaining(
+      capListings,
+      groupIdsByListingId,
+    ),
+  };
+};
+
 export const getTicketContext = async (
   activeListings: TicketListing[],
   group?: Group,
@@ -852,22 +881,13 @@ export const getTicketContext = async (
   // no extra query.
   const packageMaps =
     group?.is_package === true ? await loadPackageMemberMaps(group.id) : null;
-  // Every CAPPED group the package members belong to bounds the bundle count:
-  // one package consumes the sum of its members' fixed quantities from each such
-  // group. Load each member's group ids and the remaining for every group any
-  // member sits in (not just the package's own group), so a second capped group
-  // the members happen to share also clamps the advertised package count.
-  const packageMemberGroupIds =
+  const packageCapMaps =
     group?.is_package === true
-      ? await getGroupIdsByListingIds(listingIds)
-      : new Map<number, number[]>();
-  const packageGroupRemainingByGroupId =
-    group?.is_package === true
-      ? await getDatelessGroupRemaining(
-          activeListings.map((e) => e.listing),
-          packageMemberGroupIds,
-        )
-      : new Map<number, number>();
+      ? await loadPackageCapGroupMaps(activeListings, childrenByParentId)
+      : {
+          groupIdsByListingId: new Map<number, number[]>(),
+          groupRemainingByGroupId: new Map<number, number>(),
+        };
   return {
     addOns,
     childDatesById,
@@ -878,8 +898,8 @@ export const getTicketContext = async (
       : {}),
     packageDayPrices: packageMaps?.dayPrices ?? null,
     packageGroupId: group?.is_package ? group.id : null,
-    packageGroupRemainingByGroupId,
-    packageMemberGroupIds,
+    packageGroupRemainingByGroupId: packageCapMaps.groupRemainingByGroupId,
+    packageMemberGroupIds: packageCapMaps.groupIdsByListingId,
     packagePrices: packageMaps?.prices ?? null,
     packageQuantities: packageMaps?.quantities ?? null,
     promoCodesEnabled,

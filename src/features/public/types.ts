@@ -55,15 +55,17 @@ export type TicketSharedContext = {
   /** Set on a package page: whether the member listings are hidden from buyers,
    * tickets, and confirmation emails. */
   hidePackageListings?: boolean;
-  /** Set on a package page: every CAPPED group the members belong to → its
-   * remaining spots, and each member → its group ids. One package consumes the
-   * SUM of its members' fixed quantities from each such group, so the package
-   * count is bounded by `floor(remaining / demand)` per group — the package's own
-   * group AND any other capped group members happen to share (many-to-many
-   * membership). Empty for non-package pages or when no member's group is capped.
-   * Carried on the SHARED context so the render page and the submit clamp use the
-   * same ceiling. Always set by {@link getTicketContext} (empty Maps for a
-   * non-package page), so callers read them without a fallback. */
+  /** Set on a package page: every CAPPED group the members OR their required
+   * children belong to → its remaining spots, and each of those listings → its
+   * group ids. One package consumes the SUM of its members' fixed quantities
+   * (plus one child unit per booked parent unit) from each such group, so the
+   * package count is bounded by `floor(remaining / demand)` per group — the
+   * package's own group AND any other capped pool members or children share.
+   * Empty for non-package pages or when nothing is capped. Carried on the
+   * SHARED context so the page render, the submit clamp, and the API all use
+   * ONE ceiling ({@link packageBundleCap}). Always set by
+   * {@link getTicketContext} (empty Maps for a non-package page), so callers
+   * read them without a fallback. */
   packageGroupRemainingByGroupId: ReadonlyMap<number, number>;
   packageMemberGroupIds: ReadonlyMap<number, number[]>;
   actionUrl?: string;

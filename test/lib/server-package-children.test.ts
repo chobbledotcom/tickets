@@ -96,6 +96,31 @@ const packageChildSession = (
     ReturnType<typeof stripeApi.retrieveCheckoutSession>
   >;
 
+/** Cap the two add-ons at 2 and 1 units — a 3-bundle child-side ceiling. */
+const capAddonsAtThree = async (childId: number, childBId: number) => {
+  const { listingsTable } = await import("#shared/db/listings.ts");
+  await listingsTable.update(childId, { maxAttendees: 2, maxQuantity: 2 });
+  await listingsTable.update(childBId, { maxAttendees: 1, maxQuantity: 1 });
+};
+
+/** Zero a package's member and add-on prices so bookings complete without a
+ * payment provider. */
+const makePackageFree = async (
+  groupId: number,
+  memberIds: [number, number],
+  childIds: number[],
+) => {
+  const { setGroupPackageMembers } = await import("#shared/db/groups.ts");
+  const { updateTestListing } = await import("#test-utils");
+  for (const childId of childIds) {
+    await updateTestListing(childId, { unitPrice: 0 });
+  }
+  await setGroupPackageMembers(groupId, [
+    { listingId: memberIds[0], price: 0 },
+    { listingId: memberIds[1], price: 0 },
+  ]);
+};
+
 describeWithEnv("packages with buyer-choice children", { db: true }, () => {
   test("the package page renders the member's child selectors", async () => {
     const { child, childB, group, parent } = await packageWithChild(
@@ -125,9 +150,7 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
       "Capped",
       "capped-child-pkg",
     );
-    const { listingsTable } = await import("#shared/db/listings.ts");
-    await listingsTable.update(child.id, { maxAttendees: 2, maxQuantity: 2 });
-    await listingsTable.update(childB.id, { maxAttendees: 1, maxQuantity: 1 });
+    await capAddonsAtThree(child.id, childB.id);
 
     const body = await (
       await handleRequest(mockRequest(`/ticket/${group.slug}`))
@@ -136,19 +159,68 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
     expect(body).not.toContain('<option value="4">4</option>');
   });
 
+  test("a crafted POST is clamped to the child-capped bundle ceiling", async () => {
+    // The page offers at most 3 bundles (add-on capacity 2 + 1); a no-JS/crafted
+    // POST asking for 9 must be clamped to that SAME ceiling — the submit clamp
+    // and the rendered selector share packageBundleCap — so a mix that serves 3
+    // bundles books 3 rather than bouncing with a child-count error.
+    const { child, childB, group, other, parent } = await packageWithChild(
+      "Clamp",
+      "clamp-pkg",
+    );
+    await capAddonsAtThree(child.id, childB.id);
+    await makePackageFree(
+      group.id,
+      [parent.id, other.id],
+      [child.id, childB.id],
+    );
+
+    const submit = await submitPackageBooking(group.slug, {
+      [`child_qty_${parent.id}_${child.id}`]: "2",
+      [`child_qty_${parent.id}_${childB.id}`]: "1",
+      email: "clamp@test.com",
+      name: "Clamp Buyer",
+      package_quantity: "9",
+    });
+    await expectPackageBookingAccepted(submit);
+    // Clamped to 3 whole bundles, never 9.
+    expect((await bookingRows(parent.id))[0]!.quantity).toBe(3);
+    expect((await bookingRows(other.id))[0]!.quantity).toBe(3);
+  });
+
+  test("a package whose required add-ons are exhausted is gated off entirely", async () => {
+    // The /ticket gate must judge the SAME child-inclusive cap the page and API
+    // compute: with every add-on sold out no bundle can fold, so the page 404s
+    // (and /listings' CTA gate shares the same decision) instead of advertising
+    // a page that can only fail.
+    const { child, childB, group } = await packageWithChild(
+      "Gone Addons",
+      "gone-addons-pkg",
+    );
+    const { listingsTable } = await import("#shared/db/listings.ts");
+    const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+    for (const c of [child, childB]) {
+      await listingsTable.update(c.id, { maxAttendees: 1, maxQuantity: 1 });
+      const fill = await createAttendeeAtomic({
+        bookings: [{ date: null, listingId: c.id, quantity: 1 }],
+        email: "filler@test.com",
+        name: "Filler",
+      });
+      if (!fill.success) throw new Error("fill booking failed");
+    }
+
+    const page = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+    await page.body?.cancel();
+    expect(page.status).toBe(404);
+  });
+
   test("a free package booking folds the chosen child under its member", async () => {
     const { child, group, other, parent } = await packageWithChild(
       "Free Kit",
       "free-kit-pkg",
     );
     // Zero every price so the booking completes without a provider.
-    const { setGroupPackageMembers } = await import("#shared/db/groups.ts");
-    const { updateTestListing } = await import("#test-utils");
-    await updateTestListing(child.id, { unitPrice: 0 });
-    await setGroupPackageMembers(group.id, [
-      { listingId: parent.id, price: 0 },
-      { listingId: other.id, price: 0 },
-    ]);
+    await makePackageFree(group.id, [parent.id, other.id], [child.id]);
 
     const submit = await submitPackageBooking(group.slug, {
       [`child_qty_${parent.id}_${child.id}`]: "1",

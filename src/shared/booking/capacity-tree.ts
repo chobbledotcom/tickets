@@ -37,7 +37,7 @@ export const packageQuantityCap = (
   listingById: ReadonlyMap<number, TicketListing>,
   groupRemainingByGroupId: ReadonlyMap<number, number>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
-  childUnitsCapByListingId: ReadonlyMap<number, number> = new Map(),
+  childUnitsCapByListingId: ReadonlyMap<number, number>,
 ): number => {
   const perPackageQty = nodeFixedQuantity;
   const ownCap = (node: BookingNode): number => {

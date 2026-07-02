@@ -688,7 +688,7 @@ const childCombinedCap = (
  * bounded by each parent member's child-side capacity too (every booked member
  * unit consumes one child unit), so the selector and the API never offer a
  * bundle count the required add-ons can't serve. */
-export const packageChildUnitCaps = (
+const packageChildUnitCaps = (
   listings: TicketListing[],
   childrenByParentId: Map<number, TicketListing[]> | undefined,
   groupRemainingByGroupId: ReadonlyMap<number, number>,
@@ -711,6 +711,33 @@ export const packageChildUnitCaps = (
   }
   return caps;
 };
+
+/** THE whole-bundle count cap — the one computation every surface shares: the
+ * page selector, the submit clamp, the API detail/book cap, and the /listings
+ * bookable gate. Members' own capacity, every capped group's pool, and each
+ * parent member's required-child capacity all bound it, so no surface can
+ * advertise (or accept) a bundle count another surface rejects. The group maps
+ * must cover the members AND their children (getTicketContext's package maps
+ * do), so a child's shared capped pool clamps here too. */
+export const packageBundleCap = (
+  tree: BookingTree,
+  listings: TicketListing[],
+  childrenByParentId: Map<number, TicketListing[]> | undefined,
+  groupRemainingByGroupId: ReadonlyMap<number, number>,
+  groupIdsByListingId: ReadonlyMap<number, number[]>,
+): number =>
+  packageQuantityCap(
+    tree,
+    new Map(listings.map((e) => [e.listing.id, e])),
+    groupRemainingByGroupId,
+    groupIdsByListingId,
+    packageChildUnitCaps(
+      listings,
+      childrenByParentId,
+      groupRemainingByGroupId,
+      groupIdsByListingId,
+    ),
+  );
 
 /**
  * The quantity cap to offer for a parent's own selector, clamped to its required
@@ -1778,17 +1805,17 @@ const packagePageAvailability = (
   isPackage: boolean,
   tree: BookingTree,
   listings: TicketListing[],
+  childrenByParentId: Map<number, TicketListing[]> | undefined,
   groupRemainingByGroupId: ReadonlyMap<number, number>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
-  childUnitsCapByListingId: ReadonlyMap<number, number>,
 ): { packageCap: number; soldOut: boolean } => {
   const cap = isPackage
-    ? packageQuantityCap(
+    ? packageBundleCap(
         tree,
-        new Map(listings.map((e) => [e.listing.id, e])),
+        listings,
+        childrenByParentId,
         groupRemainingByGroupId,
         groupIdsByListingId,
-        childUnitsCapByListingId,
       )
     : null;
   const membersUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
@@ -1860,14 +1887,9 @@ export const ticketPage = ({
     isPackage,
     tree,
     listings,
+    childrenByParentId,
     packageGroupRemainingByGroupId,
     packageMemberGroupIds,
-    packageChildUnitCaps(
-      listings,
-      childrenByParentId,
-      groupRemainingByGroupId,
-      groupIdsByListingId,
-    ),
   );
   const allClosed = listings.every((e) => e.isClosed);
   const fields: Field[] = buildContactFields(

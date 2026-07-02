@@ -12,7 +12,6 @@ import {
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import { packageQuantityCap } from "#shared/booking/capacity-tree.ts";
 import {
   customPriceFieldName,
   PACKAGE_QUANTITY_FIELD,
@@ -69,6 +68,7 @@ import {
   type BookingPrefill,
   orderSummary,
   orderSummaryMessage,
+  packageBundleCap,
   type TicketListing,
   type TicketPrefill,
 } from "#templates/public.tsx";
@@ -569,7 +569,7 @@ const parsePackageCount = (form: FormParams): number =>
  * buyer chooses a single `package_quantity`; each member's booked quantity is
  * its fixed per-package quantity × that count (the per-member `quantity_<id>`
  * inputs are not offered, so they are ignored). The posted count is clamped to
- * the same capacity ceiling the page renders ({@link packageQuantityCap}) so a
+ * the same capacity ceiling the page renders ({@link packageBundleCap}) so a
  * crafted POST can't exceed a member's remaining capacity or book a
  * closed/sold-out member (whose `maxPurchasable` — and thus the cap — is 0). A
  * resulting count of 0 yields all-zero lines, which `prepareOrder` rejects as
@@ -584,13 +584,15 @@ const resolvePageQuantities = (
   if (packageGroupId == null || !packageQuantities) {
     return parseQuantities(form, ctx.listings);
   }
-  // Clamp the posted count to the same tree-driven ceiling the page renders, so a
-  // crafted POST can't exceed a member's remaining capacity or a shared pool.
+  // Clamp the posted count to the same tree-driven ceiling the page renders —
+  // packageBundleCap, including required-child capacity — so a crafted POST
+  // can't exceed a member's remaining capacity, a shared pool, or the add-ons'
+  // combined capacity.
   const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
-  const listingById = new Map(ctx.listings.map((e) => [e.listing.id, e]));
-  const cap = packageQuantityCap(
+  const cap = packageBundleCap(
     tree,
-    listingById,
+    ctx.listings,
+    ctx.childrenByParentId,
     ctx.packageGroupRemainingByGroupId,
     ctx.packageMemberGroupIds,
   );

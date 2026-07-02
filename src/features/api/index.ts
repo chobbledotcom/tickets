@@ -37,7 +37,6 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getBaseUrl, getClientIp } from "#routes/url.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import { packageQuantityCap } from "#shared/booking/capacity-tree.ts";
 import type { FoldChildrenResult } from "#shared/booking/fold-tree.ts";
 import { packageBundleTotal } from "#shared/booking/price-tree.ts";
 import { processBooking } from "#shared/booking.ts";
@@ -87,7 +86,7 @@ import {
 } from "#templates/fields.ts";
 import {
   buildTicketListing,
-  packageChildUnitCaps,
+  packageBundleCap,
   packageSharedDayCounts,
   type TicketListing,
 } from "#templates/public.tsx";
@@ -1097,19 +1096,12 @@ const loadPackageContext = async (slug: string) => {
     slugs: [slug],
   };
   const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
-  // Child-side shared-pool nuances beyond the members' own capped groups are
-  // the submit fold's job; the members' maps cover the cap's group terms here.
-  const cap = packageQuantityCap(
+  const cap = packageBundleCap(
     tree,
-    new Map(ticketListings.map((e) => [e.listing.id, e])),
+    ticketListings,
+    ctx.childrenByParentId,
     ctx.packageGroupRemainingByGroupId,
     ctx.packageMemberGroupIds,
-    packageChildUnitCaps(
-      ticketListings,
-      ctx.childrenByParentId,
-      ctx.packageGroupRemainingByGroupId,
-      ctx.packageMemberGroupIds,
-    ),
   );
   return { cap, ctx, group: loaded.group, tree };
 };
@@ -1221,8 +1213,10 @@ const applyPackageChildSelections = (
 
 /** Parse and validate a package booking body's order shape: the package count
  * (default 1, an explicit 0 rejected — the no-quantity sentinel is admin-only —
- * clamped to the tree-driven cap exactly like the web submit; the loader's
- * bookable gate guarantees the cap is ≥ 1), each member's booked quantity, the
+ * clamped to the SAME whole-bundle cap every surface shares
+ * (packageBundleCap; the loader's gate computes it too, so it is ≥ 1 short of
+ * a booking landing between the two loads — which the atomic write gate
+ * rejects downstream), each member's booked quantity, the
  * ONE shared start date a dated package books every member on (offered from
  * the same intersection the web date selector shows), and the fold form seeded
  * with the customisable bundle's chosen span (the same `day_count` field the
