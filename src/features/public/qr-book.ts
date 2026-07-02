@@ -34,6 +34,12 @@ import { handleTicket } from "./ticket-submit.ts";
 const errorResponse = (slug: string, status: number): Response =>
   htmlResponse(qrBookErrorPage(slug), status);
 
+/** QR error with NO fallback booking link — for a listing that has no standalone
+ * `/ticket/<slug>` page (a non-standalone child or a hidden package member),
+ * where offering that link would just dead-end on another 404. */
+const noPageErrorResponse = (status: number): Response =>
+  htmlResponse(qrBookErrorPage(null), status);
+
 /** Build per-listing prefill entries from a QR payload */
 const buildListingPrefills = (
   listing: ListingWithCount,
@@ -175,13 +181,14 @@ export const handleQrBookGet = async (
   if (!payload) return errorResponse(slug, 400);
   const listing = await getListingWithCountBySlug(slug);
   if (!listing?.active) return errorResponse(slug, 404);
-  // A booking can never start from a non-standalone child (invariant I3): a
-  // signed QR for one would otherwise skip straight to checkout for it alone. A
-  // `bookable_alone` child has its own page, so its QR is allowed. A hidden
-  // package's member is likewise reachable only through the package, never its
-  // own page or a direct-to-checkout QR.
+  // A booking can never start from a non-standalone child: a signed QR for one
+  // would otherwise skip straight to checkout for it alone. A child that can be
+  // booked by itself keeps its own page, so its QR is allowed. A hidden package
+  // member is likewise reachable only through the package, never its own page or
+  // a direct-to-checkout QR. Neither has a standalone `/ticket/<slug>` page, so
+  // the error offers no fallback booking link (it would 404 too).
   if (await anyNonStandaloneChild([listing.id]))
-    return errorResponse(slug, 404);
-  if (await isHiddenPackageMember(listing.id)) return errorResponse(slug, 404);
+    return noPageErrorResponse(404);
+  if (await isHiddenPackageMember(listing.id)) return noPageErrorResponse(404);
   return dispatchVerified(request, slug, token, payload, listing);
 };

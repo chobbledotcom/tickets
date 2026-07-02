@@ -1179,4 +1179,87 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       },
     );
   });
+
+  test("a mixed folded+standalone child order refunds once the flag clears", async () => {
+    await setupStripe();
+    // The child was bookable-on-its-own: the buyer booked two units under
+    // /ticket/<parent+child> — one folded under the parent (an allocation) and one
+    // standalone (the remainder). Clearing the flag strips the standalone unit's
+    // page, so the whole order refunds even though a parent is present and the
+    // folded unit alone would be fine.
+    const parent = await createTestListing({
+      maxAttendees: 50,
+      name: "Picker",
+      unitPrice: 1000,
+    });
+    const child = await createTestListing({
+      bookableAlone: true,
+      maxAttendees: 50,
+      name: "Solo Widget",
+      unitPrice: 0,
+    });
+    await setChildIds(parent.id, [child.id]);
+    await listingsTable.update(child.id, { bookableAlone: false });
+    const metadata = signMeta(
+      webhookMeta({
+        allocations: JSON.stringify([
+          { childId: child.id, parentId: parent.id, qty: 1 },
+        ]),
+        email: "buyer@example.com",
+        items: JSON.stringify([
+          { e: parent.id, p: 1000, q: 1 },
+          { e: child.id, p: 0, q: 2 },
+        ]),
+        name: "Buyer",
+      }),
+      1000,
+    );
+    await runWebhook(
+      { amount_total: 1000, id: "cs_stale_remainder", metadata },
+      async (refund) => {
+        await expectStoredRefund(parent.id);
+        expect(refund.calls.length).toBe(1);
+      },
+    );
+  });
+
+  test("a fully-folded child order still completes after the flag clears", async () => {
+    await setupStripe();
+    // Every child unit is allocated under the parent (no standalone remainder), so
+    // clearing the flag leaves nothing standalone to leak — the order completes.
+    const parent = await createTestListing({
+      maxAttendees: 50,
+      name: "Picker",
+      unitPrice: 1000,
+    });
+    const child = await createTestListing({
+      bookableAlone: true,
+      maxAttendees: 50,
+      name: "Solo Widget",
+      unitPrice: 0,
+    });
+    await setChildIds(parent.id, [child.id]);
+    await listingsTable.update(child.id, { bookableAlone: false });
+    const metadata = signMeta(
+      webhookMeta({
+        allocations: JSON.stringify([
+          { childId: child.id, parentId: parent.id, qty: 1 },
+        ]),
+        email: "buyer@example.com",
+        items: JSON.stringify([
+          { e: parent.id, p: 1000, q: 1 },
+          { e: child.id, p: 0, q: 1 },
+        ]),
+        name: "Buyer",
+      }),
+      1000,
+    );
+    await runWebhook(
+      { amount_total: 1000, id: "cs_folded_after_clear", metadata },
+      async (refund) => {
+        await expectProcessed(parent.id);
+        expect(refund.calls.length).toBe(0);
+      },
+    );
+  });
 });

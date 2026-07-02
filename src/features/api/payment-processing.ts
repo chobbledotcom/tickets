@@ -782,34 +782,57 @@ const orderEdgeDrifted = async (
   );
 
 /**
- * Whether the order books a STANDALONE non-standalone child — a child that has
- * lost its `bookable_alone` page (the flag was cleared after this session opened)
- * and whose parents are ALL absent from the order, so it was booked on its own
- * page rather than folded under a parent. Completing it would leak a ticket whose
- * `/ticket/<slug>` now 404s at every fresh entry point; `orderEdgeDrifted` only
- * detects structural edge changes, not this flag flip, so it is guarded here and
- * failed closed → price_changed (mirroring `staleHiddenMember`). A child booked
- * alongside one of its parents is a legitimate fold — a parent+child order lists
- * both even without an explicit allocation — so it is not stale.
+ * Whether the order books any STANDALONE unit of a child that can no longer be
+ * booked on its own — a child listing whose "can be booked by itself" flag was
+ * cleared after this checkout session opened. Completing such a unit would create
+ * a ticket whose `/ticket/<slug>` page now 404s at every fresh entry point, so it
+ * is failed closed to a price_changed refund. The order-structure drift check
+ * elsewhere only notices added/removed parent edges, not this flag flip, so it is
+ * guarded here.
  *
- * `getParentsForChildren` keys only the children that still have a surviving
- * parent, and a non-standalone child always does (an edge is deleted with its
- * parent), so iterating its values covers every non-standalone child.
+ * A unit is standalone unless it is folded under one of the child's parents in
+ * the same order. Folding happens two ways: an explicit per-parent allocation, or
+ * — when the order carries no allocations — the child being listed alongside a
+ * parent that adopts it. So a child's standalone unit count is its booked
+ * quantity minus its allocated quantity, unless the whole quantity is adopted by
+ * an in-order parent. Any positive standalone count on a now-non-standalone child
+ * is stale.
  */
 const hasStaleStandaloneChild = async (
   intent: BookingIntent,
 ): Promise<boolean> => {
-  const orderIds = intent.items.map((i) => i.e);
+  const orderIds = intent.items.map((item) => item.e);
   const nonStandaloneChildIds = await getNonStandaloneChildIds(orderIds);
   if (nonStandaloneChildIds.size === 0) return false;
   const orderIdSet = new Set(orderIds);
+  const allocatedByChild = new Map<number, number>();
+  for (const allocation of intent.allocations ?? []) {
+    const prior = allocatedByChild.get(allocation.childId) ?? 0;
+    allocatedByChild.set(allocation.childId, prior + allocation.qty);
+  }
   const parentsByChild = await getParentsForChildren([
     ...nonStandaloneChildIds,
   ]);
-  for (const parents of parentsByChild.values()) {
-    if (!parents.some((p) => orderIdSet.has(p.id))) return true;
+  const adoptedByInOrderParent = new Set<number>();
+  for (const [childId, parents] of parentsByChild) {
+    if (parents.some((parent) => orderIdSet.has(parent.id))) {
+      adoptedByInOrderParent.add(childId);
+    }
   }
-  return false;
+  return intent.items.some((item) => {
+    if (!nonStandaloneChildIds.has(item.e)) return false;
+    const allocated = allocatedByChild.get(item.e) ?? 0;
+    // Allocated units fold under their named parent; any surplus is standalone.
+    // With no allocation, the whole quantity folds only if an in-order parent
+    // adopts it — otherwise every unit is standalone.
+    const standalone =
+      allocated > 0
+        ? item.q - allocated
+        : adoptedByInOrderParent.has(item.e)
+          ? 0
+          : item.q;
+    return standalone > 0;
+  });
 };
 
 /** Validate all booking items and return per-item pricing info or a failure result. */

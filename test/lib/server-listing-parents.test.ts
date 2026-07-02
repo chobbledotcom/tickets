@@ -651,6 +651,19 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect(await getChildIds(parent.id)).toEqual([]);
   });
 
+  test("allows a bookable_alone child whose opt-in add-on only it can reach", async () => {
+    // A child that can be booked by itself keeps its own booking page, so an
+    // add-on scoped only to it is still reachable — the edge is not a dead end.
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({
+      bookableAlone: true,
+      name: "Solo Widget",
+    });
+    await optInAddOnForListings("Child-only extra", [child.id]);
+    await postChildren(parent.id, [child.id]);
+    expect(await getChildIds(parent.id)).toEqual([child.id]);
+  });
+
   test("allows a child whose add-on is also scoped to the parent", async () => {
     const parent = await createTestListing({ name: "Base unit" });
     const child = await createTestListing({ name: "Add-on" });

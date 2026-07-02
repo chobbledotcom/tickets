@@ -284,31 +284,37 @@ export const deactivationOrphanedAddOnError = (
 
 /**
  * Re-check add-on reachability when a listing save STRIPS a page that could
- * rescue a child-scoped opt-in add-on: a DEACTIVATION (`active` → false), or
- * clearing `bookable_alone` on a child (true → false), which removes the child's
- * own booking page. Both leave an add-on that only that page kept reachable a
- * dead end, so both re-run the shared reachability guard over the would-be
- * listing set (parents.md, the two-sided add-on reachability note). The
- * false-transition path forces the just-cleared child into the suppressed set by
- * hand, since the DB still reads it flagged at validation time; it is inert
- * unless the flag really transitions true → false for a listing that is a child.
+ * rescue a child-scoped opt-in add-on: a deactivation (`active` → false), or
+ * clearing "can be booked by itself" on a child (true → false), which removes the
+ * child's own booking page. Both can leave an add-on that only that page kept
+ * reachable a dead end, so both re-run the shared reachability guard over the
+ * save's PENDING state — the edited listing at its would-be group set (so a
+ * group-scoped add-on for a group the same save is joining is resolved correctly)
+ * and, when deactivating, inactive. Clearing the flag turns the child
+ * non-standalone, but the row still reads flagged until this save commits, so the
+ * child is forced into the suppressed set by hand. Inert unless the save actually
+ * deactivates, or clears the flag for a listing that is a child.
  */
 const strippedPageOrphanedAddOn = async (
   input: ListingInput,
   existingId: number,
 ): Promise<string | null> => {
-  if (input.active === false) {
-    const error = await deactivationOrphanedAddOnError(new Set([existingId]));
-    if (error) return error;
-  }
-  if (input.bookableAlone === false) {
-    const existing = await getListingWithCount(existingId);
-    const isChild = (await getParentIds(existingId)).length > 0;
-    if (existing?.bookable_alone && isChild) {
-      return orphanedAddOnOverWouldBe(() => ({}), [existingId]);
-    }
-  }
-  return null;
+  const deactivating = input.active === false;
+  const existing =
+    input.bookableAlone === false
+      ? await getListingWithCount(existingId)
+      : null;
+  const clearingFlag =
+    existing?.bookable_alone === true &&
+    (await getParentIds(existingId)).length > 0;
+  if (!deactivating && !clearingFlag) return null;
+  const override = (
+    listing: ListingWithCount,
+  ): Partial<ListingGroupMembership> =>
+    listing.id === existingId
+      ? { active: !deactivating, groupIds: input.groupIds ?? [] }
+      : {};
+  return orphanedAddOnOverWouldBe(override, clearingFlag ? [existingId] : []);
 };
 
 /**

@@ -527,7 +527,10 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
 });
 
 describeWithEnv("qr-book scan handler > parent gate", { db: true }, () => {
-  test("a parent with required children renders the form (never skips to checkout)", async () => {
+  /** A parent listing with one required child, and a QR token for `slug`. */
+  const parentChildToken = async (
+    slug: (ids: { parent: string; child: string }) => string,
+  ) => {
     const { setChildIds } = await import("#shared/db/listing-parents.ts");
     const parent = await createTestListing({
       fields: "",
@@ -540,20 +543,38 @@ describeWithEnv("qr-book scan handler > parent gate", { db: true }, () => {
       unitPrice: 0,
     });
     await setChildIds(parent.id, [child.id]);
-
+    const tokenSlug = slug({ child: child.slug, parent: parent.slug });
     const token = await signQrBookToken(
-      parent.slug,
+      tokenSlug,
       buildQrBookPayload({ name: "Ada", value: 1000 }),
     );
+    return { child, parent, token, tokenSlug };
+  };
+
+  test("a parent with required children renders the form (never skips to checkout)", async () => {
+    const { token, tokenSlug } = await parentChildToken((ids) => ids.parent);
     const stripe = stubStripe();
     try {
-      const response = await awaitTestRequest(qrBookPath(parent.slug, token));
+      const response = await awaitTestRequest(qrBookPath(tokenSlug, token));
       // The child gate forces the form path so prepareOrder can fold the child.
       expect(response.status).toBe(200);
       expect(stripe.checkoutStub.calls.length).toBe(0);
     } finally {
       stripe.restore();
     }
+  });
+
+  test("a child listing's QR errors with no fallback booking link", async () => {
+    const { child, token, tokenSlug } = await parentChildToken(
+      (ids) => ids.child,
+    );
+    const response = await awaitTestRequest(qrBookPath(tokenSlug, token));
+    expect(response.status).toBe(404);
+    const html = await response.text();
+    expect(html).toContain("QR code expired or invalid");
+    // The child has no standalone /ticket page, so the error offers no dead
+    // fallback link to it.
+    expect(html).not.toContain(`href="/ticket/${child.slug}"`);
   });
 
   test("a childless listing's QR still skips straight to checkout", async () => {

@@ -162,6 +162,10 @@ const childEdgeError = async (
     if (fieldError) return fieldError;
     // v1 has no child-scoped add-on render/parse path, so an add-on reachable
     // only through the suppressed child would become a dead end — hard block it.
+    // A `bookable_alone` child keeps its OWN booking page, so its add-on is still
+    // reachable and the edge must not be blocked (mirrors the modifier/listing
+    // save reachability, which count a flagged child among the live pages).
+    if (listing.bookable_alone) continue;
     const addOn = await resolveChildOnlyAddOn(listing.id, pageIds);
     if (addOn) {
       return t("listings_table.children_err_child_addon", {

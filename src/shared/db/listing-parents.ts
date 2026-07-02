@@ -68,11 +68,11 @@ export const getNonStandaloneChildIds = (
   ids: readonly number[],
 ): Promise<Set<number>> =>
   childIdSet(
-    `SELECT DISTINCT lp.child_listing_id AS id
-       FROM listing_parents lp
-       JOIN listings l ON l.id = lp.child_listing_id
-      WHERE lp.child_listing_id IN (${inPlaceholders(ids)})
-        AND l.bookable_alone = 0`,
+    `SELECT DISTINCT listingParent.child_listing_id AS id
+       FROM listing_parents AS listingParent
+       JOIN listings AS listing ON listing.id = listingParent.child_listing_id
+      WHERE listingParent.child_listing_id IN (${inPlaceholders(ids)})
+        AND listing.bookable_alone = 0`,
     ids,
   );
 

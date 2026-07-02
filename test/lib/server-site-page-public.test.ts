@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { groupsTable } from "#shared/db/groups.ts";
 import { setChildIds } from "#shared/db/listing-parents.ts";
 import { addPageItem } from "#shared/db/site-page-items.ts";
 import {
@@ -228,6 +229,48 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       const html = await assertPublicHtml("/page/ghost-town");
       expect(html).toContain("<span>Ghost Group</span>");
       expect(html).not.toContain('href="/ticket/gg"');
+    });
+
+    test("a package group with an incomplete bundle renders dead despite a bookable member", async () => {
+      // A package is all-or-nothing: one inactive member makes the whole bundle
+      // unbuyable, so its /ticket/<group> page 404s. The nav link must be dead
+      // even though the other member is individually bookable — the group gate
+      // uses the package bundle cap, not "any bookable member".
+      const page = await makePage("broken-bundle");
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Combo",
+        slug: "combo",
+      });
+      await createTestListing({ groupId: group.id, name: "Live Member" });
+      const dead = await createTestListing({
+        groupId: group.id,
+        name: "Dead Member",
+      });
+      await deactivateTestListing(dead.id);
+      await addPageItem(page.id, "group", group.id);
+      const html = await assertPublicHtml("/page/broken-bundle");
+      expect(html).toContain("<span>Combo</span>");
+      expect(html).not.toContain('href="/ticket/combo"');
+    });
+
+    test("a hidden package member as a listing item renders dead (no standalone page)", async () => {
+      // A hidden package's member 404s its own /ticket page — only the package
+      // name is public — so a nav leaf pointing at it must not render a live link.
+      const page = await makePage("hidden-member");
+      const group = await createTestGroup({ isPackage: true, name: "Bundle" });
+      await groupsTable.update(group.id, {
+        hidePackageListings: true,
+        isPackage: true,
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        name: "Secret Member",
+      });
+      await addPageItem(page.id, "listing", member.id);
+      const html = await assertPublicHtml("/page/hidden-member");
+      expect(html).toContain("<span>Secret Member</span>");
+      expect(html).not.toContain(`href="/ticket/${member.slug}"`);
     });
 
     test("an item-less page renders no empty submenu or mobile bar", async () => {
