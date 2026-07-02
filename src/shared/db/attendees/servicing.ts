@@ -795,19 +795,21 @@ export const getServicingCosts = async (
       (adjustmentsByOriginal.get(originalId) ?? 0) + signedDelta,
     );
   }
-  const results: ServicingCostRecord[] = [];
-  await Promise.all(
-    records.map(async (r) => {
+  // Build the result as a pure map over `records`, which is already ordered by
+  // (occurred_at, transfer_id): Promise.all preserves that input order
+  // regardless of which decrypt() resolves first, so the cost list can't
+  // shuffle under concurrent decryption.
+  return Promise.all(
+    records.map(async (r): Promise<ServicingCostRecord> => {
       const original = decoded.find((leg) => leg.id === r.transfer_id)!;
-      results.push({
+      return {
         amount:
           original.amount + (adjustmentsByOriginal.get(r.transfer_id) ?? 0),
         date: r.occurred_at,
         id: r.transfer_id,
         listingId: r.listing_id,
         memo: await decrypt(r.memo!),
-      });
+      };
     }),
   );
-  return results;
 };

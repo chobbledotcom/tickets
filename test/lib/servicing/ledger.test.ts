@@ -479,6 +479,45 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     expect(body).toContain(`/admin/servicing/${id}/cost/`);
   });
 
+  test("getServicingCosts returns records in (occurred_at, transfer_id) order with each memo on its own row", async () => {
+    // Ordering contract: the reader must return records in the SQL
+    // ORDER BY occurred_at, transfer_id — not the order its concurrent decrypt()
+    // calls happen to resolve in. Building the result as a pure
+    // Promise.all(records.map(...)) preserves the query order by construction;
+    // the earlier push()-into-shared-array form leaned on crypto-op scheduling.
+    // Dates are scrambled vs insertion order, so a reader that skips the re-sort
+    // (or drifts a decrypted memo onto the wrong record) fails here.
+    const { id, listing } = await createServicingHold();
+    for (const i of [2, 0, 3, 1]) {
+      const day = `2026-07-0${i + 1}`;
+      await recordServiceCost({
+        amount: 1000 + i * 100,
+        listingId: listing.id,
+        memo: `memo-${day}`,
+        occurredAt: `${day}T00:00:00.000Z`,
+        servicingId: id,
+      });
+    }
+    const { getServicingCosts } = await import(
+      "#shared/db/attendees/servicing.ts"
+    );
+    const costs = await getServicingCosts(id);
+    expect(costs.map((c) => c.date.slice(0, 10))).toEqual([
+      "2026-07-01",
+      "2026-07-02",
+      "2026-07-03",
+      "2026-07-04",
+    ]);
+    // Each record keeps its own memo — proving a row wasn't re-sorted by date
+    // while its decrypted memo drifted onto a different record.
+    expect(costs.map((c) => c.memo)).toEqual([
+      "memo-2026-07-01",
+      "memo-2026-07-02",
+      "memo-2026-07-03",
+      "memo-2026-07-04",
+    ]);
+  });
+
   test("editing a recorded cost updates the listed amount", async () => {
     const { id, listing } = await createServicingHold();
     const costId = await recordServiceCost({
