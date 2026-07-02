@@ -33,9 +33,12 @@ import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import {
   type AttendeeFilter,
+  ListingEditPanel,
   ListingOverviewPanel,
   ListingRosterPanel,
 } from "#templates/admin/listings.tsx";
+import { getListingAndGroups } from "./listings-edit.ts";
+import { loadListingParentsSection } from "./listings-parents.ts";
 import { loadGroupContext, loadListingQuestionData } from "./listings-view.ts";
 
 /**
@@ -182,3 +185,31 @@ export const loadListingActivity = ({
   listing,
 }: LoadedListing): Promise<ActivityLogEntry[]> =>
   getListingActivityLog(listing.id);
+
+/**
+ * Build the Edit tab: the multipart edit form and its side panels. Reloads via
+ * getListingAndGroups so the form reads the listing's *stored* values (not the
+ * defaults-resolved view the page frame loaded), matching the pre-migration
+ * edit page. `error` is set only on a rejected-save in-place re-render.
+ */
+export const loadListingEditPanel = async (
+  { listing }: LoadedListing,
+  ctx: PageCtx,
+  error?: string,
+  selectedGroupIds?: number[],
+): Promise<JSX.Element | null> => {
+  const ctxData = await getListingAndGroups(listing.id);
+  if (!ctxData) return null;
+  const parents = await loadListingParentsSection(ctxData.listing);
+  return ListingEditPanel({
+    aggregateRecalculation: ctxData.aggregateRecalculation,
+    error,
+    groups: ctxData.groups,
+    listing: ctxData.listing,
+    parents,
+    // On a rejected save re-render the checkboxes the operator submitted, not
+    // the stored set, so their group changes aren't silently dropped.
+    selectedGroupIds: selectedGroupIds ?? ctxData.selectedGroupIds,
+    session: ctx.session,
+  });
+};

@@ -294,7 +294,7 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
   });
 
 /** Listing + its groups + aggregate recalculation, loaded for the edit pages. */
-const getListingAndGroups = async (
+export const getListingAndGroups = async (
   listingId: number,
 ): Promise<{
   aggregateRecalculation: ListingAggregateRecalculation;

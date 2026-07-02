@@ -30,6 +30,7 @@ import { ListingDeactivatedBanner } from "#templates/admin/listings.tsx";
 import {
   type LoadedListing,
   loadListingActivity,
+  loadListingEditPanel,
   loadListingForPage,
   loadListingOverviewPanel,
   loadListingRosterPanel,
@@ -119,6 +120,18 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       labelKey: "entity.tab.attendees",
       sections: [{ kind: "custom", load: loadListingRosterPanel }],
       slug: "attendees",
+    },
+    {
+      labelKey: "entity.tab.edit",
+      sections: [
+        {
+          kind: "custom",
+          load: (entity, ctx) => loadListingEditPanel(entity, ctx),
+        },
+      ],
+      // Editors and above may reach the edit form; read-only mode is enforced by
+      // the POST handler, and the details tabs stay visible either way.
+      slug: "edit",
     },
     {
       labelKey: "entity.tab.activity",

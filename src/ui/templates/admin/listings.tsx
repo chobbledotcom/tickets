@@ -2505,20 +2505,43 @@ const ListingChildrenSection = ({
   </details>
 );
 
-export const adminListingEditPage = (
-  listing: ListingWithCount,
-  groups: Group[],
-  session: AdminSession,
-  error?: string,
-  aggregateRecalculation?: ListingAggregateRecalculation | undefined,
-  success?: string,
-  parents?: {
-    candidates: ChildCandidate[];
-    childIds: ReadonlySet<number>;
-    offeredUnder: ListingWithCount[];
-  },
-  selectedGroupIds: number[] = [],
-): string => {
+/** Options for {@link ListingEditPanel} / {@link adminListingEditPage}. The
+ *  `parents` shape matches (structurally) the loader's `ListingParentsSection`
+ *  in listings-parents.ts; it stays inline here so the template never imports
+ *  from a route module. */
+export type ListingEditPanelOptions = {
+  listing: ListingWithCount;
+  groups: Group[];
+  session: AdminSession;
+  error?: string | undefined;
+  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
+  parents?:
+    | {
+        candidates: ChildCandidate[];
+        childIds: ReadonlySet<number>;
+        offeredUnder: ListingWithCount[];
+      }
+    | undefined;
+  selectedGroupIds?: number[] | undefined;
+};
+
+/**
+ * The listing "Edit" panel: the multipart edit form (all field sections, day
+ * prices, running totals), the owner-only income adjuster, the image/attachment
+ * removers, and the parent/child editor. Rendered as the listing entity page's
+ * Edit tab — and, on a rejected save, re-rendered in place with the submitted
+ * error — so it carries its own error flash rather than relying on the page
+ * frame. Composed into the legacy {@link adminListingEditPage} too.
+ */
+export const ListingEditPanel = ({
+  listing,
+  groups,
+  session,
+  error,
+  aggregateRecalculation,
+  parents,
+  selectedGroupIds = [],
+}: ListingEditPanelOptions): JSX.Element => {
   // A listing offered as a child inherits its parent's booking date/duration, so
   // its own date/duration settings have no effect when chosen as a child. Surface
   // that with a top banner and an inline note on the affected sections (#3).
@@ -2554,12 +2577,9 @@ export const adminListingEditPage = (
   // running-totals and income-adjust sections are omitted for them (and the edit
   // POST ignores any aggregate fields they craft — defence in depth).
   const showFinancials = session.adminLevel !== "editor";
-  return String(
-    <Layout
-      title={t("listings_table.edit_listing_title", { name: listing.name })}
-    >
-      <AdminNav active="/admin/" session={session} />
-      <Flash error={error} success={success} />
+  return (
+    <>
+      <Flash error={error} />
       {childOfNames !== null && (
         <p class="notice listing-child-banner">
           {t("listings_table.child_banner", { names: childOfNames })}
@@ -2631,9 +2651,37 @@ export const adminListingEditPage = (
           offeredUnder={parents.offeredUnder}
         />
       )}
-    </Layout>,
+    </>
   );
 };
+
+export const adminListingEditPage = (
+  listing: ListingWithCount,
+  groups: Group[],
+  session: AdminSession,
+  error?: string,
+  aggregateRecalculation?: ListingAggregateRecalculation | undefined,
+  success?: string,
+  parents?: ListingEditPanelOptions["parents"],
+  selectedGroupIds: number[] = [],
+): string =>
+  String(
+    <Layout
+      title={t("listings_table.edit_listing_title", { name: listing.name })}
+    >
+      <AdminNav active="/admin/" session={session} />
+      <Flash success={success} />
+      {ListingEditPanel({
+        aggregateRecalculation,
+        error,
+        groups,
+        listing,
+        parents,
+        selectedGroupIds,
+        session,
+      })}
+    </Layout>,
+  );
 
 /**
  * Admin delete listing confirmation page
