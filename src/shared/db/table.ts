@@ -16,7 +16,12 @@ import {
   registerCache,
   registerDependencies,
 } from "#shared/cache-registry.ts";
-import { execute, queryAll, queryOne } from "#shared/db/client.ts";
+import {
+  execute,
+  queryAll,
+  queryOne,
+  queryOnePrimary,
+} from "#shared/db/client.ts";
 import { requestCache } from "#shared/request-cache.ts";
 
 /**
@@ -378,24 +383,24 @@ export const defineTable = <Row, Input = Row>(config: {
     return row ? fromDb(row) : null;
   };
 
-  // Find by ID; `primary` pins the read to the primary (read-your-writes) for
-  // reading a row back right after its own write (see Table.findByIdPrimary).
+  // Find by ID via the given single-row query — a plain "read" (findById) or the
+  // primary read-your-writes read (findByIdPrimary), for reading a row back right
+  // after its own write (see Table.findByIdPrimary).
   const findByIdVia = async (
+    query: (sql: string, args: InValue[]) => Promise<Row | null>,
     id: InValue,
-    primary: boolean,
   ): Promise<Row | null> => {
-    const row = await queryOne<Row>(
-      `SELECT * FROM ${name} WHERE ${primaryKey} = ?`,
-      [id],
-      primary,
-    );
+    const row = await query(`SELECT * FROM ${name} WHERE ${primaryKey} = ?`, [
+      id,
+    ]);
     return row ? fromDb(row) : null;
   };
 
-  const findById = (id: InValue): Promise<Row | null> => findByIdVia(id, false);
+  const findById = (id: InValue): Promise<Row | null> =>
+    findByIdVia(queryOne, id);
 
   const findByIdPrimary = (id: InValue): Promise<Row | null> =>
-    findByIdVia(id, true);
+    findByIdVia(queryOnePrimary, id);
 
   // Delete by ID implementation
   const deleteById = async (id: InValue): Promise<void> => {

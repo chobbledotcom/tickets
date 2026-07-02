@@ -175,50 +175,6 @@ export const setupTransactionalTestDb = async (): Promise<
   };
 };
 
-/**
- * Run `fn` with the DB client wrapped so that any single-statement *read* whose
- * SQL matches `isStale` is served an empty result set — simulating a replica
- * that still lags a just-committed write (Turso routes "read"-mode queries to a
- * replica that can trail the primary). The transactional write path and the
- * primary-pinned batch reads are left untouched, so a row read back on the
- * primary is still found. Restores the real client afterwards even if `fn`
- * throws. Used to reproduce the read-your-writes crash where a lagging read-back
- * returned null and the create path dereferenced `row.id`.
- */
-export const withLaggingRead = async <T>(
-  isStale: (sql: string) => boolean,
-  fn: () => Promise<T>,
-): Promise<T> => {
-  const real = getDb();
-  const emptyResult = {
-    columns: [],
-    columnTypes: [],
-    lastInsertRowid: undefined,
-    rows: [],
-    rowsAffected: 0,
-    toJSON: () => ({}),
-  };
-  const lagging = new Proxy(real, {
-    get(target, prop, receiver) {
-      if (prop === "execute") {
-        return (stmt: string | { sql: string }) => {
-          const sql = typeof stmt === "string" ? stmt : stmt.sql;
-          if (isStale(sql)) return Promise.resolve(emptyResult);
-          return target.execute(stmt);
-        };
-      }
-      const value = Reflect.get(target, prop, receiver);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-  });
-  setDb(lagging as unknown as ReturnType<typeof getDb>);
-  try {
-    return await fn();
-  } finally {
-    setDb(real);
-  }
-};
-
 export const createTestDbWithSetup = async (
   country = "GB",
   triggers = false,

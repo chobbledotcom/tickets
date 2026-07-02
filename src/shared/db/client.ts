@@ -220,24 +220,29 @@ const firstRowOrNull = <T>(result: ResultSet): T | null => {
   return rows.length === 0 ? null : rows[0]!;
 };
 
-/**
- * Query a single row, returning null if not found.
- *
- * Pass `primary` to pin the read to the primary (read-your-writes). Use that
- * when reading a row back immediately after committing its own write: a plain
- * "read"-mode query is routed by Turso to a replica that can lag behind the
- * just-committed write and so miss the row (returning null); "write" mode always
- * hits the primary. Mirrors the same guard on {@link syncListingPrices}.
- */
+/** Query single row, returning null if not found */
 export const queryOne = async <T>(
   sql: string,
   args?: InValue[],
-  primary = false,
 ): Promise<T | null> => {
-  const result = primary
-    ? (await queryBatchPrimary([{ args: args ?? [], sql }]))[0]!
-    : await execute(sql, args);
-  return firstRowOrNull<T>(result);
+  return firstRowOrNull<T>(await execute(sql, args));
+};
+
+/**
+ * Query a single row on the primary (read-your-writes), returning null if not
+ * found. Use this to read a row back immediately after committing its own write:
+ * a plain {@link queryOne} runs in "read" mode, which Turso can route to a
+ * replica lagging the just-committed write and so miss the row (returning null);
+ * routing through {@link queryBatchPrimary} ("write" mode) always hits the
+ * primary. Mirrors the same guard on {@link syncListingPrices}. `args` is
+ * required — every read-back keys on the written row's id.
+ */
+export const queryOnePrimary = async <T>(
+  sql: string,
+  args: InValue[],
+): Promise<T | null> => {
+  const [result] = await queryBatchPrimary([{ args, sql }]);
+  return firstRowOrNull<T>(result!);
 };
 
 /** Query all rows, returning a typed array */

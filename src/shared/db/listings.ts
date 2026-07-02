@@ -33,6 +33,7 @@ import {
   queryAll,
   queryBatch,
   queryOne,
+  queryOnePrimary,
   resetAggregates,
   resultRows,
 } from "#shared/db/client.ts";
@@ -795,10 +796,9 @@ export const getListingWithCount = (
 export const getListingWithCountPrimary = async (
   id: number,
 ): Promise<ListingWithCount> => {
-  const row = await queryOne<ListingWithCount>(
+  const row = await queryOnePrimary<ListingWithCount>(
     `${LISTING_COUNT_SELECT} WHERE listing.id = ? ${LISTING_COUNT_GROUP_BY}`,
     [id],
-    true,
   );
   // The caller reads back a row it just committed, and this reads on the primary
   // (read-your-writes), so the row is always present — no missing-row branch.
