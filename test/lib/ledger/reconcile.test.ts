@@ -9,7 +9,7 @@ import {
   reconcileLegs,
 } from "#shared/ledger/reconcile.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
-import { makeTransfer } from "./factory.ts";
+import { makeTransfer } from "#test-utils/transfer-factory.ts";
 
 const psp = account("psp", "stripe");
 const world = account("external", "world");

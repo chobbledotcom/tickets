@@ -11,6 +11,7 @@ import { getDb, withTransaction } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
 import { setupTransactionalTestDb } from "#test-utils";
+import { tx } from "#test-utils/transfer-factory.ts";
 
 /** Post a standalone `writeoff` adjustment in its own transaction — the test-side
  *  convenience over `postWriteoffAdjustmentTx` (production always posts a
@@ -23,16 +24,7 @@ export const postWriteoffAdjustment = (
 ): Promise<void> =>
   withTransaction((tx) => postWriteoffAdjustmentTx(tx, acct, delta, keyParts));
 
-/** A {@link TransferInput} with sensible defaults; override any field. */
-export const tx = (overrides: Partial<TransferInput> = {}): TransferInput => ({
-  amount: 5000,
-  destination: account("revenue", 1),
-  eventGroup: "evt-1",
-  occurredAt: "2026-06-21T00:00:00.000Z",
-  reference: "ref-default",
-  source: account("attendee", 1),
-  ...overrides,
-});
+export { makeTransfer, tx } from "#test-utils/transfer-factory.ts";
 
 /** A sale plus its matching payment for one event (attendee owes nothing after). */
 export const saleAndPayment = (): TransferInput[] => [

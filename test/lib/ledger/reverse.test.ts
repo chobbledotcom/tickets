@@ -3,7 +3,7 @@ import { describe, it } from "@std/testing/bdd";
 import { account } from "#shared/ledger/account.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import { isInverseOf, reverseOf } from "#shared/ledger/reverse.ts";
-import { makeTransfer } from "./factory.ts";
+import { makeTransfer } from "#test-utils/transfer-factory.ts";
 
 const meta = {
   eventGroup: "void-1",
