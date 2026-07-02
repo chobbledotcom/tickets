@@ -14,6 +14,7 @@ import {
   assignListingsToGroup,
   computeGroupSlugIndex,
   getActiveListingsByGroupId,
+  getActiveListingsByGroupIds,
   getAllGroups,
   getGroupBySlugIndex,
   getGroupIdsByListingId,
@@ -171,6 +172,59 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       expect(listings.length).toBe(1);
       expect(listings[0]?.id).toBe(e1.id);
       expect(listings[0]?.attendee_count).toBe(3);
+    });
+
+    test("getActiveListingsByGroupIds batches several groups, keyed by id", async () => {
+      const populated = await createTestGroup({
+        name: "Populated",
+        slug: "batch-populated",
+      });
+      const empty = await createTestGroup({
+        name: "Empty",
+        slug: "batch-empty",
+      });
+      const active = await createTestListing({
+        groupId: populated.id,
+        maxAttendees: 10,
+        name: "Batch Active",
+      });
+      const inactive = await createTestListing({
+        groupId: populated.id,
+        maxAttendees: 10,
+        name: "Batch Inactive",
+      });
+      // A listing shared by both groups proves the join is resolved per group.
+      const shared = await createTestListing({
+        groupId: populated.id,
+        maxAttendees: 10,
+        name: "Batch Shared",
+      });
+      await assignListingsToGroup([shared.id], empty.id);
+      await getDb().execute({
+        args: [inactive.id],
+        sql: "UPDATE listings SET active = 0 WHERE id = ?",
+      });
+
+      const byGroup = await getActiveListingsByGroupIds([
+        populated.id,
+        empty.id,
+      ]);
+      // The inactive member is dropped; the shared active one appears under both.
+      expect(
+        byGroup
+          .get(populated.id)
+          ?.map((l) => l.id)
+          .sort(),
+      ).toEqual([active.id, shared.id].sort((a, b) => a - b));
+      expect(byGroup.get(empty.id)?.map((l) => l.id)).toEqual([shared.id]);
+    });
+
+    test("getActiveListingsByGroupIds maps a memberless group to an empty list", async () => {
+      const bare = await createTestGroup({ name: "Bare", slug: "batch-bare" });
+      const byGroup = await getActiveListingsByGroupIds([bare.id]);
+      expect(byGroup.get(bare.id)).toEqual([]);
+      // No ids ⇒ empty map, no query.
+      expect((await getActiveListingsByGroupIds([])).size).toBe(0);
     });
 
     test("resetGroupListings removes every membership row", async () => {

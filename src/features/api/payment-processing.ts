@@ -46,6 +46,10 @@ import {
   isRegistrationClosed,
 } from "#routes/format.ts";
 import {
+  getVisibleGroupMembers,
+  groupBookable,
+} from "#routes/public/discovery.ts";
+import {
   bookingDateFields,
   lacksStandalonePublicPage,
 } from "#routes/public/ticket-payment.ts";
@@ -199,22 +203,30 @@ export const cancelPageResponse = async (
 };
 
 /** The retry link for a cancelled checkout: the package group's page when the
- * order was a package, else the (first) listing's own page. Falls back to the
- * listing slug if the group is gone. Returns null (no retry link) for a
- * standalone order whose listing has since lost its own booking page — it became
- * a non-standalone child or a hidden package member mid-checkout, so
- * `/ticket/<slug>` would 404 and the retry would dead-end. */
+ * order was a package, else the (first) listing's own page. Returns null (no
+ * retry link) whenever the target page would no longer serve, so a "Try again"
+ * link never dead-ends:
+ *   - a standalone order whose listing has since lost its own booking page (it
+ *     became a non-standalone child or a hidden package member mid-checkout);
+ *   - a package order whose bundle is no longer bookable (a member was
+ *     deactivated, or the package cap dropped to 0) — the same {@link
+ *     groupBookable} gate the bundle page itself applies, so the link matches
+ *     what `/ticket/<group>` would render. When the bundle is dead we fall back
+ *     to the member's own page only if it still has one, else null. */
 const retryHrefFor = async (
   intent: BookingIntent | null,
   listing: { id: number; slug: string },
 ): Promise<string | null> => {
-  if (intent?.packageGroupId === undefined) {
-    return (await lacksStandalonePublicPage(listing.id))
+  const standaloneHref = async () =>
+    (await lacksStandalonePublicPage(listing.id))
       ? null
       : `/ticket/${listing.slug}`;
-  }
+  if (intent?.packageGroupId === undefined) return standaloneHref();
   const group = await groupsTable.findById(intent.packageGroupId);
-  return `/ticket/${group?.slug ?? listing.slug}`;
+  const bundleServes =
+    group !== null &&
+    (await groupBookable(group, await getVisibleGroupMembers(group)));
+  return bundleServes ? `/ticket/${group.slug}` : standaloneHref();
 };
 
 export const validatePaidSession = async (
@@ -1269,7 +1281,7 @@ const createAttendeeForSession = async (
     ...bookingDateFields(listing, intent.date, intent.dayCount),
   }));
   // Expand summed child bookings into per-parent rows when allocations were
-  // carried through the signed metadata (Stage C paid-path provenance): each
+  // carried through the signed metadata (paid-path provenance): each
   // allocation becomes its own listing_attendees row with the correct
   // parentListingId and proportional pricePaid, mirroring the free-path behaviour
   // in createFreeReservation.

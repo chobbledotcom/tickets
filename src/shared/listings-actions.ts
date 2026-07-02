@@ -181,7 +181,7 @@ export const listingInputToEdge = (
  * would-be `group_id`, or null. Reuses the same reachability helper the edge/
  * modifier saves use, resolved against an in-memory listing set with this
  * listing's group move applied (the live `modifier_groups`→`listings` join can't
- * see the pending change — parents.md Fix 4). The listing is checked both as a
+ * see the pending change). The listing is checked both as a
  * parent (its children, against its own page id `[id]`) and as a child (under
  * each parent's page id `[parentId]`). */
 /** Every listing as a {@link ListingGroupMembership} with a per-listing override
@@ -238,7 +238,7 @@ const orphanedAddOnAfterChange = async (
  * Block a DEACTIVATION (of one listing, or a whole group at once) that would
  * leave a child-scoped opt-in add-on a dead end — reachable only through a
  * suppressed child once the would-be-inactive listings stop serving a public
- * page (parents.md Fix 5; generalised to a SET for the group-bulk path).
+ * page (generalised to a SET for the group-bulk path).
  *
  * The edge-touching re-check ({@link orphanedAddOnAfterChange}) only walks edges
  * that touch a listing, so it MISSES the case here: a deactivated listing may
@@ -308,11 +308,15 @@ const strippedPageOrphanedAddOn = async (
     existing?.bookable_alone === true &&
     (await getParentIds(existingId)).length > 0;
   if (!deactivating && !clearingFlag) return null;
+  // Both listing-save entry points always resolve groupIds to an array — the
+  // form via parseGroupIds, the JSON API via `groups.input ?? existingGroupIds` —
+  // so it is defined here (matching the create path's `input.groupIds!` writer).
+  const wouldBeGroupIds = input.groupIds!;
   const override = (
     listing: ListingWithCount,
   ): Partial<ListingGroupMembership> =>
     listing.id === existingId
-      ? { active: !deactivating, groupIds: input.groupIds ?? [] }
+      ? { active: !deactivating, groupIds: wouldBeGroupIds }
       : {};
   return orphanedAddOnOverWouldBe(override, clearingFlag ? [existingId] : []);
 };
@@ -322,8 +326,8 @@ const strippedPageOrphanedAddOn = async (
  * against its would-be field values *and* its would-be `group_id`, so a
  * type/duration/renewal change can't leave a persisted edge the booking gate
  * can't honour, and a group change can't orphan a group-scoped add-on that the
- * edge's child suppresses (Fix 4). Also re-check add-on reachability when the
- * save DEACTIVATES this listing (Fix 5 — the edge-touching walk above misses a
+ * edge's child suppresses. Also re-check add-on reachability when the
+ * save DEACTIVATES this listing (the edge-touching walk above misses a
  * no-edge page that is the only one rescuing a child-scoped add-on). No-op for
  * creates (no edges yet, and a fresh listing rescues nothing).
  */
@@ -380,7 +384,7 @@ export const validateListingInput = async (
 /**
  * Block a DELETE that would leave a child-scoped opt-in add-on a dead end —
  * reachable only through a suppressed child once the deleted listing stops
- * serving a public page (parents.md Fix 2). The delete path prunes the listing's
+ * serving a public page. The delete path prunes the listing's
  * parent/child edges but otherwise bypasses the reachability guard the
  * deactivate paths run, so deleting the only active non-child page in a
  * child-scoped add-on's scope would orphan it.

@@ -1024,7 +1024,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
         parent: { maxAttendees: 10, maxQuantity: 2, unitPrice: 0 },
       });
 
-    test("rejects duplicate pay-more child entries with conflicting prices (Fix 4)", async () => {
+    test("rejects duplicate pay-more child entries with conflicting prices", async () => {
       // Two entries for the same pay-more child (qty 1 each, totalling the
       // parent's 2 units) name two different prices. A single stored
       // `child_price_*` can't honour both, so rather than letting the last
@@ -1043,7 +1043,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(body.error).toMatch(/conflicting prices/i);
     });
 
-    test("books no attendees when conflicting child prices are rejected (Fix 4)", async () => {
+    test("books no attendees when conflicting child prices are rejected", async () => {
       const { parent, child } = await parentWithTwoUnitPayMoreChild();
       await bookListing(parent.slug, {
         children: [
@@ -1059,7 +1059,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect((await getAttendeesRaw(parent.id)).length).toBe(0);
     });
 
-    test("accepts repeated child entries that agree on the price (Fix 4)", async () => {
+    test("accepts repeated child entries that agree on the price", async () => {
       // Duplicate entries for the same child are fine when they agree on the
       // price: the quantities sum and the single agreed price applies.
       const { parent, child } = await makeParent({
@@ -1090,7 +1090,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(body.booking?.amountOwed).toBe(4000);
     });
 
-    test("notifies registration for a free folded parent booking (Fix 3)", async () => {
+    test("notifies registration for a free folded parent booking", async () => {
       // A free parent+child booking takes the no-provider create path; it must
       // still log/notify the registration, exactly like the standalone API
       // booking and the web free path. The activity log is the observable proof
@@ -1109,7 +1109,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(childLog.some((e) => /registered/i.test(e.message))).toBe(true);
     });
 
-    test("carries the parent's thank-you URL on a folded paid checkout intent (Fix 1)", async () => {
+    test("carries the parent's thank-you URL on a folded paid checkout intent", async () => {
       // A single parent with a configured thank-you URL, folding in a paid child.
       // The order becomes multi-listing, so the success handler can't recover the
       // URL from the booked listing ids — the API must set it on the intent.
@@ -1146,7 +1146,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(capturedThankYou).toBe("https://example.com/thanks");
     });
 
-    test("omits the thank-you URL when the parent has none (Fix 1)", async () => {
+    test("omits the thank-you URL when the parent has none", async () => {
       // A parent without a configured URL must not set one on the intent; the
       // success handler's default single-listing rule still applies otherwise.
       await setupStripe();

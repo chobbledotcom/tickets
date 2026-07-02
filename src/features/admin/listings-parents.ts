@@ -116,7 +116,7 @@ export const loadListingParentsSection = async (
  * parent page of `pageIds`, or null. The default resolves add-on scopes from the
  * LIVE listings table (the HTML children form, where the parent row's `group_id`
  * is already persisted); the admin API supplies a would-be variant that resolves
- * against an in-memory listing set carrying the submitted `group_id` (Fix 4). */
+ * against an in-memory listing set carrying the submitted `group_id`. */
 type ChildOnlyAddOnResolver = (
   childId: number,
   pageIds: readonly number[],
@@ -184,7 +184,7 @@ export type ChildEdgeValidation =
   | { ok: true; childIds: number[] };
 
 /**
- * Optional would-be group context for the admin JSON API (Fix 4): the parent's
+ * Optional would-be group context for the admin JSON API: the parent's
  * submitted `group_id`, applied to an in-memory listing set so a group-scoped
  * add-on's reachability is resolved against the move the save is about to make
  * (the live `modifier_groups`→`listings` join can't yet see it). Omitted by the
@@ -194,7 +194,7 @@ export type ChildEdgeOptions = { wouldBeGroupIds: number[] };
 
 /** Build the add-on resolver for a child-edge validation: the live-table check
  * for the HTML form, or the in-memory would-be-group check for the admin API
- * (Fix 4), mirroring {@link orphanedAddOnAfterChange}'s would-be approach.
+ * mirroring {@link orphanedAddOnAfterChange}'s would-be approach.
  *
  * The would-be set carries the parent at its **submitted** `group_id`: an
  * existing parent is remapped in place; a not-yet-created parent (placeholder id)
@@ -237,8 +237,8 @@ const childOnlyAddOnResolver = async (
  * the cleaned ids the caller should write with `setChildIds`.
  *
  * `parent` is an {@link EdgeListing} (not the full row) so the admin API can
- * validate **would-be** edge fields BEFORE the row is written (atomicity —
- * parents.md Fix 4): a create has no persisted row yet, and an update's
+ * validate **would-be** edge fields BEFORE the row is written (atomicity): a
+ * create has no persisted row yet, and an update's
  * rename/type change must not persist when an edge is rejected. A create passes
  * a placeholder id (no real listing can reference it, so the self-edge / nesting
  * / add-on-reachability checks behave as for a not-yet-existing parent).
@@ -253,7 +253,7 @@ export const validateChildEdges = async (
   // a repeated child id (API body `[7,7]` or repeated form values) would make
   // `setChildIds` insert two `(parent, child)` rows and violate the unique index
   // — and on the API side-effect path that happens AFTER the row write, a partial
-  // change (Fix 4). Dedupe once here so validation and persist agree.
+  // change. Dedupe once here so validation and persist agree.
   const childIds = unique(
     submittedChildIds.filter(
       (childId) => childId !== parent.id && byId.has(childId),
@@ -290,7 +290,7 @@ export const validateChildEdges = async (
  *
  * On validation failure the edge set is **not** written (so a copy is never left
  * with an invalid gate) and the error is **returned** so the caller can warn the
- * operator (Fix 1) — a duplicate that silently drops its required-child gate
+ * operator — a duplicate that silently drops its required-child gate
  * would turn a gated listing into a standalone bookable copy. Returns null on
  * success.
  *
@@ -315,7 +315,7 @@ export const copyDuplicatedChildEdges = async (
  * too — otherwise remapping would clobber the gate it already had. The additions
  * are freshly-cloned ids, always disjoint from the existing children, so a plain
  * concatenation can't collide on the unique edge index. Returns the validation
- * error (propagated for the group-duplicate warning, Fix 5) or null. */
+ * error (propagated for the group-duplicate warning) or null. */
 const addChildrenToParent = async (
   parentId: number,
   addChildIds: readonly number[],
@@ -329,7 +329,7 @@ const addChildrenToParent = async (
 /**
  * Recreate the parent/child edges of a duplicated group on its clones. `idMap`
  * maps each source member's id to its clone. Two directions are walked so a
- * cloned child is never left standalone-bookable (the silent gate-drop Fix 2
+ * cloned child is never left standalone-bookable (the silent gate-drop this
  * guards against):
  *
  * 1. **Outgoing** — for every cloned parent, the clone requires the **remapped**
@@ -346,7 +346,7 @@ const addChildrenToParent = async (
  * edge.
  *
  * Returns the **distinct** edge-copy validation errors collected across both
- * walks (Fix 5): {@link copyDuplicatedChildEdges} returns (rather than throws)
+ * walks: {@link copyDuplicatedChildEdges} returns (rather than throws)
  * when a cloned parent's edge set fails validation, so a clone can be left
  * gateless while the bulk duplicate otherwise succeeds. Surfacing these lets the
  * caller warn the operator instead of silently producing a gateless standalone

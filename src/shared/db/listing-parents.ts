@@ -4,8 +4,7 @@
  * An edge row means `child_listing_id` is a chooseable child of
  * `parent_listing_id`. Reads return the **relationship only** — never an
  * availability-filtered set: bookability is date/duration-specific, so callers
- * evaluate it at render/submit against the submitted date (see parents.md, the
- * relationship-accessor note and invariant I3).
+ * evaluate it at render/submit against the submitted date.
  *
  * Only accessors with a production consumer live here; the booking-page batch
  * loader and edit-on-child writer are added alongside the gate/booking work that
@@ -45,7 +44,7 @@ const childIdSet = async (
 /** Of the given listing ids, the set that are a child of some parent (i.e. have
  * a `listing_parents` edge naming them as `child_listing_id`). Used to reject
  * child slugs at the booking entry point — a booking can never start from a
- * child (invariant I3). Returns an empty set for an empty input (no query). */
+ * child. Returns an empty set for an empty input (no query). */
 export const getChildListingIds = (
   ids: readonly number[],
 ): Promise<Set<number>> =>
@@ -175,7 +174,7 @@ const groupEdges = async (
 
 /**
  * The children of each of `parentIds`, hydrated to full rows (relationship
- * only — never availability-filtered; see invariant I3 and the module note).
+ * only — never availability-filtered; see the module note).
  * Each parent's children preserve child-id order and drop any that no longer
  * exist; only parents with at least one surviving child appear in the result.
  */
@@ -186,10 +185,10 @@ export const getChildrenForParents = (
 
 /**
  * The parents of each of `childIds`, hydrated to full rows (relationship only —
- * never availability-filtered; see invariant I3 and the module note). The
+ * never availability-filtered; see the module note). The
  * reverse of {@link getChildrenForParents}, used by discovery to decide whether
  * a child has any **bookable** parent that can offer it as an add-on
- * (parents.md, "Public listing cards").
+ * for public listing cards.
  */
 export const getParentsForChildren = (
   childIds: readonly number[],

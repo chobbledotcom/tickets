@@ -1050,7 +1050,7 @@ export const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
-    // User-created content pages (pages.md). All free text is stored encrypted;
+    // User-created content pages. All free text is stored encrypted;
     // slug_index is the plaintext HMAC blind index. sort_order positions the
     // page among root-level pages.
     "site_pages",
@@ -1078,7 +1078,7 @@ export const SCHEMA: [name: string, table: Table][] = [
   [
     // Ordered membership edges: a listing/group/page sits inside a page. The
     // single-parent invariant for `page` items is enforced in application code
-    // (the schema can't express a partial-unique index); see pages.md N3.
+    // (the schema can't express a partial-unique index).
     "site_page_items",
     {
       columns: [

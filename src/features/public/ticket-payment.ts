@@ -349,8 +349,8 @@ export const ctxToBuildTreeInput = (ctx: TicketCtx): BuildTreeInput => ({
 });
 
 /**
- * Fold every in-cart parent's selected children into the order (parents.md
- * "Server-side validation") by building the canonical {@link BookingTree} from the
+ * Fold every in-cart parent's selected children into the order by building the
+ * canonical {@link BookingTree} from the
  * resolved context and handing it to the pure {@link foldBookingTree} walk — so a
  * package member, a group member and a standalone parent all fold through one
  * recursive tree walk. Returns the expanded listing set + quantity/custom-price
@@ -450,7 +450,7 @@ export const createFreeReservation = async ({
       : {}),
   }));
   // Expand summed child bookings into per-parent rows when allocations are
-  // provided (Stage B free-path provenance): each allocation becomes its own
+  // provided (free-path provenance): each allocation becomes its own
   // listing_attendees row with the real parentListingId, so the DB records
   // which parent each child unit came from. The slot dedup
   // (hasDuplicateBookingSlot) permits same-child/different-parent rows because
@@ -526,7 +526,7 @@ export const createFreeReservation = async ({
 };
 
 /** Whether a listing has no standalone public booking page — it is a
- * non-standalone child (a child NOT flagged `bookable_alone`, invariant I3) or a
+ * non-standalone child (a child NOT flagged `bookable_alone`) or a
  * hidden package's member — so any admin/public affordance linking to its
  * `/ticket/<slug>` page would dead-end (404). A `bookable_alone` child keeps its
  * own page, so it is NOT flagged here. The single test the admin QR generator and
@@ -539,13 +539,13 @@ export const lacksStandalonePublicPage = async (
 
 /**
  * Drop child listings from an indirectly-loaded listing set (group/order pages),
- * so a child never renders as a standalone selectable quantity row (invariant I3).
+ * so a child never renders as a standalone selectable quantity row.
  * Unlike the explicit-slug entry points — which *reject* a child slug handed
  * directly (`withActiveListings`) — an indirect page loads from group membership /
  * a saved cart, where a child member is expected: it is folded under its parent's
  * selector, not booked alone. Parents stay in the set and re-load their children
  * via `childrenByParentId`, so this only removes the children's own standalone
- * rows (Fix 3, parents.md "strip child rows from indirect pages").
+ * rows.
  */
 export const dropChildListings = async (
   listings: readonly ListingWithCount[],
@@ -556,10 +556,10 @@ export const dropChildListings = async (
 
 /**
  * Whether `listingId` is a parent (has at least one child edge), so booking it
- * requires choosing one of its children (invariant I1). The web page enforces
+ * requires choosing one of its children. The web page enforces
  * that with a per-parent selector; the JSON API has no child-selection input, so
  * it uses this to reject a parent booking and direct the caller to the web booking
- * page (Fix 1, parents.md "Public/JSON API booking").
+ * page.
  */
 export const parentRequiresChild = async (
   listingId: number,
@@ -604,8 +604,8 @@ export const computeSharedDates = async (
   return [...dateSets[0]!].filter((d) => dateSets.every((s) => s.has(d)));
 };
 
-/** A required child's contribution to its parent's bookable-date union (Codex
- * 758/449). A STANDARD (dateless) child imposes no date constraint — bookable on
+/** A required child's contribution to its parent's bookable-date union. A
+ * STANDARD (dateless) child imposes no date constraint — bookable on
  * EVERY parent date (subject only to non-date capacity) — so it contributes all of
  * `parentDates`. A DAILY child contributes the parent dates it can serve for the
  * inherited span: when `fixedSpan` is set (e.g. a 3-day fixed daily parent) the
@@ -629,14 +629,14 @@ const childDateContribution = (
 
 /**
  * Constrain a daily parent's offered dates to those on which at least one of its
- * SELECTABLE required children is bookable (Codex 758/449/794):
+ * SELECTABLE required children is bookable:
  * `parentDates ∩ (UNION of the selectable children's bookable start dates)`.
  *
  * Children are first filtered by the date-INDEPENDENT disqualifiers
  * ({@link childSelectableForSpan}) so an inactive / closed / unpriced /
  * duration-incompatible child the fold would reject contributes NOTHING — else an
  * inactive child bookable only Tuesday would keep Tuesday selectable and submit
- * would fail (Codex 794). Remaining children each contribute the dates they serve
+ * would fail. Remaining children each contribute the dates they serve
  * for the inherited span ({@link childDateContribution}). Without this, a daily
  * parent available Mon+Tue whose only ACTIVE child is bookable Mon still offers Tue
  * and the fold rejects. The caller scopes WHEN this applies (see
@@ -657,7 +657,7 @@ const constrainDatesByChildUnion = (
 
 /**
  * The page's sole listing + its children when it is a daily parent, else null.
- * Scopes the child-date-union rule (Codex 758) to a SINGLE-listing page that is
+ * Scopes the child-date-union rule to a SINGLE-listing page that is
  * itself a daily parent — the common base-unit-plus-add-on case. On a multi-listing
  * / group page several listings share one date selector, and folding one parent's
  * child calendar into the shared set could wrongly remove a date a *different* page
@@ -705,9 +705,9 @@ const constrainPackageDatesByChildren = (
  * The parent→children relationship for the page's listings, each child hydrated to
  * a {@link TicketListing} so its availability resolves for the gate/render.
  * Children are loaded by relationship only — bookability is evaluated at
- * render/submit against the resolved date (invariant I3).
+ * render/submit against the resolved date.
  *
- * Fix 2 (don't apply the date-less GROUP cap to a daily parent's children) needs
+ * Not applying the date-less GROUP cap to a daily parent's children needs
  * no code here: the date-less group aggregate that {@link
  * buildTicketListingsWithGroupCapacity} applies via {@link
  * getGroupRemainingByListingId} **already excludes every daily listing** (its cap
@@ -719,7 +719,7 @@ const constrainPackageDatesByChildren = (
  * capacity to the date-aware {@link checkAvailability} (rejects, never clamps). A
  * *standard* child can never share a daily parent's group (homogeneity blocks it at
  * save), so the "standard child of a daily parent pre-marked sold out by the
- * date-less group aggregate" state parents.md Fix 2 describes is unreachable —
+ * date-less group aggregate" state is unreachable —
  * there is no clamp to suppress.
  */
 export const loadChildrenByParentId = async (
@@ -746,7 +746,7 @@ export const childListingIdsOf = (
   return [...ids];
 };
 
-/** The selectable parent spans the child date sets are computed over (Fix 4): a
+/** The selectable parent spans the child date sets are computed over: a
  * FIXED-duration parent has a single span ({@link fixedParentSpan}); a
  * CUSTOMISABLE parent has one per offered day-count ({@link availableDayCounts}),
  * since the buyer picks the span and a daily child's serveable starts differ per
@@ -757,7 +757,7 @@ const parentRenderSpans = (parent: ListingWithCount): number[] => {
 };
 
 /** A DAILY child's serveable starts PER selectable parent span ({@link
- * ChildSpanDates}, Fix 4): for each span the parent can offer, the holiday-aware
+ * ChildSpanDates}): for each span the parent can offer, the holiday-aware
  * parent dates from which the child can serve the WHOLE span — reusing the SAME
  * {@link childDateContribution} rule (span as its fixed span) the parent's date
  * union uses, so the client never disables a date the server would accept (or
@@ -781,9 +781,9 @@ const childSpanDates = (
 
 /** The holiday-aware serveable start dates each DAILY child can serve per
  * selectable parent span, keyed by the (parent, child) PAIR ({@link childDateKey})
- * for the client compatibility script (Codex 430, Fix 4).
+ * for the client compatibility script.
  *
- * Keying by the pair (Fix 4): the same daily child can be required by two parents
+ * Keying by the pair: the same daily child can be required by two parents
  * whose calendars/inherited spans differ, so each parent's block needs its OWN
  * `data-child-dates`. Keying by child id alone let the later parent overwrite the
  * earlier's constraint, so a child under one parent could carry the other's dates.
@@ -862,8 +862,8 @@ export const getTicketContext = async (
       getOptionalAddOns(listingIds),
     ]);
   // A daily parent's offered dates must intersect the union of its children's
-  // bookable dates (Codex 758); the client compatibility script also needs each
-  // daily child's serveable dates (Codex 430). Both are holiday-aware, so fetch
+  // bookable dates; the client compatibility script also needs each
+  // daily child's serveable dates. Both are holiday-aware, so fetch
   // holidays once when the page has any parents; pages with none skip it entirely.
   const holidays = childrenByParentId.size > 0 ? await getActiveHolidays() : [];
   const dailyParent = singleDailyParent(activeListings, childrenByParentId);
@@ -934,7 +934,7 @@ export const getTicketContext = async (
  * Constrain a daily parent's candidate dates to those at least one required child
  * can serve for the inherited span — the SAME `parentDates ∩ (union of selectable
  * children's bookable dates)` rule the web booking page applies via
- * {@link constrainDatesByChildUnion} (invariant I6, Fix 4). Used by the JSON API
+ * {@link constrainDatesByChildUnion}. Used by the JSON API
  * detail endpoint so it never advertises a date the web selector removes and the
  * fold rejects. The caller restricts this to daily listings (only they have an
  * `availableDates` list).

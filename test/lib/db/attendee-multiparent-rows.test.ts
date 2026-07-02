@@ -1,10 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import { createAttendeeAtomic, updateCheckedIn } from "#shared/db/attendees.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { setChildIds } from "#shared/db/listing-parents.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
+import { postListingSale } from "#test-utils/ledger.ts";
 
 /** The persisted rows for one listing under one attendee, with their parent. */
 const rowsFor = (attendeeId: number, listingId: number) =>
@@ -74,6 +76,27 @@ describeWithEnv(
       await updateCheckedIn(attendee.id, child.id, false);
       const checkedOut = await rowsFor(attendee.id, child.id);
       expect(checkedOut.every((r) => Number(r.checked_in) === 0)).toBe(true);
+    });
+
+    test("a paid child split under two parents reads its price once, split per row", async () => {
+      const { attendee, child } = await bookChildUnderTwoParents();
+      // One £20 sale leg for the child (2 units @ £10), stamped onto BOTH
+      // per-parent rows — exactly how production posts one leg per listing and
+      // shares its event group across the folded rows. The gross leg is the
+      // whole child total; the per-row projection must divide it, not repeat it.
+      await postListingSale({
+        attendeeId: attendee.id,
+        gross: 2000,
+        listingId: child.id,
+      });
+
+      const summary = await getAttendeeOrderSummary(attendee.id);
+      const childLines = summary.lines.filter((l) => l.listingId === child.id);
+      // Each per-parent row projects its own £10 share (2000 × 1 / 2), so the two
+      // rows sum to the real £20 rather than double-counting to £40.
+      expect(childLines.map((l) => l.pricePaid)).toEqual([1000, 1000]);
+      // The order total counts the child's ledger sale exactly once.
+      expect(summary.depositPaid).toBe(2000);
     });
   },
 );

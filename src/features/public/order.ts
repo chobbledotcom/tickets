@@ -84,9 +84,9 @@ const bookingUrlFor = (selected: TicketListing[]): string => {
  * redirect into the pre-filled multi-listing booking page.
  *
  * Children are never offered as selectable gallery items (a booking can't start
- * from a child — invariant I3), so the redirect can only ever contain parents
+ * from a child), so the redirect can only ever contain parents
  * and ordinary listings; a parent with no bookable child is projected to
- * sold-out (I6) so it renders dimmed and is never pre-filled with a quantity.
+ * sold-out so it renders dimmed and is never pre-filled with a quantity.
  */
 const handleOrder = async (request: Request): Promise<Response> => {
   const blocked = orderUnavailable();

@@ -1,5 +1,5 @@
 /**
- * The attendee entity page (edit-pages.md): one declarative definition of
+ * The attendee entity page: one declarative definition of
  * the tabbed /admin/attendees/:id page.
  *
  *   Overview  — summary table, bookings, answers, payment details, a short

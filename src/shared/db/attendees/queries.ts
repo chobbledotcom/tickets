@@ -7,7 +7,6 @@ import {
   accountPredicate,
   attendeeOwedSubquery,
   saleLegPredicate,
-  sumAmountFromTransfers,
 } from "#shared/accounting/projection-sql.ts";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
 import type {
@@ -51,17 +50,47 @@ const refundedFromLedger = (attendeeIdExpr: string): string =>
  * (every production booking) and stays put after a refund (the reversal is a
  * separate `refund_*` leg). 0 when the row has no sale leg — a free or
  * provider-less-owed booking, or an unmatched LEFT JOIN row (NULL ids/group match
- * nothing). `eventGroupExpr` is the row's `ledger_event_group` column.
+ * nothing).
+ *
+ * A booking's `sale` leg is posted once per listing, but a child that folds under
+ * several parents — or folds AND keeps a standalone remainder — turns one order
+ * into several `listing_attendees` rows sharing that single `(attendee, listing,
+ * event_group)` leg. Crediting the whole leg to each row would double-count the
+ * child on any summed readback, so the leg is split across those rows in QUANTITY
+ * proportion, deterministically by row id: each row takes `floor(total *
+ * qtyThroughThisRow / totalQty) − floor(total * qtyBeforeThisRow / totalQty)`.
+ * Those shares telescope to the full leg with no penny lost, and collapse to the
+ * whole leg for the ordinary one-row-per-listing case. `rowIdExpr` is the row's
+ * own `id`; all four expressions MUST be qualified (they seed correlated
+ * subqueries whose inner `sibling` alias would otherwise shadow a bare column).
  */
 export const pricePaidFromLedger = (
   attendeeIdExpr: string,
   listingIdExpr: string,
   eventGroupExpr: string,
-): string =>
-  sumAmountFromTransfers(
-    saleLegPredicate(attendeeIdExpr, listingIdExpr, eventGroupExpr),
-    "price_paid",
+  rowIdExpr: string,
+): string => {
+  const saleTotal = `(SELECT COALESCE(SUM(amount), 0) FROM transfers WHERE ${saleLegPredicate(
+    attendeeIdExpr,
+    listingIdExpr,
+    eventGroupExpr,
+  )})`;
+  const siblingQty = (idBound: string): string =>
+    "(SELECT COALESCE(SUM(sibling.quantity), 0) FROM listing_attendees AS sibling" +
+    ` WHERE sibling.attendee_id = ${attendeeIdExpr}` +
+    ` AND sibling.listing_id = ${listingIdExpr}` +
+    ` AND sibling.ledger_event_group = ${eventGroupExpr}${idBound})`;
+  const through = siblingQty(` AND sibling.id <= ${rowIdExpr}`);
+  const before = siblingQty(` AND sibling.id < ${rowIdExpr}`);
+  // NULLIF guards the divide when no sibling has quantity (a lone no-quantity
+  // sentinel, or an unmatched LEFT JOIN row); COALESCE then floors the NULL that
+  // divide yields back to 0 so `price_paid` is always a number.
+  const totalQty = `NULLIF(${siblingQty("")}, 0)`;
+  return (
+    `COALESCE(CAST(${saleTotal} * ${through} / ${totalQty} AS INTEGER)` +
+    ` - CAST(${saleTotal} * ${before} / ${totalQty} AS INTEGER), 0) AS price_paid`
   );
+};
 
 /**
  * An attendee's outstanding balance, projected from the ledger instead of a
@@ -90,6 +119,7 @@ const EA_LEDGER_MONEY_COLS = `${refundedFromLedger("listingAttendee.attendee_id"
   "listingAttendee.attendee_id",
   "listingAttendee.listing_id",
   "listingAttendee.ledger_event_group",
+  "listingAttendee.id",
 )}`;
 
 /** Columns sourced from listing_attendees (per-listing data). `package_group_id`
@@ -112,14 +142,18 @@ export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(listingAtte
  * Columns for a `ListingAttendeeRow` read straight from `listing_attendees`
  * (no attendee join) — every helper that loads an attendee's own booking rows
  * shares this list so the ledger-fed `refunded` projection is identical across
- * them. The bare `attendee_id` column feeds the correlated refund subquery.
+ * them. The bare `attendee_id` column feeds the correlated refund subquery. The
+ * amount-paid projection's key columns are table-qualified (`listing_attendees.*`)
+ * because its own correlated `sibling` subquery would otherwise shadow them; every
+ * consumer selects these from an unaliased `FROM listing_attendees`.
  */
 export const LISTING_ATTENDEE_ROW_COLS = `listing_id, start_at, end_at, quantity, checked_in, ${refundedFromLedger(
   "attendee_id",
 )}, ${pricePaidFromLedger(
-  "attendee_id",
-  "listing_id",
-  "ledger_event_group",
+  "listing_attendees.attendee_id",
+  "listing_attendees.listing_id",
+  "listing_attendees.ledger_event_group",
+  "listing_attendees.id",
 )}, ledger_event_group, attachment_downloads, order_token, parent_listing_id, package_group_id`;
 
 /**

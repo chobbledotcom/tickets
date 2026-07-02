@@ -227,8 +227,8 @@ const renderListingPage = async (
             loadListingQuestionData(listing.id, attendeeIds),
             loadGroupContext(listing, dateFilter),
             getListingAggregateRecalculation(listing),
-            // A non-standalone child has no standalone share/QR affordance
-            // (invariant I3); a `bookable_alone` child keeps them. The predicate
+            // A non-standalone child has no standalone share/QR affordance;
+            // a `bookable_alone` child keeps them. The predicate
             // no-ops (no query) when the feature is off.
             anyNonStandaloneChild([listing.id]),
             // A hidden package's member has no standalone public page either (its

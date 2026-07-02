@@ -102,7 +102,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       const activeType = listingTypeFromRequest(request);
       // Listings with no standalone public page are excluded from the
       // multi-booking link builder: a booking can never start from a
-      // non-standalone child (invariant I3), and a hidden package's member 404s
+      // non-standalone child, and a hidden package's member 404s
       // on its own `/ticket/<slug>` — so a `/ticket/<member+other>` URL the
       // builder emits would be rejected by the server. A `bookable_alone` child
       // has its own page, so it stays bookable here.

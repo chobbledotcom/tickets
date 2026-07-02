@@ -90,8 +90,8 @@ type FeedData = { items: FeedItem[]; domain: string; title: string };
 
 /** Load feed data: active open listings plus bookable packages. Children are
  * never syndicated (a feed item is a standalone `/ticket/<slug>` link, which a
- * booking can't start from — invariant I3), and a parent with no bookable child
- * is omitted (it would publish a link the gate rejects as sold out — I6).
+ * booking can't start from), and a parent with no bookable child
+ * is omitted (it would publish a link the gate rejects as sold out).
  * Packages are first-class products: the bundle itself is syndicated (booked
  * whole at `/ticket/<group-slug>`), so a hidden package stays discoverable even
  * though its member listings are dropped. */

@@ -720,7 +720,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // page — the edge is valid. Moving the PARENT out of the group makes the
     // add-on resolve to {child} only: it would then be reachable solely through
     // the suppressed child, which can't offer it. The listing save must be
-    // rejected against the would-be group_id (Fix 4), leaving the parent in its
+    // rejected against the would-be group_id, leaving the parent in its
     // group.
     const group = await createTestGroup({ name: "Bundle" });
     const parent = await createTestListing({
@@ -752,8 +752,8 @@ describeWithEnv("server > listing parents", { db: true }, () => {
 
   test("a listing save that keeps a group-scoped add-on reachable is allowed", async () => {
     // Moving the parent to ANOTHER group the add-on is also scoped to keeps the
-    // add-on reachable from the parent's page, so the save is allowed (Fix 4 is
-    // a reachability test, not a blanket group-change block).
+    // add-on reachable from the parent's page, so the save is allowed (the guard
+    // is a reachability test, not a blanket group-change block).
     const fromGroup = await createTestGroup({ name: "From" });
     const toGroup = await createTestGroup({ name: "To" });
     const parent = await createTestListing({
@@ -784,7 +784,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // While C is ungrouped the add-on doesn't reach C, so the edge is valid.
     // Moving C INTO G makes the add-on resolve to {C, ...}: reachable only via
     // the suppressed child C, never via P's page — the save must be rejected
-    // (Fix 4, the child-role branch of the edge check).
+    // (the child-role branch of the edge check).
     const group = await createTestGroup({ name: "Bundle" });
     const parent = await createTestListing({ name: "Base unit" });
     const child = await createTestListing({ name: "Add-on" });
@@ -840,7 +840,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect(error).toContain("Group extra");
   });
 
-  test("admin API PUT rejecting an invalid child does NOT persist the rename (Fix 4)", async () => {
+  test("admin API PUT rejecting an invalid child does NOT persist the rename", async () => {
     // The child-edge validation runs BEFORE the row write, so a rejected edge
     // leaves no partial change: the rename in the same PUT must not stick.
     const parent = await createTestListing({ name: "Base unit" });
@@ -861,7 +861,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect((await getListingWithCount(parent.id))?.name).toBe("Base unit");
   });
 
-  test("admin API POST rejecting an invalid child creates NO listing row (Fix 4)", async () => {
+  test("admin API POST rejecting an invalid child creates NO listing row", async () => {
     // On create the child-edge validation runs before the insert, so a rejected
     // edge must leave no orphan listing row behind.
     const { getAllListings } = await import("#shared/db/listings.ts");
@@ -886,12 +886,12 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect(after.some((l) => l.name === "Base unit")).toBe(false);
   });
 
-  test("deactivating the only active non-child page of a child add-on is rejected (Fix 5)", async () => {
+  test("deactivating the only active non-child page of a child add-on is rejected", async () => {
     // An opt-in add-on is scoped to {child, thatPage}. The child is suppressed
     // (it has no standalone page), so the add-on is reachable only through
     // `thatPage`. Deactivating `thatPage` — an ordinary listing with NO edges of
     // its own — would leave the add-on reachable only via the suppressed child,
-    // a dead end. The deactivation must be rejected (Fix 5), and the listing
+    // a dead end. The deactivation must be rejected, and the listing
     // must stay active.
     const parent = await createTestListing({ name: "Base unit" });
     const child = await createTestListing({ name: "Add-on" });
@@ -925,7 +925,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
   });
 
-  test("an admin API edit-save that deactivates the rescuing page is rejected (Fix 5)", async () => {
+  test("an admin API edit-save that deactivates the rescuing page is rejected", async () => {
     // The full edit-save path (validateListingInput → validateListingEdges)
     // must also block a deactivation that orphans a child-scoped add-on, not
     // only the dedicated /deactivate route. Set `active: false` via PUT.
@@ -947,7 +947,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
   });
 
-  test("API deactivate of the only rescuing page of a child add-on is rejected, leaving it active (Fix 5)", async () => {
+  test("API deactivate of the only rescuing page of a child add-on is rejected, leaving it active", async () => {
     // The JSON API toggle (POST /api/admin/listings/:id/deactivate) must run the
     // same orphaned-add-on guard the HTML deactivate route does: deactivating
     // `thatPage` — the only active non-child page rescuing a {child, thatPage}-
@@ -972,7 +972,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
   });
 
-  test("API deactivate of a listing unrelated to any child add-on still succeeds (Fix 5)", async () => {
+  test("API deactivate of a listing unrelated to any child add-on still succeeds", async () => {
     // The guard must not block an ordinary API deactivation: a plain listing
     // rescuing no child-scoped add-on toggles inactive normally.
     const plain = await createTestListing({ name: "Plain" });
@@ -988,9 +988,9 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect((await getListingWithCount(plain.id))?.active).toBe(false);
   });
 
-  test("deactivating a listing unrelated to any child add-on still succeeds (Fix 5)", async () => {
+  test("deactivating a listing unrelated to any child add-on still succeeds", async () => {
     // A plain listing not rescuing any child-scoped add-on deactivates normally
-    // — Fix 5 must not block ordinary deactivations.
+    // — the orphan guard must not block ordinary deactivations.
     const plain = await createTestListing({ name: "Plain" });
     const { handleRequest } = await import("#routes");
     const session = await getTestSession();
@@ -1012,7 +1012,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect((await getListingWithCount(plain.id))?.active).toBe(false);
   });
 
-  test("the deactivate confirmation GET renders the orphaned-add-on error and does NOT redirect to itself (Fix 1)", async () => {
+  test("the deactivate confirmation GET renders the orphaned-add-on error and does NOT redirect to itself", async () => {
     // Wiring the orphan guard as a `preValidate` made the confirmation GET
     // redirect to /deactivate (its own URL) in a loop instead of rendering. The
     // fix renders the page (200) WITH the error, and only the POST blocks. Here
@@ -1037,7 +1037,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
   });
 
-  test("deleting the only rescuing page of a {child, thatPage}-scoped add-on is blocked (Fix 2)", async () => {
+  test("deleting the only rescuing page of a {child, thatPage}-scoped add-on is blocked", async () => {
     // The delete path prunes edges but bypassed the reachability guard the
     // deactivate paths use: deleting `thatPage` (the sole active non-child page
     // of a {child, thatPage}-scoped opt-in add-on) would leave the add-on
@@ -1076,7 +1076,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect(await getListingWithCount(thatPage.id)).not.toBe(null);
   });
 
-  test("the unverified direct delete (verify_identifier=false) is also blocked by the orphan guard (Fix 2)", async () => {
+  test("the unverified direct delete (verify_identifier=false) is also blocked by the orphan guard", async () => {
     // The direct-delete branch (no typed-identifier confirmation) must run the
     // same guard as the confirmed path: it shares no code with the confirmed
     // handler, so it needs its own block.
@@ -1112,7 +1112,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect(await getListingWithCount(thatPage.id)).not.toBe(null);
   });
 
-  test("API delete of the only rescuing page of a child add-on is blocked, leaving it (Fix 2)", async () => {
+  test("API delete of the only rescuing page of a child add-on is blocked, leaving it", async () => {
     // The admin JSON API delete must run the same guard as the HTML delete.
     const parent = await createTestListing({ name: "Base unit" });
     const child = await createTestListing({ name: "Add-on" });
@@ -1133,7 +1133,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect(await getListingWithCount(thatPage.id)).not.toBe(null);
   });
 
-  test("deleting a listing unrelated to any child add-on still works (Fix 2)", async () => {
+  test("deleting a listing unrelated to any child add-on still works", async () => {
     // The guard must not block an ordinary delete.
     const plain = await createTestListing({ name: "Disposable" });
     await assertJson(
@@ -1149,7 +1149,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect(await getListingWithCount(plain.id)).toBe(null);
   });
 
-  test("API create of a parent in the same group as the child's group-scoped add-on is accepted (Fix 3)", async () => {
+  test("API create of a parent in the same group as the child's group-scoped add-on is accepted", async () => {
     // The child carries a GROUP-scoped opt-in add-on. Creating a NEW parent in
     // that same group must be ACCEPTED: the add-on is reachable from the new
     // parent's own page once it joins the group. The old code validated against
@@ -1173,7 +1173,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect(await getChildIds(newId)).toEqual([child.id]);
   });
 
-  test("API update moving a parent's group so the add-on becomes unreachable is rejected (Fix 3)", async () => {
+  test("API update moving a parent's group so the add-on becomes unreachable is rejected", async () => {
     // The add-on is group-scoped to the parent+child's group, so it's reachable
     // from the parent's page. A single PUT that BOTH moves the parent to another
     // group AND (re)sets the child edge must be judged against the would-be
@@ -1210,7 +1210,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect(await getChildIds(parent.id)).toEqual([child.id]);
   });
 
-  test("duplicate child_listing_ids collapse to a single edge with no error (Fix 4)", async () => {
+  test("duplicate child_listing_ids collapse to a single edge with no error", async () => {
     // `validateChildEdges` keeps duplicate ids unless deduped, so `[child,child]`
     // would make `setChildIds` insert two `(parent, child)` rows and violate the
     // unique index — and on the API side-effect path that happens after the row
@@ -1228,7 +1228,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect(await getChildIds(parent.id)).toEqual([child.id]);
   });
 
-  test("duplicate child_listing_ids in the HTML children form collapse to one edge (Fix 4)", async () => {
+  test("duplicate child_listing_ids in the HTML children form collapse to one edge", async () => {
     // The same dedupe applies to repeated form values.
     const parent = await createTestListing({ name: "Base unit" });
     const child = await createTestListing({ name: "Add-on" });

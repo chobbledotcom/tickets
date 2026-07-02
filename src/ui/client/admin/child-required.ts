@@ -31,8 +31,8 @@ const updateHint = (parentId: string, chosen: number): void => {
 };
 
 /** The child ids whose price input must be required for an in-cart parent: every
- * child given a positive `child_qty_*`, PLUS a SOLE auto-selected pay-more child
- * (Fix 2). A sole child has no `child_qty_*` control (it is auto-filled to the
+ * child given a positive `child_qty_*`, PLUS a SOLE auto-selected pay-more child.
+ * A sole child has no `child_qty_*` control (it is auto-filled to the
  * parent quantity), so `chosenChildIds` never reports it, yet its price IS
  * collected and the fold rejects a blank one — so re-require it whenever the parent
  * is in the cart. */

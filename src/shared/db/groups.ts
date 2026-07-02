@@ -24,7 +24,10 @@ import {
   groupDayPriceStatements,
   PRICE_TYPE_GROUP_DAY,
 } from "#shared/db/listing-prices.ts";
-import { queryListingsWithCounts } from "#shared/db/listings.ts";
+import {
+  getListingsWithCountsByIds,
+  queryListingsWithCounts,
+} from "#shared/db/listings.ts";
 import { allNamesById, queryAndMap } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
@@ -169,6 +172,46 @@ const queryGroupListings = (
 export const getActiveListingsByGroupId = (
   groupId: number,
 ): Promise<ListingWithCount[]> => queryGroupListings(groupId, true);
+
+/**
+ * The active members of SEVERAL groups at once, keyed by group id — the batched
+ * form of {@link getActiveListingsByGroupId} for a multi-group surface (the
+ * site-page nav's liveness gate). A page with many group leaves would otherwise
+ * run one member query per group; this loads the join once and the member
+ * listings once, then assembles each group's list in memory. Every group id maps
+ * to an entry (empty when it has no active member), and each list preserves the
+ * same newest-first order the single-group query returns (the member listings
+ * come back sorted, and the per-group filter keeps that order).
+ */
+export const getActiveListingsByGroupIds = async (
+  groupIds: readonly number[],
+): Promise<Map<number, ListingWithCount[]>> => {
+  const byGroup = new Map<number, ListingWithCount[]>(
+    groupIds.map((id) => [id, []]),
+  );
+  if (groupIds.length === 0) return byGroup;
+  const edges = await queryAll<{ group_id: number; listing_id: number }>(
+    `SELECT group_id, listing_id FROM group_listings
+      WHERE group_id IN (${inPlaceholders(groupIds)})`,
+    [...groupIds],
+  );
+  const members = await getListingsWithCountsByIds([
+    ...new Set(edges.map((edge) => edge.listing_id)),
+  ]);
+  const memberIdsByGroup = new Map<number, Set<number>>();
+  for (const { group_id, listing_id } of edges) {
+    const ids = memberIdsByGroup.get(group_id) ?? new Set<number>();
+    ids.add(listing_id);
+    memberIdsByGroup.set(group_id, ids);
+  }
+  for (const [groupId, ids] of memberIdsByGroup) {
+    byGroup.set(
+      groupId,
+      members.filter((member) => member.active && ids.has(member.id)),
+    );
+  }
+  return byGroup;
+};
 
 /** Does a group row exist? The add-item revalidation's single-row check — no
  * name decryption, never the whole table. */

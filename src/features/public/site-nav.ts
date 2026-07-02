@@ -40,7 +40,7 @@ import type { Group, SitePageItem, SitePageItemType } from "#shared/types.ts";
 import { navFlags, type PublicNavProps } from "#templates/public.tsx";
 import {
   classifyForDiscovery,
-  getVisibleGroupMembers,
+  getVisibleGroupMembersByGroupIds,
   groupBookable,
 } from "./discovery.ts";
 
@@ -111,8 +111,13 @@ const resolveTargets = async (
   // groupBookable gate: a regular group needs one standalone-bookable visible
   // member, a package needs the whole bundle to fit. Matches what the /listings
   // group card and the group QR advertise, so the nav can't link to a dead page.
-  const groupLive = await mapParallel(async (group: Group) =>
-    groupBookable(group, await getVisibleGroupMembers(group)),
+  // Members for every group are loaded in one batch so a page with many group
+  // leaves does not run a member query per group (a package's own bundle-cap
+  // read still runs per group inside groupBookable — that is per-package work).
+  const membersByGroup = await getVisibleGroupMembersByGroupIds(groups);
+  // getVisibleGroupMembersByGroupIds returns an entry for every group passed.
+  const groupLive = await mapParallel((group: Group) =>
+    groupBookable(group, membersByGroup.get(group.id)!),
   )(groups);
   for (const [index, group] of groups.entries()) {
     setLeaf("group", group, groupLive[index]!);

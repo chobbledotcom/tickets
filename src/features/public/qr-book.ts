@@ -130,7 +130,7 @@ const skipToCheckout = (
 /** Whether the scanned parent has any required child, so its QR must NOT skip
  * straight to checkout (which would build parent-only metadata that omits the
  * required child). Falling back to the form runs `prepareOrder`, which folds the
- * child in (parents.md QR entry-point). */
+ * child in. */
 const parentHasChildren = async (listing: ListingWithCount): Promise<boolean> =>
   (await getChildIds(listing.id)).length > 0;
 

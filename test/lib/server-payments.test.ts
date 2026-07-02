@@ -773,6 +773,62 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       );
     });
 
+    test("a cancelled package checkout falls back to the member page when the bundle is no longer bookable", async () => {
+      const { stub } = await import("@std/testing/mock");
+      const { stripeApi } = await import("#shared/stripe.ts");
+      await setupStripe();
+
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Dead Bundle",
+        slug: "dead-bundle",
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      // A package is all-or-nothing; deactivating a second member leaves the
+      // bundle incomplete, so /ticket/<group> now 404s. The retry link must fall
+      // back to the still-standalone member page rather than the dead bundle.
+      const gone = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      await getDb().execute({
+        args: [gone.id],
+        sql: "UPDATE listings SET active = 0 WHERE id = ?",
+      });
+
+      await withMocks(
+        () =>
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              id: "cs_pkg_cancel_dead",
+              metadata: {
+                email: "john@example.com",
+                items: singleItem(member.id, 1, 1000),
+                name: "John",
+                package_group_id: String(group.id),
+              },
+              payment_status: "unpaid",
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >),
+          ),
+        async () => {
+          const html = await assertPublicHtml(
+            "/payment/cancel?session_id=cs_pkg_cancel_dead",
+            "Payment Cancelled",
+            `/ticket/${member.slug}`,
+          );
+          expect(html).not.toContain(`/ticket/${group.slug}`);
+        },
+        resetStripeClient,
+      );
+    });
+
     test("a cancelled package checkout falls back to the member page when the group is gone", async () => {
       const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#shared/stripe.ts");
@@ -1398,7 +1454,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       // A single parent with a configured thank_you_url folds a required paid
       // child, so the completed booking has TWO unique listing ids. The default
       // success rule drops thank_you_url for multi-listing orders; the explicit
-      // intent value (carried in the signed metadata) must still win (Codex 742).
+      // intent value (carried in the signed metadata) must still win.
       await withMocks(
         await parentThanksStub("cs_parent_thanks", "pi_parent_thanks"),
         async () => {

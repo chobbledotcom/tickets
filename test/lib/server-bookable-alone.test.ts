@@ -1,5 +1,5 @@
 /**
- * The `bookable_alone` flag (WS2): a child listing flagged
+ * The `bookable_alone` flag: a child listing flagged
  * `bookable_alone = true` keeps its OWN standalone booking page, catalogue
  * entry, feed item, JSON-API eligibility and share/QR affordances, while still
  * folding under its parents — the split of the historic "being a child strips
@@ -34,7 +34,7 @@ import {
   updateTestListing,
 } from "#test-utils";
 
-/** A parent with a single `bookable_alone` child (the WS2 headline shape). */
+/** A parent with a single `bookable_alone` child (the headline shape). */
 const parentWithFlaggedChild = () =>
   makeParent({
     children: [{ bookableAlone: true, name: "Solo Widget" }],
@@ -150,7 +150,7 @@ describeWithEnv(
     describe("group liveness stays structural", () => {
       test("a group whose only members are flagged children is NOT advertised live", async () => {
         // The child is bookable on its OWN card, but the group page folds it
-        // away — so the group must not advertise a live Book link (subtlety #2).
+        // away — so the group must not advertise a live Book link.
         const group = await createTestGroup({ name: "Widgets" });
         const parent = await createTestListing({
           groupId: group.id,
