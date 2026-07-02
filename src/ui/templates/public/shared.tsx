@@ -3,6 +3,7 @@ import { isContactFormActive } from "#shared/contact-form.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { renderMarkdown } from "#shared/markdown.ts";
 import { parseTargetKey } from "#shared/site-pages/core.ts";
 import type { NavModel, NavNode } from "#shared/site-pages/types.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
@@ -14,6 +15,7 @@ import {
   PARENT_CHILD_GROUP_UNITS,
   type SharedGroupCapacity,
 } from "#shared/types.ts";
+import { desktopNavShell, mobileNavBar } from "#templates/components/nav.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
 
 /** Everything {@link PublicNav} renders: the settings-driven page flags plus
@@ -103,18 +105,11 @@ const rootItems = (
     : []),
 ];
 
-/** One mobile nav bar, named for screen-reader users (stacked-bars pattern). */
-const mobileBar = (label: string, lis: JSX.Element[]): JSX.Element => (
-  <nav aria-label={label} class="admin-nav admin-nav--mobile">
-    <ul>{lis}</ul>
-  </nav>
-);
-
 /** Mobile: the root bar, then one bar per active-chain level (root-first),
  * each named after the page whose children it lists. */
 const MobilePublicNav = (props: PublicNavProps): JSX.Element => {
   const bars = [
-    mobileBar(
+    mobileNavBar(
       t("nav.public.main"),
       rootItems(props, () => null),
     ),
@@ -128,7 +123,7 @@ const MobilePublicNav = (props: PublicNavProps): JSX.Element => {
   for (const level of props.pages.submenuLevels) {
     if (level.length === 0) continue;
     bars.push(
-      mobileBar(
+      mobileNavBar(
         parent!.label,
         level.map((node) => (
           <li>
@@ -157,15 +152,14 @@ const MobilePublicNav = (props: PublicNavProps): JSX.Element => {
  */
 export const PublicNav = (props: PublicNavProps): JSX.Element => (
   <div class="admin-nav-group">
-    <nav aria-label={t("nav.public.main")} class="admin-nav admin-nav--desktop">
-      <ul>
-        {rootItems(props, (node) =>
-          node.active ? (
-            <DesktopLevels depth={0} levels={props.pages.submenuLevels} />
-          ) : null,
-        )}
-      </ul>
-    </nav>
+    {desktopNavShell(
+      t("nav.public.main"),
+      rootItems(props, (node) =>
+        node.active ? (
+          <DesktopLevels depth={0} levels={props.pages.submenuLevels} />
+        ) : null,
+      ),
+    )}
     <MobilePublicNav {...props} />
   </div>
 );
@@ -179,6 +173,28 @@ export const navFlags = () => ({
   hasOrder: settings.orderEnabled,
   hasTerms: !!settings.terms,
 });
+
+/** The footer every public page ends with: the one admin-login link. */
+export const LoginFooter = (): JSX.Element => (
+  <footer class="homepage-footer">
+    <p>
+      <a href="/admin/login">{t("common.login")}</a>
+    </p>
+  </footer>
+);
+
+/** Operator-authored markdown rendered into the shared `.prose` block —
+ * nothing at all when the markdown is empty. */
+export const MarkdownProse = ({
+  markdown,
+}: {
+  markdown: string;
+}): JSX.Element | null =>
+  markdown ? (
+    <div class="prose">
+      <Raw html={renderMarkdown(markdown)} />
+    </div>
+  ) : null;
 
 export const RSS_DISCOVERY_TAG =
   '<link rel="alternate" type="application/rss+xml" title="Listings" href="/feeds/listings.rss" />';

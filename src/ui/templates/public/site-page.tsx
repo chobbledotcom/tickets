@@ -5,14 +5,13 @@
  * (dead targets render as text, never a link that 404s).
  */
 
-import { t } from "#i18n";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { renderMarkdown } from "#shared/markdown.ts";
 import type { NavNode } from "#shared/site-pages/types.ts";
 import type { SitePage } from "#shared/types.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import {
   FEED_DISCOVERY_TAGS,
+  LoginFooter,
+  MarkdownProse,
   NodeLink,
   PublicNav,
   type PublicNavProps,
@@ -36,11 +35,7 @@ export const sitePagePage = (
     <Layout headExtra={FEED_DISCOVERY_TAGS + metaTag} title={title}>
       <PublicNav {...nav} />
       <h1>{page.name}</h1>
-      {page.content && (
-        <div class="prose">
-          <Raw html={renderMarkdown(page.content)} />
-        </div>
-      )}
+      <MarkdownProse markdown={page.content} />
       {items.length > 0 && (
         <ul class="page-items">
           {items.map((node) => (
@@ -50,11 +45,7 @@ export const sitePagePage = (
           ))}
         </ul>
       )}
-      <footer class="homepage-footer">
-        <p>
-          <a href="/admin/login">{t("common.login")}</a>
-        </p>
-      </footer>
+      <LoginFooter />
     </Layout>,
   );
 };

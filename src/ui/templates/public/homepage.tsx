@@ -8,6 +8,7 @@ import type { Group } from "#shared/types.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import {
   FEED_DISCOVERY_TAGS,
+  LoginFooter,
   PublicNav,
   type PublicNavProps,
   type TicketListing,
@@ -120,11 +121,7 @@ export const homepagePage = (
         <p>
           <em>{t("public.no_listings_listed")}</em>
         </p>
-        <footer class="homepage-footer">
-          <p>
-            <a href="/admin/login">{t("common.login")}</a>
-          </p>
-        </footer>
+        <LoginFooter />
       </Layout>,
     );
   }
@@ -145,11 +142,7 @@ export const homepagePage = (
       <h2>{t("public.all_bookable_listings")}</h2>
       <Raw html={groupListings} />
       <Raw html={listingListings} />
-      <footer class="homepage-footer">
-        <p>
-          <a href="/admin/login">{t("common.login")}</a>
-        </p>
-      </footer>
+      <LoginFooter />
     </Layout>,
   );
 };

@@ -6,6 +6,8 @@ import { renderMarkdown } from "#shared/markdown.ts";
 import { Layout } from "#templates/layout.tsx";
 import {
   FEED_DISCOVERY_TAGS,
+  LoginFooter,
+  MarkdownProse,
   PublicNav,
   type PublicNavProps,
 } from "./shared.tsx";
@@ -44,11 +46,7 @@ export const publicSitePage = (
           </p>
         )}
       </div>
-      <footer class="homepage-footer">
-        <p>
-          <a href="/admin/login">{t("common.login")}</a>
-        </p>
-      </footer>
+      <LoginFooter />
     </Layout>,
   );
 };
@@ -103,17 +101,9 @@ export const contactPage = (options: {
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav {...options.nav} />
       <Flash error={options.error} success={options.success} />
-      {content && (
-        <div class="prose">
-          <Raw html={renderMarkdown(content)} />
-        </div>
-      )}
+      <MarkdownProse markdown={content ?? ""} />
       {formActive && <ContactForm botpoisonPublicKey={botpoisonPublicKey} />}
-      <footer class="homepage-footer">
-        <p>
-          <a href="/admin/login">{t("common.login")}</a>
-        </p>
-      </footer>
+      <LoginFooter />
     </Layout>,
   );
 };

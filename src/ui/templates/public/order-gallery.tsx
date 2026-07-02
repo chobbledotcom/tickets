@@ -9,6 +9,7 @@ import { Icon } from "#templates/components/actions.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import {
   FEED_DISCOVERY_TAGS,
+  LoginFooter,
   PublicNav,
   type PublicNavProps,
   renderListingImage,
@@ -102,11 +103,7 @@ export const orderGalleryPage = (
           </button>
         </form>
       )}
-      <footer class="homepage-footer">
-        <p>
-          <a href="/admin/login">{t("common.login")}</a>
-        </p>
-      </footer>
+      <LoginFooter />
     </Layout>,
   );
 };

@@ -19,6 +19,7 @@ import {
   DeleteSection,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { ReorderArrows } from "#templates/components/reorder.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 const ACTIVE = "/admin/site";
@@ -53,20 +54,11 @@ const Arrows = ({
   count: number;
 }): JSX.Element => (
   <span class="reorder">
-    {index > 0 && (
-      <CsrfForm action={`${base}/move-up`} class="inline">
-        <button class="link-button small" type="submit">
-          &#9650;
-        </button>
-      </CsrfForm>
-    )}{" "}
-    {index < count - 1 && (
-      <CsrfForm action={`${base}/move-down`} class="inline">
-        <button class="link-button small" type="submit">
-          &#9660;
-        </button>
-      </CsrfForm>
-    )}
+    <ReorderArrows
+      action={(d) => `${base}/move-${d}`}
+      count={count}
+      index={index}
+    />
   </span>
 );
 

@@ -28,6 +28,7 @@ import { isSupportEnabled } from "#shared/support.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { markAdminFooter } from "#templates/admin/footer.tsx";
 import { SettingsNagBanner } from "#templates/admin/settings-nag-banner.tsx";
+import { desktopNavShell, mobileNavBar } from "#templates/components/nav.tsx";
 
 /** One navigation link. */
 interface NavItem {
@@ -222,57 +223,36 @@ const navAnchor = (item: NavItem, highlight: string): JSX.Element => (
 const navItems = (items: NavItem[], highlight: string): JSX.Element[] =>
   items.map((item) => <li>{navAnchor(item, highlight)}</li>);
 
-/** Desktop sidebar: one nav with the sub-nav nested inside its parent <li>, and
- * the site third level nested again — DOM order matches the stacked visual. */
-const DesktopNav = ({
-  items,
-  highlight,
-  section,
-}: {
+/** The props both viewport-specific navs render from. */
+type LeveledNavProps = {
   items: NavItem[];
   highlight: string;
   section: Section | null;
-}): JSX.Element => (
-  <nav
-    aria-label={t("nav.admin")}
-    class="admin-nav admin-nav--desktop"
-    id="main-nav"
-  >
-    <ul>
-      {items.map((item) => (
-        <li>
-          {navAnchor(item, highlight)}
-          {section && item.href === highlight && (
-            <ul class="admin-subnav">{navItems(section.items, "")}</ul>
-          )}
-        </li>
-      ))}
-    </ul>
-  </nav>
-);
+};
 
-/** One mobile nav bar (the top-level row, or a sub-nav row beneath it), with an
- * accessible name so screen-reader users can tell the stacked bars apart. */
-const mobileBar = (label: string, lis: JSX.Element[]): JSX.Element => (
-  <nav aria-label={label} class="admin-nav admin-nav--mobile">
-    <ul>{lis}</ul>
-  </nav>
-);
+/** Desktop sidebar: one nav with the sub-nav nested inside its parent <li>, and
+ * the site third level nested again — DOM order matches the stacked visual.
+ * `#main-nav` marks the page as an admin page for the stylesheet. */
+const DesktopNav = ({ items, highlight, section }: LeveledNavProps) =>
+  desktopNavShell(
+    t("nav.admin"),
+    items.map((item) => (
+      <li>
+        {navAnchor(item, highlight)}
+        {section && item.href === highlight && (
+          <ul class="admin-subnav">{navItems(section.items, "")}</ul>
+        )}
+      </li>
+    )),
+    "main-nav",
+  );
 
 /** Mobile: the top-level bar, then each sub-nav level as its own bar below —
  * the separate stacked bars admin has always shown on small screens. */
-const MobileNav = ({
-  items,
-  highlight,
-  section,
-}: {
-  items: NavItem[];
-  highlight: string;
-  section: Section | null;
-}): JSX.Element => (
+const MobileNav = ({ items, highlight, section }: LeveledNavProps) => (
   <>
-    {mobileBar(t("nav.admin"), navItems(items, highlight))}
-    {section && mobileBar(section.label, navItems(section.items, ""))}
+    {mobileNavBar(t("nav.admin"), navItems(items, highlight))}
+    {section && mobileNavBar(section.label, navItems(section.items, ""))}
   </>
 );
 
