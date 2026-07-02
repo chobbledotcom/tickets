@@ -199,18 +199,21 @@ describeWithEnv("admin API security", { db: true }, () => {
 
     test("treats uppercase Content-Type the same as lowercase (RFC 7231)", async () => {
       const apiKey = await createTestApiKeyToken();
-      const body = JSON.stringify({ max_attendees: 10, name: "Case Test" });
+      // Distinct names so the second create is not rejected as a duplicate — the
+      // point here is content-type case handling, not name uniqueness.
+      const bodyFor = (name: string): string =>
+        JSON.stringify({ max_attendees: 10, name });
 
       const lower = await handleRequest(
         requestAsApiKey("/api/admin/listings", apiKey, {
-          body,
+          body: bodyFor("Case Test Lower"),
           headers: { "content-type": "application/json" },
           method: "POST",
         }),
       );
       const upper = await handleRequest(
         requestAsApiKey("/api/admin/listings", apiKey, {
-          body,
+          body: bodyFor("Case Test Upper"),
           headers: { "content-type": "APPLICATION/JSON" },
           method: "POST",
         }),

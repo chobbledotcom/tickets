@@ -32,10 +32,11 @@ const makeTodayBooking = async (
   startAgent: number,
   endAgent: number,
   durationDays = 1,
+  name = "Bouncy Castle",
 ): Promise<{ attendeeId: number; listingId: number; listingName: string }> => {
   const listing = await createTestListing({
     maxAttendees: 100,
-    name: "Bouncy Castle",
+    name,
   });
   const attendee = await createTestAttendee(
     listing.id,
@@ -74,7 +75,7 @@ const makeTodayBooking = async (
   return {
     attendeeId: attendee.id,
     listingId: listing.id,
-    listingName: "Bouncy Castle",
+    listingName: name,
   };
 };
 
@@ -110,9 +111,10 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
       username: "agent1",
     });
     // Two bookings whose drop-off legs share the same time exercise the
-    // run-sheet sort's listing-name tie-break.
+    // run-sheet sort's listing-name tie-break. Names must differ (listing names
+    // are unique), so the tie-break resolves deterministically by name.
     await makeTodayBooking(van, van);
-    await makeTodayBooking(van, van);
+    await makeTodayBooking(van, van, 1, "Bouncy Castle 2");
 
     const response = await awaitTestRequest("/admin/deliveries", { cookie });
     expect(response.status).toBe(200);

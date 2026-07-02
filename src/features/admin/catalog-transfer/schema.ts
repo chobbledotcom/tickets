@@ -32,7 +32,7 @@ const NonNegativeIntSchema = intAtLeast(0);
 /** A whole positive integer (durations, quantities). */
 const PositiveIntSchema = intAtLeast(1);
 /** A minor-unit price — a non-negative integer. */
-const PriceSchema = NonNegativeIntSchema;
+const PriceSchema = intAtLeast(0);
 /** A required, trimmed, non-empty name reference. */
 const NameRefSchema = v.pipe(v.string(), v.trim(), v.minLength(1));
 /** A day-count JSON key: a positive whole number within the bookable range, so a
