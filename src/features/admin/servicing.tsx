@@ -34,6 +34,7 @@ import {
   updateServicingEvent,
 } from "#shared/db/attendees/servicing.ts";
 import { getAllListings } from "#shared/db/listings.ts";
+import { applyDemoOverrides, SERVICING_DEMO_FIELDS } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -402,6 +403,11 @@ const handleServicingGet: TypedRouteHandler<"GET /admin/servicing/:id"> = (
   });
 
 const parseCreateInput = async (form: FormParams) => {
+  // In demo mode, swap the operator's submitted servicing name for a demo
+  // servicing reason before parsing — mirroring the attendee form's
+  // applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS). SERVICING_DEMO_FIELDS maps
+  // only `name` (to a job, not a person), and it's a no-op outside demo mode.
+  applyDemoOverrides(form, SERVICING_DEMO_FIELDS);
   const listings = await getAllListings();
   const parsed = parseServicingForm(form, listingsByIdMap(listings));
   return toServicingCreateInput(parsed);
