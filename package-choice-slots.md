@@ -138,9 +138,11 @@ JSON API; the single-listing duplicate and group bulk-duplicate paths).
   **candidate**: standard, fixed-price (`!can_pay_more`), not
   daily/`customisable_days` (phase A — the doc's "fixed-price, date-less
   deterministic" child rule, now relaxed from *deterministic* to
-  *buyer-choice*), not itself a package member (keep the
-  `anyListingInPackageGroup` arm), and not itself a parent (parent/child is
-  one level deep everywhere already).
+  *buyer-choice*), **not `hidden`** (a hidden child node is `HIDDEN` in the
+  tree and dropped from render, so it would either underfill an exact-sum
+  slot or leak a listing the operator hid), not itself a package member
+  (keep the `anyListingInPackageGroup` arm), and not itself a parent
+  (parent/child is one level deep everywhere already).
 - The candidate rules **compose with** the existing per-edge blockers in the
   parent/child save path, they do not replace them: `edgeFieldError` (no
   renewal-tier children, `months_per_unit > 0`, plus the daily-child field
@@ -162,7 +164,8 @@ JSON API; the single-listing duplicate and group bulk-duplicate paths).
   `packageChildEdgeConflict`; it becomes this predicate).
 - **Editing a candidate's own fields re-runs it too.** Candidate eligibility
   depends on the child listing's fields (`can_pay_more`, `listing_type`,
-  `customisable_days`, renewal tier), and the listing-save edge revalidation
+  `customisable_days`, `hidden`, renewal tier), and the listing-save edge
+  revalidation
   (`validateListingEdges` → `edgeIncompatibilityAfterChange` →
   `edgeFieldError`) checks only the generic parent/child field rules — an
   existing valid candidate could be edited to pay-more/daily and stay under
@@ -244,11 +247,18 @@ top-level member nodes. Two pieces of work:
     enough — with three pick-1 slots whose candidates all draw from pools G
     or H at 1 spot each, no single pool is forced and every slot has supply,
     yet 3 units cannot fit a 2-seat union, so discovery would advertise a
-    package every submitted mix fails (a dead CTA). The check at count `q`
-    is therefore a small **joint feasibility** problem: slots on one side,
-    residual capped pools (plus an uncapped sink for out-of-pool candidates)
-    on the other — a bipartite flow / Hall-condition check over pool subsets.
-    Package configs are tiny (a handful of slots and pools), so exactness is
+    package every submitted mix fails (a dead CTA). And the feasibility
+    variables must be **per-candidate, not per-pool**: booking one unit of a
+    candidate consumes a seat in *every* capped group it belongs to (the
+    write/read capacity path counts a listing against each group in its
+    membership — `src/shared/db/attendees/capacity.ts`,
+    `src/shared/db/capacity.ts`), so a sole candidate in pools G **and** H
+    with 1 spot each supplies 1 unit, not 2 — a pool-level Hall/flow model
+    would see two alternative seats. The check at count `q` is therefore a
+    small feasibility system over per-candidate unit counts `x_c`: per slot,
+    `Σ x_c over its candidates = pickCount × q`; per capped pool,
+    `Σ x_c over candidates in the pool ≤ residual`. Package configs are tiny
+    (a handful of slots, candidates, and pools), so solving it exactly is
     cheap; the atomic batch write predicate remains the final authority for
     the buyer's actual mix (per-date dimensions and races it alone can see).
     `resolvePageQuantities` clamps the posted count with the same function,
@@ -407,9 +417,10 @@ price — existing, deliberate behaviour.
 - **Admin:** the slot configuration accepted via *every* save path (group
   edit/add-listings, listing save, children form, JSON API, both duplicate
   paths); pay-more/daily/nested/package-member candidates rejected from each;
-  renewal-tier (`months_per_unit > 0`) and child-only opt-in add-on
-  candidates rejected (the existing edge blockers still apply); editing an
-  existing candidate to pay-more/daily rejected at listing save; a listing
+  renewal-tier (`months_per_unit > 0`), `hidden`, and child-only opt-in
+  add-on candidates rejected (the existing edge blockers still apply);
+  editing an existing candidate to pay-more/daily/hidden rejected at listing
+  save; a listing
   that is itself a **child** under another parent rejected as a member; two
   slots of one package sharing a candidate rejected; hidden-package × slot
   rejected both directions.
@@ -427,7 +438,9 @@ price — existing, deliberate behaviour.
   residual mode, no parent+child double-count); two slots whose candidate
   sets both sit inside one 1-spot pool yield 0, not 1; three pick-1 slots
   over two pools with 1 spot each yield 0, not 1 (joint assignment, not
-  per-slot or forced-demand checks); a candidate-only capped pool clamps the
+  per-slot or forced-demand checks); a sole candidate in TWO 1-spot pools
+  supplies 1 unit, not 2 (per-candidate variables, one unit charges every
+  pool it sits in); a candidate-only capped pool clamps the
   `/ticket/<package>` render and POST, not just discovery; a sold-out
   candidate set ⇒ package sold out everywhere discovery
   looks (cards, `/order.js`, feeds, API, QR) in lockstep with the ticket
