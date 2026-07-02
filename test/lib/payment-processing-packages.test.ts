@@ -7,6 +7,7 @@ import {
 } from "#routes/api/payment-processing.ts";
 
 const pkg: PackagePricing = {
+  dayPriceMap: new Map([[2, new Map([[2, 700]])]]),
   memberIds: new Set([1, 2]),
   priceMap: new Map([[1, 1500]]),
   quantityMap: new Map([
@@ -16,39 +17,73 @@ const pkg: PackagePricing = {
 };
 const item = (e: number, q = 1) => ({ e, p: 0, q });
 
+/** The checkout's non-customisable default: day count 1, no day pricing. */
+const price = (
+  p: PackagePricing | null,
+  isPackage: boolean,
+  folded: Set<number>,
+  line: { e: number; p: number; q: number },
+  base: number,
+) => expectedItemPrice(p, isPackage, folded, line, base, false, 1);
+
 describe("expectedItemPrice (package revalidation)", () => {
   test("a non-package booking uses the base price", () => {
-    expect(expectedItemPrice(null, false, new Set(), item(1), 5000)).toBe(5000);
+    expect(price(null, false, new Set(), item(1), 5000)).toBe(5000);
   });
 
   test("a folded child keeps the base price even when it's a member", () => {
-    expect(expectedItemPrice(pkg, true, new Set([1]), item(1), 5000)).toBe(
-      5000,
-    );
+    expect(price(pkg, true, new Set([1]), item(1), 5000)).toBe(5000);
   });
 
   test("a member with a non-zero override is priced at override × qty", () => {
-    expect(expectedItemPrice(pkg, true, new Set(), item(1, 3), 5000)).toBe(
-      4500,
-    );
+    expect(price(pkg, true, new Set(), item(1, 3), 5000)).toBe(4500);
   });
 
   test("a member with no override falls back to the base price", () => {
-    expect(expectedItemPrice(pkg, true, new Set(), item(2), 5000)).toBe(5000);
+    expect(price(pkg, true, new Set(), item(2), 5000)).toBe(5000);
   });
 
   test("a package line that is no longer a member fails closed", () => {
-    expect(expectedItemPrice(pkg, true, new Set(), item(9), 5000)).toBeNull();
+    expect(price(pkg, true, new Set(), item(9), 5000)).toBeNull();
   });
 
   test("a package whose group was deleted/unflagged fails closed", () => {
-    expect(expectedItemPrice(null, true, new Set(), item(1), 5000)).toBeNull();
+    expect(price(null, true, new Set(), item(1), 5000)).toBeNull();
+  });
+
+  test("a customisable member's per-day override prices override × qty", () => {
+    expect(
+      expectedItemPrice(pkg, true, new Set(), item(2, 3), 5000, true, 2),
+    ).toBe(2100);
+  });
+
+  test("a customisable member without an override for the chosen span keeps the (day-priced) base", () => {
+    expect(
+      expectedItemPrice(pkg, true, new Set(), item(2), 5000, true, 3),
+    ).toBe(5000);
+  });
+
+  test("a flat override outranks a per-day override, mirroring the checkout", () => {
+    const flatAndDay: PackagePricing = {
+      ...pkg,
+      dayPriceMap: new Map([[1, new Map([[2, 700]])]]),
+    };
+    expect(
+      expectedItemPrice(flatAndDay, true, new Set(), item(1), 5000, true, 2),
+    ).toBe(1500);
+  });
+
+  test("a day override never applies to a non-customisable member", () => {
+    expect(
+      expectedItemPrice(pkg, true, new Set(), item(2), 5000, false, 2),
+    ).toBe(5000);
   });
 });
 
 describe("packageBundleMismatch (order-level revalidation)", () => {
   // Members 1 (×1 per package) and 2 (×2 per package).
   const bundle: PackagePricing = {
+    dayPriceMap: new Map(),
     memberIds: new Set([1, 2]),
     priceMap: new Map([[1, 1500]]),
     quantityMap: new Map([
@@ -112,6 +147,7 @@ describe("packageBundleMismatch (order-level revalidation)", () => {
 
   test("a member missing from the quantity map defaults to 1 per package", () => {
     const noQty: PackagePricing = {
+      dayPriceMap: new Map(),
       memberIds: new Set([1]),
       priceMap: new Map(),
       quantityMap: new Map(),
@@ -122,6 +158,7 @@ describe("packageBundleMismatch (order-level revalidation)", () => {
 
   test("a zero-quantity line is a mismatch", () => {
     const solo: PackagePricing = {
+      dayPriceMap: new Map(),
       memberIds: new Set([1]),
       priceMap: new Map(),
       quantityMap: new Map([[1, 1]]),

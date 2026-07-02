@@ -39,6 +39,7 @@ import {
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { hasParentChildEdge } from "#shared/db/listing-parents.ts";
+import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
 import { getAttendeesByListingIds, getListing } from "#shared/db/listings.ts";
 import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -52,6 +53,7 @@ import { sortListings } from "#shared/sort-listings.ts";
 import {
   type AdminSession,
   type Attendee,
+  type DayPrices,
   type Group,
   isPaidListing,
   type ListingType,
@@ -162,15 +164,42 @@ const parsePackageQuantity = (raw: string): number => {
   return Number.isSafeInteger(n) && n >= 1 ? n : 1;
 };
 
-/** Read the per-listing `package_price_<id>` / `package_qty_<id>` inputs from
- * the edit form into one member entry per listing whose price input is present. */
+/** The per-listing `package_day_price_<listingId>_<n>` inputs folded into each
+ * listing's day-price override map. A blank, non-numeric, or negative input
+ * contributes nothing — "no override for that span; use the listing's own day
+ * price" — while an explicit `0` makes the span free in this package, matching
+ * {@link parsePackagePrice}'s rules for the flat override. */
+const parseMemberDayPrices = (
+  keys: ReadonlySet<string>,
+  form: FormParams,
+): Map<number, DayPrices> => {
+  const byListing = new Map<number, DayPrices>();
+  for (const key of keys) {
+    const match = /^package_day_price_(\d+)_(\d+)$/.exec(key);
+    if (!match) continue;
+    const price = parsePackagePrice(form.getString(key));
+    if (price === null) continue;
+    const listingId = Number(match[1]);
+    const dayPrices = byListing.get(listingId) ?? {};
+    dayPrices[Number(match[2])] = price;
+    byListing.set(listingId, dayPrices);
+  }
+  return byListing;
+};
+
+/** Read the per-listing `package_price_<id>` / `package_qty_<id>` /
+ * `package_day_price_<id>_<n>` inputs from the edit form into one member entry
+ * per listing whose price input is present. */
 const parsePackageMembers = (form: FormParams): PackageMemberInput[] => {
   const members: PackageMemberInput[] = [];
-  for (const key of new Set(form.keys())) {
+  const keys = new Set(form.keys());
+  const dayPricesByListing = parseMemberDayPrices(keys, form);
+  for (const key of keys) {
     const match = /^package_price_(\d+)$/.exec(key);
     if (!match) continue;
     const listingId = Number(match[1]);
     members.push({
+      dayPrices: dayPricesByListing.get(listingId) ?? {},
       listingId,
       price: parsePackagePrice(form.getString(key)),
       quantity: parsePackageQuantity(
@@ -315,17 +344,24 @@ const handleGroupEditGet: TypedRouteHandler<"GET /admin/groups/:id/edit"> = (
   { id },
 ) =>
   groupPage(requireContentOr, async (group, session) => {
-    const listings = await getListingsByGroupId(id);
-    const rows = await getGroupPackagePrices(id);
-    // listing id → saved per-unit price + per-package quantity, to pre-fill the
-    // members table. A null price renders blank (no override); an explicit 0
-    // renders as 0 (free in the package).
+    const [listings, rows, dayPrices] = await Promise.all([
+      getListingsByGroupId(id),
+      getGroupPackagePrices(id),
+      getGroupDayPrices(id),
+    ]);
+    // listing id → saved per-unit price + per-package quantity + per-day
+    // overrides, to pre-fill the members table. A null price renders blank (no
+    // override); an explicit 0 renders as 0 (free in the package).
     const members = new Map(
       rows.map(
         (row) =>
           [
             row.listing_id,
-            { price: row.package_price, quantity: row.quantity },
+            {
+              dayPrices: dayPrices.get(row.listing_id) ?? new Map(),
+              price: row.package_price,
+              quantity: row.quantity,
+            },
           ] as const,
       ),
     );
@@ -357,10 +393,15 @@ const groupHasPaidListing = async (
 ): Promise<boolean> => {
   if (listings.some(isPaidListing)) return true;
   if (!group.is_package) return false;
-  const rows = await getGroupPackagePrices(group.id);
   // Only a positive override charges money; a null (no override → base price,
-  // already covered above) or an explicit free (0) adds no revenue.
-  return rows.some((row) => (row.package_price ?? 0) > 0);
+  // already covered above) or an explicit free (0) adds no revenue. Per-day
+  // overrides can make an otherwise-free customisable member paid the same way.
+  const rows = await getGroupPackagePrices(group.id);
+  if (rows.some((row) => (row.package_price ?? 0) > 0)) return true;
+  const dayRows = await getGroupDayPrices(group.id);
+  return [...dayRows.values()].some((byDay) =>
+    [...byDay.values()].some((price) => price > 0),
+  );
 };
 
 /** Handle GET /admin/groups/:id - group detail page */

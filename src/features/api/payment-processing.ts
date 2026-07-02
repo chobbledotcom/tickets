@@ -81,6 +81,7 @@ import {
   packageMemberMaps,
 } from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
+import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
@@ -625,6 +626,10 @@ export type PackagePricing = {
   /** Each member's CURRENT per-package quantity, to re-check the signed booked
    * quantity against an operator's mid-checkout edit. */
   quantityMap: Map<number, number>;
+  /** Each customisable member's CURRENT per-day overrides (day count →
+   * per-unit minor price), so a day-priced line revalidates against the same
+   * override the checkout charged. */
+  dayPriceMap: Map<number, Map<number, number>>;
 };
 
 const loadPackagePricing = async (
@@ -632,9 +637,13 @@ const loadPackagePricing = async (
 ): Promise<PackagePricing | null> => {
   if (intent.packageGroupId === undefined) return null;
   if ((await getPackageGroupById(intent.packageGroupId)) === null) return null;
-  const rows = await getGroupPackagePrices(intent.packageGroupId);
+  const [rows, dayPriceMap] = await Promise.all([
+    getGroupPackagePrices(intent.packageGroupId),
+    getGroupDayPrices(intent.packageGroupId),
+  ]);
   const { prices, quantities } = packageMemberMaps(rows);
   return {
+    dayPriceMap,
     memberIds: new Set(rows.map((r) => r.listing_id)),
     priceMap: prices,
     quantityMap: quantities,
@@ -648,19 +657,30 @@ const loadPackagePricing = async (
  * member: an override prices at `override × qty` (including an explicit free 0),
  * a member with no override keeps `basePrice`, and a line that is no longer a
  * member (package deleted, un-flagged, or the listing removed mid-checkout)
- * fails closed. */
+ * fails closed. A customisable member with a per-day override for the order's
+ * day count prices at `override × qty` when no flat override outranks it —
+ * mirroring the checkout's `derivePriceRule`/`effectivePrice` precedence (flat
+ * `OVERRIDE` > per-day override > the listing's own day price, which is already
+ * in `basePrice`). The override only applies to a customisable listing, exactly
+ * as the tree only carries day overrides on a `DAY_PRICE` rule. */
 export const expectedItemPrice = (
   pkg: PackagePricing | null,
   isPackageIntent: boolean,
   foldedChildIds: ReadonlySet<number>,
   item: BookingItem,
   basePrice: number,
+  customisableDays: boolean,
+  dayCount: number,
 ): number | null => {
   if (foldedChildIds.has(item.e)) return basePrice;
   if (!isPackageIntent) return basePrice;
   if (!pkg || !pkg.memberIds.has(item.e)) return null;
   const override = pkg.priceMap.get(item.e);
-  return override !== undefined ? override * item.q : basePrice;
+  if (override !== undefined) return override * item.q;
+  const dayOverride = customisableDays
+    ? pkg.dayPriceMap.get(item.e)?.get(dayCount)
+    : undefined;
+  return dayOverride !== undefined ? dayOverride * item.q : basePrice;
 };
 
 /**
@@ -795,6 +815,8 @@ const validateAllItems = async (
         foldedChildIds,
         item,
         vp.expectedPrice,
+        vp.listing.customisable_days,
+        intent.dayCount ?? 1,
       ),
       item,
       listing: vp.listing,

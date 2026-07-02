@@ -173,6 +173,11 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     expect(body).toContain('value="1"');
     expect(body).toContain('value="2"');
     expect(body).not.toContain('value="3"');
+    // Each option is labelled with the whole bundle's total for that span —
+    // the members' ENTERED day prices summed (1000+500, 1800+900), never
+    // base × days.
+    expect(body).toContain("£15");
+    expect(body).toContain("£27");
   });
 
   test("a customisable package prices each member's own day price, never base times days", async () => {
@@ -211,5 +216,75 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     // price, not base × 2 (which would be £30).
     expect(fragment).toContain("£27");
     expect(fragment).not.toContain("£30");
+  });
+
+  /** A two-member customisable package (boat 1000/1800, hut 500/900) whose
+   * members' per-day PACKAGE overrides are set directly, for pricing tests. */
+  const overriddenFlexPackage = async (
+    name: string,
+    slug: string,
+    boatOverrides: { price: number | null; dayPrices?: Record<number, number> },
+  ) => {
+    const { setGroupPackageMembers } = await import("#shared/db/groups.ts");
+    const group = await createTestGroup({ isPackage: true, name, slug });
+    const boat = await createTestListing({
+      customisableDays: true,
+      dayPrices: { 1: 1000, 2: 1800 },
+      durationDays: 2,
+      groupId: group.id,
+      listingType: "daily",
+      minimumDaysBefore: 0,
+      name: `${name} Boat`,
+      unitPrice: 1000,
+    });
+    const hut = await createTestListing({
+      customisableDays: true,
+      dayPrices: { 1: 500, 2: 900 },
+      durationDays: 2,
+      groupId: group.id,
+      listingType: "daily",
+      minimumDaysBefore: 0,
+      name: `${name} Hut`,
+      unitPrice: 500,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: boat.id, ...boatOverrides },
+      { listingId: hut.id, price: null },
+    ]);
+    return { boat, group, hut };
+  };
+
+  test("a per-day package override reprices that span, beating the member's own day price", async () => {
+    const { postCalculate } = await import("#test-utils/parents.ts");
+    const { group } = await overriddenFlexPackage(
+      "Override Flex",
+      "override-flex",
+      { dayPrices: { 2: 1500 }, price: null },
+    );
+    const fragment = await postCalculate(group.slug, {
+      date: bookingDate(),
+      day_count: "2",
+      package_quantity: "1",
+    });
+    // Boat's 2-day price is overridden to 1500 inside this package; the hut
+    // keeps its own 900. Total £24, never the un-overridden £27.
+    expect(fragment).toContain("£24");
+    expect(fragment).not.toContain("£27");
+  });
+
+  test("a flat package override still wins over a per-day override", async () => {
+    const { postCalculate } = await import("#test-utils/parents.ts");
+    const { group } = await overriddenFlexPackage("Flat Flex", "flat-flex", {
+      dayPrices: { 2: 1500 },
+      price: 500,
+    });
+    const fragment = await postCalculate(group.slug, {
+      date: bookingDate(),
+      day_count: "2",
+      package_quantity: "1",
+    });
+    // The boat's flat 500 override is one price whatever the span, outranking
+    // both its 2-day override (1500) and its own day price (1800): 500 + 900.
+    expect(fragment).toContain("£14");
   });
 });

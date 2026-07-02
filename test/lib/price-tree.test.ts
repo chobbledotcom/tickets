@@ -69,6 +69,30 @@ describe("effectivePrice", () => {
     expect(effectivePrice({ kind: "DAY_PRICE" }, l, new Map(), 3)).toBe(0);
   });
 
+  test("DAY_PRICE consults a package's per-day override before the listing's own price", () => {
+    const l = listing({
+      customisable_days: true,
+      day_prices: { 1: 1000, 2: 1800 },
+      duration_days: 2,
+    });
+    const rule: PriceRule = {
+      kind: "DAY_PRICE",
+      overrides: new Map([[2, 1500]]),
+    };
+    // The overridden span charges the package's price, including a free 0…
+    expect(effectivePrice(rule, l, new Map(), 2)).toBe(1500);
+    expect(
+      effectivePrice(
+        { kind: "DAY_PRICE", overrides: new Map([[2, 0]]) },
+        l,
+        new Map(),
+        2,
+      ),
+    ).toBe(0);
+    // …while an un-overridden span keeps the listing's own entered day price.
+    expect(effectivePrice(rule, l, new Map(), 1)).toBe(1000);
+  });
+
   test("BASE uses the unit price, or a seeded custom price (a signed QR override)", () => {
     expect(
       effectivePrice(
@@ -132,6 +156,28 @@ describe("priceRuleByListingId", () => {
     expect(priceRuleByListingId(tree).get(5)).toEqual({
       amountMinor: 1200,
       kind: "OVERRIDE",
+    });
+  });
+
+  test("a customisable member's DAY_PRICE rule carries its per-day package overrides", () => {
+    const tree = buildBookingTree({
+      groupId: 3,
+      isPackage: true,
+      listings: [
+        resolved({
+          customisable_days: true,
+          day_prices: { 1: 1000, 2: 1800 },
+          duration_days: 2,
+          id: 5,
+          listing_type: "daily",
+        }),
+      ],
+      packageDayPrices: new Map([[5, new Map([[2, 1500]])]]),
+      slugs: ["pkg"],
+    });
+    expect(priceRuleByListingId(tree).get(5)).toEqual({
+      kind: "DAY_PRICE",
+      overrides: new Map([[2, 1500]]),
     });
   });
 });

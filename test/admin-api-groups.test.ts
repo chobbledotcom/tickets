@@ -70,7 +70,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       });
     });
 
-    test("batch-hydrates package_members across the list", async () => {
+    test("batch-hydrates package_members (and day_prices) across the list", async () => {
       const withMember = await packagedGroup("Listed", 700);
       const emptyPackage = await createTestGroup({
         isPackage: true,
@@ -78,13 +78,31 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         slug: "empty-pkg",
       });
       const plain = await createTestGroup({ name: "Plain", slug: "plain" });
+      // A second package whose member carries a per-day override, so the list's
+      // bulk day-price hydration is exercised alongside override-free groups.
+      const { group: dayGroup, listing: dayListing } =
+        await groupWithMember("ListedDays");
+      await putGroup(dayGroup.id, {
+        is_package: true,
+        package_members: [
+          { day_prices: { "2": 800 }, listing_id: dayListing.id, price: null },
+        ],
+      });
 
       await assertJson(apiRequest("/api/admin/groups"), 200, (body) => {
-        const byId = new Map<number, { package_members?: unknown[] }>(
-          body.groups.map((g: { id: number }) => [g.id, g]),
-        );
-        // A package group with a member carries its override.
+        const byId = new Map<
+          number,
+          { package_members?: { day_prices?: unknown }[] }
+        >(body.groups.map((g: { id: number }) => [g.id, g]));
+        // A package group with a member carries its override; one without day
+        // overrides carries no day_prices key.
         expect(byId.get(withMember.id)?.package_members).toHaveLength(1);
+        expect(
+          byId.get(withMember.id)?.package_members?.[0]?.day_prices,
+        ).toBeUndefined();
+        expect(byId.get(dayGroup.id)?.package_members?.[0]?.day_prices).toEqual(
+          { "2": 800 },
+        );
         // A package group with no listings hydrates to an empty member list.
         expect(byId.get(emptyPackage.id)?.package_members).toEqual([]);
         // A non-package group carries no package_members field at all.
@@ -601,6 +619,60 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
           ]);
         },
       );
+    });
+
+    test("PUT saves a member's day_prices and GET round-trips them", async () => {
+      const { getGroupDayPrices } = await import(
+        "#shared/db/listing-prices.ts"
+      );
+      const { group, listing } = await groupWithMember("DayRoundTrip");
+      await assertJson(
+        putGroup(group.id, {
+          is_package: true,
+          package_members: [
+            { day_prices: { "2": 1500 }, listing_id: listing.id, price: null },
+          ],
+        }),
+        200,
+        (body) => {
+          expect(body.group.is_package).toBe(true);
+        },
+      );
+      expect((await getGroupDayPrices(group.id)).get(listing.id)?.get(2)).toBe(
+        1500,
+      );
+      await assertJson(
+        apiRequest(`/api/admin/groups/${group.id}`),
+        200,
+        (body) => {
+          expect(body.group.package_members).toEqual([
+            {
+              day_prices: { "2": 1500 },
+              listing_id: listing.id,
+              price: null,
+              quantity: 1,
+            },
+          ]);
+        },
+      );
+    });
+
+    test("PUT rejects malformed day_prices (shape, keys, and values)", async () => {
+      const { group, listing } = await groupWithMember("BadDayPrices");
+      const cases: Array<Record<string, unknown>> = [
+        { day_prices: [1500], listing_id: listing.id, price: null },
+        { day_prices: { "0": 1500 }, listing_id: listing.id, price: null },
+        { day_prices: { "2": -1 }, listing_id: listing.id, price: null },
+      ];
+      for (const member of cases) {
+        await assertJson(
+          putGroup(group.id, { is_package: true, package_members: [member] }),
+          400,
+          (body) => {
+            expect(body.error).toContain("day_prices");
+          },
+        );
+      }
     });
 
     test("GET omits package_members for a non-package group", async () => {

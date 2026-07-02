@@ -1,4 +1,8 @@
-import type { BookingNode, BookingTree } from "#shared/booking/tree.ts";
+import {
+  type BookingNode,
+  type BookingTree,
+  nodeFixedQuantity,
+} from "#shared/booking/tree.ts";
 import {
   groupPoolUnits,
   type TicketListing,
@@ -30,8 +34,7 @@ export const packageQuantityCap = (
   groupRemainingByGroupId: ReadonlyMap<number, number>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
 ): number => {
-  const perPackageQty = (node: BookingNode): number =>
-    node.quantityRule.kind === "FIXED" ? node.quantityRule.qty : 1;
+  const perPackageQty = nodeFixedQuantity;
   const ownCap = (node: BookingNode): number =>
     Math.floor(
       listingById.get(node.listingId)!.maxPurchasable / perPackageQty(node),

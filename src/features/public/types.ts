@@ -43,6 +43,10 @@ export type TicketSharedContext = {
    * `package_price`). `null`/absent for non-package pages. */
   packageGroupId?: number | null;
   packagePrices?: ReadonlyMap<number, number> | null;
+  /** Set on a package page: each customisable member's per-day overrides
+   * (listing id → day count → per-unit minor price), consulted by the price
+   * walk before the listing's own day price. `null`/absent otherwise. */
+  packageDayPrices?: ReadonlyMap<number, ReadonlyMap<number, number>> | null;
   /** Set on a package page: listing-id → how many of that listing one package
    * unit includes (every member, default 1). The buyer chooses a single package
    * quantity and each member's booked quantity is `fixedQty × packageQty`.

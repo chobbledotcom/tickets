@@ -19,6 +19,10 @@ import {
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
 import {
+  getGroupDayPrices,
+  getGroupDayPricesByGroupIds,
+} from "#shared/db/listing-prices.ts";
+import {
   bodyBoolean,
   bodyNumber,
   bodyString,
@@ -31,15 +35,19 @@ import {
   parseUpdateSlug,
 } from "#shared/rest/crud-api.ts";
 import { normalizeSlug } from "#shared/slug.ts";
-import type { Group, GroupListing } from "#shared/types.ts";
+import type { DayPrices, Group, GroupListing } from "#shared/types.ts";
 
 /** A package member override in a JSON request body. `price` is minor units:
  * `null` means no override (use the listing's own price), `0` means free in the
- * package, and a positive value overrides the price. `quantity` defaults to 1. */
+ * package, and a positive value overrides the price. `quantity` defaults to 1.
+ * `day_prices` repriced spans for a customisable member (day count → per-unit
+ * minor units); omitted/empty means every span charges the listing's own day
+ * price, and a non-null flat `price` wins over the per-day entries. */
 export type PackageMemberBody = {
   listing_id: number;
   price: number | null;
   quantity?: number;
+  day_prices?: Record<string, number>;
 };
 
 /** JSON body accepted by POST /api/admin/groups */
@@ -67,11 +75,41 @@ const STRIP_KEYS = ["slug_index"];
  * `price` is minor units: `null` (or absent) means no override, `0` means free
  * in the package, and a positive integer overrides the price. `quantity` is
  * optional and defaults to 1. */
+/** Parse one member's optional `day_prices` object into a {@link DayPrices}
+ * map, failing closed on anything malformed: keys must be positive whole day
+ * counts and values non-negative integer minor units. `undefined` when absent. */
+const parseMemberDayPrices = (
+  raw: unknown,
+): ItemResult<DayPrices | undefined> => {
+  if (raw === undefined) return { value: undefined };
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return { error: "package_members day_prices must be an object" };
+  }
+  const dayPrices: DayPrices = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const days = Number(key);
+    if (!/^\d+$/.test(key) || !Number.isInteger(days) || days < 1) {
+      return {
+        error: "package_members day_prices keys must be positive day counts",
+      };
+    }
+    if (!Number.isInteger(value) || (value as number) < 0) {
+      return {
+        error:
+          "package_members day_prices values must be non-negative integers",
+      };
+    }
+    dayPrices[days] = value as number;
+  }
+  return { value: dayPrices };
+};
+
 const parsePackageMember = (item: unknown): ItemResult<PackageMemberInput> => {
   if (typeof item !== "object" || item === null) {
     return { error: "package_members entries must be objects" };
   }
   const {
+    day_prices,
     listing_id,
     price = null,
     quantity = 1,
@@ -87,8 +125,11 @@ const parsePackageMember = (item: unknown): ItemResult<PackageMemberInput> => {
   if (!Number.isInteger(quantity) || (quantity as number) < 1) {
     return { error: "package_members quantity must be a positive integer" };
   }
+  const dayPrices = parseMemberDayPrices(day_prices);
+  if ("error" in dayPrices) return dayPrices;
   return {
     value: {
+      dayPrices: dayPrices.value ?? {},
       listingId: listing_id as number,
       price: price as number | null,
       quantity: quantity as number,
@@ -130,12 +171,24 @@ const writePackageMembers = async (
   await setGroupPackageMembers(id, input.packageMembers, tx);
 };
 
-/** Map a stored membership row to the JSON `package_members` entry shape clients
- * PUT, so list and single-row hydration serialize members identically. */
-const toMember = (m: GroupListing): PackageMemberBody => ({
+/** Map a stored membership row (plus any per-day overrides) to the JSON
+ * `package_members` entry shape clients PUT, so list and single-row hydration
+ * serialize members identically and the configuration round-trips losslessly.
+ * `day_prices` is only present when overrides exist. */
+const toMember = (
+  m: GroupListing,
+  dayPrices: ReadonlyMap<number, number> | undefined,
+): PackageMemberBody => ({
   listing_id: m.listing_id,
   price: m.package_price,
   quantity: m.quantity,
+  ...(dayPrices && dayPrices.size > 0
+    ? {
+        day_prices: Object.fromEntries(
+          [...dayPrices].map(([days, price]) => [String(days), price]),
+        ),
+      }
+    : {}),
 });
 
 export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
@@ -146,21 +199,35 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   // round-trip the configuration. Non-package groups carry no members.
   // get/create/update hydrate the single written group; the list endpoint uses
   // the batched hydrateList below (one query for every package group).
-  hydrate: async (row) =>
-    row.is_package
-      ? { package_members: (await getGroupPackagePrices(row.id)).map(toMember) }
-      : {},
+  hydrate: async (row) => {
+    if (!row.is_package) return {};
+    const [rows, dayPrices] = await Promise.all([
+      getGroupPackagePrices(row.id),
+      getGroupDayPrices(row.id),
+    ]);
+    return {
+      package_members: rows.map((m) =>
+        toMember(m, dayPrices.get(m.listing_id)),
+      ),
+    };
+  },
   // Only package groups appear in the map; non-package groups are absent, so the
   // CRUD list builder hydrates them to no extra fields.
   hydrateList: async (rows) => {
     const packageGroups = rows.filter((row) => row.is_package);
-    const byGroup = await getGroupPackagePricesByGroupIds(
-      packageGroups.map((row) => row.id),
-    );
+    const groupIds = packageGroups.map((row) => row.id);
+    const [byGroup, dayPricesByGroup] = await Promise.all([
+      getGroupPackagePricesByGroupIds(groupIds),
+      getGroupDayPricesByGroupIds(groupIds),
+    ]);
     return new Map(
       packageGroups.map((row) => [
         row.id,
-        { package_members: (byGroup.get(row.id) ?? []).map(toMember) },
+        {
+          package_members: (byGroup.get(row.id) ?? []).map((m) =>
+            toMember(m, dayPricesByGroup.get(row.id)?.get(m.listing_id)),
+          ),
+        },
       ]),
     );
   },

@@ -163,6 +163,54 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     expect(qty.get(b.id)).toBe(1);
   });
 
+  test("edit POST saves per-day prices for customisable members and the form round-trips them", async () => {
+    const { getGroupDayPrices } = await import("#shared/db/listing-prices.ts");
+    const group = await createTestGroup({ name: "DayPkg", slug: "day-pkg" });
+    const flex = await member(group, "Flex", {
+      customisableDays: true,
+      dayPrices: { 1: 1000, 2: 1800 },
+      durationDays: 2,
+      listingType: "daily",
+      unitPrice: 1000,
+    });
+    const plain = await member(group, "Plain");
+
+    await adminFormPost(`/admin/groups/${group.id}/edit`, {
+      ...editFields("DayPkg", "day-pkg"),
+      is_package: "1",
+      // 2-day span repriced; 1-day left blank ("use the listing's own price").
+      [`package_day_price_${flex.id}_1`]: "",
+      [`package_day_price_${flex.id}_2`]: "15.00",
+      [`package_price_${flex.id}`]: "",
+      [`package_price_${plain.id}`]: "",
+    });
+
+    const saved = await getGroupDayPrices(group.id);
+    expect(saved.get(flex.id)?.get(2)).toBe(1500);
+    expect(saved.get(flex.id)?.has(1)).toBe(false);
+    expect(saved.has(plain.id)).toBe(false);
+
+    // The edit page renders a per-day input per offered span for the
+    // customisable member only, pre-filled with the saved override.
+    const html = await expectHtmlResponse(
+      await adminGet(`/admin/groups/${group.id}/edit`),
+      200,
+    );
+    expect(html).toContain(`name="package_day_price_${flex.id}_1"`);
+    expect(html).toContain(`name="package_day_price_${flex.id}_2"`);
+    expect(html).toContain('value="15.00"');
+    expect(html).not.toContain(`package_day_price_${plain.id}_`);
+
+    // Re-saving without the day inputs clears the overrides (full replace).
+    await adminFormPost(`/admin/groups/${group.id}/edit`, {
+      ...editFields("DayPkg", "day-pkg"),
+      is_package: "1",
+      [`package_price_${flex.id}`]: "",
+      [`package_price_${plain.id}`]: "",
+    });
+    expect((await getGroupDayPrices(group.id)).size).toBe(0);
+  });
+
   test("edit POST defaults a malformed or out-of-range quantity to 1", async () => {
     const group = await createTestGroup({ name: "BadQty", slug: "bad-qty" });
     const prefix = await member(group, "Prefix");

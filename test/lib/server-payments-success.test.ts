@@ -224,6 +224,95 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       }
     });
 
+    test("a paid CUSTOMISABLE package revalidates per-day overrides for the signed day count", async () => {
+      // The boat's 2-day price is overridden inside this package (1000, not its
+      // own 1200); the hut keeps its own 2-day price. The webhook's
+      // expectedItemPrice must re-derive both from CURRENT config — a mismatch
+      // would refund instead of booking.
+      await setupStripe();
+      const { getDb } = await import("#shared/db/client.ts");
+      const { addDays } = await import("#shared/dates.ts");
+      const { todayInTz } = await import("#shared/timezone.ts");
+      const { setGroupPackageMembers } = await import("#shared/db/groups.ts");
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Flex Paid Kit",
+        slug: "flex-paid-kit",
+      });
+      const boat = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 700, 2: 1200 },
+        durationDays: 2,
+        groupId: group.id,
+        listingType: "daily",
+        maxAttendees: 50,
+        minimumDaysBefore: 0,
+        name: "Flex Paid Boat",
+        unitPrice: 700,
+      });
+      const hut = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 500, 2: 900 },
+        durationDays: 2,
+        groupId: group.id,
+        listingType: "daily",
+        maxAttendees: 50,
+        minimumDaysBefore: 0,
+        name: "Flex Paid Hut",
+        unitPrice: 500,
+      });
+      await setGroupPackageMembers(group.id, [
+        { dayPrices: { 2: 1000 }, listingId: boat.id, price: null },
+        { listingId: hut.id, price: null },
+      ]);
+      const date = addDays(todayInTz("UTC"), 2);
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 1900,
+          id: "cs_pkg_flex_paid",
+          metadata: signMeta(
+            {
+              date,
+              day_count: "2",
+              email: "flexpaid@example.com",
+              items: JSON.stringify([
+                { e: boat.id, k: "p", p: 1000, q: 1, r: group.id },
+                { e: hut.id, k: "p", p: 900, q: 1, r: group.id },
+              ]),
+              name: "Flex Payer",
+              package_group_id: String(group.id),
+            },
+            1900,
+          ),
+          payment_intent: "pi_pkg_flex_paid",
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        const redirectResponse = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_pkg_flex_paid"),
+        );
+        expectRedirect(redirectResponse, /^\/payment\/success\?tokens=.+$/);
+
+        for (const member of [boat, hut]) {
+          const row = (
+            await getDb().execute({
+              args: [member.id],
+              sql: "SELECT start_at, package_group_id FROM listing_attendees WHERE listing_id = ? ORDER BY id DESC LIMIT 1",
+            })
+          ).rows[0]!;
+          expect(String(row.start_at).slice(0, 10)).toBe(date);
+          expect(Number(row.package_group_id)).toBe(group.id);
+        }
+      } finally {
+        mockRetrieve.restore();
+      }
+    });
+
     test("returns error for invalid ticket metadata", async () => {
       await setupStripe();
 

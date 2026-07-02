@@ -6,14 +6,19 @@
  *                            `listings.unit_price`).
  *  - `("day_count", "<n>")`— the price for an n-day booking (mirrors an entry of
  *                            `listings.day_prices`).
- *  - reserved for later: `("group", "<groupId>")` (package/group overrides),
+ *  - `("group_day", "<groupId>/<n>")` — a package group's per-day override for
+ *    this member: the member's per-unit price for an n-day booking of that
+ *    package. Unlike the mirrors above, these rows are the SOURCE of truth (no
+ *    legacy column exists); {@link getGroupDayPrices} is their read API.
+ *  - reserved for later: `("group", "<groupId>")` (flat group overrides — the
+ *    flat package price still lives on `group_listings.package_price`),
  *    `("start_day", "friday")` (weekday pricing) — the shape admits them with no
  *    schema change; nothing writes them yet.
  *
- * Today the `base`/`day_count` rows are backfilled from, and kept in step with,
+ * The `base`/`day_count` rows are backfilled from, and kept in step with,
  * `listings.unit_price`/`day_prices`, which stay as the source-of-truth mirror
  * columns every display/API/charge caller still reads. This module owns writing
- * those rows; the read/resolve API lands with its first consumer.
+ * those rows.
  */
 
 import {
@@ -27,6 +32,126 @@ import { type DayPrices, parseDayPrices } from "#shared/types.ts";
 
 export const PRICE_TYPE_BASE = "base";
 export const PRICE_TYPE_DAY_COUNT = "day_count";
+export const PRICE_TYPE_GROUP_DAY = "group_day";
+
+/** The `price_id` composition for one (package group, day count) override. The
+ * trailing `/` keeps LIKE prefixes exact: group 1's `1/%` can never match group
+ * 12's `12/3`. */
+const groupDayPriceId = (groupId: number, dayCount: number | string): string =>
+  `${groupId}/${dayCount}`;
+
+/** A package group's per-day member overrides: listing id → (day count →
+ * per-unit minor price). The shape every group-day consumer reads. */
+export type GroupDayPrices = ReadonlyMap<number, ReadonlyMap<number, number>>;
+
+/** One member's per-day overrides as written by the group save. */
+export type GroupDayPriceInput = {
+  listingId: number;
+  /** Day count → per-unit minor price; only counts the listing itself offers
+   * ever take effect (pricing consults the override before the listing's own
+   * day price, never inventing a new span). */
+  dayPrices?: DayPrices | undefined;
+};
+
+/** One managed `listing_prices` write statement. */
+type PriceStatement = { sql: string; args: (number | string)[] };
+
+/** The one INSERT every managed dimension shares, parameterised by its
+ * (listing, type, key, price) args. */
+const insertPriceStatement = (
+  args: [number, string, string, number],
+): PriceStatement => ({
+  args,
+  sql: "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?)",
+});
+
+/** The delete-then-insert statements that make a package group's `group_day`
+ * rows exactly match the submitted members — a full replace per group, so a
+ * removed member's stale overrides can't outlive it. Entries are normalised
+ * through {@link parseDayPrices} like every other day-price write. */
+export const groupDayPriceStatements = (
+  groupId: number,
+  members: readonly GroupDayPriceInput[],
+): PriceStatement[] => {
+  const statements: PriceStatement[] = [
+    {
+      args: [PRICE_TYPE_GROUP_DAY, groupDayPriceId(groupId, "%")],
+      sql: "DELETE FROM listing_prices WHERE price_type = ? AND price_id LIKE ?",
+    },
+  ];
+  for (const member of members) {
+    const dayPrices = parseDayPrices(member.dayPrices ?? {});
+    for (const [days, price] of Object.entries(dayPrices)) {
+      statements.push(
+        insertPriceStatement([
+          member.listingId,
+          PRICE_TYPE_GROUP_DAY,
+          groupDayPriceId(groupId, days),
+          price,
+        ]),
+      );
+    }
+  }
+  return statements;
+};
+
+/** A raw `group_day` row as SELECTed for the readers below. */
+type GroupDayRow = { listing_id: number; price_id: string; unit_price: number };
+
+/** Fold `group_day` rows into the {@link GroupDayPrices} map, deriving each
+ * row's day count from its `"<groupId>/<n>"` price_id. */
+const foldGroupDayRows = (
+  rows: readonly GroupDayRow[],
+): Map<number, Map<number, number>> => {
+  const result = new Map<number, Map<number, number>>();
+  for (const row of rows) {
+    const dayCount = Number(row.price_id.split("/")[1]);
+    const byDay = result.get(row.listing_id) ?? new Map<number, number>();
+    byDay.set(dayCount, row.unit_price);
+    result.set(row.listing_id, byDay);
+  }
+  return result;
+};
+
+/** One package group's per-day member overrides. Empty when none are set. */
+export const getGroupDayPrices = async (
+  groupId: number,
+): Promise<Map<number, Map<number, number>>> => {
+  const result = await execute(
+    "SELECT listing_id, price_id, unit_price FROM listing_prices WHERE price_type = ? AND price_id LIKE ?",
+    [PRICE_TYPE_GROUP_DAY, groupDayPriceId(groupId, "%")],
+  );
+  return foldGroupDayRows(result.rows as unknown as GroupDayRow[]);
+};
+
+/** Per-day member overrides for several groups in one query (the API list
+ * endpoint's bulk hydration), keyed by group id. Groups without overrides are
+ * absent. Reads every `group_day` row and splits by the price_id's group prefix
+ * — groups are few, so one unfiltered SELECT beats a LIKE per group. */
+export const getGroupDayPricesByGroupIds = async (
+  groupIds: readonly number[],
+): Promise<Map<number, Map<number, Map<number, number>>>> => {
+  if (groupIds.length === 0) return new Map();
+  const wanted = new Set(groupIds);
+  const rows = await execute(
+    "SELECT listing_id, price_id, unit_price FROM listing_prices WHERE price_type = ?",
+    [PRICE_TYPE_GROUP_DAY],
+  );
+  const rowsByGroup = new Map<number, GroupDayRow[]>();
+  for (const row of rows.rows as unknown as GroupDayRow[]) {
+    const groupId = Number(row.price_id.split("/")[0]);
+    if (!wanted.has(groupId)) continue;
+    const list = rowsByGroup.get(groupId);
+    if (list) list.push(row);
+    else rowsByGroup.set(groupId, [row]);
+  }
+  return new Map(
+    [...rowsByGroup].map(([groupId, groupRows]) => [
+      groupId,
+      foldGroupDayRows(groupRows),
+    ]),
+  );
+};
 
 /** The delete-then-insert statements that make a listing's `base`/`day_count`
  * rows exactly match `unitPrice` + `dayPrices`. Only these two managed
@@ -37,22 +162,18 @@ export const listingPriceStatements = (
   listingId: number,
   unitPrice: number,
   dayPrices: DayPrices,
-): Array<{ sql: string; args: (number | string)[] }> => {
-  const statements: Array<{ sql: string; args: (number | string)[] }> = [
+): PriceStatement[] => {
+  const statements: PriceStatement[] = [
     {
       args: [listingId, PRICE_TYPE_BASE, PRICE_TYPE_DAY_COUNT],
       sql: "DELETE FROM listing_prices WHERE listing_id = ? AND price_type IN (?, ?)",
     },
-    {
-      args: [listingId, PRICE_TYPE_BASE, "", unitPrice],
-      sql: "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?)",
-    },
+    insertPriceStatement([listingId, PRICE_TYPE_BASE, "", unitPrice]),
   ];
   for (const [days, price] of Object.entries(parseDayPrices(dayPrices))) {
-    statements.push({
-      args: [listingId, PRICE_TYPE_DAY_COUNT, days, price],
-      sql: "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?)",
-    });
+    statements.push(
+      insertPriceStatement([listingId, PRICE_TYPE_DAY_COUNT, days, price]),
+    );
   }
   return statements;
 };

@@ -52,6 +52,7 @@ import {
   getChildListingIds,
   getChildrenForParents,
 } from "#shared/db/listing-parents.ts";
+import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
 import { getListingsBySlugsBatch } from "#shared/db/listings.ts";
 import {
   getOptionalAddOns,
@@ -241,21 +242,27 @@ export const buildRegistrationItems = (
 };
 
 /** A package group's per-member overrides for the booking flow: `prices` keeps
- * every member that has an override — a positive price OR an explicit free (0),
- * but not a `null` "no override"; `quantities` carries every member's
- * per-package quantity (≥1). */
+ * every member that has a flat override — a positive price OR an explicit free
+ * (0), but not a `null` "no override"; `quantities` carries every member's
+ * per-package quantity (≥1); `dayPrices` carries each customisable member's
+ * per-day overrides (day count → per-unit minor price). */
 export type PackageMemberMaps = {
   prices: ReadonlyMap<number, number>;
   quantities: ReadonlyMap<number, number>;
+  dayPrices: ReadonlyMap<number, ReadonlyMap<number, number>>;
 };
 
-/** Load a package group's member rows once into the price + quantity maps the
- * booking flow needs (so quote and submit price/derive quantities with no extra
- * query). */
+/** Load a package group's member rows once into the price + quantity + per-day
+ * maps the booking flow needs (so quote and submit price/derive quantities with
+ * no extra query). */
 export const loadPackageMemberMaps = async (
   groupId: number,
 ): Promise<PackageMemberMaps> => {
-  return packageMemberMaps(await getGroupPackagePrices(groupId));
+  const [rows, dayPrices] = await Promise.all([
+    getGroupPackagePrices(groupId),
+    getGroupDayPrices(groupId),
+  ]);
+  return { ...packageMemberMaps(rows), dayPrices };
 };
 
 /** For a HIDDEN package, replace each checkout item's buyer-facing name with the
@@ -349,6 +356,7 @@ export const ctxToBuildTreeInput = (ctx: TicketCtx): BuildTreeInput => ({
   hidePackageListings: ctx.hidePackageListings,
   isPackage: ctx.packageGroupId != null,
   listings: ctx.listings,
+  packageDayPrices: ctx.packageDayPrices,
   packagePrices: ctx.packagePrices,
   packageQuantities: ctx.packageQuantities,
   slugs: ctx.slugs,
@@ -870,6 +878,7 @@ export const getTicketContext = async (
     ...(group?.is_package
       ? { hidePackageListings: group.hide_package_listings }
       : {}),
+    packageDayPrices: packageMaps?.dayPrices ?? null,
     packageGroupId: group?.is_package ? group.id : null,
     packageGroupRemainingByGroupId,
     packageMemberGroupIds,

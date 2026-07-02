@@ -18,11 +18,16 @@ import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
+import {
+  groupDayPriceStatements,
+  PRICE_TYPE_GROUP_DAY,
+} from "#shared/db/listing-prices.ts";
 import { queryListingsWithCounts } from "#shared/db/listings.ts";
 import { queryAndMap } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
 import type {
+  DayPrices,
   Group,
   GroupListing,
   ListingType,
@@ -45,6 +50,13 @@ export type PackageMemberInput = {
   price: number | null;
   /** How many of this listing one package unit includes (≥1). Defaults to 1. */
   quantity?: number;
+  /** A customisable member's per-day overrides (day count → per-unit minor
+   * price): the price this member charges for an n-day booking of THIS package,
+   * consulted before the listing's own day price. Only counts the listing
+   * itself offers ever apply, and a flat `price` override (one price whatever
+   * the span) still wins over both. Stored as `group_day` rows in
+   * `listing_prices`. */
+  dayPrices?: DayPrices | undefined;
 };
 
 /** Group input fields for create/update (camelCase) */
@@ -513,10 +525,15 @@ export const setListingGroupsTx = async (
 };
 
 /**
- * Remove every listing from a group (used when the group is deleted).
+ * Remove every listing from a group (used when the group is deleted), along
+ * with the group's per-day package overrides — its `group_day` price rows key
+ * on the group id, so they'd otherwise outlive the deletion.
  */
 export const resetGroupListings = async (groupId: number): Promise<void> => {
   await execute("DELETE FROM group_listings WHERE group_id = ?", [groupId]);
+  for (const stmt of groupDayPriceStatements(groupId, [])) {
+    await execute(stmt.sql, stmt.args);
+  }
 };
 
 /**
@@ -600,7 +617,9 @@ const copyPackageOverridesStatement = (
 /** Copy the source's package overrides onto the duplicate's membership rows in
  * the SAME transaction that inserted them (the create write's `afterWrite`), so a
  * failure rolls the whole duplicate back rather than leaving a live member at the
- * default price. */
+ * default price. The source's per-day `group_day` rows are copied too — the
+ * clone joins the same package groups, so the same `"<groupId>/<n>"` price_ids
+ * apply to it verbatim. */
 export const copyPackageMemberOverridesTx = async (
   tx: TxScope,
   sourceListingId: number,
@@ -609,6 +628,12 @@ export const copyPackageMemberOverridesTx = async (
   await tx.execute(
     copyPackageOverridesStatement(sourceListingId, newListingId),
   );
+  await tx.execute({
+    args: [newListingId, sourceListingId, PRICE_TYPE_GROUP_DAY],
+    sql: `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price)
+          SELECT ?, price_type, price_id, unit_price FROM listing_prices
+           WHERE listing_id = ? AND price_type = ?`,
+  });
 };
 
 /** Reset-every-member-to-no-override statement (price NULL / quantity 1). */
@@ -650,21 +675,28 @@ const validMembers = (
  * Apply package-member overrides via the caller-supplied reader and runner, so
  * the batch and transactional variants share one decision tree. An explicit
  * empty array clears all overrides; a non-empty list that matches no current
- * member is a no-op (it isn't treated as "clear all").
+ * member is a no-op (it isn't treated as "clear all"). The members' per-day
+ * overrides are replaced in the same pass ({@link groupDayPriceStatements}), so
+ * the `group_day` rows always match the flat overrides they were saved with.
  */
 const applyPackageMembers = async (
   groupId: number,
   members: PackageMemberInput[],
   readCurrentIds: () => Promise<Set<number>>,
-  run: (stmt: { args: (number | null)[]; sql: string }) => Promise<unknown>,
+  run: (stmt: {
+    args: (number | string | null)[];
+    sql: string;
+  }) => Promise<unknown>,
 ): Promise<void> => {
   if (members.length === 0) {
     await run(clearMembersStatement(groupId));
+    for (const stmt of groupDayPriceStatements(groupId, [])) await run(stmt);
     return;
   }
   const valid = validMembers(members, await readCurrentIds());
   if (valid.length === 0) return;
   await run(memberOverrideStatement(groupId, valid));
+  for (const stmt of groupDayPriceStatements(groupId, valid)) await run(stmt);
 };
 
 /** Set the `package_price` / `quantity` on a group's membership rows. Pass `tx`

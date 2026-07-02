@@ -816,6 +816,52 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(html).toContain("Total Revenue");
     });
 
+    test("decrypts the roster for a package paid only via a per-day override", async () => {
+      // Same principle one layer deeper: a customisable member free on its own
+      // (zero base and day prices) can still charge through a per-day package
+      // override, so the paid check must consult the group_day rows too.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Day Override Paid",
+        slug: "day-override-paid",
+      });
+      const member = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 0, 2: 0 },
+        durationDays: 2,
+        groupId: group.id,
+        listingType: "daily",
+        maxAttendees: 10,
+        name: "Free-Days Member",
+        unitPrice: 0,
+      });
+      await setGroupPackageMembers(group.id, [
+        { dayPrices: { 2: 2500 }, listingId: member.id, price: null },
+      ]);
+      // A daily member needs a dated booking; the form helper posts date-less,
+      // so book atomically like the checkout would.
+      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+      const { addDays } = await import("#shared/dates.ts");
+      const { todayInTz } = await import("#shared/timezone.ts");
+      const booked = await createAttendeeAtomic({
+        bookings: [
+          {
+            date: addDays(todayInTz("UTC"), 2),
+            listingId: member.id,
+            quantity: 1,
+          },
+        ],
+        email: "daybuyer@test.com",
+        name: "Buyer",
+        packageGroupId: group.id,
+      });
+      if (!booked.success) throw new Error("day-override booking failed");
+
+      const response = await adminGet(`/admin/groups/${group.id}`);
+      expectStatus(200)(response);
+      expect(await response.text()).toContain("Total Revenue");
+    });
+
     test("hides revenue for a package whose free member has no override", async () => {
       // A package group still reaches the override check (unlike a non-package
       // group, which returns early): a free member with a null override (no

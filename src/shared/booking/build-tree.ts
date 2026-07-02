@@ -38,6 +38,12 @@ export type BuildTreeInput = {
   readonly packageQuantities?: ReadonlyMap<number, number> | null | undefined;
   /** Per-member package price override in minor units (by listing id). */
   readonly packagePrices?: ReadonlyMap<number, number> | null | undefined;
+  /** Per-member per-day overrides (listing id → day count → minor units) for
+   * customisable members, from the `group_day` rows of `listing_prices`. */
+  readonly packageDayPrices?:
+    | ReadonlyMap<number, ReadonlyMap<number, number>>
+    | null
+    | undefined;
   /** Members hidden from buyers (`hide_package_listings`). */
   readonly hidePackageListings?: boolean | undefined;
   /** Required children per parent listing id (already hydrated + availability). */
@@ -53,10 +59,14 @@ export type BuildTreeInput = {
  * (`customisable_days` false) is NOT day-priced — it charges its `unit_price`
  * and only uses the date for availability (`dayPriceFor` returns null unless
  * customisable), so it stays `BASE`/`PAY_MORE`; its date/duration is carried by
- * the node's `dateSpan`, not its price rule. */
+ * the node's `dateSpan`, not its price rule. A customisable package member's
+ * per-day overrides (`dayOverrides`) ride the `DAY_PRICE` rule: `effectivePrice`
+ * consults them before the listing's own day price, while a flat `OVERRIDE`
+ * (one price whatever the span) still wins outright. */
 const derivePriceRule = (
   listing: ListingWithCount,
   overrideMinor: number | undefined,
+  dayOverrides?: ReadonlyMap<number, number> | undefined,
 ): PriceRule => {
   if (overrideMinor !== undefined) {
     return { amountMinor: overrideMinor, kind: "OVERRIDE" };
@@ -69,7 +79,7 @@ const derivePriceRule = (
     };
   }
   if (listing.customisable_days) {
-    return { kind: "DAY_PRICE" };
+    return { kind: "DAY_PRICE", overrides: dayOverrides };
   }
   return { kind: "BASE" };
 };
@@ -179,7 +189,11 @@ const buildPackageMemberNode =
       listing,
       listingId: listing.id,
       nodeKey,
-      priceRule: derivePriceRule(listing, overrideMinor),
+      priceRule: derivePriceRule(
+        listing,
+        overrideMinor,
+        input.packageDayPrices?.get(listing.id),
+      ),
       quantityRule,
       visibility,
     };

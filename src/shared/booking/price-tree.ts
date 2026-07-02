@@ -14,8 +14,10 @@ import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
  */
 
 /** The per-ticket unit price (minor units) a node's `priceRule` resolves to:
- * `OVERRIDE` is the package price (including an explicit free `0`); `DAY_PRICE` is
- * the customisable day-count price; `PAY_MORE` and `BASE` both read the
+ * `OVERRIDE` is the flat package price (including an explicit free `0`);
+ * `DAY_PRICE` is the customisable day-count price — a package member's per-day
+ * override for the chosen count when one is set, else the listing's own entered
+ * day price, NEVER base × days; `PAY_MORE` and `BASE` both read the
  * `customPrices` map (falling back to `unit_price`, honouring a genuine `0`).
  * `customPrices` carries the buyer's pay-more input for a `PAY_MORE` listing AND a
  * signed QR-token override for a fixed-price `BASE` listing
@@ -34,7 +36,11 @@ export const effectivePrice = (
     case "OVERRIDE":
       return priceRule.amountMinor;
     case "DAY_PRICE":
-      return dayPriceFor(listing, dayCount) ?? 0;
+      return (
+        priceRule.overrides?.get(dayCount) ??
+        dayPriceFor(listing, dayCount) ??
+        0
+      );
     default:
       // PAY_MORE (buyer's custom price) and BASE (fixed, optionally QR-overridden).
       return customPrices.get(listing.id) ?? listing.unit_price;

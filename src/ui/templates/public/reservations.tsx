@@ -5,11 +5,13 @@ import {
   buildBookingTree,
 } from "#shared/booking/build-tree.ts";
 import { packageQuantityCap } from "#shared/booking/capacity-tree.ts";
+import { effectivePrice } from "#shared/booking/price-tree.ts";
 import {
   type BookingNode,
   type BookingTree,
   childPriceFieldName,
   childQuantityFieldName,
+  nodeFixedQuantity,
   nodePriceFieldName,
   nodeQuantityFieldName,
   PACKAGE_QUANTITY_FIELD,
@@ -1242,6 +1244,13 @@ export type TicketPageOptions = {
    * member whose base price is 0 but override is paid still renders the provider
    * contact fields. Empty/omitted for non-package pages. */
   packagePrices?: ReadonlyMap<number, number> | null | undefined;
+  /** A package page's per-member per-day overrides (listing id → day count →
+   * minor units), so the tree's `DAY_PRICE` rules — and the day-count selector's
+   * bundle totals — price by the package's entered day prices. */
+  packageDayPrices?:
+    | ReadonlyMap<number, ReadonlyMap<number, number>>
+    | null
+    | undefined;
   /** Set on a package page: the group id, each member's fixed per-package
    * quantity, and whether members are hidden from buyers. When set, the page
    * shows one package-quantity selector instead of per-member quantities. */
@@ -1454,6 +1463,38 @@ const TicketPageForm = ({
     </CsrfForm>
   );
 };
+
+/** On a customisable PACKAGE page, one whole bundle's price for a given day
+ * count: each member node's effective per-unit price for that span (its flat
+ * package override, else its per-day package override, else its own entered day
+ * price — never base × days) times its fixed per-package quantity. Walks the
+ * canonical tree so the selector's labels can't drift from what the checkout
+ * charges. `customPrices` is empty: pay-more listings can't join a package. */
+const packageDayCountPriceFor =
+  (tree: BookingTree) =>
+  (days: number): number =>
+    tree.nodes.reduce(
+      (sum, node) =>
+        sum +
+        effectivePrice(node.priceRule, node.listing, new Map(), days) *
+          nodeFixedQuantity(node),
+      0,
+    );
+
+/** The day-count option pricer for a page: a customisable PACKAGE prices each
+ * option as the whole bundle's total; every other page keeps the pricer
+ * {@link dayConfig} resolved (the single listing's own day prices, or none). */
+const resolveDayCountPriceFor = (
+  isPackage: boolean,
+  tree: BookingTree,
+  dayCfg: {
+    hasCustomisable: boolean;
+    dayCountPriceFor?: ((days: number) => number | null) | undefined;
+  },
+): ((days: number) => number | null) | undefined =>
+  isPackage && dayCfg.hasCustomisable
+    ? packageDayCountPriceFor(tree)
+    : dayCfg.dayCountPriceFor;
 
 /**
  * Day-selection config for the booking form, derived from the page's listings.
@@ -1691,6 +1732,7 @@ export const ticketPage = ({
   groupRemainingByGroupId,
   groupIdsByListingId = new Map(),
   packagePrices,
+  packageDayPrices,
   packageGroupId,
   packageQuantities,
   packageGroupRemainingByGroupId = new Map(),
@@ -1707,6 +1749,7 @@ export const ticketPage = ({
     hidePackageListings,
     isPackage,
     listings,
+    packageDayPrices,
     packagePrices,
     packageQuantities,
     slugs,
@@ -1736,8 +1779,9 @@ export const ticketPage = ({
   const isSingleListing = singleListing !== null;
   const pastDays = singleListing?.date ? daysAgo(singleListing.date) : null;
 
-  const { hasCustomisable, dayCounts, dayCountPriceFor, dateDurationDays } =
-    dayConfig(listings, singleListing, childrenByParentId);
+  const dayCfg = dayConfig(listings, singleListing, childrenByParentId);
+  const { hasCustomisable, dayCounts, dateDurationDays } = dayCfg;
+  const dayCountPriceFor = resolveDayCountPriceFor(isPackage, tree, dayCfg);
 
   const availableListings = listings.filter((e) => !e.isSoldOut && !e.isClosed);
   const hideQuantity =

@@ -241,21 +241,31 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
     });
 
     test("copies the package flag, hide option, and remapped member overrides", async () => {
+      const { getGroupDayPrices } = await import(
+        "#shared/db/listing-prices.ts"
+      );
       const group = await createTestGroup({
         isPackage: true,
         name: "Pkg Source",
       });
       const listing = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
         groupId: group.id,
+        listingType: "daily",
         name: "Member",
+        unitPrice: 1000,
       });
-      // Set a package price override + quantity + hide flag on the source group.
+      // Set a package price override + quantity + per-day override + hide flag
+      // on the source group.
       await adminFormPost(`/admin/groups/${group.id}/edit`, {
         description: "",
         hide_package_listings: "1",
         is_package: "1",
         max_attendees: "0",
         name: "Pkg Source",
+        [`package_day_price_${listing.id}_2`]: "9.00",
         [`package_price_${listing.id}`]: "30.00",
         [`package_qty_${listing.id}`]: "4",
         slug: group.slug,
@@ -279,10 +289,17 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       expect(prices.get(newListing.id)).toBe(3000);
       const newRows = await getGroupPackagePrices(newGroup.id);
       expect(newRows[0]!.quantity).toBe(4);
+      // The per-day override is rewritten under the NEW group id and clone id
+      // (its price_id embeds the group), so the copy prices identically.
+      const newDayPrices = await getGroupDayPrices(newGroup.id);
+      expect(newDayPrices.get(newListing.id)?.get(2)).toBe(900);
       // The source override is untouched.
       const sourceRows = await getGroupPackagePrices(group.id);
       expect(sourceRows[0]!.package_price).toBe(3000);
       expect(sourceRows[0]!.quantity).toBe(4);
+      expect((await getGroupDayPrices(group.id)).get(listing.id)?.get(2)).toBe(
+        900,
+      );
     });
 
     test("returns 404 when the source group does not exist", async () => {

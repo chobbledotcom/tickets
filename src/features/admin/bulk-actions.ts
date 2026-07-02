@@ -33,7 +33,11 @@ import {
   groupsTable,
   setGroupListingsActive,
 } from "#shared/db/groups.ts";
-import { syncListingPricesForIds } from "#shared/db/listing-prices.ts";
+import {
+  getGroupDayPrices,
+  groupDayPriceStatements,
+  syncListingPricesForIds,
+} from "#shared/db/listing-prices.ts";
 import {
   getStoredListingWithCount,
   type ListingInput,
@@ -222,6 +226,20 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
       sourceId,
       idBySlugIndex.get(input.slugIndex)!,
     ]),
+  );
+  // The members' per-day package overrides can't be batch-copied like the flat
+  // price/quantity (their `group_day` price_ids embed the group id, and the new
+  // group's id only exists after the batch), so rewrite them here keyed to the
+  // NEW group and each source member's clone.
+  const sourceDayPrices = await getGroupDayPrices(group.id);
+  await executeBatch(
+    groupDayPriceStatements(
+      newGroupId,
+      [...sourceDayPrices].map(([sourceId, byDay]) => ({
+        dayPrices: Object.fromEntries(byDay),
+        listingId: idMap.get(sourceId)!,
+      })),
+    ),
   );
 
   // A cloned parent whose remapped edge set fails re-validation is left gateless

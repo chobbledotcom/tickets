@@ -52,8 +52,9 @@ export type QuantityRule =
   | { readonly kind: "OPTIONAL"; readonly min: number; readonly max: number }
   | { readonly kind: "BUYER_CHOICE" };
 
-/** Which price a node charges. `OVERRIDE` (package price) wins, then `PAY_MORE`
- * (pay-what-you-want), then `DAY_PRICE` (daily/customisable), then `BASE`. */
+/** Which price a node charges. `OVERRIDE` (flat package price) wins, then
+ * `PAY_MORE` (pay-what-you-want), then `DAY_PRICE` (daily/customisable), then
+ * `BASE`. */
 export type PriceRule =
   | { readonly kind: "BASE" }
   | { readonly kind: "OVERRIDE"; readonly amountMinor: number }
@@ -62,7 +63,13 @@ export type PriceRule =
       readonly minMinor: number;
       readonly maxMinor: number;
     }
-  | { readonly kind: "DAY_PRICE" };
+  | {
+      readonly kind: "DAY_PRICE";
+      /** A package member's per-day overrides (day count → per-unit minor
+       * price), consulted before the listing's own day price. Absent outside
+       * packages, so a standalone customisable listing prices unchanged. */
+      readonly overrides?: ReadonlyMap<number, number> | undefined;
+    };
 
 /** Whether a node is ever named on a buyer surface. A `HIDDEN` node is dropped
  * from render, never rendered-then-hidden (hidden-package privacy invariant). */
@@ -166,6 +173,11 @@ export const childPriceFieldName = (
 
 /** The single "number of packages" control on a package page. */
 export const PACKAGE_QUANTITY_FIELD = "package_quantity";
+
+/** A node's per-package fixed quantity: a `FIXED` (package member) node carries
+ * it; any other rule contributes 1 (a buyer-chosen node counts once per unit). */
+export const nodeFixedQuantity = (node: BookingNode): number =>
+  node.quantityRule.kind === "FIXED" ? node.quantityRule.qty : 1;
 
 /** The quantity form field a node's control posts, or `null` when the node has
  * no buyer-chosen quantity of its own (a package member — its quantity is the

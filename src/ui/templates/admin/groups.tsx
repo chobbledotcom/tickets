@@ -26,6 +26,8 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   type AdminSession,
   type Attendee,
+  availableDayCounts,
+  dayPriceFor,
   type Group,
   hasTicketQuantity,
   type ListingWithCount,
@@ -136,11 +138,46 @@ export const adminGroupNewPage = (
   );
 
 /** A package member's saved per-unit price override (minor units; `null` = no
- * override, `0` = free) and fixed per-package quantity, keyed by listing id. */
+ * override, `0` = free), fixed per-package quantity, and any per-day overrides
+ * (day count → minor units) for a customisable member, keyed by listing id. */
 export type PackageMemberValues = ReadonlyMap<
   number,
-  { price: number | null; quantity: number }
+  {
+    price: number | null;
+    quantity: number;
+    dayPrices?: ReadonlyMap<number, number>;
+  }
 >;
+
+/** Per-day override inputs for one customisable member — one input per day
+ * count the listing itself offers (an override can reprice a span, never invent
+ * one). The listing's own entered day price is the placeholder; a blank input
+ * charges it, an explicit 0 makes that span free in this package. */
+const MemberDayPriceInputs = ({
+  listing,
+  dayPrices,
+}: {
+  listing: ListingWithCount;
+  dayPrices: ReadonlyMap<number, number> | undefined;
+}): JSX.Element => (
+  <div class="package-day-prices">
+    {availableDayCounts(listing).map((days) => {
+      const override = dayPrices?.get(days);
+      return (
+        <label>
+          {t("fields.group.package_day_price", { count: days })}
+          <input
+            inputmode="decimal"
+            name={`package_day_price_${listing.id}_${days}`}
+            placeholder={toMajorUnits(dayPriceFor(listing, days) ?? 0)}
+            type="text"
+            value={override === undefined ? "" : toMajorUnits(override)}
+          />
+        </label>
+      );
+    })}
+  </div>
+);
 
 /**
  * Per-listing package overrides (per-unit price + quantity per package). Shown
@@ -187,6 +224,12 @@ const PackageMembersTable = ({
                       type="text"
                       value={override === null ? "" : toMajorUnits(override)}
                     />
+                    {e.customisable_days && (
+                      <MemberDayPriceInputs
+                        dayPrices={member?.dayPrices}
+                        listing={e}
+                      />
+                    )}
                   </td>
                   <td>
                     <input
