@@ -6,7 +6,7 @@
  * for. Every test here exercises a window where the world changed under a
  * servicing event between two steps that a serial test assumes are adjacent.
  *
- * Implementation contract (test-first — production code not yet written):
+ * Implementation contract (implemented — this describes the shipped behavior):
  *   - The servicing create/edit/delete paths reuse the atomic attendee core,
  *     which holds a write lock for the duration of each transaction.
  *   - `deleteServicingEvent` is the same row-vanishes check the attendee edit

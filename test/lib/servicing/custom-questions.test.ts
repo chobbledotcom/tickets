@@ -66,7 +66,7 @@ const listingWithAnsweredHold = async () => {
   const { questionId, answerId } = await attachQuestion(listing.id);
   const { id } = await createServicingHold({
     listing: { name: "L" },
-    questionAnswers: [{ answerId, questionId }],
+    questionAnswers: [{ answerId }],
   });
   return { answerId, id, listing, questionId };
 };
@@ -88,13 +88,12 @@ describeWithEnv("servicing §11 — custom questions", { db: true }, () => {
   });
 
   test("editing a servicing event saves its answers", async () => {
-    const { id, listing, answerId, questionId } =
-      await listingWithAnsweredHold();
+    const { id, listing, answerId } = await listingWithAnsweredHold();
     // Save an edit with the answer still selected: it persists (no answer drop).
     await updateServicingEvent(id, {
       bookings: [{ listingId: listing.id, quantity: 1 }],
       name: "Boiler Service",
-      questionAnswers: [{ answerId, questionId }],
+      questionAnswers: [{ answerId }],
     });
     const rows = await answersFor(id);
     expect(rows.length).toBe(1);

@@ -28,6 +28,12 @@ import {
   setDemoModeForTest,
 } from "#shared/demo.ts";
 import { FormParams } from "#shared/form-data.ts";
+import {
+  adminPost,
+  createTestListing,
+  describeWithEnv,
+  getServicingEvent,
+} from "#test-utils";
 
 // jscpd:ignore-end
 
@@ -96,6 +102,83 @@ describe("servicing §0 — demo override replaces a servicing name with a servi
     }
   });
 });
+
+describeWithEnv(
+  "servicing §13 — demo overrides are applied by the create/edit routes",
+  { db: true },
+  () => {
+    /** The servicing form fields for a single-quantity hold on `listingId`. */
+    const servicingForm = (listingId: number, name: string) => ({
+      day_count: "1",
+      name,
+      [`quantity_${listingId}`]: "1",
+      start_date: "2099-07-01",
+    });
+
+    /** POST the servicing create form and return the created event id. */
+    const createViaRoute = async (
+      listingId: number,
+      name: string,
+    ): Promise<number> => {
+      const response = await adminPost(
+        "/admin/servicing/new",
+        servicingForm(listingId, name),
+      );
+      const location = response.headers.get("location") ?? "";
+      return Number(location.match(/\/admin\/servicing\/(\d+)/)![1]);
+    };
+
+    /** Run `fn` with demo mode enabled, always resetting it afterward. */
+    const inDemoMode = async (fn: () => Promise<void>): Promise<void> => {
+      setDemoModeForTest(true);
+      try {
+        await fn();
+      } finally {
+        setDemoModeForTest(false);
+      }
+    };
+
+    /** Assert the stored event's name was replaced by a demo reason (not the
+     *  operator's submitted text). */
+    const expectDemoNameOverride = async (
+      id: number,
+      submitted: string,
+    ): Promise<void> => {
+      const event = await getServicingEvent(id);
+      expect(event?.name).not.toBe(submitted);
+      expect(DEMO_SERVICING_NAMES).toContain(event?.name);
+    };
+
+    test("creating a servicing event in demo mode stores a demo reason, not the submitted name", async () => {
+      // Regression: the create route parsed the form directly and never called
+      // applyDemoOverrides, so a demo instance stored the operator's arbitrary
+      // name. The submitted name is deliberately NOT a demo reason so the
+      // override is observable.
+      const listing = await createTestListing({ maxAttendees: 10, name: "L" });
+      const submitted = "Totally Unlisted Job XYZ";
+      expect(DEMO_SERVICING_NAMES).not.toContain(submitted);
+      await inDemoMode(async () => {
+        const id = await createViaRoute(listing.id, submitted);
+        await expectDemoNameOverride(id, submitted);
+      });
+    });
+
+    test("editing a servicing event in demo mode overrides the submitted name too", async () => {
+      const listing = await createTestListing({ maxAttendees: 10, name: "L2" });
+      // Create outside demo mode so the starting name is the real one.
+      const id = await createViaRoute(listing.id, "Boiler Service");
+      const submitted = "Another Unlisted Job ABC";
+      expect(DEMO_SERVICING_NAMES).not.toContain(submitted);
+      await inDemoMode(async () => {
+        await adminPost(
+          `/admin/servicing/${id}`,
+          servicingForm(listing.id, submitted),
+        );
+        await expectDemoNameOverride(id, submitted);
+      });
+    });
+  },
+);
 
 describe("servicing §0 — DEMO_SERVICING_NAMES is non-empty and distinct", () => {
   test("no duplicate servicing reasons (a mutant that dupe-fills the list fails)", () => {

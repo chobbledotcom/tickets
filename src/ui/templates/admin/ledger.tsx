@@ -41,6 +41,7 @@ import {
   GuideLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { PriceInput } from "#templates/components/price-input.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -903,15 +904,7 @@ const LedgerEntryFields = ({
   <>
     <label>
       {t("admin.ledger.form.amount")}
-      <input
-        inputmode="decimal"
-        min="0"
-        name="amount"
-        required
-        step="0.01"
-        type="number"
-        value={values.amount}
-      />
+      <PriceInput min="0" name="amount" required value={values.amount} />
     </label>
     <label>
       {t("admin.ledger.form.occurred_at")}

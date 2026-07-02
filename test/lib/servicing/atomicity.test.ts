@@ -15,11 +15,13 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import {
   createDailyTestListing,
+  createServicingHold,
   createTestListing,
   createTestServicingEvent,
   describeWithEnv,
   expectRejects,
   getServicingEvent,
+  getTestPrivateKey,
   servicingRowsForListing,
   updateServicingEvent,
 } from "#test-utils";
@@ -27,40 +29,149 @@ import {
 // jscpd:ignore-end
 
 /**
- * Make the FIRST `attendee_answers` batch fail (the answer save), then delegate
- * every subsequent batch — including the compensating delete/restore — so the
+ * Reject the FIRST batch whose SQL matches `matches`, then delegate every
+ * subsequent batch — including the compensating delete/restore — so the
  * create/update compensation runs against a working client. Swaps the libsql
  * client's `batch` method in place (module namespaces are frozen, but the
  * client instance's method is configurable) and discriminates by SQL content.
  */
-const withAnswerSaveFailure = async (
-  body: () => Promise<void>,
-): Promise<void> => {
-  const db = getDb();
-  const realBatch = db.batch;
-  let poisoned = true;
-  db.batch = ((
-    statements: { sql: string }[],
-    mode?: "read" | "write",
-  ): Promise<unknown> => {
-    const sqls = statements.map((s) => (typeof s === "string" ? s : s.sql));
-    if (poisoned && sqls.some((sql) => sql.includes("attendee_answers"))) {
-      poisoned = false;
-      return Promise.reject(new Error("answer save boom"));
+const withPoisonedBatch =
+  (matches: (sql: string) => boolean, message: string) =>
+  async (body: () => Promise<void>): Promise<void> => {
+    const db = getDb();
+    const realBatch = db.batch;
+    let poisoned = true;
+    db.batch = ((
+      statements: { sql: string }[],
+      mode?: "read" | "write",
+    ): Promise<unknown> => {
+      const sqls = statements.map((s) => (typeof s === "string" ? s : s.sql));
+      if (poisoned && sqls.some(matches)) {
+        poisoned = false;
+        return Promise.reject(new Error(message));
+      }
+      return realBatch.call(db, statements as never, mode);
+    }) as typeof db.batch;
+    try {
+      await body();
+    } finally {
+      db.batch = realBatch;
     }
-    return realBatch.call(db, statements as never, mode);
-  }) as typeof db.batch;
-  try {
-    await body();
-  } finally {
-    db.batch = realBatch;
+  };
+
+/** Fail the FIRST `attendee_answers` batch (the answer save), so the
+ *  create/update compensation runs. */
+const withAnswerSaveFailure = withPoisonedBatch(
+  (sql) => sql.includes("attendee_answers"),
+  "answer save boom",
+);
+
+/** Fail the FIRST `INSERT INTO attendee_answers` batch, letting the preceding
+ *  clear (`DELETE FROM attendee_answers`) commit first — the exact window in
+ *  which the free-text-loss bug lived: the delete drops the old answers, then
+ *  the re-insert fails, so the compensation must restore the WHOLE prior answer
+ *  set (choice + free-text), not just its choice half. */
+const withAnswerInsertFailure = withPoisonedBatch(
+  (sql) => sql.includes("INSERT INTO attendee_answers"),
+  "answer insert boom",
+);
+
+/** Attach a free_text and a radio question to a listing, returning both ids. */
+const attachTextAndChoiceQuestions = async (
+  listingId: number,
+): Promise<{
+  textQuestionId: number;
+  choiceQuestionId: number;
+  choiceAnswerId: number;
+}> => {
+  const { answersTable, listingQuestionsTable, questionsTable } = await import(
+    "#shared/db/questions.ts"
+  );
+  const textQuestion = await questionsTable.insert({
+    assignAll: false,
+    displayType: "free_text",
+    text: "Boiler notes?",
+  });
+  const choiceQuestion = await questionsTable.insert({
+    assignAll: false,
+    displayType: "radio",
+    text: "Boiler model?",
+  });
+  const choiceAnswer = await answersTable.insert({
+    questionId: choiceQuestion.id,
+    sortOrder: 0,
+    text: "Vaillant",
+  });
+  for (const q of [textQuestion.id, choiceQuestion.id]) {
+    await listingQuestionsTable.insert({
+      listingId,
+      questionId: q,
+      sortOrder: 0,
+    });
   }
+  return {
+    choiceAnswerId: choiceAnswer.id,
+    choiceQuestionId: choiceQuestion.id,
+    textQuestionId: textQuestion.id,
+  };
 };
 
 describeWithEnv(
   "servicing — create/update compensate on side-effect failure",
   { db: true },
   () => {
+    test("update rollback restores a prior FREE-TEXT answer, not just choice answers", async () => {
+      // Regression: updateServicingEvent snapshotted answers with
+      // { texts: false }, so restoreServicingState re-saved only choice ids and
+      // dropped any free-text answer saveAttendeeAnswers had already deleted —
+      // even though the edit is reported as rolled back.
+      const { id, listing } = await createServicingHold({
+        listing: { name: "L" },
+      });
+      const { textQuestionId, choiceAnswerId } =
+        await attachTextAndChoiceQuestions(listing.id);
+      const { saveAttendeeAnswers, getAttendeeTextAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
+      // Seed a free-text answer on the servicing event.
+      await saveAttendeeAnswers(
+        new Map([
+          [
+            id,
+            {
+              answerIds: [],
+              textAnswers: [
+                { questionId: textQuestionId, text: "Serial 12345" },
+              ],
+            },
+          ],
+        ]),
+      );
+      const key = await getTestPrivateKey();
+      expect((await getAttendeeTextAnswers(id, key)).get(textQuestionId)).toBe(
+        "Serial 12345",
+      );
+      // Edit supplies a CHOICE answer, so the edit's saveAttendeeAnswers clears
+      // (deleting the free-text) then inserts — and the insert is poisoned.
+      await withAnswerInsertFailure(async () => {
+        await expectRejects(
+          updateServicingEvent(id, {
+            bookings: [{ listingId: listing.id, quantity: 1 }],
+            name: "Changed",
+            questionAnswers: [{ answerId: choiceAnswerId }],
+          }),
+          /answer insert boom/,
+        );
+      });
+      // The edit rolled back: name is unchanged AND the free-text answer is
+      // intact (it was restored, not dropped).
+      const after = await getServicingEvent(id);
+      expect(after?.name).toBe("Boiler Service");
+      expect((await getAttendeeTextAnswers(id, key)).get(textQuestionId)).toBe(
+        "Serial 12345",
+      );
+    });
+
     test("create deletes the attendee when answer saving fails (no partial event)", async () => {
       const listing = await createTestListing({ maxAttendees: 10, name: "L" });
       await withAnswerSaveFailure(async () => {

@@ -2,16 +2,14 @@
  * Servicing edge cases — purge edge cases.
  *
  * The orphan-purge path (§15) is exercised against the real listing-deletion
- * lifecycle, the cutoff boundary, and the dependent-row cascade — including
- * the `system_notes` gap the live `ORPHAN_DEPENDENT_TABLES` list omits.
+ * lifecycle, the cutoff boundary, and the dependent-row cascade.
  *
- * Implementation contract (test-first):
- *   - `purgeOrphanedAttendees` must delete `system_notes` rows for swept
- *     orphans (the live `ORPHAN_DEPENDENT_TABLES` list omits this table — the
- *     test pins the contract so a fix lands alongside the implementation).
- *   - A cost-bearing servicing event purged as an orphan must reverse its cost
- *     legs (the purge path currently bypasses `deleteServicingEvent`, so the
- *     §22 "deleting reverses cost legs" contract does NOT hold for orphans).
+ * Behaviour under test (all shipped):
+ *   - `purgeOrphanedAttendees` deletes `system_notes` rows for swept orphans
+ *     (`system_notes` is in `ORPHAN_DEPENDENT_TABLES`).
+ *   - A cost-bearing servicing event purged as an orphan leaves its cost legs
+ *     as orphaned history — the transfers ledger is append-only, so the purge
+ *     never reverses them.
  */
 // jscpd:ignore-start
 import { expect } from "@std/expect";
@@ -21,37 +19,19 @@ import {
   countOrphanedAttendees,
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
-import { nowIso, nowMs } from "#shared/now.ts";
+import { nowIso } from "#shared/now.ts";
 import {
   attendeeExists,
   childRowCount,
   createServicingHold,
   createTestListing,
+  daysAgoIso,
   describeWithEnv,
+  orphanServicingEvent,
   recordServiceCost,
 } from "#test-utils";
 
 // jscpd:ignore-end
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-const daysAgoIso = (days: number): string =>
-  new Date(nowMs() - days * DAY_MS).toISOString();
-
-/** Drop a servicing event's booking link and backdate its `created` to
- *  `daysAgo` — the orphan state the purge sweeps. */
-const orphanServicingEvent = async (
-  id: number,
-  daysAgo = 30,
-): Promise<void> => {
-  await getDb().execute({
-    args: [id],
-    sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
-  });
-  await getDb().execute({
-    args: [daysAgoIso(daysAgo), id],
-    sql: "UPDATE attendees SET created = ? WHERE id = ?",
-  });
-};
 
 /** Insert a system_notes row for an attendee (the table the purge omits). */
 const attachSystemNote = async (attendeeId: number): Promise<void> => {
@@ -99,15 +79,13 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
     expect(await childRowCount("attendee_answers", id)).toBe(0);
   });
 
-  test("a servicing orphan's system_notes are swept (pins the missing-table contract)", async () => {
+  test("a servicing orphan's system_notes are swept with the attendee", async () => {
     const { id } = await createServicingHold();
     await orphanServicingEvent(id);
     await attachSystemNote(id);
     expect(await childRowCount("system_notes", id)).toBe(1);
     await purgeOrphanedAttendees(nowIso());
-    // The live ORPHAN_DEPENDENT_TABLES list omits system_notes — this test
-    // pins the contract that the purge MUST clear it (and will fail until
-    // the production list is fixed).
+    // system_notes is in ORPHAN_DEPENDENT_TABLES, so the purge clears it.
     expect(await childRowCount("system_notes", id)).toBe(0);
   });
 

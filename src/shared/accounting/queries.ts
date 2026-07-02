@@ -11,6 +11,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { SERVICE_COST_KIND } from "#shared/accounting/accounts.ts";
 import {
   accountBalanceSubquery,
   attendeeOwedSubquery,
@@ -88,7 +89,9 @@ export const recentTransfers = (limit: number): Promise<Transfer[]> =>
  * owner-entered manual rows and service cost legs remain visible even when they
  * record an external cost. */
 const VISIBLE_TRANSFER_SCOPE =
-  "(source_type != 'external' AND dest_type != 'external' OR kind LIKE 'manual\\_%' ESCAPE '\\' OR kind = 'service_cost')";
+  "(source_type != 'external' AND dest_type != 'external' OR kind LIKE 'manual\\_%' ESCAPE '\\' OR kind = '" +
+  SERVICE_COST_KIND +
+  "')";
 
 /** A listing-account scope (revenue OR cost legs touching this listing's
  *  accounts) for the by-listing filter, with its bound args. Empty for "all

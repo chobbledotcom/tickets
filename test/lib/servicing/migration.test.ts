@@ -8,7 +8,7 @@
  * declared in `SCHEMA` so the schema-hash guard stays in sync with a named
  * migration registered in `MIGRATIONS`.
  *
- * Implementation contract (test-first — code not yet written):
+ * Implementation contract (implemented — this describes the shipped behavior):
  *   - `#shared/db/migrations/schema.ts` declares the `kind` column
  *     (`TEXT NOT NULL DEFAULT 'attendee'`) on `attendees` plus
  *     `idx_attendees_kind` in that table's `indexes`.

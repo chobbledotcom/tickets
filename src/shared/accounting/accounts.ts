@@ -12,6 +12,11 @@ import type { AccountRef } from "#shared/ledger/types.ts";
  *  and render its id as an in-batch subquery rather than a literal. */
 export const ATTENDEE = "attendee";
 export const COST = "cost";
+
+/** Transfer `kind` for an operator-recorded service cost (and its correcting
+ *  adjustment legs). The single source of truth for the literal so the servicing
+ *  reader/writer and the ledger's revenue-scope predicate can't drift apart. */
+export const SERVICE_COST_KIND = "service_cost";
 const REVENUE = "revenue";
 const MODIFIER = "modifier";
 const FEE_INCOME = "fee_income";

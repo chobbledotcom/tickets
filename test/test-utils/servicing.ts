@@ -23,8 +23,9 @@ import { expect } from "@std/expect";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { ATTENDEE_JOIN_SELECT } from "#shared/db/attendees.ts";
-import { queryAll, queryOne } from "#shared/db/client.ts";
+import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings.ts";
+import { nowMs } from "#shared/now.ts";
 import type { Attendee, Listing, ListingWithCount } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { createTestListing } from "#test-utils/db-helpers.ts";
@@ -170,6 +171,29 @@ export const tokenIndexOf = async (id: number): Promise<string> =>
     "SELECT ticket_token_index AS idx FROM attendees WHERE id = ?",
     [id],
   ))!.idx;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** ISO timestamp `days` days before now (for backdating past the purge cutoff). */
+export const daysAgoIso = (days: number): string =>
+  new Date(nowMs() - days * DAY_MS).toISOString();
+
+/** Drop a servicing event's booking link and backdate its `created` by `daysAgo`
+ *  days — the orphan state the purge sweeps. Shared by the deletion and
+ *  purge-edge-case suites. */
+export const orphanServicingEvent = async (
+  id: number,
+  daysAgo = 30,
+): Promise<void> => {
+  await getDb().execute({
+    args: [id],
+    sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
+  });
+  await getDb().execute({
+    args: [daysAgoIso(daysAgo), id],
+    sql: "UPDATE attendees SET created = ? WHERE id = ?",
+  });
+};
 
 /** Count rows in a child table referencing this attendee id. */
 export const childRowCount = async (
