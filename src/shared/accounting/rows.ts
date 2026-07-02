@@ -9,12 +9,7 @@
 
 import type { InValue } from "@libsql/client";
 import { ATTENDEE } from "#shared/accounting/accounts.ts";
-import {
-  inPlaceholders,
-  queryAll,
-  resultRows,
-  type TxScope,
-} from "#shared/db/client.ts";
+import { queryAll, resultRows, type TxScope } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
 import type {
   AccountRef,
@@ -241,18 +236,6 @@ export const selectByEventGroup = (
   eventGroup: string,
 ): Promise<Transfer[]> =>
   selectTransfers(read, " WHERE event_group = ?", [eventGroup]);
-
-/** The stored transfers among the given references — used to spot a reference
- *  that already belongs to a different event before inserting. */
-export const selectByReferences = (
-  read: RowReader,
-  references: string[],
-): Promise<Transfer[]> =>
-  selectTransfers(
-    read,
-    ` WHERE reference IN (${inPlaceholders(references)})`,
-    references,
-  );
 
 /** The stored transfer with this id, or null when none exists. */
 export const selectById = async (
