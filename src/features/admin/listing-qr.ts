@@ -94,6 +94,19 @@ const loadQrContext = async (id: number): Promise<QrContext | null> => {
   return { bookableDates: await loadBookableDates(listing), listing };
 };
 
+/** The QR form's per-listing context: the child-constrained bookable dates it
+ * offers and whether the listing can take a direct checkout. Shared by the
+ * standalone POST render here and the entity page's QR tab loader. */
+export const loadQrFormContext = async (
+  listing: ListingWithCount,
+): Promise<{ bookableDates: string[]; canDirectCheckout: boolean }> => {
+  const [bookableDates, canDirectCheckout] = await Promise.all([
+    loadBookableDates(listing),
+    listingSupportsDirectCheckout(listing),
+  ]);
+  return { bookableDates, canDirectCheckout };
+};
+
 /** Render the QR admin page; 404 when the listing is missing */
 const renderPage = (
   listingId: number,
@@ -103,10 +116,8 @@ const renderPage = (
 ): Promise<Response> =>
   withListing(listingId)((listing) =>
     unlessChild(listing, async () => {
-      const [bookableDates, canDirectCheckout] = await Promise.all([
-        loadBookableDates(listing),
-        listingSupportsDirectCheckout(listing),
-      ]);
+      const { bookableDates, canDirectCheckout } =
+        await loadQrFormContext(listing);
       return htmlResponse(
         adminListingQrPage({
           bookableDates,

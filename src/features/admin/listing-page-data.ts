@@ -35,7 +35,6 @@ import {
 import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
 import { settings } from "#shared/db/settings.ts";
 import { loadNotesForAttendees } from "#shared/db/system-notes.ts";
-import { listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { ListingQrPanel } from "#templates/admin/listing-qr.tsx";
@@ -46,10 +45,7 @@ import {
   ListingRosterPanel,
 } from "#templates/admin/listings.tsx";
 import { ListingQuestionsPanel } from "#templates/admin/questions.tsx";
-import {
-  EMPTY_QR_VALUES,
-  loadBookableDates,
-} from "./listing-qr.ts";
+import { EMPTY_QR_VALUES, loadQrFormContext } from "./listing-qr.ts";
 import { getListingAndGroups } from "./listings-edit.ts";
 import { loadListingParentsSection } from "./listings-parents.ts";
 import { loadGroupContext, loadListingQuestionData } from "./listings-view.ts";
@@ -269,10 +265,7 @@ export const loadListingQuestionsPanel = async (
 export const loadListingQrPanel = async ({
   listing,
 }: LoadedListing): Promise<JSX.Element> => {
-  const [bookableDates, canDirectCheckout] = await Promise.all([
-    loadBookableDates(listing),
-    listingSupportsDirectCheckout(listing),
-  ]);
+  const { bookableDates, canDirectCheckout } = await loadQrFormContext(listing);
   return ListingQrPanel({
     bookableDates,
     canDirectCheckout,
