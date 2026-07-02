@@ -99,7 +99,7 @@ describe("e2e: ticket editing flow", () => {
       .filter((id): id is string => !!id);
     const uniqueAttendeeIds = [...new Set(attendeeIds)];
     expect(uniqueAttendeeIds.length).toBeGreaterThanOrEqual(2);
-    await browser.visit(`/admin/attendees/${uniqueAttendeeIds[1]}`);
+    await browser.visit(`/admin/attendees/${uniqueAttendeeIds[1]}/edit`);
     expect(browser.containsText("Bob Jones")).toBe(true);
 
     // Verify Bob is NOT checked in on his edit page

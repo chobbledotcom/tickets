@@ -2922,3 +2922,56 @@ label:hover .embed-toggle-badge,
   border-color: var(--color-link);
   color: var(--color-link);
 }
+
+/* ── Entity pages: the tabbed admin "edit X" framework (edit-pages.md) ── */
+
+.entity-tabs {
+  border-bottom: 1px solid var(--color-bg-secondary);
+  margin-block: var(--space-m);
+
+  ul {
+    display: flex;
+    gap: var(--space-s);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    /* One swipeable row on narrow screens — tabs never wrap into a wall. */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+
+  li {
+    margin: 0;
+  }
+
+  a {
+    border-bottom: 3px solid transparent;
+    display: inline-block;
+    padding: var(--space-s) var(--space-m);
+    text-decoration: none;
+  }
+
+  a.active {
+    border-bottom-color: var(--color-link);
+    font-weight: bold;
+  }
+}
+
+.entity-action {
+  align-items: center;
+  display: flex;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+}
+
+.entity-danger-zone {
+  border: 1px solid var(--color-table);
+  border-radius: var(--border-radius);
+  margin-top: var(--space-lg);
+  padding: var(--space-m);
+
+  h4 {
+    margin-top: 0;
+  }
+}
