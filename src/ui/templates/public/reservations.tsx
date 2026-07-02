@@ -1783,10 +1783,9 @@ const foldReserveByChildId = (
   childrenByParentId: Map<number, TicketListing[]>,
 ): Map<number, number> => {
   const reserve = new Map<number, number>();
-  const onPage = new Map(listings.map((e) => [e.listing.id, e]));
-  for (const [parentId, children] of childrenByParentId) {
-    const parent = onPage.get(parentId);
-    if (!parent) continue;
+  for (const parent of listings) {
+    const children = childrenByParentId.get(parent.listing.id);
+    if (!children) continue;
     for (const child of children) {
       reserve.set(
         child.listing.id,
