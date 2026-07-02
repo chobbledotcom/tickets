@@ -207,6 +207,17 @@ derivation to compute a slot's active quantity as
 (`src/ui/client/order.ts`) prices chosen candidates off the same derived
 quantity.
 
+**Per-candidate select ranges must be residual, not raw.** The ordinary child
+block caps each `child_qty` select via `childOrderCap` against the raw
+parent/child context; on a package page that over-offers whenever a candidate
+shares a capped pool with fixed members. Example: fixed member M and
+candidate C share group G with 2 remaining, and the pick-2 slot also offers
+outside candidate D — one package is feasible only with at most one C, yet
+the raw cap offers C=2 (it sees both G spots), letting the buyer submit a mix
+the atomic write rejects. Derive each candidate's select ceiling from the
+same residual context the capacity solver uses at the selected package
+quantity, and recompute it in the client JS when `package_quantity` changes.
+
 ### C. Capacity + discovery parity
 
 `packageQuantityCap` (`src/shared/booking/capacity-tree.ts`) walks only
@@ -269,10 +280,14 @@ top-level member nodes. Two pieces of work:
     `x_c ≤ its own remaining capacity` (the `childOwnRenderCap` bound —
     without it, pick-2 over two candidates with 1 remaining each and no
     capped pool would pass at `q = 2` by assigning 4 units the candidates
-    cannot fulfil). Package configs are tiny (a handful of slots,
-    candidates, and pools), so solving it exactly is cheap; the atomic batch
-    write predicate remains the final authority for the buyer's actual mix
-    (per-date dimensions and races it alone can see).
+    cannot fulfil). The solver's candidate set is the **same bookable set
+    the fold accepts** (`childIsBookable`/`childSelectableIgnoringSpan`:
+    active, not registration-closed) — not merely capacity-bounded, or a
+    slot whose only candidate is inactive/closed but still has seats would
+    stay discoverable while every submit fails. Package configs are tiny (a
+    handful of slots, candidates, and pools), so solving it exactly is
+    cheap; the atomic batch write predicate remains the final authority for
+    the buyer's actual mix (per-date dimensions and races it alone can see).
     `resolvePageQuantities` clamps the posted count with the same function,
     so the submit clamp comes along automatically.
   - **The render/submit cap context must include candidate pools.**
@@ -379,6 +394,16 @@ is a real bypass otherwise):
   the listing became a slot and then cancelled would render a retry link to
   the now-404 `/ticket/<slot>`. Run the same predicate there and suppress or
   redirect the retry CTA for stale-slot sessions.
+- **Admin flat-booking writers.** The admin attendee add/edit forms render
+  every active listing and parse submitted ids from the full listings map
+  (`src/features/admin/attendee-form-routes.ts`), with `validateLine`
+  checking only `max_quantity`; servicing holds use the same flat quantity
+  parser (`src/features/admin/servicing.tsx`). Either could save a slot as a
+  standalone row with `package_group_id = 0`, bypassing the package's fixed
+  members and pricing — the exact flat-line bypass `booking-unification.md`
+  already flags for parent rows. Exclude slot listings from these pickers
+  via the same predicate; if a raw repair path is ever needed, make it an
+  explicit, documented operator override rather than a silent default.
 - **Admin share affordances — explicitly, not "automatically".** The admin
   listing view computes `shareSuppressed = isChild || isHiddenPackageMember`
   from flags `listings-view.ts` passes into the template — it does **not**
@@ -460,7 +485,11 @@ price — existing, deliberate behaviour.
   supplies 1 unit, not 2 (per-candidate variables, one unit charges every
   pool it sits in); pick-2 over two uncapped-pool candidates with 1
   remaining each yields 1 package, not 2 (per-candidate own-capacity
-  bound); a candidate-only capped pool clamps the
+  bound); a slot whose only candidate is inactive or registration-closed
+  (with seats remaining) reads sold out everywhere, not just at submit; a
+  candidate select's ceiling reflects the residual pool at the chosen
+  package quantity (the M/C/D pick-2 case offers C ≤ 1, not 2); a
+  candidate-only capped pool clamps the
   `/ticket/<package>` render and POST, not just discovery; a sold-out
   candidate set ⇒ package sold out everywhere discovery
   looks (cards, `/order.js`, feeds, API, QR) in lockstep with the ticket
@@ -484,7 +513,9 @@ price — existing, deliberate behaviour.
   it appears on no catalog surface (`/listings`, `/order`, `/order.js`,
   feeds, `/api/listings`); the admin dashboard multi-booking builder does not
   offer it; a cancelled stale standalone session renders no `/ticket/<slot>`
-  retry link; and admin URL/QR/embed affordances render no link for it.
+  retry link; the admin attendee add/edit forms and servicing-hold form do
+  not offer it as a flat line; and admin URL/QR/embed affordances render no
+  link for it.
 - **Metadata budget:** a 3-slot, multi-pick package within provider caps; an
   over-cap `allocations` blob surfaces the batching `PaymentUserError`, not a
   provider rejection.
