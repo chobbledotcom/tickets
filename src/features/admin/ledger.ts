@@ -26,7 +26,6 @@
  * owner-encrypted free text, and rendering it is out of scope.
  */
 
-import * as v from "valibot";
 import { mapNotNullish, sort, unique } from "#fp";
 import { t } from "#i18n";
 import { loadAttendeeNames } from "#routes/admin/actions.ts";
@@ -71,12 +70,7 @@ import {
   visibleTransfers,
 } from "#shared/accounting/queries.ts";
 import type { LedgerRange } from "#shared/accounting/range.ts";
-import {
-  formatCurrency,
-  getDecimalPlaces,
-  toMajorUnits,
-  toMinorUnits,
-} from "#shared/currency.ts";
+import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { addDays, dateRange, formatDateLabel } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
@@ -99,6 +93,7 @@ import {
 } from "#shared/timezone.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
+import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import {
   type AccountLedgerData,
@@ -451,27 +446,10 @@ const addEntryPath = (account: AccountRef, returnUrl: string): string =>
     returnUrl,
   )}`;
 
-const ledgerAmountPattern = (): RegExp => {
-  const places = getDecimalPlaces(settings.currency);
-  return places === 0 ? /^\d+$/ : new RegExp(`^\\d+(?:\\.\\d{1,${places}})?$`);
-};
-
-const ledgerAmountSchema = v.pipe(
-  v.string(),
-  v.trim(),
-  v.nonEmpty(),
-  v.check((amount) => ledgerAmountPattern().test(amount)),
-  v.transform(Number),
-  v.finite(),
-  v.transform(toMinorUnits),
-  v.safeInteger(),
-  v.minValue(1),
-);
-
-const parseAmount = (form: FormParams): number | null => {
-  const result = v.safeParse(ledgerAmountSchema, form.getString("amount"));
-  return result.success ? result.output : null;
-};
+// A manual ledger entry takes a strictly positive amount — the same
+// currency-aware money parse the rest of the app uses.
+const parseAmount = (form: FormParams): number | null =>
+  parsePositiveMinorUnits(form.getString("amount"));
 
 const parseOccurredAt = (form: FormParams): string | null => {
   const raw = form.getString("occurred_at").trim();

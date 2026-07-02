@@ -29,70 +29,52 @@ import {
 // jscpd:ignore-end
 
 /**
- * Make the FIRST `attendee_answers` batch fail (the answer save), then delegate
- * every subsequent batch — including the compensating delete/restore — so the
+ * Reject the FIRST batch whose SQL matches `matches`, then delegate every
+ * subsequent batch — including the compensating delete/restore — so the
  * create/update compensation runs against a working client. Swaps the libsql
  * client's `batch` method in place (module namespaces are frozen, but the
  * client instance's method is configurable) and discriminates by SQL content.
  */
-const withAnswerSaveFailure = async (
-  body: () => Promise<void>,
-): Promise<void> => {
-  const db = getDb();
-  const realBatch = db.batch;
-  let poisoned = true;
-  db.batch = ((
-    statements: { sql: string }[],
-    mode?: "read" | "write",
-  ): Promise<unknown> => {
-    const sqls = statements.map((s) => (typeof s === "string" ? s : s.sql));
-    if (poisoned && sqls.some((sql) => sql.includes("attendee_answers"))) {
-      poisoned = false;
-      return Promise.reject(new Error("answer save boom"));
+const withPoisonedBatch =
+  (matches: (sql: string) => boolean, message: string) =>
+  async (body: () => Promise<void>): Promise<void> => {
+    const db = getDb();
+    const realBatch = db.batch;
+    let poisoned = true;
+    db.batch = ((
+      statements: { sql: string }[],
+      mode?: "read" | "write",
+    ): Promise<unknown> => {
+      const sqls = statements.map((s) => (typeof s === "string" ? s : s.sql));
+      if (poisoned && sqls.some(matches)) {
+        poisoned = false;
+        return Promise.reject(new Error(message));
+      }
+      return realBatch.call(db, statements as never, mode);
+    }) as typeof db.batch;
+    try {
+      await body();
+    } finally {
+      db.batch = realBatch;
     }
-    return realBatch.call(db, statements as never, mode);
-  }) as typeof db.batch;
-  try {
-    await body();
-  } finally {
-    db.batch = realBatch;
-  }
-};
+  };
 
-/**
- * Reject the FIRST `INSERT INTO attendee_answers` batch, letting the preceding
- * clear (`DELETE FROM attendee_answers`) commit first — the exact window in
- * which the free-text-loss bug lived: the delete drops the old answers, then the
- * re-insert fails, so the compensation must restore the WHOLE prior answer set
- * (choice + free-text), not just its choice half. Disarms after one hit so the
- * compensation's own restore save runs against a working client.
- */
-const withAnswerInsertFailure = async (
-  body: () => Promise<void>,
-): Promise<void> => {
-  const db = getDb();
-  const realBatch = db.batch;
-  let poisoned = true;
-  db.batch = ((
-    statements: { sql: string }[],
-    mode?: "read" | "write",
-  ): Promise<unknown> => {
-    const sqls = statements.map((s) => (typeof s === "string" ? s : s.sql));
-    if (
-      poisoned &&
-      sqls.some((sql) => sql.includes("INSERT INTO attendee_answers"))
-    ) {
-      poisoned = false;
-      return Promise.reject(new Error("answer insert boom"));
-    }
-    return realBatch.call(db, statements as never, mode);
-  }) as typeof db.batch;
-  try {
-    await body();
-  } finally {
-    db.batch = realBatch;
-  }
-};
+/** Fail the FIRST `attendee_answers` batch (the answer save), so the
+ *  create/update compensation runs. */
+const withAnswerSaveFailure = withPoisonedBatch(
+  (sql) => sql.includes("attendee_answers"),
+  "answer save boom",
+);
+
+/** Fail the FIRST `INSERT INTO attendee_answers` batch, letting the preceding
+ *  clear (`DELETE FROM attendee_answers`) commit first — the exact window in
+ *  which the free-text-loss bug lived: the delete drops the old answers, then
+ *  the re-insert fails, so the compensation must restore the WHOLE prior answer
+ *  set (choice + free-text), not just its choice half. */
+const withAnswerInsertFailure = withPoisonedBatch(
+  (sql) => sql.includes("INSERT INTO attendee_answers"),
+  "answer insert boom",
+);
 
 /** Attach a free_text and a radio question to a listing, returning both ids. */
 const attachTextAndChoiceQuestions = async (

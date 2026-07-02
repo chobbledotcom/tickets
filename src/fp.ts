@@ -302,6 +302,22 @@ export const sumOf =
 export const sum = sumOf((n: number) => n);
 
 /**
+ * Curried group-and-sum: accumulate `valueOf(item)` into a `Map` keyed by
+ * `keyOf(item)`. Replaces the common pattern:
+ *   const m = new Map(); for (const x of xs) m.set(k(x), (m.get(k(x)) ?? 0) + v(x))
+ */
+export const sumByKey =
+  <T, K>(keyOf: (item: T) => K, amountOf: (item: T) => number) =>
+  (items: Iterable<T>): Map<K, number> => {
+    const totals = new Map<K, number>();
+    for (const item of items) {
+      const key = keyOf(item);
+      totals.set(key, (totals.get(key) ?? 0) + amountOf(item));
+    }
+    return totals;
+  };
+
+/**
  * Split an array into chunks of a given size.
  * Curried adapter over `@std/collections.chunk` (which throws for size < 1).
  */
