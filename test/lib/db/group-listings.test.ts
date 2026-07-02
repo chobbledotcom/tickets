@@ -85,6 +85,30 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     );
   });
 
+  test("stores the flat override in listing_prices' group dimension, not on group_listings", async () => {
+    const { group, a } = await groupWithTwoMembers("storage");
+    await setGroupPackageMembers(group.id, [{ listingId: a.id, price: 1500 }]);
+    // The override is a ("group", "<groupId>") row keyed to the member listing —
+    // the source of truth since group_listings.package_price was retired.
+    expect(
+      await queryAll(
+        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'group' AND price_id = ?",
+        [a.id, String(group.id)],
+      ),
+    ).toEqual([{ unit_price: 1500 }]);
+    // Clearing the overrides removes the row (so getGroupPackagePrices reads null).
+    await setGroupPackageMembers(group.id, []);
+    expect(
+      await queryAll(
+        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'group'",
+        [a.id],
+      ),
+    ).toEqual([]);
+    expect((await getGroupPackagePrices(group.id))[0]!.package_price).toBe(
+      null,
+    );
+  });
+
   test("setGroupPackageMembers stores per-package quantities (default 1)", async () => {
     const { group, a, b } = await groupWithTwoMembers("qty");
 

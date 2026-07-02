@@ -676,6 +676,29 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       );
     });
 
+    test("a PUT that omits day_prices leaves the existing day_count rows intact", async () => {
+      const listing = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 400, 2: 700 },
+        durationDays: 3,
+        name: "Keep Days",
+      });
+
+      // A partial update touching only the name must not wipe the day prices —
+      // the JSON API defaults day_prices to the existing value and re-writes it.
+      await assertJson(
+        apiRequest(`/api/admin/listings/${listing.id}`, {
+          body: { name: "Kept Days" },
+          method: "PUT",
+        }),
+        200,
+        (body) => {
+          expect(body.listing.name).toBe("Kept Days");
+          expect(body.listing.day_prices).toEqual({ 1: 400, 2: 700 });
+        },
+      );
+    });
+
     test("clears date by setting it to null", async () => {
       const listing = await createTestListing({ name: "Clear Date" });
       const apiKey = await createTestApiKeyToken();
