@@ -1376,29 +1376,21 @@ const computeAttendeeStats = (
   };
 };
 
-export const adminListingPage = ({
-  listing,
-  attendees,
-  allowedDomain,
-  session,
-  aggregateRecalculation,
-  checkinMessage,
-  activeFilter = "all",
-  dateFilter = null,
-  availableDates = [],
-  errorMessage,
-  phonePrefix,
-  successMessage,
-  questionData,
-  groupContext,
-  revenueBreakdown,
-  ledger,
-  hasEmailableAttendees = false,
-  isChild = false,
-  isHiddenPackageMember = false,
-  childNames = [],
-  systemNotes = [],
-}: AdminListingPageOptions): string => {
+/**
+ * Derive every value the Overview and Roster panels share from the raw page
+ * options, applying the same defaults the detail page always used. Both panels
+ * (and the composed {@link adminListingPage}) read from this so the roster
+ * stats, capacity rows, and filter URLs are computed in exactly one place.
+ */
+const deriveListingView = (opts: AdminListingPageOptions) => {
+  const {
+    listing,
+    attendees,
+    allowedDomain,
+    activeFilter = "all",
+    dateFilter = null,
+    questionData,
+  } = opts;
   const ticketUrl = `https://${allowedDomain}/ticket/${listing.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
     buildEmbedSnippets(ticketUrl);
@@ -1440,41 +1432,65 @@ export const adminListingPage = ({
       }),
     ),
   )(filteredAttendees);
+  return {
+    activeFilter,
+    adjustedCount,
+    basePath,
+    completeQuantitySum,
+    dailySuffix,
+    dateFilter,
+    dateQs,
+    embedIframeCode,
+    embedScriptCode,
+    incompleteAttendees,
+    isDaily,
+    returnUrl,
+    sharedRows,
+    tableRows,
+    ticketUrl,
+  };
+};
 
-  return String(
-    <Layout title={t("listings_table.detail_title", { name: listing.name })}>
-      <AdminNav active="/admin/" session={session} />
-      <ListingActionNav
-        hasEmailableAttendees={hasEmailableAttendees}
-        hasPaidListing={hasPaidListing}
-        isChild={isChild}
-        isHiddenPackageMember={isHiddenPackageMember}
-        isOwner={session.adminLevel === "owner"}
-        listing={listing}
-      />
-      <Flash success={successMessage} />
-      {!listing.active && (
-        <div class="error" role="alert">
-          {t("listings_table.listing_deactivated_warning")}
-        </div>
-      )}
-      <Flash error={errorMessage} />
+/**
+ * The listing "Overview" panel: the read-only details table, the income/ledger
+ * money sections (owner-only callers pass them), and the attendee-notes
+ * summary. Rendered as the listing entity page's Overview tab and composed into
+ * the legacy {@link adminListingPage} detail view.
+ */
+export const ListingOverviewPanel = (
+  opts: AdminListingPageOptions,
+): JSX.Element => {
+  const v = deriveListingView(opts);
+  const {
+    listing,
+    aggregateRecalculation,
+    allowedDomain,
+    groupContext,
+    revenueBreakdown,
+    ledger,
+    attendees,
+    isChild = false,
+    isHiddenPackageMember = false,
+    systemNotes = [],
+  } = opts;
+  return (
+    <>
       <ListingDetailsTable
-        adjustedCount={adjustedCount}
+        adjustedCount={v.adjustedCount}
         aggregateRecalculation={aggregateRecalculation}
         allowedDomain={allowedDomain}
-        completeQuantitySum={completeQuantitySum}
-        dailySuffix={dailySuffix}
-        dateFilter={dateFilter}
-        embedIframeCode={embedIframeCode}
-        embedScriptCode={embedScriptCode}
+        completeQuantitySum={v.completeQuantitySum}
+        dailySuffix={v.dailySuffix}
+        dateFilter={v.dateFilter}
+        embedIframeCode={v.embedIframeCode}
+        embedScriptCode={v.embedScriptCode}
         groupContext={groupContext}
         isChild={isChild}
-        isDaily={isDaily}
+        isDaily={v.isDaily}
         isHiddenPackageMember={isHiddenPackageMember}
         listing={listing}
-        sharedRowsHtml={renderDetailRows(sharedRows)}
-        ticketUrl={ticketUrl}
+        sharedRowsHtml={renderDetailRows(v.sharedRows)}
+        ticketUrl={v.ticketUrl}
       />
       {revenueBreakdown && (
         <ListingIncomeLedgerSection
@@ -1489,29 +1505,88 @@ export const adminListingPage = ({
         names={attendeeNameMap(attendees)}
         notes={systemNotes}
       />
+    </>
+  );
+};
+
+/**
+ * The listing "Attendees" panel: the roster table (with filter links + optional
+ * check-in flash), the failed-payments split-out, and the quick add-attendee
+ * form (suppressed in read-only mode). Rendered as the listing entity page's
+ * Attendees tab and composed into the legacy {@link adminListingPage}.
+ */
+export const ListingRosterPanel = (
+  opts: AdminListingPageOptions,
+): JSX.Element => {
+  const v = deriveListingView(opts);
+  const {
+    listing,
+    allowedDomain,
+    availableDates = [],
+    checkinMessage,
+    phonePrefix,
+    questionData,
+    childNames = [],
+  } = opts;
+  return (
+    <>
       <AttendeesSection
-        activeFilter={activeFilter}
+        activeFilter={v.activeFilter}
         allowedDomain={allowedDomain}
         availableDates={availableDates}
-        basePath={basePath}
+        basePath={v.basePath}
         checkinMessage={checkinMessage}
-        dateFilter={dateFilter}
-        dateQs={dateQs}
-        isDaily={isDaily}
+        dateFilter={v.dateFilter}
+        dateQs={v.dateQs}
+        isDaily={v.isDaily}
         phonePrefix={phonePrefix}
         questionData={questionData}
-        returnUrl={returnUrl}
-        tableRows={tableRows}
+        returnUrl={v.returnUrl}
+        tableRows={v.tableRows}
       />
-      {incompleteAttendees.length > 0 && (
+      {v.incompleteAttendees.length > 0 && (
         <FailedPaymentsSection
-          attendees={incompleteAttendees}
+          attendees={v.incompleteAttendees}
           listingId={listing.id}
         />
       )}
       {!isReadOnly() && (
         <AddAttendeeSection childNames={childNames} listing={listing} />
       )}
+    </>
+  );
+};
+
+export const adminListingPage = (opts: AdminListingPageOptions): string => {
+  const {
+    listing,
+    session,
+    errorMessage,
+    successMessage,
+    hasEmailableAttendees = false,
+    isChild = false,
+    isHiddenPackageMember = false,
+  } = opts;
+  return String(
+    <Layout title={t("listings_table.detail_title", { name: listing.name })}>
+      <AdminNav active="/admin/" session={session} />
+      <ListingActionNav
+        hasEmailableAttendees={hasEmailableAttendees}
+        hasPaidListing={isPaidListing(listing)}
+        isChild={isChild}
+        isHiddenPackageMember={isHiddenPackageMember}
+        isOwner={session.adminLevel === "owner"}
+        listing={listing}
+      />
+      <Flash success={successMessage} />
+      {!listing.active && (
+        <div class="error" role="alert">
+          {t("listings_table.listing_deactivated_warning")}
+        </div>
+      )}
+      <Flash error={errorMessage} />
+      {ListingOverviewPanel(opts)}
+      {ListingRosterPanel(opts)}
     </Layout>,
   );
 };
