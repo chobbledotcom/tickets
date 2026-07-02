@@ -575,15 +575,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
-    test("checks in an attendee and redirects with message", async () => {
+    test("checks in an attendee and redirects to the roster with a flash", async () => {
       const { response, listing } = await checkinAction({})();
-      expectRedirect(
-        response,
-        `/admin/listing/${listing.id}`,
-        "checkin_status=in",
-        "checkin_name=John",
-        "#message",
-      );
+      expectRedirect(response, `/admin/listing/${listing.id}/attendees`);
+      expectFlash(response, expect.stringContaining("Checked John Doe in"));
 
       // The check-in is recorded in the listing activity log.
       const { getListingActivityLog } = await import("#test-utils");
@@ -593,18 +588,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(log).toBeDefined();
     });
 
-    test("redirects to filtered page when return_filter is set", async () => {
+    test("redirects to the in-filtered roster when return_filter is set", async () => {
       const { response, listing } = await checkinAction({
         return_filter: "in",
       })();
       expectRedirect(
         response,
-        `/admin/listing/${listing.id}/in?`,
-        "checkin_status=in",
+        `/admin/listing/${listing.id}/attendees?filter=in`,
       );
     });
 
-    test("redirects to out filtered page when return_filter is out", async () => {
+    test("redirects to the out-filtered roster when return_filter is out", async () => {
       // Check in first, then check out with return_filter=out
       const { listing, attendee, cookie, csrfToken } = await checkinAction(
         {},
@@ -619,21 +613,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expectRedirect(
         response,
-        `/admin/listing/${listing.id}/out?`,
-        "checkin_status=out",
+        `/admin/listing/${listing.id}/attendees?filter=out`,
       );
     });
 
-    test("redirects to unfiltered page when return_filter is all", async () => {
+    test("redirects to the unfiltered roster when return_filter is all", async () => {
       const { response, listing } = await checkinAction({
         return_filter: "all",
       })();
       const location = expectRedirect(
         response,
-        `/admin/listing/${listing.id}?`,
+        `/admin/listing/${listing.id}/attendees`,
       );
-      expect(location).not.toContain("/in?");
-      expect(location).not.toContain("/out?");
+      expect(location).not.toContain("filter=");
     });
 
     test("redirects to return_url when provided", async () => {
@@ -663,57 +655,24 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect(response, "checkin_status=out");
+      expectFlash(response, expect.stringContaining("Checked John Doe out"));
     });
 
-    test("listing page shows Check in button for unchecked attendee", async () => {
+    test("roster shows Check in button for unchecked attendee", async () => {
       const { response } = await adminListingPage(
-        (ctx) => `/admin/listing/${ctx.listing.id}`,
+        (ctx) => `/admin/listing/${ctx.listing.id}/attendees`,
       )();
       await expectHtmlResponse(response, 200, "Check in", "/checkin");
     });
 
-    test("listing page shows check-in success message when query params present", async () => {
-      const { response } = await adminListingPage(
-        (ctx) =>
-          `/admin/listing/${ctx.listing.id}?checkin_name=John%20Doe&checkin_status=in`,
-      )();
-      await expectHtmlResponse(
-        response,
-        200,
-        "Checked John Doe in",
-        "checkin-message-in",
-      );
-    });
-
-    test("listing page shows check-out message in red", async () => {
-      const { response } = await adminListingPage(
-        (ctx) =>
-          `/admin/listing/${ctx.listing.id}?checkin_name=John%20Doe&checkin_status=out`,
-      )();
-      await expectHtmlResponse(
-        response,
-        200,
-        "Checked John Doe out",
-        "checkin-message-out",
-      );
-    });
-
-    test("listing page ignores invalid checkin_status param", async () => {
-      const { response } = await adminListingPage(
-        (ctx) =>
-          `/admin/listing/${ctx.listing.id}?checkin_name=John%20Doe&checkin_status=invalid`,
-      )();
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).not.toContain("Checked John Doe");
-    });
-
-    test("listing page shows Check out button for checked-in attendee", async () => {
-      // Check in first, then view the listing page
+    test("roster shows Check out button for checked-in attendee", async () => {
+      // Check in first, then view the roster tab
       const { listing } = await checkinAction({})();
 
-      await assertAdminHtml(`/admin/listing/${listing.id}`, "Check out");
+      await assertAdminHtml(
+        `/admin/listing/${listing.id}/attendees`,
+        "Check out",
+      );
     });
   });
 
@@ -1102,11 +1061,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(attendees[0]!.date).toBe(futureDate);
     });
 
-    test("listing page shows add attendee form", async () => {
+    test("roster tab shows add attendee form", async () => {
       const { listing } = await setupListingAndLogin({ maxAttendees: 100 });
 
       await assertAdminHtml(
-        `/admin/listing/${listing.id}`,
+        `/admin/listing/${listing.id}/attendees`,
         "Add Attendee",
         `/admin/listing/${listing.id}/attendee`,
         "Your Name",
@@ -1587,7 +1546,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await adminGet(`/admin/listing/${listing.id}`);
+      const response = await adminGet(
+        `/admin/listing/${listing.id}/attendees`,
+      );
       await expectHtmlResponse(
         response,
         200,
