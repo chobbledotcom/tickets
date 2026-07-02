@@ -100,6 +100,23 @@ const renderQrBlock = (token: string, purchaseOnly: boolean): string =>
       )}/svg" alt={t("listing_qr.qr_code")} /></div>
       <div class="ticket-card-token">${escapeHtml(token)}</div>`;
 
+/** The dated card whose member listing spans the most days — the range covering
+ * the bundle's whole stay — or null for a date-less (standard) package. */
+const widestDatedCard = (cards: TicketCard[]): TicketCard | null => {
+  let widest: TicketCard | null = null;
+  for (const card of cards) {
+    if (!card.entry.attendee.date) continue;
+    const days = normalizeDurationDays(card.entry.listing.duration_days);
+    if (
+      !widest ||
+      days > normalizeDurationDays(widest.entry.listing.duration_days)
+    ) {
+      widest = card;
+    }
+  }
+  return widest;
+};
+
 /** Render one card for a whole package booking: the package name, then each
  * member with its booked quantity (omitted when the package hides its listings),
  * then the shared QR. The attendee's member lines share one token, so the
@@ -154,17 +171,7 @@ const renderPackageCard = (
   // booked date like a standalone card would. The bundle's members can carry
   // different fixed durations, so the widest member's range covers the whole
   // stay. Package-level (no member named), so a hidden package stays concealed.
-  const widestDated = cards
-    .filter((c) => c.entry.attendee.date)
-    .reduce(
-      (widest: TicketCard | null, c) =>
-        !widest ||
-        normalizeDurationDays(c.entry.listing.duration_days) >
-          normalizeDurationDays(widest.entry.listing.duration_days)
-          ? c
-          : widest,
-      null,
-    );
+  const widestDated = widestDatedCard(cards);
   const dateHtml = widestDated
     ? `<div class="ticket-card-date">${t("tickets.booking_date")} ${escapeHtml(
         computeBookingDateLabel(

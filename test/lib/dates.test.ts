@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   addDays,
   addMonthsIso,
+  bookedSpanDays,
   calendarGridDates,
   DAY_NAMES,
   daysAgo,
@@ -527,6 +528,28 @@ describe("dates", () => {
       expect(formatDateRangeLabel("2026-02-09T00:00:00Z", null)).toBe(
         "Monday 9 February 2026",
       );
+    });
+  });
+
+  describe("bookedSpanDays", () => {
+    test("counts the whole days of a [start, end) range", () => {
+      expect(
+        bookedSpanDays("2026-08-01T00:00:00Z", "2026-08-03T00:00:00.000Z"),
+      ).toBe(2);
+    });
+
+    test("a one-day range and a degenerate range both read as 1", () => {
+      expect(
+        bookedSpanDays("2026-08-01T00:00:00Z", "2026-08-02T00:00:00.000Z"),
+      ).toBe(1);
+      expect(
+        bookedSpanDays("2026-08-01T00:00:00Z", "2026-08-01T00:00:00.000Z"),
+      ).toBe(1);
+    });
+
+    test("a missing start or end reads as 1", () => {
+      expect(bookedSpanDays(null, "2026-08-02T00:00:00Z")).toBe(1);
+      expect(bookedSpanDays("2026-08-01T00:00:00Z", null)).toBe(1);
     });
   });
 

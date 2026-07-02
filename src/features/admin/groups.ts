@@ -117,7 +117,8 @@ const isPackageableMember = async (
     customisable_days: boolean;
     can_pay_more: boolean;
   },
-  hideListings: boolean,
+  // Undefined (an input that omitted the flag) reads as "not hidden".
+  hideListings: boolean | undefined,
 ): Promise<boolean> => {
   if (!isPackageable(listing)) return false;
   const { childIds, parentIds } = await edgeIdsTouching(listing.id);
@@ -132,7 +133,7 @@ const isPackageableMember = async (
 const validatePackageCompatibility = async (
   groupId: number,
   isPackage: boolean | undefined,
-  hideListings: boolean,
+  hideListings: boolean | undefined,
 ): Promise<string | null> => {
   if (!isPackage) return null;
   const listings = await getListingsByGroupId(groupId);
@@ -156,7 +157,7 @@ export const validateGroupWithPackage: GroupValidator = async (input, id) => {
   return validatePackageCompatibility(
     id,
     input.isPackage,
-    input.hidePackageListings ?? false,
+    input.hidePackageListings,
   );
 };
 

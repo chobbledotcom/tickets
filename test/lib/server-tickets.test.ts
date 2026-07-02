@@ -570,13 +570,20 @@ describeWithEnv(
         minimumDaysBefore: 0,
         name: "Trip Cabin",
       });
+      const oneDayB = await createTestListing({
+        groupId: group.id,
+        listingType: "daily",
+        minimumDaysBefore: 0,
+        name: "Trip Kayak",
+      });
       const date = addDays(todayInTz("UTC"), 2);
-      // The 2-day member books FIRST so the widest-member scan sees the widest
-      // card, then a narrower one it must keep passing over.
+      // Booked narrow → widest → narrow, so the widest-member scan must both
+      // REPLACE a narrower card and KEEP the widest over a later narrower one.
       const result = await createAttendeeAtomic({
         bookings: [
-          { date, listingId: twoDay.id, quantity: 1 },
           { date, listingId: oneDay.id, quantity: 1 },
+          { date, listingId: twoDay.id, quantity: 1 },
+          { date, listingId: oneDayB.id, quantity: 1 },
         ],
         email: "trip@test.com",
         name: "Tripper",
