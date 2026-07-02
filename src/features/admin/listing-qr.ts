@@ -120,13 +120,6 @@ const renderPage = (
     }),
   );
 
-/** GET /admin/listing/:id/qr */
-const handleGet: TypedRouteHandler<"GET /admin/listing/:id/qr"> = (
-  request,
-  { id },
-) =>
-  requireSessionOr(request, (session) => renderPage(id, session, EMPTY_QR_VALUES));
-
 /** Extract raw form values without validation */
 const extractRawValues = (form: FormParams): AdminListingQrValues => ({
   customer_name: form.getString("customer_name").trim(),
@@ -313,9 +306,10 @@ const handleJsonGet: TypedRouteHandler<"GET /admin/listing/:id/qr.json"> = (
     ),
   );
 
-/** Exported admin routes for the QR generator */
+/** Exported admin routes for the QR generator. The GET form is the listing
+ * entity page's QR tab now; the POST (result render) + qr.json refresh stay
+ * here. */
 export const listingQrRoutes = defineRoutes({
-  "GET /admin/listing/:id/qr": handleGet,
   "GET /admin/listing/:id/qr.json": handleJsonGet,
   "POST /admin/listing/:id/qr": handlePost,
 });

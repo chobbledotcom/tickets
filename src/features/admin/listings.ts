@@ -10,9 +10,9 @@
  */
 
 import { defineRoutes } from "#routes/router.ts";
+import { listingPage } from "./listing-page.ts";
 import {
   handleAdminListingDuplicateGet,
-  handleAdminListingEditGet,
   handleAdminListingEditPost,
   handleAdminListingIncomePost,
   handleCreateListing,
@@ -21,7 +21,6 @@ import {
 import { handleAdminListingExport } from "./listings-export.ts";
 import {
   handleAdminListingDelete,
-  handleAdminListingLog,
   listingDeactivate,
   listingDelete,
   listingReactivate,
@@ -35,27 +34,28 @@ import {
   handleAttachmentDelete,
   handleImageDelete,
 } from "./listings-uploads.ts";
-import {
-  handleAdminListingGet,
-  handleAdminListingGetIn,
-  handleAdminListingGetOut,
-} from "./listings-view.ts";
 
-/** Listing routes */
+/** Listing routes.
+ *
+ * The single-listing GET surface is the tabbed entity page (listing-page.ts):
+ * `/admin/listing/:id` is its Overview, `/admin/listing/:id/:tab` its other
+ * tabs (attendees, edit, questions, qr, activity, actions). The router prefers
+ * literal segments over the `:tab` param, so the remaining literal sub-routes
+ * below (duplicate, export, new, …) and those in the scanner / qr.json / refund
+ * bundles keep resolving to their own handlers. */
 export const listingsRoutes = {
   ...listingDeactivate.routes,
   ...listingReactivate.routes,
   ...listingDelete.routes,
   ...defineRoutes({
     "DELETE /admin/listing/:id/delete": handleAdminListingDelete,
-    "GET /admin/listing/:id": handleAdminListingGet,
+    "GET /admin/listing/:id": (request, { id }) =>
+      listingPage.renderTab(request, id, ""),
     "GET /admin/listing/:id/attendees.csv": handleAdminListingExport,
     "GET /admin/listing/:id/duplicate": handleAdminListingDuplicateGet,
-    "GET /admin/listing/:id/edit": handleAdminListingEditGet,
     "GET /admin/listing/:id/export": handleAdminListingExport,
-    "GET /admin/listing/:id/in": handleAdminListingGetIn,
-    "GET /admin/listing/:id/log": handleAdminListingLog,
-    "GET /admin/listing/:id/out": handleAdminListingGetOut,
+    "GET /admin/listing/:id/:tab": (request, { id, tab }) =>
+      listingPage.renderTab(request, id, tab),
     "GET /admin/listing/new": handleNewListingGet,
     "GET /admin/listings/recalculate/:listingId": handleListingRecalculateGet,
     "POST /admin/listing": handleCreateListing,

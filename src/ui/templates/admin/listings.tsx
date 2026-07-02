@@ -324,30 +324,41 @@ const FilterLink = ({
     ? String(<strong>{label}</strong>)
     : String(<a href={href}>{label}</a>);
 
-/** Build the path suffix for a checkin filter (preserves date query) */
-const filterSuffix = (activeFilter: AttendeeFilter): string =>
-  activeFilter === "all" ? "" : `/${activeFilter}`;
+/** Build an Attendees-tab URL that carries the check-in filter and date as
+ *  query params — the roster's filters live on one `/admin/listing/:id/attendees`
+ *  tab now, not on the old `/in` and `/out` sub-paths. `all` / no-date are
+ *  omitted so the canonical roster URL stays clean. */
+const rosterHref = (
+  listingId: number,
+  activeFilter: AttendeeFilter,
+  dateFilter: string | null,
+): string => {
+  const params = new URLSearchParams();
+  if (activeFilter !== "all") params.set("filter", activeFilter);
+  if (dateFilter) params.set("date", dateFilter);
+  const qs = params.toString();
+  return `/admin/listing/${listingId}/attendees${qs ? `?${qs}` : ""}`;
+};
 
 /** Date selector dropdown for daily listings */
 const DateSelector = ({
-  basePath,
+  listingId,
   activeFilter,
   dateFilter,
   dates,
 }: {
-  basePath: string;
+  listingId: number;
   activeFilter: AttendeeFilter;
   dateFilter: string | null;
   dates: DateOption[];
 }): string => {
-  const suffix = filterSuffix(activeFilter);
   const options = [
-    `<option value="${basePath}${suffix}#attendees"${
+    `<option value="${rosterHref(listingId, activeFilter, null)}"${
       !dateFilter ? " selected" : ""
     }>${t("listings_table.all_dates")}</option>`,
     ...dates.map(
       (d) =>
-        `<option value="${basePath}${suffix}?date=${d.value}#attendees"${
+        `<option value="${rosterHref(listingId, activeFilter, d.value)}"${
           dateFilter === d.value ? " selected" : ""
         }>${d.label}</option>`,
     ),
@@ -1148,19 +1159,19 @@ const ListingDetailsTable = ({
 
 /** Attendees filter links (All / Checked In / Checked Out) */
 const AttendeesFilterLinks = ({
-  basePath,
-  dateQs,
+  listingId,
+  dateFilter,
   activeFilter,
 }: {
-  basePath: string;
-  dateQs: string;
+  listingId: number;
+  dateFilter: string | null;
   activeFilter: AttendeeFilter;
 }): JSX.Element => (
   <p>
     <Raw
       html={FilterLink({
         active: activeFilter === "all",
-        href: `${basePath}${dateQs}#attendees`,
+        href: rosterHref(listingId, "all", dateFilter),
         label: t("listings_table.all"),
       })}
     />
@@ -1168,7 +1179,7 @@ const AttendeesFilterLinks = ({
     <Raw
       html={FilterLink({
         active: activeFilter === "in",
-        href: `${basePath}/in${dateQs}#attendees`,
+        href: rosterHref(listingId, "in", dateFilter),
         label: t("common.checked_in"),
       })}
     />
@@ -1176,7 +1187,7 @@ const AttendeesFilterLinks = ({
     <Raw
       html={FilterLink({
         active: activeFilter === "out",
-        href: `${basePath}/out${dateQs}#attendees`,
+        href: rosterHref(listingId, "out", dateFilter),
         label: t("listings_table.checked_out"),
       })}
     />
@@ -1185,6 +1196,7 @@ const AttendeesFilterLinks = ({
 
 /** Attendees article section (header, optional check-in flash, filters, table) */
 const AttendeesSection = ({
+  listingId,
   allowedDomain,
   checkinMessage,
   isDaily,
@@ -1192,12 +1204,12 @@ const AttendeesSection = ({
   activeFilter,
   dateFilter,
   basePath,
-  dateQs,
   returnUrl,
   tableRows,
   questionData,
   phonePrefix,
 }: {
+  listingId: number;
   allowedDomain: string;
   checkinMessage: CheckinMessage | undefined;
   isDaily: boolean;
@@ -1205,7 +1217,6 @@ const AttendeesSection = ({
   activeFilter: AttendeeFilter;
   dateFilter: string | null;
   basePath: string;
-  dateQs: string;
   returnUrl: string;
   tableRows: AttendeeTableRow[];
   questionData: TableQuestionData | undefined;
@@ -1245,16 +1256,16 @@ const AttendeesSection = ({
         <Raw
           html={DateSelector({
             activeFilter,
-            basePath,
             dateFilter,
             dates: availableDates,
+            listingId,
           })}
         />
       )}
       <AttendeesFilterLinks
         activeFilter={activeFilter}
-        basePath={basePath}
-        dateQs={dateQs}
+        dateFilter={dateFilter}
+        listingId={listingId}
       />
       <div class="table-scroll">
         <Raw
@@ -1440,10 +1451,11 @@ const deriveListingView = (opts: ListingPanelOptions) => {
     ...(questionData !== undefined ? { questionData } : {}),
     skipAttendees: true,
   });
+  // basePath keeps the bare listing URL for the CSV export link (a standalone
+  // route); the roster's own filter/date navigation goes to the Attendees tab
+  // via rosterHref, and checkins return to the current filtered roster view.
   const basePath = `/admin/listing/${listing.id}`;
-  const dateQs = dateFilter ? `?date=${dateFilter}` : "";
-  const suffix = filterSuffix(activeFilter);
-  const returnUrl = `${basePath}${suffix}${dateQs}#attendees`;
+  const returnUrl = rosterHref(listing.id, activeFilter, dateFilter);
   const tableRows: AttendeeTableRow[] = pipe(
     map(
       (a: Attendee): AttendeeTableRow => ({
@@ -1460,7 +1472,6 @@ const deriveListingView = (opts: ListingPanelOptions) => {
     completeQuantitySum,
     dailySuffix,
     dateFilter,
-    dateQs,
     embedIframeCode,
     embedScriptCode,
     incompleteAttendees,
@@ -1558,8 +1569,8 @@ export const ListingRosterPanel = (
         basePath={v.basePath}
         checkinMessage={checkinMessage}
         dateFilter={v.dateFilter}
-        dateQs={v.dateQs}
         isDaily={v.isDaily}
+        listingId={listing.id}
         phonePrefix={phonePrefix}
         questionData={questionData}
         returnUrl={v.returnUrl}
