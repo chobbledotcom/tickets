@@ -59,6 +59,26 @@ describe("summary section", () => {
   });
 });
 
+describe("activity section", () => {
+  test("renders a 'view all' link when viewAllHref is set", () => {
+    const html = String(
+      renderSection({
+        entries: [],
+        kind: "activity",
+        viewAllHref: "/admin/listing/7/log",
+      }),
+    );
+    expect(html).toContain('<a href="/admin/listing/7/log">');
+  });
+
+  test("omits the 'view all' link when viewAllHref is null", () => {
+    const html = String(
+      renderSection({ entries: [], kind: "activity", viewAllHref: null }),
+    );
+    expect(html).not.toContain("<a ");
+  });
+});
+
 describe("actions section", () => {
   const plain = [
     {

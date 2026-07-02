@@ -454,6 +454,16 @@ describe("adminListingPage", () => {
     expect(html).toContain("Test Listing");
   });
 
+  test("links to the JSON export", () => {
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      session: TEST_SESSION,
+    });
+    expect(html).toContain(`/admin/listing/${listing.id}/export.json`);
+  });
+
   test("shows the listing ticket price in the details table", () => {
     const paidListing = testListingWithCount({ unit_price: 1250 });
     const html = adminListingPage({
