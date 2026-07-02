@@ -193,6 +193,16 @@ describe("db > accounting > manual ledger entries", () => {
     expect((await allTransfers())[0]!.amount).toBe(sale.amount);
   });
 
+  test("refuses to touch a kindless transfer, naming its empty kind", async () => {
+    // A kindless stored leg reads back with kind omitted; the guard must refuse
+    // it too and render the missing kind as "" in the error.
+    await postTransfers([tx({ reference: "kindless-guard" })]);
+    const [kindless] = await allTransfers();
+    await expect(
+      updateManualLedgerEntry(kindless!, 999, kindless!.occurredAt),
+    ).rejects.toThrow('not an owner-entered ledger entry (kind "")');
+  });
+
   test("refuses to delete a checkout-event transfer, leaving it stored", async () => {
     const sale = await storedSaleLeg();
     await expect(deleteManualLedgerEntry(sale)).rejects.toThrow(

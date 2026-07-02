@@ -205,12 +205,10 @@ export const getTransferById = (id: number): Promise<Transfer | null> =>
  * loaded row cannot race a concurrent change.
  */
 const assertManualLedgerTransfer = (transfer: Transfer): void => {
-  if (!isManualLedgerTransfer(transfer)) {
-    throw new Error(
-      `transfer ${transfer.id} is not an owner-entered ledger entry` +
-        ` (kind "${transfer.kind ?? ""}")`,
-    );
-  }
+  if (isManualLedgerTransfer(transfer)) return;
+  const kind = transfer.kind ?? "";
+  const detail = `transfer ${transfer.id} is not an owner-entered ledger entry (kind "${kind}")`;
+  throw new Error(detail);
 };
 
 /** Update an owner-entered entry's amount and business time. Throws on any

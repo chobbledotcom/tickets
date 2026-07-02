@@ -827,6 +827,14 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     expect(await response.text()).toContain("Workshop");
   });
 
+  test("404s the add-entry route for a cost account (no owner-enterable types)", async () => {
+    // A cost account has a statement page but the manual-entry spec table
+    // offers it nothing, so the add form must 404 rather than render empty.
+    const { listingId } = await seededSale("Workshop", 4000);
+    const response = await adminGet(`/admin/ledger/cost/${listingId}/add`);
+    expect(response.status).toBe(404);
+  });
+
   test("resolves a real modifier's name and links its leg to the edit page", async () => {
     // A real modifier row exists, so the historical list resolves its name and
     // links the modifier leg to /admin/modifiers/<id>/edit.
