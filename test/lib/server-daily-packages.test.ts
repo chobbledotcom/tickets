@@ -138,6 +138,52 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     expect(await bookingRows(tent.id)).toHaveLength(1);
   });
 
+  test("a capped daily package's pool is not drained by bookings on other dates", async () => {
+    // Regression: the group cap (10) was consumed date-lessly, so 10 units
+    // booked on date A zeroed the package cap for EVERY date — the page 404'd
+    // even though date B has all 10 spots free. A daily member's group pool is
+    // a per-DATE fact: it must not clamp the date-less page/gate at all (the
+    // booking-time predicate enforces it per date), matching the standalone
+    // paths' date-less exclusion of daily listings.
+    const group = await createTestGroup({
+      isPackage: true,
+      maxAttendees: 10,
+      name: "Pool Trip",
+      slug: "pool-trip",
+    });
+    const camper = await createTestListing({
+      groupId: group.id,
+      listingType: "daily",
+      maxAttendees: 100,
+      minimumDaysBefore: 0,
+      name: "Pool Camper",
+      unitPrice: 0,
+    });
+    const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+    const dateA = bookingDate();
+    const fill = await createAttendeeAtomic({
+      bookings: [{ date: dateA, listingId: camper.id, quantity: 10 }],
+      email: "early@test.com",
+      name: "Early Group",
+    });
+    if (!fill.success) throw new Error("fill booking failed");
+
+    // The package page still renders (the whole pool is free on other dates)…
+    const page = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain('name="package_quantity"');
+
+    // …and a booking for a different date succeeds.
+    const submit = await submitPackageBooking(group.slug, {
+      date: addDays(dateA, 3),
+      email: "later@test.com",
+      name: "Later Camper",
+      package_quantity: "1",
+    });
+    await expectPackageBookingAccepted(submit);
+    expect(await bookingRows(camper.id)).toHaveLength(2);
+  });
+
   test("a customisable package offers the members' shared day counts with summed prices", async () => {
     const group = await createTestGroup({
       isPackage: true,

@@ -25,7 +25,7 @@ import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import { packageQuantityCap } from "#shared/booking/capacity-tree.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import {
-  getGroupRemainingByGroupId,
+  getDatelessGroupRemaining,
   getGroupRemainingByListingId,
   getSharedGroupCapacities,
 } from "#shared/db/attendees.ts";
@@ -384,10 +384,12 @@ export const packageGroupBookable = async (
   if (members.length < allMemberIds.length) return false;
   // Remaining for EVERY capped group any member sits in — the package's own
   // group and any other group members happen to share — so the cap reflects all
-  // shared pools, not just this group's.
-  const remaining = await getGroupRemainingByGroupId([
-    ...new Set([...groupIdsByListingId.values()].flat()),
-  ]);
+  // shared pools, not just this group's. Daily members contribute no date-less
+  // pool clamp (their pools are per-date facts, checked at booking).
+  const remaining = await getDatelessGroupRemaining(
+    members,
+    groupIdsByListingId,
+  );
   const tree = buildBookingTree({
     groupId,
     isPackage: true,

@@ -105,6 +105,25 @@ export const getGroupRemainingByGroupId = (
     );
   });
 
+/** Date-less remaining for every capped group reachable from a NON-daily
+ * listing in `members`. A daily listing's group remaining is a per-DATE fact —
+ * a date-less cumulative count would misreport spots other dates still have —
+ * so daily members contribute no date-less pool clamp, exactly like the
+ * standalone paths; the authoritative per-date group check runs at booking.
+ * Membership maps stay complete for demand computation; only the remaining
+ * lookup is filtered. */
+export const getDatelessGroupRemaining = (
+  members: readonly { id: number; listing_type: string }[],
+  membership: ReadonlyMap<number, number[]>,
+): Promise<RemainingMap> =>
+  getGroupRemainingByGroupId([
+    ...new Set(
+      members
+        .filter((m) => m.listing_type !== "daily")
+        .flatMap((m) => membership.get(m.id) ?? []),
+    ),
+  ]);
+
 type ListingForGroupLookup = {
   id: number;
   listing_type: ListingType;
@@ -202,15 +221,11 @@ export const getSharedGroupCapacities = async (
 }> => {
   const { membership, groupIds: allGroupIds } =
     await loadMembershipWithGroupIds(listings);
-  // A daily listing's group `remaining` is a per-DATE fact; a date-less cumulative
-  // count would misreport it, so date-less `remaining` is computed only over groups
-  // reachable from a NON-daily listing (mirroring the old per-listing drop). The
-  // structural `staticCap` is date-independent, so it covers every group.
-  const datelessGroupIds = listings
-    .filter((e) => e.listing_type !== "daily")
-    .flatMap((e) => membership.get(e.id) ?? []);
+  // A daily listing's group `remaining` is a per-DATE fact (see
+  // getDatelessGroupRemaining). The structural `staticCap` is date-independent,
+  // so it covers every group.
   const [remaining, staticCap] = await Promise.all([
-    getGroupRemainingByGroupId(datelessGroupIds),
+    getDatelessGroupRemaining(listings, membership),
     getGroupStaticCapByGroupId(allGroupIds),
   ]);
   return { membership, remaining, staticCap };

@@ -37,7 +37,7 @@ import {
   createAttendeeAtomic,
   createBookingAtomic,
   ensureAllBookings,
-  getGroupRemainingByGroupId,
+  getDatelessGroupRemaining,
 } from "#shared/db/attendees.ts";
 import {
   getGroupIdsByListingIds,
@@ -863,9 +863,10 @@ export const getTicketContext = async (
       : new Map<number, number[]>();
   const packageGroupRemainingByGroupId =
     group?.is_package === true
-      ? await getGroupRemainingByGroupId([
-          ...new Set([...packageMemberGroupIds.values()].flat()),
-        ])
+      ? await getDatelessGroupRemaining(
+          activeListings.map((e) => e.listing),
+          packageMemberGroupIds,
+        )
       : new Map<number, number>();
   return {
     addOns,
