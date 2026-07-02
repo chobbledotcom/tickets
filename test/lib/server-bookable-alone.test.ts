@@ -17,6 +17,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { groupsTable } from "#shared/db/groups.ts";
 import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingsTable } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   adminGet,
@@ -30,6 +31,7 @@ import {
   mockRequest,
   publicBody,
   ticketPageStatus,
+  updateTestListing,
 } from "#test-utils";
 
 /** A parent with a single `bookable_alone` child (the WS2 headline shape). */
@@ -192,6 +194,46 @@ describeWithEnv(
           name: "Concealed Member",
         });
         expect(await ticketPageStatus(member.slug)).toBe(404);
+      });
+    });
+
+    describe("flag transitions on listing save (no orphaned add-on)", () => {
+      test("clearing bookable_alone on a child is allowed when nothing is orphaned", async () => {
+        // The false-transition guard runs but finds no child-scoped add-on to
+        // orphan, so the save succeeds and the flag flips off (the child's
+        // /ticket page then 404s again).
+        const { child } = await parentWithFlaggedChild();
+        expect(await ticketPageStatus(child.slug)).toBe(200);
+        await updateTestListing(child.id, { bookableAlone: false });
+        expect((await listingsTable.findById(child.id))!.bookable_alone).toBe(
+          false,
+        );
+        expect(await ticketPageStatus(child.slug)).toBe(404);
+      });
+
+      test("clearing bookable_alone on a NON-child listing is a no-op guard", async () => {
+        // The flag is inert for a listing with no parents, so clearing it never
+        // runs the reachability guard — the save just succeeds.
+        const solo = await createTestListing({
+          bookableAlone: true,
+          name: "Lone",
+        });
+        await updateTestListing(solo.id, { bookableAlone: false });
+        expect((await listingsTable.findById(solo.id))!.bookable_alone).toBe(
+          false,
+        );
+      });
+
+      test("setting bookable_alone true on a child opens its page", async () => {
+        // The reverse transition never runs the orphan guard (adding a page only
+        // ADDS reachability), so it always succeeds and the page opens.
+        const { child } = await makeParent({
+          children: [{ name: "Later Solo" }],
+          parent: { name: "Picker" },
+        });
+        expect(await ticketPageStatus(child.slug)).toBe(404);
+        await updateTestListing(child.id, { bookableAlone: true });
+        expect(await ticketPageStatus(child.slug)).toBe(200);
       });
     });
   },
