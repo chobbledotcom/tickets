@@ -25,6 +25,7 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   assign_built_site: false,
   attachment_name: "",
   attachment_url: "",
+  bookable_alone: false,
   bookable_days: [
     "Monday",
     "Tuesday",

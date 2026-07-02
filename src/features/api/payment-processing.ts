@@ -45,7 +45,10 @@ import {
   capacityErrorFormatter,
   isRegistrationClosed,
 } from "#routes/format.ts";
-import { bookingDateFields } from "#routes/public/ticket-payment.ts";
+import {
+  bookingDateFields,
+  lacksStandalonePublicPage,
+} from "#routes/public/ticket-payment.ts";
 import { htmlResponse, paymentErrorResponse } from "#routes/response.ts";
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
@@ -84,7 +87,10 @@ import {
   groupsTable,
   loadPackageMemberPricing,
 } from "#shared/db/groups.ts";
-import { getChildrenForParents } from "#shared/db/listing-parents.ts";
+import {
+  getChildrenForParents,
+  getNonStandaloneChildIds,
+} from "#shared/db/listing-parents.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
@@ -187,20 +193,27 @@ export const cancelPageResponse = async (
   }
   // A package checkout retries against the bundle's own page, not a member's
   // standalone page (which may hide members or use override prices/quantities).
-  const retryHref = await retryHrefFor(intent, listing.slug);
+  const retryHref = await retryHrefFor(intent, listing);
   return htmlResponse(paymentCancelPage(listing, retryHref));
 };
 
 /** The retry link for a cancelled checkout: the package group's page when the
  * order was a package, else the (first) listing's own page. Falls back to the
- * listing slug if the group is gone. */
+ * listing slug if the group is gone. Returns null (no retry link) for a
+ * standalone order whose listing has since lost its own booking page — it became
+ * a non-standalone child or a hidden package member mid-checkout, so
+ * `/ticket/<slug>` would 404 and the retry would dead-end. */
 const retryHrefFor = async (
   intent: BookingIntent | null,
-  listingSlug: string,
-): Promise<string> => {
-  if (intent?.packageGroupId === undefined) return `/ticket/${listingSlug}`;
+  listing: { id: number; slug: string },
+): Promise<string | null> => {
+  if (intent?.packageGroupId === undefined) {
+    return (await lacksStandalonePublicPage(listing.id))
+      ? null
+      : `/ticket/${listing.slug}`;
+  }
   const group = await groupsTable.findById(intent.packageGroupId);
-  return `/ticket/${group?.slug ?? listingSlug}`;
+  return `/ticket/${group?.slug ?? listing.slug}`;
 };
 
 export const validatePaidSession = async (
@@ -794,6 +807,22 @@ const validateAllItems = async (
   const foldedChildIds = new Set(
     (intent.allocations ?? []).map((a) => a.childId),
   );
+  // A standalone session started while its child listing was `bookable_alone`
+  // must not book it if the flag has since been cleared: /ticket/<slug> now
+  // 404s at every fresh entry point, so completing the in-flight session would
+  // leak a now-non-standalone child ticket. `orderEdgeDrifted` only detects
+  // structural edge changes, not this flag flip, so guard it explicitly and fail
+  // closed → price_changed (mirroring staleHiddenMember). A LEGITIMATELY folded
+  // child (chosen under its parent, so it carries an allocation) is excluded —
+  // it is booked under its parent, not standalone.
+  const nonStandaloneChildIds = await getNonStandaloneChildIds(
+    intent.items.map((i) => i.e),
+  );
+  const staleNonStandaloneChild =
+    !isPackageIntent &&
+    intent.items.some(
+      (i) => nonStandaloneChildIds.has(i.e) && !foldedChildIds.has(i.e),
+    );
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
     const vp = await validateListingForPayment(item.e, includeListingName);
@@ -820,6 +849,7 @@ const validateAllItems = async (
   // refund rather than booking a partial/stale bundle.
   if (
     staleHiddenMember ||
+    staleNonStandaloneChild ||
     (pkg && packageBundleMismatch(pkg, intent.items, foldedChildIds)) ||
     (await orderEdgeDrifted(intent, validatedItems))
   ) {

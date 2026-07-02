@@ -17,7 +17,8 @@ import {
   edgeIdsTouching,
   edgeIncompatibilityAfterChange,
   firstTouchingEdgeError,
-  getChildListingIds,
+  getNonStandaloneChildIds,
+  getParentIds,
 } from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,
@@ -208,6 +209,11 @@ const orphanedAddOnAfterChange = async (
   const allListings = await listingsWithGroups((listing) =>
     listing.id === id ? { groupIds: wouldBeGroupIds } : {},
   );
+  // A `bookable_alone` child serves its own booking page, so an edge onto it never
+  // dead-ends a child-scoped add-on: only NON-standalone children are suppressed.
+  const nonStandalone = await getNonStandaloneChildIds(
+    allListings.map((l) => l.id),
+  );
   // Each touching edge is a (suppressed child, parent page id) pair: as a parent
   // of each child the page is self (`id`) and the suppressed child is the other
   // endpoint; as a child under each parent the page is the parent and self is the
@@ -215,6 +221,8 @@ const orphanedAddOnAfterChange = async (
   return firstTouchingEdgeError(id, async ({ self, otherId }) => {
     const childId = self === "parent" ? otherId : id;
     const pageId = self === "parent" ? id : otherId;
+    // A flagged child rescues any add-on via its own page, so skip the block.
+    if (!nonStandalone.has(childId)) return null;
     const addOn = await childOnlyAddOnNameForListings(
       childId,
       [pageId],
@@ -253,7 +261,7 @@ export const deactivationOrphanedAddOnError = async (
   const wouldBe = await listingsWithGroups((listing) =>
     inactiveIds.has(listing.id) ? { active: false } : {},
   );
-  const childIds = await getChildListingIds(wouldBe.map((l) => l.id));
+  const childIds = await getNonStandaloneChildIds(wouldBe.map((l) => l.id));
   return firstChildUnreachableAddOnForListings(wouldBe, childIds);
 };
 
@@ -263,6 +271,31 @@ const deactivationOrphanedAddOn = async (
 ): Promise<string | null> => {
   if (input.active !== false) return null;
   return deactivationOrphanedAddOnError(new Set([existingId]));
+};
+
+/**
+ * Clearing `bookable_alone` (true → false) strips a child's own booking page, so
+ * an opt-in add-on that ONLY that page kept reachable becomes a dead end — the
+ * same orphaning a deactivation causes, which is why the false transition must
+ * re-run the shared reachability guard (parents.md, the two-sided add-on
+ * reachability note). The DB still reads the child flagged at validation time, so
+ * the just-cleared child is forced into the suppressed (non-standalone) set by
+ * hand; being suppressed also drops it from the reachable pages. No-op unless the
+ * flag is actually transitioning true → false AND the listing is a child (the
+ * flag is inert for a listing with no parents).
+ */
+const clearedBookableAloneOrphanedAddOn = async (
+  input: ListingInput,
+  existingId: number,
+): Promise<string | null> => {
+  if (input.bookableAlone !== false) return null;
+  const existing = await getListingWithCount(existingId);
+  if (!existing?.bookable_alone) return null;
+  if ((await getParentIds(existingId)).length === 0) return null;
+  const wouldBe = await listingsWithGroups(() => ({}));
+  const childIds = await getNonStandaloneChildIds(wouldBe.map((l) => l.id));
+  childIds.add(existingId);
+  return firstChildUnreachableAddOnForListings(wouldBe, childIds);
 };
 
 /**
@@ -286,7 +319,9 @@ const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
     input.groupIds ?? [],
   );
   if (orphanError) return orphanError;
-  return deactivationOrphanedAddOn(input, existingId);
+  const deactivationError = await deactivationOrphanedAddOn(input, existingId);
+  if (deactivationError) return deactivationError;
+  return clearedBookableAloneOrphanedAddOn(input, existingId);
 };
 
 /** Validate listing input (slug uniqueness on update, group, max price, listing type) */
