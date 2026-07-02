@@ -428,6 +428,17 @@ const queryOneListingWithCount = async (
 ): Promise<ListingWithCount | null> =>
   (await queryListingsWithCounts(`WHERE ${where}`, args))[0] ?? null;
 
+/** The given listings with counts — bounded: one `IN` query, only these rows
+ * decrypted (never the whole cache). Empty `ids` ⇒ empty list, no query. */
+export const getListingsWithCountsByIds = (
+  ids: readonly number[],
+): Promise<ListingWithCount[]> =>
+  ids.length === 0
+    ? Promise.resolve([])
+    : queryListingsWithCounts(`WHERE listing.id IN (${inPlaceholders(ids)})`, [
+        ...ids,
+      ]);
+
 /**
  * Listings cache: single-record reads (by id / slug) load and decrypt only the
  * one listing they need; getAll/getByType load the whole set.

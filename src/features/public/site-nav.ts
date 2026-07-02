@@ -15,12 +15,12 @@
  * QR). Page targets are always live.
  */
 
-import { mapNotNullish, mapParallel } from "#fp";
+import { mapParallel } from "#fp";
 import {
   getActiveListingsByGroupId,
   getGroupLinkRows,
 } from "#shared/db/groups.ts";
-import { getListingsById } from "#shared/db/listings.ts";
+import { getListingsWithCountsByIds } from "#shared/db/listings.ts";
 import { getAllPageItems } from "#shared/db/site-page-items.ts";
 import { getSitePageNavRows } from "#shared/db/site-pages.ts";
 import { isQualifyingTierListing } from "#shared/site-assignment.ts";
@@ -53,8 +53,8 @@ const resolveTargets = async (
 ): Promise<TargetMap> => {
   const listingIds = leafIds(items, "listing");
   const groupIds = leafIds(items, "group");
-  const [listingsById, groupRows] = await Promise.all([
-    getListingsById(),
+  const [referenced, groupRows] = await Promise.all([
+    getListingsWithCountsByIds(listingIds),
     getGroupLinkRows(groupIds),
   ]);
   const targets = new Map<TargetKey, ResolvedTarget>();
@@ -69,12 +69,9 @@ const resolveTargets = async (
       live,
     });
   };
-  // Full rows (from the shared TTL cache every discovery surface uses) so the
+  // Full rows (bounded to the referenced ids — never the whole catalog) so the
   // liveness test is the same classification as /listings: child suppression
   // and sold-out-parent projection, plus the renewal-tier and active checks.
-  const referenced = mapNotNullish((id: number) => listingsById.get(id))(
-    listingIds,
-  );
   if (referenced.length > 0) {
     const { childIds, soldOutParentIds } =
       await classifyForDiscovery(referenced);
