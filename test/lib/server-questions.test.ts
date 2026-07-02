@@ -1185,7 +1185,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         ),
       );
       await expectFlashRedirect(
-        `/admin/listing/${listing.id}`,
+        `/admin/listing/${listing.id}/questions`,
         "Questions updated",
       )(response);
 
@@ -1203,7 +1203,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         {},
       );
       await expectFlashRedirect(
-        `/admin/listing/${listing.id}`,
+        `/admin/listing/${listing.id}/questions`,
         "Questions updated",
       )(response);
 
