@@ -375,13 +375,38 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     await expectPackageAccepted(group);
   });
 
-  test("edit POST rejects is_package on a group with a parent listing", async () => {
+  test("edit POST accepts is_package with a parent member, but not hidden", async () => {
     const group = await createTestGroup({ name: "ParentG", slug: "parent-g" });
     const parent = await member(group, "Parent Member");
     const child = await createTestListing({ name: "Child Of Parent" });
     await setChildIds(parent.id, [child.id]);
-    // A parent's per-child selectors can't render on a package page, so it
-    // can't be packaged.
+    // A VISIBLE package renders the member's child selector, so a parent
+    // member is fine…
+    await expectPackageAccepted(group);
+    // …but hiding the package would collapse members to the package name, so a
+    // child selector would leak them — the hide save is rejected.
+    const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
+      ...editFields(group.name, group.slug),
+      hide_package_listings: "1",
+      is_package: "1",
+    });
+    await expectFlashRedirect(
+      `/admin/groups/${group.id}/edit`,
+      expect.stringContaining("Packages cannot contain"),
+      false,
+    )(response);
+    expect((await groupsTable.findById(group.id))!.hide_package_listings).toBe(
+      false,
+    );
+  });
+
+  test("edit POST rejects is_package on a group whose member is another listing's child", async () => {
+    const group = await createTestGroup({ name: "ChildG", slug: "child-g" });
+    const childMember = await member(group, "Child Member");
+    const parent = await createTestListing({ name: "Outside Gate" });
+    await setChildIds(parent.id, [childMember.id]);
+    // A package member is only ever sold as part of its bundle, so a listing
+    // folded under another parent can't be packaged — visible or not.
     await expectPackageRejected(group);
   });
 
@@ -470,19 +495,38 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     );
   });
 
-  test("the listings API rejects a parent listing joining a package group", async () => {
-    const group = await createTestGroup({
-      isPackage: true,
-      name: "ParentApiPkg",
-      slug: "parent-api-pkg",
-    });
+  test("the listings API lets a parent join a visible package but not a hidden one", async () => {
     const parent = await createTestListing({ name: "Parent List" });
     const child = await createTestListing({ name: "Child List" });
     await setChildIds(parent.id, [child.id]);
 
+    // A visible package renders the member's child selector, so the parent
+    // joins with its gate intact.
+    const visible = await createTestGroup({
+      isPackage: true,
+      name: "ParentApiPkg",
+      slug: "parent-api-pkg",
+    });
     await assertJson(
       apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { group_ids: [group.id] },
+        body: { group_ids: [visible.id] },
+        method: "PUT",
+      }),
+      200,
+    );
+    expect(await getChildIds(parent.id)).toEqual([child.id]);
+
+    // A hidden package collapses members to the package name, so a member's
+    // child selector would leak them — the join is rejected.
+    const hidden = await createTestGroup({
+      isPackage: true,
+      name: "HiddenApiPkg",
+      slug: "hidden-api-pkg",
+    });
+    await groupsTable.update(hidden.id, { hidePackageListings: true });
+    await assertJson(
+      apiRequest(`/api/admin/listings/${parent.id}`, {
+        body: { group_ids: [hidden.id] },
         method: "PUT",
       }),
       400,
@@ -509,21 +553,40 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     );
   });
 
-  test("the listings API rejects new child edges when joining a package group", async () => {
-    const group = await createTestGroup({
+  test("the listings API accepts new child edges into a visible package but not a hidden one", async () => {
+    const child = await createTestListing({ name: "Edge Child" });
+
+    const visible = await createTestGroup({
       isPackage: true,
       name: "ChildEdgePkg",
       slug: "child-edge-pkg",
     });
-    const child = await createTestListing({ name: "Edge Child" });
-
     await assertJson(
       apiRequest("/api/admin/listings", {
         body: {
           child_listing_ids: [child.id],
-          group_ids: [group.id],
+          group_ids: [visible.id],
           max_attendees: 10,
           name: "New Parent In Package",
+        },
+        method: "POST",
+      }),
+      201,
+    );
+
+    const hidden = await createTestGroup({
+      isPackage: true,
+      name: "HiddenEdgePkg",
+      slug: "hidden-edge-pkg",
+    });
+    await groupsTable.update(hidden.id, { hidePackageListings: true });
+    await assertJson(
+      apiRequest("/api/admin/listings", {
+        body: {
+          child_listing_ids: [child.id],
+          group_ids: [hidden.id],
+          max_attendees: 10,
+          name: "New Parent In Hidden Package",
         },
         method: "POST",
       }),
@@ -579,7 +642,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     expect(await getChildIds(parent.id)).toEqual([]);
   });
 
-  test("the children sub-form rejects giving children to a package member", async () => {
+  test("the children sub-form lets a visible package's member gain children, but not a hidden one's", async () => {
     const group = await createTestGroup({
       isPackage: true,
       name: "ChildFormPkg",
@@ -588,6 +651,18 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     const memberListing = await member(group, "Pkg Member");
     const child = await createTestListing({ name: "Would-be Child" });
 
+    // Visible package: the member's child gate saves and the package page can
+    // render its selector.
+    const { response: accepted } = await adminFormPost(
+      `/admin/listing/${memberListing.id}/children`,
+      { child_listing_ids: String(child.id) },
+    );
+    expect(accepted.status).toBe(302);
+    expect(await getChildIds(memberListing.id)).toEqual([child.id]);
+    await setChildIds(memberListing.id, []);
+
+    // Hidden package: the same edge would leak the collapsed member.
+    await groupsTable.update(group.id, { hidePackageListings: true });
     const { response } = await adminFormPost(
       `/admin/listing/${memberListing.id}/children`,
       { child_listing_ids: String(child.id) },

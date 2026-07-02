@@ -8,6 +8,7 @@ import {
   createTestGroup,
   createTestListing,
   describeWithEnv,
+  expectPackageBookingAccepted,
   mockRequest,
   submitPackageBooking,
 } from "#test-utils";
@@ -71,8 +72,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       name: "Camper",
       package_quantity: "1",
     });
-    expect([302, 303]).toContain(submit.status);
-    expect(submit.headers.get("location") ?? "").not.toContain("error");
+    await expectPackageBookingAccepted(submit);
 
     for (const member of [tent, firepit]) {
       const rows = await bookingRows(member.id);
@@ -269,6 +269,23 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     // Boat's 2-day price is overridden to 1500 inside this package; the hut
     // keeps its own 900. Total £24, never the un-overridden £27.
     expect(fragment).toContain("£24");
+    expect(fragment).not.toContain("£27");
+  });
+
+  test("an explicit 0 per-day override makes that span free in the package", async () => {
+    const { postCalculate } = await import("#test-utils/parents.ts");
+    const { group } = await overriddenFlexPackage("Free Span", "free-span", {
+      dayPrices: { 2: 0 },
+      price: null,
+    });
+    const fragment = await postCalculate(group.slug, {
+      date: bookingDate(),
+      day_count: "2",
+      package_quantity: "1",
+    });
+    // The boat's 2-day span is explicitly FREE inside this package (0 is a real
+    // override, not "no override"); only the hut's own 900 charges.
+    expect(fragment).toContain("£9");
     expect(fragment).not.toContain("£27");
   });
 

@@ -113,28 +113,43 @@ const foldGroupDayRows = (
   return result;
 };
 
-/** One package group's per-day member overrides. Empty when none are set. */
+/** One package group's per-day member overrides. Empty when none are set. The
+ * membership JOIN keeps a REMOVED member's leftover rows invisible: the listing
+ * edit/API path deletes only the `group_listings` row, so re-adding that member
+ * later must start from "no overrides" rather than resurrecting stale prices
+ * (the next package save's full replace then clears them for good). */
 export const getGroupDayPrices = async (
   groupId: number,
 ): Promise<Map<number, Map<number, number>>> => {
   const result = await execute(
-    "SELECT listing_id, price_id, unit_price FROM listing_prices WHERE price_type = ? AND price_id LIKE ?",
-    [PRICE_TYPE_GROUP_DAY, groupDayPriceId(groupId, "%")],
+    `SELECT lp.listing_id, lp.price_id, lp.unit_price
+       FROM listing_prices AS lp
+       JOIN group_listings AS gl
+         ON gl.listing_id = lp.listing_id AND gl.group_id = ?
+      WHERE lp.price_type = ? AND lp.price_id LIKE ?`,
+    [groupId, PRICE_TYPE_GROUP_DAY, groupDayPriceId(groupId, "%")],
   );
   return foldGroupDayRows(result.rows as unknown as GroupDayRow[]);
 };
 
 /** Per-day member overrides for several groups in one query (the API list
  * endpoint's bulk hydration), keyed by group id. Groups without overrides are
- * absent. Reads every `group_day` row and splits by the price_id's group prefix
- * — groups are few, so one unfiltered SELECT beats a LIKE per group. */
+ * absent. Reads every CURRENT member's `group_day` row (the JOIN's composed
+ * pattern scopes each row to its own group's membership, exactly like
+ * {@link getGroupDayPrices}) and splits by the price_id's group prefix —
+ * groups are few, so one SELECT beats a LIKE per group. */
 export const getGroupDayPricesByGroupIds = async (
   groupIds: readonly number[],
 ): Promise<Map<number, Map<number, Map<number, number>>>> => {
   if (groupIds.length === 0) return new Map();
   const wanted = new Set(groupIds);
   const rows = await execute(
-    "SELECT listing_id, price_id, unit_price FROM listing_prices WHERE price_type = ?",
+    `SELECT lp.listing_id, lp.price_id, lp.unit_price
+       FROM listing_prices AS lp
+       JOIN group_listings AS gl
+         ON gl.listing_id = lp.listing_id
+        AND lp.price_id LIKE (gl.group_id || '/%')
+      WHERE lp.price_type = ?`,
     [PRICE_TYPE_GROUP_DAY],
   );
   const rowsByGroup = new Map<number, GroupDayRow[]>();

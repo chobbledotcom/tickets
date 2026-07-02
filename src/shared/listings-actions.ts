@@ -14,10 +14,10 @@ import {
   validateGroupListingType,
 } from "#shared/db/groups.ts";
 import {
+  edgeIdsTouching,
   edgeIncompatibilityAfterChange,
   firstTouchingEdgeError,
   getChildListingIds,
-  hasParentChildEdge,
 } from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,
@@ -74,11 +74,13 @@ type ListingUpdateCheck = (
  * pay-what-you-want). The package check mirrors the group-side invariant so the
  * listing form/API can't smuggle an incompatible listing into a package. */
 /** The package-membership error for a listing joining `group`, or null when the
- * group isn't a package or the listing is a valid member. A package member must
- * be a plain standard listing (not daily/pay-more/customisable) AND free of
- * parent/child edges — the package page renders no per-child selectors, mirroring
- * the group-side invariant. (Brand-new child edges submitted on the same write
- * are caught before the row commits in the API's prepareChildEdges.) */
+ * group isn't a package or the listing is a valid member. A package member may
+ * not be priced by the buyer, may never itself be another listing's add-on
+ * CHILD (it is only sold as part of its bundle), and may gate its own children
+ * only on a VISIBLE package — a hidden package collapses members to the package
+ * name, so a member's child selector would leak them. Mirrors the group-side
+ * `isPackageableMember`. (Brand-new child edges submitted on the same write are
+ * caught before the row commits in the API's prepareChildEdges.) */
 const packageMembershipError = async (
   group: Group,
   incompatibleByType: boolean,
@@ -86,7 +88,12 @@ const packageMembershipError = async (
 ): Promise<string | null> => {
   if (!group.is_package) return null;
   if (incompatibleByType) return t("error.package_incompatible_listing");
-  if (existingId !== undefined && (await hasParentChildEdge(existingId))) {
+  if (existingId === undefined) return null;
+  const { childIds, parentIds } = await edgeIdsTouching(existingId);
+  if (
+    parentIds.length > 0 ||
+    (group.hide_package_listings && childIds.length > 0)
+  ) {
     return t("error.package_incompatible_listing");
   }
   return null;

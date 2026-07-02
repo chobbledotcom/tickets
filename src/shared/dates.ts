@@ -388,6 +388,19 @@ export const formatDateRangeLabel = (
   return formatDateRangeLabelCompactEn(startDate, lastDay);
 };
 
+/** The whole day count of a stored `[start_at, end_at)` booking range — the
+ * customisable day count the buyer chose. A missing or degenerate range is 1. */
+export const bookedSpanDays = (
+  startIso: string | null,
+  endIso: string | null,
+): number => {
+  if (!startIso || !endIso) return 1;
+  const diffDays = Math.round(
+    (new Date(endIso).getTime() - new Date(startIso).getTime()) / 86_400_000,
+  );
+  return diffDays > 1 ? diffDays : 1;
+};
+
 /**
  * Format an ISO datetime string for display in the given timezone.
  * Returns e.g. "Monday 15 June 2026 at 14:00 BST"

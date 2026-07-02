@@ -41,10 +41,9 @@ import {
 } from "#shared/db/attendees.ts";
 import {
   getGroupIdsByListingIds,
-  getGroupPackagePrices,
   getHiddenPackageMemberIds,
   isHiddenPackageMember,
-  packageMemberMaps,
+  loadPackageMemberPricing,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
@@ -52,7 +51,6 @@ import {
   getChildListingIds,
   getChildrenForParents,
 } from "#shared/db/listing-parents.ts";
-import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
 import { getListingsBySlugsBatch } from "#shared/db/listings.ts";
 import {
   getOptionalAddOns,
@@ -245,25 +243,19 @@ export const buildRegistrationItems = (
  * every member that has a flat override — a positive price OR an explicit free
  * (0), but not a `null` "no override"; `quantities` carries every member's
  * per-package quantity (≥1); `dayPrices` carries each customisable member's
- * per-day overrides (day count → per-unit minor price). */
-export type PackageMemberMaps = {
-  prices: ReadonlyMap<number, number>;
-  quantities: ReadonlyMap<number, number>;
-  dayPrices: ReadonlyMap<number, ReadonlyMap<number, number>>;
-};
+ * per-day overrides (day count → per-unit minor price). The loader's shape,
+ * minus the raw rows the booking flow never reads. */
+export type PackageMemberMaps = Pick<
+  Awaited<ReturnType<typeof loadPackageMemberPricing>>,
+  "prices" | "quantities" | "dayPrices"
+>;
 
 /** Load a package group's member rows once into the price + quantity + per-day
  * maps the booking flow needs (so quote and submit price/derive quantities with
  * no extra query). */
-export const loadPackageMemberMaps = async (
+export const loadPackageMemberMaps = (
   groupId: number,
-): Promise<PackageMemberMaps> => {
-  const [rows, dayPrices] = await Promise.all([
-    getGroupPackagePrices(groupId),
-    getGroupDayPrices(groupId),
-  ]);
-  return { ...packageMemberMaps(rows), dayPrices };
-};
+): Promise<PackageMemberMaps> => loadPackageMemberPricing(groupId);
 
 /** For a HIDDEN package, replace each checkout item's buyer-facing name with the
  * package name, so the hosted-checkout line items (Stripe/Square render

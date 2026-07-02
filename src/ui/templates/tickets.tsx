@@ -150,9 +150,33 @@ const renderPackageCard = (
   )
     ? `<div class="ticket-card-notice">${t("tickets.non_transferable")}</div>`
     : "";
+  // A dated package (daily/customisable members share one start date) shows the
+  // booked date like a standalone card would. The bundle's members can carry
+  // different fixed durations, so the widest member's range covers the whole
+  // stay. Package-level (no member named), so a hidden package stays concealed.
+  const widestDated = cards
+    .filter((c) => c.entry.attendee.date)
+    .reduce(
+      (widest: TicketCard | null, c) =>
+        !widest ||
+        normalizeDurationDays(c.entry.listing.duration_days) >
+          normalizeDurationDays(widest.entry.listing.duration_days)
+          ? c
+          : widest,
+      null,
+    );
+  const dateHtml = widestDated
+    ? `<div class="ticket-card-date">${t("tickets.booking_date")} ${escapeHtml(
+        computeBookingDateLabel(
+          widestDated.entry.attendee.date,
+          widestDated.entry.listing,
+        ),
+      )}</div>`
+    : "";
   return `
     <div class="ticket-card">
       <div class="ticket-card-name">${escapeHtml(packageInfo.name)}</div>
+      ${dateHtml}
       ${membersHtml}
       ${nonTransferableHtml}
       ${renderQrBlock(token, purchaseOnly)}

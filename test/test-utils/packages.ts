@@ -20,3 +20,13 @@ export const submitPackageBooking = async (
   const csrf = extractCsrfToken(pageHtml)!;
   return handleRequest(mockTicketFormRequest(slug, fields, csrf));
 };
+
+/** Assert a {@link submitPackageBooking} response is the post-booking success
+ * redirect, not an error bounce. */
+export const expectPackageBookingAccepted = async (
+  submit: Response,
+): Promise<void> => {
+  const { expect } = await import("@std/expect");
+  expect([302, 303]).toContain(submit.status);
+  expect(submit.headers.get("location") ?? "").not.toContain("error");
+};

@@ -73,15 +73,13 @@ import {
   ensureAllBookings,
 } from "#shared/db/attendees.ts";
 import {
-  getGroupPackagePrices,
   getHiddenPackageMemberIds,
   getPackageDisplayById,
   getPackageGroupById,
   groupsTable,
-  packageMemberMaps,
+  loadPackageMemberPricing,
 } from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
-import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
@@ -637,16 +635,12 @@ const loadPackagePricing = async (
 ): Promise<PackagePricing | null> => {
   if (intent.packageGroupId === undefined) return null;
   if ((await getPackageGroupById(intent.packageGroupId)) === null) return null;
-  const [rows, dayPriceMap] = await Promise.all([
-    getGroupPackagePrices(intent.packageGroupId),
-    getGroupDayPrices(intent.packageGroupId),
-  ]);
-  const { prices, quantities } = packageMemberMaps(rows);
+  const pricing = await loadPackageMemberPricing(intent.packageGroupId);
   return {
-    dayPriceMap,
-    memberIds: new Set(rows.map((r) => r.listing_id)),
-    priceMap: prices,
-    quantityMap: quantities,
+    dayPriceMap: pricing.dayPrices,
+    memberIds: new Set(pricing.rows.map((r) => r.listing_id)),
+    priceMap: pricing.prices,
+    quantityMap: pricing.quantities,
   };
 };
 

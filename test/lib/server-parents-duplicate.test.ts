@@ -449,8 +449,8 @@ describeWithEnv(
       );
     });
 
-    test("duplicating a parent into a package drops the inherited children", async () => {
-      const group = await createTestGroup({ isPackage: true, name: "Pkg" });
+    test("duplicating a parent into a package keeps children when visible, drops them when hidden", async () => {
+      const { groupsTable } = await import("#shared/db/groups.ts");
       const child = await createTestListing({ name: "Child" });
       const parent = await createTestListing({
         maxAttendees: 10,
@@ -458,20 +458,35 @@ describeWithEnv(
       });
       await setChildren(parent.id, [child.id]);
 
+      // A VISIBLE package renders the member's child selector, so the copy
+      // keeps the inherited gate.
+      const visible = await createTestGroup({ isPackage: true, name: "Pkg" });
       const { copy } = await duplicateListingResponse(
         parent.id,
         "Parent copy",
-        group.id,
+        visible.id,
       );
-
-      // The copy is a valid package member, so it must NOT inherit the parent's
-      // required children — that combination violates the package invariant.
       expect(
-        (await getGroupPackagePrices(group.id)).some(
+        (await getGroupPackagePrices(visible.id)).some(
           (r) => r.listing_id === copy.id,
         ),
       ).toBe(true);
-      expect(await getChildIds(copy.id)).toEqual([]);
+      expect(await getChildIds(copy.id)).toEqual([child.id]);
+
+      // A HIDDEN package collapses members to the package name, so its copy
+      // must NOT inherit the child edges — the member stays valid and the
+      // operator is told the gate wasn't carried over.
+      const hidden = await createTestGroup({
+        isPackage: true,
+        name: "Hidden Pkg",
+      });
+      await groupsTable.update(hidden.id, { hidePackageListings: true });
+      const { copy: hiddenCopy } = await duplicateListingResponse(
+        parent.id,
+        "Parent hidden copy",
+        hidden.id,
+      );
+      expect(await getChildIds(hiddenCopy.id)).toEqual([]);
     });
   },
 );

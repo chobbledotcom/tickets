@@ -548,6 +548,51 @@ describeWithEnv(
       expect(body).toContain("attachment-link");
     });
 
+    test("a dated package card shows the booked date range", async () => {
+      // A daily package books every member on one start date; the package card
+      // (which replaces the per-member cards) must show that date like a
+      // standalone daily ticket would. Members can carry different fixed
+      // durations — the widest covers the whole stay, so a 2-day member turns
+      // the label into a range.
+      const { addDays } = await import("#shared/dates.ts");
+      const { todayInTz } = await import("#shared/timezone.ts");
+      const group = await createTestGroup({ isPackage: true, name: "Trip" });
+      const oneDay = await createTestListing({
+        groupId: group.id,
+        listingType: "daily",
+        minimumDaysBefore: 0,
+        name: "Trip Canoe",
+      });
+      const twoDay = await createTestListing({
+        durationDays: 2,
+        groupId: group.id,
+        listingType: "daily",
+        minimumDaysBefore: 0,
+        name: "Trip Cabin",
+      });
+      const date = addDays(todayInTz("UTC"), 2);
+      const result = await createAttendeeAtomic({
+        bookings: [
+          { date, listingId: oneDay.id, quantity: 1 },
+          { date, listingId: twoDay.id, quantity: 1 },
+        ],
+        email: "trip@test.com",
+        name: "Tripper",
+        packageGroupId: group.id,
+      });
+      if (!result.success) throw new Error("package booking failed");
+
+      const body = await fetchTicketBody(result.attendees[0]!.ticket_token);
+      const { formatDateRangeLabelCompactEn } = await import(
+        "#shared/dates.ts"
+      );
+      // The widest member (2 days) drives the label: a compact range from the
+      // booked date to its last day.
+      expect(body).toContain(
+        formatDateRangeLabelCompactEn(date, addDays(date, 1)),
+      );
+    });
+
     test("two separate package orders each collapse, hiding members, on a multi-token page", async () => {
       // /t/a+b resolves two distinct attendees who share a hidden package. Each
       // card carries its OWN attendee token, so package collapsing keys buckets by

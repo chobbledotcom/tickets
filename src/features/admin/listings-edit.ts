@@ -25,7 +25,7 @@ import {
   recomputeListingBookingRanges,
 } from "#shared/db/attendees.ts";
 import {
-  anyListingInPackageGroup,
+  anyHiddenPackageGroup,
   getAllGroups,
   getGroupIdsByListingId,
 } from "#shared/db/groups.ts";
@@ -157,12 +157,14 @@ const copyEdgesFromDuplicateSource = async (
   // here we only carry the parent/child gate.
   const childIds = await getChildIds(sourceId);
   if (childIds.length === 0) return null;
-  // A package member can't gate required children (the package page renders no
-  // per-child selectors), so a copy that joined a package group must not inherit
-  // the source's child edges — keep it a valid package member and tell the
-  // operator the gate wasn't carried over, mirroring the children endpoint's
-  // package invariant that the create path would otherwise bypass.
-  if (await anyListingInPackageGroup([newId])) {
+  // A HIDDEN package's member can't gate required children (its members are
+  // collapsed to the package name, so a child selector would leak them), so a
+  // copy that joined a hidden package group must not inherit the source's child
+  // edges — keep it a valid member and tell the operator the gate wasn't
+  // carried over, mirroring the children endpoint's package invariant that the
+  // create path would otherwise bypass. A visible package renders the member's
+  // child selector, so its copy keeps the gate.
+  if (await anyHiddenPackageGroup(await getGroupIdsByListingId(newId))) {
     return t("listings_table.duplicate_children_dropped", {
       reason: t("error.package_member_no_children"),
     });

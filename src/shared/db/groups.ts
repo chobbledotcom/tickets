@@ -19,6 +19,7 @@ import {
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
 import {
+  getGroupDayPrices,
   groupDayPriceStatements,
   PRICE_TYPE_GROUP_DAY,
 } from "#shared/db/listing-prices.ts";
@@ -226,21 +227,37 @@ export const getGroupIdsByListingId = async (
   return rows.map((r) => r.group_id);
 };
 
-/** Whether any of the given group ids names a package group. Empty input → false
- * (no query). The shared check the listing API and the children sub-form use to
- * keep a listing that requires children out of a package group. */
-export const anyPackageGroup = async (
+/** Whether any of the given group ids satisfies the extra SQL `condition`.
+ * Empty input → false (no query). */
+const anyGroupMatching = async (
   groupIds: readonly number[],
+  condition: string,
 ): Promise<boolean> => {
   if (groupIds.length === 0) return false;
   const rows = await queryAll<{ id: number }>(
     `SELECT id FROM groups WHERE id IN (${inPlaceholders(
       groupIds,
-    )}) AND is_package = 1 LIMIT 1`,
+    )}) AND ${condition} LIMIT 1`,
     [...groupIds],
   );
   return rows.length > 0;
 };
+
+/** Whether any of the given group ids names a package group. The shared check
+ * the listing API and the children sub-form use to keep a package member from
+ * being turned into another listing's required child. */
+export const anyPackageGroup = (
+  groupIds: readonly number[],
+): Promise<boolean> => anyGroupMatching(groupIds, "is_package = 1");
+
+/** Whether any of the given group ids names a HIDDEN package group
+ * (`hide_package_listings`). A hidden package collapses its members to the
+ * package name on every buyer surface, so a member there can never gate its own
+ * add-on children — the selector would name them. */
+export const anyHiddenPackageGroup = (
+  groupIds: readonly number[],
+): Promise<boolean> =>
+  anyGroupMatching(groupIds, "is_package = 1 AND hide_package_listings = 1");
 
 /** Whether any of the given listings is a member of a package group. Empty
  * input → false (no query). Used to keep a package member from being turned into
@@ -289,16 +306,18 @@ export const isHiddenPackageMember = async (
 ): Promise<boolean> => (await getHiddenPackageMemberIds([listingId])).size > 0;
 
 /** Whether adding child edges would violate the package invariant: the parent is
- * joining/in a package group, or any chosen child is itself a package member —
- * either way the package page can't render the resulting bundle. An empty
- * `childIds` (clearing children) is never a conflict. */
+ * joining/in a HIDDEN package group (a visible package renders the member's
+ * child selector, so a member gating children is fine there), or any chosen
+ * child is itself a package member (a package member is only ever sold as part
+ * of its bundle, never folded under another parent). An empty `childIds`
+ * (clearing children) is never a conflict. */
 export const packageChildEdgeConflict = async (
   parentGroupIds: readonly number[],
   childIds: readonly number[],
 ): Promise<boolean> => {
   if (childIds.length === 0) return false;
   return (
-    (await anyPackageGroup(parentGroupIds)) ||
+    (await anyHiddenPackageGroup(parentGroupIds)) ||
     (await anyListingInPackageGroup(childIds))
   );
 };
@@ -568,6 +587,18 @@ export const packageMemberMaps = (
   ),
   quantities: new Map(rows.map((row) => [row.listing_id, row.quantity])),
 });
+
+/** A package group's full pricing state in one load: its membership rows, the
+ * flat override + quantity maps ({@link packageMemberMaps}), and each
+ * customisable member's per-day overrides — the shape the booking flow, the
+ * webhook payload, and the payment revalidation all consume. */
+export const loadPackageMemberPricing = async (groupId: number) => {
+  const [rows, dayPrices] = await Promise.all([
+    getGroupPackagePrices(groupId),
+    getGroupDayPrices(groupId),
+  ]);
+  return { ...packageMemberMaps(rows), dayPrices, rows };
+};
 
 /** The membership rows for several groups in one query, keyed by group id, so a
  * list endpoint can hydrate every group's package members without a per-group

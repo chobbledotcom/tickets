@@ -462,11 +462,11 @@ const prepareListingJoins = async (
   const submitted = submittedChildIds(body);
   if ("skip" in submitted) return { value: { childEdges: null, groupIds } };
   if ("error" in submitted) return submitted;
-  // A listing gaining children becomes a parent; a parent can't be a package
-  // member, and a package member can't become a child — either way the package
-  // page can't render the bundle. The group/listing validators only see edges
-  // that already exist, so reject the brand-new edges here, before the row +
-  // edges commit together (Fix 4).
+  // A listing gaining children becomes a parent; a HIDDEN package's member
+  // can't be a parent (the child selector would name the collapsed members),
+  // and a package member can't become a child. The group/listing validators
+  // only see edges that already exist, so reject the brand-new edges here,
+  // before the row + edges commit together (Fix 4).
   if (
     await packageChildEdgeConflict(input.groupIds ?? [], submitted.childIds)
   ) {

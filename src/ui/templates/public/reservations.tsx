@@ -1071,15 +1071,20 @@ const renderListingRow = (
 };
 
 /** A package member row: name + fixed per-package quantity, read-only — the
- * buyer chooses the package count, not per-member quantities. */
+ * buyer chooses the package count, not per-member quantities. A member that is
+ * itself a parent renders its child selector under the row, exactly like a
+ * standalone parent (only VISIBLE packages may contain parents, so a hidden
+ * package never reaches the child block). */
 const renderPackageMemberRow = (
   info: TicketListing,
   fixedQty: number,
+  childCtx: ChildRenderCtx | undefined,
 ): string => `
     <div class="ticket-row package-member">
       ${renderListingImage(info.listing)}
       <label>${escapeHtml(info.listing.name)} <span class="package-member-qty">&times;${fixedQty}</span></label>
       ${renderListingDescription(info.listing.description)}
+      ${childCtx ? renderChildBlock(info, childCtx) : ""}
     </div>
   `;
 
@@ -1092,6 +1097,7 @@ const renderPackageRows = (
   quantities: ReadonlyMap<number, number>,
   cap: number,
   hide: boolean,
+  childCtx: ChildRenderCtx | undefined,
 ): string => {
   // Every member listing id, so the client knows which listing-scoped questions
   // to show/require once a package is selected — even when members are hidden and
@@ -1107,7 +1113,11 @@ const renderPackageRows = (
     ? ""
     : listings
         .map((e) =>
-          renderPackageMemberRow(e, quantities.get(e.listing.id) ?? 1),
+          renderPackageMemberRow(
+            e,
+            quantities.get(e.listing.id) ?? 1,
+            childCtx,
+          ),
         )
         .join("");
   return selector + members;
@@ -1567,16 +1577,27 @@ const splitChildQuestions = (
   };
 };
 
-/** Whether a listing is paid in context. A package override REPLACES the base
- * price for this purpose: a member with an override is paid only when that
- * override is positive (an explicit free 0 makes a paid base listing free here);
- * a member with no override falls back to its own pricing. */
+/** Whether a listing is paid in context. A flat package override REPLACES the
+ * base price for this purpose: a member with one is paid only when it is
+ * positive (an explicit free 0 makes a paid base listing free here). Without a
+ * flat override, a positive per-day package override makes the member paid for
+ * that span — an otherwise-free customisable member must still render the
+ * provider contact fields — and the listing's own pricing covers the rest. */
 const paidInContext = (
   listing: TicketListing,
   packagePrices: ReadonlyMap<number, number> | null | undefined,
+  packageDayPrices:
+    | ReadonlyMap<number, ReadonlyMap<number, number>>
+    | null
+    | undefined,
 ): boolean => {
   const override = packagePrices?.get(listing.listing.id);
-  return override !== undefined ? override > 0 : isPaidListing(listing.listing);
+  if (override !== undefined) return override > 0;
+  const dayOverrides = packageDayPrices?.get(listing.listing.id);
+  if (dayOverrides && [...dayOverrides.values()].some((p) => p > 0)) {
+    return true;
+  }
+  return isPaidListing(listing.listing);
 };
 
 /** Whether the page itself (its listings or add-ons, NOT possible children) is
@@ -1585,8 +1606,12 @@ const pagePaid = (
   listings: TicketListing[],
   addOns: AddOnOption[] | undefined,
   packagePrices: ReadonlyMap<number, number> | null | undefined,
+  packageDayPrices:
+    | ReadonlyMap<number, ReadonlyMap<number, number>>
+    | null
+    | undefined,
 ): boolean =>
-  listings.some((e) => paidInContext(e, packagePrices)) ||
+  listings.some((e) => paidInContext(e, packagePrices, packageDayPrices)) ||
   (addOns?.some((addOn) => addOn.requiresPayment) ?? false);
 
 /** Whether the contact-field set must include a paid order's provider-imposed
@@ -1598,12 +1623,16 @@ const pageOrChildPaid = (
   childrenByParentId: Map<number, TicketListing[]> | undefined,
   addOns: AddOnOption[] | undefined,
   packagePrices: ReadonlyMap<number, number> | null | undefined,
+  packageDayPrices:
+    | ReadonlyMap<number, ReadonlyMap<number, number>>
+    | null
+    | undefined,
 ): boolean => {
   const children = childrenByParentId
     ? [...childrenByParentId.values()].flat()
     : [];
   return (
-    pagePaid(listings, addOns, packagePrices) ||
+    pagePaid(listings, addOns, packagePrices, packageDayPrices) ||
     children.some((e) => isPaidListing(e.listing))
   );
 };
@@ -1660,6 +1689,7 @@ const buildPageListingRows = (opts: {
       quantities,
       opts.packageCap,
       opts.hidePackageListings,
+      opts.childCtx,
     );
   }
   return buildListingRows(
@@ -1770,8 +1800,14 @@ export const ticketPage = ({
   const fields: Field[] = buildContactFields(
     listings,
     childrenByParentId,
-    pagePaid(listings, addOns, packagePrices),
-    pageOrChildPaid(listings, childrenByParentId, addOns, packagePrices),
+    pagePaid(listings, addOns, packagePrices, packageDayPrices),
+    pageOrChildPaid(
+      listings,
+      childrenByParentId,
+      addOns,
+      packagePrices,
+      packageDayPrices,
+    ),
   );
   const hasDaily = listings.some((e) => e.listing.listing_type === "daily");
 

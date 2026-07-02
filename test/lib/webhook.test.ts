@@ -153,7 +153,9 @@ describe("webhook", () => {
           },
         ),
       ];
-      const overrides = new Map([[7, new Map([[42, 900]])]]);
+      const overrides = new Map([
+        [7, { dayPrices: new Map(), prices: new Map([[42, 900]]) }],
+      ]);
 
       const payload = buildWebhookPayload(entries, "GBP", overrides);
 
@@ -174,9 +176,41 @@ describe("webhook", () => {
       const payload = buildWebhookPayload(
         entries,
         "GBP",
-        new Map([[7, new Map()]]),
+        new Map([[7, { dayPrices: new Map(), prices: new Map() }]]),
       );
       expect(payload.tickets[0]!.unit_price).toBe(1200);
+    });
+
+    test("reports a customisable member's per-day package override for the booked span", async () => {
+      // A 2-night booking of a customisable package member priced only by its
+      // per-day override: the payload's unit_price is that override, derived
+      // from the stored [start, end) range — never the base listing price.
+      const entries = [
+        makeEntry(
+          { customisable_days: true, id: 44, unit_price: 0 },
+          {
+            date: "2026-08-01",
+            end_date: "2026-08-03",
+            package_group_id: 7,
+            price_paid: "1500",
+            quantity: 1,
+          },
+        ),
+      ];
+      const payload = buildWebhookPayload(
+        entries,
+        "GBP",
+        new Map([
+          [
+            7,
+            {
+              dayPrices: new Map([[44, new Map([[2, 1500]])]]),
+              prices: new Map(),
+            },
+          ],
+        ]),
+      );
+      expect(payload.tickets[0]!.unit_price).toBe(1500);
     });
 
     test("reports the order's outstanding balance as amount_owed", async () => {

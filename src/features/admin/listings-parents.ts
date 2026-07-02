@@ -401,9 +401,10 @@ export const handleAdminListingChildren: TypedRouteHandler<
         return redirect(`/admin/listing/${id}/edit`, result.error, false);
       }
       const { childIds } = result;
-      // A package member can't gain children (it would become a parent the
-      // package page can't render), nor can a package member be chosen AS a
-      // child. Block either before persisting the edges.
+      // A HIDDEN package's member can't gain children (its child selector would
+      // name the collapsed members), nor can a package member be chosen AS a
+      // child. A visible package member may gate children — the package page
+      // renders its selector. Block the conflicts before persisting the edges.
       if (
         await packageChildEdgeConflict(
           await getGroupIdsByListingId(id),

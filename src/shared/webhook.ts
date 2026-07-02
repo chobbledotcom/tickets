@@ -4,9 +4,10 @@
  */
 
 import { mapNotNullish, sumOf, unique } from "#fp";
+import { bookedSpanDays } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
-import { getGroupPackagePrices, packageMemberMaps } from "#shared/db/groups.ts";
+import { loadPackageMemberPricing } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { type EmailEntry, sendRegistrationEmails } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -95,10 +96,18 @@ export type RegistrationEntry = {
   attendee: WebhookAttendee;
 };
 
-/** Per-group map of listing_id → package override price (a real override: a
- * positive amount or an explicit free `0`; members with no override are absent).
- * Loaded once per payload for the order's package groups. */
-type PackageOverrides = ReadonlyMap<number, ReadonlyMap<number, number>>;
+/** One package group's pricing for the payload: each member's flat override (a
+ * positive amount or an explicit free `0`; members with no override are absent)
+ * and each customisable member's per-day overrides (day count → minor units) —
+ * the loader's shape, minus the fields the payload never reads. */
+type PackageGroupPricing = Pick<
+  Awaited<ReturnType<typeof loadPackageMemberPricing>>,
+  "prices" | "dayPrices"
+>;
+
+/** Per-group package pricing, loaded once per payload for the order's package
+ * groups. */
+type PackageOverrides = ReadonlyMap<number, PackageGroupPricing>;
 
 /** Load the package price overrides for every package group in `entries`, so a
  * package member's full unit price can be reported from its configured override
@@ -111,10 +120,9 @@ const loadPackageOverrides = async (
       e.attendee.package_group_id > 0 ? e.attendee.package_group_id : null,
     )(entries),
   );
-  const overrides = new Map<number, ReadonlyMap<number, number>>();
+  const overrides = new Map<number, PackageGroupPricing>();
   for (const groupId of groupIds) {
-    const { prices } = packageMemberMaps(await getGroupPackagePrices(groupId));
-    overrides.set(groupId, prices);
+    overrides.set(groupId, await loadPackageMemberPricing(groupId));
   }
   return overrides;
 };
@@ -124,6 +132,9 @@ const loadPackageOverrides = async (
  * configured override (or the listing's base when the member has none), NOT the
  * amount collected: a discounted/deposit/free-provider order pays less now than
  * the ticket is worth, and dividing the paid-now amount would under-report it.
+ * A customisable member without a flat override reports its per-day package
+ * override for the span actually booked (derived from the stored range) when
+ * one is set — the same flat > per-day precedence the checkout charged.
  * Non-package lines report the listing's base price. */
 const ticketUnitPrice = (
   entry: RegistrationEntry,
@@ -131,10 +142,15 @@ const ticketUnitPrice = (
 ): number => {
   const { listing, attendee } = entry;
   if (attendee.package_group_id > 0) {
-    return (
-      overrides.get(attendee.package_group_id)?.get(listing.id) ??
-      listing.unit_price
-    );
+    const groupPricing = overrides.get(attendee.package_group_id);
+    const flat = groupPricing?.prices.get(listing.id);
+    if (flat !== undefined) return flat;
+    const dayOverride = listing.customisable_days
+      ? groupPricing?.dayPrices
+          .get(listing.id)
+          ?.get(bookedSpanDays(attendee.date, attendee.end_date))
+      : undefined;
+    return dayOverride ?? listing.unit_price;
   }
   return listing.unit_price;
 };

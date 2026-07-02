@@ -38,7 +38,7 @@ import {
   validateGroupListingType,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { hasParentChildEdge } from "#shared/db/listing-parents.ts";
+import { edgeIdsTouching } from "#shared/db/listing-parents.ts";
 import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
 import { getAttendeesByListingIds, getListing } from "#shared/db/listings.ts";
 import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
@@ -103,27 +103,41 @@ const isPackageable = (listing: {
   can_pay_more: boolean;
 }): boolean => !listing.can_pay_more;
 
-/** Whether a listing can be a package member: a plain standard listing (see
- * {@link isPackageable}) that is not part of any parent/child relationship. */
-const isPackageableMember = async (listing: {
-  id: number;
-  listing_type: ListingType;
-  customisable_days: boolean;
-  can_pay_more: boolean;
-}): Promise<boolean> =>
-  isPackageable(listing) && !(await hasParentChildEdge(listing.id));
+/** Whether a listing can be a package member (see {@link isPackageable} for the
+ * pricing rule). A member that is itself another listing's add-on CHILD can
+ * never be packaged — a package member is only sold as part of its bundle. A
+ * member that gates its own children (is a PARENT) is fine on a VISIBLE package
+ * (the package page renders its child selector like any parent row) but not on
+ * a hidden one, where members are collapsed to the package name and a child
+ * selector would leak them. */
+const isPackageableMember = async (
+  listing: {
+    id: number;
+    listing_type: ListingType;
+    customisable_days: boolean;
+    can_pay_more: boolean;
+  },
+  hideListings: boolean,
+): Promise<boolean> => {
+  if (!isPackageable(listing)) return false;
+  const { childIds, parentIds } = await edgeIdsTouching(listing.id);
+  if (parentIds.length > 0) return false;
+  return !(hideListings && childIds.length > 0);
+};
 
 /** Reject marking a group as a package when any current member can't be packaged
- * (see {@link isPackageableMember}). A falsy `isPackage` is always fine. Returns
- * an error message, or null when valid. */
+ * (see {@link isPackageableMember}) — including hiding a package whose member
+ * gates children. A falsy `isPackage` is always fine. Returns an error message,
+ * or null when valid. */
 const validatePackageCompatibility = async (
   groupId: number,
   isPackage: boolean | undefined,
+  hideListings: boolean,
 ): Promise<string | null> => {
   if (!isPackage) return null;
   const listings = await getListingsByGroupId(groupId);
   for (const listing of listings) {
-    if (!(await isPackageableMember(listing))) {
+    if (!(await isPackageableMember(listing, hideListings))) {
       return t("error.package_incompatible_listing");
     }
   }
@@ -139,7 +153,11 @@ export const validateGroupWithPackage: GroupValidator = async (input, id) => {
   const slugError = await validateGroupSlug(input, id);
   if (slugError) return slugError;
   if (id === undefined) return null;
-  return validatePackageCompatibility(id, input.isPackage);
+  return validatePackageCompatibility(
+    id,
+    input.isPackage,
+    input.hidePackageListings ?? false,
+  );
 };
 
 /** Parse one package-price input to minor units. A blank, non-numeric, or
@@ -478,23 +496,24 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
 
 /** Validate that all listing types match the group; returns error message or
  * null. When the group is a package, also reject listings that can't be packaged
- * (pay-what-you-want listings or ones with parent/child edges — see
- * {@link isPackageableMember}). */
+ * (see {@link isPackageableMember}). */
 const validateListingTypesForGroup = async (
-  groupId: number,
+  group: Group,
   listingIds: number[],
-  isPackage: boolean,
 ): Promise<string | null> => {
   for (const listingId of listingIds) {
     const listing = await getListing(listingId);
     if (listing) {
       const typeError = await validateGroupListingType(
-        groupId,
+        group.id,
         listing.listing_type,
         listing.customisable_days,
       );
       if (typeError) return typeError;
-      if (isPackage && !(await isPackageableMember(listing))) {
+      if (
+        group.is_package &&
+        !(await isPackageableMember(listing, group.hide_package_listings))
+      ) {
         return t("error.package_incompatible_listing");
       }
     }
@@ -509,11 +528,7 @@ const handleAddListingsToGroup = groupFormPost(async (group, form) => {
     .map(Number)
     .filter((n) => n > 0);
   if (listingIds.length > 0) {
-    const typeError = await validateListingTypesForGroup(
-      group.id,
-      listingIds,
-      group.is_package,
-    );
+    const typeError = await validateListingTypesForGroup(group, listingIds);
     if (typeError) {
       return redirect(`/admin/groups/${group.id}`, typeError, false);
     }
