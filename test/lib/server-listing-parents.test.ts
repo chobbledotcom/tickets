@@ -972,6 +972,57 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
   });
 
+  test("API deactivate of a bookable_alone child whose add-on only it can reach is rejected", async () => {
+    // A bookable_alone child's OWN page is the sole seller of an add-on scoped
+    // only to it. Its stored row still reads bookable_alone=1 during the save, so
+    // getNonStandaloneChildIds excludes it from the suppressed set; the
+    // deactivation guard must force the flagged child in by hand, or taking its
+    // page offline silently orphans the add-on only it could sell.
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({
+      bookableAlone: true,
+      name: "Solo Widget",
+    });
+    await postChildren(parent.id, [child.id]);
+    await optInAddOnForListings("Child-only extra", [child.id]);
+
+    await assertJson(
+      apiRequest(`/api/admin/listings/${child.id}`, {
+        body: { active: false },
+        method: "PUT",
+      }),
+      400,
+      (json) => {
+        expect(json.error).toContain("opt-in add-on reachable only through");
+      },
+    );
+    expect((await getListingWithCount(child.id))?.active).toBe(true);
+  });
+
+  test("POST deactivate of a bookable_alone child whose add-on only it can reach is rejected", async () => {
+    // The dedicated /deactivate route (deactivationOrphanedAddOnError) must apply
+    // the same flagged-child suppression the edit-save path does — a bookable_alone
+    // child taken offline here would otherwise silently orphan a child-only add-on.
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({
+      bookableAlone: true,
+      name: "Solo Widget",
+    });
+    await postChildren(parent.id, [child.id]);
+    await optInAddOnForListings("Child-only extra", [child.id]);
+
+    await assertJson(
+      apiRequest(`/api/admin/listings/${child.id}/deactivate`, {
+        method: "POST",
+      }),
+      400,
+      (json) => {
+        expect(json.error).toContain("opt-in add-on reachable only through");
+      },
+    );
+    expect((await getListingWithCount(child.id))?.active).toBe(true);
+  });
+
   test("API deactivate of a listing unrelated to any child add-on still succeeds", async () => {
     // The guard must not block an ordinary API deactivation: a plain listing
     // rescuing no child-scoped add-on toggles inactive normally.

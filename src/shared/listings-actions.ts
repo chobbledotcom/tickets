@@ -17,6 +17,7 @@ import {
   edgeIdsTouching,
   edgeIncompatibilityAfterChange,
   firstTouchingEdgeError,
+  getChildListingIds,
   getNonStandaloneChildIds,
   getParentIds,
 } from "#shared/db/listing-parents.ts";
@@ -274,13 +275,25 @@ const orphanedAddOnOverWouldBe = async (
   return firstChildUnreachableAddOnForListings(wouldBe, childIds);
 };
 
-export const deactivationOrphanedAddOnError = (
+export const deactivationOrphanedAddOnError = async (
   inactiveIds: ReadonlySet<number>,
-): Promise<string | null> =>
+): Promise<string | null> => {
+  // Deactivation does not clear bookable_alone, so a flagged child's stored row
+  // still reads `bookable_alone = 1` and getNonStandaloneChildIds keeps excluding
+  // it from the suppressed set — yet taking its page offline removes the only
+  // surface a child-only add-on could sell from. Force every deactivated flagged
+  // child (a child of some parent whose flag is still set) into the suppressed
+  // set, matching the edit-save path's strippedPageOrphanedAddOn.
+  const ids = [...inactiveIds];
+  const childIds = await getChildListingIds(ids);
+  const nonStandalone = await getNonStandaloneChildIds([...childIds]);
+  const flaggedChildren = [...childIds].filter((id) => !nonStandalone.has(id));
   // Apply the would-be inactive state of every target listing to the in-memory set.
-  orphanedAddOnOverWouldBe((listing) =>
-    inactiveIds.has(listing.id) ? { active: false } : {},
+  return orphanedAddOnOverWouldBe(
+    (listing) => (inactiveIds.has(listing.id) ? { active: false } : {}),
+    flaggedChildren,
   );
+};
 
 /**
  * Re-check add-on reachability when a listing save STRIPS a page that could
@@ -290,24 +303,31 @@ export const deactivationOrphanedAddOnError = (
  * reachable a dead end, so both re-run the shared reachability guard over the
  * save's PENDING state — the edited listing at its would-be group set (so a
  * group-scoped add-on for a group the same save is joining is resolved correctly)
- * and, when deactivating, inactive. Clearing the flag turns the child
- * non-standalone, but the row still reads flagged until this save commits, so the
- * child is forced into the suppressed set by hand. Inert unless the save actually
- * deactivates, or clears the flag for a listing that is a child.
+ * and, when deactivating, inactive. Either transition leaves the stored row
+ * reading `bookable_alone = 1` until the save commits, so a flagged child with
+ * parents is forced into the suppressed set by hand — whether the page is lost to
+ * a cleared flag or to a deactivation. Inert unless the save deactivates, or
+ * clears the flag for a listing that is a child.
  */
 const strippedPageOrphanedAddOn = async (
   input: ListingInput,
   existingId: number,
 ): Promise<string | null> => {
   const deactivating = input.active === false;
-  const existing =
-    input.bookableAlone === false
-      ? await getListingWithCount(existingId)
-      : null;
-  const clearingFlag =
+  const clearingFlag = input.bookableAlone === false;
+  // Either transition strips a child's OWN booking page: clearing the flag turns
+  // it non-standalone, deactivating takes its page offline. In both cases the
+  // stored row still reads `bookable_alone = 1`, so getNonStandaloneChildIds
+  // treats the child as a live standalone seller and excludes it from the
+  // suppressed set — meaning an add-on only its page could offer would pass. So
+  // load the row and, when it is a flagged child with parents, force it into the
+  // suppressed set by hand (a deactivation needs this just as much as a clear).
+  const mayStripPage = deactivating || clearingFlag;
+  const existing = mayStripPage ? await getListingWithCount(existingId) : null;
+  const flaggedChildWithParents =
     existing?.bookable_alone === true &&
     (await getParentIds(existingId)).length > 0;
-  if (!deactivating && !clearingFlag) return null;
+  if (!deactivating && !(clearingFlag && flaggedChildWithParents)) return null;
   // Both listing-save entry points always resolve groupIds to an array — the
   // form via parseGroupIds, the JSON API via `groups.input ?? existingGroupIds` —
   // so it is defined here (matching the create path's `input.groupIds!` writer).
@@ -318,7 +338,10 @@ const strippedPageOrphanedAddOn = async (
     listing.id === existingId
       ? { active: !deactivating, groupIds: wouldBeGroupIds }
       : {};
-  return orphanedAddOnOverWouldBe(override, clearingFlag ? [existingId] : []);
+  return orphanedAddOnOverWouldBe(
+    override,
+    flaggedChildWithParents ? [existingId] : [],
+  );
 };
 
 /**
