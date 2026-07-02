@@ -6,9 +6,12 @@ import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import {
   adminGet,
+  awaitTestRequest,
   createTestListing,
+  createTestManagerSession,
   describeWithEnv,
   expectHtml,
+  expectHtmlResponse,
   setupStripe,
   testRequiresAuth,
 } from "#test-utils";
@@ -160,5 +163,24 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
     const html = await response.text();
     expect(html).toContain("Balance outstanding");
     expect(html).toContain(`/admin/attendees/${attendeeId}/balance`);
+    // The tab strip alone also carries that href, so pin the payment-details
+    // link itself by its anchor text — it must render for owners.
+    expect(html).toContain("view balance &amp; payment link");
+  });
+
+  test("a manager's overview shows the balance owed but never the owner-only balance link", async () => {
+    // The Balance tab is owner-only, so its link must never render for a
+    // manager (never render a forbidden link) — neither in the payment-details
+    // panel nor in the tab strip.
+    const { attendeeId } = await createReservedAttendee(1500, {
+      paymentId: "pi_deposit",
+    });
+    const overview = await awaitTestRequest(`/admin/attendees/${attendeeId}`, {
+      cookie: await createTestManagerSession(),
+    });
+    const html = await expectHtmlResponse(overview, 200);
+    expect(html).toContain("Balance outstanding");
+    expect(html).not.toContain(`/admin/attendees/${attendeeId}/balance`);
+    expect(html).not.toContain("view balance &amp; payment link");
   });
 });
