@@ -501,6 +501,13 @@ export type ChildRenderCtx = {
   questions: QuestionWithAnswers[];
   questionListingMap: QuestionListingMap | undefined;
   rendered: Set<number>;
+  /** For a child that ALSO renders its own top-level row (a bookable_alone child
+   * whose parent is on the same page), the capacity to hold back from that
+   * standalone row for the parents' folded demand — the sum of each page-parent's
+   * own `maxPurchasable`. Keyed by child listing id; absent ⇒ no reservation. So
+   * a standalone row and the parent selector can't jointly offer more of the
+   * child than its capacity, a combination the submit fold would reject. */
+  foldReserveByChildId: ReadonlyMap<number, number>;
 };
 
 /** Whether a child is currently bookable (its quantity controls render enabled):
@@ -851,9 +858,14 @@ const childCappedMax = (
     childCtx.groupIdsByListingId,
   );
   const childCap = caps.get(info.listing.id);
-  return childCap === undefined
-    ? info.maxPurchasable
-    : Math.min(info.maxPurchasable, childCap);
+  const ownMax =
+    childCap === undefined
+      ? info.maxPurchasable
+      : Math.min(info.maxPurchasable, childCap);
+  // Hold back capacity a page parent will fold into this same listing, so its
+  // standalone row and the parent's selector can't jointly over-offer it.
+  const reserved = childCtx.foldReserveByChildId.get(info.listing.id) ?? 0;
+  return Math.max(0, ownMax - reserved);
 };
 
 /** The questions assigned to a child listing, in page order, that have not yet
@@ -1749,6 +1761,7 @@ const splitChildQuestions = (
     childCtx: {
       childDatesById,
       children: childrenByParentId,
+      foldReserveByChildId: foldReserveByChildId(listings, childrenByParentId),
       groupIdsByListingId,
       groupRemainingByGroupId,
       questionListingMap,
@@ -1757,6 +1770,31 @@ const splitChildQuestions = (
     },
     pageQuestions,
   };
+};
+
+/** For every child that a PAGE parent folds, the capacity to reserve from that
+ * child's own standalone row: the sum of each such parent's own `maxPurchasable`.
+ * A parent books at most that many units, each folding at most one unit of this
+ * child, so holding back the sum guarantees the standalone row plus the parents'
+ * folds can never exceed the child's capacity. Only parents present on the page
+ * (they render a selector) reserve; a child with no page parent maps to nothing. */
+const foldReserveByChildId = (
+  listings: TicketListing[],
+  childrenByParentId: Map<number, TicketListing[]>,
+): Map<number, number> => {
+  const reserve = new Map<number, number>();
+  const onPage = new Map(listings.map((e) => [e.listing.id, e]));
+  for (const [parentId, children] of childrenByParentId) {
+    const parent = onPage.get(parentId);
+    if (!parent) continue;
+    for (const child of children) {
+      reserve.set(
+        child.listing.id,
+        (reserve.get(child.listing.id) ?? 0) + parent.maxPurchasable,
+      );
+    }
+  }
+  return reserve;
 };
 
 /** Whether a listing is paid in context. A flat package override REPLACES the

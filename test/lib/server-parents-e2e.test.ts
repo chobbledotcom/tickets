@@ -587,5 +587,35 @@ describeWithEnv(
       expect(await bookingRowsFor(picker.id)).toHaveLength(1);
       expect(await bookingRowsFor(base.id)).toHaveLength(1);
     });
+
+    test("a bookable_alone child's standalone row reserves its parent's folded demand", async () => {
+      // Parent (max 2) and its can-book-itself child (capacity 3) both render on
+      // /ticket/<parent>+<child>. The child's own row must hold back the 2 units
+      // the parent could fold, offering only 1 — so the standalone row plus the
+      // parent selector can never demand more than the child's 3 spots (the old
+      // row offered the full 3, letting the page over-offer past capacity).
+      const parent = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 2,
+        name: "Base",
+      });
+      const widget = await createTestListing({
+        bookableAlone: true,
+        maxAttendees: 3,
+        maxQuantity: 5,
+        name: "Solo Widget",
+      });
+      await setChildIds(parent.id, [widget.id]);
+
+      const html = await bookingPageHtml(`${parent.slug}+${widget.slug}`);
+      const select = html.slice(
+        html.indexOf(`name="quantity_${widget.id}"`),
+        html.indexOf("</select>", html.indexOf(`name="quantity_${widget.id}"`)),
+      );
+      const offered = [...select.matchAll(/value="(\d+)"/g)].map((m) =>
+        Number(m[1]),
+      );
+      expect(Math.max(...offered)).toBe(1);
+    });
   },
 );
