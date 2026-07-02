@@ -257,7 +257,7 @@ const signAndRenderQr = async (
 };
 
 /** Process a validated QR form submission and render the result panel */
-const generateAndRender = async (
+const generateAndRender = (
   id: number,
   session: AdminSession,
   listing: ListingWithCount,

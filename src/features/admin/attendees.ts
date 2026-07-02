@@ -97,7 +97,7 @@ const handleAttendeeDelete = verifiedAttendeeAction(
  * Verifies the attendee is actually incomplete before deleting.
  */
 const handleDeleteIncomplete = attendeeFormAction(
-  async (data, _session, _form, listingId, attendeeId) => {
+  (data, _session, _form, listingId, attendeeId) => {
     const hasPaidListing = isPaidListing(data.listing);
     // An "incomplete" registration is an abandoned paid checkout: a sale was
     // recognised (price_paid > 0) and fully covered (nothing still owed), yet no
