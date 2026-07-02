@@ -114,7 +114,9 @@ const resolveTargets = async (
   const groupLive = await mapParallel(async (group: Group) =>
     groupBookable(group, await getVisibleGroupMembers(group)),
   )(groups);
-  groups.forEach((group, index) => setLeaf("group", group, groupLive[index]!));
+  for (const [index, group] of groups.entries()) {
+    setLeaf("group", group, groupLive[index]!);
+  }
   return targets;
 };
 
