@@ -165,11 +165,12 @@ export const loadLedgerNamesForAccounts = async (
   };
 };
 
+/** Every account a slice of transfers touches, as source or destination. */
+const accountsOf = (transfers: Transfer[]): AccountRef[] =>
+  transfers.flatMap((transfer) => [transfer.source, transfer.destination]);
+
 export const loadLedgerNames = (transfers: Transfer[]): Promise<LedgerNames> =>
-  loadLedgerNamesForAccounts([
-    ...transfers.map((tx) => tx.source),
-    ...transfers.map((tx) => tx.destination),
-  ]);
+  loadLedgerNamesForAccounts(accountsOf(transfers));
 
 /** A query-param reader that yields the value only when it passes `valid`, else
  *  null — the shared shape of the date and paged-month param parsers. */
@@ -383,11 +384,7 @@ export const loadAccountLedger = async (
   return {
     account,
     lines: statementFor(account)(transfers),
-    names: await loadLedgerNamesForAccounts([
-      account,
-      ...transfers.map((transfer) => transfer.source),
-      ...transfers.map((transfer) => transfer.destination),
-    ]),
+    names: await loadLedgerNamesForAccounts([account, ...accountsOf(transfers)]),
   };
 };
 
