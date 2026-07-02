@@ -151,11 +151,9 @@ const selectByColumnIn = (
 ): Promise<Transfer[]> =>
   values.length === 0
     ? Promise.resolve([])
-    : selectTransfers(
-        read,
-        ` WHERE ${column} IN (${inPlaceholders(values)})`,
-        [...values],
-      );
+    : selectTransfers(read, ` WHERE ${column} IN (${inPlaceholders(values)})`, [
+        ...values,
+      ]);
 
 /** Load everything {@link planGroup} needs to validate the batch, in three bulk
  *  selects — independent of the number of groups. `read` picks where the

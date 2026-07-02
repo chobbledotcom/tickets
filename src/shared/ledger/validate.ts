@@ -78,7 +78,10 @@ export const validateTransfer = (t: TransferInput): Result<TransferInput> => {
  * channel (the store's pre-post checks, a manual entry's amount/time update).
  * `context` prefixes the message so the failing operation is identifiable.
  */
-export const assertValidTransfer = (t: TransferInput, context: string): void => {
+export const assertValidTransfer = (
+  t: TransferInput,
+  context: string,
+): void => {
   const result = validateTransfer(t);
   if (!result.ok) {
     const codes = result.errors.map((e) => e.code).join(", ");

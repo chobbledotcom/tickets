@@ -6,7 +6,6 @@
  */
 
 import { sumByKey } from "#fp";
-import { KIND } from "#shared/accounting/kinds.ts";
 import {
   attendeeAccount,
   BOOKING_FEE_INCOME,
@@ -14,6 +13,7 @@ import {
   revenueAccount,
   WORLD,
 } from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
 import {
   eventGroup,
   legReference,

@@ -143,7 +143,10 @@ export const revenueBreakdownColumns = (idExpr: string): string => {
   const credited = accountPredicate("dest", REVENUE, idExpr);
   const debited = accountPredicate("source", REVENUE, idExpr);
   return [
-    conditionalSumColumn(`kind = '${KIND.sale}' AND ${credited}`, "gross_sales"),
+    conditionalSumColumn(
+      `kind = '${KIND.sale}' AND ${credited}`,
+      "gross_sales",
+    ),
     conditionalSumColumn(
       `kind = '${MANUAL_LISTING_INCOME}' AND ${credited}`,
       "external_income",
@@ -156,7 +159,10 @@ export const revenueBreakdownColumns = (idExpr: string): string => {
       `kind = '${KIND.adjustment}' AND ${debited} AND dest_type = '${WRITEOFF_TYPE}'`,
       "write_downs",
     ),
-    conditionalSumColumn(`kind = '${KIND.refundSale}' AND ${debited}`, "refunds"),
+    conditionalSumColumn(
+      `kind = '${KIND.refundSale}' AND ${debited}`,
+      "refunds",
+    ),
     conditionalSumColumn(
       `kind = '${MANUAL_LISTING_COST}' AND ${debited}`,
       "external_costs",

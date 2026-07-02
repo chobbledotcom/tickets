@@ -130,10 +130,7 @@ const renderInsert = (
 ): Statement => {
   const exprs = columns.map((column) => column.expr).join(", ");
   return {
-    args: [
-      ...columns.flatMap((column) => column.args),
-      ...(guard?.args ?? []),
-    ],
+    args: [...columns.flatMap((column) => column.args), ...(guard?.args ?? [])],
     sql:
       `INSERT INTO transfers (${columns.map((column) => column.col).join(", ")}) ` +
       (guard ? `SELECT ${exprs} WHERE ${guard.sql}` : `VALUES (${exprs})`),
@@ -198,7 +195,11 @@ export const bookingLegBatchInsert = (
     renderInsert(
       legColumns(t, recordedAt, (col, acct) =>
         acct.type === ATTENDEE
-          ? { args: [attendeeIdArg], col, expr: `CAST(${attendeeIdSql} AS TEXT)` }
+          ? {
+              args: [attendeeIdArg],
+              col,
+              expr: `CAST(${attendeeIdSql} AS TEXT)`,
+            }
           : literalId(col, acct),
       ),
       guard,

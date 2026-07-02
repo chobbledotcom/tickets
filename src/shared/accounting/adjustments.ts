@@ -10,6 +10,7 @@
  * (`world→*`) stay honest — see {@link WRITEOFF}.
  */
 
+/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { WRITEOFF } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
@@ -19,6 +20,7 @@ import {
   type RefPart,
 } from "#shared/accounting/refs.ts";
 import { insertStatement, orIgnore } from "#shared/accounting/rows.ts";
+/* jscpd:ignore-end */
 import { postTransfersTx } from "#shared/accounting/store.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";

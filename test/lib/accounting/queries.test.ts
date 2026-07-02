@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { KIND } from "#shared/accounting/kinds.ts";
 import {
   MANUAL_LISTING_COST,
   MANUAL_LISTING_INCOME,
 } from "#shared/accounting/manual-entries.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
 import {
   accountBalance,
   accountBalancesForIds,

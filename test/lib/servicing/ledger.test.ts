@@ -27,10 +27,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  costAccount,
-  revenueAccount,
-} from "#shared/accounting/accounts.ts";
+import { costAccount, revenueAccount } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { costOf, profitOf } from "#shared/accounting/projection.ts";
 import {

@@ -26,6 +26,7 @@
  * owner-encrypted free text, and rendering it is out of scope.
  */
 
+import * as v from "valibot";
 import { mapNotNullish, sort, unique } from "#fp";
 import { t } from "#i18n";
 import { loadAttendeeNames } from "#routes/admin/actions.ts";
@@ -46,7 +47,6 @@ import {
 } from "#routes/response.ts";
 /* jscpd:ignore-end */
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import * as v from "valibot";
 import {
   ATTENDEE,
   COST,
@@ -384,7 +384,10 @@ export const loadAccountLedger = async (
   return {
     account,
     lines: statementFor(account)(transfers),
-    names: await loadLedgerNamesForAccounts([account, ...accountsOf(transfers)]),
+    names: await loadLedgerNamesForAccounts([
+      account,
+      ...accountsOf(transfers),
+    ]),
   };
 };
 
