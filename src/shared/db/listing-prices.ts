@@ -142,6 +142,36 @@ export const groupFlatPriceStatements = (
   return statements;
 };
 
+/** The statement that drops a listing's package price overrides — flat `group`
+ * and per-day `group_day` — for a set of groups it is LEAVING. When a listing is
+ * unticked from a package, its `group_listings` row goes but the price rows live
+ * in `listing_prices`; without this they'd survive and a later re-add would
+ * resurrect the stale override (the retired `group_listings.package_price` column
+ * was deleted with the membership row, so re-adding started from no override). A
+ * single statement regardless of how many groups, to stay within the interactive
+ * round-trip guard. `null` for an empty set (nothing to drop). */
+export const removeListingGroupPricesStatement = (
+  listingId: number,
+  groupIds: readonly number[],
+): PriceStatement | null => {
+  if (groupIds.length === 0) return null;
+  const idText = groupIds.map(String);
+  // Each group's group_day price_ids are "<groupId>/<n>"; the trailing "/" keeps
+  // the LIKE exact (group 1's "1/%" never matches group 12's "12/3").
+  const globs = groupIds.map((id) => `${id}/%`);
+  return {
+    args: [listingId, ...idText, ...globs],
+    sql: `DELETE FROM listing_prices WHERE listing_id = ? AND (
+        (price_type = '${PRICE_TYPE_GROUP}' AND price_id IN (${idText
+          .map(() => "?")
+          .join(", ")}))
+        OR (price_type = '${PRICE_TYPE_GROUP_DAY}' AND (${globs
+          .map(() => "price_id LIKE ?")
+          .join(" OR ")}))
+      )`,
+  };
+};
+
 /** A raw `group_day` row as SELECTed for the readers below. */
 type GroupDayRow = { listing_id: number; price_id: string; unit_price: number };
 
@@ -231,16 +261,23 @@ export const basePriceStatements = (
   insertPriceStatement([listingId, PRICE_TYPE_BASE, "", unitPrice]),
 ];
 
-/** The delete-then-insert statements that make a listing's `day_count` rows
- * exactly match `dayPrices` — a full replace of the listing's per-day prices.
- * Unlike `base`, these rows are the SOURCE of truth (the `listings.day_prices`
- * column was migrated in and dropped), so the write paths call this with the
- * submitted day prices rather than re-deriving from a column. Entries are
- * normalised through {@link parseDayPrices} so the rows carry exactly what a
- * reader would accept. Reserved (`group`/…) rows are left untouched. */
+/** The statements that make a listing's `day_count` rows exactly match
+ * `dayPrices` — a full replace of the listing's per-day prices. Unlike `base`,
+ * these rows are the SOURCE of truth (the `listings.day_prices` column was
+ * migrated in and dropped), so the write paths call this with the submitted day
+ * prices rather than re-deriving from a column. `undefined` normalises to an
+ * empty map (the one place that default lives), so callers pass their optional
+ * `dayPrices` straight through. Entries are normalised through
+ * {@link parseDayPrices} so the rows carry exactly what a reader would accept.
+ *
+ * The inserts are a SINGLE multi-row statement, so a full replace is at most two
+ * statements (one delete + one insert) regardless of how many day counts are
+ * offered — the write paths run these inside an interactive transaction, and a
+ * per-row insert would cross the round-trip guard for a listing with many day
+ * prices. Reserved (`group`/…) rows are left untouched. */
 export const dayCountPriceStatements = (
   listingId: number,
-  dayPrices: DayPrices,
+  dayPrices: DayPrices | undefined,
 ): PriceStatement[] => {
   const statements: PriceStatement[] = [
     {
@@ -248,10 +285,18 @@ export const dayCountPriceStatements = (
       sql: "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
     },
   ];
-  for (const [days, price] of Object.entries(parseDayPrices(dayPrices))) {
-    statements.push(
-      insertPriceStatement([listingId, PRICE_TYPE_DAY_COUNT, days, price]),
-    );
+  const entries = Object.entries(parseDayPrices(dayPrices ?? {}));
+  if (entries.length > 0) {
+    const args: (number | string)[] = [];
+    for (const [days, price] of entries) {
+      args.push(listingId, PRICE_TYPE_DAY_COUNT, days, price);
+    }
+    statements.push({
+      args,
+      sql: `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES ${entries
+        .map(() => "(?, ?, ?, ?)")
+        .join(", ")}`,
+    });
   }
   return statements;
 };
@@ -284,7 +329,7 @@ export const getListingDayPrices = async (
 export const writeListingDayCounts = async (
   tx: TxScope,
   listingId: number,
-  dayPrices: DayPrices,
+  dayPrices: DayPrices | undefined,
 ): Promise<void> => {
   for (const stmt of dayCountPriceStatements(listingId, dayPrices)) {
     await tx.execute(stmt);

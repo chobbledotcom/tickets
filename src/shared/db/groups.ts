@@ -25,6 +25,7 @@ import {
   groupFlatPriceStatements,
   PRICE_TYPE_GROUP,
   PRICE_TYPE_GROUP_DAY,
+  removeListingGroupPricesStatement,
 } from "#shared/db/listing-prices.ts";
 import { queryListingsWithCounts } from "#shared/db/listings.ts";
 import { allNamesById, linkRowsByIds, queryAndMap } from "#shared/db/query.ts";
@@ -541,7 +542,7 @@ const listingGroupDiffStatements = (
   const toRemove = [...current].filter((id) => !desired.has(id));
   const toAdd = [...desired].filter((id) => !current.has(id));
   const statements: { args: InValue[]; sql: string }[] = [];
-  // Set-based DELETE + multi-row INSERT — at most two statements regardless of
+  // Set-based DELETEs + multi-row INSERT — at most three statements regardless of
   // how many groups change, so the transactional path (setListingGroupsTx) stays
   // well under the interactive round-trip guard even for a large group selection.
   if (toRemove.length > 0) {
@@ -549,6 +550,11 @@ const listingGroupDiffStatements = (
       args: [listingId, ...toRemove],
       sql: `DELETE FROM group_listings WHERE listing_id = ? AND group_id IN (${inPlaceholders(toRemove)})`,
     });
+    // Drop the listing's package price overrides for the groups it is leaving —
+    // they live in listing_prices, not on the membership row, so they'd otherwise
+    // outlive the removal and resurrect on a re-add. Non-null: toRemove is
+    // non-empty inside this branch.
+    statements.push(removeListingGroupPricesStatement(listingId, toRemove)!);
   }
   if (toAdd.length > 0) {
     statements.push({

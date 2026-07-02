@@ -503,6 +503,12 @@ const listingsEntity = cachedEntityTable<
     // Income is projected from the ledger, so a transfer write — a new booking's
     // revenue leg, or a refund reversal — must refresh the cached listing income.
     { table: "transfers" },
+    // day_prices is projected from the listing_prices `day_count` rows, so a
+    // write there must refresh the cache. This also covers a day-price-only
+    // update via listingsTable.update: with no physical listings column to write,
+    // rawTable.update touches nothing and can't invalidate on its own, so the
+    // day_count write here is what keeps a warmed getListingWithCount current.
+    { table: "listing_prices" },
   ],
 );
 const listingsCache = listingsEntity.cache;
@@ -532,8 +538,8 @@ export const listingsTable: typeof rawTable = {
   insert: async (input) => {
     const row = await rawTable.insert(input);
     await syncListingPrices(row.id);
-    await executeBatch(dayCountPriceStatements(row.id, input.dayPrices ?? {}));
-    return withDayPrices(row, input.dayPrices ?? {});
+    await executeBatch(dayCountPriceStatements(row.id, input.dayPrices));
+    return withDayPrices(row, input.dayPrices);
   },
   update: async (id, input) => {
     const row = await rawTable.update(id, input);

@@ -258,7 +258,7 @@ const writeListingGroups = async (
   input: ListingInput,
 ) => {
   await setListingGroupsTx(tx, id, input.groupIds!);
-  await writeListingDayCounts(tx, id, input.dayPrices ?? {});
+  await writeListingDayCounts(tx, id, input.dayPrices);
 };
 
 /** Create-only afterWrite: persist the memberships, then — for a duplicate —

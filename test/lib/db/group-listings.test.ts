@@ -109,6 +109,30 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     );
   });
 
+  test("leaving a package group clears the listing's override row (no resurrection on re-add)", async () => {
+    const { group, a } = await groupWithTwoMembers("leave");
+    await setGroupPackageMembers(group.id, [{ listingId: a.id, price: 1500 }]);
+    const overrideRows = () =>
+      queryAll(
+        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'group' AND price_id = ?",
+        [a.id, String(group.id)],
+      );
+    expect((await overrideRows()).length).toBe(1);
+
+    // Untick the listing from the group: its override row must go with the
+    // membership, not survive it.
+    await setListingGroups(a.id, []);
+    expect(await overrideRows()).toEqual([]);
+
+    // Re-adding starts from no override, exactly like the old package_price
+    // column did when the membership row was deleted.
+    await setListingGroups(a.id, [group.id]);
+    const readded = await getGroupPackagePrices(group.id);
+    expect(
+      readded.find((r) => r.listing_id === a.id)?.package_price ?? null,
+    ).toBe(null);
+  });
+
   test("setGroupPackageMembers stores per-package quantities (default 1)", async () => {
     const { group, a, b } = await groupWithTwoMembers("qty");
 

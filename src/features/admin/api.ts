@@ -534,8 +534,7 @@ const listingApiRoutes = defineCrudApi<
   // row on the primary); the `day_count` rows have no column, so they are written
   // from the submitted day prices in the write transaction (afterWrite).
   afterCommit: syncListingPrices,
-  afterWrite: (tx, id, input) =>
-    writeListingDayCounts(tx, id, input.dayPrices ?? {}),
+  afterWrite: (tx, id, input) => writeListingDayCounts(tx, id, input.dayPrices),
   extraRoutes: {
     "DELETE /api/admin/listings/:listingId": handleDeleteListing,
     "POST /api/admin/listings/:listingId/deactivate": (

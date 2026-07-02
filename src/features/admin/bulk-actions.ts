@@ -235,7 +235,7 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   if (cloneInputs.length > 0) {
     await executeBatch(
       cloneInputs.flatMap(({ sourceId, input }) =>
-        dayCountPriceStatements(idMap.get(sourceId)!, input.dayPrices ?? {}),
+        dayCountPriceStatements(idMap.get(sourceId)!, input.dayPrices),
       ),
     );
   }
