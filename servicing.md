@@ -26,10 +26,14 @@ the moment it exists. Asserted in `test/routes/read-only.test.ts`.
 
 `recordServiceCost` no longer short-circuits on a stored `reference` alone. It
 returns the existing cost id **only** when the stored `service_costs` row matches
-the whole submitted payload — amount, servicing event, listing, date, and the
+the operator-entered payload — amount, servicing event, listing, and the
 decrypted memo. A reused idempotency key (or a payload-derived reference that
 omits the memo) whose payload has since changed throws `COST_REPLAY_MISMATCH`,
 which the route surfaces as a form error instead of a false success or a 500.
+`occurredAt` is deliberately excluded from the match: it isn't an operator-
+editable field (it's the booking date, or `new Date()` for a dateless event), so
+comparing it would break a legitimate double-submit of a dateless cost — the
+exact retry the key exists to cover.
 
 ### P2 — Free-text answers survive a failed servicing-edit rollback
 
