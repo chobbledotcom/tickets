@@ -34,6 +34,7 @@ import {
   PARENT_CHILD_GROUP_UNITS,
   sharedGroupRemaining,
 } from "#shared/types.ts";
+import { moneyPattern } from "#templates/components/price-input.tsx";
 import {
   questionFieldset,
   questionWrapper,
@@ -252,7 +253,7 @@ const renderPayMoreInput = (
       value,
     )}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(
       toMajorUnits(maxPrice),
-    )}" pattern="\\d+(\\.\\d{1,2})?" title="${escapeHtml(
+    )}" pattern="${moneyPattern()}" title="${escapeHtml(
       t("public.ticket.price_input_title"),
     )}"${required && minPrice > 0 ? " required" : ""} /></label>`
   );
