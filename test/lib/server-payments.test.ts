@@ -690,6 +690,45 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       );
     });
 
+    test("a cancelled checkout for a now-non-standalone child suppresses the retry link", async () => {
+      const { stub } = await import("@std/testing/mock");
+      const { stripeApi } = await import("#shared/stripe.ts");
+      await setupStripe();
+
+      // The child had its own page when checkout began; it is a plain
+      // (non-standalone) child now, so /ticket/<child> 404s and the cancel page
+      // must offer a way home instead of a dead retry link.
+      const { child } = await makeParent({
+        children: [{ maxAttendees: 50, unitPrice: 1000 }],
+      });
+
+      await withMocks(
+        () =>
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              id: "cs_cancel_child",
+              metadata: {
+                email: "john@example.com",
+                items: singleItem(child.id, 1, 1000),
+                name: "John",
+              },
+              payment_status: "unpaid",
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >),
+          ),
+        async () => {
+          const html = await assertPublicHtml(
+            "/payment/cancel?session_id=cs_cancel_child",
+            "Payment Cancelled",
+            "Return home",
+          );
+          expect(html).not.toContain(`/ticket/${child.slug}`);
+        },
+        resetStripeClient,
+      );
+    });
+
     test("a cancelled package checkout links back to the package page", async () => {
       const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#shared/stripe.ts");

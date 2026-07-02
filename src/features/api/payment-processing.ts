@@ -781,6 +781,37 @@ const orderEdgeDrifted = async (
     intent.allocations ?? [],
   );
 
+/**
+ * Whether the order books a STANDALONE non-standalone child — a child that has
+ * lost its `bookable_alone` page (the flag was cleared after this session opened)
+ * and whose parents are ALL absent from the order, so it was booked on its own
+ * page rather than folded under a parent. Completing it would leak a ticket whose
+ * `/ticket/<slug>` now 404s at every fresh entry point; `orderEdgeDrifted` only
+ * detects structural edge changes, not this flag flip, so it is guarded here and
+ * failed closed → price_changed (mirroring `staleHiddenMember`). A child booked
+ * alongside one of its parents is a legitimate fold — a parent+child order lists
+ * both even without an explicit allocation — so it is not stale.
+ *
+ * `getParentsForChildren` keys only the children that still have a surviving
+ * parent, and a non-standalone child always does (an edge is deleted with its
+ * parent), so iterating its values covers every non-standalone child.
+ */
+const hasStaleStandaloneChild = async (
+  intent: BookingIntent,
+): Promise<boolean> => {
+  const orderIds = intent.items.map((i) => i.e);
+  const nonStandaloneChildIds = await getNonStandaloneChildIds(orderIds);
+  if (nonStandaloneChildIds.size === 0) return false;
+  const orderIdSet = new Set(orderIds);
+  const parentsByChild = await getParentsForChildren([
+    ...nonStandaloneChildIds,
+  ]);
+  for (const parents of parentsByChild.values()) {
+    if (!parents.some((p) => orderIdSet.has(p.id))) return true;
+  }
+  return false;
+};
+
 /** Validate all booking items and return per-item pricing info or a failure result. */
 const validateAllItems = async (
   session: ValidatedPaymentSession,
@@ -808,29 +839,8 @@ const validateAllItems = async (
   const foldedChildIds = new Set(
     (intent.allocations ?? []).map((a) => a.childId),
   );
-  // A STANDALONE session started while its child listing was `bookable_alone`
-  // must not book it if the flag has since been cleared: /ticket/<slug> now
-  // 404s at every fresh entry point, so completing the in-flight session would
-  // leak a now-non-standalone child ticket. `orderEdgeDrifted` only detects
-  // structural edge changes, not this flag flip, so guard it explicitly and fail
-  // closed → price_changed (mirroring staleHiddenMember). A child booked UNDER a
-  // parent is fine — a parent+child order lists both, folding the child even
-  // without an explicit allocation — so only a child whose parents are ALL
-  // absent from the order (a truly standalone booking) is stale.
-  const nonStandaloneChildIds = await getNonStandaloneChildIds(
-    intent.items.map((i) => i.e),
-  );
-  const orderIds = new Set(intent.items.map((i) => i.e));
-  const parentsByChild = await getParentsForChildren([
-    ...nonStandaloneChildIds,
-  ]);
   const staleNonStandaloneChild =
-    !isPackageIntent &&
-    [...nonStandaloneChildIds].some(
-      (childId) =>
-        !foldedChildIds.has(childId) &&
-        !(parentsByChild.get(childId) ?? []).some((p) => orderIds.has(p.id)),
-    );
+    !isPackageIntent && (await hasStaleStandaloneChild(intent));
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
     const vp = await validateListingForPayment(item.e, includeListingName);
