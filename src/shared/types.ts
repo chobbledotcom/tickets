@@ -201,7 +201,7 @@ export const parseDayPrices = (raw: unknown): DayPrices => {
 };
 
 /** The subset of listing fields needed to reason about day-count pricing. */
-type DayPricedListing = Pick<
+export type DayPricedListing = Pick<
   Listing,
   "customisable_days" | "day_prices" | "duration_days"
 >;

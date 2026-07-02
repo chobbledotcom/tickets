@@ -5,13 +5,12 @@ import {
   buildBookingTree,
 } from "#shared/booking/build-tree.ts";
 import { packageQuantityCap } from "#shared/booking/capacity-tree.ts";
-import { effectivePrice } from "#shared/booking/price-tree.ts";
+import { packageBundleTotal } from "#shared/booking/price-tree.ts";
 import {
   type BookingNode,
   type BookingTree,
   childPriceFieldName,
   childQuantityFieldName,
-  nodeFixedQuantity,
   nodePriceFieldName,
   nodeQuantityFieldName,
   PACKAGE_QUANTITY_FIELD,
@@ -1548,13 +1547,7 @@ const TicketPageForm = ({
 const packageDayCountPriceFor =
   (tree: BookingTree) =>
   (days: number): number =>
-    tree.nodes.reduce(
-      (sum, node) =>
-        sum +
-        effectivePrice(node.priceRule, node.listing, new Map(), days) *
-          nodeFixedQuantity(node),
-      0,
-    );
+    packageBundleTotal(tree, days);
 
 /** The day-count option pricer for a page: a customisable PACKAGE prices each
  * option as the whole bundle's total; every other page keeps the pricer

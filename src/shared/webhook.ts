@@ -4,6 +4,11 @@
  */
 
 import { mapNotNullish, sumOf, unique } from "#fp";
+import {
+  effectivePrice,
+  NO_CUSTOM_PRICES,
+  packageMemberPriceRule,
+} from "#shared/booking/price-tree.ts";
 import { bookedSpanDays } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
@@ -67,6 +72,9 @@ export type WebhookListing = {
   can_pay_more: boolean;
   customisable_days: boolean;
   day_prices: DayPrices;
+  /** Maximum day count for a customisable listing — the bound the shared price
+   * evaluation validates a booked span against. */
+  duration_days: number;
   months_per_unit: number;
 };
 
@@ -127,32 +135,35 @@ const loadPackageOverrides = async (
   return overrides;
 };
 
-/** The full per-unit price for a booking line. A package member's base
- * `unit_price` is 0 — its charge lives in the package override — so report its
- * configured override (or the listing's base when the member has none), NOT the
- * amount collected: a discounted/deposit/free-provider order pays less now than
- * the ticket is worth, and dividing the paid-now amount would under-report it.
- * A customisable member without a flat override reports its per-day package
- * override for the span actually booked (derived from the stored range) when
- * one is set — the same flat > per-day precedence the checkout charged.
- * Non-package lines report the listing's base price. */
+/** The full per-unit price for a booking line: the shared checkout evaluation
+ * ({@link packageMemberPriceRule} + {@link effectivePrice}) over the span
+ * actually booked (derived from the stored range) — NOT the amount collected: a
+ * discounted/deposit/free-provider order pays less now than the ticket is
+ * worth, and dividing the paid-now amount would under-report it. A package
+ * member reports its flat override (its base `unit_price` is 0 — the charge
+ * lives in the override), else its per-day override, else — like any
+ * customisable line, package or standalone — the listing's own entered day
+ * price for the booked span; everything else reports the listing's base. */
 const ticketUnitPrice = (
   entry: RegistrationEntry,
   overrides: PackageOverrides,
 ): number => {
   const { listing, attendee } = entry;
-  if (attendee.package_group_id > 0) {
-    const groupPricing = overrides.get(attendee.package_group_id);
-    const flat = groupPricing?.prices.get(listing.id);
-    if (flat !== undefined) return flat;
-    const dayOverride = listing.customisable_days
-      ? groupPricing?.dayPrices
-          .get(listing.id)
-          ?.get(bookedSpanDays(attendee.date, attendee.end_date))
+  const groupPricing =
+    attendee.package_group_id > 0
+      ? overrides.get(attendee.package_group_id)
       : undefined;
-    return dayOverride ?? listing.unit_price;
-  }
-  return listing.unit_price;
+  const rule = packageMemberPriceRule(
+    groupPricing?.prices.get(listing.id),
+    groupPricing?.dayPrices.get(listing.id),
+    listing.customisable_days,
+  );
+  return effectivePrice(
+    rule,
+    listing,
+    NO_CUSTOM_PRICES,
+    bookedSpanDays(attendee.date, attendee.end_date),
+  );
 };
 
 /**

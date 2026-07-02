@@ -1,9 +1,10 @@
-import type {
-  BookingNode,
-  BookingTree,
-  PriceRule,
+import {
+  type BookingNode,
+  type BookingTree,
+  nodeFixedQuantity,
+  type PriceRule,
 } from "#shared/booking/tree.ts";
-import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
+import { type DayPricedListing, dayPriceFor } from "#shared/types.ts";
 
 /**
  * The unified **unit price** derivation — one evaluation of a node's `priceRule`
@@ -26,9 +27,40 @@ import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
  * `customPrices ?? unit_price`. A listing is never both `customisable_days` and
  * `can_pay_more` (mutually exclusive at save — `listings-actions.ts`), so this
  * matches the customisable-first `itemUnitPrice` for every reachable config. */
+/** The listing facts {@link effectivePrice} prices from — a structural subset of
+ * `ListingWithCount`, so the webhook/email pipeline's narrower listing rows can
+ * be priced by the same evaluation the checkout uses. */
+export type PricedListing = DayPricedListing & {
+  id: number;
+  unit_price: number;
+};
+
+/** The shared "no buyer custom prices" map for callers pricing configured
+ * amounts only (webhooks, revalidation, bundle totals). */
+export const NO_CUSTOM_PRICES: ReadonlyMap<number, number> = new Map();
+
+/** A package member's {@link PriceRule} from its configured package pricing:
+ * flat override (including an explicit free `0`) > per-day overrides for a
+ * customisable member > the listing's own day/base price. The ONE constructor
+ * every surface that prices a member outside the tree builder (webhook payloads,
+ * payment revalidation) shares with the tree itself, so the precedence can never
+ * fork per surface. Pass both overrides `undefined` for a non-member line: the
+ * rule falls through to the listing's own pricing. */
+export const packageMemberPriceRule = (
+  flatOverrideMinor: number | undefined,
+  dayOverrides: ReadonlyMap<number, number> | undefined,
+  customisableDays: boolean,
+): PriceRule => {
+  if (flatOverrideMinor !== undefined) {
+    return { amountMinor: flatOverrideMinor, kind: "OVERRIDE" };
+  }
+  if (customisableDays) return { kind: "DAY_PRICE", overrides: dayOverrides };
+  return { kind: "BASE" };
+};
+
 export const effectivePrice = (
   priceRule: PriceRule,
-  listing: ListingWithCount,
+  listing: PricedListing,
   customPrices: ReadonlyMap<number, number>,
   dayCount: number,
 ): number => {
@@ -46,6 +78,21 @@ export const effectivePrice = (
       return customPrices.get(listing.id) ?? listing.unit_price;
   }
 };
+
+/** The bundle's total price (minor units) for ONE package at the given day
+ * count: each member's effective unit price (flat override → per-day override →
+ * the listing's own day/base price) × its fixed per-package quantity — the same
+ * tree walk checkout uses, shared by the API detail and the booking page's
+ * day-count labels so an advertised price can never drift from what a booking
+ * charges. */
+export const packageBundleTotal = (tree: BookingTree, days: number): number =>
+  tree.nodes.reduce(
+    (sum, node) =>
+      sum +
+      effectivePrice(node.priceRule, node.listing, NO_CUSTOM_PRICES, days) *
+        nodeFixedQuantity(node),
+    0,
+  );
 
 /** Each booked listing's price rule keyed by listing id, with a **top-level**
  * node's rule taking precedence over a child's. This scopes a package member's

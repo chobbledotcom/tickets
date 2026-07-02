@@ -1,4 +1,5 @@
 import { map } from "#fp";
+import { packageMemberPriceRule } from "#shared/booking/price-tree.ts";
 import {
   type BookingNode,
   type BookingTree,
@@ -68,20 +69,21 @@ const derivePriceRule = (
   overrideMinor: number | undefined,
   dayOverrides?: ReadonlyMap<number, number> | undefined,
 ): PriceRule => {
-  if (overrideMinor !== undefined) {
-    return { amountMinor: overrideMinor, kind: "OVERRIDE" };
-  }
-  if (listing.can_pay_more) {
+  // A flat override outranks pay-more, but the two never coexist: packages
+  // cannot contain pay-what-you-want listings, so an overridden line is never
+  // PAY_MORE. Everything else is the shared member/base rule constructor.
+  if (overrideMinor === undefined && listing.can_pay_more) {
     return {
       kind: "PAY_MORE",
       maxMinor: listing.max_price,
       minMinor: listing.unit_price,
     };
   }
-  if (listing.customisable_days) {
-    return { kind: "DAY_PRICE", overrides: dayOverrides };
-  }
-  return { kind: "BASE" };
+  return packageMemberPriceRule(
+    overrideMinor,
+    dayOverrides,
+    listing.customisable_days,
+  );
 };
 
 /** A required child's date facet. Only a child that carries date/span semantics

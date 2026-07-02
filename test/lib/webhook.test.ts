@@ -165,6 +165,14 @@ describe("webhook", () => {
       expect(payload.tickets[0]!.unit_price).toBe(900);
     });
 
+    /** The payload for entries whose package group 7 carries NO overrides. */
+    const payloadWithEmptyOverrides = (entries: EmailEntry[]) =>
+      buildWebhookPayload(
+        entries,
+        "GBP",
+        new Map([[7, { dayPrices: new Map(), prices: new Map() }]]),
+      );
+
     test("falls back to the base price for a package member with no override", async () => {
       const entries = [
         makeEntry(
@@ -173,30 +181,33 @@ describe("webhook", () => {
         ),
       ];
       // No override row for listing 43 → report the listing's base price.
-      const payload = buildWebhookPayload(
-        entries,
-        "GBP",
-        new Map([[7, { dayPrices: new Map(), prices: new Map() }]]),
-      );
+      const payload = payloadWithEmptyOverrides(entries);
       expect(payload.tickets[0]!.unit_price).toBe(1200);
     });
+
+    /** A 2-night (1–3 Aug) booking of one package-group-7 member, the span the
+     * per-day pricing tests derive their day count from. */
+    const twoNightPackageEntries = (
+      listing: Parameters<typeof makeEntry>[0],
+      pricePaid: string,
+    ) => [
+      makeEntry(listing, {
+        date: "2026-08-01",
+        end_date: "2026-08-03",
+        package_group_id: 7,
+        price_paid: pricePaid,
+        quantity: 1,
+      }),
+    ];
 
     test("reports a customisable member's per-day package override for the booked span", async () => {
       // A 2-night booking of a customisable package member priced only by its
       // per-day override: the payload's unit_price is that override, derived
       // from the stored [start, end) range — never the base listing price.
-      const entries = [
-        makeEntry(
-          { customisable_days: true, id: 44, unit_price: 0 },
-          {
-            date: "2026-08-01",
-            end_date: "2026-08-03",
-            package_group_id: 7,
-            price_paid: "1500",
-            quantity: 1,
-          },
-        ),
-      ];
+      const entries = twoNightPackageEntries(
+        { customisable_days: true, id: 44, unit_price: 0 },
+        "1500",
+      );
       const payload = buildWebhookPayload(
         entries,
         "GBP",
@@ -210,6 +221,49 @@ describe("webhook", () => {
           ],
         ]),
       );
+      expect(payload.tickets[0]!.unit_price).toBe(1500);
+    });
+
+    test("reports a customisable member's OWN day price when the package has no override", async () => {
+      // Regression: the member is priced by its own entered day prices (no flat
+      // or per-day package override exists), so the payload must report the
+      // 2-day price the checkout actually charged — never the base unit_price.
+      const entries = twoNightPackageEntries(
+        {
+          customisable_days: true,
+          day_prices: { 2: 3000 },
+          duration_days: 2,
+          id: 45,
+          unit_price: 0,
+        },
+        "3000",
+      );
+      const payload = payloadWithEmptyOverrides(entries);
+      expect(payload.tickets[0]!.unit_price).toBe(3000);
+    });
+
+    test("reports a standalone customisable booking's day price for the booked span", async () => {
+      // A non-package customisable line is charged its entered day price, so the
+      // payload reports that span price — the same evaluation checkout used —
+      // rather than the flat unit_price.
+      const entries = [
+        makeEntry(
+          {
+            customisable_days: true,
+            day_prices: { 1: 500, 2: 1500 },
+            duration_days: 2,
+            id: 46,
+            unit_price: 500,
+          },
+          {
+            date: "2026-08-01",
+            end_date: "2026-08-03",
+            price_paid: "1500",
+            quantity: 1,
+          },
+        ),
+      ];
+      const payload = await buildWebhookPayload(entries, "GBP");
       expect(payload.tickets[0]!.unit_price).toBe(1500);
     });
 

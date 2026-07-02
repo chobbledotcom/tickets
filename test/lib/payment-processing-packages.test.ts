@@ -5,6 +5,7 @@ import {
   type PackagePricing,
   packageBundleMismatch,
 } from "#routes/api/payment-processing.ts";
+import type { PricedListing } from "#shared/booking/price-tree.ts";
 
 const pkg: PackagePricing = {
   dayPriceMap: new Map([[2, new Map([[2, 700]])]]),
@@ -17,6 +18,27 @@ const pkg: PackagePricing = {
 };
 const item = (e: number, q = 1) => ({ e, p: 0, q });
 
+/** A fixed-price listing row: priced by unit_price alone. */
+const fixedListing = (id: number, unitPrice: number): PricedListing => ({
+  customisable_days: false,
+  day_prices: {},
+  duration_days: 1,
+  id,
+  unit_price: unitPrice,
+});
+
+/** A customisable listing row priced by its own entered day prices. */
+const dayListing = (
+  id: number,
+  dayPrices: Record<number, number>,
+): PricedListing => ({
+  customisable_days: true,
+  day_prices: dayPrices,
+  duration_days: 3,
+  id,
+  unit_price: 0,
+});
+
 /** The checkout's non-customisable default: day count 1, no day pricing. */
 const price = (
   p: PackagePricing | null,
@@ -24,7 +46,8 @@ const price = (
   folded: Set<number>,
   line: { e: number; p: number; q: number },
   base: number,
-) => expectedItemPrice(p, isPackage, folded, line, base, false, 1);
+) =>
+  expectedItemPrice(p, isPackage, folded, line, fixedListing(line.e, base), 1);
 
 describe("expectedItemPrice (package revalidation)", () => {
   test("a non-package booking uses the base price", () => {
@@ -53,13 +76,30 @@ describe("expectedItemPrice (package revalidation)", () => {
 
   test("a customisable member's per-day override prices override × qty", () => {
     expect(
-      expectedItemPrice(pkg, true, new Set(), item(2, 3), 5000, true, 2),
+      expectedItemPrice(
+        pkg,
+        true,
+        new Set(),
+        item(2, 3),
+        dayListing(2, { 2: 5000 }),
+        2,
+      ),
     ).toBe(2100);
   });
 
-  test("a customisable member without an override for the chosen span keeps the (day-priced) base", () => {
+  test("a customisable member without an override for the chosen span keeps its own day price", () => {
+    // The package's day override covers span 2 only; span 3 falls through to
+    // the listing's own entered 3-day price — the same DAY_PRICE fallback the
+    // checkout evaluated.
     expect(
-      expectedItemPrice(pkg, true, new Set(), item(2), 5000, true, 3),
+      expectedItemPrice(
+        pkg,
+        true,
+        new Set(),
+        item(2),
+        dayListing(2, { 3: 5000 }),
+        3,
+      ),
     ).toBe(5000);
   });
 
@@ -69,13 +109,27 @@ describe("expectedItemPrice (package revalidation)", () => {
       dayPriceMap: new Map([[1, new Map([[2, 700]])]]),
     };
     expect(
-      expectedItemPrice(flatAndDay, true, new Set(), item(1), 5000, true, 2),
+      expectedItemPrice(
+        flatAndDay,
+        true,
+        new Set(),
+        item(1),
+        dayListing(1, { 2: 5000 }),
+        2,
+      ),
     ).toBe(1500);
   });
 
   test("a day override never applies to a non-customisable member", () => {
     expect(
-      expectedItemPrice(pkg, true, new Set(), item(2), 5000, false, 2),
+      expectedItemPrice(
+        pkg,
+        true,
+        new Set(),
+        item(2),
+        fixedListing(2, 5000),
+        2,
+      ),
     ).toBe(5000);
   });
 });

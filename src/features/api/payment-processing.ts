@@ -33,7 +33,6 @@
 import { sumOf } from "#fp";
 import type {
   BookingIntent,
-  ListingPriceValidation,
   ListingValidation,
   PaymentFailureResult,
   PaymentResult,
@@ -49,6 +48,12 @@ import { bookingDateFields } from "#routes/public/ticket-payment.ts";
 import { htmlResponse, paymentErrorResponse } from "#routes/response.ts";
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import {
+  effectivePrice,
+  NO_CUSTOM_PRICES,
+  type PricedListing,
+  packageMemberPriceRule,
+} from "#shared/booking/price-tree.ts";
 import { edgeDrifted } from "#shared/booking/signed-metadata.ts";
 import type { BookingTree } from "#shared/booking/tree.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
@@ -119,7 +124,7 @@ import {
 import { addPendingWork } from "#shared/pending-work.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger.ts";
 import { bookingLedgerDisposition } from "#shared/session-ledger.ts";
-import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { paymentCancelPage } from "#templates/payment.tsx";
 import { buildTicketListing } from "#templates/public/shared.tsx";
@@ -407,26 +412,6 @@ const validateListingForPayment = async (
   return { listing, ok: true };
 };
 
-const validateAndPrice = async (
-  input: { listingId: number; quantity: number },
-  includeListingName = false,
-  dayCount?: number,
-): Promise<ListingPriceValidation> => {
-  const validation = await validateListingForPayment(
-    input.listingId,
-    includeListingName,
-  );
-  if (!validation.ok) return validation;
-  // Customisable-days listings are priced by the chosen day count, not by the
-  // flat unit_price, so the per-item amount must be re-derived the same way the
-  // checkout computed it.
-  const perTicket = validation.listing.customisable_days
-    ? (dayPriceFor(validation.listing, dayCount ?? 1) ?? 0)
-    : validation.listing.unit_price;
-  const expectedPrice = perTicket * input.quantity;
-  return { expectedPrice, listing: validation.listing, ok: true };
-};
-
 /** Check if the amount charged matches the current listing price (including booking fee).
  * For pay-more listings, the amount must be >= the expected minimum price and <= the max cap.
  * `quantity` scales max_price so purchases are validated against the correct total cap. */
@@ -645,36 +630,32 @@ const loadPackagePricing = async (
 };
 
 /** The expected line total for one item, or `null` to fail closed (force a
- * `price_changed` refund). Folded children (in the allocations) always price at
- * the normal per-listing `basePrice`. For a NON-package order every line is
- * base-priced. For a package order every top-level line must still be a current
- * member: an override prices at `override × qty` (including an explicit free 0),
- * a member with no override keeps `basePrice`, and a line that is no longer a
- * member (package deleted, un-flagged, or the listing removed mid-checkout)
- * fails closed. A customisable member with a per-day override for the order's
- * day count prices at `override × qty` when no flat override outranks it —
- * mirroring the checkout's `derivePriceRule`/`effectivePrice` precedence (flat
- * `OVERRIDE` > per-day override > the listing's own day price, which is already
- * in `basePrice`). The override only applies to a customisable listing, exactly
- * as the tree only carries day overrides on a `DAY_PRICE` rule. */
+ * `price_changed` refund). Derives the line's {@link PriceRule} with the SAME
+ * constructor the checkout tree and the webhook payload use
+ * ({@link packageMemberPriceRule}) and evaluates it with the same
+ * {@link effectivePrice}, so revalidation can never drift from what checkout
+ * charged: a member's flat override (including an explicit free 0) > its
+ * per-day override for the order's day count > the listing's own day/base
+ * price. A line that is no longer a current member (package deleted,
+ * un-flagged, or the listing removed mid-checkout) fails closed. */
 export const expectedItemPrice = (
   pkg: PackagePricing | null,
   isPackageIntent: boolean,
   foldedChildIds: ReadonlySet<number>,
   item: BookingItem,
-  basePrice: number,
-  customisableDays: boolean,
+  listing: PricedListing,
   dayCount: number,
 ): number | null => {
-  if (foldedChildIds.has(item.e)) return basePrice;
-  if (!isPackageIntent) return basePrice;
-  if (!pkg || !pkg.memberIds.has(item.e)) return null;
-  const override = pkg.priceMap.get(item.e);
-  if (override !== undefined) return override * item.q;
-  const dayOverride = customisableDays
-    ? pkg.dayPriceMap.get(item.e)?.get(dayCount)
-    : undefined;
-  return dayOverride !== undefined ? dayOverride * item.q : basePrice;
+  // A folded child keeps its own base/day rule even when it is also a member;
+  // a top-level package line must still be a member, else fail closed.
+  const memberLine = isPackageIntent && !foldedChildIds.has(item.e);
+  if (memberLine && !pkg?.memberIds.has(item.e)) return null;
+  const rule = packageMemberPriceRule(
+    memberLine ? pkg!.priceMap.get(item.e) : undefined,
+    memberLine ? pkg!.dayPriceMap.get(item.e) : undefined,
+    listing.customisable_days,
+  );
+  return effectivePrice(rule, listing, NO_CUSTOM_PRICES, dayCount) * item.q;
 };
 
 /**
@@ -792,11 +773,7 @@ const validateAllItems = async (
   );
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
-    const vp = await validateAndPrice(
-      { listingId: item.e, quantity: item.q },
-      includeListingName,
-      intent.dayCount,
-    );
+    const vp = await validateListingForPayment(item.e, includeListingName);
     if (!vp.ok) return validationFailure(session, vp, item.e);
     // `null` here means "fail closed" (the line is no longer a valid package
     // member); it is carried through so the price-mismatch pass refunds it via
@@ -807,8 +784,7 @@ const validateAllItems = async (
         isPackageIntent,
         foldedChildIds,
         item,
-        vp.expectedPrice,
-        vp.listing.customisable_days,
+        vp.listing,
         intent.dayCount ?? 1,
       ),
       item,

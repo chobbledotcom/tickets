@@ -39,7 +39,6 @@ export type EmailListing = WebhookListing & {
   assign_built_site: boolean;
   initial_site_months: number;
   listing_type: "standard" | "daily";
-  duration_days: number;
 };
 
 /** Attendee + listing pair for email rendering */

@@ -39,8 +39,7 @@ import { getBaseUrl, getClientIp } from "#routes/url.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import { packageQuantityCap } from "#shared/booking/capacity-tree.ts";
 import type { FoldChildrenResult } from "#shared/booking/fold-tree.ts";
-import { effectivePrice } from "#shared/booking/price-tree.ts";
-import { type BookingTree, nodeFixedQuantity } from "#shared/booking/tree.ts";
+import { packageBundleTotal } from "#shared/booking/price-tree.ts";
 import { processBooking } from "#shared/booking.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
@@ -1081,20 +1080,6 @@ const handleBook = withActiveListing(async (request, listing, server) => {
 // =============================================================================
 // Packages
 // =============================================================================
-
-/** The bundle's total price (minor units) for ONE package at the given day
- * count: each member's effective unit price (flat override → per-day override →
- * the listing's own day/base price) × its fixed per-package quantity — the same
- * tree walk the booking page's day-count labels and checkout use, so the API's
- * advertised price can't drift from what a booking charges. */
-const packageBundleTotal = (tree: BookingTree, days: number): number =>
-  tree.nodes.reduce(
-    (sum, node) =>
-      sum +
-      effectivePrice(node.priceRule, node.listing, new Map(), days) *
-        nodeFixedQuantity(node),
-    0,
-  );
 
 /** Resolve a bookable package with the booking context and tree-driven package
  * cap the detail and booking endpoints share, or null (unknown slug, not a

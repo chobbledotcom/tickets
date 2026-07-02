@@ -85,6 +85,7 @@ describe("webhook example", () => {
       can_pay_more: false,
       customisable_days: false,
       day_prices: {},
+      duration_days: 1,
       id: 1,
       max_attendees: 100,
       months_per_unit: 0,
