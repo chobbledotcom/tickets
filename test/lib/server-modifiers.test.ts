@@ -138,6 +138,30 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect(modifier.direction).toBe("charge");
     });
 
+    test("accepts a fixed amount at the currency's precision", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ calc_kind: "fixed", calc_value: "5.50" }),
+      );
+      expect((await lastModifier()).calc_value).toBe(5.5);
+    });
+
+    test("rejects a fixed amount with too many decimals for the currency", async () => {
+      // A fixed amount is a currency value (major units, converted at resolve).
+      // 10.005 has 3 decimals — invalid in GBP (2) — so it's rejected rather
+      // than silently rounded when the modifier is applied. A percentage or
+      // multiplier keeps its precision, so this only guards the fixed kind.
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ calc_kind: "fixed", calc_value: "10.005" }),
+      );
+      await expectFlashRedirect(
+        "/admin/modifiers/new",
+        "Amount has more decimal places than your currency allows",
+        false,
+      )(response);
+    });
+
     test("stores the minimum order in minor units", async () => {
       await adminFormPost(
         "/admin/modifiers",
@@ -158,7 +182,21 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       await expectFlashRedirect(
         "/admin/modifiers/new",
-        "Minimum order must be a positive number",
+        "Minimum order must be a valid amount for your currency",
+        false,
+      )(response);
+    });
+
+    test("rejects a minimum order with too many decimals for the currency", async () => {
+      // 10.005 has 3 decimals — invalid in GBP (2). Without validation this
+      // would be rounded by toMinorUnits at save; instead it's rejected.
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ min_subtotal: "10.005" }),
+      );
+      await expectFlashRedirect(
+        "/admin/modifiers/new",
+        "Minimum order must be a valid amount for your currency",
         false,
       )(response);
     });

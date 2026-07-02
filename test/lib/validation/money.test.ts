@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe } from "@std/testing/bdd";
 import type { SettingsData } from "#shared/db/settings.ts";
 import {
+  exceedsCurrencyPrecision,
   parseNonNegativeMinorUnits,
   parseOptionalMinorUnits,
   parsePositiveMinorUnits,
@@ -246,4 +247,42 @@ describe("validatePrice (bounded public/QR price)", () => {
       expect(validatePrice("5", 500, 500)).toEqual({ ok: true, price: 500 });
     },
   );
+});
+
+describe("exceedsCurrencyPrecision (already-parsed major-unit amount)", () => {
+  const table = (
+    currency: SettingsData["currency"],
+    rows: Array<[number, boolean]>,
+  ) => {
+    for (const [value, expected] of rows) {
+      testWithSetting(
+        `${currency}: ${value} → ${expected}`,
+        { currency },
+        () => {
+          expect(exceedsCurrencyPrecision(value)).toBe(expected);
+        },
+      );
+    }
+  };
+
+  // GBP allows 2 decimals: 3+ is over-precise, an integer or ≤2 dp is not.
+  table("GBP", [
+    [10, false],
+    [10.1, false],
+    [10.01, false],
+    [10.005, true],
+    [10.999, true],
+  ]);
+
+  // JPY has no minor unit, so any fraction is over-precise.
+  table("JPY", [
+    [10, false],
+    [10.5, true],
+  ]);
+
+  // KWD allows 3 decimals.
+  table("KWD", [
+    [1.005, false],
+    [1.0005, true],
+  ]);
 });
