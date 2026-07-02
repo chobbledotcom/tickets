@@ -548,6 +548,64 @@ export const adminAnswerDeletePage = (
   );
 
 /** Listing questions assignment page */
+/**
+ * The listing "Questions" panel: assign the site's questions to this listing.
+ * Rendered as the listing entity page's Questions tab (owner-only) and composed
+ * into the legacy {@link adminListingQuestionsPage}. Carries its own error flash
+ * for in-place 400 re-renders.
+ */
+export const ListingQuestionsPanel = ({
+  listing,
+  allQuestions,
+  assignedIds,
+  error,
+}: {
+  listing: ListingWithCount;
+  allQuestions: QuestionWithAnswers[];
+  assignedIds: Set<number>;
+  error?: string | undefined;
+}): JSX.Element => (
+  <>
+    <h1>{t("questions.listing.heading", { listing: listing.name })}</h1>
+    <Flash error={error} />
+
+    {allQuestions.length === 0 ? (
+      <p>
+        No questions created yet.{" "}
+        <a href="/admin/questions">Create questions</a> first.
+      </p>
+    ) : (
+      <CsrfForm action={`/admin/listing/${listing.id}/questions`}>
+        <fieldset class="checkboxes">
+          {map((q: QuestionWithAnswers) => (
+            <label>
+              <input
+                checked={assignedIds.has(q.id) || undefined}
+                name="question_ids"
+                type="checkbox"
+                value={String(q.id)}
+              />
+              {` ${questionTextFlat(q.text)}`}
+              <small>
+                {" "}
+                ({q.answers.length} option{q.answers.length !== 1 ? "s" : ""}
+                {q.answers.length > 0 && (
+                  <>: {map((a: Answer) => a.text)(q.answers).join(", ")}</>
+                )}
+                )
+              </small>
+            </label>
+          ))(allQuestions)}
+        </fieldset>
+        <SubmitButton icon="save">{t("common.save")}</SubmitButton>
+      </CsrfForm>
+    )}
+    <p>
+      <a href="/admin/questions">{t("questions.listing.manage")}</a>
+    </p>
+  </>
+);
+
 export const adminListingQuestionsPage = (
   listing: ListingWithCount,
   allQuestions: QuestionWithAnswers[],
@@ -558,43 +616,6 @@ export const adminListingQuestionsPage = (
   String(
     <Layout title={`Questions: ${listing.name}`}>
       <AdminNav active="/admin/" session={session} />
-
-      <h1>{t("questions.listing.heading", { listing: listing.name })}</h1>
-      <Flash error={error} />
-
-      {allQuestions.length === 0 ? (
-        <p>
-          No questions created yet.{" "}
-          <a href="/admin/questions">Create questions</a> first.
-        </p>
-      ) : (
-        <CsrfForm action={`/admin/listing/${listing.id}/questions`}>
-          <fieldset class="checkboxes">
-            {map((q: QuestionWithAnswers) => (
-              <label>
-                <input
-                  checked={assignedIds.has(q.id) || undefined}
-                  name="question_ids"
-                  type="checkbox"
-                  value={String(q.id)}
-                />
-                {` ${questionTextFlat(q.text)}`}
-                <small>
-                  {" "}
-                  ({q.answers.length} option{q.answers.length !== 1 ? "s" : ""}
-                  {q.answers.length > 0 && (
-                    <>: {map((a: Answer) => a.text)(q.answers).join(", ")}</>
-                  )}
-                  )
-                </small>
-              </label>
-            ))(allQuestions)}
-          </fieldset>
-          <SubmitButton icon="save">{t("common.save")}</SubmitButton>
-        </CsrfForm>
-      )}
-      <p>
-        <a href="/admin/questions">{t("questions.listing.manage")}</a>
-      </p>
+      {ListingQuestionsPanel({ allQuestions, assignedIds, error, listing })}
     </Layout>,
   );
