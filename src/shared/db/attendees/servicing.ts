@@ -34,6 +34,7 @@ import {
 import { queryAll, queryOne, withTransaction } from "#shared/db/client.ts";
 import {
   type AttendeeAnswerSet,
+  type AttendeeAnswersBatch,
   getAttendeeAnswersBatch,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
@@ -424,6 +425,20 @@ const restoreServicingState = async (
   await saveAttendeeAnswers(new Map([[id, answersBefore]]));
 };
 
+/** Collapse a batch answer read for one attendee into the {@link AttendeeAnswerSet}
+ *  `saveAttendeeAnswers` restores — choice ids plus the decrypted free-text
+ *  answers as `{ questionId, text }` pairs, so a compensation re-saves the whole
+ *  answer set rather than only its choice half. */
+const snapshotAnswerSet = (
+  id: number,
+  batch: AttendeeAnswersBatch,
+): AttendeeAnswerSet => ({
+  answerIds: batch.answerIds.get(id) ?? [],
+  textAnswers: [
+    ...(batch.textAnswers.get(id) ?? new Map<number, string>()),
+  ].map(([questionId, text]) => ({ questionId, text })),
+});
+
 export const updateServicingEvent = async (
   id: number,
   input: ServicingEventInput,
@@ -431,13 +446,18 @@ export const updateServicingEvent = async (
   const name = assertServicingEditInput(input);
   const current = await getServicingEvent(id);
   if (!current) throw new Error("servicing event not found");
-  const [existingBefore, answersBeforeMap] = await Promise.all([
+  // Snapshot the FULL pre-edit answer set — choice ids AND decrypted free-text
+  // answers. A choice-only snapshot ({ texts: false }) would let the
+  // compensation drop any free-text answer saveAttendeeAnswers deleted, even
+  // though the edit is reported as rolled back.
+  const [existingBefore, answersBeforeBatch] = await Promise.all([
     loadExistingLines(id),
-    getAttendeeAnswersBatch([id], { texts: false }),
+    getAttendeeAnswersBatch([id], {
+      privateKey: await requestKey(),
+      texts: true,
+    }),
   ]);
-  const answersBefore: AttendeeAnswerSet = {
-    answerIds: answersBeforeMap.get(id) ?? [],
-  };
+  const answersBefore = snapshotAnswerSet(id, answersBeforeBatch);
   const encryptedPiiBlob = await encryptPiiBlob(
     buildPiiBlob({
       address: "",
