@@ -131,7 +131,7 @@ const isPackageableMember = (
 
 /** Whether every listing can be a package member, judged against ONE batched
  * edge load (two queries for the whole member list, never per member). */
-const allPackageableMembers = async (
+export const allPackageableMembers = async (
   listings: readonly Parameters<typeof isPackageableMember>[0][],
   hideListings: boolean | undefined,
 ): Promise<boolean> => {

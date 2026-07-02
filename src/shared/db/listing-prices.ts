@@ -95,6 +95,25 @@ export const groupDayPriceStatements = (
   return statements;
 };
 
+/** The INSERT statements adding ONE listing's `group_day` overrides for ONE
+ * group — targeted (no group-wide delete), so importing a listing into an
+ * already-populated package never disturbs the other members' per-day overrides
+ * the way {@link groupDayPriceStatements}' full-replace would. Entries are
+ * normalised through {@link parseDayPrices} like every other day-price write. */
+export const listingGroupDayInsertStatements = (
+  groupId: number,
+  listingId: number,
+  dayPrices: DayPrices,
+): PriceStatement[] =>
+  Object.entries(parseDayPrices(dayPrices)).map(([days, price]) =>
+    insertPriceStatement([
+      listingId,
+      PRICE_TYPE_GROUP_DAY,
+      groupDayPriceId(groupId, days),
+      price,
+    ]),
+  );
+
 /** A raw `group_day` row as SELECTed for the readers below. */
 type GroupDayRow = { listing_id: number; price_id: string; unit_price: number };
 
