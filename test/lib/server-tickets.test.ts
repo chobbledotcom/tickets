@@ -571,10 +571,12 @@ describeWithEnv(
         name: "Trip Cabin",
       });
       const date = addDays(todayInTz("UTC"), 2);
+      // The 2-day member books FIRST so the widest-member scan sees the widest
+      // card, then a narrower one it must keep passing over.
       const result = await createAttendeeAtomic({
         bookings: [
-          { date, listingId: oneDay.id, quantity: 1 },
           { date, listingId: twoDay.id, quantity: 1 },
+          { date, listingId: oneDay.id, quantity: 1 },
         ],
         email: "trip@test.com",
         name: "Tripper",

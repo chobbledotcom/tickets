@@ -28,5 +28,6 @@ export const expectPackageBookingAccepted = async (
 ): Promise<void> => {
   const { expect } = await import("@std/expect");
   expect([302, 303]).toContain(submit.status);
-  expect(submit.headers.get("location") ?? "").not.toContain("error");
+  // A 30x always carries a Location header.
+  expect(submit.headers.get("location")!).not.toContain("error");
 };

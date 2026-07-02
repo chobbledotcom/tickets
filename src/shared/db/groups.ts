@@ -243,13 +243,6 @@ const anyGroupMatching = async (
   return rows.length > 0;
 };
 
-/** Whether any of the given group ids names a package group. The shared check
- * the listing API and the children sub-form use to keep a package member from
- * being turned into another listing's required child. */
-export const anyPackageGroup = (
-  groupIds: readonly number[],
-): Promise<boolean> => anyGroupMatching(groupIds, "is_package = 1");
-
 /** Whether any of the given group ids names a HIDDEN package group
  * (`hide_package_listings`). A hidden package collapses its members to the
  * package name on every buyer surface, so a member there can never gate its own
