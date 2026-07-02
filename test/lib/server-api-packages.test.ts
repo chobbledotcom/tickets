@@ -97,6 +97,26 @@ const withAddonGetPackage = async (
   return (await (await apiGet(`/api/packages/${slug}`)).json()).package;
 };
 
+/** A package of two identical parent-capable members, for the cross-parent
+ * child-demand cases (each member gets its add-ons attached by the test). */
+const twoParentPackage = async (name: string, slug: string) => {
+  const group = await createTestGroup({ isPackage: true, name, slug });
+  const memberOpts = {
+    groupId: group.id,
+    maxAttendees: 10,
+    maxQuantity: 10,
+    unitPrice: 500,
+  };
+  const m1 = await createTestListing({ ...memberOpts, name: `${name} A` });
+  const m2 = await createTestListing({ ...memberOpts, name: `${name} B` });
+  return { group, m1, m2 };
+};
+
+/** The package detail's advertised whole-bundle cap. */
+const packageCap = async (slug: string): Promise<number> =>
+  (await (await apiGet(`/api/packages/${slug}`)).json()).package
+    .maxPurchasable as number;
+
 describeWithEnv("public API packages", { db: true }, () => {
   beforeEach(async () => {
     await settings.update.showPublicApi(true);
@@ -358,19 +378,7 @@ describeWithEnv("public API packages", { db: true }, () => {
     // One bundle folds BOTH members' units into the same sole add-on, so its
     // 2 spots serve exactly 1 bundle — the per-member caps each read 2 and
     // their minimum would advertise 2, a count the fold rejects.
-    const group = await createTestGroup({
-      isPackage: true,
-      name: "Drain Kit",
-      slug: "drain-kit",
-    });
-    const memberOpts = {
-      groupId: group.id,
-      maxAttendees: 10,
-      maxQuantity: 10,
-      unitPrice: 500,
-    };
-    const m1 = await createTestListing({ ...memberOpts, name: "Drain A" });
-    const m2 = await createTestListing({ ...memberOpts, name: "Drain B" });
+    const { group, m1, m2 } = await twoParentPackage("Drain Kit", "drain-kit");
     const addon = await createTestListing({
       maxAttendees: 2,
       maxQuantity: 10,
@@ -379,10 +387,36 @@ describeWithEnv("public API packages", { db: true }, () => {
     });
     await setChildIds(m1.id, [addon.id]);
     await setChildIds(m2.id, [addon.id]);
-    const { package: pkg } = await (
-      await apiGet(`/api/packages/${group.slug}`)
-    ).json();
-    expect(pkg.maxPurchasable).toBe(1);
+    expect(await packageCap(group.slug)).toBe(1);
+  });
+
+  test("two parents whose add-on choices all draw one capped pool aggregate demand", async () => {
+    // Each member offers a CHOICE of two add-ons, but every choice sits in
+    // the same capped group (2 spots): one bundle folds 2 child units into
+    // that pool whichever add-ons the buyer picks, so only 1 bundle fits —
+    // the per-member caps each read 2.
+    const { group, m1, m2 } = await twoParentPackage(
+      "Pool Drain",
+      "pool-drain",
+    );
+    const pool = await createTestGroup({
+      maxAttendees: 2,
+      name: "Choice Pool",
+      slug: "choice-pool",
+    });
+    const addonOpts = {
+      groupId: pool.id,
+      maxAttendees: 10,
+      maxQuantity: 10,
+      unitPrice: 100,
+    };
+    const addons = [];
+    for (const name of ["Choice 1", "Choice 2", "Choice 3", "Choice 4"]) {
+      addons.push(await createTestListing({ ...addonOpts, name }));
+    }
+    await setChildIds(m1.id, [addons[0]!.id, addons[1]!.id]);
+    await setChildIds(m2.id, [addons[2]!.id, addons[3]!.id]);
+    expect(await packageCap(group.slug)).toBe(1);
   });
 
   test("POST books whole bundles, clamped to the cap, stamping the group", async () => {
