@@ -122,6 +122,12 @@ JSON API; the single-listing duplicate and group bulk-duplicate paths).
   *buyer-choice*), not itself a package member (keep the
   `anyListingInPackageGroup` arm), and not itself a parent (parent/child is
   one level deep everywhere already).
+- The candidate rules **compose with** the existing per-edge blockers in the
+  parent/child save path, they do not replace them: `edgeFieldError` (no
+  renewal-tier children, `months_per_unit > 0`, plus the daily-child field
+  rules) and `childEdgeError`'s rejection of child-only opt-in add-ons
+  (`getTicketContext` loads add-ons only for the page listing ids, so a
+  slot page could never render them) both still apply to slot candidates.
 - Only the **parent direction** of today's `hasParentChildEdge` guard is
   relaxed. A member that is itself a **child** under another parent stays
   rejected (`edgeIdsTouching(...).parentIds` non-empty): a child-only add-on
@@ -175,20 +181,26 @@ top-level member nodes. Two pieces of work:
   dependency. Move the separate-pool / shared-capped-group cohort math into a
   shared booking module (e.g. `src/shared/booking/child-capacity.ts`)
   consumed by both the render clamp and the package cap.
-- **Fold candidate demand into the same per-group demand walk — not an
-  independent minimum term.** A slot contributes two constraints: its
-  candidates' combined supply (`⌊combined candidate cap ÷ pickCount⌋`, via
-  the extracted cohort math) **and** `pickCount` units of per-package demand
-  against every capped group its candidates draw from — aggregated into the
-  *same* `demandByGroup` map as the fixed members, because a candidate and a
-  fixed member can share a capped pool. Example: fixed member M and candidate
-  C both in capped group G with 2 remaining; independent terms each allow 2
-  packages, but one package consumes 2 G-spots (1 for M, 1 for C), so only 1
-  fits. Candidate demand is buyer-mix-dependent, so bucket it the way the
-  cohort math already does (conservative on shared pools); the atomic batch
-  write predicate remains the authoritative backstop for whatever the clamp
-  cannot see. `resolvePageQuantities` clamps the posted count with the same
-  function, so the submit clamp comes along automatically.
+- **Reserve deterministic demand, then check candidate supply against the
+  residual pools — neither an independent minimum nor unconditional
+  worst-case demand.** Candidate demand is buyer-mix-dependent, so both naive
+  models fail in opposite directions. An *independent* candidate-only term
+  misses shared pools: fixed member M and sole candidate C both in capped
+  group G with 2 remaining — independent terms each allow 2 packages, but one
+  package consumes 2 G-spots (1 for M, 1 for C), so only 1 fits. But
+  *unconditionally* charging `pickCount` demand to every pool any candidate
+  touches over-constrains slots with alternatives: same M and C in G, plus
+  candidate D outside G — 2 packages are bookable by picking D twice, yet a
+  worst-case demand map divides G by fixed+candidate demand and caps at 1.
+  The correct walk: for a target package count `q`, subtract the
+  deterministic per-package demand (fixed members and slot own lines,
+  `× q`) from each capped pool, then check each slot's candidates can supply
+  `pickCount × q` against those **residual** pools via the extracted cohort
+  math; the cap is the largest feasible `q` (supply is monotone in `q`, so a
+  closed-form/loop over the member-cap bound works). The atomic batch write
+  predicate remains the authoritative backstop for the buyer's actual mix.
+  `resolvePageQuantities` clamps the posted count with the same function, so
+  the submit clamp comes along automatically.
 
 Discovery: `packageGroupBookable` (`src/features/public/discovery.ts`) builds
 its tree without `childrenByParentId`; it must load candidates so `/listings`,
@@ -224,7 +236,7 @@ message. Per `booking-unification.md`, also add limit tests asserting a
 multi-slot, multi-pick package stays within Square's entry-count/value-length
 caps.
 
-### G. No standalone booking of a slot listing
+### G. No standalone booking of a slot listing — every surface, one predicate
 
 Marking a slot listing `hidden` only removes it from discovery — the
 explicit-slug entry points still resolve active hidden listings: a parent is a
@@ -232,14 +244,42 @@ valid `/ticket/<slug>` entry that folds its children, `withActiveListings`
 404s only children and hidden-package members, and the JSON API's
 `findActiveListing` resolves it too. A £0 (or price-divided) chooser parent
 could therefore be bought outside the package, bypassing the fixed members and
-the package pricing. Fix at the shared gate: extend
-`lacksStandalonePublicPage` (`src/features/public/ticket-payment.ts`) — child
-OR hidden-package member OR **package member with child edges** — and apply
-the same predicate in `withActiveListings`, the JSON API lookup, and QR
-issuance. Admin public-URL/QR/embed affordances already route through
-`lacksStandalonePublicPage`, so they gate automatically ("never render a dead
-or forbidden link"). Ordinary (childless) package members stay
-standalone-bookable at their own price — existing, deliberate behaviour.
+the package pricing.
+
+The fix is to give a slot listing the same non-standalone treatment a child
+gets, from **one** extended predicate — `lacksStandalonePublicPage`
+(`src/features/public/ticket-payment.ts`) becomes child OR hidden-package
+member OR **package member with child edges** — applied on every surface
+where children are handled today. Enumerating them (each is a real bypass
+otherwise):
+
+- **Direct slug entries:** `withActiveListings` (web) and the JSON API's
+  `findActiveListing`.
+- **QR — issuance AND scan.** The scan handler
+  (`src/features/public/qr-book.ts`) does not route through
+  `withActiveListings`; it rejects only children and hidden-package members
+  before dispatching to `handleTicket`. A QR minted just before a listing
+  became a slot would keep booking it standalone for the token's lifetime, so
+  the scan handler runs the same predicate.
+- **Regular (non-package) group pages.** Membership is many-to-many, and
+  `visibleGroupMembers` drops only hidden-package members for non-package
+  groups — a slot listing that also joined a regular group would render there
+  as an ordinary parent row with child selectors. Drop slot members from
+  non-package group sets, mirroring how `dropChildListings` strips children
+  from indirectly-loaded pages.
+- **Public catalogs/discovery.** `getCatalogListings`
+  (`src/shared/db/listings.ts`), the `/listings` page classification, and the
+  `/order` gallery exclude children and hidden-package members but would
+  still advertise a slot card pointing at the now-404 `/ticket/<slot>` URL.
+- **Admin share affordances — explicitly, not "automatically".** The admin
+  listing view computes `shareSuppressed = isChild || isHiddenPackageMember`
+  from flags `listings-view.ts` passes into the template — it does **not**
+  call `lacksStandalonePublicPage` — so the view must pass (or the template
+  derive) the extended predicate, with a regression asserting an active
+  non-hidden slot renders no public URL/QR/embed links.
+
+Ordinary (childless) package members stay standalone-bookable at their own
+price — existing, deliberate behaviour.
 
 ## Semantics (accepted, to document)
 
@@ -286,9 +326,11 @@ standalone-bookable at their own price — existing, deliberate behaviour.
 - **Admin:** the slot configuration accepted via *every* save path (group
   edit/add-listings, listing save, children form, JSON API, both duplicate
   paths); pay-more/daily/nested/package-member candidates rejected from each;
-  a listing that is itself a **child** under another parent rejected as a
-  member; two slots of one package sharing a candidate rejected;
-  hidden-package × slot rejected both directions.
+  renewal-tier (`months_per_unit > 0`) and child-only opt-in add-on
+  candidates rejected (the existing edge blockers still apply); a listing
+  that is itself a **child** under another parent rejected as a member; two
+  slots of one package sharing a candidate rejected; hidden-package × slot
+  rejected both directions.
 - **Fold:** pick-counts enforced exactly at `packageQty ∈ {1, 2}` ×
   `pickCount ∈ {1, 2}` (regression on a doubled/missing multiplier); mixed
   picks across candidates; repeat picks; tampered candidate ids rejected.
@@ -296,9 +338,11 @@ standalone-bookable at their own price — existing, deliberate behaviour.
   running total (`/calculate`) matches submit matches webhook re-price.
 - **Capacity:** package cap clamped by `⌊candidate combined cap ÷ pickCount⌋`;
   a candidate and a fixed member sharing one capped pool cap at the *joint*
-  per-package demand (the 2-remaining example above yields 1, not 2); a
-  sold-out candidate set ⇒ package sold out everywhere discovery looks
-  (cards, `/order.js`, feeds, API, QR) in lockstep with the ticket page.
+  per-package demand (the shared-pool example above yields 1, not 2); a slot
+  with an alternative candidate outside the shared pool is NOT
+  over-constrained (the M/C/D example yields 2, not 1); a sold-out candidate
+  set ⇒ package sold out everywhere discovery looks (cards, `/order.js`,
+  feeds, API, QR) in lockstep with the ticket page.
 - **Client enhancement:** with only `package_quantity` set (no
   `quantity_<id>` controls), a slot's candidate-scoped questions show/require
   and the required child total reads `pickCount × packageQty`.
@@ -307,8 +351,11 @@ standalone-bookable at their own price — existing, deliberate behaviour.
 - **Display/privacy:** package ticket card groups slot + chosen candidates;
   no surface names a candidate of a (rejected) hidden configuration.
 - **Standalone bypass:** a slot listing 404s on direct `/ticket/<slug>`, the
-  JSON API lookup, and QR issuance — even when active and non-hidden — and
-  admin URL/QR/embed affordances render no link for it.
+  JSON API lookup, QR issuance, AND the QR **scan** path (a token minted
+  before the listing became a slot) — even when active and non-hidden; it is
+  dropped from a regular group's `/ticket/<group>` page it also belongs to;
+  it appears on no catalog surface (`/listings`, `/order`, `/order.js`,
+  feeds); and admin URL/QR/embed affordances render no link for it.
 - **Metadata budget:** a 3-slot, multi-pick package within provider caps; an
   over-cap `allocations` blob surfaces the batching `PaymentUserError`, not a
   provider rejection.
