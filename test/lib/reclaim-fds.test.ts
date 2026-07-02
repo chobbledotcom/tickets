@@ -5,12 +5,12 @@ import {
   RECLAIM_FDS_EVERY,
 } from "#test-utils/reclaim-fds.ts";
 
-// Any window of N consecutive calls straddles exactly N / RECLAIM_FDS_EVERY
-// reclaim boundaries, regardless of the shared counter's starting phase — so
-// these assertions are independent of test order and of any DB setups that also
+// Any run of N consecutive calls straddles exactly N / RECLAIM_FDS_EVERY reclaim
+// boundaries regardless of the shared counter's starting phase, so these
+// assertions are independent of test order and of any DB setups that also
 // advanced the counter.
 describe("maybeReclaimLeakedFds", () => {
-  test("invokes gc exactly once per RECLAIM_FDS_EVERY calls", () => {
+  test("invokes an explicitly injected gc once per RECLAIM_FDS_EVERY calls", () => {
     let calls = 0;
     const gc = () => {
       calls += 1;
@@ -19,17 +19,24 @@ describe("maybeReclaimLeakedFds", () => {
     expect(calls).toBe(3);
   });
 
-  test("is a safe no-op when gc is unavailable, even on a boundary call", () => {
-    let threw = false;
+  test("is a safe no-op on a boundary call when gc is genuinely unavailable", () => {
+    // The harness runs with --expose-gc, so passing `undefined` would fall back
+    // to the (present) default. Actually clear globalThis.gc to exercise the
+    // absent path — a bare `deno test` without the flag.
+    const glob = globalThis as { gc?: (() => void) | undefined };
+    const original = glob.gc;
+    glob.gc = undefined;
     try {
-      // Spans a reclaim boundary with no gc — must not throw.
-      for (let i = 0; i < RECLAIM_FDS_EVERY; i++) {
-        maybeReclaimLeakedFds(undefined);
+      let threw = false;
+      try {
+        for (let i = 0; i < RECLAIM_FDS_EVERY; i++) maybeReclaimLeakedFds();
+      } catch {
+        threw = true;
       }
-    } catch {
-      threw = true;
+      expect(threw).toBe(false);
+    } finally {
+      glob.gc = original;
     }
-    expect(threw).toBe(false);
   });
 
   test("defaults to globalThis.gc when called without an argument", () => {

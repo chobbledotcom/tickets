@@ -44,10 +44,20 @@ export const runWithStorageConfig = <T>(
 // StorageConfig object, not env strings, so it can't reintroduce the env-var
 // races runWithStorageConfig exists to avoid; a per-test runWithStorageConfig
 // scope still wins over it.
-const [getTestStorageConfig, setTestStorageConfig] =
-  lazyRef<StorageConfig | null>(() => null);
+const [getTestStorageConfig, storageConfigRef] = lazyRef<StorageConfig | null>(
+  () => null,
+);
 
-export { setTestStorageConfig };
+/**
+ * Test-only: set the suite-level storage config that describeWithEnv's `storage`
+ * option applies. A directly-exported named function (not an `export {}` list,
+ * which the test-hook scanner does not detect, nor a module-level alias) so it is
+ * visible to and registered in `ALLOWED_TEST_HOOKS`
+ * (test/lib/code-quality.test.ts), alongside `runWithStorageConfig`.
+ */
+export function setStorageConfigForTest(config: StorageConfig | null): void {
+  storageConfigRef(config);
+}
 
 /**
  * Read storage config: per-call AsyncLocalStorage scope first, then the

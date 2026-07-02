@@ -31,7 +31,7 @@ import {
   setHostEmailConfigForTest,
 } from "#shared/email.ts";
 import { getEnv } from "#shared/env.ts";
-import { setTestStorageConfig } from "#shared/storage.ts";
+import { setStorageConfigForTest } from "#shared/storage.ts";
 import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
   type DescribeEnvOptions,
@@ -161,6 +161,9 @@ export const createTestDb = async (triggers = false): Promise<void> => {
 export const setupTransactionalTestDb = async (): Promise<
   () => Promise<void>
 > => {
+  // Same libsql fd leak as prepareTestClient: this path also mints a fresh
+  // file-backed client per test and runs many `withTransaction` writes.
+  maybeReclaimLeakedFds();
   setupTestEncryptionKey();
   const goldenPath = await getOrCreateGoldenDb();
   const path = await Deno.makeTempFile({ suffix: ".db" });
@@ -356,7 +359,7 @@ const applyStorageConfig = async (
   storage: DescribeEnvOptions["storage"],
 ): Promise<void> => {
   if (storage === "cdn") {
-    setTestStorageConfig({
+    setStorageConfigForTest({
       localPath: "",
       zoneKey: TEST_STORAGE_ZONE.zoneKey,
       zoneName: TEST_STORAGE_ZONE.zoneName,
@@ -366,13 +369,13 @@ const applyStorageConfig = async (
   if (storage === "local") {
     const dir = await Deno.makeTempDir();
     setTestStoragePath(dir);
-    setTestStorageConfig({ localPath: dir, zoneKey: "", zoneName: "" });
+    setStorageConfigForTest({ localPath: dir, zoneKey: "", zoneName: "" });
   }
 };
 
 /** Clear the suite-level storage config and remove any `"local"` temp dir. */
 const teardownStorageConfig = async (): Promise<void> => {
-  setTestStorageConfig(null);
+  setStorageConfigForTest(null);
   const dir = getTestStoragePath();
   if (!dir) return;
   setTestStoragePath(null);
