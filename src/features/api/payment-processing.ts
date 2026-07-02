@@ -90,6 +90,7 @@ import {
 import {
   getChildrenForParents,
   getNonStandaloneChildIds,
+  getParentsForChildren,
 } from "#shared/db/listing-parents.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
@@ -807,21 +808,28 @@ const validateAllItems = async (
   const foldedChildIds = new Set(
     (intent.allocations ?? []).map((a) => a.childId),
   );
-  // A standalone session started while its child listing was `bookable_alone`
+  // A STANDALONE session started while its child listing was `bookable_alone`
   // must not book it if the flag has since been cleared: /ticket/<slug> now
   // 404s at every fresh entry point, so completing the in-flight session would
   // leak a now-non-standalone child ticket. `orderEdgeDrifted` only detects
   // structural edge changes, not this flag flip, so guard it explicitly and fail
-  // closed → price_changed (mirroring staleHiddenMember). A LEGITIMATELY folded
-  // child (chosen under its parent, so it carries an allocation) is excluded —
-  // it is booked under its parent, not standalone.
+  // closed → price_changed (mirroring staleHiddenMember). A child booked UNDER a
+  // parent is fine — a parent+child order lists both, folding the child even
+  // without an explicit allocation — so only a child whose parents are ALL
+  // absent from the order (a truly standalone booking) is stale.
   const nonStandaloneChildIds = await getNonStandaloneChildIds(
     intent.items.map((i) => i.e),
   );
+  const orderIds = new Set(intent.items.map((i) => i.e));
+  const parentsByChild = await getParentsForChildren([
+    ...nonStandaloneChildIds,
+  ]);
   const staleNonStandaloneChild =
     !isPackageIntent &&
-    intent.items.some(
-      (i) => nonStandaloneChildIds.has(i.e) && !foldedChildIds.has(i.e),
+    [...nonStandaloneChildIds].some(
+      (childId) =>
+        !foldedChildIds.has(childId) &&
+        !(parentsByChild.get(childId) ?? []).some((p) => orderIds.has(p.id)),
     );
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
