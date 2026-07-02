@@ -56,6 +56,36 @@ export const getChildListingIds = (
     ids,
   );
 
+/** Of the given listing ids, the set that are a child AND are NOT sold on their
+ * own (`listings.bookable_alone = 0`). This is the narrowed gate predicate: a
+ * child flagged `bookable_alone` keeps its standalone booking page / catalog
+ * entry / API eligibility, so it is excluded here even though it still has
+ * parent edges. `getChildListingIds` (the unfiltered set) stays the STRUCTURAL
+ * predicate — "renders under a parent, folds, carries allocations" — while this
+ * one answers the GATE question "has no standalone existence". Returns an empty
+ * set for empty input (no query). */
+export const getNonStandaloneChildIds = (
+  ids: readonly number[],
+): Promise<Set<number>> =>
+  childIdSet(
+    `SELECT DISTINCT lp.child_listing_id AS id
+       FROM listing_parents lp
+       JOIN listings l ON l.id = lp.child_listing_id
+      WHERE lp.child_listing_id IN (${inPlaceholders(ids)})
+        AND l.bookable_alone = 0`,
+    ids,
+  );
+
+/** Whether any of `ids` is a child with no standalone existence (see
+ * {@link getNonStandaloneChildIds}). The gate the explicit-slug entry points
+ * (multi-slug `/ticket/<slugs>`, the signed QR, the JSON API book) use to reject
+ * a child handed directly: a `bookable_alone` child is NOT counted, so its own
+ * booking page / API lookup is allowed through. Empty input short-circuits to
+ * false (no query). */
+export const anyNonStandaloneChild = async (
+  ids: readonly number[],
+): Promise<boolean> => (await getNonStandaloneChildIds(ids)).size > 0;
+
 /** Child listing ids that must be chosen under `parentId` (relationship only). */
 export const getChildIds = (parentId: number): Promise<number[]> =>
   queryIdColumn(

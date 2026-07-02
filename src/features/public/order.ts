@@ -105,9 +105,12 @@ const handleOrder = async (request: Request): Promise<Response> => {
   // package card its bundle would be unbuyable from /order entirely.)
   const packageGroups = publicGroups.filter((g) => g.is_package);
   const classification = await classifyForDiscovery(listings);
-  // Drop children entirely (not selectable), then build cards and project
-  // child-derived sold-out onto the surviving parents.
-  const offered = listings.filter((e) => !classification.childIds.has(e.id));
+  // Drop non-standalone children (not selectable), then build cards and project
+  // child-derived sold-out onto the surviving parents. A `bookable_alone` child
+  // keeps its card (a direct book link to its own page).
+  const offered = listings.filter(
+    (e) => !classification.nonStandaloneChildIds.has(e.id),
+  );
   const ticketListings = applyParentSoldOut(
     await buildTicketListingsWithGroupCapacity(offered),
     classification,

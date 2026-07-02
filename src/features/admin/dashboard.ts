@@ -30,7 +30,7 @@ import {
 } from "#shared/db/attendees.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getChildListingIds } from "#shared/db/listing-parents.ts";
+import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
 import { getAllListings, getListingNamesByIds } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -101,14 +101,15 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       const stats = await getActiveListingStats(sortedListings);
       const activeType = listingTypeFromRequest(request);
       // Listings with no standalone public page are excluded from the
-      // multi-booking link builder: a booking can never start from a child
-      // (invariant I3), and a hidden package's member 404s on its own
-      // `/ticket/<slug>` — so a `/ticket/<member+other>` URL the builder emits
-      // would be rejected by the server.
+      // multi-booking link builder: a booking can never start from a
+      // non-standalone child (invariant I3), and a hidden package's member 404s
+      // on its own `/ticket/<slug>` — so a `/ticket/<member+other>` URL the
+      // builder emits would be rejected by the server. A `bookable_alone` child
+      // has its own page, so it stays bookable here.
       const listingIds = sortedListings.map((l) => l.id);
       const [childIds, hiddenMemberIds, upcomingServicingEvents] =
         await Promise.all([
-          getChildListingIds(listingIds),
+          getNonStandaloneChildIds(listingIds),
           getHiddenPackageMemberIds(listingIds),
           getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
         ]);

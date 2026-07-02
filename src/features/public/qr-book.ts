@@ -13,7 +13,10 @@ import { getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingForListing } from "#shared/db/attendees/capacity.ts";
 import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getChildIds } from "#shared/db/listing-parents.ts";
+import {
+  anyNonStandaloneChild,
+  getChildIds,
+} from "#shared/db/listing-parents.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { listingSupportsDirectCheckout } from "#shared/qr.ts";
@@ -25,11 +28,7 @@ import {
   qrBookErrorPage,
   type TicketPrefill,
 } from "#templates/public.tsx";
-import {
-  anyChildListing,
-  getTicketContext,
-  runCheckoutFlow,
-} from "./ticket-payment.ts";
+import { getTicketContext, runCheckoutFlow } from "./ticket-payment.ts";
 import { handleTicket } from "./ticket-submit.ts";
 
 const errorResponse = (slug: string, status: number): Response =>
@@ -176,11 +175,13 @@ export const handleQrBookGet = async (
   if (!payload) return errorResponse(slug, 400);
   const listing = await getListingWithCountBySlug(slug);
   if (!listing?.active) return errorResponse(slug, 404);
-  // A booking can never start from a child (invariant I3): a signed QR for a
-  // child would otherwise skip straight to checkout for it alone. A hidden
+  // A booking can never start from a non-standalone child (invariant I3): a
+  // signed QR for one would otherwise skip straight to checkout for it alone. A
+  // `bookable_alone` child has its own page, so its QR is allowed. A hidden
   // package's member is likewise reachable only through the package, never its
   // own page or a direct-to-checkout QR.
-  if (await anyChildListing([listing.id])) return errorResponse(slug, 404);
+  if (await anyNonStandaloneChild([listing.id]))
+    return errorResponse(slug, 404);
   if (await isHiddenPackageMember(listing.id)) return errorResponse(slug, 404);
   return dispatchVerified(request, slug, token, payload, listing);
 };

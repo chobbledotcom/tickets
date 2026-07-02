@@ -103,7 +103,8 @@ const loadFeedData = async (): Promise<FeedData> => {
   // A hidden package's members are never syndicated standalone — only the
   // package name is public.
   const listings = await dropHiddenPackageMembers(allListings);
-  const { childIds, soldOutParentIds } = await classifyForDiscovery(listings);
+  const { nonStandaloneChildIds, soldOutParentIds } =
+    await classifyForDiscovery(listings);
   const packages = (await loadPublicGroups())
     .filter((g) => g.is_package)
     .map(
@@ -121,7 +122,10 @@ const loadFeedData = async (): Promise<FeedData> => {
     domain: getEffectiveDomain(),
     items: [
       ...listings
-        .filter((e) => !childIds.has(e.id) && !soldOutParentIds.has(e.id))
+        .filter(
+          (e) =>
+            !nonStandaloneChildIds.has(e.id) && !soldOutParentIds.has(e.id),
+        )
         .map(listingFeedItem),
       ...packages,
     ],

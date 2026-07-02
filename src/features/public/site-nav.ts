@@ -86,23 +86,39 @@ const resolveTargets = async (
   // liveness test is then the same classification as /listings: child
   // suppression and sold-out-parent projection, plus tier/active checks.
   const judged = [...membersByGroup.values()].flat().concat(referenced);
-  const { childIds, soldOutParentIds } =
+  const { childIds, nonStandaloneChildIds, soldOutParentIds } =
     judged.length > 0
       ? await classifyForDiscovery(judged)
-      : { childIds: new Set<number>(), soldOutParentIds: new Set<number>() };
-  const bookable = (listing: { id: number }): boolean =>
+      : {
+          childIds: new Set<number>(),
+          nonStandaloneChildIds: new Set<number>(),
+          soldOutParentIds: new Set<number>(),
+        };
+  // A directly-referenced listing is bookable via its own page, so a
+  // `bookable_alone` child leaf is live (gate set). Group liveness below stays
+  // STRUCTURAL: a group whose only members are flagged children is folded away on
+  // its `/ticket/<group>` page, so it must not be advertised live (subtlety #2).
+  const bookableLeaf = (listing: { id: number }): boolean =>
+    !nonStandaloneChildIds.has(listing.id) && !soldOutParentIds.has(listing.id);
+  const bookableMember = (listing: { id: number }): boolean =>
     !childIds.has(listing.id) && !soldOutParentIds.has(listing.id);
   for (const listing of referenced) {
     setLeaf(
       "listing",
       listing,
-      listing.active && !isQualifyingTierListing(listing) && bookable(listing),
+      listing.active &&
+        !isQualifyingTierListing(listing) &&
+        bookableLeaf(listing),
     );
   }
   // A group is live iff it has a standalone-bookable active member — the same
   // gate as `groupHasBookableMember`, applied to the batched member rows.
   for (const row of groupRows) {
-    setLeaf("group", row, (membersByGroup.get(row.id) ?? []).some(bookable));
+    setLeaf(
+      "group",
+      row,
+      (membersByGroup.get(row.id) ?? []).some(bookableMember),
+    );
   }
   return targets;
 };

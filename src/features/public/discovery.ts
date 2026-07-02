@@ -40,6 +40,7 @@ import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   getChildListingIds,
   getChildrenForParents,
+  getNonStandaloneChildIds,
   getParentsForChildren,
 } from "#shared/db/listing-parents.ts";
 import {
@@ -105,24 +106,33 @@ export const getVisibleGroupMembers = async (
 
 /**
  * How a discovery surface should treat each listing:
- * - `childIds` — **every** child of some parent. A booking can never start from a
- *   child (invariant I3) — the slug guard rejects *all* child slugs regardless of
- *   parent.active — so a child's standalone CTA (and feed/gallery/builder/share
- *   affordance) is suppressed in every case, matching what `getChildListingIds`
- *   rejects at the booking entry point.
- * - `addOnChildIds` — the subset of `childIds` with at least one **bookable**
- *   parent (active AND not sold out AND not registration-closed, its own date-less
- *   row availability). Such a child has a live parent page that can offer and fold
- *   it, so its card shows the "available as an add-on" note. A child whose every
- *   parent is inactive/sold out/closed has *no* parent page to offer it (a dead
- *   end), so the note would point at nothing: it renders **unavailable** instead
- *   (parents.md, "Public listing cards", Fix 1).
+ * - `childIds` — **every** child of some parent (the STRUCTURAL set). Used by the
+ *   group-liveness gate, which must treat a flagged child as a non-member of the
+ *   group page: a group whose only members are `bookable_alone` children is not
+ *   advertised live, since its `/ticket/<group>` page still folds them away. A
+ *   flagged child's *own* page and catalog card are its surfaces, not the group's.
+ * - `nonStandaloneChildIds` — the subset of `childIds` that are NOT sold on their
+ *   own (`bookable_alone = 0`), the GATE set. A booking can never start from such
+ *   a child (invariant I3), so its standalone CTA (and feed/gallery/builder/share
+ *   affordance) is suppressed, matching what `getNonStandaloneChildIds` rejects at
+ *   the booking entry point. A `bookable_alone` child is excluded here, so its own
+ *   card/detail/API entry renders normally even though it still folds under its
+ *   parents.
+ * - `addOnChildIds` — the subset of `nonStandaloneChildIds` with at least one
+ *   **bookable** parent (active AND not sold out AND not registration-closed, its
+ *   own date-less row availability). Such a child has a live parent page that can
+ *   offer and fold it, so its card shows the "available as an add-on" note. A
+ *   child whose every parent is inactive/sold out/closed has *no* parent page to
+ *   offer it (a dead end), so the note would point at nothing: it renders
+ *   **unavailable** instead (parents.md, "Public listing cards", Fix 1). A
+ *   `bookable_alone` child is never added — its card shows its own Book CTA.
  * - `soldOutParentIds` — parents with no bookable child (combined parent+child
  *   demand, invariant I7); their card must render sold out (and be omitted from
  *   feeds/gallery), since the booking gate would reject the order.
  */
 export type DiscoveryClassification = {
   childIds: ReadonlySet<number>;
+  nonStandaloneChildIds: ReadonlySet<number>;
   addOnChildIds: ReadonlySet<number>;
   soldOutParentIds: ReadonlySet<number>;
 };
@@ -262,11 +272,13 @@ export const classifyForDiscovery = async (
   listings: readonly ListingWithCount[],
 ): Promise<DiscoveryClassification> => {
   const ids = listings.map((l) => l.id);
-  const [childIds, childrenByParent, parentsByChild] = await Promise.all([
-    getChildListingIds(ids),
-    getChildrenForParents(ids),
-    getParentsForChildren(ids),
-  ]);
+  const [childIds, nonStandaloneChildIds, childrenByParent, parentsByChild] =
+    await Promise.all([
+      getChildListingIds(ids),
+      getNonStandaloneChildIds(ids),
+      getChildrenForParents(ids),
+      getParentsForChildren(ids),
+    ]);
   const byId = new Map(listings.map((l) => [l.id, l]));
   const everyChild = [...childrenByParent.values()].flat();
   // Displayed children whose add-on label we are deciding (keys of parentsByChild
@@ -314,6 +326,10 @@ export const classifyForDiscovery = async (
   // spots). Reuse the same combined-demand check both surfaces use.
   const addOnChildIds = new Set<number>();
   for (const [childId, parents] of parentsByChild) {
+    // A `bookable_alone` child gets its own Book CTA rather than the add-on note,
+    // so it never enters this set — otherwise `childCardState` would short-circuit
+    // to "addon" before it could read as a normal standalone card.
+    if (!nonStandaloneChildIds.has(childId)) continue;
     // childId comes from the displayed `ids`, so it is always present in `byId`.
     const child = byId.get(childId)!;
     const offerable = parents.some(
@@ -333,7 +349,7 @@ export const classifyForDiscovery = async (
       );
     if (!anyBookable) soldOutParentIds.add(parentId);
   }
-  return { addOnChildIds, childIds, soldOutParentIds };
+  return { addOnChildIds, childIds, nonStandaloneChildIds, soldOutParentIds };
 };
 
 /**

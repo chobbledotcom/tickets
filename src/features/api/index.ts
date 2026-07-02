@@ -25,7 +25,6 @@ import {
 } from "#routes/public/ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-listings.ts";
 import {
-  anyChildListing,
   buildRegistrationItems,
   checkAvailability,
   constrainParentDailyDates,
@@ -64,7 +63,10 @@ import {
 } from "#shared/db/booking-attempts.ts";
 import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getChildrenForParents } from "#shared/db/listing-parents.ts";
+import {
+  anyNonStandaloneChild,
+  getChildrenForParents,
+} from "#shared/db/listing-parents.ts";
 import {
   getAllListings,
   getListingWithCountBySlug,
@@ -345,9 +347,10 @@ type ListingDiscoveryState = { isChild: boolean; isSoldOutParent: boolean };
 const listingDiscoveryState = async (
   listing: ListingWithCount,
 ): Promise<ListingDiscoveryState> => {
-  const { childIds, soldOutParentIds } = await classifyForDiscovery([listing]);
+  const { nonStandaloneChildIds, soldOutParentIds } =
+    await classifyForDiscovery([listing]);
   return {
-    isChild: childIds.has(listing.id),
+    isChild: nonStandaloneChildIds.has(listing.id),
     isSoldOutParent: soldOutParentIds.has(listing.id),
   };
 };
@@ -400,12 +403,13 @@ const handleListListings = async (): Promise<Response> => {
   // children, so the list must project it to sold-out / not-bookable to stay
   // consistent with the detail/availability endpoints (Fix 3) — otherwise a
   // client lists it as bookable then hits the parent-sold-out outcome at detail.
-  const { childIds, soldOutParentIds } =
+  const { nonStandaloneChildIds, soldOutParentIds } =
     await classifyForDiscovery(visibleListings);
   // Drop the members of a HIDDEN package too: they have no standalone page (their
-  // /ticket slug 404s), so the API must not list them as bookable either.
+  // /ticket slug 404s), so the API must not list them as bookable either. A
+  // `bookable_alone` child is NOT dropped — it keeps its own catalog entry.
   const bookableListings = await dropHiddenPackageMembers(
-    visibleListings.filter((e) => !childIds.has(e.id)),
+    visibleListings.filter((e) => !nonStandaloneChildIds.has(e.id)),
   );
   const groupRemaining = await getGroupRemainingByListingId(bookableListings);
   const listings = bookableListings.map((e) => {
@@ -983,9 +987,11 @@ const processParentApiBooking = async (
 
 /** POST /api/listings/:slug/book — create a booking */
 const handleBook = withActiveListing(async (request, listing, server) => {
-  // A booking can never start from a child (invariant I3): a child is only
-  // bookable through one of its parents, so reject it as a direct API entry.
-  if (await anyChildListing([listing.id])) {
+  // A booking can never start from a non-standalone child (invariant I3): such a
+  // child is only bookable through one of its parents, so reject it as a direct
+  // API entry. A `bookable_alone` child has its own page/API eligibility, so it
+  // books directly here.
+  if (await anyNonStandaloneChild([listing.id])) {
     return apiResponse(
       { error: "This listing must be booked through its parent listing." },
       400,

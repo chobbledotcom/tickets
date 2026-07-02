@@ -47,6 +47,7 @@ import {
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
+  anyNonStandaloneChild,
   getChildIds,
   getChildListingIds,
   getChildrenForParents,
@@ -524,27 +525,16 @@ export const createFreeReservation = async ({
   };
 };
 
-/**
- * Whether any of `ids` is a child listing (invariant I3): a booking can never
- * start from a child — only through one of its parents' per-parent selectors. The
- * explicit-slug entry points (multi-slug `/ticket/<slugs>`, the signed QR, the
- * JSON API) use this to reject (not silently drop) a child handed directly.
- * Group/order pages load listings indirectly and instead suppress child rows
- * (folded under their parents), so the rejection is deliberately *not* applied in
- * the shared render funnel.
- */
-export const anyChildListing = async (
-  ids: readonly number[],
-): Promise<boolean> => (await getChildListingIds(ids)).size > 0;
-
-/** Whether a listing has no standalone public booking page — it is a child
- * (invariant I3) or a hidden package's member — so any admin/public affordance
- * linking to its `/ticket/<slug>` page would dead-end (404). The single test the
- * admin QR generator and the group QR route share. */
+/** Whether a listing has no standalone public booking page — it is a
+ * non-standalone child (a child NOT flagged `bookable_alone`, invariant I3) or a
+ * hidden package's member — so any admin/public affordance linking to its
+ * `/ticket/<slug>` page would dead-end (404). A `bookable_alone` child keeps its
+ * own page, so it is NOT flagged here. The single test the admin QR generator and
+ * the group QR route share. */
 export const lacksStandalonePublicPage = async (
   listingId: number,
 ): Promise<boolean> =>
-  (await anyChildListing([listingId])) ||
+  (await anyNonStandaloneChild([listingId])) ||
   (await isHiddenPackageMember(listingId));
 
 /**
@@ -575,10 +565,11 @@ export const parentRequiresChild = async (
   listingId: number,
 ): Promise<boolean> => (await getChildIds(listingId)).length > 0;
 
-/** Load active listings, 404 if none — or if any resolved slug is a child (a
- * booking can't start from a child; see {@link anyChildListing}) or a member of
- * a HIDDEN package (only the package name is public, never a member's own page;
- * the package itself is reached via its group slug, not these listing slugs). */
+/** Load active listings, 404 if none — or if any resolved slug is a
+ * non-standalone child (a booking can't start from a child unless it is flagged
+ * `bookable_alone`; see {@link anyNonStandaloneChild}) or a member of a HIDDEN
+ * package (only the package name is public, never a member's own page; the
+ * package itself is reached via its group slug, not these listing slugs). */
 export const withActiveListings = async (
   slugs: string[],
   handler: AsyncHandler<[TicketListing[]]>,
@@ -588,7 +579,7 @@ export const withActiveListings = async (
   const activeListings = await buildTicketListingsWithGroupCapacity(active);
   if (activeListings.length === 0) return notFoundResponse();
   const ids = activeListings.map((e) => e.listing.id);
-  if (await anyChildListing(ids)) return notFoundResponse();
+  if (await anyNonStandaloneChild(ids)) return notFoundResponse();
   if ((await getHiddenPackageMemberIds(ids)).size > 0) {
     return notFoundResponse();
   }
