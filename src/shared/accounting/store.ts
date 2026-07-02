@@ -40,7 +40,7 @@ import {
   type TxScope,
 } from "#shared/db/client.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
-import { validateTransfer } from "#shared/ledger/validate.ts";
+import { assertValidTransfer } from "#shared/ledger/validate.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** A built INSERT statement ready for the batch writer. */
@@ -75,11 +75,7 @@ const assertShared = (label: string, values: string[]): void => {
  */
 export const assertPostable = (inputs: TransferInput[]): void => {
   for (const input of inputs) {
-    const result = validateTransfer(input);
-    if (!result.ok) {
-      const codes = result.errors.map((e) => e.code).join(", ");
-      throw new Error(`invalid transfer (${input.reference}): ${codes}`);
-    }
+    assertValidTransfer(input, `invalid transfer (${input.reference})`);
   }
   assertShared(
     "eventGroup",

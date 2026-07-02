@@ -1,4 +1,13 @@
-/** Pure validation of a transfer before it is posted. */
+/**
+ * Pure validation of a transfer before it is posted.
+ *
+ * Deliberately not a valibot schema (see AGENTS.md "Deliberate non-use is fine
+ * when the platform is better"): the callers' contract is the typed
+ * {@link LedgerError} code union — exhaustive, comparable, and rendered into
+ * conflict/store errors by code — which hand-built checks express directly,
+ * where a valibot pipe would collect anonymous issues that then need mapping
+ * back onto these exact codes.
+ */
 
 import { compact } from "#fp";
 import { isInstant } from "#shared/validation/timestamp.ts";
@@ -61,4 +70,18 @@ export const validateTransfer = (t: TransferInput): Result<TransferInput> => {
     t.eventGroup ? null : ({ code: "empty_event_group" } as const),
   ]);
   return errors.length > 0 ? { errors, ok: false } : { ok: true, value: t };
+};
+
+/**
+ * Validate a transfer and throw when it is rejected, naming every error code —
+ * the shared boundary guard for write paths that have no structured-error
+ * channel (the store's pre-post checks, a manual entry's amount/time update).
+ * `context` prefixes the message so the failing operation is identifiable.
+ */
+export const assertValidTransfer = (t: TransferInput, context: string): void => {
+  const result = validateTransfer(t);
+  if (!result.ok) {
+    const codes = result.errors.map((e) => e.code).join(", ");
+    throw new Error(`${context}: ${codes}`);
+  }
 };

@@ -35,11 +35,15 @@
 import type { InValue } from "@libsql/client";
 import { groupBy, sumOf } from "#fp";
 import { ATTENDEE } from "#shared/accounting/accounts.ts";
-import { mapBooking, mapRefund } from "#shared/accounting/mappers.ts";
+import {
+  asOrderLegs,
+  mapBooking,
+  mapRefund,
+} from "#shared/accounting/mappers.ts";
 import { accountBalancesForIds } from "#shared/accounting/queries.ts";
 import { insertStatement, orIgnore } from "#shared/accounting/rows.ts";
 import { executeBatch, inPlaceholders, queryAll } from "#shared/db/client.ts";
-import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
+import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 import { toCanonicalIso } from "#shared/payment-helpers.ts";
 
@@ -136,14 +140,11 @@ const attendeeLegs = async (
   // may carry the flag on a single line. Treat any flagged line as a full-order
   // refund and reverse the whole booking rather than under-reversing it.
   if (!rows.some((row) => Number(row.refunded) !== 0)) return bookingLegs;
-  // mapRefund reads only money-identity fields (never id/recordedAt), so the
-  // freshly mapped booking legs stand in for the not-yet-stored ones.
-  const orderLegs: Transfer[] = bookingLegs.map((leg) => ({
-    ...leg,
-    id: 0,
-    recordedAt: occurredAt,
-  }));
-  return [...bookingLegs, ...(await mapRefund({ occurredAt, orderLegs }))];
+  const refundLegs = await mapRefund({
+    occurredAt,
+    orderLegs: asOrderLegs(bookingLegs, occurredAt),
+  });
+  return [...bookingLegs, ...refundLegs];
 };
 
 /** The UPDATE that links an attendee's booking rows to their order's ledger

@@ -92,7 +92,7 @@ import {
   utcToLocalInput,
 } from "#shared/timezone.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { isIsoDate } from "#shared/validation/date.ts";
+import { isIsoDate, isIsoMonth } from "#shared/validation/date.ts";
 import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
@@ -174,7 +174,7 @@ const validatedParam =
 const dateParam = validatedParam(isIsoDate);
 
 /** Parse a validated `YYYY-MM` (paged-month) query param, or null. */
-const monthParam = validatedParam((value) => /^\d{4}-\d{2}$/.test(value));
+const monthParam = validatedParam(isIsoMonth);
 
 /** Parse the `?listing=` scope: a positive integer, else null ("all listings"). */
 const listingParam = (params: URLSearchParams): number | null => {

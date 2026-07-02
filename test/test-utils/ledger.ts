@@ -1,15 +1,15 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { postWriteoffAdjustmentTx } from "#shared/accounting/adjustments.ts";
-import { mapBooking, mapRefund } from "#shared/accounting/mappers.ts";
+import {
+  asOrderLegs,
+  mapBooking,
+  mapRefund,
+} from "#shared/accounting/mappers.ts";
 import type { RefPart } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { getDb, withTransaction } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
-import type {
-  AccountRef,
-  Transfer,
-  TransferInput,
-} from "#shared/ledger/types.ts";
+import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
 import { setupTransactionalTestDb } from "#test-utils";
 
 /** Post a standalone `writeoff` adjustment in its own transaction — the test-side
@@ -170,16 +170,11 @@ export const postAttendeeRefund = async ({
     listingId,
   });
   await postTransfers(bookingInputs);
-  // mapRefund reads only money-identity fields (never id/recordedAt), so stamp
-  // the just-built inputs into Transfer shape to reverse them — mirroring the
-  // historical backfill's full-order reversal.
-  const orderLegs: Transfer[] = bookingInputs.map((leg) => ({
-    ...leg,
-    id: 0,
-    recordedAt: BOOKING_OCCURRED_AT,
-  }));
   await postTransfers(
-    await mapRefund({ occurredAt: BOOKING_OCCURRED_AT, orderLegs }),
+    await mapRefund({
+      occurredAt: BOOKING_OCCURRED_AT,
+      orderLegs: asOrderLegs(bookingInputs, BOOKING_OCCURRED_AT),
+    }),
   );
 };
 

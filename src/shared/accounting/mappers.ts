@@ -227,6 +227,18 @@ export type RefundFacts = {
 };
 
 /**
+ * Stand freshly-built (not yet stored) booking inputs in for the stored legs
+ * {@link mapRefund} normally reads back from the ledger. `mapRefund` reads only
+ * money-identity fields — never `id`/`recordedAt` — so a placeholder id and the
+ * booking time suffice. For paths that map a reversal in the same breath as the
+ * booking: the historical backfill, and test seeding that mirrors it.
+ */
+export const asOrderLegs = (
+  inputs: TransferInput[],
+  recordedAt: string,
+): Transfer[] => inputs.map((leg) => ({ ...leg, id: 0, recordedAt }));
+
+/**
  * Map a full refund of one booking order to its ledger legs: the inverse of each
  * stored leg (revenue/fee/modifier handed back to the attendee, cash returned to
  * the world as `refund_cash`), all under one new refund event group derived from

@@ -17,7 +17,7 @@ import type {
   Transfer,
   TransferInput,
 } from "#shared/ledger/types.ts";
-import { validateTransfer } from "#shared/ledger/validate.ts";
+import { assertValidTransfer } from "#shared/ledger/validate.ts";
 import { instantToEpochMs } from "#shared/validation/timestamp.ts";
 
 export const MANUAL_ATTENDEE_PAYMENT = "manual_attendee_payment";
@@ -189,12 +189,7 @@ export const updateTransferAmountAndTime = async (
   occurredAt: string,
 ): Promise<void> => {
   const next: TransferInput = { ...transfer, amount, occurredAt };
-  const validation = validateTransfer(next);
-  if (!validation.ok) {
-    throw new Error(
-      `invalid transfer update: ${validation.errors.map((e) => e.code).join(", ")}`,
-    );
-  }
+  assertValidTransfer(next, "invalid transfer update");
   await execute(
     "UPDATE transfers SET amount = ?, occurred_at = ? WHERE id = ?",
     [amount, instantToEpochMs(occurredAt), transfer.id],
