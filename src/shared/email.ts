@@ -7,10 +7,15 @@ import * as v from "valibot";
 import { chunk, lazyRef, map } from "#fp";
 import { t } from "#i18n";
 import { toBase64 } from "#shared/crypto/utils.ts";
+import type { PackageDisplay } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   buildTemplateData,
+  getPackageDisplayForEntries,
   renderEmailContent,
+  sumEntryPrices,
+  sumEntryQuantities,
+  widestDatedEntry,
 } from "#shared/email-renderer.ts";
 import { getEnv } from "#shared/env.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
@@ -330,21 +335,47 @@ export const buildSvgTicketData = (
   quantity: entry.attendee.quantity,
 });
 
-/** Generate SVG ticket attachments for all entries */
+/** Build one SVG ticket standing in for a hidden package: the package name and
+ * the bundle's summed quantity/price, on the shared check-in token, so the
+ * attachment never reveals the member listings (mirrors {@link
+ * collapsedPackageEntry} in the email body). */
+const collapsedSvgTicketData = (
+  entries: EmailEntry[],
+  currency: string,
+  packageName: string,
+): SvgTicketData => ({
+  // A dated bundle keeps the booked start date at package level, exactly like
+  // a standalone ticket attachment — hiding members must not lose the date.
+  attendeeDate: widestDatedEntry(entries)?.attendee.date ?? null,
+  checkinUrl: buildCheckinUrl(entries[0]!.attendee.ticket_token),
+  currency,
+  listingDate: "",
+  listingLocation: "",
+  listingName: packageName,
+  pricePaid: String(sumEntryPrices(entries)),
+  purchaseOnly: entries.every((e) => e.listing.purchase_only),
+  quantity: sumEntryQuantities(entries),
+});
+
+/** Generate SVG ticket attachments for all entries. A HIDDEN package collapses
+ * to a single package-level SVG so the buyer's attachments don't reveal the
+ * member listings the email body hides. */
 export const buildTicketAttachments = async (
   entries: EmailEntry[],
   currency: string,
+  hiddenPackage?: PackageDisplay | null,
 ): Promise<EmailAttachment[]> => {
-  const ticketDataList = map((entry: EmailEntry) =>
-    buildSvgTicketData(entry, currency),
-  )(entries);
+  const ticketDataList = hiddenPackage
+    ? [collapsedSvgTicketData(entries, currency, hiddenPackage.name)]
+    : map((entry: EmailEntry) => buildSvgTicketData(entry, currency))(entries);
   const svgs = await Promise.all(
     ticketDataList.map((data) => generateSvgTicket(data)),
   );
   return svgs.map((svg, i) => ({
     content: toBase64(new TextEncoder().encode(svg)),
     contentType: "image/svg+xml",
-    filename: entries.length === 1 ? "ticket.svg" : `ticket-${i + 1}.svg`,
+    filename:
+      ticketDataList.length === 1 ? "ticket.svg" : `ticket-${i + 1}.svg`,
   }));
 };
 
@@ -365,14 +396,20 @@ export const sendRegistrationEmails = async (
   const attendeeEmail = attendeeRaw ? parseEmail(attendeeRaw) : null;
   const businessEmail = parseEmail(settings.businessEmail);
   const ticketUrl = buildTicketUrl(entries);
-  const data = buildTemplateData(entries, currency, ticketUrl);
   const promises: Promise<number | undefined>[] = [];
 
   if (attendeeEmail) {
     const replyTo = businessEmail || undefined;
+    // The buyer's confirmation hides a hidden package's member listings — both
+    // in the email body and in the attached ticket SVGs.
+    const pkg = await getPackageDisplayForEntries(entries);
+    const hiddenPackage = pkg?.hideListings === true ? pkg : null;
+    const data = await buildTemplateData(entries, currency, ticketUrl, {
+      hidePackageMembers: true,
+    });
     const [confirmation, attachments] = await Promise.all([
       renderEmailContent("confirmation", data),
-      buildTicketAttachments(entries, currency),
+      buildTicketAttachments(entries, currency, hiddenPackage),
     ]);
     promises.push(
       sendEmail(config, {
@@ -385,6 +422,8 @@ export const sendRegistrationEmails = async (
   }
 
   if (businessEmail) {
+    // The admin notification always shows package members, even when hidden.
+    const data = await buildTemplateData(entries, currency, ticketUrl);
     const notification = await renderEmailContent("admin", data);
     promises.push(
       sendEmail(config, {

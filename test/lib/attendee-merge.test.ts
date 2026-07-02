@@ -39,7 +39,12 @@ import type {
   AttendeeMergeDecisionInput,
   AttendeeMergeDiff,
 } from "#shared/merge/attendee-merge-types.ts";
-import { bookAttendee, createTestListing, describeWithEnv } from "#test-utils";
+import {
+  bookAttendee,
+  createTestGroup,
+  createTestListing,
+  describeWithEnv,
+} from "#test-utils";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 
 /** Create a test attendee directly via the DB */
@@ -75,6 +80,7 @@ const getBookings = (attendeeId: number) =>
     attachment_downloads: number;
     order_token: string;
     parent_listing_id: number;
+    package_group_id: number;
   }>(
     `SELECT ${LISTING_ATTENDEE_ROW_COLS}
      FROM listing_attendees
@@ -198,6 +204,81 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     expect((await transfersByAccount(attendeeAccount(target.id))).length).toBe(
       2,
     );
+  });
+
+  test("preserves package_group_id when moving a source package booking", async () => {
+    const group = await createTestGroup({ isPackage: true, name: "MergePkg" });
+    const targetListing = await createTestListing({ maxAttendees: 10 });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+    });
+    const target = await createAttendee(
+      targetListing.id,
+      "Alice",
+      "alice@test.com",
+    );
+    const sourceResult = await createAttendeeAtomic({
+      bookings: [{ listingId: member.id }],
+      email: "bob@test.com",
+      name: "Bob",
+      packageGroupId: group.id,
+    });
+    if (!sourceResult.success) throw new Error("source booking failed");
+    const source = sourceResult.attendees[0]!;
+
+    const sourcePii = {
+      address: "",
+      email: "bob@test.com",
+      name: "Bob",
+      phone: "",
+      special_instructions: "",
+    };
+    const targetPii = {
+      address: "",
+      email: "alice@test.com",
+      name: "Alice",
+      phone: "",
+      special_instructions: "",
+    };
+    const diff = await buildAttendeeMergeDiff(
+      {
+        sourceBookings: await getBookings(source.id),
+        sourceId: source.id,
+        sourcePii,
+        targetBookings: await getBookings(target.id),
+        targetId: target.id,
+        targetPii,
+      },
+      [],
+    );
+    const result = await applyAttendeeMerge({
+      decision: {
+        answers: {},
+        bookings: {},
+        money: {},
+        pii: {},
+        version: diff.version,
+      },
+      diff,
+      privateKey: await getTestPrivateKey(),
+      sourceId: source.id,
+      sourcePii,
+      targetId: target.id,
+      targetPii: {
+        ...targetPii,
+        payment_id: target.payment_id,
+        ticket_token: target.ticket_token,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    // The moved package booking keeps its group, so the merged attendee's
+    // ticket still renders/hides as the package rather than a bare listing.
+    const moved = (await getBookings(target.id)).find(
+      (b) => b.listing_id === member.id,
+    );
+    expect(moved?.package_group_id).toBe(group.id);
   });
 
   describe("bookingKey", () => {
@@ -662,6 +743,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 5,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 0,
               quantity: 1,
@@ -677,6 +759,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 5,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 0,
               quantity: 2,
@@ -720,6 +803,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 7,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 0,
               quantity: 1,
@@ -735,6 +819,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 7,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 0,
               quantity: 2,
@@ -780,6 +865,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 5,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 1500,
               quantity: 0,
@@ -830,6 +916,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 5,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 0,
               quantity: 0,
@@ -845,6 +932,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 5,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 1500,
               quantity: 2,
@@ -891,6 +979,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 5,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 0,
               quantity: 0,
@@ -943,6 +1032,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 5,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 0,
               quantity: 1,
@@ -958,6 +1048,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               ledger_event_group: "",
               listing_id: 5,
               order_token: "",
+              package_group_id: 0,
               parent_listing_id: 0,
               price_paid: 0,
               quantity: 2,
@@ -993,6 +1084,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         ledger_event_group: "grp",
         listing_id: 5,
         order_token: "",
+        package_group_id: 0,
         parent_listing_id: 0,
         price_paid: 5000,
         quantity: 1,

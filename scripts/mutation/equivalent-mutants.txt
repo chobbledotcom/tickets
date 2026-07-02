@@ -42,21 +42,23 @@ src/shared/accounting/rows.ts:74:17  ?? → ||    # insertStatement kind: string
 src/shared/accounting/rows.ts:75:17  ?? → ||    # insertStatement memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/accounting/rows.ts:181:58  ?? → ||   # selectById (await …)[0]: Transfer|undefined — a Transfer object is always truthy
 
-# Parent/child fold (ticket-payment.ts).
-src/features/public/ticket-payment.ts:391:34  && → ||   # childQtyField: both callers gate on `qty > 0`, so a clamped-0 and a passed-through negative are indistinguishable; only `>= 0` differs and no `> 0` consumer can see it
-src/features/public/ticket-payment.ts:505:48  ?? → ||   # quantities Map<number,number>: absent→undefined or a positive sum; 0??0===0||0
-src/features/public/ticket-payment.ts:599:55  = → +=    # customisableDuration is null here (just initialised); null += n === n
-src/features/public/ticket-payment.ts:605:61  ?? → ||   # parentQty: absent or a count; next line `<= 0 continue` makes 0/undefined identical, 0??0===0||0
-src/features/public/ticket-payment.ts:609:13  ??= → =   # holidays cache refetch: getActiveHolidays is idempotent; = only repeats the same fetch
-src/features/public/ticket-payment.ts:625:41  ?? → ||   # customisableDuration: null or a duration ≥1, never falsy-non-null
-src/features/public/ticket-payment.ts:874:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined, arrays always truthy
+# Parent/child fold moved to fold-tree.ts in Phase 2a (see the fold-tree.ts
+# entries below); the ticket-payment.ts fold-internal equivalents went with it.
+# What stays here are `?? F` vs `|| F` sites whose left operand can never be a
+# falsy-but-non-null value (a Map/object/array is always truthy, and the only
+# falsy number is 0 with 0??0===0||0), so the two operators always agree.
+src/features/public/ticket-payment.ts:382:43  ?? → ||   # base.quantities.get(): Map<number,number>|undefined; the only falsy number is 0, 0??0===0||0
+src/features/public/ticket-payment.ts:483:35  ?? → ||   # packageGroupId ?? 0: number|null; the only falsy number is 0, 0??0===0||0, and null→0 either way
+src/features/public/ticket-payment.ts:494:37  ?? → ||   # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
+src/features/public/ticket-payment.ts:683:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
+src/features/public/ticket-payment.ts:872:39  ?? → ||   # packageMaps?.prices: ReadonlyMap|undefined — a Map is always truthy, undefined→null either way
+src/features/public/ticket-payment.ts:873:47  ?? → ||   # packageMaps?.quantities: ReadonlyMap|undefined — a Map is always truthy, undefined→null either way
 
 # Parent/child curried atoms (shared.tsx).
 src/ui/templates/public/shared.tsx:169:41  ?? → ||   # span: null or a duration ≥1, never falsy-non-null; null??1===null||1
 
 # Parent/child per-unit render (reservations.tsx).
-src/ui/templates/public/reservations.tsx:548:12  ! → ∅   # childQuestionsToRender: the `rendered` dedup (pre-seeded with page questions, plus each child's own) makes which child triggers a question's render unobservable — the same single identical control results; a question in ctx.questions is always owned by a page listing or a child
-src/ui/templates/public/reservations.tsx:1264:50  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
+src/ui/templates/public/reservations.tsx:1546:50  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
 
 # Parent/child relationship DB (listing-parents.ts).
 src/shared/db/listing-parents.ts:118:21  ?? → ||   # result.get(key): ListingWithCount[]|undefined, arrays always truthy; ?? and || agree
@@ -136,6 +138,18 @@ src/ui/templates/admin/listing-defaults.tsx:90:19  ?? → ||  # UrlControl value
 src/ui/templates/admin/listing-defaults.tsx:119:42  ?? → ||  # value?.includes(day): boolean|undefined; for boolean b, b ?? false === b || false, and undefined ?? false === undefined || false
 src/shared/listing-defaults.ts:95:52  === → ==  # hidden gate `months_per_unit === 0`: months_per_unit is a number (DB integer column), so === and == never disagree — there is no string/null operand to coerce
 src/shared/listing-defaults.ts:123:59  !== → !=  # setListingDefaultFields "is set" check: ListingDefaults values are boolean|number|string|string[]|undefined and never null, so `!== undefined` and `!= undefined` always agree
+src/shared/booking/build-tree.ts:121:48  ?? → ||    # childrenByParentId.get(): readonly TicketListing[]|undefined — an array is always truthy
+src/shared/booking/build-tree.ts:161:62  ?? → ||    # packageQuantities.get(): a member's fixed per-package quantity is ≥1 (group_listings.quantity DEFAULT 1), never 0, so ?? and || coincide
+src/shared/booking/build-tree.ts:208:30  ?? → ||    # entry: EntryContext|undefined — an object literal is always truthy
+src/shared/booking/fold-tree.ts:157:4  ?? → ||    # childQtyField: parseNonNegativeInt returns a non-negative int or null; its only falsy result (0) already maps to 0, so ?? and || coincide
+src/shared/booking/fold-tree.ts:280:48  ?? → ||    # foldChild summed: state.quantities.get(childId) is undefined (first fold) or a positive running total, never 0, so ?? and || coincide
+src/shared/booking/fold-tree.ts:424:58  ?? → ||    # foldBookingTree parentQty: base.quantities.get() is undefined or ≥0, and a 0 takes the same `<= 0` skip, so ?? and || coincide
+src/shared/booking/fold-tree.ts:444:41  ?? → ||    # dayCount: customisableDuration is a positive day count or null, never 0, so ?? base.dayCount and || base.dayCount coincide
+src/shared/booking/capacity-tree.ts:45:66  ?? → ||    # groupIdsByListingId.get(): number[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/booking/capacity-tree.ts:47:61  ?? → ||    # demandByGroup.get(): undefined (first member) or a running per-package demand ≥1, never 0, so ?? and || coincide
+
+# v2 signed metadata (Phase 2d).
+src/shared/payment-helpers.ts:159:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
 
 # --- External order widget (src/ui/client/order.ts) ----------------------------
 # This is browser DOM-construction code; many operator swaps are provably
@@ -191,4 +205,6 @@ src/shared/site-pages/core.ts:301:43  ?? → ||    # levelOf: forest.itemsByPage
 
 # listing_prices sync (listing-prices.ts): `?? → ||` where the operand's only
 # falsy-non-null value equals the fallback.
-src/shared/db/listing-prices.ts:76:19  ?? → ||    # sourceRowStatements row.unit_price: number|null; the only falsy-non-null value is 0 and 0 ?? 0 === 0 || 0
+src/shared/db/listing-prices.ts:197:19  ?? → ||    # sourceRowStatements row.unit_price: number|null; the only falsy-non-null value is 0 and 0 ?? 0 === 0 || 0
+src/shared/db/listing-prices.ts:83:54  ?? → ||    # groupDayPriceStatements member.dayPrices: DayPrices|undefined — an object is always truthy, undefined→{} either way
+src/shared/db/listing-prices.ts:109:45  ?? → ||    # foldGroupDayRows result.get(): Map|undefined — a Map is always truthy

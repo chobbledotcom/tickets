@@ -92,8 +92,12 @@ const EA_LEDGER_MONEY_COLS = `${refundedFromLedger("ea.attendee_id")}, ${pricePa
   "ea.ledger_event_group",
 )}`;
 
-/** Columns sourced from listing_attendees (per-listing data) */
-const EA_COLS = `ea.listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, ea.quantity, ea.checked_in, ${EA_LEDGER_MONEY_COLS}, ea.attachment_downloads`;
+/** Columns sourced from listing_attendees (per-listing data). `package_group_id`
+ * rides along so an attendee loaded through a join still knows its package
+ * membership — without it the email/webhook renderers treat a hidden package
+ * booking as a standalone member and can leak the hidden listing or its base
+ * price. */
+const EA_COLS = `ea.listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, ea.quantity, ea.checked_in, ${EA_LEDGER_MONEY_COLS}, ea.attachment_downloads, ea.package_group_id`;
 
 /** SELECT clause for attendee + listing_attendees JOINs (INNER JOIN context).
  * Derives `date` from start_at for the Attendee type shape. */
@@ -102,7 +106,7 @@ export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ${EA_COLS}`;
 /** SELECT clause for LEFT JOIN context — COALESCEs nullable join columns so
  * attendees with broken/missing listing_attendees linkage still appear in results
  * (with listing_id=0 as an obvious corruption indicator). */
-export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.listing_id, 0) as listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in, 0) as checked_in, ${EA_LEDGER_MONEY_COLS}, COALESCE(ea.attachment_downloads, 0) as attachment_downloads`;
+export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.listing_id, 0) as listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in, 0) as checked_in, ${EA_LEDGER_MONEY_COLS}, COALESCE(ea.attachment_downloads, 0) as attachment_downloads, COALESCE(ea.package_group_id, 0) as package_group_id`;
 
 /**
  * Columns for a `ListingAttendeeRow` read straight from `listing_attendees`
@@ -116,7 +120,7 @@ export const LISTING_ATTENDEE_ROW_COLS = `listing_id, start_at, end_at, quantity
   "attendee_id",
   "listing_id",
   "ledger_event_group",
-)}, ledger_event_group, attachment_downloads, order_token, parent_listing_id`;
+)}, ledger_event_group, attachment_downloads, order_token, parent_listing_id, package_group_id`;
 
 /**
  * Get attendees for an listing without decrypting PII
@@ -130,6 +134,25 @@ export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
      WHERE ea.listing_id = ? AND a.kind = '${ATTENDEE_KIND}'
      ORDER BY a.created DESC`,
     [listingId],
+  );
+
+/**
+ * One attendee's raw booking rows within one package group (real lines only —
+ * quantity > 0). Lets a listing-scoped action rehydrate the WHOLE package the
+ * selected line belongs to, so a per-member notification resend doesn't treat
+ * a single member row as the complete package.
+ */
+export const getAttendeePackageRowsRaw = (
+  attendeeId: number,
+  packageGroupId: number,
+): Promise<Attendee[]> =>
+  queryAll<Attendee>(
+    `SELECT ${ATTENDEE_JOIN_SELECT}
+     FROM attendees a
+     JOIN listing_attendees ea ON ea.attendee_id = a.id
+     WHERE a.id = ? AND ea.package_group_id = ? AND ea.quantity > 0
+     ORDER BY ea.listing_id ASC`,
+    [attendeeId, packageGroupId],
   );
 
 /**
@@ -491,6 +514,7 @@ export const getAttendeesByTokens = async (
       ledger_event_group: row.ledger_event_group,
       listing_id: row.listing_id,
       order_token: row.order_token,
+      package_group_id: row.package_group_id,
       parent_listing_id: row.parent_listing_id,
       price_paid: row.price_paid,
       quantity: row.quantity,

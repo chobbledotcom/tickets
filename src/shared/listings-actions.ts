@@ -8,8 +8,13 @@
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { groupsTable, validateGroupListingType } from "#shared/db/groups.ts";
 import {
+  getGroupIdsByListingIds,
+  groupsTable,
+  validateGroupListingType,
+} from "#shared/db/groups.ts";
+import {
+  edgeIdsTouching,
   edgeIncompatibilityAfterChange,
   firstTouchingEdgeError,
   getChildListingIds,
@@ -26,11 +31,14 @@ import {
 import {
   childOnlyAddOnNameForListings,
   firstChildUnreachableAddOnForListings,
+  type ListingGroupMembership,
+  toListingGroupMembership,
 } from "#shared/db/modifier-resolve.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { generateUniqueSlug } from "#shared/slug.ts";
 import { deleteListingStorageFiles } from "#shared/storage.ts";
 import {
+  type Group,
   type Listing,
   type ListingWithCount,
   normalizeDurationDays,
@@ -60,19 +68,66 @@ type ListingUpdateCheck = (
   existingId: number | undefined,
 ) => Promise<string | null>;
 
-/** Validate selected group existence and listing type compatibility. */
+/** Validate each selected group exists, the listing type is compatible with that
+ * group's other members, and — for package groups — the listing is a plain
+ * standard listing with a single fixed price (not daily, customisable-days, or
+ * pay-what-you-want). The package check mirrors the group-side invariant so the
+ * listing form/API can't smuggle an incompatible listing into a package. */
+/** The package-membership error for a listing joining `group`, or null when the
+ * group isn't a package or the listing is a valid member. A package member may
+ * not be priced by the buyer, may never itself be another listing's add-on
+ * CHILD (it is only sold as part of its bundle), and may gate its own children
+ * only on a VISIBLE package — a hidden package collapses members to the package
+ * name, so a member's child selector would leak them. Mirrors the group-side
+ * `isPackageableMember`. (Brand-new child edges submitted on the same write are
+ * caught before the row commits in the API's prepareChildEdges.) */
+const packageMembershipError = async (
+  group: Group,
+  incompatibleByType: boolean,
+  existingId: number | undefined,
+): Promise<string | null> => {
+  if (!group.is_package) return null;
+  if (incompatibleByType) return t("error.package_incompatible_listing");
+  if (existingId === undefined) return null;
+  const { childIds, parentIds } = await edgeIdsTouching(existingId);
+  if (
+    parentIds.length > 0 ||
+    (group.hide_package_listings && childIds.length > 0)
+  ) {
+    return t("error.package_incompatible_listing");
+  }
+  return null;
+};
+
 const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
-  if (!input.groupId || input.groupId === 0) return null;
+  // Only pay-what-you-want pricing is package-incompatible: a package needs an
+  // operator-set price per member. Daily/customisable members are packageable
+  // (the group keeps members homogeneous, sharing one date/day-count selector).
+  const incompatibleByType = input.canPayMore ?? false;
+  for (const groupId of input.groupIds ?? []) {
+    const group = await groupsTable.findById(groupId);
+    if (!group) return "Selected group does not exist";
 
-  const group = await groupsTable.findById(input.groupId);
-  if (!group) return "Selected group does not exist";
+    const typeError = await validateGroupListingType(
+      groupId,
+      // The DB column defaults to "standard" when omitted (e.g. a JSON API
+      // create that sends group_ids but no listing_type), so validate against
+      // that default rather than passing undefined and reading every standard
+      // group as a type mismatch.
+      input.listingType ?? "standard",
+      input.customisableDays ?? false,
+      existingId ?? 0,
+    );
+    if (typeError) return typeError;
 
-  return validateGroupListingType(
-    input.groupId,
-    input.listingType!,
-    input.customisableDays ?? false,
-    existingId ?? 0,
-  );
+    const packageError = await packageMembershipError(
+      group,
+      incompatibleByType,
+      existingId,
+    );
+    if (packageError) return packageError;
+  }
+  return null;
 };
 
 /**
@@ -128,16 +183,30 @@ export const listingInputToEdge = (
  * see the pending change — parents.md Fix 4). The listing is checked both as a
  * parent (its children, against its own page id `[id]`) and as a child (under
  * each parent's page id `[parentId]`). */
+/** Every listing as a {@link ListingGroupMembership} with a per-listing override
+ * applied — the would-be group set or inactive state the save is about to
+ * commit. One membership lookup feeds both would-be reachability checks. */
+const listingsWithGroups = async (
+  override: (listing: ListingWithCount) => Partial<ListingGroupMembership>,
+): Promise<ListingGroupMembership[]> => {
+  const all = await getAllListings();
+  const membership = await getGroupIdsByListingIds(all.map((l) => l.id));
+  return all.map((listing) => ({
+    ...toListingGroupMembership(listing, membership),
+    ...override(listing),
+  }));
+};
+
 const orphanedAddOnAfterChange = async (
   id: number,
-  wouldBeGroupId: number,
+  wouldBeGroupIds: number[],
 ): Promise<string | null> => {
-  // Apply this listing's would-be group_id to the in-memory listing set, so a
+  // Apply this listing's would-be group set to the in-memory listing set, so a
   // group-scoped add-on resolves against the move the save is about to make.
   // (Built eagerly; the shared traversal short-circuits before `check` runs when
   // the listing has no edges, so a no-edge save reads it but never queries scopes.)
-  const allListings = (await getAllListings()).map((listing) =>
-    listing.id === id ? { ...listing, group_id: wouldBeGroupId } : listing,
+  const allListings = await listingsWithGroups((listing) =>
+    listing.id === id ? { groupIds: wouldBeGroupIds } : {},
   );
   // Each touching edge is a (suppressed child, parent page id) pair: as a parent
   // of each child the page is self (`id`) and the suppressed child is the other
@@ -180,12 +249,11 @@ const orphanedAddOnAfterChange = async (
 export const deactivationOrphanedAddOnError = async (
   inactiveIds: ReadonlySet<number>,
 ): Promise<string | null> => {
-  const allListings = await getAllListings();
   // Apply the would-be inactive state of every target listing to the in-memory set.
-  const wouldBe = allListings.map((listing) =>
-    inactiveIds.has(listing.id) ? { ...listing, active: false } : listing,
+  const wouldBe = await listingsWithGroups((listing) =>
+    inactiveIds.has(listing.id) ? { active: false } : {},
   );
-  const childIds = await getChildListingIds(allListings.map((l) => l.id));
+  const childIds = await getChildListingIds(wouldBe.map((l) => l.id));
   return firstChildUnreachableAddOnForListings(wouldBe, childIds);
 };
 
@@ -215,7 +283,7 @@ const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
   if (fieldError) return fieldError;
   const orphanError = await orphanedAddOnAfterChange(
     existingId,
-    input.groupId ?? 0,
+    input.groupIds ?? [],
   );
   if (orphanError) return orphanError;
   return deactivationOrphanedAddOn(input, existingId);

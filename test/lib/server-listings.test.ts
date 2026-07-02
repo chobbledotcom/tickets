@@ -8,6 +8,10 @@ import { addDays } from "#shared/dates.ts";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
+  assignListingsToGroup,
+  getGroupIdsByListingId,
+} from "#shared/db/groups.ts";
+import {
   getAllListings,
   getListing,
   getListingWithCount,
@@ -228,7 +232,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         slug: "listing-group",
       });
       const { response } = await adminMultipartPost("/admin/listing", {
-        group_id: String(group.id),
+        group_ids: String(group.id),
         max_attendees: "50",
         max_quantity: "1",
         name: "Grouped Listing",
@@ -237,12 +241,12 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       await expectFlashRedirect("/admin", "Listing created")(response);
 
       const listing = await getListing(1);
-      expect(listing?.group_id).toBe(group.id);
+      expect(await getGroupIdsByListingId(listing!.id)).toContain(group.id);
     });
 
     test("rejects non-existent group_id on create", async () => {
       const { response } = await adminMultipartPost("/admin/listing", {
-        group_id: "999",
+        group_ids: "999",
         max_attendees: "50",
         max_quantity: "1",
         name: "Bad Group Listing",
@@ -268,7 +272,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       });
 
       const { response } = await adminMultipartPost("/admin/listing", {
-        group_id: String(group.id),
+        group_ids: String(group.id),
         listing_type: "daily",
         max_attendees: "50",
         max_quantity: "1",
@@ -320,6 +324,26 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         thank_you_url: "",
       });
       await expectHtmlResponse(response, 400, "Add Listing");
+    });
+
+    test("preserves submitted group selection when create fails validation", async () => {
+      const group = await createTestGroup({ name: "Keep Me Group" });
+      const { response } = await adminMultipartPost("/admin/listing", {
+        group_ids: String(group.id),
+        max_attendees: "",
+        name: "",
+        thank_you_url: "",
+      });
+      const html = await response.text();
+      expect(response.status).toBe(400);
+      // The submitted group checkbox re-renders as checked rather than empty, so
+      // a fixed-and-resubmitted listing keeps its membership.
+      expect(html).toContain(`value="${group.id}"`);
+      expect(html).toMatch(
+        new RegExp(
+          `checked[^>]*value="${group.id}"|value="${group.id}"[^>]*checked`,
+        ),
+      );
     });
 
     test("rejects duplicate slug", async () => {
@@ -553,7 +577,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         name: "Capped Group",
         slug: "capped-grp",
       });
-      await listingsTable.update(listing.id, { groupId: group.id });
+      await assignListingsToGroup([listing.id], group.id);
       // Sibling listing in the same group with bookings: proves the row's
       // count is the group-wide total, not just the current listing's.
       const sibling = await createTestListing({
@@ -577,6 +601,53 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expect(html).toContain(`href="/admin/groups/${group.id}"`);
     });
 
+    test("shows the tightest capped group when a listing is in several", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+      });
+      const loose = await createTestGroup({
+        maxAttendees: 50,
+        name: "Loose",
+        slug: "loose-grp",
+      });
+      const tight = await createTestGroup({
+        maxAttendees: 6,
+        name: "Tight",
+        slug: "tight-grp",
+      });
+      const looser = await createTestGroup({
+        maxAttendees: 100,
+        name: "Looser",
+        slug: "looser-grp",
+      });
+      await assignListingsToGroup([listing.id], loose.id);
+      await assignListingsToGroup([listing.id], tight.id);
+      await assignListingsToGroup([listing.id], looser.id);
+      // A sibling booked into the tight group makes it the binding constraint.
+      const sibling = await createTestListing({
+        groupId: tight.id,
+        maxAttendees: 100,
+        name: "Tight Sibling",
+      });
+      await bookAttendee(sibling, {
+        email: "t@test.com",
+        name: "T",
+        quantity: 4,
+      });
+
+      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      // The tight group (6 cap, 4 booked → 2 remain) is the binding one shown,
+      // not the roomier groups it also belongs to.
+      expect(html).toContain("4 / 6");
+      expect(html).toContain("2 remain");
+      expect(html).toContain(`href="/admin/groups/${tight.id}"`);
+      expect(html).not.toContain(`href="/admin/groups/${loose.id}"`);
+      expect(html).not.toContain(`href="/admin/groups/${looser.id}"`);
+    });
+
     test("omits Group Attendees row when group is uncapped", async () => {
       const { listing, cookie } = await setupListingAndLogin({
         maxAttendees: 100,
@@ -585,7 +656,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         name: "Uncapped",
         slug: "uncapped-grp",
       });
-      await listingsTable.update(listing.id, { groupId: group.id });
+      await assignListingsToGroup([listing.id], group.id);
 
       const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
         cookie,
@@ -1411,7 +1482,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/edit`,
         {
-          group_id: String(group2.id),
+          group_ids: String(group2.id),
           max_attendees: "50",
           max_quantity: "1",
           name: listing.name,
@@ -1423,8 +1494,8 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         "Listing updated",
       )(response);
 
-      const updated = await getListing(listing.id);
-      expect(updated?.group_id).toBe(group2.id);
+      // The group checkboxes replace membership: group1 → group2.
+      expect(await getGroupIdsByListingId(listing.id)).toEqual([group2.id]);
     });
 
     test("rejects non-existent group_id on edit", async () => {
@@ -1436,7 +1507,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/edit`,
         {
-          group_id: "999",
+          group_ids: "999",
           max_attendees: "50",
           max_quantity: "1",
           name: listing.name,
@@ -1466,17 +1537,22 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/edit`,
         {
-          group_id: String(group.id),
+          group_ids: String(group.id),
           max_attendees: "50",
           max_quantity: "1",
           name: listing.name,
           slug: listing.slug,
         },
       );
-      await expectHtmlResponse(
+      const html = await expectHtmlResponse(
         response,
         400,
         "already contains daily listings",
+      );
+      // The rejected edit re-renders the group the operator ticked as checked,
+      // so their selection isn't silently dropped on the next submit.
+      expect(html).toContain(
+        `checked name="group_ids" type="checkbox" value="${group.id}"`,
       );
     });
 
@@ -1500,7 +1576,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/edit`,
         {
-          group_id: String(group.id),
+          group_ids: String(group.id),
           max_attendees: "50",
           max_quantity: "1",
           name: listing.name,

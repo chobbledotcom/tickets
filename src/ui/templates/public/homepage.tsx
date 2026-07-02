@@ -128,9 +128,14 @@ export const homepagePage = (
     );
   }
 
-  const groupListings = pipe(map(renderGroupListing), (rows) => rows.join(""))(
-    groups,
-  );
+  // Packages are sold as bundles, so they lead the page under their own heading;
+  // regular groups and individual listings follow together. Each set is sorted by
+  // decrypted name in app code (SQL can't order the encrypted column).
+  const byName = (a: Group, b: Group): number => a.name.localeCompare(b.name);
+  const renderGroupCards = (gs: Group[]): string =>
+    pipe(map(renderGroupListing), (rows) => rows.join(""))(gs);
+  const packageGroups = groups.filter((g) => g.is_package).toSorted(byName);
+  const regularGroups = groups.filter((g) => !g.is_package).toSorted(byName);
 
   const listingListings = pipe(
     map(renderListingListing(childStateOf)),
@@ -141,8 +146,14 @@ export const homepagePage = (
     <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav {...navFlags()} />
+      {packageGroups.length > 0 && (
+        <>
+          <h2>{t("public.packages")}</h2>
+          <Raw html={renderGroupCards(packageGroups)} />
+        </>
+      )}
       <h2>{t("public.all_bookable_listings")}</h2>
-      <Raw html={groupListings} />
+      <Raw html={renderGroupCards(regularGroups)} />
       <Raw html={listingListings} />
       <footer class="homepage-footer">
         <p>

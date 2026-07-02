@@ -2,24 +2,63 @@
  * Groups table operations
  */
 
+import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { execute, executeBatch } from "#shared/db/client.ts";
+import {
+  execute,
+  executeBatch,
+  inPlaceholders,
+  queryAll,
+  type TxScope,
+} from "#shared/db/client.ts";
 import {
   cachedEntityTable,
   defineIdTable,
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
+import {
+  getGroupDayPrices,
+  groupDayPriceStatements,
+  PRICE_TYPE_GROUP_DAY,
+} from "#shared/db/listing-prices.ts";
 import { queryListingsWithCounts } from "#shared/db/listings.ts";
 import { queryAndMap } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
-import type { Group, ListingType, ListingWithCount } from "#shared/types.ts";
+import type {
+  DayPrices,
+  Group,
+  GroupListing,
+  ListingType,
+  ListingWithCount,
+} from "#shared/types.ts";
 
 /** Groups are few, so the cache loads the whole set and answers by-id / by-slug
  * reads from it — same isolate-level TTL as the listings cache. */
 const GROUPS_CACHE_TTL_MS = 30_000;
+
+/** A package member's per-unit price override and fixed quantity, as parsed from
+ * the group edit form / API. `price` is minor units (0 = no override, use the
+ * listing's own price); `quantity` is how many of this listing one package unit
+ * includes (≥1). */
+export type PackageMemberInput = {
+  listingId: number;
+  /** Per-listing package price in minor units: `null` means no override (charge
+   * the listing's own price), `0` means explicitly free in this package, and a
+   * positive value overrides the listing price. */
+  price: number | null;
+  /** How many of this listing one package unit includes (≥1). Defaults to 1. */
+  quantity?: number;
+  /** A customisable member's per-day overrides (day count → per-unit minor
+   * price): the price this member charges for an n-day booking of THIS package,
+   * consulted before the listing's own day price. Only counts the listing
+   * itself offers ever apply, and a flat `price` override (one price whatever
+   * the span) still wins over both. Stored as `group_day` rows in
+   * `listing_prices`. */
+  dayPrices?: DayPrices | undefined;
+};
 
 /** Group input fields for create/update (camelCase) */
 export type GroupInput = {
@@ -30,6 +69,12 @@ export type GroupInput = {
   termsAndConditions?: string;
   maxAttendees?: number;
   hidden?: boolean;
+  isPackage?: boolean;
+  hidePackageListings?: boolean;
+  /** Per-listing package overrides (price + quantity). Absent means "leave
+   * existing rows untouched" (partial API update); an empty array clears every
+   * override back to price 0 / quantity 1. */
+  packageMembers?: PackageMemberInput[] | undefined;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -42,6 +87,8 @@ const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
   ...idAndEncryptedSlugSchema(encrypt, decrypt),
   description: col.encryptedText(encrypt, decrypt),
   hidden: col.boolean(false),
+  hide_package_listings: col.boolean(false),
+  is_package: col.boolean(false),
   max_attendees: col.simple<number>(),
   terms_and_conditions: col.encryptedText(encrypt, decrypt),
 });
@@ -93,6 +140,11 @@ export const isGroupSlugTaken = (
     excludeGroupId ? { id: excludeGroupId, table: "groups" } : undefined,
   );
 
+/** WHERE fragment matching listings that are members of the given group, via the
+ * group_listings join table (subquery form avoids duplicate rows). */
+const IN_GROUP_SQL =
+  "listing.id IN (SELECT listing_id FROM group_listings WHERE group_id = ?)";
+
 /** Query listings in a group with attendee counts, optionally filtering to active only */
 const queryGroupListings = (
   groupId: number,
@@ -100,8 +152,8 @@ const queryGroupListings = (
 ): Promise<ListingWithCount[]> =>
   queryListingsWithCounts(
     activeOnly
-      ? "WHERE listing.active = 1 AND listing.group_id = ?"
-      : "WHERE listing.group_id = ?",
+      ? `WHERE listing.active = 1 AND ${IN_GROUP_SQL}`
+      : `WHERE ${IN_GROUP_SQL}`,
     [groupId],
   );
 
@@ -151,38 +203,550 @@ export const validateGroupListingType = async (
 };
 
 /**
- * Get ungrouped listings (group_id = 0) with attendee counts.
+ * Listings that are NOT already in the given group, with attendee counts — the
+ * candidates the group detail "add listings" form offers. Membership is
+ * many-to-many, so a listing already in another group is still a valid
+ * candidate here; only this group's current members are excluded.
  */
-export const getUngroupedListings = (): Promise<ListingWithCount[]> =>
-  queryListingsWithCounts("WHERE listing.group_id = 0");
+export const getListingsNotInGroup = (
+  groupId: number,
+): Promise<ListingWithCount[]> =>
+  queryListingsWithCounts(
+    "WHERE listing.id NOT IN (SELECT listing_id FROM group_listings WHERE group_id = ?)",
+    [groupId],
+  );
+
+/** The ids of every group a listing belongs to, ascending. */
+export const getGroupIdsByListingId = async (
+  listingId: number,
+): Promise<number[]> => {
+  const rows = await queryAll<{ group_id: number }>(
+    "SELECT group_id FROM group_listings WHERE listing_id = ? ORDER BY group_id ASC",
+    [listingId],
+  );
+  return rows.map((r) => r.group_id);
+};
+
+/** Whether any of the given group ids satisfies the extra SQL `condition`.
+ * Empty input → false (no query). */
+const anyGroupMatching = async (
+  groupIds: readonly number[],
+  condition: string,
+): Promise<boolean> => {
+  if (groupIds.length === 0) return false;
+  const rows = await queryAll<{ id: number }>(
+    `SELECT id FROM groups WHERE id IN (${inPlaceholders(
+      groupIds,
+    )}) AND ${condition} LIMIT 1`,
+    [...groupIds],
+  );
+  return rows.length > 0;
+};
+
+/** Whether any of the given group ids names a HIDDEN package group
+ * (`hide_package_listings`). A hidden package collapses its members to the
+ * package name on every buyer surface, so a member there can never gate its own
+ * add-on children — the selector would name them. */
+export const anyHiddenPackageGroup = (
+  groupIds: readonly number[],
+): Promise<boolean> =>
+  anyGroupMatching(groupIds, "is_package = 1 AND hide_package_listings = 1");
+
+/** Whether any of the given listings is a member of a package group. Empty
+ * input → false (no query). Used to keep a package member from being turned into
+ * another listing's required child (a package page can't render child edges). */
+export const anyListingInPackageGroup = async (
+  listingIds: readonly number[],
+): Promise<boolean> => {
+  if (listingIds.length === 0) return false;
+  const rows = await queryAll<{ listing_id: number }>(
+    `SELECT groupListing.listing_id
+       FROM group_listings AS groupListing
+       JOIN groups AS groupRow ON groupRow.id = groupListing.group_id
+      WHERE groupListing.listing_id IN (${inPlaceholders(listingIds)})
+        AND groupRow.is_package = 1
+      LIMIT 1`,
+    [...listingIds],
+  );
+  return rows.length > 0;
+};
+
+/** Of the given listing ids, those that belong to a HIDDEN package — a package
+ * group (`is_package = 1`) with `hide_package_listings = 1`. Buyers must never
+ * meet these members standalone: the package name is the only public surface,
+ * so every buyer-facing discovery/direct path drops them. */
+export const getHiddenPackageMemberIds = async (
+  listingIds: readonly number[],
+): Promise<Set<number>> => {
+  if (listingIds.length === 0) return new Set();
+  const rows = await queryAll<{ listing_id: number }>(
+    `SELECT DISTINCT groupListing.listing_id
+       FROM group_listings AS groupListing
+       JOIN groups AS groupRow ON groupRow.id = groupListing.group_id
+      WHERE groupListing.listing_id IN (${inPlaceholders(listingIds)})
+        AND groupRow.is_package = 1
+        AND groupRow.hide_package_listings = 1`,
+    [...listingIds],
+  );
+  return new Set(rows.map((r) => r.listing_id));
+};
+
+/** Whether a single listing is a HIDDEN package's member — the one-listing form
+ * of `getHiddenPackageMemberIds`, for the buyer-facing guards (API lookup, QR
+ * booking, standalone-page test) that ask this of one listing at a time. */
+export const isHiddenPackageMember = async (
+  listingId: number,
+): Promise<boolean> => (await getHiddenPackageMemberIds([listingId])).size > 0;
+
+/** Whether adding child edges would violate the package invariant: the parent is
+ * joining/in a HIDDEN package group (a visible package renders the member's
+ * child selector, so a member gating children is fine there), or any chosen
+ * child is itself a package member (a package member is only ever sold as part
+ * of its bundle, never folded under another parent). An empty `childIds`
+ * (clearing children) is never a conflict. */
+export const packageChildEdgeConflict = async (
+  parentGroupIds: readonly number[],
+  childIds: readonly number[],
+): Promise<boolean> => {
+  if (childIds.length === 0) return false;
+  return (
+    (await anyHiddenPackageGroup(parentGroupIds)) ||
+    (await anyListingInPackageGroup(childIds))
+  );
+};
+
+/** Package-group display info for grouping a booking's lines under the package
+ * name on tickets/emails. */
+export type PackageDisplay = { name: string; hideListings: boolean };
+
+/** The package display for a booking's PERSISTED `package_group_id`, or null when
+ * the id is 0 (not a package) or names a group that no longer exists or is not a
+ * package. Grouping on the stored id — set on every booking row of one package
+ * checkout — is exact: a standalone order of the same listings carries id 0, so
+ * it is never mistaken for the package. The group's name is decrypted on the way
+ * out. */
+/** Load a group by id only when it is a live package, else null. The one home
+ * for "this id names a package group" — a non-positive id, a missing group, or a
+ * non-package group all read as null. */
+export const getPackageGroupById = async (
+  groupId: number,
+): Promise<Group | null> => {
+  if (groupId <= 0) return null;
+  const group = await groupsTable.findById(groupId);
+  return group?.is_package ? group : null;
+};
+
+export const getPackageDisplayById = async (
+  groupId: number,
+): Promise<PackageDisplay | null> => {
+  const group = await getPackageGroupById(groupId);
+  return group === null
+    ? null
+    : { hideListings: group.hide_package_listings, name: group.name };
+};
+
+/** The package displays for a set of (possibly repeated or zero)
+ * `package_group_id`s — only ids naming a live package appear in the map. Lets
+ * the ticket view collapse each token's package rows into one card per package,
+ * so an attendee holding both a package booking and a standalone one (e.g. after
+ * an attendee merge) doesn't fall back to per-row cards that leak a hidden member.
+ * Groups are cached, so the per-id resolution is cheap. */
+export const getPackageDisplaysByIds = async (
+  groupIds: readonly number[],
+): Promise<Map<number, PackageDisplay>> => {
+  const result = new Map<number, PackageDisplay>();
+  for (const id of new Set(groupIds)) {
+    const display = await getPackageDisplayById(id);
+    if (display) result.set(id, display);
+  }
+  return result;
+};
+
+/** The single package id every booking in an order shares, or null. Returns the
+ * id only when the list is non-empty and every entry carries the SAME non-zero
+ * `package_group_id`; a mixed set (some 0, or differing ids) is not one package
+ * order, so it returns null. The shared check the ticket view and the email use
+ * before {@link getPackageDisplayById}. */
+export const sharedPackageGroupId = (
+  packageGroupIds: readonly number[],
+): number | null => {
+  const first = packageGroupIds[0];
+  if (first === undefined || first <= 0) return null;
+  return packageGroupIds.every((id) => id === first) ? first : null;
+};
+
+/** The package display for a set of bookings' persisted `package_group_id`s: the
+ * group only when every booking shares the same non-zero id, else null. Combines
+ * {@link sharedPackageGroupId} with {@link getPackageDisplayById} so the ticket
+ * view and the confirmation email resolve the package the same way. */
+export const getPackageDisplayForBookings = (
+  packageGroupIds: readonly number[],
+): Promise<PackageDisplay | null> => {
+  const shared = sharedPackageGroupId(packageGroupIds);
+  return shared === null
+    ? Promise.resolve(null)
+    : getPackageDisplayById(shared);
+};
+
+/** The listing ids that are members of a group, ascending. */
+export const getGroupListingIds = async (
+  groupId: number,
+): Promise<number[]> => {
+  const rows = await queryAll<{ listing_id: number }>(
+    "SELECT listing_id FROM group_listings WHERE group_id = ? ORDER BY listing_id ASC",
+    [groupId],
+  );
+  return rows.map((r) => r.listing_id);
+};
+
+/** Map each listing id to the ids of the groups it belongs to, in one query.
+ * Listings that belong to no group are absent from the map. */
+export const getGroupIdsByListingIds = async (
+  listingIds: number[],
+): Promise<Map<number, number[]>> => {
+  const result = new Map<number, number[]>();
+  if (listingIds.length === 0) return result;
+  const rows = await queryAll<{ group_id: number; listing_id: number }>(
+    `SELECT group_id, listing_id FROM group_listings
+       WHERE listing_id IN (${inPlaceholders(listingIds)})
+     ORDER BY group_id ASC`,
+    listingIds,
+  );
+  for (const row of rows) {
+    const list = result.get(row.listing_id);
+    if (list) list.push(row.group_id);
+    else result.set(row.listing_id, [row.group_id]);
+  }
+  return result;
+};
 
 /**
- * Assign listings to a group by updating their group_id.
+ * Add listings to a group (membership rows), ignoring any already present.
  *
- * All listings move in a single batch transaction, so the reassignment is
- * atomic and costs one round-trip rather than one per listing.
+ * All rows insert in a single batch transaction, so the change is atomic and
+ * costs one round-trip rather than one per listing.
  */
 export const assignListingsToGroup = (
   listingIds: number[],
   groupId: number,
 ): Promise<void> => {
   if (listingIds.length === 0) return Promise.resolve();
+  // INSERT ... SELECT gated on the listing existing, so an unknown id is a no-op
+  // (the join table has no FK, so a stale/crafted id would otherwise leave an
+  // orphan membership row that the old `UPDATE listings WHERE id` never created).
   return executeBatch(
     listingIds.map((listingId) => ({
-      args: [groupId, listingId],
-      sql: "UPDATE listings SET group_id = ? WHERE id = ?",
+      args: [groupId, listingId, listingId],
+      sql: "INSERT OR IGNORE INTO group_listings (group_id, listing_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM listings WHERE id = ?)",
     })),
   );
 };
 
+/** One group_listings row for a DUPLICATED group, resolving both the new group
+ * and the cloned listing by the slug_index each was just inserted with, so the
+ * whole clone (group + listings + memberships) runs as one batch — one
+ * round-trip, atomic, and clear of the interactive-transaction round-trip guard.
+ * Carries the source member's package_price/quantity so the duplicate packages
+ * identically. */
+export const cloneGroupMembershipStatement = (member: {
+  groupSlugIndex: string;
+  listingSlugIndex: string;
+  packagePrice: number | null;
+  quantity: number;
+}): { sql: string; args: InValue[] } => ({
+  args: [
+    member.groupSlugIndex,
+    member.listingSlugIndex,
+    member.packagePrice,
+    member.quantity,
+  ],
+  sql: `INSERT INTO group_listings (group_id, listing_id, package_price, quantity)
+        SELECT (SELECT id FROM groups WHERE slug_index = ?),
+               (SELECT id FROM listings WHERE slug_index = ?), ?, ?`,
+});
+
 /**
- * Reset group assignment on all listings in a group.
+ * Replace a listing's full set of group memberships (the listing-form
+ * checkboxes). Rows for groups that remain are left untouched so their
+ * `package_price` overrides survive; only newly-ticked groups are inserted and
+ * unticked ones removed.
+ */
+/** The DELETE/INSERT statements to move a listing from its `current` group set
+ * to the `desired` one, preserving rows (and their package_price overrides) for
+ * groups in both. Shared by {@link setListingGroups} (its own batch) and
+ * {@link setListingGroupsTx} (on a caller's transaction) so they can't drift. */
+const listingGroupDiffStatements = (
+  listingId: number,
+  current: Set<number>,
+  desired: Set<number>,
+) => {
+  const toRemove = [...current].filter((id) => !desired.has(id));
+  const toAdd = [...desired].filter((id) => !current.has(id));
+  const statements: { args: InValue[]; sql: string }[] = [];
+  // Set-based DELETE + multi-row INSERT — at most two statements regardless of
+  // how many groups change, so the transactional path (setListingGroupsTx) stays
+  // well under the interactive round-trip guard even for a large group selection.
+  if (toRemove.length > 0) {
+    statements.push({
+      args: [listingId, ...toRemove],
+      sql: `DELETE FROM group_listings WHERE listing_id = ? AND group_id IN (${inPlaceholders(toRemove)})`,
+    });
+  }
+  if (toAdd.length > 0) {
+    statements.push({
+      args: toAdd.flatMap((groupId) => [groupId, listingId]),
+      sql: `INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES ${toAdd.map(() => "(?, ?)").join(", ")}`,
+    });
+  }
+  return statements;
+};
+
+export const setListingGroups = async (
+  listingId: number,
+  groupIds: number[],
+): Promise<void> => {
+  const current = new Set(await getGroupIdsByListingId(listingId));
+  const statements = listingGroupDiffStatements(
+    listingId,
+    current,
+    new Set(groupIds),
+  );
+  if (statements.length > 0) await executeBatch(statements);
+};
+
+/** Replace a listing's group memberships inside an existing write transaction,
+ * so the change commits atomically with the listing row write (the admin API
+ * create/update path). Mirrors {@link setListingGroups} but reads the current
+ * set and runs each statement on the caller's `tx`. */
+export const setListingGroupsTx = async (
+  tx: TxScope,
+  listingId: number,
+  groupIds: number[],
+): Promise<void> => {
+  const rows = await tx.execute({
+    args: [listingId],
+    sql: "SELECT group_id FROM group_listings WHERE listing_id = ?",
+  });
+  const current = new Set(rows.rows.map((r) => Number(r.group_id)));
+  const statements = listingGroupDiffStatements(
+    listingId,
+    current,
+    new Set(groupIds),
+  );
+  for (const stmt of statements) await tx.execute(stmt);
+};
+
+/**
+ * Remove every listing from a group (used when the group is deleted), along
+ * with the group's per-day package overrides — its `group_day` price rows key
+ * on the group id, so they'd otherwise outlive the deletion.
  */
 export const resetGroupListings = async (groupId: number): Promise<void> => {
-  await execute("UPDATE listings SET group_id = 0 WHERE group_id = ?", [
-    groupId,
-  ]);
+  await execute("DELETE FROM group_listings WHERE group_id = ?", [groupId]);
+  for (const stmt of groupDayPriceStatements(groupId, [])) {
+    await execute(stmt.sql, stmt.args);
+  }
 };
+
+/**
+ * Every membership row for a group, carrying its `package_price` override and
+ * per-package `quantity`. A `null` `package_price` means "no override — use the
+ * listing's own price", `0` means explicitly free in this package, and a
+ * positive value overrides the price; `quantity` defaults to 1.
+ */
+export const getGroupPackagePrices = (
+  groupId: number,
+): Promise<GroupListing[]> =>
+  queryAll<GroupListing>(
+    "SELECT group_id, listing_id, package_price, quantity FROM group_listings WHERE group_id = ? ORDER BY listing_id ASC",
+    [groupId],
+  );
+
+/** A package group's member rows projected into the two maps every consumer
+ * needs (the booking flow, the webhook revalidation, the bookability gate, and
+ * the test harness): `prices` keeps only members with a real override — a
+ * positive price OR an explicit free `0`, dropping a `null` "no override" — while
+ * `quantities` covers every member (default 1). Owning both here keeps the "what
+ * counts as an override" rule in one place; callers destructure what they use. */
+export const packageMemberMaps = (
+  rows: readonly GroupListing[],
+): { prices: Map<number, number>; quantities: Map<number, number> } => ({
+  prices: new Map(
+    rows.flatMap((row) =>
+      row.package_price === null
+        ? []
+        : [[row.listing_id, row.package_price] as const],
+    ),
+  ),
+  quantities: new Map(rows.map((row) => [row.listing_id, row.quantity])),
+});
+
+/** A package group's full pricing state in one load: its membership rows, the
+ * flat override + quantity maps ({@link packageMemberMaps}), and each
+ * customisable member's per-day overrides — the shape the booking flow, the
+ * webhook payload, and the payment revalidation all consume. */
+export const loadPackageMemberPricing = async (groupId: number) => {
+  const [rows, dayPrices] = await Promise.all([
+    getGroupPackagePrices(groupId),
+    getGroupDayPrices(groupId),
+  ]);
+  return { ...packageMemberMaps(rows), dayPrices, rows };
+};
+
+/** The membership rows for several groups in one query, keyed by group id, so a
+ * list endpoint can hydrate every group's package members without a per-group
+ * round-trip. Groups with no membership rows are absent from the map. */
+export const getGroupPackagePricesByGroupIds = async (
+  groupIds: number[],
+): Promise<Map<number, GroupListing[]>> => {
+  const result = new Map<number, GroupListing[]>();
+  if (groupIds.length === 0) return result;
+  const rows = await queryAll<GroupListing>(
+    `SELECT group_id, listing_id, package_price, quantity FROM group_listings
+       WHERE group_id IN (${inPlaceholders(groupIds)})
+     ORDER BY listing_id ASC`,
+    groupIds,
+  );
+  for (const row of rows) {
+    const list = result.get(row.group_id);
+    if (list) list.push(row);
+    else result.set(row.group_id, [row]);
+  }
+  return result;
+};
+
+/** The statement that copies a source listing's per-package price/quantity onto a
+ * freshly-duplicated listing's membership rows, for every package group they
+ * share. Without this a duplicated package member would join at its base price
+ * with quantity 1, silently changing the bundle's contents and checkout total.
+ * Regular (non-package) shared groups carry no override, so they are untouched. */
+const copyPackageOverridesStatement = (
+  sourceListingId: number,
+  newListingId: number,
+) => ({
+  args: [sourceListingId, sourceListingId, newListingId, sourceListingId],
+  sql: `UPDATE group_listings AS dst
+        SET package_price = (
+              SELECT src.package_price FROM group_listings AS src
+               WHERE src.group_id = dst.group_id AND src.listing_id = ?),
+            quantity = (
+              SELECT src.quantity FROM group_listings AS src
+               WHERE src.group_id = dst.group_id AND src.listing_id = ?)
+      WHERE dst.listing_id = ?
+        AND dst.group_id IN (
+              SELECT group_id FROM group_listings WHERE listing_id = ?)
+        AND dst.group_id IN (SELECT id FROM groups WHERE is_package = 1)`,
+});
+
+/** Copy the source's package overrides onto the duplicate's membership rows in
+ * the SAME transaction that inserted them (the create write's `afterWrite`), so a
+ * failure rolls the whole duplicate back rather than leaving a live member at the
+ * default price. The source's per-day `group_day` rows are copied too — the
+ * clone joins the same package groups, so the same `"<groupId>/<n>"` price_ids
+ * apply to it verbatim. */
+export const copyPackageMemberOverridesTx = async (
+  tx: TxScope,
+  sourceListingId: number,
+  newListingId: number,
+): Promise<void> => {
+  await tx.execute(
+    copyPackageOverridesStatement(sourceListingId, newListingId),
+  );
+  await tx.execute({
+    args: [newListingId, sourceListingId, PRICE_TYPE_GROUP_DAY],
+    sql: `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price)
+          SELECT ?, price_type, price_id, unit_price FROM listing_prices
+           WHERE listing_id = ? AND price_type = ?`,
+  });
+};
+
+/** Reset-every-member-to-no-override statement (price NULL / quantity 1). */
+const clearMembersStatement = (groupId: number) => ({
+  args: [groupId],
+  sql: "UPDATE group_listings SET package_price = NULL, quantity = 1 WHERE group_id = ?",
+});
+
+/** The single CASE-UPDATE that applies each valid member's price/quantity,
+ * resetting every other member to no-override (NULL price / quantity 1) via the
+ * ELSE branches. One statement regardless of size, staying clear of the
+ * round-trip guard. A member's price may be null (no override), 0 (free), or a
+ * positive override. */
+const memberOverrideStatement = (
+  groupId: number,
+  valid: PackageMemberInput[],
+) => {
+  const priceCases = valid.map(() => "WHEN ? THEN ?").join(" ");
+  const qtyCases = valid.map(() => "WHEN ? THEN ?").join(" ");
+  const args: (number | null)[] = [];
+  for (const { listingId, price } of valid) args.push(listingId, price);
+  for (const { listingId, quantity } of valid)
+    args.push(listingId, quantity ?? 1);
+  args.push(groupId);
+  return {
+    args,
+    sql: `UPDATE group_listings SET package_price = CASE listing_id ${priceCases} ELSE NULL END, quantity = CASE listing_id ${qtyCases} ELSE 1 END WHERE group_id = ?`,
+  };
+};
+
+/** Keep only the submitted members that are CURRENT members of the group, so a
+ * stale or crafted id is ignored rather than wiping real overrides. */
+const validMembers = (
+  members: PackageMemberInput[],
+  currentIds: Set<number>,
+): PackageMemberInput[] => members.filter((m) => currentIds.has(m.listingId));
+
+/**
+ * Apply package-member overrides via the caller-supplied reader and runner, so
+ * the batch and transactional variants share one decision tree. An explicit
+ * empty array clears all overrides; a non-empty list that matches no current
+ * member is a no-op (it isn't treated as "clear all"). The members' per-day
+ * overrides are replaced in the same pass ({@link groupDayPriceStatements}), so
+ * the `group_day` rows always match the flat overrides they were saved with.
+ */
+const applyPackageMembers = async (
+  groupId: number,
+  members: PackageMemberInput[],
+  readCurrentIds: () => Promise<Set<number>>,
+  run: (stmt: {
+    args: (number | string | null)[];
+    sql: string;
+  }) => Promise<unknown>,
+): Promise<void> => {
+  if (members.length === 0) {
+    await run(clearMembersStatement(groupId));
+    for (const stmt of groupDayPriceStatements(groupId, [])) await run(stmt);
+    return;
+  }
+  const valid = validMembers(members, await readCurrentIds());
+  if (valid.length === 0) return;
+  await run(memberOverrideStatement(groupId, valid));
+  for (const stmt of groupDayPriceStatements(groupId, valid)) await run(stmt);
+};
+
+/** Set the `package_price` / `quantity` on a group's membership rows. Pass `tx`
+ * to run inside an existing write transaction (the admin API update path, so the
+ * overrides commit atomically with the group row write); omit it to run as the
+ * function's own statements. See {@link applyPackageMembers} for the
+ * partial-update rules. */
+export const setGroupPackageMembers = (
+  groupId: number,
+  members: PackageMemberInput[],
+  tx?: TxScope,
+): Promise<void> =>
+  applyPackageMembers(
+    groupId,
+    members,
+    tx
+      ? async () => {
+          const rows = await tx.execute({
+            args: [groupId],
+            sql: "SELECT listing_id FROM group_listings WHERE group_id = ?",
+          });
+          return new Set(rows.rows.map((r) => Number(r.listing_id)));
+        }
+      : async () => new Set(await getGroupListingIds(groupId)),
+    tx ? (stmt) => tx.execute(stmt) : (stmt) => execute(stmt.sql, stmt.args),
+  );
 
 /**
  * Set the `active` flag on every listing in a group.
@@ -192,8 +756,10 @@ export const setGroupListingsActive = async (
   groupId: number,
   active: boolean,
 ): Promise<number> => {
+  // Unaliased `id` (not IN_GROUP_SQL's `listing.id`) — this UPDATE has no table
+  // alias, so SQLite would reject `listing.id` here.
   const result = await execute(
-    "UPDATE listings SET active = ? WHERE group_id = ?",
+    "UPDATE listings SET active = ? WHERE id IN (SELECT listing_id FROM group_listings WHERE group_id = ?)",
     [active ? 1 : 0, groupId],
   );
   return result.rowsAffected;

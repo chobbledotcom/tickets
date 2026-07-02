@@ -3,6 +3,7 @@ import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { handleRequest } from "#routes";
+import { groupsTable } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 import {
@@ -899,6 +900,56 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(body.booking?.amountOwed).toBe(0);
     });
 
+    test("a free parent+child booking records the child under its parent", async () => {
+      // The free path threads the fold's allocations into createFreeReservation,
+      // so the auto-folded child is stored as its own row under the parent.
+      const { parent, child } = await makeParent({
+        children: [{ maxAttendees: 10, unitPrice: 0 }],
+        parent: { maxAttendees: 10, unitPrice: 0 },
+      });
+      const { body } = await bookListing(parent.slug);
+      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const [attendee] = await getAttendeesByTokens([
+        body.booking!.ticketToken!,
+      ]);
+      const childRow = attendee!.bookings.find(
+        (b) => b.listing_id === child.id,
+      );
+      expect(childRow?.parent_listing_id).toBe(parent.id);
+    });
+
+    test("carries the fold's child allocations on the paid intent for webhook edge revalidation", async () => {
+      await setupStripe();
+      const { parent, child } = await makeParent({
+        children: [{ maxAttendees: 10, unitPrice: 500 }],
+        parent: { maxAttendees: 10, unitPrice: 1000 },
+      });
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      let capturedAllocations: unknown;
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        (intent) => {
+          capturedAllocations = intent.allocations;
+          return Promise.resolve({
+            checkoutUrl: "https://checkout.test/session",
+            sessionId: "sess_test",
+          });
+        },
+      );
+      try {
+        const { response } = await bookListing(parent.slug);
+        expect(response.status).toBe(200);
+      } finally {
+        mockCreate.restore();
+      }
+      expect(capturedAllocations).toEqual([
+        { childId: child.id, parentId: parent.id, qty: 1 },
+      ]);
+    });
+
     test("accepts a pay-more child's custom price in a parent booking", async () => {
       const { parent, child } = await makeParent({
         children: [
@@ -1186,6 +1237,51 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
 
       // Booking goes to URL slug, body slug is ignored
       await expectBookedTo(target.id, other.id);
+    });
+  });
+
+  describe("hidden package members are never exposed by the API", () => {
+    /** A hidden package with one member listing, returning the member. */
+    const hiddenPackageMember = async () => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Hidden Bundle",
+      });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      return createTestListing({ groupId: group.id, name: "Secret Member" });
+    };
+
+    test("lists the bundle, not the member, on GET /api/listings", async () => {
+      await hiddenPackageMember();
+      const { listings } = await fetchListingsList();
+      expect(listings).toEqual([]);
+      // The package itself is a first-class product: discoverable by
+      // name/slug with its /ticket booking URL, members withheld.
+      const raw = await (
+        await handleRequest(jsonRequest("/api/listings"))
+      ).json();
+      expect(raw.packages).toHaveLength(1);
+      expect(raw.packages[0].name).toBe("Hidden Bundle");
+      expect(raw.packages[0].url).toBe(`/ticket/${raw.packages[0].slug}`);
+    });
+
+    test("404s the member's detail, availability and book endpoints", async () => {
+      const member = await hiddenPackageMember();
+      expect((await fetchListingBySlug(member.slug)).response.status).toBe(404);
+      expect((await fetchAvailability(member.slug)).response.status).toBe(404);
+      expect((await bookListing(member.slug)).response.status).toBe(404);
+    });
+
+    test("a VISIBLE package member stays listable and bookable", async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Open" });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Open Member",
+      });
+      const { listings } = await fetchListingsList();
+      expect(listings.map((l) => l.slug)).toContain(member.slug);
+      expect((await fetchListingBySlug(member.slug)).response.status).toBe(200);
     });
   });
 });

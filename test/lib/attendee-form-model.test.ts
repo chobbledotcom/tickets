@@ -44,6 +44,7 @@ const bookingRow = (
   ledger_event_group: "",
   listing_id: 1,
   order_token: "",
+  package_group_id: 0,
   parent_listing_id: 0,
   price_paid: 0,
   quantity: 1,

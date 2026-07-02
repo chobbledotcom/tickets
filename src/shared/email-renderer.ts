@@ -7,13 +7,17 @@
  */
 
 import type { Liquid } from "liquidjs";
-import { lazyRef, map } from "#fp";
+import { lazyRef, map, sumOf } from "#fp";
 import { createBaseLiquidEngine } from "#shared/currency.ts";
 import {
   addDays,
   formatDateLabel,
   formatDateRangeLabelCompactEn,
 } from "#shared/dates.ts";
+import {
+  getPackageDisplayForBookings,
+  type PackageDisplay,
+} from "#shared/db/groups.ts";
 import type {
   EmailTemplateFormat,
   EmailTemplateType,
@@ -81,43 +85,124 @@ export type TemplateData = {
   amount_owed: string;
 };
 
-/** Build the data object exposed to Liquid templates */
-export const buildTemplateData = (
+/** Whether an entry's price cell should render. A package override can charge a
+ * member whose base listing is free, so the booking's actual `price_paid` makes
+ * the row paid even when `isPaidListing(listing)` is false. */
+const entryIsPaid = ({ listing, attendee }: EmailEntry): boolean =>
+  isPaidListing(listing) || Number(attendee.price_paid) > 0;
+
+/** Map one booking entry to its template shape. */
+const toTemplateEntry = (entry: EmailEntry): TemplateEntry => {
+  const { listing, attendee } = entry;
+  // Render the booking's actual span from its stored range (end_date is the
+  // exclusive end), so customisable-days bookings show the chosen length rather
+  // than the listing's maximum duration.
+  const lastDay = attendee.end_date ? addDays(attendee.end_date, -1) : null;
+  const dateRangeLabel = attendee.date
+    ? lastDay && lastDay > attendee.date
+      ? formatDateRangeLabelCompactEn(attendee.date, lastDay)
+      : formatDateLabel(attendee.date)
+    : "";
+  return {
+    attendee: {
+      address: attendee.address,
+      date: attendee.date,
+      date_range_label: dateRangeLabel,
+      email: attendee.email,
+      name: attendee.name,
+      phone: attendee.phone,
+      price_paid: attendee.price_paid,
+      quantity: attendee.quantity,
+      special_instructions: attendee.special_instructions,
+    },
+    listing: {
+      is_paid: entryIsPaid(entry),
+      name: listing.name,
+      slug: listing.slug,
+    },
+  };
+};
+
+/** The buyer's summed price (minor units) across an order's entries. */
+export const sumEntryPrices = (entries: EmailEntry[]): number =>
+  sumOf((e: EmailEntry) => Number(e.attendee.price_paid))(entries);
+
+/** The bundle's summed booked quantity across an order's entries. */
+export const sumEntryQuantities = (entries: EmailEntry[]): number =>
+  sumOf((e: EmailEntry) => e.attendee.quantity)(entries);
+
+/** The dated entry whose booked range ends last — the stay covering the whole
+ * bundle — or null for a date-less (standard) package. A collapsed hidden
+ * package keeps its booking date at package level from this entry: the date is
+ * shared, but members can carry different durations. */
+export const widestDatedEntry = (entries: EmailEntry[]): EmailEntry | null => {
+  let widest: EmailEntry | null = null;
+  // A dated entry may carry no end_date (a single-day booking); it sorts below
+  // any ranged stay.
+  let widestEnd = "";
+  for (const entry of entries) {
+    if (!entry.attendee.date) continue;
+    const end = String(entry.attendee.end_date ?? "");
+    if (widest !== null && end <= widestEnd) continue;
+    widest = entry;
+    widestEnd = end;
+  }
+  return widest;
+};
+
+/** The package display for an order's entries (keyed by their persisted
+ * package_group_id), or null when the order is not a single package. */
+export const getPackageDisplayForEntries = (
+  entries: EmailEntry[],
+): Promise<PackageDisplay | null> =>
+  getPackageDisplayForBookings(entries.map((e) => e.attendee.package_group_id));
+
+/** A single row standing in for a hidden package's members: the package name,
+ * the buyer's contact, and the bundle's summed quantity/price — so the buyer's
+ * confirmation never reveals the member listings (the admin email keeps them). */
+const collapsedPackageEntry = (
+  entries: EmailEntry[],
+  packageName: string,
+): TemplateEntry => {
+  const base = toTemplateEntry(entries[0]!);
+  // A dated bundle keeps its booking date/range at PACKAGE level (the widest
+  // member's stay) — hiding members must not lose the date the buyer booked.
+  const widest = widestDatedEntry(entries);
+  const dated = widest ? toTemplateEntry(widest).attendee : null;
+  return {
+    attendee: {
+      ...base.attendee,
+      date: dated?.date ?? null,
+      date_range_label: dated?.date_range_label ?? "",
+      price_paid: String(sumEntryPrices(entries)),
+      quantity: sumEntryQuantities(entries),
+    },
+    listing: {
+      is_paid: entries.some(entryIsPaid),
+      name: packageName,
+      slug: "",
+    },
+  };
+};
+
+/**
+ * Build the data object exposed to Liquid templates. When every booking in the
+ * order carries the same persisted package group id, the package name heads the
+ * email (`listing_names`) instead of the member list. `hidePackageMembers` (set for the
+ * buyer's confirmation, not the admin notification) collapses a HIDDEN package's
+ * member rows into one package row so members aren't revealed.
+ */
+export const buildTemplateData = async (
   entries: EmailEntry[],
   currency: string,
   ticketUrl: string,
-): TemplateData => {
-  const templateEntries: TemplateEntry[] = map(
-    ({ listing, attendee }: EmailEntry): TemplateEntry => {
-      // Render the booking's actual span from its stored range (end_date is the
-      // exclusive end), so customisable-days bookings show the chosen length
-      // rather than the listing's maximum duration.
-      const lastDay = attendee.end_date ? addDays(attendee.end_date, -1) : null;
-      const dateRangeLabel = attendee.date
-        ? lastDay && lastDay > attendee.date
-          ? formatDateRangeLabelCompactEn(attendee.date, lastDay)
-          : formatDateLabel(attendee.date)
-        : "";
-      return {
-        attendee: {
-          address: attendee.address,
-          date: attendee.date,
-          date_range_label: dateRangeLabel,
-          email: attendee.email,
-          name: attendee.name,
-          phone: attendee.phone,
-          price_paid: attendee.price_paid,
-          quantity: attendee.quantity,
-          special_instructions: attendee.special_instructions,
-        },
-        listing: {
-          is_paid: isPaidListing(listing),
-          name: listing.name,
-          slug: listing.slug,
-        },
-      };
-    },
-  )(entries);
+  options: { hidePackageMembers?: boolean } = {},
+): Promise<TemplateData> => {
+  const pkg = await getPackageDisplayForEntries(entries);
+  const collapse = pkg?.hideListings === true && options.hidePackageMembers;
+  const templateEntries: TemplateEntry[] = collapse
+    ? [collapsedPackageEntry(entries, pkg.name)]
+    : map(toTemplateEntry)(entries);
 
   return {
     // remaining_balance is order-level (identical on every entry), so read it
@@ -126,7 +211,7 @@ export const buildTemplateData = (
     attendee: templateEntries[0]!.attendee,
     currency,
     entries: templateEntries,
-    listing_names: listingNames(entries),
+    listing_names: pkg ? pkg.name : listingNames(entries),
     ticket_url: ticketUrl,
   };
 };

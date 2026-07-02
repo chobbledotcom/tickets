@@ -38,6 +38,34 @@ export type TicketSharedContext = {
   childDatesById: Map<string, ChildSpanDates>;
   groupName?: string;
   groupDescription?: string;
+  /** Set when the booking page is a package group: the group's id (for signed
+   * metadata) and listing-id → override price map (only members with a non-zero
+   * `package_price`). `null`/absent for non-package pages. */
+  packageGroupId?: number | null;
+  packagePrices?: ReadonlyMap<number, number> | null;
+  /** Set on a package page: each customisable member's per-day overrides
+   * (listing id → day count → per-unit minor price), consulted by the price
+   * walk before the listing's own day price. `null`/absent otherwise. */
+  packageDayPrices?: ReadonlyMap<number, ReadonlyMap<number, number>> | null;
+  /** Set on a package page: listing-id → how many of that listing one package
+   * unit includes (every member, default 1). The buyer chooses a single package
+   * quantity and each member's booked quantity is `fixedQty × packageQty`.
+   * `null`/absent for non-package pages. */
+  packageQuantities?: ReadonlyMap<number, number> | null;
+  /** Set on a package page: whether the member listings are hidden from buyers,
+   * tickets, and confirmation emails. */
+  hidePackageListings?: boolean;
+  /** Set on a package page: every CAPPED group the members belong to → its
+   * remaining spots, and each member → its group ids. One package consumes the
+   * SUM of its members' fixed quantities from each such group, so the package
+   * count is bounded by `floor(remaining / demand)` per group — the package's own
+   * group AND any other capped group members happen to share (many-to-many
+   * membership). Empty for non-package pages or when no member's group is capped.
+   * Carried on the SHARED context so the render page and the submit clamp use the
+   * same ceiling. Always set by {@link getTicketContext} (empty Maps for a
+   * non-package page), so callers read them without a fallback. */
+  packageGroupRemainingByGroupId: ReadonlyMap<number, number>;
+  packageMemberGroupIds: ReadonlyMap<number, number[]>;
   actionUrl?: string;
   siteToken?: string;
   promoCodesEnabled?: boolean;
@@ -49,11 +77,16 @@ export type TicketSharedContext = {
 export type TicketCtx = TicketSharedContext & {
   slugs: string[];
   listings: TicketListing[];
-  /** Each listing id → its capped group's remaining spots, set on the render path
-   * so a parent sharing a capped group with its child clamps its quantity by the
-   * combined parent+child demand (invariant I7, Fix 3). Omitted on submit/quote
-   * (the fold's authoritative date-specific check runs there instead). */
-  groupRemainingByListingId?: ReadonlyMap<number, number>;
+  /** Each GROUP id → its remaining spots (uncapped groups omitted), set on the
+   * render path so a parent sharing a capped group with its child clamps its
+   * quantity by the combined parent+child demand against the SPECIFIC shared group
+   * (invariant I7, Fix 3, Codex #3). Omitted on submit/quote (the fold's
+   * authoritative date-specific check runs there instead). */
+  groupRemainingByGroupId?: ReadonlyMap<number, number>;
+  /** Each listing id → the ids of the groups it belongs to, set on the render
+   * path alongside groupRemainingByGroupId so the shared-group quantity clamps
+   * resolve the group a parent and child actually share. Omitted on submit/quote. */
+  groupIdsByListingId?: ReadonlyMap<number, number[]>;
   baseUrl?: string;
   prefill?: BookingPrefill | undefined;
 };

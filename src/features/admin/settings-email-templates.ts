@@ -81,6 +81,7 @@ const PREVIEW_BOOKINGS = [
       end_date: null,
       id: 1,
       name: "Jane Smith",
+      package_group_id: 0,
       payment_id: "pi_sample",
       phone: "+44 7700 900000",
       price_paid: "5000",
@@ -120,6 +121,7 @@ const PREVIEW_BOOKINGS = [
       end_date: "2026-04-18",
       id: 2,
       name: "Jane Smith",
+      package_group_id: 0,
       payment_id: "",
       phone: "+44 7700 900000",
       price_paid: "0",
@@ -174,7 +176,7 @@ export const handleEmailTemplatePreviewPost = (
       return jsonResponse({ error: `Template syntax error: ${error}` }, 400);
     }
 
-    const sampleData = buildTemplateData(
+    const sampleData = await buildTemplateData(
       PREVIEW_BOOKINGS,
       PREVIEW_CURRENCY,
       PREVIEW_TICKET_URL,

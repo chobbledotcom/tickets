@@ -19,13 +19,25 @@
  * parents.md, "Public listing cards" and "no bookable child ⇒ sold out".
  */
 
-import { mapNotNullish } from "#fp";
+import { mapNotNullish, mapParallel, unique } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
+import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import { packageQuantityCap } from "#shared/booking/capacity-tree.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import {
+  getGroupRemainingByGroupId,
   getGroupRemainingByListingId,
   getSharedGroupCapacities,
 } from "#shared/db/attendees.ts";
+import {
+  getActiveListingsByGroupId,
+  getAllGroups,
+  getGroupIdsByListingIds,
+  getGroupListingIds,
+  getGroupPackagePrices,
+  getHiddenPackageMemberIds,
+  packageMemberMaps,
+} from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   getChildListingIds,
@@ -34,6 +46,7 @@ import {
 } from "#shared/db/listing-parents.ts";
 import {
   availableDayCounts,
+  type Group,
   type Holiday,
   type ListingWithCount,
   sharedGroupCapacity,
@@ -47,6 +60,45 @@ import {
   fixedParentSpan,
   type TicketListing,
 } from "#templates/public.tsx";
+import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
+
+/**
+ * Drop members of a HIDDEN package from a buyer-facing listing set: such a
+ * package promises buyers see only its name, never the individual members, so
+ * the members must not appear as standalone cards/links/feed items on any
+ * public surface. A no-op (and no query) when none of the listings are
+ * hidden-package members. The package group itself is unaffected — its CTA is
+ * gated separately by {@link packageGroupBookable}.
+ */
+export const dropHiddenPackageMembers = async <T extends { id: number }>(
+  listings: T[],
+): Promise<T[]> => {
+  const hidden = await getHiddenPackageMemberIds(listings.map((e) => e.id));
+  return hidden.size === 0
+    ? listings
+    : listings.filter((e) => !hidden.has(e.id));
+};
+
+/** A group's members as buyers may see them on that group's own surfaces. A
+ * package group keeps its full membership — it IS the package — while any other
+ * group drops the members of a hidden package, which belong only to that
+ * package and must never surface standalone (even via a second group they
+ * happen to share). */
+export const visibleGroupMembers = <T extends { id: number }>(
+  group: { is_package: boolean },
+  members: T[],
+): Promise<T[]> =>
+  group.is_package
+    ? Promise.resolve(members)
+    : dropHiddenPackageMembers(members);
+
+/** Load a group's active members already filtered to what buyers may see — the
+ * "active members → {@link visibleGroupMembers}" step every public group surface
+ * (listings page, group QR, direct ticket page) runs before deciding bookability. */
+export const getVisibleGroupMembers = async (
+  group: Group,
+): Promise<ListingWithCount[]> =>
+  visibleGroupMembers(group, await getActiveListingsByGroupId(group.id));
 
 /**
  * How a discovery surface should treat each listing:
@@ -146,23 +198,38 @@ const parentDatesOf = (
     ? new Set(getBookableStartDates(parent, holidays))
     : null;
 
+/** The capacity inputs a child-bookability check needs: the child's OWN per-listing
+ * group-remaining (for its sold-out state) plus the PER-GROUP capacity maps and
+ * group membership (for the SPECIFIC group it shares with the parent, Codex #3). */
+export type ChildCapacityCtx = {
+  childOwnRemaining: ReadonlyMap<number, number>;
+  remainingByGroupId: ReadonlyMap<number, number>;
+  staticCapByGroupId: ReadonlyMap<number, number>;
+  membership: ReadonlyMap<number, number[]>;
+};
+
 /** Whether a child is bookable *for a given parent* on a discovery surface:
  * individually bookable (active, not sold out/closed at the minimum single-day
  * order), bookable on a date the PARENT can serve (Fix 5), AND combined
  * parent+child demand fits the shared group capacity (invariant I7).
  *
- * `groupStaticCap` is the child's date-INDEPENDENT shared-group ceiling, so a
- * parent+daily-child sharing a group too small to ever hold both is rejected
- * even date-less (when `groupRemaining` for the daily child is unknown). */
+ * The shared-group facts are computed over the group the parent and child SHARE
+ * (the per-group maps), not the child's tightest group overall (Codex #3): a child
+ * also in a tighter non-shared group must not be wrongly rejected. The shared
+ * `staticCap` is date-INDEPENDENT, so a parent+daily-child sharing a group too
+ * small to ever hold both is rejected even date-less. */
 const childBookableForParent = (
   parent: ListingWithCount,
   child: ListingWithCount,
-  groupRemaining: number | undefined,
-  groupStaticCap: number | undefined,
+  caps: ChildCapacityCtx,
   holidays: Holiday[],
 ): boolean =>
   childBookable(
-    buildTicketListing(child, isRegistrationClosed(child), groupRemaining),
+    buildTicketListing(
+      child,
+      isRegistrationClosed(child),
+      caps.childOwnRemaining.get(child.id),
+    ),
     holidays,
     parentOfferedSpans(parent),
     // A daily child must be bookable on a date the PARENT can serve, not merely on
@@ -174,10 +241,10 @@ const childBookableForParent = (
   ) &&
   combinedGroupDemandFits(
     sharedGroupCapacity(
-      parent.group_id,
-      child.group_id,
-      groupStaticCap,
-      groupRemaining,
+      caps.membership.get(parent.id) ?? [],
+      caps.membership.get(child.id) ?? [],
+      caps.staticCapByGroupId,
+      caps.remainingByGroupId,
     ),
   );
 
@@ -208,12 +275,35 @@ export const classifyForDiscovery = async (
     ...parentsByChild.keys(),
   ]);
   const everyParent = [...parentsByChild.values()].flat();
-  const [childCaps, parentGroupRemaining, holidays] = await Promise.all([
-    getSharedGroupCapacities([...everyChild, ...displayedChildren]),
+  const allChildren = [...everyChild, ...displayedChildren];
+  const [
+    childCaps,
+    childOwnRemaining,
+    parentGroupRemaining,
+    holidays,
+    membership,
+  ] = await Promise.all([
+    getSharedGroupCapacities(allChildren),
+    getGroupRemainingByListingId(allChildren),
     getGroupRemainingByListingId(everyParent),
     getActiveHolidays(),
+    getGroupIdsByListingIds(
+      unique([
+        ...byId.keys(),
+        ...everyChild.map((c) => c.id),
+        ...everyParent.map((p) => p.id),
+      ]),
+    ),
   ]);
-  const { remaining: groupRemaining, staticCap: groupStaticCap } = childCaps;
+  // Per-GROUP shared facts (the group a parent+child SHARE, Codex #3) plus each
+  // child's OWN per-listing remaining (its sold-out state). `membership` covers
+  // parents and children alike, so it stands in for `childCaps.membership`.
+  const caps: ChildCapacityCtx = {
+    childOwnRemaining,
+    membership,
+    remainingByGroupId: childCaps.remaining,
+    staticCapByGroupId: childCaps.staticCap,
+  };
   // A child is an add-on only when at least one parent is itself bookable AND can
   // offer THIS child given the *combined* parent+child group demand (invariant I7,
   // Fix 5). Using only `parentBookable` (the parent's own row) would mark a child
@@ -228,13 +318,7 @@ export const classifyForDiscovery = async (
     const offerable = parents.some(
       (p) =>
         parentBookable(p, parentGroupRemaining.get(p.id)) &&
-        childBookableForParent(
-          p,
-          child,
-          groupRemaining.get(childId),
-          groupStaticCap.get(childId),
-          holidays,
-        ),
+        childBookableForParent(p, child, caps, holidays),
     );
     if (offerable) addOnChildIds.add(childId);
   }
@@ -244,13 +328,7 @@ export const classifyForDiscovery = async (
     const anyBookable =
       parent !== undefined &&
       children.some((child) =>
-        childBookableForParent(
-          parent,
-          child,
-          groupRemaining.get(child.id),
-          groupStaticCap.get(child.id),
-          holidays,
-        ),
+        childBookableForParent(parent, child, caps, holidays),
       );
     if (!anyBookable) soldOutParentIds.add(parentId);
   }
@@ -275,6 +353,78 @@ export const groupHasBookableMember = async (
   return members.some(
     (m) => !childIds.has(m.id) && !soldOutParentIds.has(m.id),
   );
+};
+
+/**
+ * Whether a PACKAGE group can sell at least one whole bundle. A package is all
+ * or nothing — every member is booked together — so the standalone-member gate
+ * ({@link groupHasBookableMember}) is wrong here: it would advertise a Book CTA
+ * for a package whose one sold-out/closed member caps `packageQuantityCap` at 0,
+ * landing the buyer on a page that can only fail. Gate on the real package cap
+ * (each member's capacity AND the shared pool ÷ combined member demand) ≥ 1, and
+ * require EVERY member to be active — a package is all-or-nothing, so one
+ * inactive member makes the whole bundle unavailable rather than silently
+ * selling the active subset. Callers pass the group's already-loaded active
+ * members.
+ */
+export const packageGroupBookable = async (
+  members: readonly ListingWithCount[],
+  groupId: number,
+): Promise<boolean> => {
+  if (members.length === 0) return false;
+  const [allMemberIds, ticketListings, rows, groupIdsByListingId] =
+    await Promise.all([
+      getGroupListingIds(groupId),
+      buildTicketListingsWithGroupCapacity([...members]),
+      getGroupPackagePrices(groupId),
+      getGroupIdsByListingIds(members.map((m) => m.id)),
+    ]);
+  // An inactive member is absent from `members` (active only) but still a group
+  // row, so fewer active members than total means the bundle is incomplete.
+  if (members.length < allMemberIds.length) return false;
+  // Remaining for EVERY capped group any member sits in — the package's own
+  // group and any other group members happen to share — so the cap reflects all
+  // shared pools, not just this group's.
+  const remaining = await getGroupRemainingByGroupId([
+    ...new Set([...groupIdsByListingId.values()].flat()),
+  ]);
+  const tree = buildBookingTree({
+    groupId,
+    isPackage: true,
+    listings: ticketListings,
+    packageQuantities: packageMemberMaps(rows).quantities,
+    slugs: members.map((m) => m.slug),
+  });
+  const listingById = new Map(ticketListings.map((e) => [e.listing.id, e]));
+  return (
+    packageQuantityCap(tree, listingById, remaining, groupIdsByListingId) >= 1
+  );
+};
+
+/** Whether a group's `/listings` CTA / QR should be offered: a regular group
+ * needs one standalone-bookable member ({@link groupHasBookableMember}); a
+ * PACKAGE needs the whole bundle to fit ({@link packageGroupBookable}). The
+ * single decision both the listings page and the group QR share. */
+export const groupBookable = (
+  group: Group,
+  members: readonly ListingWithCount[],
+): Promise<boolean> =>
+  group.is_package
+    ? packageGroupBookable(members, group.id)
+    : groupHasBookableMember(members);
+
+/** Load non-hidden groups whose Book CTA leads to a bookable page, so a
+ * child-only or sold-out group never advertises a dead link. A regular group
+ * needs one standalone-bookable member ({@link groupHasBookableMember}); a
+ * PACKAGE needs the whole bundle to fit ({@link packageGroupBookable}). Shared
+ * by every public surface that lists groups (the `/listings` page and the
+ * `/order` gallery). */
+export const loadPublicGroups = async (): Promise<Group[]> => {
+  const groups = (await getAllGroups()).filter((g) => !g.hidden);
+  const bookable = await mapParallel(async (g: Group) =>
+    groupBookable(g, await getVisibleGroupMembers(g)),
+  )(groups);
+  return groups.filter((_, i) => bookable[i]);
 };
 
 /** Force a {@link TicketListing} into the sold-out state (no Book CTA, no
@@ -308,14 +458,13 @@ export const applyParentSoldOut = (
  * untouched; the authoritative date-specific rejection still happens in the submit
  * fold.
  *
- * `groupRemainingByListingId` carries each child's shared group-remaining entry so
- * the test uses the *combined* parent+child demand (invariant I7): a parent and its
- * child in the same capped group consume two spots, so a parent with a single
- * remaining group spot reads sold out here too — matching what submit-time
- * `checkBatchAvailability` would reject. `groupStaticCapByListingId` carries each
- * child's date-INDEPENDENT shared-group ceiling, so a parent whose only child
- * shares a group too small to ever hold both reads sold out even when that child
- * is daily (no per-date remaining without a date).
+ * `caps` carries the PER-GROUP shared facts (the group a parent and child SHARE,
+ * Codex #3) so the test uses the *combined* parent+child demand (invariant I7): a
+ * parent and its child in the same capped group consume two spots, so a parent with
+ * a single remaining group spot reads sold out here too — matching what submit-time
+ * `checkBatchAvailability` would reject. The shared `staticCap` is date-INDEPENDENT,
+ * so a parent whose only child shares a group too small to ever hold both reads sold
+ * out even when that child is daily (no per-date remaining without a date).
  *
  * `holidays` lets a daily child's render-time bookability be judged by its own
  * calendar rather than the date-less `isSoldOut` aggregate (Codex 63 — see
@@ -325,20 +474,13 @@ export const applyParentSoldOut = (
 export const applyBookingPageParentSoldOut = (
   listings: readonly TicketListing[],
   childrenByParentId: ReadonlyMap<number, TicketListing[]>,
-  groupRemainingByListingId: ReadonlyMap<number, number>,
-  groupStaticCapByListingId: ReadonlyMap<number, number>,
+  caps: ChildCapacityCtx,
   holidays: Holiday[],
 ): TicketListing[] =>
   listings.map((info) => {
     const children = childrenByParentId.get(info.listing.id);
     const anyBookable = children?.some((child) =>
-      childBookableForParent(
-        info.listing,
-        child.listing,
-        groupRemainingByListingId.get(child.listing.id),
-        groupStaticCapByListingId.get(child.listing.id),
-        holidays,
-      ),
+      childBookableForParent(info.listing, child.listing, caps, holidays),
     );
     if (children && children.length > 0 && !anyBookable) {
       return asSoldOut(info);

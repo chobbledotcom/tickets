@@ -10,6 +10,12 @@
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
+import type { TxScope } from "#shared/db/client.ts";
+import {
+  copyPackageMemberOverridesTx,
+  setListingGroupsTx,
+} from "#shared/db/groups.ts";
+import { syncListingPrices } from "#shared/db/listing-prices.ts";
 import {
   computeSlugIndex,
   type ListingAggregateValues,
@@ -38,7 +44,6 @@ import type {
 } from "#templates/fields.ts";
 import {
   getAssignBuiltSiteField,
-  getGroupIdField,
   getInitialSiteMonthsField,
   getListingFields,
   getMonthsPerUnitField,
@@ -83,6 +88,13 @@ const parseBookableDays = (
     ? days
     : undefined;
 };
+
+/** Ids of the groups ticked on the listing form's group checkboxes. */
+export const parseGroupIds = (form: FormParams): number[] =>
+  form
+    .getAll("group_ids")
+    .map(Number)
+    .filter((n) => n > 0);
 
 /**
  * Read the per-day-count price inputs (`day_price_1`, `day_price_2`, …) from
@@ -139,7 +151,7 @@ const extractCommonFields = (
     description: values.description,
     durationDays,
     fields: values.fields || "",
-    groupId: Number(values.group_id) || 0,
+    groupIds: parseGroupIds(form),
     hidden: values.hidden === "1",
     initialSiteMonths: Number(values.initial_site_months) || 0,
     listingType,
@@ -196,14 +208,33 @@ export const extractListingAggregateValues = (
   tickets_count: values.tickets_count,
 });
 
-/** Build listing resource fields for every create/update. */
+/** Build listing resource fields for every create/update. Group membership is
+ * parsed separately from the `group_ids` checkboxes (see parseGroupIds) and
+ * written via afterWrite, so it is not one of the validated single-value fields. */
 const buildListingResourceFields = (): Field[] => [
   ...getListingFields(),
   getMonthsPerUnitField(),
   getInitialSiteMonthsField(),
   getAssignBuiltSiteField(),
-  getGroupIdField(),
 ];
+
+/** Persist the listing's group memberships in the row write's transaction.
+ * extractCommonFields always sets groupIds (parseGroupIds returns an array), so
+ * it is non-null here. */
+const writeListingGroups = (tx: TxScope, id: number, input: ListingInput) =>
+  setListingGroupsTx(tx, id, input.groupIds!);
+
+/** Create-only afterWrite: persist the memberships, then — for a duplicate —
+ * copy the source's package overrides onto the new membership rows in the SAME
+ * transaction, so the duplicate never commits as a live package member at the
+ * default price when the override copy fails. */
+const writeCreateListingGroups =
+  (form: FormParams) =>
+  async (tx: TxScope, id: number, input: ListingInput): Promise<void> => {
+    await writeListingGroups(tx, id, input);
+    const sourceId = form.getOptionalInt("duplicated_from");
+    if (sourceId !== null) await copyPackageMemberOverridesTx(tx, sourceId, id);
+  };
 
 /**
  * Build a per-request listings create resource whose `toInput` closes over the
@@ -212,6 +243,11 @@ const buildListingResourceFields = (): Field[] => [
  */
 export const buildCreateListingResource = (form: FormParams) =>
   defineResource({
+    // Group membership rides the write transaction; listing_prices reconciles
+    // post-commit (afterCommit) since the transactional insertStatement path
+    // bypasses the listingsTable wrapper that syncs direct writes.
+    afterCommit: syncListingPrices,
+    afterWrite: writeCreateListingGroups(form),
     fields: buildListingResourceFields(),
     nameField: "name",
     table: listingsTable,
@@ -222,6 +258,8 @@ export const buildCreateListingResource = (form: FormParams) =>
 /** Build a per-request listings update resource (includes the slug field). */
 export const buildUpdateListingResource = (form: FormParams) =>
   defineResource({
+    afterCommit: syncListingPrices,
+    afterWrite: writeListingGroups,
     fields: [...buildListingResourceFields(), getSlugField()],
     nameField: "name",
     table: listingsTable,

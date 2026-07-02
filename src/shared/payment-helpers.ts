@@ -4,6 +4,7 @@
  */
 
 import { lazyRef, map } from "#fp";
+import { signedEdgeFor } from "#shared/booking/signed-metadata.ts";
 import type {
   ExtraLine,
   PricedLine,
@@ -149,15 +150,23 @@ export const createWithClient =
     return client ? safeAsync(() => op(client), errorCode) : null;
   };
 
-/** Convert registration line items to compact booking items */
-export const toBookingItems = (items: CheckoutIntent["items"]): BookingItem[] =>
-  map(
+/** Convert registration line items to compact, edge-tagged booking items (v2).
+ * A package order's top-level lines carry their package edge (`k:"p"`, `r`=group
+ * id) so the webhook can revalidate each line's `nodeKey`; folded children (in
+ * `allocations`) and standalone lines stay untagged. See signed-metadata.ts. */
+export const toBookingItems = (intent: CheckoutIntent): BookingItem[] => {
+  const foldedChildIds = new Set(
+    (intent.allocations ?? []).map((a) => a.childId),
+  );
+  return map(
     (i: CheckoutIntent["items"][number]): BookingItem => ({
       e: i.listingId,
       p: i.unitPrice * i.quantity,
       q: i.quantity,
+      ...signedEdgeFor(intent.packageGroupId, foldedChildIds.has(i.listingId)),
     }),
-  )(items);
+  )(intent.items);
+};
 
 /**
  * Spread optional contact/date fields into metadata (only if truthy).
@@ -274,7 +283,7 @@ export const buildItemsMetadata = async (
   } = intent;
   const withoutUrl = buildMetadata({
     ...intentRest,
-    items: toBookingItems(intent.items),
+    items: toBookingItems(intent),
     ...(modifiers !== undefined ? { modifiers } : {}),
     ...(siteTokenIndex !== undefined ? { siteTokenIndex } : {}),
   });
@@ -330,6 +339,7 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "modifiers"
       | "thankYouUrl"
       | "allocations"
+      | "packageGroupId"
     >
   >;
 
@@ -359,6 +369,9 @@ export const buildMetadata = (
   ...(intent.thankYouUrl ? { thank_you_url: intent.thankYouUrl } : {}),
   ...(intent.allocations?.length
     ? { allocations: JSON.stringify(intent.allocations) }
+    : {}),
+  ...(intent.packageGroupId
+    ? { package_group_id: String(intent.packageGroupId) }
     : {}),
 });
 
@@ -427,6 +440,7 @@ const PACKED_KEYS = [
   "reservation_amount",
   "balance_attendee_id",
   "site_token_index",
+  "package_group_id",
 ] as const;
 
 /** The single metadata key the packed small fields are stored under. */
@@ -579,6 +593,7 @@ export const extractSessionMetadata = (
     items: get("items"),
     modifiers: get("modifiers"),
     name: metadata.name,
+    package_group_id: get("package_group_id"),
     phone: get("phone"),
     price_proof: get("price_proof"),
     reservation_amount: get("reservation_amount"),

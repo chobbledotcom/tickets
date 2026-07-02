@@ -4,8 +4,10 @@
  */
 
 import { mapNotNullish, sumOf, unique } from "#fp";
+import { bookedSpanDays } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
+import { loadPackageMemberPricing } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { type EmailEntry, sendRegistrationEmails } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -82,6 +84,10 @@ export type WebhookAttendee = ContactInfo & {
   /** Exclusive end of the booked range (YYYY-MM-DD), or null for date-less
    * bookings. Used to render the true span of multi-day/customisable bookings. */
   end_date: string | null;
+  /** The package group this booking belongs to (0 = not a package). Lets the
+   * confirmation email group the order's lines under the package by this
+   * persisted id rather than membership equality. */
+  package_group_id: number;
 };
 
 /** Registration entry: listing + attendee pair */
@@ -90,19 +96,84 @@ export type RegistrationEntry = {
   attendee: WebhookAttendee;
 };
 
+/** One package group's pricing for the payload: each member's flat override (a
+ * positive amount or an explicit free `0`; members with no override are absent)
+ * and each customisable member's per-day overrides (day count → minor units) —
+ * the loader's shape, minus the fields the payload never reads. */
+type PackageGroupPricing = Pick<
+  Awaited<ReturnType<typeof loadPackageMemberPricing>>,
+  "prices" | "dayPrices"
+>;
+
+/** Per-group package pricing, loaded once per payload for the order's package
+ * groups. */
+type PackageOverrides = ReadonlyMap<number, PackageGroupPricing>;
+
+/** Load the package price overrides for every package group in `entries`, so a
+ * package member's full unit price can be reported from its configured override
+ * rather than the amount collected. */
+const loadPackageOverrides = async (
+  entries: RegistrationEntry[],
+): Promise<PackageOverrides> => {
+  const groupIds = unique(
+    mapNotNullish((e: RegistrationEntry) =>
+      e.attendee.package_group_id > 0 ? e.attendee.package_group_id : null,
+    )(entries),
+  );
+  const overrides = new Map<number, PackageGroupPricing>();
+  for (const groupId of groupIds) {
+    overrides.set(groupId, await loadPackageMemberPricing(groupId));
+  }
+  return overrides;
+};
+
+/** The full per-unit price for a booking line. A package member's base
+ * `unit_price` is 0 — its charge lives in the package override — so report its
+ * configured override (or the listing's base when the member has none), NOT the
+ * amount collected: a discounted/deposit/free-provider order pays less now than
+ * the ticket is worth, and dividing the paid-now amount would under-report it.
+ * A customisable member without a flat override reports its per-day package
+ * override for the span actually booked (derived from the stored range) when
+ * one is set — the same flat > per-day precedence the checkout charged.
+ * Non-package lines report the listing's base price. */
+const ticketUnitPrice = (
+  entry: RegistrationEntry,
+  overrides: PackageOverrides,
+): number => {
+  const { listing, attendee } = entry;
+  if (attendee.package_group_id > 0) {
+    const groupPricing = overrides.get(attendee.package_group_id);
+    const flat = groupPricing?.prices.get(listing.id);
+    if (flat !== undefined) return flat;
+    const dayOverride = listing.customisable_days
+      ? groupPricing?.dayPrices
+          .get(listing.id)
+          ?.get(bookedSpanDays(attendee.date, attendee.end_date))
+      : undefined;
+    return dayOverride ?? listing.unit_price;
+  }
+  return listing.unit_price;
+};
+
 /**
  * Build a consolidated webhook payload from registration entries
  */
 export const buildWebhookPayload = (
   entries: RegistrationEntry[],
   currency: string,
+  overrides: PackageOverrides = new Map(),
 ): WebhookPayload => {
   const first = entries[0]!;
   const totalPricePaid = sumOf((e: RegistrationEntry) =>
     Number.parseInt(e.attendee.price_paid, 10),
   )(entries);
 
-  const hasPaidListing = entries.some(({ listing }) => isPaidListing(listing));
+  // A package member's base listing is free (the charge is the package
+  // override), so `isPaidListing` alone would report `price_paid: null` for an
+  // order that charged the buyer. Treat any positive amount actually paid as
+  // paid so integrations don't under-count package revenue.
+  const isPaidOrder =
+    entries.some(({ listing }) => isPaidListing(listing)) || totalPricePaid > 0;
   return {
     address: first.attendee.address,
     // Order-level balance — the same on every entry, so read it from the first
@@ -115,16 +186,16 @@ export const buildWebhookPayload = (
     notification_type: "registration.completed",
     payment_id: first.attendee.payment_id || null,
     phone: first.attendee.phone,
-    price_paid: hasPaidListing ? totalPricePaid : null,
+    price_paid: isPaidOrder ? totalPricePaid : null,
     special_instructions: first.attendee.special_instructions,
     ticket_url: buildTicketUrl(entries),
-    tickets: entries.map(({ listing, attendee }) => ({
-      date: attendee.date,
-      listing_name: listing.name,
-      listing_slug: listing.slug,
-      quantity: attendee.quantity,
-      ticket_token: attendee.ticket_token,
-      unit_price: listing.unit_price,
+    tickets: entries.map((entry) => ({
+      date: entry.attendee.date,
+      listing_name: entry.listing.name,
+      listing_slug: entry.listing.slug,
+      quantity: entry.attendee.quantity,
+      ticket_token: entry.attendee.ticket_token,
+      unit_price: ticketUnitPrice(entry, overrides),
     })),
     timestamp: nowIso(),
   };
@@ -186,7 +257,11 @@ export const sendRegistrationWebhooks = async (
   );
   if (webhookUrls.length === 0) return;
 
-  const payload = await buildWebhookPayload(entries, currency);
+  const payload = buildWebhookPayload(
+    entries,
+    currency,
+    await loadPackageOverrides(entries),
+  );
   const firstListingId = entries[0]?.listing.id;
   await Promise.allSettled(
     webhookUrls.map((url) => sendWebhook(url, payload, firstListingId)),

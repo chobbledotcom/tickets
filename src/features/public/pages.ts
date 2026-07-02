@@ -2,7 +2,6 @@
  * Public pages - home, listings, terms, contact
  */
 
-import { mapParallel } from "#fp";
 import { applyFlash, requireMessageField, withCsrfForm } from "#routes/csrf.ts";
 import {
   errorRedirect,
@@ -19,12 +18,11 @@ import {
   sendContactMessage,
 } from "#shared/contact-form.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { getActiveListingsByGroupId, getAllGroups } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
-import type { Group, ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 import {
   childCardState,
@@ -36,24 +34,13 @@ import {
 import {
   applyParentSoldOut,
   classifyForDiscovery,
-  groupHasBookableMember,
+  dropHiddenPackageMembers,
+  loadPublicGroups,
 } from "./discovery.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /** Active+visible filter for public listing listings */
 const isPublicListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
-
-/** Load non-hidden groups that have a member that is actually bookable
- * standalone (see {@link groupHasBookableMember}) — a child-only group's page
- * 404s and a sold-out-parent-only group's page renders no bookable quantity, so
- * either way its `/listings` Book CTA is suppressed rather than a dead link. */
-const loadPublicGroups = async (): Promise<Group[]> => {
-  const groups = (await getAllGroups()).filter((g) => !g.hidden);
-  const bookable = await mapParallel(async (g: Group) =>
-    groupHasBookableMember(await getActiveListingsByGroupId(g.id)),
-  )(groups);
-  return groups.filter((_, i) => bookable[i]);
-};
 
 /** Guard: redirect to admin login if public site is disabled */
 const requirePublicSite = <T>(fn: () => T): T | Response =>
@@ -80,10 +67,13 @@ export const handleHome = (): Response =>
  * listings dashboard, not the public page.) */
 export const handlePublicListings = (): Response | Promise<Response> =>
   requirePublicSite(async () => {
-    const [groups, { listings }] = await Promise.all([
+    const [groups, { listings: allListings }] = await Promise.all([
       loadPublicGroups(),
       loadSortedListings(isPublicListing),
     ]);
+    // A hidden package's members never appear standalone — only the package
+    // name is public — so drop them before building the individual cards.
+    const listings = await dropHiddenPackageMembers(allListings);
     // Parents with no bookable child read as sold out; a (visible) child keeps
     // its card but loses its standalone Book CTA (invariants I3/I6).
     const classification = await classifyForDiscovery(listings);

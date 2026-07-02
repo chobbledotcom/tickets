@@ -10,19 +10,24 @@ import {
 } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
+  anyListingInPackageGroup,
   assignListingsToGroup,
   computeGroupSlugIndex,
   getActiveListingsByGroupId,
   getAllGroups,
   getGroupBySlugIndex,
+  getGroupIdsByListingId,
+  getGroupPackagePrices,
+  getGroupPackagePricesByGroupIds,
+  getPackageDisplayById,
+  getPackageDisplayForBookings,
   groupsTable,
   isGroupSlugTaken,
   resetGroupListings,
+  setGroupPackageMembers,
+  sharedPackageGroupId,
 } from "#shared/db/groups.ts";
-import {
-  getListing,
-  updateListingAggregateValues,
-} from "#shared/db/listings.ts";
+import { updateListingAggregateValues } from "#shared/db/listings.ts";
 import {
   bookAttendee,
   createTestGroup,
@@ -168,7 +173,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       expect(listings[0]?.attendee_count).toBe(3);
     });
 
-    test("resetGroupListings sets group_id to 0", async () => {
+    test("resetGroupListings removes every membership row", async () => {
       const group = await createTestGroup({
         name: "Reset Group",
         slug: "reset-group",
@@ -179,7 +184,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Reset Listing",
       });
       await resetGroupListings(group.id);
-      expect((await getListing(listing.id))?.group_id).toBe(0);
+      expect(await getGroupIdsByListingId(listing.id)).toEqual([]);
     });
 
     test("assignListingsToGroup moves every listing in one batch", async () => {
@@ -189,13 +194,13 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       });
       const a = await createTestListing({ maxAttendees: 10, name: "Assign A" });
       const b = await createTestListing({ maxAttendees: 10, name: "Assign B" });
-      expect(a.group_id).toBe(0);
-      expect(b.group_id).toBe(0);
+      expect(await getGroupIdsByListingId(a.id)).toEqual([]);
+      expect(await getGroupIdsByListingId(b.id)).toEqual([]);
 
       await assignListingsToGroup([a.id, b.id], group.id);
 
-      expect((await getListing(a.id))?.group_id).toBe(group.id);
-      expect((await getListing(b.id))?.group_id).toBe(group.id);
+      expect(await getGroupIdsByListingId(a.id)).toContain(group.id);
+      expect(await getGroupIdsByListingId(b.id)).toContain(group.id);
     });
 
     test("assignListingsToGroup is a no-op for an empty list", async () => {
@@ -210,7 +215,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
 
       await assignListingsToGroup([], group.id);
 
-      expect((await getListing(listing.id))?.group_id).toBe(0);
+      expect(await getGroupIdsByListingId(listing.id)).toEqual([]);
     });
   });
 
@@ -589,6 +594,175 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
 
       expect(await getGroupRemainingForListing(e2, "2026-11-15")).toBe(3);
       expect(await getGroupRemainingForListing(e2, "2026-11-16")).toBe(5);
+    });
+  });
+
+  describe("getPackageDisplayById", () => {
+    test("returns the package display for an is_package group id", async () => {
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Bundle",
+        slug: "bundle-disp",
+      });
+      expect(await getPackageDisplayById(pkg.id)).toEqual({
+        hideListings: false,
+        name: "Bundle",
+      });
+    });
+
+    test("carries the group's hide-listings flag", async () => {
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Hidden Bundle",
+        slug: "hidden-bundle-disp",
+      });
+      await groupsTable.update(pkg.id, { hidePackageListings: true });
+      expect(await getPackageDisplayById(pkg.id)).toEqual({
+        hideListings: true,
+        name: "Hidden Bundle",
+      });
+    });
+
+    test("returns null for 0 (not a package) and negative ids", async () => {
+      expect(await getPackageDisplayById(0)).toBeNull();
+      expect(await getPackageDisplayById(-1)).toBeNull();
+    });
+
+    test("returns null for a non-package group", async () => {
+      const regular = await createTestGroup({ name: "Reg", slug: "reg-disp" });
+      expect(await getPackageDisplayById(regular.id)).toBeNull();
+    });
+
+    test("returns null for a group id that no longer exists", async () => {
+      expect(await getPackageDisplayById(987654)).toBeNull();
+    });
+  });
+
+  describe("sharedPackageGroupId", () => {
+    test("returns the id when every booking shares the same non-zero id", () => {
+      expect(sharedPackageGroupId([7, 7, 7])).toBe(7);
+    });
+
+    test("returns null for an empty list", () => {
+      expect(sharedPackageGroupId([])).toBeNull();
+    });
+
+    test("returns null when any booking is not a package (id 0)", () => {
+      expect(sharedPackageGroupId([7, 0, 7])).toBeNull();
+      expect(sharedPackageGroupId([0])).toBeNull();
+    });
+
+    test("returns null when bookings carry differing package ids", () => {
+      expect(sharedPackageGroupId([7, 8])).toBeNull();
+    });
+  });
+
+  describe("getPackageDisplayForBookings", () => {
+    test("resolves the package when every booking shares its id", async () => {
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Combo",
+        slug: "combo-disp",
+      });
+      expect(await getPackageDisplayForBookings([pkg.id, pkg.id])).toEqual({
+        hideListings: false,
+        name: "Combo",
+      });
+    });
+
+    test("returns null when the bookings are not one package order", async () => {
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Combo2",
+        slug: "combo2-disp",
+      });
+      // A standalone order (id 0) of the same listings is never the package.
+      expect(await getPackageDisplayForBookings([0, 0])).toBeNull();
+      // A mixed/partial set is not one package order.
+      expect(await getPackageDisplayForBookings([pkg.id, 0])).toBeNull();
+    });
+  });
+
+  describe("anyListingInPackageGroup", () => {
+    test("is false for empty input (no query)", async () => {
+      expect(await anyListingInPackageGroup([])).toBe(false);
+    });
+
+    test("is true only for a member of a package group", async () => {
+      const pkg = await createTestGroup({ isPackage: true, name: "Pkg" });
+      const member = await createTestListing({ groupId: pkg.id, name: "Mem" });
+      const regular = await createTestGroup({ name: "Reg" });
+      const plain = await createTestListing({
+        groupId: regular.id,
+        name: "Pln",
+      });
+
+      expect(await anyListingInPackageGroup([member.id])).toBe(true);
+      expect(await anyListingInPackageGroup([plain.id])).toBe(false);
+    });
+  });
+
+  describe("getGroupPackagePricesByGroupIds", () => {
+    test("returns an empty map for no group ids (no query)", async () => {
+      const result = await getGroupPackagePricesByGroupIds([]);
+      expect(result.size).toBe(0);
+    });
+
+    test("groups membership rows by group id in one query", async () => {
+      const a = await createTestGroup({
+        isPackage: true,
+        name: "A",
+        slug: "a",
+      });
+      const a1 = await createTestListing({ groupId: a.id, name: "A1" });
+      const a2 = await createTestListing({ groupId: a.id, name: "A2" });
+      const b = await createTestGroup({
+        isPackage: true,
+        name: "B",
+        slug: "b",
+      });
+      const b1 = await createTestListing({ groupId: b.id, name: "B1" });
+      await setGroupPackageMembers(a.id, [
+        { listingId: a1.id, price: 100, quantity: 1 },
+        { listingId: a2.id, price: 200, quantity: 3 },
+      ]);
+      await setGroupPackageMembers(b.id, [
+        { listingId: b1.id, price: 500, quantity: 1 },
+      ]);
+
+      const result = await getGroupPackagePricesByGroupIds([a.id, b.id]);
+      expect(result.get(a.id)?.length).toBe(2);
+      expect(result.get(b.id)?.length).toBe(1);
+      // Each row carries its override price for the right group.
+      const a2Row = result.get(a.id)?.find((r) => r.listing_id === a2.id);
+      expect(a2Row?.package_price).toBe(200);
+      expect(a2Row?.quantity).toBe(3);
+    });
+  });
+
+  describe("package_price override states", () => {
+    test("stores null (no override), 0 (free), and a positive override distinctly", async () => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Tri",
+        slug: "tri",
+      });
+      const none = await createTestListing({ groupId: group.id, name: "None" });
+      const free = await createTestListing({ groupId: group.id, name: "Free" });
+      const paid = await createTestListing({ groupId: group.id, name: "Paid" });
+      await setGroupPackageMembers(group.id, [
+        { listingId: none.id, price: null },
+        { listingId: free.id, price: 0 },
+        { listingId: paid.id, price: 1500 },
+      ]);
+
+      const rows = await getGroupPackagePrices(group.id);
+      const priceOf = (id: number) =>
+        rows.find((r) => r.listing_id === id)?.package_price;
+      // null and 0 are preserved as distinct values, not collapsed together.
+      expect(priceOf(none.id)).toBeNull();
+      expect(priceOf(free.id)).toBe(0);
+      expect(priceOf(paid.id)).toBe(1500);
     });
   });
 });

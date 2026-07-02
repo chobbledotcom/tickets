@@ -17,6 +17,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { type TxScope, writeRowInTransaction } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Field, FieldValues } from "#shared/forms.tsx";
@@ -82,6 +83,24 @@ export interface ResourceConfig<
   nameField?: keyof Row & string;
   /** Custom delete function (e.g., to delete related records first) */
   onDelete?: (id: InValue) => Promise<void>;
+  /** Side-effect run after a successful create/update with the written row's
+   * id, the parsed input, and the raw form — e.g. to persist join-table rows (a
+   * listing's groups) or dynamic inputs (a group's per-listing package prices)
+   * that live outside the main table. Runs inside the SAME transaction as the
+   * row write (it receives the transaction scope), so a failure rolls the row
+   * write back rather than leaving partial state. */
+  afterWrite?: (
+    tx: TxScope,
+    id: number,
+    input: Input,
+    form: FormParams,
+  ) => Promise<void>;
+  /** Run after a successful create/update has committed, keyed on the row id.
+   * Unlike `afterWrite` (which shares the write transaction), this fires
+   * post-commit — for reconciling a derived table (e.g. listing_prices) that the
+   * transactional `insertStatement`/`updateStatement` path would otherwise
+   * bypass along with the {@link Table} wrapper. */
+  afterCommit?: (id: number) => Promise<void>;
   table: Table<Row, Input>;
   toInput: (values: Values) => Input | Promise<Input>;
   /** Custom validation (e.g., check uniqueness). Return error message or null. */
@@ -171,11 +190,35 @@ export const defineResource = <
       async (v) => (await toInput(v)) as Partial<Input>,
     );
 
+  /** Write the row and its `afterWrite` join writes in ONE transaction, so a
+   * failed join write rolls the row write back rather than leaving the row saved
+   * without its memberships/overrides. `existingId` is null on create (the id
+   * comes from the INSERT) and the existing id on update. Only used when
+   * `config.afterWrite` is set; the committed row is read back afterwards. */
+  const writeInTransaction = async (
+    existingId: number | null,
+    input: Input,
+    form: FormParams,
+  ): Promise<Row | null> => {
+    const statement =
+      existingId === null
+        ? await table.insertStatement!(input)
+        : await table.updateStatement!(existingId, input);
+    const id = await writeRowInTransaction(statement, existingId, (tx, rowId) =>
+      config.afterWrite!(tx, rowId, input, form),
+    );
+    return table.findById(id);
+  };
+
   const create = async (form: FormParams): Promise<CreateResult<Row>> => {
     const result = await parseAndValidate(form, parseInput, config.validate);
-    return result.ok
-      ? { ok: true, row: await table.insert(result.input) }
-      : result;
+    if (!result.ok) return result;
+    const row = config.afterWrite
+      ? ((await writeInTransaction(null, result.input, form)) as Row)
+      : await table.insert(result.input);
+    if (config.afterCommit)
+      await config.afterCommit((row as unknown as { id: number }).id);
+    return { ok: true, row };
   };
 
   const update = async (
@@ -190,9 +233,14 @@ export const defineResource = <
       config.validate,
       id as Id,
     );
-    return result.ok
-      ? toUpdateResult(await table.update(id, result.input))
-      : result;
+    if (!result.ok) return result;
+    const row = config.afterWrite
+      ? await writeInTransaction(id as number, result.input, form)
+      : await table.update(id, result.input);
+    if (row && config.afterCommit) {
+      await config.afterCommit((row as unknown as { id: number }).id);
+    }
+    return toUpdateResult(row);
   };
 
   const deleteRow = async (id: InValue): Promise<DeleteResult> => {

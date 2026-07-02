@@ -186,6 +186,19 @@ export const quantitySpec = (id: string, value: string): ElementSpec => ({
   value,
 });
 
+/** The package-page `name="package_quantity"` selector, carrying its member
+ * listing ids in `data-package-members` so the active-listing set picks up every
+ * member once a package is chosen (even when members render no rows). */
+export const packageSelectorSpec = (
+  memberIds: string[],
+  value: string,
+): ElementSpec => ({
+  data: { packageMembers: memberIds.join(" ") },
+  name: "package_quantity",
+  tag: "select",
+  value,
+});
+
 /** An auto-hidden parent quantity (`<input type="hidden" name="quantity_<id>"
  * value="1">`), the shape a single-parent sole-child page renders when the
  * quantity selector is suppressed (`hideQuantity`). Defaults to "1", matching the
@@ -198,9 +211,21 @@ export const hiddenQuantitySpec = (id: string, value = "1"): ElementSpec => ({
   value,
 });
 
-export const childSelectorSpec = (parentId: string): ElementSpec => ({
+/** A parent's child-selector fieldset. `packageFixedQty` models a PACKAGE
+ * member parent, which has no own quantity control: the server stamps its fixed
+ * per-package quantity on the fieldset so the client derives its booked units
+ * from the chosen package count. */
+export const childSelectorSpec = (
+  parentId: string,
+  packageFixedQty?: number,
+): ElementSpec => ({
   class: "child-selector",
-  data: { parentId },
+  data: {
+    parentId,
+    ...(packageFixedQty !== undefined && {
+      packageFixedQty: String(packageFixedQty),
+    }),
+  },
   tag: "fieldset",
 });
 

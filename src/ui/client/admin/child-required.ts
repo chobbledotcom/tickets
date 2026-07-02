@@ -15,7 +15,7 @@ import {
   initParentSelectors,
   onSelectionChange,
   parentInCart,
-  quantityValue,
+  parentUnits,
   soleChildId,
 } from "./child-selection.ts";
 
@@ -26,7 +26,7 @@ const updateHint = (parentId: string, chosen: number): void => {
   );
   if (hint === null) return;
   hint.textContent = parentInCart(parentId)
-    ? `${chosen} / ${quantityValue(parentId)}`
+    ? `${chosen} / ${parentUnits(parentId)}`
     : "";
 };
 

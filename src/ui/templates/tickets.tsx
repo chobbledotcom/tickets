@@ -2,7 +2,6 @@
  * Ticket view page template - displays attendee ticket information with QR code
  */
 
-import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -12,6 +11,7 @@ import {
   formatDateRangeLabelCompactEn,
   formatDatetimeLabel,
 } from "#shared/dates.ts";
+import type { PackageDisplay } from "#shared/db/groups.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
@@ -89,6 +89,108 @@ const renderWalletSection = (
     : "";
 };
 
+/** The shared QR + token block (empty for purchase-only listings, which aren't
+ * checked in). One attendee's lines all share its token, so a package renders it
+ * once on the package card. */
+const renderQrBlock = (token: string, purchaseOnly: boolean): string =>
+  purchaseOnly
+    ? ""
+    : `<div class="ticket-card-qr"><img src="/t/${escapeHtml(
+        token,
+      )}/svg" alt={t("listing_qr.qr_code")} /></div>
+      <div class="ticket-card-token">${escapeHtml(token)}</div>`;
+
+/** The dated card whose member listing spans the most days — the range covering
+ * the bundle's whole stay — or null for a date-less (standard) package. */
+const widestDatedCard = (cards: TicketCard[]): TicketCard | null => {
+  let widest: TicketCard | null = null;
+  for (const card of cards) {
+    if (!card.entry.attendee.date) continue;
+    const days = normalizeDurationDays(card.entry.listing.duration_days);
+    if (
+      !widest ||
+      days > normalizeDurationDays(widest.entry.listing.duration_days)
+    ) {
+      widest = card;
+    }
+  }
+  return widest;
+};
+
+/** Render one card for a whole package booking: the package name, then each
+ * member with its booked quantity (omitted when the package hides its listings),
+ * then the shared QR. The attendee's member lines share one token, so the
+ * package is a single card. Wallet (Apple/Google) links are deliberately
+ * omitted: both wallet routes resolve a token to a single member listing, so a
+ * saved pass would show only the first member (and leak a hidden member's name)
+ * rather than the package the buyer clicked. */
+const renderPackageCard = (
+  cards: TicketCard[],
+  packageInfo: PackageDisplay,
+): string => {
+  const { token } = cards[0]!;
+  const purchaseOnly = cards.every((c) => c.entry.listing.purchase_only);
+  // Each member's signed attachment link rides along on its row so a bundle
+  // buyer can still download per-listing files (a standalone card would show
+  // them). A hidden package shows no members, so its attachments stay concealed
+  // too — its whole premise is that buyers never see the member listings.
+  const memberAttachment = (c: TicketCard): string =>
+    optionalHtml(
+      c.attachmentUrl,
+      (url) =>
+        ` <a href="${escapeHtml(url)}" class="attachment-link">${t("tickets.download")} ${escapeHtml(
+          c.entry.listing.attachment_name,
+        )}</a>`,
+    );
+  // A hidden package shows no member rows, but must still tell the buyer how many
+  // they bought — otherwise a multi-quantity purchase renders only the package
+  // name + QR. Show the package's total booked quantity (summed across members,
+  // matching the collapsed email row) without naming any member.
+  const membersHtml = packageInfo.hideListings
+    ? `<div class="ticket-card-package-qty"><span class="package-member-qty">&times;${cards.reduce(
+        (total, c) => total + c.entry.attendee.quantity,
+        0,
+      )}</span></div>`
+    : `<ul class="ticket-card-package-members">${cards
+        .map(
+          (c) =>
+            `<li>${escapeHtml(c.entry.listing.name)} <span class="package-member-qty">&times;${c.entry.attendee.quantity}</span>${memberAttachment(c)}</li>`,
+        )
+        .join("")}</ul>`;
+  // The package card replaces the per-member cards, so it must carry the same
+  // "ID required" warning renderTicketCard shows — otherwise a package buyer is
+  // never told a member is non-transferable, yet the scanner still enforces it.
+  // Kept package-level (it never names a member) so a hidden package stays
+  // concealed; purchase-only members aren't checked in, so they don't trigger it.
+  const nonTransferableHtml = cards.some(
+    (c) => c.entry.listing.non_transferable && !c.entry.listing.purchase_only,
+  )
+    ? `<div class="ticket-card-notice">${t("tickets.non_transferable")}</div>`
+    : "";
+  // A dated package (daily/customisable members share one start date) shows the
+  // booked date like a standalone card would. The bundle's members can carry
+  // different fixed durations, so the widest member's range covers the whole
+  // stay. Package-level (no member named), so a hidden package stays concealed.
+  const widestDated = widestDatedCard(cards);
+  const dateHtml = widestDated
+    ? `<div class="ticket-card-date">${t("tickets.booking_date")} ${escapeHtml(
+        computeBookingDateLabel(
+          widestDated.entry.attendee.date,
+          widestDated.entry.listing,
+        ),
+      )}</div>`
+    : "";
+  return `
+    <div class="ticket-card">
+      <div class="ticket-card-name">${escapeHtml(packageInfo.name)}</div>
+      ${dateHtml}
+      ${membersHtml}
+      ${nonTransferableHtml}
+      ${renderQrBlock(token, purchaseOnly)}
+    </div>
+  `;
+};
+
 /** Render a single ticket card */
 const renderTicketCard = (
   card: TicketCard,
@@ -158,14 +260,7 @@ const renderTicketCard = (
       <div class="ticket-card-quantity">${t("tickets.quantity")} ${attendee.quantity}</div>
       ${priceHtml}
       ${attachmentHtml}
-      ${
-        listing.purchase_only
-          ? ""
-          : `<div class="ticket-card-qr"><img src="/t/${escapeHtml(
-              token,
-            )}/svg" alt={t("listing_qr.qr_code")} /></div>
-      <div class="ticket-card-token">${escapeHtml(token)}</div>`
-      }
+      ${renderQrBlock(token, listing.purchase_only)}
       ${walletHtml}
     </div>
   `;
@@ -175,20 +270,99 @@ const renderTicketCard = (
  * Ticket view page - shows individual cards for each ticket with its own QR code
  * The QR code encodes the /checkin/:token URL for admin scanning
  */
+/** Group key for collapsing a package booking into one card: rows sharing a
+ * token AND a (real) package id are one card. Keying on the token too keeps two
+ * attendees who share a package (`/t/a+b`) as separate cards — each with its own
+ * check-in QR — rather than merging them and dropping a token. */
+const packageCardKey = (card: TicketCard): string =>
+  `${card.token} ${card.entry.attendee.package_group_id}`;
+
+/** Package rows bucketed by (token, package) for one-card-per-bucket rendering,
+ * plus the set of tokens carrying any package booking. The direct wallet
+ * endpoints 404 any token whose entries include a package row
+ * (lookupSingleTokenPassData), so a standalone card merged under such a token
+ * must not advertise wallet links it can't honour — hence `packageTokens`. */
+const collectPackageBuckets = (
+  cards: TicketCard[],
+  displayFor: (card: TicketCard) => PackageDisplay | undefined,
+): { buckets: Map<string, TicketCard[]>; packageTokens: Set<string> } => {
+  const buckets = new Map<string, TicketCard[]>();
+  const packageTokens = new Set<string>();
+  for (const card of cards) {
+    if (!displayFor(card)) continue;
+    packageTokens.add(card.token);
+    const key = packageCardKey(card);
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(card);
+    else buckets.set(key, [card]);
+  }
+  return { buckets, packageTokens };
+};
+
+/** Render each card to HTML: a package row collapses into one package card per
+ * bucket (rendered once); any other row is a normal card — with wallet links
+ * suppressed when its token also carries a package (the pass would 404). */
+const renderCardsHtml = (
+  cards: TicketCard[],
+  displayFor: (card: TicketCard) => PackageDisplay | undefined,
+  buckets: Map<string, TicketCard[]>,
+  packageTokens: Set<string>,
+  appleWalletEnabled: boolean,
+  googleWalletEnabled: boolean,
+): string[] => {
+  const rendered = new Set<string>();
+  const htmlParts: string[] = [];
+  for (const card of cards) {
+    const display = displayFor(card);
+    if (display) {
+      const key = packageCardKey(card);
+      if (rendered.has(key)) continue;
+      rendered.add(key);
+      htmlParts.push(renderPackageCard(buckets.get(key)!, display));
+    } else {
+      const tokenHasPackage = packageTokens.has(card.token);
+      htmlParts.push(
+        renderTicketCard(
+          card,
+          appleWalletEnabled && !tokenHasPackage,
+          googleWalletEnabled && !tokenHasPackage,
+        ),
+      );
+    }
+  }
+  return htmlParts;
+};
+
 export const ticketViewPage = (
   cards: TicketCard[],
   appleWalletEnabled = false,
   googleWalletEnabled = false,
+  packageDisplays: ReadonlyMap<number, PackageDisplay> = new Map(),
 ): string => {
-  const cardHtml = pipe(
-    map((card: TicketCard) =>
-      renderTicketCard(card, appleWalletEnabled, googleWalletEnabled),
-    ),
-    (c) => c.join(""),
-  )(cards);
+  // Resolve each card's package display (only for a real, non-zero package id),
+  // then bucket the package rows and render. A row with no display renders as its
+  // own normal card — so a token mixing a hidden package with a standalone
+  // booking collapses the package (hiding its members) while still showing the
+  // standalone ticket.
+  const displayFor = (card: TicketCard): PackageDisplay | undefined =>
+    packageDisplays.get(card.entry.attendee.package_group_id);
+  const { buckets, packageTokens } = collectPackageBuckets(cards, displayFor);
+  const htmlParts = renderCardsHtml(
+    cards,
+    displayFor,
+    buckets,
+    packageTokens,
+    appleWalletEnabled,
+    googleWalletEnabled,
+  );
+  const cardHtml = htmlParts.join("");
 
   const allPurchaseOnly = cards.every((c) => c.entry.listing.purchase_only);
-  const heading = allPurchaseOnly ? "Your Purchase" : ticketCount(cards.length);
+  // Each package collapses to one card, so count rendered cards (not member rows)
+  // in the heading rather than revealing a package's member count.
+  const heading = allPurchaseOnly
+    ? "Your Purchase"
+    : ticketCount(htmlParts.length);
   const title = allPurchaseOnly ? "Your Purchase" : t("tickets.title");
 
   return String(

@@ -279,6 +279,57 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       );
     });
 
+    test("lists package groups under a Packages heading above regular ones", async () => {
+      await settings.update.showPublicSite(true);
+      // Two package groups (out of alpha order) prove the name sort runs.
+      const pkgZ = await createTestGroup({
+        isPackage: true,
+        name: "Zephyr Bundle",
+        slug: "zephyr-bundle",
+      });
+      await createTestListing({
+        groupId: pkgZ.id,
+        maxAttendees: 50,
+        name: "Zephyr Listing",
+      });
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Weekend Bundle",
+        slug: "weekend-bundle",
+      });
+      await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 50,
+        name: "Bundle Listing",
+      });
+      const regular = await createTestGroup({
+        name: "Regular Group",
+        slug: "regular-group",
+      });
+      await createTestListing({
+        groupId: regular.id,
+        maxAttendees: 50,
+        name: "Regular Listing",
+      });
+
+      const html = await assertPublicHtml("/listings", "Weekend Bundle");
+      // The Packages heading precedes the package groups, sorted by name
+      // (Weekend before Zephyr), which precede the "All bookable listings"
+      // section that carries the regular group.
+      expect(html.indexOf("Packages")).toBeLessThan(
+        html.indexOf("Weekend Bundle"),
+      );
+      expect(html.indexOf("Weekend Bundle")).toBeLessThan(
+        html.indexOf("Zephyr Bundle"),
+      );
+      expect(html.indexOf("Zephyr Bundle")).toBeLessThan(
+        html.indexOf("All bookable listings"),
+      );
+      expect(html.indexOf("All bookable listings")).toBeLessThan(
+        html.indexOf("Regular Group"),
+      );
+    });
+
     test("suppresses the CTA of a group with no active members on listings page", async () => {
       // A group with no active (standalone-bookable) member has no valid
       // `/ticket/<group>` entry point (its group page 404s), so its Book CTA must
@@ -294,6 +345,76 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       const html = await assertPublicHtml("/listings", "Standalone Listing");
       expect(html).not.toContain(`href="/ticket/${group.slug}"`);
       expect(html).not.toContain("Empty Group");
+    });
+
+    test("suppresses a package CTA when a member is sold out", async () => {
+      // A package is all-or-nothing: if any member can't be booked the whole
+      // bundle's count caps at 0, so its /listings Book CTA must be suppressed
+      // rather than land the buyer on a page that can only fail.
+      await settings.update.showPublicSite(true);
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Half Bundle",
+        slug: "half-bundle",
+      });
+      await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 50,
+        name: "Available Member",
+      });
+      await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 0,
+        name: "Sold Out Member",
+      });
+      // A standalone listing keeps the page non-empty.
+      await createTestListing({ maxAttendees: 50, name: "Standalone Listing" });
+
+      const html = await assertPublicHtml("/listings", "Standalone Listing");
+      expect(html).not.toContain(`href="/ticket/${pkg.slug}"`);
+      expect(html).not.toContain("Half Bundle");
+    });
+
+    test("suppresses a package CTA when a member is inactive", async () => {
+      // A package is all-or-nothing: an inactive member makes the whole bundle
+      // unavailable rather than silently selling only the active subset.
+      await settings.update.showPublicSite(true);
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Partial Bundle",
+        slug: "partial-bundle",
+      });
+      await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 50,
+        name: "Active Member",
+      });
+      const inactive = await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 50,
+        name: "Inactive Member",
+      });
+      await deactivateTestListing(inactive.id);
+      await createTestListing({ maxAttendees: 50, name: "Standalone Listing" });
+
+      const html = await assertPublicHtml("/listings", "Standalone Listing");
+      expect(html).not.toContain(`href="/ticket/${pkg.slug}"`);
+      expect(html).not.toContain("Partial Bundle");
+    });
+
+    test("suppresses a package CTA when the group has no members", async () => {
+      await settings.update.showPublicSite(true);
+      const empty = await createTestGroup({
+        isPackage: true,
+        name: "Empty Bundle",
+        slug: "empty-bundle",
+      });
+      // A standalone listing keeps the page non-empty.
+      await createTestListing({ maxAttendees: 50, name: "Standalone Listing" });
+
+      const html = await assertPublicHtml("/listings", "Standalone Listing");
+      expect(html).not.toContain(`href="/ticket/${empty.slug}"`);
+      expect(html).not.toContain("Empty Bundle");
     });
 
     test("shows group description on listings page", async () => {

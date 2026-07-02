@@ -245,6 +245,14 @@ export const combinedGroupDemandFits = (cap: SharedGroupCapacity): boolean =>
   (cap.staticCap === undefined || cap.staticCap >= PARENT_CHILD_GROUP_UNITS) &&
   (cap.remaining === undefined || cap.remaining >= PARENT_CHILD_GROUP_UNITS);
 
+/** How many whole orders fit in one capped group pool when each order consumes
+ * `demand` (≥ 1) spots: `floor(remaining / demand)`. The single source of the
+ * shared-group pool division reused by every render-time capacity cap — a
+ * package bundle (demand = Σ member quantities in the group) and a parent+child
+ * cohort (demand = {@link PARENT_CHILD_GROUP_UNITS}). */
+export const groupPoolUnits = (remaining: number, demand: number): number =>
+  Math.floor(remaining / demand);
+
 /** Combine a list of child-availability atoms into one predicate that ANDs them
  * all. Callers compose exactly the atoms their site needs (via {@link
  * compact} to drop the optional ones they don't), keeping behaviour identical. */

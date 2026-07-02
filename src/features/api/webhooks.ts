@@ -39,6 +39,7 @@ import {
 } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
+import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListing } from "#shared/db/listings.ts";
 import { clearSessionTokens } from "#shared/db/processed-payments.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
@@ -68,6 +69,18 @@ const withSessionId =
 /**
  * Process session_id param: validate, create attendee, redirect with tokens.
  */
+/** The thank-you redirect for a single-listing purchase, or "" when there is no
+ * URL — suppressed entirely when the listing is a HIDDEN package's member. Its
+ * `thank_you_url` would meta-refresh the success page to a listing the package
+ * concealed, exposing it to a buyer who only ever saw the package name (the same
+ * privacy invariant the signed-intent/free-redirect guard upholds, here for the
+ * paid single-member fallback both success render paths share). */
+const singleListingThankYou = async (listingId: number): Promise<string> => {
+  if ((await getHiddenPackageMemberIds([listingId])).size > 0) return "";
+  const listing = await getListing(listingId);
+  return listing?.thank_you_url.trim() ?? "";
+};
+
 const processSessionAndRedirect = async (
   sessionId: string,
 ): Promise<Response> => {
@@ -136,8 +149,7 @@ const processSessionAndRedirect = async (
   // path never loads it; a since-deleted listing simply yields no URL.
   let thankYouUrl = explicitThankYou;
   if (!thankYouUrl && validation.data.intent.items.length === 1) {
-    const listing = await getListing(result.listingId);
-    thankYouUrl = listing?.thank_you_url ?? "";
+    thankYouUrl = await singleListingThankYou(result.listingId);
   }
   return htmlResponse(
     successPage({ paid: true, thankYouUrl, ticketUrl: null }),
@@ -162,13 +174,13 @@ const renderSuccessFromTokens = async (
 
   const ticketUrl = `/t/${verifiedTokens.join("+")}`;
 
-  // Only use thank_you_url for single-listing purchases
+  // Only use thank_you_url for single-listing purchases — and never for a hidden
+  // package's sole member, whose URL would reveal the listing it concealed.
   const uniqueListingIds = unique(listingIds);
-  let thankYouUrl = "";
-  if (uniqueListingIds.length === 1) {
-    const listing = await getListing(uniqueListingIds[0]!);
-    if (listing) thankYouUrl = listing.thank_you_url.trim();
-  }
+  const thankYouUrl =
+    uniqueListingIds.length === 1
+      ? await singleListingThankYou(uniqueListingIds[0]!)
+      : "";
 
   const fromEmail = await getFromEmailIfConfigured();
 

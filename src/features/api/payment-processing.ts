@@ -48,6 +48,9 @@ import {
 import { bookingDateFields } from "#routes/public/ticket-payment.ts";
 import { htmlResponse, paymentErrorResponse } from "#routes/response.ts";
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
+import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import { edgeDrifted } from "#shared/booking/signed-metadata.ts";
+import type { BookingTree } from "#shared/booking/tree.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import {
@@ -69,6 +72,14 @@ import {
   createBookingAtomic,
   ensureAllBookings,
 } from "#shared/db/attendees.ts";
+import {
+  getHiddenPackageMemberIds,
+  getPackageDisplayById,
+  getPackageGroupById,
+  groupsTable,
+  loadPackageMemberPricing,
+} from "#shared/db/groups.ts";
+import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
@@ -111,6 +122,7 @@ import { bookingLedgerDisposition } from "#shared/session-ledger.ts";
 import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { paymentCancelPage } from "#templates/payment.tsx";
+import { buildTicketListing } from "#templates/public/shared.tsx";
 
 /** User-facing message when the listing price changed between checkout and payment */
 const PRICE_CHANGED_MESSAGE =
@@ -166,7 +178,22 @@ export const cancelPageResponse = async (
     );
     return paymentErrorResponse("Listing not found", 404);
   }
-  return htmlResponse(paymentCancelPage(listing, `/ticket/${listing.slug}`));
+  // A package checkout retries against the bundle's own page, not a member's
+  // standalone page (which may hide members or use override prices/quantities).
+  const retryHref = await retryHrefFor(intent, listing.slug);
+  return htmlResponse(paymentCancelPage(listing, retryHref));
+};
+
+/** The retry link for a cancelled checkout: the package group's page when the
+ * order was a package, else the (first) listing's own page. Falls back to the
+ * listing slug if the group is gone. */
+const retryHrefFor = async (
+  intent: BookingIntent | null,
+  listingSlug: string,
+): Promise<string> => {
+  if (intent?.packageGroupId === undefined) return `/ticket/${listingSlug}`;
+  const group = await groupsTable.findById(intent.packageGroupId);
+  return `/ticket/${group?.slug ?? listingSlug}`;
 };
 
 export const validatePaidSession = async (
@@ -535,6 +562,9 @@ export const extractIntent = (
     listingTextAnswerIds,
     modifiers: parseModifierRefs(metadata.modifiers),
     name: metadata.name,
+    packageGroupId: metadata.package_group_id
+      ? Number(metadata.package_group_id)
+      : undefined,
     phone: metadata.phone,
     reservationAmount,
     siteTokenIndex,
@@ -554,7 +584,9 @@ const priceMismatchRefund = (
 type ValidatedItem = {
   item: BookingItem;
   listing: ListingWithCount;
-  expectedPrice: number;
+  /** The expected line total, or `null` to fail closed (a package line that is
+   * no longer a valid member — forces a `price_changed` refund). */
+  expectedPrice: number | null;
 };
 
 /** Handle the "already reserved" branch of reserveSession */
@@ -581,12 +613,183 @@ const handleReservationConflict = async (
   };
 };
 
+/** Current package-pricing state for a booking's group: which listings are
+ * members and their non-zero overrides. Null when the booking isn't a package
+ * (or the group was deleted / is no longer a package — those members then
+ * revalidate against the base listing price, so a stale package price mismatches
+ * and refunds via the normal path). */
+export type PackagePricing = {
+  memberIds: Set<number>;
+  priceMap: Map<number, number>;
+  /** Each member's CURRENT per-package quantity, to re-check the signed booked
+   * quantity against an operator's mid-checkout edit. */
+  quantityMap: Map<number, number>;
+  /** Each customisable member's CURRENT per-day overrides (day count →
+   * per-unit minor price), so a day-priced line revalidates against the same
+   * override the checkout charged. */
+  dayPriceMap: Map<number, Map<number, number>>;
+};
+
+const loadPackagePricing = async (
+  intent: BookingIntent,
+): Promise<PackagePricing | null> => {
+  if (intent.packageGroupId === undefined) return null;
+  if ((await getPackageGroupById(intent.packageGroupId)) === null) return null;
+  const pricing = await loadPackageMemberPricing(intent.packageGroupId);
+  return {
+    dayPriceMap: pricing.dayPrices,
+    memberIds: new Set(pricing.rows.map((r) => r.listing_id)),
+    priceMap: pricing.prices,
+    quantityMap: pricing.quantities,
+  };
+};
+
+/** The expected line total for one item, or `null` to fail closed (force a
+ * `price_changed` refund). Folded children (in the allocations) always price at
+ * the normal per-listing `basePrice`. For a NON-package order every line is
+ * base-priced. For a package order every top-level line must still be a current
+ * member: an override prices at `override × qty` (including an explicit free 0),
+ * a member with no override keeps `basePrice`, and a line that is no longer a
+ * member (package deleted, un-flagged, or the listing removed mid-checkout)
+ * fails closed. A customisable member with a per-day override for the order's
+ * day count prices at `override × qty` when no flat override outranks it —
+ * mirroring the checkout's `derivePriceRule`/`effectivePrice` precedence (flat
+ * `OVERRIDE` > per-day override > the listing's own day price, which is already
+ * in `basePrice`). The override only applies to a customisable listing, exactly
+ * as the tree only carries day overrides on a `DAY_PRICE` rule. */
+export const expectedItemPrice = (
+  pkg: PackagePricing | null,
+  isPackageIntent: boolean,
+  foldedChildIds: ReadonlySet<number>,
+  item: BookingItem,
+  basePrice: number,
+  customisableDays: boolean,
+  dayCount: number,
+): number | null => {
+  if (foldedChildIds.has(item.e)) return basePrice;
+  if (!isPackageIntent) return basePrice;
+  if (!pkg || !pkg.memberIds.has(item.e)) return null;
+  const override = pkg.priceMap.get(item.e);
+  if (override !== undefined) return override * item.q;
+  const dayOverride = customisableDays
+    ? pkg.dayPriceMap.get(item.e)?.get(dayCount)
+    : undefined;
+  return dayOverride !== undefined ? dayOverride * item.q : basePrice;
+};
+
+/**
+ * Whether a package order's signed lines no longer represent the CURRENT bundle,
+ * forcing a price_changed refund (the buyer must never be booked for a partial or
+ * stale bundle). The top-level package lines are the items minus folded children;
+ * the bundle matches only when they cover EXACTLY the current members and their
+ * quantities imply ONE common positive package count at the current per-package
+ * quantities. Catches a member added/removed mid-checkout, a member's quantity
+ * raised/lowered (so `q` is no longer a whole number of packages), or quantities
+ * edited so the lines no longer share a single count. Per-line price drift is
+ * handled separately by {@link expectedItemPrice}/the price-mismatch pass.
+ */
+export const packageBundleMismatch = (
+  pkg: PackagePricing,
+  items: readonly BookingItem[],
+  foldedChildIds: ReadonlySet<number>,
+): boolean => {
+  const lines = items.filter((item) => !foldedChildIds.has(item.e));
+  if (lines.length !== pkg.memberIds.size) return true;
+  const counts = new Set<number>();
+  for (const line of lines) {
+    if (!pkg.memberIds.has(line.e)) return true;
+    const count = line.q / (pkg.quantityMap.get(line.e) ?? 1);
+    if (!Number.isInteger(count) || count <= 0) return true;
+    counts.add(count);
+  }
+  return counts.size > 1;
+};
+
+/** Rebuild the order's booking tree from CURRENT config so the revalidation walk
+ * can re-check each signed line's `nodeKey` still resolves. The top-level nodes
+ * reuse the item rows already loaded this request; the required-child edges are
+ * reloaded fresh, so a parent→child edge removed or swapped mid-checkout drops
+ * that child's `nodeKey` from the tree. `nodeKey`s depend only on membership/edge
+ * structure, not availability or price, so the rows are wrapped without
+ * re-resolving capacity. */
+const currentOrderTree = async (
+  intent: BookingIntent,
+  validatedItems: ValidatedItem[],
+): Promise<BookingTree> => {
+  const foldedChildIds = new Set(
+    (intent.allocations ?? []).map((a) => a.childId),
+  );
+  const topLevel = validatedItems
+    .filter((v) => !foldedChildIds.has(v.item.e))
+    .map((v) => buildTicketListing(v.listing, false, undefined));
+  const childRows = await getChildrenForParents(
+    topLevel.map((t) => t.listing.id),
+  );
+  const childrenByParentId = new Map(
+    [...childRows].map(([parentId, rows]) => [
+      parentId,
+      rows.map((r) => buildTicketListing(r, false, undefined)),
+    ]),
+  );
+  return buildBookingTree({
+    childrenByParentId,
+    groupId: intent.packageGroupId,
+    isPackage: intent.packageGroupId !== undefined,
+    listings: topLevel,
+    slugs: [],
+  });
+};
+
+/** Whether the signed lines no longer resolve against current config — a required
+ * child (or package member) whose edge the operator removed/swapped mid-checkout,
+ * or an edge ADDED mid-checkout: a line's listing gained required children the
+ * signed order carries no allocation for, so booking it would skip an add-on the
+ * current page requires. Every order is walked against a fresh tree (a childless
+ * signed order is exactly how an added edge presents). Package-membership and
+ * per-line price drift are still caught by
+ * {@link packageBundleMismatch}/{@link expectedItemPrice}. */
+const orderEdgeDrifted = async (
+  intent: BookingIntent,
+  validatedItems: ValidatedItem[],
+): Promise<boolean> =>
+  edgeDrifted(
+    await currentOrderTree(intent, validatedItems),
+    intent.items,
+    intent.allocations ?? [],
+  );
+
 /** Validate all booking items and return per-item pricing info or a failure result. */
 const validateAllItems = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
 ): Promise<{ ok: true; items: ValidatedItem[] } | PaymentFailureResult> => {
-  const includeListingName = intent.items.length > 1;
+  const isPackageIntent = intent.packageGroupId !== undefined;
+  // For a hidden package, a per-member failure message would reveal a member name
+  // on /payment/success, so never include the listing name in those errors. A
+  // package intent whose group no longer resolves (deleted/un-packaged
+  // mid-checkout) fails SAFE as hidden: the stale group may have been a hidden
+  // package, and the refund path must not name its members either way.
+  const hiddenPackage =
+    intent.packageGroupId !== undefined &&
+    ((await getPackageDisplayById(intent.packageGroupId))?.hideListings ??
+      true);
+  // A standalone session started before its listing joined a HIDDEN package must
+  // not book the now-hidden member: its /ticket/<slug> 404s and /t/<token> would
+  // render the member name/details. Detected here, failed closed after pricing so
+  // the order takes the price_changed refund instead of a leaking standalone ticket.
+  const staleHiddenMember =
+    !isPackageIntent &&
+    (await getHiddenPackageMemberIds(intent.items.map((i) => i.e))).size > 0;
+  // Suppress per-member names in failure messages for BOTH hidden cases: a hidden
+  // package intent, and a stale standalone session whose listing has since become
+  // a hidden member (else a member closed/deactivated mid-checkout surfaces its
+  // name on /payment/success before the stale-member refund below runs).
+  const includeListingName =
+    intent.items.length > 1 && !hiddenPackage && !staleHiddenMember;
+  const pkg = await loadPackagePricing(intent);
+  const foldedChildIds = new Set(
+    (intent.allocations ?? []).map((a) => a.childId),
+  );
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
     const vp = await validateAndPrice(
@@ -595,11 +798,36 @@ const validateAllItems = async (
       intent.dayCount,
     );
     if (!vp.ok) return validationFailure(session, vp, item.e);
+    // `null` here means "fail closed" (the line is no longer a valid package
+    // member); it is carried through so the price-mismatch pass refunds it via
+    // the normal stored-placeholder path.
     validatedItems.push({
-      expectedPrice: vp.expectedPrice,
+      expectedPrice: expectedItemPrice(
+        pkg,
+        isPackageIntent,
+        foldedChildIds,
+        item,
+        vp.expectedPrice,
+        vp.listing.customisable_days,
+        intent.dayCount ?? 1,
+      ),
       item,
       listing: vp.listing,
     });
+  }
+  // Order-level package check: if the signed lines no longer match the current
+  // bundle (member added/removed, or quantities no longer share one package
+  // count), fail every line closed so the whole order takes the price_changed
+  // refund rather than booking a partial/stale bundle.
+  if (
+    staleHiddenMember ||
+    (pkg && packageBundleMismatch(pkg, intent.items, foldedChildIds)) ||
+    (await orderEdgeDrifted(intent, validatedItems))
+  ) {
+    return {
+      items: validatedItems.map((v) => ({ ...v, expectedPrice: null })),
+      ok: true,
+    };
   }
   return { items: validatedItems, ok: true };
 };
@@ -800,20 +1028,34 @@ const deletedListingSpec = (session: ValidatedPaymentSession): RefundSpec => ({
  * test, so this path refunds without paging.
  */
 const paidPricingRefund = (
-  intent: BookingIntent,
   validatedItems: ValidatedItem[],
   pricedOrder: PricedOrder,
   agreed: number,
 ): RefundSpec | null => {
-  const hasPaidItems = intent.items.some((item) => item.p > 0);
-  // Per-item prices are ticket-only (no fee), so validate without booking fee
-  if (hasPaidItems) {
-    for (const { item, listing, expectedPrice } of validatedItems) {
-      if (hasPriceMismatch(item.p, expectedPrice, listing, 0, item.q)) {
-        return priceChangedSpec(
-          `Per-item price mismatch for listing ${listing.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${listing.can_pay_more})`,
-        );
-      }
+  // Fail closed first: a `null` expected price means a package line is no longer
+  // a valid member (package deleted/unflagged or the listing removed). This is
+  // checked for every item regardless of price, so even a free package member
+  // refunds rather than completing.
+  for (const { listing, expectedPrice } of validatedItems) {
+    if (expectedPrice === null) {
+      return priceChangedSpec(
+        `Package member listing ${listing.id} is no longer part of its package`,
+      );
+    }
+  }
+  // Per-item prices are ticket-only (no fee), so validate without booking fee.
+  // EVERY item is checked, not just the ones signed paid: a package override (or
+  // base price) raised from 0 to positive while an add-on/modifier kept the order
+  // paid would otherwise slip through, because `pricedOrder` is re-derived from
+  // the signed zero unit prices so the total still matches `agreed` — only this
+  // comparison against the freshly loaded `expectedPrice` sees the drift. A
+  // genuinely free line (signed 0, still 0) costs nothing here: it never
+  // mismatches. expectedPrice is non-null by the fail-closed loop above.
+  for (const { item, listing, expectedPrice } of validatedItems) {
+    if (hasPriceMismatch(item.p, expectedPrice!, listing, 0, item.q)) {
+      return priceChangedSpec(
+        `Per-item price mismatch for listing ${listing.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${listing.can_pay_more})`,
+      );
     }
   }
   if (pricedOrder.total !== agreed) {
@@ -993,6 +1235,10 @@ const createAttendeeForSession = async (
     {
       ...(await attendeeBaseFields(session, intent)),
       bookings,
+      // Stamp the package group id on every booking row so the ticket view /
+      // confirmation email group the order under the package by this persisted
+      // id rather than membership equality. 0 for a non-package order.
+      packageGroupId: intent.packageGroupId ?? 0,
       remainingBalance,
     },
     plan,
@@ -1402,7 +1648,7 @@ const processReservedSession = async (
   const knownRefund: RefundSpec | null =
     verdict.verdict === "mismatch"
       ? chargeMismatchSpec(session, verdict.agreed)
-      : paidPricingRefund(intent, validatedItems, pricedOrder, verdict.agreed);
+      : paidPricingRefund(validatedItems, pricedOrder, verdict.agreed);
   if (knownRefund) {
     return storeRefundedBooking(session, intent, placeholders, knownRefund);
   }

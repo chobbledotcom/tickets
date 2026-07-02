@@ -71,6 +71,7 @@ describe("webhook example", () => {
       end_date: null,
       id: 1,
       name: EXAMPLE_ATTENDEE.name,
+      package_group_id: 0,
       payment_id: EXAMPLE_ATTENDEE.payment_id,
       phone: EXAMPLE_ATTENDEE.phone,
       price_paid: EXAMPLE_ATTENDEE.price_paid,

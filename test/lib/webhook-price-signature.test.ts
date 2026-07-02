@@ -6,7 +6,10 @@ import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import { execute } from "#shared/db/client.ts";
+import { groupsTable, setGroupPackageMembers } from "#shared/db/groups.ts";
+import { setChildIds } from "#shared/db/listing-parents.ts";
 import { deleteListing, listingsTable } from "#shared/db/listings.ts";
+import { modifiersTable } from "#shared/db/modifiers.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { prunePayments } from "#shared/db/prune.ts";
 import { getNoteRows, getNotesForAttendee } from "#shared/db/system-notes.ts";
@@ -14,6 +17,7 @@ import { balanceOf } from "#shared/ledger/project.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
   assertJson,
+  createTestGroup,
   createTestListing,
   describeWithEnv,
   getTestPrivateKey,
@@ -410,6 +414,86 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     );
   });
 
+  // ---- signed-edge revalidation ---------------------------------------------
+
+  /** A signed session booking `child` under `parent`: the parent line, the folded
+   * child line, and the allocation that maps the child under the parent. */
+  const signedParentChild = (
+    parentId: number,
+    childId: number,
+  ): Record<string, string> =>
+    signMeta(
+      webhookMeta({
+        allocations: JSON.stringify([{ childId, parentId, qty: 1 }]),
+        email: "buyer@example.com",
+        items: JSON.stringify([
+          { e: parentId, p: 1000, q: 1 },
+          { e: childId, p: 0, q: 1 },
+        ]),
+        name: "Buyer",
+      }),
+      1000,
+    );
+
+  test("a booking whose signed child edge was re-parented mid-checkout is stored and refunded", async () => {
+    // The child is booked under parentA while also a child of parentB, then
+    // re-parented so only parentB keeps it: the child stays reachable (so the
+    // per-item add-on check passes) but its signed parentA→child edge is gone,
+    // which only the nodeKey walk can catch.
+    await setupStripe();
+    const parentA = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    const parentB = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    const child = await createTestListing({ maxAttendees: 50, unitPrice: 0 });
+    await setChildIds(parentA.id, [child.id]);
+    await setChildIds(parentB.id, [child.id]);
+    const metadata = signedParentChild(parentA.id, child.id);
+    await setChildIds(parentA.id, []);
+    await runWebhook({ id: "cs_edge_swap", metadata }, () =>
+      expectStoredRefund(parentA.id),
+    );
+  });
+
+  test("a parent+child booking with intact edges processes (the edge walk finds no drift)", async () => {
+    await setupStripe();
+    const parent = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    const child = await createTestListing({ maxAttendees: 50, unitPrice: 0 });
+    await setChildIds(parent.id, [child.id]);
+    const metadata = signedParentChild(parent.id, child.id);
+    await runWebhook({ id: "cs_edge_intact", metadata }, () =>
+      expectProcessed(parent.id),
+    );
+  });
+
+  test("a package booking with a matching bundle processes (the edge walk finds no drift)", async () => {
+    const { group, listing } = await setupPackage();
+    // A package line carries its edge (k:"p", r=group id); the walk rebuilds the
+    // package tree, finds the member's nodeKey resolves, and books it.
+    const metadata = signMeta(
+      webhookMeta({
+        email: "buyer@example.com",
+        items: JSON.stringify([
+          { e: listing.id, k: "p", p: 1500, q: 1, r: group.id },
+        ]),
+        name: "Buyer",
+        package_group_id: String(group.id),
+      }),
+      1500,
+    );
+    await runWebhook(
+      { amount_total: 1500, id: "cs_pkg_edge_ok", metadata },
+      () => expectProcessed(listing.id),
+    );
+  });
+
   test("stores the booking, reverses the ledger with the reason code, and flags it", async () => {
     const listing = await setupWithListing();
     // Signed and charged at 999, but the live price is 1000 — a mid-checkout edit.
@@ -741,6 +825,223 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
         // replays it instead of retrying.
         const record = await isSessionProcessed("cs_already_refunded");
         expect(record?.failure_data).not.toBe("");
+      },
+    );
+  });
+
+  // ---- package pricing revalidation -----------------------------------------
+
+  /** A package group whose single member has a base price of 5000 but a package
+   * override of 1500. Returns the group and member. */
+  const setupPackage = async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Pkg",
+      slug: "pkg",
+    });
+    const listing = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 50,
+      unitPrice: 5000,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 1500 },
+    ]);
+    return { group, listing };
+  };
+
+  /** Signed metadata for a one-line package booking at `price` (the override).
+   * The line carries its package edge (k:"p", r=group id), as the checkout emits. */
+  const packageMetadata = (groupId: number, listingId: number, price: number) =>
+    signMeta(
+      webhookMeta({
+        email: "buyer@example.com",
+        items: JSON.stringify([
+          { e: listingId, k: "p", p: price, q: 1, r: groupId },
+        ]),
+        name: "Buyer",
+        package_group_id: String(groupId),
+      }),
+      price,
+    );
+
+  /** Drive a 1500 package session through the webhook and assert it was kept as
+   * a refunded placeholder (the post-checkout change invalidated the price). */
+  const expectPackageRefund = (
+    id: string,
+    listingId: number,
+    metadata: Record<string, string>,
+  ): Promise<void> =>
+    runWebhook({ amount_total: 1500, id, metadata }, async (refund) => {
+      await expectStoredRefund(listingId);
+      expect(refund.calls.length).toBe(1);
+    });
+
+  test("a package booking is priced against the override, not the base price", async () => {
+    const { group, listing } = await setupPackage();
+    // Signed at the override (1500), not the 5000 base — only the package path
+    // makes this validate; the base-price check would refund it.
+    await runWebhook(
+      {
+        amount_total: 1500,
+        id: "cs_pkg_ok",
+        metadata: packageMetadata(group.id, listing.id, 1500),
+      },
+      () => expectProcessed(listing.id),
+    );
+  });
+
+  test("an explicit-free package member (override 0) completes at £0", async () => {
+    const { group, listing } = await setupPackage();
+    // Override the member to free (0) — distinct from "no override", which would
+    // re-price at the 5000 base and refund a £0 booking. The signed £0 line must
+    // be honoured.
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 0 },
+    ]);
+    await runWebhook(
+      {
+        amount_total: 0,
+        id: "cs_pkg_free_ov",
+        metadata: packageMetadata(group.id, listing.id, 0),
+      },
+      () => expectProcessed(listing.id),
+    );
+  });
+
+  test("a no-override package member refunds a £0 booking (charges its base)", async () => {
+    const { group, listing } = await setupPackage();
+    // No override (null) → the member keeps its 5000 base, so a signed £0 line
+    // no longer matches and must take the price_changed refund path.
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: null },
+    ]);
+    await expectPackageRefund(
+      "cs_pkg_no_ov",
+      listing.id,
+      packageMetadata(group.id, listing.id, 0),
+    );
+  });
+
+  test("a package booking refunds when the override changed after checkout", async () => {
+    const { group, listing } = await setupPackage();
+    const metadata = packageMetadata(group.id, listing.id, 1500);
+    // Operator raises the override after the buyer signed at 1500.
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 2000 },
+    ]);
+    await expectPackageRefund("cs_pkg_changed", listing.id, metadata);
+  });
+
+  test("a package booking refunds when the group is no longer a package", async () => {
+    const { group, listing } = await setupPackage();
+    const metadata = packageMetadata(group.id, listing.id, 1500);
+    // The package flag is cleared, so the member revalidates at its 5000 base
+    // price and the 1500 the buyer signed no longer matches.
+    await groupsTable.update(group.id, { isPackage: false });
+    await expectPackageRefund("cs_pkg_unflagged", listing.id, metadata);
+  });
+
+  test("a package booking refunds when a member was added after checkout", async () => {
+    const { group, listing } = await setupPackage();
+    const metadata = packageMetadata(group.id, listing.id, 1500);
+    // A second member joins the bundle after the buyer signed a one-line order,
+    // so the signed lines no longer represent the whole package.
+    const added = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 1500 },
+      { listingId: added.id, price: 1000 },
+    ]);
+    await expectPackageRefund("cs_pkg_member_added", listing.id, metadata);
+  });
+
+  test("a package booking refunds when a free member's override turns paid mid-payment", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "FreePkg",
+      slug: "free-pkg",
+    });
+    const listing = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 50,
+      unitPrice: 0,
+    });
+    // The member is free at checkout (override 0), so its signed line price is 0.
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 0 },
+    ]);
+    // An opt-in add-on keeps the order PAID even though every package line is
+    // free — this is the case the old `hasPaidItems` guard skipped.
+    const addOn = await modifiersTable.insert({
+      calcKind: "fixed",
+      calcValue: 500,
+      direction: "charge",
+      name: "Add-on",
+    });
+    await execute("UPDATE modifiers SET trigger = ? WHERE id = ?", [
+      "optional",
+      addOn.id,
+    ]);
+    const metadata = signMeta(
+      webhookMeta({
+        email: "buyer@example.com",
+        items: singleItem(listing.id, 1, 0),
+        modifiers: JSON.stringify([{ i: addOn.id, q: 1 }]),
+        name: "Buyer",
+        package_group_id: String(group.id),
+      }),
+      500,
+    );
+    // Operator raises the override from 0 to a positive value while the payment
+    // is in flight; the signed zero line must no longer be honoured.
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 1500 },
+    ]);
+    await runWebhook(
+      { amount_total: 500, id: "cs_pkg_free_drift", metadata },
+      async (refund) => {
+        await expectStoredRefund(listing.id);
+        expect(refund.calls.length).toBe(1);
+      },
+    );
+  });
+
+  test("a hidden package booking completes (member name never leaks in the flow)", async () => {
+    const { group, listing } = await setupPackage();
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    // A normal hidden-package session: it processes, exercising the path that
+    // suppresses member names in any failure message for hidden packages.
+    await runWebhook(
+      {
+        amount_total: 1500,
+        id: "cs_pkg_hidden_ok",
+        metadata: packageMetadata(group.id, listing.id, 1500),
+      },
+      () => expectProcessed(listing.id),
+    );
+  });
+
+  test("a standalone session for a now-hidden package member is refunded, not booked", async () => {
+    const { group, listing } = await setupPackage();
+    // The buyer started a STANDALONE (non-package) checkout at the base price;
+    // the operator then hid the package. Completing it would book a leaking
+    // standalone ticket whose /ticket/<slug> 404s, so it must refund instead.
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    await runWebhook(
+      {
+        amount_total: 5000,
+        id: "cs_stale_hidden_member",
+        metadata: signedMeta(5000, { items: singleItem(listing.id, 1, 5000) }),
+      },
+      async (refund) => {
+        await expectStoredRefund(listing.id);
+        expect(refund.calls.length).toBe(1);
       },
     );
   });

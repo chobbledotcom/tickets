@@ -576,6 +576,10 @@ const bookingInsertStatement = (
     ledger_event_group: booking.ledger_event_group,
     listing_id: booking.listing_id,
     order_token: booking.order_token,
+    // Carry the package group so a moved package booking keeps its package
+    // display/privacy on the merged attendee's tickets/emails (without it the
+    // column defaults to 0 and the booking stops being treated as a package).
+    package_group_id: booking.package_group_id,
     parent_listing_id: booking.parent_listing_id,
     quantity: booking.quantity,
     start_at: booking.start_at,

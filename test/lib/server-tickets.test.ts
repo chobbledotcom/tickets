@@ -2,6 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { groupsTable } from "#shared/db/groups.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { clearTokenAttempts } from "#shared/db/token-attempts.ts";
 import { MAX_TOKEN_404S } from "#shared/limits.ts";
@@ -11,6 +13,7 @@ import {
   createPaidTestAttendee,
   createTestAttendee,
   createTestAttendeeWithToken,
+  createTestGroup,
   createTestListing,
   describeWithEnv,
   expectHtml,
@@ -429,3 +432,297 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(notLocked.status).toBe(404);
   });
 });
+
+describeWithEnv(
+  "ticket view package grouping (/t/:tokens)",
+  { db: true },
+  () => {
+    /** A HIDDEN one-member package group and its sole listing. */
+    const hiddenOneMemberPackage = async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Kit Bag" });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      const widget = await createTestListing({
+        groupId: group.id,
+        name: "Widget",
+      });
+      return { group, widget };
+    };
+
+    /** Drive the public free-checkout submit for a package group (quantity 1). */
+    const submitFreePackageBooking = async (
+      slug: string,
+      contact: { email: string; name: string },
+    ): Promise<Response> => {
+      const { submitPackageBooking } = await import("#test-utils");
+      return submitPackageBooking(slug, { ...contact, package_quantity: "1" });
+    };
+
+    test("a standalone booking of a hidden package's listing is NOT collapsed/hidden", async () => {
+      // Regression for the membership-equality bug: the listing booked NOT via the
+      // package (package_group_id 0 on its rows) must render normally, never
+      // collapsed/renamed to the hidden package.
+      const { widget } = await hiddenOneMemberPackage();
+      const result = await createAttendeeAtomic({
+        bookings: [{ listingId: widget.id, quantity: 1 }],
+        email: "standalone@test.com",
+        name: "Standalone",
+      });
+      if (!result.success) throw new Error("standalone booking failed");
+      const token = result.attendees[0]!.ticket_token;
+
+      const body = await fetchTicketBody(token);
+      expect(body).toContain("Widget");
+      expect(body).not.toContain("Kit Bag");
+    });
+
+    test("the same listing booked as the package IS collapsed under the package name", async () => {
+      const { group, widget } = await hiddenOneMemberPackage();
+      const result = await createAttendeeAtomic({
+        bookings: [{ listingId: widget.id, quantity: 1 }],
+        email: "pkg@test.com",
+        name: "Packaged",
+        packageGroupId: group.id,
+      });
+      if (!result.success) throw new Error("package booking failed");
+      const token = result.attendees[0]!.ticket_token;
+
+      const body = await fetchTicketBody(token);
+      expect(body).toContain("Kit Bag");
+      // Hidden package: the member listing name is suppressed.
+      expect(body).not.toContain("Widget");
+    });
+
+    /** Book `listingId` as a member of package `groupId` and return the rendered
+     * /t ticket body. */
+    const bookPackageTicketBody = async (
+      groupId: number,
+      listingId: number,
+      quantity: number,
+    ): Promise<string> => {
+      const result = await createAttendeeAtomic({
+        bookings: [{ listingId, quantity }],
+        email: "pkgbook@test.com",
+        name: "Package Buyer",
+        packageGroupId: groupId,
+      });
+      if (!result.success) throw new Error("package booking failed");
+      return fetchTicketBody(result.attendees[0]!.ticket_token);
+    };
+
+    test("a hidden package card shows the booked quantity without naming members", async () => {
+      const { group, widget } = await hiddenOneMemberPackage();
+      const body = await bookPackageTicketBody(group.id, widget.id, 3);
+      expect(body).toContain("Kit Bag");
+      // The count is shown at package level; the member name is not.
+      expect(body).toContain("&times;3");
+      expect(body).not.toContain("Widget");
+    });
+
+    test("a non-hidden package card keeps each member's attachment link", async () => {
+      // The package card replaces the per-member ticket cards, so it must still
+      // expose the signed attachment a standalone card would — buyers of the
+      // bundle need their per-listing files.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Welcome Pack",
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        name: "Handbook",
+      });
+      await listingsTable.update(member.id, {
+        attachmentName: "Handbook.pdf",
+        attachmentUrl: "handbook.pdf",
+      });
+      const result = await createAttendeeAtomic({
+        bookings: [{ listingId: member.id, quantity: 1 }],
+        email: "pkg@test.com",
+        name: "Buyer",
+        packageGroupId: group.id,
+      });
+      if (!result.success) throw new Error("package booking failed");
+
+      const body = await fetchTicketBody(result.attendees[0]!.ticket_token);
+      expect(body).toContain("Welcome Pack");
+      expect(body).toContain("Handbook");
+      expect(body).toContain("attachment-link");
+    });
+
+    test("a dated package card shows the booked date range", async () => {
+      // A daily package books every member on one start date; the package card
+      // (which replaces the per-member cards) must show that date like a
+      // standalone daily ticket would. Members can carry different fixed
+      // durations — the widest covers the whole stay, so a 2-day member turns
+      // the label into a range.
+      const { addDays } = await import("#shared/dates.ts");
+      const { todayInTz } = await import("#shared/timezone.ts");
+      const group = await createTestGroup({ isPackage: true, name: "Trip" });
+      const oneDay = await createTestListing({
+        groupId: group.id,
+        listingType: "daily",
+        minimumDaysBefore: 0,
+        name: "Trip Canoe",
+      });
+      const twoDay = await createTestListing({
+        durationDays: 2,
+        groupId: group.id,
+        listingType: "daily",
+        minimumDaysBefore: 0,
+        name: "Trip Cabin",
+      });
+      const oneDayB = await createTestListing({
+        groupId: group.id,
+        listingType: "daily",
+        minimumDaysBefore: 0,
+        name: "Trip Kayak",
+      });
+      const date = addDays(todayInTz("UTC"), 2);
+      // Booked narrow → widest → narrow, so the widest-member scan must both
+      // REPLACE a narrower card and KEEP the widest over a later narrower one.
+      const result = await createAttendeeAtomic({
+        bookings: [
+          { date, listingId: oneDay.id, quantity: 1 },
+          { date, listingId: twoDay.id, quantity: 1 },
+          { date, listingId: oneDayB.id, quantity: 1 },
+        ],
+        email: "trip@test.com",
+        name: "Tripper",
+        packageGroupId: group.id,
+      });
+      if (!result.success) throw new Error("package booking failed");
+
+      const body = await fetchTicketBody(result.attendees[0]!.ticket_token);
+      const { formatDateRangeLabelCompactEn } = await import(
+        "#shared/dates.ts"
+      );
+      // The widest member (2 days) drives the label: a compact range from the
+      // booked date to its last day.
+      expect(body).toContain(
+        formatDateRangeLabelCompactEn(date, addDays(date, 1)),
+      );
+    });
+
+    test("two separate package orders each collapse, hiding members, on a multi-token page", async () => {
+      // /t/a+b resolves two distinct attendees who share a hidden package. Each
+      // card carries its OWN attendee token, so package collapsing keys buckets by
+      // (token, package): both orders collapse to a package card (member name
+      // hidden) yet stay two distinct cards with their own check-in QRs. Keying on
+      // a shared `tokens[0]` used to disable collapsing here and leak the member.
+      const { group, widget } = await hiddenOneMemberPackage();
+      const book = async (email: string) => {
+        const result = await createAttendeeAtomic({
+          bookings: [{ listingId: widget.id, quantity: 1 }],
+          email,
+          name: email,
+          packageGroupId: group.id,
+        });
+        if (!result.success) throw new Error("package booking failed");
+        return result.attendees[0]!.ticket_token;
+      };
+      const tokenA = await book("a@test.com");
+      const tokenB = await book("b@test.com");
+
+      const body = await fetchTicketBody(`${tokenA}+${tokenB}`);
+      // Two distinct package cards (one per order), each its own check-in QR…
+      expect(body).toContain("2 Tickets");
+      expect(body).toContain(`/t/${tokenA}/svg`);
+      expect(body).toContain(`/t/${tokenB}/svg`);
+      // …showing the package name, never the concealed member.
+      expect(body).toContain("Kit Bag");
+      expect(body).not.toContain("Widget");
+    });
+
+    test("a token mixing a hidden package and a standalone booking hides only the member", async () => {
+      // After an attendee merge, one token can carry both a hidden-package row and
+      // a normal row. The package collapses (member hidden) while the standalone
+      // booking still renders — the mixed set must not fall back to per-row cards.
+      const { group, widget } = await hiddenOneMemberPackage();
+      const standalone = await createTestListing({ name: "Standalone Ticket" });
+      const result = await createAttendeeAtomic({
+        bookings: [
+          { listingId: widget.id, quantity: 1 },
+          { listingId: standalone.id, quantity: 1 },
+        ],
+        email: "merged@test.com",
+        name: "Merged",
+        packageGroupId: group.id,
+      });
+      if (!result.success) throw new Error("booking failed");
+      // The widget row is a package member; null the standalone row's package id.
+      const { getDb } = await import("#shared/db/client.ts");
+      await getDb().execute({
+        args: [standalone.id],
+        sql: "UPDATE listing_attendees SET package_group_id = 0 WHERE listing_id = ?",
+      });
+
+      const body = await fetchTicketBody(result.attendees[0]!.ticket_token);
+      expect(body).toContain("Kit Bag");
+      expect(body).toContain("Standalone Ticket");
+      expect(body).not.toContain("Widget");
+    });
+
+    test("a FREE public package checkout stamps package_group_id and collapses the ticket", async () => {
+      // Drives the public free-checkout path so handleFreePath threads
+      // ctx.packageGroupId into createFreeReservation — the standalone-vs-package
+      // distinction comes from the persisted id, set here end-to-end.
+      const { getDb } = await import("#shared/db/client.ts");
+
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Free Kit",
+        slug: "free-kit",
+      });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      // A free member (unit price 0) so the order completes via the free path.
+      const freebie = await createTestListing({
+        groupId: group.id,
+        name: "Freebie",
+        unitPrice: 0,
+      });
+
+      const submit = await submitFreePackageBooking(group.slug, {
+        email: "freepkg@test.com",
+        name: "Free Buyer",
+      });
+      expect([302, 303]).toContain(submit.status);
+
+      // The free public package checkout stamped the group id onto the booking
+      // row (the standalone-vs-package distinction is persisted, not inferred).
+      const row = (
+        await getDb().execute({
+          args: [freebie.id],
+          sql: "SELECT package_group_id FROM listing_attendees WHERE listing_id = ? ORDER BY id DESC LIMIT 1",
+        })
+      ).rows[0]!;
+      expect(Number(row.package_group_id)).toBe(group.id);
+    });
+
+    test("a hidden single-member package ignores the member's thank-you URL", async () => {
+      // With one member, a package booking would otherwise fall through the
+      // single-listing thank-you redirect and send the buyer to that member's
+      // thank-you page — revealing the member the hidden package concealed. It
+      // must land on the generic reserved page instead.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Secret Kit",
+        slug: "secret-kit",
+      });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      await createTestListing({
+        groupId: group.id,
+        name: "Concealed Freebie",
+        thankYouUrl: "https://example.com/concealed-member",
+        unitPrice: 0,
+      });
+
+      const submit = await submitFreePackageBooking(group.slug, {
+        email: "secret@test.com",
+        name: "Secret Buyer",
+      });
+      expect([302, 303]).toContain(submit.status);
+      const location = submit.headers.get("location") ?? "";
+      expect(location).not.toContain("concealed-member");
+      expect(location).toContain("/ticket/reserved");
+    });
+  },
+);

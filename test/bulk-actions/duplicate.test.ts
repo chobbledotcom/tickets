@@ -1,6 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllGroups, getListingsByGroupId } from "#shared/db/groups.ts";
+import { queryAll } from "#shared/db/client.ts";
+import {
+  getAllGroups,
+  getGroupIdsByListingId,
+  getGroupPackagePrices,
+  getListingsByGroupId,
+} from "#shared/db/groups.ts";
 import {
   getAllListings,
   getListingWithCount,
@@ -13,6 +19,7 @@ import {
   createTestListing,
   describeWithEnv,
   getBulkActionForm,
+  getTestPackagePrices,
 } from "#test-utils";
 
 const getDuplicateForm = getBulkActionForm("duplicate");
@@ -95,7 +102,36 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       const original = await getListingWithCount(sourceListing.id);
       expect(original?.name).toBe("Spring Workshop");
       expect(original?.date).toBe(sourceListing.date);
-      expect(original?.group_id).toBe(group.id);
+      expect(await getGroupIdsByListingId(sourceListing.id)).toContain(
+        group.id,
+      );
+    });
+
+    test("syncs listing_prices for cloned listings", async () => {
+      // Clones are inserted via insertStatement in a batch (bypassing the
+      // listingsTable wrapper), so the duplicate flow must sync their price rows.
+      const group = await createTestGroup({ name: "Priced Source" });
+      await createTestListing({
+        groupId: group.id,
+        name: "Priced Item",
+        unitPrice: 850,
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        { new_name: "Priced Copy" },
+      );
+      expect(response.status).toBe(302);
+
+      const newGroup = (await getAllGroups()).find(
+        (g) => g.name === "Priced Copy",
+      )!;
+      const clone = (await getListingsByGroupId(newGroup.id))[0]!;
+      const rows = await queryAll<{ price_type: string; unit_price: number }>(
+        "SELECT price_type, unit_price FROM listing_prices WHERE listing_id = ?",
+        [clone.id],
+      );
+      expect(rows).toEqual([{ price_type: "base", unit_price: 850 }]);
     });
 
     test("clones a use-defaults listing from its stored values, not inherited defaults", async () => {
@@ -151,6 +187,34 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       expect(newListings[0]!.date).toBe(sourceListing.date);
     });
 
+    test("duplicates a large group without tripping the transaction round-trip guard", async () => {
+      // 16 listings would be 1 + 16 + 16 = 33 statements in an interactive
+      // transaction (guard fires at 30); the single-batch clone must stay clear
+      // of it and land every membership row.
+      const group = await createTestGroup({ name: "Big" });
+      for (let i = 0; i < 16; i++) {
+        await createTestListing({ groupId: group.id, name: `Listing ${i}` });
+      }
+
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        {
+          date_find: "",
+          date_replace: "",
+          name_find: "",
+          name_replace: "",
+          new_name: "Big Copy",
+        },
+      );
+
+      expect(response.status).toBe(302);
+      const newGroup = (await getAllGroups()).find(
+        (g) => g.name === "Big Copy",
+      );
+      expect(newGroup).toBeDefined();
+      expect((await getListingsByGroupId(newGroup!.id)).length).toBe(16);
+    });
+
     test("rejects an empty new group name with an error flash", async () => {
       const group = await createTestGroup({ name: "Needs Name" });
       await createTestListing({ groupId: group.id, name: "E" });
@@ -174,6 +238,68 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         `/admin/groups/${group.id}/bulk-actions/duplicate`,
       );
       expect((await getAllGroups()).length).toBe(groupCountBefore);
+    });
+
+    test("copies the package flag, hide option, and remapped member overrides", async () => {
+      const { getGroupDayPrices } = await import(
+        "#shared/db/listing-prices.ts"
+      );
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Pkg Source",
+      });
+      const listing = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        groupId: group.id,
+        listingType: "daily",
+        name: "Member",
+        unitPrice: 1000,
+      });
+      // Set a package price override + quantity + per-day override + hide flag
+      // on the source group.
+      await adminFormPost(`/admin/groups/${group.id}/edit`, {
+        description: "",
+        hide_package_listings: "1",
+        is_package: "1",
+        max_attendees: "0",
+        name: "Pkg Source",
+        [`package_day_price_${listing.id}_2`]: "9.00",
+        [`package_price_${listing.id}`]: "30.00",
+        [`package_qty_${listing.id}`]: "4",
+        slug: group.slug,
+        terms_and_conditions: "",
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        { new_name: "Pkg Copy" },
+      );
+      expect(response.status).toBe(302);
+
+      const newGroup = (await getAllGroups()).find(
+        (g) => g.name === "Pkg Copy",
+      )!;
+      expect(newGroup.is_package).toBe(true);
+      expect(newGroup.hide_package_listings).toBe(true);
+      const newListing = (await getListingsByGroupId(newGroup.id))[0]!;
+      expect(newListing.id).not.toBe(listing.id);
+      const prices = await getTestPackagePrices(newGroup.id);
+      expect(prices.get(newListing.id)).toBe(3000);
+      const newRows = await getGroupPackagePrices(newGroup.id);
+      expect(newRows[0]!.quantity).toBe(4);
+      // The per-day override is rewritten under the NEW group id and clone id
+      // (its price_id embeds the group), so the copy prices identically.
+      const newDayPrices = await getGroupDayPrices(newGroup.id);
+      expect(newDayPrices.get(newListing.id)?.get(2)).toBe(900);
+      // The source override is untouched.
+      const sourceRows = await getGroupPackagePrices(group.id);
+      expect(sourceRows[0]!.package_price).toBe(3000);
+      expect(sourceRows[0]!.quantity).toBe(4);
+      expect((await getGroupDayPrices(group.id)).get(listing.id)?.get(2)).toBe(
+        900,
+      );
     });
 
     test("returns 404 when the source group does not exist", async () => {

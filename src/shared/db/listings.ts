@@ -80,7 +80,10 @@ export type ListingInput = {
   location?: string;
   slug: string;
   slugIndex: string;
-  groupId?: number | undefined;
+  /** Ids of the groups this listing belongs to. Transient — membership lives in
+   * the group_listings join table (written via setListingGroups), not a column,
+   * so the listings table ignores this field. */
+  groupIds?: number[];
   maxAttendees: number;
   thankYouUrl?: string | undefined;
   unitPrice?: number | undefined;
@@ -201,7 +204,6 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   description: col.encryptedText(encrypt, decrypt),
   duration_days: { default: () => 1, write: normalizeDurationDays },
   fields: col.withDefault<ListingFields>(() => "email"),
-  group_id: col.withDefault(() => 0),
   hidden: col.boolean(false),
   image_url: col.encryptedText(encrypt, decrypt),
   initial_site_months: col.withDefault(() => 0),
@@ -549,6 +551,11 @@ export const deleteListing = async (listingId: number): Promise<void> => {
       args: [listingId, listingId],
       sql: "DELETE FROM listing_parents WHERE parent_listing_id = ? OR child_listing_id = ?",
     },
+    {
+      // Remove the listing from every group it belonged to (no FK cascade).
+      args: [listingId],
+      sql: "DELETE FROM group_listings WHERE listing_id = ?",
+    },
     { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
     // The generalised price rows have no cascading FK, so drop them with the
     // listing rather than leaving orphaned base/day_count rows behind.
@@ -667,7 +674,14 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
      FROM listings AS listing
      WHERE listing.active = 1
        AND ${catalogVisibleSql(settings.listingDefaults.hidden)}
-       AND listing.id NOT IN (SELECT child_listing_id FROM listing_parents)`,
+       AND listing.id NOT IN (SELECT child_listing_id FROM listing_parents)
+       AND listing.id NOT IN (
+         SELECT groupListing.listing_id
+           FROM group_listings AS groupListing
+           JOIN groups AS groupRow ON groupRow.id = groupListing.group_id
+          WHERE groupRow.is_package = 1
+            AND groupRow.hide_package_listings = 1
+       )`,
   );
   return Promise.all(
     rows.map(async (row) => ({

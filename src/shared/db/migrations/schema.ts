@@ -75,7 +75,6 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["webhook_url", "TEXT"],
         ["slug", "TEXT"],
         ["slug_index", "TEXT"],
-        ["group_id", "INTEGER NOT NULL DEFAULT 0"],
         ["active", "INTEGER NOT NULL DEFAULT 1"],
         ["fields", "TEXT NOT NULL DEFAULT 'email'"],
         ["closes_at", "TEXT"],
@@ -372,6 +371,12 @@ export const SCHEMA: [name: string, table: Table][] = [
         // (0 = not a folded child). A child summed across two parents records the
         // first — the common case is one parent → one child.
         ["parent_listing_id", "INTEGER NOT NULL DEFAULT 0"],
+        // The package group this order belongs to (0 = not a package), stamped on
+        // every booking row of one package checkout like order_token. Tickets and
+        // confirmation emails group the order's lines under the package by this
+        // persisted id, so a standalone order of the same listings is not
+        // mistaken for the package by membership equality.
+        ["package_group_id", "INTEGER NOT NULL DEFAULT 0"],
       ],
       // FKs omitted — libsql's FK enforcement causes issues during table
       // recreation migrations. Referential integrity is enforced by application
@@ -503,6 +508,8 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["terms_and_conditions", "TEXT NOT NULL DEFAULT ''"],
         ["max_attendees", "INTEGER NOT NULL DEFAULT 0"],
         ["hidden", "INTEGER NOT NULL DEFAULT 0"],
+        ["is_package", "INTEGER NOT NULL DEFAULT 0"],
+        ["hide_package_listings", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         {
@@ -510,6 +517,37 @@ export const SCHEMA: [name: string, table: Table][] = [
           name: "idx_groups_slug_index",
           unique: true,
         },
+      ],
+    },
+  ],
+
+  [
+    // Many-to-many membership between groups and listings: one row means
+    // listing_id belongs to group_id. Replaces the old single listings.group_id
+    // FK so a listing can sit in several groups at once. No FKs (house style);
+    // the app keeps it consistent and the group/listing delete paths prune both
+    // sides. `package_price` (minor units) is the per-listing price when this
+    // group is a package — unused for non-package groups. It is NULLABLE on
+    // purpose: NULL means "no override, charge the listing's own price", 0 means
+    // "explicitly free in this package", and a positive value is a price
+    // override. `quantity` is how many of this listing one unit of the package
+    // includes (≥1; default 1). The PK covers group→listings lookups; the extra
+    // index serves listing→groups.
+    "group_listings",
+    {
+      columns: [
+        ["group_id", "INTEGER NOT NULL"],
+        ["listing_id", "INTEGER NOT NULL"],
+        ["package_price", "INTEGER"],
+        ["quantity", "INTEGER NOT NULL DEFAULT 1"],
+      ],
+      indexes: [
+        {
+          columns: ["group_id", "listing_id"],
+          name: "idx_group_listings_pair",
+          unique: true,
+        },
+        { columns: ["listing_id"], name: "idx_group_listings_listing" },
       ],
     },
   ],
@@ -1180,7 +1218,9 @@ END`,
   {
     name: "trg_listing_attendees_aggregates_update",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_update
-AFTER UPDATE OF ${LISTING_AGGREGATE_WRITE_COLUMNS.join(", ")} ON listing_attendees
+AFTER UPDATE OF ${LISTING_AGGREGATE_WRITE_COLUMNS.join(
+      ", ",
+    )} ON listing_attendees
 FOR EACH ROW
 BEGIN
   UPDATE listings SET

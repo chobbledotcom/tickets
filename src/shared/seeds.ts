@@ -115,7 +115,6 @@ const prepareListing = async (
     day_prices: customisable ? demoDayPrices(unitPrice) : "{}",
     description: encDesc,
     fields: "email",
-    group_id: 0,
     image_url: encImageUrl,
     listing_type: "standard",
     location: encLoc,

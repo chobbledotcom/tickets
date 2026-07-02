@@ -23,7 +23,7 @@ import { ADMIN_API, type AuthPolicy, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { type TxScope, withTransaction } from "#shared/db/client.ts";
+import { type TxScope, writeRowInTransaction } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import type { AdminSession } from "#shared/types.ts";
 
@@ -42,10 +42,63 @@ export const requireString = (
     ? body[key].trim()
     : null;
 
+/**
+ * Read an optional typed scalar from a JSON body, falling back to `fallback`
+ * when the key is absent or holds the wrong type. The create/update parsers use
+ * these instead of repeating `typeof body[key] === "…" ? body[key] : fallback`
+ * for every field, so a malformed value is consistently ignored (create →
+ * default, update → keep existing) rather than coerced.
+ */
+export const bodyString = (
+  body: Record<string, unknown>,
+  key: string,
+  fallback: string,
+): string => (typeof body[key] === "string" ? body[key] : fallback);
+
+export const bodyNumber = (
+  body: Record<string, unknown>,
+  key: string,
+  fallback: number,
+): number => (typeof body[key] === "number" ? body[key] : fallback);
+
+export const bodyBoolean = (
+  body: Record<string, unknown>,
+  key: string,
+  fallback: boolean,
+): boolean => (typeof body[key] === "boolean" ? body[key] : fallback);
+
 /** Result of parsing a JSON body into a typed input */
 export type ParseResult<Input> =
   | { ok: true; input: Input }
   | { ok: false; error: string };
+
+/** Outcome of parsing a single array element: a value, or a rejection reason. */
+export type ItemResult<T> = { value: T } | { error: string };
+
+/**
+ * Parse an optional JSON-array field with partial-update semantics, failing
+ * closed. `undefined` → ok with `undefined` (caller leaves existing data
+ * untouched); a non-array → error; otherwise every element runs through
+ * `parseItem` and the first rejection fails the whole parse (so a malformed
+ * entry can't be silently dropped into a destructive replacement).
+ */
+export const parseOptionalArray = <T>(
+  raw: unknown,
+  label: string,
+  parseItem: (item: unknown) => ItemResult<T>,
+): ParseResult<T[] | undefined> => {
+  if (raw === undefined) return { input: undefined, ok: true };
+  if (!Array.isArray(raw)) {
+    return { error: `${label} must be an array`, ok: false };
+  }
+  const items: T[] = [];
+  for (const item of raw) {
+    const parsed = parseItem(item);
+    if ("error" in parsed) return { error: parsed.error, ok: false };
+    items.push(parsed.value);
+  }
+  return { input: items, ok: true };
+};
 
 /** JSON error response for API endpoints */
 export const apiErrorResponse = (message: string, status = 400): Response =>
@@ -141,11 +194,11 @@ export interface CrudApiConfig<
    * `persist`, inferred per resource. See {@link CrudSideEffect}. */
   sideEffect?: CrudSideEffect<Input, FullRow, Prepared>;
   /** Run after a create/update has committed and the row has been re-read, keyed
-   * on the row id. Unlike `sideEffect` (which runs inside the write transaction),
-   * this fires post-commit — for reconciling a derived table that the form paths
-   * keep in sync elsewhere but the transactional `insertStatement`/
-   * `updateStatement` path would otherwise bypass. */
-  afterWrite?: (id: number) => Promise<void>;
+   * on the row id. Unlike `sideEffect`/`afterWrite` (which run inside the write
+   * transaction), this fires post-commit — for reconciling a derived table that
+   * the form paths keep in sync elsewhere but the transactional `insertStatement`/
+   * `updateStatement` path would otherwise bypass (e.g. listing_prices). */
+  afterCommit?: (id: number) => Promise<void>;
   /** Extra route entries to merge in (can also override generated routes) */
   extraRoutes?: Record<string, RouteHandlerFn>;
   /** Fetch all rows (from cache) — may return a richer row type than the table (e.g. joined counts) */
@@ -182,6 +235,24 @@ export interface CrudApiConfig<
   ) => ParseResult<Input> | Promise<ParseResult<Input>>;
   /** Optional validation (return error message or null) */
   validate?: (input: Input, id?: number) => Promise<string | null>;
+  /** Side-effect run with the written row's id and the parsed input to persist
+   * join-table rows (a listing's groups, a group's package members) that live
+   * outside the main table. Runs inside the SAME transaction as the row write
+   * (it receives the transaction scope), so a failure rolls the row write back
+   * rather than leaving partial state. */
+  afterWrite?: (tx: TxScope, id: number, input: Input) => Promise<void>;
+  /** Optionally hydrate extra fields onto each response row (list/get/create/
+   * update) that don't live on the main table — e.g. a listing's `group_ids`
+   * from the join table, so API clients can read back what they POST/PUT. */
+  hydrate?: (row: FullRow) => Promise<Record<string, unknown>>;
+  /** Optionally hydrate the WHOLE list in one batched call, keyed by row id, so
+   * the list endpoint avoids running `hydrate` once per row (an N+1 over the
+   * returned rows — costly on remote libsql for large catalogs). When set it is
+   * used only by the list endpoint; get/create/update still use `hydrate`. A row
+   * absent from the returned map hydrates to no extra fields. */
+  hydrateList?: (
+    rows: FullRow[],
+  ) => Promise<ReadonlyMap<number, Record<string, unknown>>>;
 }
 
 /** Callback receiving an entity row plus auth context */
@@ -244,8 +315,13 @@ export const defineCrudApi = <
     config.lookup ??
     ((id) => table.findById(id) as unknown as Promise<FullRow | null>);
 
-  /** Clean a row for JSON response */
-  const toResponse = (row: FullRow) => stripRow(row, stripKeys);
+  /** Clean a row for JSON response, hydrating any join-table fields. */
+  const toResponse = async (
+    row: FullRow,
+  ): Promise<Record<string, unknown>> => ({
+    ...stripRow(row, stripKeys),
+    ...(config.hydrate ? await config.hydrate(row) : {}),
+  });
 
   /** Log create/update, optionally linking to the row's id as listing_id */
   const logAction = (action: string, row: Row): Promise<unknown> =>
@@ -254,12 +330,28 @@ export const defineCrudApi = <
       config.linkActivityToRow ? row : undefined,
     );
 
+  /** Build list items, using the batched `hydrateList` when provided (one query
+   * for all rows) and falling back to the per-row `hydrate` otherwise. */
+  const listItems = async (
+    rows: FullRow[],
+  ): Promise<Record<string, unknown>[]> => {
+    if (!config.hydrateList) return Promise.all(rows.map(toResponse));
+    const extraById = await config.hydrateList(rows);
+    return rows.map((row) => ({
+      ...stripRow(row, stripKeys),
+      ...(extraById.get((row as { id: number }).id) ?? {}),
+    }));
+  };
+
   /** List all */
   const handleList: RouteHandlerFn = (request) =>
     withAuth(request, policy, async (session) => {
       const rows = await getAll();
       const extras = config.listExtras ? config.listExtras(session) : {};
-      return jsonResponse({ [listKey]: rows.map(toResponse), ...extras });
+      return jsonResponse({
+        [listKey]: await listItems(rows),
+        ...extras,
+      });
     });
 
   /** Log a written full row and return its JSON. */
@@ -268,27 +360,31 @@ export const defineCrudApi = <
     action: string,
     status: number,
   ): Promise<Response> => {
-    if (config.afterWrite) await config.afterWrite(fullRow.id);
+    if (config.afterCommit) await config.afterCommit(fullRow.id);
     await logAction(action, fullRow);
-    return jsonResponse({ [responseKey]: toResponse(fullRow) }, status);
+    return jsonResponse({ [responseKey]: await toResponse(fullRow) }, status);
   };
 
-  /** Write the row and its side effect in ONE transaction, so a failed side
-   * effect rolls the row write back (no orphan row), then read the committed row
-   * back. `existingId` is null on create (the id comes from the INSERT) and the
-   * existing id on update. Only used when `config.sideEffect` is set. */
-  const writeWithSideEffect = async (
+  /** Write the row and its join-table writes (the prepared side effect and/or
+   * `afterWrite`) in ONE transaction, so a failed join write rolls the row write
+   * back (no orphan row, no partial membership/override change), then read the
+   * committed row back. `existingId` is null on create (the id comes from the
+   * INSERT) and the existing id on update. */
+  const writeInTransaction = async (
     statement: { args: InValue[]; sql: string },
     existingId: number | null,
     prepared: Prepared,
+    input: Input,
   ): Promise<FullRow> => {
-    const sideEffect = config.sideEffect!;
-    const id = await withTransaction(async (tx) => {
-      const res = await tx.execute(statement);
-      const rowId = existingId ?? Number(res.lastInsertRowid);
-      await sideEffect.persist(tx, rowId, prepared);
-      return rowId;
-    });
+    const id = await writeRowInTransaction(
+      statement,
+      existingId,
+      async (tx, rowId) => {
+        if (config.sideEffect)
+          await config.sideEffect.persist(tx, rowId, prepared);
+        if (config.afterWrite) await config.afterWrite(tx, rowId, input);
+      },
+    );
     return (await lookup(id))!;
   };
 
@@ -305,9 +401,11 @@ export const defineCrudApi = <
       ? config.sideEffect.validate(input, body, existing)
       : { value: undefined as Prepared };
 
-  /** Validate the prepared side effect, then write the row either transactionally
-   * (when a side effect is present) or with a plain statement. Returns an error
-   * response on side-effect rejection, or the logged JSON response on success. */
+  /** Validate the prepared side effect, then write the row. Any join-table write
+   * (a side effect and/or `afterWrite`) shares the row write's transaction so a
+   * failure rolls the row back rather than leaving partial state; resources with
+   * neither use a plain statement. Returns an error response on side-effect
+   * rejection, or the logged JSON response on success. */
   const checkAndWrite = async (
     input: Input,
     body: Record<string, unknown>,
@@ -320,17 +418,16 @@ export const defineCrudApi = <
   ): Promise<Response> => {
     const prepared = await prepareSideEffect(input, body, existing);
     if ("error" in prepared) return apiErrorResponse(prepared.error);
-    if (config.sideEffect) {
-      const statement = await getStatement();
-      const fullRow = await writeWithSideEffect(
-        statement,
-        existingId,
-        prepared.value,
-      );
-      return respondWithRow(fullRow, action, status);
-    }
-    const row = await plainWrite();
-    return respondWithRow(row as unknown as FullRow, action, status);
+    const fullRow =
+      config.sideEffect || config.afterWrite
+        ? await writeInTransaction(
+            await getStatement(),
+            existingId,
+            prepared.value,
+            input,
+          )
+        : ((await plainWrite()) as unknown as FullRow);
+    return respondWithRow(fullRow, action, status);
   };
 
   /** Validate raw input against config.validate, then invoke fn with the typed
@@ -389,8 +486,8 @@ export const defineCrudApi = <
   };
 
   /** Get single */
-  const handleGet = entityRoute((row) =>
-    Promise.resolve(jsonResponse({ [responseKey]: toResponse(row) })),
+  const handleGet = entityRoute(async (row) =>
+    jsonResponse({ [responseKey]: await toResponse(row) }),
   );
 
   /** Update */

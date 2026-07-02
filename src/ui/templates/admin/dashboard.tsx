@@ -84,9 +84,10 @@ const MultiBookingCheckbox = ({ e }: { e: ListingWithCount }): string =>
   );
 
 /** Multi-booking link builder section (only rendered when 2+ selectable
- * listings). The caller has already excluded children: a booking can't start
- * from a child (invariant I3), so an operator must not be able to build a
- * `/ticket/<…+child+…>` URL the server then rejects. */
+ * listings). The caller has already excluded every listing with no standalone
+ * public page — a child (invariant I3) and a hidden package's member both 404
+ * on their own `/ticket/<slug>` — so an operator can't build a
+ * `/ticket/<…+unbookable+…>` URL the server then rejects. */
 const multiBookingSection = (
   selectableListings: ListingWithCount[],
 ): string => {
@@ -319,7 +320,7 @@ export const adminDashboardPage = (
   listingColumnTemplate?: string,
   activeType: ListingFilter = "all",
   upcomingHolidays: Holiday[] = [],
-  childIds: ReadonlySet<number> = new Set(),
+  unbookableIds: ReadonlySet<number> = new Set(),
   upcomingServicingEvents: ServicingEventSummary[] = [],
 ): string => {
   const { columnKeys, filters } = resolveColumnLayout(
@@ -334,10 +335,11 @@ export const adminDashboardPage = (
   // listing type is present.
   const activeListings = filter((e: ListingWithCount) => e.active)(listings);
   // The multi-booking builder offers only standalone-bookable listings; a child
-  // is never an entry point (I3), so it is excluded from both the selectable set
-  // and the "2+ listings" gate that decides whether to show the builder at all.
+  // is never an entry point (I3) and a hidden package's member 404s on its own
+  // page, so both are excluded from the selectable set and the "2+ listings"
+  // gate that decides whether to show the builder at all.
   const multiBookingListings = filter(
-    (e: ListingWithCount) => !childIds.has(e.id),
+    (e: ListingWithCount) => !unbookableIds.has(e.id),
   )(activeListings);
   const categories = unique(listings.map(listingCategory));
   const shownListings = filterListingsByType(activeType)(activeListings);

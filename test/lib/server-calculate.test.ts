@@ -6,6 +6,7 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { invalidateAttendeeStatusesCache } from "#shared/db/attendee-statuses.ts";
 import { getDb } from "#shared/db/client.ts";
+import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import { modifiersTable, setModifierAnswers } from "#shared/db/modifiers.ts";
 import {
   answersTable,
@@ -57,6 +58,169 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     expect(html).toContain(formatCurrency(1500));
     expect(html).toContain("order-summary-total");
     expect(html).toContain("Total");
+  });
+
+  test("quotes a package member at its override price, not its base price", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Day Pass",
+      slug: "day-pass",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxQuantity: 5,
+      name: "Pass Member",
+      unitPrice: 5000,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: 1500 },
+    ]);
+
+    // A package is booked by package count, not per-member quantities.
+    const html = await (
+      await calculate(group.slug, group.slug, { package_quantity: "1" })
+    ).text();
+    // The package override (1500) prices the line — not the 5000 base.
+    expect(html).toContain(formatCurrency(1500));
+    expect(html).not.toContain(formatCurrency(5000));
+  });
+
+  test("quotes an explicit-free package member at zero, not its base price", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Free Pass",
+      slug: "free-pass",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxQuantity: 5,
+      name: "Free Member",
+      unitPrice: 5000,
+    });
+    // An explicit free override (0), distinct from "no override" which would
+    // charge the 5000 base.
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: 0 },
+    ]);
+
+    const html = await (
+      await calculate(group.slug, group.slug, { package_quantity: "1" })
+    ).text();
+    expect(html).toContain(formatCurrency(0));
+    expect(html).not.toContain(formatCurrency(5000));
+  });
+
+  test("an absent or invalid package quantity quotes nothing", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Zero Pkg",
+      slug: "zero-pkg",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      name: "Z",
+      unitPrice: 5000,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: 1000 },
+    ]);
+
+    // "abc" → 0 packages → empty order.
+    const response = await calculate(group.slug, group.slug, {
+      package_quantity: "abc",
+    });
+    expect(await response.text()).toContain("select at least one");
+  });
+
+  test("multiplies a package member's line by its quantity and the package count", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Bundle",
+      slug: "bundle-qty",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxQuantity: 50,
+      name: "Bundled",
+      unitPrice: 5000,
+    });
+    // 3 of this listing per package, overridden to 1000 each.
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: 1000, quantity: 3 },
+    ]);
+
+    // 2 packages → 6 units × 1000 = 6000.
+    const html = await (
+      await calculate(group.slug, group.slug, { package_quantity: "2" })
+    ).text();
+    expect(html).toContain(formatCurrency(6000));
+  });
+
+  test("clamps the package count to the tightest member's capacity", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Capped",
+      slug: "capped-pkg",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 100,
+      maxQuantity: 2,
+      name: "Limited",
+      unitPrice: 4000,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: 1000 },
+    ]);
+
+    // The member caps the package at 2 (max_quantity); a crafted count of 5
+    // clamps to 2 → 2 × 1000 = 2000, never 5 × 1000.
+    const html = await (
+      await calculate(group.slug, group.slug, { package_quantity: "5" })
+    ).text();
+    expect(html).toContain(formatCurrency(2000));
+    expect(html).not.toContain(formatCurrency(5000));
+  });
+
+  test("caps the package count by the group's shared pool across members", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      maxAttendees: 2,
+      name: "Shared Pool",
+      slug: "shared-pool",
+    });
+    const a = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 100,
+      maxQuantity: 10,
+      name: "Pool A",
+      unitPrice: 0,
+    });
+    const b = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 100,
+      maxQuantity: 10,
+      name: "Pool B",
+      unitPrice: 0,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: a.id, price: 1000 },
+      { listingId: b.id, price: 1000 },
+    ]);
+
+    // The group holds 2; one package consumes 1 A + 1 B = 2 spots, so only one
+    // package fits. Posting 2 clamps to 1 → 1×1000 + 1×1000 = 2000, not 4000.
+    const html = await (
+      await calculate(group.slug, group.slug, { package_quantity: "2" })
+    ).text();
+    expect(html).toContain(formatCurrency(2000));
+    expect(html).not.toContain(formatCurrency(4000));
   });
 
   test("prices a multi-unit line with a booking-fee extra line", async () => {

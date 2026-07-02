@@ -14,6 +14,10 @@ import {
   getAttendeesByTokens,
   type ListingAttendeeRow,
 } from "#shared/db/attendees.ts";
+import {
+  getPackageDisplaysByIds,
+  type PackageDisplay,
+} from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -82,6 +86,18 @@ export const lookupSingleTokenPassData = async (
   const entries = await resolveEntries(result.attendees);
   const entry = entries[0];
   if (!entry) return { ok: false, response: notFoundResponse() };
+  // A wallet pass is built from a single member listing, so for a package
+  // booking it would misrepresent the bundle as one member — and for a HIDDEN
+  // package it would leak that member's name/location to anyone with the token.
+  // The ticket page already omits wallet links for package cards; 404 the direct
+  // pass endpoints to match. Check EVERY booking under the token, not just the
+  // first: a merge can leave one token with both a standalone and a package row,
+  // and the pass QR's /checkin covers them all — so a single-listing pass is
+  // wrong whenever ANY row is a package member, even when it doesn't sort first.
+  const packageDisplays = await packageDisplaysForEntries(entries);
+  if (packageDisplays.size > 0) {
+    return { ok: false, response: notFoundResponse() };
+  }
   return { ok: true, passData: buildWalletPassData(entry, token) };
 };
 
@@ -127,6 +143,7 @@ const buildAttendeeView = (
   kind: base.kind,
   listing_id: booking.listing_id,
   name: "",
+  package_group_id: booking.package_group_id,
   payment_id: "",
   phone: "",
   pii_blob: base.pii_blob,
@@ -140,6 +157,15 @@ const buildAttendeeView = (
   ticket_token: base.ticket_token,
   ticket_token_index: base.ticket_token_index,
 });
+
+/** The package displays for a set of token entries, keyed by package id (only
+ * ids naming a live package appear). The shared input both the ticket view (to
+ * collapse package cards / hide members) and the wallet lookup (to 404 a token
+ * carrying any package row) derive from each entry's `package_group_id`. */
+export const packageDisplaysForEntries = (
+  entries: TokenEntry[],
+): Promise<Map<number, PackageDisplay>> =>
+  getPackageDisplaysByIds(entries.map((e) => e.attendee.package_group_id));
 
 /**
  * Resolve attendees with bookings to token entries.

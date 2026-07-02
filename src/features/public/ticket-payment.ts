@@ -3,13 +3,25 @@
  */
 
 import { compact } from "#fp";
-import { t } from "#i18n";
 import {
   checkoutResponse,
   errorRedirect,
   notFoundResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import {
+  type BuildTreeInput,
+  buildBookingTree,
+} from "#shared/booking/build-tree.ts";
+import {
+  childSelectableForSpan,
+  type FoldBase,
+  type FoldChildrenResult,
+  foldBookingTree,
+  resolvedByNodeKey,
+} from "#shared/booking/fold-tree.ts";
+import { effectivePrice } from "#shared/booking/price-tree.ts";
+import type { PriceRule } from "#shared/booking/tree.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
@@ -25,7 +37,14 @@ import {
   createAttendeeAtomic,
   createBookingAtomic,
   ensureAllBookings,
+  getGroupRemainingByGroupId,
 } from "#shared/db/attendees.ts";
+import {
+  getGroupIdsByListingIds,
+  getHiddenPackageMemberIds,
+  isHiddenPackageMember,
+  loadPackageMemberPricing,
+} from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   getChildIds,
@@ -58,28 +77,15 @@ import {
   type ListingWithCount,
   normalizeDurationDays,
 } from "#shared/types.ts";
-import {
-  parseNonNegativeInt,
-  parsePositiveInt,
-} from "#shared/validation/number.ts";
+import { parsePositiveInt } from "#shared/validation/number.ts";
 import {
   type ChildSpanDates,
   childDateKey,
-  childDateOk,
-  childDurationMatches,
-  childPricedForSpan,
-  childSelectableIgnoringSpan,
   constrainOptionsByChildUnion,
   fixedParentSpan,
-  resolveInheritedDuration,
-  selectableChild,
   type TicketListing,
 } from "#templates/public.tsx";
-import {
-  formatAtomicError,
-  listingsWithQuantity,
-  parseCustomPrice,
-} from "./ticket-form.ts";
+import { formatAtomicError, listingsWithQuantity } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import type {
   AsyncHandler,
@@ -202,22 +208,17 @@ export const bookingDateFields = (
       : 1,
 });
 
-/** Per-ticket price: customisable listings priced by day count, others by their
- * custom/fixed unit price. */
-const itemUnitPrice = (
-  listing: TicketListing["listing"],
-  customPrices: Map<number, number>,
-  dayCount: number,
-): number =>
-  listing.customisable_days
-    ? (dayPriceFor(listing, dayCount) ?? 0)
-    : (customPrices.get(listing.id) ?? listing.unit_price);
-
-/** Build registration items from listings and quantities */
+/** Build registration items from the folded listings, pricing each line by the
+ * tree's price rule via {@link effectivePrice} — a package member's `OVERRIDE`, a
+ * pay-more custom price, a customisable day-price, or the base unit price, each
+ * scoped correctly by construction (the override no longer needs a separate pass).
+ * `priceRuleByListingId` covers every folded listing (top-level rule wins over a
+ * child), so the lookup is always present. */
 export const buildRegistrationItems = (
   listings: TicketListing[],
   quantities: Map<number, number>,
   customPrices: Map<number, number>,
+  priceRuleByListingId: ReadonlyMap<number, PriceRule>,
   dayCount = 1,
 ): CheckoutItem[] => {
   const selected = listings.filter(({ listing }) => {
@@ -229,9 +230,46 @@ export const buildRegistrationItems = (
     name: listing.name,
     quantity: quantities.get(listing.id)!,
     slug: listing.slug,
-    unitPrice: itemUnitPrice(listing, customPrices, dayCount),
+    unitPrice: effectivePrice(
+      priceRuleByListingId.get(listing.id)!,
+      listing,
+      customPrices,
+      dayCount,
+    ),
   }));
 };
+
+/** A package group's per-member overrides for the booking flow: `prices` keeps
+ * every member that has a flat override — a positive price OR an explicit free
+ * (0), but not a `null` "no override"; `quantities` carries every member's
+ * per-package quantity (≥1); `dayPrices` carries each customisable member's
+ * per-day overrides (day count → per-unit minor price). The loader's shape,
+ * minus the raw rows the booking flow never reads. */
+export type PackageMemberMaps = Pick<
+  Awaited<ReturnType<typeof loadPackageMemberPricing>>,
+  "prices" | "quantities" | "dayPrices"
+>;
+
+/** Load a package group's member rows once into the price + quantity + per-day
+ * maps the booking flow needs (so quote and submit price/derive quantities with
+ * no extra query). */
+export const loadPackageMemberMaps = (
+  groupId: number,
+): Promise<PackageMemberMaps> => loadPackageMemberPricing(groupId);
+
+/** For a HIDDEN package, replace each checkout item's buyer-facing name with the
+ * package name, so the hosted-checkout line items (Stripe/Square render
+ * `CheckoutItem.name`) never reveal the member listings before the buyer pays.
+ * Prices, quantities and listing ids are untouched, so the webhook still
+ * revalidates each member. A no-op for a visible package or a non-package. */
+export const hidePackageMemberNames = (
+  items: CheckoutItem[],
+  hide: boolean,
+  packageName: string | undefined,
+): CheckoutItem[] =>
+  hide && packageName
+    ? items.map((item) => ({ ...item, name: packageName }))
+    : items;
 
 export const handlePaymentFlow = (
   request: Request,
@@ -261,12 +299,15 @@ const buildBookings = (
  * Parse and validate the chosen day count for "customisable days" listings.
  * Returns `{ dayCount }` (1 when nothing selected is customisable), or `{ error }`
  * when the choice is missing, unpriced, or — for daily listings — runs the range
- * into a holiday or past the booking window.
+ * into a holiday or past the booking window. `hiddenName` (a HIDDEN package's
+ * name) replaces the listing names in errors, so a concealed member is never
+ * named in the flash the buyer is bounced back with.
  */
 export const resolveDayCount = async (
   selected: ListingQty[],
   form: FormParams,
   date: string | null,
+  hiddenName?: string,
 ): Promise<{ dayCount: number } | { error: string }> => {
   const customisable = selected.filter(
     ({ listing }) => listing.customisable_days,
@@ -279,7 +320,9 @@ export const resolveDayCount = async (
   }
   for (const { listing } of customisable) {
     if (dayPriceFor(listing, raw) === null) {
-      return { error: `${listing.name} does not offer a ${raw}-day booking` };
+      return {
+        error: `${hiddenName ?? listing.name} does not offer a ${raw}-day booking`,
+      };
     }
   }
   const dailyCustomisable = customisable.filter(
@@ -290,7 +333,7 @@ export const resolveDayCount = async (
     for (const { listing } of dailyCustomisable) {
       if (!isBookingRangeValid(listing, date, raw, holidays)) {
         return {
-          error: `${listing.name}: ${raw} days aren't all available from that date — choose fewer days or a different start date`,
+          error: `${hiddenName ?? listing.name}: ${raw} days aren't all available from that date — choose fewer days or a different start date`,
         };
       }
     }
@@ -298,362 +341,53 @@ export const resolveDayCount = async (
   return { dayCount: raw };
 };
 
-/** The booking duration a parent's customisable children inherit (invariant I4):
- * the shared `dayCount` for a customisable parent, fixed `duration_days` for a
- * fixed daily parent, 1 for a standard parent. Specialises the shared
- * {@link resolveInheritedDuration} with `(dayCount, 1)`. */
-const parentResolvedDuration = (
-  parent: TicketListing["listing"],
-  dayCount: number,
-): number => resolveInheritedDuration(parent, dayCount, 1);
-
-/** Order context the candidate child must be bookable against: inherited
- * duration, resolved date, active holidays. */
-type ChildBookableCtx = {
-  duration: number;
-  date: string | null;
-  holidays: Holiday[];
-};
-
-/** The date-INDEPENDENT disqualifiers `childIsBookable` applies. The date- and
- * span-independent part (active, not closed, standard child not date-less sold
- * out) is {@link childSelectableIgnoringSpan}. When the inherited span is known
- * (`duration` non-null) two span atoms also apply: a customisable child must
- * price it ({@link childPricedForSpan}) and a fixed daily child's `duration_days`
- * must equal it ({@link childDurationMatches}). A null `duration` (CUSTOMISABLE
- * parent, span not yet chosen at render) skips only those span atoms — enforced
- * per-span at submit. Deliberately omits the child's own date calendar
- * ({@link childDateOk}), which the union folds in per-candidate-date instead
- * (parents.md Fixes 2–4). */
-const childSelectableForSpan = (
-  child: TicketListing,
-  duration: number | null,
-): boolean =>
-  selectableChild(
-    compact([
-      childSelectableIgnoringSpan,
-      duration === null ? null : childPricedForSpan(duration),
-      duration === null ? null : childDurationMatches(duration),
-    ]),
-  )(child);
-
-/** Bookable now = selectable for the inherited span ({@link childSelectableForSpan})
- * and — when daily — the resolved date is within the child's own bookable start
- * dates for the inherited duration ({@link childDateOk}). A daily child's
- * date-capacity is enforced later by the folded `checkAvailability` (never clamped). */
-const childIsBookable = (
-  child: TicketListing,
-  { duration, date, holidays }: ChildBookableCtx,
-): boolean =>
-  childSelectableForSpan(child, duration) &&
-  childDateOk(date, holidays, duration)(child);
-
-/** The order's listing set, quantity/custom-price maps and selected ids, expanded
- * with the chosen children. Shared by the fold accumulator and the success result
- * so the two never drift apart. */
-type FoldedOrder = {
-  listings: TicketListing[];
-  quantities: Map<number, number>;
-  customPrices: Map<number, number>;
-  selectedListingIds: Set<number>;
-};
-
-/** Accumulator threaded through the per-parent fold: the {@link FoldedOrder} plus
- * the single customisable duration seen so far, used to reject mixed durations. */
-type FoldState = FoldedOrder & {
-  /** The one duration every customisable line must share, or null if none yet. */
-  customisableDuration: number | null;
-  allocations: ChildAllocation[];
-};
-
-export type FoldChildrenResult =
-  | (FoldedOrder & {
-      ok: true;
-      hasCustomisable: boolean;
-      /** The shared customisable duration, or the passed-in dayCount when no line
-       * is customisable. Drives the folded order's `dayCount` so a fixed parent's
-       * customisable child is priced for the inherited duration, not one day. */
-      dayCount: number;
-      allocations: ChildAllocation[];
-    })
-  | { ok: false; error: string };
-
-/** A bookable child paired with the per-unit quantity chosen under one parent
- * (always > 0 — zero-quantity children are dropped). */
-type ChildSelection = { child: TicketListing; qty: number };
-
-/** Parse one child's submitted per-unit quantity (`child_qty_<parentId>_<childId>`):
- * a non-negative integer, else 0. The selects only emit `0..min(parentQty,
- * childMax)`, so any other value is treated as "none chosen" and the sum check
- * (below) catches a too-low total. */
-const childQtyField = (
-  parentId: number,
-  childId: number,
-  form: FormParams,
-): number =>
-  // Strict parse: only a non-negative decimal integer counts. A tampered value
-  // like "2.9", "1abc" or "01" is "none chosen" (0), never a truncated quantity
-  // — matching every other quantity field, which uses the same strict helper.
-  parseNonNegativeInt(form.getString(`child_qty_${parentId}_${childId}`)) ?? 0;
-
-/** Resolve the per-unit child selection for one in-cart parent: read each bookable
- * child's `child_qty_<parentId>_<childId>`, auto-assign the whole parent quantity
- * to a sole bookable child when NOTHING was submitted, and require the chosen
- * quantities to sum to exactly the parent's quantity. Returns the chosen children
- * (each qty > 0) or an error (none bookable / total too low or high / a quantity
- * on a non-bookable child).
- *
- * Exported for direct unit/property testing of the per-parent selection algebra. */
-export const resolveChildSelections = (
-  parent: TicketListing,
-  bookable: TicketListing[],
-  parentQty: number,
-  form: FormParams,
-): ChildSelection[] | { error: string } => {
-  const name = parent.listing.name;
-  if (bookable.length === 0) {
-    return { error: t("public.ticket.child_sold_out", { name }) };
-  }
-  const parentId = parent.listing.id;
-  const bookableIds = new Set(bookable.map((c) => c.listing.id));
-  // Reject a positive quantity for a child not currently bookable under this
-  // parent (unknown id, stranger listing, or a sibling that sold out/closed
-  // between render and submit) — never silently swap in a still-bookable sibling
-  // (parents.md step 3).
-  const prefix = `child_qty_${parentId}_`;
-  for (const key of form.keys()) {
-    if (!key.startsWith(prefix)) continue;
-    const childId = Number.parseInt(key.slice(prefix.length), 10);
-    const qty = childQtyField(parentId, childId, form);
-    if (qty > 0 && !bookableIds.has(childId)) {
-      return { error: t("public.ticket.child_required", { name }) };
-    }
-  }
-  const selections: ChildSelection[] = [];
-  let total = 0;
-  for (const child of bookable) {
-    const qty = childQtyField(parentId, child.listing.id, form);
-    if (qty > 0) {
-      selections.push({ child, qty });
-      total += qty;
-    }
-  }
-  // Auto-select: nothing submitted for a sole bookable child fills the whole
-  // parent quantity.
-  if (total === 0 && bookable.length === 1) {
-    return [{ child: bookable[0]!, qty: parentQty }];
-  }
-  if (total < parentQty) {
-    return {
-      error: t("public.ticket.child_too_few", {
-        count: parentQty - total,
-        name,
-      }),
-    };
-  }
-  if (total > parentQty) {
-    return {
-      error: t("public.ticket.child_too_many", {
-        count: total - parentQty,
-        name,
-      }),
-    };
-  }
-  return selections;
-};
-
-/** Read and validate a chosen child's pay-more price (`can_pay_more`), namespaced
- * by parent+child. Returns the price (undefined when fixed-price) or an error. */
-const childCustomPrice = (
-  parentId: number,
-  child: TicketListing,
-  form: FormParams,
-): number | { error: string } | undefined => {
-  if (!child.listing.can_pay_more) return undefined;
-  const result = parseCustomPrice(
-    form,
-    `child_price_${parentId}_${child.listing.id}`,
-    child.listing.unit_price,
-    child.listing.max_price,
-  );
-  if (!result.ok) return { error: `${child.listing.name}: ${result.error}` };
-  return result.price;
-};
-
-/** Record a customisable line's duration into the order's single shared duration,
- * rejecting a second distinct value (the single CheckoutIntent dayCount can't
- * represent two — parents.md "Pricing & payment round-trip"). Shared by the page's
- * own customisable lines and folded customisable children. Returns null on success
- * or the mixed-duration error. */
-const recordDuration = (state: FoldState, duration: number): string | null => {
-  if (
-    state.customisableDuration !== null &&
-    state.customisableDuration !== duration
-  ) {
-    return t("public.ticket.mixed_durations");
-  }
-  state.customisableDuration = duration;
-  return null;
-};
-
-/** Fold one chosen child into the accumulator at its own per-unit quantity
- * (`childQty`, not the parent quantity): sum that quantity across parents/units,
- * reconcile the customisable duration and pay-more price, and re-validate the
- * summed quantity against the child's max-purchasable cap (reject, never clamp).
- * Records a per-(child, parent) allocation so `expandChildAllocations` can later
- * produce one `listing_attendees` row per allocation instead of one summed row.
- * Returns null on success or an error message.
- *
- * @param parentId - The id of the parent listing that required this child choice.
- *
- * Exported for direct unit/property testing of the summing/capacity rule. */
-export const foldChild = (
-  state: FoldState,
-  child: TicketListing,
-  childQty: number,
-  duration: number,
-  parentId: number,
-  price: number | undefined,
-): string | null => {
-  const childId = child.listing.id;
-  const summed = (state.quantities.get(childId) ?? 0) + childQty;
-  // A DAILY child's `maxPurchasable` is the date-less aggregate cap, which reads
-  // 0 once the child is full on ANY single date — so it must NOT gate a booking on
-  // a different date with capacity (same date-less-aggregate trap as `isSoldOut`,
-  // Codex 336); its per-date cap is enforced by the folded `checkAvailability`
-  // (rejected, never clamped). A STANDARD child's cap is cumulative and
-  // date-independent, so it stays authoritative here.
-  if (child.listing.listing_type !== "daily" && summed > child.maxPurchasable) {
-    return formatAtomicError("capacity_exceeded", child.listing.name);
-  }
-  if (child.listing.customisable_days) {
-    const durationError = recordDuration(state, duration);
-    if (durationError) return durationError;
-  }
-  if (price !== undefined) {
-    const existing = state.customPrices.get(childId);
-    if (existing !== undefined && existing !== price) {
-      return t("public.ticket.child_price_mismatch", {
-        name: child.listing.name,
-      });
-    }
-    state.customPrices.set(childId, price);
-  }
-  state.quantities.set(childId, summed);
-  state.selectedListingIds.add(childId);
-  if (!state.listings.some((e) => e.listing.id === childId)) {
-    state.listings.push(child);
-  }
-  state.allocations.push({ childId, parentId, qty: childQty });
-  return null;
-};
-
-/** Resolve, validate and fold one in-cart parent's per-unit child selection into
- * `state`. Chosen children total the parent's quantity in any mix; each is folded
- * at ITS own quantity, not the parent's. Returns null on success or a user-facing
- * error (no bookable child / total below or above the parent quantity / invalid
- * price / over-capacity / mixed duration). */
-const foldParent = (
-  state: FoldState,
-  parent: TicketListing,
-  parentQty: number,
-  children: TicketListing[],
-  form: FormParams,
-  dayCount: number,
-  date: string | null,
-  holidays: Holiday[],
-): string | null => {
-  const duration = parentResolvedDuration(parent.listing, dayCount);
-  const bookable = children.filter((c) =>
-    childIsBookable(c, { date, duration, holidays }),
-  );
-  const selections = resolveChildSelections(parent, bookable, parentQty, form);
-  if ("error" in selections) return selections.error;
-  for (const { child, qty } of selections) {
-    const price = childCustomPrice(parent.listing.id, child, form);
-    if (price && typeof price === "object") return price.error;
-    const error = foldChild(
-      state,
-      child,
-      qty,
-      duration,
-      parent.listing.id,
-      price,
-    );
-    if (error) return error;
-  }
-  return null;
-};
+/** Build the pure {@link BuildTreeInput} from a resolved ticket context, so the
+ * fold walks the same canonical tree render builds. `packageGroupId` (set only for
+ * a package group) selects the package root + FIXED/override member semantics; a
+ * regular group carries no id on the ctx yet, so its members build as standalone
+ * listing nodes (identical fold field names — the group-root identity is threaded
+ * in a later sub-step, for capacity/metadata). */
+export const ctxToBuildTreeInput = (ctx: TicketCtx): BuildTreeInput => ({
+  childrenByParentId: ctx.childrenByParentId,
+  groupId: ctx.packageGroupId ?? undefined,
+  hidePackageListings: ctx.hidePackageListings,
+  isPackage: ctx.packageGroupId != null,
+  listings: ctx.listings,
+  packageDayPrices: ctx.packageDayPrices,
+  packagePrices: ctx.packagePrices,
+  packageQuantities: ctx.packageQuantities,
+  slugs: ctx.slugs,
+});
 
 /**
- * Fold every in-cart parent's selected child into the order (steps 4–5 core,
- * parents.md "Server-side validation"). A parent is any in-cart listing with a
- * child edge in `ctx.childrenByParentId`; its children are filtered to those
- * bookable for the resolved date/duration, the per-unit selection (children
- * totalling the parent's quantity, auto-filled when a sole child exists) is
- * resolved, and each chosen child is folded at its own quantity into the listing
- * set + quantity/custom-price maps + selected ids — so every downstream
- * per-listing path sees the child as an ordinary line. A parent with no bookable
- * child is rejected (sold out). Child fields under a zero-quantity parent are
- * ignored, not read. No-op when no parents apply.
+ * Fold every in-cart parent's selected children into the order (parents.md
+ * "Server-side validation") by building the canonical {@link BookingTree} from the
+ * resolved context and handing it to the pure {@link foldBookingTree} walk — so a
+ * package member, a group member and a standalone parent all fold through one
+ * recursive tree walk. Returns the expanded listing set + quantity/custom-price
+ * maps + selected ids + per-(child, parent) allocations (same shape the callers
+ * already consume). Holidays are fetched once, and only when a parent with
+ * children is actually in the cart (a daily child validates the resolved date
+ * against its own calendar).
  */
 export const foldSelectedChildren = async (
   ctx: TicketCtx,
   form: FormParams,
-  base: {
-    quantities: Map<number, number>;
-    customPrices: Map<number, number>;
-    date: string | null;
-    dayCount: number;
-    hasCustomisable: boolean;
-  },
+  base: FoldBase,
 ): Promise<FoldChildrenResult> => {
-  const state: FoldState = {
-    allocations: [],
-    customisableDuration: null,
-    customPrices: new Map(base.customPrices),
-    listings: [...ctx.listings],
-    quantities: new Map(base.quantities),
-    selectedListingIds: new Set(base.quantities.keys()),
-  };
-  // The page's own customisable lines all share the one submitted `day_count`, so
-  // seed the shared duration with it; a folded customisable child whose inherited
-  // duration differs is then rejected.
-  if (base.hasCustomisable) state.customisableDuration = base.dayCount;
-
-  // Daily children validate the resolved date against their own calendar; fetch
-  // holidays once (lazily) and share them across every parent fold.
-  let holidays: Holiday[] | null = null;
-  for (const parent of ctx.listings) {
-    const parentQty = base.quantities.get(parent.listing.id) ?? 0;
-    if (parentQty <= 0) continue;
-    const children = ctx.childrenByParentId.get(parent.listing.id);
-    if (!children || children.length === 0) continue;
-    holidays ??= await getActiveHolidays();
-    const error = foldParent(
-      state,
-      parent,
-      parentQty,
-      children,
-      form,
-      base.dayCount,
-      base.date,
-      holidays,
-    );
-    if (error) return { error, ok: false };
-  }
-
-  return {
-    allocations: state.allocations,
-    customPrices: state.customPrices,
-    dayCount: state.customisableDuration ?? base.dayCount,
-    hasCustomisable:
-      base.hasCustomisable || state.customisableDuration !== null,
-    listings: state.listings,
-    ok: true,
-    quantities: state.quantities,
-    selectedListingIds: state.selectedListingIds,
-  };
+  const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
+  const resolved = resolvedByNodeKey(
+    ctx.listings,
+    ctx.childrenByParentId,
+    tree,
+  );
+  const hasFoldableParent = tree.nodes.some(
+    (node) =>
+      node.children.length > 0 &&
+      (base.quantities.get(node.listingId) ?? 0) > 0,
+  );
+  const holidays = hasFoldableParent ? await getActiveHolidays() : [];
+  return foldBookingTree(tree, resolved, form, base, holidays);
 };
 
 type FreeReservationParams = {
@@ -676,6 +410,10 @@ type FreeReservationParams = {
    * allocation instead of one summed row, giving each row its real
    * `parentListingId`. Absent for legacy/no-parent orders. */
   allocations?: ChildAllocation[] | undefined;
+  /** When the order is a package checkout, the package group's id (stamped on
+   * every booking row so the ticket view / confirmation email group the order
+   * under the package). Absent / 0 for a non-package order. */
+  packageGroupId?: number;
 };
 
 type FreeReservationResult =
@@ -710,6 +448,7 @@ export const createFreeReservation = async ({
   modifierUsages,
   ledgerOrder,
   allocations,
+  packageGroupId,
 }: FreeReservationParams): Promise<FreeReservationResult> => {
   const selected = listingsWithQuantity(listings, quantities);
   const bookings = buildBookings(selected, date, dayCount).map((booking) => ({
@@ -743,6 +482,10 @@ export const createFreeReservation = async ({
   const input = {
     ...contact,
     bookings: finalBookings,
+    // Stamp the package group id on every booking row (0 = not a package), so
+    // the ticket view / confirmation email group the order under the package by
+    // this persisted id rather than membership equality.
+    packageGroupId: packageGroupId ?? 0,
     remainingBalance,
     statusId,
   };
@@ -763,8 +506,12 @@ export const createFreeReservation = async ({
 
   const check = await ensureAllBookings(result, finalBookings.length, "public");
   if (!check.ok) {
+    // A package order must never name a member in the capacity error — a hidden
+    // package would leak the listing it concealed. Omit the name (generic
+    // message) for a package; a non-package order keeps its single listing's name.
+    const errorName = packageGroupId ? "" : selected[0]!.listing.name;
     return {
-      error: formatAtomicError(check.reason, selected[0]!.listing.name),
+      error: formatAtomicError(check.reason, errorName),
       success: false,
     };
   }
@@ -799,6 +546,16 @@ export const anyChildListing = async (
   ids: readonly number[],
 ): Promise<boolean> => (await getChildListingIds(ids)).size > 0;
 
+/** Whether a listing has no standalone public booking page — it is a child
+ * (invariant I3) or a hidden package's member — so any admin/public affordance
+ * linking to its `/ticket/<slug>` page would dead-end (404). The single test the
+ * admin QR generator and the group QR route share. */
+export const lacksStandalonePublicPage = async (
+  listingId: number,
+): Promise<boolean> =>
+  (await anyChildListing([listingId])) ||
+  (await isHiddenPackageMember(listingId));
+
 /**
  * Drop child listings from an indirectly-loaded listing set (group/order pages),
  * so a child never renders as a standalone selectable quantity row (invariant I3).
@@ -828,7 +585,9 @@ export const parentRequiresChild = async (
 ): Promise<boolean> => (await getChildIds(listingId)).length > 0;
 
 /** Load active listings, 404 if none — or if any resolved slug is a child (a
- * booking can't start from a child; see {@link anyChildListing}). */
+ * booking can't start from a child; see {@link anyChildListing}) or a member of
+ * a HIDDEN package (only the package name is public, never a member's own page;
+ * the package itself is reached via its group slug, not these listing slugs). */
 export const withActiveListings = async (
   slugs: string[],
   handler: AsyncHandler<[TicketListing[]]>,
@@ -837,7 +596,9 @@ export const withActiveListings = async (
   const active = compact(listings).filter((e) => e.active);
   const activeListings = await buildTicketListingsWithGroupCapacity(active);
   if (activeListings.length === 0) return notFoundResponse();
-  if (await anyChildListing(activeListings.map((e) => e.listing.id))) {
+  const ids = activeListings.map((e) => e.listing.id);
+  if (await anyChildListing(ids)) return notFoundResponse();
+  if ((await getHiddenPackageMemberIds(ids)).size > 0) {
     return notFoundResponse();
   }
   return handler(activeListings);
@@ -1086,11 +847,40 @@ export const getTicketContext = async (
   const terms = group
     ? group.terms_and_conditions || globalTerms || ""
     : globalTerms;
+  // For a package group, load the per-listing overrides (price + quantity) once
+  // here so both the quote and submit paths can price/derive against them with
+  // no extra query.
+  const packageMaps =
+    group?.is_package === true ? await loadPackageMemberMaps(group.id) : null;
+  // Every CAPPED group the package members belong to bounds the bundle count:
+  // one package consumes the sum of its members' fixed quantities from each such
+  // group. Load each member's group ids and the remaining for every group any
+  // member sits in (not just the package's own group), so a second capped group
+  // the members happen to share also clamps the advertised package count.
+  const packageMemberGroupIds =
+    group?.is_package === true
+      ? await getGroupIdsByListingIds(listingIds)
+      : new Map<number, number[]>();
+  const packageGroupRemainingByGroupId =
+    group?.is_package === true
+      ? await getGroupRemainingByGroupId([
+          ...new Set([...packageMemberGroupIds.values()].flat()),
+        ])
+      : new Map<number, number>();
   return {
     addOns,
     childDatesById,
     childrenByParentId,
     dates,
+    ...(group?.is_package
+      ? { hidePackageListings: group.hide_package_listings }
+      : {}),
+    packageDayPrices: packageMaps?.dayPrices ?? null,
+    packageGroupId: group?.is_package ? group.id : null,
+    packageGroupRemainingByGroupId,
+    packageMemberGroupIds,
+    packagePrices: packageMaps?.prices ?? null,
+    packageQuantities: packageMaps?.quantities ?? null,
     promoCodesEnabled,
     terms,
     ...questionsResult,

@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import {
   createAttendeeAtomic,
   decryptAttendees,
+  getAttendeeRaw,
   getAttendeesRaw,
 } from "#shared/db/attendees.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
@@ -69,6 +70,30 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       expect(result.attendees.length).toBe(1);
       expect(result.attendees[0]!.name).toBe("John");
     }
+  });
+
+  test("a package booking's package_group_id survives the attendee join selects", async () => {
+    // The booking-row loader carries package_group_id, but the attendee join
+    // selects must hydrate it too — otherwise a re-sent notification for a
+    // hidden package booking treats the row as a standalone member and can leak
+    // the hidden listing or its base price.
+    const group = await createTestGroup({ isPackage: true, name: "Pkg" });
+    const listing = await createTestListing({ groupId: group.id });
+    const result = await createAttendeeAtomic({
+      bookings: [{ listingId: listing.id, quantity: 1 }],
+      email: "buyer@example.com",
+      name: "Buyer",
+      packageGroupId: group.id,
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    // INNER join select (getAttendeesRaw) and LEFT join select (getAttendeeRaw).
+    expect((await getAttendeesRaw(listing.id))[0]!.package_group_id).toBe(
+      group.id,
+    );
+    const byId = await getAttendeeRaw(result.attendees[0]!.id);
+    expect(byId!.package_group_id).toBe(group.id);
   });
 
   test("records a contact visit for a real booking", async () => {

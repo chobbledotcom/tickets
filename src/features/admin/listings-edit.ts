@@ -24,7 +24,11 @@ import {
   checkGroupCapAfterDurationChange,
   recomputeListingBookingRanges,
 } from "#shared/db/attendees.ts";
-import { getAllGroups } from "#shared/db/groups.ts";
+import {
+  anyHiddenPackageGroup,
+  getAllGroups,
+  getGroupIdsByListingId,
+} from "#shared/db/groups.ts";
 import { getChildIds } from "#shared/db/listing-parents.ts";
 import {
   adjustListingIncome,
@@ -64,6 +68,7 @@ import {
   buildCreateListingResource,
   buildUpdateListingResource,
   extractListingAggregateValues,
+  parseGroupIds,
 } from "./listings-form.ts";
 import {
   copyDuplicatedChildEdges,
@@ -147,8 +152,23 @@ const copyEdgesFromDuplicateSource = async (
 ): Promise<string | null> => {
   const sourceId = form.getOptionalInt("duplicated_from");
   if (sourceId === null) return null;
+  // The source's per-package price/quantity is copied onto the copy's membership
+  // rows atomically in the create write's afterWrite (see buildCreateListingResource);
+  // here we only carry the parent/child gate.
   const childIds = await getChildIds(sourceId);
   if (childIds.length === 0) return null;
+  // A HIDDEN package's member can't gate required children (its members are
+  // collapsed to the package name, so a child selector would leak them), so a
+  // copy that joined a hidden package group must not inherit the source's child
+  // edges — keep it a valid member and tell the operator the gate wasn't
+  // carried over, mirroring the children endpoint's package invariant that the
+  // create path would otherwise bypass. A visible package renders the member's
+  // child selector, so its copy keeps the gate.
+  if (await anyHiddenPackageGroup(await getGroupIdsByListingId(newId))) {
+    return t("listings_table.duplicate_children_dropped", {
+      reason: t("error.package_member_no_children"),
+    });
+  }
   // The copy was just created in this request, so it always loads.
   const newListing = (await getListingWithCount(newId))!;
   const error = await copyDuplicatedChildEdges(newListing, childIds);
@@ -168,6 +188,9 @@ const renderCreateListingError = async (
     adminListingNewPage(groups, session, {
       customiseOpen: form.getString("customise") === "1",
       error,
+      // The group checkboxes the operator submitted, so a rejected create
+      // re-renders their selection rather than dropping every group.
+      selectedGroupIds: parseGroupIds(form),
       templateId,
       values: Object.fromEntries(form.entries()),
     }),
@@ -277,19 +300,22 @@ const getListingAndGroups = async (
   aggregateRecalculation: ListingAggregateRecalculation;
   groups: Group[];
   listing: ListingWithCount;
+  selectedGroupIds: number[];
 } | null> => {
-  const [listing, groups] = await Promise.all([
+  const [listing, groups, selectedGroupIds] = await Promise.all([
     // The edit form reads the listing's *stored* values, not the resolved view,
     // so editing an inheriting listing can't bake the current defaults into its
     // row (and the editor webhook lock below preserves the real stored URL).
     getStoredListingWithCount(listingId),
     getAllGroups(),
+    getGroupIdsByListingId(listingId),
   ]);
   return listing
     ? {
         aggregateRecalculation: await getListingAggregateRecalculation(listing),
         groups,
         listing,
+        selectedGroupIds,
       }
     : null;
 };
@@ -320,7 +346,12 @@ const listingAndGroupsPage =
 /** Handle GET /admin/listing/:id/duplicate */
 export const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listing/:id/duplicate"> =
   listingAndGroupsPage((ctx, session) =>
-    adminDuplicateListingPage(ctx.listing, ctx.groups, session),
+    adminDuplicateListingPage(
+      ctx.listing,
+      ctx.groups,
+      session,
+      ctx.selectedGroupIds,
+    ),
   );
 
 /** Handle GET /admin/listing/:id/edit */
@@ -339,16 +370,24 @@ export const handleAdminListingEditGet: TypedRouteHandler<
           ctx.aggregateRecalculation,
           flash.success,
           await loadListingParentsSection(ctx.listing),
+          ctx.selectedGroupIds,
         ),
       );
     }),
   );
 
-/**
- * If a daily listing's duration changed on edit, recompute booking ranges and
- * detect group-capacity overflow. Returns a string to append to the flash
- * message ("" when no reconciliation was needed or no overflow occurred).
- */
+/** The earliest over-capacity day across every group the listing belongs to
+ * after its booking ranges were recomputed, or null when all groups fit. */
+const firstGroupCapOverflow = async (
+  listingId: number,
+): Promise<string | null> => {
+  for (const groupId of await getGroupIdsByListingId(listingId)) {
+    const overDay = await checkGroupCapAfterDurationChange(listingId, groupId);
+    if (overDay) return overDay;
+  }
+  return null;
+};
+
 const reconcileDurationChange = async (
   row: {
     id: number;
@@ -356,7 +395,6 @@ const reconcileDurationChange = async (
     listing_type: string;
     customisable_days: boolean;
     duration_days: number;
-    group_id: number;
   },
   previousDurationDays: number,
 ): Promise<string> => {
@@ -372,7 +410,7 @@ const reconcileDurationChange = async (
     `Listing '${row.name}' duration changed to ${row.duration_days} day(s)`,
     row,
   );
-  const overDay = await checkGroupCapAfterDurationChange(row.id, row.group_id);
+  const overDay = await firstGroupCapOverflow(row.id);
   if (!overDay) return "";
   await logActivity(
     `Duration change caused group capacity overflow on ${overDay}`,
@@ -385,6 +423,7 @@ const renderListingEditError = async (
   id: number,
   session: AdminSession,
   error: string,
+  submittedGroupIds: number[],
 ): Promise<Response> => {
   const ctx = await getListingAndGroups(id);
   return ctx
@@ -397,6 +436,9 @@ const renderListingEditError = async (
           ctx.aggregateRecalculation,
           undefined,
           await loadListingParentsSection(ctx.listing),
+          // Re-render the checkboxes the operator submitted (not the saved set),
+          // so a rejected edit doesn't silently drop their group changes.
+          submittedGroupIds,
         ),
         400,
       )
@@ -461,9 +503,17 @@ export const handleAdminListingEditPost: TypedRouteHandler<
         useDefaults: existing.use_defaults,
         webhookUrl: existing.webhook_url,
       });
+      // The group checkboxes the operator submitted, so a rejected edit
+      // re-renders their selection rather than the saved membership.
+      const submittedGroupIds = parseGroupIds(form);
       const aggregates = parseAggregatesForRole(session, form);
       if (!aggregates.ok) {
-        return renderListingEditError(id, session, aggregates.error);
+        return renderListingEditError(
+          id,
+          session,
+          aggregates.error,
+          submittedGroupIds,
+        );
       }
 
       // Build a resource that includes the slug field; uniqueness is enforced
@@ -480,7 +530,12 @@ export const handleAdminListingEditPost: TypedRouteHandler<
         );
       }
       if ("notFound" in result) return notFoundResponse();
-      return renderListingEditError(id, session, result.error);
+      return renderListingEditError(
+        id,
+        session,
+        result.error,
+        submittedGroupIds,
+      );
     }),
   );
 

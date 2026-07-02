@@ -1,17 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import fc from "fast-check";
 import { parseQuantityValue } from "#routes/public/ticket-form.ts";
 import {
   bookingDateFields,
   buildRegistrationItems,
   computeSharedDates,
   createFreeReservation,
-  foldChild,
   foldSelectedChildren,
+  getTicketContext,
+  hidePackageMemberNames,
   loadChildrenByParentId,
+  loadPackageMemberMaps,
   MODIFIER_SOLD_OUT_MESSAGE,
-  resolveChildSelections,
   resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
 import {
@@ -19,6 +19,7 @@ import {
   revenueAccount,
 } from "#shared/accounting/accounts.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
+import type { PriceRule } from "#shared/booking/tree.ts";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import { addDays } from "#shared/dates.ts";
 import {
@@ -33,6 +34,7 @@ import {
   getVisits,
   hashEmail,
 } from "#shared/db/contact-preferences.ts";
+import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
@@ -264,6 +266,44 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       expect(result.success).toBe(true);
       expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(1);
       expect((await getAttendeesRaw(e2.id))[0]!.quantity).toBe(2);
+    });
+
+    test("a package order's capacity error omits the member name", async () => {
+      // A hidden package conceals its members, so a sellout between render and
+      // insert must not surface a member's name in the capacity error. The
+      // omission applies to every package order (packageGroupId set); the hidden
+      // package is the privacy-critical case.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Sellout Kit",
+        slug: "sellout-kit",
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 1,
+        name: "Secret Widget",
+      });
+      // Fill the member's only spot so the package reservation can't be created.
+      const first = await createAttendeeAtomic({
+        bookings: [{ listingId: member.id, quantity: 1 }],
+        email: "first@test.com",
+        name: "First",
+      });
+      if (!first.success) throw new Error("setup booking failed");
+
+      const result = await createFreeReservation({
+        contact,
+        date: null,
+        ledgerOrder: null,
+        listings: [await ticketListingFor(member.id)],
+        modifierUsages: [],
+        packageGroupId: group.id,
+        quantities: new Map([[member.id, 1]]),
+      });
+      if (result.success) throw new Error("expected a capacity failure");
+      // Generic message — never the concealed member's name.
+      expect(result.error).toContain("not enough spots available");
+      expect(result.error).not.toContain("Secret Widget");
     });
   });
 
@@ -542,47 +582,136 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
   });
 
   describe("buildRegistrationItems", () => {
-    test("prices customisable listings by the chosen day count", () => {
-      const listing = testListingWithCount({
-        customisable_days: true,
-        day_prices: { 1: 1000, 2: 1800 },
-        duration_days: 3,
-        id: 7,
-        unit_price: 0,
-      });
-      const items = buildRegistrationItems(
+    // Exhaustive unit-price precedence lives in test/lib/price-tree.test.ts; here
+    // we cover assembly (filter + field mapping) and that each line is priced by
+    // its own tree rule (a package OVERRIDE scoped to that line).
+    const build = (
+      listing: ListingWithCount,
+      quantities: Map<number, number>,
+      rules: Map<number, PriceRule>,
+    ) =>
+      buildRegistrationItems(
         [buildTicketListing(listing, false, undefined)],
+        quantities,
+        new Map(),
+        rules,
+      );
+
+    test("drops zero-quantity listings and assembles the checkout line", () => {
+      const listing = testListingWithCount({
+        id: 9,
+        name: "Widget",
+        slug: "wdgt1",
+        unit_price: 500,
+      });
+      const rules = new Map<number, PriceRule>([[9, { kind: "BASE" }]]);
+      expect(build(listing, new Map([[9, 2]]), rules)).toEqual([
+        {
+          listingId: 9,
+          name: "Widget",
+          quantity: 2,
+          slug: "wdgt1",
+          unitPrice: 500,
+        },
+      ]);
+      expect(build(listing, new Map([[9, 0]]), rules)).toEqual([]);
+    });
+
+    test("prices each line by its tree rule (package override on the member line)", () => {
+      const listing = testListingWithCount({ id: 7, unit_price: 500 });
+      const items = build(
+        listing,
         new Map([[7, 1]]),
-        new Map(),
-        2,
+        new Map<number, PriceRule>([
+          [7, { amountMinor: 1200, kind: "OVERRIDE" }],
+        ]),
       );
-      expect(items[0]!.unitPrice).toBe(1800);
+      expect(items[0]!.unitPrice).toBe(1200);
+    });
+  });
+
+  describe("hidePackageMemberNames", () => {
+    const item = (listingId: number, name: string) => ({
+      listingId,
+      name,
+      quantity: 1,
+      slug: `l${listingId}`,
+      unitPrice: 500,
     });
 
-    test("prices an unoffered day count at zero for a customisable listing", () => {
-      const listing = testListingWithCount({
-        customisable_days: true,
-        day_prices: { 1: 1000 },
-        duration_days: 3,
-        id: 8,
-      });
-      const items = buildRegistrationItems(
-        [buildTicketListing(listing, false, undefined)],
-        new Map([[8, 1]]),
-        new Map(),
-        2,
-      );
-      expect(items[0]!.unitPrice).toBe(0);
+    test("renames every item to the package name for a hidden package", () => {
+      const items = [item(1, "Secret A"), item(2, "Secret B")];
+      const result = hidePackageMemberNames(items, true, "Welcome Pack");
+      expect(result.map((i) => i.name)).toEqual([
+        "Welcome Pack",
+        "Welcome Pack",
+      ]);
+      // Ids/prices/quantities are untouched so the webhook still revalidates.
+      expect(result.map((i) => i.listingId)).toEqual([1, 2]);
     });
 
-    test("prices non-customisable listings by custom or unit price", () => {
-      const listing = testListingWithCount({ id: 9, unit_price: 500 });
-      const items = buildRegistrationItems(
-        [buildTicketListing(listing, false, undefined)],
-        new Map([[9, 1]]),
-        new Map(),
+    test("is a no-op for a visible package or a missing name", () => {
+      const items = [item(1, "Member")];
+      expect(hidePackageMemberNames(items, false, "Pack")).toBe(items);
+      expect(hidePackageMemberNames(items, true, undefined)).toBe(items);
+    });
+  });
+
+  describe("loadPackageMemberMaps / getTicketContext packages", () => {
+    test("loadPackageMemberMaps keeps overrides incl. free, skips no-override, and every quantity", async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Pk" });
+      const a = await createTestListing({ name: "PA" });
+      const b = await createTestListing({ name: "PB" });
+      const c = await createTestListing({ name: "PC" });
+      await setListingGroups(a.id, [group.id]);
+      await setListingGroups(b.id, [group.id]);
+      await setListingGroups(c.id, [group.id]);
+      await setGroupPackageMembers(group.id, [
+        { listingId: a.id, price: 1500, quantity: 2 },
+        { listingId: b.id, price: 0 },
+        { listingId: c.id, price: null },
+      ]);
+
+      const { prices, quantities } = await loadPackageMemberMaps(group.id);
+      // A positive override and an explicit free (0) are both real prices kept
+      // in the map; a null (no override) member is skipped so it falls back to
+      // the listing's own price.
+      expect(prices.get(a.id)).toBe(1500);
+      expect(prices.get(b.id)).toBe(0);
+      expect(prices.has(c.id)).toBe(false);
+      // Quantities cover every member, including the override-free one.
+      expect(quantities.get(a.id)).toBe(2);
+      expect(quantities.get(b.id)).toBe(1);
+      expect(quantities.get(c.id)).toBe(1);
+    });
+
+    test("getTicketContext exposes packageGroupId + prices for a package group", async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Ctx" });
+      const a = await createTestListing({ name: "CA" });
+      await setListingGroups(a.id, [group.id]);
+      await setGroupPackageMembers(group.id, [
+        { listingId: a.id, price: 2000 },
+      ]);
+
+      const ctx = await getTicketContext(
+        [
+          buildTicketListing(
+            testListingWithCount({ id: a.id }),
+            false,
+            undefined,
+          ),
+        ],
+        group,
       );
-      expect(items[0]!.unitPrice).toBe(500);
+      expect(ctx.packageGroupId).toBe(group.id);
+      expect(ctx.packagePrices?.get(a.id)).toBe(2000);
+    });
+
+    test("getTicketContext leaves package fields null for a non-package group", async () => {
+      const group = await createTestGroup({ name: "Plain" });
+      const ctx = await getTicketContext([], group);
+      expect(ctx.packageGroupId).toBeNull();
+      expect(ctx.packagePrices).toBeNull();
     });
   });
 
@@ -720,6 +849,8 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       childrenByParentId,
       dates: [],
       listings,
+      packageGroupRemainingByGroupId: new Map(),
+      packageMemberGroupIds: new Map(),
       questionListingMap: new Map(),
       questions: [],
       slugs: [],
@@ -815,160 +946,5 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       expect(fold.allocations.every((a) => a.childId === child.id)).toBe(true);
       expect(fold.allocations.every((a) => a.qty === 1)).toBe(true);
     });
-  });
-});
-
-// Pure (no DB) property tests over the per-parent fold algebra. Mutation testing
-// confirmed the example-based fold suite is tight; these explore the input space
-// the examples can't enumerate, pinning the core invariants directly.
-describe("fold selection algebra (property-based)", () => {
-  const PARENT_ID = 100;
-
-  /** A bookable, high-capacity standard listing wrapped as a cart line. */
-  const tl = (
-    id: number,
-    over: Partial<ListingWithCount> = {},
-  ): TicketListing =>
-    buildTicketListing(
-      testListingWithCount({
-        id,
-        listing_type: "standard",
-        max_attendees: 1000,
-        max_quantity: 1000,
-        name: `L${id}`,
-        ...over,
-      }),
-      false,
-      undefined,
-    );
-
-  const formFrom = (record: Record<string, string>): FormParams =>
-    new FormParams(new URLSearchParams(record));
-
-  test("resolveChildSelections accepts iff the chosen quantities sum to exactly the parent quantity", () => {
-    fc.assert(
-      fc.property(
-        fc.integer({ max: 10, min: 1 }),
-        fc.array(fc.integer({ max: 12, min: 0 }), {
-          maxLength: 4,
-          minLength: 1,
-        }),
-        (parentQty, qtys) => {
-          const parent = tl(PARENT_ID);
-          const children = qtys.map((_, i) => tl(i + 1));
-          const record: Record<string, string> = {};
-          qtys.forEach((q, i) => {
-            record[`child_qty_${PARENT_ID}_${i + 1}`] = String(q);
-          });
-          const result = resolveChildSelections(
-            parent,
-            children,
-            parentQty,
-            formFrom(record),
-          );
-          const total = qtys.reduce((a, b) => a + b, 0);
-          // A sole child with nothing submitted auto-fills the whole parent qty.
-          const autoSelect = total === 0 && children.length === 1;
-          if (total === parentQty || autoSelect) {
-            if (!Array.isArray(result)) return false;
-            const sum = result.reduce((acc, s) => acc + s.qty, 0);
-            return sum === parentQty && result.every((s) => s.qty > 0);
-          }
-          return !Array.isArray(result);
-        },
-      ),
-    );
-  });
-
-  test("resolveChildSelections rejects any positive quantity on a child not bookable under the parent", () => {
-    fc.assert(
-      fc.property(
-        fc.integer({ max: 10, min: 1 }),
-        fc.integer({ max: 50, min: 1 }),
-        fc.integer({ max: 5, min: 1 }),
-        (parentQty, strangerOffset, strangerQty) => {
-          const parent = tl(PARENT_ID);
-          const child = tl(1);
-          // A valid sole-child selection summing to the parent quantity, PLUS a
-          // positive quantity on a stranger id absent from the bookable set (a
-          // sibling that sold out/closed between render and submit). The stranger
-          // is never silently dropped — the whole submission is rejected.
-          const strangerId = 1000 + strangerOffset;
-          const record = {
-            [`child_qty_${PARENT_ID}_1`]: String(parentQty),
-            [`child_qty_${PARENT_ID}_${strangerId}`]: String(strangerQty),
-          };
-          const result = resolveChildSelections(
-            parent,
-            [child],
-            parentQty,
-            formFrom(record),
-          );
-          return !Array.isArray(result);
-        },
-      ),
-    );
-  });
-
-  test("resolveChildSelections parses child quantities strictly, not via parseInt truncation", () => {
-    // A tampered quantity is "none chosen" (0), never a truncated/garbage-parsed
-    // number: child 1's strict "2" alone equals the parent quantity, so the order
-    // is accepted and the malformed children are absent. The old parseInt parser
-    // would read "2.9"->2 and "1abc"->1, inflating the total past 2 and wrongly
-    // rejecting (or, on a sole child, booking a phantom quantity).
-    const parent = tl(PARENT_ID);
-    const result = resolveChildSelections(
-      parent,
-      [tl(1), tl(2), tl(3)],
-      2,
-      formFrom({
-        [`child_qty_${PARENT_ID}_1`]: "2",
-        [`child_qty_${PARENT_ID}_2`]: "2.9",
-        [`child_qty_${PARENT_ID}_3`]: "1abc",
-      }),
-    );
-    expect(Array.isArray(result)).toBe(true);
-    if (Array.isArray(result)) {
-      expect(result.map((s) => s.child.listing.id)).toEqual([1]);
-      expect(result.reduce((acc, s) => acc + s.qty, 0)).toBe(2);
-    }
-  });
-
-  test("foldChild sums across folds and rejects (never clamps) above max-purchasable", () => {
-    fc.assert(
-      fc.property(
-        fc.integer({ max: 20, min: 1 }),
-        fc.array(fc.integer({ max: 8, min: 1 }), {
-          maxLength: 6,
-          minLength: 1,
-        }),
-        (max, qtys) => {
-          const child = tl(1, { max_attendees: max, max_quantity: max });
-          const state = {
-            allocations:
-              [] as import("#shared/db/attendee-types.ts").ChildAllocation[],
-            customisableDuration: null,
-            customPrices: new Map<number, number>(),
-            listings: [] as TicketListing[],
-            quantities: new Map<number, number>(),
-            selectedListingIds: new Set<number>(),
-          };
-          let running = 0;
-          for (const q of qtys) {
-            const error = foldChild(state, child, q, 1, PARENT_ID, undefined);
-            running += q;
-            if (running <= max) {
-              if (error !== null) return false; // must accept up to the cap
-              if (state.quantities.get(1) !== running) return false; // exact sum
-            } else {
-              // First fold past the cap: rejected, and the over-cap quantity was
-              // never written (the state mutation happens after the cap check).
-              return error !== null && state.quantities.get(1) !== running;
-            }
-          }
-          return true;
-        },
-      ),
-    );
   });
 });

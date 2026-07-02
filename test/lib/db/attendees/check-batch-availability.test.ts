@@ -139,6 +139,16 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
     ).toBe(false);
   });
 
+  test("treats a zero-quantity item as a no-op that fits", async () => {
+    // A zero-quantity line demands nothing, so it produces no capacity clause
+    // and the cart trivially fits — exercises the empty-demand path.
+    const listing = await createTestListing({ maxAttendees: 1 });
+    await bookAttendee(listing, { quantity: 1 });
+    expect(
+      await checkBatchAvailability([{ listingId: listing.id, quantity: 0 }]),
+    ).toBe(true);
+  });
+
   test("rejects a standard listing exceeding total capacity", async () => {
     const listing = await createTestListing({
       listingType: "standard",

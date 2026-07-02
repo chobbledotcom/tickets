@@ -24,6 +24,7 @@ import {
 } from "#shared/payment-helpers.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import {
+  type BookingItem,
   type CheckoutIntent,
   isPaymentStatus,
   type SessionMetadata,
@@ -112,6 +113,39 @@ describe("payment-helpers", () => {
         ),
       ).toEqual(allocations);
     });
+
+    test("buildMetadata carries packageGroupId and round-trips it when packed", () => {
+      const metadata = buildMetadata({
+        date: null,
+        email: "a@example.com",
+        items: [{ e: 2, p: 1500, q: 1 }],
+        name: "Alice",
+        packageGroupId: 7,
+      });
+      expect(metadata.package_group_id).toBe("7");
+      // It is a packed small field (kept out of the top level for Square's cap).
+      const packed = packMetadata(metadata);
+      expect(packed.package_group_id).toBeUndefined();
+      expect(JSON.parse(packed.b!).package_group_id).toBe("7");
+      expect(
+        extractSessionMetadata(packed as unknown as SessionMetadata)
+          .package_group_id,
+      ).toBe("7");
+    });
+
+    test("buildMetadata omits package_group_id for a non-package booking", () => {
+      const metadata = buildMetadata({
+        date: null,
+        email: "a@example.com",
+        items: [{ e: 2, p: 1000, q: 1 }],
+        name: "Alice",
+      });
+      expect(metadata.package_group_id).toBeUndefined();
+      expect(
+        extractSessionMetadata(metadata as unknown as SessionMetadata)
+          .package_group_id,
+      ).toBe("");
+    });
   });
 
   describe("metadata round-trip: build → validate → extract", () => {
@@ -169,7 +203,7 @@ describe("payment-helpers", () => {
       };
       const metadata = buildMetadata({
         ...intent,
-        items: toBookingItems(intent.items),
+        items: toBookingItems(intent),
       });
 
       expect(hasRequiredSessionMetadata(metadata)).toBe(true);
@@ -274,7 +308,7 @@ describe("payment-helpers", () => {
       };
       const metadata = buildMetadata({
         ...intent,
-        items: toBookingItems(intent.items),
+        items: toBookingItems(intent),
       });
 
       expect("phone" in metadata).toBe(false);
@@ -305,7 +339,7 @@ describe("payment-helpers", () => {
       };
       const metadata = buildMetadata({
         ...intent,
-        items: toBookingItems(intent.items),
+        items: toBookingItems(intent),
       });
       expect("date" in metadata).toBe(false);
     });
@@ -392,16 +426,52 @@ describe("payment-helpers", () => {
       expect(extracted.site_token_index).toBe("");
     });
 
+    const checkoutIntent = (
+      items: CheckoutIntent["items"],
+      extra: Partial<CheckoutIntent> = {},
+    ): CheckoutIntent => ({
+      address: "",
+      date: null,
+      email: "e@e.com",
+      items,
+      name: "N",
+      phone: "",
+      special_instructions: "",
+      ...extra,
+    });
+
     test("toBookingItems produces compact items with total price", () => {
-      const items = [
-        { listingId: 10, name: "B", quantity: 3, slug: "b", unitPrice: 700 },
-      ];
-      const result = toBookingItems(items);
+      const result = toBookingItems(
+        checkoutIntent([
+          { listingId: 10, name: "B", quantity: 3, slug: "b", unitPrice: 700 },
+        ]),
+      );
       expect(result).toEqual([{ e: 10, p: 2100, q: 3 }]);
     });
 
     test("toBookingItems handles empty array", () => {
-      expect(toBookingItems([])).toEqual([]);
+      expect(toBookingItems(checkoutIntent([]))).toEqual([]);
+    });
+
+    test("toBookingItems tags a package member's line but not a folded child", () => {
+      const result = toBookingItems(
+        checkoutIntent(
+          [
+            { listingId: 5, name: "M", quantity: 2, slug: "m", unitPrice: 100 },
+            { listingId: 9, name: "C", quantity: 2, slug: "c", unitPrice: 50 },
+          ],
+          {
+            allocations: [{ childId: 9, parentId: 5, qty: 2 }],
+            packageGroupId: 3,
+          },
+        ),
+      );
+      // The top-level member carries its package edge (k:"p", r=group id); the
+      // folded child (in allocations) stays untagged.
+      expect(result).toEqual([
+        { e: 5, k: "p", p: 200, q: 2, r: 3 },
+        { e: 9, p: 100, q: 2 },
+      ]);
     });
 
     test("singleListingAnswerIds wraps answerIds for one listing", () => {
@@ -1117,3 +1187,60 @@ describeWithEnv(
     });
   },
 );
+
+describe("signed metadata budget", () => {
+  test("a package order with a folded child fits Square's entry and value caps", async () => {
+    const members = [11, 12, 13, 14, 15];
+    const items: CheckoutIntent["items"] = [
+      ...members.map((id) => ({
+        listingId: id,
+        name: `Member ${id}`,
+        quantity: 2,
+        slug: `m${id}`,
+        unitPrice: 1234,
+      })),
+      { listingId: 91, name: "Child", quantity: 2, slug: "c", unitPrice: 0 },
+    ];
+    const intent: CheckoutIntent = {
+      address: "12 Some Street, Townsville",
+      allocations: [{ childId: 91, parentId: 11, qty: 2 }],
+      date: "2026-08-01",
+      dayCount: 3,
+      email: "buyer@example.com",
+      items,
+      listingAnswerIds: { "11": [1, 2], "12": [3] },
+      name: "Buyer Person",
+      packageGroupId: 42,
+      phone: "+441234567890",
+      reservationAmount: "10%",
+      special_instructions: "Leave at the front desk",
+    };
+    const metadata = await buildItemsMetadata(
+      intent,
+      priceCheckout(intent).total,
+      SQUARE_METADATA_MAX_VALUE_LENGTH,
+      SQUARE_METADATA_MAX_ENTRIES,
+    );
+    // The wire shape (Square packs the small fields into `b`) must fit both caps
+    // even with the per-line edge tags and the allocations map present.
+    const wire = packMetadata(metadata);
+    expect(Object.keys(wire).length).toBeLessThanOrEqual(
+      SQUARE_METADATA_MAX_ENTRIES,
+    );
+    for (const value of Object.values(wire)) {
+      expect(value.length).toBeLessThanOrEqual(
+        SQUARE_METADATA_MAX_VALUE_LENGTH,
+      );
+    }
+    // Package members carry the compact edge tag; the folded child stays untagged.
+    const lines = JSON.parse(wire.items ?? "[]") as BookingItem[];
+    expect(lines.find((l) => l.e === 11)).toEqual({
+      e: 11,
+      k: "p",
+      p: 2468,
+      q: 2,
+      r: 42,
+    });
+    expect(lines.find((l) => l.e === 91)).toEqual({ e: 91, p: 0, q: 2 });
+  });
+});

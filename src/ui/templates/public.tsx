@@ -20,6 +20,8 @@ export { orderSummary, orderSummaryMessage } from "./public/order-summary.tsx";
 export {
   type BookingPrefill,
   buildOgTags,
+  packageChildUnitCaps,
+  packageSharedDayCounts,
   type QrPrefill,
   renderQuestions,
   sharedDayCounts,

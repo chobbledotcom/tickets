@@ -244,26 +244,48 @@ export const dayPriceFor = (
 export const PARENT_CHILD_GROUP_UNITS = 2;
 
 /**
+ * The capped groups a parent and one of its children BOTH belong to — the pool(s)
+ * the combined parent+child demand actually contends for (invariant I7). A capped
+ * group is one present in `byGroup` (uncapped groups are omitted from that map).
+ * Empty when they share no capped group.
+ */
+const sharedCappedGroupIds = (
+  parentGroupIds: readonly number[],
+  childGroupIds: readonly number[],
+  byGroup: ReadonlyMap<number, number>,
+): number[] =>
+  parentGroupIds.filter((g) => childGroupIds.includes(g) && byGroup.has(g));
+
+/**
  * The remaining spots of the **capped group a parent and one of its children
  * share**, or `undefined` when they don't share a capped group. A parent and its
  * required child in the same capped group consume two group spots per order
  * (invariant I7), so callers must reason about combined demand, not each row in
- * isolation. `childGroupRemaining` is the child's group-remaining entry (only
- * present for a capped group), which equals the shared group's remaining when the
- * two are co-grouped; in different or uncapped groups there is no shared cap.
+ * isolation.
+ *
+ * `remainingByGroupId` is the PER-GROUP remaining (groupId → free spots; uncapped
+ * groups omitted), so the result is the tightest SHARED group's remaining — the
+ * group the parent and child actually contend over — NOT the child's tightest
+ * group overall. A child also in a tighter NON-shared group must not drag the
+ * shared-pool calc down to that unrelated cap (Codex #3).
  *
  * The single source of truth for both discovery (does the minimum order fit?) and
  * the booking-page quantity ceiling (how many orders fit?), so the two surfaces
  * can never disagree about a shared-group parent's availability.
  */
 export const sharedGroupRemaining = (
-  parentGroupId: number,
-  childGroupId: number,
-  childGroupRemaining: number | undefined,
-): number | undefined =>
-  parentGroupId === childGroupId && childGroupRemaining !== undefined
-    ? childGroupRemaining
-    : undefined;
+  parentGroupIds: readonly number[],
+  childGroupIds: readonly number[],
+  remainingByGroupId: ReadonlyMap<number, number>,
+): number | undefined => {
+  const shared = sharedCappedGroupIds(
+    parentGroupIds,
+    childGroupIds,
+    remainingByGroupId,
+  );
+  if (shared.length === 0) return undefined;
+  return Math.min(...shared.map((g) => remainingByGroupId.get(g)!));
+};
 
 /**
  * The capacity a parent and one of its children share, as two orthogonal facts:
@@ -285,19 +307,44 @@ export type SharedGroupCapacity = {
 };
 
 /**
- * Build the {@link SharedGroupCapacity} for a parent/child pair. When they are
- * not co-grouped there is no shared cap (both facts `undefined`); otherwise the
- * child's own group entries are the shared group's (they are the same group).
+ * Build the {@link SharedGroupCapacity} for a parent/child pair from the PER-GROUP
+ * capacity maps (groupId → spots; uncapped groups omitted). They are co-grouped
+ * when their group sets intersect in at least one CAPPED group; when they are not,
+ * there is no shared cap (both facts `undefined`).
+ *
+ * Both facts are the tightest value over the groups they SHARE — the pool(s) the
+ * combined demand actually contends for — NOT the child's tightest group overall.
+ * A child also in a tighter non-shared group must not pull the shared cap down to
+ * an unrelated group's value (Codex #3); the static cap and remaining are taken
+ * from the SAME shared groups so date-less surfaces reject a share too small to
+ * ever hold both even when a daily child's per-date remaining is unknown.
  */
 export const sharedGroupCapacity = (
-  parentGroupId: number,
-  childGroupId: number,
-  childStaticCap: number | undefined,
-  childRemaining: number | undefined,
-): SharedGroupCapacity =>
-  parentGroupId === childGroupId
-    ? { remaining: childRemaining, staticCap: childStaticCap }
-    : { remaining: undefined, staticCap: undefined };
+  parentGroupIds: readonly number[],
+  childGroupIds: readonly number[],
+  staticCapByGroupId: ReadonlyMap<number, number>,
+  remainingByGroupId: ReadonlyMap<number, number>,
+): SharedGroupCapacity => {
+  const sharedForCap = sharedCappedGroupIds(
+    parentGroupIds,
+    childGroupIds,
+    staticCapByGroupId,
+  );
+  const sharedForRemaining = sharedCappedGroupIds(
+    parentGroupIds,
+    childGroupIds,
+    remainingByGroupId,
+  );
+  const minOver = (
+    ids: number[],
+    byGroup: ReadonlyMap<number, number>,
+  ): number | undefined =>
+    ids.length === 0 ? undefined : Math.min(...ids.map((g) => byGroup.get(g)!));
+  return {
+    remaining: minOver(sharedForRemaining, remainingByGroupId),
+    staticCap: minOver(sharedForCap, staticCapByGroupId),
+  };
+};
 
 export interface Listing {
   active: boolean;
@@ -314,7 +361,6 @@ export interface Listing {
   description: string;
   listing_type: ListingType;
   fields: ListingFields;
-  group_id: number;
   hidden: boolean;
   id: number;
   image_url: string;
@@ -388,6 +434,10 @@ export interface Attendee extends ContactInfo {
   split_logistics_agents: boolean;
   ticket_token: string;
   ticket_token_index: string;
+  /** The package group this booking row belongs to (0 = not a package). Stamped
+   * on every row of a package order so tickets/emails group the order under the
+   * package by this persisted id. */
+  package_group_id: number;
 }
 
 /** Short keys used in the PII blob JSON to minimize encrypted payload size */
@@ -516,12 +566,34 @@ export interface Holiday {
 export interface Group {
   description: string;
   hidden: boolean;
+  /** When true (and the group is a package) the package's member listings are
+   * hidden from buyers, tickets, and confirmation emails — only admins see the
+   * breakdown. */
+  hide_package_listings: boolean;
   id: number;
+  /** When true the group is a bookable "package": its member listings can carry
+   * per-listing price overrides (group_listings.package_price) and fixed
+   * per-package quantities (group_listings.quantity). */
+  is_package: boolean;
   max_attendees: number;
   name: string;
   slug: string;
   slug_index: string;
   terms_and_conditions: string;
+}
+
+/** A row in the group_listings join table: listing_id belongs to group_id. A
+ * listing may have many such rows (membership in several groups). `package_price`
+ * (minor units) is the per-listing price when the group is a package: `null`
+ * means no override (use the listing's own price), `0` means explicitly free in
+ * the package, and a positive value overrides the price. `quantity` (≥1) is how
+ * many of this listing one unit of the package includes. Both are ignored for
+ * non-package groups. */
+export interface GroupListing {
+  group_id: number;
+  listing_id: number;
+  package_price: number | null;
+  quantity: number;
 }
 
 /** The kind of thing a {@link SitePageItem} points at. Exhaustive union — a new

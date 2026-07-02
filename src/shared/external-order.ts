@@ -89,6 +89,15 @@ export interface CatalogListing {
   variablePrice: boolean;
 }
 
+/** A package bundle the visitor books as a whole via its own `/ticket/<group>`
+ * page. Unlike a listing it never joins the multi-listing cart (a package is
+ * all-or-nothing at fixed quantities), so it carries no price — the widget links
+ * straight to the package page, where the bundle is priced. */
+export interface CatalogPackage {
+  slug: string;
+  name: string;
+}
+
 export interface Catalog {
   origin: string;
   currency: string;
@@ -99,6 +108,10 @@ export interface Catalog {
    * it happens. Toggled per request with `?debug=true` on `/order.js`. */
   debug: boolean;
   listings: Record<string, CatalogListing>;
+  /** Bookable package groups keyed by group slug. A `data-add-listing` link to
+   * one of these navigates straight to `/ticket/<slug>` instead of adding a cart
+   * line. Empty when the site has no bookable packages. */
+  packages: Record<string, CatalogPackage>;
 }
 
 type VariablePriceFields = Pick<
@@ -139,6 +152,10 @@ export const buildCatalog = (params: {
   generatedAt: string;
   debug: boolean;
   listings: CatalogSourceListing[];
+  /** Bookable package groups (slug + decrypted name). The caller has already
+   * gated these to whole-bundle-bookable, non-hidden packages — the same set
+   * `/listings` and `/order` advertise. */
+  packages?: CatalogPackage[];
 }): Catalog => ({
   currency: params.currency,
   debug: params.debug,
@@ -150,6 +167,12 @@ export const buildCatalog = (params: {
       .map((listing) => [listing.slug, buildCatalogEntry(listing)]),
   ),
   origin: params.origin,
+  packages: Object.fromEntries(
+    (params.packages ?? []).map((pkg) => [
+      pkg.slug,
+      { name: pkg.name, slug: pkg.slug },
+    ]),
+  ),
 });
 
 /** Characters that are safe in JSON but unsafe verbatim in served JS: `<`

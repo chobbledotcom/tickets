@@ -11,6 +11,13 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import { packageQuantityCap } from "#shared/booking/capacity-tree.ts";
+import {
+  customPriceFieldName,
+  PACKAGE_QUANTITY_FIELD,
+  quantityFieldName,
+} from "#shared/booking/tree.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import {
   type ModifierApplication,
@@ -25,7 +32,11 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
-import { getSharedGroupCapacities } from "#shared/db/attendees.ts";
+import {
+  getGroupRemainingByListingId,
+  getSharedGroupCapacities,
+} from "#shared/db/attendees.ts";
+import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   answerModifierQuantities,
@@ -61,7 +72,10 @@ import {
   type TicketListing,
   type TicketPrefill,
 } from "#templates/public.tsx";
-import { applyBookingPageParentSoldOut } from "./discovery.ts";
+import {
+  applyBookingPageParentSoldOut,
+  type ChildCapacityCtx,
+} from "./discovery.ts";
 import {
   buildListingAnswerMap,
   buildListingTextAnswerMap,
@@ -81,10 +95,12 @@ import {
   buildRegistrationItems,
   checkAvailability,
   createFreeReservation,
+  ctxToBuildTreeInput,
   dropChildListings,
   foldSelectedChildren,
   getTicketContext,
   handlePaymentFlow,
+  hidePackageMemberNames,
   resolveDayCount,
   withActiveListings,
 } from "./ticket-payment.ts";
@@ -113,7 +129,7 @@ const validateFormState = (form: FormParams, ctx: TicketCtx): string | null => {
 
   for (const { listing, isClosed } of ctx.listings) {
     const selectedQty =
-      parseNonNegativeInt(form.get(`quantity_${listing.id}`) ?? "0") ?? 0;
+      parseNonNegativeInt(form.get(quantityFieldName(listing.id)) ?? "0") ?? 0;
     if (isClosed && selectedQty > 0) {
       return REGISTRATION_CLOSED_SUBMIT_MESSAGE;
     }
@@ -148,7 +164,7 @@ const parseCustomPrices = (
     if (qty <= 0) continue;
     const priceResult = parseCustomPrice(
       form,
-      `custom_price_${listing.id}`,
+      customPriceFieldName(listing.id),
       listing.unit_price,
       listing.max_price,
     );
@@ -295,6 +311,7 @@ const checkoutIntentForSubmission = (
     ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
     ...(reservationAmount ? { reservationAmount } : {}),
     ...(modifiers && modifiers.length > 0 ? { modifiers } : {}),
+    ...(ctx.packageGroupId ? { packageGroupId: ctx.packageGroupId } : {}),
   };
 };
 
@@ -388,6 +405,9 @@ const handleFreePath = async (
     ledgerOrder,
     listings: ctx.listings,
     modifierUsages,
+    // Carry the package group id so each booking row stores it (0 = not a
+    // package), grouping the order under the package on the ticket view / email.
+    ...(ctx.packageGroupId ? { packageGroupId: ctx.packageGroupId } : {}),
     paidByListingId: paymentBreakdown?.paidByListingId,
     quantities,
     remainingBalance: paymentBreakdown?.remainingBalance,
@@ -490,7 +510,9 @@ const priceSubmissionBeforeContact = async (
 
 /** Message shown when a selected answer tier has sold out. */
 const soldOutTierMessage = (tiers: string[]): string =>
-  `Sorry, ${tiers.join(", ")} is no longer available. Please choose a different option.`;
+  `Sorry, ${tiers.join(
+    ", ",
+  )} is no longer available. Please choose a different option.`;
 
 /**
  * An answer is recorded on every ticket that picked it, so a stock-limited
@@ -538,6 +560,48 @@ const validatePaymentUpgrade = (
   return validateTicketFields(form, ctx, true);
 };
 
+/** The buyer-chosen number of packages (0 when absent/invalid → an empty order). */
+const parsePackageCount = (form: FormParams): number =>
+  parseNonNegativeInt(form.getString(PACKAGE_QUANTITY_FIELD)) ?? 0;
+
+/**
+ * Resolve the page listings' quantities from the form. For a package group the
+ * buyer chooses a single `package_quantity`; each member's booked quantity is
+ * its fixed per-package quantity × that count (the per-member `quantity_<id>`
+ * inputs are not offered, so they are ignored). The posted count is clamped to
+ * the same capacity ceiling the page renders ({@link packageQuantityCap}) so a
+ * crafted POST can't exceed a member's remaining capacity or book a
+ * closed/sold-out member (whose `maxPurchasable` — and thus the cap — is 0). A
+ * resulting count of 0 yields all-zero lines, which `prepareOrder` rejects as
+ * "select at least one ticket". Non-package pages parse the per-listing
+ * quantities as usual.
+ */
+const resolvePageQuantities = (
+  form: FormParams,
+  ctx: TicketCtx,
+): Map<number, number> => {
+  const { packageGroupId, packageQuantities } = ctx;
+  if (packageGroupId == null || !packageQuantities) {
+    return parseQuantities(form, ctx.listings);
+  }
+  // Clamp the posted count to the same tree-driven ceiling the page renders, so a
+  // crafted POST can't exceed a member's remaining capacity or a shared pool.
+  const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
+  const listingById = new Map(ctx.listings.map((e) => [e.listing.id, e]));
+  const cap = packageQuantityCap(
+    tree,
+    listingById,
+    ctx.packageGroupRemainingByGroupId,
+    ctx.packageMemberGroupIds,
+  );
+  const packageQty = Math.max(0, Math.min(parsePackageCount(form), cap));
+  const quantities = new Map<number, number>();
+  for (const [listingId, fixed] of packageQuantities) {
+    quantities.set(listingId, fixed * packageQty);
+  }
+  return quantities;
+};
+
 /** A parsed-and-priced submission, or the message explaining why it could not
  * be priced. `prepareOrder` runs every step shared by the booking submit and
  * the `/calculate` quote: page-state and field validation, item building, and
@@ -566,7 +630,7 @@ const prepareOrder = async (
   const stateError = validateFormState(form, ctx);
   if (stateError) return { error: stateError, ok: false };
 
-  const pageQuantities = parseQuantities(form, ctx.listings);
+  const pageQuantities = resolvePageQuantities(form, ctx);
   const totalQuantity = sum(Array.from(pageQuantities.values()));
   if (totalQuantity === 0) {
     return { error: "Please select at least one ticket", ok: false };
@@ -585,7 +649,14 @@ const prepareOrder = async (
   const baseHasCustomisable = pageSelected.some(
     ({ listing }) => listing.customisable_days,
   );
-  const dayResult = await resolveDayCount(pageSelected, form, date);
+  // A HIDDEN package's day-count errors must name the package, not a concealed
+  // member; `groupName` is always set alongside `hidePackageListings`.
+  const dayResult = await resolveDayCount(
+    pageSelected,
+    form,
+    date,
+    ctx.hidePackageListings ? ctx.groupName : undefined,
+  );
   if ("error" in dayResult) return { error: dayResult.error, ok: false };
 
   // Parse the page listings' pay-more prices, then apply any signed QR override
@@ -632,11 +703,19 @@ const prepareOrder = async (
   );
   if (!answersResult.ok) return { error: answersResult.error, ok: false };
 
-  const items = buildRegistrationItems(
-    foldedCtx.listings,
-    quantities,
-    fold.customPrices,
-    dayCount,
+  // Build items from the folded set; each line is priced by the tree's price rule
+  // (a package member's override is a node facet scoped to the member line, so no
+  // separate override pass is needed), then hidden-package names are masked.
+  const items = hidePackageMemberNames(
+    buildRegistrationItems(
+      foldedCtx.listings,
+      quantities,
+      fold.customPrices,
+      fold.priceRuleByListingId,
+      dayCount,
+    ),
+    ctx.hidePackageListings === true,
+    ctx.groupName,
   );
 
   const info: AnswerInfo = {
@@ -679,6 +758,18 @@ const prepareOrder = async (
   };
 };
 
+/** The thank-you URL to honour for a submission's post-booking redirect: a
+ * genuine single standalone listing's configured URL. A hidden package is never
+ * treated as "single listing" here — even with one member, redirecting to that
+ * member's thank-you page would reveal the member the package concealed — so it
+ * resolves to null and the booking lands on the generic reserved page. (Folding
+ * a required child is handled separately: the single page ctx still drives this,
+ * so a child fold never drops a single parent's URL.) */
+const singleListingThankYouUrl = (ctx: TicketCtx): string | null =>
+  ctx.listings.length === 1 && !ctx.hidePackageListings
+    ? ctx.listings[0]!.listing.thank_you_url
+    : null;
+
 /** Process submitted form after CSRF and demo overrides. */
 const processSubmission = async (
   request: Request,
@@ -698,8 +789,7 @@ const processSubmission = async (
   // child doesn't drop a single parent's configured URL (parents.md fold
   // checklist, thank-you item).
   const foldedCtx = pricingParams.ctx;
-  const thankYouUrl =
-    ctx.listings.length === 1 ? ctx.listings[0]!.listing.thank_you_url : null;
+  const thankYouUrl = singleListingThankYouUrl(ctx);
 
   const paymentsEnabled = isPaymentsEnabled();
   const requiresPaidFields = pricedOrder.total > 0;
@@ -950,22 +1040,35 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
   const children = [...ctx.childrenByParentId.values()]
     .flat()
     .map((child) => child.listing);
-  const [childCaps, holidays] = await Promise.all([
-    getSharedGroupCapacities(children),
-    getActiveHolidays(),
-  ]);
+  const [childCaps, childOwnRemaining, holidays, membership] =
+    await Promise.all([
+      getSharedGroupCapacities(children),
+      getGroupRemainingByListingId(children),
+      getActiveHolidays(),
+      getGroupIdsByListingIds([
+        ...ctx.listings.map((l) => l.listing.id),
+        ...children.map((c) => c.id),
+      ]),
+    ]);
+  const caps: ChildCapacityCtx = {
+    childOwnRemaining,
+    membership,
+    remainingByGroupId: childCaps.remaining,
+    staticCapByGroupId: childCaps.staticCap,
+  };
   return {
     ...ctx,
-    // The same children's group-remaining drives the per-parent quantity clamp:
-    // a parent sharing a capped group with its child offers only
-    // floor(groupRemaining / 2) orders (invariant I7, Fix 3). Carried on the
-    // render ctx so `childCappedMax` sees it; submit/quote keep it unset.
-    groupRemainingByListingId: childCaps.remaining,
+    // The PER-GROUP remaining drives the per-parent quantity clamp keyed by the
+    // SPECIFIC group a parent and child share (Codex #3): a parent sharing a capped
+    // group with its child offers only floor(sharedRemaining / 2) orders (invariant
+    // I7, Fix 3). Carried on the render ctx so `childCappedMax` sees it; submit/quote
+    // keep it unset.
+    groupIdsByListingId: membership,
+    groupRemainingByGroupId: childCaps.remaining,
     listings: applyBookingPageParentSoldOut(
       ctx.listings,
       ctx.childrenByParentId,
-      childCaps.remaining,
-      childCaps.staticCap,
+      caps,
       holidays,
     ),
   };

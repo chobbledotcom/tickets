@@ -58,6 +58,8 @@
   "error.holiday_name_mismatch": "Holiday name does not match. Please type the exact name to confirm deletion.",
   "error.end_date_before_start": "End date must be on or after the start date",
   "error.slug_in_use_group": "Slug is already in use",
+  "error.package_incompatible_listing": "Packages cannot contain pay-what-you-want listings or listings that are add-ons (children) of another listing, and a hidden package's listings cannot require their own add-ons. Remove those listings first.",
+  "error.package_member_no_children": "a hidden package's member cannot require children",
   "error.new_password_min": "New password must be at least 8 characters",
   "error.new_passwords_mismatch": "New passwords do not match",
   "error.current_password_incorrect": "Current password is incorrect",

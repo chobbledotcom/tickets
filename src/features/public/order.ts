@@ -27,8 +27,16 @@ import { SELECT_PREFIX } from "#shared/order-select.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { orderGalleryPage, type TicketListing } from "#templates/public.tsx";
-import { applyParentSoldOut, classifyForDiscovery } from "./discovery.ts";
+/* jscpd:ignore-start */
+import {
+  applyParentSoldOut,
+  classifyForDiscovery,
+  dropHiddenPackageMembers,
+  loadPublicGroups,
+} from "./discovery.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
+
+/* jscpd:ignore-end */
 
 /** Active, visible listings are the items offered on the order page. */
 const isOrderListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
@@ -83,7 +91,18 @@ const handleOrder = async (request: Request): Promise<Response> => {
   const blocked = orderUnavailable();
   if (blocked) return blocked;
 
-  const listings = await loadOrderListings();
+  // A hidden package's members never appear standalone — only the package name
+  // is public — so drop them before classifying and building cards.
+  const [rawListings, publicGroups] = await Promise.all([
+    loadOrderListings(),
+    loadPublicGroups(),
+  ]);
+  const listings = await dropHiddenPackageMembers(rawListings);
+  // Packages are sold as a whole bundle via their own /ticket/<group> page, so
+  // they can't join the cart's multi-listing selection — they render as direct
+  // book links. (A hidden package's members are dropped above, so without the
+  // package card its bundle would be unbuyable from /order entirely.)
+  const packageGroups = publicGroups.filter((g) => g.is_package);
   const classification = await classifyForDiscovery(listings);
   // Drop children entirely (not selectable), then build cards and project
   // child-derived sold-out onto the surviving parents.
@@ -103,6 +122,7 @@ const handleOrder = async (request: Request): Promise<Response> => {
   return htmlResponse(
     orderGalleryPage(
       ticketListings,
+      packageGroups,
       settings.websiteTitle,
       settings.orderIntroText || null,
     ),

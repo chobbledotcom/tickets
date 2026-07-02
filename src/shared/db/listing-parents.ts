@@ -179,8 +179,9 @@ export const getParentsOf = async (
 
 /** Both sides of every edge a listing participates in: its children and the
  * parents it is offered under. The shared first step of {@link
- * firstTouchingEdgeError}, the traversal both save-time re-checks run through. */
-const edgeIdsTouching = async (
+ * firstTouchingEdgeError}, the traversal both save-time re-checks run through;
+ * also reused to reject parent/child listings as package members. */
+export const edgeIdsTouching = async (
   listingId: number,
 ): Promise<{ childIds: number[]; parentIds: number[] }> => {
   const [childIds, parentIds] = await Promise.all([

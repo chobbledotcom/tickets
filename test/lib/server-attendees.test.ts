@@ -1860,6 +1860,66 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         webhookFetch.restore();
       }
     });
+
+    test("a package member's resend rehydrates every line of the package", async () => {
+      // The listing-scoped resend selects ONE member row, but the notification
+      // must carry the attendee's whole package — otherwise a hidden package's
+      // confirmation collapses to that single row's quantity/price.
+      const { createTestGroup } = await import("#test-utils");
+      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+      const group = await createTestGroup({ isPackage: true, name: "Duo Kit" });
+      const memberA = await createTestListing({
+        groupId: group.id,
+        name: "Duo A",
+        webhookUrl: "https://example.com/webhook",
+      });
+      const memberB = await createTestListing({
+        groupId: group.id,
+        name: "Duo B",
+      });
+      const result = await createAttendeeAtomic({
+        bookings: [
+          { listingId: memberA.id, quantity: 1 },
+          { listingId: memberB.id, quantity: 2 },
+        ],
+        email: "duo@example.com",
+        name: "Duo Buyer",
+        packageGroupId: group.id,
+      });
+      if (!result.success) throw new Error("package booking failed");
+
+      const webhookFetch = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response(null, { status: 200 })),
+      );
+      try {
+        const { response } = await adminFormPost(
+          `/admin/listing/${memberA.id}/attendee/${
+            result.attendees[0]!.id
+          }/resend-notification`,
+          { confirm_identifier: "Duo Buyer" },
+        );
+        expect(response.status).toBe(302);
+        // Allow the fire-and-forget webhook to dispatch.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(webhookFetch.calls.length).toBe(1);
+        const [, options] = webhookFetch.calls[0]!.args as [
+          string,
+          RequestInit,
+        ];
+        const body = JSON.parse(options.body as string) as {
+          tickets: { listing_name: string; quantity: number }[];
+        };
+        // BOTH package lines ride the resend, with their own quantities.
+        expect(body.tickets).toHaveLength(2);
+        const byName = new Map(
+          body.tickets.map((t) => [t.listing_name, t.quantity]),
+        );
+        expect(byName.get("Duo A")).toBe(1);
+        expect(byName.get("Duo B")).toBe(2);
+      } finally {
+        webhookFetch.restore();
+      }
+    });
   });
 
   describe("payment details on edit page", () => {

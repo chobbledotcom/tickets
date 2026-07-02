@@ -1,11 +1,15 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { getCurrentCsrfToken, signCsrfToken } from "#shared/csrf.ts";
 import { addDays } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
+import { FormParams } from "#shared/form-data.ts";
+import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { ListingWithCount } from "#shared/types.ts";
+import { fieldsApi } from "#templates/fields.ts";
 import {
   buildOgTags,
   buildTicketListing,
@@ -109,6 +113,32 @@ describe("ticketPage (single listing)", () => {
   test("displays listing name as header", () => {
     const html = renderTicket(listing);
     expect(html).toContain("<h1>Test Listing</h1>");
+  });
+
+  test("a package override makes an otherwise-free listing render the provider email", () => {
+    // Square requires an email for paid checkouts; a free listing whose only
+    // cost comes from a package override must still surface that field.
+    const s = stub(fieldsApi, "getSettingCached", () => "square");
+    try {
+      const free = testListingWithCount({
+        attendee_count: 0,
+        fields: "",
+        id: 991,
+        slug: "free991",
+        unit_price: 0,
+      });
+      const render = (packagePrices?: ReadonlyMap<number, number>) =>
+        ticketPage({
+          dates: [],
+          listings: [buildTicketListing(free, false, undefined)],
+          packagePrices,
+          slugs: ["free991"],
+        });
+      expect(render()).not.toContain('name="email"');
+      expect(render(new Map([[991, 1500]]))).toContain('name="email"');
+    } finally {
+      s.restore();
+    }
   });
 
   test("shows quantity selector when max_quantity > 1 and spots available", () => {
@@ -459,6 +489,260 @@ describe("ticketPage", () => {
     const html = ticketPage({ listings, slugs: ["ab12c", "cd34e"] });
     expect(html).toContain("Sorry, all listings are sold out.");
     expect(html).not.toContain("Reserve Tickets</button>");
+  });
+
+  test("renders a package quantity selector and member rows with fixed quantities", () => {
+    const listings = [
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 1,
+          max_attendees: 100,
+          name: "Tent",
+          slug: "tent1",
+        }),
+        false,
+        undefined,
+      ),
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 2,
+          max_attendees: 100,
+          // ×4 per package, so its per-order limit must admit at least 4.
+          max_quantity: 10,
+          name: "Chair",
+          slug: "chr12",
+        }),
+        false,
+        undefined,
+      ),
+    ];
+    const html = ticketPage({
+      groupName: "Camp Kit",
+      listings,
+      packageGroupId: 5,
+      // Only listing 2 has a quantity row; listing 1 falls back to ×1.
+      packageQuantities: new Map([[2, 4]]),
+      slugs: ["tent1", "chr12"],
+    });
+    expect(html).toContain('name="package_quantity"');
+    expect(html).toContain("Number of packages");
+    expect(html).toContain("Tent");
+    expect(html).toContain("&times;1");
+    expect(html).toContain("Chair");
+    expect(html).toContain("&times;4");
+    // No per-member quantity selectors on a package page.
+    expect(html).not.toContain('name="quantity_1"');
+  });
+
+  test("restores the submitted package quantity after a validation error", () => {
+    setSavedFormData(new FormParams({ package_quantity: "3" }));
+    try {
+      const listings = [
+        buildTicketListing(
+          testListingWithCount({
+            attendee_count: 0,
+            id: 1,
+            max_attendees: 100,
+            max_quantity: 10,
+            name: "Tent",
+            slug: "tent1",
+          }),
+          false,
+          undefined,
+        ),
+      ];
+      const html = ticketPage({
+        groupName: "Camp Kit",
+        listings,
+        packageGroupId: 5,
+        packageQuantities: new Map([[1, 1]]),
+        slugs: ["tent1"],
+      });
+      // The selector pre-selects the just-submitted count, not a reset 1.
+      expect(html).toContain('value="3" selected');
+    } finally {
+      clearSavedFormData();
+    }
+  });
+
+  test("caps the package selector by the shared pool, defaulting a missing member quantity to 1", () => {
+    const listings = [
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 1,
+          max_attendees: 100,
+          max_quantity: 10,
+          name: "Big",
+          slug: "big01",
+        }),
+        false,
+        undefined,
+      ),
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 2,
+          max_attendees: 100,
+          max_quantity: 10,
+          name: "Small",
+          slug: "sml01",
+        }),
+        false,
+        undefined,
+      ),
+    ];
+    const html = ticketPage({
+      groupName: "Pool Pkg",
+      listings,
+      packageGroupId: 7,
+      // Both members sit in the capped package group 7 (pool of 4). Member 1 is
+      // also in group 8, which is uncapped (absent from the remaining map) and so
+      // contributes no constraint.
+      packageGroupRemainingByGroupId: new Map([[7, 4]]),
+      packageMemberGroupIds: new Map([
+        [1, [7, 8]],
+        [2, [7]],
+      ]),
+      // Listing 1 takes 2 per package; listing 2 is omitted → defaults to 1, so
+      // one package consumes 3 of the pool of 4 → floor(4 / 3) = 1 package fits.
+      packageQuantities: new Map([[1, 2]]),
+      slugs: ["big01", "sml01"],
+    });
+    expect(html).toContain('name="package_quantity"');
+    expect(html).toContain('<option value="1"');
+    // The shared pool caps the count at 1, so no "2 packages" option is offered.
+    expect(html).not.toContain('<option value="2"');
+  });
+
+  test("renders a package as sold out when its cap is zero", () => {
+    const listings = [
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 1,
+          max_attendees: 100,
+          name: "Big",
+          slug: "big01",
+        }),
+        false,
+        undefined,
+      ),
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 2,
+          max_attendees: 100,
+          name: "Small",
+          slug: "sml01",
+        }),
+        false,
+        undefined,
+      ),
+    ];
+    // Both members still have individual capacity, but one package consumes 2
+    // units (1 each) from a shared pool with only 1 left → floor(1 / 2) = 0
+    // packages fit. The page must show sold out, not a 0-only selector.
+    const html = ticketPage({
+      groupName: "Drained Pkg",
+      listings,
+      packageGroupId: 7,
+      packageGroupRemainingByGroupId: new Map([[7, 1]]),
+      packageMemberGroupIds: new Map([
+        [1, [7]],
+        [2, [7]],
+      ]),
+      packageQuantities: new Map([
+        [1, 1],
+        [2, 1],
+      ]),
+      slugs: ["big01", "sml01"],
+    });
+    expect(html).not.toContain('name="package_quantity"');
+    expect(html).toContain("Sorry, all listings are sold out.");
+  });
+
+  test("caps the package by a SECOND capped group the members share", () => {
+    const listings = [
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 1,
+          max_attendees: 100,
+          max_quantity: 10,
+          name: "Big",
+          slug: "big01",
+        }),
+        false,
+        undefined,
+      ),
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 2,
+          max_attendees: 100,
+          max_quantity: 10,
+          name: "Small",
+          slug: "sml01",
+        }),
+        false,
+        undefined,
+      ),
+    ];
+    // The package group (7) is roomy — floor(10 / 2) = 5 packages fit — but both
+    // members ALSO belong to a second capped group (9) with only 2 spots, and one
+    // package consumes 2 (1 each) from it → floor(2 / 2) = 1. The tighter shared
+    // pool must bind, so only "1" is offered, never "2".
+    const html = ticketPage({
+      groupName: "Shared Pool Pkg",
+      listings,
+      packageGroupId: 7,
+      packageGroupRemainingByGroupId: new Map([
+        [7, 10],
+        [9, 2],
+      ]),
+      packageMemberGroupIds: new Map([
+        [1, [7, 9]],
+        [2, [7, 9]],
+      ]),
+      packageQuantities: new Map([
+        [1, 1],
+        [2, 1],
+      ]),
+      slugs: ["big01", "sml01"],
+    });
+    expect(html).toContain('name="package_quantity"');
+    expect(html).toContain('<option value="1"');
+    expect(html).not.toContain('<option value="2"');
+  });
+
+  test("hides member rows when the package hides its listings", () => {
+    const listings = [
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 1,
+          max_attendees: 100,
+          name: "SecretItem",
+          slug: "sec12",
+        }),
+        false,
+        undefined,
+      ),
+    ];
+    // packageQuantities omitted exercises the defensive empty-map fallback.
+    const html = ticketPage({
+      groupName: "Hidden Bundle",
+      hidePackageListings: true,
+      listings,
+      packageGroupId: 5,
+      slugs: ["sec12"],
+    });
+    expect(html).toContain('name="package_quantity"');
+    expect(html).toContain("Hidden Bundle");
+    expect(html).not.toContain("SecretItem");
   });
 
   test("renders markdown paragraphs in terms and conditions", () => {
@@ -872,6 +1156,167 @@ describe("ticketPage listing date and location", () => {
     const html = renderTicket(listing);
     expect(html).toContain("3 days ago");
     expect(html).not.toContain("(3 days ago)");
+  });
+});
+
+describe("ticketViewPage package grouping", () => {
+  const token = "PKG00011AABBCCDD";
+  const pkgCards = [
+    {
+      entry: {
+        attendee: testAttendee({ package_group_id: 1, quantity: 2 }),
+        listing: testListingWithCount({ name: "Tent" }),
+      },
+      token,
+    },
+    {
+      entry: {
+        attendee: testAttendee({ package_group_id: 1, quantity: 6 }),
+        listing: testListingWithCount({ name: "Chair" }),
+      },
+      token,
+    },
+  ];
+
+  test("renders a non-hidden package as one card with members and booked quantities", () => {
+    const html = ticketViewPage(
+      pkgCards,
+      false,
+      false,
+      new Map([[1, { hideListings: false, name: "Camp Kit" }]]),
+    );
+    expect(html).toContain("Camp Kit");
+    expect(html).toContain("Tent");
+    expect(html).toContain("&times;2");
+    expect(html).toContain("Chair");
+    expect(html).toContain("&times;6");
+    // One shared QR for the whole bundle.
+    expect(html).toContain(`/t/${token}/svg`);
+    // No member is non-transferable, so no "ID required" notice.
+    expect(html).not.toContain("ID required at entry");
+  });
+
+  test("hides member listings for a hidden package, showing only the name", () => {
+    const html = ticketViewPage(
+      pkgCards,
+      false,
+      false,
+      new Map([[1, { hideListings: true, name: "Secret Bundle" }]]),
+    );
+    expect(html).toContain("Secret Bundle");
+    expect(html).not.toContain("Tent");
+    expect(html).not.toContain("Chair");
+    expect(html).toContain(`/t/${token}/svg`);
+  });
+
+  test("omits wallet links on a package card even when wallets are enabled", () => {
+    // Wallet routes resolve a token to a single member listing, so a saved pass
+    // would show only the first member (leaking a hidden member); package cards
+    // therefore never render wallet links.
+    const html = ticketViewPage(
+      pkgCards,
+      true,
+      true,
+      new Map([[1, { hideListings: false, name: "Camp Kit" }]]),
+    );
+    expect(html).not.toContain("wallet-link");
+  });
+
+  test("omits wallet links on a standalone card sharing a token with a package", () => {
+    // After a merge, a standalone booking can share a token with a package. The
+    // wallet endpoints 404 any token containing a package row, so the standalone
+    // card must not advertise wallet links it can't honour.
+    const mixed = [
+      pkgCards[0]!,
+      {
+        entry: {
+          attendee: testAttendee({ package_group_id: 0, quantity: 1 }),
+          listing: testListingWithCount({ name: "Standalone Add-On" }),
+        },
+        token,
+      },
+    ];
+    const html = ticketViewPage(
+      mixed,
+      true,
+      true,
+      new Map([[1, { hideListings: false, name: "Camp Kit" }]]),
+    );
+    // The standalone card renders (it's not part of the package)…
+    expect(html).toContain("Standalone Add-On");
+    // …but no wallet links anywhere, because the shared token's pass 404s.
+    expect(html).not.toContain("wallet-link");
+  });
+
+  test("a purchase-only package omits the QR", () => {
+    const cards = [
+      {
+        entry: {
+          attendee: testAttendee({ package_group_id: 1, quantity: 1 }),
+          listing: testListingWithCount({ name: "Pass", purchase_only: true }),
+        },
+        token,
+      },
+    ];
+    const html = ticketViewPage(
+      cards,
+      false,
+      false,
+      new Map([[1, { hideListings: false, name: "Purchase Bundle" }]]),
+    );
+    expect(html).toContain("Purchase Bundle");
+    expect(html).not.toContain(`/t/${token}/svg`);
+  });
+
+  test("shows a non-transferable notice on a package card without naming the member", () => {
+    // A hidden package conceals its members but must still warn the buyer that
+    // ID is required — the scanner enforces it regardless of the card display.
+    const cards = [
+      {
+        entry: {
+          attendee: testAttendee({ package_group_id: 1, quantity: 1 }),
+          listing: testListingWithCount({
+            name: "Secret Pass",
+            non_transferable: true,
+          }),
+        },
+        token,
+      },
+    ];
+    const html = ticketViewPage(
+      cards,
+      false,
+      false,
+      new Map([[1, { hideListings: true, name: "Secret Bundle" }]]),
+    );
+    expect(html).toContain("ID required at entry");
+    // The warning is package-level: the concealed member is never named.
+    expect(html).not.toContain("Secret Pass");
+  });
+
+  test("omits the non-transferable notice when the non-transferable member is purchase-only", () => {
+    // A purchase-only member is never checked in, so its non-transferable flag
+    // raises no "ID required" warning.
+    const cards = [
+      {
+        entry: {
+          attendee: testAttendee({ package_group_id: 1, quantity: 1 }),
+          listing: testListingWithCount({
+            name: "Pass",
+            non_transferable: true,
+            purchase_only: true,
+          }),
+        },
+        token,
+      },
+    ];
+    const html = ticketViewPage(
+      cards,
+      false,
+      false,
+      new Map([[1, { hideListings: false, name: "Purchase Bundle" }]]),
+    );
+    expect(html).not.toContain("ID required at entry");
   });
 });
 
