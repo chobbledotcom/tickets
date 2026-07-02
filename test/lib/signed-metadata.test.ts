@@ -125,4 +125,50 @@ describe("edgeDrifted", () => {
       true,
     );
   });
+
+  test("a bookable_alone child's standalone surplus drifts when it gains a required child", () => {
+    // Child 9 is booked twice: one unit folded under parent 5, one standalone
+    // surplus (line q=2, allocation qty=1). Mid-checkout child 9 itself gained a
+    // required child 20. The folded unit still resolves, but the standalone
+    // surplus is a standalone listing:9 line that now needs child 20 — so the
+    // order drifts and takes the refund instead of booking the bare child.
+    const tree = buildBookingTree({
+      childrenByParentId: new Map([
+        [5, [resolved(9)]],
+        [9, [resolved(20)]],
+      ]),
+      listings: [resolved(5), resolved(9)],
+      slugs: ["p", "c"],
+    });
+    expect(
+      edgeDrifted(
+        tree,
+        [
+          { e: 5, p: 100, q: 1 },
+          { e: 9, p: 50, q: 2 },
+        ],
+        [childAlloc],
+      ),
+    ).toBe(true);
+  });
+
+  test("a bookable_alone child folded with standalone surplus is not drifted when it stays a leaf", () => {
+    // The same folded-plus-surplus booking, but child 9 has no required child of
+    // its own, so its standalone surplus unit is a valid standalone line.
+    const tree = buildBookingTree({
+      childrenByParentId: new Map([[5, [resolved(9)]]]),
+      listings: [resolved(5), resolved(9)],
+      slugs: ["p", "c"],
+    });
+    expect(
+      edgeDrifted(
+        tree,
+        [
+          { e: 5, p: 100, q: 1 },
+          { e: 9, p: 50, q: 2 },
+        ],
+        [childAlloc],
+      ),
+    ).toBe(false);
+  });
 });
