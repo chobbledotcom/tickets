@@ -24,6 +24,7 @@ import {
   type SitePageInput,
   sitePagesTable,
   swapSitePageOrder,
+  updateSitePage,
 } from "#shared/db/site-pages.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
 import type { SitePage } from "#shared/types.ts";
@@ -134,6 +135,48 @@ describeWithEnv("db > site-pages", { db: true }, () => {
         expect(created.meta_title).toBe("Meta");
         expect(await getSitePageById(created.id)).toEqual(created);
       }));
+
+    test("updateSitePage rewrites the fields and moves the blind index with the slug", async () => {
+      const created = await createSitePage({
+        content: "old",
+        metaDescription: "old",
+        metaTitle: "old",
+        name: "Old",
+        slug: "before-move",
+      });
+      const updated = await updateSitePage(created.id, {
+        content: "new",
+        metaDescription: "new",
+        metaTitle: "new",
+        name: "New",
+        slug: "after-move",
+      });
+      expect(updated?.name).toBe("New");
+      expect(updated?.content).toBe("new");
+      // slug_index is computed inside the write, so the renamed slug is
+      // findable and the old one is freed - the pair can never desync.
+      const byNew = await getSitePageBySlugIndex(
+        await computeSitePageSlugIndex("after-move"),
+      );
+      expect(byNew?.id).toBe(created.id);
+      expect(
+        await getSitePageBySlugIndex(
+          await computeSitePageSlugIndex("before-move"),
+        ),
+      ).toBeNull();
+    });
+
+    test("updateSitePage reports null for a missing id", async () => {
+      expect(
+        await updateSitePage(99_999, {
+          content: "",
+          metaDescription: "",
+          metaTitle: "",
+          name: "Ghost",
+          slug: "ghost-page",
+        }),
+      ).toBeNull();
+    });
   });
 
   describe("isSitePageSlugTaken", () => {

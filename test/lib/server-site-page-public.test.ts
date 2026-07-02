@@ -1,8 +1,7 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { setChildIds } from "#shared/db/listing-parents.ts";
-import { settings } from "#shared/db/settings.ts";
 import { addPageItem } from "#shared/db/site-page-items.ts";
 import {
   assertPublicHtml,
@@ -14,16 +13,9 @@ import {
   expectStatus,
   createTestSitePage as makePage,
   mockRequest,
+  useSetting,
+  withSetting,
 } from "#test-utils";
-
-const enablePublicSite = (): void => {
-  beforeEach(async () => {
-    await settings.update.showPublicSite(true);
-  });
-  afterEach(async () => {
-    await settings.update.showPublicSite(false);
-  });
-};
 
 describeWithEnv("server (public site pages)", { db: true }, () => {
   describe("gate + resolution", () => {
@@ -35,18 +27,14 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       expectRedirect(response, /^\/admin\/login$/);
     });
 
-    test("404s an unknown slug", async () => {
-      await settings.update.showPublicSite(true);
-      try {
+    test("404s an unknown slug", () =>
+      withSetting({ show_public_site: true }, async () => {
         expectStatus(404)(await handleRequest(mockRequest("/page/no-such")));
-      } finally {
-        await settings.update.showPublicSite(false);
-      }
-    });
+      }));
   });
 
   describe("page rendering", () => {
-    enablePublicSite();
+    useSetting({ show_public_site: true });
 
     test("renders the name, markdown content, and SEO meta", async () => {
       await makePage("about-us", {
@@ -66,17 +54,13 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       expect(html).not.toContain('class="page-items"');
     });
 
-    test("falls back to the page name for the title; no meta tag when empty", async () => {
-      await settings.update.websiteTitle("Acme Site");
-      try {
+    test("falls back to the page name for the title; no meta tag when empty", () =>
+      withSetting({ website_title: "Acme Site" }, async () => {
         await makePage("plain");
         const html = await assertPublicHtml("/page/plain");
         expect(html).toContain("<title>Page plain - Acme Site</title>");
         expect(html).not.toContain('name="description"');
-      } finally {
-        await settings.update.websiteTitle("");
-      }
-    });
+      }));
 
     test("renders live items as links and dead items as text", async () => {
       const page = await makePage("catalogue");
@@ -143,31 +127,26 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
   });
 
   describe("recursive nav", () => {
-    enablePublicSite();
+    useSetting({ show_public_site: true });
 
-    test("nav flags follow their settings: no contact/terms/order when unset", async () => {
+    test("nav flags follow their settings: no contact/terms/order when unset", () =>
       // The test env's contact form is active (business email set), so switch
       // it off to expose the raw flags.
-      await settings.update.contactFormEnabled(false);
-      try {
+      withSetting({ contact_form_enabled: false }, async () => {
         await makePage("flagless");
         const html = await assertPublicHtml("/page/flagless");
         expect(html).not.toContain('href="/contact"');
         expect(html).not.toContain('href="/terms"');
         expect(html).not.toContain('href="/order"');
         // Setting the contact text alone turns the Contact link on.
-        await settings.update.contactPageText("Write to us");
-        const withText = await assertPublicHtml("/page/flagless");
-        expect(withText).toContain('href="/contact"');
-      } finally {
-        await settings.update.contactPageText("");
-        await settings.update.contactFormEnabled(true);
-      }
-    });
+        await withSetting({ contact_page_text: "Write to us" }, async () => {
+          const withText = await assertPublicHtml("/page/flagless");
+          expect(withText).toContain('href="/contact"');
+        });
+      }));
 
-    test("root pages sit between Listings and Contact on the fixed pages", async () => {
-      await settings.update.contactPageText("Write to us");
-      try {
+    test("root pages sit between Listings and Contact on the fixed pages", () =>
+      withSetting({ contact_page_text: "Write to us" }, async () => {
         await makePage("first-root");
         await makePage("second-root");
         const html = await assertPublicHtml("/");
@@ -180,10 +159,7 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
         expect(first).toBeGreaterThan(listings);
         expect(second).toBeGreaterThan(first);
         expect(contact).toBeGreaterThan(second);
-      } finally {
-        await settings.update.contactPageText("");
-      }
-    });
+      }));
 
     test("a nested page shows the active chain: nested desktop, stacked mobile", async () => {
       const root = await makePage("services");
@@ -256,15 +232,11 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       expect(html).toContain('class="admin-nav-group"');
     });
 
-    test("the order gallery carries the root pages too", async () => {
-      await settings.update.orderEnabled(true);
-      try {
+    test("the order gallery carries the root pages too", () =>
+      withSetting({ order_enabled: true }, async () => {
         await makePage("gallery-root");
         const html = await assertPublicHtml("/order");
         expect(html).toContain('href="/page/gallery-root"');
-      } finally {
-        await settings.update.orderEnabled(false);
-      }
-    });
+      }));
   });
 });

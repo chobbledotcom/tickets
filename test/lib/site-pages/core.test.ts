@@ -209,6 +209,28 @@ describe("site-pages core", () => {
       expect(planReorder(keys, "group:3", "down")).toBeNull();
       expect(planReorder(keys, "listing:99", "up")).toBeNull();
     });
+
+    test("a move followed by its opposite restores the order (self-inverse)", () => {
+      // pages.md's promised property: applying planReorder's swap and then the
+      // opposite move's swap is the identity, for every non-boundary position.
+      const applySwap = (
+        order: readonly TargetKey[],
+        [a, b]: readonly [TargetKey, TargetKey],
+      ): TargetKey[] => order.map((k) => (k === a ? b : k === b ? a : k));
+      for (const [target, dir, opposite] of [
+        ["listing:2", "down", "up"],
+        ["listing:2", "up", "down"],
+        ["page:1", "down", "up"],
+        ["group:3", "up", "down"],
+      ] as const) {
+        const swap = planReorder(keys, target, dir);
+        expect(swap, `${target} ${dir}`).not.toBeNull();
+        const moved = applySwap(keys, swap!);
+        const back = planReorder(moved, target, opposite);
+        expect(back, `${target} ${opposite} back`).not.toBeNull();
+        expect(applySwap(moved, back!)).toEqual(keys);
+      }
+    });
   });
 
   describe("isReservedSlug", () => {
@@ -385,6 +407,40 @@ describe("site-pages core", () => {
         "listing:5",
       );
       expect(model.activeRootId).toBe(0);
+    });
+
+    test("active flags equal chain membership exactly, across every node", () => {
+      // pages.md's promised set-equality property, checked over EVERY node of
+      // a deep multi-sibling model: at each level the one active node is the
+      // next chain page — every sibling (and every non-chain root) is not.
+      // Forest: roots 1 and 6; 1 → {4, 2}; 2 → {5, 3}; current is page 3.
+      const forest = buildForest(
+        [page(1), page(2), page(3), page(4), page(5), page(6)],
+        [
+          edge(1, "page", 4, 0),
+          edge(1, "page", 2, 1),
+          edge(2, "page", 5, 0),
+          edge(2, "page", 3, 1),
+        ],
+      );
+      const model = buildNavModel(forest, new Map(), "page:3");
+      for (const root of model.rootPageNodes) {
+        expect(root.active, root.key).toBe(root.key === "page:1");
+      }
+      const chainKeyByLevel = ["page:2", "page:3"];
+      expect(model.submenuLevels.map((l) => l.label)).toEqual([
+        "page-1",
+        "page-2",
+      ]);
+      model.submenuLevels.forEach((level, i) => {
+        for (const node of level.nodes) {
+          expect(node.active, `${node.key} at level ${i}`).toBe(
+            node.key === chainKeyByLevel[i],
+          );
+        }
+      });
+      // The current page (3) has no items, so no third level and no children.
+      expect(model.currentChildren).toEqual([]);
     });
 
     test("a leaf with no parent page yields a flat nav (no chain)", () => {

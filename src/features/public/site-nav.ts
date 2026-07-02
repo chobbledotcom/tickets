@@ -6,13 +6,16 @@
  * fixed pages pass a null current and skip it entirely).
  *
  * Liveness mirrors the discovery classification the rest of the public site
- * uses, so the nav never renders a link the site otherwise hides (AGENTS.md):
- * a listing is live iff it is active, not a renewal tier (the renewal flow
- * needs a site token the normal ticket flow never supplies), not a child (a
- * booking can never start from a child, invariant I3), and not a parent
- * projected sold out (its `/ticket` page would offer nothing to book); a
- * group is live iff it has a standalone-bookable member (the same gate as its
- * QR). Page targets are always live.
+ * uses, so the nav never renders a link that would 404 or dead-end: a listing
+ * is live iff it is active, not a renewal tier (the renewal flow needs a site
+ * token the normal ticket flow never supplies), not a child (a booking can
+ * never start from a child, invariant I3), and not a parent projected sold
+ * out (its `/ticket` page would offer nothing to book); a group is live iff
+ * it has a standalone-bookable member (the same gate as its QR). A HIDDEN
+ * listing/group is still live: hidden governs the public index, not
+ * bookability — its `/ticket` page serves (with noindex), and an operator
+ * placing a hidden item on a page is choosing to link it. Page targets are
+ * always live.
  */
 
 import { filter, map, pipe, unique } from "#fp";
