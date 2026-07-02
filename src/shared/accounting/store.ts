@@ -18,7 +18,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { groupBy } from "#fp";
+import { groupBy, mapNotNullish, unique } from "#fp";
 import {
   assertEventMatches,
   assertReverses,
@@ -179,19 +179,11 @@ const selectByColumnIn = (
 const loadBatchSnapshot = async (
   groups: TransferInput[][],
 ): Promise<BatchSnapshot> => {
-  const eventGroups = [
-    ...new Set(groups.map((inputs) => inputs[0]!.eventGroup)),
-  ];
+  const eventGroups = unique(groups.map((inputs) => inputs[0]!.eventGroup));
   const references = groups.flatMap((inputs) => inputs.map((t) => t.reference));
-  const reversesIds = [
-    ...new Set(
-      groups.flatMap((inputs) =>
-        inputs
-          .map((t) => t.reversesId)
-          .filter((id): id is number => id !== undefined && id !== null),
-      ),
-    ),
-  ];
+  const reversesIds = unique(
+    mapNotNullish((t: TransferInput) => t.reversesId)(groups.flat()),
+  );
   const [existing, stored, originals] = await Promise.all([
     selectByColumnIn("event_group", eventGroups),
     selectByColumnIn("reference", references),

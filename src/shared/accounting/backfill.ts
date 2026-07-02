@@ -33,7 +33,8 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { groupBy } from "#fp";
+import { groupBy, sumOf } from "#fp";
+import { ATTENDEE } from "#shared/accounting/accounts.ts";
 import { mapBooking, mapRefund } from "#shared/accounting/mappers.ts";
 import { accountBalancesForIds } from "#shared/accounting/queries.ts";
 import { insertStatement, orIgnore } from "#shared/accounting/rows.ts";
@@ -53,9 +54,6 @@ type PaidRow = {
 
 /** A leg INSERT or row-stamp UPDATE the backfill writes to the database. */
 type Statement = { sql: string; args: InValue[] };
-
-/** The `attendee` account type — what the receivable legs are keyed under. */
-const ATTENDEE = "attendee";
 
 /**
  * Attendees are paged so a large booking history never loads all at once, and
@@ -121,7 +119,7 @@ const attendeeLegs = async (
     );
   }
   const bookingLegs = await mapBooking({
-    amountPaid: rows.reduce((sum, row) => sum + Number(row.price_paid), 0),
+    amountPaid: sumOf((row: PaidRow) => Number(row.price_paid))(rows),
     attendeeId,
     bookingFee: 0,
     eventId: `backfill:att:${attendeeId}`,

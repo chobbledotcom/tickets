@@ -94,6 +94,7 @@ import {
 import type { ListingWithCount } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
+import { parsePositiveIntId } from "#shared/validation/number.ts";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import {
   type AccountLedgerData,
@@ -178,9 +179,7 @@ const monthParam = validatedParam((value) => /^\d{4}-\d{2}$/.test(value));
 /** Parse the `?listing=` scope: a positive integer, else null ("all listings"). */
 const listingParam = (params: URLSearchParams): number | null => {
   const value = params.get("listing");
-  if (!value) return null;
-  const id = Number(value);
-  return Number.isSafeInteger(id) && id > 0 ? id : null;
+  return value ? parsePositiveIntId(value) : null;
 };
 
 const viewParam = (params: URLSearchParams): LedgerViewMode =>

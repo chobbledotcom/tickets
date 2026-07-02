@@ -5,6 +5,7 @@
  * to the store.
  */
 
+import { sumByKey } from "#fp";
 import {
   attendeeAccount,
   BOOKING_FEE_INCOME,
@@ -116,15 +117,10 @@ const bookingLegSpecs = (
   // Aggregate to one sale leg per listing: discount splits produce several
   // lines for the same listing, which must not share a `["sale", listingId]`
   // reference (the store would treat the second as a conflicting duplicate).
-  const grossByListing = new Map<number, number>();
-  for (const line of facts.lines) {
-    if (line.gross > 0) {
-      grossByListing.set(
-        line.listingId,
-        (grossByListing.get(line.listingId) ?? 0) + line.gross,
-      );
-    }
-  }
+  const grossByListing = sumByKey(
+    (line: BookingFacts["lines"][number]) => line.listingId,
+    (line) => line.gross,
+  )(facts.lines.filter((line) => line.gross > 0));
   const sales: LegSpec[] = [...grossByListing].map(([listingId, gross]) => ({
     amount: gross,
     destination: revenueAccount(listingId),
