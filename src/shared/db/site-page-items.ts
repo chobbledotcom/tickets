@@ -24,9 +24,6 @@ import type { SitePageItem, SitePageItemType } from "#shared/types.ts";
 /** A parameterised statement for a batch / transaction. */
 type Stmt = { sql: string; args: InValue[] };
 
-/** Thrown when an add would violate the single-parent tree invariant (N3). */
-export class SitePageItemConflictError extends Error {}
-
 const SELECT_COLS = "page_id, item_type, item_id, sort_order";
 
 const fetchAllItems = (): Promise<SitePageItem[]> =>
@@ -55,18 +52,39 @@ export const getItemsForPage = (pageId: number): Promise<SitePageItem[]> =>
   );
 
 /**
- * Add an item to a page. For a `page` item, the single-parent check + next-order
- * read + insert run in one transaction so concurrent adds can't both create a
- * second parent. Throws {@link SitePageItemConflictError} if the page is already
- * nested. The new row gets `sort_order = MAX(page's orders) + 1` (0 when first).
+ * Add an item to a page, or report a conflict. The existence + tree checks and
+ * the insert all run in **one write transaction**, so concurrent adds serialise
+ * on the write lock and can never create a duplicate edge or a second parent —
+ * the loser simply sees the row already there. Returns `false` (nothing
+ * inserted) when the edge already exists, the page is already nested elsewhere
+ * (single-parent, N3), or nesting would close a cycle (N4); `true` when the edge
+ * was created. The new row gets `sort_order = MAX(page's orders) + 1` (0 first).
  */
 export const addPageItem = (
   pageId: number,
   itemType: SitePageItemType,
   itemId: number,
-): Promise<void> =>
+): Promise<boolean> =>
   withTransaction(async (tx) => {
+    // The page-id set, read in the SAME transaction: the host page (and, for a
+    // page item, the child page) must still exist, so a stale add racing a
+    // delete can never insert a dangling page edge.
+    const pageRows = resultRows<{ id: number }>(
+      await tx.execute({ args: [], sql: "SELECT id FROM site_pages" }),
+    );
+    const pageIds = new Set(pageRows.map((r) => r.id));
+    if (!pageIds.has(pageId)) return false;
+    // Duplicate edge (the unique (page_id, item_type, item_id) key): checked
+    // in-transaction so a concurrent repeat can't slip past to the raw index.
+    const duplicate = resultRows<SitePageItem>(
+      await tx.execute({
+        args: [pageId, itemType, itemId],
+        sql: `SELECT ${SELECT_COLS} FROM site_page_items WHERE page_id = ? AND item_type = ? AND item_id = ?`,
+      }),
+    );
+    if (duplicate.length > 0) return false;
     if (itemType === "page") {
+      if (!pageIds.has(itemId)) return false;
       // Read all page edges once and enforce both page invariants against the
       // same in-transaction snapshot, before inserting.
       const pageEdges = resultRows<SitePageItem>(
@@ -76,16 +94,18 @@ export const addPageItem = (
         }),
       );
       // Single-parent (N3): the page must not already be nested elsewhere.
-      if (pageEdges.some((e) => e.item_id === itemId)) {
-        throw new SitePageItemConflictError(
-          "That page is already nested under another page",
-        );
-      }
+      if (pageEdges.some((e) => e.item_id === itemId)) return false;
       // Acyclic (N4): nesting it here must not close a loop (self or ancestor).
-      if (wouldCreateCycle(buildForest([], pageEdges), pageId, itemId)) {
-        throw new SitePageItemConflictError(
-          "That would nest a page inside one of its own descendants",
-        );
+      // The forest is built over the id set only (a narrow projection — the
+      // cycle walk never reads name/slug/order).
+      const rows = pageRows.map((r) => ({
+        id: r.id,
+        name: "",
+        slug: "",
+        sort_order: 0,
+      }));
+      if (wouldCreateCycle(buildForest(rows, pageEdges), pageId, itemId)) {
+        return false;
       }
     }
     const orderRes = await tx.execute({
@@ -99,6 +119,7 @@ export const addPageItem = (
       args: [pageId, itemType, itemId, next],
       sql: "INSERT INTO site_page_items (page_id, item_type, item_id, sort_order) VALUES (?, ?, ?, ?)",
     });
+    return true;
   });
 
 /** Remove one item from a page (by its composite key). */

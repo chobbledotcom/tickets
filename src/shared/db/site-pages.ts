@@ -11,7 +11,12 @@
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { queryAll, queryOne } from "#shared/db/client.ts";
+import {
+  queryAll,
+  queryOne,
+  resultRows,
+  withTransaction,
+} from "#shared/db/client.ts";
 import {
   defineIdTable,
   encryptedNameSchema,
@@ -85,14 +90,19 @@ export const invalidateSitePagesCache = (): void => navCache.invalidate();
 export const getSitePageNavRows = (): Promise<SitePageNavRow[]> =>
   navCache.getAll();
 
-/** Load one full page (all columns, fully decrypted) — for the public/admin
- * single-page views. Null when absent. */
+/** Every {@link SitePage} column, listed explicitly (AGENTS.md) so a future
+ * column can't silently widen what the single-page reads fetch and decrypt. */
+const SITE_PAGE_COLUMNS =
+  "id, slug, slug_index, name, meta_title, meta_description, content, sort_order";
+
+/** Load one full page (fully decrypted) — for the public/admin single-page
+ * views. Null when absent. */
 const querySitePage = async (
   where: string,
   arg: number | string,
 ): Promise<SitePage | null> => {
   const row = await queryOne<SitePage>(
-    `SELECT * FROM site_pages WHERE ${where} LIMIT 1`,
+    `SELECT ${SITE_PAGE_COLUMNS} FROM site_pages WHERE ${where} LIMIT 1`,
     [arg],
   );
   return row ? rawSitePagesTable.fromDb(row) : null;
@@ -117,6 +127,54 @@ export const isSitePageSlugTaken = (
     slug,
     excludeId ? { id: excludeId, table: "site_pages" } : undefined,
   );
+
+/** A create provides every column (no DB-side defaults), so the created row can
+ * be returned as constructed — without a post-commit read-back that could see
+ * replica lag on remote libsql. */
+type SitePageCreateInput = Omit<Required<SitePageInput>, "sortOrder">;
+
+/** Create a page, appending it to the end of the root ordering. A new page is
+ * always a root (no edges yet). The trailing `sort_order` (max + 1) is read and
+ * the row inserted in **one write transaction**, so the whole create rolls back
+ * as a unit — no orphan row on a mid-write failure — and two concurrent creates
+ * serialise on the write lock to get distinct orders (equal orders would make a
+ * reorder swap a no-op, leaving the pages unreorderable). The returned row is
+ * built from the input + the assigned id/order, never read back. */
+export const createSitePage = async (
+  input: SitePageCreateInput,
+): Promise<SitePage> => {
+  const { id, sortOrder } = await withTransaction(async (tx) => {
+    const res = await tx.execute({
+      args: [],
+      sql: "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM site_pages",
+    });
+    const nextOrder = Number(resultRows<{ next: number }>(res)[0]!.next);
+    const stmt = await rawSitePagesTable.insertStatement!({
+      ...input,
+      sortOrder: nextOrder,
+    });
+    const result = await tx.execute(stmt);
+    return { id: Number(result.lastInsertRowid), sortOrder: nextOrder };
+  });
+  return {
+    content: input.content,
+    id,
+    meta_description: input.metaDescription,
+    meta_title: input.metaTitle,
+    name: input.name,
+    slug: input.slug,
+    slug_index: input.slugIndex,
+    sort_order: sortOrder,
+  };
+};
+
+/** Update a page's editable fields (all but id/sort_order). The caller passes a
+ * freshly computed `slugIndex` alongside the slug so the blind index never drifts
+ * from the encrypted slug (lookups + cross-table uniqueness key on slug_index). */
+export const updateSitePage = (
+  id: number,
+  input: Partial<Omit<SitePageInput, "sortOrder">>,
+): Promise<SitePage | null> => sitePagesTable.update(id, input);
 
 /** Swap the `sort_order` of two root pages (the move-up/down apply step). */
 export const swapSitePageOrder = (id1: number, id2: number): Promise<void> =>

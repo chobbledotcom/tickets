@@ -51,6 +51,7 @@ import {
 } from "#shared/db/migrations/schema.ts";
 import { nameMapByIds } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
+import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
@@ -427,6 +428,17 @@ const queryOneListingWithCount = async (
 ): Promise<ListingWithCount | null> =>
   (await queryListingsWithCounts(`WHERE ${where}`, args))[0] ?? null;
 
+/** The given listings with counts — bounded: one `IN` query, only these rows
+ * decrypted (never the whole cache). Empty `ids` ⇒ empty list, no query. */
+export const getListingsWithCountsByIds = (
+  ids: readonly number[],
+): Promise<ListingWithCount[]> =>
+  ids.length === 0
+    ? Promise.resolve([])
+    : queryListingsWithCounts(`WHERE listing.id IN (${inPlaceholders(ids)})`, [
+        ...ids,
+      ]);
+
 /**
  * Listings cache: single-record reads (by id / slug) load and decrypt only the
  * one listing they need; getAll/getByType load the whole set.
@@ -549,6 +561,9 @@ export const deleteListing = async (listingId: number): Promise<void> => {
       args: [listingId, listingId],
       sql: "DELETE FROM listing_parents WHERE parent_listing_id = ? OR child_listing_id = ?",
     },
+    // Drop any site-page membership edges so no page is left with a dangling
+    // "(missing)" row pointing at this deleted listing.
+    clearItemEdgesStatement("listing", listingId),
     { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
     // The generalised price rows have no cascading FK, so drop them with the
     // listing rather than leaving orphaned base/day_count rows behind.
@@ -623,6 +638,52 @@ export const getListingNamesByIds = (
   nameMapByIds("listings", "listing", "name", ids, (raw: string) =>
     decrypt(raw),
   );
+
+/** A listing's picker-relevant flags: name plus the fields the caller needs to
+ * decide offerability (active status and the renewal-tier predicate shape). */
+export type ListingPickerRow = {
+  active: boolean;
+  hidden: boolean;
+  months_per_unit: number;
+  name: string;
+  purchase_only: boolean;
+};
+
+/** Narrow id → picker-flags map for every listing (only the name is decrypted)
+ * — the admin picker projection: options come from the offerable subset (the
+ * plan's "all active listings" contract, minus renewal tiers), while labels
+ * read the whole map so an already-added, now-inactive item still names
+ * itself. */
+export const getListingPickerNames = async (): Promise<
+  Map<number, ListingPickerRow>
+> => {
+  const rows = await queryAll<{
+    active: number;
+    hidden: number;
+    id: number;
+    months_per_unit: number;
+    name: string;
+    purchase_only: number;
+  }>(
+    "SELECT listing.id, listing.name, listing.active, listing.hidden, listing.months_per_unit, listing.purchase_only FROM listings AS listing ORDER BY listing.id ASC",
+  );
+  const entries = await Promise.all(
+    rows.map(
+      async (r) =>
+        [
+          r.id,
+          {
+            active: r.active !== 0,
+            hidden: r.hidden !== 0,
+            months_per_unit: r.months_per_unit,
+            name: await decrypt(r.name),
+            purchase_only: r.purchase_only !== 0,
+          },
+        ] as const,
+    ),
+  );
+  return new Map(entries);
+};
 
 /**
  * SQL predicate (over the `listing` alias) selecting listings that are

@@ -16,6 +16,7 @@ import { createAuthedHandler } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { decryptAttendees } from "#shared/db/attendees.ts";
+import { executeBatch } from "#shared/db/client.ts";
 import {
   assignListingsToGroup,
   computeGroupSlugIndex,
@@ -32,6 +33,7 @@ import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAttendeesByListingIds, getListing } from "#shared/db/listings.ts";
 import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
+import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
 import { GROUP_DEMO_FIELDS, wrapResourceForDemo } from "#shared/demo.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -106,8 +108,15 @@ const extractGroupEditInput = async (
 export const deleteGroup = async (
   id: Parameters<typeof groupsTable.findById>[0],
 ) => {
-  await resetGroupListings(Number(id));
-  await groupsTable.deleteById(id);
+  const groupId = Number(id);
+  await resetGroupListings(groupId);
+  // Clear site-page membership edges atomically with the group row: a failed
+  // delete must never leave a page pointing at a still-present group, nor strip
+  // edges from a group that survives.
+  await executeBatch([
+    clearItemEdgesStatement("group", groupId),
+    { args: [groupId], sql: "DELETE FROM groups WHERE id = ?" },
+  ]);
 };
 
 /** Shared CRUD handler config. After create/edit, staff land on the group detail

@@ -52,7 +52,7 @@ src/features/public/ticket-payment.ts:625:41  ?? → ||   # customisableDuration
 src/features/public/ticket-payment.ts:874:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined, arrays always truthy
 
 # Parent/child curried atoms (shared.tsx).
-src/ui/templates/public/shared.tsx:169:41  ?? → ||   # span: null or a duration ≥1, never falsy-non-null; null??1===null||1
+src/ui/templates/public/shared.tsx:312:41  ?? → ||   # span: null or a duration ≥1, never falsy-non-null; null??1===null||1
 
 # Parent/child per-unit render (reservations.tsx).
 src/ui/templates/public/reservations.tsx:548:12  ! → ∅   # childQuestionsToRender: the `rendered` dedup (pre-seeded with page questions, plus each child's own) makes which child triggers a question's render unobservable — the same single identical control results; a question in ctx.questions is always owned by a page listing or a child
@@ -186,9 +186,11 @@ src/ui/client/order.ts:395:20  = → +=    # style.textContent: fresh element, "
 src/ui/client/order.ts:429:27  = → +=    # registry[origin]: undefined → a truthy string; only read for the dedup truthiness check, the live controller is the local var
 src/ui/client/order.ts:433:48  ?? → ||   # link.dataset.addListing: string|undefined; the only falsy-non-null value "" equals the "" fallback
 src/ui/client/order.ts:443:59  ?? → ||   # link.dataset.addListing: string|undefined; the only falsy-non-null value "" equals the "" fallback
-src/shared/site-pages/core.ts:120:50  ?? → ||    # descendantsOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
+src/shared/site-pages/core.ts:124:50  ?? → ||    # descendantsOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
 src/shared/site-pages/core.ts:301:43  ?? → ||    # levelOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
+src/ui/templates/public/shared.tsx:135:75  ?? → ||   # mobile chain: find() → NavNode|undefined — a NavNode object is always truthy
 
 # listing_prices sync (listing-prices.ts): `?? → ||` where the operand's only
 # falsy-non-null value equals the fallback.
 src/shared/db/listing-prices.ts:76:19  ?? → ||    # sourceRowStatements row.unit_price: number|null; the only falsy-non-null value is 0 and 0 ?? 0 === 0 || 0
+src/ui/templates/public/site-page.tsx:29:67  ?? → ||   # submenuLevels.at(-1) → NavNode[]|undefined — an array is always truthy

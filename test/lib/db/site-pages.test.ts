@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { executeBatch, queryAll } from "#shared/db/client.ts";
 import { isGroupSlugTaken } from "#shared/db/groups.ts";
-import { isSlugTaken } from "#shared/db/listings.ts";
+import { getListingNamesByIds, isSlugTaken } from "#shared/db/listings.ts";
 import {
   addPageItem,
   clearItemEdgesStatement,
@@ -11,11 +11,11 @@ import {
   getItemsForPage,
   invalidatePageItemsCache,
   removePageItem,
-  SitePageItemConflictError,
   swapPageItemOrder,
 } from "#shared/db/site-page-items.ts";
 import {
   computeSitePageSlugIndex,
+  createSitePage,
   getSitePageById,
   getSitePageBySlugIndex,
   getSitePageNavRows,
@@ -93,6 +93,49 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       const found = await getSitePageBySlugIndex(idx);
       expect(found?.slug).toBe("terms-of-use");
     });
+
+    test("createSitePage assigns distinct, increasing trailing orders", async () => {
+      const make = async (slug: string): Promise<number> =>
+        (
+          await createSitePage({
+            content: "",
+            metaDescription: "",
+            metaTitle: "",
+            name: `Name ${slug}`,
+            slug,
+            slugIndex: await computeSitePageSlugIndex(slug),
+          })
+        ).sort_order;
+      const orders = [await make("o-a"), await make("o-b"), await make("o-c")];
+      // Distinct + strictly increasing ⇒ the pages are reliably reorderable
+      // (equal orders would make the move-up/down swap a no-op).
+      expect(new Set(orders).size).toBe(3);
+      expect(orders[0]).toBeLessThan(orders[1]!);
+      expect(orders[1]).toBeLessThan(orders[2]!);
+    });
+
+    test("createSitePage clears the nav cache so the new page shows", () =>
+      // The nav projection is request-scoped, so hold one request open across
+      // the populate → create → re-read: the raw transactional insert must
+      // invalidate the cache, or this second read returns the stale projection
+      // without the new page.
+      runWithRequestCache(async () => {
+        await getSitePageNavRows(); // populate the cached projection
+        const created = await createSitePage({
+          content: "Body",
+          metaDescription: "Desc",
+          metaTitle: "Meta",
+          name: "Fresh",
+          slug: "fresh-cache",
+          slugIndex: await computeSitePageSlugIndex("fresh-cache"),
+        });
+        const slugs = (await getSitePageNavRows()).map((r) => r.slug);
+        expect(slugs).toContain("fresh-cache");
+        // The returned row is built from the input (no post-commit read-back),
+        // and matches what a fresh read decrypts.
+        expect(created.meta_title).toBe("Meta");
+        expect(await getSitePageById(created.id)).toEqual(created);
+      }));
   });
 
   describe("isSitePageSlugTaken", () => {
@@ -116,6 +159,12 @@ describeWithEnv("db > site-pages", { db: true }, () => {
     test("collides with an existing listing slug", async () => {
       const listing = await createTestListing({ name: "L" });
       expect(await isSitePageSlugTaken(listing.slug)).toBe(true);
+      // The id-keyed name lookup short-circuits on empty ids (no query) and
+      // decrypts names for real ids — the projection page labels lean on.
+      expect((await getListingNamesByIds([])).size).toBe(0);
+      expect((await getListingNamesByIds([listing.id])).get(listing.id)).toBe(
+        "L",
+      );
     });
 
     test("a page slug blocks a new listing and group (bidirectional)", async () => {
@@ -136,6 +185,19 @@ describeWithEnv("db > site-pages", { db: true }, () => {
         "first",
       ]);
     });
+
+    test("swapSitePageOrder is a no-op when either row is missing", async () => {
+      // A stale reorder click racing a delete must not 500 (binding an
+      // undefined sort_order) — the swap simply does nothing.
+      const a = await makePage("survivor", { sortOrder: 0 });
+      await swapSitePageOrder(a.id, 9999);
+      await swapSitePageOrder(9999, a.id);
+      invalidateSitePagesCache();
+      const row = (await getSitePageNavRows()).find(
+        (r) => r.slug === "survivor",
+      );
+      expect(row?.sort_order).toBe(0);
+    });
   });
 
   describe("page items", () => {
@@ -152,8 +214,10 @@ describeWithEnv("db > site-pages", { db: true }, () => {
 
     test("the same item cannot be added to one page twice (unique key)", async () => {
       const p = await makePage("dupe");
-      await addPageItem(p.id, "listing", 7);
-      await expect(addPageItem(p.id, "listing", 7)).rejects.toThrow();
+      expect(await addPageItem(p.id, "listing", 7)).toBe(true);
+      // A repeat is reported as a conflict (false), not inserted a second time.
+      expect(await addPageItem(p.id, "listing", 7)).toBe(false);
+      expect((await getItemsForPage(p.id)).length).toBe(1);
     });
 
     test("a page cannot be nested under two parents (single-parent guard)", async () => {
@@ -161,9 +225,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       const parentB = await makePage("pb");
       const child = await makePage("child");
       await addPageItem(parentA.id, "page", child.id);
-      await expect(
-        addPageItem(parentB.id, "page", child.id),
-      ).rejects.toBeInstanceOf(SitePageItemConflictError);
+      expect(await addPageItem(parentB.id, "page", child.id)).toBe(false);
       // Only the first parent's edge exists.
       const edges = (await getAllPageItems()).filter(
         (e) => e.item_type === "page" && e.item_id === child.id,
@@ -178,11 +240,18 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       ]);
     });
 
+    test("an add is rejected when the host or child page is missing", async () => {
+      const p = await makePage("existing");
+      // Host page vanished (stale add racing a delete): no dangling edge.
+      expect(await addPageItem(9999, "listing", 1)).toBe(false);
+      // Child page vanished: the page edge would dangle, so it is rejected.
+      expect(await addPageItem(p.id, "page", 9999)).toBe(false);
+      expect(await getAllPageItems()).toEqual([]);
+    });
+
     test("a page cannot be nested inside itself (N4 self-loop)", async () => {
       const p = await makePage("self");
-      await expect(addPageItem(p.id, "page", p.id)).rejects.toBeInstanceOf(
-        SitePageItemConflictError,
-      );
+      expect(await addPageItem(p.id, "page", p.id)).toBe(false);
       expect(await getItemsForPage(p.id)).toEqual([]);
     });
 
@@ -191,9 +260,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       const a = await makePage("anc-a");
       const b = await makePage("anc-b");
       await addPageItem(a.id, "page", b.id);
-      await expect(addPageItem(b.id, "page", a.id)).rejects.toBeInstanceOf(
-        SitePageItemConflictError,
-      );
+      expect(await addPageItem(b.id, "page", a.id)).toBe(false);
       expect(await getItemsForPage(b.id)).toEqual([]);
     });
 

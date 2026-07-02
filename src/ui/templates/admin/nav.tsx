@@ -161,11 +161,12 @@ const settingsSub = (): NavItem[] =>
       : null,
   ]);
 
-/** Site editor sub-nav (third level, beneath Settings → Site). */
+/** Site editor sub-nav (the Site section's own pages). */
 const siteSub = (): NavItem[] => [
   { href: "/admin/site", label: t("site.sub_nav.homepage") },
   { href: "/admin/site/contact", label: t("site.sub_nav.contact") },
   { href: "/admin/site/order", label: t("site.sub_nav.order") },
+  { href: "/admin/site/pages", label: t("nav.site.pages") },
 ];
 
 /** Resolve which section (and sub-nav) the active route belongs to. Pages pass

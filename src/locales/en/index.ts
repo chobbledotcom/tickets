@@ -36,6 +36,7 @@ import questions from "./questions.json" with { type: "json" };
 import settings from "./settings.json" with { type: "json" };
 import setup from "./setup.json" with { type: "json" };
 import site from "./site.json" with { type: "json" };
+import sitePages from "./site-pages.json" with { type: "json" };
 import sms from "./sms.json" with { type: "json" };
 import statuses from "./statuses.json" with { type: "json" };
 import support from "./support.json" with { type: "json" };
@@ -79,6 +80,7 @@ const en: Record<string, string> = {
   ...settings,
   ...setup,
   ...site,
+  ...sitePages,
   ...sms,
   ...statuses,
   ...support,

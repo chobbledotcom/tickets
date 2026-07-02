@@ -7,7 +7,6 @@ import {
   descendantsOf,
   eligibleChildPages,
   isReservedSlug,
-  nextSortOrder,
   parseTargetKey,
   planReorder,
   targetKey,
@@ -72,6 +71,14 @@ describe("site-pages core", () => {
       const forest = buildForest([page(1), page(2)], [edge(1, "page", 2, 0)]);
       expect(forest.rootIds).toEqual([1]);
       expect(forest.parentByChild.get(2)).toBe(1);
+    });
+
+    test("a dangling edge from a deleted parent leaves the child a root", () => {
+      // Page 9 no longer exists but its edge to page 2 survived a race; the
+      // edge is ignored so page 2 stays a listed, reachable root.
+      const forest = buildForest([page(1), page(2)], [edge(9, "page", 2, 0)]);
+      expect(forest.rootIds).toEqual([1, 2]);
+      expect(forest.parentByChild.has(2)).toBe(false);
     });
 
     test("a non-page item never parents a page that shares its numeric id", () => {
@@ -182,13 +189,6 @@ describe("site-pages core", () => {
       // Candidates to add under 2: exclude 2 (self), 1 (ancestor), 2-already? ;
       // 3 and 4 are unparented and no cycle → eligible.
       expect(eligibleChildPages(forest, 2).map((p) => p.id)).toEqual([3, 4]);
-    });
-  });
-
-  describe("nextSortOrder", () => {
-    test("0 when empty, max+1 otherwise", () => {
-      expect(nextSortOrder([])).toBe(0);
-      expect(nextSortOrder([0, 3, 1])).toBe(4);
     });
   });
 
