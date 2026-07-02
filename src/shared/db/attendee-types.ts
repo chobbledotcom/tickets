@@ -55,6 +55,8 @@ export type BuildAttendeeInput = ContactInfo & {
   durationDays?: number;
   remainingBalance: number;
   statusId: number | null;
+  /** Package group this booking row belongs to (0 = not a package). */
+  packageGroupId: number;
 };
 
 /** Result of atomic attendee creation */
@@ -76,6 +78,10 @@ export type ListingBooking = {
   /** The parent listing this row was folded under when it is a chosen child
    * (defaults to 0 — not a folded child). */
   parentListingId?: number;
+  /** The package group this booking row belongs to (defaults to 0 — not a
+   * package order). Set once per create from the order-level value, the same on
+   * every row, so tickets/emails group the order under the package by this id. */
+  packageGroupId?: number | undefined;
 };
 
 /** A concrete booking line — every field resolved (unlike the optional-field
@@ -106,6 +112,10 @@ export type AttendeeInput = ContactFields & {
    * checkout path can never be silently left uncounted; the admin manual-add
    * paths pass "admin" explicitly. */
   source?: BookingSource;
+  /** When the order is a package checkout, the package group's id (stamped on
+   * every booking row so the ticket view / confirmation email group the lines
+   * under the package). 0 / absent for a non-package order. */
+  packageGroupId?: number;
 };
 
 /** Row from listing_attendees — per-listing booking data */
@@ -124,6 +134,8 @@ export type ListingAttendeeRow = {
   order_token: string;
   /** Parent listing this row was folded under (a chosen child); 0 otherwise. */
   parent_listing_id: number;
+  /** The package group this order belongs to; 0 when not a package order. */
+  package_group_id: number;
 };
 
 /** An attendee with all their listing bookings (for token resolution) */

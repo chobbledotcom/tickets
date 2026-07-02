@@ -207,6 +207,7 @@ const rowsToServicingEvent = async (
           ledger_event_group: "",
           listing_id: row.listing_id,
           order_token: "",
+          package_group_id: 0,
           parent_listing_id: 0,
           price_paid: Number(row.price_paid),
           quantity: row.quantity,
@@ -235,11 +236,11 @@ export const getServicingEvent = async (
   // orphan with no bookings (a single COALESCEd listing_id=0 row that
   // rowsToServicingEvent filters out) — no separate fallback query needed.
   const rows = await queryAll<ServicingRow>(
-    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}, a.kind
-       FROM attendees a
-       LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-      WHERE a.id = ? AND a.kind = ?
-      ORDER BY ea.start_at, ea.listing_id`,
+    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}, attendee.kind
+       FROM attendees AS attendee
+       LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+      WHERE attendee.id = ? AND attendee.kind = ?
+      ORDER BY listingAttendee.start_at, listingAttendee.listing_id`,
     [id, SERVICING_KIND],
   );
   return rows.length > 0 ? rowsToServicingEvent(rows) : null;
@@ -310,15 +311,15 @@ const getServicingEventRows = (today?: string): Promise<ServicingRow[]> => {
   const upcomingClause =
     today === undefined
       ? ""
-      : "AND (ea.start_at IS NULL OR DATE(ea.start_at) >= ?)";
+      : "AND (listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ?)";
   return queryAll<ServicingRow>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
-       FROM attendees a
-       JOIN listing_attendees ea ON ea.attendee_id = a.id
-      WHERE a.kind = ?
-        AND ea.quantity > 0
+       FROM attendees AS attendee
+       JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+      WHERE attendee.kind = ?
+        AND listingAttendee.quantity > 0
         ${upcomingClause}
-      ORDER BY COALESCE(ea.start_at, a.created), a.id`,
+      ORDER BY COALESCE(listingAttendee.start_at, attendee.created), attendee.id`,
     today === undefined ? [SERVICING_KIND] : [SERVICING_KIND, today],
   );
 };
@@ -579,15 +580,22 @@ export const COST_REPLAY_MISMATCH =
 
 /**
  * The transfer id of an existing service cost stored under `reference`, but ONLY
- * when its stored leg matches the WHOLE submitted payload — amount, servicing
- * event, listing, date, and (decrypted) memo. Returns null when no leg is stored
- * for the reference (a fresh cost). Throws {@link COST_REPLAY_MISMATCH} when a
- * leg IS stored but differs from the new payload: the cost form's per-render
- * idempotency key is an opaque token, so a stale/bfcached form the operator
- * edited before resubmitting would otherwise resolve to the old leg and report a
- * false success while recording nothing. The memo is checked too — a
- * payload-derived reference omits it, so "same amount/date, changed memo only"
- * must not silently keep the old memo.
+ * when its stored leg matches the submitted **operator-entered** payload —
+ * amount, servicing event, listing, and (decrypted) memo. Returns null when no
+ * leg is stored for the reference (a fresh cost). Throws
+ * {@link COST_REPLAY_MISMATCH} when a leg IS stored but differs: the cost form's
+ * per-render idempotency key is an opaque token, so a stale/bfcached form the
+ * operator edited before resubmitting would otherwise resolve to the old leg and
+ * report a false success while recording nothing. The memo is checked too — a
+ * payload-derived reference omits it, so "same amount, changed memo only" must
+ * not silently keep the old memo.
+ *
+ * `occurredAt` is deliberately NOT compared: it isn't an operator-editable cost
+ * form field — it's derived (the event's booking date, or `new Date()` for a
+ * dateless event). Comparing it would make a legitimate double-submit of a
+ * dateless cost (same key, same amount/listing/memo, a millisecond-different
+ * server clock) fail as a mismatch, defeating the idempotency key for the exact
+ * retry case it exists to cover.
  */
 const matchingServiceCostReplayId = async (
   input: RecordServiceCostInput,
@@ -598,12 +606,10 @@ const matchingServiceCostReplayId = async (
     amount: number;
     servicing_attendee_id: number;
     listing_id: number;
-    occurred_at: string;
     memo: string;
   }>(
     `SELECT transfer.id AS transfer_id, transfer.amount,
-            cost.servicing_attendee_id, cost.listing_id, cost.occurred_at,
-            cost.memo
+            cost.servicing_attendee_id, cost.listing_id, cost.memo
        FROM transfers AS transfer
        JOIN service_costs AS cost ON cost.transfer_id = transfer.id
       WHERE transfer.reference = ?`,
@@ -614,7 +620,6 @@ const matchingServiceCostReplayId = async (
     stored.amount === input.amount &&
     stored.servicing_attendee_id === input.servicingId &&
     stored.listing_id === input.listingId &&
-    stored.occurred_at === input.occurredAt &&
     (await decrypt(stored.memo)) === input.memo;
   if (!matches) throw new Error(COST_REPLAY_MISMATCH);
   return stored.transfer_id;

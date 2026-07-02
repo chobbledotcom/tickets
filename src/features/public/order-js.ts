@@ -26,6 +26,7 @@ import {
   serializeCatalog,
 } from "#shared/external-order.ts";
 import { nowIso } from "#shared/now.ts";
+import { loadPublicGroups } from "./discovery.ts";
 
 const JS_CONTENT_TYPE = "application/javascript; charset=utf-8";
 
@@ -84,13 +85,25 @@ export const handleOrderJs = async (request: Request): Promise<Response> => {
   // `?debug=true` flag that turns on the widget's verbose console logging.
   const url = new URL(request.url);
   const currency = settings.currency;
+  const [listings, publicGroups] = await Promise.all([
+    getCatalogListings(),
+    loadPublicGroups(),
+  ]);
+  // Package bundles are booked as a whole via /ticket/<group>, so the widget
+  // links to them directly rather than as cart lines (mirroring the /order
+  // gallery). Only bookable, non-hidden packages — hidden-package MEMBERS are
+  // already excluded from the listing catalog by getCatalogListings.
+  const packages = publicGroups
+    .filter((group) => group.is_package)
+    .map((group) => ({ name: group.name, slug: group.slug }));
   const catalog = buildCatalog({
     currency,
     debug: url.searchParams.get("debug") === "true",
     decimalPlaces: getDecimalPlaces(currency),
     generatedAt: nowIso(),
-    listings: await getCatalogListings(),
+    listings,
     origin: url.origin,
+    packages,
   });
 
   return jsResponse(

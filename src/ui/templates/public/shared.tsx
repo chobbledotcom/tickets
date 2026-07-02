@@ -3,6 +3,8 @@ import { isContactFormActive } from "#shared/contact-form.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { renderMarkdown } from "#shared/markdown.ts";
+import type { NavLevel, NavModel, NavNode } from "#shared/site-pages/types.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import {
   dayPriceFor,
@@ -12,45 +14,139 @@ import {
   PARENT_CHILD_GROUP_UNITS,
   type SharedGroupCapacity,
 } from "#shared/types.ts";
+import { desktopNavShell, mobileNavBar } from "#templates/components/nav.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
 
-/** Public site navigation - hides terms/contact/order links when off/empty */
-export const PublicNav = ({
-  hasTerms,
-  hasContact,
-  hasOrder,
+/** Everything {@link PublicNav} renders: the settings-driven page flags plus
+ * the site-pages tree (built per request by `publicNavProps`, site-nav.ts). */
+export type PublicNavProps = {
+  hasTerms: boolean;
+  hasContact: boolean;
+  hasOrder: boolean;
+  pages: NavModel;
+};
+
+/** A nav node as a link — or plain text when the target isn't publicly
+ * reachable (never render a dead link). The active-chain node is marked. */
+export const NodeLink = ({ node }: { node: NavNode }): JSX.Element =>
+  node.live ? (
+    <a class={node.active ? "active" : undefined} href={node.href}>
+      {node.label}
+    </a>
+  ) : (
+    <span>{node.label}</span>
+  );
+
+/** Desktop: the submenu levels nested recursively — level `depth` renders
+ * beneath the active node of the level above (the next page on the active
+ * chain), indenting one step per level like the admin sub-nav. The model
+ * never carries an empty level, so every rendered `<ul>` has children. */
+const DesktopLevels = ({
+  levels,
+  depth,
 }: {
-  hasTerms?: boolean;
-  hasContact?: boolean;
-  hasOrder?: boolean;
-}): JSX.Element => (
-  <nav>
-    <ul>
-      <li>
-        <a href="/">{t("nav.public.home")}</a>
-      </li>
-      <li>
-        <a href="/listings">{t("terms.listings")}</a>
-      </li>
-      {hasOrder && (
+  levels: readonly NavLevel[];
+  depth: number;
+}): JSX.Element | null =>
+  depth >= levels.length ? null : (
+    <ul class="admin-subnav">
+      {levels[depth]!.nodes.map((node) => (
+        <li>
+          <NodeLink node={node} />
+          {node.active && <DesktopLevels depth={depth + 1} levels={levels} />}
+        </li>
+      ))}
+    </ul>
+  );
+
+/** The fixed root links, with the root page nodes spliced between Listings and
+ * the Order/Terms/Contact group ("between listings and contact"). Each page
+ * `<li>` may carry extra children (the desktop nesting), supplied per node. */
+const rootItems = (
+  { hasTerms, hasContact, hasOrder, pages }: PublicNavProps,
+  nested: (node: NavNode) => JSX.Element | null,
+): JSX.Element[] => [
+  <li>
+    <a href="/">{t("nav.public.home")}</a>
+  </li>,
+  <li>
+    <a href="/listings">{t("terms.listings")}</a>
+  </li>,
+  ...pages.rootPageNodes.map((node) => (
+    <li>
+      <NodeLink node={node} />
+      {nested(node)}
+    </li>
+  )),
+  ...(hasOrder
+    ? [
         <li>
           <a href="/order">{t("nav.public.order")}</a>
-        </li>
-      )}
-      {hasTerms && (
+        </li>,
+      ]
+    : []),
+  ...(hasTerms
+    ? [
         <li>
           <a href="/terms">
             <Raw html={t("nav.public.terms")} />
           </a>
-        </li>
-      )}
-      {hasContact && (
+        </li>,
+      ]
+    : []),
+  ...(hasContact
+    ? [
         <li>
           <a href="/contact">{t("nav.public.contact")}</a>
-        </li>
-      )}
-    </ul>
-  </nav>
+        </li>,
+      ]
+    : []),
+];
+
+/** Mobile: the root bar, then one bar per active-chain level (root-first),
+ * each carrying its page's name as the bar's accessible label. */
+const MobilePublicNav = (props: PublicNavProps): JSX.Element => (
+  <>
+    {mobileNavBar(
+      t("nav.public.main"),
+      rootItems(props, () => null),
+    )}
+    {props.pages.submenuLevels.map((level) =>
+      mobileNavBar(
+        level.label,
+        level.nodes.map((node) => (
+          <li>
+            <NodeLink node={node} />
+          </li>
+        )),
+      ),
+    )}
+  </>
+);
+
+/**
+ * Public site navigation: the fixed links (Home, Listings, Order/Terms/Contact
+ * when enabled) with the operator's root pages spliced in between, plus the
+ * recursive contextual submenus along the active chain. Mirrors the admin
+ * pattern — one nested sidebar on desktop, separate stacked bars on mobile —
+ * by reusing its proven CSS (`admin-nav--desktop` / `admin-subnav` /
+ * `admin-nav--mobile`; `.admin-nav-group` pins the desktop sidebar). It must
+ * NOT carry the admin nav's `#main-nav` id: the stylesheet reads that id as
+ * "this is an admin page" (full-bleed main, admin textarea sizing), while a
+ * public page keeps the shared 800px reading width.
+ */
+export const PublicNav = (props: PublicNavProps): JSX.Element => (
+  <div class="admin-nav-group">
+    {desktopNavShell(
+      t("nav.public.main"),
+      rootItems(props, (node) =>
+        node.active ? (
+          <DesktopLevels depth={0} levels={props.pages.submenuLevels} />
+        ) : null,
+      ),
+    )}
+    <MobilePublicNav {...props} />
+  </div>
 );
 
 /** Compute which public pages have content.
@@ -62,6 +158,28 @@ export const navFlags = () => ({
   hasOrder: settings.orderEnabled,
   hasTerms: !!settings.terms,
 });
+
+/** The footer every public page ends with: the one admin-login link. */
+export const LoginFooter = (): JSX.Element => (
+  <footer class="homepage-footer">
+    <p>
+      <a href="/admin/login">{t("common.login")}</a>
+    </p>
+  </footer>
+);
+
+/** Operator-authored markdown rendered into the shared `.prose` block —
+ * nothing at all when the markdown is empty. */
+export const MarkdownProse = ({
+  markdown,
+}: {
+  markdown: string;
+}): JSX.Element | null =>
+  markdown ? (
+    <div class="prose">
+      <Raw html={renderMarkdown(markdown)} />
+    </div>
+  ) : null;
 
 export const RSS_DISCOVERY_TAG =
   '<link rel="alternate" type="application/rss+xml" title="Listings" href="/feeds/listings.rss" />';
@@ -141,17 +259,11 @@ export const childActive = (child: TicketListing): boolean =>
 /** The child is not registration-closed. */
 export const childOpen = (child: TicketListing): boolean => !child.isClosed;
 
-/** Date-LESS cumulative sold-out check, **standard only**: a STANDARD child's
- * capacity is cumulative and date-independent, so `isSoldOut` is authoritative;
- * a DAILY child's date-less `isSoldOut` aggregate is meaningless (it reads true
- * once full on ANY single date), so it is exempt here and judged per-date
- * downstream. */
-export const childStandardInStock = (child: TicketListing): boolean =>
-  child.listing.listing_type === "daily" || !child.isSoldOut;
-
-/** Strict date-less sold-out check applied to **every** kind (the booking-page
- * render variant): the child option renders enabled only when not sold out,
- * including a daily child judged by its date-less aggregate. */
+/** Date-less sold-out check: a STANDARD child's capacity is cumulative and
+ * date-independent, so `isSoldOut` is authoritative; a DAILY child never reads
+ * sold out date-lessly ({@link buildTicketListing} makes no date-less capacity
+ * claim for daily listings — its per-date capacity is judged downstream once a
+ * date is known), so this is safe for every kind. */
 export const childInStock = (child: TicketListing): boolean => !child.isSoldOut;
 
 /** Whether a DAILY child has at least one bookable start that COVERS `span` on
@@ -245,6 +357,14 @@ export const combinedGroupDemandFits = (cap: SharedGroupCapacity): boolean =>
   (cap.staticCap === undefined || cap.staticCap >= PARENT_CHILD_GROUP_UNITS) &&
   (cap.remaining === undefined || cap.remaining >= PARENT_CHILD_GROUP_UNITS);
 
+/** How many whole orders fit in one capped group pool when each order consumes
+ * `demand` (≥ 1) spots: `floor(remaining / demand)`. The single source of the
+ * shared-group pool division reused by every render-time capacity cap — a
+ * package bundle (demand = Σ member quantities in the group) and a parent+child
+ * cohort (demand = {@link PARENT_CHILD_GROUP_UNITS}). */
+export const groupPoolUnits = (remaining: number, demand: number): number =>
+  Math.floor(remaining / demand);
+
 /** Combine a list of child-availability atoms into one predicate that ANDs them
  * all. Callers compose exactly the atoms their site needs (via {@link
  * compact} to drop the optional ones they don't), keeping behaviour identical. */
@@ -254,14 +374,27 @@ export const selectableChild =
     atoms.every((atom) => atom(child));
 
 /** Whether a required child clears the date- AND span-INDEPENDENT disqualifiers:
- * active, not registration-closed, and — for a STANDARD child — not sold out (a
- * daily child's date-less aggregate is judged per-date downstream). The single
+ * active, not registration-closed, and not sold out (a daily child never reads
+ * sold out date-lessly; its per-date capacity is judged downstream). The single
  * source of truth both the date union (ticket-payment.ts) and the day-count
  * union (reservations.tsx) use to drop children the fold would categorically
  * reject (parents.md Fixes 2–4). Span- and date-dependent checks layer on top in
  * the caller that knows the inherited span/date. */
 export const childSelectableIgnoringSpan: (child: TicketListing) => boolean =
-  selectableChild([childActive, childOpen, childStandardInStock]);
+  selectableChild([childActive, childOpen, childInStock]);
+
+/** The ids of every currently-bookable child on a page (span-independent
+ * disqualifiers only), for surfaces that price or cap over the tree's child
+ * nodes — bookability is a render fact the tree doesn't carry. */
+export const bookableChildIds = (
+  childrenByParentId: ReadonlyMap<number, TicketListing[]> | undefined,
+): ReadonlySet<number> =>
+  new Set(
+    [...(childrenByParentId?.values() ?? [])]
+      .flat()
+      .filter(childSelectableIgnoringSpan)
+      .map((child) => child.listing.id),
+  );
 
 /** Single source of truth for the duration a parent's children inherit
  * (invariant I4), parameterised by what each surface uses when the parent's span
@@ -337,7 +470,16 @@ export const buildTicketListing = (
   closed: boolean,
   groupRemaining: number | undefined,
 ): TicketListing => {
-  const listingRemaining = listing.max_attendees - listing.attendee_count;
+  // A DAILY listing's `attendee_count` is cumulative across every date, so it
+  // is not a date-less capacity fact: full on one date must not read "sold
+  // out" for all the empty ones. Date-less surfaces therefore make NO capacity
+  // claim for a daily listing (mirroring getGroupRemainingByListingId, which
+  // drops daily group pools without a date) — the buyer picks a date and the
+  // per-date clamp plus the atomic write judge that date authoritatively.
+  const listingRemaining =
+    listing.listing_type === "daily"
+      ? Number.POSITIVE_INFINITY
+      : listing.max_attendees - listing.attendee_count;
   const spotsRemaining =
     groupRemaining === undefined
       ? listingRemaining

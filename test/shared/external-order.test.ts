@@ -134,6 +134,27 @@ describe("external-order", () => {
         (catalog.listings.fixed as { variablePrice: boolean }).variablePrice,
       ).toBe(false);
     });
+
+    test("keys package bundles by slug, separate from listings", () => {
+      const catalog = buildCatalog({
+        ...base,
+        listings: [testListing({ id: 1, name: "Solo", slug: "solo" })],
+        packages: [
+          { name: "Camp Bundle", slug: "camp" },
+          { name: "Beach Bundle", slug: "beach" },
+        ],
+      });
+      expect(Object.keys(catalog.listings)).toEqual(["solo"]);
+      expect(catalog.packages).toEqual({
+        beach: { name: "Beach Bundle", slug: "beach" },
+        camp: { name: "Camp Bundle", slug: "camp" },
+      });
+    });
+
+    test("defaults packages to an empty object when none are given", () => {
+      const catalog = buildCatalog({ ...base, listings: [] });
+      expect(catalog.packages).toEqual({});
+    });
   });
 
   describe("serializeCatalog", () => {

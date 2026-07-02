@@ -49,8 +49,35 @@ export type ModifierSpec = {
   quantity: number;
 };
 
-/** Compact booking item stored in session metadata (serialized/deserialized as JSON) */
-export type BookingItem = { e: number; q: number; p: number };
+/**
+ * Compact booking item stored in session metadata (serialized/deserialized as
+ * JSON): listing id (`e`), quantity (`q`), line total in minor units (`p`).
+ *
+ * A top-level line also carries its edge provenance so the webhook can
+ * reconstruct the line's canonical booking-tree `nodeKey` and re-check it still
+ * resolves: `k` is the edge kind (`"p"` package member, `"g"` group member — see
+ * signed-metadata.ts) and `r` the group id it hangs off. Both are absent on a
+ * standalone line.
+ */
+/** One signed booking line, schema-first: `e` listing id, `q` quantity, `p`
+ * signed unit price, and the optional edge tag (`k` code + `r` group id) the
+ * webhook's nodeKey revalidation reconstructs. The writer (signedEdgeFor) and
+ * every reader parse against THIS schema, so a drifted or tampered blob is a
+ * loud parse failure — never a silently-wrong nodeKey. */
+export const BookingItemSchema = v.object({
+  e: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  k: v.optional(v.union([v.literal("p"), v.literal("g")])),
+  p: v.pipe(v.number(), v.finite()),
+  q: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  r: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1))),
+});
+
+export const BookingItemsSchema = v.pipe(
+  v.array(BookingItemSchema),
+  v.minLength(1),
+);
+
+export type BookingItem = v.InferOutput<typeof BookingItemSchema>;
 
 /** Compact modifier reference stored in session metadata: the modifier id and
  * the quantity taken. The webhook re-fetches the modifier by id and re-derives
@@ -86,6 +113,10 @@ type CheckoutMetaFields = {
    * signed metadata so the webhook can expand child bookings into per-parent
    * rows. Absent for legacy/no-parent orders. */
   allocations?: ChildAllocation[] | undefined;
+  /** Set when the booking is for a package group: its id, carried through the
+   * signed metadata so the webhook re-derives each member's expected price from
+   * the group's current `group_listings.package_price`. Absent otherwise. */
+  packageGroupId?: number | undefined;
 };
 
 /** Fields shared by the booking and checkout intents: the contact, answer,
@@ -181,6 +212,9 @@ export type SessionMetadata = {
    * round-trip so the webhook can expand child bookings into per-parent rows
    * (Stage C). "" when no children were folded. */
   allocations: string;
+  /** The package group's id when the booking is a package ("" otherwise), so the
+   * webhook re-prices members against the current package overrides. */
+  package_group_id: string;
   /** The agreed order total (minor units) the buyer was charged, packed with a
    * server HMAC over the price/booking fields as `total.sig` in a single key —
    * one entry rather than two, to stay within providers' metadata-entry caps

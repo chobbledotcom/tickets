@@ -175,9 +175,8 @@ describeWithEnv(
 
     test("groups on listings page show Registration Closed in read-only mode", async () => {
       const { settings } = await import("#shared/db/settings.ts");
-      const { groupsTable, computeGroupSlugIndex } = await import(
-        "#shared/db/groups.ts"
-      );
+      const { groupsTable, computeGroupSlugIndex, assignListingsToGroup } =
+        await import("#shared/db/groups.ts");
       const { listingsTable, computeSlugIndex } = await import(
         "#shared/db/listings.ts"
       );
@@ -191,14 +190,14 @@ describeWithEnv(
         slugIndex,
         termsAndConditions: "",
       });
-      await listingsTable.insert({
-        groupId: group.id,
+      const roListing = await listingsTable.insert({
         maxAttendees: 50,
         maxPrice: 0,
         name: "RO Listing",
         slug: "ro-listing",
         slugIndex: await computeSlugIndex("ro-listing"),
       });
+      await assignListingsToGroup([roListing.id], group.id);
       const res = await handleRequest(mockRequest("/listings"));
       const html = await res.text();
       expect(html).toContain("Read Only Group");
@@ -238,7 +237,7 @@ describeWithEnv(
     // DELETE mutations (non-API) are now blocked by default-deny.
     const deleteBlockedPaths = [
       "/admin/listing/1/delete",
-      "/admin/listing/1/attendee/2/delete",
+      "/admin/attendees/2/delete",
     ];
     for (const path of deleteBlockedPaths) {
       test(`DELETE ${path} is blocked by default-deny`, async () => {

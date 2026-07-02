@@ -279,6 +279,57 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       );
     });
 
+    test("lists package groups under a Packages heading above regular ones", async () => {
+      await settings.update.showPublicSite(true);
+      // Two package groups (out of alpha order) prove the name sort runs.
+      const pkgZ = await createTestGroup({
+        isPackage: true,
+        name: "Zephyr Bundle",
+        slug: "zephyr-bundle",
+      });
+      await createTestListing({
+        groupId: pkgZ.id,
+        maxAttendees: 50,
+        name: "Zephyr Listing",
+      });
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Weekend Bundle",
+        slug: "weekend-bundle",
+      });
+      await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 50,
+        name: "Bundle Listing",
+      });
+      const regular = await createTestGroup({
+        name: "Regular Group",
+        slug: "regular-group",
+      });
+      await createTestListing({
+        groupId: regular.id,
+        maxAttendees: 50,
+        name: "Regular Listing",
+      });
+
+      const html = await assertPublicHtml("/listings", "Weekend Bundle");
+      // The Packages heading precedes the package groups, sorted by name
+      // (Weekend before Zephyr), which precede the "All bookable listings"
+      // section that carries the regular group.
+      expect(html.indexOf("Packages")).toBeLessThan(
+        html.indexOf("Weekend Bundle"),
+      );
+      expect(html.indexOf("Weekend Bundle")).toBeLessThan(
+        html.indexOf("Zephyr Bundle"),
+      );
+      expect(html.indexOf("Zephyr Bundle")).toBeLessThan(
+        html.indexOf("All bookable listings"),
+      );
+      expect(html.indexOf("All bookable listings")).toBeLessThan(
+        html.indexOf("Regular Group"),
+      );
+    });
+
     test("suppresses the CTA of a group with no active members on listings page", async () => {
       // A group with no active (standalone-bookable) member has no valid
       // `/ticket/<group>` entry point (its group page 404s), so its Book CTA must
@@ -294,6 +345,76 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       const html = await assertPublicHtml("/listings", "Standalone Listing");
       expect(html).not.toContain(`href="/ticket/${group.slug}"`);
       expect(html).not.toContain("Empty Group");
+    });
+
+    test("suppresses a package CTA when a member is sold out", async () => {
+      // A package is all-or-nothing: if any member can't be booked the whole
+      // bundle's count caps at 0, so its /listings Book CTA must be suppressed
+      // rather than land the buyer on a page that can only fail.
+      await settings.update.showPublicSite(true);
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Half Bundle",
+        slug: "half-bundle",
+      });
+      await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 50,
+        name: "Available Member",
+      });
+      await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 0,
+        name: "Sold Out Member",
+      });
+      // A standalone listing keeps the page non-empty.
+      await createTestListing({ maxAttendees: 50, name: "Standalone Listing" });
+
+      const html = await assertPublicHtml("/listings", "Standalone Listing");
+      expect(html).not.toContain(`href="/ticket/${pkg.slug}"`);
+      expect(html).not.toContain("Half Bundle");
+    });
+
+    test("suppresses a package CTA when a member is inactive", async () => {
+      // A package is all-or-nothing: an inactive member makes the whole bundle
+      // unavailable rather than silently selling only the active subset.
+      await settings.update.showPublicSite(true);
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Partial Bundle",
+        slug: "partial-bundle",
+      });
+      await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 50,
+        name: "Active Member",
+      });
+      const inactive = await createTestListing({
+        groupId: pkg.id,
+        maxAttendees: 50,
+        name: "Inactive Member",
+      });
+      await deactivateTestListing(inactive.id);
+      await createTestListing({ maxAttendees: 50, name: "Standalone Listing" });
+
+      const html = await assertPublicHtml("/listings", "Standalone Listing");
+      expect(html).not.toContain(`href="/ticket/${pkg.slug}"`);
+      expect(html).not.toContain("Partial Bundle");
+    });
+
+    test("suppresses a package CTA when the group has no members", async () => {
+      await settings.update.showPublicSite(true);
+      const empty = await createTestGroup({
+        isPackage: true,
+        name: "Empty Bundle",
+        slug: "empty-bundle",
+      });
+      // A standalone listing keeps the page non-empty.
+      await createTestListing({ maxAttendees: 50, name: "Standalone Listing" });
+
+      const html = await assertPublicHtml("/listings", "Standalone Listing");
+      expect(html).not.toContain(`href="/ticket/${empty.slug}"`);
+      expect(html).not.toContain("Empty Bundle");
     });
 
     test("shows group description on listings page", async () => {
@@ -384,6 +505,108 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       });
       const html = await assertPublicHtml("/listings", "Sold Out");
       expect(html).not.toContain(`href="/ticket/${listing.slug}"`);
+    });
+
+    test("a daily listing full on one date is not sold out date-lessly", async () => {
+      // #51: a daily listing's cumulative bookings span every date, so its
+      // card and booking page must not claim "sold out" without a date — the
+      // date-aware submit gate judges the chosen date instead.
+      await settings.update.showPublicSite(true);
+      const listing = await createTestListing({
+        listingType: "daily",
+        maxAttendees: 1,
+        minimumDaysBefore: 0,
+        name: "Daily Hire",
+      });
+      await bookAttendee(listing, {
+        date: addDays(todayInTz("UTC"), 2),
+        email: "first@test.com",
+        name: "First",
+        quantity: 1,
+      });
+      const html = await assertPublicHtml("/listings", "Daily Hire");
+      expect(html).not.toContain("Sold Out");
+      expect(html).toContain(`href="/ticket/${listing.slug}"`);
+      // The booking page still offers the date selector rather than a
+      // sold-out label.
+      const page = await assertPublicHtml(
+        `/ticket/${listing.slug}`,
+        'name="date"',
+      );
+      expect(page).not.toContain("Sold Out");
+    });
+
+    test("invites a date and answers daily card availability once chosen", async () => {
+      // #51: daily cards claim nothing date-lessly, so the page invites a
+      // date; with one chosen, each daily card answers for THAT date and a
+      // bookable card's CTA carries the date into its booking page.
+      await settings.update.showPublicSite(true);
+      const date = addDays(todayInTz("UTC"), 2);
+      const fullDaily = await createTestListing({
+        listingType: "daily",
+        maxAttendees: 1,
+        minimumDaysBefore: 0,
+        name: "Full Daily",
+      });
+      const freeDaily = await createTestListing({
+        durationDays: 2,
+        listingType: "daily",
+        maxAttendees: 5,
+        minimumDaysBefore: 0,
+        name: "Free Daily",
+      });
+      // A customisable listing books per-day starts, so its card is judged
+      // over a 1-day span (a distinct remaining query from freeDaily's 2-day
+      // one).
+      const flexDaily = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 500, 2: 900 },
+        durationDays: 2,
+        listingType: "daily",
+        maxAttendees: 5,
+        minimumDaysBefore: 0,
+        name: "Flex Daily",
+        unitPrice: 500,
+      });
+      await bookAttendee(fullDaily, { date, quantity: 1 });
+
+      // Without a date: the filter form renders and no card claims anything.
+      const unfiltered = await assertPublicHtml(
+        "/listings",
+        "listings-date-filter",
+      );
+      expect(unfiltered).not.toContain("Not available on");
+
+      // With a date: the full listing reads honestly unavailable for it, the
+      // free one's Book CTA carries the date through.
+      const filtered = await assertPublicHtml(
+        `/listings?date=${date}`,
+        "Not available on",
+      );
+      expect(filtered).toContain(
+        `href="/ticket/${freeDaily.slug}?date=${date}"`,
+      );
+      expect(filtered).toContain(
+        `href="/ticket/${flexDaily.slug}?date=${date}"`,
+      );
+      expect(filtered).not.toContain(`href="/ticket/${fullDaily.slug}`);
+
+      // A malformed date is ignored rather than trusted.
+      const garbage = await assertPublicHtml("/listings?date=2026-02-30");
+      expect(garbage).not.toContain("Not available on");
+
+      // The carried date lands pre-selected on the booking page.
+      await assertPublicHtml(
+        `/ticket/${freeDaily.slug}?date=${date}`,
+        `<option value="${date}" selected>`,
+      );
+    });
+
+    test("shows no date filter when no daily listings are listed", async () => {
+      await settings.update.showPublicSite(true);
+      await createTestListing({ maxAttendees: 5, name: "Standard Only" });
+      const html = await assertPublicHtml("/listings", "Standard Only");
+      expect(html).not.toContain("listings-date-filter");
     });
 
     test("shows registration closed for listings past closes_at", async () => {
@@ -3526,7 +3749,8 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         name: "First User",
       });
 
-      // Second booking for same date should fail
+      // Second booking for same date is rejected by the date-aware gate
+      // (#51: the page itself stays live — capacity is a per-date fact).
       const response = await submitTicketForm(listing.slug, {
         date: validDate,
         email: "second@example.com",
@@ -3535,7 +3759,7 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("not enough spots available"),
+        expect.stringContaining("no longer has enough spots available"),
         false,
       );
     });

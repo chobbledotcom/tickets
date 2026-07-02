@@ -5,7 +5,7 @@
 import { filter, map } from "#fp";
 import { capacityErrorFormatter } from "#routes/format.ts";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
-import { validatePrice } from "#shared/currency.ts";
+import { quantityFieldName } from "#shared/booking/tree.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type {
   AttendeeAnswerSet,
@@ -16,6 +16,7 @@ import type {
 } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ListingFields } from "#shared/types.ts";
+import { validatePrice } from "#shared/validation/money.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { extractContact, mergeListingFields } from "#templates/fields.ts";
 import { type TicketListing, ticketPage } from "#templates/public.tsx";
@@ -193,7 +194,7 @@ export const parseQuantities = (
   for (const { listing, isSoldOut, isClosed, maxPurchasable } of listings) {
     if (isSoldOut || isClosed) continue;
 
-    const raw = form.get(`quantity_${listing.id}`) || "0";
+    const raw = form.get(quantityFieldName(listing.id)) || "0";
     const quantity = parseQuantityValue(raw, maxPurchasable, 0);
     if (quantity > 0) {
       quantities.set(listing.id, quantity);

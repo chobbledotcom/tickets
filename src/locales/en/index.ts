@@ -16,6 +16,7 @@ import datePicker from "./date-picker.json" with { type: "json" };
 import debug from "./debug.json" with { type: "json" };
 import deliveries from "./deliveries.json" with { type: "json" };
 import detailRows from "./detail-rows.json" with { type: "json" };
+import entityPages from "./entity-pages.json" with { type: "json" };
 import errors from "./errors.json" with { type: "json" };
 import fields from "./fields.json" with { type: "json" };
 import groups from "./groups.json" with { type: "json" };
@@ -36,6 +37,7 @@ import questions from "./questions.json" with { type: "json" };
 import settings from "./settings.json" with { type: "json" };
 import setup from "./setup.json" with { type: "json" };
 import site from "./site.json" with { type: "json" };
+import sitePages from "./site-pages.json" with { type: "json" };
 import sms from "./sms.json" with { type: "json" };
 import statuses from "./statuses.json" with { type: "json" };
 import support from "./support.json" with { type: "json" };
@@ -59,6 +61,7 @@ const en: Record<string, string> = {
   ...debug,
   ...deliveries,
   ...detailRows,
+  ...entityPages,
   ...errors,
   ...fields,
   ...groups,
@@ -79,6 +82,7 @@ const en: Record<string, string> = {
   ...settings,
   ...setup,
   ...site,
+  ...sitePages,
   ...sms,
   ...statuses,
   ...support,

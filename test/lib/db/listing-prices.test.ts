@@ -3,6 +3,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#shared/db/client.ts";
 import {
   backfillListingPrices,
+  getGroupDayPrices,
+  getGroupDayPricesByGroupIds,
+  groupDayPriceStatements,
   listingPriceStatements,
   sourceRowStatements,
   syncListingPrices,
@@ -67,6 +70,33 @@ describe("sourceRowStatements", () => {
     ).toEqual([
       [4, "base", "day_count"],
       [4, "base", "", 0],
+    ]);
+  });
+});
+
+describe("groupDayPriceStatements", () => {
+  test("emits a group-scoped LIKE delete, then one insert per member day price", () => {
+    const stmts = groupDayPriceStatements(12, [
+      { dayPrices: { 2: 1500 }, listingId: 5 },
+      // A member with no per-day overrides contributes no inserts.
+      { listingId: 6 },
+    ]);
+    expect(stmts.map((s) => s.args)).toEqual([
+      ["group_day", "12/%"],
+      [5, "group_day", "12/2", 1500],
+    ]);
+    expect(stmts[0]!.sql).toContain("price_id LIKE ?");
+  });
+
+  test("normalises day-price entries like every other day-price write", () => {
+    // Day 0 and a negative price are dropped by parseDayPrices; the valid
+    // entry is kept.
+    const stmts = groupDayPriceStatements(3, [
+      { dayPrices: { 0: 100, 2: -5, 4: 800 }, listingId: 9 },
+    ]);
+    expect(stmts.map((s) => s.args)).toEqual([
+      ["group_day", "3/%"],
+      [9, "group_day", "3/4", 800],
     ]);
   });
 });
@@ -184,5 +214,66 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
     // id yields null and must not touch listing_prices.
     expect(await listingsTable.update(987655, { unitPrice: 500 })).toBeNull();
     expect(await priceRows(987655)).toEqual([]);
+  });
+
+  /** Insert one raw `group_day` row with a crafted price_id, so the readers'
+   * group scoping is exercised without needing real groups at those ids. */
+  const seedGroupDayRow = (
+    listingId: number,
+    priceId: string,
+    price: number,
+  ): Promise<unknown> =>
+    queryAll(
+      "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, 'group_day', ?, ?)",
+      [listingId, priceId, price],
+    );
+
+  /** Insert a bare membership row — the readers only surface a group_day row
+   * whose listing is a CURRENT member of that group. */
+  const seedMembership = (groupId: number, listingId: number) =>
+    queryAll(
+      "INSERT INTO group_listings (group_id, listing_id) VALUES (?, ?)",
+      [groupId, listingId],
+    );
+
+  test("getGroupDayPrices folds only its own group's current members — a prefix-sharing id never matches and a removed member's stale rows are invisible", async () => {
+    await seedMembership(1, 5);
+    await seedGroupDayRow(5, "1/2", 700);
+    await seedGroupDayRow(5, "1/3", 900);
+    // Group 12 shares group 1's prefix; the trailing "/" keeps LIKE exact.
+    await seedMembership(12, 6);
+    await seedGroupDayRow(6, "12/2", 100);
+    // Listing 16's rows survive its removal from the group (no membership row);
+    // the reader must not resurrect them.
+    await seedGroupDayRow(16, "1/2", 555);
+    const map = await getGroupDayPrices(1);
+    expect(map.get(5)?.get(2)).toBe(700);
+    expect(map.get(5)?.get(3)).toBe(900);
+    expect(map.has(6)).toBe(false);
+    expect(map.has(16)).toBe(false);
+  });
+
+  test("getGroupDayPricesByGroupIds splits rows by group and skips unrequested groups and stale rows", async () => {
+    await seedMembership(21, 7);
+    await seedMembership(21, 17);
+    await seedMembership(22, 8);
+    await seedMembership(23, 9);
+    await seedGroupDayRow(7, "21/2", 400);
+    // A second row in the same group appends to that group's fold.
+    await seedGroupDayRow(17, "21/3", 350);
+    await seedGroupDayRow(8, "22/1", 250);
+    await seedGroupDayRow(9, "23/2", 999);
+    // A removed member's leftover row (no membership) never surfaces.
+    await seedGroupDayRow(18, "22/2", 111);
+    const byGroup = await getGroupDayPricesByGroupIds([21, 22]);
+    expect(byGroup.get(21)?.get(7)?.get(2)).toBe(400);
+    expect(byGroup.get(21)?.get(17)?.get(3)).toBe(350);
+    expect(byGroup.get(22)?.get(8)?.get(1)).toBe(250);
+    expect(byGroup.get(22)?.has(18)).toBe(false);
+    // Group 23's rows exist but weren't requested; group 24 has none.
+    expect(byGroup.has(23)).toBe(false);
+    expect(byGroup.has(24)).toBe(false);
+    // An empty request reads nothing.
+    expect((await getGroupDayPricesByGroupIds([])).size).toBe(0);
   });
 });

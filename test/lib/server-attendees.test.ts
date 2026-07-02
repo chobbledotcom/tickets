@@ -49,10 +49,10 @@ import {
 
 describeWithEnv("server (admin attendees)", { db: true }, () => {
   const deleteAction = adminAttendeeAction("delete");
-  const checkinAction = adminAttendeeAction("checkin");
+  const checkinAction = adminAttendeeAction("checkin", "listing");
 
   describe("GET /admin/listing/:listingId/attendee/:attendeeId/delete", () => {
-    testRequiresAuth("/admin/listing/1/attendee/1/delete", {
+    testRequiresAuth("/admin/attendees/1/delete", {
       setup: async () => {
         const listing = await createTestListing({
           maxAttendees: 100,
@@ -68,7 +68,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const response = await adminGet("/admin/listing/999/attendee/1/delete");
+      const response = await adminGet("/admin/attendees/1/delete");
       expect(response.status).toBe(404);
     });
 
@@ -78,39 +78,37 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         thankYouUrl: "https://example.com",
       });
 
-      const response = await adminGet("/admin/listing/1/attendee/999/delete");
+      const response = await adminGet("/admin/attendees/999/delete");
       expect(response.status).toBe(404);
     });
 
-    test("returns 404 when attendee belongs to different listing", async () => {
-      const listing1 = await createTestListing({
+    test("returns 404 for an orphan attendee with no home listing", async () => {
+      // The attendee-scoped action loads the attendee's home listing; an
+      // attendee whose bookings are all gone has none, so the page 404s.
+      const listing = await createTestListing({
         maxAttendees: 100,
         name: "Listing 1",
         thankYouUrl: "https://example.com",
       });
-      const listing2 = await createTestListing({
-        maxAttendees: 100,
-        name: "Listing 2",
-        thankYouUrl: "https://example.com",
-      });
       const attendee = await createTestAttendee(
-        listing2.id,
-        listing2.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
-
-      // Try to delete attendee from listing 2 via listing 1 URL
-      const response = await adminGet(
-        `/admin/listing/${listing1.id}/attendee/${attendee.id}/delete`,
+      const { getDb } = await import("#shared/db/client.ts");
+      await getDb().execute(
+        "DELETE FROM listing_attendees WHERE attendee_id = ?",
+        [attendee.id],
       );
+
+      const response = await adminGet(`/admin/attendees/${attendee.id}/delete`);
       expect(response.status).toBe(404);
     });
 
     test("shows delete confirmation page when authenticated", async () => {
       const { response } = await adminListingPage(
-        (ctx) =>
-          `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/delete`,
+        (ctx) => `/admin/attendees/${ctx.attendee.id}/delete`,
       )();
       await expectHtmlResponse(
         response,
@@ -126,7 +124,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("includes return_url as hidden field when provided", async () => {
       const { response } = await adminListingPage(
         (ctx) =>
-          `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/delete?return_url=${encodeURIComponent(
+          `/admin/attendees/${ctx.attendee.id}/delete?return_url=${encodeURIComponent(
             "/admin/calendar#attendees",
           )}`,
       )();
@@ -140,7 +138,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
   });
 
   describe("POST /admin/listing/:listingId/attendee/:attendeeId/delete", () => {
-    testRequiresAuth("/admin/listing/1/attendee/1/delete", {
+    testRequiresAuth("/admin/attendees/1/delete", {
       body: {
         confirm_identifier: "John Doe",
       },
@@ -160,10 +158,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const { response } = await adminFormPost(
-        "/admin/listing/999/attendee/1/delete",
-        { confirm_identifier: "John Doe" },
-      );
+      const { response } = await adminFormPost("/admin/attendees/1/delete", {
+        confirm_identifier: "John Doe",
+      });
       expect(response.status).toBe(404);
     });
 
@@ -173,10 +170,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         thankYouUrl: "https://example.com",
       });
 
-      const { response } = await adminFormPost(
-        "/admin/listing/1/attendee/999/delete",
-        { confirm_identifier: "John Doe" },
-      );
+      const { response } = await adminFormPost("/admin/attendees/999/delete", {
+        confirm_identifier: "John Doe",
+      });
       expect(response.status).toBe(404);
     });
 
@@ -211,7 +207,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         release_bookings: "1",
       })();
       await expectFlashRedirect(
-        `/admin/listing/${listing.id}`,
+        "/admin/attendees",
         "Attendee deleted",
       )(response);
 
@@ -229,7 +225,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         confirm_identifier: "  John Doe  ",
       })();
       await expectFlashRedirect(
-        "/admin/listing/1",
+        "/admin/attendees",
         "Attendee deleted",
       )(response);
     });
@@ -246,12 +242,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/attendee/${attendee.id}/delete`,
+        `/admin/attendees/${attendee.id}/delete`,
         { confirm_identifier: "Keep Pool" },
       );
 
       await expectFlashRedirect(
-        `/admin/listing/${listing.id}`,
+        "/admin/attendees",
         "Attendee deleted",
       )(response);
       const updated = await getListingWithCount(listing.id);
@@ -282,21 +278,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       }).toString();
 
       const response = await handleRequest(
-        new Request(
-          `http://localhost/admin/listing/${listing.id}/attendee/${attendee.id}/delete`,
-          {
-            body: formBody,
-            headers: {
-              "content-type": "application/x-www-form-urlencoded",
-              cookie: await testCookie(),
-              host: "localhost",
-            },
-            method: "DELETE",
+        new Request(`http://localhost/admin/attendees/${attendee.id}/delete`, {
+          body: formBody,
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            cookie: await testCookie(),
+            host: "localhost",
           },
-        ),
+          method: "DELETE",
+        }),
       );
       await expectFlashRedirect(
-        "/admin/listing/1",
+        "/admin/attendees",
         "Attendee deleted",
       )(response);
 
@@ -356,7 +349,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       // The custom handler requires confirm_identifier to match the attendee name.
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/listing/${listing.id}/attendee/${attendee.id}/delete`,
+          `/admin/attendees/${attendee.id}/delete`,
           { confirm_identifier: "Test User", csrf_token: csrfToken },
           cookie,
         ),
@@ -710,6 +703,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
      * sentinel, then POST one of its listing-scoped actions. */
     const ghostRowAction = async (
       action: string,
+      scope: "listing" | "attendee" = "attendee",
     ): Promise<{ response: Response; listingId: number }> => {
       const ctx = await setupAdminTest();
       await getDb().execute({
@@ -718,7 +712,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       });
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`,
+          scope === "listing"
+            ? `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`
+            : `/admin/attendees/${ctx.attendee.id}/${action}`,
           // setupAdminTest creates the attendee as "John Doe"; verified actions
           // (resend/refund) require the exact name in confirm_identifier.
           { confirm_identifier: "John Doe", csrf_token: ctx.csrfToken },
@@ -729,7 +725,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     };
 
     test("check-in refuses a no-quantity row and leaves it unchecked", async () => {
-      const { response, listingId } = await ghostRowAction("checkin");
+      const { response, listingId } = await ghostRowAction(
+        "checkin",
+        "listing",
+      );
       expectFlash(response, "Cannot check in a no-quantity line", false);
       const row = await getDb().execute({
         args: [listingId],
@@ -1093,11 +1092,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
 
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(
         response,
         200,
-        "Edit Attendee",
+        "Save Attendee",
         "John Doe",
         "john@example.com",
         "555-1234",
@@ -1115,7 +1114,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
       const response = await adminGet(
-        `/admin/attendees/${attendee.id}?return_url=${encodeURIComponent(
+        `/admin/attendees/${attendee.id}/edit?return_url=${encodeURIComponent(
           "/admin/calendar#attendees",
         )}`,
       );
@@ -1138,7 +1137,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(
         response,
         200,
@@ -1158,7 +1157,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "Edit User",
         "edit@example.com",
       );
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       const html = await expectHtmlResponse(
         response,
         200,
@@ -1205,7 +1204,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       });
       if (!result.success) throw new Error("Failed");
       const attendeeId = result.attendees[0]!.id;
-      const response = await adminGet(`/admin/attendees/${attendeeId}`);
+      const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
       const html = await expectHtmlResponse(
         response,
         200,
@@ -1231,7 +1230,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(response, 200, "Listing 1", "Listing 2");
     });
   });
@@ -1385,12 +1384,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       await expectFlashRedirect(
-        `/admin/attendees/${attendee.id}#attendee-form`,
+        `/admin/attendees/${attendee.id}/edit?form=attendee-form#attendee-form`,
         "Updated Jane Doe",
       )(response);
 
       // Verify the edit form shows the updated data
-      const editResponse = await adminGet(`/admin/attendees/${attendee.id}`);
+      const editResponse = await adminGet(
+        `/admin/attendees/${attendee.id}/edit`,
+      );
       expect(editResponse.status).toBe(200);
       const html = await editResponse.text();
       expect(html).toContain("Jane Doe");
@@ -1451,7 +1452,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       await expectFlashRedirect(
-        `/admin/attendees/${attendee.id}#attendee-form`,
+        `/admin/attendees/${attendee.id}/edit?form=attendee-form#attendee-form`,
         "Updated Jane Smith",
       )(response);
     });
@@ -1532,7 +1533,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
 
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(response, 200, "Listing 1", "Listing 2");
     });
 
@@ -1546,7 +1547,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
 
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(response, 200, 'type="email"', 'name="email"');
     });
 
@@ -1571,7 +1572,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         sql: "UPDATE listings SET active = 0 WHERE id = ?",
       });
 
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       // Listing still shows in registrations table even when inactive
       await expectHtmlResponse(
         response,
@@ -1628,7 +1629,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       await expectFlashRedirect(
-        `/admin/attendees/${attendee.id}#attendee-form`,
+        `/admin/attendees/${attendee.id}/edit?form=attendee-form#attendee-form`,
         "Updated Jane Smith",
       )(response);
     });
@@ -1644,13 +1645,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(response, 200, 'name="qty_');
     });
   });
 
   describe("GET /admin/listing/:listingId/attendee/:attendeeId/resend-notification", () => {
-    testRequiresAuth("/admin/listing/1/attendee/1/resend-notification", {
+    testRequiresAuth("/admin/attendees/1/resend-notification", {
       setup: async () => {
         const listing = await createTestListing({ maxAttendees: 100 });
         await createTestAttendee(
@@ -1663,9 +1664,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const response = await adminGet(
-        "/admin/listing/999/attendee/1/resend-notification",
-      );
+      const response = await adminGet("/admin/attendees/1/resend-notification");
       expect(response.status).toBe(404);
     });
 
@@ -1673,15 +1672,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await createTestListing({ maxAttendees: 100 });
 
       const response = await adminGet(
-        "/admin/listing/1/attendee/999/resend-notification",
+        "/admin/attendees/999/resend-notification",
       );
       expect(response.status).toBe(404);
     });
 
     test("shows resend notification confirmation page when authenticated", async () => {
       const { response } = await adminListingPage(
-        (ctx) =>
-          `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/resend-notification`,
+        (ctx) => `/admin/attendees/${ctx.attendee.id}/resend-notification`,
       )();
       await expectHtmlResponse(
         response,
@@ -1695,7 +1693,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("includes return_url as hidden field when provided", async () => {
       const { response } = await adminListingPage(
         (ctx) =>
-          `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/resend-notification?return_url=${encodeURIComponent(
+          `/admin/attendees/${ctx.attendee.id}/resend-notification?return_url=${encodeURIComponent(
             "/admin/calendar#attendees",
           )}`,
       )();
@@ -1708,10 +1706,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows error message when attendee name does not match", async () => {
-      const { listing, attendee, cookie, csrfToken } = await setupAdminTest();
+      const { attendee, cookie, csrfToken } = await setupAdminTest();
       const postResponse = await handleRequest(
         mockFormRequest(
-          `/admin/listing/${listing.id}/attendee/${attendee.id}/resend-notification`,
+          `/admin/attendees/${attendee.id}/resend-notification`,
           { confirm_identifier: "Wrong Name", csrf_token: csrfToken },
           cookie,
         ),
@@ -1744,9 +1742,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       }
 
       const response = await adminGet(
-        `/admin/listing/${listing.id}/attendee/${
-          result.attendees[0]!.id
-        }/resend-notification`,
+        `/admin/attendees/${result.attendees[0]!.id}/resend-notification`,
       );
       await expectHtmlResponse(
         response,
@@ -1761,7 +1757,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
   describe("POST /admin/listing/:listingId/attendee/:attendeeId/resend-notification", () => {
     const resendNotificationAction = adminAttendeeAction("resend-notification");
 
-    testRequiresAuth("/admin/listing/1/attendee/1/resend-notification", {
+    testRequiresAuth("/admin/attendees/1/resend-notification", {
       body: {
         confirm_identifier: "John Doe",
       },
@@ -1779,7 +1775,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("returns 404 for non-existent listing", async () => {
       const { response } = await adminFormPost(
-        "/admin/listing/999/attendee/1/resend-notification",
+        "/admin/attendees/1/resend-notification",
         { confirm_identifier: "John Doe" },
       );
       expect(response.status).toBe(404);
@@ -1789,7 +1785,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await createTestListing({ maxAttendees: 100 });
 
       const { response } = await adminFormPost(
-        "/admin/listing/1/attendee/999/resend-notification",
+        "/admin/attendees/999/resend-notification",
         { confirm_identifier: "John Doe" },
       );
       expect(response.status).toBe(404);
@@ -1817,14 +1813,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       try {
-        const { response, listing } = await resendNotificationAction({
+        const { response, attendee } = await resendNotificationAction({
           confirm_identifier: "John Doe",
         })({
           webhookUrl: "https://example.com/webhook",
         });
         expect(response.status).toBe(302);
         await expectFlashRedirect(
-          `/admin/listing/${listing.id}`,
+          `/admin/attendees/${attendee.id}/actions`,
           "Notification re-sent",
         )(response);
 
@@ -1856,6 +1852,64 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         );
         expect(resendLog).toBeDefined();
         expect(resendLog?.message).toContain("John Doe");
+      } finally {
+        webhookFetch.restore();
+      }
+    });
+
+    test("a package member's resend rehydrates every line of the package", async () => {
+      // The resend selects ONE member row, but the notification must carry
+      // the attendee's whole package — otherwise a hidden package's
+      // confirmation collapses to that single row's quantity/price.
+      const { createTestGroup } = await import("#test-utils");
+      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+      const group = await createTestGroup({ isPackage: true, name: "Duo Kit" });
+      const memberA = await createTestListing({
+        groupId: group.id,
+        name: "Duo A",
+        webhookUrl: "https://example.com/webhook",
+      });
+      const memberB = await createTestListing({
+        groupId: group.id,
+        name: "Duo B",
+      });
+      const result = await createAttendeeAtomic({
+        bookings: [
+          { listingId: memberA.id, quantity: 1 },
+          { listingId: memberB.id, quantity: 2 },
+        ],
+        email: "duo@example.com",
+        name: "Duo Buyer",
+        packageGroupId: group.id,
+      });
+      if (!result.success) throw new Error("package booking failed");
+
+      const webhookFetch = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response(null, { status: 200 })),
+      );
+      try {
+        const { response } = await adminFormPost(
+          `/admin/attendees/${result.attendees[0]!.id}/resend-notification`,
+          { confirm_identifier: "Duo Buyer" },
+        );
+        expect(response.status).toBe(302);
+        // Allow the fire-and-forget webhook to dispatch.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(webhookFetch.calls.length).toBe(1);
+        const [, options] = webhookFetch.calls[0]!.args as [
+          string,
+          RequestInit,
+        ];
+        const body = JSON.parse(options.body as string) as {
+          tickets: { listing_name: string; quantity: number }[];
+        };
+        // BOTH package lines ride the resend, with their own quantities.
+        expect(body.tickets).toHaveLength(2);
+        const byName = new Map(
+          body.tickets.map((t) => [t.listing_name, t.quantity]),
+        );
+        expect(byName.get("Duo A")).toBe(1);
+        expect(byName.get("Duo B")).toBe(2);
       } finally {
         webhookFetch.restore();
       }
@@ -2258,7 +2312,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("shows questions on edit page", async () => {
       const { attendee } = await setupQuestionAndAttendee();
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(
         response,
         200,
@@ -2273,7 +2327,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { saveAttendeeAnswers } = await import("#shared/db/questions.ts");
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       const html = await response.text();
       // The radio for the previously-saved answer is pre-checked.
       expect(html).toContain(
@@ -2389,8 +2443,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
   });
 
-  describe("GET /admin/attendees/:attendeeId/merge", () => {
-    testRequiresAuth("/admin/attendees/1/merge", {
+  describe("merge panel on the Actions tab", () => {
+    testRequiresAuth("/admin/attendees/1/actions", {
       setup: async () => {
         const listing = await createTestListing({ maxAttendees: 10 });
         await createTestAttendee(
@@ -2403,18 +2457,20 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      const response = await adminGet("/admin/attendees/999/merge");
+      const response = await adminGet("/admin/attendees/999/actions");
       expect(response.status).toBe(404);
     });
 
-    test("shows search form without token param", async () => {
+    test("shows the merge search form without a token param", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
       const { attendee } = await createTestAttendeeDirect(
         listing.id,
         "John Doe",
         "john@example.com",
       );
-      const response = await adminGet(`/admin/attendees/${attendee.id}/merge`);
+      const response = await adminGet(
+        `/admin/attendees/${attendee.id}/actions`,
+      );
       await expectHtmlResponse(
         response,
         200,
@@ -2431,7 +2487,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
       const response = await adminGet(
-        `/admin/attendees/${attendee.id}/merge?token=invalid-token`,
+        `/admin/attendees/${attendee.id}/actions?token=invalid-token`,
       );
       await expectHtmlResponse(response, 200, "not found");
     });
@@ -2444,7 +2500,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
       const response = await adminGet(
-        `/admin/attendees/${attendee.id}/merge?token=${encodeURIComponent(
+        `/admin/attendees/${attendee.id}/actions?token=${encodeURIComponent(
           token,
         )}`,
       );
@@ -2468,7 +2524,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
       const response = await adminGet(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
           sourceToken,
         )}`,
       );
@@ -2489,7 +2545,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     sourceToken: string,
   ): Promise<string> => {
     const page = await adminGet(
-      `/admin/attendees/${targetId}/merge?token=${encodeURIComponent(
+      `/admin/attendees/${targetId}/actions?token=${encodeURIComponent(
         sourceToken,
       )}`,
     );
@@ -2753,7 +2809,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
   });
 
-  describe("GET /admin/attendees/:attendeeId/merge (coverage branches)", () => {
+  describe("merge panel previews (coverage branches)", () => {
     test("shows merge preview with multiline field differences (address differs)", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
       const { attendee: target } = await createTestAttendeeDirect(
@@ -2779,7 +2835,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "Gluten free",
       );
       const response = await adminGet(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
           sourceToken,
         )}`,
       );
@@ -2807,7 +2863,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
       const response = await adminGet(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
           sourceToken,
         )}`,
       );
@@ -2832,7 +2888,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "",
       );
       const response = await adminGet(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
           sourceToken,
         )}`,
       );
@@ -2860,7 +2916,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const sourceToken = result.attendees[0]!.ticket_token;
 
       const response = await adminGet(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
           sourceToken,
         )}`,
       );
@@ -2887,7 +2943,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       const response = await adminGet(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
           sourceToken,
         )}`,
       );
@@ -2910,7 +2966,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       const response = await adminGet(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
           sourceToken,
         )}`,
       );
@@ -2965,7 +3021,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await save(new Map([[sourceData!.id, [a2.id]]]));
 
       const response = await adminGet(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
           sourceToken,
         )}`,
       );
@@ -3020,7 +3076,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       // Get merge version from preview page
       const previewPage = await adminGet(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
           sourceToken,
         )}`,
       );
@@ -3060,7 +3116,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       // Get merge version
       const previewPage = await adminGet(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
           sourceToken,
         )}`,
       );
@@ -3102,7 +3158,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
 
-      // Submit with wrong version — should get validation error (200 response)
+      // Submit with wrong version — bounced back to the Actions tab's merge
+      // panel with the validation error flashed and the search re-armed.
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
@@ -3110,10 +3167,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           source_token: sourceToken,
         },
       );
-      // Validation error renders the merge page (200) with error message
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("out of date");
+      expectRedirect(
+        response,
+        `/admin/attendees/${target.id}/actions`,
+        `token=${encodeURIComponent(sourceToken)}`,
+      );
+      expectFlash(response, expect.stringContaining("out of date"), false);
     });
 
     test("POST merge with clear answer choice clears the answer", async () => {

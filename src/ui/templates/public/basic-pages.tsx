@@ -4,7 +4,13 @@ import { CsrfForm, Flash, MessageFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { Layout } from "#templates/layout.tsx";
-import { FEED_DISCOVERY_TAGS, navFlags, PublicNav } from "./shared.tsx";
+import {
+  FEED_DISCOVERY_TAGS,
+  LoginFooter,
+  MarkdownProse,
+  PublicNav,
+  type PublicNavProps,
+} from "./shared.tsx";
 
 /** Public site page type */
 export type PublicPageType = "home" | "terms" | "contact";
@@ -14,6 +20,7 @@ export type PublicPageType = "home" | "terms" | "contact";
  */
 export const publicSitePage = (
   pageType: PublicPageType,
+  nav: PublicNavProps,
   websiteTitle?: string | null,
   content?: string | null,
 ): string => {
@@ -29,7 +36,7 @@ export const publicSitePage = (
   return String(
     <Layout headExtra={FEED_DISCOVERY_TAGS} title={pageTitle}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
-      <PublicNav {...navFlags()} />
+      <PublicNav {...nav} />
       <div class="prose">
         {content ? (
           <Raw html={renderMarkdown(content)} />
@@ -39,11 +46,7 @@ export const publicSitePage = (
           </p>
         )}
       </div>
-      <footer class="homepage-footer">
-        <p>
-          <a href="/admin/login">{t("common.login")}</a>
-        </p>
-      </footer>
+      <LoginFooter />
     </Layout>,
   );
 };
@@ -79,6 +82,7 @@ export const contactPage = (options: {
   content?: string | null;
   formActive: boolean;
   botpoisonPublicKey: string;
+  nav: PublicNavProps;
   success?: string;
   error?: string;
 }): string => {
@@ -95,19 +99,11 @@ export const contactPage = (options: {
   return String(
     <Layout headExtra={headExtra} title={pageTitle}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
-      <PublicNav {...navFlags()} />
+      <PublicNav {...options.nav} />
       <Flash error={options.error} success={options.success} />
-      {content && (
-        <div class="prose">
-          <Raw html={renderMarkdown(content)} />
-        </div>
-      )}
+      <MarkdownProse markdown={content ?? ""} />
       {formActive && <ContactForm botpoisonPublicKey={botpoisonPublicKey} />}
-      <footer class="homepage-footer">
-        <p>
-          <a href="/admin/login">{t("common.login")}</a>
-        </p>
-      </footer>
+      <LoginFooter />
     </Layout>,
   );
 };

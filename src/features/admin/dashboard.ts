@@ -28,6 +28,7 @@ import {
   getActiveListingStats,
   getNewestAttendeesRaw,
 } from "#shared/db/attendees.ts";
+import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getChildListingIds } from "#shared/db/listing-parents.ts";
 import { getAllListings, getListingNamesByIds } from "#shared/db/listings.ts";
@@ -99,12 +100,19 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       const sortedListings = sortListings(listings, holidays);
       const stats = await getActiveListingStats(sortedListings);
       const activeType = listingTypeFromRequest(request);
-      // Children are excluded from the multi-booking link builder (no booking
-      // can start from a child).
-      const [childIds, upcomingServicingEvents] = await Promise.all([
-        getChildListingIds(sortedListings.map((l) => l.id)),
-        getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
-      ]);
+      // Listings with no standalone public page are excluded from the
+      // multi-booking link builder: a booking can never start from a child
+      // (invariant I3), and a hidden package's member 404s on its own
+      // `/ticket/<slug>` — so a `/ticket/<member+other>` URL the builder emits
+      // would be rejected by the server.
+      const listingIds = sortedListings.map((l) => l.id);
+      const [childIds, hiddenMemberIds, upcomingServicingEvents] =
+        await Promise.all([
+          getChildListingIds(listingIds),
+          getHiddenPackageMemberIds(listingIds),
+          getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
+        ]);
+      const unbookableIds = new Set([...childIds, ...hiddenMemberIds]);
       return htmlResponse(
         adminDashboardPage(
           sortedListings,
@@ -116,7 +124,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           settings.listingColumnOrder,
           activeType,
           holidays,
-          childIds,
+          unbookableIds,
           upcomingServicingEvents,
         ),
       );

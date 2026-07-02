@@ -183,8 +183,8 @@ export const isPaymentLockedLine = (line: AttendeeFormLine): boolean =>
 
 /** Why a paid line can't be marked no-quantity: shown at the top of the page on
  * a (hand-crafted) submission and as the disabled box's hover tooltip. */
-export const PAID_NO_QUANTITY_MESSAGE =
-  "Refund this line's payment before marking it no quantity.";
+export const PAID_NO_QUANTITY_MESSAGE = (): string =>
+  t("attendee_form.paid_no_quantity_line");
 
 /** True when the line should be persisted at all: a real booking OR a deliberate
  * no-quantity line. The persistence + no-lines paths use THIS (so a checked
@@ -394,7 +394,7 @@ const validateLine = (line: AttendeeFormLine): string | null => {
   // error left is exceeding the listing's per-booking maximum.
   if (!isBookedLine(line)) return null;
   if (line.quantity! > line.listing!.max_quantity) {
-    return `Quantity must be at most ${line.listing!.max_quantity}`;
+    return t("attendee_form.qty_max", { max: line.listing!.max_quantity });
   }
   return null;
 };
@@ -405,7 +405,7 @@ const validateLine = (line: AttendeeFormLine): string | null => {
  * hand-crafted submission; its message is shown at the top of the page. */
 const validatePaidNoQuantity = (parsed: ParsedAttendeeForm): string | null =>
   parsed.lines.some((l) => isNoQuantityLine(l) && isPaymentLockedLine(l))
-    ? PAID_NO_QUANTITY_MESSAGE
+    ? PAID_NO_QUANTITY_MESSAGE()
     : null;
 
 /**
@@ -420,7 +420,7 @@ export const validateParsedForm = (
   const hasDailyBooking = parsed.lines.some(isBookedDaily);
   const dateError =
     hasDailyBooking && !isIsoDate(parsed.startDate)
-      ? "A start date is required for the booked daily listings"
+      ? t("attendee_form.date_required")
       : null;
   const formError = validatePaidNoQuantity(parsed);
 
@@ -569,9 +569,9 @@ export const attendeeBalanceNotice = (
   if (status.is_paid_default) {
     return remainingBalance > 0
       ? {
-          message: `This attendee is in a paid status but still owes ${formatCurrency(
-            remainingBalance,
-          )}.`,
+          message: t("attendee_form.balance_paid_but_owes", {
+            amount: formatCurrency(remainingBalance),
+          }),
           tone: "warning",
         }
       : null;
@@ -580,16 +580,15 @@ export const attendeeBalanceNotice = (
     const owed = Math.max(fullPrice, listedFullPrice) - amountPaid;
     if (owed > 0) {
       return {
-        message: `This reservation has no balance recorded, but ${formatCurrency(
-          owed,
-        )} of the order is still unpaid.`,
+        message: t("attendee_form.balance_reservation_unpaid", {
+          amount: formatCurrency(owed),
+        }),
         tone: "warning",
       };
     }
     if (fullPrice > 0) {
       return {
-        message:
-          "This reservation is fully paid — consider moving it to a paid status.",
+        message: t("attendee_form.balance_reservation_paid"),
         tone: "info",
       };
     }

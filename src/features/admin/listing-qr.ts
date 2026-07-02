@@ -11,8 +11,8 @@
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import {
-  anyChildListing,
   constrainParentDailyDates,
+  lacksStandalonePublicPage,
 } from "#routes/public/ticket-payment.ts";
 import {
   htmlResponse,
@@ -25,7 +25,6 @@ import {
   type FormValidator,
 } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { validatePrice } from "#shared/currency.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
@@ -33,6 +32,7 @@ import { FormParams } from "#shared/form-data.ts";
 import { generateQrSvg, listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
+import { validatePrice } from "#shared/validation/money.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import type {
   AdminListingQrResult,
@@ -70,16 +70,16 @@ const loadBookableDates = async (
 
 const withListing = withEntityLoader(getListingWithCount);
 
-/** Run `fn` only when `listing` is not a child of another listing; otherwise
- * 404. A child has no standalone booking entry point (invariant I3), so its QR
- * generator (which signs `/ticket/<child>/qr-book`) must not be reachable — the
- * link would be a dead end. No query (never a child) when the parents feature is
- * off, so existing behaviour is unchanged. */
+/** Run `fn` only when `listing` has a standalone booking entry point; otherwise
+ * 404. A child (invariant I3) and a hidden package's member both have no public
+ * page — their /ticket slug 404s — so the QR generator (which signs
+ * `/ticket/<slug>/qr-book`) would mint a dead-end link. No query for either when
+ * the respective feature is off, so existing behaviour is unchanged. */
 const unlessChild = async (
   listing: ListingWithCount,
   fn: () => Promise<Response>,
 ): Promise<Response> =>
-  (await anyChildListing([listing.id])) ? notFoundResponse() : fn();
+  (await lacksStandalonePublicPage(listing.id)) ? notFoundResponse() : fn();
 
 /** A listing with its child-constrained bookable date set (Fix 2), the context
  * the QR validator needs so a submitted date is checked against the same dates

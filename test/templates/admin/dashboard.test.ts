@@ -413,6 +413,46 @@ describe("adminDashboardPage multi-booking link", () => {
     expect(html).not.toContain('data-multi-booking-slug="cd34e"');
   });
 
+  test("excludes unbookable listings (children, hidden package members) from checkboxes", () => {
+    // A hidden package's member 404s on its own /ticket page, so the builder
+    // must not offer it — otherwise an operator could compose a multi-slug URL
+    // the server rejects.
+    const html = adminDashboardPage(
+      [
+        testListingWithCount({
+          active: true,
+          id: 1,
+          name: "Open",
+          slug: "ab12c",
+        }),
+        testListingWithCount({
+          active: true,
+          id: 2,
+          name: "Hidden Member",
+          slug: "cd34e",
+        }),
+        testListingWithCount({
+          active: true,
+          id: 3,
+          name: "Other",
+          slug: "ef56g",
+        }),
+      ],
+      TEST_SESSION,
+      undefined,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      "all",
+      [],
+      new Set<number>([2]),
+    );
+    expect(html).toContain('data-multi-booking-slug="ab12c"');
+    expect(html).toContain('data-multi-booking-slug="ef56g"');
+    expect(html).not.toContain('data-multi-booking-slug="cd34e"');
+  });
+
   test("renders checkboxes with slug data attributes", () => {
     renderDashboard(
       twoListings,

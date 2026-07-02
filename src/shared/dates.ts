@@ -207,6 +207,16 @@ export const getBookableStartDates = (
     listing.customisable_days ? 1 : undefined,
   );
 
+/** Parse a user-supplied YYYY-MM-DD value (a `?date=` query param): the string
+ * when well-formed and a real calendar date, else null. The UTC round-trip
+ * rejects rolled-over impossibilities like 2025-02-30. */
+export const parseIsoDateParam = (value: string | null): string | null => {
+  if (value === null || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10) === value ? value : null;
+};
+
 /**
  * Whether booking `days` consecutive days starting on `date` is valid for a
  * daily listing: every day must be a bookable weekday, fall outside all
@@ -386,6 +396,64 @@ export const formatDateRangeLabel = (
   if (diffDays <= 1) return formatDateLabel(startDate);
   const lastDay = new Date(endMs - 86_400_000).toISOString().slice(0, 10);
   return formatDateRangeLabelCompactEn(startDate, lastDay);
+};
+
+/** The whole day count of a stored `[start_at, end_at)` booking range — the
+ * customisable day count the buyer chose. A missing or degenerate range is 1. */
+export const bookedSpanDays = (
+  startIso: string | null,
+  endIso: string | null,
+): number => {
+  if (!startIso || !endIso) return 1;
+  const diffDays = Math.round(
+    (new Date(endIso).getTime() - new Date(startIso).getTime()) / 86_400_000,
+  );
+  return diffDays > 1 ? diffDays : 1;
+};
+
+/** The human-readable label for one booking's actual span: the stored
+ * `[date, endDate)` range when a multi-day range is stored, the listing's
+ * fixed duration when only a start date is (legacy rows written before end
+ * dates were stored), else the single booked day. "" when there is no date.
+ * The ONE booked-range renderer the confirmation email, the /t ticket cards,
+ * and the collapsed package displays share, so they can never disagree about
+ * a booking's stay. */
+export const bookedRangeLabel = (
+  date: string | null,
+  endDate: string | null,
+  fallbackDurationDays = 1,
+): string => {
+  if (!date) return "";
+  const lastDay = endDate
+    ? addDays(endDate, -1)
+    : fallbackDurationDays > 1
+      ? addDays(date, fallbackDurationDays - 1)
+      : null;
+  return lastDay && lastDay > date
+    ? formatDateRangeLabelCompactEn(date, lastDay)
+    : formatDateLabel(date);
+};
+
+/** The dated entry whose booked range ends last — the stay covering a whole
+ * package bundle — or null when every entry is date-less (a standard package).
+ * A dated entry with no stored end (a single-day booking, or a legacy row)
+ * sorts below any ranged stay. Shared by the collapsed email/SVG displays and
+ * the /t package card, so every surface picks the SAME representative stay. */
+export const widestDatedEntry = <
+  T extends { attendee: { date: string | null; end_date: string | null } },
+>(
+  entries: readonly T[],
+): T | null => {
+  let widest: T | null = null;
+  let widestEnd = "";
+  for (const entry of entries) {
+    if (!entry.attendee.date) continue;
+    const end = String(entry.attendee.end_date ?? "");
+    if (widest !== null && end <= widestEnd) continue;
+    widest = entry;
+    widestEnd = end;
+  }
+  return widest;
 };
 
 /**

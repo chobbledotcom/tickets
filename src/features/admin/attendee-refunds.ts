@@ -11,7 +11,7 @@ import {
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { errorRedirect, htmlResponse } from "#routes/response.ts";
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { hasActiveBookingLine } from "#shared/db/attendees.ts";
@@ -33,127 +33,118 @@ import {
   adminRefundAttendeePage,
 } from "#templates/admin/attendees.tsx";
 import {
-  type AttendeeWithListing,
-  attendeeGetRoute,
-  getReturnUrl,
+  attendeeActionPage,
+  attendeeActionUrl,
   type ListingRouteParams,
   NO_PROVIDER_ERROR,
-  verifiedAttendeeForm,
+  verifiedAttendeeAction,
 } from "./attendees-route-helpers.ts";
 
 /** Max refunds per request to stay within Bunny Edge fetch limits */
 const REFUND_BATCH_LIMIT = 30;
 
-/** Render refund error redirect for a single attendee */
+/** Render refund error redirect for a single attendee, keeping the caller's
+ * return_url threaded through so a retry still lands back where it started. */
 const refundError = (
-  listingId: number,
   attendeeId: number,
   msg: string,
+  returnUrl = "",
 ): Response =>
   errorRedirect(
-    `/admin/listing/${listingId}/attendee/${attendeeId}/refund`,
+    `${attendeeActionUrl(attendeeId, "refund")}${
+      returnUrl ? `?return_url=${encodeURIComponent(returnUrl)}` : ""
+    }`,
     msg,
   );
 
-/** Render the single-attendee refund page. The guard blocks (no payment, already
- * refunded, or a no-quantity ghost line) pass a `message` and take the default
- * 400; the clean GET passes the flashed error (if any) with an explicit 200. */
-const refundPageResponse = (
-  data: AttendeeWithListing,
-  session: AuthSession,
-  returnUrl: string,
-  message: string | undefined,
-  status = 400,
-): Response =>
-  htmlResponse(
-    adminRefundAttendeePage(data, session, message, returnUrl),
-    status,
-  );
-
-/** Handle GET /admin/listing/:listingId/attendee/:attendeeId/refund */
-const handleAdminAttendeeRefundGet = attendeeGetRoute(
-  async (data, session, request) => {
-    const flash = applyFlash(request);
-    const returnUrl = getReturnUrl(request);
-    // The no-payment branch also covers a no-quantity ghost row: it's guarded
-    // against the EXACT (attendee, listing) row (not the loaded attendee's
-    // arbitrary left-joined sibling), so a listing-scoped refund can't retarget
-    // a charge to another listing. data.listing is the invoking listing.
+/** Handle GET /admin/attendees/:attendeeId/refund. The guard blocks (no
+ * payment, already refunded, or a no-quantity ghost home line) render the
+ * page with a message at 400; the clean GET renders the flashed error (if
+ * any) at 200 — attendeeActionPage supplies exactly that shape. */
+const handleAdminAttendeeRefundGet = attendeeActionPage(
+  (data, session, returnUrl, error) =>
+    adminRefundAttendeePage(data, session, error, returnUrl),
+  async (data) => {
+    // The no-payment branch also covers a no-quantity ghost home line: the
+    // guard runs against the exact (attendee, home listing) row, so a refund
+    // can't fire for a non-booking.
     if (
       !data.attendee.payment_id ||
       !(await hasActiveBookingLine(data.attendee.id, data.listing.id))
     ) {
-      return refundPageResponse(
-        data,
-        session,
-        returnUrl,
-        t("error.no_payment_to_refund"),
-      );
+      return t("error.no_payment_to_refund");
     }
     if (data.attendee.refunded) {
-      return refundPageResponse(
-        data,
-        session,
-        returnUrl,
-        t("error.already_refunded"),
-      );
+      return t("error.already_refunded");
     }
-    return refundPageResponse(data, session, returnUrl, flash.error, 200);
+    return null;
   },
 );
 
-/** Handle POST /admin/listing/:listingId/attendee/:attendeeId/refund */
-const handleAttendeeRefund = verifiedAttendeeForm(
+/** Handle POST /admin/attendees/:attendeeId/refund */
+const handleAttendeeRefund = verifiedAttendeeAction(
   "refund",
   "refund",
-  async (data, _form, listingId, attendeeId) => {
-    // Refuse a refund on a no-quantity ghost row (checked against the exact
-    // (attendee, listing) pair) rather than refunding the shared payment from a
-    // listing the charge doesn't belong to.
+  async (data, form) => {
+    const attendeeId = data.attendee.id;
+    const listingId = data.listing.id;
+    const returnUrl = form.getString("return_url");
+    // Refuse a refund on a no-quantity ghost home line (checked against the
+    // exact (attendee, home listing) pair) rather than refunding the payment
+    // for a non-booking.
     if (!(await hasActiveBookingLine(attendeeId, listingId))) {
       return refundError(
-        listingId,
         attendeeId,
         t("error.no_payment_to_refund"),
+        returnUrl,
       );
     }
     if (!data.attendee.payment_id) {
       return refundError(
-        listingId,
         attendeeId,
         t("error.no_payment_to_refund"),
+        returnUrl,
       );
     }
     if (data.attendee.refunded) {
-      return refundError(listingId, attendeeId, t("error.already_refunded"));
+      return refundError(attendeeId, t("error.already_refunded"), returnUrl);
     }
 
     const provider = await getActivePaymentProvider();
-    if (!provider) return refundError(listingId, attendeeId, NO_PROVIDER_ERROR);
+    if (!provider) {
+      return refundError(attendeeId, NO_PROVIDER_ERROR, returnUrl);
+    }
 
     const refunded = await provider.refundPayment(data.attendee.payment_id);
     if (!refunded) {
       logError({
         code: ErrorCode.PAYMENT_REFUND,
-        detail: `Admin refund failed for attendee ${data.attendee.id}, payment ${data.attendee.payment_id}`,
+        detail: `Admin refund failed for attendee ${attendeeId}, payment ${data.attendee.payment_id}`,
         listingId,
       });
-      return refundError(listingId, attendeeId, t("error.refund_failed"));
+      return refundError(attendeeId, t("error.refund_failed"), returnUrl);
     }
 
-    const { posted } = await recordAttendeeRefund(data.attendee.id);
+    const { posted } = await recordAttendeeRefund(attendeeId);
     await logActivity(
       `Refund issued for attendee '${data.attendee.name}'`,
       listingId,
-      data.attendee.id,
+      attendeeId,
     );
     // The provider refund succeeded; if the ledger post missed (refund status is
     // now ledger-only), surface it so the admin makes a manual adjustment rather
     // than re-refunding an already-refunded payment.
     if (!posted) {
-      return refundError(listingId, attendeeId, t("error.refund_not_recorded"));
+      return refundError(attendeeId, t("error.refund_not_recorded"), returnUrl);
     }
-    return ok(`/admin/listing/${listingId}`, t("success.refund_issued"));
+    // Honor the caller's return_url (e.g. the attendee page's Actions tab);
+    // fall back to that tab otherwise.
+    return redirect(
+      `/admin/attendees/${attendeeId}/actions`,
+      t("success.refund_issued"),
+      true,
+      { form },
+    );
   },
 );
 
@@ -387,10 +378,8 @@ const handleAdminRefundAllPost = (
 
 /** Attendee refund routes */
 export const attendeeRefundRoutes = defineRoutes({
+  "GET /admin/attendees/:attendeeId/refund": handleAdminAttendeeRefundGet,
   "GET /admin/listing/:id/refund-all": handleAdminRefundAllGet,
-  "GET /admin/listing/:listingId/attendee/:attendeeId/refund":
-    handleAdminAttendeeRefundGet,
+  "POST /admin/attendees/:attendeeId/refund": handleAttendeeRefund,
   "POST /admin/listing/:id/refund-all": handleAdminRefundAllPost,
-  "POST /admin/listing/:listingId/attendee/:attendeeId/refund":
-    handleAttendeeRefund,
 });

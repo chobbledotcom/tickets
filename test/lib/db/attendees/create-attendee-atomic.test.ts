@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import {
   createAttendeeAtomic,
   decryptAttendees,
+  getAttendeeRaw,
   getAttendeesRaw,
 } from "#shared/db/attendees.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
@@ -69,6 +70,30 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       expect(result.attendees.length).toBe(1);
       expect(result.attendees[0]!.name).toBe("John");
     }
+  });
+
+  test("a package booking's package_group_id survives the attendee join selects", async () => {
+    // The booking-row loader carries package_group_id, but the attendee join
+    // selects must hydrate it too — otherwise a re-sent notification for a
+    // hidden package booking treats the row as a standalone member and can leak
+    // the hidden listing or its base price.
+    const group = await createTestGroup({ isPackage: true, name: "Pkg" });
+    const listing = await createTestListing({ groupId: group.id });
+    const result = await createAttendeeAtomic({
+      bookings: [{ listingId: listing.id, quantity: 1 }],
+      email: "buyer@example.com",
+      name: "Buyer",
+      packageGroupId: group.id,
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    // INNER join select (getAttendeesRaw) and LEFT join select (getAttendeeRaw).
+    expect((await getAttendeesRaw(listing.id))[0]!.package_group_id).toBe(
+      group.id,
+    );
+    const byId = await getAttendeeRaw(result.attendees[0]!.id);
+    expect(byId!.package_group_id).toBe(group.id);
   });
 
   test("records a contact visit for a real booking", async () => {
@@ -365,6 +390,74 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
         name: "B",
       }),
     ]);
+    expect([a.success, b.success].filter(Boolean).length).toBe(1);
+  });
+
+  /** Create a 2-member package (`groupMax` shared cap, 0 = uncapped; members
+   * capped at `memberMax`) and race two whole-bundle inserts against it. */
+  const racePackage = async (
+    name: string,
+    groupMax: number,
+    memberMax: number,
+  ) => {
+    const { createTestGroup } = await import("#test-utils");
+    const group = await createTestGroup({
+      isPackage: true,
+      maxAttendees: groupMax,
+      name,
+    });
+    const memberA = await createTestListing({
+      groupId: group.id,
+      maxAttendees: memberMax,
+      name: `${name} A`,
+    });
+    const memberB = await createTestListing({
+      groupId: group.id,
+      maxAttendees: memberMax,
+      name: `${name} B`,
+    });
+    const bundle = (email: string) =>
+      createAttendeeAtomic({
+        bookings: [
+          { listingId: memberA.id, packageGroupId: group.id, quantity: 1 },
+          { listingId: memberB.id, packageGroupId: group.id, quantity: 1 },
+        ],
+        email,
+        name: "Racer",
+      });
+    const [a, b] = await Promise.all([
+      bundle("race-a@example.com"),
+      bundle("race-b@example.com"),
+    ]);
+    return { a, b, memberA, memberB };
+  };
+
+  test("concurrent last-bundle package inserts: one whole bundle wins, the loser writes NOTHING", async () => {
+    // A package booking is one atomic multi-row insert (a row per member) gated
+    // by the capacity predicate. Racing the last bundle must never half-book:
+    // the loser must leave ZERO rows on BOTH members — a booked member A with a
+    // full member B would strand the buyer with a partial bundle.
+    const { a, b, memberA, memberB } = await racePackage("Race Kit", 0, 1);
+
+    expect([a.success, b.success].filter(Boolean).length).toBe(1);
+    // Exactly one bundle's rows exist — one row per member, never a stray
+    // half-bundle row from the loser.
+    const { queryAll } = await import("#shared/db/client.ts");
+    for (const member of [memberA, memberB]) {
+      const rows = await queryAll<{ quantity: number }>(
+        "SELECT quantity FROM listing_attendees WHERE listing_id = ?",
+        [member.id],
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.quantity).toBe(1);
+    }
+  });
+
+  test("concurrent last-spot package inserts against the GROUP pool: only one bundle fits", async () => {
+    // The group's shared cap (2) fits exactly one 2-member bundle; two racing
+    // bundles must not overfill the pool.
+    const { a, b } = await racePackage("Pool Race", 2, 10);
+
     expect([a.success, b.success].filter(Boolean).length).toBe(1);
   });
 

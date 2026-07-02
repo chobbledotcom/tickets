@@ -43,10 +43,10 @@ export {
 } from "#shared/db/attendees/atomic-update.ts";
 export {
   checkLinesCapacity,
+  getDatelessGroupRemaining,
   getGroupRemainingByGroupId,
   getGroupRemainingByListingId,
   getGroupRemainingForListing,
-  getGroupStaticCapByListingId,
   getListingRemainingForRange,
   getSharedGroupCapacities,
   type ListingCapacityRow,
@@ -83,6 +83,7 @@ export {
   getAttendee,
   getAttendeeKindsByIds,
   getAttendeeNamesByIds,
+  getAttendeePackageRowsRaw,
   getAttendeePiiBlobsForListings,
   getAttendeeRaw,
   getAttendeesByIds,

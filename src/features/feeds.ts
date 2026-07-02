@@ -6,7 +6,11 @@
 import { map, pipe } from "#fp";
 import { withAuth } from "#routes/auth.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
-import { classifyForDiscovery } from "#routes/public/discovery.ts";
+import {
+  classifyForDiscovery,
+  dropHiddenPackageMembers,
+  loadPublicGroups,
+} from "#routes/public/discovery.ts";
 import {
   icsResponse,
   redirectResponse,
@@ -30,7 +34,7 @@ import {
   type ListingWithCount,
   loadSortedListings,
 } from "#shared/sort-listings.ts";
-import type { Attendee } from "#shared/types.ts";
+import type { Attendee, Group } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
 /** Escape text for ICS (RFC 5545): backslash-escape special characters */
@@ -56,24 +60,71 @@ const formatIcsDate = (dateStr: string): string =>
 const formatRfc822 = (dateStr: string): string =>
   new Date(dateStr).toUTCString();
 
-/** Feed context: listings, domain, and title loaded in parallel */
-type FeedData = { listings: ListingWithCount[]; domain: string; title: string };
+/** One syndicated item — a standalone listing or a bookable package bundle,
+ * both linking to their `/ticket/<slug>` page. `uid` keeps listing and package
+ * ids from colliding in the ICS UID namespace. */
+type FeedItem = {
+  uid: string;
+  name: string;
+  slug: string;
+  description: string;
+  date: string | null;
+  location: string;
+  /** RSS pubDate source; null for packages (groups carry no created stamp),
+   * which simply omit the optional pubDate element. */
+  created: string | null;
+};
 
-/** Load feed data: active open listings with domain and title. Children are
+const listingFeedItem = (listing: ListingWithCount): FeedItem => ({
+  created: listing.created,
+  date: listing.date || null,
+  description: listing.description,
+  location: listing.location,
+  name: listing.name,
+  slug: listing.slug,
+  uid: `listing-${listing.id}`,
+});
+
+/** Feed context: items, domain, and title */
+type FeedData = { items: FeedItem[]; domain: string; title: string };
+
+/** Load feed data: active open listings plus bookable packages. Children are
  * never syndicated (a feed item is a standalone `/ticket/<slug>` link, which a
  * booking can't start from — invariant I3), and a parent with no bookable child
- * is omitted (it would publish a link the gate rejects as sold out — I6). */
+ * is omitted (it would publish a link the gate rejects as sold out — I6).
+ * Packages are first-class products: the bundle itself is syndicated (booked
+ * whole at `/ticket/<group-slug>`), so a hidden package stays discoverable even
+ * though its member listings are dropped. */
 const loadFeedData = async (): Promise<FeedData> => {
-  const { listings } = await loadSortedListings(
+  const { listings: allListings } = await loadSortedListings(
     (e) =>
       e.active && !e.hidden && !e.purchase_only && !isRegistrationClosed(e),
   );
+  // A hidden package's members are never syndicated standalone — only the
+  // package name is public.
+  const listings = await dropHiddenPackageMembers(allListings);
   const { childIds, soldOutParentIds } = await classifyForDiscovery(listings);
+  const packages = (await loadPublicGroups())
+    .filter((g) => g.is_package)
+    .map(
+      (g: Group): FeedItem => ({
+        created: null,
+        date: null,
+        description: g.description,
+        location: "",
+        name: g.name,
+        slug: g.slug,
+        uid: `package-${g.id}`,
+      }),
+    );
   return {
     domain: getEffectiveDomain(),
-    listings: listings.filter(
-      (e) => !childIds.has(e.id) && !soldOutParentIds.has(e.id),
-    ),
+    items: [
+      ...listings
+        .filter((e) => !childIds.has(e.id) && !soldOutParentIds.has(e.id))
+        .map(listingFeedItem),
+      ...packages,
+    ],
     title: settings.websiteTitle || "Listings",
   };
 };
@@ -82,41 +133,42 @@ const loadFeedData = async (): Promise<FeedData> => {
 const requirePublicSite = <T>(fn: () => Promise<T>): Promise<T> | Response =>
   settings.showPublicSite ? fn() : redirectResponse("/admin/login");
 
-/** Build a single VLISTING block */
-const appendListingSchedule = (
+/** Append the shared DTSTART/LOCATION lines for anything carrying a date and
+ * location — feed items and (via the admin calendar's VEVENTs) listings. */
+const appendItemSchedule = (
   lines: string[],
-  listing: ListingWithCount,
+  item: { date: string | null; location: string },
 ): void => {
-  if (listing.date) lines.push(`DTSTART:${formatIcsDate(listing.date)}`);
-  if (listing.location) lines.push(`LOCATION:${escapeIcs(listing.location)}`);
+  if (item.date) lines.push(`DTSTART:${formatIcsDate(item.date)}`);
+  if (item.location) lines.push(`LOCATION:${escapeIcs(item.location)}`);
 };
 
 const buildVListing = (
-  listing: ListingWithCount,
+  item: FeedItem,
   domain: string,
   dtstamp: string,
 ): string => {
   const lines = [
     "BEGIN:VLISTING",
-    `UID:${listing.id}@${domain}`,
+    `UID:${item.uid}@${domain}`,
     `DTSTAMP:${dtstamp}`,
-    `SUMMARY:${escapeIcs(listing.name)}`,
-    `URL:https://${domain}/ticket/${listing.slug}`,
+    `SUMMARY:${escapeIcs(item.name)}`,
+    `URL:https://${domain}/ticket/${item.slug}`,
   ];
-  if (listing.description) {
-    lines.push(`DESCRIPTION:${escapeIcs(listing.description)}`);
+  if (item.description) {
+    lines.push(`DESCRIPTION:${escapeIcs(item.description)}`);
   }
-  appendListingSchedule(lines, listing);
+  appendItemSchedule(lines, item);
   lines.push("END:VLISTING");
   return lines.join("\r\n");
 };
 
 /** Build the full ICS calendar document */
-const buildIcs = ({ listings, domain, title }: FeedData): string => {
+const buildIcs = ({ items, domain, title }: FeedData): string => {
   const dtstamp = formatIcsDate(new Date().toISOString());
   const vlistings = pipe(
-    map((e: ListingWithCount) => buildVListing(e, domain, dtstamp)),
-  )(listings);
+    map((e: FeedItem) => buildVListing(e, domain, dtstamp)),
+  )(items);
 
   return [
     "BEGIN:VCALENDAR",
@@ -129,33 +181,33 @@ const buildIcs = ({ listings, domain, title }: FeedData): string => {
 };
 
 /** Build a rich description for RSS items, including date and location */
-const buildRssDescription = (listing: ListingWithCount): string => {
+const buildRssDescription = (item: FeedItem): string => {
   const parts: string[] = [];
-  if (listing.description) parts.push(listing.description);
-  if (listing.date) parts.push(`Date: ${formatRfc822(listing.date)}`);
-  if (listing.location) parts.push(`Location: ${listing.location}`);
+  if (item.description) parts.push(item.description);
+  if (item.date) parts.push(`Date: ${formatRfc822(item.date)}`);
+  if (item.location) parts.push(`Location: ${item.location}`);
   return parts.join("\n");
 };
 
 /** Build a single RSS item */
-const buildRssItem = (listing: ListingWithCount, domain: string): string => {
-  const link = `https://${domain}/ticket/${listing.slug}`;
+const buildRssItem = (item: FeedItem, domain: string): string => {
+  const link = `https://${domain}/ticket/${item.slug}`;
   return [
     "    <item>",
-    `      <title>${escapeXml(listing.name)}</title>`,
+    `      <title>${escapeXml(item.name)}</title>`,
     `      <link>${link}</link>`,
     `      <guid isPermaLink="true">${link}</guid>`,
-    `      <description>${escapeXml(buildRssDescription(listing))}</description>`,
-    `      <pubDate>${formatRfc822(listing.created)}</pubDate>`,
+    `      <description>${escapeXml(buildRssDescription(item))}</description>`,
+    ...(item.created
+      ? [`      <pubDate>${formatRfc822(item.created)}</pubDate>`]
+      : []),
     "    </item>",
   ].join("\n");
 };
 
 /** Build the full RSS document */
-const buildRss = ({ listings, domain, title }: FeedData): string => {
-  const items = pipe(map((e: ListingWithCount) => buildRssItem(e, domain)))(
-    listings,
-  );
+const buildRss = ({ items: feedItems, domain, title }: FeedData): string => {
+  const items = pipe(map((e: FeedItem) => buildRssItem(e, domain)))(feedItems);
 
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -199,7 +251,7 @@ const buildVEvent = (opts: {
     `DESCRIPTION:${escapeIcs(`${description} — open the site for details`)}`,
     `URL:${eventUrl(domain, attendee)}`,
   ];
-  appendListingSchedule(lines, listing);
+  appendItemSchedule(lines, listing);
   lines.push("END:VEVENT");
   return lines.join("\r\n");
 };

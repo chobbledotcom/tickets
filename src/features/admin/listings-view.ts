@@ -19,7 +19,11 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity.ts";
-import { groupsTable } from "#shared/db/groups.ts";
+import {
+  getGroupIdsByListingId,
+  getHiddenPackageMemberIds,
+  groupsTable,
+} from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import {
   getListingAggregateRecalculation,
@@ -151,18 +155,31 @@ export const loadListingQuestionData = async (
 
 /** Fetch group + current usage when the listing sits in a capped group, so the
  * detail page can render a row for the shared cap. Returns undefined for
- * ungrouped or uncapped groups. */
+ * ungrouped or uncapped groups. A listing can belong to several capped groups;
+ * the one with the FEWEST remaining spots is the binding constraint (a booking
+ * is blocked by the tightest group — see capacity.ts), so surface that one. */
 const loadGroupContext = async (
   listing: ListingWithCount,
   dateFilter: string | null,
 ): Promise<GroupContext | undefined> => {
-  if (listing.group_id === 0) return undefined;
-  const group = await groupsTable.findById(listing.group_id);
-  if (!group || group.max_attendees <= 0) return undefined;
-  const remainingMap = await getGroupRemainingByGroupId([group.id], dateFilter);
-  // group.max_attendees > 0 guarantees the helper returns an entry for it.
-  const remaining = remainingMap.get(group.id) as number;
-  return { attendeeCount: group.max_attendees - remaining, group };
+  let tightest: { ctx: GroupContext; remaining: number } | undefined;
+  for (const groupId of await getGroupIdsByListingId(listing.id)) {
+    const group = await groupsTable.findById(groupId);
+    if (!group || group.max_attendees <= 0) continue;
+    const remainingMap = await getGroupRemainingByGroupId(
+      [group.id],
+      dateFilter,
+    );
+    // group.max_attendees > 0 guarantees the helper returns an entry for it.
+    const remaining = remainingMap.get(group.id) as number;
+    if (tightest === undefined || remaining < tightest.remaining) {
+      tightest = {
+        ctx: { attendeeCount: group.max_attendees - remaining, group },
+        remaining,
+      };
+    }
+  }
+  return tightest?.ctx;
 };
 
 /** Render listing page with attendee list and optional filter */
@@ -198,6 +215,7 @@ const renderListingPage = async (
             groupContext,
             recalc,
             isChild,
+            hiddenMemberIds,
             childrenByParent,
             revenueBreakdown,
             systemNotes,
@@ -210,6 +228,10 @@ const renderListingPage = async (
             // A child has no standalone share/QR affordance (invariant I3);
             // `anyChildListing` no-ops (no query) when the feature is off.
             anyChildListing([listing.id]),
+            // A hidden package's member has no standalone public page either (its
+            // /ticket slug 404s), so its share/QR/embed affordances are suppressed
+            // the same way a child's are.
+            getHiddenPackageMemberIds([listing.id]),
             // A parent's required children — names the quick add-attendee warning
             // lists. Empty map (no key) when this listing isn't a parent.
             getChildrenForParents([listing.id]),
@@ -234,6 +256,7 @@ const renderListingPage = async (
               // gate the action on the full set, not the date-filtered view.
               hasEmailableAttendees: attendees.some((a) => a.email !== ""),
               isChild,
+              isHiddenPackageMember: hiddenMemberIds.size > 0,
               listing,
               phonePrefix,
               questionData,

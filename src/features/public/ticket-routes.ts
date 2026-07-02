@@ -8,17 +8,16 @@ import { verifyTokensWithRealLine } from "#routes/tickets/token-utils.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
   computeGroupSlugIndex,
-  getActiveListingsByGroupId,
   getGroupBySlugIndex,
 } from "#shared/db/groups.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";
-import { groupHasBookableMember } from "./discovery.ts";
+import { getVisibleGroupMembers, groupBookable } from "./discovery.ts";
 import { handleGroupTicketBySlug } from "./groups.ts";
 import { handleQrBookGet } from "./qr-book.ts";
-import { anyChildListing } from "./ticket-payment.ts";
+import { lacksStandalonePublicPage } from "./ticket-payment.ts";
 import { handleBySlugs } from "./ticket-submit.ts";
 import { parseSlugs } from "./types.ts";
 
@@ -86,24 +85,25 @@ export const handleTicketQrGet = async (
 ): Promise<Response> => {
   const listing = await getListingWithCountBySlug(slug);
   // A child has no standalone booking page (invariant I3), so its QR — which
-  // encodes `/ticket/<child>` — would be a dead end. Suppress it like the rest
-  // of the child's share affordances.
-  if (listing && (await anyChildListing([listing.id]))) {
-    return notFoundResponse();
+  // encodes `/ticket/<child>` — would be a dead end. A hidden package's member
+  // is the same: its page now 404s, so its QR must too. Suppress both like the
+  // rest of the listing's share affordances.
+  if (listing) {
+    return (await lacksStandalonePublicPage(listing.id))
+      ? notFoundResponse()
+      : qrResponse(slug);
   }
-  if (listing) return qrResponse(slug);
 
   const slugIndex = await computeGroupSlugIndex(slug);
   const group = await getGroupBySlugIndex(slugIndex);
   // A group QR encodes `/ticket/<group>`, which renders no bookable quantity
   // when the group has no standalone-bookable member — every member is a child
   // (a booking can never start from a child, invariant I3) or a parent projected
-  // sold out (its required children all unavailable). Use the SAME gate as the
-  // `/listings` group CTA (Fix 3 + sold-out parents) so the QR 404s exactly when
-  // the page it points at would offer nothing to book.
+  // sold out (its required children all unavailable). For a PACKAGE the whole
+  // bundle must fit. Use the SAME gate as the `/listings` group CTA so the QR
+  // 404s exactly when the page it points at would offer nothing to book.
   if (group) {
-    const members = await getActiveListingsByGroupId(group.id);
-    return (await groupHasBookableMember(members))
+    return (await groupBookable(group, await getVisibleGroupMembers(group)))
       ? qrResponse(slug)
       : notFoundResponse();
   }

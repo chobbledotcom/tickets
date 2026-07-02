@@ -4,13 +4,13 @@ import { getSessionCookieName } from "#shared/cookies.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { createApiKey } from "#shared/db/api-keys.ts";
-import type { ListingInput } from "#shared/db/listings.ts";
 import { getSession } from "#shared/db/sessions.ts";
 import {
   runWithSessionContext,
   setCachedSession,
 } from "#shared/session-context.ts";
 import type { Listing } from "#shared/types.ts";
+import type { TestListingOverrides } from "#test-utils/factories.ts";
 import type { AdminTestContext } from "#test-utils/internal.ts";
 import {
   getCachedAdminSession,
@@ -393,7 +393,7 @@ export const apiRequest = async (
 };
 
 export const setupListingAndLogin = async (
-  overrides?: Partial<Omit<ListingInput, "slug" | "slugIndex">>,
+  overrides?: TestListingOverrides,
 ): Promise<{
   listing: Listing;
   cookie: string;
@@ -465,7 +465,7 @@ export const getBulkActionForm =
   };
 
 export const setupAdminTest = async (
-  listingOverrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
+  listingOverrides: TestListingOverrides = {},
 ): Promise<AdminTestContext> => {
   const { createTestListing } = await import("#test-utils/db-helpers.ts");
   const { createTestAttendee } = await import("#test-utils/db-helpers.ts");
@@ -485,17 +485,21 @@ export const setupAdminTest = async (
 };
 
 export const adminAttendeeAction =
-  (action: string) =>
+  (action: string, scope: "listing" | "attendee" = "attendee") =>
   (formData: Record<string, string> = {}) =>
   async (
-    listingOverrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
+    listingOverrides: TestListingOverrides = {},
   ): Promise<AdminTestContext & { response: Response }> => {
     const ctx = await setupAdminTest(listingOverrides);
     const { handleRequest } = await import("#routes");
     const { mockFormRequest } = await import("#test-utils/mocks.ts");
+    const url =
+      scope === "listing"
+        ? `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`
+        : `/admin/attendees/${ctx.attendee.id}/${action}`;
     const response = await handleRequest(
       mockFormRequest(
-        `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`,
+        url,
         { csrf_token: ctx.csrfToken, ...formData },
         ctx.cookie,
       ),
@@ -506,7 +510,7 @@ export const adminAttendeeAction =
 export const adminListingPage =
   (pathFn: (ctx: AdminTestContext) => string) =>
   async (
-    listingOverrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
+    listingOverrides: TestListingOverrides = {},
   ): Promise<AdminTestContext & { response: Response }> => {
     const ctx = await setupAdminTest(listingOverrides);
     const { awaitTestRequest } = await import("#test-utils/mocks.ts");

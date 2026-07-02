@@ -228,11 +228,13 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     expect(await costOf(listing.id)).toBe(9000);
   });
 
-  test("a double-submit of the cost form records only one cost (idempotency key)", async () => {
-    // The cost form carries a per-render idempotency key the route passes as
-    // the ledger reference, so a browser retry / double-click of the same form
-    // posts the cost once — not twice — even though each POST generates a fresh
-    // occurredAt. A genuinely separate submission (fresh key) still posts.
+  test("a double-submit of the cost form records once and reports a clean success (idempotency key)", async () => {
+    // The cost form carries a per-render idempotency key the route passes as the
+    // ledger reference, so a browser retry / double-click of the same form posts
+    // the cost once — not twice. The hold is DATELESS, so the route stamps a
+    // fresh `occurredAt = new Date()` on each POST; the retry must still be
+    // treated as a clean idempotent success (occurredAt is not compared), not an
+    // error, which is the exact case the key exists to cover.
     const { id, listing } = await createServicingHold();
     const postCost = (idempotencyKey: string) =>
       adminPost(`/admin/servicing/${id}`, {
@@ -245,6 +247,9 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     await postCost(key);
     const retried = await postCost(key); // same form, double-submit
     expect(retried.status).toBe(302);
+    // The retry is a success flash, NOT a COST_REPLAY_MISMATCH error.
+    expect(parseFlashCookie(retried).error).toBeUndefined();
+    expect(parseFlashCookie(retried).success).toBeDefined();
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
     expect(await costOf(listing.id)).toBe(9000);
     // A separate submission (fresh key) posts a second, independent cost.

@@ -5,11 +5,8 @@
 /* jscpd:ignore-start */
 import { filter, map, pipe } from "#fp";
 import { createEntityRouteHandlers } from "#routes/admin/entity-handlers.ts";
-import type { AuthSession } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
 import type { AttendeeRouteParams } from "#routes/entity.ts";
-import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import { getSearchParam } from "#routes/url.ts";
+import { errorRedirect, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
@@ -40,7 +37,7 @@ import type {
 } from "#shared/merge/attendee-merge-types.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
-import { adminMergeAttendeePage } from "#templates/admin/attendees.tsx";
+import { AttendeeMergePanel } from "#templates/admin/attendees.tsx";
 
 /* jscpd:ignore-end */
 
@@ -51,9 +48,9 @@ const loadMergeTarget = async (
   const pk = await requireRequestPrivateKey();
   const raw = await queryOne<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
-     FROM attendees a
-     LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-     WHERE a.id = ? AND a.kind = ?`,
+     FROM attendees AS attendee
+     LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+     WHERE attendee.id = ? AND attendee.kind = ?`,
     [attendeeId, ATTENDEE_KIND],
   );
   return decryptAttendeeOrNull(raw, pk);
@@ -92,16 +89,6 @@ const loadMergeSource = async (
     ticket_token: decrypted.ticket_token,
   };
 };
-
-/** Curried: load merge target then render with flash */
-const mergeAttendeePage =
-  (request: Request, session: AuthSession) =>
-  (target: Attendee): Response => {
-    const flash = applyFlash(request);
-    return htmlResponse(
-      adminMergeAttendeePage(target, null, null, session, flash.error),
-    );
-  };
 
 /** Load all listing_attendees rows for an attendee */
 const loadAttendeeBookings = (
@@ -255,14 +242,12 @@ const validateMergePostInput = async (
   | { ok: true; source: MergeSource; sourceToken: string }
   | { ok: false; response: Response }
 > => {
+  const actionsTab = `/admin/attendees/${attendeeId}/actions`;
   const sourceToken = form.getString("source_token");
   if (!sourceToken) {
     return {
       ok: false,
-      response: errorRedirect(
-        `/admin/attendees/${attendeeId}/merge`,
-        "Source token is required",
-      ),
+      response: errorRedirect(actionsTab, "Source token is required"),
     };
   }
 
@@ -271,9 +256,7 @@ const validateMergePostInput = async (
     return {
       ok: false,
       response: errorRedirect(
-        `/admin/attendees/${attendeeId}/merge?token=${encodeURIComponent(
-          sourceToken,
-        )}`,
+        `${actionsTab}?token=${encodeURIComponent(sourceToken)}`,
         "Ticket token not found",
       ),
     };
@@ -283,7 +266,7 @@ const validateMergePostInput = async (
     return {
       ok: false,
       response: errorRedirect(
-        `/admin/attendees/${attendeeId}/merge`,
+        actionsTab,
         "Cannot merge an attendee with themselves",
       ),
     };
@@ -435,42 +418,34 @@ const handlers = createEntityRouteHandlers(
   ({ attendeeId }: AttendeeRouteParams) => attendeeId,
 );
 
-/** Handle GET /admin/attendees/:attendeeId/merge — analyze + render decisions */
-export const handleMergeGet = handlers.get(async (request, session, target) => {
-  const token = getSearchParam(request, "token");
-  const flash = applyFlash(request);
-  if (!token) return mergeAttendeePage(request, session)(target);
+/**
+ * Build the merge panel for the attendee page's Actions tab: the token search
+ * form alone, or — when a `?token=` search is in flight — the source preview
+ * and decision form (with an inline message when the token doesn't resolve).
+ */
+export const loadMergePanel = async (
+  target: Attendee,
+  token: string,
+): Promise<JSX.Element> => {
+  if (!token) return AttendeeMergePanel(target, null, null);
   const source = await loadMergeSource(token);
   if (!source) {
-    return htmlResponse(
-      adminMergeAttendeePage(
-        target,
-        null,
-        token,
-        session,
-        "Ticket token not found",
-      ),
-    );
+    return AttendeeMergePanel(target, null, token, "Ticket token not found");
   }
   if (source.id === target.id) {
-    return htmlResponse(
-      adminMergeAttendeePage(
-        target,
-        null,
-        token,
-        session,
-        "Cannot merge an attendee with themselves",
-      ),
+    return AttendeeMergePanel(
+      target,
+      null,
+      token,
+      "Cannot merge an attendee with themselves",
     );
   }
   const diff = await buildMergeDiffFor(target, source, target.id);
-  return htmlResponse(
-    adminMergeAttendeePage(target, source, token, session, flash.error, diff),
-  );
-});
+  return AttendeeMergePanel(target, source, token, undefined, diff);
+};
 
 /** Handle POST /admin/attendees/:attendeeId/merge — validate + apply decisions */
-export const handleMergePost = handlers.post(async (session, form, target) => {
+export const handleMergePost = handlers.post(async (_session, form, target) => {
   const input = await validateMergePostInput(target.id, form);
   if (!input.ok) return input.response;
   const { source, sourceToken } = input;
@@ -478,15 +453,13 @@ export const handleMergePost = handlers.post(async (session, form, target) => {
   const decision = parseMergeDecisionForm(form, diff);
   const validation = validateAttendeeMergeDecision(diff, decision);
   if (!validation.valid) {
-    return htmlResponse(
-      adminMergeAttendeePage(
-        target,
-        source,
+    // Bounce back to the Actions tab's merge panel; the decision radios reset
+    // (they always have), but the errors flash and the search re-runs.
+    return errorRedirect(
+      `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
         sourceToken,
-        session,
-        validation.errors.join("; "),
-        diff,
-      ),
+      )}`,
+      validation.errors.join("; "),
     );
   }
   return applyMergeDecisions(target.id, target, source, diff, decision);

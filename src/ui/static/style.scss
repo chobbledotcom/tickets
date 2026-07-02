@@ -380,7 +380,7 @@ nav ul li {
    links — no boxes or borders — with each section's sub-nav nested and indented
    beneath its parent link. */
 @media (min-width: 769px) {
-  body:has(#main-nav) main {
+  body:has(.admin-nav-group) main {
     display: grid;
     grid-template-columns: var(--admin-nav-width) minmax(0, 1fr);
     gap: 0 var(--space-xl);
@@ -408,14 +408,14 @@ nav ul li {
   }
 
   /* Everything that isn't the sidebar flows down column 2... */
-  body:has(#main-nav) main > :not(.admin-nav-group) {
+  body:has(.admin-nav-group) main > :not(.admin-nav-group) {
     grid-column: 2;
     min-width: 0;
   }
 
   /* ...with margins re-creating the inter-block gap, since a real row-gap would
      be multiplied across the 9999 spanned (empty) rows. */
-  body:has(#main-nav) main > :not(.admin-nav-group) ~ :not(.admin-nav-group) {
+  body:has(.admin-nav-group) main > :not(.admin-nav-group) ~ :not(.admin-nav-group) {
     margin-top: var(--space-xl);
   }
 
@@ -1734,6 +1734,14 @@ form.listing-form--templated.listing-form--no-daily:not(:has(#customise-listing:
 // Hide the max price field unless "Allow Pay More" is checked.
 @include reveal-when-checked("can_pay_more", 'label:has([name="max_price"])');
 
+// Package-only controls — the per-member price/quantity table and the
+// "hide listings within package" toggle — appear only once "Package" is ticked.
+@include reveal-when-checked("is_package", ".package-prices");
+@include reveal-when-checked(
+  "is_package",
+  'label:has(input[name="hide_package_listings"])'
+);
+
 // Hide the reservation amount field unless "This is a reservation" is checked.
 @include reveal-when-checked(
   "is_reservation",
@@ -2291,8 +2299,8 @@ button.secondary:hover,
     display: none;
   }
 
-  /* Drop the two-column admin layout for print: no sidebar, full-width content */
-  body:has(#main-nav) main {
+  /* Drop the two-column sidebar layout for print: full-width content */
+  body:has(.admin-nav-group) main {
     display: block;
   }
 
@@ -2921,4 +2929,60 @@ label:hover .embed-toggle-badge,
 .listing-details-table:has(.listing-embed-toggle:checked) .embed-toggle-badge {
   border-color: var(--color-link);
   color: var(--color-link);
+}
+
+/* ── Entity pages: the tabbed admin "edit X" framework (edit-pages.md) ── */
+
+.entity-tabs {
+  border-bottom: 1px solid var(--color-bg-secondary);
+  margin-block: var(--space-m);
+  /* The base `nav` rule centres its row; the tab strip reads left-to-right
+     like the page content beneath it, so pin it to the start. */
+  justify-content: flex-start;
+
+  ul {
+    display: flex;
+    gap: var(--space-s);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    /* One swipeable row on narrow screens — tabs never wrap into a wall. */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+
+  li {
+    margin: 0;
+  }
+
+  a {
+    border-bottom: 3px solid transparent;
+    display: inline-block;
+    padding: var(--space-s) var(--space-m);
+    text-decoration: none;
+  }
+
+  a.active {
+    border-bottom-color: var(--color-link);
+    font-weight: bold;
+  }
+}
+
+.entity-action {
+  align-items: center;
+  display: flex;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+}
+
+.entity-danger-zone {
+  border: 1px solid var(--color-table);
+  border-radius: var(--border-radius);
+  margin-top: var(--space-lg);
+  padding: var(--space-m);
+
+  h4 {
+    margin-top: 0;
+  }
 }

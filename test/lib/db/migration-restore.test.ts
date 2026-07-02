@@ -119,8 +119,8 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
       [
         `INSERT INTO groups (id, slug, slug_index, name, description, max_attendees)
          VALUES (901, 'migration-group', 'group-index', 'Migration Group', 'historic group', 50)`,
-        `INSERT INTO listings (id, created, max_attendees, name, slug, slug_index, group_id, unit_price, max_quantity, listing_type, date, location, customisable_days, uses_logistics)
-         VALUES (902, '2024-01-01T00:00:00Z', 25, 'migration-listing', 'migration-listing', 'listing-index', 901, 1200, 4, 'standard', '2024-02-01', 'Town Hall', 1, 1)`,
+        `INSERT INTO listings (id, created, max_attendees, name, slug, slug_index, unit_price, max_quantity, listing_type, date, location, customisable_days, uses_logistics)
+         VALUES (902, '2024-01-01T00:00:00Z', 25, 'migration-listing', 'migration-listing', 'listing-index', 1200, 4, 'standard', '2024-02-01', 'Town Hall', 1, 1)`,
         `INSERT INTO attendees (id, created, checked_in, ticket_token_index, pii_blob, status_id, split_logistics_agents, phone_index)
          VALUES (903, '2024-01-02T00:00:00Z', '', 'ticket-index', '{"name":"Migration Guest"}', 1, 1, 'phone-index')`,
         `INSERT INTO listing_attendees (id, listing_id, attendee_id, start_at, end_at, quantity, checked_in, start_agent_id, end_agent_id, start_time, end_time, start_done, end_done)
