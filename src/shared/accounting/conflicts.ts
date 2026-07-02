@@ -8,7 +8,6 @@
  *   original's inverse, so the one-void-per-original slot is never wasted.
  */
 
-import { type RowReader, selectById } from "#shared/accounting/rows.ts";
 import { legIdentityDiff } from "#shared/ledger/reconcile.ts";
 import { isInverseOf } from "#shared/ledger/reverse.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
@@ -64,14 +63,14 @@ export const assertEventMatches = (
 };
 
 /**
- * The pure half of {@link assertReverses}: check a leg against the already-fetched
- * `original` it claims to reverse. A leg that links to another via `reversesId`
- * must be that original's exact inverse and the original must exist; otherwise the
- * unique `reverses_id` slot is used up without the original money actually being
- * voided, or it points at nothing — either way permanently blocking the correct
- * reversal. Pass the original you loaded (or `null` if none); a leg with no
- * `reversesId` passes trivially. The batch writer uses this against originals it
- * pre-loaded in bulk, so it needs no per-leg read inside its write.
+ * Check a leg against the already-fetched `original` it claims to reverse. A leg
+ * that links to another via `reversesId` must be that original's exact inverse
+ * and the original must exist; otherwise the unique `reverses_id` slot is used
+ * up without the original money actually being voided, or it points at nothing
+ * — either way permanently blocking the correct reversal. Pass the original you
+ * loaded (or `null` if none); a leg with no `reversesId` passes trivially. Both
+ * write paths use this against originals the store pre-loaded in bulk, so no
+ * per-leg read happens inside a write.
  */
 export const assertReversesAgainst = (
   input: TransferInput,
@@ -93,17 +92,3 @@ export const assertReversesAgainst = (
   }
 };
 
-/**
- * A leg that links to another via `reversesId` must be that original's exact
- * inverse and the original must exist (see {@link assertReversesAgainst}). Reads
- * the original through `read` — used by the single-event write path, which reads
- * through its own transaction.
- */
-export const assertReverses = async (
-  read: RowReader,
-  input: TransferInput,
-): Promise<void> => {
-  const id = input.reversesId;
-  if (id === undefined || id === null) return;
-  assertReversesAgainst(input, await selectById(read, id));
-};

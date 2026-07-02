@@ -21,7 +21,6 @@ import type { InValue } from "@libsql/client";
 import { groupBy, mapNotNullish, unique } from "#fp";
 import {
   assertEventMatches,
-  assertReverses,
   assertReversesAgainst,
   LedgerConflictError,
 } from "#shared/accounting/conflicts.ts";
@@ -30,8 +29,7 @@ import {
   fromTx,
   insertStatement,
   orIgnore,
-  selectByEventGroup,
-  selectByReferences,
+  type RowReader,
   selectTransfers,
 } from "#shared/accounting/rows.ts";
 import {
@@ -94,6 +92,15 @@ export const assertPostable = (inputs: TransferInput[]): void => {
  * Same idempotency rules as {@link postTransfers}: if the event is already
  * stored the whole leg set must match, otherwise the legs are inserted. An empty
  * post is a no-op.
+ *
+ * The conflict checks are {@link planGroup}'s — the single implementation both
+ * write paths share — against a snapshot read THROUGH this transaction, so the
+ * database write lock makes concurrent posters of the same event take turns:
+ * the second sees the first's rows and replays as a no-op. Because that
+ * in-transaction read is authoritative, the inserts stay plain (no `OR IGNORE`),
+ * keeping constraint violations loud — a double void that slipped past the
+ * checks still fails on the unique `reverses_id` index rather than being
+ * silently dropped.
  */
 export const postTransfersTx = async (
   tx: TxScope,
@@ -101,31 +108,10 @@ export const postTransfersTx = async (
 ): Promise<PostResult> => {
   if (inputs.length === 0) return EMPTY_RESULT;
   assertPostable(inputs);
-  const eventGroup = inputs[0]!.eventGroup;
-  const references = inputs.map((t) => t.reference);
-  const read = fromTx(tx);
-  const existing = await selectByEventGroup(read, eventGroup);
-  if (existing.length > 0) {
-    assertEventMatches(eventGroup, existing, inputs);
-    return { inserted: 0, skipped: inputs.length };
-  }
-  // No legs for this event yet, so any already-stored reference belongs to a
-  // different event — reject before inserting (naming the exact reference).
-  const colliding = await selectByReferences(read, references);
-  if (colliding.length > 0) {
-    throw new LedgerConflictError(
-      colliding[0]!.reference,
-      "reference already belongs to a different event",
-    );
-  }
-  const recordedAt = nowIso();
-  for (const input of inputs) {
-    // Check the void link against the stored original before inserting, so a bad
-    // reversal never uses up the unique reverses_id slot.
-    await assertReverses(read, input);
-    await tx.execute(insertStatement(input, recordedAt));
-  }
-  return { inserted: inputs.length, skipped: 0 };
+  const snapshot = await loadBatchSnapshot([inputs], fromTx(tx));
+  const { inserts, result } = planGroup(inputs, snapshot, nowIso());
+  for (const statement of inserts) await tx.execute(statement);
+  return result;
 };
 
 /**
@@ -159,21 +145,26 @@ type BatchSnapshot = {
 /** Read every transfer whose `column` is one of `values`; [] for an empty set
  *  without touching the database. `column` is a trusted constant, never input. */
 const selectByColumnIn = (
+  read: RowReader,
   column: string,
   values: readonly InValue[],
 ): Promise<Transfer[]> =>
   values.length === 0
     ? Promise.resolve([])
     : selectTransfers(
-        fromDb,
+        read,
         ` WHERE ${column} IN (${inPlaceholders(values)})`,
         [...values],
       );
 
 /** Load everything {@link planGroup} needs to validate the batch, in three bulk
- *  selects — independent of the number of groups. */
+ *  selects — independent of the number of groups. `read` picks where the
+ *  snapshot comes from: the global client for the batch path, or an open
+ *  transaction for {@link postTransfersTx} (whose write lock makes the read
+ *  authoritative). */
 const loadBatchSnapshot = async (
   groups: TransferInput[][],
+  read: RowReader,
 ): Promise<BatchSnapshot> => {
   const eventGroups = unique(groups.map((inputs) => inputs[0]!.eventGroup));
   const references = groups.flatMap((inputs) => inputs.map((t) => t.reference));
@@ -181,9 +172,9 @@ const loadBatchSnapshot = async (
     mapNotNullish((t: TransferInput) => t.reversesId)(groups.flat()),
   );
   const [existing, stored, originals] = await Promise.all([
-    selectByColumnIn("event_group", eventGroups),
-    selectByColumnIn("reference", references),
-    selectByColumnIn("id", reversesIds),
+    selectByColumnIn(read, "event_group", eventGroups),
+    selectByColumnIn(read, "reference", references),
+    selectByColumnIn(read, "id", reversesIds),
   ]);
   return {
     existingByGroup: groupBy(existing, (leg) => leg.eventGroup),
@@ -205,6 +196,7 @@ const planGroup = (
   inputs: TransferInput[],
   snapshot: BatchSnapshot,
   recordedAt: string,
+  render: (statement: Statement) => Statement = (statement) => statement,
 ): { inserts: Statement[]; result: PostResult } => {
   const eventGroup = inputs[0]!.eventGroup;
   const existing = snapshot.existingByGroup.get(eventGroup) ?? [];
@@ -232,11 +224,7 @@ const planGroup = (
         ? null
         : (snapshot.originalsById.get(id) ?? null),
     );
-    // INSERT OR IGNORE so a leg a concurrent poster committed between the snapshot
-    // read and this write is skipped rather than violating the unique reference
-    // (the same idempotent-insert approach the backfill uses); references are
-    // deterministic, so an ignored row is byte-identical to the one already there.
-    inserts.push(orIgnore(insertStatement(input, recordedAt)));
+    inserts.push(render(insertStatement(input, recordedAt)));
   }
   return { inserts, result: { inserted: inputs.length, skipped: 0 } };
 };
@@ -288,14 +276,21 @@ export const postTransferGroups = async (
   if (new Set(allRefs).size !== allRefs.length) {
     throw new Error("postTransferGroups: duplicate reference across the batch");
   }
-  const snapshot = await loadBatchSnapshot(nonEmpty);
+  const snapshot = await loadBatchSnapshot(nonEmpty, fromDb);
   const recordedAt = nowIso();
   const inserts: Statement[] = [];
   const planned = nonEmpty.map((inputs) => {
+    // INSERT OR IGNORE so a leg a concurrent poster committed between the
+    // snapshot read and this write is skipped rather than violating the unique
+    // reference (the same idempotent-insert approach the backfill uses);
+    // references are deterministic, so an ignored row is byte-identical to the
+    // one already there. Only this pre-write-snapshot path needs it — the
+    // in-transaction path reads under the write lock and inserts plain.
     const { inserts: groupInserts, result } = planGroup(
       inputs,
       snapshot,
       recordedAt,
+      orIgnore,
     );
     inserts.push(...groupInserts);
     return result;
