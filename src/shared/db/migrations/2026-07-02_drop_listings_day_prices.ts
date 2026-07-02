@@ -1,4 +1,4 @@
-import { schemaMigration } from "./define.ts";
+import { backfillDropColumnMigration } from "./define.ts";
 
 /**
  * Retire the `listings.day_prices` JSON column: per-day-count prices now live in
@@ -10,24 +10,15 @@ import { schemaMigration } from "./define.ts";
  * `unit_price` stays a column (the hot-path base price, mirrored by the `base`
  * row); `day_prices` is projected back on read from the `day_count` rows.
  *
- * `up()`:
- *  1. Rebuild every listing's `day_count` rows from the JSON column (`DELETE` +
- *     `INSERT … json_each`), so the rows are exactly the column's contents.
- *  2. `recreateTable("listings")` rebuilds the table from the (now
- *     `day_prices`-free) SCHEMA, preserving every other column.
- *
- * Gated on the legacy column so a re-run after a verify retry or crash is a
- * no-op. The dropped column is covered by the schema-hash guard (no additive
- * object to verify), matching the other column-drop migrations.
+ * Gated on the legacy column so a re-run (or a fresh DB whose SCHEMA never had
+ * the column) is a no-op — see {@link backfillDropColumnMigration}.
  */
-export default schemaMigration(
+export default backfillDropColumnMigration(
   "2026-07-02_drop_listings_day_prices",
+  "listings",
+  "day_prices",
   "Migrate listings.day_prices into the listing_prices 'day_count' dimension and drop the column.",
-  {},
-  async ({ getDb, recreateTable }) => {
-    const info = await getDb().execute("PRAGMA table_info(listings)");
-    const hasLegacyColumn = info.rows.some((row) => row.name === "day_prices");
-    if (!hasLegacyColumn) return;
+  async (getDb) => {
     // Authoritative rebuild of the day_count rows from the column: replace the
     // whole dimension, then repopulate one row per (listing, day count) entry.
     await getDb().execute(
@@ -38,6 +29,5 @@ export default schemaMigration(
         "SELECT listing.id, 'day_count', dayPrice.key, dayPrice.value " +
         "FROM listings AS listing, json_each(listing.day_prices) AS dayPrice",
     );
-    await recreateTable("listings");
   },
 );

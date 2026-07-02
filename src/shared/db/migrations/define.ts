@@ -63,6 +63,29 @@ export const columnDropMigration = (
   });
 
 /**
+ * A migration that backfills data out of a column into another table and then
+ * drops the column, gated on the column still being present so a re-run (after a
+ * verify retry, a crash before the marker, or a fresh DB whose SCHEMA never had
+ * the column) is a cheap no-op. `backfill` runs only when the column exists,
+ * before the {@link recreateTable} rebuild that drops it. Owns no additive object
+ * (`{}` requires); the schema-hash guard covers the drop. Shared by the pricing
+ * migrations that move a legacy column into `listing_prices` then drop it.
+ */
+export const backfillDropColumnMigration = (
+  id: string,
+  table: string,
+  column: string,
+  description: string,
+  backfill: (getDb: MigrationContext["getDb"]) => Promise<void>,
+): MigrationBuilder =>
+  schemaMigration(id, description, {}, async ({ getDb, recreateTable }) => {
+    const info = await getDb().execute(`PRAGMA table_info(${table})`);
+    if (!info.rows.some((row) => row.name === column)) return;
+    await backfill(getDb);
+    await recreateTable(table); // rebuild from SCHEMA, dropping the column
+  });
+
+/**
  * A column drop whose maintaining triggers still reference the dropped column, so
  * the bare {@link columnDropMigration} isn't enough: `CREATE TRIGGER IF NOT
  * EXISTS` won't replace the stale triggers, so they must be dropped before the
