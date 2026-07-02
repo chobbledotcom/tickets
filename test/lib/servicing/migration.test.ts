@@ -14,7 +14,7 @@
  *     `idx_attendees_kind` in that table's `indexes`.
  *   - `#shared/db/migrations/2026-06-24_attendees_kind.ts` is a
  *     `schemaMigration` whose `requires` lists the column + `idx_attendees_kind`
- *     (the Codex-flagged `indexes` omission must NOT recur — see
+ *     (the `indexes` omission must NOT recur — see
  *     `migration is registered …` and `kind index is created by the migration`).
  *   - `#shared/db/migrations.ts` appends that migration to `MIGRATIONS`.
  *   - `#shared/db/attendees/kind.ts` exports `ATTENDEE_KIND` / `SERVICING_KIND`.

@@ -17,6 +17,7 @@ export const API_EXAMPLE_LISTING: ListingWithCount = {
   attachment_name: "",
   attachment_url: "",
   attendee_count: 3,
+  bookable_alone: false,
   bookable_days: [],
   can_pay_more: false,
   closes_at: null,

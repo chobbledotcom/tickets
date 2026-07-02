@@ -3317,7 +3317,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
   });
 
-  describe("daily listing admin view (Phase 4)", () => {
+  describe("daily listing admin view", () => {
     const validDate1 = addDays(todayInTz("UTC"), 1);
     const validDate2 = addDays(todayInTz("UTC"), 2);
 

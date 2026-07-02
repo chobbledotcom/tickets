@@ -809,7 +809,7 @@ describe("payment-helpers", () => {
     test("leaves a too-long thank_you_url untouched (capping moved pre-sign)", () => {
       // enforceMetadataLimits no longer strips thank_you_url: that is done in
       // buildItemsMetadata before signing so the proof and metadata stay
-      // consistent (parents.md Fix 1). An over-cap URL passing through here is
+      // consistent. An over-cap URL passing through here is
       // unchanged (it never reaches here over-cap in production).
       const metadata = {
         email: "j@x.com",
@@ -1028,7 +1028,7 @@ describeWithEnv(
   },
 );
 
-// parents.md Fix 1: a folded paid parent's thank_you_url is capped/omitted
+// A folded paid parent's thank_you_url is capped/omitted
 // BEFORE the metadata is signed, so the signed payload and the emitted metadata
 // stay identical and the webhook never sees a tampered session for an honest
 // over-cap URL.

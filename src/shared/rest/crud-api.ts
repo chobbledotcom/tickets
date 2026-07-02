@@ -159,8 +159,8 @@ export const parseUpdateName = (
 };
 
 /**
- * An atomic body-only side effect (e.g. relationship edges) for a create/update
- * (parents.md Fix 4). Two-phase so the whole write is all-or-nothing:
+ * An atomic body-only side effect (e.g. relationship edges) for a create/update.
+ * Two-phase so the whole write is all-or-nothing:
  * `validate` runs BEFORE the write and either rejects (400, nothing written) or
  * yields a prepared `value`; `persist` then runs in the SAME transaction as the
  * row write (see `writeWithSideEffect`), so a failure rolls the row write back
@@ -189,8 +189,8 @@ export interface CrudApiConfig<
   FullRow extends Row = Row,
   Prepared = void,
 > {
-  /** An atomic body-only side effect run around the row write (parents.md Fix 4
-   * atomicity). `Prepared` is the value its `validate` carries forward to its
+  /** An atomic body-only side effect run around the row write. `Prepared` is
+   * the value its `validate` carries forward to its
    * `persist`, inferred per resource. See {@link CrudSideEffect}. */
   sideEffect?: CrudSideEffect<Input, FullRow, Prepared>;
   /** Run after a create/update has committed and the row has been re-read, keyed
@@ -391,7 +391,7 @@ export const defineCrudApi = <
     return (await lookup(id))!;
   };
 
-  /** Validate the body-only side effect BEFORE the row write (Fix 4 atomicity):
+  /** Validate the body-only side effect BEFORE the row write (atomicity):
    * an error short-circuits the whole write (no partial row create/change); a
    * success yields the prepared value to persist once the row exists. Resources
    * without a side effect yield `undefined` and never reject. */

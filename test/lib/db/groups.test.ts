@@ -174,6 +174,59 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       expect(listings[0]?.attendee_count).toBe(3);
     });
 
+    test("getActiveListingsByGroupIds batches several groups, keyed by id", async () => {
+      const populated = await createTestGroup({
+        name: "Populated",
+        slug: "batch-populated",
+      });
+      const empty = await createTestGroup({
+        name: "Empty",
+        slug: "batch-empty",
+      });
+      const active = await createTestListing({
+        groupId: populated.id,
+        maxAttendees: 10,
+        name: "Batch Active",
+      });
+      const inactive = await createTestListing({
+        groupId: populated.id,
+        maxAttendees: 10,
+        name: "Batch Inactive",
+      });
+      // A listing shared by both groups proves the join is resolved per group.
+      const shared = await createTestListing({
+        groupId: populated.id,
+        maxAttendees: 10,
+        name: "Batch Shared",
+      });
+      await assignListingsToGroup([shared.id], empty.id);
+      await getDb().execute({
+        args: [inactive.id],
+        sql: "UPDATE listings SET active = 0 WHERE id = ?",
+      });
+
+      const byGroup = await getActiveListingsByGroupIds([
+        populated.id,
+        empty.id,
+      ]);
+      // The inactive member is dropped; the shared active one appears under both.
+      expect(
+        byGroup
+          .get(populated.id)
+          ?.map((l) => l.id)
+          .sort(),
+      ).toEqual([active.id, shared.id].sort((a, b) => a - b));
+      expect(byGroup.get(empty.id)?.map((l) => l.id)).toEqual([shared.id]);
+    });
+
+    test("getActiveListingsByGroupIds maps a memberless group to an empty list", async () => {
+      const bare = await createTestGroup({ name: "Bare", slug: "batch-bare" });
+      const byGroup = await getActiveListingsByGroupIds([bare.id]);
+      expect(byGroup.get(bare.id)).toEqual([]);
+      // No ids ⇒ empty map, no query.
+      expect((await getActiveListingsByGroupIds([])).size).toBe(0);
+    });
+
     test("resetGroupListings removes every membership row", async () => {
       const group = await createTestGroup({
         name: "Reset Group",
@@ -595,41 +648,6 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
 
       expect(await getGroupRemainingForListing(e2, "2026-11-15")).toBe(3);
       expect(await getGroupRemainingForListing(e2, "2026-11-16")).toBe(5);
-    });
-  });
-
-  describe("getActiveListingsByGroupIds", () => {
-    test("keys each active listing under every REQUESTED group it belongs to", async () => {
-      // Membership is many-to-many: the shared listing sits in both groups,
-      // but only the requested group's entry may carry it — the other group's
-      // membership edge is filtered out, and an inactive member never appears.
-      const wanted = await createTestGroup({ name: "NavA", slug: "nav-a" });
-      const other = await createTestGroup({ name: "NavB", slug: "nav-b" });
-      const shared = await createTestListing({
-        groupId: wanted.id,
-        name: "Nav Shared",
-      });
-      await assignListingsToGroup([shared.id], other.id);
-      await createTestListing({ groupId: wanted.id, name: "Nav Second" });
-      const inactive = await createTestListing({
-        groupId: wanted.id,
-        name: "Nav Inactive",
-      });
-      const { deactivateTestListing } = await import("#test-utils");
-      await deactivateTestListing(inactive.id);
-
-      const byGroup = await getActiveListingsByGroupIds([wanted.id]);
-      expect([...byGroup.keys()]).toEqual([wanted.id]);
-      expect(
-        byGroup
-          .get(wanted.id)!
-          .map((e) => e.name)
-          .toSorted(),
-      ).toEqual(["Nav Second", "Nav Shared"]);
-    });
-
-    test("returns an empty map for no group ids", async () => {
-      expect((await getActiveListingsByGroupIds([])).size).toBe(0);
     });
   });
 

@@ -71,7 +71,7 @@ describeWithEnv("ticket QR code", { db: true }, () => {
     test("returns SVG QR code for valid group slug", async () => {
       const group = await createTestGroup();
       // The group needs a standalone-bookable member, or its booking page (and so
-      // its QR) 404s as a dead link (Fix 3).
+      // its QR) 404s as a dead link.
       await createTestListing({ groupId: group.id, name: "Member" });
       const response = await handleRequest(
         mockRequest(`/ticket/${group.slug}/qr`),

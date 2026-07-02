@@ -14,19 +14,24 @@ export const notFoundPage = (): string =>
 
 /**
  * QR booking link error page shown when a signed link is invalid or expired.
- * Always includes a fallback link to the normal listing booking page.
+ * Includes a fallback link to the listing's normal booking page — but only when
+ * that page exists: a `null` slug (the listing has no standalone page, e.g. a
+ * non-standalone child or a hidden package member whose `/ticket/<slug>` 404s)
+ * renders the error without a dead link to offer.
  */
-export const qrBookErrorPage = (slug: string): string =>
+export const qrBookErrorPage = (slug: string | null): string =>
   String(
     <Layout title={t("public.qr_book_error.title")}>
       <div class="prose">
         <h1>{t("public.qr_book_error.heading")}</h1>
         <p>{t("public.qr_book_error.message")}</p>
-        <p>
-          <a href={`/ticket/${escapeHtml(slug)}`}>
-            {t("public.qr_book_error.booking_link")}
-          </a>
-        </p>
+        {slug !== null && (
+          <p>
+            <a href={`/ticket/${escapeHtml(slug)}`}>
+              {t("public.qr_book_error.booking_link")}
+            </a>
+          </p>
+        )}
       </div>
     </Layout>,
   );

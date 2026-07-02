@@ -1,5 +1,5 @@
 /**
- * Attendee entity page content (edit-pages.md): the Overview summary rows,
+ * Attendee entity page content: the Overview summary rows,
  * the contact-history panel, the merge form, and the always-visible banner
  * (status heading + notes). The page shape itself — tabs, strip, sections —
  * is the shared entity-pages renderer; this file only supplies the

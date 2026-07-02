@@ -107,6 +107,7 @@ const getAttendeeOrderRows = (attendeeId: number): Promise<OrderRow[]> =>
               "listingAttendee.attendee_id",
               "listingAttendee.listing_id",
               "listingAttendee.ledger_event_group",
+              "listingAttendee.id",
             )},
             listing.name AS listing_name,
             listing.unit_price AS listing_unit_price

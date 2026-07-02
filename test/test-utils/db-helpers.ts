@@ -72,6 +72,7 @@ export const buildCreateListingForm = (
     : (input.initialSiteMonths ?? 0);
   return {
     assign_built_site: bool(input.assignBuiltSite),
+    bookable_alone: bool(input.bookableAlone),
     bookable_days: input.bookableDays
       ? formatBookableDaysForForm(input.bookableDays)
       : "",
@@ -112,6 +113,9 @@ const buildUpdateBoolFields = (
 ): Record<string, string> => ({
   assign_built_site: bool(
     pickField(updates.assignBuiltSite, existing.assign_built_site),
+  ),
+  bookable_alone: bool(
+    pickField(updates.bookableAlone, existing.bookable_alone),
   ),
   can_pay_more: bool(pickField(updates.canPayMore, existing.can_pay_more)),
   hidden: bool(pickField(updates.hidden, existing.hidden)),

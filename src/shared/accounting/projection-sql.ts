@@ -49,9 +49,9 @@ export const accountPredicate = (
  * Predicate matching a booking row's gross `sale` leg: `kind='sale'`, billed from
  * the attendee to the listing's revenue account, scoped to the row's
  * `ledger_event_group`. The single home for "this row's sale leg" — shared by the
- * per-row amount-paid projection ({@link sumAmountFromTransfers}) and the
- * paid-line existence check, so the two can't drift. All three args are SQL
- * column expressions in the surrounding query (no leading `WHERE`).
+ * per-row amount-paid projection (`pricePaidFromLedger`) and the paid-line
+ * existence check, so the two can't drift. All three args are SQL column
+ * expressions in the surrounding query (no leading `WHERE`).
  */
 export const saleLegPredicate = (
   attendeeIdExpr: string,
@@ -62,15 +62,6 @@ export const saleLegPredicate = (
   ` AND ${accountPredicate("source", ATTENDEE, attendeeIdExpr)}` +
   ` AND ${accountPredicate("dest", REVENUE, listingIdExpr)}` +
   ` AND event_group = ${eventGroupExpr}`;
-
-/**
- * Wrap a `transfers` WHERE clause as a scalar gross-sum subquery aliased
- * `alias` — the shape every "sum of amounts over the filtered legs" projection
- * shares. `where` is the predicate body (no leading `WHERE`). A site has one
- * currency, so amounts sum directly.
- */
-export const sumAmountFromTransfers = (where: string, alias: string): string =>
-  `(SELECT COALESCE(SUM(amount), 0) FROM transfers WHERE ${where}) AS ${alias}`;
 
 /**
  * A *bare* scalar subquery (no alias — the caller names it, like
@@ -112,9 +103,9 @@ export const signedSumCase = (plus: string, minus: string): string =>
 
 /**
  * A `SUM(...) FILTER`-style conditional sum aliased `alias`: total `amount` over
- * the rows matching `where`, zero when none. Unlike {@link sumAmountFromTransfers}
- * this is a *bare* aggregate expression (no `SELECT … FROM transfers`), so several
- * can share one scan of the account's own legs in a single grouped query.
+ * the rows matching `where`, zero when none. A *bare* aggregate expression (no
+ * `SELECT … FROM transfers`), so several can share one scan of the account's own
+ * legs in a single grouped query.
  */
 const conditionalSumColumn = (where: string, alias: string): string =>
   `COALESCE(SUM(CASE WHEN ${where} THEN amount ELSE 0 END), 0) AS ${alias}`;

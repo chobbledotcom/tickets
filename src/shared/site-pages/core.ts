@@ -1,6 +1,6 @@
 /**
- * The pure, total functional core of the site-pages feature (pages.md,
- * "Functional core"). Every function here is deterministic and side-effect
+ * The pure, total functional core of the site-pages feature. Every function
+ * here is deterministic and side-effect
  * free: plain data in → plain data out. No DB, no crypto, no JSX, no `Request`.
  *
  * The acquire ring loads rows + resolves leaf targets; this core turns them
@@ -74,7 +74,7 @@ export const buildForest = (
   }
   for (const list of itemsByPage.values()) list.sort(itemOrder);
 
-  // First page-parent wins (the app guarantees at most one — see N3). An edge
+  // First page-parent wins (the app guarantees at most one). An edge
   // whose parent page is not in `byId` is ignored — the child stays a root —
   // so a dangling edge (reads straddling a delete, or a stale add) degrades
   // gracefully instead of breaking every consumer that dereferences a parent.
@@ -101,7 +101,7 @@ export const buildForest = (
 export type ParentLinks = Pick<Forest, "parentByChild">;
 
 /** The child → parent map over raw `page`-type edges (first edge wins — the
- * app guarantees at most one parent, N3). The in-transaction cycle guard's
+ * app guarantees at most one parent). The in-transaction cycle guard's
  * projection: inside the write transaction the edge set is the app-enforced
  * single-parent tree with no dangling parents (deletes cascade atomically),
  * so no page-row filtering or edge ordering is needed. */
@@ -120,7 +120,7 @@ export const pageParentMapFromEdges = (
 /**
  * The ancestor page ids of `pageId`, root-first, excluding the node itself.
  * Uses a visited guard so a corrupt cyclic edge set throws loudly rather than
- * looping — the app guarantees an acyclic tree (N3/N4), so a cycle here is an
+ * looping — the app guarantees an acyclic tree, so a cycle here is an
  * impossible state to surface, not to absorb.
  */
 export const ancestorsOf = (forest: ParentLinks, pageId: number): number[] => {
@@ -155,7 +155,7 @@ export const descendantsOf = (forest: Forest, pageId: number): Set<number> => {
 /**
  * Would placing `candidatePageId` under `parentPageId` create a cycle? It does
  * iff the candidate is the parent itself or an ancestor of the parent (adding
- * the edge would close a loop back to the candidate — N4). A descendant is *not*
+ * the edge would close a loop back to the candidate). A descendant is *not*
  * a cycle risk here; it's blocked by the single-parent rule instead.
  */
 export const wouldCreateCycle = (
@@ -231,7 +231,7 @@ const anchorPageId = (
   if (current === null) return null;
   const { type, id } = parseTargetKey(current);
   if (type === "page") return forest.byId.has(id) ? id : null;
-  // A leaf may sit under several pages (N3). Pick by the occurrence's own edge
+  // A leaf may sit under several pages. Pick by the occurrence's own edge
   // `sort_order` (its meaningful position — not the parent page's root order,
   // which is unused while the page is nested), then page id.
   const candidates: { edgeOrder: number; pageId: number }[] = [];

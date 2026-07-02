@@ -91,6 +91,9 @@ export type CreateListingBody = {
   hidden?: boolean;
   /** Inherit the operator's listing defaults (live) for the defaulted fields. */
   use_defaults?: boolean;
+  /** Keep this listing's own standalone booking page/catalog entry while it is
+   * also offered under one or more parents (only meaningful for a child). */
+  bookable_alone?: boolean;
   /** Listing ids the buyer must choose one of when this listing is booked (the
    * required-child gate). Only honoured when the parents feature is enabled;
    * self-edges and unknown ids are dropped, and the same nesting/field/add-on
@@ -147,6 +150,7 @@ const optionalFields: FieldMapping[] = [
   ["customisable_days", "customisableDays", "boolean"],
   ["hidden", "hidden", "boolean"],
   ["use_defaults", "useDefaults", "boolean"],
+  ["bookable_alone", "bookableAlone", "boolean"],
 ];
 
 /**
@@ -346,7 +350,7 @@ const handleDeleteListing: RouteHandlerFn = (request, { listingId }) =>
       "Listing name",
     );
     if (error) return apiErrorResponse(error);
-    // Same orphaned-add-on guard the HTML delete uses (parents.md Fix 2): reject
+    // Same orphaned-add-on guard the HTML delete uses: reject
     // a delete that would leave a child-scoped add-on reachable only through a
     // suppressed child, with the same 400 + error as the deactivate API.
     const orphanError = await deleteOrphanedAddOnError(listing.id);
@@ -369,7 +373,7 @@ const handleToggleActive = (
       );
     }
     // A deactivation that would orphan a child-scoped add-on is rejected with
-    // the same 400 + error the HTML deactivate route gives (parents.md Fix 5).
+    // the same 400 + error the HTML deactivate route gives.
     if ("error" in result) return apiErrorResponse(result.error);
     return jsonResponse({ listing: toAdminListing(result.updated) });
   });
@@ -425,7 +429,7 @@ const submittedChildIds = (
 /** A placeholder id for a not-yet-created parent: listing ids are positive
  * autoincrement, so no real listing (and so no real edge) can reference this,
  * making the pre-create child-edge validation behave exactly as for a parent
- * that doesn't exist yet (Fix 4). */
+ * that doesn't exist yet. */
 const UNCREATED_PARENT_ID = -1;
 
 /** The prepared child-edge write: `null` = leave existing edges untouched
@@ -443,7 +447,7 @@ type PreparedListingJoins = {
 
 /**
  * Validate a write's `child_listing_ids` against the would-be parent BEFORE the
- * row is written (Fix 4 atomicity): a rejected edge returns `{ error }` (the
+ * row is written (for atomicity): a rejected edge returns `{ error }` (the
  * whole write is skipped, leaving no partial row create/rename); otherwise it
  * yields the cleaned ids to write once the row exists. The would-be
  * {@link EdgeListing} comes from the parsed input (the *fully merged*
@@ -466,7 +470,7 @@ const prepareListingJoins = async (
   // can't be a parent (the child selector would name the collapsed members),
   // and a package member can't become a child. The group/listing validators
   // only see edges that already exist, so reject the brand-new edges here,
-  // before the row + edges commit together (Fix 4).
+  // before the row + edges commit together.
   if (
     await packageChildEdgeConflict(input.groupIds ?? [], submitted.childIds)
   ) {
@@ -475,7 +479,7 @@ const prepareListingJoins = async (
   // Resolve add-on reachability against the POST-SAVE listing set: apply the
   // submitted `group_id` to the parent in an in-memory listing set so a parent
   // created/moved into the same group as a child's group-scoped add-on is judged
-  // by its would-be group, not the live table that ignores `group_id` (Fix 4).
+  // by its would-be group, not the live table that ignores `group_id`.
   // On create the row doesn't exist yet, so the would-be group still applies to
   // the placeholder id (no live group membership to mislead the check).
   const result = await validateChildEdges(
@@ -488,7 +492,7 @@ const prepareListingJoins = async (
     : { error: result.error };
 };
 
-/** Write the prepared join-table rows on the open write transaction (Fix 4),
+/** Write the prepared join-table rows on the open write transaction,
  * atomically with the listing row: child edges (a no-op when `null`, i.e. field
  * omitted) and group membership (a no-op when `undefined`). */
 const persistListingJoins = async (

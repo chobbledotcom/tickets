@@ -167,6 +167,7 @@ const extractCommonFields = (
   const closesAt = normalizeOptionalDatetime(values.closes_at, "closes_at");
   return {
     assignBuiltSite: isBuilderEnabled() && values.assign_built_site === "1",
+    bookableAlone: form.getString("bookable_alone") === "1",
     bookableDays,
     canPayMore: values.can_pay_more === "1",
     closesAt,

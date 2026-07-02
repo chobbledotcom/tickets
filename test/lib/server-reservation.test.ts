@@ -83,9 +83,10 @@ const latestAttendee = async (): Promise<{
   const paid = await getDb().execute({
     args: [id],
     sql: `SELECT ${pricePaidFromLedger(
-      "attendee_id",
-      "listing_id",
-      "ledger_event_group",
+      "listing_attendees.attendee_id",
+      "listing_attendees.listing_id",
+      "listing_attendees.ledger_event_group",
+      "listing_attendees.id",
     )} FROM listing_attendees WHERE attendee_id = ?`,
   });
   return {
@@ -266,9 +267,10 @@ describeWithEnv(
         const paidRows = await getDb().execute({
           args: [attendee.id],
           sql: `SELECT listing_id, ${pricePaidFromLedger(
-            "attendee_id",
-            "listing_id",
-            "ledger_event_group",
+            "listing_attendees.attendee_id",
+            "listing_attendees.listing_id",
+            "listing_attendees.ledger_event_group",
+            "listing_attendees.id",
           )} FROM listing_attendees WHERE attendee_id = ?`,
         });
         const paidByListing = new Map(

@@ -88,6 +88,7 @@ import attendeePackageGroupMigration from "./migrations/2026-06-29_attendee_pack
 import packageQuantitiesMigration from "./migrations/2026-06-29_package_quantities.ts";
 import listingPricesMigration from "./migrations/2026-07-01_listing_prices.ts";
 import sitePagesMigration from "./migrations/2026-07-01_site_pages.ts";
+import bookableAloneMigration from "./migrations/2026-07-02_bookable_alone.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -280,6 +281,8 @@ export const MIGRATIONS: Migration[] = [
   sitePagesMigration,
   // From main: listing_prices table + backfill from unit_price/day_prices.
   listingPricesMigration,
+  // Pure additive column add (bookable_alone on listings).
+  bookableAloneMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

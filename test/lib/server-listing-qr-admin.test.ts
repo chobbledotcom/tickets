@@ -128,11 +128,11 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
       expect(body).toContain(addDays(todayInTz("UTC"), 60));
     });
 
-    test("offers only child-servable dates for a daily parent (Fix 2)", async () => {
+    test("offers only child-servable dates for a daily parent", async () => {
       // The parent is bookable every weekday, but its only (daily) child is
       // bookable only on Mondays. The QR form's date choices must be constrained
       // to dates a required child can serve, so an admin can't mint a QR for a
-      // date the (child-constrained) scanned booking form would reject (Fix 2).
+      // date the (child-constrained) scanned booking form would reject.
       const { parent, parentDates, childDates } =
         await setupParentWithMondayChild();
       const servable = parentDates.find((d) => childDates.has(d))!;
@@ -246,7 +246,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
       expect(body).toContain("/qr-book?t=");
     });
 
-    test("rejects a daily date no required child can serve (Fix 2)", async () => {
+    test("rejects a daily date no required child can serve", async () => {
       // Posting a raw date the dropdown wouldn't offer (a date no required child
       // can serve) is rejected by the validator, not just hidden from the form.
       const { parent, parentDates, childDates } =

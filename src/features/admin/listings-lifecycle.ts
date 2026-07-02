@@ -72,11 +72,11 @@ const listingToggleHandlers = (opts: {
   });
 
 /** The error for a deactivation that would orphan a child-scoped opt-in add-on —
- * leaving it reachable only through a suppressed child (parents.md Fix 5), or
+ * leaving it reachable only through a suppressed child, or
  * null when the deactivation is safe. Re-uses the shared reachability check. Wired
  * as the confirmation handler's `guardError` (not `preValidate`) so the deactivate
  * **GET renders the confirmation page WITH this error** (200) instead of looping
- * by redirecting to itself, while the POST still blocks the toggle (Fix 1). */
+ * by redirecting to itself, while the POST still blocks the toggle. */
 const deactivationOrphanError = (id: number): Promise<string | null> =>
   deactivationOrphanedAddOnError(new Set([id]));
 
@@ -95,7 +95,7 @@ export const listingReactivate = listingToggleHandlers({
 
 /** Confirmed-delete handlers for listings. The same add-on reachability guard
  * the deactivate path uses also blocks a DELETE that would orphan a child-scoped
- * add-on (parents.md Fix 2): the GET renders the delete confirmation page with
+ * add-on: the GET renders the delete confirmation page with
  * the error (200), the POST blocks before deleting. */
 export const listingDelete = createConfirmedHandlers<ListingWithCount>({
   ...listingConfirmBase,
@@ -130,7 +130,7 @@ export const handleAdminListingDelete: TypedRouteHandler<
     ? listingDelete.post(request, id)
     : withAuth(request, AUTH_FORM, () =>
         withEntityFromParam(id, getListingWithCount, async (listing) => {
-          // Same orphaned-add-on guard as the confirmed path (Fix 2): block a
+          // Same orphaned-add-on guard as the confirmed path: block a
           // delete that would leave a child-scoped add-on unreachable.
           const error = await deleteOrphanedAddOnError(listing.id);
           if (error) return redirect(`/admin/listing/${id}`, error, false);

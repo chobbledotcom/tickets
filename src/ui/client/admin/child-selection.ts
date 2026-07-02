@@ -65,7 +65,7 @@ export const chosenChildIds = (parentId: string): Set<string> =>
  * a single bookable child emits an informational `data-sole-child` element with
  * NO `child_qty_*` control — the server fold auto-fills the whole parent quantity
  * to it (see `renderSoleChildOption`) — so the child is active whenever the parent
- * is in the cart even though no quantity control would report it (Fix 1). */
+ * is in the cart even though no quantity control would report it. */
 export const soleChildId = (parentId: string): string | null => {
   const sole = document.querySelector<HTMLElement>(
     `[data-sole-parent="${parentId}"]`,
@@ -144,7 +144,7 @@ export const selectedListingIds = (): Set<string> => {
     if (!parentInCart(parentId)) continue;
     for (const childId of chosenChildIds(parentId)) ids.add(childId);
     // A sole auto-selected child has no `child_qty_*` control, so it is active
-    // purely by virtue of the parent being in the cart (Fix 1).
+    // purely by virtue of the parent being in the cart.
     const sole = soleChildId(parentId);
     if (sole !== null) ids.add(sole);
   }

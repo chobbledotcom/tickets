@@ -647,7 +647,7 @@ const prepareOrder = async (
 
   // Resolve the order's date and day-count *before* folding children, so the
   // child bookability filter and inherited durations evaluate against the real
-  // values (parents.md "Server-side validation" step 2).
+  // values.
   let date: string | null = null;
   if (ctx.dates.length > 0) {
     date = validateSubmittedDate(form, ctx.dates);
@@ -670,7 +670,7 @@ const prepareOrder = async (
 
   // Parse the page listings' pay-more prices, then apply any signed QR override
   // — both scoped to page listings only, never folded children (the override
-  // must not reach a child line; parents.md QR entry point).
+  // must not reach a child line).
   const customPricesResult = parseCustomPrices(form, ctx, pageQuantities);
   if (typeof customPricesResult === "string") {
     return { error: customPricesResult, ok: false };
@@ -679,7 +679,7 @@ const prepareOrder = async (
 
   // Fold each in-cart parent's selected child into the order: expand the listing
   // set + quantity/custom-price maps + selected ids, so every per-listing path
-  // below sees children as ordinary lines (parents.md fold checklist).
+  // below sees children as ordinary lines.
   const fold = await foldSelectedChildren(ctx, form, {
     customPrices: customPricesResult,
     date,
@@ -794,8 +794,7 @@ const processSubmission = async (
   // The folded ctx carries the page listings plus the selected children, so it
   // drives contact-field requirements, availability, and reservation creation.
   // The original page ctx still determines the thank-you redirect so folding a
-  // child doesn't drop a single parent's configured URL (parents.md fold
-  // checklist, thank-you item).
+  // child doesn't drop a single parent's configured URL.
   const foldedCtx = pricingParams.ctx;
   const thankYouUrl = singleListingThankYouUrl(ctx);
 
@@ -837,8 +836,8 @@ const processSubmission = async (
   if (finalRequiresPayment) {
     // Carry a single parent's configured thank-you URL through the paid round-trip.
     // Folding a required child makes the booking multi-listing, so the webhook's
-    // single-unique-listing-id derivation would otherwise drop the parent's URL
-    // (parents.md fold checklist, thank-you item). Setting it explicitly on the
+    // single-unique-listing-id derivation would otherwise drop the parent's URL.
+    // Setting it explicitly on the
     // intent lets the success page prefer it over that derivation. Only needed
     // once a child was actually folded (the order gained a listing); a genuine
     // single-listing order still resolves the same URL by the default rule.
@@ -1038,8 +1037,8 @@ const buildTicketCtx = async ({
 
 /** The render-only view of the context: a parent whose children are all
  * unavailable is projected to sold-out so the GET page shows it sold out (no
- * Book control) instead of a normal form that would only fail at submit (Codex
- * 914). Bookability uses the combined parent+child group demand (invariant I7),
+ * Book control) instead of a normal form that would only fail at submit.
+ * Bookability uses the combined parent+child group demand,
  * so the children's group-remaining is fetched (date-less, like discovery — the
  * authoritative date-specific check is the fold at submit). The submit/quote
  * paths keep the un-projected `ctx` so the fold's authoritative child rejection
@@ -1067,9 +1066,9 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
   return {
     ...ctx,
     // The PER-GROUP remaining drives the per-parent quantity clamp keyed by the
-    // SPECIFIC group a parent and child share (Codex #3): a parent sharing a capped
-    // group with its child offers only floor(sharedRemaining / 2) orders (invariant
-    // I7, Fix 3). Carried on the render ctx so `childCappedMax` sees it; submit/quote
+    // SPECIFIC group a parent and child share: a parent sharing a capped
+    // group with its child offers only floor(sharedRemaining / 2) orders. Carried
+    // on the render ctx so `childCappedMax` sees it; submit/quote
     // keep it unset.
     groupIdsByListingId: membership,
     groupRemainingByGroupId: childCaps.remaining,
@@ -1176,13 +1175,12 @@ export const renderTicketFlow =
     // member would otherwise render as a standalone, selectable quantity row a
     // buyer could book alone — bypassing the slug guard, which only rejects
     // DIRECT child slugs. Drop children here so they never appear as standalone
-    // rows; their parents stay and re-fold them via `childrenByParentId`
-    // (Fix 3, parents.md "strip child rows from indirect pages").
+    // rows; their parents stay and re-fold them via `childrenByParentId`.
     const withoutChildren = await dropChildListings(listings);
     // When dropping children leaves nothing, every member was a child — a booking
-    // can never start from a child (invariant I3), so the page has nothing
-    // standalone-bookable. Render 404 rather than a 200 empty booking page (Fix 6,
-    // parents.md "indirect page with only children must 404"). Every production
+    // can never start from a child, so the page has nothing
+    // standalone-bookable. Render 404 rather than a 200 empty booking page. Every
+    // production
     // caller (group/order/renewal) already hands a non-empty set, so this fires
     // exactly for the all-children case.
     if (withoutChildren.length === 0) return notFoundResponse();
