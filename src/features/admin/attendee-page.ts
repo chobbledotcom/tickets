@@ -14,6 +14,19 @@
  * attendee-form-routes.ts; the shared loaders live in attendee-page-data.ts.
  */
 
+import { t } from "#i18n";
+import { attendeeBookingsFromLines } from "#routes/admin/attendee-form-model.ts";
+import {
+  buildEditFormFromAttendee,
+  buildTemplateData,
+  getRenderListings,
+  type LoadedAttendee,
+  loadAttendeeActivity,
+  loadAttendeeActivityPreview,
+  loadAttendeeForEdit,
+  loadContactRecords,
+  loadQuestionsForExisting,
+} from "#routes/admin/attendee-page-data.ts";
 import {
   type ActionDef,
   defineEntityPage,
@@ -24,19 +37,6 @@ import {
 import { requireSessionOr } from "#routes/auth.ts";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { t } from "#i18n";
-import { attendeeBookingsFromLines } from "#routes/admin/attendee-form-model.ts";
-import {
-  buildEditFormFromAttendee,
-  buildTemplateData,
-  getRenderListings,
-  loadAttendeeActivity,
-  loadAttendeeActivityPreview,
-  loadAttendeeForEdit,
-  type LoadedAttendee,
-  loadContactRecords,
-  loadQuestionsForExisting,
-} from "#routes/admin/attendee-page-data.ts";
 import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getNotesForAttendee } from "#shared/db/system-notes.ts";
@@ -208,7 +208,10 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
     {
       labelKey: "entity.tab.ledger",
       sections: [
-        { account: ({ attendee }) => attendeeAccount(attendee.id), kind: "ledger" },
+        {
+          account: ({ attendee }) => attendeeAccount(attendee.id),
+          kind: "ledger",
+        },
       ],
       slug: "ledger",
       // The ledger exposes money movements, so it is owner-only — matching

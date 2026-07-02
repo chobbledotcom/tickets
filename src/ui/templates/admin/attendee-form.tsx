@@ -17,6 +17,7 @@
  */
 
 import { t } from "#i18n";
+import type { BalanceNotice } from "#routes/admin/attendee-form-model.ts";
 import {
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
@@ -41,7 +42,11 @@ import {
   startTimeField,
 } from "#routes/admin/attendee-logistics.ts";
 import { toMajorUnits } from "#shared/currency.ts";
-import { addDays, formatDateLabel, formatDateRangeLabel } from "#shared/dates.ts";
+import {
+  addDays,
+  formatDateLabel,
+  formatDateRangeLabel,
+} from "#shared/dates.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { CsrfForm } from "#shared/forms.tsx";
@@ -51,7 +56,6 @@ import {
   type Attendee,
   MAX_DURATION_DAYS,
 } from "#shared/types.ts";
-import type { BalanceNotice } from "#routes/admin/attendee-form-model.ts";
 import { BookingStatusBadges } from "#templates/admin/attendee-detail.tsx";
 import { EditQuestions } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";

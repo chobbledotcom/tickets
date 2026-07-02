@@ -1093,11 +1093,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
 
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(
         response,
         200,
-        "Edit Attendee",
+        "Save Attendee",
         "John Doe",
         "john@example.com",
         "555-1234",
@@ -1115,7 +1115,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
       const response = await adminGet(
-        `/admin/attendees/${attendee.id}?return_url=${encodeURIComponent(
+        `/admin/attendees/${attendee.id}/edit?return_url=${encodeURIComponent(
           "/admin/calendar#attendees",
         )}`,
       );
@@ -1138,7 +1138,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(
         response,
         200,
@@ -1158,7 +1158,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "Edit User",
         "edit@example.com",
       );
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       const html = await expectHtmlResponse(
         response,
         200,
@@ -1205,7 +1205,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       });
       if (!result.success) throw new Error("Failed");
       const attendeeId = result.attendees[0]!.id;
-      const response = await adminGet(`/admin/attendees/${attendeeId}`);
+      const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
       const html = await expectHtmlResponse(
         response,
         200,
@@ -1231,7 +1231,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(response, 200, "Listing 1", "Listing 2");
     });
   });
@@ -1385,12 +1385,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       await expectFlashRedirect(
-        `/admin/attendees/${attendee.id}#attendee-form`,
+        `/admin/attendees/${attendee.id}/edit?form=attendee-form#attendee-form`,
         "Updated Jane Doe",
       )(response);
 
       // Verify the edit form shows the updated data
-      const editResponse = await adminGet(`/admin/attendees/${attendee.id}`);
+      const editResponse = await adminGet(
+        `/admin/attendees/${attendee.id}/edit`,
+      );
       expect(editResponse.status).toBe(200);
       const html = await editResponse.text();
       expect(html).toContain("Jane Doe");
@@ -1451,7 +1453,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       await expectFlashRedirect(
-        `/admin/attendees/${attendee.id}#attendee-form`,
+        `/admin/attendees/${attendee.id}/edit?form=attendee-form#attendee-form`,
         "Updated Jane Smith",
       )(response);
     });
@@ -1532,7 +1534,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
 
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(response, 200, "Listing 1", "Listing 2");
     });
 
@@ -1546,7 +1548,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
 
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(response, 200, 'type="email"', 'name="email"');
     });
 
@@ -1571,7 +1573,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         sql: "UPDATE listings SET active = 0 WHERE id = ?",
       });
 
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       // Listing still shows in registrations table even when inactive
       await expectHtmlResponse(
         response,
@@ -1628,7 +1630,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       await expectFlashRedirect(
-        `/admin/attendees/${attendee.id}#attendee-form`,
+        `/admin/attendees/${attendee.id}/edit?form=attendee-form#attendee-form`,
         "Updated Jane Smith",
       )(response);
     });
@@ -1644,7 +1646,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(response, 200, 'name="qty_');
     });
   });
@@ -2258,7 +2260,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("shows questions on edit page", async () => {
       const { attendee } = await setupQuestionAndAttendee();
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(
         response,
         200,
@@ -2273,7 +2275,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { saveAttendeeAnswers } = await import("#shared/db/questions.ts");
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
-      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       const html = await response.text();
       // The radio for the previously-saved answer is pre-checked.
       expect(html).toContain(

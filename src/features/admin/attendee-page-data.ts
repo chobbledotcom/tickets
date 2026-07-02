@@ -6,6 +6,7 @@
  * them, so neither imports the other.
  */
 
+/* jscpd:ignore-start */
 import { compact, filter, unique } from "#fp";
 import { t } from "#i18n";
 import {
@@ -48,6 +49,7 @@ import type {
   ContactChannelData,
   ContactRecordsByChannel,
 } from "#templates/admin/attendee-page.tsx";
+/* jscpd:ignore-end */
 
 /** An attendee plus its listing_attendees rows — the entity the whole page
  * loads once and every tab shares. */

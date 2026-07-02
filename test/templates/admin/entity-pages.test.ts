@@ -17,7 +17,11 @@ const SESSION = { adminLevel: "owner" as const };
 describe("summary section", () => {
   const rows: SummaryRow[] = [
     { labelKey: "common.name", value: "Jane" },
-    { href: "mailto:jane@example.com", labelKey: "common.email", value: "jane@example.com" },
+    {
+      href: "mailto:jane@example.com",
+      labelKey: "common.email",
+      value: "jane@example.com",
+    },
     {
       external: true,
       href: "https://dashboard.stripe.com/payments/pi_1",
@@ -142,7 +146,11 @@ describe("entityPageView", () => {
     ],
     session: SESSION,
     tabs: [
-      { active: true, href: "/admin/attendees/5", labelKey: "entity.tab.overview" },
+      {
+        active: true,
+        href: "/admin/attendees/5",
+        labelKey: "entity.tab.overview",
+      },
       {
         active: false,
         href: "/admin/attendees/5/edit",

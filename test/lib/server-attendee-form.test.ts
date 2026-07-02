@@ -1830,4 +1830,51 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
     });
   });
+
+  describe("attendee page tabs", () => {
+    test("an unknown tab slug 404s", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Tabbed",
+        "tabbed@example.com",
+      );
+      const response = await adminGet(
+        `/admin/attendees/${attendee.id}/nonsense`,
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("an unknown attendee id 404s on every tab", async () => {
+      await createTestListing({ maxAttendees: 10 });
+      expect((await adminGet("/admin/attendees/999999")).status).toBe(404);
+      expect((await adminGet("/admin/attendees/999999/edit")).status).toBe(404);
+    });
+
+    test("the banner notes are visible on non-overview tabs too", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Noted",
+        "noted@example.com",
+      );
+      const { createOwnerNote } = await import("#shared/db/system-notes.ts");
+      const { settings } = await import("#shared/db/settings.ts");
+      await createOwnerNote(
+        attendee.id,
+        "Allergic to peanuts",
+        settings.publicKey,
+      );
+      const html = await (
+        await adminGet(`/admin/attendees/${attendee.id}/activity`)
+      ).text();
+      expect(html).toContain("Allergic to peanuts");
+      // The strip marks the active tab for the viewer.
+      expect(html).toContain(
+        `aria-current="page" class="active" href="/admin/attendees/${attendee.id}/activity"`,
+      );
+    });
+  });
 });

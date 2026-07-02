@@ -152,7 +152,12 @@ const handleAttendeeRefund = verifiedAttendeeForm(
         detail: `Admin refund failed for attendee ${data.attendee.id}, payment ${data.attendee.payment_id}`,
         listingId,
       });
-      return refundError(listingId, attendeeId, t("error.refund_failed"), returnUrl);
+      return refundError(
+        listingId,
+        attendeeId,
+        t("error.refund_failed"),
+        returnUrl,
+      );
     }
 
     const { posted } = await recordAttendeeRefund(data.attendee.id);

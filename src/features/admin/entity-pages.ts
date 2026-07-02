@@ -31,9 +31,9 @@ import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import {
   resolveTabSlug,
   splitActions,
+  type TabState,
   tabLinks,
   tabPath,
-  type TabState,
 } from "#shared/entity-pages/core.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 import {

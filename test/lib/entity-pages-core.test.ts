@@ -3,9 +3,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   resolveTabSlug,
   splitActions,
+  type TabState,
   tabLinks,
   tabPath,
-  type TabState,
 } from "#shared/entity-pages/core.ts";
 
 const tab = (slug: string, visible = true): TabState => ({

@@ -21,10 +21,7 @@ import {
   AccountStatementSection,
 } from "#templates/admin/ledger.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import {
-  ActionButton,
-  type IconName,
-} from "#templates/components/actions.tsx";
+import { ActionButton, type IconName } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** One row of a read-only summary table. `href` renders the value as a link
@@ -52,7 +49,11 @@ export interface ResolvedAction {
 export type LoadedSection =
   | { kind: "summary"; rows: SummaryRow[] }
   | { kind: "ledger"; ledger: AccountLedgerData; returnUrl: string }
-  | { kind: "activity"; entries: ActivityLogEntry[]; viewAllHref: string | null }
+  | {
+      kind: "activity";
+      entries: ActivityLogEntry[];
+      viewAllHref: string | null;
+    }
   | {
       kind: "actions";
       titleKey: string;
@@ -178,8 +179,8 @@ const SECTION_RENDERERS: {
     section: Extract<LoadedSection, { kind: K }>,
   ) => JSX.Element | null;
 } = {
-  activity: (section) => ActivitySection({ section }),
   actions: (section) => ActionsSection({ section }),
+  activity: (section) => ActivitySection({ section }),
   custom: (section) => section.html,
   ledger: (section) => LedgerSection({ section }),
   summary: (section) => SummarySection({ section }),

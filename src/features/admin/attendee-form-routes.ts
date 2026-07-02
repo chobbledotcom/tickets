@@ -51,8 +51,7 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse, redirect } from "#routes/response.ts";
-import { notFoundResponse } from "#routes/response.ts";
+import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
@@ -90,8 +89,8 @@ import {
 } from "#shared/order-select.ts";
 import type { Attendee } from "#shared/types.ts";
 import {
-  type AttendeeFormTemplateData,
   AttendeeFormPanel,
+  type AttendeeFormTemplateData,
   attendeeFormPage,
 } from "#templates/admin/attendee-form.tsx";
 
@@ -168,12 +167,14 @@ const renderSubmittedForm = (
   session: AuthSession,
   data: AttendeeFormTemplateData,
 ): Promise<Response> =>
-  data.mode === "create" || !data.attendee
+  // A null attendee is exactly create mode — the standalone page.
+  data.attendee === null
     ? Promise.resolve(htmlResponse(attendeeFormPage(data, session)))
     : attendeePage.renderPage(session, data.attendee.id, "edit", {
-        sections: () => Promise.resolve([
-          { html: AttendeeFormPanel({ data }), kind: "custom" as const },
-        ]),
+        sections: () =>
+          Promise.resolve([
+            { html: AttendeeFormPanel({ data }), kind: "custom" as const },
+          ]),
       });
 
 /** Common submit handler for create + edit. `attendeeId` is null in create. */

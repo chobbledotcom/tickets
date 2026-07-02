@@ -18,7 +18,10 @@ import { renderMarkdown } from "#shared/markdown.ts";
 import type { Attendee } from "#shared/types.ts";
 import { AttendeeNotesSection } from "#templates/admin/attendee-notes.tsx";
 import type { SummaryRow } from "#templates/admin/entity-pages.tsx";
-import { MaybeButtonLink, SubmitButton } from "#templates/components/actions.tsx";
+import {
+  MaybeButtonLink,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 
