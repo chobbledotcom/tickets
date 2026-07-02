@@ -87,7 +87,7 @@ const packageMembershipError = async (
   incompatibleByType: boolean,
   existingId: number | undefined,
 ): Promise<string | null> => {
-  if (  group.is_package) return null;
+  if (!group.is_package) return null;
   if (incompatibleByType) return t("error.package_incompatible_listing");
   if (existingId === undefined) return null;
   const { childIds, parentIds } = await edgeIdsTouching(existingId);

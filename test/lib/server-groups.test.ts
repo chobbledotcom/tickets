@@ -528,6 +528,32 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
     });
 
+    test("a regular group with a sold-out but visible member stays shareable", async () => {
+      // A non-package group is shareable whenever it has a visible member, even
+      // if that member is sold out — bookability only gates PACKAGE groups.
+      const group = await createTestGroup({
+        name: "Sold Out Group",
+        slug: "sold-out-group",
+      });
+      const listing = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 1,
+        name: "Sold Out Member",
+      });
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Buyer",
+        "buyer@test.com",
+      );
+
+      const response = await adminGet(`/admin/groups/${group.id}`);
+      const html = await response.text();
+      // The embed/share affordances render despite the member being sold out.
+      expect(html).toContain("Embed Script");
+      expect(html).toContain("/ticket/sold-out-group");
+    });
+
     test("add-listings form offers listings from other groups, not this group's own members", async () => {
       // Membership is many-to-many, so a listing already in another group is a
       // valid candidate to also join this one; only this group's current members

@@ -91,17 +91,12 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         version: 1,
       };
       const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/catalog/import",
-          { csrf_token },
-          cookie,
-          {
-            contentType: "application/json",
-            data: new TextEncoder().encode(JSON.stringify(blob)),
-            fieldName: "catalog_file",
-            name: "listing.json",
-          },
-        ),
+        mockMultipartRequest("/admin/catalog/import", { csrf_token }, cookie, {
+          contentType: "application/json",
+          data: new TextEncoder().encode(JSON.stringify(blob)),
+          fieldName: "catalog_file",
+          name: "listing.json",
+        }),
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toContain("/admin/listings");
