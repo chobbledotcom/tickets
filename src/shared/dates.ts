@@ -401,6 +401,51 @@ export const bookedSpanDays = (
   return diffDays > 1 ? diffDays : 1;
 };
 
+/** The human-readable label for one booking's actual span: the stored
+ * `[date, endDate)` range when a multi-day range is stored, the listing's
+ * fixed duration when only a start date is (legacy rows written before end
+ * dates were stored), else the single booked day. "" when there is no date.
+ * The ONE booked-range renderer the confirmation email, the /t ticket cards,
+ * and the collapsed package displays share, so they can never disagree about
+ * a booking's stay. */
+export const bookedRangeLabel = (
+  date: string | null,
+  endDate: string | null,
+  fallbackDurationDays = 1,
+): string => {
+  if (!date) return "";
+  const lastDay = endDate
+    ? addDays(endDate, -1)
+    : fallbackDurationDays > 1
+      ? addDays(date, fallbackDurationDays - 1)
+      : null;
+  return lastDay && lastDay > date
+    ? formatDateRangeLabelCompactEn(date, lastDay)
+    : formatDateLabel(date);
+};
+
+/** The dated entry whose booked range ends last — the stay covering a whole
+ * package bundle — or null when every entry is date-less (a standard package).
+ * A dated entry with no stored end (a single-day booking, or a legacy row)
+ * sorts below any ranged stay. Shared by the collapsed email/SVG displays and
+ * the /t package card, so every surface picks the SAME representative stay. */
+export const widestDatedEntry = <
+  T extends { attendee: { date: string | null; end_date: string | null } },
+>(
+  entries: readonly T[],
+): T | null => {
+  let widest: T | null = null;
+  let widestEnd = "";
+  for (const entry of entries) {
+    if (!entry.attendee.date) continue;
+    const end = String(entry.attendee.end_date ?? "");
+    if (widest !== null && end <= widestEnd) continue;
+    widest = entry;
+    widestEnd = end;
+  }
+  return widest;
+};
+
 /**
  * Format an ISO datetime string for display in the given timezone.
  * Returns e.g. "Monday 15 June 2026 at 14:00 BST"

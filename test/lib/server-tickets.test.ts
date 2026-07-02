@@ -582,7 +582,9 @@ describeWithEnv(
       const result = await createAttendeeAtomic({
         bookings: [
           { date, listingId: oneDay.id, quantity: 1 },
-          { date, listingId: twoDay.id, quantity: 1 },
+          // The real booking flow stores a fixed daily member's duration
+          // (bookingDateFields), so the stored range reflects the 2-day stay.
+          { date, durationDays: 2, listingId: twoDay.id, quantity: 1 },
           { date, listingId: oneDayB.id, quantity: 1 },
         ],
         email: "trip@test.com",
@@ -599,6 +601,54 @@ describeWithEnv(
       // booked date to its last day.
       expect(body).toContain(
         formatDateRangeLabelCompactEn(date, addDays(date, 1)),
+      );
+    });
+
+    test("a customisable member's card shows the BOOKED span, not the listing maximum", async () => {
+      // Regression: the card derived its range from the listing's duration_days
+      // (the MAX bookable), so a 3-day booking of a 7-day-max member rendered a
+      // 7-day stay. Both the widest-member pick and the label must read the
+      // stored booked range — the same facts the confirmation email renders.
+      const { addDays, formatDateRangeLabelCompactEn } = await import(
+        "#shared/dates.ts"
+      );
+      const { todayInTz } = await import("#shared/timezone.ts");
+      const group = await createTestGroup({ isPackage: true, name: "Flex" });
+      const flex = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 500, 3: 1200, 7: 2500 },
+        durationDays: 7,
+        groupId: group.id,
+        listingType: "daily",
+        minimumDaysBefore: 0,
+        name: "Flex Lodge",
+      });
+      const fixed = await createTestListing({
+        groupId: group.id,
+        listingType: "daily",
+        minimumDaysBefore: 0,
+        name: "Flex Firepit",
+      });
+      const date = addDays(todayInTz("UTC"), 2);
+      const result = await createAttendeeAtomic({
+        bookings: [
+          { date, durationDays: 3, listingId: flex.id, quantity: 1 },
+          { date, listingId: fixed.id, quantity: 1 },
+        ],
+        email: "flex@test.com",
+        name: "Flexer",
+        packageGroupId: group.id,
+      });
+      if (!result.success) throw new Error("package booking failed");
+
+      const body = await fetchTicketBody(result.attendees[0]!.ticket_token);
+      // The 3-day BOOKED stay heads the card…
+      expect(body).toContain(
+        formatDateRangeLabelCompactEn(date, addDays(date, 2)),
+      );
+      // …never the 7-day listing maximum.
+      expect(body).not.toContain(
+        formatDateRangeLabelCompactEn(date, addDays(date, 6)),
       );
     });
 

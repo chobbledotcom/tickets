@@ -11,11 +11,9 @@ import type { PackageDisplay } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   buildTemplateData,
+  collapsedPackageSummary,
   getPackageDisplayForEntries,
   renderEmailContent,
-  sumEntryPrices,
-  sumEntryQuantities,
-  widestDatedEntry,
 } from "#shared/email-renderer.ts";
 import { getEnv } from "#shared/env.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
@@ -342,19 +340,22 @@ const collapsedSvgTicketData = (
   entries: EmailEntry[],
   currency: string,
   packageName: string,
-): SvgTicketData => ({
-  // A dated bundle keeps the booked start date at package level, exactly like
-  // a standalone ticket attachment — hiding members must not lose the date.
-  attendeeDate: widestDatedEntry(entries)?.attendee.date ?? null,
-  checkinUrl: buildCheckinUrl(entries[0]!.attendee.ticket_token),
-  currency,
-  listingDate: "",
-  listingLocation: "",
-  listingName: packageName,
-  pricePaid: String(sumEntryPrices(entries)),
-  purchaseOnly: entries.every((e) => e.listing.purchase_only),
-  quantity: sumEntryQuantities(entries),
-});
+): SvgTicketData => {
+  // The same summed price/quantity and widest dated stay the email body's
+  // collapsed row shows — one summary, so the SVG and the email can't disagree.
+  const summary = collapsedPackageSummary(entries);
+  return {
+    attendeeDate: summary.widestDated?.attendee.date ?? null,
+    checkinUrl: buildCheckinUrl(entries[0]!.attendee.ticket_token),
+    currency,
+    listingDate: "",
+    listingLocation: "",
+    listingName: packageName,
+    pricePaid: summary.pricePaid,
+    purchaseOnly: entries.every((e) => e.listing.purchase_only),
+    quantity: summary.quantity,
+  };
+};
 
 /** Generate SVG ticket attachments for all entries. A HIDDEN package collapses
  * to a single package-level SVG so the buyer's attachments don't reveal the

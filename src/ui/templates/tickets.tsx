@@ -6,10 +6,9 @@ import { t } from "#i18n";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import {
-  addDays,
-  formatDateLabel,
-  formatDateRangeLabelCompactEn,
+  bookedRangeLabel,
   formatDatetimeLabel,
+  widestDatedEntry,
 } from "#shared/dates.ts";
 import type { PackageDisplay } from "#shared/db/groups.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -51,23 +50,16 @@ const optionalHtml = <T,>(
   render: (v: T) => string,
 ): string => (value ? render(value) : "");
 
-/** Compute the "Booking Date" label for the attendee, expanding multi-day
- * daily bookings into a compact date range. "" when the attendee has no date. */
-const computeBookingDateLabel = (
-  attendeeDate: string | null,
-  listing: TokenEntry["listing"],
-): string => {
-  if (!attendeeDate) return "";
-  // A booking date only ever exists for daily listings, so the listing's
-  // duration drives whether the label is a single day or a compact range.
-  const durationDays = normalizeDurationDays(listing.duration_days);
-  return durationDays > 1
-    ? formatDateRangeLabelCompactEn(
-        attendeeDate,
-        addDays(attendeeDate, durationDays - 1),
-      )
-    : formatDateLabel(attendeeDate);
-};
+/** The "Booking Date" label for one booking: its stored range via the shared
+ * {@link bookedRangeLabel} (the listing's fixed duration covers legacy rows
+ * without a stored end), so the ticket card and the confirmation email always
+ * describe the same stay. */
+const computeBookingDateLabel = (entry: TokenEntry): string =>
+  bookedRangeLabel(
+    entry.attendee.date,
+    entry.attendee.end_date,
+    normalizeDurationDays(entry.listing.duration_days),
+  );
 
 /** Render the "Add to: …" wallet links section, or "" when purchase-only or no
  * wallet provider is enabled. */
@@ -100,30 +92,6 @@ const renderQrBlock = (token: string, purchaseOnly: boolean): string =>
       )}/svg" alt={t("listing_qr.qr_code")} /></div>
       <div class="ticket-card-token">${escapeHtml(token)}</div>`;
 
-/** The dated card whose member listing spans the most days — the range covering
- * the bundle's whole stay — or null for a date-less (standard) package. */
-const widestDatedCard = (cards: TicketCard[]): TicketCard | null => {
-  let widest: TicketCard | null = null;
-  for (const card of cards) {
-    if (!card.entry.attendee.date) continue;
-    const days = normalizeDurationDays(card.entry.listing.duration_days);
-    if (
-      !widest ||
-      days > normalizeDurationDays(widest.entry.listing.duration_days)
-    ) {
-      widest = card;
-    }
-  }
-  return widest;
-};
-
-/** Render one card for a whole package booking: the package name, then each
- * member with its booked quantity (omitted when the package hides its listings),
- * then the shared QR. The attendee's member lines share one token, so the
- * package is a single card. Wallet (Apple/Google) links are deliberately
- * omitted: both wallet routes resolve a token to a single member listing, so a
- * saved pass would show only the first member (and leak a hidden member's name)
- * rather than the package the buyer clicked. */
 const renderPackageCard = (
   cards: TicketCard[],
   packageInfo: PackageDisplay,
@@ -171,13 +139,10 @@ const renderPackageCard = (
   // booked date like a standalone card would. The bundle's members can carry
   // different fixed durations, so the widest member's range covers the whole
   // stay. Package-level (no member named), so a hidden package stays concealed.
-  const widestDated = widestDatedCard(cards);
+  const widestDated = widestDatedEntry(cards.map((c) => c.entry));
   const dateHtml = widestDated
     ? `<div class="ticket-card-date">${t("tickets.booking_date")} ${escapeHtml(
-        computeBookingDateLabel(
-          widestDated.entry.attendee.date,
-          widestDated.entry.listing,
-        ),
+        computeBookingDateLabel(widestDated),
       )}</div>`
     : "";
   return `
@@ -214,7 +179,7 @@ const renderTicketCard = (
     (d) => `<div class="ticket-card-description">${renderMarkdown(d)}</div>`,
   );
 
-  const bookingDateLabel = computeBookingDateLabel(attendee.date, listing);
+  const bookingDateLabel = computeBookingDateLabel(entry);
   const attendeeDateHtml = optionalHtml(
     bookingDateLabel,
     (label) =>

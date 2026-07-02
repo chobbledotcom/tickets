@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   addDays,
   addMonthsIso,
+  bookedRangeLabel,
   bookedSpanDays,
   calendarGridDates,
   DAY_NAMES,
@@ -21,6 +22,7 @@ import {
   monthsAround,
   normalizeDatetime,
   shiftMonth,
+  widestDatedEntry,
 } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
@@ -528,6 +530,67 @@ describe("dates", () => {
       expect(formatDateRangeLabel("2026-02-09T00:00:00Z", null)).toBe(
         "Monday 9 February 2026",
       );
+    });
+  });
+
+  describe("bookedRangeLabel", () => {
+    test("is empty without a booked date", () => {
+      expect(bookedRangeLabel(null, null)).toBe("");
+    });
+
+    test("a single booked day reads as one date", () => {
+      expect(bookedRangeLabel("2027-02-02", null)).toBe(
+        "Tuesday 2 February 2027",
+      );
+    });
+
+    test("the stored [start, end) range renders its actual span", () => {
+      expect(bookedRangeLabel("2027-02-02", "2027-02-05")).toBe(
+        "2\u20134 February 2027",
+      );
+    });
+
+    test("a degenerate stored range (one day) reads as one date", () => {
+      expect(bookedRangeLabel("2027-02-02", "2027-02-03")).toBe(
+        "Tuesday 2 February 2027",
+      );
+    });
+
+    test("a legacy row without a stored end falls back to the fixed duration", () => {
+      expect(bookedRangeLabel("2027-02-02", null, 3)).toBe(
+        "2\u20134 February 2027",
+      );
+    });
+
+    test("the stored range outranks the fixed-duration fallback", () => {
+      // Booked 2 days of a 7-day-max customisable listing: the stored range wins.
+      expect(bookedRangeLabel("2027-02-02", "2027-02-04", 7)).toBe(
+        "2\u20133 February 2027",
+      );
+    });
+  });
+
+  describe("widestDatedEntry", () => {
+    const entry = (date: string | null, endDate: string | null) => ({
+      attendee: { date, end_date: endDate },
+    });
+
+    test("is null when every entry is date-less", () => {
+      expect(widestDatedEntry([entry(null, null)])).toBeNull();
+    });
+
+    test("picks the entry whose booked range ends last", () => {
+      const narrow = entry("2027-02-02", "2027-02-03");
+      const wide = entry("2027-02-02", "2027-02-06");
+      const narrowB = entry("2027-02-02", "2027-02-03");
+      expect(widestDatedEntry([narrow, wide, narrowB])).toBe(wide);
+    });
+
+    test("an end-less dated entry sorts below any ranged stay", () => {
+      const dayOnly = entry("2027-02-02", null);
+      const ranged = entry("2027-02-02", "2027-02-04");
+      expect(widestDatedEntry([dayOnly, ranged])).toBe(ranged);
+      expect(widestDatedEntry([dayOnly])).toBe(dayOnly);
     });
   });
 

@@ -9,11 +9,7 @@
 import type { Liquid } from "liquidjs";
 import { lazyRef, map, sumOf } from "#fp";
 import { createBaseLiquidEngine } from "#shared/currency.ts";
-import {
-  addDays,
-  formatDateLabel,
-  formatDateRangeLabelCompactEn,
-} from "#shared/dates.ts";
+import { bookedRangeLabel, widestDatedEntry } from "#shared/dates.ts";
 import {
   getPackageDisplayForBookings,
   type PackageDisplay,
@@ -25,7 +21,7 @@ import type {
 import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { isPaidListing } from "#shared/types.ts";
+import { isPaidListing, normalizeDurationDays } from "#shared/types.ts";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 import { listingNames } from "#templates/email/shared.ts";
@@ -94,15 +90,14 @@ const entryIsPaid = ({ listing, attendee }: EmailEntry): boolean =>
 /** Map one booking entry to its template shape. */
 const toTemplateEntry = (entry: EmailEntry): TemplateEntry => {
   const { listing, attendee } = entry;
-  // Render the booking's actual span from its stored range (end_date is the
-  // exclusive end), so customisable-days bookings show the chosen length rather
-  // than the listing's maximum duration.
-  const lastDay = attendee.end_date ? addDays(attendee.end_date, -1) : null;
-  const dateRangeLabel = attendee.date
-    ? lastDay && lastDay > attendee.date
-      ? formatDateRangeLabelCompactEn(attendee.date, lastDay)
-      : formatDateLabel(attendee.date)
-    : "";
+  // Render the booking's actual span from its stored range, so customisable-days
+  // bookings show the chosen length rather than the listing's maximum duration
+  // (legacy rows without a stored end fall back to the listing's fixed span).
+  const dateRangeLabel = bookedRangeLabel(
+    attendee.date,
+    attendee.end_date,
+    normalizeDurationDays(listing.duration_days),
+  );
   return {
     attendee: {
       address: attendee.address,
@@ -131,24 +126,21 @@ export const sumEntryPrices = (entries: EmailEntry[]): number =>
 export const sumEntryQuantities = (entries: EmailEntry[]): number =>
   sumOf((e: EmailEntry) => e.attendee.quantity)(entries);
 
-/** The dated entry whose booked range ends last — the stay covering the whole
- * bundle — or null for a date-less (standard) package. A collapsed hidden
- * package keeps its booking date at package level from this entry: the date is
- * shared, but members can carry different durations. */
-export const widestDatedEntry = (entries: EmailEntry[]): EmailEntry | null => {
-  let widest: EmailEntry | null = null;
-  // A dated entry may carry no end_date (a single-day booking); it sorts below
-  // any ranged stay.
-  let widestEnd = "";
-  for (const entry of entries) {
-    if (!entry.attendee.date) continue;
-    const end = String(entry.attendee.end_date ?? "");
-    if (widest !== null && end <= widestEnd) continue;
-    widest = entry;
-    widestEnd = end;
-  }
-  return widest;
-};
+/** The single-row summary a hidden package collapses to for buyers: the
+ * bundle's summed price and quantity plus the widest member's dated stay
+ * (hiding members must not lose the date the buyer booked). Shared by the
+ * email body row and the SVG ticket, so the two can never disagree. */
+export const collapsedPackageSummary = (
+  entries: EmailEntry[],
+): {
+  pricePaid: string;
+  quantity: number;
+  widestDated: EmailEntry | null;
+} => ({
+  pricePaid: String(sumEntryPrices(entries)),
+  quantity: sumEntryQuantities(entries),
+  widestDated: widestDatedEntry(entries),
+});
 
 /** The package display for an order's entries (keyed by their persisted
  * package_group_id), or null when the order is not a single package. */
@@ -165,17 +157,17 @@ const collapsedPackageEntry = (
   packageName: string,
 ): TemplateEntry => {
   const base = toTemplateEntry(entries[0]!);
-  // A dated bundle keeps its booking date/range at PACKAGE level (the widest
-  // member's stay) — hiding members must not lose the date the buyer booked.
-  const widest = widestDatedEntry(entries);
-  const dated = widest ? toTemplateEntry(widest).attendee : null;
+  const summary = collapsedPackageSummary(entries);
+  const dated = summary.widestDated
+    ? toTemplateEntry(summary.widestDated).attendee
+    : null;
   return {
     attendee: {
       ...base.attendee,
       date: dated?.date ?? null,
       date_range_label: dated?.date_range_label ?? "",
-      price_paid: String(sumEntryPrices(entries)),
-      quantity: sumEntryQuantities(entries),
+      price_paid: summary.pricePaid,
+      quantity: summary.quantity,
     },
     listing: {
       is_paid: entries.some(entryIsPaid),
