@@ -21,6 +21,7 @@ import {
   listingDateToCalendarDate,
   monthsAround,
   normalizeDatetime,
+  parseIsoDateParam,
   shiftMonth,
   widestDatedEntry,
 } from "#shared/dates.ts";
@@ -530,6 +531,29 @@ describe("dates", () => {
       expect(formatDateRangeLabel("2026-02-09T00:00:00Z", null)).toBe(
         "Monday 9 February 2026",
       );
+    });
+  });
+
+  describe("parseIsoDateParam", () => {
+    test("accepts a well-formed real date", () => {
+      expect(parseIsoDateParam("2026-08-20")).toBe("2026-08-20");
+    });
+
+    test("rejects an absent value", () => {
+      expect(parseIsoDateParam(null)).toBe(null);
+    });
+
+    test("rejects a malformed value", () => {
+      expect(parseIsoDateParam("20/08/2026")).toBe(null);
+      expect(parseIsoDateParam("2026-8-20")).toBe(null);
+    });
+
+    test("rejects a rolled-over calendar impossibility", () => {
+      expect(parseIsoDateParam("2026-02-30")).toBe(null);
+    });
+
+    test("rejects an unparseable month", () => {
+      expect(parseIsoDateParam("2026-99-01")).toBe(null);
     });
   });
 

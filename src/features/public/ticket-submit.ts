@@ -30,6 +30,7 @@ import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { parseIsoDateParam } from "#shared/dates.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import {
@@ -1100,10 +1101,11 @@ export const handleTicket = async (args: BookingRequest): Promise<Response> => {
 };
 
 /**
- * Build a per-listing quantity pre-fill from `?q_<id>=n` query params. The order
- * page redirects into `/ticket/<slugs>?q_<id>=1…` to land the visitor on the
- * booking page with their chosen items already selected; this generalises that
- * URL-driven pre-fill to any `/ticket/<slugs>` page.
+ * Build a booking pre-fill from query params: per-listing quantities from
+ * `?q_<id>=n` (the order page redirects into `/ticket/<slugs>?q_<id>=1…` to
+ * land the visitor with their chosen items selected) and the date selector
+ * from `?date=YYYY-MM-DD` (the /listings date filter carries the searched
+ * date into a daily listing's Book CTA, #51).
  */
 const parseQuantityPrefill = (
   request: Request,
@@ -1117,7 +1119,9 @@ const parseQuantityPrefill = (
       map.set(listing.id, { quantity: qty });
     }
   }
-  return map.size > 0 ? { listings: map } : undefined;
+  const date = parseIsoDateParam(params.get("date"));
+  if (map.size === 0 && date === null) return undefined;
+  return { listings: map, ...(date !== null ? { date } : {}) };
 };
 
 /**

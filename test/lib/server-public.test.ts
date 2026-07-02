@@ -536,6 +536,79 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       expect(page).not.toContain("Sold Out");
     });
 
+    test("invites a date and answers daily card availability once chosen", async () => {
+      // #51: daily cards claim nothing date-lessly, so the page invites a
+      // date; with one chosen, each daily card answers for THAT date and a
+      // bookable card's CTA carries the date into its booking page.
+      await settings.update.showPublicSite(true);
+      const date = addDays(todayInTz("UTC"), 2);
+      const fullDaily = await createTestListing({
+        listingType: "daily",
+        maxAttendees: 1,
+        minimumDaysBefore: 0,
+        name: "Full Daily",
+      });
+      const freeDaily = await createTestListing({
+        durationDays: 2,
+        listingType: "daily",
+        maxAttendees: 5,
+        minimumDaysBefore: 0,
+        name: "Free Daily",
+      });
+      // A customisable listing books per-day starts, so its card is judged
+      // over a 1-day span (a distinct remaining query from freeDaily's 2-day
+      // one).
+      const flexDaily = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 500, 2: 900 },
+        durationDays: 2,
+        listingType: "daily",
+        maxAttendees: 5,
+        minimumDaysBefore: 0,
+        name: "Flex Daily",
+        unitPrice: 500,
+      });
+      await bookAttendee(fullDaily, { date, quantity: 1 });
+
+      // Without a date: the filter form renders and no card claims anything.
+      const unfiltered = await assertPublicHtml(
+        "/listings",
+        "listings-date-filter",
+      );
+      expect(unfiltered).not.toContain("Not available on");
+
+      // With a date: the full listing reads honestly unavailable for it, the
+      // free one's Book CTA carries the date through.
+      const filtered = await assertPublicHtml(
+        `/listings?date=${date}`,
+        "Not available on",
+      );
+      expect(filtered).toContain(
+        `href="/ticket/${freeDaily.slug}?date=${date}"`,
+      );
+      expect(filtered).toContain(
+        `href="/ticket/${flexDaily.slug}?date=${date}"`,
+      );
+      expect(filtered).not.toContain(`href="/ticket/${fullDaily.slug}`);
+
+      // A malformed date is ignored rather than trusted.
+      const garbage = await assertPublicHtml("/listings?date=2026-02-30");
+      expect(garbage).not.toContain("Not available on");
+
+      // The carried date lands pre-selected on the booking page.
+      await assertPublicHtml(
+        `/ticket/${freeDaily.slug}?date=${date}`,
+        `<option value="${date}" selected>`,
+      );
+    });
+
+    test("shows no date filter when no daily listings are listed", async () => {
+      await settings.update.showPublicSite(true);
+      await createTestListing({ maxAttendees: 5, name: "Standard Only" });
+      const html = await assertPublicHtml("/listings", "Standard Only");
+      expect(html).not.toContain("listings-date-filter");
+    });
+
     test("shows registration closed for listings past closes_at", async () => {
       await settings.update.showPublicSite(true);
       const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);

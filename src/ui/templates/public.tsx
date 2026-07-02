@@ -13,6 +13,7 @@ export {
 export {
   type ChildCardState,
   childCardState,
+  type DailyDateFilter,
   homepagePage,
 } from "./public/homepage.tsx";
 export { orderGalleryPage } from "./public/order-gallery.tsx";
