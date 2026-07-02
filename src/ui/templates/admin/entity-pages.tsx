@@ -11,6 +11,7 @@
  * Layout backstop above the page content.
  */
 
+import { compact } from "#fp";
 import { t } from "#i18n";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { TabLink } from "#shared/entity-pages/core.ts";
@@ -220,7 +221,11 @@ export interface EntityPageView {
 }
 
 /** The whole entity page: title → banner → tab strip → active tab's
- * sections, in order. */
+ * sections, in order. The panel is a `<section>` (flex column with the
+ * standard gap) and each rendered section sits in its own `.table-controls`
+ * group, so a heading and its table/actions stay bound together with even
+ * spacing. Sections that render nothing are dropped rather than left as empty
+ * groups. */
 export const entityPageView = (view: EntityPageView): string =>
   String(
     <Layout title={view.title}>
@@ -230,6 +235,10 @@ export const entityPageView = (view: EntityPageView): string =>
       </div>
       {view.banner}
       <TabStrip tabs={view.tabs} />
-      <div class="entity-tab-panel">{view.sections.map(renderSection)}</div>
+      <section class="entity-tab-panel">
+        {compact(view.sections.map(renderSection)).map((section) => (
+          <div class="table-controls">{section}</div>
+        ))}
+      </section>
     </Layout>,
   );

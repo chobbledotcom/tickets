@@ -205,4 +205,29 @@ describe("entityPageView", () => {
     expect(html).not.toContain("tablist");
     expect(html).not.toContain('role="tab"');
   });
+
+  test("panel is a <section>; each section sits in its own .table-controls group", () => {
+    const html = entityPageView(view);
+    expect(html).toContain('<section class="entity-tab-panel">');
+    // The one rendered section is wrapped in exactly one grouping div.
+    expect(html).toContain('<div class="table-controls">');
+    expect((html.match(/class="table-controls"/g) ?? []).length).toBe(1);
+  });
+
+  test("a section that renders nothing is dropped, not left as an empty group", () => {
+    const html = entityPageView({
+      ...view,
+      sections: [
+        // An actions section with no actions renders null…
+        { danger: [], kind: "actions" as const, plain: [], titleKey: "x" },
+        // …and a real summary follows it.
+        {
+          kind: "summary" as const,
+          rows: [{ labelKey: "common.name", value: "Jane" }],
+        },
+      ],
+    });
+    // Only the summary yields a group — the null section leaves no empty one.
+    expect((html.match(/class="table-controls"/g) ?? []).length).toBe(1);
+  });
 });
