@@ -34,6 +34,7 @@ import {
   setGroupListingsActive,
 } from "#shared/db/groups.ts";
 import {
+  dayCountPriceStatements,
   getGroupDayPrices,
   groupDayPriceStatements,
   groupFlatPriceStatements,
@@ -219,8 +220,8 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
     (await getListingsByGroupId(newGroupId)).map((l) => [l.slug_index, l.id]),
   );
   // The clones were inserted via insertStatement in the batch above, bypassing
-  // the listingsTable wrapper, so sync their listing_prices rows explicitly —
-  // otherwise a priced clone has no matching price rows until it is edited.
+  // the listingsTable wrapper, so sync their `base` price rows explicitly —
+  // otherwise a priced clone has no matching base row until it is edited.
   await syncListingPricesForIds([...idBySlugIndex.values()]);
   const idMap = new Map(
     cloneInputs.map(({ sourceId, input }) => [
@@ -228,6 +229,16 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
       idBySlugIndex.get(input.slugIndex)!,
     ]),
   );
+  // The clones' own per-day-count prices are no longer a column, so the raw
+  // insert didn't carry them — write each clone's day_count rows from the day
+  // prices its duplicate input carried over from the source.
+  if (cloneInputs.length > 0) {
+    await executeBatch(
+      cloneInputs.flatMap(({ sourceId, input }) =>
+        dayCountPriceStatements(idMap.get(sourceId)!, input.dayPrices ?? {}),
+      ),
+    );
+  }
   // The members' package price overrides can't be batch-copied like the quantity
   // (their `group`/`group_day` price_ids embed the group id, and the new group's
   // id only exists after the batch), so rewrite them here keyed to the NEW group

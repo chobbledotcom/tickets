@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Migrate group_listings.package_price into the listing_prices 'group' dimension and drop the column.";
+  "Migrate listings.day_prices into the listing_prices 'day_count' dimension and drop the column.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -102,7 +102,10 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["initial_site_months", "INTEGER NOT NULL DEFAULT 0"],
         ["duration_days", "INTEGER NOT NULL DEFAULT 1"],
         ["customisable_days", "INTEGER NOT NULL DEFAULT 0"],
-        ["day_prices", "TEXT NOT NULL DEFAULT '{}'"],
+        // day_prices is no longer a column: per-day-count prices live in the
+        // listing_prices "day_count" dimension (migrated in and projected back on
+        // read via a json_group_object subquery). unit_price stays as the hot-path
+        // base price, mirrored by the listing_prices "base" row.
         ["uses_logistics", "INTEGER NOT NULL DEFAULT 0"],
         ["use_defaults", "INTEGER NOT NULL DEFAULT 0"],
         // Precomputed counts over listing_attendees, maintained by the
@@ -132,10 +135,11 @@ export const SCHEMA: [name: string, table: Table][] = [
     // reserved for later — "start_day") and a `price_id` selecting within it (""
     // for base, the day count "2", a group id, "<groupId>/<n>", a weekday). One
     // row per (listing, dimension, key) so future dimensions (weekday pricing)
-    // slot in with no schema change. "base"/"day_count" are kept in sync with the
-    // `listings.unit_price`/`day_prices` read mirrors; "group" (flat package
-    // override, migrated from group_listings.package_price) and "group_day"
-    // (per-day package override) are the SOURCE of truth for package pricing.
+    // slot in with no schema change. "base" mirrors the surviving
+    // `listings.unit_price` column (the hot-path read); "day_count" (per-day-count
+    // price, migrated from `listings.day_prices`), "group" (flat package override,
+    // migrated from group_listings.package_price), and "group_day" (per-day
+    // package override) are the SOURCE of truth — their columns were dropped.
     "listing_prices",
     {
       columns: [

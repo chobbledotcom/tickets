@@ -374,6 +374,11 @@ export const buildDuplicateListingInput = async (
   overrides: Partial<ListingInput> = {},
 ): Promise<ListingInput> => ({
   ...(listingsTable.rowToInput(source, ["created"]) as ListingInput),
+  // `day_prices` isn't a physical column (it projects from listing_prices), so
+  // rowToInput can't carry it — pass the source's day prices through explicitly
+  // so a duplicate keeps its per-day-count pricing (the write path persists it as
+  // day_count rows). An override may still replace it.
+  dayPrices: source.day_prices,
   ...(await generateUniqueListingSlug()),
   attachmentName: "",
   attachmentUrl: "",

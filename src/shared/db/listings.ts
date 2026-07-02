@@ -42,7 +42,11 @@ import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
-import { syncListingPrices } from "#shared/db/listing-prices.ts";
+import {
+  dayCountPriceStatements,
+  getListingDayPrices,
+  syncListingPrices,
+} from "#shared/db/listing-prices.ts";
 import {
   LISTING_AGGREGATE_WRITE_COLUMNS,
   TICKET_COUNTS_PREDICATE,
@@ -197,11 +201,14 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   created: col.withDefault(() => nowIso()),
   customisable_days: col.boolean(false),
   date: { default: () => "", read: decryptDatetime, write: writeListingDate },
-  day_prices: col.converted<DayPrices>({
-    default: () => ({}),
-    read: (v) => parseDayPrices(JSON.parse(v as string)),
-    write: (v) => JSON.stringify(parseDayPrices(v)),
-  }),
+  // Not a physical column: `day_prices` is projected from the `day_count` rows
+  // of listing_prices (see listingDayPricesSubquery) and read back here. The
+  // write paths persist it as day_count rows from input; `col.projected` keeps it
+  // out of INSERT/UPDATE, rowToInput, and the insert/update return row. The read
+  // tolerates a missing projection (a stray SELECT that forgot it) → {}.
+  day_prices: col.projected<DayPrices>((v) =>
+    parseDayPrices(JSON.parse((v as string) ?? "{}")),
+  ),
   description: col.encryptedText(encrypt, decrypt),
   duration_days: { default: () => 1, write: normalizeDurationDays },
   fields: col.withDefault<ListingFields>(() => "email"),
@@ -257,6 +264,21 @@ const listingMoneySubqueries = (idExpr: string): string =>
     listingCostSubquery(idExpr),
     listingProfitSubquery(idExpr),
   ].join(", ");
+
+/**
+ * Project a listing's per-day-count prices as a JSON object from its `day_count`
+ * rows in `listing_prices` — the `day_prices` value the entity carries now that
+ * the `listings.day_prices` column is retired. `json_group_object` builds
+ * `{"1":400,"3":1000}` from the (price_id, unit_price) rows; COALESCE to `'{}'`
+ * so a listing with no day prices reads an empty object (the `col.projected`
+ * read then parses it back to `{}`). Index-backed by `idx_listing_prices_listing`.
+ * Every SELECT that decrypts a listing row must include this, alongside
+ * {@link listingMoneySubqueries}. `idExpr` is the listing id in the surrounding
+ * query (e.g. `listing.id` or `listings.id`).
+ */
+export const listingDayPricesSubquery = (idExpr: string): string =>
+  `COALESCE((SELECT json_group_object(price_id, unit_price) FROM listing_prices
+      WHERE listing_id = ${idExpr} AND price_type = 'day_count'), '{}') AS day_prices`;
 
 /**
  * A transparent breakdown of a listing's `revenue:<id>` account, deriving BOTH
@@ -343,7 +365,8 @@ export const listingRevenueBreakdown = async (
  * `booked_quantity` column (maintained by triggers on listing_attendees), so
  * this no longer joins or scans the attendee rows. */
 export const LISTING_COUNT_SELECT = `SELECT listing.*, listing.booked_quantity AS attendee_count,
-       ${listingMoneySubqueries("listing.id")}
+       ${listingMoneySubqueries("listing.id")},
+       ${listingDayPricesSubquery("listing.id")}
      FROM listings AS listing`;
 
 /** GROUP BY clause that pairs with {@link LISTING_COUNT_SELECT}. Empty now that
@@ -485,27 +508,41 @@ const listingsEntity = cachedEntityTable<
 const listingsCache = listingsEntity.cache;
 
 /**
- * Listings table with CRUD operations — writes auto-invalidate the cache and,
- * on top of the raw table, re-sync the listing's `listing_prices` rows so the
- * generalised price table never drifts from the `unit_price`/`day_prices` mirror
- * columns. Both write paths run the sync from the row's id after a successful
- * write; `update` skips it when the row is missing (returns null). The sync
- * reads the canonical columns straight from the row rather than trusting the
- * returned input shape, so a partial update that never mentions the price fields
- * still reconciles against the current stored values.
+ * Listings table with CRUD operations — writes auto-invalidate the cache and, on
+ * top of the raw table, keep the listing's `listing_prices` rows in step. The
+ * `base` row mirrors the surviving `unit_price` column, re-synced from it by
+ * {@link syncListingPrices} after every write. The `day_count` rows are the
+ * source of truth (no column), so they are written from the input's `dayPrices`:
+ * an insert always replaces them; an update replaces them only when `dayPrices`
+ * is provided, leaving them untouched on a partial update that never mentions
+ * prices. `day_prices` isn't a physical column, so it's absent from the raw
+ * insert/update return — overlay it (from input, else re-read) to keep the
+ * returned entity honest. `update` no-ops when the row is missing (returns null).
  */
 const rawTable = listingsEntity.table;
+const withDayPrices = async (
+  row: Listing,
+  provided: DayPrices | undefined,
+): Promise<Listing> => ({
+  ...row,
+  day_prices: provided ?? (await getListingDayPrices(row.id)),
+});
 export const listingsTable: typeof rawTable = {
   ...rawTable,
   insert: async (input) => {
     const row = await rawTable.insert(input);
     await syncListingPrices(row.id);
-    return row;
+    await executeBatch(dayCountPriceStatements(row.id, input.dayPrices ?? {}));
+    return withDayPrices(row, input.dayPrices ?? {});
   },
   update: async (id, input) => {
     const row = await rawTable.update(id, input);
-    if (row) await syncListingPrices(row.id);
-    return row;
+    if (!row) return null;
+    await syncListingPrices(row.id);
+    if (input.dayPrices !== undefined) {
+      await executeBatch(dayCountPriceStatements(row.id, input.dayPrices));
+    }
+    return withDayPrices(row, input.dayPrices);
   },
 };
 
@@ -901,7 +938,7 @@ export const getListingWithAttendeesRaw = async (
   const [listingResult, attendeesResult] = await queryBatch([
     {
       args: [id],
-      sql: `SELECT listings.*, ${listingMoneySubqueries("listings.id")} FROM listings WHERE id = ?`,
+      sql: `SELECT listings.*, ${listingMoneySubqueries("listings.id")}, ${listingDayPricesSubquery("listings.id")} FROM listings WHERE id = ?`,
     },
     {
       args: [id],
@@ -1044,7 +1081,7 @@ export const getListingWithAttendeeRaw = async (
   const [listingResult, attendeeResult] = await queryBatch([
     {
       args: [listingId],
-      sql: `SELECT listings.*, ${listingMoneySubqueries("listings.id")} FROM listings WHERE id = ?`,
+      sql: `SELECT listings.*, ${listingMoneySubqueries("listings.id")}, ${listingDayPricesSubquery("listings.id")} FROM listings WHERE id = ?`,
     },
     {
       args: [attendeeId],
