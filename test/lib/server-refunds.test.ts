@@ -811,9 +811,9 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         "pi_ui_1",
       );
 
-      const response = await adminGet(`/admin/listing/${listing.id}`);
+      const response = await adminGet(`/admin/listing/${listing.id}/actions`);
       // The per-attendee refund link moved to the attendee edit page; the
-      // listing page keeps the listing-wide Refund All action.
+      // listing-wide Refund All action lives on the listing's Actions tab.
       await expectHtmlResponse(response, 200, "Refund All");
     });
 

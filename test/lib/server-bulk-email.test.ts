@@ -656,34 +656,35 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
   });
 
   describe("listing page Email link", () => {
-    test("owners see the link on the listing page", async () => {
+    test("owners see the email action on the listing Actions tab", async () => {
       const listing = await seedListingWithAttendees();
       const html = await (
-        await adminGet(`/admin/listing/${listing.id}`)
+        await adminGet(`/admin/listing/${listing.id}/actions`)
       ).text();
       expect(html).toContain(`/admin/emails?listing=${listing.id}`);
-      expect(html).toContain(">Email</a>");
+      expect(html).toContain("<span>Email</span>");
     });
 
-    test("the link is disabled when no attendee has an email", async () => {
+    test("the email action shows for owners even with no emailable attendee", async () => {
+      // The Actions tab always offers Email for owners; the compose page itself
+      // handles the empty-recipients case (the old disabled-button state was
+      // dropped — an async has-email check on every tab load isn't worth it).
       const listing = await createTestListing({
         maxAttendees: 5,
         name: "Solo",
       });
       await createTestAttendeeDirect(listing.id, "Nemo", "");
       const html = await (
-        await adminGet(`/admin/listing/${listing.id}`)
+        await adminGet(`/admin/listing/${listing.id}/actions`)
       ).text();
-      // Inert span instead of a link to the email page.
-      expect(html).toContain("btn--disabled");
-      expect(html).not.toContain(`/admin/emails?listing=${listing.id}`);
+      expect(html).toContain(`/admin/emails?listing=${listing.id}`);
     });
 
-    test("managers do not see the link", async () => {
+    test("managers do not see the email action", async () => {
       const listing = await seedListingWithAttendees();
       const cookie = await createTestManagerSession();
       const html = await (
-        await awaitTestRequest(`/admin/listing/${listing.id}`, {
+        await awaitTestRequest(`/admin/listing/${listing.id}/actions`, {
           cookie,
         })
       ).text();
