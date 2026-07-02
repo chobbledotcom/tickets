@@ -123,7 +123,8 @@ reach for.
    folds to one summed line with two allocations, the documented multi-parent
    corner (`order-parents.ts`). Packages with several parent members make
    that corner easier to reach than a multi-slug cart ever did. Either
-   enforce disjointness at save or fix the paid-path entry mapping.
+   enforce disjointness at save or fix the paid-path entry mapping — the
+   full row-identity fix is designed in `multi-parent-bookable-alone.md`.
 3. **`allocations` metadata length limit.** `enforceMetadataLimits` still
    length-checks `items`, answers, `modifiers`, entry count, and the packed
    field but not `allocations` — the fastest-growing field once every pick
