@@ -21,10 +21,9 @@ const resolved = (id: number) =>
 const packageWithChild = (): BookingTree =>
   buildBookingTree({
     childrenByParentId: new Map([[5, [resolved(9)]]]),
-    groupId: 3,
-    isPackage: true,
     listings: [resolved(5)],
     packageQuantities: new Map([[5, 1]]),
+    root: { groupId: 3, kind: "package" },
     slugs: ["pkg"],
   });
 
@@ -102,9 +101,8 @@ describe("edgeDrifted", () => {
   test("a top-level line no longer in the tree is drifted", () => {
     // Member 5 was removed from the package mid-checkout.
     const tree = buildBookingTree({
-      groupId: 3,
-      isPackage: true,
       listings: [],
+      root: { groupId: 3, kind: "package" },
       slugs: ["pkg"],
     });
     expect(edgeDrifted(tree, [memberLine], [])).toBe(true);
@@ -113,10 +111,9 @@ describe("edgeDrifted", () => {
   test("a removed child edge is drifted", () => {
     // The parent stays a member but its required-child edge was removed.
     const tree = buildBookingTree({
-      groupId: 3,
-      isPackage: true,
       listings: [resolved(5)],
       packageQuantities: new Map([[5, 1]]),
+      root: { groupId: 3, kind: "package" },
       slugs: ["pkg"],
     });
     expect(edgeDrifted(tree, [memberLine, childLine], [childAlloc])).toBe(true);

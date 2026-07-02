@@ -1870,13 +1870,15 @@ export const ticketPage = ({
   // (via nodeQuantityFieldName/nodePriceFieldName); render output is unchanged.
   const treeInput: BuildTreeInput = {
     childrenByParentId,
-    groupId: packageGroupId ?? undefined,
     hidePackageListings,
-    isPackage,
     listings,
     packageDayPrices,
     packagePrices,
     packageQuantities,
+    root:
+      packageGroupId != null
+        ? { groupId: packageGroupId, kind: "package" }
+        : undefined,
     slugs,
   };
   const tree = buildBookingTree(treeInput);

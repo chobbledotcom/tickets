@@ -349,13 +349,15 @@ export const resolveDayCount = async (
  * in a later sub-step, for capacity/metadata). */
 export const ctxToBuildTreeInput = (ctx: TicketCtx): BuildTreeInput => ({
   childrenByParentId: ctx.childrenByParentId,
-  groupId: ctx.packageGroupId ?? undefined,
   hidePackageListings: ctx.hidePackageListings,
-  isPackage: ctx.packageGroupId != null,
   listings: ctx.listings,
   packageDayPrices: ctx.packageDayPrices,
   packagePrices: ctx.packagePrices,
   packageQuantities: ctx.packageQuantities,
+  root:
+    ctx.packageGroupId != null
+      ? { groupId: ctx.packageGroupId, kind: "package" }
+      : undefined,
   slugs: ctx.slugs,
 });
 

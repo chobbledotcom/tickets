@@ -393,10 +393,9 @@ export const packageGroupBookable = async (
     await loadPackageCapGroupMaps(ticketListings, childrenByParentId);
   const tree = buildBookingTree({
     childrenByParentId,
-    groupId,
-    isPackage: true,
     listings: ticketListings,
     packageQuantities: packageMemberMaps(rows).quantities,
+    root: { groupId, kind: "package" },
     slugs: members.map((m) => m.slug),
   });
   return (

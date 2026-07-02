@@ -717,9 +717,11 @@ const currentOrderTree = async (
   );
   return buildBookingTree({
     childrenByParentId,
-    groupId: intent.packageGroupId,
-    isPackage: intent.packageGroupId !== undefined,
     listings: topLevel,
+    root:
+      intent.packageGroupId !== undefined
+        ? { groupId: intent.packageGroupId, kind: "package" }
+        : undefined,
     slugs: [],
   });
 };

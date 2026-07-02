@@ -99,10 +99,9 @@ describe("booking tree — nodeKey → field-name projection", () => {
 
   test("a package member has no per-member quantity field (uses package_quantity)", () => {
     const tree = buildBookingTree({
-      groupId: 3,
-      isPackage: true,
       listings: [resolved({ id: 7, slug: "ab12c" })],
       packageQuantities: new Map([[7, 2]]),
+      root: { groupId: 3, kind: "package" },
       slugs: ["ab12c"],
     });
     expect(qtyField(tree.nodes[0]!)).toBeNull();
@@ -110,8 +109,8 @@ describe("booking tree — nodeKey → field-name projection", () => {
 
   test("a regular (non-package) group member DOES post quantity_<id>", () => {
     const tree = buildBookingTree({
-      groupId: 3,
       listings: [resolved({ id: 7, slug: "ab12c" })],
+      root: { groupId: 3, kind: "group" },
       slugs: ["ab12c"],
     });
     expect(qtyField(tree.nodes[0]!)).toBe("quantity_7");
@@ -169,34 +168,22 @@ describe("buildBookingTree — root identity", () => {
     expect(tree.nodes.map((n) => n.listingId)).toEqual([1, 2]);
   });
 
-  test("a groupId without is_package is a group root", () => {
+  test("a group root carries its group id", () => {
     const tree = buildBookingTree({
-      groupId: 3,
       listings: [resolved({ id: 7 })],
+      root: { groupId: 3, kind: "group" },
       slugs: ["ab12c"],
     });
     expect(tree.rootRef).toEqual({ groupId: 3, kind: "group" });
   });
 
-  test("a groupId with is_package is a package root", () => {
+  test("a package root carries its group id", () => {
     const tree = buildBookingTree({
-      groupId: 3,
-      isPackage: true,
       listings: [resolved({ id: 7 })],
+      root: { groupId: 3, kind: "package" },
       slugs: ["ab12c"],
     });
     expect(tree.rootRef).toEqual({ groupId: 3, kind: "package" });
-  });
-
-  test("is_package without a groupId falls back to a listing root", () => {
-    // Defensive: the package root needs a group id; absent one it is a plain
-    // listing page rather than a malformed package.
-    const tree = buildBookingTree({
-      isPackage: true,
-      listings: [resolved({ id: 7, slug: "ab12c" })],
-      slugs: ["ab12c"],
-    });
-    expect(tree.rootRef).toEqual({ kind: "listing", slugs: ["ab12c"] });
   });
 });
 
@@ -217,8 +204,8 @@ describe("buildBookingTree — node facets", () => {
 
   test("a regular-group member carries its group_member edge and key", () => {
     const tree = buildBookingTree({
-      groupId: 3,
       listings: [resolved({ id: 7 })],
+      root: { groupId: 3, kind: "group" },
       slugs: ["ab12c"],
     });
     const node = tree.nodes[0]!;
@@ -279,24 +266,22 @@ describe("buildBookingTree — package members", () => {
   const packageMemberWithChild = (hidePackageListings: boolean) =>
     buildBookingTree({
       childrenByParentId: new Map([[7, [resolved({ id: 20, slug: "kid20" })]]]),
-      groupId: 3,
       hidePackageListings,
-      isPackage: true,
       listings: [resolved({ id: 7, slug: "tent1" })],
       packageQuantities: new Map([[7, 1]]),
+      root: { groupId: 3, kind: "package" },
       slugs: ["tent1"],
     });
 
   test("members are FIXED at their per-package quantity, priced by override", () => {
     const tree = buildBookingTree({
-      groupId: 3,
-      isPackage: true,
       listings: [
         resolved({ id: 7, slug: "tent1" }),
         resolved({ id: 8, slug: "chr12" }),
       ],
       packagePrices: new Map([[7, 1500]]),
       packageQuantities: new Map([[8, 4]]),
+      root: { groupId: 3, kind: "package" },
       slugs: ["tent1"],
     });
     const [tent, chair] = tree.nodes;
@@ -309,10 +294,9 @@ describe("buildBookingTree — package members", () => {
 
   test("hide_package_listings makes every member HIDDEN", () => {
     const tree = buildBookingTree({
-      groupId: 3,
       hidePackageListings: true,
-      isPackage: true,
       listings: [resolved({ id: 7 }), resolved({ id: 8 })],
+      root: { groupId: 3, kind: "package" },
       slugs: ["tent1"],
     });
     expect(tree.nodes.every((n) => n.visibility === "HIDDEN")).toBe(true);
@@ -320,9 +304,8 @@ describe("buildBookingTree — package members", () => {
 
   test("shown by default when the package does not hide members", () => {
     const tree = buildBookingTree({
-      groupId: 3,
-      isPackage: true,
       listings: [resolved({ id: 7 })],
+      root: { groupId: 3, kind: "package" },
       slugs: ["tent1"],
     });
     expect(tree.nodes[0]!.visibility).toBe("SHOWN");
@@ -361,10 +344,9 @@ describe("buildBookingTree — price rule precedence", () => {
   test("OVERRIDE beats pay-more and day-price for a package member", () => {
     expect(
       priceOf({
-        groupId: 3,
-        isPackage: true,
         listings: [resolved({ can_pay_more: true, id: 7, max_price: 9000 })],
         packagePrices: new Map([[7, 500]]),
+        root: { groupId: 3, kind: "package" },
         slugs: ["x"],
       }),
     ).toEqual({ amountMinor: 500, kind: "OVERRIDE" });

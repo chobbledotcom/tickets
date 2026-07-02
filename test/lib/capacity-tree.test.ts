@@ -23,10 +23,9 @@ const packageTree = (
   groupId = 5,
 ): BookingTree =>
   buildBookingTree({
-    groupId,
-    isPackage: true,
     listings: [...qtyById.keys()].map(resolved),
     packageQuantities: qtyById,
+    root: { groupId, kind: "package" },
     slugs: ["pkg"],
   });
 

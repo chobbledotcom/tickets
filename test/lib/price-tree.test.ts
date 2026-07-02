@@ -147,10 +147,9 @@ describe("priceRuleByListingId", () => {
     // The member line must keep its override; the child copy must not shadow it.
     const tree = buildBookingTree({
       childrenByParentId: new Map([[6, [resolved({ id: 5 })]]]),
-      groupId: 3,
-      isPackage: true,
       listings: [resolved({ id: 5 }), resolved({ id: 6 })],
       packagePrices: new Map([[5, 1200]]),
+      root: { groupId: 3, kind: "package" },
       slugs: ["pkg"],
     });
     expect(priceRuleByListingId(tree).get(5)).toEqual({
@@ -161,8 +160,6 @@ describe("priceRuleByListingId", () => {
 
   test("a customisable member's DAY_PRICE rule carries its per-day package overrides", () => {
     const tree = buildBookingTree({
-      groupId: 3,
-      isPackage: true,
       listings: [
         resolved({
           customisable_days: true,
@@ -173,6 +170,7 @@ describe("priceRuleByListingId", () => {
         }),
       ],
       packageDayPrices: new Map([[5, new Map([[2, 1500]])]]),
+      root: { groupId: 3, kind: "package" },
       slugs: ["pkg"],
     });
     expect(priceRuleByListingId(tree).get(5)).toEqual({

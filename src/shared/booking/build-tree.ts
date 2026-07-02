@@ -27,13 +27,14 @@ import type { TicketListing } from "#templates/public/shared.tsx";
 
 /** The resolved inputs a page already computed before render — mirrors what
  * `ticketPage`/`getTicketContext` produce, so building the tree needs no extra
- * queries. `groupId` is set for a group or package root; `isPackage` picks the
- * package root and its fixed-quantity/override member semantics. */
+ * queries. `root` names the page identity as the tree's own {@link RootRef}
+ * sum type — a package/group root carries its group id by construction, so
+ * "package without a group id" is unrepresentable; absent means a standalone
+ * listing/cart page. */
 export type BuildTreeInput = {
   readonly slugs: readonly string[];
   readonly listings: readonly TicketListing[];
-  readonly groupId?: number | undefined;
-  readonly isPackage?: boolean | undefined;
+  readonly root?: Exclude<RootRef, { kind: "listing" }> | undefined;
   /** Fixed units of each member one package includes (by listing id). */
   readonly packageQuantities?: ReadonlyMap<number, number> | null | undefined;
   /** Per-member package price override in minor units (by listing id). */
@@ -139,13 +140,13 @@ const buildListingNode = (
 ): BookingNode => {
   const { listing } = info;
   const edgeRef =
-    input.groupId === undefined
+    input.root === undefined
       ? ({ kind: "none" } as const)
-      : ({ groupId: input.groupId, kind: "group_member" } as const);
+      : ({ groupId: input.root.groupId, kind: "group_member" } as const);
   const nodeKey =
-    input.groupId === undefined
+    input.root === undefined
       ? listingNodeKey(listing.id)
-      : groupMemberNodeKey(input.groupId, listing.id);
+      : groupMemberNodeKey(input.root.groupId, listing.id);
   return {
     // A top-level node is always SHOWN, so its children only hide themselves.
     children: buildChildren(input, nodeKey, listing.id, false),
@@ -199,20 +200,12 @@ const buildPackageMemberNode =
     };
   };
 
-/** The tree's root/page identity from the resolved inputs. */
-const buildRootRef = (input: BuildTreeInput): RootRef => {
-  if (input.isPackage && input.groupId !== undefined) {
-    return { groupId: input.groupId, kind: "package" };
-  }
-  if (input.groupId !== undefined) {
-    return { groupId: input.groupId, kind: "group" };
-  }
-  return { kind: "listing", slugs: input.slugs };
-};
-
 /** Construct the canonical {@link BookingTree} for a booking page. */
 export const buildBookingTree = (input: BuildTreeInput): BookingTree => {
-  const rootRef = buildRootRef(input);
+  const rootRef: RootRef = input.root ?? {
+    kind: "listing",
+    slugs: input.slugs,
+  };
   const nodes =
     rootRef.kind === "package"
       ? map(buildPackageMemberNode(input, rootRef.groupId))([...input.listings])
