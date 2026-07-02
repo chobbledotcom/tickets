@@ -18,6 +18,7 @@ import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
+  getListingActivityLog,
   mockFormRequest,
   mockProviderType,
   setupListingAndLogin,
@@ -26,6 +27,7 @@ import {
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 // -- URL builders --------------------------------------------------------- //
 
@@ -598,6 +600,13 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         )(response);
         expect(mockRefund.calls.length).toBe(2);
       });
+
+      // The bulk refund records the exact success count in the activity log —
+      // "all 2", never "all -2" (a mis-signed tally would flip the count).
+      const log = (await getListingActivityLog(listing.id)).find((l) =>
+        l.message.includes("Bulk refund: all"),
+      );
+      expect(log?.message).toContain("all 2 attendee(s) refunded");
     });
 
     test("counts a refund the ledger could not record as errored, not refunded", async () => {
@@ -640,6 +649,13 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         )(response);
         expectFlash(response, expect.stringContaining("2 remaining"), true);
       });
+
+      // The continuation batch logs its progress with the count out of the
+      // total refundable ("30 of 32").
+      const log = (await getListingActivityLog(listing.id)).find((l) =>
+        l.message.includes("Bulk refund: 30 of"),
+      );
+      expect(log?.message).toContain("Bulk refund: 30 of 32 refunded");
     });
 
     test("reports failures with remaining count when batch has errors", async () => {
@@ -677,6 +693,12 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           await expectPartialRefund(listing, await postRefundAll(listing));
         },
       );
+
+      // The mixed outcome is logged with both tallies for the audit trail.
+      const log = (await getListingActivityLog(listing.id)).find((l) =>
+        l.message.includes("Bulk refund: 1 succeeded"),
+      );
+      expect(log?.message).toContain("1 succeeded, 1 failed");
     });
 
     test("catches thrown refund errors and reports them in the flash", async () => {
@@ -846,6 +868,60 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       expect(html).toContain(
         `/admin/attendees/${attendee.id}/resend-notification`,
       );
+    });
+  });
+
+  // A provider refund that fails or throws is a silent-money hazard: the flash
+  // reports it, but the durable record is the error log. These assert each
+  // failure path actually logs, since a dropped logError is otherwise invisible.
+  describe("provider refund failures reach the error log", () => {
+    const errors = setupErrorSpy();
+    const loggedDetails = (): string[] =>
+      errors.calls.map((call) => String(call.args[0]));
+
+    test("a single refund the provider rejects is logged", async () => {
+      const ctx = await setupRefundTest("pi_logfail_single");
+      await withRefundMock(false, async () => {
+        await submitRefund(ctx);
+      });
+      expect(
+        loggedDetails().some((s) => s.includes("Admin refund failed")),
+      ).toBe(true);
+    });
+
+    test("a bulk refund the provider rejects is logged per attendee", async () => {
+      const listing = await createPaidListing();
+      await createPaidTestAttendee(
+        listing.id,
+        "Bulk Fail",
+        "bulkfail@example.com",
+        "pi_logfail_bulk",
+      );
+      await withRefundMock(false, async () => {
+        await postRefundAll(listing);
+      });
+      expect(
+        loggedDetails().some((s) => s.includes("Admin bulk refund failed")),
+      ).toBe(true);
+    });
+
+    test("a bulk refund the provider throws on is logged as errored", async () => {
+      const listing = await createPaidListing();
+      await createPaidTestAttendee(
+        listing.id,
+        "Bulk Throw",
+        "bulkthrow@example.com",
+        "pi_logfail_throw",
+      );
+      await withRefundMock(
+        () => Promise.reject(new Error("provider boom")),
+        async () => {
+          await postRefundAll(listing);
+        },
+      );
+      expect(
+        loggedDetails().some((s) => s.includes("Admin bulk refund errored")),
+      ).toBe(true);
     });
   });
 });
