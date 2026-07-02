@@ -127,7 +127,10 @@ describeWithEnv(
 );
 
 describe("servicing §18 — duplicate reuses the shared duplicate helper, not a bespoke copy", () => {
-  test("buildDuplicateServicingInput carries the name + bookings and forces kind='servicing'", () => {
+  test("buildDuplicateServicingInput carries the original's name and bookings", () => {
+    // The input helper copies the name + bookings; the servicing KIND is forced
+    // at creation by normalizedCreateInput, not carried on the input (an
+    // end-to-end duplicate producing a servicing-kind event is covered above).
     const original = {
       bookings: [{ date: "2026-07-01", listingId: 7, quantity: 2 }],
       id: 42,
@@ -136,7 +139,6 @@ describe("servicing §18 — duplicate reuses the shared duplicate helper, not a
       ticketToken: "abc",
     } as never;
     const input = buildDuplicateServicingInput(original);
-    expect(input.kind).toBe(SERVICING_KIND);
     expect(input.name).toBe("Annual Inspection");
     expect(input.bookings).toEqual([
       { date: "2026-07-01", listingId: 7, quantity: 2 },

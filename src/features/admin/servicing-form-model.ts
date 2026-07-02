@@ -57,6 +57,17 @@ export const buildServicingFieldSchema = (): Field[] => [
   },
 ];
 
+/**
+ * The servicing form renders its per-listing quantity inputs with public-style
+ * `quantity_<id>` names (not the admin attendee parser's `qty_<id>`) on purpose:
+ * the shared client guard `initTicketQuantityRequired` binds to
+ * `[name^="quantity_"]` and blocks a submit with no quantity picked, so naming
+ * the inputs `quantity_<id>` gives the servicing form that "pick at least one"
+ * enforcement for free. This shim bridges the two schemes for the server — it
+ * copies each `quantity_<id>` value into the `qty_<id>` field the shared
+ * attendee parser reads — so one parser handles both forms. Drop it only if the
+ * form is renamed to emit `qty_<id>` directly (which loses the client guard).
+ */
 const withQuantityAliases = (form: FormParams): FormParams => {
   const normalized = new FormParams(form.toString());
   for (const [field, value] of form.entries()) {

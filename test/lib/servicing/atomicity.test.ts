@@ -128,7 +128,7 @@ describeWithEnv(
       const { id, listing } = await createServicingHold({
         listing: { name: "L" },
       });
-      const { textQuestionId, choiceQuestionId, choiceAnswerId } =
+      const { textQuestionId, choiceAnswerId } =
         await attachTextAndChoiceQuestions(listing.id);
       const { saveAttendeeAnswers, getAttendeeTextAnswers } = await import(
         "#shared/db/questions.ts"
@@ -158,9 +158,7 @@ describeWithEnv(
           updateServicingEvent(id, {
             bookings: [{ listingId: listing.id, quantity: 1 }],
             name: "Changed",
-            questionAnswers: [
-              { answerId: choiceAnswerId, questionId: choiceQuestionId },
-            ],
+            questionAnswers: [{ answerId: choiceAnswerId }],
           }),
           /answer insert boom/,
         );

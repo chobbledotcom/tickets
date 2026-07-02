@@ -18,6 +18,7 @@ import {
 } from "#shared/columns/listing-columns.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { formatDateLabel } from "#shared/dates.ts";
 import type { ServicingEventSummary } from "#shared/db/attendees/servicing.ts";
 import type { ActiveListingStats } from "#shared/db/attendees.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -206,34 +207,32 @@ const upcomingHolidaysSection = (holidays: Holiday[]): string =>
     </details>,
   );
 
-const upcomingServicingSection = (events: ServicingEventSummary[]): string => {
+const upcomingServicingRow = (event: ServicingEventSummary) => {
   // One `<li>` per service event (not per booking line), so a multi-listing hold
   // appears once. The compact details carry the listing count rather than every
-  // name — the listing names are listed in the `/admin/servicing` table.
-  const rows = pipe(
-    map((event: ServicingEventSummary) => {
-      const listingCount = event.bookings.length;
-      const listingLabel = `${listingCount} listing${listingCount === 1 ? "" : "s"}`;
-      const details = [
-        event.date ? new Date(event.date).toLocaleDateString() : "",
-        listingLabel,
-        `${event.totalQuantity}`,
-      ].filter(Boolean);
-      return `<li><a href="/admin/servicing/${event.id}">${escapeHtml(
-        event.name,
-      )}</a> <span class="muted">${escapeHtml(details.join(" · "))}</span></li>`;
-    }),
-    joinStrings,
-  )(events);
-  return String(
-    <details open>
-      <summary>{t("admin.dashboard.upcoming_service_events")}</summary>
-      <ul>
-        <Raw html={rows} />
-      </ul>
-    </details>,
+  // name — the listing names are listed in the `/admin/servicing` table. The
+  // date uses the app's deterministic formatter, not the runtime's locale.
+  const listingCount = event.bookings.length;
+  const details = [
+    event.date ? formatDateLabel(event.date) : "",
+    `${listingCount} listing${listingCount === 1 ? "" : "s"}`,
+    `${event.totalQuantity}`,
+  ].filter(Boolean);
+  return (
+    <li>
+      <a href={`/admin/servicing/${event.id}`}>{event.name}</a>{" "}
+      <span class="muted">{details.join(" · ")}</span>
+    </li>
   );
 };
+
+const upcomingServicingSection = (events: ServicingEventSummary[]): string =>
+  String(
+    <details open>
+      <summary>{t("admin.dashboard.upcoming_service_events")}</summary>
+      <ul>{events.map(upcomingServicingRow)}</ul>
+    </details>,
+  );
 
 /** Render the listing table with dynamic column keys. `columns` defaults to the
  * staff column set; the editor variant passes its money-free set. */

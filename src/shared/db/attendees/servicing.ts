@@ -53,8 +53,10 @@ import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
 
+/** An answer chosen for a service event's custom question. Only the `answerId`
+ *  is needed — `saveAttendeeAnswers` resolves each answer's question itself, so
+ *  carrying a `questionId` here could only ever disagree with it. */
 export type ServicingQuestionAnswer = {
-  questionId: number;
   answerId: number;
 };
 
@@ -62,7 +64,6 @@ export type ServicingEventInput = {
   name: string;
   bookings: ListingBooking[];
   allowOverbook?: boolean;
-  kind?: typeof SERVICING_KIND;
   questionAnswers?: ServicingQuestionAnswer[];
 };
 
@@ -500,7 +501,6 @@ export const buildDuplicateServicingInput = (
   event: ServicingEvent,
 ): ServicingEventInput => ({
   bookings: event.bookings,
-  kind: SERVICING_KIND,
   name: event.name,
 });
 
