@@ -7,6 +7,7 @@
  * then maps each choice onto a concrete double-entry transfer.
  */
 
+import * as v from "valibot";
 import { WORLD, WRITEOFF } from "#shared/accounting/accounts.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { fromDb, selectById } from "#shared/accounting/rows.ts";
@@ -30,14 +31,30 @@ export const MANUAL_MODIFIER_REDUCTION = "manual_modifier_reduction";
 
 const MANUAL_LEDGER_REF_PREFIX = "manual-ledger-entry";
 
-export type ManualLedgerEntryType =
-  | typeof MANUAL_ATTENDEE_PAYMENT
-  | typeof MANUAL_ATTENDEE_CHARGE
-  | typeof MANUAL_ATTENDEE_WRITEOFF
-  | typeof MANUAL_LISTING_INCOME
-  | typeof MANUAL_LISTING_COST
-  | typeof MANUAL_MODIFIER_INCOME
-  | typeof MANUAL_MODIFIER_REDUCTION;
+/**
+ * The single source of truth for the owner-enterable entry types: the TS union,
+ * the runtime guard, the options order, and the exhaustiveness of the spec
+ * table below all derive from this one picklist.
+ */
+export const ManualLedgerEntryTypeSchema = v.picklist([
+  MANUAL_ATTENDEE_PAYMENT,
+  MANUAL_ATTENDEE_CHARGE,
+  MANUAL_ATTENDEE_WRITEOFF,
+  MANUAL_LISTING_INCOME,
+  MANUAL_LISTING_COST,
+  MANUAL_MODIFIER_INCOME,
+  MANUAL_MODIFIER_REDUCTION,
+]);
+
+export type ManualLedgerEntryType = v.InferOutput<
+  typeof ManualLedgerEntryTypeSchema
+>;
+
+const MANUAL_LEDGER_ENTRY_TYPES = ManualLedgerEntryTypeSchema.options;
+
+export const isManualLedgerEntryType = (
+  value: string,
+): value is ManualLedgerEntryType => v.is(ManualLedgerEntryTypeSchema, value);
 
 export type ManualLedgerEntryOption = {
   readonly type: ManualLedgerEntryType;
@@ -45,89 +62,86 @@ export type ManualLedgerEntryOption = {
   readonly hintKey: string;
 };
 
-type ManualEntrySpec = ManualLedgerEntryOption & {
+type ManualEntrySpec = {
   readonly accountType: string;
+  readonly labelKey: string;
+  readonly hintKey: string;
   readonly descriptionKey: string;
   readonly legs: (
     account: AccountRef,
   ) => Pick<TransferInput, "source" | "destination">;
 };
 
-const manualSpecs: readonly ManualEntrySpec[] = [
-  {
+/**
+ * One spec per entry type, keyed by the picklist so the Record is exhaustive by
+ * construction — a new entry type is a compile error here, never a silent
+ * `undefined` lookup (the previous array + `as Record` cast tolerated a
+ * forgotten spec).
+ */
+export const manualEntrySpecByType: Record<
+  ManualLedgerEntryType,
+  ManualEntrySpec
+> = {
+  [MANUAL_ATTENDEE_PAYMENT]: {
     accountType: "attendee",
     descriptionKey: "admin.ledger.human.manual_attendee_payment",
     hintKey: "admin.ledger.add.option.attendee_payment.hint",
     labelKey: "admin.ledger.add.option.attendee_payment.label",
     legs: (account) => ({ destination: account, source: WORLD }),
-    type: MANUAL_ATTENDEE_PAYMENT,
   },
-  {
+  [MANUAL_ATTENDEE_CHARGE]: {
     accountType: "attendee",
     descriptionKey: "admin.ledger.human.manual_attendee_charge",
     hintKey: "admin.ledger.add.option.attendee_charge.hint",
     labelKey: "admin.ledger.add.option.attendee_charge.label",
     legs: (account) => ({ destination: WRITEOFF, source: account }),
-    type: MANUAL_ATTENDEE_CHARGE,
   },
-  {
+  [MANUAL_ATTENDEE_WRITEOFF]: {
     accountType: "attendee",
     descriptionKey: "admin.ledger.human.manual_attendee_writeoff",
     hintKey: "admin.ledger.add.option.attendee_writeoff.hint",
     labelKey: "admin.ledger.add.option.attendee_writeoff.label",
     legs: (account) => ({ destination: account, source: WRITEOFF }),
-    type: MANUAL_ATTENDEE_WRITEOFF,
   },
-  {
+  [MANUAL_LISTING_INCOME]: {
     accountType: "revenue",
     descriptionKey: "admin.ledger.human.manual_listing_income",
     hintKey: "admin.ledger.add.option.listing_income.hint",
     labelKey: "admin.ledger.add.option.listing_income.label",
     legs: (account) => ({ destination: account, source: WORLD }),
-    type: MANUAL_LISTING_INCOME,
   },
-  {
+  [MANUAL_LISTING_COST]: {
     accountType: "revenue",
     descriptionKey: "admin.ledger.human.manual_listing_cost",
     hintKey: "admin.ledger.add.option.listing_cost.hint",
     labelKey: "admin.ledger.add.option.listing_cost.label",
     legs: (account) => ({ destination: WORLD, source: account }),
-    type: MANUAL_LISTING_COST,
   },
-  {
+  [MANUAL_MODIFIER_INCOME]: {
     accountType: "modifier",
     descriptionKey: "admin.ledger.human.manual_modifier_income",
     hintKey: "admin.ledger.add.option.modifier_income.hint",
     labelKey: "admin.ledger.add.option.modifier_income.label",
     legs: (account) => ({ destination: account, source: WRITEOFF }),
-    type: MANUAL_MODIFIER_INCOME,
   },
-  {
+  [MANUAL_MODIFIER_REDUCTION]: {
     accountType: "modifier",
     descriptionKey: "admin.ledger.human.manual_modifier_reduction",
     hintKey: "admin.ledger.add.option.modifier_reduction.hint",
     labelKey: "admin.ledger.add.option.modifier_reduction.label",
     legs: (account) => ({ destination: WRITEOFF, source: account }),
-    type: MANUAL_MODIFIER_REDUCTION,
   },
-];
-
-const specByType = Object.fromEntries(
-  manualSpecs.map((spec) => [spec.type, spec]),
-) as Record<ManualLedgerEntryType, ManualEntrySpec>;
-
-export { specByType as manualEntrySpecByType };
+};
 
 export const manualLedgerEntryOptionsFor = (
   account: AccountRef,
 ): ManualLedgerEntryOption[] =>
-  manualSpecs
-    .filter((spec) => spec.accountType === account.type)
-    .map(({ hintKey, labelKey, type }) => ({ hintKey, labelKey, type }));
-
-export const isManualLedgerEntryType = (
-  value: string,
-): value is ManualLedgerEntryType => Object.hasOwn(specByType, value);
+  MANUAL_LEDGER_ENTRY_TYPES.filter(
+    (type) => manualEntrySpecByType[type].accountType === account.type,
+  ).map((type) => {
+    const { hintKey, labelKey } = manualEntrySpecByType[type];
+    return { hintKey, labelKey, type };
+  });
 
 export const isManualLedgerTransfer = (
   transfer: Pick<Transfer, "kind">,
@@ -149,7 +163,7 @@ const buildManualTransferInput = async ({
   postedBy,
   type,
 }: ManualLedgerEntryInput): Promise<TransferInput> => {
-  const spec = specByType[type];
+  const spec = manualEntrySpecByType[type];
   if (spec.accountType !== account.type) {
     throw new Error(
       `Manual ledger entry type ${type} is not valid for ${account.type}`,
@@ -183,11 +197,30 @@ export const postManualLedgerEntry = async (
 export const getTransferById = (id: number): Promise<Transfer | null> =>
   selectById(fromDb, id);
 
-export const updateTransferAmountAndTime = async (
+/**
+ * The ledger is append-only except for owner-entered rows, and this module IS
+ * the narrow maintenance surface — so the mutators below enforce that boundary
+ * themselves rather than trusting every caller to pre-filter. A transfer's
+ * `kind` is immutable (only amount/time are ever updated), so checking the
+ * loaded row cannot race a concurrent change.
+ */
+const assertManualLedgerTransfer = (transfer: Transfer): void => {
+  if (!isManualLedgerTransfer(transfer)) {
+    throw new Error(
+      `transfer ${transfer.id} is not an owner-entered ledger entry` +
+        ` (kind "${transfer.kind ?? ""}")`,
+    );
+  }
+};
+
+/** Update an owner-entered entry's amount and business time. Throws on any
+ *  other kind of transfer — checkout/refund history is never edited. */
+export const updateManualLedgerEntry = async (
   transfer: Transfer,
   amount: number,
   occurredAt: string,
 ): Promise<void> => {
+  assertManualLedgerTransfer(transfer);
   const next: TransferInput = { ...transfer, amount, occurredAt };
   assertValidTransfer(next, "invalid transfer update");
   await execute(
@@ -196,6 +229,11 @@ export const updateTransferAmountAndTime = async (
   );
 };
 
-export const deleteTransferById = async (id: number): Promise<void> => {
-  await execute("DELETE FROM transfers WHERE id = ?", [id]);
+/** Delete an owner-entered entry. Throws on any other kind of transfer —
+ *  checkout/refund history is never deleted. */
+export const deleteManualLedgerEntry = async (
+  transfer: Transfer,
+): Promise<void> => {
+  assertManualLedgerTransfer(transfer);
+  await execute("DELETE FROM transfers WHERE id = ?", [transfer.id]);
 };

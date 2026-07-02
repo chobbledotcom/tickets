@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  deleteManualLedgerEntry,
   MANUAL_ATTENDEE_CHARGE,
   MANUAL_ATTENDEE_PAYMENT,
   MANUAL_ATTENDEE_WRITEOFF,
@@ -8,26 +9,21 @@ import {
   MANUAL_LISTING_INCOME,
   MANUAL_MODIFIER_INCOME,
   MANUAL_MODIFIER_REDUCTION,
+  type ManualLedgerEntryType,
   postManualLedgerEntry,
-  updateTransferAmountAndTime,
+  updateManualLedgerEntry,
 } from "#shared/accounting/manual-entries.ts";
 import { allTransfers } from "#shared/accounting/queries.ts";
+import { postTransfers } from "#shared/accounting/store.ts";
 import { account } from "#shared/ledger/account.ts";
-import type { AccountRef } from "#shared/ledger/types.ts";
-import { useTransactionalDb } from "#test-utils/ledger.ts";
+import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
+import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 
 const world = account("external", "world");
 const writeoff = account("writeoff", "default");
 
 type ManualEntryCase = {
-  type:
-    | typeof MANUAL_ATTENDEE_PAYMENT
-    | typeof MANUAL_ATTENDEE_CHARGE
-    | typeof MANUAL_ATTENDEE_WRITEOFF
-    | typeof MANUAL_LISTING_INCOME
-    | typeof MANUAL_LISTING_COST
-    | typeof MANUAL_MODIFIER_INCOME
-    | typeof MANUAL_MODIFIER_REDUCTION;
+  type: ManualLedgerEntryType;
   account: AccountRef;
   source: AccountRef;
   destination: AccountRef;
@@ -129,7 +125,29 @@ describe("db > accounting > manual ledger entries", () => {
     const [transfer] = await allTransfers();
 
     await expect(
-      updateTransferAmountAndTime(transfer!, -1, transfer!.occurredAt),
+      updateManualLedgerEntry(transfer!, -1, transfer!.occurredAt),
     ).rejects.toThrow("invalid transfer update");
+  });
+
+  /** Post one checkout-history leg (a `sale`) and read back its stored row. */
+  const storedSaleLeg = async (): Promise<Transfer> => {
+    await postTransfers([tx({ kind: "sale", reference: "sale-guard" })]);
+    return (await allTransfers())[0]!;
+  };
+
+  test("refuses to edit a checkout-event transfer, leaving it untouched", async () => {
+    const sale = await storedSaleLeg();
+    await expect(
+      updateManualLedgerEntry(sale, 999, sale.occurredAt),
+    ).rejects.toThrow("not an owner-entered ledger entry");
+    expect((await allTransfers())[0]!.amount).toBe(sale.amount);
+  });
+
+  test("refuses to delete a checkout-event transfer, leaving it stored", async () => {
+    const sale = await storedSaleLeg();
+    await expect(deleteManualLedgerEntry(sale)).rejects.toThrow(
+      "not an owner-entered ledger entry",
+    );
+    expect(await allTransfers()).toHaveLength(1);
   });
 });

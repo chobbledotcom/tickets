@@ -55,13 +55,13 @@ import {
   WRITEOFF,
 } from "#shared/accounting/accounts.ts";
 import {
-  deleteTransferById,
+  deleteManualLedgerEntry,
   getTransferById,
   isManualLedgerEntryType,
   isManualLedgerTransfer,
   manualLedgerEntryOptionsFor,
   postManualLedgerEntry,
-  updateTransferAmountAndTime,
+  updateManualLedgerEntry,
 } from "#shared/accounting/manual-entries.ts";
 import {
   ledgerTotals,
@@ -663,7 +663,7 @@ export const handleLedgerEntryEditGet: TypedRouteHandler<
 const updatePostedTransfer: PostedTransferHandler = async (posted, form) => {
   const parsed = parseLedgerEntryFields(form, posted.redirectUrl);
   if (parsed instanceof Response) return parsed;
-  await updateTransferAmountAndTime(
+  await updateManualLedgerEntry(
     posted.transfer,
     parsed.amount,
     parsed.occurredAt,
@@ -681,7 +681,7 @@ const deletePostedTransfer: PostedTransferHandler = async (posted, form) => {
     "deletion",
   );
   if (error) return error;
-  await deleteTransferById(posted.transfer.id);
+  await deleteManualLedgerEntry(posted.transfer);
   await logActivity(`Ledger entry #${posted.transfer.id} deleted`);
   return redirect(posted.returnUrl, "Ledger entry deleted", true);
 };
