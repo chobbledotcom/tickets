@@ -406,10 +406,12 @@ const renderListingEditError = (
   submittedGroupIds: number[],
 ): Promise<Response> =>
   listingPage.renderPage(session, id, "edit", {
-    sections: (entity, ctx) =>
-      loadListingEditPanel(entity, ctx, error, submittedGroupIds).then(
-        (html) => [{ html, kind: "custom" as const }],
-      ),
+    sections: async (entity, ctx) => [
+      {
+        html: await loadListingEditPanel(entity, ctx, error, submittedGroupIds),
+        kind: "custom" as const,
+      },
+    ],
     status: 400,
   });
 

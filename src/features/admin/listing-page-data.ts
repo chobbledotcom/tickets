@@ -17,6 +17,7 @@ import { formatDateLabel } from "#shared/dates.ts";
 import {
   type ActivityLogEntry,
   getListingActivityLog,
+  getListingWithActivityLog,
 } from "#shared/db/activityLog.ts";
 import { decryptAttendees } from "#shared/db/attendees.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
@@ -31,6 +32,7 @@ import {
   getListingWithCount,
   listingRevenueBreakdown,
 } from "#shared/db/listings.ts";
+import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
 import { settings } from "#shared/db/settings.ts";
 import { loadNotesForAttendees } from "#shared/db/system-notes.ts";
 import { listingSupportsDirectCheckout } from "#shared/qr.ts";
@@ -131,7 +133,12 @@ export const loadListingOverviewPanel = async ({
   isChild,
   isHiddenPackageMember,
 }: LoadedListing): Promise<JSX.Element> => {
-  const attendees = await loadDecryptedListingAttendees(listing.id);
+  // Housekeeping the old detail view ran on every load: clear reservations
+  // whose payment window lapsed, concurrently with the page's own reads.
+  const [attendees] = await Promise.all([
+    loadDecryptedListingAttendees(listing.id),
+    deleteAllStaleReservations(),
+  ]);
   const [recalc, revenueBreakdown, groupContext, systemNotes] =
     await Promise.all([
       getListingAggregateRecalculation(listing),
@@ -191,11 +198,23 @@ export const loadListingRosterPanel = async (
   });
 };
 
-/** Load the listing's activity log (Activity tab + Overview preview). */
-export const loadListingActivity = ({
+/** How many recent entries the Overview tab's activity preview shows before
+ *  "View all activity" links into the full Activity tab. */
+const ACTIVITY_PREVIEW_LIMIT = 5;
+
+/** The Overview tab's short activity preview. */
+export const loadListingActivityPreview = ({
   listing,
 }: LoadedListing): Promise<ActivityLogEntry[]> =>
-  getListingActivityLog(listing.id);
+  getListingActivityLog(listing.id, ACTIVITY_PREVIEW_LIMIT);
+
+/** The full activity log for the Activity tab. Uses the batched listing+log
+ *  fetch (one round-trip) and keeps only the entries — the page frame already
+ *  has the listing. */
+export const loadListingActivity = async ({
+  listing,
+}: LoadedListing): Promise<ActivityLogEntry[]> =>
+  (await getListingWithActivityLog(listing.id))?.entries ?? [];
 
 /**
  * Build the Edit tab: the multipart edit form and its side panels. Reloads via

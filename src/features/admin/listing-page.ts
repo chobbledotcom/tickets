@@ -37,6 +37,7 @@ import { ListingDeactivatedBanner } from "#templates/admin/listings.tsx";
 import {
   type LoadedListing,
   loadListingActivity,
+  loadListingActivityPreview,
   loadListingEditPanel,
   loadListingForPage,
   loadListingOverviewPanel,
@@ -108,7 +109,7 @@ const overviewTab: TabDef<LoadedListing> = {
     { kind: "custom", load: (entity) => loadListingOverviewPanel(entity) },
     {
       kind: "activity",
-      load: (entity) => loadListingActivity(entity),
+      load: (entity) => loadListingActivityPreview(entity),
       viewAllTab: "activity",
     },
   ],
