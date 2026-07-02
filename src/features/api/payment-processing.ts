@@ -577,6 +577,29 @@ type ValidatedItem = {
   expectedPrice: number | null;
 };
 
+/**
+ * Pair each created booking row with its listing **by listing id**, not by
+ * position. `expandChildAllocations` can emit more rows than there are signed
+ * items — a child chosen under two parents is one signed item but two per-parent
+ * rows, plus any parent-less remainder — so a positional `validatedItems[i]`
+ * pairing would mis-align or read past the end (and throw). Every created row's
+ * listing is a signed item by construction, so the by-id lookup is total.
+ * Mirrors the free path (`ticket-payment.ts`). Exported for direct unit testing
+ * of the multi-parent count mismatch.
+ */
+export const pairEntriesByListing = <A extends { listing_id: number }>(
+  attendees: readonly A[],
+  validatedItems: readonly { listing: ListingWithCount }[],
+): { attendee: A; listing: ListingWithCount }[] => {
+  const listingByItemId = new Map(
+    validatedItems.map((v) => [v.listing.id, v.listing]),
+  );
+  return attendees.map((attendee) => ({
+    attendee,
+    listing: listingByItemId.get(attendee.listing_id)!,
+  }));
+};
+
 /** Handle the "already reserved" branch of reserveSession */
 const handleReservationConflict = async (
   intent: BookingIntent,
@@ -1245,10 +1268,7 @@ const createAttendeeForSession = async (
   }
   const created = result as Extract<typeof result, { success: true }>;
 
-  const entries = created.attendees.map((attendee, i) => ({
-    attendee,
-    listing: validatedItems[i]!.listing,
-  }));
+  const entries = pairEntriesByListing(created.attendees, validatedItems);
   return { entries, ok: true };
 };
 

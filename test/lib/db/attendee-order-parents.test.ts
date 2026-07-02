@@ -177,4 +177,49 @@ describe("db > attendees > expandChildAllocations", () => {
     expect(result[0]!.quantity).toBe(1);
     expect(result[0]!.pricePaid).toBe(60);
   });
+
+  test("un-allocated units become a parent-less remainder row", () => {
+    // Booking of 3 units, but only 1 is allocated under a parent — the other 2
+    // were bought standalone in the same order (reachable once a child is
+    // bookable on its own). The remainder must NOT be dropped: it becomes one
+    // parent-less row so no unit vanishes.
+    const result = expandChildAllocations(
+      [booking(20, 3, 90)],
+      [alloc(20, 10, 1)],
+    );
+    expect(result).toHaveLength(2);
+    const allocRow = result.find((r) => r.parentListingId === 10)!;
+    const remainderRow = result.find((r) => (r.parentListingId ?? 0) === 0)!;
+    expect(allocRow.quantity).toBe(1);
+    expect(remainderRow.quantity).toBe(2);
+    // pricePaid split by quantity: 90*1/3 = 30 on the alloc, the rest (60) on
+    // the remainder (which absorbs the residue). Total conserved.
+    expect(allocRow.pricePaid).toBe(30);
+    expect(remainderRow.pricePaid).toBe(60);
+    expect(allocRow.pricePaid! + remainderRow.pricePaid!).toBe(90);
+    // Both rows share the one order token.
+    expect(remainderRow.orderToken).toBe(allocRow.orderToken);
+  });
+
+  test("an odd fully-allocated split conserves pricePaid to the cent", () => {
+    // 100 across three single-unit allocations rounds to 33/33/33 = 99 under a
+    // naive per-row round; the last row must absorb the residual penny (→ 34)
+    // so ledger/email totals never drift.
+    const result = expandChildAllocations(
+      [booking(20, 3, 100)],
+      [alloc(20, 10, 1), alloc(20, 30, 1), alloc(20, 40, 1)],
+    );
+    const prices = result.map((r) => r.pricePaid!).sort((a, b) => a - b);
+    expect(prices).toEqual([33, 33, 34]);
+    expect(prices.reduce((a, b) => a + b, 0)).toBe(100);
+  });
+
+  test("a free (price-less) remainder row carries no pricePaid", () => {
+    // No pricePaid on the booking → neither the allocation row nor the
+    // remainder row gains one (the ?? 1 / undefined guards hold).
+    const result = expandChildAllocations([booking(20, 3)], [alloc(20, 10, 1)]);
+    expect(result).toHaveLength(2);
+    expect(result.every((r) => r.pricePaid === undefined)).toBe(true);
+    expect(result.map((r) => r.quantity).sort()).toEqual([1, 2]);
+  });
 });
