@@ -34,6 +34,7 @@ import {
   type ListingGroupMembership,
   toListingGroupMembership,
 } from "#shared/db/modifier-resolve.ts";
+import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { generateUniqueSlug } from "#shared/slug.ts";
 import { deleteListingStorageFiles } from "#shared/storage.ts";
@@ -294,6 +295,13 @@ export const validateListingInput = async (
   input: ListingInput,
   existingId?: number,
 ): Promise<string | null> => {
+  // A listing name must be unique across BOTH listings and groups (create and
+  // edit alike), so the catalog can be referenced by name for import/export.
+  const nameTaken = await isNameTakenAnywhere(
+    input.name,
+    existingId === undefined ? undefined : { id: existingId, kind: "listing" },
+  );
+  if (nameTaken) return t("error.name_in_use");
   if (existingId !== undefined) {
     const taken = await isSlugTaken(input.slug, existingId);
     if (taken) return t("error.slug_in_use");

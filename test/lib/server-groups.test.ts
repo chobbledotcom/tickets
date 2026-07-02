@@ -146,6 +146,45 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(group.description).toBe("A fun group of listings");
     });
 
+    const NAME_IN_USE = "Name is already in use by another listing or group";
+
+    test("rejects a group whose name is used by a listing", async () => {
+      await createTestListing({ name: "Clash Name" });
+      const { response } = await adminFormPost("/admin/groups", {
+        name: "Clash Name",
+        terms_and_conditions: "",
+      });
+      await expectFlashRedirect(
+        "/admin/groups/new",
+        NAME_IN_USE,
+        false,
+      )(response);
+    });
+
+    test("rejects a group whose name is used by another group", async () => {
+      await createTestGroup({ name: "Twin Group" });
+      const { response } = await adminFormPost("/admin/groups", {
+        name: "Twin Group",
+        terms_and_conditions: "",
+      });
+      await expectFlashRedirect(
+        "/admin/groups/new",
+        NAME_IN_USE,
+        false,
+      )(response);
+    });
+
+    test("lets a group keep its own name on edit", async () => {
+      const group = await createTestGroup({ name: "Renamer" });
+      // Re-saving the group under its own name must not trip the uniqueness
+      // check against itself.
+      const updated = await updateTestGroup(group.id, {
+        name: "Renamer",
+        slug: group.slug,
+      });
+      expect(updated.name).toBe("Renamer");
+    });
+
     test("creates group without description defaults to empty string", async () => {
       const group = await createTestGroup({ name: "No Desc Group" });
       expect(group.description).toBe("");

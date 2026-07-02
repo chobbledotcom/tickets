@@ -5,7 +5,13 @@ import {
   listingInputToEdge,
   validateListingInput,
 } from "#shared/listings-actions.ts";
-import { setupTestEncryptionKey, testListingInput } from "#test-utils";
+import {
+  createTestGroup,
+  createTestListing,
+  describeWithEnv,
+  setupTestEncryptionKey,
+  testListingInput,
+} from "#test-utils";
 
 setupTestEncryptionKey();
 
@@ -44,7 +50,11 @@ describe("listingInputToEdge", () => {
   });
 });
 
-describe("validateListingInput", () => {
+// validateListingInput now reads the catalog (for cross-entity name
+// uniqueness), so these cases run against an empty test DB — no listing/group
+// shares these names, so the uniqueness check passes and each case exercises
+// the specific rule it names.
+describeWithEnv("validateListingInput", { db: true }, () => {
   test("rejects assignBuiltSite with initialSiteMonths <= 0", async () => {
     const input: ListingInput = {
       ...testListingInput({
@@ -172,5 +182,42 @@ describe("validateListingInput", () => {
       durationDays: 3,
     });
     await expect(validateListingInput(input)).resolves.toBeNull();
+  });
+
+  const NAME_IN_USE = "Name is already in use by another listing or group";
+
+  const namedInput = (name: string): ListingInput => ({
+    ...testListingInput({ name }),
+    slug: "some-slug",
+    slugIndex: "some-index",
+  });
+
+  test("rejects a create whose name is used by an existing listing", async () => {
+    await createTestListing({ name: "Taken Name" });
+    await expect(validateListingInput(namedInput("Taken Name"))).resolves.toBe(
+      NAME_IN_USE,
+    );
+  });
+
+  test("rejects a create whose name is used by a group", async () => {
+    await createTestGroup({ name: "Group Name" });
+    await expect(validateListingInput(namedInput("Group Name"))).resolves.toBe(
+      NAME_IN_USE,
+    );
+  });
+
+  test("lets a listing keep its own name on edit", async () => {
+    const listing = await createTestListing({ name: "Mine" });
+    await expect(
+      validateListingInput(namedInput("Mine"), listing.id),
+    ).resolves.toBeNull();
+  });
+
+  test("rejects renaming a listing to another listing's name", async () => {
+    const first = await createTestListing({ name: "First" });
+    const second = await createTestListing({ name: "Second" });
+    await expect(
+      validateListingInput(namedInput(first.name), second.id),
+    ).resolves.toBe(NAME_IN_USE);
   });
 });
