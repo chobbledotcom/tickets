@@ -157,8 +157,7 @@ export interface TabDef<E> {
 
 export interface EntityPageDef<E> {
   key: string;                      // "attendee" | "listing" | …
-  basePath: (id: number) => string; // "/admin/attendees/5"
-  paramName: string;                // "attendeeId" — matches existing routes
+  basePath: (id: number) => string; // "/admin/attendees/5" — URL minting only
   titleOf: (e: E) => string;        // page <h1> / <title>
   navActive: string;                // passed to AdminNav
   auth: PageAuth;                   // GET guard, per existing authPage guards
@@ -170,11 +169,37 @@ export interface EntityPageDef<E> {
 }
 ```
 
-`defineEntityPage(def)` returns the GET route entries
-(`"GET {base}/:param"` and `"GET {base}/:param/:tab"`) ready to spread into the
-feature's `defineRoutes` map. POST handlers stay where they are today — they
-are feature logic — but redirect to tab paths via the framework's one path
-helper (below).
+`defineEntityPage(def)` returns **handlers, not route keys**: a
+`renderTab(request, id, tabSlug)` the feature file binds under its own
+literal route strings —
+
+```ts
+"GET /admin/attendees/:attendeeId": (request, { attendeeId }) =>
+  attendeePage.renderTab(request, attendeeId, ""),
+"GET /admin/attendees/:attendeeId/:tab": (request, { attendeeId, tab }) =>
+  attendeePage.renderTab(request, attendeeId, tab),
+```
+
+The typed router (`defineRoutes`, `src/features/router.ts`) infers param
+types from **literal** route-string keys, so route keys cannot be minted from
+a runtime schema anyway; `basePath` exists only to build concrete URLs
+(`tabPath` composes on it), never patterns. The two-line binding per entity
+is the whole wiring cost. POST handlers stay where they are today — they are
+feature logic — but redirect to tab paths via the framework's one path helper
+(below).
+
+**Per-tab authorization.** Page-level `auth` is the *floor* — the weakest
+role that may see any part of the page — and `TabDef.visible` gates each tab
+on the *same condition its content requires*, evaluated server-side before
+render (a hidden tab both disappears from the strip and 404s when named
+directly, so visibility IS authorization here, not decoration). This matters
+for split-permission entities: today the listing/group *detail* GETs are
+staff-only (attendee PII, money) while their `/edit` GETs are content-gated
+so editors can change copy. Migrated, the page floor is the content guard,
+the Overview/Ledger/Activity tabs carry staff-only `visible` predicates, and
+the **default tab is role-aware**: `GET {base}/:id` renders the first tab
+visible to the viewer (an editor lands on Edit; staff land on Overview) —
+never a 403 on the bare URL, never a forbidden tab in the strip.
 
 ### Why a closed union, not plugin objects
 
@@ -328,6 +353,29 @@ bounce; field-level errors surface through the flash next to the form
 (`formId` targeting). This is a deliberate unification (AGENTS.md: the answer
 is yes).
 
+**Field/line-level errors survive the bounce via validation replay, not an
+error stash.** The attendee page's inline feedback is richer than one flash
+string — per-line quantity errors, a date error, an attendee-field error —
+and simply flashing a joined message would regress it. But no new state is
+needed: the stashed submission *is* the validator's input, so the Edit tab's
+GET loader, when a stash is present, re-parses it through the same
+`parseAttendeeForm` and re-runs the same `validateParsedForm` the POST just
+ran. Deterministic replay of a pure function over data we already carry —
+the re-rendered form shows exactly the errors the POST computed, positioned
+exactly where they are today, and the flash carries only the summary line.
+`defineForm`-backed entities get the same for free (their validators are
+pure too); the adapter grows an optional `replayErrors(stash, e)` hook the
+loader calls.
+
+**Multipart forms stay multipart.** `createAuthedFormRoute` is built on the
+URL-encoded `AuthPolicy<"form">`/`FormParams` path, but the listing
+create/edit forms are `enctype="multipart/form-data"` under
+`CONTENT_MULTIPART` so image/attachment uploads arrive as `FormData`. The
+adapter doesn't care (it only renders and points at an action URL), and the
+listing POST keeps its multipart handler; if a second multipart entity ever
+appears, add a `createAuthedFormRoute` multipart variant then — don't force
+uploads through the form-only helper.
+
 Conditional field visibility is untouched: the CSS `:has()` mixins operate
 inside the form markup wherever it renders. Tabs neither add nor require JS —
 **the whole framework is zero-JS**, plain links and full page loads, same as
@@ -384,14 +432,17 @@ schema only *accepts* keys, so migrated pages can't quietly keep literals.
 
 ## Route generation and the migration mechanics
 
-`defineEntityPage` produces:
+`defineEntityPage` produces handlers the feature file binds under literal
+route keys (see "Per-tab authorization" above for why the keys stay literal):
 
 ```ts
 const attendeePage = defineEntityPage<AttendeeView>({ … });
 
 // in the feature's defineRoutes map:
-...attendeePage.routes,   // "GET /admin/attendees/:attendeeId"
-                          // "GET /admin/attendees/:attendeeId/:tab"
+"GET /admin/attendees/:attendeeId": (request, { attendeeId }) =>
+  attendeePage.renderTab(request, attendeeId, ""),
+"GET /admin/attendees/:attendeeId/:tab": (request, { attendeeId, tab }) =>
+  attendeePage.renderTab(request, attendeeId, tab),
 ```
 
 - **Legacy URL compatibility**: migrated-away URLs 301 to their tab —
@@ -432,7 +483,16 @@ fully on the framework — no half-migrated pages living in both worlds.
    `/admin/listing/:id/log`), Actions (duplicate, scanner, questions, QR,
    email, refund-all; danger: deactivate/reactivate/delete). The children
    editor and income-adjust become `custom` sections on the tabs they belong
-   to. `listings.tsx` should shrink by four figures of lines.
+   to. `listings.tsx` should shrink by four figures of lines. Mind the whole
+   deep-linkable URL surface, not just `/log`: the checked-in/out attendee
+   filters `/admin/listing/:id/in` and `/admin/listing/:id/out`
+   (`handleAdminListingGetIn/Out`) are linked from the check-in workflow, so
+   they either stay as literal routes (literals beat `:tab` in the router, so
+   coexistence is safe) or 301 to the Overview tab with a filter query —
+   audit every `GET /admin/listing/:id/*` route the same way before deleting
+   it. Per-tab auth applies here too: the page floor is the content guard so
+   editors keep Edit; Overview/Ledger/Activity carry staff-only `visible`
+   predicates and the bare URL lands each role on its first visible tab.
 3. **Modifiers** — the third copy of the composition; after listings this is
    mostly deletion.
 4. **Groups, users, questions, built-sites, attendee-statuses, holidays,
