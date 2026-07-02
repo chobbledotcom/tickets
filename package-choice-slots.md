@@ -96,12 +96,31 @@ overlapping slots would make that corner mainstream. Phase A therefore
 by the shared predicate, section A); lifting that means fixing the paid-path
 entry mapping first (phase B).
 
-### 5. Webhook revalidation already covers it
+### 5. Webhook revalidation covers removed/swapped edges — two stale-session
+gaps remain
 
 `edgeDrifted` (`src/shared/booking/signed-metadata.ts`) already resolves each
 allocation via `childNodeKey(packageMemberNodeKey(group, slot), candidate)`
 against the freshly rebuilt tree — an operator who removes a candidate or the
 slot mid-checkout already takes the `price_changed` refund path.
+
+What it does **not** catch is edges *gained* mid-checkout; phase A closes two
+stale-session holes in `validateAllItems`
+(`src/features/api/payment-processing.ts`):
+
+- **A package member gaining its first child edge.** With no `allocations`,
+  `edgeDrifted` only verifies each signed package-member `nodeKey` still
+  resolves — which it does after child edges are added — so the webhook would
+  book the now-slot parent with **no chosen candidate**. Add a drift rule:
+  every signed package-member line whose *current* node has children must be
+  covered by allocations, else the session fails closed to `price_changed`.
+- **A standalone session for a listing that becomes a slot.**
+  `orderEdgeDrifted` returns early for intents with no allocations and no
+  `packageGroupId`, and the only stale-config guard is `staleHiddenMember` —
+  so a checkout opened just before the listing became a slot books it
+  standalone after every new entry point 404s. Add a stale-slot guard exactly
+  analogous to `staleHiddenMember` (fail closed after pricing, refund via
+  `price_changed`).
 
 ## The actual gaps — the work
 
@@ -197,10 +216,28 @@ top-level member nodes. Two pieces of work:
   `× q`) from each capped pool, then check each slot's candidates can supply
   `pickCount × q` against those **residual** pools via the extracted cohort
   math; the cap is the largest feasible `q` (supply is monotone in `q`, so a
-  closed-form/loop over the member-cap bound works). The atomic batch write
-  predicate remains the authoritative backstop for the buyer's actual mix.
-  `resolvePageQuantities` clamps the posted count with the same function, so
-  the submit clamp comes along automatically.
+  closed-form/loop over the member-cap bound works). Two refinements the
+  residual formulation forces on the extracted helper:
+  - **Child-only cohort mode.** `childCombinedCap`'s shared-group term
+    divides by `PARENT_CHILD_GROUP_UNITS` because it prices parent *and*
+    child demand together. Once the slot's own demand is already reserved
+    from the pool, reusing that term double-counts the slot: a slot and its
+    sole candidate both in group G with 2 remaining should allow 1 package,
+    but reserve-then-parent+child math leaves residual 1 and reports
+    `⌊1/2⌋ = 0`. The extracted helper needs a child-only/residual mode for
+    package slots (divide by candidate demand alone).
+  - **Cross-slot joint demand on shared pools.** Checking each slot
+    independently against the residual overstates capacity when two slots'
+    candidates draw on the same capped pool: two pick-1 slots with disjoint
+    candidates C1 and C2 both only in group G with 1 spot left each pass
+    alone at `q = 1`, but one package needs 2 G-spots. Aggregate each pool's
+    **forced** demand across slots — a slot whose candidates all sit inside
+    the pool must place `pickCount × q` there (C1/C2 ⇒ 2 > 1, infeasible),
+    while a slot with an outside alternative forces 0 (keeping the M/C/D
+    example at 2). Partial-overlap mixes stay approximate by design; the
+    atomic batch write predicate remains the authoritative backstop for the
+    buyer's actual mix. `resolvePageQuantities` clamps the posted count with
+    the same function, so the submit clamp comes along automatically.
 
 Discovery: `packageGroupBookable` (`src/features/public/discovery.ts`) builds
 its tree without `childrenByParentId`; it must load candidates so `/listings`,
@@ -250,8 +287,15 @@ The fix is to give a slot listing the same non-standalone treatment a child
 gets, from **one** extended predicate — `lacksStandalonePublicPage`
 (`src/features/public/ticket-payment.ts`) becomes child OR hidden-package
 member OR **package member with child edges** — applied on every surface
-where children are handled today. Enumerating them (each is a real bypass
-otherwise):
+where children are handled today. **Layering:** the new test itself must live
+at the DB layer (a shared helper/SQL predicate alongside
+`getHiddenPackageMemberIds`, e.g. `getSlotListingIds` in
+`src/shared/db/groups.ts` joining `group_listings` × `listing_parents`),
+because catalog consumers like `getCatalogListings` live in
+`src/shared/db/listings.ts` and cannot import
+`features/public/ticket-payment.ts` without a shared→feature cycle;
+`lacksStandalonePublicPage` delegates to it. Enumerating the surfaces (each
+is a real bypass otherwise):
 
 - **Direct slug entries:** `withActiveListings` (web) and the JSON API's
   `findActiveListing`.
@@ -268,9 +312,16 @@ otherwise):
   non-package group sets, mirroring how `dropChildListings` strips children
   from indirectly-loaded pages.
 - **Public catalogs/discovery.** `getCatalogListings`
-  (`src/shared/db/listings.ts`), the `/listings` page classification, and the
-  `/order` gallery exclude children and hidden-package members but would
-  still advertise a slot card pointing at the now-404 `/ticket/<slot>` URL.
+  (`src/shared/db/listings.ts`), the `/listings` page classification, the
+  `/order` gallery, and the public API list endpoint (`handleListListings`,
+  `src/features/api/index.ts`) exclude children and hidden-package members
+  but would still advertise a slot card/entry pointing at the now-404
+  `/ticket/<slot>` URL.
+- **Admin dashboard multi-booking builder.** Its checkboxes generate
+  `/ticket/<slug+slug>` URLs and exclude only
+  `childIds ∪ hiddenMemberIds` (`src/features/admin/dashboard.ts`) — an
+  active non-hidden slot would stay selectable and emit a URL the direct-slug
+  guard rejects.
 - **Admin share affordances — explicitly, not "automatically".** The admin
   listing view computes `shareSuppressed = isChild || isHiddenPackageMember`
   from flags `listings-view.ts` passes into the template — it does **not**
@@ -340,13 +391,21 @@ price — existing, deliberate behaviour.
   a candidate and a fixed member sharing one capped pool cap at the *joint*
   per-package demand (the shared-pool example above yields 1, not 2); a slot
   with an alternative candidate outside the shared pool is NOT
-  over-constrained (the M/C/D example yields 2, not 1); a sold-out candidate
-  set ⇒ package sold out everywhere discovery looks (cards, `/order.js`,
-  feeds, API, QR) in lockstep with the ticket page.
+  over-constrained (the M/C/D example yields 2, not 1); a slot and its sole
+  candidate sharing one pool with 2 remaining yield 1, not 0 (child-only
+  residual mode, no parent+child double-count); two slots whose candidate
+  sets both sit inside one 1-spot pool yield 0, not 1 (cross-slot forced
+  demand); a sold-out candidate set ⇒ package sold out everywhere discovery
+  looks (cards, `/order.js`, feeds, API, QR) in lockstep with the ticket
+  page.
 - **Client enhancement:** with only `package_quantity` set (no
   `quantity_<id>` controls), a slot's candidate-scoped questions show/require
   and the required child total reads `pickCount × packageQty`.
 - **Webhook:** removing a candidate/slot edge mid-checkout ⇒ `price_changed`;
+  a package member gaining its FIRST child edge mid-checkout ⇒
+  `price_changed` (never books the slot parent without a candidate); a
+  standalone session whose listing became a slot mid-checkout ⇒
+  `price_changed` (the stale-slot analogue of `staleHiddenMember`);
   allocations persist one row per (candidate, slot) with `package_group_id`.
 - **Display/privacy:** package ticket card groups slot + chosen candidates;
   no surface names a candidate of a (rejected) hidden configuration.
@@ -355,7 +414,8 @@ price — existing, deliberate behaviour.
   before the listing became a slot) — even when active and non-hidden; it is
   dropped from a regular group's `/ticket/<group>` page it also belongs to;
   it appears on no catalog surface (`/listings`, `/order`, `/order.js`,
-  feeds); and admin URL/QR/embed affordances render no link for it.
+  feeds, `/api/listings`); the admin dashboard multi-booking builder does not
+  offer it; and admin URL/QR/embed affordances render no link for it.
 - **Metadata budget:** a 3-slot, multi-pick package within provider caps; an
   over-cap `allocations` blob surfaces the batching `PaymentUserError`, not a
   provider rejection.
