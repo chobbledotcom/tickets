@@ -255,12 +255,17 @@ top-level member nodes. Two pieces of work:
     `src/shared/db/capacity.ts`), so a sole candidate in pools G **and** H
     with 1 spot each supplies 1 unit, not 2 — a pool-level Hall/flow model
     would see two alternative seats. The check at count `q` is therefore a
-    small feasibility system over per-candidate unit counts `x_c`: per slot,
+    small feasibility system over per-candidate unit counts `x_c`, with
+    THREE constraint families: per slot,
     `Σ x_c over its candidates = pickCount × q`; per capped pool,
-    `Σ x_c over candidates in the pool ≤ residual`. Package configs are tiny
-    (a handful of slots, candidates, and pools), so solving it exactly is
-    cheap; the atomic batch write predicate remains the final authority for
-    the buyer's actual mix (per-date dimensions and races it alone can see).
+    `Σ x_c over candidates in the pool ≤ residual`; and per candidate,
+    `x_c ≤ its own remaining capacity` (the `childOwnRenderCap` bound —
+    without it, pick-2 over two candidates with 1 remaining each and no
+    capped pool would pass at `q = 2` by assigning 4 units the candidates
+    cannot fulfil). Package configs are tiny (a handful of slots,
+    candidates, and pools), so solving it exactly is cheap; the atomic batch
+    write predicate remains the final authority for the buyer's actual mix
+    (per-date dimensions and races it alone can see).
     `resolvePageQuantities` clamps the posted count with the same function,
     so the submit clamp comes along automatically.
   - **The render/submit cap context must include candidate pools.**
@@ -440,7 +445,9 @@ price — existing, deliberate behaviour.
   over two pools with 1 spot each yield 0, not 1 (joint assignment, not
   per-slot or forced-demand checks); a sole candidate in TWO 1-spot pools
   supplies 1 unit, not 2 (per-candidate variables, one unit charges every
-  pool it sits in); a candidate-only capped pool clamps the
+  pool it sits in); pick-2 over two uncapped-pool candidates with 1
+  remaining each yields 1 package, not 2 (per-candidate own-capacity
+  bound); a candidate-only capped pool clamps the
   `/ticket/<package>` render and POST, not just discovery; a sold-out
   candidate set ⇒ package sold out everywhere discovery
   looks (cards, `/order.js`, feeds, API, QR) in lockstep with the ticket
