@@ -208,35 +208,84 @@ Introduce the narrowed DB read once —
 `getNonStandaloneChildIds(ids)` / `anyNonStandaloneChild(ids)` in
 `src/shared/db/listing-parents.ts` (children joined to
 `listings.bookable_alone = 0`) — and move the GATE consumers onto it, while
-STRUCTURAL consumers keep the unfiltered child set:
+STRUCTURAL consumers keep the unfiltered child set. **Codex review sharpened
+this table: several "one obvious call site" gates turned out to have a
+second, separate guard that also had to switch, and one "keep structural"
+decision was wrong.**
 
 | Call site | Meaning | Action |
 |---|---|---|
 | `lacksStandalonePublicPage` (`ticket-payment.ts`) | gate | switch |
 | `withActiveListings` child-slug rejection | gate | switch |
+| **`renderTicketFlow`'s `dropChildListings(listings)`** (`ticket-submit.ts:1181`) | gate | **split, not keep** — see below |
 | QR scan guard (`qr-book.ts`) + QR issuance gating | gate | switch |
 | JSON API `findActiveListing` / list filter (`api/index.ts`) | gate | switch |
+| **`handleBook`'s own `anyChildListing([listing.id])`** (`api/index.ts:988`) | gate | **switch** — a second guard after `findActiveListing`, else book still 400s |
 | `getCatalogListings` child-exclusion SQL (`db/listings.ts`) | gate | add `AND NOT bookable_alone` |
-| `/listings` classification `classifyForDiscovery` `childIds` (`discovery.ts`) | gate | switch (flagged child ⇒ normal card + CTA, not the add-on note) |
-| `/order` gallery, `/order.js`, feeds, site-nav/pages | gate | switch (mostly via the shared discovery/catalog reads) |
+| `classifyForDiscovery` `childIds` (`discovery.ts:261`) | gate | **do NOT blanket-switch** — it feeds both card state AND group liveness; see below |
+| **`childCardState` add-on precedence** (`homepage.tsx:31`) | gate | **also filter `addOnChildIds`** — it returns `"addon"` before consulting `childIds`, so a flagged child with a live parent still shows the add-on note unless removed from `addOnChildIds` (or the precedence flips) |
+| `/order` gallery, `/order.js`, feeds | gate | switch (via the shared catalog/discovery reads) |
 | Admin dashboard builder `unbookableIds` (`dashboard.ts`) | gate | switch |
 | Admin share/QR flags `isChild` (`listings-view.ts`) | gate | switch |
 | Fold/render `childrenByParentId`, tree building | structural | keep |
 | `signed-metadata`, `order-parents` | structural | keep |
 | Children editor nesting blocks (`listings-parents.ts`) | structural | keep |
 | Package-member blocks (`anyListingInPackageGroup`) | structural | keep |
-| `dropChildListings` (group/indirect pages) | structural | keep (decision below) |
-| Child-only add-on block (`childOnlyAddOnName` callers) | gate | **relax**: a `bookable_alone` child's own page can sell its scoped add-on, so the hard block skips flagged children |
+| Child-only add-on block (`childOnlyAddOnName` edge save) | gate | **relax** for flagged children (its own page sells the add-on) — but two-sided, see below |
 
-**Two scoped decisions (recommendations inline):**
+**The three subtleties Codex surfaced (each a real breakage otherwise):**
 
-- **Group pages keep dropping child rows** even when flagged: on a page that
-  also shows a parent of the child, a standalone row AND a fold selector for
-  the same listing is confusing UX; the flag's new surfaces are the child's
-  own page and catalog entries. Revisit only on operator demand.
-- **Mixing standalone + folded units of one child in one order is allowed**
-  (multi-slug cart `/ticket/<parent+child>`), because workstream 1's
-  remainder row persists it faithfully. No extra guard.
+1. **`dropChildListings` must split by page kind, not stay structural.**
+   `handleBySlugs → handleTicket → renderTicketFlow` calls
+   `dropChildListings(listings)` unconditionally, so even after the slug guard
+   lets `/ticket/<flagged-child>` through, this shared drop removes the only
+   row and 404s — and `/ticket/<parent+child>` can't mix standalone + folded
+   units either. Split it: a **direct-slug** entry keeps `bookable_alone`
+   children as top-level rows (drop only non-standalone children); an
+   **indirect group/order** page keeps dropping ALL children (a standalone row
+   beside its own fold selector on the same page is confusing). Thread a
+   "direct vs indirect" flag, or give `renderTicketFlow` the entry kind.
+
+2. **`classifyForDiscovery.childIds` feeds two consumers that must diverge.**
+   It drives both the `/listings` card state AND group liveness
+   (`groupHasBookableMember` at `discovery.ts:353`, and the public nav at
+   `site-nav.ts:91`). If a flagged child leaves `childIds`, its card correctly
+   gains a CTA — but a regular group whose ONLY members are flagged children
+   would then be advertised as live while `/ticket/<group>` still calls
+   `dropChildListings` (indirect ⇒ drops them) and 404s. So the group-liveness
+   read must stay structural (unfiltered `childIds`), OR indirect group pages
+   must render flagged children too. Recommendation: keep group liveness on
+   the unfiltered set (a flagged child's *own* page and catalog card are its
+   surfaces, not the group page), and expose card state via a separate
+   `standaloneBookableChildIds` set rather than by mutating `childIds`.
+
+3. **Add-on reachability is two-sided — relaxing the edge block isn't enough.**
+   A `bookable_alone` child's page rescues a child-scoped opt-in add-on, so
+   the edge-save block (`childOnlyAddOnName`) skips flagged children. But the
+   guard is symmetric: modifier saves compute reachable pages from active
+   non-child listings (`childUnreachableAddOnError`, `modifiers.ts:172`), and
+   listing edits/deactivation re-run `firstChildUnreachableAddOnForListings`
+   (`listings-actions.ts`). Two holes if only the edge side relaxes: (a) the
+   modifier-side reachable-page set must count a `bookable_alone` child as a
+   live page; and (b) **clearing** the flag later (true→false) must re-run the
+   same unreachable-add-on check as deactivation, or an add-on the flag rescued
+   silently becomes a dead end. Fold `bookable_alone` into the shared
+   "reachable page" predicate both sides consume, and add the false-transition
+   check to listing save.
+
+**Plus a stale-session guard (mirror `staleHiddenMember`).** A paid session
+opened while a child was `bookable_alone=true` can complete after the flag is
+cleared. `validateAllItems` (`payment-processing.ts:784`) has a stale guard
+only for hidden-package members, and `orderEdgeDrifted` checks parent/child
+structure, not standalone-eligibility — so the in-flight session would book a
+now-non-standalone child after every new entry point 404s. Add a
+stale-non-standalone-child guard beside `staleHiddenMember` (fail closed →
+`price_changed`), and suppress the cancel-page retry link for the same stale
+intent.
+
+**One decision that stands:** mixing standalone + folded units of one child in
+one order is **allowed** (`/ticket/<parent+child>`), because workstream 1's
+remainder row now persists it faithfully. No extra guard.
 
 **Interactions needing no code:** pricing (own price on both paths),
 capacity (per-listing rows, path-blind atomic predicate), questions
@@ -244,25 +293,42 @@ capacity (per-listing rows, path-blind atomic predicate), questions
 still wins over the flag), package membership rules (untouched).
 
 **Tests.**
-- Flag ON: `/ticket/<child>` 200 + books; API lookup/book succeeds; appears
-  in catalog, `/listings` card with CTA, `/order`, `/order.js`, feeds,
+- Flag ON: `/ticket/<child>` 200 + books (the `dropChildListings` split);
+  API lookup AND book succeed (both `findActiveListing` and `handleBook`'s
+  guard); appears in catalog, `/listings` card with a **CTA not the add-on
+  note** (`childCardState`/`addOnChildIds`), `/order`, `/order.js`, feeds,
   `/api/listings`; QR issuance + scan work; dashboard builder offers it;
   admin share links render; still folds under every parent on parent/package
-  pages; child-scoped add-on accepted at edge save and sellable on its page.
+  pages; child-scoped add-on accepted at edge save AND at modifier save, and
+  sellable on its page.
 - Flag OFF (regression floor): every existing 404/drop/suppression test
   keeps passing untouched.
 - Flag ON + hidden-package member: still concealed everywhere (the
   hidden-member arm outranks the flag).
+- **Group liveness:** a regular group whose only members are flagged children
+  is NOT advertised as live (group read stays structural); its members' own
+  cards still show CTAs.
+- **Clearing the flag (true→false):** rejected at listing save when it would
+  orphan a child-scoped add-on (the false-transition check); a stale paid
+  session for the just-cleared child takes `price_changed`, and its
+  cancel/retry link is suppressed.
 - One order mixing standalone + folded units: rows, parents, and money
   conserved (workstream 1's remainder row exercised through the real flow).
-- Mutation gate: the new predicate's `bookable_alone = 0` arm and the
-  add-on-block relaxation are prime operator-flip mutants — assert both
+- Mutation gate: the new predicate's `bookable_alone = 0` arm, the
+  add-on-block relaxation, the `dropChildListings` direct/indirect split, and
+  the stale-session guard are prime operator-flip mutants — assert both
   polarities explicitly.
 
 ## Sequencing
 
-1. Workstream 1 (one PR): pure fixes + tests, no schema, no behaviour change
-   for existing configurations beyond correcting the multi-parent corner.
-2. Workstream 2 (one PR): migration + flag + predicate split + surfaces.
+1. **Workstream 1 — DONE** (this branch): pure fixes + tests, no schema, no
+   behaviour change for existing configurations beyond correcting the
+   multi-parent corner. Shipped `pairEntriesByListing` (paid mapping by
+   listing id), the `expandChildAllocations` remainder row + to-the-cent price
+   conservation, and the multi-parent persistence / wholesale-check-in tests.
+2. Workstream 2 (one PR): migration + flag + the predicate split above,
+   including the three Codex subtleties (`dropChildListings` direct/indirect
+   split, `classifyForDiscovery`/group-liveness divergence, two-sided add-on
+   reachability) and the stale-session guard.
 3. Follow-ups that share these code paths, from `package-choice-slots.md`:
    chooser-cap save validation and the `allocations` metadata length limit.
