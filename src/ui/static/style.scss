@@ -2936,6 +2936,9 @@ label:hover .embed-toggle-badge,
 .entity-tabs {
   border-bottom: 1px solid var(--color-bg-secondary);
   margin-block: var(--space-m);
+  /* The base `nav` rule centres its row; the tab strip reads left-to-right
+     like the page content beneath it, so pin it to the start. */
+  justify-content: flex-start;
 
   ul {
     display: flex;
