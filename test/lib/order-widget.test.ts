@@ -309,6 +309,31 @@ describe("order widget", {
     expect(logHas(h, "skipped un-enhanceable link")).toBe(true);
   });
 
+  test("explains WHY each un-enhanceable link is skipped", () => {
+    setBody(
+      h,
+      [
+        `<a data-add-listing="">empty</a>`,
+        `<a data-add-listing="bad">not-a-url</a>`,
+        `<a data-add-listing="https://elsewhere.test/ticket/open">origin</a>`,
+        `<a data-add-listing="${ORIGIN}/not-a-ticket">path</a>`,
+        `<a data-add-listing="${ORIGIN}/ticket/register">slug</a>`,
+      ].join(""),
+    );
+    h.run(makeCatalog([listing({ id: 1, slug: "open" })], true));
+
+    const reasons = h.logs
+      .filter((entry) => entry[1] === "skipped un-enhanceable link")
+      .map((entry) => entry[3]);
+    expect(reasons).toEqual([
+      "- no data-add-listing value",
+      "- not a valid URL",
+      `- origin https://elsewhere.test is not the tickets origin ${ORIGIN}`,
+      "- path /not-a-ticket is not a /ticket/<slug> URL",
+      `- slug "register" is not a known listing or package`,
+    ]);
+  });
+
   test("stays silent when debug is off", () => {
     mountOpenListing(h);
     clickAnchor(h, "open");
