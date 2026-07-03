@@ -121,7 +121,9 @@ const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
     if (!group) return "Selected group does not exist";
 
     const typeError = groupListingTypeError(
-      siblingsByGroup.get(groupId) ?? [],
+      // getListingsByGroupIds seeds an entry (possibly empty) for every id it is
+      // asked about, and we iterate those same ids, so the lookup always resolves.
+      siblingsByGroup.get(groupId)!,
       // The DB column defaults to "standard" when omitted (e.g. a JSON API
       // create that sends group_ids but no listing_type), so validate against
       // that default rather than passing undefined and reading every standard
