@@ -65,7 +65,7 @@ export const handleHeaderImagePost = (request: Request): Promise<Response> =>
       uploadImageTargets(data, validation.detectedType, [FULL_IMAGE_TARGET]),
     ]);
     if (uploadResult.status === "fulfilled") {
-      await settings.update.headerImageUrl(uploadResult.value[0]);
+      await settings.update.headerImageUrl(uploadResult.value[0] as string);
       await logActivity("Header image uploaded");
       return ok("/admin/settings", t("success.header_image_uploaded"), {
         formId: "settings-header-image",

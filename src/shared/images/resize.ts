@@ -16,9 +16,11 @@ import type { RawImage } from "./types.ts";
 
 /**
  * Downscale `src` to exactly `dstW`×`dstH` using an area-average filter.
- * Intended for reductions (`dstW <= src.width`, `dstH <= src.height`); every
- * destination pixel then covers at least a fraction of one source pixel, so the
- * accumulated weight is always positive.
+ * Requires a reduction (`dstW <= src.width`, `dstH <= src.height`) — the only
+ * mode the pipeline uses. Under that contract every source pixel in the scanned
+ * `[ix0,ix1)`×`[iy0,iy1)` footprint genuinely overlaps the destination cell, so
+ * the per-pixel weight is always positive and the accumulated weight non-zero;
+ * no zero-overlap guard is needed.
  */
 export const resizeAreaAverage = (
   src: RawImage,
@@ -48,17 +50,18 @@ export const resizeAreaAverage = (
       let accW = 0;
       for (let sy = iy0; sy < iy1; sy++) {
         const wy = Math.min(y1, sy + 1) - Math.max(y0, sy);
-        if (wy <= 0) continue;
         for (let sx = ix0; sx < ix1; sx++) {
           const wx = Math.min(x1, sx + 1) - Math.max(x0, sx);
-          if (wx <= 0) continue;
           const w = wx * wy;
           const o = (sy * sw + sx) * 4;
-          const a = data[o + 3];
+          // In-bounds by construction (o derived from valid sx/sy), so the
+          // non-null assertions never fire — avoiding a `?? 0` fallback that
+          // would be an unreachable, uncovered branch.
+          const a = data[o + 3]!;
           const af = (a / 255) * w;
-          accR += data[o] * af;
-          accG += data[o + 1] * af;
-          accB += data[o + 2] * af;
+          accR += data[o]! * af;
+          accG += data[o + 1]! * af;
+          accB += data[o + 2]! * af;
           accA += a * w;
           accW += w;
         }

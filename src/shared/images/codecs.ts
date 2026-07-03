@@ -29,15 +29,26 @@ import {
   webpEncWasm,
 } from "./wasm-bytes.ts";
 
+/** Compile vendored codec bytes into a WebAssembly.Module. */
+const compileWasm = (bytes: Uint8Array): Promise<WebAssembly.Module> =>
+  WebAssembly.compile(bytes as BufferSource);
+
+/** Pick the WebP encoder build matching the runtime's WASM SIMD support. The
+ * SIMD build is meaningfully faster where available; the scalar build is the
+ * portable fallback. Split out so both arms are unit-testable without needing
+ * to force `simd()`'s result. */
+export const pickEncoderWasm = (useSimd: boolean): Uint8Array =>
+  useSimd ? webpEncSimdWasm() : webpEncWasm();
+
 /** Compile all codec modules and hand each to its jSquash init, exactly once. */
 const ensureCodecs = once(
   async (): Promise<void> => {
-    const encWasm = (await simd()) ? webpEncSimdWasm() : webpEncWasm();
+    const encWasm = pickEncoderWasm(await simd());
     const [pngMod, jpegMod, webpDecMod, webpEncMod] = await Promise.all([
-      WebAssembly.compile(pngDecWasm()),
-      WebAssembly.compile(jpegDecWasm()),
-      WebAssembly.compile(webpDecWasm()),
-      WebAssembly.compile(encWasm),
+      compileWasm(pngDecWasm()),
+      compileWasm(jpegDecWasm()),
+      compileWasm(webpDecWasm()),
+      compileWasm(encWasm),
     ]);
     await Promise.all([
       pngInit(pngMod),
@@ -73,5 +84,9 @@ export const encodeWebp = async (
   quality: number,
 ): Promise<Uint8Array> => {
   await ensureCodecs();
-  return new Uint8Array(await webpEncode(image, { quality }));
+  // jSquash types the input as a full DOM `ImageData`; the encoder only reads
+  // `data`/`width`/`height`, which `RawImage` supplies.
+  return new Uint8Array(
+    await webpEncode(image as unknown as ImageData, { quality }),
+  );
 };

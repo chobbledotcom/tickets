@@ -10,7 +10,6 @@ import {
   downloadImage,
   downloadRaw,
   generateAttachmentFilename,
-  generateImageFilename,
   getImageProxyUrl,
   getMimeTypeFromFilename,
   isStorageEnabled,
@@ -19,14 +18,16 @@ import {
   MAX_ATTACHMENT_SIZE,
   runWithStorageConfig,
   uploadAttachment,
-  uploadImage,
+  uploadImageTargets,
   uploadRaw,
   validateAttachment,
   validateImage,
 } from "#shared/storage.ts";
+import { FULL_IMAGE_TARGET } from "#shared/images/targets.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
 import {
   describeWithEnv,
+  makeTestPng,
   withBunnyDeleteCapture,
   withBunnyStorageStub,
   withLocalStorageEnabled,
@@ -106,38 +107,49 @@ describeWithEnv(
     });
 
     describe("local filesystem storage", () => {
-      const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x01, 0x02]);
-
-      test("uploadImage writes encrypted file to local dir", async () => {
+      test("uploadImageTargets transcodes to an encrypted WebP file", async () => {
         await withLocalStorageEnabled(async (dir) => {
-          const filename = await uploadImage(jpegBytes, "image/jpeg");
-          expect(filename).toMatch(/^[0-9a-f-]+\.jpg$/);
+          const png = await makeTestPng(120, 90);
+          const [filename] = await uploadImageTargets(png, "image/png", [
+            FULL_IMAGE_TARGET,
+          ]);
+          // Every stored variant is WebP, regardless of the source format.
+          expect(filename).toMatch(/^[0-9a-f-]+\.webp$/);
           const stat = await Deno.stat(`${dir}/${filename}`);
           expect(stat.isFile).toBe(true);
-          // Encrypted bytes should be larger than original
-          expect(stat.size).toBeGreaterThan(jpegBytes.byteLength);
+          expect(stat.size).toBeGreaterThan(0);
         });
       });
 
-      test("downloadImage reads and decrypts file from local dir", async () => {
+      test("downloadImage decrypts a stored WebP variant", async () => {
         await withLocalStorageEnabled(async () => {
-          const filename = await uploadImage(jpegBytes, "image/jpeg");
-          const result = await downloadImage(filename);
-          expect(result).toEqual(jpegBytes);
+          const png = await makeTestPng(120, 90);
+          const [filename] = await uploadImageTargets(png, "image/png", [
+            FULL_IMAGE_TARGET,
+          ]);
+          const result = await downloadImage(filename as string);
+          expect(result).not.toBeNull();
+          const bytes = result as Uint8Array;
+          // Valid WebP container: "RIFF" .... "WEBP".
+          expect([...bytes.slice(0, 4)]).toEqual([0x52, 0x49, 0x46, 0x46]);
+          expect([...bytes.slice(8, 12)]).toEqual([0x57, 0x45, 0x42, 0x50]);
         });
       });
 
       test("downloadImage returns null for missing file", async () => {
         await withLocalStorageEnabled(async () => {
-          const result = await downloadImage("nonexistent.jpg");
+          const result = await downloadImage("nonexistent.webp");
           expect(result).toBeNull();
         });
       });
 
-      test("deleteFile removes file from local dir", async () => {
+      test("deleteFile removes a stored WebP variant", async () => {
         await withLocalStorageEnabled(async (dir) => {
-          const filename = await uploadImage(jpegBytes, "image/jpeg");
-          await deleteFile(filename);
+          const png = await makeTestPng(64, 48);
+          const [filename] = await uploadImageTargets(png, "image/png", [
+            FULL_IMAGE_TARGET,
+          ]);
+          await deleteFile(filename as string);
           await expect(Deno.stat(`${dir}/${filename}`)).rejects.toBeInstanceOf(
             Deno.errors.NotFound,
           );
@@ -406,36 +418,8 @@ describeWithEnv(
       });
     });
 
-    describe("generateImageFilename", () => {
-      test("generates filename with .jpg extension for JPEG", () => {
-        const filename = generateImageFilename("image/jpeg");
-        expect(filename).toMatch(/^[0-9a-f-]+\.jpg$/);
-      });
-
-      test("generates filename with .png extension for PNG", () => {
-        const filename = generateImageFilename("image/png");
-        expect(filename).toMatch(/^[0-9a-f-]+\.png$/);
-      });
-
-      test("generates filename with .gif extension for GIF", () => {
-        const filename = generateImageFilename("image/gif");
-        expect(filename).toMatch(/^[0-9a-f-]+\.gif$/);
-      });
-
-      test("generates filename with .webp extension for WebP", () => {
-        const filename = generateImageFilename("image/webp");
-        expect(filename).toMatch(/^[0-9a-f-]+\.webp$/);
-      });
-
-      test("generates unique filenames", () => {
-        const a = generateImageFilename("image/jpeg");
-        const b = generateImageFilename("image/jpeg");
-        expect(a).not.toBe(b);
-      });
-    });
-
     describe("allowed image types", () => {
-      test("accepts the four supported types", () => {
+      test("accepts the three uploadable types", () => {
         expect(
           validateImage(new Uint8Array([0xff, 0xd8, 0xff]), "image/jpeg").valid,
         ).toBe(true);
@@ -444,13 +428,25 @@ describeWithEnv(
             .valid,
         ).toBe(true);
         expect(
-          validateImage(new Uint8Array([0x47, 0x49, 0x46, 0x38]), "image/gif")
-            .valid,
-        ).toBe(true);
-        expect(
           validateImage(new Uint8Array([0x52, 0x49, 0x46, 0x46]), "image/webp")
             .valid,
         ).toBe(true);
+      });
+
+      test("rejects GIF uploads (would lose animation once transcoded)", () => {
+        const gif = new Uint8Array([0x47, 0x49, 0x46, 0x38]);
+        const result = validateImage(gif, "image/gif");
+        expect(result.valid).toBe(false);
+        if (!result.valid) expect(result.error).toBe("invalid_type");
+      });
+
+      test("rejects a GIF disguised with an uploadable MIME type", () => {
+        // Declared PNG, but the magic bytes are GIF — sniffed content is not
+        // uploadable, so it is rejected as invalid content.
+        const gif = new Uint8Array([0x47, 0x49, 0x46, 0x38]);
+        const result = validateImage(gif, "image/png");
+        expect(result.valid).toBe(false);
+        if (!result.valid) expect(result.error).toBe("invalid_content");
       });
 
       test("rejects unsupported types", () => {

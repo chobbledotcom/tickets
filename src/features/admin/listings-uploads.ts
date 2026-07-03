@@ -114,7 +114,7 @@ const processFormImage = (
         v.detectedType,
         [FULL_IMAGE_TARGET, THUMB_IMAGE_TARGET],
       );
-      return { imageThumbUrl, imageUrl };
+      return { imageThumbUrl: imageThumbUrl as string, imageUrl: imageUrl as string };
     },
     validate: (data, file) => {
       const v = validateImage(data, file.type);
