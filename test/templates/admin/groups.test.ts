@@ -44,6 +44,34 @@ describe("adminGroupDetailPage", () => {
     expect(html).toContain(`/admin/groups/${group.id}/export.json`);
   });
 
+  test("keeps one attendee row per booking line, each with its own check-in action", () => {
+    const group = testGroup({ name: "Roster Group" });
+    const listings = [
+      testListingWithCount({ id: 1, name: "First Listing" }),
+      testListingWithCount({ id: 2, name: "Second Listing" }),
+    ];
+    const attendees = [
+      testAttendee({ id: 9, listing_id: 1, name: "Repeat Visitor" }),
+      testAttendee({ id: 9, listing_id: 2, name: "Repeat Visitor" }),
+    ];
+    const html = adminGroupDetailPage(
+      group,
+      listings,
+      [],
+      attendees,
+      TEST_SESSION,
+      "localhost",
+      false,
+      true,
+    );
+    // Per-line check-in is the point of this roster: the attendee's two
+    // bookings stay two rows, each acting on its own listing.
+    expect(html).toContain("/admin/listing/1/attendee/9/checkin");
+    expect(html).toContain("/admin/listing/2/attendee/9/checkin");
+    expect(html).toContain('title="First Listing"');
+    expect(html).toContain('title="Second Listing"');
+  });
+
   test("Group Attendees row drops cap fragment when group is uncapped", () => {
     const group = testGroup({ max_attendees: 0, name: "Open Group" });
     const listings = [testListingWithCount({ attendee_count: 5 })];

@@ -7,6 +7,7 @@ import {
   awaitTestRequest,
   bookAttendee,
   createDailyTestAttendee,
+  createMultiBookingAttendee,
   createTestAttendeeWithToken,
   createTestListing,
   describeWithEnv,
@@ -85,6 +86,36 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       expect(body).toContain("Check in");
       expect(body).toContain("Check In All");
       expect(body).not.toContain('class="success"');
+    });
+
+    test("keeps one row per booking line, each with its own listing's check-in button", async () => {
+      const first = await createTestListing({
+        maxAttendees: 10,
+        name: "First Listing",
+      });
+      const second = await createTestListing({
+        maxAttendees: 10,
+        name: "Second Listing",
+      });
+      const attendee = await createMultiBookingAttendee(
+        "Multi",
+        "multi@test.com",
+        [{ listingId: first.id }, { listingId: second.id }],
+      );
+      const cookie = await testCookie();
+
+      const response = await awaitTestRequest(
+        `/checkin/${attendee.ticket_token}`,
+        { cookie },
+      );
+      const body = await response.text();
+      // The bookings stay separate rows so each listing checks in on its own.
+      expect(body).toContain(
+        `/admin/listing/${first.id}/attendee/${attendee.id}/checkin`,
+      );
+      expect(body).toContain(
+        `/admin/listing/${second.id}/attendee/${attendee.id}/checkin`,
+      );
     });
 
     test("shows attendee contact details in admin view", async () => {

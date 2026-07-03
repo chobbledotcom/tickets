@@ -657,6 +657,19 @@ describe("adminListingPage", () => {
     expect(html).toContain("2 remain");
   });
 
+  test("roster keeps one row per booking line, with no Listings column", () => {
+    const attendees = [testAttendee({ id: 8, listing_id: listing.id })];
+    const html = renderListingDetail({
+      allowedDomain: "localhost",
+      attendees,
+      listing,
+    });
+    // The roster is scoped to one listing, so the Listings column stays off
+    // and each line keeps its own per-listing check-in action.
+    expect(html).not.toContain("<th>Listings</th>");
+    expect(html).toContain(`/admin/listing/${listing.id}/attendee/8/checkin`);
+  });
+
   test("shows dual checked-in rows when attendees have multi-quantity", () => {
     const attendees = [
       testAttendee({ checked_in: true, id: 1, quantity: 2 }),
