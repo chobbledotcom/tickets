@@ -39,6 +39,11 @@ import {
   listingsTable,
 } from "#shared/db/listings.ts";
 import {
+  childOnlyAddOnCheckerForListings,
+  type ListingGroupMembership,
+  toListingGroupMembership,
+} from "#shared/db/modifier-resolve.ts";
+import {
   isNameTakenAnywhere,
   loadCatalogNameIndex,
   matchName,
@@ -262,6 +267,27 @@ const validateParentEdges = async (
       .filter((g) => g.is_package && g.hide_package_listings)
       .map((g) => g.id),
   );
+  // A child that joins a group can inherit a group-scoped opt-in add-on. If that
+  // add-on's would-be scope reaches only this (suppressed) child and not the
+  // parent's page, the add-on becomes unbookable — the same dead-end the edge
+  // editor rejects. Resolve every add-on's would-be scope once (the new child
+  // appended at placeholder id 0 with its would-be groups) and reuse it per
+  // parent. A child with no groups can't inherit such an add-on, so skip the work.
+  let addOnChecker:
+    | ((childId: number, pageIds: readonly number[]) => string | null)
+    | null = null;
+  if (groupIds.length > 0) {
+    const allMembership = await getGroupIdsByListingIds([...byId.keys()]);
+    const wouldBe: ListingGroupMembership[] = [
+      ...[...byId.values()].map((l) =>
+        toListingGroupMembership(l, allMembership),
+      ),
+      // active is irrelevant to child-reachability (only the deactivation check
+      // reads it); the placeholder child serves a page as far as this check cares.
+      { active: true, groupIds: [...groupIds], id: 0 },
+    ];
+    addOnChecker = await childOnlyAddOnCheckerForListings(wouldBe);
+  }
   for (const parentId of parentIds) {
     // parentIds were resolved by name from the same cached catalog byId reads,
     // so every id is present (trust the invariant rather than guard a dead path).
@@ -283,6 +309,15 @@ const validateParentEdges = async (
     }
     const error = edgeFieldError(listingToEdge(parent), childEdge);
     if (error) return error;
+    // The would-be child (id 0) must not carry an opt-in add-on reachable only
+    // through itself from this parent's page — mirroring the edge editor.
+    const addOn = addOnChecker?.(0, [parentId]);
+    if (addOn) {
+      return t("listings_table.children_err_child_addon", {
+        addon: addOn,
+        name: input.name,
+      });
+    }
   }
   return null;
 };

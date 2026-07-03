@@ -597,6 +597,26 @@ export const childOnlyAddOnNameForListings = async (
     parentPageListingIds,
   );
 
+/**
+ * Resolve every active opt-in add-on's would-be scope once against the supplied
+ * in-memory listing set, returning a reusable child-only-reachability checker.
+ * A caller validating many parent→child edges for one new child (a catalog
+ * import) resolves scopes a single time rather than once per parent, so it stays
+ * under the request N+1 read guard. The returned checker is
+ * {@link childOnlyAddOnNameForListings}'s pure core over the pre-resolved scopes.
+ */
+export const childOnlyAddOnCheckerForListings = async (
+  allListings: ListingGroupMembership[],
+): Promise<
+  (childId: number, parentPageListingIds: readonly number[]) => string | null
+> => {
+  const scoped = await optionalAddOnsWithScopes(
+    inMemoryGroupScopeResolver(allListings),
+  );
+  return (childId, parentPageListingIds) =>
+    childOnlyAddOnNameWithScopes(scoped, childId, parentPageListingIds);
+};
+
 /** The post-save shape of an opt-in add-on whose child-reachability must hold:
  * its trigger/active state and its **already-resolved** listing scope (null =
  * whole order; for a group scope, every listing in the linked groups). */
