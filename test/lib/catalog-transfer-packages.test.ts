@@ -36,23 +36,26 @@ const importListingOverride = (
     version: 1,
   });
 
+/** Import a listing and return its stored row, throwing on any import error. */
+const importStoredListing = async (listing: Record<string, unknown>) => {
+  const result = await importCatalog({ kind: "listing", listing, version: 1 });
+  if (!result.ok) throw new Error(result.error);
+  const stored = await getListing(result.id);
+  if (!stored) throw new Error("listing not found after import");
+  return stored;
+};
+
 describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
   test("filters a listing's own day prices beyond its duration", async () => {
     // The form only reads day_price_1..durationDays; a "5" price on a 2-day
     // listing is inert and must be dropped on import, not persisted where a
     // later duration bump would activate it.
-    const result = await importCatalog({
-      kind: "listing",
-      listing: {
-        ...customisable,
-        dayPrices: { 1: 1000, 5: 5000 },
-        maxAttendees: 1,
-        name: "Trimmed Days",
-      },
-      version: 1,
+    const stored = await importStoredListing({
+      ...customisable,
+      dayPrices: { 1: 1000, 5: 5000 },
+      maxAttendees: 1,
+      name: "Trimmed Days",
     });
-    if (!result.ok) throw new Error(result.error);
-    const stored = (await getListing(result.id))!;
     expect(stored.day_prices[1]).toBe(1000);
     expect(stored.day_prices[5]).toBeUndefined();
   });
@@ -60,19 +63,13 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
   test("keeps a day price when no duration is given (defaults to 1)", async () => {
     // No durationDays → the filter compares against the default of 1, so a
     // 1-day price is retained.
-    const result = await importCatalog({
-      kind: "listing",
-      listing: {
-        customisableDays: true,
-        dayPrices: { 1: 1000 },
-        listingType: "daily",
-        maxAttendees: 1,
-        name: "Default Duration",
-      },
-      version: 1,
+    const stored = await importStoredListing({
+      customisableDays: true,
+      dayPrices: { 1: 1000 },
+      listingType: "daily",
+      maxAttendees: 1,
+      name: "Default Duration",
     });
-    if (!result.ok) throw new Error(result.error);
-    const stored = (await getListing(result.id))!;
     expect(stored.day_prices[1]).toBe(1000);
   });
 
