@@ -17,7 +17,7 @@ const image = (
 /** RGBA of the pixel at (x, y). */
 const pixelAt = (img: RawImage, x: number, y: number): number[] => {
   const o = (y * img.width + x) * 4;
-  return [img.data[o], img.data[o + 1], img.data[o + 2], img.data[o + 3]];
+  return [...img.data.slice(o, o + 4)];
 };
 
 describe("resizeToMaxWidth", () => {

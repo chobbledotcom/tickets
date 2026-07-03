@@ -555,25 +555,35 @@ describeWithEnv(
       () => {
         test("deletes images and attachments for all listings", async () => {
           const listings = [
-            { attachment_url: "att1.pdf", id: 1, image_url: "img1.jpg" },
-            { attachment_url: "", id: 2, image_url: "img2.png" },
-            { attachment_url: "att3.pdf", id: 3, image_url: "" },
+            {
+              attachment_url: "att1.pdf",
+              id: 1,
+              image_thumb_url: "img1-thumb.webp",
+              image_url: "img1.jpg",
+            },
+            { attachment_url: "", id: 2, image_thumb_url: "", image_url: "img2.png" },
+            { attachment_url: "att3.pdf", id: 3, image_thumb_url: "", image_url: "" },
           ];
 
           await withBunnyDeleteCapture(async (deletedUrls) => {
             await deleteAllListingStorageFiles(listings);
 
             expect(deletedUrls.some((u) => u.includes("img1.jpg"))).toBe(true);
+            expect(deletedUrls.some((u) => u.includes("img1-thumb.webp"))).toBe(
+              true,
+            );
             expect(deletedUrls.some((u) => u.includes("att1.pdf"))).toBe(true);
             expect(deletedUrls.some((u) => u.includes("img2.png"))).toBe(true);
             expect(deletedUrls.some((u) => u.includes("att3.pdf"))).toBe(true);
-            // Empty URLs should not trigger delete calls
-            expect(deletedUrls).toHaveLength(4);
+            // Empty URLs should not trigger delete calls (img1 adds a thumb ⇒ 5)
+            expect(deletedUrls).toHaveLength(5);
           });
         });
 
         test("skips listings with no image or attachment", async () => {
-          const listings = [{ attachment_url: "", id: 1, image_url: "" }];
+          const listings = [
+            { attachment_url: "", id: 1, image_thumb_url: "", image_url: "" },
+          ];
 
           await withBunnyDeleteCapture(
             async (deletedUrls) => {
@@ -590,8 +600,13 @@ describeWithEnv(
 
         test("continues deleting when individual file delete fails", async () => {
           const listings = [
-            { attachment_url: "", id: 1, image_url: "fail.jpg" },
-            { attachment_url: "", id: 2, image_url: "succeed.jpg" },
+            { attachment_url: "", id: 1, image_thumb_url: "", image_url: "fail.jpg" },
+            {
+              attachment_url: "",
+              id: 2,
+              image_thumb_url: "",
+              image_url: "succeed.jpg",
+            },
           ];
 
           await withBunnyDeleteCapture(

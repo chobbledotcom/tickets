@@ -43,7 +43,9 @@ describe("transcodeToWebp", () => {
   test("decodes a JPEG source", async () => {
     const png = await makeTestPng(120, 90);
     const decoded = await decodeImage(png, "image/png");
-    const jpeg = new Uint8Array(await jpegEncode(decoded, { quality: 90 }));
+    const jpeg = new Uint8Array(
+      await jpegEncode(decoded as unknown as ImageData, { quality: 90 }),
+    );
     const [full] = await transcodeToWebp(jpeg, "image/jpeg", [
       FULL_IMAGE_TARGET,
     ]);

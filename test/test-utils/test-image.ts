@@ -27,7 +27,7 @@ const crc32 = (bytes: Uint8Array): number => {
 const deflate = async (data: Uint8Array): Promise<Uint8Array> => {
   const cs = new CompressionStream("deflate");
   const writer = cs.writable.getWriter();
-  void writer.write(data);
+  void writer.write(data as BufferSource);
   void writer.close();
   return new Uint8Array(await new Response(cs.readable).arrayBuffer());
 };

@@ -47,6 +47,7 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   hidden: false,
   id: 1,
   image_url: "",
+  image_thumb_url: "",
   initial_site_months: 0,
   listing_type: "standard",
   location: "",
