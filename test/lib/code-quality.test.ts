@@ -227,6 +227,10 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/cache-registry.ts:invalidateCachesForTable",
   // SET-clause column extractor: internal parser exposed for unit testing only
   "shared/db/client.ts:extractUpdateColumns",
+  // Image transcode entry point: production uses it via a dynamic import in
+  // storage.ts (uploadImageTargets) so the ~1MB codec wasm loads only on the
+  // first upload, never at cold boot — invisible to the static import scanner.
+  "shared/images/transcode.ts:transcodeToWebp",
 ];
 
 const getAllTsFiles = (dir: string): Promise<string[]> =>
