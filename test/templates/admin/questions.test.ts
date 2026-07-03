@@ -2,17 +2,17 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
-  adminListingPage,
   buildAnswerSummaryRows,
+  ListingOverviewPanel,
 } from "#templates/admin/listings.tsx";
 import {
   adminAnswerDeletePage,
   adminAnswerEditPage,
   adminAnswerRecalculatePage,
-  adminListingQuestionsPage,
   adminQuestionDeletePage,
   adminQuestionPage,
   adminQuestionsPage,
+  ListingQuestionsPanel,
   questionTextFlat,
 } from "#templates/admin/questions.tsx";
 import {
@@ -561,11 +561,12 @@ describe("adminAnswerDeletePage", () => {
 describe("adminListingQuestionsPage", () => {
   test("shows empty state when no questions exist", () => {
     const listing = testListingWithCount({ id: 1, name: "My Listing" });
-    const html = adminListingQuestionsPage(
-      listing,
-      [],
-      new Set(),
-      TEST_SESSION,
+    const html = String(
+      ListingQuestionsPanel({
+        allQuestions: [],
+        assignedIds: new Set(),
+        listing,
+      }),
     );
     expect(html).toContain("No questions created yet");
     expect(html).toContain('href="/admin/questions"');
@@ -581,11 +582,12 @@ describe("adminListingQuestionsPage", () => {
         text: "Yes or no?",
       }),
     ];
-    const html = adminListingQuestionsPage(
-      listing,
-      questions,
-      new Set(),
-      TEST_SESSION,
+    const html = String(
+      ListingQuestionsPanel({
+        allQuestions: questions,
+        assignedIds: new Set(),
+        listing,
+      }),
     );
     expect(html).toContain("1 option: Yes)");
     expect(html).not.toContain("1 options");
@@ -603,11 +605,12 @@ describe("adminListingQuestionsPage", () => {
         text: "Q?",
       }),
     ];
-    const html = adminListingQuestionsPage(
-      listing,
-      questions,
-      new Set(),
-      TEST_SESSION,
+    const html = String(
+      ListingQuestionsPanel({
+        allQuestions: questions,
+        assignedIds: new Set(),
+        listing,
+      }),
     );
     expect(html).toContain('href="/admin/questions"');
     expect(html).toContain("Manage Questions");
@@ -626,11 +629,12 @@ describe("adminListingQuestionsPage", () => {
         text: "Size?",
       }),
     ];
-    const html = adminListingQuestionsPage(
-      listing,
-      questions,
-      new Set(),
-      TEST_SESSION,
+    const html = String(
+      ListingQuestionsPanel({
+        allQuestions: questions,
+        assignedIds: new Set(),
+        listing,
+      }),
     );
     expect(html).toContain("3 options: S, M, L)");
   });
@@ -662,13 +666,14 @@ describe("buildAnswerSummaryRows", () => {
 
 describe("adminListingPage with questionData", () => {
   test("renders answer summary rows in details table", () => {
-    const html = adminListingPage({
-      allowedDomain: "example.com",
-      attendees: [],
-      listing: testListingWithCount({ id: 1, name: "E" }),
-      questionData: singleAnswerSizeQuestionData(),
-      session: TEST_SESSION,
-    });
+    const html = String(
+      ListingOverviewPanel({
+        allowedDomain: "example.com",
+        attendees: [],
+        listing: testListingWithCount({ id: 1, name: "E" }),
+        questionData: singleAnswerSizeQuestionData(),
+      }),
+    );
     expect(html).toContain("<th>Size?</th>");
     expect(html).toContain("S (0)");
   });

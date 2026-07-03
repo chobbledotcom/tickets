@@ -9,7 +9,6 @@ import {
 } from "#routes/auth.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { AdminLevel } from "#shared/types.ts";
 
 /**
  * Resolve a nullable promise, calling handler if found or returning 404.
@@ -53,12 +52,11 @@ export type AttendeeListingRouteParams = {
 };
 
 /**
- * Authenticated GET-by-ID route handler factory.
- * Loads entity by ID, returns 404 if missing, renders with session context.
- * @param role - "owner" requires owner role, null allows any authenticated user
+ * Owner GET-by-ID route handler factory.
+ * Loads entity by ID, returns 404 if missing, renders with session context,
+ * and requires the owner role.
  */
-export const authenticatedGetById =
-  (role: AdminLevel | null) =>
+export const ownerGetById =
   <T>(
     load: (id: number) => Promise<T | null>,
     render: (entity: T, session: AuthSession) => Response | Promise<Response>,
@@ -68,11 +66,8 @@ export const authenticatedGetById =
       request,
       (session) =>
         withEntity<T>((entity) => render(entity, session))(() => load(id)),
-      role ?? undefined,
+      "owner",
     );
-
-/** Shorthand: owner GET-by-ID */
-export const ownerGetById = authenticatedGetById("owner");
 
 /** Owner POST-by-ID + CSRF */
 export const ownerFormById = (

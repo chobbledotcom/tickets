@@ -83,7 +83,11 @@ export const gotoListing = async (
 ): Promise<string> => {
   await browser.visit("/admin/");
   await browser.clickLink(name);
-  return browser.currentUrl.split("/").pop()!;
+  // The listing name links to the Overview tab; these flows work with the
+  // roster (attendees, check-in, edit links), so land on the Attendees tab.
+  const id = browser.currentUrl.split("/").pop()!;
+  await browser.visit(`/admin/listing/${id}/attendees`);
+  return id;
 };
 
 /** Create a listing and return its numeric id, landing on its detail page.
@@ -102,12 +106,15 @@ export const createListing = async (
   return gotoListing(browser, fields.name);
 };
 
-/** Add an attendee via the quick-add form on the current listing page. Defaults
+/** Add an attendee via the quick-add form, which lives on the listing's
+ * Attendees tab. Navigates there from the current listing URL first. Defaults
  * to quantity 1; pass `quantity` (and any other field) to override. */
 export const addAttendee = async (
   browser: TestBrowser,
   fields: Record<string, string> & { name: string },
 ): Promise<void> => {
+  const id = browser.currentUrl.match(/\/admin\/listing\/(\d+)/)?.[1];
+  if (id) await browser.visit(`/admin/listing/${id}/attendees`);
   await browser.submitForm({ quantity: "1", ...fields }, "Add Attendee");
 };
 

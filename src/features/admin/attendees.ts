@@ -3,7 +3,7 @@
  */
 
 import { t } from "#i18n";
-import { redirect, redirectResponse } from "#routes/response.ts";
+import { redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -97,7 +97,7 @@ const handleAttendeeDelete = verifiedAttendeeAction(
  * Verifies the attendee is actually incomplete before deleting.
  */
 const handleDeleteIncomplete = attendeeFormAction(
-  async (data, _session, _form, listingId, attendeeId) => {
+  (data, _session, _form, listingId, attendeeId) => {
     const hasPaidListing = isPaidListing(data.listing);
     // An "incomplete" registration is an abandoned paid checkout: a sale was
     // recognised (price_paid > 0) and fully covered (nothing still owed), yet no
@@ -111,9 +111,12 @@ const handleDeleteIncomplete = attendeeFormAction(
       Number.parseInt(data.attendee.price_paid, 10) > 0 &&
       data.attendee.remaining_balance <= 0;
 
+    // The failed-payments delete form lives on the Attendees tab, so both
+    // outcomes return there — keeping the operator on the table they are
+    // clearing rather than bouncing them to Overview.
     if (!isIncomplete) {
       return redirect(
-        `/admin/listing/${listingId}`,
+        `/admin/listing/${listingId}/attendees`,
         t("error.attendee_no_incomplete_payment"),
         false,
       );
@@ -122,7 +125,7 @@ const handleDeleteIncomplete = attendeeFormAction(
     return deleteAttendeeAndRedirect(
       attendeeId,
       listingId,
-      `/admin/listing/${listingId}`,
+      `/admin/listing/${listingId}/attendees`,
       `Incomplete attendee deleted from '${data.listing.name}'`,
       t("success.incomplete_removed"),
     );
@@ -169,22 +172,19 @@ const handleAttendeeCheckin = attendeeFormAction(
       attendeeId,
     );
 
+    // The roster's check-in form threads its filtered-view URL through
+    // return_url; when absent (e.g. the scanner) fall back to the Attendees tab,
+    // preserving any check-in filter. Either way the confirmation shows as a
+    // flash on the landing tab — the old ?checkin_name= surface is gone.
     const returnUrl = form.getString("return_url");
-    if (returnUrl) {
-      return redirect(
-        returnUrl,
-        `Checked ${data.attendee.name} ${status}`,
-        true,
-      );
-    }
-
-    const name = encodeURIComponent(data.attendee.name);
     const filterValue = form.getString("return_filter");
-    const suffix =
-      filterValue === "in" ? "/in" : filterValue === "out" ? "/out" : "";
-    return redirectResponse(
-      `/admin/listing/${listingId}${suffix}?checkin_name=${name}&checkin_status=${status}#message`,
-    );
+    const filterQs =
+      filterValue === "in" || filterValue === "out"
+        ? `?filter=${filterValue}`
+        : "";
+    const target =
+      returnUrl || `/admin/listing/${listingId}/attendees${filterQs}`;
+    return redirect(target, `Checked ${data.attendee.name} ${status}`, true);
   },
 );
 
@@ -241,7 +241,9 @@ const handleCreateAttendeeFailure = (
     result.reason === "capacity_exceeded"
       ? t("error.not_enough_spots")
       : t("error.encryption_error");
-  return redirect(`/admin/listing/${listingId}`, errorMsg, false);
+  // Back to the roster (Attendees tab), where the quick-add form is, so the
+  // operator can correct the submission in context.
+  return redirect(`/admin/listing/${listingId}/attendees`, errorMsg, false);
 };
 
 /** Handle POST /admin/listing/:listingId/attendee (add attendee manually) */
@@ -266,7 +268,7 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
     }),
     loadContext: ({ listingId }) => getListingWithCount(listingId),
     onInvalid: ({ error, params }) =>
-      redirect(`/admin/listing/${params.listingId}`, error, false),
+      redirect(`/admin/listing/${params.listingId}/attendees`, error, false),
     onValid: async ({ context: listing, params, values }) => {
       const createResult = await createAttendeeAtomic(
         buildCreateAttendeeInput(values, listing),
@@ -279,8 +281,10 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
         params.listingId,
         createResult.attendees[0]!.id,
       );
+      // Land on the roster (Attendees tab), where the new attendee and the
+      // quick-add form live, so the flash and the added row are both in view.
       return redirect(
-        `/admin/listing/${params.listingId}`,
+        `/admin/listing/${params.listingId}/attendees`,
         `Added ${values.name}`,
         true,
       );

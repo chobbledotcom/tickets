@@ -214,13 +214,35 @@ export const executeWithoutCacheInvalidation = async (
   args?: InValue[],
 ): Promise<ResultSet> => executeTrackedStatement(sql, args);
 
+/** The first row of a result set, or null when it returned none. */
+const firstRowOrNull = <T>(result: ResultSet): T | null => {
+  const rows = resultRows<T>(result);
+  return rows.length === 0 ? null : rows[0]!;
+};
+
 /** Query single row, returning null if not found */
 export const queryOne = async <T>(
   sql: string,
   args?: InValue[],
 ): Promise<T | null> => {
-  const rows = resultRows<T>(await execute(sql, args));
-  return rows.length === 0 ? null : rows[0]!;
+  return firstRowOrNull<T>(await execute(sql, args));
+};
+
+/**
+ * Query a single row on the primary (read-your-writes), returning null if not
+ * found. Use this to read a row back immediately after committing its own write:
+ * a plain {@link queryOne} runs in "read" mode, which Turso can route to a
+ * replica lagging the just-committed write and so miss the row (returning null);
+ * routing through {@link queryBatchPrimary} ("write" mode) always hits the
+ * primary. Mirrors the same guard on {@link syncListingPrices}. `args` is
+ * required — every read-back keys on the written row's id.
+ */
+export const queryOnePrimary = async <T>(
+  sql: string,
+  args: InValue[],
+): Promise<T | null> => {
+  const [result] = await queryBatchPrimary([{ args, sql }]);
+  return firstRowOrNull<T>(result!);
 };
 
 /** Query all rows, returning a typed array */

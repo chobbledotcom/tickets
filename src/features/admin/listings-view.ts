@@ -6,62 +6,20 @@
  * export mirrors the on-screen attendee table.
  */
 
-/* jscpd:ignore-start */
 import { compact, filter, map, pipe, sort, unique } from "#fp";
-import {
-  getDateFilter,
-  listingAttendeesLoader,
-} from "#routes/admin/actions.ts";
+import { getDateFilter } from "#routes/admin/actions.ts";
 import type { AuthSession } from "#routes/auth.ts";
-import { htmlResponse } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import { getEffectiveDomain } from "#shared/config.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity.ts";
-import {
-  getGroupIdsByListingId,
-  getHiddenPackageMemberIds,
-  groupsTable,
-} from "#shared/db/groups.ts";
-import {
-  anyNonStandaloneChild,
-  getChildrenForParents,
-} from "#shared/db/listing-parents.ts";
-import {
-  getListingAggregateRecalculation,
-  listingRevenueBreakdown,
-} from "#shared/db/listings.ts";
-import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
+import { getGroupIdsByListingId, groupsTable } from "#shared/db/groups.ts";
 import {
   type AttendeeQuestionData,
   getAttendeeAnswersBatch,
   getQuestionsForListing,
 } from "#shared/db/questions.ts";
-import { settings } from "#shared/db/settings.ts";
-import { loadNotesForAttendees } from "#shared/db/system-notes.ts";
-import { getFlash } from "#shared/flash-context.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
-import {
-  type AttendeeFilter,
-  adminListingPage,
-  type GroupContext,
-} from "#templates/admin/listings.tsx";
-
-/* jscpd:ignore-end */
-
-/** Extract check-in message params from request URL */
-const getCheckinMessage = (
-  request: Request,
-): { name: string; status: string } | null => {
-  const url = new URL(request.url);
-  const name = url.searchParams.get("checkin_name");
-  const status = url.searchParams.get("checkin_status");
-  if (name && (status === "in" || status === "out")) {
-    return { name, status };
-  }
-  return null;
-};
+import type { GroupContext } from "#templates/admin/listings.tsx";
 
 /** Filter attendees by date for daily listings */
 const filterByDate = (
@@ -160,7 +118,7 @@ export const loadListingQuestionData = async (
  * ungrouped or uncapped groups. A listing can belong to several capped groups;
  * the one with the FEWEST remaining spots is the binding constraint (a booking
  * is blocked by the tightest group — see capacity.ts), so surface that one. */
-const loadGroupContext = async (
+export const loadGroupContext = async (
   listing: ListingWithCount,
   dateFilter: string | null,
 ): Promise<GroupContext | undefined> => {
@@ -183,112 +141,3 @@ const loadGroupContext = async (
   }
   return tightest?.ctx;
 };
-
-/** Render listing page with attendee list and optional filter */
-const renderListingPage = async (
-  request: Request,
-  { id }: { id: number },
-  activeFilter: AttendeeFilter = "all",
-) => {
-  // Run stale reservation cleanup concurrently with listing data loading.
-  // These are independent: cleanup targets processed_payments with NULL attendee_id,
-  // which doesn't affect the attendees query. Saves 1 HTTP round-trip.
-  const [, response] = await Promise.all([
-    deleteAllStaleReservations(),
-    listingAttendeesLoader(
-      request,
-      id,
-    )(
-      filteredAttendeesHandler(
-        request,
-        async ({
-          listing,
-          session,
-          attendees,
-          dateFilter,
-          availableDates,
-          filteredByDate,
-        }) => {
-          const attendeeIds = filteredByDate.map((a) => a.id);
-          const [
-            flash,
-            phonePrefix,
-            questionData,
-            groupContext,
-            recalc,
-            isChild,
-            hiddenMemberIds,
-            childrenByParent,
-            revenueBreakdown,
-            systemNotes,
-          ] = await Promise.all([
-            Promise.resolve(getFlash()),
-            Promise.resolve(settings.phonePrefix),
-            loadListingQuestionData(listing.id, attendeeIds),
-            loadGroupContext(listing, dateFilter),
-            getListingAggregateRecalculation(listing),
-            // A non-standalone child has no standalone share/QR affordance;
-            // a `bookable_alone` child keeps them. The predicate
-            // no-ops (no query) when the feature is off.
-            anyNonStandaloneChild([listing.id]),
-            // A hidden package's member has no standalone public page either (its
-            // /ticket slug 404s), so its share/QR/embed affordances are suppressed
-            // the same way a child's are.
-            getHiddenPackageMemberIds([listing.id]),
-            // A parent's required children — names the quick add-attendee warning
-            // lists. Empty map (no key) when this listing isn't a parent.
-            getChildrenForParents([listing.id]),
-            listingRevenueBreakdown(listing.id),
-            loadNotesForAttendees(attendeeIds, requireRequestPrivateKey),
-          ]);
-          return htmlResponse(
-            adminListingPage({
-              activeFilter,
-              aggregateRecalculation: recalc,
-              allowedDomain: getEffectiveDomain(),
-              attendees: filteredByDate,
-              availableDates,
-              checkinMessage: getCheckinMessage(request),
-              childNames: (childrenByParent.get(listing.id) ?? []).map(
-                (child) => child.name,
-              ),
-              dateFilter,
-              errorMessage: flash.error,
-              groupContext,
-              // Emailing a listing targets every attendee across all dates, so
-              // gate the action on the full set, not the date-filtered view.
-              hasEmailableAttendees: attendees.some((a) => a.email !== ""),
-              isChild,
-              isHiddenPackageMember: hiddenMemberIds.size > 0,
-              listing,
-              phonePrefix,
-              questionData,
-              revenueBreakdown,
-              session,
-              successMessage: flash.success,
-              systemNotes,
-            }),
-          );
-        },
-      ),
-    ),
-  ]);
-  return response;
-};
-
-/** Create a handler that renders the listing page with a specific attendee filter */
-const listingPageHandler =
-  (
-    activeFilter?: AttendeeFilter,
-  ): TypedRouteHandler<"GET /admin/listing/:id"> =>
-  (request, params) =>
-    renderListingPage(request, params, activeFilter);
-
-/** Handle GET /admin/listing/:id */
-export const handleAdminListingGet = listingPageHandler();
-
-/** Handle GET /admin/listing/:id/in (checked-in filter) */
-export const handleAdminListingGetIn = listingPageHandler("in");
-
-/** Handle GET /admin/listing/:id/out (not-checked-in filter) */
-export const handleAdminListingGetOut = listingPageHandler("out");

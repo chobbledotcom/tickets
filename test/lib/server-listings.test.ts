@@ -19,6 +19,7 @@ import {
   listingsTable,
   updateListingAggregateValues,
 } from "#shared/db/listings.ts";
+import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
 import {
   answersTable,
   questionsTable,
@@ -207,6 +208,34 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const listing = await getListing(1);
       expect(listing).not.toBeNull();
       expect(listing?.name).toBe("New Listing");
+    });
+
+    test("still creates when the read-back replica lags the just-committed write", async () => {
+      // Regression: the create resource wrote the row in a transaction (on the
+      // primary), then read it back with a plain "read"-mode `findById`. Turso can
+      // route that read to a replica still lagging the commit, so it returned null
+      // and the handler crashed dereferencing `row.id` ("Cannot read properties of
+      // null (reading 'id')"). The read-back now uses `findByIdPrimary`
+      // (read-your-writes). Stub the replica read (`findById`) to miss the row —
+      // the create must still succeed because it no longer reads back that way.
+      const findByIdStub = stub(listingsTable, "findById", () =>
+        Promise.resolve(null),
+      );
+      try {
+        const { response } = await adminMultipartPost("/admin/listing", {
+          max_attendees: "50",
+          max_quantity: "1",
+          name: "Lagged Listing",
+          thank_you_url: "https://example.com/thanks",
+        });
+        await expectFlashRedirect("/admin", "Listing created")(response);
+      } finally {
+        findByIdStub.restore();
+      }
+
+      // The row really was written (the stub only affected the replica read path).
+      const listing = await getListing(1);
+      expect(listing?.name).toBe("Lagged Listing");
     });
 
     test("clears webhook URL when creating listing in demo mode", async () => {
@@ -511,30 +540,38 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expect(html).toContain(">Edit<");
     });
 
-    test("only renders check-in messages with a name and in/out status", async () => {
+    test("a check-in flashes a confirmation naming the attendee and in/out status", async () => {
       const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      const valid = await adminGet(
-        `/admin/listing/${listing.id}?checkin_name=Ada%20Lovelace&checkin_status=in`,
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ada Lovelace",
+        "ada@example.com",
       );
-      const validHtml = await valid.text();
-      expect(validHtml).toContain('id="message"');
-      expect(validHtml).toContain("Checked Ada Lovelace in");
 
-      for (const query of [
-        "checkin_name=Ada%20Lovelace",
-        "checkin_status=in",
-        "checkin_name=Ada%20Lovelace&checkin_status=sideways",
-      ]) {
-        const response = await adminGet(
-          `/admin/listing/${listing.id}?${query}`,
-        );
-        const html = await response.text();
-        expect(html).not.toContain('id="message"');
-        expect(html).not.toContain("Checked Ada Lovelace");
-      }
+      // Checking in redirects to the Attendees tab with a flash naming the
+      // attendee and the in status — the old ?checkin_name= URL surface is gone.
+      const { response: inResponse } = await adminFormPost(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+        {},
+      );
+      await expectFlashRedirect(
+        `/admin/listing/${listing.id}/attendees`,
+        "Checked Ada Lovelace in",
+      )(inResponse);
+
+      // Toggling again checks the attendee out, flashing the out confirmation.
+      const { response: outResponse } = await adminFormPost(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+        {},
+      );
+      await expectFlashRedirect(
+        `/admin/listing/${listing.id}/attendees`,
+        "Checked Ada Lovelace out",
+      )(outResponse);
     });
 
     test("keeps the email action enabled when the date filter hides emailable attendees", async () => {
@@ -560,14 +597,15 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         name: "Ada Lovelace",
       });
 
+      // The Email action now lives on the Actions tab, independent of the
+      // roster's date filter, so a date that hides every attendee never
+      // disables it.
       const response = await adminGet(
-        `/admin/listing/${listing.id}?date=${hiddenDate}`,
+        `/admin/listing/${listing.id}/actions?date=${hiddenDate}`,
       );
       const html = await response.text();
       expect(html).not.toContain("Ada Lovelace");
-      expect(html).toContain(
-        `href="/admin/emails?listing=${listing.id}">Email</a>`,
-      );
+      expect(html).toContain(`href="/admin/emails?listing=${listing.id}"`);
       expect(html).not.toContain("btn--disabled");
     });
 
@@ -668,28 +706,148 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expect(html).not.toContain("Group Attendees");
     });
 
-    test("shows question answer summary when questions assigned", async () => {
+    test("shows attendee answers in the roster when questions assigned", async () => {
       const { listing, cookie } = await setupListingAndLogin({
         maxAttendees: 100,
         name: "Q Listing",
       });
+      // Create the attendee before assigning the question so the public form
+      // doesn't require an answer, then record the answer directly.
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ada Lovelace",
+        "ada@example.com",
+      );
       const q = await questionsTable.insert({
         displayType: "radio",
         text: "Size",
       });
-      await answersTable.insert({
+      const small = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
         text: "Small",
       });
       await setListingQuestions(listing.id, [q.id]);
+      await saveAttendeeAnswers(new Map([[attendee.id, [small.id]]]));
 
+      // The question answers now surface per-attendee in the Attendees tab's
+      // roster (an "Answers" column) rather than an aggregate detail row.
+      const response = await awaitTestRequest(
+        `/admin/listing/${listing.id}/attendees`,
+        { cookie },
+      );
+      const html = await response.text();
+      expect(html).toContain("<th>Answers</th>");
+      expect(html).toContain('<span title="Size: Small">Small</span>');
+    });
+
+    test("shows the whole-listing answer aggregate on the Overview tab", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Overview Answers Listing",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ada Lovelace",
+        "ada@example.com",
+      );
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Size",
+      });
+      const small = await answersTable.insert({
+        questionId: q.id,
+        sortOrder: 0,
+        text: "Small",
+      });
+      await setListingQuestions(listing.id, [q.id]);
+      await saveAttendeeAnswers(new Map([[attendee.id, [small.id]]]));
+
+      // The Overview details table carries the aggregate answer-count row for
+      // the whole listing (distinct from the roster's per-attendee answers).
       const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
         cookie,
       });
       const html = await response.text();
-      expect(html).toContain("<th>Size</th>");
-      expect(html).toContain("Small (0)");
+      expect(html).toContain("Size");
+      expect(html).toContain("Small (1)");
+    });
+
+    test("shows the full activity log on the Activity tab", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Activity Listing",
+      });
+      await logActivity("A notable listing event", listing.id);
+
+      const response = await awaitTestRequest(
+        `/admin/listing/${listing.id}/activity`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("A notable listing event");
+    });
+
+    test("offers the reactivate action for a deactivated listing", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Reactivatable Listing",
+      });
+      await deactivateTestListing(listing.id);
+
+      const response = await awaitTestRequest(
+        `/admin/listing/${listing.id}/actions`,
+        { cookie },
+      );
+      const html = await response.text();
+      // A deactivated listing shows reactivate, never deactivate.
+      expect(html).toContain(`/admin/listing/${listing.id}/reactivate`);
+      expect(html).not.toContain(`/admin/listing/${listing.id}/deactivate`);
+    });
+
+    test("shows the Group Attendees row on the roster's per-date capacity for a daily listing in a capped group", async () => {
+      const bookingDate = addDays(todayInTz("UTC"), 1);
+      const group = await createTestGroup({
+        maxAttendees: 20,
+        name: "Daily Capped Group",
+        slug: "daily-capped",
+      });
+      const listing = await createTestListing({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        groupId: group.id,
+        listingType: "daily",
+        maxAttendees: 100,
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
+      await submitTicketForm(listing.slug, {
+        date: bookingDate,
+        email: "ada@example.com",
+        name: "Ada Lovelace",
+      });
+
+      // The per-date capacity table on the Attendees tab surfaces the group cap
+      // row only for a daily listing viewed with a date filter.
+      const response = await adminGet(
+        `/admin/listing/${listing.id}/attendees?date=${bookingDate}`,
+      );
+      const html = await response.text();
+      expect(html).toContain("Group Attendees");
+      expect(html).toContain(`href="/admin/groups/${group.id}"`);
+      // The selected day keeps its checked-in summary (the combined page's
+      // date-filtered shared rows), not just the capacity snippet.
+      expect(html).toContain("Checked In");
     });
   });
 
@@ -734,18 +892,32 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expect(html).toContain("autofocus");
     });
 
-    test("shows Duplicate link on listing detail page", async () => {
+    test("shows Duplicate link on the Actions tab", async () => {
       const { cookie } = await setupListingAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
-      const response = await awaitTestRequest("/admin/listing/1", {
+      const response = await awaitTestRequest("/admin/listing/1/actions", {
         cookie: cookie,
       });
       const html = await response.text();
-      expect(html).toContain("/admin/listing/1/duplicate");
-      expect(html).toContain(">Duplicate<");
+      expect(html).toContain('href="/admin/listing/1/duplicate"');
+      expect(html).toContain("<span>Duplicate</span>");
+    });
+
+    test("shows the JSON export link on the Actions tab", async () => {
+      const { cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const response = await awaitTestRequest("/admin/listing/1/actions", {
+        cookie: cookie,
+      });
+      const html = await response.text();
+      expect(html).toContain('href="/admin/listing/1/export.json"');
+      expect(html).toContain("<span>Export</span>");
     });
   });
 
@@ -789,7 +961,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       );
 
       const html = await assertAdminHtml(
-        `/admin/listing/${listing.id}/in`,
+        `/admin/listing/${listing.id}/attendees?filter=in`,
         "Checked In User",
         "<strong>Checked In</strong>",
       );
@@ -837,7 +1009,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       );
 
       const response = await awaitTestRequest(
-        `/admin/listing/${listing.id}/out`,
+        `/admin/listing/${listing.id}/attendees?filter=out`,
         {
           cookie: cookie,
         },
@@ -1031,7 +1203,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
       await assertAdminHtml(
         "/admin/listing/1/edit",
-        "Edit:",
+        'action="/admin/listing/1/edit"',
         'value="Test Listing"',
         'value="100"',
         'value="15.00"',
@@ -2386,11 +2558,11 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
   });
 
-  describe("GET /admin/listing/:id/log", () => {
-    testRequiresAuth("/admin/listing/1/log");
+  describe("GET /admin/listing/:id/activity", () => {
+    testRequiresAuth("/admin/listing/1/activity");
 
     test("returns 404 for non-existent listing", async () => {
-      const response = await adminGet("/admin/listing/999/log");
+      const response = await adminGet("/admin/listing/999/activity");
       expect(response.status).toBe(404);
     });
 
@@ -2401,7 +2573,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       });
 
       await assertAdminHtml(
-        `/admin/listing/${listing.id}/log`,
+        `/admin/listing/${listing.id}/activity`,
         "Log",
         listing.name,
       );
@@ -3361,7 +3533,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("shows date selector dropdown for daily listings", async () => {
       const listing = await createDailyListingWithAttendees();
 
-      const response = await adminGet(`/admin/listing/${listing.id}`);
+      const response = await adminGet(`/admin/listing/${listing.id}/attendees`);
       await expectHtmlResponse(
         response,
         200,
@@ -3375,7 +3547,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     test("shows Date column header for daily listings", async () => {
       const listing = await createDailyListingWithAttendees();
 
-      const response = await adminGet(`/admin/listing/${listing.id}`);
+      const response = await adminGet(`/admin/listing/${listing.id}/attendees`);
       const html = await response.text();
       expect(html).toContain("<th>Date</th>");
     });
@@ -3395,7 +3567,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
       // Filter to date1 — should show 2 attendees (User A and User B)
       const response = await adminGet(
-        `/admin/listing/${listing.id}?date=${validDate1}`,
+        `/admin/listing/${listing.id}/attendees?date=${validDate1}`,
       );
       const html = await response.text();
       expect(html).toContain("User A");
@@ -3408,23 +3580,28 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
       // Filter to date2 — should show 1 attendee (User C)
       const response = await adminGet(
-        `/admin/listing/${listing.id}?date=${validDate2}`,
+        `/admin/listing/${listing.id}/attendees?date=${validDate2}`,
       );
       const html = await response.text();
       expect(html).toContain("User C");
       expect(html).not.toContain("User A");
     });
 
-    test("shows per-date capacity when date filter is active", async () => {
+    test("scopes the roster to the active date on the Attendees tab", async () => {
       const listing = await createDailyListingWithAttendees();
 
       const response = await adminGet(
-        `/admin/listing/${listing.id}?date=${validDate1}`,
+        `/admin/listing/${listing.id}/attendees?date=${validDate1}`,
       );
       const html = await response.text();
-      // Should show "2 / 100" for the 2 attendees on date1
-      expect(html).toContain("2 / 100");
-      expect(html).toContain("98 remain");
+      // The date filter scopes the roster to date1's two bookings, and the
+      // date selector marks that date as the active option.
+      expect(html).toContain("User A");
+      expect(html).toContain("User B");
+      expect(html).not.toContain("User C");
+      expect(html).toContain(
+        `/admin/listing/${listing.id}/attendees?date=${validDate1}" selected`,
+      );
     });
 
     test("shows total count without date filter", async () => {
@@ -3441,12 +3618,41 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
       // Filter to date1 + checked out — should show both since none are checked in
       const response = await adminGet(
-        `/admin/listing/${listing.id}/out?date=${validDate1}`,
+        `/admin/listing/${listing.id}/attendees?filter=out&date=${validDate1}`,
       );
       const html = await response.text();
       expect(html).toContain("User A");
       expect(html).toContain("User B");
       expect(html).not.toContain("User C");
+    });
+
+    test("ignores a malformed ?date= and shows all attendees", async () => {
+      const listing = await createDailyListingWithAttendees();
+      // A bogus date is rejected rather than treated as a filter, so the roster
+      // is not emptied — every date's attendees still show.
+      const response = await adminGet(
+        `/admin/listing/${listing.id}/attendees?date=not-a-date`,
+      );
+      const html = await response.text();
+      expect(html).toContain("User A");
+      expect(html).toContain("User C");
+    });
+
+    test("shows a date-scoped capacity summary on the roster, only when dated", async () => {
+      const listing = await createDailyListingWithAttendees();
+      // With a valid date the roster carries the per-date capacity summary
+      // (the Overview tab only ever shows whole-listing totals).
+      const dated = await (
+        await adminGet(
+          `/admin/listing/${listing.id}/attendees?date=${validDate1}`,
+        )
+      ).text();
+      expect(dated).toContain('class="listing-details-table"');
+      // Without a date the roster shows no capacity table.
+      const undated = await (
+        await adminGet(`/admin/listing/${listing.id}/attendees`)
+      ).text();
+      expect(undated).not.toContain('class="listing-details-table"');
     });
 
     test("ignores ?date= for standard listings", async () => {
@@ -3460,7 +3666,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
       // Even with ?date= param, standard listings show all attendees
       const response = await awaitTestRequest(
-        `/admin/listing/${listing.id}?date=2026-03-15`,
+        `/admin/listing/${listing.id}/attendees?date=2026-03-15`,
         { cookie },
       );
       const html = await response.text();
@@ -3518,7 +3724,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const listing = await createDailyListingWithAttendees();
 
       const response = await adminGet(
-        `/admin/listing/${listing.id}?date=${validDate1}`,
+        `/admin/listing/${listing.id}/attendees?date=${validDate1}`,
       );
       const html = await response.text();
       expect(html).toContain(
@@ -3530,27 +3736,29 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const listing = await createDailyListingWithAttendees();
 
       const response = await adminGet(
-        `/admin/listing/${listing.id}?date=${validDate1}`,
+        `/admin/listing/${listing.id}/attendees?date=${validDate1}`,
       );
       const html = await response.text();
+      // The roster's check-in filters are query params now (&amp; in rendered
+      // HTML), not the old /in and /out path segments with an #attendees anchor.
       expect(html).toContain(
-        `/admin/listing/${listing.id}/in?date=${validDate1}#attendees`,
+        `/admin/listing/${listing.id}/attendees?filter=in&amp;date=${validDate1}`,
       );
       expect(html).toContain(
-        `/admin/listing/${listing.id}/out?date=${validDate1}#attendees`,
+        `/admin/listing/${listing.id}/attendees?filter=out&amp;date=${validDate1}`,
       );
     });
   });
 
-  describe("stale reservation cleanup on admin listing view", () => {
-    test("cleans up stale reservations when viewing an listing", async () => {
-      const { listing, cookie } = await setupListingAndLogin({
+  describe("stale reservation cleanup", () => {
+    test("cleans up stale reservations but keeps fresh ones", async () => {
+      await setupListingAndLogin({
         maxAttendees: 100,
         name: "Cleanup Test Listing",
         thankYouUrl: "https://example.com",
       });
 
-      // Insert a stale reservation (older than 5 minutes)
+      // A stale reservation (older than 5 minutes) alongside a fresh one.
       const staleTime = new Date(Date.now() - 6 * 60 * 1000).toISOString();
       await getDb().execute(
         insert("processed_payments", {
@@ -3559,30 +3767,32 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           processed_at: staleTime,
         }),
       );
+      await getDb().execute(
+        insert("processed_payments", {
+          attendee_id: null,
+          payment_session_id: "cs_fresh_cleanup_test",
+          processed_at: new Date().toISOString(),
+        }),
+      );
 
-      // Verify it exists
-      const before = await getDb().execute({
-        args: ["cs_stale_admin_test"],
-        sql: `SELECT *
-              FROM processed_payments
-              WHERE payment_session_id = ?`,
-      });
-      expect(before.rows.length).toBe(1);
+      const staleRows = async (id: string) =>
+        (
+          await getDb().execute({
+            args: [id],
+            sql: `SELECT *
+                  FROM processed_payments
+                  WHERE payment_session_id = ?`,
+          })
+        ).rows.length;
 
-      // View the admin listing page
-      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
-        cookie,
-      });
-      expect(response.status).toBe(200);
+      expect(await staleRows("cs_stale_admin_test")).toBe(1);
 
-      // Stale reservation should be cleaned up
-      const after = await getDb().execute({
-        args: ["cs_stale_admin_test"],
-        sql: `SELECT *
-              FROM processed_payments
-              WHERE payment_session_id = ?`,
-      });
-      expect(after.rows.length).toBe(0);
+      // The reservation-cleanup routine drops the abandoned (stale) checkout
+      // while leaving the in-progress fresh one untouched.
+      const removed = await deleteAllStaleReservations();
+      expect(removed).toBeGreaterThanOrEqual(1);
+      expect(await staleRows("cs_stale_admin_test")).toBe(0);
+      expect(await staleRows("cs_fresh_cleanup_test")).toBe(1);
     });
 
     test("does not clean up fresh reservations when viewing an listing", async () => {

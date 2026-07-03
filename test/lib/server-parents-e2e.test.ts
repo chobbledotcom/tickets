@@ -378,7 +378,7 @@ describeWithEnv(
 
       // The parent listing's attendee page lists the buyer with quantity 2.
       const parentPage = await adminGet(
-        `/admin/listing/${parent.id}?date=${date}`,
+        `/admin/listing/${parent.id}/attendees?date=${date}`,
       );
       expect(parentPage.status).toBe(200);
       const parentHtml = await parentPage.text();
@@ -387,7 +387,7 @@ describeWithEnv(
 
       // Child Alpha's page lists the buyer with the chosen quantity 1.
       const childAPage = await adminGet(
-        `/admin/listing/${childA.id}?date=${date}`,
+        `/admin/listing/${childA.id}/attendees?date=${date}`,
       );
       expect(childAPage.status).toBe(200);
       const childAHtml = await childAPage.text();
@@ -396,7 +396,7 @@ describeWithEnv(
 
       // Child Beta's page lists the buyer with the chosen quantity 1.
       const childBPage = await adminGet(
-        `/admin/listing/${childB.id}?date=${date}`,
+        `/admin/listing/${childB.id}/attendees?date=${date}`,
       );
       expect(childBPage.status).toBe(200);
       const childBHtml = await childBPage.text();

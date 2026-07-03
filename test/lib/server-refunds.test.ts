@@ -359,7 +359,9 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       await withRefundMock(false, async () => {
         const response = await submitRefund(ctx, { return_url: returnUrl });
         await expectFlashRedirect(
-          `/admin/attendees/${ctx.attendee.id}/refund?return_url=${encodeURIComponent(returnUrl)}`,
+          `/admin/attendees/${ctx.attendee.id}/refund?return_url=${encodeURIComponent(
+            returnUrl,
+          )}`,
           expect.stringContaining("failed"),
           false,
         )(response);
@@ -811,9 +813,9 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         "pi_ui_1",
       );
 
-      const response = await adminGet(`/admin/listing/${listing.id}`);
+      const response = await adminGet(`/admin/listing/${listing.id}/actions`);
       // The per-attendee refund link moved to the attendee edit page; the
-      // listing page keeps the listing-wide Refund All action.
+      // listing-wide Refund All action lives on the listing's Actions tab.
       await expectHtmlResponse(response, 200, "Refund All");
     });
 

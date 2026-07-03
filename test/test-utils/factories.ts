@@ -421,7 +421,7 @@ export const sizeQuestionAnswerData = (): AttendeeQuestionData => ({
  *  answer "S" (id 10) and an empty `attendeeAnswerMap` (no one picked it).
  *  Used to assert the question renders even with zero selections —
  *  `buildSharedDetailRows` includes a question summary row, and
- *  `adminListingPage` renders the answer header in the details table. */
+ *  `ListingOverviewPanel` renders the answer header in the details table. */
 export const singleAnswerSizeQuestionData = (): AttendeeQuestionData => ({
   attendeeAnswerMap: new Map(),
   questions: [

@@ -16,7 +16,12 @@ import {
   registerCache,
   registerDependencies,
 } from "#shared/cache-registry.ts";
-import { execute, queryAll, queryOne } from "#shared/db/client.ts";
+import {
+  execute,
+  queryAll,
+  queryOne,
+  queryOnePrimary,
+} from "#shared/db/client.ts";
 import { requestCache } from "#shared/request-cache.ts";
 
 /**
@@ -143,6 +148,19 @@ export interface Table<Row, Input> {
 
   /** Find a row by primary key */
   findById: (id: InValue) => Promise<Row | null>;
+
+  /**
+   * Find a row by primary key, pinned to the primary (read-your-writes). Use
+   * when reading a row back immediately after committing its own write: a plain
+   * {@link findById} runs in "read" mode, which Turso may serve from a replica
+   * that lags behind the just-committed write and so miss the row (returning
+   * null). This reads on the primary, which always reflects the write.
+   *
+   * Optional, like {@link insertStatement}/{@link updateStatement}: only the
+   * transactional CRUD-side-effect write path reads a row back this way, so a
+   * façade table that never takes that path may omit it.
+   */
+  findByIdPrimary?: (id: InValue) => Promise<Row | null>;
 
   /** Transform a row from DB (apply read transforms) */
   fromDb: (row: Row) => Promise<Row>;
@@ -365,14 +383,24 @@ export const defineTable = <Row, Input = Row>(config: {
     return row ? fromDb(row) : null;
   };
 
-  // Find by ID implementation
-  const findById = async (id: InValue): Promise<Row | null> => {
-    const row = await queryOne<Row>(
-      `SELECT * FROM ${name} WHERE ${primaryKey} = ?`,
-      [id],
-    );
+  // Find by ID via the given single-row query — a plain "read" (findById) or the
+  // primary read-your-writes read (findByIdPrimary), for reading a row back right
+  // after its own write (see Table.findByIdPrimary).
+  const findByIdVia = async (
+    query: (sql: string, args: InValue[]) => Promise<Row | null>,
+    id: InValue,
+  ): Promise<Row | null> => {
+    const row = await query(`SELECT * FROM ${name} WHERE ${primaryKey} = ?`, [
+      id,
+    ]);
     return row ? fromDb(row) : null;
   };
+
+  const findById = (id: InValue): Promise<Row | null> =>
+    findByIdVia(queryOne, id);
+
+  const findByIdPrimary = (id: InValue): Promise<Row | null> =>
+    findByIdVia(queryOnePrimary, id);
 
   // Delete by ID implementation
   const deleteById = async (id: InValue): Promise<void> => {
@@ -408,6 +436,7 @@ export const defineTable = <Row, Input = Row>(config: {
     deleteById,
     findAll,
     findById,
+    findByIdPrimary,
     fromDb,
     inputKeyMap,
     insert,

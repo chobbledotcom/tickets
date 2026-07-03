@@ -155,7 +155,6 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const group = await createTestGroup();
 
       const forbidden: Array<[string, string]> = [
-        ["listing detail (attendees)", `/admin/listing/${listing.id}`],
         ["attendee CSV", `/admin/listing/${listing.id}/attendees.csv`],
         ["listings CSV", "/admin/listings/csv"],
         ["group detail (attendees)", `/admin/groups/${group.id}`],
@@ -171,6 +170,22 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         const response = await getAs(path, cookie);
         expect(response.status, `${label} (${path})`).toBe(403);
       }
+
+      // On the tabbed listing page the staff-only tabs (roster, activity,
+      // actions) are hidden — visibility IS authorization, so naming one 404s
+      // rather than exposing that it exists. The editor's default landing tab
+      // is Edit (the base URL), which they may use.
+      for (const tab of ["attendees", "activity", "actions"]) {
+        const hidden = await getAs(
+          `/admin/listing/${listing.id}/${tab}`,
+          cookie,
+        );
+        expect(hidden.status, `hidden ${tab} tab`).toBe(404);
+      }
+      const base = await getAs(`/admin/listing/${listing.id}`, cookie);
+      const baseHtml = await base.text();
+      expect(base.status).toBe(200);
+      expect(baseHtml).toContain("listing-edit-form");
     });
 
     test("editor POSTs to forbidden actions are rejected", async () => {

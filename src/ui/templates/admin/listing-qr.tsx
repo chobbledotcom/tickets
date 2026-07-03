@@ -146,6 +146,81 @@ const QrResultPanel = ({
 );
 
 /** Admin "generate booking QR code" page */
+/**
+ * The listing "Booking QR" panel: the QR-generation form and, once generated,
+ * the QR result with its auto-refresh. Rendered as the listing entity page's QR
+ * tab and composed into the legacy {@link adminListingQrPage}. Carries its own
+ * error flash for in-place re-renders (the POST shows the result in place).
+ */
+export const ListingQrPanel = ({
+  listing,
+  bookableDates,
+  values,
+  canDirectCheckout,
+  error,
+  result,
+}: Omit<AdminListingQrPageOptions, "session">): JSX.Element => {
+  const isDaily = listing.listing_type === "daily";
+  const formAction = `/admin/listing/${listing.id}/qr`;
+  const refreshUrl = `/admin/listing/${listing.id}/qr.json`;
+  return (
+    <article>
+      <div class="prose">
+        <h1>
+          {t("listing_qr.page_title")}{" "}
+          <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
+        </h1>
+        <p>
+          {t("listing_qr.page_description_start")}{" "}
+          <span class={canDirectCheckout ? "success-text" : "danger-text"}>
+            (
+            {t("listing_qr.page_description_condition", {
+              state: canDirectCheckout ? "is" : "is not",
+            })}
+            )
+          </span>
+          {t("listing_qr.page_description_end")}
+        </p>
+      </div>
+      <Flash {...(error !== undefined ? { error } : {})} />
+      <CsrfForm action={formAction}>
+        <label>
+          {t("listing_qr.customer_name")}
+          <input
+            name="customer_name"
+            type="text"
+            value={values.customer_name}
+          />
+          <small>{t("listing_qr.customer_name_help")}</small>
+        </label>
+        <PriceInput listing={listing} value={values.value} />
+        <label>
+          {t("common.quantity")}
+          <input
+            max={listing.max_quantity}
+            min="1"
+            name="quantity"
+            required
+            type="number"
+            value={values.quantity}
+          />
+        </label>
+        {isDaily && <DateSelect dates={bookableDates} value={values.date} />}
+        <SubmitButton icon="plus">
+          {t("listing_qr.generate_button")}
+        </SubmitButton>
+      </CsrfForm>
+      {result && (
+        <QrResultPanel
+          formAction={formAction}
+          refreshUrl={refreshUrl}
+          result={result}
+        />
+      )}
+    </article>
+  );
+};
+
 export const adminListingQrPage = ({
   listing,
   session,
@@ -154,67 +229,17 @@ export const adminListingQrPage = ({
   canDirectCheckout,
   error,
   result,
-}: AdminListingQrPageOptions): string => {
-  const isDaily = listing.listing_type === "daily";
-  const formAction = `/admin/listing/${listing.id}/qr`;
-  const refreshUrl = `/admin/listing/${listing.id}/qr.json`;
-  return String(
+}: AdminListingQrPageOptions): string =>
+  String(
     <Layout title={t("listing_qr.title", { name: listing.name })}>
       <AdminNav active="/admin/" session={session} />
-      <article>
-        <div class="prose">
-          <h1>
-            {t("listing_qr.page_title")}{" "}
-            <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
-          </h1>
-          <p>
-            {t("listing_qr.page_description_start")}{" "}
-            <span class={canDirectCheckout ? "success-text" : "danger-text"}>
-              (
-              {t("listing_qr.page_description_condition", {
-                state: canDirectCheckout ? "is" : "is not",
-              })}
-              )
-            </span>
-            {t("listing_qr.page_description_end")}
-          </p>
-        </div>
-        <Flash {...(error !== undefined ? { error } : {})} />
-        <CsrfForm action={formAction}>
-          <label>
-            {t("listing_qr.customer_name")}
-            <input
-              name="customer_name"
-              type="text"
-              value={values.customer_name}
-            />
-            <small>{t("listing_qr.customer_name_help")}</small>
-          </label>
-          <PriceInput listing={listing} value={values.value} />
-          <label>
-            {t("common.quantity")}
-            <input
-              max={listing.max_quantity}
-              min="1"
-              name="quantity"
-              required
-              type="number"
-              value={values.quantity}
-            />
-          </label>
-          {isDaily && <DateSelect dates={bookableDates} value={values.date} />}
-          <SubmitButton icon="plus">
-            {t("listing_qr.generate_button")}
-          </SubmitButton>
-        </CsrfForm>
-        {result && (
-          <QrResultPanel
-            formAction={formAction}
-            refreshUrl={refreshUrl}
-            result={result}
-          />
-        )}
-      </article>
+      {ListingQrPanel({
+        bookableDates,
+        canDirectCheckout,
+        listing,
+        values,
+        ...(error !== undefined ? { error } : {}),
+        ...(result !== undefined ? { result } : {}),
+      })}
     </Layout>,
   );
-};

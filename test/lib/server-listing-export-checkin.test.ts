@@ -119,9 +119,9 @@ describeWithEnv("server (listing export check-in filter)", { db: true }, () => {
     expect(csv).toContain("Coeliac");
   });
 
-  test("shows the decrypted free-text answer on the listing page", async () => {
+  test("shows the decrypted free-text answer on the roster tab", async () => {
     const listing = await setupFreeText();
-    const response = await adminGet(`/admin/listing/${listing.id}`);
+    const response = await adminGet(`/admin/listing/${listing.id}/attendees`);
     const html = await response.text();
     expect(html).toContain("Coeliac");
   });

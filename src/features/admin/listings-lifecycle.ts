@@ -10,14 +10,10 @@
 import { t } from "#i18n";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { AUTH_FORM, withAuth } from "#routes/auth.ts";
-import { authenticatedGetById } from "#routes/entity.ts";
-import { htmlResponse, redirect } from "#routes/response.ts";
+import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-import {
-  getListingWithActivityLog,
-  logActivity,
-} from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
 import { getListingWithCount, listingsTable } from "#shared/db/listings.ts";
 import {
   deactivationOrphanedAddOnError,
@@ -25,7 +21,6 @@ import {
   performListingDelete,
 } from "#shared/listings-actions.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
-import { adminListingActivityLogPage } from "#templates/admin/activityLog.tsx";
 import {
   adminDeactivateListingPage,
   adminDeleteListingPage,
@@ -109,18 +104,6 @@ export const listingDelete = createConfirmedHandlers<ListingWithCount>({
   successMessage: t("success.listing_deleted"),
   successRedirect: "/admin",
 });
-
-/**
- * Handle GET /admin/listing/:id/log
- * Uses batched query to fetch listing + activity log in a single DB round-trip.
- */
-export const handleAdminListingLog = authenticatedGetById(null)(
-  getListingWithActivityLog,
-  (result, session) =>
-    htmlResponse(
-      adminListingActivityLogPage(result.listing, result.entries, session),
-    ),
-);
 
 /** Handle DELETE /admin/listing/:id (delete listing with logging) */
 export const handleAdminListingDelete: TypedRouteHandler<
