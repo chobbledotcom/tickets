@@ -141,12 +141,10 @@ export const urlFromFetchInput = (input: string | URL | Request): string =>
       : input.url;
 
 export const withExpectedError = bracket(
-  () => {
-    Deno.env.set("TEST_EXPECT_ERROR", "1");
-  },
-  () => {
-    Deno.env.delete("TEST_EXPECT_ERROR");
-  },
+  // Overlay-scoped so the flag stays inside this worker: written to the real
+  // process env it would make every parallel test worker swallow its errors.
+  () => setTestEnv({ TEST_EXPECT_ERROR: "1" }),
+  (restore) => restore(),
 );
 
 export const withFetchMock = bracket(
