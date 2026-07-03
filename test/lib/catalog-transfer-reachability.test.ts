@@ -54,6 +54,24 @@ describeWithEnv(
       expect(result.error).toContain("offering it as a child");
     });
 
+    test("accepts a bookable-alone child even when only it reaches the add-on", async () => {
+      // Same orphaning shape as above, but the child keeps its own /ticket page
+      // (bookable_alone), so the group-scoped add-on is still reachable there —
+      // the edge editor exempts a bookable_alone child, and so must the import.
+      const group = await createTestGroup({ name: "Alone Group" });
+      await createTestListing({ name: "Alone Base Parent" });
+      await groupOptInAddOn("Alone Extra", group.id);
+
+      const result = await importCatalog({
+        groups: [{ group: "Alone Group" }],
+        kind: "listing",
+        listing: { bookableAlone: true, maxAttendees: 1, name: "Alone Kid" },
+        parents: ["Alone Base Parent"],
+        version: 1,
+      });
+      if (!result.ok) throw new Error(result.error);
+    });
+
     test("accepts a child import when the parent's page also reaches the add-on", async () => {
       // The parent is in the same group, so the group-scoped add-on reaches the
       // parent's own booking page — not a dead end.

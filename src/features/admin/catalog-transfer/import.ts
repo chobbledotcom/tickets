@@ -276,10 +276,13 @@ const validateParentEdges = async (
   // editor rejects. Resolve every add-on's would-be scope once (the new child
   // appended at placeholder id 0 with its would-be groups) and reuse it per
   // parent. A child with no groups can't inherit such an add-on, so skip the work.
+  // A `bookable_alone` child keeps its OWN booking page, so its add-on is still
+  // reachable there — the edge editor exempts it (`if (bookable_alone) continue`),
+  // so skip the check here too rather than reject a valid exported child.
   let addOnChecker:
     | ((childId: number, pageIds: readonly number[]) => string | null)
     | null = null;
-  if (groupIds.length > 0) {
+  if (groupIds.length > 0 && !input.bookableAlone) {
     const allMembership = await getGroupIdsByListingIds([...byId.keys()]);
     const wouldBe: ListingGroupMembership[] = [
       ...[...byId.values()].map((l) =>
