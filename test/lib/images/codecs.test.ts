@@ -5,7 +5,10 @@ import {
   encodeWebp,
   pickEncoderWasm,
 } from "#shared/images/codecs.ts";
-import { makeTestPng } from "#test/test-utils/test-image.ts";
+import {
+  expectWebpContainer,
+  makeTestPng,
+} from "#test/test-utils/test-image.ts";
 
 describe("pickEncoderWasm", () => {
   test("selects a different WebP encoder build per SIMD support", () => {
@@ -42,9 +45,7 @@ describe("encodeWebp", () => {
     const png = await makeTestPng(24, 24);
     const decoded = await decodeImage(png, "image/png");
     const webp = await encodeWebp(decoded, 80);
-    // "RIFF" .... "WEBP".
-    expect([...webp.slice(0, 4)]).toEqual([0x52, 0x49, 0x46, 0x46]);
-    expect([...webp.slice(8, 12)]).toEqual([0x57, 0x45, 0x42, 0x50]);
+    expectWebpContainer(webp);
   });
 
   test("lower quality yields a smaller file for the same image", async () => {

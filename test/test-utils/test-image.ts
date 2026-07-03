@@ -8,6 +8,14 @@
  * spec-correct: real decoders (jSquash / the browser) accept its output.
  */
 
+import { expect } from "@std/expect";
+
+/** Assert `bytes` is a WebP container ("RIFF"…"WEBP" header). */
+export const expectWebpContainer = (bytes: Uint8Array): void => {
+  expect([...bytes.slice(0, 4)]).toEqual([0x52, 0x49, 0x46, 0x46]); // "RIFF"
+  expect([...bytes.slice(8, 12)]).toEqual([0x57, 0x45, 0x42, 0x50]); // "WEBP"
+};
+
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
   for (let n = 0; n < 256; n++) {

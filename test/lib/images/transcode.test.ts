@@ -7,14 +7,16 @@ import {
   THUMB_IMAGE_TARGET,
 } from "#shared/images/targets.ts";
 import { transcodeToWebp } from "#shared/images/transcode.ts";
-import { makeTestPng } from "#test/test-utils/test-image.ts";
+import {
+  expectWebpContainer,
+  makeTestPng,
+} from "#test/test-utils/test-image.ts";
 
 /** Assert bytes are a WebP container, then return its decoded dimensions. */
 const webpDims = async (
   bytes: Uint8Array,
 ): Promise<{ width: number; height: number }> => {
-  expect([...bytes.slice(0, 4)]).toEqual([0x52, 0x49, 0x46, 0x46]);
-  expect([...bytes.slice(8, 12)]).toEqual([0x57, 0x45, 0x42, 0x50]);
+  expectWebpContainer(bytes);
   const decoded = await decodeImage(bytes, "image/webp");
   return { height: decoded.height, width: decoded.width };
 };

@@ -27,6 +27,7 @@ import {
 import { setDeleteOverride } from "#shared/test-overrides.ts";
 import {
   describeWithEnv,
+  expectWebpContainer,
   makeTestPng,
   withBunnyDeleteCapture,
   withBunnyStorageStub,
@@ -129,10 +130,7 @@ describeWithEnv(
           ]);
           const result = await downloadImage(filename as string);
           expect(result).not.toBeNull();
-          const bytes = result as Uint8Array;
-          // Valid WebP container: "RIFF" .... "WEBP".
-          expect([...bytes.slice(0, 4)]).toEqual([0x52, 0x49, 0x46, 0x46]);
-          expect([...bytes.slice(8, 12)]).toEqual([0x57, 0x45, 0x42, 0x50]);
+          expectWebpContainer(result as Uint8Array);
         });
       });
 
