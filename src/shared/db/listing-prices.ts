@@ -146,7 +146,7 @@ export const groupFlatPriceStatements = (
     member.price === null || member.price === undefined
       ? null
       : [member.listingId, PRICE_TYPE_GROUP, String(groupId), member.price],
-  )(members as GroupFlatPriceInput[]);
+  )(members);
   return compact([
     {
       args: [PRICE_TYPE_GROUP, String(groupId)],
