@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import jpegEncode from "@jsquash/jpeg/encode.js";
 import {
   decodeImage,
   encodeWebp,
@@ -11,13 +12,12 @@ import {
 } from "#test/test-utils/test-image.ts";
 
 describe("pickEncoderWasm", () => {
-  test("selects a different WebP encoder build per SIMD support", () => {
+  test("selects the SIMD build when SIMD is supported, scalar otherwise", () => {
     const simdBytes = pickEncoderWasm(true);
     const scalarBytes = pickEncoderWasm(false);
-    expect(simdBytes.length).toBeGreaterThan(0);
     expect(scalarBytes.length).toBeGreaterThan(0);
-    // The two builds are distinct binaries.
-    expect(simdBytes.length).not.toBe(scalarBytes.length);
+    // The SIMD build is a distinct, larger binary — pins which arm is which.
+    expect(simdBytes.length).toBeGreaterThan(scalarBytes.length);
   });
 });
 
@@ -28,6 +28,17 @@ describe("decodeImage", () => {
     expect(decoded.width).toBe(20);
     expect(decoded.height).toBe(12);
     expect(decoded.data.length).toBe(20 * 12 * 4);
+  });
+
+  test("decodes JPEG bytes via the image/jpeg codec", async () => {
+    const png = await makeTestPng(20, 12);
+    const rgba = await decodeImage(png, "image/png");
+    const jpeg = new Uint8Array(
+      await jpegEncode(rgba as unknown as ImageData, { quality: 90 }),
+    );
+    const decoded = await decodeImage(jpeg, "image/jpeg");
+    expect(decoded.width).toBe(20);
+    expect(decoded.height).toBe(12);
   });
 
   test("round-trips through WebP decode", async () => {

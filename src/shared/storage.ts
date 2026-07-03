@@ -271,7 +271,7 @@ const localWrite = async (
 const localRead = async (filename: string): Promise<Uint8Array | null> => {
   const dir = getLocalStoragePath() as string;
   try {
-    return await Deno.readFile(`${dir}/${filename}`);
+    return  undefined ;
   } catch (err) {
     if (err instanceof Deno.errors.NotFound) return null;
     throw err;

@@ -68,6 +68,40 @@ describe("resizeAreaAverage", () => {
     expect(pixelAt(out, 0, 0)).toEqual([255, 0, 0, 128]);
   });
 
+  test("maps each source quadrant to its own destination pixel", () => {
+    // 4x4 → 2x2: each uniform 2x2 quadrant becomes one output pixel, in place.
+    // Distinct per-quadrant colours pin the destination offset and both scale
+    // factors — a swapped offset or wrong scaleX/scaleY misplaces a quadrant.
+    const quad = (x: number, y: number): [number, number, number, number] => {
+      if (y < 2) return x < 2 ? [100, 0, 0, 255] : [0, 120, 0, 255];
+      return x < 2 ? [0, 0, 140, 255] : [80, 80, 80, 255];
+    };
+    const pixels: Array<readonly [number, number, number, number]> = [];
+    for (let y = 0; y < 4; y++) {
+      for (let x = 0; x < 4; x++) pixels.push(quad(x, y));
+    }
+    const out = resizeAreaAverage(image(4, 4, pixels), 2, 2);
+    expect(pixelAt(out, 0, 0)).toEqual([100, 0, 0, 255]);
+    expect(pixelAt(out, 1, 0)).toEqual([0, 120, 0, 255]);
+    expect(pixelAt(out, 0, 1)).toEqual([0, 0, 140, 255]);
+    expect(pixelAt(out, 1, 1)).toEqual([80, 80, 80, 255]);
+  });
+
+  test("divides the accumulated colour by the exact covered-pixel weight", () => {
+    // Two identical opaque pixels averaged to one: the result is exactly the
+    // input, with no off-by-one bias in the colour accumulator (a +1 seed would
+    // round 100 up to 101 here).
+    const out = resizeAreaAverage(
+      image(2, 1, [
+        [100, 0, 0, 255],
+        [100, 0, 0, 255],
+      ]),
+      1,
+      1,
+    );
+    expect(pixelAt(out, 0, 0)).toEqual([100, 0, 0, 255]);
+  });
+
   test("leaves colour black where the averaged alpha is zero", () => {
     const img = image(2, 2, [
       [255, 128, 64, 0],
