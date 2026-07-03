@@ -4,6 +4,7 @@
 
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
+import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
@@ -58,11 +59,8 @@ export const adminCalendarPage = (
 ): string => {
   const tableRows: AttendeeTableRow[] = pipe(
     map(
-      (a: CalendarAttendeeRow): AttendeeTableRow => ({
-        attendee: a,
-        listingId: a.listingId,
-        listingName: a.listingName,
-      }),
+      (a: CalendarAttendeeRow): AttendeeTableRow =>
+        attendeeLineRow(a, { id: a.listingId, name: a.listingName }),
     ),
   )(attendees);
 

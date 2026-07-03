@@ -247,3 +247,8 @@ src/shared/listings-actions.ts:120:17  ?? → ||   # validateListingGroup existi
 # attendee merge/refund route: mutants with no observable effect.
 src/features/admin/attendees-merge.ts:356:10  === → !=    # toBookingChoice: keep_target and skip_source are consumed identically (attendee-merge.ts "do nothing for this booking"), so normalizing one to the other is unobservable
 src/features/admin/attendee-refunds.ts:172:24  ?? → ||    # flash.error: string|undefined from applyFlash; a refund error flash is always a non-empty message, so the only falsy-non-null value "" never occurs and ?? / || agree
+
+# attendee columns Listings/answers rework
+src/shared/columns/attendee-columns.ts:133:67  ?? → ||    # getAnswerDisplay attendeeAnswerMap.get(): number[]|undefined — an array is always truthy, so ?? and || coincide
+src/ui/templates/attendee-table.tsx:146:39  ?? → ||    # compareAttendeeRows listingA = a.listings[0]?.name ?? "": string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/ui/templates/attendee-table.tsx:147:39  ?? → ||    # compareAttendeeRows listingB = b.listings[0]?.name ?? "": string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""

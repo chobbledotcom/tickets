@@ -5,6 +5,7 @@ import { createSystemNote } from "#shared/db/system-notes.ts";
 import {
   adminGet,
   assertAdminHtml,
+  createMultiBookingAttendee,
   createTestAttendeeDirect,
   createTestListing,
   deactivateTestListing,
@@ -120,23 +121,49 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
       expect(html).not.toContain('rel="prev"');
     });
 
-    test("paginates results at the page size", async () => {
-      const listing = await makeListing("Big Listing", ATTENDEES_PAGE_SIZE * 2);
-      // Oldest registration is created first, so it lands on the second page.
-      await createTestAttendeeDirect(
-        listing.id,
-        "OldestPerson",
-        "oldest@example.com",
-      );
-      for (let i = 0; i < ATTENDEES_PAGE_SIZE; i++) {
+    /** Register `count` throwaway attendees on the listing */
+    const seedFillerAttendees = async (
+      listingId: number,
+      count: number,
+    ): Promise<void> => {
+      for (let i = 0; i < count; i++) {
         await createTestAttendeeDirect(
-          listing.id,
+          listingId,
           `Filler ${i}`,
           `filler${i}@example.com`,
         );
       }
+    };
 
-      // Page 0: newest PAGE_SIZE rows, a next link, no previous link.
+    test("shows the whole page with no paging links when the attendees exactly fill it", async () => {
+      const listing = await makeListing("Full Page", ATTENDEES_PAGE_SIZE * 2);
+      // Created first = oldest = the row a broken hasNext would trim off.
+      await createTestAttendeeDirect(
+        listing.id,
+        "OldestExact",
+        "oldest-exact@example.com",
+      );
+      await seedFillerAttendees(listing.id, ATTENDEES_PAGE_SIZE - 1);
+
+      const response = await adminGet("/admin/attendees");
+      const html = await response.text();
+      expect(html).toContain("OldestExact");
+      expect(html).not.toContain('rel="next"');
+      expect(html).not.toContain('rel="prev"');
+    });
+
+    test("paginates by attendee, keeping a grouped row's bookings together", async () => {
+      const listing = await makeListing("Big Listing", ATTENDEES_PAGE_SIZE * 2);
+      const other = await makeListing("Other Show", ATTENDEES_PAGE_SIZE * 2);
+      // Oldest registration is created first, so it lands on the second page —
+      // with BOTH of its booking lines, despite the page-size cut falling on it.
+      await createMultiBookingAttendee("OldestPerson", "oldest@example.com", [
+        { listingId: listing.id },
+        { listingId: other.id },
+      ]);
+      await seedFillerAttendees(listing.id, ATTENDEES_PAGE_SIZE);
+
+      // Page 0: newest PAGE_SIZE attendees, a next link, no previous link.
       const first = await adminGet("/admin/attendees");
       const firstHtml = await first.text();
       expect(firstHtml).not.toContain("OldestPerson");
@@ -144,12 +171,74 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
       expect(firstHtml).toContain('href="/admin/attendees?page=1"');
       expect(firstHtml).not.toContain('rel="prev"');
 
-      // Page 1: the remaining oldest row, a previous link, no next link.
+      // Page 1: the remaining oldest attendee — one row carrying both
+      // listings — a previous link, no next link.
       const second = await adminGet("/admin/attendees?page=1");
       const secondHtml = await second.text();
       expect(secondHtml).toContain("OldestPerson");
+      expect(secondHtml).toContain('title="Big Listing, Other Show"');
       expect(secondHtml).toContain('rel="prev"');
       expect(secondHtml).not.toContain('rel="next"');
+    });
+
+    test("groups an attendee's bookings into one row, listings in display order", async () => {
+      const beta = await makeListing("Beta Show");
+      const alpha = await makeListing("Alpha Show");
+      // Booked in reverse-alphabetical order; the cell must follow the
+      // listings page order (no-date standard listings sort by name).
+      const attendee = await createMultiBookingAttendee(
+        "CarolMulti",
+        "carol@example.com",
+        [{ listingId: beta.id }, { listingId: alpha.id }],
+      );
+
+      const response = await adminGet("/admin/attendees");
+      const html = await response.text();
+      expect(html).toContain(
+        '<span class="listings-cell" title="Alpha Show, Beta Show">' +
+          `<a href="/admin/listing/${alpha.id}">Alpha Show</a>, ` +
+          `<a href="/admin/listing/${beta.id}">Beta Show</a></span>`,
+      );
+      // One grouped row: the attendee's edit link renders exactly once.
+      const nameLinks = html.match(
+        new RegExp(`href="/admin/attendees/${attendee.id}"`, "g"),
+      );
+      expect(nameLinks?.length).toBe(1);
+    });
+
+    test("sums the ticket quantity across a grouped row's bookings", async () => {
+      const first = await makeListing("First Show");
+      const second = await makeListing("Second Show");
+      await createMultiBookingAttendee("QtyPerson", "qty@example.com", [
+        { listingId: first.id, quantity: 2 },
+        { listingId: second.id, quantity: 3 },
+      ]);
+
+      const response = await adminGet("/admin/attendees");
+      const html = await response.text();
+      expect(html).toContain('<td class="col-quantity">5</td>');
+    });
+
+    test("a listing filter matches attendees but still shows their other listings", async () => {
+      const booked = await makeListing("Booked Show");
+      const also = await makeListing("Also Booked");
+      const unrelated = await makeListing("Unrelated Show");
+      await createMultiBookingAttendee("DoubleBooker", "db@example.com", [
+        { listingId: booked.id },
+        { listingId: also.id },
+      ]);
+      await createTestAttendeeDirect(
+        unrelated.id,
+        "OtherPerson",
+        "other@example.com",
+      );
+
+      const response = await adminGet(`/admin/attendees?listing=${booked.id}`);
+      const html = await response.text();
+      expect(html).toContain("DoubleBooker");
+      // The matched attendee's full listing list renders, filter or not.
+      expect(html).toContain('title="Also Booked, Booked Show"');
+      expect(html).not.toContain("OtherPerson");
     });
   });
 

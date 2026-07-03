@@ -94,7 +94,7 @@ const computeVisibilityMap = (
     answers: !!opts.questionData && opts.questionData.questions.length > 0,
     date: opts.showDate,
     email: rows.some((r) => !!r.attendee.email),
-    listing: opts.showListing,
+    listings: opts.showListing,
     name: true,
     phone: rows.some((r) => !!r.attendee.phone),
     qty: true,
@@ -143,7 +143,9 @@ const compareAttendeeRows = (
     const dateCmp = dateA.localeCompare(dateB);
     if (dateCmp !== 0) return dateCmp;
   }
-  const nameCmp = a.listingName.localeCompare(b.listingName);
+  const listingA = a.listings[0]?.name ?? "";
+  const listingB = b.listings[0]?.name ?? "";
+  const nameCmp = listingA.localeCompare(listingB);
   if (nameCmp !== 0) return nameCmp;
   const attendeeCmp = a.attendee.name.localeCompare(b.attendee.name);
   if (attendeeCmp !== 0) return attendeeCmp;
@@ -247,10 +249,13 @@ const createStatusRenderer =
         </span>,
       );
     }
+    // Check-in is a per-booking-line action, and every table that shows it
+    // renders one row per line — a one-listing array (grouped browsing tables
+    // pass showCheckin: false), so the row's first listing IS the line's.
     return CheckinButton({
       a: row.attendee,
       activeFilter: opts.activeFilter ?? "all",
-      listingId: row.listingId,
+      listingId: row.listings[0]!.id,
       returnUrl: opts.returnUrl,
     });
   };

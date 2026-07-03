@@ -6,6 +6,7 @@ import { filter, joinStrings, map, mapNotNullish, pipe } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { formatCountdown } from "#routes/format.ts";
+import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import {
   formatDateLabel,
@@ -1368,13 +1369,7 @@ const deriveListingView = (opts: ListingPanelOptions) => {
   const basePath = `/admin/listing/${listing.id}`;
   const returnUrl = rosterHref(listing.id, activeFilter, dateFilter);
   const tableRows: AttendeeTableRow[] = pipe(
-    map(
-      (a: Attendee): AttendeeTableRow => ({
-        attendee: a,
-        listingId: listing.id,
-        listingName: listing.name,
-      }),
-    ),
+    map((a: Attendee): AttendeeTableRow => attendeeLineRow(a, listing)),
   )(filteredAttendees);
   return {
     activeFilter,

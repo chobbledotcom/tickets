@@ -611,6 +611,29 @@ export const buildAttendeeEditForm = async (
   return form;
 };
 
+/** Create one attendee booked across several listings in a single order —
+ *  one booking line per listing, each with its own quantity (default 1).
+ *  Used by the grouped attendee-table suites. */
+export const createMultiBookingAttendee = async (
+  name: string,
+  email: string,
+  bookings: Array<{ listingId: number; quantity?: number }>,
+): Promise<Attendee> => {
+  const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+  const result = await createAttendeeAtomic({
+    bookings: bookings.map((booking) => ({
+      listingId: booking.listingId,
+      quantity: booking.quantity ?? 1,
+    })),
+    email,
+    name,
+  });
+  // Callers pass listings with capacity, so the booking always succeeds; cast
+  // the union rather than guard, mirroring createPaidAttendeeWithoutLedger (a
+  // never-taken failure branch would be an uncovered line).
+  return (result as { success: true; attendees: Attendee[] }).attendees[0]!;
+};
+
 export const createTestAttendeeWithToken = async (
   name: string,
   email: string,

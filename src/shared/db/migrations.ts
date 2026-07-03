@@ -91,6 +91,7 @@ import sitePagesMigration from "./migrations/2026-07-01_site_pages.ts";
 import bookableAloneMigration from "./migrations/2026-07-02_bookable_alone.ts";
 import dropListingsDayPricesMigration from "./migrations/2026-07-02_drop_listings_day_prices.ts";
 import groupFlatPricesMigration from "./migrations/2026-07-02_group_flat_prices.ts";
+import attendeeListingsTagMigration from "./migrations/2026-07-03_attendee_listings_tag.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -292,6 +293,9 @@ export const MIGRATIONS: Migration[] = [
   // Move per-day-count prices off listings.day_prices into listing_prices'
   // "day_count" dimension and drop the column — only unit_price stays a column.
   dropListingsDayPricesMigration,
+  // Data-only: rewrite {{listing}} → {{listings}} in the stored attendee
+  // column-order template, matching the renamed grouped Listings column.
+  attendeeListingsTagMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

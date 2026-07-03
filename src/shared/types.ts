@@ -699,9 +699,19 @@ export interface ListingWithCount extends Listing {
  */
 export type AdminListing = Omit<ListingWithCount, "slug_index">;
 
-/** A single row in the attendee table (attendee + parent listing context) */
+/** One listing shown in an attendee row's Listings cell */
+export type AttendeeRowListing = {
+  id: number;
+  name: string;
+};
+
+/**
+ * A single row in the attendee table: an attendee plus the listings the row
+ * covers, in display order. Roster/check-in tables render one row per booking
+ * line (a one-listing array); the browsing tables (attendees list, dashboard)
+ * group an attendee's lines into one row carrying every listing.
+ */
 export type AttendeeTableRow = {
   attendee: Attendee;
-  listingId: number;
-  listingName: string;
+  listings: AttendeeRowListing[];
 };

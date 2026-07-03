@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   adminGet,
+  createMultiBookingAttendee,
   createTestAttendeeDirect,
   createTestListing,
   describeWithEnv,
@@ -44,6 +45,26 @@ describeWithEnv("server (admin attendees CSV)", { db: true }, () => {
       const csv = await response.text();
       expect(csv).toContain("AliceOne");
       expect(csv).not.toContain("BobTwo");
+    });
+
+    test("a filtered export omits a matched attendee's other-listing bookings", async () => {
+      const wanted = await makeListing("Wanted Show");
+      const other = await makeListing("Other Show");
+      await createMultiBookingAttendee("DoubleBooker", "db@example.com", [
+        { listingId: wanted.id },
+        { listingId: other.id },
+      ]);
+
+      const response = await adminGet(
+        `/admin/attendees/csv?listing=${wanted.id}`,
+      );
+      const csv = await response.text();
+      // One row: the booking on the filtered listing only — the grouped
+      // attendees PAGE shows their other listings, but the export must not.
+      expect(csv).toContain("DoubleBooker");
+      expect(csv).toContain("Wanted Show");
+      expect(csv).not.toContain("Other Show");
+      expect(csv.split("\n")).toHaveLength(2);
     });
 
     test("returns just the header when the type filter matches no listings", async () => {

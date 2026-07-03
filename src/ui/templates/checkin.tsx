@@ -7,6 +7,7 @@
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
+import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
@@ -31,11 +32,8 @@ export const checkinAdminPage = (
   const showDate = entries.some((e) => e.attendee.date !== null);
   const tableRows: AttendeeTableRow[] = pipe(
     map(
-      (e: TokenEntry): AttendeeTableRow => ({
-        attendee: e.attendee,
-        listingId: e.listing.id,
-        listingName: e.listing.name,
-      }),
+      (e: TokenEntry): AttendeeTableRow =>
+        attendeeLineRow(e.attendee, e.listing),
     ),
   )(entries);
 

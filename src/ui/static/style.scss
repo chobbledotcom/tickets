@@ -2354,6 +2354,17 @@ button.secondary:hover,
   font-size: smaller;
 }
 
+/* Listings cell in attendee table — cap the width and ellipsize long lists;
+ * the cell's title attribute carries the full list for hover. display:block
+ * and nowrap are what let max-width/overflow take effect inside a table cell. */
+.listings-cell {
+  display: block;
+  max-width: 30rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Skip navigation link (SC 2.4.1 Bypass Blocks) */
 .skip-nav:not(:focus-visible) {
   clip-path: inset(50%);
