@@ -63,8 +63,9 @@ export type LoadedSection =
     }
   | { kind: "custom"; html: JSX.Element | null };
 
-/** A summary value, linked when the row carries an href. */
-const SummaryValue = ({ row }: { row: SummaryRow }): JSX.Element =>
+/** A summary value, linked when the row carries an href (plain text otherwise —
+ * a bare string is a valid JSX child, so no wrapping fragment is needed). */
+const summaryValue = (row: SummaryRow): JSX.Element | string =>
   row.href ? (
     <a
       href={row.href}
@@ -73,7 +74,7 @@ const SummaryValue = ({ row }: { row: SummaryRow }): JSX.Element =>
       {row.value}
     </a>
   ) : (
-    <>{row.value}</>
+    row.value
   );
 
 /** The read-only key/value summary table. */
@@ -88,9 +89,7 @@ const SummarySection = ({
         {section.rows.map((row) => (
           <tr>
             <th scope="row">{t(row.labelKey)}</th>
-            <td>
-              <SummaryValue row={row} />
-            </td>
+            <td>{summaryValue(row)}</td>
           </tr>
         ))}
       </tbody>

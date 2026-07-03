@@ -61,6 +61,13 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
     visible: () => !isReadOnly(),
   },
   {
+    // A JSON export download (see catalog-transfer). Content-gated like the tab,
+    // and a read, so — unlike duplicate — it stays available in read-only mode.
+    href: (entity) => actionUrl(entity, "export.json"),
+    icon: "save",
+    labelKey: "catalog_transfer.export_link",
+  },
+  {
     href: (entity) => actionUrl(entity, "scanner"),
     icon: "search",
     labelKey: "listings_table.scanner",

@@ -40,6 +40,8 @@ describe("adminGroupDetailPage", () => {
     expect(html).toContain("20 / 50");
     expect(html).toContain("30 remain");
     expect(html).toContain("across all listings");
+    // The detail page links to the group's JSON export.
+    expect(html).toContain(`/admin/groups/${group.id}/export.json`);
   });
 
   test("Group Attendees row drops cap fragment when group is uncapped", () => {

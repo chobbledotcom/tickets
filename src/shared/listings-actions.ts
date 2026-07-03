@@ -10,8 +10,9 @@ import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   getGroupIdsByListingIds,
-  groupsTable,
-  validateGroupListingType,
+  getGroupsById,
+  getListingsByGroupIds,
+  groupListingTypeError,
 } from "#shared/db/groups.ts";
 import {
   edgeIdsTouching,
@@ -36,6 +37,7 @@ import {
   type ListingGroupMembership,
   toListingGroupMembership,
 } from "#shared/db/modifier-resolve.ts";
+import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { generateUniqueSlug } from "#shared/slug.ts";
 import { deleteListingStorageFiles } from "#shared/storage.ts";
@@ -102,16 +104,26 @@ const packageMembershipError = async (
 };
 
 const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
+  const groupIds = input.groupIds ?? [];
+  if (groupIds.length === 0) return null;
   // Only pay-what-you-want pricing is package-incompatible: a package needs an
   // operator-set price per member. Daily/customisable members are packageable
   // (the group keeps members homogeneous, sharing one date/day-count selector).
   const incompatibleByType = input.canPayMore ?? false;
-  for (const groupId of input.groupIds ?? []) {
-    const group = await groupsTable.findById(groupId);
+  // Batch the per-group reads so a listing that joins many groups (e.g. a
+  // catalog import of a listing exported from a group-heavy site) stays under
+  // the N+1 read guard: one cached groups load plus one sibling query for all
+  // referenced groups, then the compatibility check runs in memory per group.
+  const groupsById = await getGroupsById();
+  const siblingsByGroup = await getListingsByGroupIds(groupIds);
+  for (const groupId of groupIds) {
+    const group = groupsById.get(groupId);
     if (!group) return "Selected group does not exist";
 
-    const typeError = await validateGroupListingType(
-      groupId,
+    const typeError = groupListingTypeError(
+      // getListingsByGroupIds seeds an entry (possibly empty) for every id it is
+      // asked about, and we iterate those same ids, so the lookup always resolves.
+      siblingsByGroup.get(groupId)!,
       // The DB column defaults to "standard" when omitted (e.g. a JSON API
       // create that sends group_ids but no listing_type), so validate against
       // that default rather than passing undefined and reading every standard
@@ -373,6 +385,13 @@ export const validateListingInput = async (
   input: ListingInput,
   existingId?: number,
 ): Promise<string | null> => {
+  // A listing name must be unique across BOTH listings and groups (create and
+  // edit alike), so the catalog can be referenced by name for import/export.
+  const nameTaken = await isNameTakenAnywhere(
+    input.name,
+    existingId === undefined ? undefined : { id: existingId, kind: "listing" },
+  );
+  if (nameTaken) return t("error.name_in_use");
   if (existingId !== undefined) {
     const taken = await isSlugTaken(input.slug, existingId);
     if (taken) return t("error.slug_in_use");

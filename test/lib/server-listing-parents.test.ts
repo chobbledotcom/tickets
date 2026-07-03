@@ -1288,4 +1288,28 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expectFlash(res, "Required children updated");
     expect(await getChildIds(parent.id)).toEqual([child.id]);
   });
+
+  test("addParentEdgesTx adds a child under each parent without disturbing others", async () => {
+    const { addParentEdgesTx, getChildIds: getChildIdsFn } = await import(
+      "#shared/db/listing-parents.ts"
+    );
+    const { setChildIds } = await import("#shared/db/listing-parents.ts");
+    const { withTransaction } = await import("#shared/db/client.ts");
+    const parentA = await createTestListing({ name: "Parent A" });
+    const parentB = await createTestListing({ name: "Parent B" });
+    const existingChild = await createTestListing({ name: "Existing Child" });
+    const newChild = await createTestListing({ name: "New Child" });
+    // parentA already has a child; adding newChild under both parents must keep it.
+    await setChildIds(parentA.id, [existingChild.id]);
+
+    await withTransaction((tx) =>
+      addParentEdgesTx(tx, newChild.id, [parentA.id, parentB.id]),
+    );
+
+    expect(await getChildIdsFn(parentA.id)).toEqual([
+      existingChild.id,
+      newChild.id,
+    ]);
+    expect(await getChildIdsFn(parentB.id)).toEqual([newChild.id]);
+  });
 });

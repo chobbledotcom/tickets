@@ -877,6 +877,8 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     });
     expect(blocked.response.status).toBe(302);
     expect(await groupsTable.findById(group.id)).not.toBeNull();
+    // The block surfaces the un-hide-first guidance rather than deleting.
+    expect(blocked.response.headers.get("location")).toContain("flash=");
 
     // …and the sold ticket keeps concealing the member behind the package name.
     const { handleRequest } = await import("#routes");

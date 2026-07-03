@@ -146,6 +146,45 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(group.description).toBe("A fun group of listings");
     });
 
+    const NAME_IN_USE = "Name is already in use by another listing or group";
+
+    test("rejects a group whose name is used by a listing", async () => {
+      await createTestListing({ name: "Clash Name" });
+      const { response } = await adminFormPost("/admin/groups", {
+        name: "Clash Name",
+        terms_and_conditions: "",
+      });
+      await expectFlashRedirect(
+        "/admin/groups/new",
+        NAME_IN_USE,
+        false,
+      )(response);
+    });
+
+    test("rejects a group whose name is used by another group", async () => {
+      await createTestGroup({ name: "Twin Group" });
+      const { response } = await adminFormPost("/admin/groups", {
+        name: "Twin Group",
+        terms_and_conditions: "",
+      });
+      await expectFlashRedirect(
+        "/admin/groups/new",
+        NAME_IN_USE,
+        false,
+      )(response);
+    });
+
+    test("lets a group keep its own name on edit", async () => {
+      const group = await createTestGroup({ name: "Renamer" });
+      // Re-saving the group under its own name must not trip the uniqueness
+      // check against itself.
+      const updated = await updateTestGroup(group.id, {
+        name: "Renamer",
+        slug: group.slug,
+      });
+      expect(updated.name).toBe("Renamer");
+    });
+
     test("creates group without description defaults to empty string", async () => {
       const group = await createTestGroup({ name: "No Desc Group" });
       expect(group.description).toBe("");
@@ -487,6 +526,32 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "Embed Iframe",
         "iframe",
       );
+    });
+
+    test("a regular group with a sold-out but visible member stays shareable", async () => {
+      // A non-package group is shareable whenever it has a visible member, even
+      // if that member is sold out — bookability only gates PACKAGE groups.
+      const group = await createTestGroup({
+        name: "Sold Out Group",
+        slug: "sold-out-group",
+      });
+      const listing = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 1,
+        name: "Sold Out Member",
+      });
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Buyer",
+        "buyer@test.com",
+      );
+
+      const response = await adminGet(`/admin/groups/${group.id}`);
+      const html = await response.text();
+      // The embed/share affordances render despite the member being sold out.
+      expect(html).toContain("Embed Script");
+      expect(html).toContain("/ticket/sold-out-group");
     });
 
     test("add-listings form offers listings from other groups, not this group's own members", async () => {
@@ -1029,6 +1094,12 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
       expect(await getGroupIdsByListingId(listing1.id)).toContain(group.id);
       expect(await getGroupIdsByListingId(listing2.id)).toEqual([]);
+      // The assignment is recorded in the activity log.
+      const { getAllActivityLog } = await import("#test-utils");
+      const log = await getAllActivityLog();
+      expect(
+        log.some((e) => e.message.includes("added to group 'Assign Group'")),
+      ).toBe(true);
     });
 
     test("handles empty selection gracefully", async () => {

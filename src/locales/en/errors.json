@@ -37,6 +37,7 @@
   "error.listing_name_mismatch": "Listing name does not match. Please type the exact name to confirm.",
   "error.listing_name_mismatch_delete": "Listing name does not match. Please type the exact name to confirm deletion.",
   "error.slug_in_use": "Slug is already in use by another listing",
+  "error.name_in_use": "Name is already in use by another listing or group",
   "error.not_enough_spots": "Not enough spots available",
   "error.encryption_error": "Encryption error — check that DB_ENCRYPTION_KEY is configured",
   "error.no_payment_to_refund": "This attendee has no payment to refund.",

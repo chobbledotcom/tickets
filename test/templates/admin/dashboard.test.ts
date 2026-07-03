@@ -756,6 +756,8 @@ describe("adminListingsPage", () => {
     expect(html).toContain("Deactivated");
     expect(html).toContain("Old Show");
     expect(html.indexOf("Active Show")).toBeLessThan(html.indexOf("Old Show"));
+    // The actions bar offers the import-from-file entry point.
+    expect(html).toContain('href="/admin/catalog/import"');
   });
 
   test("omits the deactivated heading when every listing is active", () => {

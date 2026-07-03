@@ -12,10 +12,12 @@ describeWithEnv(
   "db > listing-parents > getNonStandaloneChildIds",
   { db: true },
   () => {
-    /** A parent with one child; the child's bookable_alone is set per test. */
-    const parentWithChild = async (bookableAlone: boolean) => {
-      const parent = await createTestListing({ name: "Picker" });
-      const child = await createTestListing({ name: "Widget" });
+    /** A parent with one child; the child's bookable_alone is set per test. The
+     * label keeps names unique — a name must be unique across the catalog, so a
+     * test that builds two parent/child pairs can't reuse "Picker"/"Widget". */
+    const parentWithChild = async (bookableAlone: boolean, label = "") => {
+      const parent = await createTestListing({ name: `Picker${label}` });
+      const child = await createTestListing({ name: `Widget${label}` });
       await setChildIds(parent.id, [child.id]);
       if (bookableAlone) {
         await listingsTable.update(child.id, { bookableAlone: true });
@@ -46,8 +48,8 @@ describeWithEnv(
     });
 
     test("mixes plain and flagged children in one call", async () => {
-      const { child: plain } = await parentWithChild(false);
-      const { child: flagged } = await parentWithChild(true);
+      const { child: plain } = await parentWithChild(false, " A");
+      const { child: flagged } = await parentWithChild(true, " B");
       const ids = await getNonStandaloneChildIds([plain.id, flagged.id]);
       expect([...ids]).toEqual([plain.id]);
       // The call reports true because at least one is non-standalone.

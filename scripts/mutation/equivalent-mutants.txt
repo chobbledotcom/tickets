@@ -62,7 +62,9 @@ src/ui/templates/public/shared.tsx:318:41  ?? → ||   # span: null or a duratio
 src/ui/templates/public/reservations.tsx:1546:50  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
 
 # Parent/child relationship DB (listing-parents.ts).
-src/shared/db/listing-parents.ts:118:21  ?? → ||   # result.get(key): ListingWithCount[]|undefined, arrays always truthy; ?? and || agree
+src/shared/db/listing-parents.ts:156:21  ?? → ||   # result.get(key): ListingWithCount[]|undefined, arrays always truthy; ?? and || agree
+src/shared/db/listing-parents.ts:213:44  ?? → ||   # childrenByParent.get(id): ListingWithCount[]|undefined — an array is always truthy
+src/shared/db/listing-parents.ts:214:43  ?? → ||   # parentsByChild.get(id): ListingWithCount[]|undefined — an array is always truthy
 
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is
@@ -209,6 +211,38 @@ src/shared/db/listing-prices.ts:109:45  ?? → ||    # foldGroupDayRows result.g
 # value equals the "" fallback.
 src/features/admin/attendee-page.ts:266:60  ?? → ||    # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
 src/features/admin/entity-pages.ts:230:28  ?? → ||    # opts.baseUrl: string|undefined; the only falsy-non-null value "" equals the "" fallback
+src/shared/db/name-registry.ts:85:51  ?? → ||    # matchName index.get(): number[]|undefined — an array is always truthy
+src/shared/db/name-registry.ts:105:20  ?? → ||    # isNameTakenAnywhere index.get(): number[]|undefined — an array is always truthy
+src/features/admin/catalog-transfer/import.ts:114:27  ?? → ||    # membershipSpec quantity: from the PositiveInt schema (≥1) or undefined — never 0, so ?? and || coincide
+src/features/admin/catalog-transfer/import.ts:161:39  ?? → ||    # validateParentEdges input.groupIds: number[]|undefined — an array is always truthy
+src/features/admin/catalog-transfer/schema.ts:158:18  ?? → ||    # formatTransferIssues flat.root: string[]|undefined — an array is always truthy
+src/features/admin/catalog-transfer/schema.ts:159:34  ?? → ||    # formatTransferIssues flat.nested: object|undefined — an object is always truthy
+
+# Listing business logic (listings-actions.ts) — optional-field defaults where the
+# fallback equals the only falsy-non-null value, or the operand is always truthy.
+src/shared/listings-actions.ts:57:36  ?? → ||    # validateMaxPrice unitPrice: number|undefined, 0 ?? 0 === 0 || 0
+src/shared/listings-actions.ts:107:46  ?? → ||   # canPayMore: boolean|undefined, only falsy-non-null is false === fallback
+src/shared/listings-actions.ts:108:39  ?? → ||   # groupIds: number[]|undefined — an array is always truthy
+src/shared/listings-actions.ts:118:24  ?? → ||   # listingType: "standard"|"daily"|undefined — never "", so ?? and || coincide
+src/shared/listings-actions.ts:119:29  ?? → ||   # customisableDays: boolean|undefined, only falsy-non-null is false === fallback
+src/shared/listings-actions.ts:144:55  ?? → ||   # durationDays ?? 1 then normalizeDurationDays: normalize(0)===normalize(1)===1
+src/shared/listings-actions.ts:145:45  ?? → ||   # dayPrices: DayPrices|undefined — an object is always truthy
+src/shared/listings-actions.ts:155:27  ?? → ||   # monthsPerUnit: number|undefined, 0 ?? 0 === 0 || 0
+src/shared/listings-actions.ts:158:56  ?? → ||   # initialSiteMonths: number|undefined, 0 ?? 0 === 0 || 0
+src/shared/listings-actions.ts:171:44  ?? → ||   # listingInputToEdge customisableDays: only falsy-non-null false === fallback
+src/shared/listings-actions.ts:172:30  ?? → ||   # listingInputToEdge dayPrices: object always truthy
+src/shared/listings-actions.ts:173:58  ?? → ||   # listingInputToEdge durationDays ?? 1 then normalize: normalize(0)===normalize(1)===1
+src/shared/listings-actions.ts:175:34  ?? → ||   # listingInputToEdge listingType: never "", so ?? and || coincide
+src/shared/listings-actions.ts:176:39  ?? → ||   # listingInputToEdge monthsPerUnit: 0 ?? 0 === 0 || 0
+src/shared/listings-actions.ts:287:19  ?? → ||   # orphanedAddOnAfterChange groupIds: number[]|undefined — an array is always truthy
+
+# Admin group routes (features/admin/groups.ts) — object/Map/0-fallback nullish
+# coalescing where ?? and || always agree.
+src/features/admin/groups.ts:242:47  ?? → ||   # parseMemberDayPrices byListing.get(): DayPrices|undefined — an object is always truthy
+src/features/admin/groups.ts:261:51  ?? → ||   # parsePackageMembers dayPricesByListing.get(): DayPrices|undefined — an object is always truthy
+src/features/admin/groups.ts:278:37  ?? → ||   # sharedGroupFields max_attendees: number|undefined, 0 ?? 0 === 0 || 0
+src/features/admin/groups.ts:432:55  ?? → ||   # handleGroupEditGet dayPrices.get(): Map|undefined — a Map is always truthy
+src/shared/listings-actions.ts:120:17  ?? → ||   # validateListingGroup existingId ?? 0: a listing id is ≥1 or undefined, never 0, so ?? and || coincide
 
 # attendee merge/refund route: mutants with no observable effect.
 src/features/admin/attendees-merge.ts:356:10  === → !=    # toBookingChoice: keep_target and skip_source are consumed identically (attendee-merge.ts "do nothing for this booking"), so normalizing one to the other is unobservable

@@ -1,0 +1,14 @@
+{
+  "catalog_transfer.export_link": "Export",
+  "catalog_transfer.import_button": "Import from file",
+  "catalog_transfer.page_title": "Import a listing or group",
+  "catalog_transfer.heading": "Import a listing or group",
+  "catalog_transfer.description": "Upload a JSON file exported from this or another site to re-create a listing or group — with its prices, group memberships, and parent references. Any referenced parent listings and groups must already exist here, and the imported name must not already be in use.",
+  "catalog_transfer.file_label": "Catalog file (.json)",
+  "catalog_transfer.upload_button": "Import",
+  "catalog_transfer.no_file": "Please select a JSON file to import.",
+  "catalog_transfer.invalid_json": "The file is not valid JSON.",
+  "catalog_transfer.imported_listing": "Imported listing {name}",
+  "catalog_transfer.imported_group": "Imported group {name}",
+  "catalog_transfer.demo_disabled": "Catalog import is disabled in demo mode."
+}

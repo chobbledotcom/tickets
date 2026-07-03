@@ -423,6 +423,9 @@ export const adminListingsPage = (
           <ActionButton href="/admin/listing/new" icon="plus">
             {t("admin.dashboard.add_listing")}
           </ActionButton>
+          <ActionButton href="/admin/catalog/import" variant="outline">
+            {t("catalog_transfer.import_button")}
+          </ActionButton>
         </p>
       )}
 

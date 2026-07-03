@@ -42,8 +42,13 @@ import {
 } from "#shared/db/listing-prices.ts";
 import {
   getStoredListingWithCount,
+  type ListingInput,
   listingsTable,
 } from "#shared/db/listings.ts";
+import {
+  isNameTakenAnywhere,
+  normalizeEntityName,
+} from "#shared/db/name-registry.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import {
   buildDuplicateListingInput,
@@ -141,6 +146,31 @@ const handleReactivateGroupPost = groupTogglePost({
   active: true,
 });
 
+/** The first generated name — the new group or one of the clones — that would
+ * break the cross-entity name invariant (already used by another listing/group,
+ * or duplicated within this batch), or null when every name is unique. The batch
+ * insert below bypasses the create-path validators, so the rule the form/API
+ * enforce is re-checked here; otherwise a blank find/replace would clone names
+ * verbatim and later make name-based catalog imports ambiguous. */
+const firstDuplicateNameError = async (
+  newGroupName: string,
+  cloneInputs: readonly { input: ListingInput }[],
+): Promise<string | null> => {
+  const seen = new Set<string>();
+  const names = [newGroupName, ...cloneInputs.map(({ input }) => input.name)];
+  for (const name of names) {
+    const key = normalizeEntityName(name);
+    if (seen.has(key)) {
+      return `More than one duplicated listing or group would be named "${name}" — set a find/replace so each name is unique.`;
+    }
+    seen.add(key);
+    if (await isNameTakenAnywhere(name)) {
+      return `A listing or group named "${name}" already exists — choose a different group name, or a find/replace that makes each clone's name unique.`;
+    }
+  }
+  return null;
+};
+
 /** POST /admin/groups/:id/bulk-actions/duplicate */
 const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   const formUrl = `/admin/groups/${group.id}/bulk-actions/duplicate`;
@@ -175,6 +205,11 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
       };
     }),
   );
+  // Reject before any write if the new group name or a clone name collides
+  // (with an existing entity or another clone) — upholding the name invariant.
+  const nameError = await firstDuplicateNameError(newName, cloneInputs);
+  if (nameError) return errorRedirect(formUrl, nameError);
+
   const memberBySource = new Map(
     (await getGroupPackagePrices(group.id)).map((row) => [row.listing_id, row]),
   );

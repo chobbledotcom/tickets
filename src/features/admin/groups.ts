@@ -41,6 +41,7 @@ import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { edgeIdsTouchingMany } from "#shared/db/listing-parents.ts";
 import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
 import { getAttendeesByListingIds, getListing } from "#shared/db/listings.ts";
+import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
 import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
@@ -130,7 +131,7 @@ const isPackageableMember = (
 
 /** Whether every listing can be a package member, judged against ONE batched
  * edge load (two queries for the whole member list, never per member). */
-const allPackageableMembers = async (
+export const allPackageableMembers = async (
   listings: readonly Parameters<typeof isPackageableMember>[0][],
   hideListings: boolean | undefined,
 ): Promise<boolean> => {
@@ -178,6 +179,13 @@ export const soldHiddenPackageError = async (
  * per-member cards. A HIDDEN sold package must not take that fall-back path
  * ({@link soldHiddenPackageError}). */
 export const validateGroupWithPackage: GroupValidator = async (input, id) => {
+  // A group name must be unique across BOTH groups and listings (create and edit
+  // alike), mirroring the listing-side check so the two share one namespace.
+  const nameTaken = await isNameTakenAnywhere(
+    input.name,
+    id === undefined ? undefined : { id: Number(id), kind: "group" },
+  );
+  if (nameTaken) return t("error.name_in_use");
   const slugError = await validateGroupSlug(input, id);
   if (slugError) return slugError;
   if (id === undefined) return null;
@@ -326,13 +334,17 @@ const crudConfig = {
   singular: "Group",
 } as const;
 
-/** Groups resource for REST create operations (auto-generated slug) */
+/** Groups resource for REST create operations (auto-generated slug). Validates
+ * with {@link validateGroupWithPackage} so a new group's name uniqueness is
+ * enforced on create too; the package checks it runs are no-ops on create (the
+ * group has no members yet) and the auto-generated slug is already unique. */
 const groupsCreateResource = defineNamedResource({
   fields: getGroupCreateFields(),
   nameField: "name",
   onDelete: deleteGroup,
   table: groupsTable,
   toInput: extractGroupCreateInput,
+  validate: validateGroupWithPackage,
 });
 
 /** Persist the group's per-listing package overrides (price + quantity) after

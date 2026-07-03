@@ -24,6 +24,24 @@ import {
 
 const getDuplicateForm = getBulkActionForm("duplicate");
 
+/** POST a duplicate that must be rejected on name uniqueness: assert it
+ * redirects back to the form and creates no new group. */
+const expectDuplicateRejected = async (
+  groupId: number,
+  body: Record<string, string>,
+): Promise<void> => {
+  const before = (await getAllGroups()).length;
+  const { response } = await adminFormPost(
+    `/admin/groups/${groupId}/bulk-actions/duplicate`,
+    body,
+  );
+  expect(response.status).toBe(302);
+  expect(response.headers.get("location")).toContain(
+    `/admin/groups/${groupId}/bulk-actions/duplicate`,
+  );
+  expect((await getAllGroups()).length).toBe(before);
+};
+
 describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
   describe("GET /admin/groups/:id/bulk-actions/duplicate", () => {
     test("renders the duplicate form with listing preview data", async () => {
@@ -119,7 +137,11 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/bulk-actions/duplicate`,
-        { new_name: "Priced Copy" },
+        {
+          name_find: "Priced",
+          name_replace: "Cloned",
+          new_name: "Priced Copy",
+        },
       );
       expect(response.status).toBe(302);
 
@@ -146,6 +168,8 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       });
 
       await adminFormPost(`/admin/groups/${group.id}/bulk-actions/duplicate`, {
+        name_find: "Inheriting",
+        name_replace: "Cloned",
         new_name: "Inherits copy",
       });
 
@@ -158,7 +182,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       expect((await getStoredListingWithCount(clone.id))?.hidden).toBe(false);
     });
 
-    test("duplicates with no replacements copies names and dates verbatim", async () => {
+    test("copies dates verbatim when no date replacement is given", async () => {
       const group = await createTestGroup({ name: "Verbatim" });
       const sourceListing = await createTestListing({
         date: "2026-05-01T10:00",
@@ -166,13 +190,16 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         name: "Untouched",
       });
 
+      // A name replacement is still required — names are unique, so a clone may
+      // not keep the source's name — but an empty date replacement leaves the
+      // date verbatim.
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/bulk-actions/duplicate`,
         {
           date_find: "",
           date_replace: "",
-          name_find: "",
-          name_replace: "",
+          name_find: "Untouched",
+          name_replace: "Renamed",
           new_name: "Verbatim Copy",
         },
       );
@@ -183,8 +210,41 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       );
       expect(newGroup).toBeDefined();
       const newListings = await getListingsByGroupId(newGroup!.id);
-      expect(newListings[0]!.name).toBe("Untouched");
+      expect(newListings[0]!.name).toBe("Renamed");
       expect(newListings[0]!.date).toBe(sourceListing.date);
+    });
+
+    test("rejects a duplicate whose clone name would collide", async () => {
+      // A blank find/replace clones the source name verbatim, which would
+      // collide with the still-existing source listing — the name invariant
+      // rejects it before any write.
+      const group = await createTestGroup({ name: "Clashy" });
+      await createTestListing({ groupId: group.id, name: "Only Member" });
+      await expectDuplicateRejected(group.id, { new_name: "Clashy Copy" });
+    });
+
+    test("rejects a new group name already used by another entity", async () => {
+      const group = await createTestGroup({ name: "Dup Src" });
+      await createTestListing({ groupId: group.id, name: "A Member" });
+      await createTestListing({ name: "Taken Name" });
+      await expectDuplicateRejected(group.id, {
+        name_find: "A Member",
+        name_replace: "A Clone",
+        new_name: "Taken Name",
+      });
+    });
+
+    test("rejects when a clone name would equal the new group name", async () => {
+      // The new group name and a clone name collide within the batch (both
+      // brand-new), which no create-path validator would see — caught up front.
+      const group = await createTestGroup({ name: "Collapse" });
+      await createTestListing({ groupId: group.id, name: "Sole Member" });
+      // The clone is renamed to exactly the new group name.
+      await expectDuplicateRejected(group.id, {
+        name_find: "Sole Member",
+        name_replace: "Shared Name",
+        new_name: "Shared Name",
+      });
     });
 
     test("duplicates a large group without tripping the transaction round-trip guard", async () => {
@@ -201,8 +261,9 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         {
           date_find: "",
           date_replace: "",
-          name_find: "",
-          name_replace: "",
+          // "Listing N" → "Clone N" keeps every clone name unique.
+          name_find: "Listing",
+          name_replace: "Clone",
           new_name: "Big Copy",
         },
       );
@@ -274,7 +335,11 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/bulk-actions/duplicate`,
-        { new_name: "Pkg Copy" },
+        {
+          name_find: "Member",
+          name_replace: "Cloned Member",
+          new_name: "Pkg Copy",
+        },
       );
       expect(response.status).toBe(302);
 

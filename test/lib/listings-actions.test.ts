@@ -1,13 +1,40 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { ListingInput } from "#shared/db/listings.ts";
+import { t } from "#i18n";
+import { groupsTable } from "#shared/db/groups.ts";
+import { setChildIds } from "#shared/db/listing-parents.ts";
+import {
+  getListing,
+  getListingWithCount,
+  type ListingInput,
+  listingsTable,
+} from "#shared/db/listings.ts";
 import {
   listingInputToEdge,
+  performListingDelete,
+  toggleListingActive,
   validateListingInput,
 } from "#shared/listings-actions.ts";
-import { setupTestEncryptionKey, testListingInput } from "#test-utils";
+import { downloadRaw, uploadRaw } from "#shared/storage.ts";
+import {
+  createTestGroup,
+  createTestListing,
+  describeWithEnv,
+  getAllActivityLog,
+  setupTestEncryptionKey,
+  testListingInput,
+  withLocalStorageEnabled,
+} from "#test-utils";
 
 setupTestEncryptionKey();
+
+/** Build a full ListingInput from overrides for a validateListingInput call. */
+const inputFor = (overrides: Partial<ListingInput>): ListingInput => ({
+  ...testListingInput(overrides),
+  slug: "some-slug",
+  slugIndex: "some-index",
+  ...overrides,
+});
 
 describe("listingInputToEdge", () => {
   test("defaults every optional field for a sparse input", () => {
@@ -44,7 +71,11 @@ describe("listingInputToEdge", () => {
   });
 });
 
-describe("validateListingInput", () => {
+// validateListingInput now reads the catalog (for cross-entity name
+// uniqueness), so these cases run against an empty test DB — no listing/group
+// shares these names, so the uniqueness check passes and each case exercises
+// the specific rule it names.
+describeWithEnv("validateListingInput", { db: true }, () => {
   test("rejects assignBuiltSite with initialSiteMonths <= 0", async () => {
     const input: ListingInput = {
       ...testListingInput({
@@ -172,5 +203,229 @@ describe("validateListingInput", () => {
       durationDays: 3,
     });
     await expect(validateListingInput(input)).resolves.toBeNull();
+  });
+
+  const NAME_IN_USE = "Name is already in use by another listing or group";
+
+  const namedInput = (name: string): ListingInput => ({
+    ...testListingInput({ name }),
+    slug: "some-slug",
+    slugIndex: "some-index",
+  });
+
+  test("rejects a create whose name is used by an existing listing", async () => {
+    await createTestListing({ name: "Taken Name" });
+    await expect(validateListingInput(namedInput("Taken Name"))).resolves.toBe(
+      NAME_IN_USE,
+    );
+  });
+
+  test("rejects a create whose name is used by a group", async () => {
+    await createTestGroup({ name: "Group Name" });
+    await expect(validateListingInput(namedInput("Group Name"))).resolves.toBe(
+      NAME_IN_USE,
+    );
+  });
+
+  test("lets a listing keep its own name on edit", async () => {
+    const listing = await createTestListing({ name: "Mine" });
+    await expect(
+      validateListingInput(namedInput("Mine"), listing.id),
+    ).resolves.toBeNull();
+  });
+
+  test("rejects renaming a listing to another listing's name", async () => {
+    const first = await createTestListing({ name: "First" });
+    const second = await createTestListing({ name: "Second" });
+    await expect(
+      validateListingInput(namedInput(first.name), second.id),
+    ).resolves.toBe(NAME_IN_USE);
+  });
+});
+
+const PACKAGE_INCOMPATIBLE = "error.package_incompatible_listing";
+
+describeWithEnv("validateListingInput package membership", { db: true }, () => {
+  test("rejects a package group when the listing is a child of another", async () => {
+    const parent = await createTestListing({ name: "Edge Parent" });
+    const child = await createTestListing({ name: "Edge Child" });
+    await setChildIds(parent.id, [child.id]);
+    const pkg = await createTestGroup({ isPackage: true, name: "Edge Pkg" });
+
+    // A package member may never itself be another listing's child.
+    const error = await validateListingInput(
+      inputFor({ groupIds: [pkg.id], name: "Edge Child" }),
+      child.id,
+    );
+    expect(error).toBe(t(PACKAGE_INCOMPATIBLE));
+  });
+
+  test("rejects a hidden package when the listing gates its own children", async () => {
+    const gp = await createTestListing({ name: "Gate Parent" });
+    const gc = await createTestListing({ name: "Gate Child" });
+    await setChildIds(gp.id, [gc.id]);
+    const hidden = await createTestGroup({
+      isPackage: true,
+      name: "Hidden Pkg",
+    });
+    await groupsTable.update(hidden.id, { hidePackageListings: true });
+
+    // A hidden package collapses members to the package name, so a member that
+    // gates children (would render a child selector) leaks them.
+    const error = await validateListingInput(
+      inputFor({ groupIds: [hidden.id], name: "Gate Parent" }),
+      gp.id,
+    );
+    expect(error).toBe(t(PACKAGE_INCOMPATIBLE));
+  });
+});
+
+describeWithEnv("validateListingInput renewal config", { db: true }, () => {
+  test("rejects months-per-unit without No Check-In and Hidden", async () => {
+    const error = await validateListingInput(
+      inputFor({ monthsPerUnit: 1, name: "Renewal One" }),
+    );
+    expect(error).toBe(
+      "Months per unit requires No Check-In and Hidden to be enabled",
+    );
+  });
+
+  test("accepts months-per-unit with No Check-In and Hidden", async () => {
+    const error = await validateListingInput(
+      inputFor({
+        hidden: true,
+        monthsPerUnit: 1,
+        name: "Renewal Two",
+        purchaseOnly: true,
+      }),
+    );
+    expect(error).toBeNull();
+  });
+});
+
+describeWithEnv("toggleListingActive", { db: true }, () => {
+  test("is a no-op when already in the target state", async () => {
+    const listing = await createTestListing({ name: "Toggle Noop" });
+    const withCount = (await getListingWithCount(listing.id))!;
+    expect(await toggleListingActive(listing.id, withCount, true)).toEqual({
+      noChange: true,
+    });
+  });
+
+  test("deactivates, persists, and logs the deactivation", async () => {
+    const listing = await createTestListing({ name: "Toggle Off" });
+    const withCount = (await getListingWithCount(listing.id))!;
+    const result = await toggleListingActive(listing.id, withCount, false);
+    expect("updated" in result && result.updated.active).toBe(false);
+    const log = await getAllActivityLog();
+    expect(
+      log.some(
+        (e) =>
+          e.message.includes("Toggle Off") && e.message.includes("deactivated"),
+      ),
+    ).toBe(true);
+  });
+
+  test("reactivates and logs the reactivation", async () => {
+    const listing = await createTestListing({ name: "Toggle On" });
+    await listingsTable.update(listing.id, { active: false });
+    const withCount = (await getListingWithCount(listing.id))!;
+    const result = await toggleListingActive(listing.id, withCount, true);
+    expect("updated" in result && result.updated.active).toBe(true);
+    const log = await getAllActivityLog();
+    expect(
+      log.some(
+        (e) =>
+          e.message.includes("Toggle On") && e.message.includes("reactivated"),
+      ),
+    ).toBe(true);
+  });
+});
+
+describeWithEnv("performListingDelete", { db: true }, () => {
+  test("removes the row, deletes its storage files, and logs it", async () => {
+    await withLocalStorageEnabled(async () => {
+      const listing = await createTestListing({ name: "Delete Me" });
+      await uploadRaw(new Uint8Array([1, 2, 3]), "delete-me.png");
+      await listingsTable.update(listing.id, { imageUrl: "delete-me.png" });
+      expect(await downloadRaw("delete-me.png")).not.toBeNull();
+
+      const withCount = (await getListingWithCount(listing.id))!;
+      await performListingDelete(withCount);
+
+      expect(await getListing(listing.id)).toBeNull();
+      // The listing's stored image is cleaned up on delete.
+      expect(await downloadRaw("delete-me.png")).toBeNull();
+      const log = await getAllActivityLog();
+      expect(log.some((e) => e.message.includes("Delete Me"))).toBe(true);
+    });
+  });
+});
+
+describeWithEnv("validateListingInput edge rules", { db: true }, () => {
+  test("accepts maxPrice at unit price + 1.00 for a pay-more listing", async () => {
+    // minPrice is unitPrice + 100 (not × 100); 2000 clears 1000 + 100.
+    const error = await validateListingInput(
+      inputFor({
+        canPayMore: true,
+        maxPrice: 2000,
+        name: "Pay More OK",
+        unitPrice: 1000,
+      }),
+    );
+    expect(error).toBeNull();
+  });
+
+  test("rejects maxPrice below unit price + 1.00 for a pay-more listing", async () => {
+    const error = await validateListingInput(
+      inputFor({
+        canPayMore: true,
+        maxPrice: 1050,
+        name: "Pay More Low",
+        unitPrice: 1000,
+      }),
+    );
+    expect(error).toContain("Maximum price must be at least");
+  });
+
+  test("allows a visible package member that gates its own children", async () => {
+    const member = await createTestListing({ name: "Vis Member" });
+    const child = await createTestListing({ name: "Vis Child" });
+    await setChildIds(member.id, [child.id]);
+    const pkg = await createTestGroup({ isPackage: true, name: "Visible Pkg" });
+
+    // A VISIBLE package renders a member's child selector like any parent row,
+    // so a member that gates children is a valid member (unlike a hidden one).
+    const error = await validateListingInput(
+      inputFor({ groupIds: [pkg.id], name: "Vis Member" }),
+      member.id,
+    );
+    expect(error).toBeNull();
+  });
+
+  test("rejects months-per-unit with No Check-In but not Hidden", async () => {
+    const error = await validateListingInput(
+      inputFor({
+        hidden: false,
+        monthsPerUnit: 1,
+        name: "Renewal Mixed",
+        purchaseOnly: true,
+      }),
+    );
+    expect(error).toBe(
+      "Months per unit requires No Check-In and Hidden to be enabled",
+    );
+  });
+
+  test("a create ignores a slug already used by another listing", async () => {
+    const owner = await createTestListing({ name: "Slug Owner" });
+    // On create the slug is auto-uniquified downstream, so validation does not
+    // reject a colliding slug (that check is update-only).
+    const error = await validateListingInput({
+      ...inputFor({ name: "Slug Taker" }),
+      slug: owner.slug,
+      slugIndex: "taker-index",
+    });
+    expect(error).toBeNull();
   });
 });

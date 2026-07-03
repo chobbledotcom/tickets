@@ -375,23 +375,26 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       );
     });
 
-    test("rejects duplicate slug", async () => {
-      // First, create an listing with a specific name
+    test("rejects a duplicate listing name", async () => {
+      // First, create a listing with a specific name
       await setupListingAndLogin({
         maxAttendees: 100,
         name: "Duplicate Listing",
         thankYouUrl: "https://example.com",
       });
 
-      // Try to create another listing with the same name (generates same slug)
+      // A second listing may not reuse the name — names are unique across the
+      // catalog so listings/groups can be referenced by name for import/export.
       const { response } = await adminMultipartPost("/admin/listing", {
         max_attendees: "50",
         max_quantity: "1",
         name: "Duplicate Listing",
         thank_you_url: "https://example.com",
       });
-      // Slug auto-generated so creation succeeds
-      await expectFlashRedirect("/admin", "Listing created")(response);
+      expect(response.status).toBe(400);
+      expect(await response.text()).toContain(
+        "Name is already in use by another listing or group",
+      );
     });
   });
 
@@ -901,6 +904,20 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain('href="/admin/listing/1/duplicate"');
       expect(html).toContain("<span>Duplicate</span>");
+    });
+
+    test("shows the JSON export link on the Actions tab", async () => {
+      const { cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const response = await awaitTestRequest("/admin/listing/1/actions", {
+        cookie: cookie,
+      });
+      const html = await response.text();
+      expect(html).toContain('href="/admin/listing/1/export.json"');
+      expect(html).toContain("<span>Export</span>");
     });
   });
 

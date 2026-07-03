@@ -128,6 +128,12 @@ export const invalidateGroupsCache = (): void => groupsCache.invalidate();
  */
 export const getAllGroups = (): Promise<Group[]> => groupsCache.getAll();
 
+/** Every group keyed by id, from the request-cached set — the batched
+ * alternative to one findById per id when resolving or validating many groups
+ * without tripping the N+1 read guard. */
+export const getGroupsById = async (): Promise<Map<number, Group>> =>
+  new Map((await getAllGroups()).map((g) => [g.id, g]));
+
 /** Narrow id → name map for every group (selects + decrypts only the name), for
  * pickers/labels that must not load the whole groups cache. */
 export const getAllGroupNames = (): Promise<Map<number, string>> =>
@@ -177,17 +183,19 @@ export const getActiveListingsByGroupId = (
 ): Promise<ListingWithCount[]> => queryGroupListings(groupId, true);
 
 /**
- * The active members of SEVERAL groups at once, keyed by group id — the batched
- * form of {@link getActiveListingsByGroupId} for a multi-group surface (the
- * site-page nav's liveness gate). A page with many group leaves would otherwise
- * run one member query per group; this loads the join once and the member
- * listings once, then assembles each group's list in memory. Every group id maps
- * to an entry (empty when it has no active member), and each list preserves the
- * same newest-first order the single-group query returns (the member listings
- * come back sorted, and the per-group filter keeps that order).
+ * Members of SEVERAL groups at once, keyed by group id — the batched form of the
+ * single-group loaders for a multi-group surface. A page with many group leaves
+ * would otherwise run one member query per group; this loads the join once and
+ * the member listings once, then assembles each group's list in memory. Every
+ * requested group id maps to an entry (empty when it has no matching member).
+ * `activeOnly` keeps just active members (the site-page nav's liveness gate); the
+ * default includes inactive members (the validators' group-compatibility read
+ * for a listing that joins many groups, kept batched to stay under the N+1
+ * guard).
  */
-export const getActiveListingsByGroupIds = async (
+export const getListingsByGroupIds = async (
   groupIds: readonly number[],
+  activeOnly = false,
 ): Promise<Map<number, ListingWithCount[]>> => {
   const byGroup = new Map<number, ListingWithCount[]>(
     groupIds.map((id) => [id, []]),
@@ -210,11 +218,20 @@ export const getActiveListingsByGroupIds = async (
   for (const [groupId, ids] of memberIdsByGroup) {
     byGroup.set(
       groupId,
-      members.filter((member) => member.active && ids.has(member.id)),
+      members.filter(
+        (member) => (!activeOnly || member.active) && ids.has(member.id),
+      ),
     );
   }
   return byGroup;
 };
+
+/** Active members of several groups, keyed by group id — the public site-nav's
+ * liveness gate. */
+export const getActiveListingsByGroupIds = (
+  groupIds: readonly number[],
+): Promise<Map<number, ListingWithCount[]>> =>
+  getListingsByGroupIds(groupIds, true);
 
 /** Does a group row exist? The add-item revalidation's single-row check — no
  * name decryption, never the whole table. */
@@ -244,8 +261,27 @@ export const validateGroupListingType = async (
   listingType: ListingType,
   customisableDays: boolean,
   excludeListingId?: number,
-): Promise<string | null> => {
-  const allSiblings = await getListingsByGroupId(groupId);
+): Promise<string | null> =>
+  groupListingTypeError(
+    await getListingsByGroupId(groupId),
+    listingType,
+    customisableDays,
+    excludeListingId,
+  );
+
+/**
+ * The in-memory core of {@link validateGroupListingType}: given a group's
+ * already-loaded members, return the homogeneity error (or null). Callers that
+ * validate many groups at once batch the member reads (see
+ * {@link getListingsByGroupIds}) and drive this directly, so they never issue
+ * one sibling query per group and trip the N+1 read guard.
+ */
+export const groupListingTypeError = (
+  allSiblings: readonly ListingWithCount[],
+  listingType: ListingType,
+  customisableDays: boolean,
+  excludeListingId?: number,
+): string | null => {
   const siblings = allSiblings.filter((e) => e.id !== excludeListingId);
   const typeMismatch = siblings.find((e) => e.listing_type !== listingType);
   if (typeMismatch) {
