@@ -18,6 +18,14 @@ const configPath = fromFileUrl(new URL("../deno.json", import.meta.url));
 const STATIC_DIR = "./src/ui/static";
 
 /**
+ * The loader ships its own esbuild type declarations, whose PluginBuild type can
+ * drift from the npm esbuild package even though the runtime plugin shape is the
+ * same. Keep that incompatibility at this adapter boundary.
+ */
+const denoLoaderPlugins = (): esbuild.Plugin[] =>
+  denoPlugins({ configPath }) as unknown as esbuild.Plugin[];
+
+/**
  * Output files produced by {@link buildStaticAssets}, keyed by bundle. These
  * are generated build artifacts (gitignored), so the test harness uses this
  * list to clean up any it generates after a run.
@@ -90,7 +98,7 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
       minify: true,
       outfile: STATIC_ASSET_OUTFILES.scanner,
       platform: "browser",
-      plugins: [...denoPlugins({ configPath })],
+      plugins: denoLoaderPlugins(),
     },
   },
   {
@@ -102,7 +110,7 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
       minify: true,
       outfile: STATIC_ASSET_OUTFILES.admin,
       platform: "browser",
-      plugins: [...denoPlugins({ configPath })],
+      plugins: denoLoaderPlugins(),
     },
   },
   {
@@ -114,7 +122,7 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
       minify: true,
       outfile: STATIC_ASSET_OUTFILES.embed,
       platform: "browser",
-      plugins: [...denoPlugins({ configPath })],
+      plugins: denoLoaderPlugins(),
     },
   },
   {
@@ -126,7 +134,7 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
       minify: true,
       outfile: STATIC_ASSET_OUTFILES.contact,
       platform: "browser",
-      plugins: [...denoPlugins({ configPath })],
+      plugins: denoLoaderPlugins(),
     },
   },
   {
@@ -142,7 +150,7 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
       minify: true,
       outfile: STATIC_ASSET_OUTFILES.order,
       platform: "browser",
-      plugins: [...denoPlugins({ configPath })],
+      plugins: denoLoaderPlugins(),
     },
   },
   {
@@ -154,7 +162,7 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
       minify: true,
       outfile: STATIC_ASSET_OUTFILES.iframeResizerParent,
       platform: "browser",
-      plugins: [...denoPlugins({ configPath })],
+      plugins: denoLoaderPlugins(),
     },
   },
   {
@@ -167,7 +175,7 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
       minify: true,
       outfile: STATIC_ASSET_OUTFILES.iframeResizerChild,
       platform: "browser",
-      plugins: [...denoPlugins({ configPath })],
+      plugins: denoLoaderPlugins(),
     },
   },
 ];

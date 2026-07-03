@@ -10,8 +10,7 @@
  * generated assets are cleaned up afterwards rather than left in the tree.
  */
 
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import {
   buildStaticAssets,
   STATIC_ASSET_OUTFILES,
@@ -21,10 +20,10 @@ import {
   hasReporterArg,
   runCompactDenoTest,
 } from "./compact-test-reporter.ts";
+import { projectRoot } from "./project-root.ts";
 
 const STRIPE_MOCK_VERSION = "0.188.0";
 export const STRIPE_MOCK_PORT = 12111;
-export const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const BIN_DIR = join(projectRoot, ".bin");
 const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");
 const verboseHarness = Deno.env.get("TICKETS_TEST_HARNESS_VERBOSE") === "1";
@@ -210,12 +209,13 @@ export const runTests = async (
   };
 
   if (!hasReporterArg(extraArgs)) {
+    const estimatedTotal = await estimateTapEventCount(projectRoot, extraArgs);
     return await runCompactDenoTest(
       buildDenoTestArgs(extraArgs, useCoverage, "tap", junitPath),
       {
         cwd: projectRoot,
         env,
-        estimatedTotal: await estimateTapEventCount(projectRoot, extraArgs),
+        ...(estimatedTotal === undefined ? {} : { estimatedTotal }),
       },
     );
   }

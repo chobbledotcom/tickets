@@ -49,10 +49,12 @@ export interface IgnoreList {
 }
 
 /** Load the ignore-list (empty when the file is absent). */
-export const loadIgnoreList = async (): Promise<IgnoreList> => {
+export const loadIgnoreList = async (
+  ignoreFile: string | URL = IGNORE_FILE,
+): Promise<IgnoreList> => {
   let text: string;
   try {
-    text = await Deno.readTextFile(IGNORE_FILE);
+    text = await Deno.readTextFile(ignoreFile);
   } catch {
     return { entries: [], keys: new Set() };
   }

@@ -6,6 +6,9 @@
  *   - UNARY operators                         — `!x → x` (drop a guard), `-x ↔ +x`
  *   - UPDATE operators                        — `i++ ↔ i--`
  *   - boolean LITERALS                        — `true ↔ false`
+ *   - string / numeric LITERALS               — `"x" → ""`, `5 → 0`
+ *   - RETURN / THROW / loop-control flow      — dropped or neutralized
+ *   - CONDITIONAL expressions                 — swapped/forced ternary arms
  *   - side-effect STATEMENTS                  — `await persist(x); → ;`
  *
  * Each mutant is a source span [start, end) replaced by `replacement` (which
@@ -18,7 +21,7 @@
  */
 
 import { parseSync } from "npm:oxc-parser@0.132.0";
-import { flatMap } from "#fp";
+import { flatMap, unique } from "#fp";
 import {
   assignmentOperators,
   assignmentOperatorsExhaustive,
@@ -46,7 +49,9 @@ export interface Mutant {
 
 /** The subset of an oxc AST node we care about (covers every mutated shape). */
 interface AstNode {
+  alternate?: { end: number; start: number };
   argument?: { end: number; start: number };
+  consequent?: { end: number; start: number };
   end?: number;
   expression?: { type?: string };
   left?: { end: number };
@@ -54,6 +59,7 @@ interface AstNode {
   prefix?: boolean;
   right?: { start: number };
   start?: number;
+  test?: { end: number; start: number };
   type?: string;
   value?: unknown;
 }
@@ -76,7 +82,8 @@ const spanMutant = (
   replacement?: string,
 ): Mutant => {
   const { column, line } = lineColumnAt(content, start);
-  return { column, end, line, newOperator, operator, replacement, start };
+  const base = { column, end, line, newOperator, operator, start };
+  return replacement === undefined ? base : { ...base, replacement };
 };
 
 // --- Binary / logical / assignment operators -----------------------------
@@ -92,10 +99,14 @@ const operatorMutants = (
   content: string,
   exhaustive: boolean,
 ): Mutant[] => {
-  const tables = node.type ? MUTABLE_NODES[node.type] : undefined;
-  const { left, operator, right } = node;
-  if (!tables || !left || !right || !operator) return [];
-  return (tables[exhaustive ? 1 : 0][operator] ?? []).map((newOperator) =>
+  const { left, operator, right, type } = node as AstNode & {
+    left: { end: number };
+    operator: string;
+    right: { start: number };
+    type: keyof typeof MUTABLE_NODES;
+  };
+  const tables = MUTABLE_NODES[type]!;
+  return tables[exhaustive ? 1 : 0][operator]!.map((newOperator) =>
     spanMutant(content, left.end, right.start, operator, newOperator),
   );
 };
@@ -112,8 +123,11 @@ const UNARY_MUTATIONS: Record<
 };
 
 const unaryMutants = (node: AstNode, content: string): Mutant[] => {
-  const { argument, operator, start } = node;
-  if (!argument || operator === undefined || start === undefined) return [];
+  const { argument, operator, start } = node as AstNode & {
+    argument: { start: number };
+    operator: string;
+    start: number;
+  };
   // A prefix unary operator occupies [node.start, argument.start).
   return (UNARY_MUTATIONS[operator] ?? []).map((m) =>
     spanMutant(
@@ -130,15 +144,13 @@ const unaryMutants = (node: AstNode, content: string): Mutant[] => {
 // --- Update operators: `i++ ↔ i--` ---------------------------------------
 
 const updateMutants = (node: AstNode, content: string): Mutant[] => {
-  const { argument, end, operator, prefix, start } = node;
-  if (
-    !argument ||
-    operator === undefined ||
-    start === undefined ||
-    end === undefined
-  ) {
-    return [];
-  }
+  const { argument, end, operator, prefix, start } = node as AstNode & {
+    argument: { end: number; start: number };
+    end: number;
+    operator: "++" | "--";
+    prefix: boolean;
+    start: number;
+  };
   const flipped = operator === "++" ? "--" : "++";
   // Prefix occupies [node.start, argument.start); postfix [argument.end, node.end).
   const [opStart, opEnd] = prefix
@@ -163,24 +175,163 @@ const booleanMutants = (node: AstNode, content: string): Mutant[] => {
   ];
 };
 
+// --- Runtime literals: strings and numbers -------------------------------
+
+const literalReplacementMutants = (
+  node: AstNode,
+  content: string,
+  replacements: string[],
+): Mutant[] => {
+  const { end, start, value } = node as AstNode & {
+    end: number;
+    start: number;
+  };
+  const current = content.slice(start, end);
+  return unique(replacements)
+    .filter((replacement) => replacement !== current)
+    .map((replacement) =>
+      spanMutant(content, start, end, String(value), replacement, replacement),
+    );
+};
+
+const stringLiteralMutants = (
+  node: AstNode,
+  content: string,
+  exhaustive: boolean,
+): Mutant[] => {
+  const { value } = node;
+  if (typeof value !== "string") return [];
+  const replacements =
+    value === ""
+      ? ['"mutated"']
+      : ['""', ...(exhaustive ? [JSON.stringify(`${value} mutated`)] : [])];
+  return literalReplacementMutants(node, content, replacements);
+};
+
+const numberText = (value: number): string => String(value);
+
+const numberLiteralMutants = (
+  node: AstNode,
+  content: string,
+  exhaustive: boolean,
+): Mutant[] => {
+  const { value } = node;
+  if (typeof value !== "number") return [];
+  const defaultValue = value === 0 ? 1 : 0;
+  const values = [
+    defaultValue,
+    ...(exhaustive ? [value + 1, value - 1, -value] : []),
+  ];
+  const replacements = values.map(numberText);
+  return literalReplacementMutants(node, content, replacements);
+};
+
+const literalMutants = (
+  node: AstNode,
+  content: string,
+  exhaustive: boolean,
+): Mutant[] => [
+  ...booleanMutants(node, content),
+  ...numberLiteralMutants(node, content, exhaustive),
+  ...stringLiteralMutants(node, content, exhaustive),
+];
+
 // --- Side-effect statement removal: `await persist(x); → ;` ---------------
 
 const REMOVABLE_EXPRESSIONS = new Set(["AwaitExpression", "CallExpression"]);
 
 const statementRemovalMutants = (node: AstNode, content: string): Mutant[] => {
-  const { end, expression, start } = node;
-  if (
-    !expression ||
-    !REMOVABLE_EXPRESSIONS.has(expression.type ?? "") ||
-    start === undefined ||
-    end === undefined
-  ) {
-    return [];
-  }
+  const { end, expression, start } = node as AstNode & {
+    end: number;
+    expression: { type: string };
+    start: number;
+  };
+  if (!REMOVABLE_EXPRESSIONS.has(expression.type)) return [];
   const text = content.slice(start, end).replace(/\s+/g, " ").trim();
   const label = text.length > 40 ? `${text.slice(0, 39)}…` : text;
   // Replace with an empty statement — valid even as a braceless if/for/while body.
   return [spanMutant(content, start, end, label, "(removed)", ";")];
+};
+
+// --- Control-flow removals ------------------------------------------------
+
+const clippedText = (content: string, start: number, end: number): string => {
+  const text = content.slice(start, end).replace(/\s+/g, " ").trim();
+  return text.length > 40 ? `${text.slice(0, 39)}…` : text;
+};
+
+const returnMutants = (node: AstNode, content: string): Mutant[] => {
+  const { argument } = node;
+  if (!argument) return [];
+  return [
+    spanMutant(
+      content,
+      argument.start,
+      argument.end,
+      `return ${clippedText(content, argument.start, argument.end)}`,
+      "return undefined",
+      "undefined",
+    ),
+  ];
+};
+
+const statementRemoval = (node: AstNode, content: string): Mutant[] => {
+  const { end, start } = node as AstNode & { end: number; start: number };
+  return [
+    spanMutant(
+      content,
+      start,
+      end,
+      clippedText(content, start, end),
+      "(removed)",
+      ";",
+    ),
+  ];
+};
+
+const conditionalMutants = (
+  node: AstNode,
+  content: string,
+  exhaustive: boolean,
+): Mutant[] => {
+  const { alternate, consequent, end, start } = node as AstNode & {
+    alternate: { end: number; start: number };
+    consequent: { end: number; start: number };
+    end: number;
+    start: number;
+  };
+  const consequentText = content.slice(consequent.start, consequent.end);
+  const alternateText = content.slice(alternate.start, alternate.end);
+  return [
+    spanMutant(
+      content,
+      consequent.start,
+      alternate.end,
+      "?:",
+      "arms swapped",
+      `${alternateText} : ${consequentText}`,
+    ),
+    ...(exhaustive
+      ? [
+          spanMutant(
+            content,
+            start,
+            end,
+            "?:",
+            "consequent only",
+            consequentText,
+          ),
+          spanMutant(
+            content,
+            start,
+            end,
+            "?:",
+            "alternate only",
+            alternateText,
+          ),
+        ]
+      : []),
+  ];
 };
 
 // --- Dispatch + entry point ----------------------------------------------
@@ -198,23 +349,32 @@ const mutantsForNode =
       case "UpdateExpression":
         return updateMutants(node, content);
       case "Literal":
-        return booleanMutants(node, content);
+        return literalMutants(node, content, exhaustive);
       case "ExpressionStatement":
         return statementRemovalMutants(node, content);
+      case "ReturnStatement":
+        return returnMutants(node, content);
+      case "ThrowStatement":
+      case "BreakStatement":
+      case "ContinueStatement":
+        return statementRemoval(node, content);
+      case "ConditionalExpression":
+        return conditionalMutants(node, content, exhaustive);
       default:
         return [];
     }
   };
 
 /**
- * Fields whose value is a TypeScript type rather than runtime code. Crossing one
- * enters type context, and nothing runtime lives below a type, so the flag
- * sticks. Keying on the field (not the node's type) means runtime code carried
- * by TS-prefixed nodes is still mutated — e.g. `enum E { A = 1 + 2 }`,
- * `constructor(private x = build())`, and the operand of `x as T`.
+ * Fields whose value is not runtime code. Crossing one enters a non-runtime
+ * context, and nothing below it is worth mutating. Keying on the field (not the
+ * node's type) means runtime code carried by TS-prefixed nodes is still mutated
+ * — e.g. `enum E { A = 1 + 2 }`, `constructor(private x = build())`, and the
+ * operand of `x as T`.
  */
-const TYPE_FIELDS = new Set([
+const NON_RUNTIME_FIELDS = new Set([
   "returnType",
+  "source",
   "superTypeArguments",
   "typeAnnotation",
   "typeArguments",
@@ -223,43 +383,51 @@ const TYPE_FIELDS = new Set([
 
 /**
  * Depth-first stream of every typed node, tagged with whether it sits inside a
- * TypeScript type. A type is erased at runtime, so mutating it (e.g. the `true`
- * in `{ ok: true }`) is always an equivalent no-op — those nodes are skipped.
+ * non-runtime context. Types are erased at runtime, module specifiers are load
+ * wiring rather than application behavior, and `declare` statements are
+ * ambient (erased) declarations, so those nodes are skipped. Array elisions
+ * (`const [, year] = parts`) appear as `null` children, hence the guard.
  */
 function* walk(
   node: unknown,
-  inType = false,
-): Generator<{ inType: boolean; node: AstNode }> {
+  inNonRuntime = false,
+): Generator<{ inNonRuntime: boolean; node: AstNode }> {
   if (!node || typeof node !== "object") return;
   const record = node as Record<string, unknown>;
+  const nonRuntime = inNonRuntime || record.declare === true;
   if (typeof record.type === "string")
-    yield { inType, node: record as AstNode };
+    yield { inNonRuntime: nonRuntime, node: record as AstNode };
   for (const [key, value] of Object.entries(record)) {
-    const childInType = inType || TYPE_FIELDS.has(key);
+    const childInNonRuntime = nonRuntime || NON_RUNTIME_FIELDS.has(key);
     if (Array.isArray(value)) {
-      for (const child of value) yield* walk(child, childInType);
+      for (const child of value) yield* walk(child, childInNonRuntime);
     } else if (value && typeof value === "object") {
-      yield* walk(value, childInType);
+      yield* walk(value, childInNonRuntime);
     }
   }
 }
 
-/** Generate every mutant for a source file's contents. */
+/**
+ * Generate every mutant for a source file's contents. Declaration files are
+ * entirely ambient — erased at runtime, run with `--no-check` — so no test can
+ * observe a mutation to one; they yield no mutants rather than false survivors.
+ */
 export const generateMutants = (
   content: string,
   filePath: string,
   exhaustive: boolean,
 ): Mutant[] => {
-  const fileName = filePath.split("/").pop() ?? filePath;
+  if (filePath.endsWith(".d.ts")) return [];
+  const fileName = filePath.split("/").pop() as string;
   const { program } = parseSync(fileName, content);
   const mutate = mutantsForNode(content, exhaustive);
-  return flatMap((entry: { inType: boolean; node: AstNode }) =>
-    entry.inType ? [] : mutate(entry.node),
+  return flatMap((entry: { inNonRuntime: boolean; node: AstNode }) =>
+    entry.inNonRuntime ? [] : mutate(entry.node),
   )([...walk(program)]);
 };
 
 /** Apply a mutant to the original source, returning the mutated source. */
-export const applyMutant = (content: string, mutant: Mutant): string =>
-  `${content.slice(0, mutant.start)} ${
-    mutant.replacement ?? mutant.newOperator
-  } ${content.slice(mutant.end)}`;
+export const applyMutant = (content: string, mutant: Mutant): string => {
+  const replacement = mutant.replacement ?? mutant.newOperator;
+  return `${content.slice(0, mutant.start)} ${replacement} ${content.slice(mutant.end)}`;
+};
