@@ -9,8 +9,9 @@ import {
   mutantKey,
 } from "../../scripts/mutation/ignore.ts";
 import type { MutantResult } from "../../scripts/mutation/summary.ts";
+import { projectRoot } from "../../scripts/project-root.ts";
 
-const file = "/home/user/git/tickets-2/src/example.ts";
+const file = `${projectRoot}/src/example.ts`;
 
 const mutant = (line: number, operator = "??", newOperator = "||"): Mutant => ({
   column: 5,
