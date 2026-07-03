@@ -20,6 +20,7 @@ import {
 import { getListingFields } from "#templates/fields.ts";
 import {
   describeWithEnv,
+  setTestEnv,
   setupTestEncryptionKey,
   TEST_STORAGE_ZONE,
   testAttendee,
@@ -29,6 +30,21 @@ import {
 } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
+
+/** Run fn with CAN_BUILD_SITES pinned to `value` in this worker's env overlay
+ *  — never the real process env, which every parallel test worker shares. */
+const withBuilderEnv =
+  (value: string | undefined) =>
+  (fn: () => void): void => {
+    const restore = setTestEnv({ CAN_BUILD_SITES: value });
+    try {
+      fn();
+    } finally {
+      restore();
+    }
+  };
+const withBuilder = withBuilderEnv("true");
+const withoutBuilder = withBuilderEnv(undefined);
 
 /** Render the listing detail view the way the entity page composes it: the
  *  Overview panel (details table, income/ledger) plus the Roster panel (attendee
@@ -323,15 +339,6 @@ describe("adminListingNewPage Advanced section", () => {
 });
 
 describe("adminListingEditPage Advanced section auto-open (builder fields)", () => {
-  const withBuilder = (fn: () => void): void => {
-    Deno.env.set("CAN_BUILD_SITES", "true");
-    try {
-      fn();
-    } finally {
-      Deno.env.delete("CAN_BUILD_SITES");
-    }
-  };
-
   test("opens when a renewal tier (months per unit) is set", () => {
     withBuilder(() => {
       const listing = testListingWithCount({
@@ -1906,74 +1913,63 @@ describeWithEnv(
 
     describe("assign_built_site field", () => {
       test("shows assign built site field when CAN_BUILD_SITES is true", () => {
-        Deno.env.set("CAN_BUILD_SITES", "true");
-        try {
+        withBuilder(() => {
           const html = adminListingNewPage([], TEST_SESSION);
           expect(html).toContain("assign_built_site");
           expect(html).toContain("Assign a site on booking");
-        } finally {
-          Deno.env.delete("CAN_BUILD_SITES");
-        }
+        });
       });
 
       test("hides assign built site field when CAN_BUILD_SITES is not set", () => {
-        Deno.env.delete("CAN_BUILD_SITES");
-        const html = adminListingNewPage([], TEST_SESSION);
-        expect(html).not.toContain("assign_built_site");
+        withoutBuilder(() => {
+          const html = adminListingNewPage([], TEST_SESSION);
+          expect(html).not.toContain("assign_built_site");
+        });
       });
 
       test("shows on edit page when CAN_BUILD_SITES is true", () => {
-        Deno.env.set("CAN_BUILD_SITES", "true");
-        try {
+        withBuilder(() => {
           const listing = testListingWithCount({ assign_built_site: true });
           const html = String(
             ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
           );
           expect(html).toContain("assign_built_site");
           expect(html).toContain("checked");
-        } finally {
-          Deno.env.delete("CAN_BUILD_SITES");
-        }
+        });
       });
 
       test("shows on duplicate page when CAN_BUILD_SITES is true", () => {
-        Deno.env.set("CAN_BUILD_SITES", "true");
-        try {
+        withBuilder(() => {
           const listing = testListingWithCount({ assign_built_site: true });
           const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
           expect(html).toContain("assign_built_site");
-        } finally {
-          Deno.env.delete("CAN_BUILD_SITES");
-        }
+        });
       });
     });
 
     describe("months_per_unit and initial_site_months fields", () => {
       test("shows months_per_unit and initial_site_months when CAN_BUILD_SITES is true", () => {
-        Deno.env.set("CAN_BUILD_SITES", "true");
-        try {
+        withBuilder(() => {
           const html = adminListingNewPage([], TEST_SESSION);
           expect(html).toContain("months_per_unit");
           expect(html).toContain("Months Per Unit");
           expect(html).toContain("initial_site_months");
           expect(html).toContain("Initial Site Months");
-        } finally {
-          Deno.env.delete("CAN_BUILD_SITES");
-        }
+        });
       });
 
       test("hides months_per_unit and initial_site_months when CAN_BUILD_SITES is not set", () => {
-        Deno.env.delete("CAN_BUILD_SITES");
-        const html = adminListingNewPage([], TEST_SESSION);
-        expect(html).not.toContain("months_per_unit");
-        expect(html).not.toContain("Months Per Unit");
-        expect(html).not.toContain("initial_site_months");
-        expect(html).not.toContain("Initial Site Months");
+        withoutBuilder(() => {
+          const html = adminListingNewPage([], TEST_SESSION);
+          expect(html).not.toContain("months_per_unit");
+          expect(html).not.toContain("Months Per Unit");
+          expect(html).not.toContain("initial_site_months");
+          expect(html).not.toContain("Initial Site Months");
+        });
       });
 
       test("shows on edit page when CAN_BUILD_SITES is true", () => {
-        Deno.env.set("CAN_BUILD_SITES", "true");
-        try {
+        withBuilder(() => {
           const listing = testListingWithCount({
             initial_site_months: 6,
             months_per_unit: 3,
@@ -1983,27 +1979,25 @@ describeWithEnv(
           );
           expect(html).toContain("months_per_unit");
           expect(html).toContain("initial_site_months");
-        } finally {
-          Deno.env.delete("CAN_BUILD_SITES");
-        }
+        });
       });
 
       test("hides on edit page when CAN_BUILD_SITES is not set", () => {
-        Deno.env.delete("CAN_BUILD_SITES");
-        const listing = testListingWithCount({
-          initial_site_months: 6,
-          months_per_unit: 3,
+        withoutBuilder(() => {
+          const listing = testListingWithCount({
+            initial_site_months: 6,
+            months_per_unit: 3,
+          });
+          const html = String(
+            ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+          );
+          expect(html).not.toContain("months_per_unit");
+          expect(html).not.toContain("initial_site_months");
         });
-        const html = String(
-          ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
-        );
-        expect(html).not.toContain("months_per_unit");
-        expect(html).not.toContain("initial_site_months");
       });
 
       test("shows on duplicate page when CAN_BUILD_SITES is true", () => {
-        Deno.env.set("CAN_BUILD_SITES", "true");
-        try {
+        withBuilder(() => {
           const listing = testListingWithCount({
             initial_site_months: 6,
             months_per_unit: 3,
@@ -2011,20 +2005,19 @@ describeWithEnv(
           const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
           expect(html).toContain("months_per_unit");
           expect(html).toContain("initial_site_months");
-        } finally {
-          Deno.env.delete("CAN_BUILD_SITES");
-        }
+        });
       });
 
       test("hides on duplicate page when CAN_BUILD_SITES is not set", () => {
-        Deno.env.delete("CAN_BUILD_SITES");
-        const listing = testListingWithCount({
-          initial_site_months: 6,
-          months_per_unit: 3,
+        withoutBuilder(() => {
+          const listing = testListingWithCount({
+            initial_site_months: 6,
+            months_per_unit: 3,
+          });
+          const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
+          expect(html).not.toContain("months_per_unit");
+          expect(html).not.toContain("initial_site_months");
         });
-        const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
-        expect(html).not.toContain("months_per_unit");
-        expect(html).not.toContain("initial_site_months");
       });
     });
   },
