@@ -91,8 +91,11 @@ describe("AttendeeTable", () => {
     test("renders Ticket column with link", () => {
       const html = AttendeeTable(makeOpts());
       expect(html).toContain("<th>Ticket</th>");
-      expect(html).toContain(`https://${ALLOWED_DOMAIN}/t/test-token-1`);
-      expect(html).toContain("test-token-1");
+      // Assert the unescaped anchor (not just the URL substring), so the ticket
+      // column's isHtml flag is exercised — an escaped cell would fail this.
+      expect(html).toContain(
+        `<a href="https://${ALLOWED_DOMAIN}/t/test-token-1">test-token-1</a>`,
+      );
     });
 
     test("renders Registered column", () => {

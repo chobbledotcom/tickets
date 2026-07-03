@@ -337,4 +337,44 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
       "2026-01-01T12:00:00Z",
     );
   });
+
+  test("answers cell renders a free-text answer and its Question: Answer tooltip", () => {
+    const questionData = {
+      attendeeAnswerMap: new Map<number, number[]>(),
+      questions: [
+        {
+          answers: [],
+          display_type: "free_text" as const,
+          id: 5,
+          text: "Access needs?",
+        },
+      ],
+      textAnswerMap: new Map([[1, new Map([[5, "Wheelchair ramp"]])]]),
+    };
+    const html = ATTENDEE_TABLE_COLUMNS.answers!.cell(
+      makeRow({ attendee: testAttendee({ id: 1 }) }),
+      { ...opts, questionData },
+    );
+    expect(html).toContain(">Wheelchair ramp</span>");
+    expect(html).toContain('title="Access needs?: Wheelchair ramp"');
+  });
+
+  test("answers cell shows a radio answer with no tooltip when its question text is unknown", () => {
+    // The answer id resolves to text but not to a question, so the tooltip part
+    // (which needs both) is skipped while the short value still renders.
+    const questionData = {
+      attendeeAnswerMap: new Map([[1, [10]]]),
+      questions: [],
+    };
+    const html = ATTENDEE_TABLE_COLUMNS.answers!.cell(
+      makeRow({ attendee: testAttendee({ id: 1 }) }),
+      {
+        ...opts,
+        answerQuestionMap: new Map<number, string>(),
+        answerTextMap: new Map([[10, "Red"]]),
+        questionData,
+      },
+    );
+    expect(html).toBe('<span title="">Red</span>');
+  });
 });
