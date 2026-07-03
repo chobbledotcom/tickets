@@ -99,6 +99,16 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
     );
   });
 
+  test("rejects a price above the safe-integer range", async () => {
+    // 1e100 is an "integer" to Number.isInteger but not safe; the money layer
+    // rejects such minor-unit amounts, so the import must too rather than round
+    // it or throw a raw storage error.
+    await expectListingImportError(
+      { maxAttendees: 1, name: "Rich", unitPrice: 1e100 },
+      "unitPrice",
+    );
+  });
+
   test("rejects fractional seconds without a seconds component", async () => {
     // Fractional seconds are only meaningful after a seconds field; a bare
     // "T00:00.123Z" is not a real instant and the storage layer would empty it.

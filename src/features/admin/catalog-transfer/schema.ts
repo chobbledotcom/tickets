@@ -83,9 +83,12 @@ const DatetimeSchema = v.pipe(
  * rejected with an intelligible message rather than mis-imported. */
 export const CATALOG_TRANSFER_VERSION = 1;
 
-/** A whole integer of at least `min`. */
+/** A whole integer of at least `min`. Uses `safeInteger` (not just `integer`)
+ * so an out-of-safe-range magnitude like `1e100` — which `Number.isInteger`
+ * accepts — is a field error here rather than being rounded or throwing a raw
+ * error at the storage layer, matching the form's money parser. */
 const intAtLeast = (min: number) =>
-  v.pipe(v.number(), v.integer(), v.minValue(min));
+  v.pipe(v.number(), v.safeInteger(), v.minValue(min));
 /** A whole non-negative integer (counts, day windows, minor-unit prices). */
 const NonNegativeIntSchema = intAtLeast(0);
 /** A whole positive integer (durations, quantities). */
@@ -94,7 +97,7 @@ const PositiveIntSchema = intAtLeast(1);
  * form's cap so an over-limit blob is a field error, not silently clamped. */
 const DurationDaysSchema = v.pipe(
   v.number(),
-  v.integer(),
+  v.safeInteger(),
   v.minValue(1),
   v.maxValue(MAX_DURATION_DAYS, `must be at most ${MAX_DURATION_DAYS} days`),
 );
