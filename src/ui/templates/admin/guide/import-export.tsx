@@ -38,9 +38,11 @@ export const importExportSections = (): GuideSection[] => [
             USD).
           </p>
           <p>
-            <strong>A listing</strong> — its own fields, the groups it belongs
-            to (each with any package price/quantity override), and its parent
-            listings, all referenced by name:
+            <strong>A listing</strong> — its own fields plus the groups it
+            belongs to, each referenced by name and carrying any package
+            price/quantity override. The <code>parents</code> array names the
+            listings this one is offered under as an add-on; it is empty here
+            because a package member can't also be an add-on child:
           </p>
           <pre>
             <code>{CATALOG_LISTING_EXAMPLE_JSON}</code>

@@ -22,9 +22,14 @@ import {
 
 /**
  * A listing export/import blob. Shows the listing's own transferable columns
- * (prices are in the smallest currency unit — pence/cents), its membership of a
- * package group (with per-member price and quantity overrides), and a parent
- * listing referenced by name.
+ * (prices are in the smallest currency unit — pence/cents) and its membership of
+ * a package group, with per-member price and quantity overrides.
+ *
+ * `parents` is empty here on purpose: this listing is a member of the "Weekend
+ * Pass" package, and the importer forbids a package member from also being an
+ * add-on child of another listing — so a member with parents is a shape the
+ * importer would reject. The `parents` array is where a non-package listing
+ * would name the listings it is offered under.
  */
 export const CATALOG_LISTING_EXAMPLE: ListingTransfer = {
   groups: [{ group: "Weekend Pass", packagePrice: 1000, quantity: 2 }],
@@ -40,7 +45,7 @@ export const CATALOG_LISTING_EXAMPLE: ListingTransfer = {
     name: "Summer Workshop",
     unitPrice: 1500,
   },
-  parents: ["Full Festival Ticket"],
+  parents: [],
   version: CATALOG_TRANSFER_VERSION,
 };
 

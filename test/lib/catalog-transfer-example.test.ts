@@ -50,6 +50,19 @@ describe("catalog transfer example", () => {
     expect(CATALOG_LISTING_EXAMPLE_JSON).toContain('\n  "kind": "listing"');
   });
 
+  test("the package-member listing carries no parents, so the pair imports", () => {
+    // The importer rejects a listing that is both a package member and an
+    // add-on child. The listing example is a member of the group example's
+    // package, so it must not carry parent references — otherwise the two
+    // documented blobs could not be imported together.
+    expect(CATALOG_GROUP_EXAMPLE.group.isPackage).toBe(true);
+    const isMemberOfThePackage = CATALOG_LISTING_EXAMPLE.groups.some(
+      (membership) => membership.group === CATALOG_GROUP_EXAMPLE.group.name,
+    );
+    expect(isMemberOfThePackage).toBe(true);
+    expect(CATALOG_LISTING_EXAMPLE.parents).toEqual([]);
+  });
+
   test("the group example demonstrates a package that hides its members", () => {
     // The guide's group example exists to show the package flags on; if either
     // flipped off it would document a plain group, not the package/privacy
