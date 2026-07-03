@@ -75,6 +75,39 @@ describe("generateMutants", () => {
     expect(labels).toContain("+ -> -");
   });
 
+  test("walks array destructuring holes without crashing", () => {
+    const labels = mutationLabels(`
+      const [, year, month] = parts;
+      export const stamp = year + month;
+    `);
+
+    expect(labels).toContain("+ -> *");
+  });
+
+  test("generates no mutants for declaration files", () => {
+    const content = `
+      declare module "*.svg" {
+        const content: string;
+        export default content;
+      }
+    `;
+
+    expect(generateMutants(content, "static.d.ts", true)).toEqual([]);
+  });
+
+  test("skips ambient declare contexts but mutates runtime code", () => {
+    const labels = mutationLabels(`
+      declare module "*.svg" {
+        const content: string;
+        export default content;
+      }
+      export const runtime = "value";
+    `);
+
+    expect(labels).not.toContain('*.svg -> ""');
+    expect(labels).toContain('value -> ""');
+  });
+
   test("does not invent mutants for unsupported expression shapes", () => {
     const labels = mutationLabels(`
       let value = 1;
