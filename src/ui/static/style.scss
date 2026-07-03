@@ -838,18 +838,108 @@ textarea[readonly] {
   color: #c00;
 }
 
-/* Footer row beneath a markdown editor: preview link (left) opposite the
-   character counter (right). */
+/* Footer row beneath a markdown editor: mode toggle and preview link (left)
+   opposite the character counter (right). */
 .md-editor-footer {
   display: flex;
   width: 100%;
   max-width: var(--width-card-wide);
   align-items: baseline;
-  justify-content: space-between;
   gap: var(--space-m);
 }
 .md-editor-footer .char-counter {
-  margin: 0;
+  margin: 0 0 0 auto;
+}
+
+/* Rich markdown editor mounted over a markdown textarea. Whichever of the
+   textarea / editor is inactive carries .md-editor-hidden. */
+.md-editor-hidden {
+  display: none;
+}
+.md-editor {
+  width: 100%;
+  max-width: var(--width-card-wide);
+  box-sizing: border-box;
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: var(--border-radius);
+  /* The field sits inside a <label>, which is bold with a tall line-height;
+     reset both so only genuinely bold text is bold and the prose isn't
+     double-spaced. */
+  font-weight: normal;
+  line-height: 1.5;
+}
+.md-editor:focus-within {
+  border-color: var(--color-link);
+}
+/* The minimal subset of ProseMirror's core stylesheet the editor needs
+   (prosemirror-view/style/prosemirror.css); the rest styles features we
+   don't use (gap cursors, column resizing, selection hiding). */
+.md-editor .ProseMirror {
+  position: relative;
+  min-height: 8em;
+  padding: 0.4rem 0.8rem;
+  outline: none;
+  white-space: break-spaces;
+  word-wrap: break-word;
+  font-variant-ligatures: none;
+}
+.md-editor .ProseMirror p {
+  margin: 0.5rem 0;
+}
+.md-editor .ProseMirror li {
+  position: relative;
+}
+/* ProseMirror wraps each list item's content in a <p>; without this the
+   page's default paragraph margins double-space every bullet. */
+.md-editor .ProseMirror li > p {
+  margin: 0.15rem 0;
+}
+.md-editor .ProseMirror blockquote {
+  margin: 0.6rem 0;
+  padding-left: var(--space-m);
+  border-left: 3px solid var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+}
+.md-editor .ProseMirror pre {
+  white-space: pre-wrap;
+}
+
+/* Formatting toolbar above the editing surface. */
+.md-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-s);
+  padding: var(--space-s);
+  border-bottom: 1px solid var(--color-bg-secondary);
+  background: var(--color-bg-secondary);
+  border-radius: var(--border-radius) var(--border-radius) 0 0;
+}
+.md-toolbar-button {
+  width: auto;
+  min-width: 2rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--border-radius);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.md-toolbar-button:hover {
+  border-color: var(--color-link);
+}
+.md-toolbar-button-active {
+  background: var(--color-link);
+  color: var(--color-bg);
+  border-color: var(--color-link);
+}
+.md-toolbar-bold {
+  font-weight: bold;
+}
+.md-toolbar-italic {
+  font-style: italic;
 }
 
 /* Small text-button styled like a link. */

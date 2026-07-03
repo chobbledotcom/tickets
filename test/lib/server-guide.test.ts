@@ -198,7 +198,23 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains allow pay more info with max price", async () => {
-      await assertAdminHtml("/admin/guide", "Allow Pay More", "maximum", "£1");
+      await assertAdminHtml(
+        "/admin/guide",
+        "Allow Pay More",
+        "maximum",
+        // formatCurrency strips the trailing zeros from whole amounts: £1.
+        "at least £1 more than the ticket price",
+      );
+    });
+
+    test("anchors each linkable section", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        'id="text-formatting"',
+        'id="packages"',
+        'id="modifiers"',
+        'id="questions"',
+      );
     });
 
     test("contains purchase only info", async () => {
@@ -254,6 +270,16 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         'id="text-formatting"',
         "Markdown",
         "markdownguide.org/cheat-sheet",
+      );
+    });
+
+    test("explains the visual markdown editor", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "How does the visual editor work?",
+        "Edit markdown",
+        "Edit visually",
+        "stored as plain Markdown",
       );
     });
 

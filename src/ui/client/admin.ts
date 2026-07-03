@@ -22,6 +22,7 @@ import { initFormSubmitDisable } from "./admin/form-submit-disable.ts";
 import { initIframeScrollIntoView } from "./admin/iframe-scroll-into-view.ts";
 import { initListingDatePicker } from "./admin/listing-date-picker.ts";
 import { initManualCheckin } from "./admin/manual-checkin.ts";
+import { initMarkdownEditorLoader } from "./admin/markdown-editor-loader.ts";
 import { initMarkdownPreview } from "./admin/markdown-preview.ts";
 import { initMultiBookingBuilder } from "./admin/multi-booking.ts";
 import { initNavSelect } from "./admin/nav-select.ts";
@@ -47,6 +48,9 @@ initQrRefresh();
 initRunningTotal();
 initCharCounters();
 initMarkdownPreview();
+// After the preview module so the injected editor's toggle can join the
+// preview's footer strip once its bundle loads.
+initMarkdownEditorLoader();
 initManualCheckin();
 initFormSubmitDisable();
 initQuestionVisibility();

@@ -14,7 +14,11 @@ import {
  * who can't open the staff-only full guide) renders the same content as the
  * guide's Text Formatting section. */
 export const textFormattingSection: GuideSection = {
-  entries: [faq("fields_support_formatting"), faq("what_formatting_can_i_use")],
+  entries: [
+    faq("fields_support_formatting"),
+    faq("what_formatting_can_i_use"),
+    faq("how_does_the_visual_editor_work"),
+  ],
   id: "text-formatting",
   titleKey: "text_formatting",
 };
