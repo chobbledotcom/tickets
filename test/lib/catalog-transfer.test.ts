@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  CatalogExportError,
   exportGroup,
   exportListing,
 } from "#routes/admin/catalog-transfer/export.ts";
@@ -21,6 +22,14 @@ import {
   createTestListing,
   describeWithEnv,
 } from "#test-utils";
+
+/** Unwrap a successful export, failing if it returned null or an
+ * (unexpected-in-these-tests) {@link CatalogExportError}. */
+const unwrapExport = <T>(blob: T | CatalogExportError | null): T => {
+  if (blob instanceof CatalogExportError) throw new Error(blob.message);
+  if (blob === null) throw new Error("export returned null");
+  return blob;
+};
 
 /** Import a listing that asks for a built site, returning the persisted
  * `assign_built_site` flag — true only where the builder is configured. */
@@ -54,7 +63,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       });
       await setChildIds(parent.id, [child.id]);
 
-      const blob = (await exportListing(child.id))!;
+      const blob = unwrapExport(await exportListing(child.id));
       expect(blob.kind).toBe("listing");
       expect(blob.parents).toEqual(["Parent Listing"]);
       expect(blob.groups).toEqual([{ group: "Regular Group" }]);
@@ -125,7 +134,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         },
       ]);
 
-      const blob = (await exportListing(member.id))!;
+      const blob = unwrapExport(await exportListing(member.id));
       expect(blob.groups).toEqual([
         {
           dayPrices: { "1": 900 },
@@ -168,7 +177,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         { listingId: c.id, price: 0, quantity: 1 },
       ]);
 
-      const blob = (await exportGroup(group.id))!;
+      const blob = unwrapExport(await exportGroup(group.id));
       expect(blob.group.isPackage).toBe(true);
       expect(blob.members).toEqual([
         { listing: "Pkg A", packagePrice: 800, quantity: 2 },
@@ -208,7 +217,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
   describe("import validation", () => {
     test("rejects a listing whose name already exists", async () => {
       const listing = await createTestListing({ name: "Existing" });
-      const blob = (await exportListing(listing.id))!;
+      const blob = unwrapExport(await exportListing(listing.id));
       const result = await importCatalog(blob);
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
@@ -596,10 +605,10 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
       webhookUrl: "https://example.com/hook",
     });
     // The editor blob must not carry the PII sink URL the edit form hides…
-    const editorBlob = (await exportListing(listing.id, "editor"))!;
+    const editorBlob = unwrapExport(await exportListing(listing.id, "editor"));
     expect(editorBlob.listing.webhookUrl).toBeUndefined();
     // …but staff still round-trip it.
-    const ownerBlob = (await exportListing(listing.id, "owner"))!;
+    const ownerBlob = unwrapExport(await exportListing(listing.id, "owner"));
     expect(ownerBlob.listing.webhookUrl).toBe("https://example.com/hook");
   });
 

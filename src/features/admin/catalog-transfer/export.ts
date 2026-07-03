@@ -30,6 +30,7 @@ import type { AdminLevel } from "#shared/types.ts";
 import { getListingGroupMemberships } from "./membership.ts";
 import {
   CATALOG_TRANSFER_VERSION,
+  formatTransferIssues,
   GroupDataSchema,
   type GroupMember,
   type GroupTransfer,
@@ -37,6 +38,26 @@ import {
   type ListingMembership,
   type ListingTransfer,
 } from "./schema.ts";
+
+/** Returned (not thrown) when a stored row holds a value the transfer format
+ * can't represent — e.g. a bookable-day name or contact field the admin JSON API
+ * accepted but the transfer schema rejects. The export route surfaces it as an
+ * operator-facing 4xx rather than letting a raw parse error become a 500. */
+export class CatalogExportError extends Error {}
+
+/** Project a stored row onto its transfer shape, or a {@link CatalogExportError}
+ * (with an intelligible per-field message) when the row can't be represented. */
+const parseExport = <TSchema extends v.GenericSchema>(
+  schema: TSchema,
+  value: unknown,
+  what: string,
+): v.InferOutput<TSchema> | CatalogExportError => {
+  const result = v.safeParse(schema, value);
+  if (result.success) return result.output;
+  return new CatalogExportError(
+    `This ${what} has a value that can't be exported — ${formatTransferIssues(result.issues)}`,
+  );
+};
 
 /** Listing columns that never travel: the id/slug/timestamp columns (an import
  * mints fresh ones) and the image/attachment columns (deliberately out of
@@ -99,9 +120,21 @@ const overrideFields = (
 export const exportListing = async (
   id: number,
   adminLevel?: AdminLevel,
-): Promise<ListingTransfer | null> => {
+): Promise<ListingTransfer | CatalogExportError | null> => {
   const listing = await getStoredListingWithCount(id);
   if (!listing) return null;
+
+  const listingData = parseExport(
+    ListingDataSchema,
+    listingsTable.rowToInput(
+      listing,
+      adminLevel === "editor"
+        ? EDITOR_EXPORT_EXCLUDED
+        : LISTING_EXPORT_EXCLUDED,
+    ),
+    "listing",
+  );
+  if (listingData instanceof CatalogExportError) return listingData;
 
   const [memberships, groupNames, parentIds] = await Promise.all([
     getListingGroupMemberships(id),
@@ -131,15 +164,7 @@ export const exportListing = async (
   return {
     groups,
     kind: "listing",
-    listing: v.parse(
-      ListingDataSchema,
-      listingsTable.rowToInput(
-        listing,
-        adminLevel === "editor"
-          ? EDITOR_EXPORT_EXCLUDED
-          : LISTING_EXPORT_EXCLUDED,
-      ),
-    ),
+    listing: listingData,
     parents,
     version: CATALOG_TRANSFER_VERSION,
   };
@@ -152,9 +177,16 @@ export const exportListing = async (
  */
 export const exportGroup = async (
   id: number,
-): Promise<GroupTransfer | null> => {
+): Promise<GroupTransfer | CatalogExportError | null> => {
   const group = await groupsTable.findById(id);
   if (!group) return null;
+
+  const groupData = parseExport(
+    GroupDataSchema,
+    groupsTable.rowToInput(group, GROUP_EXPORT_EXCLUDED),
+    "group",
+  );
+  if (groupData instanceof CatalogExportError) return groupData;
 
   const rows = await getGroupPackagePrices(id);
   const [listingNames, dayPrices] = await Promise.all([
@@ -174,10 +206,7 @@ export const exportGroup = async (
   }));
 
   return {
-    group: v.parse(
-      GroupDataSchema,
-      groupsTable.rowToInput(group, GROUP_EXPORT_EXCLUDED),
-    ),
+    group: groupData,
     kind: "group",
     members,
     version: CATALOG_TRANSFER_VERSION,

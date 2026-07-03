@@ -26,8 +26,9 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { isDemoMode } from "#shared/demo.ts";
 import { adminCatalogImportPage } from "#templates/admin/catalog-transfer.tsx";
-import { exportGroup, exportListing } from "./export.ts";
+import { CatalogExportError, exportGroup, exportListing } from "./export.ts";
 import { importCatalog } from "./import.ts";
+import type { GroupTransfer, ListingTransfer } from "./schema.ts";
 
 const IMPORT_PATH = "/admin/catalog/import";
 
@@ -56,12 +57,24 @@ const catalogFilename = (kind: string, name: string): string => {
 const downloadExport = <T>(
   request: Request,
   id: number,
-  load: (id: number, session: AuthSession) => Promise<T | null>,
+  load: (
+    id: number,
+    session: AuthSession,
+  ) => Promise<T | CatalogExportError | null>,
   kind: string,
   nameOf: (blob: T) => string,
 ): Promise<Response> =>
   requireContentOr(request, async (session) => {
     const blob = await load(id, session);
+    // A row created through the JSON API can hold a value the transfer format
+    // rejects (e.g. an unrecognised bookable day); surface that as an
+    // operator-facing 422 rather than a raw 500.
+    if (blob instanceof CatalogExportError) {
+      return new Response(blob.message, {
+        headers: { "content-type": "text/plain; charset=utf-8" },
+        status: 422,
+      });
+    }
     return blob
       ? jsonDownload(blob, catalogFilename(kind, nameOf(blob)))
       : notFoundResponse();
@@ -71,7 +84,7 @@ const downloadExport = <T>(
 const handleListingExport: TypedRouteHandler<
   "GET /admin/listing/:id/export.json"
 > = (request, { id }) =>
-  downloadExport(
+  downloadExport<ListingTransfer>(
     request,
     id,
     (listingId, session) => exportListing(listingId, session.adminLevel),
@@ -83,7 +96,7 @@ const handleListingExport: TypedRouteHandler<
 const handleGroupExport: TypedRouteHandler<
   "GET /admin/groups/:id/export.json"
 > = (request, { id }) =>
-  downloadExport(
+  downloadExport<GroupTransfer>(
     request,
     id,
     (groupId) => exportGroup(groupId),

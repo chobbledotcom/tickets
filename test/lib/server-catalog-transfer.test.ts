@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { execute } from "#shared/db/client.ts";
 import { getGroupIdsByListingId } from "#shared/db/groups.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
@@ -80,6 +81,34 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
     test("returns 404 for a missing listing", async () => {
       const response = await adminGet("/admin/listing/9999/export.json");
       expect(response.status).toBe(404);
+    });
+
+    test("returns 422 (not 500) when a row holds an unexportable value", async () => {
+      // The JSON API accepts bookable_days without validating the names, so a
+      // stored row can hold a value the transfer schema rejects. Exporting it
+      // must surface an operator-facing error, never a raw 500.
+      const listing = await createTestListing({ name: "Bad Days" });
+      await execute("UPDATE listings SET bookable_days = ? WHERE id = ?", [
+        JSON.stringify(["Funday"]),
+        listing.id,
+      ]);
+      const response = await adminGet(
+        `/admin/listing/${listing.id}/export.json`,
+      );
+      expect(response.status).toBe(422);
+      expect(await response.text()).toContain("can't be exported");
+    });
+
+    test("returns 422 when a group row holds an unexportable value", async () => {
+      const group = await createTestGroup({ name: "Bad Group" });
+      // A negative capacity can't be represented by the transfer schema.
+      await execute("UPDATE groups SET max_attendees = ? WHERE id = ?", [
+        -1,
+        group.id,
+      ]);
+      const response = await adminGet(`/admin/groups/${group.id}/export.json`);
+      expect(response.status).toBe(422);
+      expect(await response.text()).toContain("can't be exported");
     });
   });
 

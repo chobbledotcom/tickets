@@ -163,7 +163,7 @@ const optPositiveInt = v.optional(PositiveIntSchema);
  * omitted rather than defaulted so the importing table applies its own column
  * defaults; `name` and `maxAttendees` are the only structural requirements.
  */
-export const ListingDataSchema = v.object({
+const ListingFieldsSchema = v.object({
   active: optBoolean,
   assignBuiltSite: optBoolean,
   bookableDays: v.optional(v.array(BookableDaySchema)),
@@ -196,6 +196,27 @@ export const ListingDataSchema = v.object({
   usesLogistics: optBoolean,
   webhookUrl: optString,
 });
+
+/** Drop day-price keys beyond the listing's own duration: the form only reads
+ * `day_price_1..durationDays`, so a stored/blob entry above that (e.g. duration 2
+ * with a "5" price) is inert and must not silently activate if the duration is
+ * later raised. Filtered (not rejected) to mirror the form, which just ignores
+ * the extra inputs. */
+const filterDayPricesToDuration = (
+  data: v.InferOutput<typeof ListingFieldsSchema>,
+): v.InferOutput<typeof ListingFieldsSchema> => {
+  if (!data.dayPrices) return data;
+  const max = data.durationDays ?? 1;
+  const dayPrices = Object.fromEntries(
+    Object.entries(data.dayPrices).filter(([days]) => Number(days) <= max),
+  );
+  return { ...data, dayPrices };
+};
+
+export const ListingDataSchema = v.pipe(
+  ListingFieldsSchema,
+  v.transform(filterDayPricesToDuration),
+);
 export type ListingData = v.InferOutput<typeof ListingDataSchema>;
 
 /** The transferable columns of a group, keyed to match `GroupInput` (members

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
+import { getListing } from "#shared/db/listings.ts";
 import {
   createTestGroup,
   createTestListing,
@@ -36,6 +37,26 @@ const importListingOverride = (
   });
 
 describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
+  test("filters a listing's own day prices beyond its duration", async () => {
+    // The form only reads day_price_1..durationDays; a "5" price on a 2-day
+    // listing is inert and must be dropped on import, not persisted where a
+    // later duration bump would activate it.
+    const result = await importCatalog({
+      kind: "listing",
+      listing: {
+        ...customisable,
+        dayPrices: { 1: 1000, 5: 5000 },
+        maxAttendees: 1,
+        name: "Trimmed Days",
+      },
+      version: 1,
+    });
+    if (!result.ok) throw new Error(result.error);
+    const stored = (await getListing(result.id))!;
+    expect(stored.day_prices[1]).toBe(1000);
+    expect(stored.day_prices[5]).toBeUndefined();
+  });
+
   test("rejects a package member day-override for an unoffered span", async () => {
     // The member offers 1- and 2-day bookings; a 5-day override is a span it
     // doesn't have, so the package editor would never render that input.
