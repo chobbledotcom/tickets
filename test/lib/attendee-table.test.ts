@@ -573,6 +573,21 @@ describe("sortAttendeeRows", () => {
     expect(sorted.map((r) => r.attendee.id)).toEqual([2, 1]);
   });
 
+  test("sorts two listing-less rows by attendee name", () => {
+    const rows = [
+      makeRow({
+        attendee: testAttendee({ id: 1, name: "Zara" }),
+        listings: [],
+      }),
+      makeRow({
+        attendee: testAttendee({ id: 2, name: "Alice" }),
+        listings: [],
+      }),
+    ];
+    const sorted = sortAttendeeRows(rows);
+    expect(sorted.map((r) => r.attendee.id)).toEqual([2, 1]);
+  });
+
   test("does not mutate the original array", () => {
     const rows = [
       namedListingRow("B", testAttendee({ id: 2 })),

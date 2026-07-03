@@ -321,9 +321,11 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
     // rebuilds the day_count rows from listings.day_prices then drops that
     // column), the ticket-count-no-quantity trigger rewrite (it drops and
     // re-syncs the aggregate triggers from SCHEMA, owning no additive objects to
-    // rebuild), and the attendees.kind NOT NULL tightening (an empty-`requires`
-    // constraint rebuild owning no additive objects to drop/restore).
-    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 15);
+    // rebuild), the attendees.kind NOT NULL tightening (an empty-`requires`
+    // constraint rebuild owning no additive objects to drop/restore), and the
+    // attendee-listings-tag settings rewrite (data-only; covered by its own
+    // data test).
+    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 16);
   });
 
   for (const migration of additiveMigrations) {

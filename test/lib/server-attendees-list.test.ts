@@ -121,6 +121,37 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
       expect(html).not.toContain('rel="prev"');
     });
 
+    /** Register `count` throwaway attendees on the listing */
+    const seedFillerAttendees = async (
+      listingId: number,
+      count: number,
+    ): Promise<void> => {
+      for (let i = 0; i < count; i++) {
+        await createTestAttendeeDirect(
+          listingId,
+          `Filler ${i}`,
+          `filler${i}@example.com`,
+        );
+      }
+    };
+
+    test("shows the whole page with no paging links when the attendees exactly fill it", async () => {
+      const listing = await makeListing("Full Page", ATTENDEES_PAGE_SIZE * 2);
+      // Created first = oldest = the row a broken hasNext would trim off.
+      await createTestAttendeeDirect(
+        listing.id,
+        "OldestExact",
+        "oldest-exact@example.com",
+      );
+      await seedFillerAttendees(listing.id, ATTENDEES_PAGE_SIZE - 1);
+
+      const response = await adminGet("/admin/attendees");
+      const html = await response.text();
+      expect(html).toContain("OldestExact");
+      expect(html).not.toContain('rel="next"');
+      expect(html).not.toContain('rel="prev"');
+    });
+
     test("paginates by attendee, keeping a grouped row's bookings together", async () => {
       const listing = await makeListing("Big Listing", ATTENDEES_PAGE_SIZE * 2);
       const other = await makeListing("Other Show", ATTENDEES_PAGE_SIZE * 2);
@@ -130,13 +161,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
         { listingId: listing.id },
         { listingId: other.id },
       ]);
-      for (let i = 0; i < ATTENDEES_PAGE_SIZE; i++) {
-        await createTestAttendeeDirect(
-          listing.id,
-          `Filler ${i}`,
-          `filler${i}@example.com`,
-        );
-      }
+      await seedFillerAttendees(listing.id, ATTENDEES_PAGE_SIZE);
 
       // Page 0: newest PAGE_SIZE attendees, a next link, no previous link.
       const first = await adminGet("/admin/attendees");

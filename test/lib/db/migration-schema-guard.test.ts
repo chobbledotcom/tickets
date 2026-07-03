@@ -71,6 +71,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-02_bookable_alone",
         "2026-07-02_group_flat_prices",
         "2026-07-02_drop_listings_day_prices",
+        "2026-07-03_attendee_listings_tag",
       ],
       schemaHash: "zv2582",
     });
