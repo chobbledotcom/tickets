@@ -166,6 +166,10 @@ const optPositiveInt = v.optional(PositiveIntSchema);
 const ListingFieldsSchema = v.object({
   active: optBoolean,
   assignBuiltSite: optBoolean,
+  // A child listing that keeps its own standalone `/ticket` page. Carried so an
+  // export/import round-trip preserves it (otherwise a re-imported child defaults
+  // to `false`, losing its page, catalog/API eligibility, and add-on reach).
+  bookableAlone: optBoolean,
   bookableDays: v.optional(v.array(BookableDaySchema)),
   canPayMore: optBoolean,
   closesAt: v.optional(v.nullable(DatetimeSchema)),

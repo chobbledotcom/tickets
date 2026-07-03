@@ -89,6 +89,25 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       expect(await getParentIds(result.id)).toEqual([parent.id]);
     });
 
+    test("preserves a child's bookable-alone standalone page", async () => {
+      const parent = await createTestListing({ name: "Alone Parent" });
+      const child = await createTestListing({
+        bookableAlone: true,
+        name: "Alone Child",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const blob = unwrapExport(await exportListing(child.id));
+      // The flag must survive the export (otherwise import defaults it to false).
+      expect(blob.listing.bookableAlone).toBe(true);
+
+      blob.listing.name = "Alone Copy";
+      const result = await importCatalog(blob);
+      if (!result.ok) throw new Error(result.error);
+      const imported = (await getListing(result.id))!;
+      expect(imported.bookable_alone).toBe(true);
+    });
+
     test("preserves closesAt and re-syncs the derived price rows", async () => {
       const result = await importCatalog({
         kind: "listing",
