@@ -111,6 +111,24 @@ const resolvePackageSlug = (raw: string): string | null => {
   return slug && Object.hasOwn(CATALOG.packages, slug) ? slug : null;
 };
 
+/** Explain why a `data-add-listing` value can't be enhanced, so the skip log
+ * says WHY rather than just naming the link. Mirrors the checks in
+ * `ticketSlug`/`resolveListing`/`resolvePackageSlug`. */
+const skipReason = (raw: string): string => {
+  if (!raw) return "no data-add-listing value";
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return "not a valid URL";
+  }
+  if (url.origin !== CATALOG.origin)
+    return `origin ${url.origin} is not the tickets origin ${CATALOG.origin}`;
+  const slug = url.pathname.match(/^\/ticket\/([^/+]+)$/)?.[1];
+  if (!slug) return `path ${url.pathname} is not a /ticket/<slug> URL`;
+  return `slug "${slug}" is not a known listing or package`;
+};
+
 class CartController {
   private lines: CartLine[];
   private readonly storageKey = STORAGE_PREFIX + CATALOG.origin;
@@ -446,7 +464,11 @@ const init = (): void => {
     if (link.dataset.chobbleEnhanced) return;
     const raw = link.dataset.addListing ?? "";
     if (!resolveListing(raw) && !resolvePackageSlug(raw)) {
-      debugLog("skipped un-enhanceable link", link.dataset.addListing);
+      debugLog(
+        "skipped un-enhanceable link",
+        link.dataset.addListing,
+        `- ${skipReason(raw)}`,
+      );
       return;
     }
     link.dataset.chobbleEnhanced = "1";
