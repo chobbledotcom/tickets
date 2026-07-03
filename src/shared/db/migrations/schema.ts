@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Migrate listings.day_prices into the listing_prices 'day_count' dimension and drop the column.";
+  "Rewrite the {{listing}} attendee column-order tag to {{listings}} for the grouped Listings column.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 

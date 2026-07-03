@@ -169,6 +169,50 @@ describeWithEnv("db > migrations", { db: true }, () => {
       expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
     });
 
+    test("runs a schema-hash-neutral data migration on a site upgrading from the previous release", async () => {
+      // Reproduces the upgrade path for a data-only migration (one whose
+      // `requires` is empty, so SCHEMA_HASH is unchanged). A site last migrated
+      // at the previous release carries that release's `latest_db_update` marker
+      // and every migration EXCEPT the newly appended one. If LATEST_UPDATE were
+      // not bumped alongside the migration, the stored marker would still equal
+      // the code's, so getDbState() returns "up_to_date" and
+      // baselineCurrentSchemaIfNeeded() marks the migration applied WITHOUT
+      // running its up() — the {{listing}} → {{listings}} rewrite would silently
+      // never happen on real upgrades. Bumping LATEST_UPDATE flips the state to
+      // "needs_migration" so the migration actually runs.
+      const PREVIOUS_RELEASE_MARKER =
+        "Migrate listings.day_prices into the listing_prices 'day_count' dimension and drop the column.";
+      // Sanity: the previous marker must differ from the current one, else the
+      // upgrade would read as up_to_date and this scenario couldn't arise.
+      expect(PREVIOUS_RELEASE_MARKER).not.toBe(LATEST_UPDATE);
+
+      await getDb().execute({
+        args: [PREVIOUS_RELEASE_MARKER],
+        sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
+      });
+      await getDb().execute(
+        "DELETE FROM schema_migrations WHERE id = '2026-07-03_attendee_listings_tag'",
+      );
+      await getDb().execute({
+        args: ["{{name}}, {{listing}}, {{email}}"],
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('attendee_column_order', ?)",
+      });
+      invalidateInitDbCache();
+
+      await initDb();
+
+      // The migration ran: the stored template's tag is rewritten...
+      expect(await settingValue("attendee_column_order")).toBe(
+        "{{name}}, {{listings}}, {{email}}",
+      );
+      // ...it is now recorded in schema_migrations...
+      expect(await appliedMigrationIds()).toContain(
+        "2026-07-03_attendee_listings_tag",
+      );
+      // ...and the markers are refreshed to the current release.
+      expect(await settingValue("latest_db_update")).toBe(LATEST_UPDATE);
+    });
+
     test("initDb restores stale markers after a crash between recording migrations and writing markers", async () => {
       // Crash state: all named migrations recorded in schema_migrations,
       // but the isolate died before refreshing the settings markers.
