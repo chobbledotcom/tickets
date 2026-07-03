@@ -11,7 +11,9 @@
  */
 
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
+import type { AuthSession } from "#routes/auth.ts";
 import { anyChildListing } from "#routes/public/ticket-payment.ts";
+import { resolveRecipientEmails } from "#shared/bulk-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import {
@@ -37,6 +39,7 @@ import { settings } from "#shared/db/settings.ts";
 import { loadNotesForAttendees } from "#shared/db/system-notes.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
+import { isIsoDate } from "#shared/validation/date.ts";
 import { ListingQrPanel } from "#templates/admin/listing-qr.tsx";
 import {
   type AttendeeFilter,
@@ -51,29 +54,57 @@ import { loadListingParentsSection } from "./listings-parents.ts";
 import { loadGroupContext, loadListingQuestionData } from "./listings-view.ts";
 
 /**
- * The listing entity page's loaded row: the listing plus the two derived flags
- * every tab may gate on. A child listing or a hidden package's member has no
+ * The listing entity page's loaded row: the listing plus the derived flags any
+ * tab may gate on. A child listing or a hidden package's member has no
  * standalone public page, so its share / QR / booking-link affordances are
- * suppressed (invariant I3). Loading them once in {@link loadListingForPage}
- * keeps every `ActionDef.visible` predicate synchronous.
+ * suppressed (invariant I3). `hasEmailableAttendees` gates the owner-only Email
+ * action so it never links to the compose page's 404 (empty-recipient) path.
+ * Loading these once in {@link loadListingForPage} keeps every `ActionDef.visible`
+ * predicate synchronous.
  */
 export type LoadedListing = {
   listing: ListingWithCount;
   isChild: boolean;
   isHiddenPackageMember: boolean;
+  hasEmailableAttendees: boolean;
 };
 
-/** Load the listing and its share-suppression flags, or null when it is gone. */
+/** Load the listing and its gating flags, or null when it is gone. The
+ *  recipient check decrypts attendee emails, so it runs only for owners — the
+ *  only role that sees the Email action. */
 export const loadListingForPage = async (
   id: number,
+  session: AuthSession,
 ): Promise<LoadedListing | null> => {
   const listing = await getListingWithCount(id);
   if (!listing) return null;
-  const [isChild, hiddenMemberIds] = await Promise.all([
+  const [isChild, hiddenMemberIds, hasEmailableAttendees] = await Promise.all([
     anyChildListing([id]),
     getHiddenPackageMemberIds([id]),
+    session.adminLevel === "owner"
+      ? listingHasEmailableAttendees(id)
+      : Promise.resolve(false),
   ]);
-  return { isChild, isHiddenPackageMember: hiddenMemberIds.size > 0, listing };
+  return {
+    hasEmailableAttendees,
+    isChild,
+    isHiddenPackageMember: hiddenMemberIds.size > 0,
+    listing,
+  };
+};
+
+/** Whether the listing has at least one attendee with an email on file — the
+ *  same recipient resolution the bulk-email compose route uses, so the Email
+ *  action's visibility matches whether that page would 404 on zero recipients. */
+const listingHasEmailableAttendees = async (
+  listingId: number,
+): Promise<boolean> => {
+  const pk = await requireRequestPrivateKey();
+  const recipients = await resolveRecipientEmails(
+    { kind: "listing", listingId },
+    pk,
+  );
+  return recipients.length > 0;
 };
 
 /** The roster's on-screen date + check-in filter, read from a tab's query. */
@@ -83,8 +114,9 @@ export type RosterFilter = {
 };
 
 /** Read the roster tab's `?filter=` / `?date=` selection from the query. Only
- *  daily listings honour the date; a non-daily listing has no date column so
- *  its date filter is always null (matching the pre-migration behaviour). */
+ *  daily listings honour the date, and only a well-formed ISO date is accepted
+ *  (a malformed `?date=` is ignored, matching the pre-migration getDateFilter —
+ *  otherwise a bogus value would filter out every attendee). */
 export const rosterFilterFromQuery = (
   listing: ListingWithCount,
   query: URLSearchParams,
@@ -92,8 +124,11 @@ export const rosterFilterFromQuery = (
   const requested = query.get("filter");
   const activeFilter: AttendeeFilter =
     requested === "in" || requested === "out" ? requested : "all";
+  const rawDate = query.get("date");
   const dateFilter =
-    listing.listing_type === "daily" ? query.get("date") : null;
+    listing.listing_type === "daily" && rawDate && isIsoDate(rawDate)
+      ? rawDate
+      : null;
   return { activeFilter, dateFilter };
 };
 
@@ -177,12 +212,15 @@ export const loadListingRosterPanel = async (
   );
   const attendees = await loadDecryptedListingAttendees(listing.id);
   const filteredByDate = filterByDate(attendees, dateFilter);
-  const [questionData, childrenByParent] = await Promise.all([
+  const [questionData, childrenByParent, groupContext] = await Promise.all([
     loadListingQuestionData(
       listing.id,
       filteredByDate.map((a) => a.id),
     ),
     getChildrenForParents([listing.id]),
+    // The date-scoped group cap for the per-date capacity summary; a no-op
+    // (null date) when no daily date is selected.
+    loadGroupContext(listing, dateFilter),
   ]);
   return ListingRosterPanel({
     activeFilter,
@@ -193,6 +231,7 @@ export const loadListingRosterPanel = async (
       (child) => child.name,
     ),
     dateFilter,
+    groupContext,
     listing,
     phonePrefix: settings.phonePrefix,
     questionData,

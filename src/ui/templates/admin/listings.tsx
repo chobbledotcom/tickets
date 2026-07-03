@@ -879,6 +879,52 @@ const GroupAttendeesRow = ({
   );
 };
 
+/** The date-scoped capacity summary shown on a daily listing's roster tab when
+ * a `?date=` filter is active: the listing's own per-date capacity and, when it
+ * belongs to a capped group, that group's per-date remaining. The Overview tab
+ * only ever shows whole-listing totals, so this is where staff inspect a single
+ * day's remaining capacity. Null unless a daily listing has a date selected. */
+const RosterDateCapacity = ({
+  listing,
+  dateFilter,
+  dailySuffix,
+  adjustedCount,
+  completeQuantitySum,
+  groupContext,
+}: {
+  listing: ListingWithCount;
+  dateFilter: string | null;
+  dailySuffix: string;
+  adjustedCount: number;
+  completeQuantitySum: number;
+  groupContext: GroupContext | undefined;
+}): JSX.Element | null => {
+  if (listing.listing_type !== "daily" || !dateFilter) return null;
+  return (
+    <div class="table-scroll">
+      <table class="listing-details-table">
+        <tbody>
+          <AttendeesSummaryRow
+            adjustedCount={adjustedCount}
+            completeQuantitySum={completeQuantitySum}
+            dailySuffix={dailySuffix}
+            dateFilter={dateFilter}
+            isDaily
+            listing={listing}
+          />
+          {groupContext && (
+            <GroupAttendeesRow
+              dailySuffix={dailySuffix}
+              group={groupContext.group}
+              groupAttendeeCount={groupContext.attendeeCount}
+            />
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 /** The public-URL row: the shareable `/ticket/<slug>` link with its embed toggle
  * and QR, OR a "no standalone page" note when the listing has no public entry
  * point (a child, or a hidden package's member) and so can't be shared. */
@@ -1557,9 +1603,18 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
     phonePrefix,
     questionData,
     childNames = [],
+    groupContext,
   } = opts;
   return (
     <>
+      {RosterDateCapacity({
+        adjustedCount: v.adjustedCount,
+        completeQuantitySum: v.completeQuantitySum,
+        dailySuffix: v.dailySuffix,
+        dateFilter: v.dateFilter,
+        groupContext,
+        listing,
+      })}
       <AttendeesSection
         activeFilter={v.activeFilter}
         allowedDomain={allowedDomain}

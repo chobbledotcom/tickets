@@ -3473,6 +3473,35 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expect(html).not.toContain("User C");
     });
 
+    test("ignores a malformed ?date= and shows all attendees", async () => {
+      const listing = await createDailyListingWithAttendees();
+      // A bogus date is rejected rather than treated as a filter, so the roster
+      // is not emptied — every date's attendees still show.
+      const response = await adminGet(
+        `/admin/listing/${listing.id}/attendees?date=not-a-date`,
+      );
+      const html = await response.text();
+      expect(html).toContain("User A");
+      expect(html).toContain("User C");
+    });
+
+    test("shows a date-scoped capacity summary on the roster, only when dated", async () => {
+      const listing = await createDailyListingWithAttendees();
+      // With a valid date the roster carries the per-date capacity summary
+      // (the Overview tab only ever shows whole-listing totals).
+      const dated = await (
+        await adminGet(
+          `/admin/listing/${listing.id}/attendees?date=${validDate1}`,
+        )
+      ).text();
+      expect(dated).toContain('class="listing-details-table"');
+      // Without a date the roster shows no capacity table.
+      const undated = await (
+        await adminGet(`/admin/listing/${listing.id}/attendees`)
+      ).text();
+      expect(undated).not.toContain('class="listing-details-table"');
+    });
+
     test("ignores ?date= for standard listings", async () => {
       const { listing, cookie } = await setupListingAndLogin();
       await createTestAttendee(

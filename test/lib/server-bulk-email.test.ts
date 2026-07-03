@@ -665,10 +665,10 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       expect(html).toContain("<span>Email</span>");
     });
 
-    test("the email action shows for owners even with no emailable attendee", async () => {
-      // The Actions tab always offers Email for owners; the compose page itself
-      // handles the empty-recipients case (the old disabled-button state was
-      // dropped — an async has-email check on every tab load isn't worth it).
+    test("hides the email action when no attendee has an email", async () => {
+      // The compose page 404s for a listing target with zero recipients, so the
+      // Actions tab must not render a dead Email link (AGENTS.md: never render a
+      // forbidden link).
       const listing = await createTestListing({
         maxAttendees: 5,
         name: "Solo",
@@ -677,7 +677,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/listing/${listing.id}/actions`)
       ).text();
-      expect(html).toContain(`/admin/emails?listing=${listing.id}`);
+      expect(html).not.toContain(`/admin/emails?listing=${listing.id}`);
     });
 
     test("managers do not see the email action", async () => {

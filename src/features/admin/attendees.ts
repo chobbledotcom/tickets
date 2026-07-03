@@ -111,9 +111,12 @@ const handleDeleteIncomplete = attendeeFormAction(
       Number.parseInt(data.attendee.price_paid, 10) > 0 &&
       data.attendee.remaining_balance <= 0;
 
+    // The failed-payments delete form lives on the Attendees tab, so both
+    // outcomes return there — keeping the operator on the table they are
+    // clearing rather than bouncing them to Overview.
     if (!isIncomplete) {
       return redirect(
-        `/admin/listing/${listingId}`,
+        `/admin/listing/${listingId}/attendees`,
         t("error.attendee_no_incomplete_payment"),
         false,
       );
@@ -122,7 +125,7 @@ const handleDeleteIncomplete = attendeeFormAction(
     return deleteAttendeeAndRedirect(
       attendeeId,
       listingId,
-      `/admin/listing/${listingId}`,
+      `/admin/listing/${listingId}/attendees`,
       `Incomplete attendee deleted from '${data.listing.name}'`,
       t("success.incomplete_removed"),
     );
@@ -238,7 +241,9 @@ const handleCreateAttendeeFailure = (
     result.reason === "capacity_exceeded"
       ? t("error.not_enough_spots")
       : t("error.encryption_error");
-  return redirect(`/admin/listing/${listingId}`, errorMsg, false);
+  // Back to the roster (Attendees tab), where the quick-add form is, so the
+  // operator can correct the submission in context.
+  return redirect(`/admin/listing/${listingId}/attendees`, errorMsg, false);
 };
 
 /** Handle POST /admin/listing/:listingId/attendee (add attendee manually) */
@@ -263,7 +268,7 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
     }),
     loadContext: ({ listingId }) => getListingWithCount(listingId),
     onInvalid: ({ error, params }) =>
-      redirect(`/admin/listing/${params.listingId}`, error, false),
+      redirect(`/admin/listing/${params.listingId}/attendees`, error, false),
     onValid: async ({ context: listing, params, values }) => {
       const createResult = await createAttendeeAtomic(
         buildCreateAttendeeInput(values, listing),

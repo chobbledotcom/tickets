@@ -71,7 +71,11 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
       `/admin/emails${targetQuery({ kind: "listing", listingId: listing.id })}`,
     icon: "arrow-right",
     labelKey: "common.email",
-    visible: (_entity, session) => session.adminLevel === "owner",
+    // Owner-only, and only when there is someone to email — the compose page
+    // 404s for a listing target with zero recipients, so a link without
+    // emailable attendees would be a dead link (AGENTS.md: never render one).
+    visible: (entity, session) =>
+      session.adminLevel === "owner" && entity.hasEmailableAttendees,
   },
   {
     danger: true,
@@ -126,7 +130,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
   // The content-only editor role may edit; every other tab is staff-gated, so
   // an editor's page resolves to just the Edit tab.
   guard: requireContentOr,
-  load: (id) => loadListingForPage(id),
+  load: (id, session) => loadListingForPage(id, session),
   navActive: "/admin/",
   tabs: [
     overviewTab,
@@ -144,9 +148,12 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
           load: (entity, ctx) => loadListingEditPanel(entity, ctx),
         },
       ],
-      // Editors and above may reach the edit form; read-only mode is enforced by
-      // the POST handler, and the details tabs stay visible either way.
       slug: "edit",
+      // Editors and above may edit, but not in read-only mode — where the
+      // global guard redirects the edit route to /read-only. Hide the tab then
+      // rather than render a link that immediately bounces (and so an editor's
+      // bare-URL default can't resolve onto an un-editable form).
+      visible: () => !isReadOnly(),
     },
     {
       labelKey: "entity.tab.questions",

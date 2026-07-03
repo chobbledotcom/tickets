@@ -399,7 +399,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       await expectFlashRedirect(
-        `/admin/listing/${listing.id}`,
+        `/admin/listing/${listing.id}/attendees`,
         "Incomplete registration removed",
       )(response);
 
@@ -442,7 +442,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       await expectFlashRedirect(
-        `/admin/listing/${listing.id}`,
+        `/admin/listing/${listing.id}/attendees`,
         undefined,
         false,
       )(response);
@@ -473,7 +473,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       await expectFlashRedirect(
-        `/admin/listing/${listing.id}`,
+        `/admin/listing/${listing.id}/attendees`,
         undefined,
         false,
       )(response);
@@ -505,7 +505,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       await expectFlashRedirect(
-        `/admin/listing/${listing.id}`,
+        `/admin/listing/${listing.id}/attendees`,
         "Incomplete registration removed",
       )(response);
 
