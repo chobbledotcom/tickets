@@ -269,6 +269,18 @@ export const adminGroupEditPage = (
   String(
     <Layout title={t("groups.edit.heading")}>
       <AdminNav active="/admin/groups" session={session} />
+      {/* Export lives here too, not only on the (staff-only) detail page, so a
+          content editor — who reaches this edit form but not the detail page —
+          can still download the group's catalog blob. */}
+      <nav>
+        <ul>
+          <li>
+            <a href={`/admin/groups/${group.id}/export.json`}>
+              {t("catalog_transfer.export_link")}
+            </a>
+          </li>
+        </ul>
+      </nav>
       <CsrfForm action={`/admin/groups/${group.id}/edit`}>
         <h1>{t("groups.edit.heading")}</h1>
         <Flash error={error} />
