@@ -92,6 +92,7 @@ import bookableAloneMigration from "./migrations/2026-07-02_bookable_alone.ts";
 import dropListingsDayPricesMigration from "./migrations/2026-07-02_drop_listings_day_prices.ts";
 import groupFlatPricesMigration from "./migrations/2026-07-02_group_flat_prices.ts";
 import attendeeListingsTagMigration from "./migrations/2026-07-03_attendee_listings_tag.ts";
+import listingImageThumbMigration from "./migrations/2026-07-03_listing_image_thumb.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -296,6 +297,8 @@ export const MIGRATIONS: Migration[] = [
   // Data-only: rewrite {{listing}} → {{listings}} in the stored attendee
   // column-order template, matching the renamed grouped Listings column.
   attendeeListingsTagMigration,
+  // Pure additive column add: image_thumb_url on listings for the WebP thumbnail.
+  listingImageThumbMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

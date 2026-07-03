@@ -11,12 +11,13 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { fail, ok } from "#shared/response.ts";
+import { FULL_IMAGE_TARGET } from "#shared/images/targets.ts";
 import {
   deleteFile,
   IMAGE_ERROR_MESSAGES,
   isStorageEnabled,
   tryDeleteFile,
-  uploadImage,
+  uploadImageTargets,
   validateImage,
 } from "#shared/storage.ts";
 
@@ -61,10 +62,10 @@ export const handleHeaderImagePost = (request: Request): Promise<Response> =>
     }
 
     const [uploadResult] = await Promise.allSettled([
-      uploadImage(data, validation.detectedType),
+      uploadImageTargets(data, validation.detectedType, [FULL_IMAGE_TARGET]),
     ]);
     if (uploadResult.status === "fulfilled") {
-      await settings.update.headerImageUrl(uploadResult.value);
+      await settings.update.headerImageUrl(uploadResult.value[0]);
       await logActivity("Header image uploaded");
       return ok("/admin/settings", t("success.header_image_uploaded"), {
         formId: "settings-header-image",

@@ -125,16 +125,26 @@ export const ICS_DISCOVERY_TAG =
 
 export const FEED_DISCOVERY_TAGS = `${RSS_DISCOVERY_TAG}\n${ICS_DISCOVERY_TAG}`;
 
-/** Render listing image HTML if image_url is set */
+/** Render listing image HTML if an image is set.
+ *
+ * In `thumb` contexts (list rows, gallery cards) the 480px WebP thumbnail is
+ * used when the listing has one, falling back to the full image for listings
+ * uploaded before thumbnails existed — so the link is never dead. */
 export const renderListingImage = (
-  listing: { image_url: string },
+  listing: { image_url: string; image_thumb_url?: string },
   className = "listing-image",
-): string =>
-  listing.image_url
+  options: { thumb?: boolean } = {},
+): string => {
+  const src =
+    options.thumb && listing.image_thumb_url
+      ? listing.image_thumb_url
+      : listing.image_url;
+  return src
     ? `<img src="${escapeHtml(
-        getImageProxyUrl(listing.image_url),
+        getImageProxyUrl(src),
       )}" alt="" class="${className}" />`
     : "";
+};
 
 /** Listing info for ticket display */
 export type TicketListing = {

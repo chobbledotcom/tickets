@@ -67,6 +67,7 @@ const LISTING_EXPORT_EXCLUDED = [
   "slug",
   "slug_index",
   "image_url",
+  "image_thumb_url",
   "attachment_url",
   "attachment_name",
 ] as const;

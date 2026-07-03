@@ -364,6 +364,7 @@ export interface Listing {
   hidden: boolean;
   id: number;
   image_url: string;
+  image_thumb_url: string;
   location: string; // encrypted or empty string
   max_attendees: number;
   max_price: number;

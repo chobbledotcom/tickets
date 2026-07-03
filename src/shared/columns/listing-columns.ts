@@ -18,7 +18,7 @@ type ListingCol = ColumnDef<ListingWithCount>;
  * varies by role — staff get the attendee detail page, editors (who can't open
  * it) get the edit form — so the path is a parameter. */
 const nameCell = (e: ListingWithCount, href: string): string =>
-  `${renderListingImage(e, "listing-thumbnail")}<a href="${href}">${escapeHtml(
+  `${renderListingImage(e, "listing-thumbnail", { thumb: true })}<a href="${href}">${escapeHtml(
     e.name,
   )}</a>`;
 

@@ -225,6 +225,7 @@ const listingDataToInput = (
     dayPrices: dayPrices === undefined ? undefined : parseDayPrices(dayPrices),
     groupIds,
     imageUrl: "",
+    imageThumbUrl: "",
     slug,
     slugIndex,
   } as ListingInput;

@@ -103,6 +103,7 @@ export type ListingInput = {
   minimumDaysBefore?: number;
   maximumDaysAfter?: number;
   imageUrl?: string;
+  imageThumbUrl?: string;
   attachmentUrl?: string;
   attachmentName?: string;
   nonTransferable?: boolean;
@@ -217,6 +218,7 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   fields: col.withDefault<ListingFields>(() => "email"),
   hidden: col.boolean(false),
   image_url: col.encryptedText(encrypt, decrypt),
+  image_thumb_url: col.encryptedText(encrypt, decrypt),
   initial_site_months: col.withDefault(() => 0),
   listing_type: col.withDefault<ListingType>(() => "standard"),
   location: col.encryptedText(encrypt, decrypt),
