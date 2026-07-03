@@ -215,4 +215,12 @@ describe("adminGroupEditPage package members table", () => {
     const html = adminGroupEditPage(group, [], new Map(), TEST_SESSION);
     expect(html).toContain("Add listings to this group");
   });
+
+  test("links to the JSON export (reachable by a content editor)", () => {
+    const group = testGroup({ id: 7, name: "Exportable" });
+    const html = adminGroupEditPage(group, [], new Map(), TEST_SESSION);
+    // The edit form is content-gated, so an editor who never sees the staff-only
+    // detail page can still export the group from here.
+    expect(html).toContain(`/admin/groups/${group.id}/export.json`);
+  });
 });

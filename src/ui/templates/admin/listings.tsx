@@ -2484,6 +2484,18 @@ export const ListingEditPanel = ({
   return (
     <>
       <Flash error={error} />
+      {/* Export lives on the editor-visible Edit tab too, not only the staff-only
+          Actions tab, so a content editor can download the listing's catalog
+          blob (the export route is content-gated, matching import). */}
+      <nav>
+        <ul>
+          <li>
+            <a href={`/admin/listing/${listing.id}/export.json`}>
+              {t("catalog_transfer.export_link")}
+            </a>
+          </li>
+        </ul>
+      </nav>
       {childOfNames !== null && (
         <p class="notice listing-child-banner">
           {t("listings_table.child_banner", { names: childOfNames })}

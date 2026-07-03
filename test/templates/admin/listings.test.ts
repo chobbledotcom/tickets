@@ -80,6 +80,16 @@ describe("adminListingEditPage group select", () => {
     expect(html).toContain('value="2"');
     expect(html).toContain("checked");
   });
+
+  test("links to the JSON export (reachable by a content editor)", () => {
+    const listing = testListingWithCount({ id: 9 });
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
+    // The Edit tab is editor-visible, so the export link here reaches editors
+    // who never see the staff-only Actions tab that also carries it.
+    expect(html).toContain(`/admin/listing/${listing.id}/export.json`);
+  });
 });
 
 describe("adminListingEditPage duration warning", () => {

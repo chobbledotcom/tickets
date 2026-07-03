@@ -162,8 +162,14 @@ const optPositiveInt = v.optional(PositiveIntSchema);
  * import) and the image/attachment columns (out of scope). Optional fields are
  * omitted rather than defaulted so the importing table applies its own column
  * defaults; `name` and `maxAttendees` are the only structural requirements.
+ *
+ * `strictObject` (here and in every transfer schema below): the format is
+ * versioned and exact-version gated, so an unknown key is a mistake — a
+ * misspelled field (`hidde`) or relationship key (`parent` for `parents`) is
+ * rejected with a field error rather than silently dropped, which would
+ * otherwise import a listing missing that column or its whole parent/group set.
  */
-const ListingFieldsSchema = v.object({
+const ListingFieldsSchema = v.strictObject({
   active: optBoolean,
   assignBuiltSite: optBoolean,
   // A child listing that keeps its own standalone `/ticket` page. Carried so an
@@ -225,7 +231,7 @@ export type ListingData = v.InferOutput<typeof ListingDataSchema>;
 
 /** The transferable columns of a group, keyed to match `GroupInput` (members
  * live on the envelope, not here). */
-export const GroupDataSchema = v.object({
+export const GroupDataSchema = v.strictObject({
   description: optString,
   hidden: optBoolean,
   hidePackageListings: optBoolean,
@@ -245,14 +251,14 @@ const membershipOverrideEntries = {
 };
 
 /** A group a listing belongs to (listing-side view), referenced by group name. */
-export const ListingMembershipSchema = v.object({
+export const ListingMembershipSchema = v.strictObject({
   group: NameRefSchema,
   ...membershipOverrideEntries,
 });
 export type ListingMembership = v.InferOutput<typeof ListingMembershipSchema>;
 
 /** A member of a group (group-side view), referenced by listing name. */
-export const GroupMemberSchema = v.object({
+export const GroupMemberSchema = v.strictObject({
   listing: NameRefSchema,
   ...membershipOverrideEntries,
 });
@@ -265,7 +271,7 @@ const VersionSchema = v.literal(
 
 /** A listing export: the listing's own fields plus its group memberships (by
  * name) and its parent listings (by name). */
-export const ListingTransferSchema = v.object({
+export const ListingTransferSchema = v.strictObject({
   groups: v.optional(v.array(ListingMembershipSchema), []),
   kind: v.literal("listing"),
   listing: ListingDataSchema,
@@ -275,7 +281,7 @@ export const ListingTransferSchema = v.object({
 export type ListingTransfer = v.InferOutput<typeof ListingTransferSchema>;
 
 /** A group export: the group's own fields plus its member listings (by name). */
-export const GroupTransferSchema = v.object({
+export const GroupTransferSchema = v.strictObject({
   group: GroupDataSchema,
   kind: v.literal("group"),
   members: v.optional(v.array(GroupMemberSchema), []),

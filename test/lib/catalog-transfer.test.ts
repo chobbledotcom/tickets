@@ -108,6 +108,34 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       expect(imported.bookable_alone).toBe(true);
     });
 
+    test("carries a listing's own stored cells, not resolved site defaults", async () => {
+      // Export/import mirror database cells, never the read-time overlay. A site
+      // default of hidden=true is in force, but the imported listing sets its OWN
+      // cell to hidden=false with useDefaults=true — the operator's call, even
+      // though it conflicts with the default and is inert while use_defaults is
+      // on. The export must then reflect that cell (false), not the resolved
+      // default (true) a cache read would overlay.
+      await settings.update.listingDefaults({ hidden: true });
+      const created = await importCatalog({
+        kind: "listing",
+        listing: {
+          hidden: false,
+          maxAttendees: 5,
+          name: "Defaulter",
+          thankYouUrl: "https://thanks.example.com",
+          useDefaults: true,
+        },
+        version: 1,
+      });
+      if (!created.ok) throw new Error(created.error);
+
+      const blob = unwrapExport(await exportListing(created.id));
+      expect(blob.listing.useDefaults).toBe(true);
+      // The row's own cell (false), not the resolved default (true).
+      expect(blob.listing.hidden).toBe(false);
+      expect(blob.listing.thankYouUrl).toBe("https://thanks.example.com");
+    });
+
     test("preserves closesAt and re-syncs the derived price rows", async () => {
       const result = await importCatalog({
         kind: "listing",
@@ -304,6 +332,21 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       if (result.ok) throw new Error("unreachable");
       expect(result.error).toContain("Invalid catalog file — Invalid type");
       expect(result.error).toContain("Object");
+    });
+
+    test("rejects a blob with an unknown relationship key", async () => {
+      // `parent` (singular) is not a known key. The format is versioned and
+      // exact-version gated, so a misspelled relationship key must be a field
+      // error, not silently imported as a standalone listing with no parents.
+      const result = await importCatalog({
+        kind: "listing",
+        listing: { maxAttendees: 5, name: "Typo Kid" },
+        parent: ["Whatever"],
+        version: 1,
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.error).toContain("parent");
     });
 
     test("rejects a group whose member listing does not exist", async () => {
