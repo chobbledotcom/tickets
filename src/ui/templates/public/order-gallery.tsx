@@ -25,7 +25,9 @@ import {
  */
 const renderOrderCard = (info: TicketListing): string => {
   const { listing, isSoldOut, isClosed } = info;
-  const imageHtml = renderListingImage(listing, "order-card-image");
+  const imageHtml = renderListingImage(listing, "order-card-image", {
+    thumb: true,
+  });
   const priceHtml =
     listing.unit_price > 0
       ? `<span class="order-card-price">${

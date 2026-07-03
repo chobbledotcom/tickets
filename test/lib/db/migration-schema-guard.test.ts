@@ -72,8 +72,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-02_group_flat_prices",
         "2026-07-02_drop_listings_day_prices",
         "2026-07-03_attendee_listings_tag",
+        "2026-07-03_listing_image_thumb",
       ],
-      schemaHash: "zv2582",
+      schemaHash: "8qr676",
     });
   });
 });

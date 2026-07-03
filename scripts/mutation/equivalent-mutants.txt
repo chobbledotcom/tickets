@@ -272,3 +272,21 @@ src/ui/client/admin/markdown-editor-toolbar.ts:170:17  = → +=    # button.titl
 # (Number trims whitespace and "N." is the same decimal) — no typed input can
 # tell them apart.
 src/ui/client/admin/markdown-editor-setup.ts:107:25  1 → 0    # Number("N. ") === Number("N") for every ordered-list match
+
+# resize.ts writes each output pixel's channels exactly once into a freshly
+# zeroed Uint8ClampedArray, so `out[o] = x` and `out[o] += x` are identical
+# (0 + x === x). No input can revisit an index, so no test can distinguish them.
+src/shared/images/resize.ts:74:15  = → +=    # out[o] = R into fresh-zeroed array; written once
+src/shared/images/resize.ts:75:19  = → +=    # out[o+1] = G into fresh-zeroed array; written once
+src/shared/images/resize.ts:76:19  = → +=    # out[o+2] = B into fresh-zeroed array; written once
+src/shared/images/resize.ts:78:17  = → +=    # out[o+3] = A into fresh-zeroed array; written once
+
+# codecs.ts explicit codec init is EDGE-critical but unobservable in the Deno
+# mutation runtime: jSquash's decode/encode/init self-initialize via their own
+# fetch/fs wasm loader here, so removing our inlined-wasm init still yields
+# working codecs and no test can tell the difference. On the Bunny edge bundle
+# (no fetch/fs) that same removal breaks all image transcoding — so these are
+# not dead code, only untestable in-process. See src/shared/images/codecs.ts.
+src/shared/images/codecs.ts:52:3  await Promise.all([ pngInit(pngMod), jp… → (removed)   # edge-only codec init; jSquash self-inits in Deno
+src/shared/images/codecs.ts:75:3  await ensureCodecs(); → (removed)   # decodeImage edge-only init; jSquash self-inits in Deno
+src/shared/images/codecs.ts:84:3  await ensureCodecs(); → (removed)   # encodeWebp edge-only init; jSquash self-inits in Deno

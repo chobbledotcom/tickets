@@ -31,3 +31,7 @@ deploy/certs/*.pem
 .i18n-work/
 .jscpd-*
 .claude/
+
+# Test artifacts from storage tests run without LOCAL_STORAGE_PATH set
+/undefined/
+/null/

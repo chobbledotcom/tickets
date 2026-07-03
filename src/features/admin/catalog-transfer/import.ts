@@ -224,6 +224,7 @@ const listingDataToInput = (
     closesAt: closesAt === null ? undefined : closesAt,
     dayPrices: dayPrices === undefined ? undefined : parseDayPrices(dayPrices),
     groupIds,
+    imageThumbUrl: "",
     imageUrl: "",
     slug,
     slugIndex,

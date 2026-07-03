@@ -18,6 +18,11 @@ import {
   type ListingInput,
   listingsTable,
 } from "#shared/db/listings.ts";
+import {
+  FULL_IMAGE_TARGET,
+  THUMB_IMAGE_TARGET,
+} from "#shared/images/targets.ts";
+import type { DecodableMime } from "#shared/images/types.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
@@ -27,7 +32,7 @@ import {
   isStorageEnabled,
   tryDeleteFile,
   uploadAttachment,
-  uploadImage,
+  uploadImageTargets,
   validateAttachment,
   validateImage,
 } from "#shared/storage.ts";
@@ -42,6 +47,8 @@ const processFormFile = async (opts: {
   fieldName: string;
   listingId: number;
   existingUrl?: string | undefined;
+  /** Further old files (e.g. an image's thumbnail) to delete before replacing. */
+  existingExtraUrls?: ReadonlyArray<string> | undefined;
   validate: (data: Uint8Array, file: File) => string | null;
   upload: (data: Uint8Array, file: File) => Promise<Partial<ListingInput>>;
   label: string;
@@ -62,12 +69,10 @@ const processFormFile = async (opts: {
   const error = opts.validate(data, entry);
   if (error) return error;
 
-  if (opts.existingUrl) {
-    await tryDeleteFile(
-      opts.existingUrl,
-      opts.listingId,
-      `old ${opts.label} cleanup`,
-    );
+  for (const oldUrl of [opts.existingUrl, ...(opts.existingExtraUrls ?? [])]) {
+    if (oldUrl) {
+      await tryDeleteFile(oldUrl, opts.listingId, `old ${opts.label} cleanup`);
+    }
   }
 
   const [uploadResult] = await Promise.allSettled([opts.upload(data, entry)]);
@@ -90,8 +95,10 @@ const processFormImage = (
   formData: FormData,
   listingId: number,
   existingImageUrl?: string,
+  existingThumbUrl?: string,
 ): Promise<string | null> =>
   processFormFile({
+    existingExtraUrls: existingThumbUrl ? [existingThumbUrl] : undefined,
     existingUrl: existingImageUrl,
     fieldName: "image",
     formData,
@@ -100,10 +107,17 @@ const processFormImage = (
     upload: async (data, file) => {
       const v = validateImage(data, file.type) as {
         valid: true;
-        detectedType: string;
+        detectedType: DecodableMime;
       };
-      const imageUrl = await uploadImage(data, v.detectedType);
-      return { imageUrl };
+      const [imageUrl, imageThumbUrl] = await uploadImageTargets(
+        data,
+        v.detectedType,
+        [FULL_IMAGE_TARGET, THUMB_IMAGE_TARGET],
+      );
+      return {
+        imageThumbUrl: imageThumbUrl as string,
+        imageUrl: imageUrl as string,
+      };
     },
     validate: (data, file) => {
       const v = validateImage(data, file.type);
@@ -147,6 +161,7 @@ export const processUploadsAndRedirect = async (
   redirectUrl: string,
   successMessage: string,
   existingImageUrl?: string,
+  existingImageThumbUrl?: string,
   existingAttachmentUrl?: string,
   warning?: string | null,
 ): Promise<Response> => {
@@ -154,6 +169,7 @@ export const processUploadsAndRedirect = async (
     formData,
     listingId,
     existingImageUrl,
+    existingImageThumbUrl,
   );
   const attachmentError = await processFormAttachment(
     formData,
@@ -171,12 +187,25 @@ export const processUploadsAndRedirect = async (
   return redirect(redirectUrl, successMessage, true);
 };
 
+/** Best-effort delete of derived files (e.g. an image's thumbnail) — a missing
+ * or failed derived file must never block clearing the primary record. */
+const deleteExtraFiles = async (
+  urls: ReadonlyArray<string>,
+  listingId: number,
+  label: string,
+): Promise<void> => {
+  for (const extra of urls) {
+    if (extra) await tryDeleteFile(extra, listingId, `${label} thumb`);
+  }
+};
+
 /** Generic handler for deleting an listing's uploaded file (image or attachment) */
 const handleFileDelete =
   (
     label: string,
     getUrl: (e: ListingWithCount) => string,
     clearFields: Partial<ListingInput>,
+    getExtraUrls?: (e: ListingWithCount) => ReadonlyArray<string>,
   ): TypedRouteHandler<`POST /admin/listing/:id/${string}/delete`> =>
   (request, { id }) =>
     withAuth(request, CONTENT_FORM, (session) =>
@@ -187,6 +216,11 @@ const handleFileDelete =
         if (url) {
           const [deleteResult] = await Promise.allSettled([deleteFile(url)]);
           if (deleteResult.status === "fulfilled") {
+            await deleteExtraFiles(
+              getExtraUrls?.(listing) ?? [],
+              listing.id,
+              label,
+            );
             await listingsTable.update(id, clearFields);
             await logActivity(
               `${label} removed for '${listing.name}'`,
@@ -208,10 +242,13 @@ const handleFileDelete =
       }),
     );
 
-/** Handle POST /admin/listing/:id/image/delete (delete listing image) */
-export const handleImageDelete = handleFileDelete("Image", (e) => e.image_url, {
-  imageUrl: "",
-});
+/** Handle POST /admin/listing/:id/image/delete (delete listing image + thumbnail) */
+export const handleImageDelete = handleFileDelete(
+  "Image",
+  (e) => e.image_url,
+  { imageThumbUrl: "", imageUrl: "" },
+  (e) => [e.image_thumb_url],
+);
 
 /** Handle POST /admin/listing/:id/attachment/delete (delete listing attachment) */
 export const handleAttachmentDelete = handleFileDelete(

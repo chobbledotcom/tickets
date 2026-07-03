@@ -1572,6 +1572,36 @@ describeWithEnv(
         });
         expect(html).toContain('alt=""');
       });
+
+      test("uses the thumbnail URL in thumb contexts when one exists", () => {
+        const html = renderListingImage(
+          { image_thumb_url: "thumb.webp", image_url: "full.webp" },
+          "listing-thumbnail",
+          { thumb: true },
+        );
+        expect(html).toContain("/image/thumb.webp");
+        expect(html).not.toContain("/image/full.webp");
+        expect(html).toContain('class="listing-thumbnail"');
+      });
+
+      test("falls back to the full image in thumb contexts when no thumbnail", () => {
+        // Legacy listings uploaded before thumbnails exist: never a dead link.
+        const html = renderListingImage(
+          { image_thumb_url: "", image_url: "full.webp" },
+          "listing-thumbnail",
+          { thumb: true },
+        );
+        expect(html).toContain("/image/full.webp");
+      });
+
+      test("uses the full image outside thumb contexts even when a thumb exists", () => {
+        const html = renderListingImage({
+          image_thumb_url: "thumb.webp",
+          image_url: "full.webp",
+        });
+        expect(html).toContain("/image/full.webp");
+        expect(html).not.toContain("/image/thumb.webp");
+      });
     });
 
     describe("ticketPage with image", () => {

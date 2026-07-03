@@ -90,6 +90,7 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["date", "TEXT NOT NULL DEFAULT ''"],
         ["location", "TEXT NOT NULL DEFAULT ''"],
         ["image_url", "TEXT NOT NULL DEFAULT ''"],
+        ["image_thumb_url", "TEXT NOT NULL DEFAULT ''"],
         ["attachment_url", "TEXT NOT NULL DEFAULT ''"],
         ["attachment_name", "TEXT NOT NULL DEFAULT ''"],
         ["non_transferable", "INTEGER NOT NULL DEFAULT 0"],
