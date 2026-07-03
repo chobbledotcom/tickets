@@ -165,7 +165,7 @@ describe("adminDashboardPage", () => {
     expect(html).toContain("Newest 1 Attendee</summary>");
   });
 
-  test("newest attendees shows listing column", () => {
+  test("newest attendees shows the Listings column", () => {
     const listings = [testListingWithCount({ id: 1, name: "Workshop" })];
     const attendees = [testAttendee({ id: 1, listing_id: 1 })];
     const html = adminDashboardPage(
@@ -174,8 +174,33 @@ describe("adminDashboardPage", () => {
       undefined,
       attendees,
     );
-    expect(html).toContain("<th>Listing</th>");
+    expect(html).toContain("<th>Listings</th>");
     expect(html).toContain("Workshop");
+  });
+
+  test("newest attendees groups an attendee's bookings into one row, listings in display order", () => {
+    // `listings` arrives pre-sorted (Gala first); the attendee's lines arrive
+    // in the opposite order, so the cell order proves the display order wins.
+    const listings = [
+      testListingWithCount({ id: 1, name: "Gala" }),
+      testListingWithCount({ id: 2, name: "Workshop" }),
+    ];
+    const attendees = [
+      testAttendee({ id: 1, listing_id: 2, name: "Alice" }),
+      testAttendee({ id: 1, listing_id: 1, name: "Alice" }),
+    ];
+    const html = adminDashboardPage(
+      listings,
+      TEST_SESSION,
+      undefined,
+      attendees,
+    );
+    expect(html).toContain("Newest 1 Attendee</summary>");
+    expect(html).toContain(
+      '<span class="listings-cell" title="Gala, Workshop">' +
+        '<a href="/admin/listing/1">Gala</a>, ' +
+        '<a href="/admin/listing/2">Workshop</a></span>',
+    );
   });
 
   test("newest attendees not shown when all attendees have unknown listing_id", () => {

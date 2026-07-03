@@ -5,6 +5,7 @@
 import { joinStrings, map, pipe, sumOf } from "#fp";
 import { t } from "#i18n";
 import { groupReturnPath } from "#shared/admin-paths.ts";
+import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { resolveColumnLayout } from "#shared/column-order.ts";
 import {
   LISTING_DEFAULT_ORDER,
@@ -314,7 +315,9 @@ export const adminGroupDeletePage = (
     </Layout>,
   );
 
-/** Build AttendeeTableRows from attendees with listing lookup */
+/** Build one AttendeeTableRow per booking line, looking up each line's listing.
+ * Stays per-line (not grouped by attendee) so every line keeps its own
+ * check-in button. */
 const buildAttendeeRows = (
   attendees: Attendee[],
   listings: ListingWithCount[],
@@ -323,14 +326,10 @@ const buildAttendeeRows = (
     map((e: ListingWithCount) => [e.id, e] as const)(listings),
   );
   return pipe(
-    map((a: Attendee): AttendeeTableRow => {
-      const listing = listingMap.get(a.listing_id)!;
-      return {
-        attendee: a,
-        listingId: listing.id,
-        listingName: listing.name,
-      };
-    }),
+    map(
+      (a: Attendee): AttendeeTableRow =>
+        attendeeLineRow(a, listingMap.get(a.listing_id)!),
+    ),
   )(attendees);
 };
 

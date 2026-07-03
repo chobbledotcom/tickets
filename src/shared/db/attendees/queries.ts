@@ -194,18 +194,25 @@ export const getAttendeePackageRowsRaw = (
 /**
  * Get the newest attendees across all listings without decrypting PII.
  * Used for the admin dashboard to show recent registrations.
+ *
+ * The limit counts ATTENDEES, not booking lines: the inner subquery picks the
+ * newest `limit` attendee ids — by id, which is AUTOINCREMENT and so
+ * co-monotonic with created but index-backed (no sort over the whole
+ * unbounded attendees table) — and the outer LEFT JOIN returns every booking
+ * line for those attendees, so the dashboard's grouped rows always carry an
+ * attendee's complete listings.
  */
 export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
-  // Order by attendee.id DESC, not attendee.created: id is AUTOINCREMENT so it is
-  // co-monotonic with created (newest attendee = highest id), but ordering by
-  // the rowid drives the scan off the primary key with no sort over the whole
-  // (unbounded) attendees table.
   queryAll<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees AS attendee
      LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-     WHERE attendee.kind = '${ATTENDEE_KIND}'
-     ORDER BY attendee.id DESC LIMIT ?`,
+     WHERE attendee.id IN (
+       SELECT newest.id FROM attendees AS newest
+       WHERE newest.kind = '${ATTENDEE_KIND}'
+       ORDER BY newest.id DESC LIMIT ?
+     )
+     ORDER BY attendee.id DESC, listingAttendee.listing_id ASC`,
     [limit],
   );
 
@@ -213,29 +220,50 @@ export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
 export type AttendeeSort = "newest" | "oldest";
 
 /**
- * Attendee rows per page in the admin attendees browser. Fixed here so the
+ * Attendees per page in the admin attendees browser. Fixed here so the
  * page size is never derived from the request — callers choose only the page.
  */
 export const ATTENDEES_PAGE_SIZE = 100;
 
-/** One page of attendee rows, plus whether a further page exists */
+/** One page of attendee booking rows, plus whether a further page exists */
 export type AttendeesPage = {
   rows: Attendee[];
   hasNext: boolean;
 };
 
 /**
- * Get one page of attendee+booking rows for the admin attendees browser.
+ * Collapse the one-extra-attendee overread into `hasNext`, dropping the extra
+ * attendee's lines. Rows arrive grouped by attendee id (the outer ORDER BY),
+ * so the extra attendee is exactly the last distinct id.
+ */
+const trimAttendeePage = (rows: Attendee[]): AttendeesPage => {
+  const ids: number[] = [];
+  for (const row of rows) {
+    if (ids[ids.length - 1] !== row.id) ids.push(row.id);
+  }
+  if (ids.length <= ATTENDEES_PAGE_SIZE) return { hasNext: false, rows };
+  const extraId = ids[ids.length - 1];
+  return { hasNext: true, rows: rows.filter((row) => row.id !== extraId) };
+};
+
+/**
+ * Get one page of attendees — with every one of their booking rows — for the
+ * admin attendees browser.
  *
- * Returns one row per (attendee, listing) booking, ordered by attendee id —
- * newest or oldest first. id is AUTOINCREMENT, so it is co-monotonic with the
- * registration date but unique, making paging deterministic and index-backed
- * (no sort over the whole attendees table). When `listingId` is given, only
- * that listing's bookings are returned; otherwise every booking is included.
+ * Pagination counts ATTENDEES, not booking lines: the inner subquery selects
+ * one page of attendee ids, ordered by id — AUTOINCREMENT, so co-monotonic
+ * with the registration date but unique, making paging deterministic and
+ * index-backed — and the outer query returns every listing_attendees line for
+ * those attendees. A grouped attendee row therefore always carries their
+ * complete listings list and never splits across a page boundary. When
+ * `listingIds` is given it decides WHICH attendees match (any booking on
+ * those listings); the returned rows still cover all of a matched attendee's
+ * listings.
  *
- * The page size is fixed; callers pass a zero-based `page`. One extra row is
- * read to report `hasNext` without a separate count query, then trimmed off.
- * PII stays encrypted — decrypt with decryptAttendees before display.
+ * The page size is fixed; callers pass a zero-based `page`. One extra
+ * attendee is read to report `hasNext` without a separate count query, then
+ * trimmed off. PII stays encrypted — decrypt with decryptAttendees before
+ * display.
  */
 export const getAttendeesPage = async ({
   listingIds,
@@ -250,14 +278,12 @@ export const getAttendeesPage = async ({
 }): Promise<AttendeesPage> => {
   // An empty filter set matches nothing — e.g. a type with no listings yet.
   if (listingIds?.length === 0) return { hasNext: false, rows: [] };
-  // `dir` is derived from the AttendeeSort enum and the WHERE clause is fixed
+  // `dir` is derived from the AttendeeSort enum and the filter clause is fixed
   // text, so neither is user-controlled — only the bound args are.
   const dir = sort === "oldest" ? "ASC" : "DESC";
-  const where = listingIds
-    ? `WHERE attendee.kind = '${ATTENDEE_KIND}' AND listingAttendee.listing_id IN (${inPlaceholders(
-        listingIds,
-      )})`
-    : `WHERE attendee.kind = '${ATTENDEE_KIND}'`;
+  const lineFilter = listingIds
+    ? ` AND pageLine.listing_id IN (${inPlaceholders(listingIds)})`
+    : "";
   const limit = ATTENDEES_PAGE_SIZE + 1;
   const offset = page * ATTENDEES_PAGE_SIZE;
   const args = listingIds ? [...listingIds, limit, offset] : [limit, offset];
@@ -265,13 +291,19 @@ export const getAttendeesPage = async ({
     `SELECT ${ATTENDEE_JOIN_SELECT}
      FROM attendees AS attendee
      JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-     ${where}
-     ORDER BY attendee.id ${dir}
-     LIMIT ? OFFSET ?`,
+     WHERE attendee.id IN (
+       SELECT pageAttendee.id
+       FROM attendees AS pageAttendee
+       JOIN listing_attendees AS pageLine ON pageLine.attendee_id = pageAttendee.id
+       WHERE pageAttendee.kind = '${ATTENDEE_KIND}'${lineFilter}
+       GROUP BY pageAttendee.id
+       ORDER BY pageAttendee.id ${dir}
+       LIMIT ? OFFSET ?
+     )
+     ORDER BY attendee.id ${dir}, listingAttendee.listing_id ASC`,
     args,
   );
-  const hasNext = rows.length > ATTENDEES_PAGE_SIZE;
-  return { hasNext, rows: hasNext ? rows.slice(0, ATTENDEES_PAGE_SIZE) : rows };
+  return trimAttendeePage(rows);
 };
 
 /**

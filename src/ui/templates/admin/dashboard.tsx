@@ -2,8 +2,9 @@
  * Admin dashboard page template
  */
 
-import { filter, joinStrings, map, pipe, reduce, unique } from "#fp";
+import { filter, joinStrings, map, pipe, unique } from "#fp";
 import { t } from "#i18n";
+import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
 import {
   type ColumnGenerators,
   getHeaderText,
@@ -33,7 +34,6 @@ import {
 import type {
   AdminSession,
   Attendee,
-  AttendeeTableRow,
   Holiday,
   ListingWithCount,
 } from "#shared/types.ts";
@@ -156,23 +156,14 @@ export const activeListingStatsSection = (stats: ActiveListingStats): string =>
     </details>,
   );
 
-/** Build the newest attendees section with a details/summary wrapper */
+/** Build the newest attendees section with a details/summary wrapper.
+ * One row per attendee: `listings` arrives in display order, so each grouped
+ * row's Listings cell follows the listings page ordering. */
 const newestAttendeesSection = (
   attendees: Attendee[],
   listings: ListingWithCount[],
 ): string => {
-  const listingMap = new Map(listings.map((e) => [e.id, e]));
-  const tableRows = reduce((acc: AttendeeTableRow[], a: Attendee) => {
-    const listing = listingMap.get(a.listing_id);
-    if (listing) {
-      acc.push({
-        attendee: a,
-        listingId: listing.id,
-        listingName: listing.name,
-      });
-    }
-    return acc;
-  }, [] as AttendeeTableRow[])(attendees);
+  const tableRows = groupAttendeeRows(attendees, listings);
 
   if (tableRows.length === 0) return "";
 

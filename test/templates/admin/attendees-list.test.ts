@@ -42,8 +42,7 @@ const row = (
   listingName: string,
 ): AttendeeTableRow => ({
   attendee: testAttendee({ id: attendeeId, listing_id: listingId, name }),
-  listingId,
-  listingName,
+  listings: [{ id: listingId, name: listingName }],
 });
 
 beforeAll(async () => {

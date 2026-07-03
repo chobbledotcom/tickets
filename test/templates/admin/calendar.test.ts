@@ -133,9 +133,9 @@ describe("adminCalendarPage", () => {
     expect(html).toContain("John Doe");
   });
 
-  test("renders Listing column header", () => {
+  test("renders Listings column header", () => {
     const html = calendarHtml();
-    expect(html).toContain("<th>Listing</th>");
+    expect(html).toContain("<th>Listings</th>");
   });
 
   test("shows CSV export link when date has attendees", () => {

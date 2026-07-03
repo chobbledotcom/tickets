@@ -39,12 +39,21 @@ const status = componentRenderedCol(
   (row, opts) => opts.renderStatus(row),
 );
 
-const listing: AttendeeCol = {
-  cell: (row) =>
-    `<a href="/admin/listing/${row.listingId}">${escapeHtml(row.listingName)}</a>`,
-  description: "Listing name with link to the listing detail page",
+const listings: AttendeeCol = {
+  // The wrapping span carries the full comma-separated list in its title and
+  // the .listings-cell truncation styles, so a long list ellipsizes at 30rem
+  // while hovering reveals every listing name.
+  cell: (row) => {
+    const fullList = escapeHtml(row.listings.map((l) => l.name).join(", "));
+    const links = row.listings
+      .map((l) => `<a href="/admin/listing/${l.id}">${escapeHtml(l.name)}</a>`)
+      .join(", ");
+    return `<span class="listings-cell" title="${fullList}">${links}</span>`;
+  },
+  description:
+    "The row's listings in display order, each linked to its detail page",
   isHtml: true,
-  label: "Listing",
+  label: "Listings",
 };
 
 const date: AttendeeCol = {
@@ -220,7 +229,7 @@ export const ATTENDEE_TABLE_COLUMNS: ColumnGenerators<
   answers,
   date,
   email,
-  listing,
+  listings,
   name,
   phone,
   qty,
@@ -233,9 +242,9 @@ export const ATTENDEE_TABLE_COLUMNS: ColumnGenerators<
 /** Default column order for the attendee table */
 export const ATTENDEE_DEFAULT_ORDER = [
   "status",
-  "listing",
   "date",
   "name",
+  "listings",
   "email",
   "phone",
   "address",

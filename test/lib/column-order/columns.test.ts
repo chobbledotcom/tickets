@@ -196,18 +196,32 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
     overrides: Partial<AttendeeTableRow> = {},
   ): AttendeeTableRow => ({
     attendee: testAttendee(),
-    listingId: 1,
-    listingName: "Test Listing",
+    listings: [{ id: 1, name: "Test Listing" }],
     ...overrides,
   });
 
-  test("listing cell renders link to admin listing page", () => {
-    const html = ATTENDEE_TABLE_COLUMNS.listing!.cell(
-      makeRow({ listingId: 42, listingName: "Gala" }),
+  /** The listings cell rendered for a two-listing grouped row */
+  const twoListingCell = (): string =>
+    ATTENDEE_TABLE_COLUMNS.listings!.cell(
+      makeRow({
+        listings: [
+          { id: 42, name: "Gala" },
+          { id: 7, name: "Quiz Night" },
+        ],
+      }),
       opts,
     );
-    expect(html).toContain("/admin/listing/42");
-    expect(html).toContain("Gala");
+
+  test("listings cell renders a link per listing to its admin page", () => {
+    expect(twoListingCell()).toContain(
+      '<a href="/admin/listing/42">Gala</a>, <a href="/admin/listing/7">Quiz Night</a>',
+    );
+  });
+
+  test("listings cell carries the full name list in its title attribute", () => {
+    expect(twoListingCell()).toContain(
+      '<span class="listings-cell" title="Gala, Quiz Night">',
+    );
   });
 
   test("date cell formats date labels", () => {

@@ -5,6 +5,7 @@ import {
   getNewestAttendeesRaw,
 } from "#shared/db/attendees.ts";
 import {
+  createMultiBookingAttendee,
   createTestAttendee,
   createTestListing,
   describeWithEnv,
@@ -56,6 +57,29 @@ describeWithEnv("db > attendees > getNewestAttendeesRaw", { db: true }, () => {
 
     const raw = await getNewestAttendeesRaw(2);
     expect(raw.length).toBe(2);
+  });
+
+  test("counts the limit in attendees and returns each one's every booking line", async () => {
+    const listing1 = await createTestListing({ maxAttendees: 10 });
+    const listing2 = await createTestListing({ maxAttendees: 10 });
+    await createTestAttendee(
+      listing1.id,
+      listing1.slug,
+      "Old",
+      "old@example.com",
+    );
+    const multi = await createMultiBookingAttendee(
+      "Newest",
+      "new@example.com",
+      [{ listingId: listing1.id }, { listingId: listing2.id }],
+    );
+
+    // Limit 1 = the newest attendee — BOTH of their lines, nothing of "Old".
+    const raw = await getNewestAttendeesRaw(1);
+    expect(raw.map((row) => row.id)).toEqual([multi.id, multi.id]);
+    expect(raw.map((row) => row.listing_id).toSorted()).toEqual(
+      [listing1.id, listing2.id].toSorted(),
+    );
   });
 
   test("returns empty array when no attendees", async () => {
