@@ -30,7 +30,7 @@ import {
 import { createGlobalStash } from "#test-utils/happy-dom.ts";
 
 const stash = createGlobalStash();
-let activeWindow: Window | null = null;
+const openWindows: Window[] = [];
 
 /** Install a fresh happy-dom window (with the given body) onto the globals. */
 const installDom = (bodyHtml: string): Window => {
@@ -42,17 +42,17 @@ const installDom = (bodyHtml: string): Window => {
   stash.set("getComputedStyle", window.getComputedStyle.bind(window));
   stash.set("MutationObserver", window.MutationObserver);
   stash.set("Event", window.Event);
-  activeWindow = window;
+  openWindows.push(window);
   return window;
 };
 
 afterEach(async () => {
   stash.restore();
-  if (activeWindow) {
-    await activeWindow.happyDOM.abort();
-    activeWindow.close();
-    activeWindow = null;
+  for (const window of openWindows) {
+    await window.happyDOM.abort();
+    window.close();
   }
+  openWindows.length = 0;
 });
 
 const TEXTAREA = "<textarea data-markdown-preview>%s</textarea>";

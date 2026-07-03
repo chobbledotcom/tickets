@@ -202,7 +202,8 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "/admin/guide",
         "Allow Pay More",
         "maximum",
-        "at least £1.00 more than the ticket price",
+        // formatCurrency strips the trailing zeros from whole amounts: £1.
+        "at least £1 more than the ticket price",
       );
     });
 

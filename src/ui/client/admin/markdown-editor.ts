@@ -42,7 +42,7 @@ export const enhanceMarkdownTextarea = (
 ): MarkdownEditorHandle => {
   const mount = document.createElement("div");
   mount.className = "md-editor";
-  textarea.insertAdjacentElement("afterend", mount);
+  textarea.after(mount);
 
   const view: EditorView = new EditorView(mount, {
     dispatchTransaction: (tr) => {
@@ -88,7 +88,7 @@ export const enhanceMarkdownTextarea = (
   if (next?.classList.contains("md-editor-footer")) {
     next.prepend(toggle);
   } else {
-    mount.insertAdjacentElement("afterend", toggle);
+    mount.after(toggle);
   }
 
   return { setMode, view };
