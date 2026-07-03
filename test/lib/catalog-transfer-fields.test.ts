@@ -99,6 +99,28 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
     );
   });
 
+  test("rejects fractional seconds without a seconds component", async () => {
+    // Fractional seconds are only meaningful after a seconds field; a bare
+    // "T00:00.123Z" is not a real instant and the storage layer would empty it.
+    await expectListingImportError(
+      { closesAt: "2030-01-01T00:00.123Z", maxAttendees: 1, name: "Frac" },
+      "closesAt",
+    );
+  });
+
+  test("accepts fractional seconds after a seconds component", async () => {
+    const result = await importCatalog({
+      kind: "listing",
+      listing: {
+        closesAt: "2030-01-01T00:00:00.500Z",
+        maxAttendees: 1,
+        name: "Frac OK",
+      },
+      version: 1,
+    });
+    if (!result.ok) throw new Error(result.error);
+  });
+
   test("accepts an explicitly empty closesAt (never closes)", async () => {
     const result = await importCatalog({
       kind: "listing",

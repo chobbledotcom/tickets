@@ -35,12 +35,13 @@ import {
 const isStorableDatetime = (value: string): boolean => {
   if (value === "") return true;
   // Anchored end ($) so trailing junk ("…T00:00not-a-zone") is rejected rather
-  // than silently emptied by the storage normaliser: optional seconds, optional
-  // fractional seconds, and an optional Z / ±HH:MM offset are the only tails. The
-  // offset hours/minutes are captured so an out-of-range offset ("+99:99") is
-  // rejected too, not just range-checked on the local time.
+  // than silently emptied by the storage normaliser: optional seconds (with
+  // optional fractional seconds only *after* seconds — "T00:00.123" is not a real
+  // instant), and an optional Z / ±HH:MM offset are the only tails. The offset
+  // hours/minutes are captured so an out-of-range offset ("+99:99") is rejected
+  // too, not just range-checked on the local time.
   const m = value.match(
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))?$/,
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|[+-](\d{2}):(\d{2}))?$/,
   );
   if (!m) return false;
   const y = Number(m[1]);
