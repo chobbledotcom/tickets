@@ -25,6 +25,7 @@ import {
   createEditorState,
   editorKeymap,
   parseMarkdown,
+  roundTripsCleanly,
   serializeMarkdown,
 } from "#src/ui/client/admin/markdown-editor-setup.ts";
 import { createGlobalStash } from "#test-utils/happy-dom.ts";
@@ -106,6 +107,21 @@ describe("markdown editor setup", () => {
 
   test("serializes an empty document to an empty string", () => {
     expect(serializeMarkdown(parseMarkdown(""))).toBe("");
+  });
+
+  test("recognises markdown the editor can hold without rewriting", () => {
+    expect(roundTripsCleanly("Some **bold** with a [link](/x)\n\n* one")).toBe(
+      true,
+    );
+    expect(roundTripsCleanly("Hi {{ attendee_name }}")).toBe(true);
+    expect(roundTripsCleanly("")).toBe(true);
+  });
+
+  test("recognises markdown a rich-mode edit would rewrite", () => {
+    // A GFM table has no CommonMark schema node and collapses to a paragraph.
+    expect(roundTripsCleanly("| a | b |\n|---|---|\n| 1 | 2 |")).toBe(false);
+    // The serializer normalizes `- ` bullets to `* `.
+    expect(roundTripsCleanly("- one\n- two")).toBe(false);
   });
 
   test("undo and redo walk the edit history", () => {
@@ -367,6 +383,32 @@ describe("enhanceMarkdownTextarea", () => {
     handle.setMode("raw");
     textarea.value = "* switched";
     handle.setMode("rich");
+    expect(handle.view.state.doc.firstChild?.type.name).toBe("bullet_list");
+  });
+
+  test("opens in raw mode when the content would not survive rich editing", () => {
+    const table = "| a | b |\n|---|---|\n| 1 | 2 |";
+    const { textarea, window } = enhanced(table, { footer: true });
+    expect(textarea.classList.contains("md-editor-hidden")).toBe(false);
+    expect(
+      window.document
+        .querySelector(".md-editor")
+        ?.classList.contains("md-editor-hidden"),
+    ).toBe(true);
+    expect(
+      window.document.querySelector(".md-editor-toggle")?.textContent,
+    ).toBe("Edit visually");
+    expect(textarea.value).toBe(table);
+  });
+
+  test("rich mode stays an explicit toggle for non-round-tripping content", () => {
+    const { handle, textarea, window } = enhanced("- one", { footer: true });
+    (
+      window.document.querySelector(".md-editor-toggle") as unknown as {
+        click: () => void;
+      }
+    ).click();
+    expect(textarea.classList.contains("md-editor-hidden")).toBe(true);
     expect(handle.view.state.doc.firstChild?.type.name).toBe("bullet_list");
   });
 

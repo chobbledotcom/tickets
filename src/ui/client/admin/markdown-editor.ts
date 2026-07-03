@@ -9,14 +9,17 @@
  * back to markdown into it and re-announced as an `input` event — so form
  * submission, server-side validation, the character counter and the preview
  * dialog all keep working unchanged. A footer button toggles to the raw
- * textarea for anything the visual editor doesn't model (e.g. tables), and a
- * blocked required-field submit reveals the textarea so the browser's
- * validation UI has a focusable control to point at.
+ * textarea for anything the visual editor doesn't model (e.g. tables) — and
+ * a field whose stored markdown wouldn't survive the round trip opens in raw
+ * mode so rich editing never silently rewrites it. A blocked required-field
+ * submit reveals the textarea so the browser's validation UI has a focusable
+ * control to point at.
  */
 
 import { EditorView } from "prosemirror-view";
 import {
   createEditorState,
+  roundTripsCleanly,
   serializeMarkdown,
 } from "./markdown-editor-setup.ts";
 
@@ -61,7 +64,13 @@ export const enhanceMarkdownTextarea = (
   toggle.type = "button";
   toggle.className = "md-preview-link md-editor-toggle";
 
-  let mode: EditorMode = "rich";
+  // Auto-engage rich mode only when the stored markdown provably survives a
+  // parse→serialize round trip: in rich mode the first doc change rewrites
+  // the whole textarea from the document, which would silently normalize or
+  // destroy syntax the schema can't hold (e.g. a GFM table). For such
+  // content the field opens raw, and switching to rich stays an explicit
+  // toggle click.
+  let mode: EditorMode = roundTripsCleanly(textarea.value) ? "rich" : "raw";
   const setMode = (next: EditorMode): void => {
     mode = next;
     const raw = next === "raw";

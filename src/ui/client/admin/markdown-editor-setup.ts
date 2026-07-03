@@ -50,6 +50,17 @@ export const parseMarkdown = (text: string): Node =>
 export const serializeMarkdown = (doc: Node): string =>
   defaultMarkdownSerializer.serialize(doc);
 
+/**
+ * True when the markdown survives a parse→serialize round trip unchanged
+ * (modulo outer whitespace) — i.e. the rich editor can hold it without
+ * rewriting anything. False for syntax outside the CommonMark schema (GFM
+ * tables collapse to a paragraph) and for spellings the serializer would
+ * normalize (`- ` bullets become `* `), where a rich-mode edit anywhere in
+ * the field would silently rewrite the stored text.
+ */
+export const roundTripsCleanly = (text: string): boolean =>
+  serializeMarkdown(parseMarkdown(text)).trim() === text.trim();
+
 /** Insert a hard line break (Shift-Enter), leaving code blocks first. */
 const insertHardBreak: Command = chainCommands(exitCode, (state, dispatch) => {
   dispatch?.(
