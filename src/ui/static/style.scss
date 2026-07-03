@@ -838,18 +838,51 @@ textarea[readonly] {
   color: #c00;
 }
 
-/* Footer row beneath a markdown editor: preview link (left) opposite the
-   character counter (right). */
+/* Footer row beneath a markdown editor: mode toggle and preview link (left)
+   opposite the character counter (right). */
 .md-editor-footer {
   display: flex;
   width: 100%;
   max-width: var(--width-card-wide);
   align-items: baseline;
-  justify-content: space-between;
   gap: var(--space-m);
 }
 .md-editor-footer .char-counter {
-  margin: 0;
+  margin: 0 0 0 auto;
+}
+
+/* Rich markdown editor mounted over a markdown textarea. Whichever of the
+   textarea / editor is inactive carries .md-editor-hidden. */
+.md-editor-hidden {
+  display: none;
+}
+.md-editor {
+  width: 100%;
+  max-width: var(--width-card-wide);
+  box-sizing: border-box;
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: var(--border-radius);
+}
+.md-editor:focus-within {
+  border-color: var(--color-link);
+}
+/* The minimal subset of ProseMirror's core stylesheet the editor needs
+   (prosemirror-view/style/prosemirror.css); the rest styles features we
+   don't use (gap cursors, column resizing, selection hiding). */
+.md-editor .ProseMirror {
+  position: relative;
+  min-height: 8em;
+  padding: 0.4rem 0.8rem;
+  outline: none;
+  white-space: break-spaces;
+  word-wrap: break-word;
+  font-variant-ligatures: none;
+}
+.md-editor .ProseMirror li {
+  position: relative;
+}
+.md-editor .ProseMirror pre {
+  white-space: pre-wrap;
 }
 
 /* Small text-button styled like a link. */

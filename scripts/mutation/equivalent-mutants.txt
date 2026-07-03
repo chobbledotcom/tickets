@@ -252,3 +252,19 @@ src/features/admin/attendee-refunds.ts:172:24  ?? → ||    # flash.error: strin
 src/shared/columns/attendee-columns.ts:133:67  ?? → ||    # getAnswerDisplay attendeeAnswerMap.get(): number[]|undefined — an array is always truthy, so ?? and || coincide
 src/ui/templates/attendee-table.tsx:146:39  ?? → ||    # compareAttendeeRows listingA = a.listings[0]?.name ?? "": string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/ui/templates/attendee-table.tsx:147:39  ?? → ||    # compareAttendeeRows listingB = b.listings[0]?.name ?? "": string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+
+# --- Rich markdown editor (src/ui/client/admin/markdown-editor*.ts) ------------
+# Browser DOM-construction code, same class of equivalents as order.ts above:
+# `= → +=` on a freshly created element's property whose value before the
+# assignment is "" (className, src), or a boolean IDL attribute whose setter
+# coerces the truthy `false + true === 1` to the same true.
+src/ui/client/admin/markdown-editor-loader.ts:24:13  = → +=    # script.src: fresh element, "" before, "" + url === url
+src/ui/client/admin/markdown-editor-loader.ts:25:68  ?? → ||    # adminSrc?.slice(): string|undefined; the only falsy-non-null value "" equals the "" fallback
+src/ui/client/admin/markdown-editor-loader.ts:26:15  = → +=    # script.defer: false + true === 1, boolean IDL setter coerces truthy → true
+src/ui/client/admin/markdown-editor.ts:44:18  = → +=    # mount.className: fresh element, "" before
+src/ui/client/admin/markdown-editor.ts:62:19  = → +=    # toggle.className: fresh element, "" before
+# The ordered-list input rule's `match[1]` vs `match[0]`: the regex is
+# /^(\d+)\.\s$/ so match[0] is always "N. " and Number("N. ") === Number("N")
+# (Number trims whitespace and "N." is the same decimal) — no typed input can
+# tell them apart.
+src/ui/client/admin/markdown-editor-setup.ts:96:25  1 → 0    # Number("N. ") === Number("N") for every ordered-list match

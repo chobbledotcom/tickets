@@ -26,6 +26,7 @@ import {
   serializeCatalog,
 } from "#shared/external-order.ts";
 import { testListing } from "#test-utils/factories.ts";
+import { createGlobalStash } from "#test-utils/happy-dom.ts";
 
 const ORIGIN = "https://tickets.test";
 const MODULE_MARKER = "__orderWidgetModule";
@@ -79,17 +80,8 @@ const harness = () => {
     return realFocus?.call(this);
   };
 
-  const saved = new Map<string, PropertyDescriptor | undefined>();
-  const setGlobal = (key: string, value: unknown): void => {
-    if (!saved.has(key)) {
-      saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
-    }
-    Object.defineProperty(globalThis, key, {
-      configurable: true,
-      value,
-      writable: true,
-    });
-  };
+  const stash = createGlobalStash();
+  const setGlobal = stash.set;
 
   setGlobal("document", document);
   setGlobal("sessionStorage", window.sessionStorage);
@@ -103,10 +95,7 @@ const harness = () => {
 
   const restore = (): void => {
     console.debug = origDebug;
-    for (const [key, desc] of saved) {
-      if (desc) Object.defineProperty(globalThis, key, desc);
-      else delete (globalThis as Record<string, unknown>)[key];
-    }
+    stash.restore();
     delete (globalThis as Record<string, unknown>).__chobbleExternalOrder;
     delete (globalThis as Record<string, unknown>)[MODULE_MARKER];
   };

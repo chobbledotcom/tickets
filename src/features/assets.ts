@@ -36,6 +36,7 @@ export const handleFavicon = staticHandler("favicon.svg", SVG);
 export const handleIcons = staticHandler("icons.svg", SVG);
 export const handleStyleCss = staticHandler("style.css", CSS);
 export const handleAdminJs = staticHandler("admin.js", JS);
+export const handleMarkdownEditorJs = staticHandler("markdown-editor.js", JS);
 export const handleScannerJs = staticHandler("scanner.js", JS);
 export const handleEmbedJs = staticHandler("embed.js", JS);
 export const handleContactJs = staticHandler("contact.js", JS);
