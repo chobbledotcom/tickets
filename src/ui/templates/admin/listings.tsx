@@ -6,7 +6,6 @@ import { filter, joinStrings, map, mapNotNullish, pipe } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { formatCountdown } from "#routes/format.ts";
-import { targetQuery } from "#shared/bulk-email.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import {
   formatDateLabel,
@@ -81,11 +80,7 @@ import {
   type AttendeeTableRow,
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
-import {
-  ActionButton,
-  MaybeButtonLink,
-  SubmitButton,
-} from "#templates/components/actions.tsx";
+import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
 import {
   moneyPattern,
   PriceInput,
@@ -285,9 +280,6 @@ const FailedPaymentsTable = ({
       </tbody>
     </table>,
   );
-
-/** Check-in message to display after toggling */
-export type CheckinMessage = { name: string; status: string } | null;
 
 /** Filter attendees by check-in status. The in/out filters operate on real
  * (quantity > 0) lines only — a no-quantity sentinel row isn't checkable, so it
@@ -518,19 +510,17 @@ export type GroupContext = {
   attendeeCount: number;
 };
 
-export type AdminListingPageOptions = {
+/** The listing detail data the Overview / Roster panels render. The entity
+ *  page's tab loaders build this directly. */
+export type ListingPanelOptions = {
   listing: ListingWithCount;
   attendees: Attendee[];
   allowedDomain: string;
-  session: AdminSession;
   aggregateRecalculation?: ListingAggregateRecalculation | undefined;
-  checkinMessage?: CheckinMessage | undefined;
   activeFilter?: AttendeeFilter | undefined;
   dateFilter?: string | null | undefined;
   availableDates?: DateOption[] | undefined;
-  errorMessage?: string | undefined;
   phonePrefix?: string | undefined;
-  successMessage?: string | undefined;
   questionData?: TableQuestionData | undefined;
   groupContext?: GroupContext | undefined;
   /** The listing's revenue-account breakdown (gross sales, manual adjustments,
@@ -559,111 +549,6 @@ export type AdminListingPageOptions = {
   /** Decrypted notes for the listed attendees (empty when none) — surfaced as a
    * red expandable above the attendee table. */
   systemNotes?: SystemNote[] | undefined;
-};
-
-/** Top action nav for the listing detail page */
-const ListingActionNav = ({
-  listing,
-  hasPaidListing,
-  isOwner,
-  hasEmailableAttendees,
-  isChild,
-  isHiddenPackageMember,
-}: {
-  listing: ListingWithCount;
-  hasPaidListing: boolean;
-  isOwner: boolean;
-  hasEmailableAttendees: boolean;
-  isChild: boolean;
-  isHiddenPackageMember: boolean;
-}): JSX.Element => {
-  const readOnly = isReadOnly();
-  // A child or a hidden package's member has no standalone public page, so the
-  // booking QR (which points at /ticket/<slug>) would 404.
-  const shareSuppressed = isChild || isHiddenPackageMember;
-  return (
-    <nav>
-      <ul>
-        {!readOnly && (
-          <li>
-            <a href={`/admin/listing/${listing.id}/edit`}>{t("common.edit")}</a>
-          </li>
-        )}
-        {!readOnly && (
-          <li>
-            <a href={`/admin/listing/${listing.id}/duplicate`}>
-              {t("listings_table.duplicate")}
-            </a>
-          </li>
-        )}
-        <li>
-          <a href={`/admin/listing/${listing.id}/log`}>
-            {t("listings_table.log")}
-          </a>
-        </li>
-        {!listing.purchase_only && (
-          <li>
-            <a href={`/admin/listing/${listing.id}/scanner`}>
-              {t("listings_table.scanner")}
-            </a>
-          </li>
-        )}
-        <li>
-          <a href={`/admin/listing/${listing.id}/questions`}>
-            {t("terms.questions")}
-          </a>
-        </li>
-        {!readOnly && !shareSuppressed && (
-          <li>
-            <a href={`/admin/listing/${listing.id}/qr`}>
-              {t("listings_table.booking_qr")}
-            </a>
-          </li>
-        )}
-        {isOwner && (
-          <li>
-            <MaybeButtonLink
-              disabled={!hasEmailableAttendees}
-              href={`/admin/emails${targetQuery({
-                kind: "listing",
-                listingId: listing.id,
-              })}`}
-              {...(hasEmailableAttendees
-                ? {}
-                : { title: t("listings_table.no_email_attendees") })}
-            >
-              {t("common.email")}
-            </MaybeButtonLink>
-          </li>
-        )}
-        {hasPaidListing && (
-          <li>
-            <a class="danger" href={`/admin/listing/${listing.id}/refund-all`}>
-              {t("listings_table.refund_all")}
-            </a>
-          </li>
-        )}
-        {listing.active ? (
-          <li>
-            <a class="danger" href={`/admin/listing/${listing.id}/deactivate`}>
-              {t("listings_table.deactivate")}
-            </a>
-          </li>
-        ) : (
-          <li>
-            <a href={`/admin/listing/${listing.id}/reactivate`}>
-              {t("listings_table.reactivate")}
-            </a>
-          </li>
-        )}
-        <li>
-          <a class="danger" href={`/admin/listing/${listing.id}/delete`}>
-            {t("common.delete")}
-          </a>
-        </li>
-      </ul>
-    </nav>
-  );
 };
 
 /** Detail row listing each offered day count and its price, shown when a
@@ -1240,11 +1125,10 @@ const AttendeesFilterLinks = ({
   </p>
 );
 
-/** Attendees article section (header, optional check-in flash, filters, table) */
+/** Attendees article section (header, filters, table) */
 const AttendeesSection = ({
   listingId,
   allowedDomain,
-  checkinMessage,
   isDaily,
   availableDates,
   activeFilter,
@@ -1257,7 +1141,6 @@ const AttendeesSection = ({
 }: {
   listingId: number;
   allowedDomain: string;
-  checkinMessage: CheckinMessage | undefined;
   isDaily: boolean;
   availableDates: DateOption[];
   activeFilter: AttendeeFilter;
@@ -1268,14 +1151,6 @@ const AttendeesSection = ({
   questionData: TableQuestionData | undefined;
   phonePrefix: string | undefined;
 }): JSX.Element => {
-  const checkedInLabel =
-    checkinMessage?.status === "in"
-      ? t("listings_table.in")
-      : t("listings_table.out");
-  const checkedInClass =
-    checkinMessage?.status === "in"
-      ? "checkin-message-in"
-      : "checkin-message-out";
   // The export mirrors the current view: the date filter plus the active
   // check-in filter (/in or /out), so the CSV matches the rows on screen.
   const exportParams = new URLSearchParams();
@@ -1289,14 +1164,6 @@ const AttendeesSection = ({
     <article>
       <div class="prose">
         <h2 id="attendees">{t("terms.attendees")}</h2>
-        {checkinMessage && (
-          <p class={checkedInClass} id="message">
-            {t("listings_table.checked", {
-              name: checkinMessage.name,
-              status: checkedInLabel,
-            })}
-          </p>
-        )}
       </div>
       {isDaily && availableDates.length > 0 && (
         <Raw
@@ -1436,7 +1303,7 @@ const computeAttendeeStats = (
 /**
  * Derive every value the Overview and Roster panels share from the raw page
  * options, applying the same defaults the detail page always used. Both panels
- * (and the composed {@link adminListingPage}) read from this so the roster
+ * read from this so the roster
  * stats, capacity rows, and filter URLs are computed in exactly one place.
  */
 /** The always-visible "this listing is deactivated" warning, rendered in the
@@ -1452,13 +1319,6 @@ export const ListingDeactivatedBanner = ({
       {t("listings_table.listing_deactivated_warning")}
     </div>
   );
-
-/** The listing detail data the Overview / Roster panels render — everything
- *  {@link AdminListingPageOptions} carries except the viewer session, which the
- *  panels (unlike the page frame) never read. The entity page's tab loaders
- *  build this directly; {@link adminListingPage} passes its full options through
- *  (a session-bearing superset is structurally assignable). */
-export type ListingPanelOptions = Omit<AdminListingPageOptions, "session">;
 
 const deriveListingView = (opts: ListingPanelOptions) => {
   const {
@@ -1532,8 +1392,7 @@ const deriveListingView = (opts: ListingPanelOptions) => {
 /**
  * The listing "Overview" panel: the read-only details table, the income/ledger
  * money sections (owner-only callers pass them), and the attendee-notes
- * summary. Rendered as the listing entity page's Overview tab and composed into
- * the legacy {@link adminListingPage} detail view.
+ * summary. Rendered as the listing entity page's Overview tab.
  */
 export const ListingOverviewPanel = (
   opts: ListingPanelOptions,
@@ -1591,19 +1450,20 @@ export const ListingOverviewPanel = (
  * The listing "Attendees" panel: the roster table (with filter links + optional
  * check-in flash), the failed-payments split-out, and the quick add-attendee
  * form (suppressed in read-only mode). Rendered as the listing entity page's
- * Attendees tab and composed into the legacy {@link adminListingPage}.
+ * Attendees tab.
  */
 export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
   const v = deriveListingView(opts);
   const {
     listing,
     allowedDomain,
+    attendees = [],
     availableDates = [],
-    checkinMessage,
     phonePrefix,
     questionData,
     childNames = [],
     groupContext,
+    systemNotes = [],
   } = opts;
   return (
     <>
@@ -1615,12 +1475,18 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
         groupContext,
         listing,
       })}
+      {/* The operator now works the roster from this tab (attendee rows, failed
+          payments, quick-add), so the contact/history notes summary that used to
+          sit above the table on the combined page renders here as well. */}
+      <AttendeeNotesSummary
+        names={attendeeNameMap(attendees)}
+        notes={systemNotes}
+      />
       <AttendeesSection
         activeFilter={v.activeFilter}
         allowedDomain={allowedDomain}
         availableDates={availableDates}
         basePath={v.basePath}
-        checkinMessage={checkinMessage}
         dateFilter={v.dateFilter}
         isDaily={v.isDaily}
         listingId={listing.id}
@@ -1639,40 +1505,6 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
         <AddAttendeeSection childNames={childNames} listing={listing} />
       )}
     </>
-  );
-};
-
-export const adminListingPage = (opts: AdminListingPageOptions): string => {
-  const {
-    listing,
-    session,
-    errorMessage,
-    successMessage,
-    hasEmailableAttendees = false,
-    isChild = false,
-    isHiddenPackageMember = false,
-  } = opts;
-  return String(
-    <Layout title={t("listings_table.detail_title", { name: listing.name })}>
-      <AdminNav active="/admin/" session={session} />
-      <ListingActionNav
-        hasEmailableAttendees={hasEmailableAttendees}
-        hasPaidListing={isPaidListing(listing)}
-        isChild={isChild}
-        isHiddenPackageMember={isHiddenPackageMember}
-        isOwner={session.adminLevel === "owner"}
-        listing={listing}
-      />
-      <Flash success={successMessage} />
-      {!listing.active && (
-        <div class="error" role="alert">
-          {t("listings_table.listing_deactivated_warning")}
-        </div>
-      )}
-      <Flash error={errorMessage} />
-      {ListingOverviewPanel(opts)}
-      {ListingRosterPanel(opts)}
-    </Layout>,
   );
 };
 
@@ -2569,7 +2401,7 @@ const ListingChildrenSection = ({
   </details>
 );
 
-/** Options for {@link ListingEditPanel} / {@link adminListingEditPage}. The
+/** Options for {@link ListingEditPanel}. The
  *  `parents` shape matches (structurally) the loader's `ListingParentsSection`
  *  in listings-parents.ts; it stays inline here so the template never imports
  *  from a route module. */
@@ -2595,7 +2427,7 @@ export type ListingEditPanelOptions = {
  * removers, and the parent/child editor. Rendered as the listing entity page's
  * Edit tab — and, on a rejected save, re-rendered in place with the submitted
  * error — so it carries its own error flash rather than relying on the page
- * frame. Composed into the legacy {@link adminListingEditPage} too.
+ * frame.
  */
 export const ListingEditPanel = ({
   listing,
@@ -2718,34 +2550,6 @@ export const ListingEditPanel = ({
     </>
   );
 };
-
-export const adminListingEditPage = (
-  listing: ListingWithCount,
-  groups: Group[],
-  session: AdminSession,
-  error?: string,
-  aggregateRecalculation?: ListingAggregateRecalculation | undefined,
-  success?: string,
-  parents?: ListingEditPanelOptions["parents"],
-  selectedGroupIds: number[] = [],
-): string =>
-  String(
-    <Layout
-      title={t("listings_table.edit_listing_title", { name: listing.name })}
-    >
-      <AdminNav active="/admin/" session={session} />
-      <Flash success={success} />
-      {ListingEditPanel({
-        aggregateRecalculation,
-        error,
-        groups,
-        listing,
-        parents,
-        selectedGroupIds,
-        session,
-      })}
-    </Layout>,
-  );
 
 /**
  * Admin delete listing confirmation page

@@ -710,6 +710,78 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expect(html).toContain("<th>Answers</th>");
       expect(html).toContain('<span title="Size: Small">Small</span>');
     });
+
+    test("shows the full activity log on the Activity tab", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Activity Listing",
+      });
+      await logActivity("A notable listing event", listing.id);
+
+      const response = await awaitTestRequest(
+        `/admin/listing/${listing.id}/activity`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("A notable listing event");
+    });
+
+    test("offers the reactivate action for a deactivated listing", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Reactivatable Listing",
+      });
+      await deactivateTestListing(listing.id);
+
+      const response = await awaitTestRequest(
+        `/admin/listing/${listing.id}/actions`,
+        { cookie },
+      );
+      const html = await response.text();
+      // A deactivated listing shows reactivate, never deactivate.
+      expect(html).toContain(`/admin/listing/${listing.id}/reactivate`);
+      expect(html).not.toContain(`/admin/listing/${listing.id}/deactivate`);
+    });
+
+    test("shows the Group Attendees row on the roster's per-date capacity for a daily listing in a capped group", async () => {
+      const bookingDate = addDays(todayInTz("UTC"), 1);
+      const group = await createTestGroup({
+        maxAttendees: 20,
+        name: "Daily Capped Group",
+        slug: "daily-capped",
+      });
+      const listing = await createTestListing({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        groupId: group.id,
+        listingType: "daily",
+        maxAttendees: 100,
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
+      await submitTicketForm(listing.slug, {
+        date: bookingDate,
+        email: "ada@example.com",
+        name: "Ada Lovelace",
+      });
+
+      // The per-date capacity table on the Attendees tab surfaces the group cap
+      // row only for a daily listing viewed with a date filter.
+      const response = await adminGet(
+        `/admin/listing/${listing.id}/attendees?date=${bookingDate}`,
+      );
+      const html = await response.text();
+      expect(html).toContain("Group Attendees");
+      expect(html).toContain(`href="/admin/groups/${group.id}"`);
+    });
   });
 
   describe("GET /admin/listing/:id/duplicate", () => {

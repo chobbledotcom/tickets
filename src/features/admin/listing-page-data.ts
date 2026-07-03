@@ -19,14 +19,13 @@ import { formatDateLabel } from "#shared/dates.ts";
 import {
   type ActivityLogEntry,
   getListingActivityLog,
-  getListingWithActivityLog,
 } from "#shared/db/activityLog.ts";
 import { decryptAttendees } from "#shared/db/attendees.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import {
+  getAttendeesByListingIds,
   getListingAggregateRecalculation,
-  getListingWithAttendeesRaw,
   getListingWithCount,
   listingRevenueBreakdown,
 } from "#shared/db/listings.ts";
@@ -132,15 +131,16 @@ export const rosterFilterFromQuery = (
   return { activeFilter, dateFilter };
 };
 
-/** Load and decrypt a listing's attendees. The entity page has already
- *  confirmed the listing exists, so a missing raw row yields an empty list
- *  rather than a 404 (the page frame is already committed). */
+/** Load and decrypt a listing's attendees. Uses the attendees-only query (which
+ *  yields an empty list for a listing with none) rather than the nullable
+ *  listing+attendees fetch: the entity page has already confirmed the listing
+ *  exists, so there is no missing-listing case to guard here. */
 const loadDecryptedListingAttendees = async (
   listingId: number,
 ): Promise<Attendee[]> => {
   const pk = await requireRequestPrivateKey();
-  const result = await getListingWithAttendeesRaw(listingId);
-  return result ? decryptAttendees(result.attendeesRaw, pk) : [];
+  const attendeesRaw = await getAttendeesByListingIds([listingId]);
+  return decryptAttendees(attendeesRaw, pk);
 };
 
 /** Attendees filtered to a single date (daily listings), else the full set. */
@@ -212,16 +212,23 @@ export const loadListingRosterPanel = async (
   );
   const attendees = await loadDecryptedListingAttendees(listing.id);
   const filteredByDate = filterByDate(attendees, dateFilter);
-  const [questionData, childrenByParent, groupContext] = await Promise.all([
-    loadListingQuestionData(
-      listing.id,
-      filteredByDate.map((a) => a.id),
-    ),
-    getChildrenForParents([listing.id]),
-    // The date-scoped group cap for the per-date capacity summary; a no-op
-    // (null date) when no daily date is selected.
-    loadGroupContext(listing, dateFilter),
-  ]);
+  const [questionData, childrenByParent, groupContext, systemNotes] =
+    await Promise.all([
+      loadListingQuestionData(
+        listing.id,
+        filteredByDate.map((a) => a.id),
+      ),
+      getChildrenForParents([listing.id]),
+      // The date-scoped group cap for the per-date capacity summary; a no-op
+      // (null date) when no daily date is selected.
+      loadGroupContext(listing, dateFilter),
+      // The contact/history notes summary that used to sit above the roster on
+      // the combined page — for the on-screen (date-filtered) attendees.
+      loadNotesForAttendees(
+        filteredByDate.map((a) => a.id),
+        requireRequestPrivateKey,
+      ),
+    ]);
   return ListingRosterPanel({
     activeFilter,
     allowedDomain: getEffectiveDomain(),
@@ -235,6 +242,7 @@ export const loadListingRosterPanel = async (
     listing,
     phonePrefix: settings.phonePrefix,
     questionData,
+    systemNotes,
   });
 };
 
@@ -248,13 +256,13 @@ export const loadListingActivityPreview = ({
 }: LoadedListing): Promise<ActivityLogEntry[]> =>
   getListingActivityLog(listing.id, ACTIVITY_PREVIEW_LIMIT);
 
-/** The full activity log for the Activity tab. Uses the batched listing+log
- *  fetch (one round-trip) and keeps only the entries — the page frame already
- *  has the listing. */
-export const loadListingActivity = async ({
+/** The full activity log for the Activity tab. The page frame already holds the
+ *  listing, so this fetches only the log entries (a plain array — empty when the
+ *  listing has no activity). */
+export const loadListingActivity = ({
   listing,
 }: LoadedListing): Promise<ActivityLogEntry[]> =>
-  (await getListingWithActivityLog(listing.id))?.entries ?? [];
+  getListingActivityLog(listing.id);
 
 /**
  * Build the Edit tab: the multipart edit form and its side panels. Reloads via
@@ -267,9 +275,11 @@ export const loadListingEditPanel = async (
   ctx: PageCtx,
   error?: string,
   selectedGroupIds?: number[],
-): Promise<JSX.Element | null> => {
-  const ctxData = await getListingAndGroups(listing.id);
-  if (!ctxData) return null;
+): Promise<JSX.Element> => {
+  // The framework resolved (and 404'd) the listing before this tab loads, so the
+  // stored re-fetch the edit form needs always finds the row — assert it rather
+  // than carry a null branch this tab can never reach.
+  const ctxData = (await getListingAndGroups(listing.id))!;
   const parents = await loadListingParentsSection(ctxData.listing);
   return ListingEditPanel({
     aggregateRecalculation: ctxData.aggregateRecalculation,

@@ -550,9 +550,8 @@ export const adminAnswerDeletePage = (
 /** Listing questions assignment page */
 /**
  * The listing "Questions" panel: assign the site's questions to this listing.
- * Rendered as the listing entity page's Questions tab (owner-only) and composed
- * into the legacy {@link adminListingQuestionsPage}. Carries its own error flash
- * for in-place 400 re-renders.
+ * Rendered as the listing entity page's Questions tab (owner-only). Carries its
+ * own error flash for in-place 400 re-renders.
  */
 export const ListingQuestionsPanel = ({
   listing,
@@ -605,17 +604,3 @@ export const ListingQuestionsPanel = ({
     </p>
   </>
 );
-
-export const adminListingQuestionsPage = (
-  listing: ListingWithCount,
-  allQuestions: QuestionWithAnswers[],
-  assignedIds: Set<number>,
-  session: AdminSession,
-  error?: string,
-): string =>
-  String(
-    <Layout title={`Questions: ${listing.name}`}>
-      <AdminNav active="/admin/" session={session} />
-      {ListingQuestionsPanel({ allQuestions, assignedIds, error, listing })}
-    </Layout>,
-  );
