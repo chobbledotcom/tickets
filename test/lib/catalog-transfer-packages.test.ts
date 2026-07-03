@@ -74,7 +74,11 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
 
   test("accepts a listing-import package day-override for an offered span", async () => {
     await createTestGroup({ isPackage: true, name: "Host Pkg 2" });
-    const result = await importListingOverride("Custom Joiner 2", "Host Pkg 2", 2);
+    const result = await importListingOverride(
+      "Custom Joiner 2",
+      "Host Pkg 2",
+      2,
+    );
     if (!result.ok) throw new Error(result.error);
   });
 });
