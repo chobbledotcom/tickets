@@ -9,9 +9,11 @@ import {
   deleteAttendeeNote,
   getAttendeeNote,
   getNoteRows,
+  getNoteRowsForListing,
   getNotesForAttendee,
   groupNotesByAttendee,
   loadNotesForAttendees,
+  loadNotesForListing,
 } from "#shared/db/system-notes.ts";
 import {
   createTestAttendee,
@@ -42,6 +44,46 @@ const rawNote = (attendeeId: number): Promise<{ note: string } | null> =>
   );
 
 describeWithEnv("db > system-notes", { db: true }, () => {
+  test("loads notes scoped to one listing's attendees only", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const other = await createTestListing({ maxAttendees: 50 });
+    const mine = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Mine",
+      "mine@example.com",
+    );
+    const theirs = await createTestAttendee(
+      other.id,
+      other.slug,
+      "Theirs",
+      "theirs@example.com",
+    );
+    await createSystemNote(mine.id, "Note on this listing");
+    await createSystemNote(theirs.id, "Note on another listing");
+
+    const rows = await getNoteRowsForListing(listing.id);
+    expect(rows.map((r) => r.attendee_id)).toEqual([mine.id]);
+
+    const notes = await loadNotesForListing(listing.id, getTestPrivateKey);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.note).toBe("Note on this listing");
+  });
+
+  test("loadNotesForListing returns [] without a key unwrap when none exist", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "NoNotes",
+      "nonotes@example.com",
+    );
+    const key = spy(getTestPrivateKey);
+    const notes = await loadNotesForListing(listing.id, key);
+    expect(notes).toEqual([]);
+    expect(key.calls).toHaveLength(0);
+  });
+
   test("stores and reads back a decrypted system note", async () => {
     const attendeeId = await makeAttendee();
     await createSystemNote(attendeeId, "Refunded: price changed");

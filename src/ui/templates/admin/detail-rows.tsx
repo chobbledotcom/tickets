@@ -46,8 +46,11 @@ export const calculateTotalRevenue = (attendees: Attendee[]): number =>
 // Checked-in stats
 // ---------------------------------------------------------------------------
 
-/** Computed checked-in statistics for an attendee list */
-type CheckedInStats = {
+/** Computed checked-in statistics for an attendee list. Exported so a caller
+ *  that computes these figures in SQL (the Overview tab, which never loads the
+ *  attendee rows) can feed {@link buildStatDetailRows} the same shape the
+ *  in-memory {@link getCheckedInStats} produces. */
+export type CheckedInStats = {
   ticketsCheckedIn: number;
   ticketsTotal: number;
   rowsCheckedIn: number;
@@ -60,7 +63,7 @@ type CheckedInStats = {
  * rowsTotal/remaining or force a spurious multi-quantity split (one real + one
  * ghost would otherwise read as 1 ticket across 2 rows). The ghost still shows
  * in the unfiltered admin roster. */
-const getCheckedInStats = (allAttendees: Attendee[]): CheckedInStats => {
+export const getCheckedInStats = (allAttendees: Attendee[]): CheckedInStats => {
   const attendees = allAttendees.filter(hasTicketQuantity);
   const ticketsTotal = sumQuantity(attendees);
   return {
@@ -187,6 +190,34 @@ const buildRevenueRow = (revenue: number): DetailRow => ({
   value: formatCurrency(revenue),
 });
 
+/** The stat rows shared by the attendee-derived and SQL-derived detail tables:
+ *  check-in progress, the (paid-only) revenue total, and the answer summary. The
+ *  attendee-count row is prepended separately by {@link buildSharedDetailRows},
+ *  since a stat-only caller renders its own count. */
+export type StatDetailInput = {
+  checkedInStats: CheckedInStats;
+  hasPaidListing: boolean;
+  /** Received revenue in minor units — only rendered for a paid listing. */
+  revenue: number;
+  questionData?: TableQuestionData | undefined;
+  labelSuffix?: string;
+};
+
+/** Build the check-in / revenue / answer-summary rows from precomputed stats.
+ *  Shared so the Overview tab (SQL aggregates) and the roster/group/calendar
+ *  pages (in-memory attendee lists) render byte-identical rows. */
+export const buildStatDetailRows = ({
+  checkedInStats,
+  hasPaidListing,
+  revenue,
+  questionData,
+  labelSuffix = "",
+}: StatDetailInput): DetailRow[] => [
+  ...buildCheckedInRows(checkedInStats, labelSuffix),
+  ...(hasPaidListing ? [buildRevenueRow(revenue)] : []),
+  ...buildAnswerSummaryRows(questionData),
+];
+
 /** Build the shared detail rows: attendees, checked-in, revenue, question summary */
 export const buildSharedDetailRows = ({
   attendees,
@@ -201,9 +232,13 @@ export const buildSharedDetailRows = ({
   ...(skipAttendees
     ? []
     : [buildAttendeeRow(attendeeCount, maxCapacity, labelSuffix)]),
-  ...buildCheckedInRows(getCheckedInStats(attendees), labelSuffix),
-  ...(hasPaidListing
-    ? [buildRevenueRow(revenue ?? calculateTotalRevenue(attendees))]
-    : []),
-  ...buildAnswerSummaryRows(questionData),
+  ...buildStatDetailRows({
+    checkedInStats: getCheckedInStats(attendees),
+    hasPaidListing,
+    // Compute the attendee-summed revenue only for a paid listing (it is the
+    // only case the row renders), matching the prior lazy `??` evaluation.
+    revenue: hasPaidListing ? (revenue ?? calculateTotalRevenue(attendees)) : 0,
+    ...(questionData !== undefined ? { questionData } : {}),
+    labelSuffix,
+  }),
 ];

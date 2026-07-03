@@ -10,6 +10,7 @@
  * tabs render the same data the single detail page used to.
  */
 
+import { unique } from "#fp";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import { resolveRecipientEmails } from "#shared/bulk-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -19,8 +20,12 @@ import {
   getListingActivityLog,
   getListingWithActivityLog,
 } from "#shared/db/activityLog.ts";
-import { decryptAttendees } from "#shared/db/attendees.ts";
+import {
+  decryptAttendees,
+  getAttendeeNamesByIds,
+} from "#shared/db/attendees.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
+import { getListingOverviewStats } from "#shared/db/listing-overview-stats.ts";
 import {
   anyNonStandaloneChild,
   getChildrenForParents,
@@ -34,12 +39,22 @@ import {
 import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
 import {
   getAllQuestionsWithAnswers,
+  getListingChoiceAnswerMap,
   getListingQuestionIds,
+  getQuestionsForListing,
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
-import { loadNotesForAttendees } from "#shared/db/system-notes.ts";
+import {
+  loadNotesForAttendees,
+  loadNotesForListing,
+  type SystemNote,
+} from "#shared/db/system-notes.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { Attendee, ListingWithCount } from "#shared/types.ts";
+import {
+  type Attendee,
+  isPaidListing,
+  type ListingWithCount,
+} from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import { ListingQrPanel } from "#templates/admin/listing-qr.tsx";
 import {
@@ -47,8 +62,10 @@ import {
   ListingEditPanel,
   ListingOverviewPanel,
   ListingRosterPanel,
+  overviewStatsFromDbStats,
 } from "#templates/admin/listings.tsx";
 import { ListingQuestionsPanel } from "#templates/admin/questions.tsx";
+import type { TableQuestionData } from "#templates/attendee-table.tsx";
 import { EMPTY_QR_VALUES, loadQrFormContext } from "./listing-qr.ts";
 import { getListingAndGroups } from "./listings-edit.ts";
 import { loadListingParentsSection } from "./listings-parents.ts";
@@ -164,8 +181,36 @@ const availableDatesFor = (
   return dates.map((value) => ({ label: formatDateLabel(value), value }));
 };
 
+/** The Overview's answer summary needs only the questions and each attendee's
+ *  chosen answer ids (counted per option) — never the free-text answers. So it
+ *  reads the choice ids scoped to the listing in SQL, decrypting nothing.
+ *  Returns undefined when the listing has no questions. */
+const loadOverviewQuestionData = async (
+  listingId: number,
+): Promise<TableQuestionData | undefined> => {
+  const [questions, attendeeAnswerMap] = await Promise.all([
+    getQuestionsForListing(listingId),
+    getListingChoiceAnswerMap(listingId),
+  ]);
+  return questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
+};
+
+/** Display names for the (few) attendees that authored a note, decrypting just
+ *  their names — no key unwrap when the listing has no notes. */
+const noteAuthorNames = async (
+  notes: SystemNote[],
+): Promise<Map<number, string>> =>
+  notes.length === 0
+    ? new Map()
+    : getAttendeeNamesByIds(
+        unique(notes.map((note) => note.attendee_id)),
+        await requireRequestPrivateKey(),
+      );
+
 /** Build the Overview tab: the read-only details table, the income breakdown,
- *  and the attendee-notes summary. */
+ *  and the attendee-notes summary. Reads only collated aggregates — the listing's
+ *  individual attendee rows are never loaded or decrypted here (see
+ *  {@link getListingOverviewStats}). */
 export const loadListingOverviewPanel = async ({
   listing,
   isChild,
@@ -173,38 +218,41 @@ export const loadListingOverviewPanel = async ({
 }: LoadedListing): Promise<JSX.Element> => {
   // Housekeeping the old detail view ran on every load: clear reservations
   // whose payment window lapsed, concurrently with the page's own reads.
-  const [attendees] = await Promise.all([
-    loadDecryptedListingAttendees(listing.id),
+  const [
+    stats,
+    recalc,
+    revenueBreakdown,
+    groupContext,
+    systemNotes,
+    questionData,
+  ] = await Promise.all([
+    getListingOverviewStats(listing),
+    getListingAggregateRecalculation(listing),
+    listingRevenueBreakdown(listing.id),
+    // The Overview tab shows whole-listing totals (no date picker), so the
+    // group cap is the all-dates figure.
+    loadGroupContext(listing, null),
+    loadNotesForListing(listing.id, requireRequestPrivateKey),
+    loadOverviewQuestionData(listing.id),
     deleteAllStaleReservations(),
   ]);
-  const [recalc, revenueBreakdown, groupContext, systemNotes, questionData] =
-    await Promise.all([
-      getListingAggregateRecalculation(listing),
-      listingRevenueBreakdown(listing.id),
-      // The Overview tab shows whole-listing totals (no date picker), so the
-      // group cap is the all-dates figure.
-      loadGroupContext(listing, null),
-      loadNotesForAttendees(
-        attendees.map((a) => a.id),
-        requireRequestPrivateKey,
-      ),
-      // Whole-listing answer aggregates for the details table's answer-summary
-      // rows (all attendees, not the roster's date-filtered subset).
-      loadListingQuestionData(
-        listing.id,
-        attendees.map((a) => a.id),
-      ),
-    ]);
+  const noteNames = await noteAuthorNames(systemNotes);
   return ListingOverviewPanel({
     aggregateRecalculation: recalc,
     allowedDomain: getEffectiveDomain(),
-    attendees,
     groupContext,
     isChild,
     isHiddenPackageMember,
     listing,
-    questionData,
+    noteNames,
+    ...(questionData !== undefined ? { questionData } : {}),
     revenueBreakdown,
+    stats: overviewStatsFromDbStats(
+      stats,
+      listing.attendee_count,
+      revenueBreakdown.grossSales,
+      isPaidListing(listing),
+    ),
     systemNotes,
   });
 };

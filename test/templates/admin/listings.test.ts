@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { attendeeNameMap } from "#shared/db/system-notes.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { account } from "#shared/ledger/account.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
@@ -16,6 +17,8 @@ import {
   ListingOverviewPanel,
   ListingRosterPanel,
   nearCapacity,
+  overviewStatsFromAttendees,
+  overviewStatsFromDbStats,
 } from "#templates/admin/listings.tsx";
 import { getListingFields } from "#templates/fields.ts";
 import {
@@ -51,9 +54,27 @@ const withoutBuilder = withBuilderEnv(undefined);
  *  table, filters, failed payments, add-attendee). The legacy `adminListingPage`
  *  composer was removed, so these tests assert against the live panels. */
 const renderListingDetail = (
-  opts: Parameters<typeof ListingOverviewPanel>[0],
+  opts: Parameters<typeof ListingRosterPanel>[0],
 ): string =>
-  String(ListingOverviewPanel(opts)) + String(ListingRosterPanel(opts));
+  String(
+    ListingOverviewPanel({
+      aggregateRecalculation: opts.aggregateRecalculation,
+      allowedDomain: opts.allowedDomain,
+      groupContext: opts.groupContext,
+      isChild: opts.isChild,
+      isHiddenPackageMember: opts.isHiddenPackageMember,
+      ledger: opts.ledger,
+      listing: opts.listing,
+      // The Overview now takes precomputed stats + note-author names instead of
+      // the raw attendee list; derive them from the fixture's attendees so these
+      // tests exercise the same rendered output the SQL path produces.
+      noteNames: attendeeNameMap(opts.attendees),
+      questionData: opts.questionData,
+      revenueBreakdown: opts.revenueBreakdown,
+      stats: overviewStatsFromAttendees(opts.listing, opts.attendees),
+      systemNotes: opts.systemNotes,
+    }),
+  ) + String(ListingRosterPanel(opts));
 
 beforeAll(async () => {
   setupTestEncryptionKey();
@@ -1476,6 +1497,39 @@ describe("nearCapacity", () => {
       max_attendees: 100,
     });
     expect(nearCapacity(listing)).toBe(true);
+  });
+});
+
+describe("overviewStatsFromDbStats", () => {
+  const dbStats = {
+    completeQuantitySum: 5,
+    incompleteQuantity: 2,
+    incompleteSales: 300,
+    rowsCheckedIn: 1,
+    rowsTotal: 3,
+    ticketsCheckedIn: 2,
+    ticketsTotal: 4,
+  };
+
+  test("subtracts incomplete count and unpaid sales for a paid listing", () => {
+    const view = overviewStatsFromDbStats(dbStats, 7, 2100, true);
+    expect(view.adjustedCount).toBe(5); // 7 booked − 2 incomplete
+    expect(view.completeQuantitySum).toBe(5);
+    expect(view.completeRevenue).toBe(1800); // 2100 gross − 300 unpaid
+    expect(view.checkedInStats).toEqual({
+      hasMultiQuantity: true, // ticketsTotal 4 ≠ rowsTotal 3
+      rowsCheckedIn: 1,
+      rowsTotal: 3,
+      ticketsCheckedIn: 2,
+      ticketsTotal: 4,
+    });
+  });
+
+  test("reports zero revenue for a free listing and flat multi-quantity", () => {
+    const flat = { ...dbStats, rowsTotal: 4, ticketsTotal: 4 };
+    const view = overviewStatsFromDbStats(flat, 6, 999, false);
+    expect(view.completeRevenue).toBe(0);
+    expect(view.checkedInStats.hasMultiQuantity).toBe(false);
   });
 });
 
