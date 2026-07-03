@@ -81,6 +81,15 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
     );
   });
 
+  test("rejects a datetime with trailing junk", async () => {
+    // A valid prefix followed by garbage ("…T00:00not-a-zone") must be a field
+    // error, not stored as an empty datetime.
+    await expectListingImportError(
+      { closesAt: "2030-01-01T00:00not-a-zone", maxAttendees: 1, name: "Junk" },
+      "closesAt",
+    );
+  });
+
   test("accepts an explicitly empty closesAt (never closes)", async () => {
     const result = await importCatalog({
       kind: "listing",
