@@ -10,11 +10,13 @@
  *    be written without a session but read only with the owner private key.
  */
 
+import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
 } from "#shared/crypto/keys.ts";
+import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   execute,
   inPlaceholders,
@@ -101,6 +103,18 @@ export const decryptNotes = (
     })),
   );
 
+/** Fetch the still-encrypted note rows matching a WHERE body (no leading
+ *  `WHERE`), oldest first per attendee. Shared by the by-ids and by-listing
+ *  reads so the column list and ordering live in one place. */
+const noteRowsWhere = (
+  where: string,
+  args: InValue[],
+): Promise<SystemNoteRow[]> =>
+  queryAll<SystemNoteRow>(
+    `SELECT ${NOTE_COLUMNS} FROM system_notes WHERE ${where} ORDER BY attendee_id, id`,
+    args,
+  );
+
 /**
  * The still-encrypted note rows for a set of attendees, oldest first. Cheap (no
  * key material): a caller can use it to decide whether any notes exist before
@@ -109,12 +123,27 @@ export const decryptNotes = (
 export const getNoteRows = (attendeeIds: number[]): Promise<SystemNoteRow[]> =>
   attendeeIds.length === 0
     ? Promise.resolve([])
-    : queryAll<SystemNoteRow>(
-        `SELECT ${NOTE_COLUMNS} FROM system_notes WHERE attendee_id IN (${inPlaceholders(
-          attendeeIds,
-        )}) ORDER BY attendee_id, id`,
+    : noteRowsWhere(
+        `attendee_id IN (${inPlaceholders(attendeeIds)})`,
         attendeeIds,
       );
+
+/**
+ * The still-encrypted note rows for every real (`kind = 'attendee'`) attendee
+ * booked onto one listing, oldest first — scoped in SQL rather than by passing
+ * a per-attendee id list, so the Overview never materialises (nor binds) a row
+ * per attendee just to find the handful with notes.
+ */
+export const getNoteRowsForListing = (
+  listingId: number,
+): Promise<SystemNoteRow[]> =>
+  noteRowsWhere(
+    `attendee_id IN (SELECT listingAttendee.attendee_id
+       FROM listing_attendees AS listingAttendee
+       JOIN attendees AS attendee ON attendee.id = listingAttendee.attendee_id
+       WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}')`,
+    [listingId],
+  );
 
 /** All decrypted notes for one attendee, oldest first. */
 export const getNotesForAttendee = async (
@@ -124,18 +153,40 @@ export const getNotesForAttendee = async (
   decryptNotes(await getNoteRows([attendeeId]), privateKey);
 
 /**
- * Decrypted notes for a set of attendees, oldest first, for an attendee-list
- * view. The private key is derived lazily — only when at least one of the listed
- * attendees actually has a note — so a list with no notes never forces a key
- * unwrap. Returns [] when none have notes.
+ * A "load decrypted notes for <selector>" reader: fetch the still-encrypted rows
+ * for a selector value, then decrypt them, deriving the owner private key lazily
+ * — only when at least one note exists — so a note-free view never forces a key
+ * unwrap. Curried over the row-fetcher so the attendee-list and listing-scoped
+ * loaders share one body.
  */
-export const loadNotesForAttendees = async (
+const notesLoaderVia =
+  <A>(fetchRows: (selector: A) => Promise<SystemNoteRow[]>) =>
+  async (
+    selector: A,
+    getPrivateKey: () => Promise<CryptoKey>,
+  ): Promise<SystemNote[]> => {
+    const rows = await fetchRows(selector);
+    return rows.length === 0 ? [] : decryptNotes(rows, await getPrivateKey());
+  };
+
+/**
+ * Decrypted notes for a set of attendees, oldest first, for an attendee-list
+ * view. Returns [] when none have notes.
+ */
+export const loadNotesForAttendees: (
   attendeeIds: number[],
   getPrivateKey: () => Promise<CryptoKey>,
-): Promise<SystemNote[]> => {
-  const rows = await getNoteRows(attendeeIds);
-  return rows.length === 0 ? [] : decryptNotes(rows, await getPrivateKey());
-};
+) => Promise<SystemNote[]> = notesLoaderVia(getNoteRows);
+
+/**
+ * Decrypted notes for every real attendee on one listing, oldest first —
+ * scoped in SQL (see {@link getNoteRowsForListing}). Returns [] when none have
+ * notes, so the Overview's key unwrap is skipped for a note-free listing.
+ */
+export const loadNotesForListing: (
+  listingId: number,
+  getPrivateKey: () => Promise<CryptoKey>,
+) => Promise<SystemNote[]> = notesLoaderVia(getNoteRowsForListing);
 
 /** Group decrypted notes by attendee id (input order preserved within a group). */
 export const groupNotesByAttendee = (

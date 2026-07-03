@@ -27,6 +27,7 @@ import {
   setListingQuestions,
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
+import { createSystemNote } from "#shared/db/system-notes.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import { nowMs } from "#shared/now.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
@@ -773,6 +774,54 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("Size");
       expect(html).toContain("Small (1)");
+    });
+
+    test("Overview collates counts, revenue and notes without loading attendees", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Collated Overview",
+        thankYouUrl: "https://example.com",
+        unitPrice: 500,
+      });
+      // A confirmed buyer (sale + full payment) who has an operator note.
+      const confirmed = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Grace Hopper",
+        "grace@example.com",
+      );
+      await postListingSale({
+        attendeeId: confirmed.id,
+        gross: 5000,
+        listingId: listing.id,
+      });
+      await createSystemNote(confirmed.id, "Called ahead about access");
+      // An incomplete booking: a recognised sale that was never paid.
+      const incomplete = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Abandoned Cart",
+        "cart@example.com",
+      );
+      await postListingSale({
+        amountPaid: 0,
+        attendeeId: incomplete.id,
+        gross: 3000,
+        listingId: listing.id,
+      });
+
+      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      // The confirmed count excludes the incomplete booking (2 booked − 1).
+      expect(html).toContain("1 / 100");
+      // Received revenue is the paid sale only (£50), not the £80 gross.
+      expect(html).toContain("Total Revenue");
+      expect(html).toContain("£50");
+      // The note (with its author's decrypted name) renders on the Overview.
+      expect(html).toContain("Called ahead about access");
+      expect(html).toContain("Grace Hopper");
     });
 
     test("shows the full activity log on the Activity tab", async () => {

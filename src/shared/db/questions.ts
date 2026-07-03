@@ -14,6 +14,7 @@ import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
 } from "#shared/crypto/keys.ts";
+import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   execute,
   executeBatch,
@@ -838,16 +839,11 @@ export const groupListingAnswers = (
   return answersByAttendee;
 };
 
-const choiceAnswerIdsBatch = async (
-  attendeeIds: number[],
-): Promise<Map<number, number[]>> => {
-  if (attendeeIds.length === 0) return new Map();
-  const rows = await queryAll<{ attendee_id: number; answer_id: number }>(
-    `SELECT attendee_id, answer_id FROM attendee_answers
-     WHERE answer_id IS NOT NULL AND attendee_id IN (${inPlaceholders(attendeeIds)})`,
-    attendeeIds,
-  );
-  return reduce(
+/** Group `(attendee_id, answer_id)` rows into an attendee → answer-ids map. */
+const choiceAnswerMapFromRows = (
+  rows: { attendee_id: number; answer_id: number }[],
+): Map<number, number[]> =>
+  reduce(
     (
       acc: Map<number, number[]>,
       { attendee_id, answer_id }: { attendee_id: number; answer_id: number },
@@ -859,6 +855,41 @@ const choiceAnswerIdsBatch = async (
     },
     new Map(),
   )(rows);
+
+const choiceAnswerIdsBatch = async (
+  attendeeIds: number[],
+): Promise<Map<number, number[]>> => {
+  if (attendeeIds.length === 0) return new Map();
+  const rows = await queryAll<{ attendee_id: number; answer_id: number }>(
+    `SELECT attendee_id, answer_id FROM attendee_answers
+     WHERE answer_id IS NOT NULL AND attendee_id IN (${inPlaceholders(attendeeIds)})`,
+    attendeeIds,
+  );
+  return choiceAnswerMapFromRows(rows);
+};
+
+/**
+ * Attendee → chosen-answer-ids map for every real (`kind = 'attendee'`)
+ * attendee booked onto one listing, scoped in SQL rather than by a per-attendee
+ * id list. Choice ids are plaintext, so this needs no key material — the
+ * Overview's answer summary counts them without decrypting any free text.
+ */
+export const getListingChoiceAnswerMap = async (
+  listingId: number,
+): Promise<Map<number, number[]>> => {
+  const rows = await queryAll<{ attendee_id: number; answer_id: number }>(
+    `SELECT attendee_answer.attendee_id, attendee_answer.answer_id
+       FROM attendee_answers AS attendee_answer
+      WHERE attendee_answer.answer_id IS NOT NULL
+        AND attendee_answer.attendee_id IN (
+          SELECT listingAttendee.attendee_id
+            FROM listing_attendees AS listingAttendee
+            JOIN attendees AS attendee
+              ON attendee.id = listingAttendee.attendee_id
+           WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}')`,
+    [listingId],
+  );
+  return choiceAnswerMapFromRows(rows);
 };
 
 /** Decrypted free-text answers for several attendees: attendeeId → (questionId

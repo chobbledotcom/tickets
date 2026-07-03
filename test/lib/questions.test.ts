@@ -15,6 +15,7 @@ import {
   getAnswerSelectionTotals,
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
+  getListingChoiceAnswerMap,
   getListingQuestionIds,
   getNextAnswerSortOrder,
   getOrCreateStringIds,
@@ -620,6 +621,35 @@ describeWithEnv("custom questions", { db: true }, () => {
     test("empty batch for no attendees", async () => {
       const batch = await getAttendeeAnswersBatch([], { texts: false });
       expect(batch.size).toBe(0);
+    });
+
+    test("getListingChoiceAnswerMap scopes answers to one listing's attendees", async () => {
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Size?",
+      });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        sortOrder: 0,
+        text: "Small",
+      });
+      const listing = await createTestListing();
+      const other = await createTestListing();
+      const mine = await createAttendee(listing.id, "Mine");
+      const theirs = await createAttendee(other.id, "Theirs");
+      await saveAttendeeAnswers(new Map([[mine.id, [a1.id]]]));
+      await saveAttendeeAnswers(new Map([[theirs.id, [a1.id]]]));
+
+      const map = await getListingChoiceAnswerMap(listing.id);
+      expect([...map.keys()]).toEqual([mine.id]);
+      expect(map.get(mine.id)).toEqual([a1.id]);
+    });
+
+    test("getListingChoiceAnswerMap is empty for a listing with no answers", async () => {
+      const listing = await createTestListing();
+      await createAttendee(listing.id);
+      const map = await getListingChoiceAnswerMap(listing.id);
+      expect(map.size).toBe(0);
     });
 
     test("saveAttendeeAnswers does nothing for an empty map", async () => {

@@ -13,6 +13,7 @@ import {
   formatDatetimeLabel,
   formatDatetimeShort,
 } from "#shared/dates.ts";
+import type { ListingOverviewStats } from "#shared/db/listing-overview-stats.ts";
 import type {
   ListingAggregateField,
   ListingAggregateRecalculation,
@@ -121,6 +122,10 @@ export { formatAddressInline } from "#templates/attendee-table.tsx";
 
 import {
   buildAnswerSummaryRows as buildAnswerSummaryDetailRows,
+  buildStatDetailRows,
+  type CheckedInStats,
+  calculateTotalRevenue,
+  getCheckedInStats,
   renderDetailRows,
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
@@ -1326,6 +1331,31 @@ export const ListingDeactivatedBanner = ({
     </div>
   );
 
+/** The listing's public booking URL and its two embed snippets — the
+ *  attendee-independent links both panels render. Shared so the Overview (which
+ *  loads no attendee rows) and the roster derive them identically. */
+const deriveListingLinks = (
+  listing: ListingWithCount,
+  allowedDomain: string,
+): { ticketUrl: string; embedScriptCode: string; embedIframeCode: string } => {
+  const ticketUrl = `https://${allowedDomain}/ticket/${listing.slug}`;
+  const { script: embedScriptCode, iframe: embedIframeCode } =
+    buildEmbedSnippets(ticketUrl);
+  return { embedIframeCode, embedScriptCode, ticketUrl };
+};
+
+/** The daily "(total)" / "(date)" suffix on the attendee count and check-in
+ *  labels; empty for a non-daily listing. */
+const dailyLabelSuffix = (
+  isDaily: boolean,
+  dateFilter: string | null,
+): string =>
+  isDaily
+    ? dateFilter
+      ? ` (${formatDateLabel(dateFilter)})`
+      : " (total)"
+    : "";
+
 const deriveListingView = (opts: ListingPanelOptions) => {
   const {
     listing,
@@ -1335,9 +1365,10 @@ const deriveListingView = (opts: ListingPanelOptions) => {
     dateFilter = null,
     questionData,
   } = opts;
-  const ticketUrl = `https://${allowedDomain}/ticket/${listing.slug}`;
-  const { script: embedScriptCode, iframe: embedIframeCode } =
-    buildEmbedSnippets(ticketUrl);
+  const { ticketUrl, embedScriptCode, embedIframeCode } = deriveListingLinks(
+    listing,
+    allowedDomain,
+  );
   const isDaily = listing.listing_type === "daily";
   const hasPaidListing = isPaidListing(listing);
 
@@ -1349,11 +1380,7 @@ const deriveListingView = (opts: ListingPanelOptions) => {
   } = computeAttendeeStats(listing, attendees, hasPaidListing);
 
   const filteredAttendees = filterAttendees(completeAttendees, activeFilter);
-  const dailySuffix = isDaily
-    ? dateFilter
-      ? ` (${formatDateLabel(dateFilter)})`
-      : " (total)"
-    : "";
+  const dailySuffix = dailyLabelSuffix(isDaily, dateFilter);
   const sharedRows = buildSharedDetailRows({
     attendeeCount: isDaily && dateFilter ? completeQuantitySum : adjustedCount,
     attendees: completeAttendees,
@@ -1390,44 +1417,139 @@ const deriveListingView = (opts: ListingPanelOptions) => {
 };
 
 /**
+ * The Overview tab's collated attendee figures — the confirmed count, the
+ * check-in progress, and the received revenue. The entity page computes these
+ * in SQL ({@link getListingOverviewStats}); {@link overviewStatsFromAttendees}
+ * derives the identical shape from an in-memory attendee list for callers (and
+ * tests) that already hold the rows.
+ */
+export type OverviewStats = {
+  adjustedCount: number;
+  completeQuantitySum: number;
+  checkedInStats: CheckedInStats;
+  /** Received revenue in minor units (Σ price paid by confirmed bookings). */
+  completeRevenue: number;
+};
+
+/** Derive the Overview stats from a decrypted attendee list — the reference
+ *  implementation the SQL aggregates reproduce. Kept here (beside
+ *  {@link computeAttendeeStats}) so the two derivations share one definition of
+ *  "confirmed" and can't drift. */
+export const overviewStatsFromAttendees = (
+  listing: ListingWithCount,
+  attendees: Attendee[],
+): OverviewStats => {
+  const hasPaidListing = isPaidListing(listing);
+  const { adjustedCount, completeQuantitySum, completeAttendees } =
+    computeAttendeeStats(listing, attendees, hasPaidListing);
+  return {
+    adjustedCount,
+    checkedInStats: getCheckedInStats(completeAttendees),
+    completeQuantitySum,
+    completeRevenue: hasPaidListing
+      ? calculateTotalRevenue(completeAttendees)
+      : 0,
+  };
+};
+
+/**
+ * Assemble the Overview stats from the SQL-projected {@link ListingOverviewStats},
+ * the listing's trigger-maintained booked count, and its gross recognised sales
+ * — the counterpart to {@link overviewStatsFromAttendees} for the no-attendee-load
+ * path. Confirmed count = booked − incomplete; received revenue = gross − the
+ * sales of never-paid bookings (zero for a free listing, which shows no revenue).
+ */
+export const overviewStatsFromDbStats = (
+  stats: ListingOverviewStats,
+  attendeeCount: number,
+  grossSales: number,
+  hasPaidListing: boolean,
+): OverviewStats => ({
+  adjustedCount: attendeeCount - stats.incompleteQuantity,
+  checkedInStats: {
+    hasMultiQuantity: stats.ticketsTotal !== stats.rowsTotal,
+    rowsCheckedIn: stats.rowsCheckedIn,
+    rowsTotal: stats.rowsTotal,
+    ticketsCheckedIn: stats.ticketsCheckedIn,
+    ticketsTotal: stats.ticketsTotal,
+  },
+  completeQuantitySum: stats.completeQuantitySum,
+  completeRevenue: hasPaidListing ? grossSales - stats.incompleteSales : 0,
+});
+
+/** Options for the listing "Overview" panel. Unlike the roster, it renders no
+ *  per-attendee rows, so it takes precomputed {@link OverviewStats} and a
+ *  note-author name map rather than the full decrypted attendee list. */
+export type ListingOverviewPanelOptions = {
+  listing: ListingWithCount;
+  allowedDomain: string;
+  stats: OverviewStats;
+  /** attendee id → display name, for the note authors only (empty when no
+   *  attendee on the listing has a note). */
+  noteNames: Map<number, string>;
+  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
+  questionData?: TableQuestionData | undefined;
+  groupContext?: GroupContext | undefined;
+  revenueBreakdown?: ListingRevenueBreakdown | undefined;
+  ledger?: AccountLedgerData | undefined;
+  isChild?: boolean | undefined;
+  isHiddenPackageMember?: boolean | undefined;
+  systemNotes?: SystemNote[] | undefined;
+};
+
+/**
  * The listing "Overview" panel: the read-only details table, the income/ledger
  * money sections (owner-only callers pass them), and the attendee-notes
- * summary. Rendered as the listing entity page's Overview tab.
+ * summary. Rendered as the listing entity page's Overview tab. Builds entirely
+ * from precomputed stats — it never loads or decrypts the listing's attendees.
  */
 export const ListingOverviewPanel = (
-  opts: ListingPanelOptions,
+  opts: ListingOverviewPanelOptions,
 ): JSX.Element => {
-  const v = deriveListingView(opts);
   const {
     listing,
-    aggregateRecalculation,
     allowedDomain,
+    stats,
+    noteNames,
+    aggregateRecalculation,
+    questionData,
     groupContext,
     revenueBreakdown,
     ledger,
-    attendees,
     isChild = false,
     isHiddenPackageMember = false,
     systemNotes = [],
   } = opts;
+  const links = deriveListingLinks(listing, allowedDomain);
+  const isDaily = listing.listing_type === "daily";
+  // The Overview shows whole-listing totals (no date picker), so the daily
+  // suffix is always the "(total)" form.
+  const dailySuffix = dailyLabelSuffix(isDaily, null);
+  const sharedRows = buildStatDetailRows({
+    checkedInStats: stats.checkedInStats,
+    hasPaidListing: isPaidListing(listing),
+    revenue: stats.completeRevenue,
+    ...(questionData !== undefined ? { questionData } : {}),
+    labelSuffix: dailySuffix,
+  });
   return (
     <>
       <ListingDetailsTable
-        adjustedCount={v.adjustedCount}
+        adjustedCount={stats.adjustedCount}
         aggregateRecalculation={aggregateRecalculation}
         allowedDomain={allowedDomain}
-        completeQuantitySum={v.completeQuantitySum}
-        dailySuffix={v.dailySuffix}
-        dateFilter={v.dateFilter}
-        embedIframeCode={v.embedIframeCode}
-        embedScriptCode={v.embedScriptCode}
+        completeQuantitySum={stats.completeQuantitySum}
+        dailySuffix={dailySuffix}
+        dateFilter={null}
+        embedIframeCode={links.embedIframeCode}
+        embedScriptCode={links.embedScriptCode}
         groupContext={groupContext}
         isChild={isChild}
-        isDaily={v.isDaily}
+        isDaily={isDaily}
         isHiddenPackageMember={isHiddenPackageMember}
         listing={listing}
-        sharedRowsHtml={renderDetailRows(v.sharedRows)}
-        ticketUrl={v.ticketUrl}
+        sharedRowsHtml={renderDetailRows(sharedRows)}
+        ticketUrl={links.ticketUrl}
       />
       {revenueBreakdown && (
         <ListingIncomeLedgerSection
@@ -1438,10 +1560,7 @@ export const ListingOverviewPanel = (
       {ledger && (
         <ListingLedgerSection ledger={ledger} listingId={listing.id} />
       )}
-      <AttendeeNotesSummary
-        names={attendeeNameMap(attendees)}
-        notes={systemNotes}
-      />
+      <AttendeeNotesSummary names={noteNames} notes={systemNotes} />
     </>
   );
 };

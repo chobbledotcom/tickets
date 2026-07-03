@@ -4,6 +4,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import {
   buildAnswerSummaryRows,
   ListingOverviewPanel,
+  overviewStatsFromAttendees,
 } from "#templates/admin/listings.tsx";
 import {
   adminAnswerDeletePage,
@@ -666,12 +667,14 @@ describe("buildAnswerSummaryRows", () => {
 
 describe("adminListingPage with questionData", () => {
   test("renders answer summary rows in details table", () => {
+    const listing = testListingWithCount({ id: 1, name: "E" });
     const html = String(
       ListingOverviewPanel({
         allowedDomain: "example.com",
-        attendees: [],
-        listing: testListingWithCount({ id: 1, name: "E" }),
+        listing,
+        noteNames: new Map(),
         questionData: singleAnswerSizeQuestionData(),
+        stats: overviewStatsFromAttendees(listing, []),
       }),
     );
     expect(html).toContain("<th>Size?</th>");
