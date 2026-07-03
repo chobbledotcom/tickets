@@ -57,6 +57,8 @@ import {
 } from "#shared/listings-actions.ts";
 import {
   type AdminLevel,
+  availableDayCounts,
+  type DayPricedListing,
   type Group,
   type Listing,
   type ListingType,
@@ -171,6 +173,29 @@ const membershipSpec = (
         quantity: entry.quantity ?? 1,
       }
     : { dayPrices: {}, packagePrice: null, quantity: 1 };
+
+/** Reject a package day-price override for a day count the member doesn't offer.
+ * The package editor only renders override inputs for a member's available day
+ * counts (a customisable listing's priced spans within its duration); a blob
+ * override outside them would be a hidden `group_day` row that could activate
+ * after a later duration/day-price edit, so refuse it with a field-level
+ * message. `member` is the listing whose spans the override must fit — the
+ * existing member on a group import, the new listing itself on a listing
+ * import. */
+const memberDayOverrideError = (
+  memberName: string,
+  dayPrices: Record<string, number> | undefined,
+  member: DayPricedListing,
+): string | null => {
+  if (!dayPrices) return null;
+  const offered = new Set(availableDayCounts(member));
+  for (const key of Object.keys(dayPrices)) {
+    if (!offered.has(Number(key))) {
+      return `"${memberName}" does not offer a ${key}-day booking, so it can't carry a package day-price override for it.`;
+    }
+  }
+  return null;
+};
 
 /** Project a validated listing blob onto a `ListingInput`, minting a fresh slug
  * and clearing the (non-transferred) image/attachment columns. Optional fields
@@ -325,6 +350,22 @@ const importListing = async (
   const packageGroupIds = new Set(
     (await getAllGroups()).filter((g) => g.is_package).map((g) => g.id),
   );
+  // A package day-price override must target a day count this listing offers —
+  // the new listing itself is the member here, so validate against its own spans.
+  const newMember: DayPricedListing = {
+    customisable_days: input.customisableDays ?? false,
+    day_prices: input.dayPrices ?? {},
+    duration_days: input.durationDays ?? 1,
+  };
+  for (let i = 0; i < memberships.length; i++) {
+    if (!packageGroupIds.has(groupResolve.ids[i]!)) continue;
+    const dayError = memberDayOverrideError(
+      listing.name,
+      memberships[i]!.dayPrices,
+      newMember,
+    );
+    if (dayError) return fail(dayError);
+  }
   const specs = memberships.map((m, i) => {
     const groupId = groupResolve.ids[i]!;
     return {
@@ -408,6 +449,19 @@ const importGroup = async (transfer: GroupTransfer): Promise<ImportResult> => {
   // Package overrides only apply to a package group; a non-package group clears
   // them (matching the normal group save).
   const isPackage = group.isPackage ?? false;
+  // Each member's day-price overrides must target a day count that member offers.
+  if (isPackage) {
+    const listingById = new Map(listings.map((l) => [l.id, l]));
+    for (let i = 0; i < members.length; i++) {
+      const member = listingById.get(memberResolve.ids[i]!)!;
+      const dayError = memberDayOverrideError(
+        member.name,
+        members[i]!.dayPrices,
+        member,
+      );
+      if (dayError) return fail(dayError);
+    }
+  }
   const specs = members.map((m, i) => ({
     ...membershipSpec(m, isPackage),
     listingId: memberResolve.ids[i]!,
