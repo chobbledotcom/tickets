@@ -23,6 +23,7 @@ import {
 import { domainsSections } from "#templates/admin/guide/domains.tsx";
 import { emailSections } from "#templates/admin/guide/email.tsx";
 import { gettingStartedSections } from "#templates/admin/guide/getting-started.tsx";
+import { importExportSections } from "#templates/admin/guide/import-export.tsx";
 import { integrationsSections } from "#templates/admin/guide/integrations.tsx";
 import {
   listingsSections,
@@ -38,6 +39,7 @@ import { Layout } from "#templates/layout.tsx";
 export const guideSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
   ...gettingStartedSections(),
   ...listingsSections(),
+  ...importExportSections(),
   ...paymentsSections(),
   ...ticketsSections(hostConfig),
   ...accountsSections(),

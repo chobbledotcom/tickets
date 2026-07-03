@@ -25,6 +25,11 @@ export const listingsSections = (): GuideSection[] => [
       faq("standard_vs_daily_listings"),
       faq("combine_multiple_listings"),
       faq("what_are_groups"),
+      faq("listing_in_multiple_groups"),
+      faq("what_are_add_ons"),
+      faq("bookable_alone"),
+      faq("what_are_listing_defaults"),
+      faq("listing_page_tabs"),
       faq("listing_date_and_location"),
       faq("max_tickets_per_purchase"),
       custom(
@@ -60,7 +65,22 @@ export const listingsSections = (): GuideSection[] => [
     titleKey: "listings",
   },
   {
-    entries: [faq("what_are_modifiers"), faq("how_modifier_values_work")],
+    entries: [
+      faq("group_vs_package"),
+      faq("sell_group_as_package"),
+      faq("package_member_pricing"),
+      faq("hide_package_listings"),
+      faq("package_capacity"),
+    ],
+    id: "packages",
+    titleKey: "packages",
+  },
+  {
+    entries: [
+      faq("what_are_modifiers"),
+      faq("how_modifier_values_work"),
+      faq("modifier_value_precision"),
+    ],
     id: "modifiers",
     titleKey: "modifiers",
   },
@@ -68,6 +88,7 @@ export const listingsSections = (): GuideSection[] => [
     entries: [
       faq("what_are_custom_booking_questions"),
       faq("create_question"),
+      faq("question_descriptions"),
       faq("add_question_to_listing"),
       faq("share_questions_between_listings"),
       faq("where_to_see_answers"),
@@ -84,6 +105,8 @@ export const listingsSections = (): GuideSection[] => [
       faq("what_is_public_site"),
       faq("hide_listing_from_public_list"),
       faq("edit_homepage_and_contact"),
+      faq("what_are_site_pages"),
+      faq("build_site_page"),
     ],
     titleKey: "public_site",
   },
