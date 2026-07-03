@@ -241,7 +241,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
     });
 
     test("copies the package flag, hide option, and remapped member overrides", async () => {
-      const { getGroupDayPrices } = await import(
+      const { getGroupDayPrices, getListingDayPrices } = await import(
         "#shared/db/listing-prices.ts"
       );
       const group = await createTestGroup({
@@ -285,6 +285,12 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       expect(newGroup.hide_package_listings).toBe(true);
       const newListing = (await getListingsByGroupId(newGroup.id))[0]!;
       expect(newListing.id).not.toBe(listing.id);
+      // The clone keeps its OWN per-day-count prices: they are no longer a
+      // listings column, so the duplicate carries them through as day_count rows.
+      expect(await getListingDayPrices(newListing.id)).toEqual({
+        1: 1000,
+        2: 1800,
+      });
       const prices = await getTestPackagePrices(newGroup.id);
       expect(prices.get(newListing.id)).toBe(3000);
       const newRows = await getGroupPackagePrices(newGroup.id);

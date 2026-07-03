@@ -578,8 +578,8 @@ export interface Group {
   hide_package_listings: boolean;
   id: number;
   /** When true the group is a bookable "package": its member listings can carry
-   * per-listing price overrides (group_listings.package_price) and fixed
-   * per-package quantities (group_listings.quantity). */
+   * per-listing price overrides (the `group` dimension of listing_prices) and
+   * fixed per-package quantities (group_listings.quantity). */
   is_package: boolean;
   max_attendees: number;
   name: string;
@@ -588,13 +588,14 @@ export interface Group {
   terms_and_conditions: string;
 }
 
-/** A row in the group_listings join table: listing_id belongs to group_id. A
- * listing may have many such rows (membership in several groups). `package_price`
- * (minor units) is the per-listing price when the group is a package: `null`
- * means no override (use the listing's own price), `0` means explicitly free in
- * the package, and a positive value overrides the price. `quantity` (≥1) is how
- * many of this listing one unit of the package includes. Both are ignored for
- * non-package groups. */
+/** A membership of `listing_id` in `group_id`, hydrated for the package editor
+ * and booking flow. A listing may belong to several groups. `package_price`
+ * (minor units) is the per-listing override when the group is a package, read
+ * from the `group` dimension of `listing_prices` (not a column on the join
+ * table): `null` means no override (use the listing's own price), `0` means
+ * explicitly free in the package, and a positive value overrides the price.
+ * `quantity` (≥1, stored on the join row) is how many of this listing one unit of
+ * the package includes. Both are ignored for non-package groups. */
 export interface GroupListing {
   group_id: number;
   listing_id: number;

@@ -3,10 +3,14 @@ import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#shared/db/client.ts";
 import {
   backfillListingPrices,
+  basePriceStatements,
+  dayCountPriceStatements,
   getGroupDayPrices,
   getGroupDayPricesByGroupIds,
+  getListingDayPrices,
   groupDayPriceStatements,
-  listingPriceStatements,
+  groupFlatPriceStatements,
+  removeListingGroupPricesStatement,
   sourceRowStatements,
   syncListingPrices,
   syncListingPricesForIds,
@@ -18,74 +22,108 @@ import {
   updateTestListing,
 } from "#test-utils";
 
-describe("listingPriceStatements", () => {
-  test("emits a scoped delete, a base insert, then one insert per day count", () => {
-    const stmts = listingPriceStatements(5, 750, { 1: 750, 2: 1200 });
+describe("basePriceStatements", () => {
+  test("emits a base-scoped delete then one base insert", () => {
+    const stmts = basePriceStatements(5, 750);
     expect(stmts.map((s) => s.args)).toEqual([
-      [5, "base", "day_count"],
+      [5, "base"],
       [5, "base", "", 750],
-      [5, "day_count", "1", 750],
-      [5, "day_count", "2", 1200],
     ]);
-    // The first statement scopes its delete to the two managed dimensions; the
-    // rest are inserts, so reserved (group/…) rows are never disturbed.
-    const sqls = stmts.map((s) => s.sql);
-    expect(sqls[0]).toContain(
-      "DELETE FROM listing_prices WHERE listing_id = ? AND price_type IN (?, ?)",
+    // The delete scopes to the base dimension only (never day_count/group rows).
+    expect(stmts[0]!.sql).toBe(
+      "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
     );
-    expect(
-      sqls
-        .slice(1)
-        .every((sql) => sql.startsWith("INSERT INTO listing_prices")),
-    ).toBe(true);
+    expect(stmts[1]!.sql.startsWith("INSERT INTO listing_prices")).toBe(true);
+  });
+});
+
+describe("dayCountPriceStatements", () => {
+  test("emits a day_count-scoped delete then ONE multi-row insert for all day counts", () => {
+    const stmts = dayCountPriceStatements(5, { 1: 750, 2: 1200 });
+    // Exactly two statements regardless of how many day counts — the insert is a
+    // single multi-row VALUES so the interactive-transaction round-trip stays
+    // bounded (see the round-trip guard).
+    expect(stmts.length).toBe(2);
+    expect(stmts[0]!.sql).toBe(
+      "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
+    );
+    expect(stmts[0]!.args).toEqual([5, "day_count"]);
+    expect(stmts[1]!.sql).toBe(
+      "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?), (?, ?, ?, ?)",
+    );
+    expect(stmts[1]!.args).toEqual([
+      5,
+      "day_count",
+      "1",
+      750,
+      5,
+      "day_count",
+      "2",
+      1200,
+    ]);
   });
 
-  test("emits only the delete + base row when there are no day prices", () => {
-    expect(listingPriceStatements(9, 0, {}).map((s) => s.args)).toEqual([
-      [9, "base", "day_count"],
-      [9, "base", "", 0],
+  test("emits only the scoped delete when there are no day prices", () => {
+    expect(dayCountPriceStatements(9, {}).map((s) => s.args)).toEqual([
+      [9, "day_count"],
     ]);
+  });
+
+  test("treats undefined day prices as an empty map (delete only)", () => {
+    expect(dayCountPriceStatements(9, undefined).map((s) => s.args)).toEqual([
+      [9, "day_count"],
+    ]);
+  });
+
+  test("normalises entries like every other day-price write", () => {
+    // Day 0 and a negative price are dropped by parseDayPrices; the rest kept.
+    const stmts = dayCountPriceStatements(9, { 0: 100, 2: -5, 4: 800 });
+    expect(stmts.length).toBe(2);
+    expect(stmts[1]!.args).toEqual([9, "day_count", "4", 800]);
   });
 });
 
 describe("sourceRowStatements", () => {
-  test("projects a raw listings row, reading NULL price + day prices", () => {
-    const stmts = sourceRowStatements({
-      day_prices: '{"2":900}',
-      id: 3,
-      unit_price: 250,
-    });
-    expect(stmts.map((s) => s.args)).toEqual([
-      [3, "base", "day_count"],
+  test("projects a raw listings row's base row from unit_price", () => {
+    expect(
+      sourceRowStatements({ id: 3, unit_price: 250 }).map((s) => s.args),
+    ).toEqual([
+      [3, "base"],
       [3, "base", "", 250],
-      [3, "day_count", "2", 900],
     ]);
   });
 
-  test("reads a NULL price as 0 and a blank day_prices as no day rows", () => {
+  test("reads a NULL unit_price as 0", () => {
     expect(
-      sourceRowStatements({ day_prices: "", id: 4, unit_price: null }).map(
-        (s) => s.args,
-      ),
+      sourceRowStatements({ id: 4, unit_price: null }).map((s) => s.args),
     ).toEqual([
-      [4, "base", "day_count"],
+      [4, "base"],
       [4, "base", "", 0],
     ]);
   });
 });
 
 describe("groupDayPriceStatements", () => {
-  test("emits a group-scoped LIKE delete, then one insert per member day price", () => {
+  test("emits a group-scoped LIKE delete, then ONE multi-row insert of every day price", () => {
     const stmts = groupDayPriceStatements(12, [
-      { dayPrices: { 2: 1500 }, listingId: 5 },
-      // A member with no per-day overrides contributes no inserts.
+      { dayPrices: { 2: 1500, 3: 2000 }, listingId: 5 },
+      // A member with no per-day overrides contributes no rows.
       { listingId: 6 },
     ]);
-    expect(stmts.map((s) => s.args)).toEqual([
-      ["group_day", "12/%"],
-      [5, "group_day", "12/2", 1500],
-    ]);
+    expect(stmts.length).toBe(2);
     expect(stmts[0]!.sql).toContain("price_id LIKE ?");
+    expect(stmts[0]!.args).toEqual(["group_day", "12/%"]);
+    // A single multi-row insert (bounded round-trips), one row per member day.
+    expect(stmts[1]!.args).toEqual([
+      5,
+      "group_day",
+      "12/2",
+      1500,
+      5,
+      "group_day",
+      "12/3",
+      2000,
+    ]);
   });
 
   test("normalises day-price entries like every other day-price write", () => {
@@ -101,6 +139,71 @@ describe("groupDayPriceStatements", () => {
   });
 });
 
+describe("groupFlatPriceStatements", () => {
+  test("emits a group-scoped delete, then ONE multi-row insert for all overrides", () => {
+    const stmts = groupFlatPriceStatements(12, [
+      // A positive override and an explicit free (0) both get a row.
+      { listingId: 5, price: 1500 },
+      { listingId: 6, price: 0 },
+    ]);
+    // Two statements regardless of member count (the insert is multi-row), so the
+    // interactive-transaction round-trips stay bounded.
+    expect(stmts.length).toBe(2);
+    // The delete scopes to this group's flat rows by exact price_id (not LIKE).
+    expect(stmts[0]!.sql).toBe(
+      "DELETE FROM listing_prices WHERE price_type = ? AND price_id = ?",
+    );
+    expect(stmts[0]!.args).toEqual(["group", "12"]);
+    expect(stmts[1]!.sql).toBe(
+      "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?), (?, ?, ?, ?)",
+    );
+    expect(stmts[1]!.args).toEqual([
+      5,
+      "group",
+      "12",
+      1500,
+      6,
+      "group",
+      "12",
+      0,
+    ]);
+  });
+
+  test("skips members with a null or absent price (no override → no row)", () => {
+    const stmts = groupFlatPriceStatements(3, [
+      { listingId: 9, price: null },
+      { listingId: 10 },
+      { listingId: 11, price: 250 },
+    ]);
+    // Only the delete plus the one real override survive.
+    expect(stmts.map((s) => s.args)).toEqual([
+      ["group", "3"],
+      [11, "group", "3", 250],
+    ]);
+  });
+
+  test("emits only the group-scoped delete when there are no members", () => {
+    expect(groupFlatPriceStatements(7, []).map((s) => s.args)).toEqual([
+      ["group", "7"],
+    ]);
+  });
+});
+
+describe("removeListingGroupPricesStatement", () => {
+  test("returns null when no groups are being left", () => {
+    expect(removeListingGroupPricesStatement(5, [])).toBeNull();
+  });
+
+  test("drops the listing's flat + per-day rows for each left group in one statement", () => {
+    const stmt = removeListingGroupPricesStatement(5, [1, 12])!;
+    // Flat rows matched by exact group id; per-day rows by the "<id>/%" glob (the
+    // trailing "/" keeps group 1's glob from matching group 12's price_ids).
+    expect(stmt.args).toEqual([5, "1", "12", "1/%", "12/%"]);
+    expect(stmt.sql).toContain("price_type = 'group' AND price_id IN (?, ?)");
+    expect(stmt.sql).toContain("price_id LIKE ? OR price_id LIKE ?");
+  });
+});
+
 /** The managed rows for a listing, ordered for stable assertions. */
 const priceRows = (
   listingId: number,
@@ -111,32 +214,19 @@ const priceRows = (
     [listingId],
   );
 
-/** Write a listing's `day_prices` column directly (bypassing the day-price form
- * plumbing), so tests can exercise the day_count branch on demand. */
-const seedDayPrices = (
-  listingId: number,
-  dayPrices: Record<number, number>,
-): Promise<unknown> =>
-  queryAll("UPDATE listings SET day_prices = ? WHERE id = ?", [
-    JSON.stringify(dayPrices),
-    listingId,
-  ]);
-
-/** Seed a listing's day prices, re-sync, and return the resulting price_ids. */
-const resyncedPriceIds = async (
-  listingId: number,
-  dayPrices: Record<number, number>,
-): Promise<string[]> => {
-  await seedDayPrices(listingId, dayPrices);
-  await syncListingPrices(listingId);
-  return (await priceRows(listingId)).map((r) => r.price_id);
-};
+/** Create a customisable listing with the given per-day-count prices through the
+ * real admin form path (which writes the day_count rows). */
+const createDayPricedListing = (dayPrices: Record<number, number>) =>
+  createTestListing({
+    customisableDays: true,
+    dayPrices,
+    durationDays: 5,
+    unitPrice: 0,
+  });
 
 describeWithEnv("listing_prices persistence", { db: true }, () => {
-  test("admin create and edit keep the base price row in sync", async () => {
-    // The real admin form paths go through listingsTable.insert/update, which
-    // re-sync listing_prices — so a listing's base row tracks its price without
-    // anyone touching listing_prices directly.
+  test("admin create/edit keep the base row synced from unit_price", async () => {
+    // The real admin form path writes base from the unit_price column mirror.
     const listing = await createTestListing({ unitPrice: 750 });
     expect(await priceRows(listing.id)).toEqual([
       { price_id: "", price_type: "base", unit_price: 750 },
@@ -147,55 +237,83 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
     ]);
   });
 
-  test("backfill populates base + day-count rows from the listings columns", async () => {
-    const standard = await createTestListing({ unitPrice: 750 });
-    const dated = await createTestListing({ unitPrice: 400 });
-    // Seed a day-prices map directly on the row so the backfill's day_count
-    // branch is exercised independently of the admin day-price form plumbing.
-    await seedDayPrices(dated.id, { 1: 400, 3: 1000 });
-    // Clear the dual-write's rows, then rebuild everything from listings.
-    await queryAll("DELETE FROM listing_prices");
-    await backfillListingPrices();
-    expect(await priceRows(standard.id)).toEqual([
-      { price_id: "", price_type: "base", unit_price: 750 },
-    ]);
-    expect(await priceRows(dated.id)).toEqual([
-      { price_id: "", price_type: "base", unit_price: 400 },
+  test("admin create writes day_count rows and projects them back on read", async () => {
+    // day_prices is no longer a column — the write path persists day_count rows,
+    // and the entity's day_prices is projected back from them on read.
+    const listing = await createDayPricedListing({ 1: 400, 3: 1000 });
+    expect(await priceRows(listing.id)).toEqual([
+      { price_id: "", price_type: "base", unit_price: 0 },
       { price_id: "1", price_type: "day_count", unit_price: 400 },
       { price_id: "3", price_type: "day_count", unit_price: 1000 },
     ]);
+    // The returned entity (form re-fetch via the projection) carries them.
+    expect(listing.day_prices).toEqual({ 1: 400, 3: 1000 });
+    // And getListingDayPrices reads the same rows directly.
+    expect(await getListingDayPrices(listing.id)).toEqual({ 1: 400, 3: 1000 });
   });
 
-  test("re-syncing drops a day count that is no longer offered", async () => {
-    const listing = await createTestListing({ unitPrice: 500 });
-    expect(await resyncedPriceIds(listing.id, { 1: 500, 2: 800 })).toEqual([
-      "",
-      "1",
-      "2",
+  test("editing day prices replaces the day_count rows (a dropped count is removed)", async () => {
+    const listing = await createDayPricedListing({ 1: 500, 2: 800 });
+    expect(await getListingDayPrices(listing.id)).toEqual({ 1: 500, 2: 800 });
+    // Remove the 2-day price and raise the 1-day price.
+    const edited = await updateTestListing(listing.id, {
+      customisableDays: true,
+      dayPrices: { 1: 550 },
+      durationDays: 5,
+    });
+    expect(await getListingDayPrices(listing.id)).toEqual({ 1: 550 });
+    expect(edited.day_prices).toEqual({ 1: 550 });
+  });
+
+  test("updating day prices directly via the wrapper replaces the day_count rows", async () => {
+    const listing = await createDayPricedListing({ 1: 400 });
+    const updated = await listingsTable.update(listing.id, {
+      customisableDays: true,
+      dayPrices: { 2: 900, 3: 1300 },
+      durationDays: 5,
+    });
+    expect(updated!.day_prices).toEqual({ 2: 900, 3: 1300 });
+    expect(await getListingDayPrices(listing.id)).toEqual({ 2: 900, 3: 1300 });
+  });
+
+  test("a partial update that omits day prices leaves the day_count rows intact", async () => {
+    const listing = await createDayPricedListing({ 1: 400, 2: 700 });
+    // A direct partial update (no dayPrices) must not clobber the day_count rows.
+    const row = await listingsTable.update(listing.id, { active: false });
+    expect(row!.day_prices).toEqual({ 1: 400, 2: 700 });
+    expect(await getListingDayPrices(listing.id)).toEqual({ 1: 400, 2: 700 });
+  });
+
+  test("backfill rebuilds the base rows from unit_price", async () => {
+    const a = await createTestListing({ unitPrice: 750 });
+    const b = await createTestListing({ unitPrice: 400 });
+    await queryAll("DELETE FROM listing_prices WHERE price_type = 'base'");
+    await backfillListingPrices();
+    expect(await priceRows(a.id)).toEqual([
+      { price_id: "", price_type: "base", unit_price: 750 },
     ]);
-    // Remove the 2-day price and re-sync: only the managed rows change.
-    expect(await resyncedPriceIds(listing.id, { 1: 500 })).toEqual(["", "1"]);
+    expect(await priceRows(b.id)).toEqual([
+      { price_id: "", price_type: "base", unit_price: 400 },
+    ]);
   });
 
   test("deleting a listing removes its price rows", async () => {
-    const listing = await createTestListing({ unitPrice: 640 });
-    expect((await priceRows(listing.id)).length).toBe(1);
+    const listing = await createDayPricedListing({ 1: 640 });
+    expect((await priceRows(listing.id)).length).toBe(2);
     await deleteListing(listing.id);
     expect(await priceRows(listing.id)).toEqual([]);
   });
 
-  test("syncListingPricesForIds rebuilds rows for the given listings only", async () => {
+  test("syncListingPricesForIds rebuilds base rows for the given listings only", async () => {
     const a = await createTestListing({ unitPrice: 300 });
     const b = await createTestListing({ unitPrice: 700 });
-    await seedDayPrices(b.id, { 2: 1300 });
-    await queryAll("DELETE FROM listing_prices");
+    await queryAll("DELETE FROM listing_prices WHERE price_type = 'base'");
     await syncListingPricesForIds([a.id, b.id]);
     expect(await priceRows(a.id)).toEqual([
       { price_id: "", price_type: "base", unit_price: 300 },
     ]);
     expect(await priceRows(b.id)).toEqual([
       { price_id: "", price_type: "base", unit_price: 700 },
-      { price_id: "2", price_type: "day_count", unit_price: 1300 },
     ]);
   });
 

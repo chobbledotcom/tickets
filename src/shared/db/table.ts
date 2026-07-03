@@ -512,6 +512,18 @@ export const col = {
   /** Auto-generated column (like id) */
   generated: <T>(): ColumnDef<T> => ({ generated: true }),
 
+  /** A read-only column that is NOT a physical column on the table: it is
+   * projected into the row by the caller's SELECT (a subquery `AS <col>`), read
+   * back through `read`, and never written (generated ⇒ excluded from INSERT/
+   * UPDATE, `rowToInput`, and the insert/update return row). Use for a value that
+   * lives elsewhere but rides the entity's shape — e.g. `day_prices`, projected
+   * from the `day_count` rows of `listing_prices`. `read` must tolerate a missing
+   * projection (undefined) so a stray un-projected SELECT degrades gracefully. */
+  projected: <App>(read: (raw: InValue) => App): ColumnDef<App> => ({
+    generated: true,
+    read: read as (v: App) => App,
+  }),
+
   /** Simple column with no special handling */
   simple: <T>(): ColumnDef<T> => ({}),
 
