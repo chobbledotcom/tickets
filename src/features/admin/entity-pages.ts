@@ -93,7 +93,16 @@ export type Section<E> =
       /** Link "view all" into this tab (an Overview preview sets it). */
       viewAllTab?: string;
     }
-  | { kind: "actions"; titleKey: string; actions: readonly ActionDef<E>[] }
+  | {
+      kind: "actions";
+      titleKey: string;
+      actions: readonly ActionDef<E>[];
+      /** Optional per-tab augmentation run only when this (Actions) tab renders,
+       * so an action's `visible` predicate can gate on data too expensive to
+       * gather in the page-wide `load` — e.g. a decrypt that only the Actions
+       * surface needs. Returns the entity the action predicates see. */
+      prepare?: (entity: E, ctx: PageCtx) => Promise<E>;
+    }
   | {
       kind: "custom";
       load: (entity: E, ctx: PageCtx) => Promise<JSX.Element | null>;
@@ -167,8 +176,11 @@ const loadSection = async <E>(
             : ctx.tabHref(section.viewAllTab),
       };
     case "actions": {
+      const prepared = section.prepare
+        ? await section.prepare(entity, ctx)
+        : entity;
       const { plain, danger } = splitActions(
-        resolveActions(section.actions, entity, ctx),
+        resolveActions(section.actions, prepared, ctx),
       );
       return { danger, kind: "actions", plain, titleKey: section.titleKey };
     }

@@ -29,6 +29,7 @@ import { isPaidListing, isStaffRole } from "#shared/types.ts";
 import { ListingDeactivatedBanner } from "#templates/admin/listings.tsx";
 import {
   type LoadedListing,
+  listingHasEmailableAttendees,
   loadListingActivity,
   loadListingActivityPreview,
   loadListingEditPanel,
@@ -130,7 +131,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
   // The content-only editor role may edit; every other tab is staff-gated, so
   // an editor's page resolves to just the Edit tab.
   guard: requireContentOr,
-  load: (id, session) => loadListingForPage(id, session),
+  load: (id) => loadListingForPage(id),
   navActive: "/admin/",
   tabs: [
     overviewTab,
@@ -197,6 +198,19 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
         {
           actions: LISTING_ACTIONS,
           kind: "actions",
+          // The Email action is the only one gating on hasEmailableAttendees,
+          // and its recipient check decrypts PII — so resolve it here, when the
+          // Actions tab renders, instead of on every tab's page load. Owner-only
+          // (the sole role that sees Email); other staff skip the decrypt.
+          prepare: async (entity, ctx) =>
+            ctx.session.adminLevel === "owner"
+              ? {
+                  ...entity,
+                  hasEmailableAttendees: await listingHasEmailableAttendees(
+                    entity.listing.id,
+                  ),
+                }
+              : entity,
           titleKey: "entity.tab.actions",
         },
       ],

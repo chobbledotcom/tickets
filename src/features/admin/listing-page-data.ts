@@ -11,7 +11,6 @@
  */
 
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
-import type { AuthSession } from "#routes/auth.ts";
 import { anyChildListing } from "#routes/public/ticket-payment.ts";
 import { resolveRecipientEmails } from "#shared/bulk-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -58,9 +57,10 @@ import { loadGroupContext, loadListingQuestionData } from "./listings-view.ts";
  * tab may gate on. A child listing or a hidden package's member has no
  * standalone public page, so its share / QR / booking-link affordances are
  * suppressed (invariant I3). `hasEmailableAttendees` gates the owner-only Email
- * action so it never links to the compose page's 404 (empty-recipient) path.
- * Loading these once in {@link loadListingForPage} keeps every `ActionDef.visible`
- * predicate synchronous.
+ * action so it never links to the compose page's 404 (empty-recipient) path; it
+ * is resolved lazily by the Actions tab's `prepare` hook (via
+ * {@link listingHasEmailableAttendees}) rather than in the page-wide load, so
+ * the recipient decrypt never runs for a tab that has no Email action.
  */
 export type LoadedListing = {
   listing: ListingWithCount;
@@ -69,24 +69,20 @@ export type LoadedListing = {
   hasEmailableAttendees: boolean;
 };
 
-/** Load the listing and its gating flags, or null when it is gone. The
- *  recipient check decrypts attendee emails, so it runs only for owners — the
- *  only role that sees the Email action. */
+/** Load the listing and its cheap gating flags, or null when it is gone.
+ *  `hasEmailableAttendees` defaults to false here — the decrypt behind it is
+ *  deferred to the Actions tab, the only surface that reads it. */
 export const loadListingForPage = async (
   id: number,
-  session: AuthSession,
 ): Promise<LoadedListing | null> => {
   const listing = await getListingWithCount(id);
   if (!listing) return null;
-  const [isChild, hiddenMemberIds, hasEmailableAttendees] = await Promise.all([
+  const [isChild, hiddenMemberIds] = await Promise.all([
     anyChildListing([id]),
     getHiddenPackageMemberIds([id]),
-    session.adminLevel === "owner"
-      ? listingHasEmailableAttendees(id)
-      : Promise.resolve(false),
   ]);
   return {
-    hasEmailableAttendees,
+    hasEmailableAttendees: false,
     isChild,
     isHiddenPackageMember: hiddenMemberIds.size > 0,
     listing,
@@ -95,8 +91,9 @@ export const loadListingForPage = async (
 
 /** Whether the listing has at least one attendee with an email on file — the
  *  same recipient resolution the bulk-email compose route uses, so the Email
- *  action's visibility matches whether that page would 404 on zero recipients. */
-const listingHasEmailableAttendees = async (
+ *  action's visibility matches whether that page would 404 on zero recipients.
+ *  Runs only from the Actions tab's `prepare` hook, and only for owners. */
+export const listingHasEmailableAttendees = async (
   listingId: number,
 ): Promise<boolean> => {
   const pk = await requireRequestPrivateKey();
