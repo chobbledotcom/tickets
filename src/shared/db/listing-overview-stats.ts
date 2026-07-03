@@ -60,22 +60,22 @@ export type ListingOverviewStats = {
   incompleteSales: number;
 };
 
-/** SQL boolean (0/1) marking a `listing_attendees` row `la` as an incomplete
- *  payment: a recognised `sale` leg for the booking with no `payment` leg ever
- *  received into the attendee for that same ledger event group. Only paid
- *  listings can carry one, so `false` collapses the CASE arms for a free
- *  listing to their confirmed side. */
+/** SQL boolean (0/1) marking a `listing_attendees` row `listingAttendee` as an
+ *  incomplete payment: a recognised `sale` leg for the booking with no
+ *  `payment` leg ever received into the attendee for that same ledger event
+ *  group. Only paid listings can carry one, so `false` collapses the CASE arms
+ *  for a free listing to their confirmed side. */
 const incompleteRowPredicate = (paid: boolean): string => {
   if (!paid) return "0";
   const hasSale = `EXISTS (SELECT 1 FROM transfers WHERE ${saleLegPredicate(
-    "la.attendee_id",
-    "la.listing_id",
-    "la.ledger_event_group",
+    "listingAttendee.attendee_id",
+    "listingAttendee.listing_id",
+    "listingAttendee.ledger_event_group",
   )})`;
   const hasPayment =
     `EXISTS (SELECT 1 FROM transfers WHERE kind = '${KIND.payment}'` +
-    ` AND ${accountPredicate("dest", ATTENDEE, "la.attendee_id")}` +
-    " AND event_group = la.ledger_event_group)";
+    ` AND ${accountPredicate("dest", ATTENDEE, "listingAttendee.attendee_id")}` +
+    " AND event_group = listingAttendee.ledger_event_group)";
   return `(${hasSale} AND NOT ${hasPayment})`;
 };
 
@@ -92,18 +92,18 @@ type OverviewCountsRow = {
  *  bookings that never received a payment — the revenue to exclude from the
  *  confirmed total. Zero for a free listing (queried only when paid). */
 const incompleteSales = async (listingId: number): Promise<number> => {
-  const saleToRevenue = `t.kind = '${KIND.sale}' AND ${accountPredicate(
+  const saleToRevenue = `saleLeg.kind = '${KIND.sale}' AND ${accountPredicate(
     "dest",
     REVENUE,
     "?",
   )}`;
   const noPayment =
-    `NOT EXISTS (SELECT 1 FROM transfers AS p WHERE p.kind = '${KIND.payment}'` +
-    " AND p.dest_type = 'attendee' AND p.dest_id = t.source_id" +
-    " AND p.event_group = t.event_group)";
+    `NOT EXISTS (SELECT 1 FROM transfers AS paymentLeg WHERE paymentLeg.kind = '${KIND.payment}'` +
+    " AND paymentLeg.dest_type = 'attendee' AND paymentLeg.dest_id = saleLeg.source_id" +
+    " AND paymentLeg.event_group = saleLeg.event_group)";
   const row = (await queryOne<{ incomplete_sales: number | bigint }>(
-    `SELECT COALESCE(SUM(t.amount), 0) AS incomplete_sales
-       FROM transfers AS t
+    `SELECT COALESCE(SUM(saleLeg.amount), 0) AS incomplete_sales
+       FROM transfers AS saleLeg
       WHERE ${saleToRevenue} AND ${noPayment}`,
     [String(listingId)],
   ))!;
@@ -124,18 +124,18 @@ export const getListingOverviewStats = async (
 ): Promise<ListingOverviewStats> => {
   const paid = isPaidListing(listing);
   const incomplete = incompleteRowPredicate(paid);
-  const confirmed = `NOT ${incomplete} AND la.quantity > 0`;
+  const confirmed = `NOT ${incomplete} AND listingAttendee.quantity > 0`;
   const countsPromise = queryOne<OverviewCountsRow>(
     `SELECT
-       COALESCE(SUM(CASE WHEN ${incomplete} THEN la.quantity ELSE 0 END), 0) AS incomplete_quantity,
-       COALESCE(SUM(CASE WHEN NOT ${incomplete} THEN la.quantity ELSE 0 END), 0) AS complete_quantity_sum,
-       COALESCE(SUM(CASE WHEN ${confirmed} THEN la.quantity ELSE 0 END), 0) AS tickets_total,
+       COALESCE(SUM(CASE WHEN ${incomplete} THEN listingAttendee.quantity ELSE 0 END), 0) AS incomplete_quantity,
+       COALESCE(SUM(CASE WHEN NOT ${incomplete} THEN listingAttendee.quantity ELSE 0 END), 0) AS complete_quantity_sum,
+       COALESCE(SUM(CASE WHEN ${confirmed} THEN listingAttendee.quantity ELSE 0 END), 0) AS tickets_total,
        COALESCE(SUM(CASE WHEN ${confirmed} THEN 1 ELSE 0 END), 0) AS rows_total,
-       COALESCE(SUM(CASE WHEN ${confirmed} AND la.checked_in = 1 THEN la.quantity ELSE 0 END), 0) AS tickets_checked_in,
-       COALESCE(SUM(CASE WHEN ${confirmed} AND la.checked_in = 1 THEN 1 ELSE 0 END), 0) AS rows_checked_in
-     FROM listing_attendees AS la
-     JOIN attendees AS a ON a.id = la.attendee_id
-     WHERE la.listing_id = ? AND a.kind = '${ATTENDEE_KIND}'`,
+       COALESCE(SUM(CASE WHEN ${confirmed} AND listingAttendee.checked_in = 1 THEN listingAttendee.quantity ELSE 0 END), 0) AS tickets_checked_in,
+       COALESCE(SUM(CASE WHEN ${confirmed} AND listingAttendee.checked_in = 1 THEN 1 ELSE 0 END), 0) AS rows_checked_in
+     FROM listing_attendees AS listingAttendee
+     JOIN attendees AS attendee ON attendee.id = listingAttendee.attendee_id
+     WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,
     [listing.id],
   );
   // Only a paid listing can carry never-paid sales, so a free listing skips the

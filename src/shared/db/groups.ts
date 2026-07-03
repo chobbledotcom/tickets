@@ -756,14 +756,14 @@ const copyPackageOverridesStatement = (
   newListingId: number,
 ) => ({
   args: [sourceListingId, newListingId, sourceListingId],
-  sql: `UPDATE group_listings AS dst
+  sql: `UPDATE group_listings AS cloneMembership
         SET quantity = (
-              SELECT src.quantity FROM group_listings AS src
-               WHERE src.group_id = dst.group_id AND src.listing_id = ?)
-      WHERE dst.listing_id = ?
-        AND dst.group_id IN (
+              SELECT sourceMembership.quantity FROM group_listings AS sourceMembership
+               WHERE sourceMembership.group_id = cloneMembership.group_id AND sourceMembership.listing_id = ?)
+      WHERE cloneMembership.listing_id = ?
+        AND cloneMembership.group_id IN (
               SELECT group_id FROM group_listings WHERE listing_id = ?)
-        AND dst.group_id IN (SELECT id FROM groups WHERE is_package = 1)`,
+        AND cloneMembership.group_id IN (SELECT id FROM groups WHERE is_package = 1)`,
 });
 
 /** Copy the source's package overrides onto the duplicate's membership rows in
