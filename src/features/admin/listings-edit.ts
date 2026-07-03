@@ -10,12 +10,13 @@
 import { t } from "#i18n";
 import { parseEditableAggregateForm } from "#routes/admin/aggregate-recalculation.ts";
 import {
+  type AuthSession,
   adminLandingPath,
   CONTENT_MULTIPART,
   requireContentOr,
   withAuth,
 } from "#routes/auth.ts";
-import { applyFlash, formDataToParams } from "#routes/csrf.ts";
+import { formDataToParams } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { listingReturnPath } from "#shared/admin-paths.ts";
@@ -57,23 +58,21 @@ import type {
 import { isListingType } from "#shared/types.ts";
 import {
   adminDuplicateListingPage,
-  adminListingEditPage,
   adminListingNewPage,
   adminListingPickerPage,
 } from "#templates/admin/listings.tsx";
 import type { ListingAggregateFormValues } from "#templates/fields.ts";
 import { listingAggregateFields } from "#templates/fields.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
+import { listingPage } from "./listing-page.ts";
+import { loadListingEditPanel } from "./listing-page-data.ts";
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
   extractListingAggregateValues,
   parseGroupIds,
 } from "./listings-form.ts";
-import {
-  copyDuplicatedChildEdges,
-  loadListingParentsSection,
-} from "./listings-parents.ts";
+import { copyDuplicatedChildEdges } from "./listings-parents.ts";
 import { processUploadsAndRedirect } from "./listings-uploads.ts";
 import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 /* jscpd:ignore-end */
@@ -294,7 +293,7 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
   });
 
 /** Listing + its groups + aggregate recalculation, loaded for the edit pages. */
-const getListingAndGroups = async (
+export const getListingAndGroups = async (
   listingId: number,
 ): Promise<{
   aggregateRecalculation: ListingAggregateRecalculation;
@@ -354,28 +353,6 @@ export const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listi
     ),
   );
 
-/** Handle GET /admin/listing/:id/edit */
-export const handleAdminListingEditGet: TypedRouteHandler<
-  "GET /admin/listing/:id/edit"
-> = (request, params) =>
-  requireContentOr(request, (session) =>
-    withEntityFromParam(params.id, getListingAndGroups, async (ctx) => {
-      const flash = applyFlash(request);
-      return htmlResponse(
-        adminListingEditPage(
-          ctx.listing,
-          ctx.groups,
-          session,
-          flash.error,
-          ctx.aggregateRecalculation,
-          flash.success,
-          await loadListingParentsSection(ctx.listing),
-          ctx.selectedGroupIds,
-        ),
-      );
-    }),
-  );
-
 /** The earliest over-capacity day across every group the listing belongs to
  * after its booking ranges were recomputed, or null when all groups fit. */
 const firstGroupCapOverflow = async (
@@ -419,31 +396,24 @@ const reconcileDurationChange = async (
   return ` Warning: group capacity exceeded on ${overDay}`;
 };
 
-const renderListingEditError = async (
+/** Re-render the Edit tab in place at 400 with the submitted error and the
+ * operator's submitted group selection (not the saved set), so a rejected edit
+ * doesn't silently drop their group changes. Deterministic — no flash stash. */
+const renderListingEditError = (
   id: number,
-  session: AdminSession,
+  session: AuthSession,
   error: string,
   submittedGroupIds: number[],
-): Promise<Response> => {
-  const ctx = await getListingAndGroups(id);
-  return ctx
-    ? htmlResponse(
-        adminListingEditPage(
-          ctx.listing,
-          ctx.groups,
-          session,
-          error,
-          ctx.aggregateRecalculation,
-          undefined,
-          await loadListingParentsSection(ctx.listing),
-          // Re-render the checkboxes the operator submitted (not the saved set),
-          // so a rejected edit doesn't silently drop their group changes.
-          submittedGroupIds,
-        ),
-        400,
-      )
-    : notFoundResponse();
-};
+): Promise<Response> =>
+  listingPage.renderPage(session, id, "edit", {
+    sections: async (entity, ctx) => [
+      {
+        html: await loadListingEditPanel(entity, ctx, error, submittedGroupIds),
+        kind: "custom" as const,
+      },
+    ],
+    status: 400,
+  });
 
 const handleListingEditSuccess = async (
   row: Listing,

@@ -190,9 +190,10 @@ const adminListingHtml = async (
 export const listingEditPageHtml = (listingId: number): Promise<string> =>
   adminListingHtml(listingId, "/edit");
 
-/** GET the admin listing DETAIL page HTML. */
-export const listingDetailPageHtml = (listingId: number): Promise<string> =>
-  adminListingHtml(listingId, "");
+/** GET the admin listing roster (Attendees tab) HTML — where the quick
+ *  add-attendee form and its required-child warning render. */
+export const listingRosterPageHtml = (listingId: number): Promise<string> =>
+  adminListingHtml(listingId, "/attendees");
 
 // ---------------------------------------------------------------------------
 // Declarative scenario builder

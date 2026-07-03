@@ -76,7 +76,7 @@ describe("e2e: no-quantity sentinel flow", () => {
 
     // RIGHT places — the ghost stays in the admin record views: still on the
     // listing roster, flagged with the no-quantity badge.
-    await browser.visit(`/admin/listing/${listingId}`);
+    await browser.visit(`/admin/listing/${listingId}/attendees`);
     expect(browser.containsText("Ghost Guest")).toBe(true);
     expect(browser.containsText("No quantity")).toBe(true);
 
@@ -104,7 +104,7 @@ describe("e2e: no-quantity sentinel flow", () => {
     const restored = await awaitTestRequest(`/t/${token}`);
     expect(restored.status).toBe(200);
     expect(await restored.text()).toContain("Workshop");
-    await browser.visit(`/admin/listing/${listingId}`);
+    await browser.visit(`/admin/listing/${listingId}/attendees`);
     expect(browser.currentHtml).toContain(`/t/${token}`);
   });
 
@@ -131,9 +131,9 @@ describe("e2e: no-quantity sentinel flow", () => {
 
     // Admin: RealShow's roster offers the live ticket link; GhostShow's roster
     // lists the same attendee with the no-quantity badge and no link.
-    await browser.visit(`/admin/listing/${realId}`);
+    await browser.visit(`/admin/listing/${realId}/attendees`);
     expect(browser.currentHtml).toContain(`/t/${token}`);
-    await browser.visit(`/admin/listing/${ghostId}`);
+    await browser.visit(`/admin/listing/${ghostId}/attendees`);
     expect(browser.containsText("Mixed Guest")).toBe(true);
     expect(browser.containsText("No quantity")).toBe(true);
     expect(browser.currentHtml).not.toContain(`/t/${token}`);

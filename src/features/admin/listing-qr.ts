@@ -40,7 +40,7 @@ import type {
 } from "#templates/admin/listing-qr.tsx";
 import { adminListingQrPage } from "#templates/admin/listing-qr.tsx";
 
-const EMPTY_VALUES: AdminListingQrValues = {
+export const EMPTY_QR_VALUES: AdminListingQrValues = {
   customer_name: "",
   date: "",
   quantity: "1",
@@ -56,7 +56,7 @@ const EMPTY_VALUES: AdminListingQrValues = {
  * (`constrainParentDailyDates`) — the same union the scanned booking form
  * enforces — so an admin can't mint a QR for a date the child-constrained
  * booking form would reject. A no-op for a daily listing with no child edges. */
-const loadBookableDates = async (
+export const loadBookableDates = async (
   listing: ListingWithCount,
 ): Promise<string[]> => {
   if (listing.listing_type !== "daily") return [];
@@ -94,6 +94,19 @@ const loadQrContext = async (id: number): Promise<QrContext | null> => {
   return { bookableDates: await loadBookableDates(listing), listing };
 };
 
+/** The QR form's per-listing context: the child-constrained bookable dates it
+ * offers and whether the listing can take a direct checkout. Shared by the
+ * standalone POST render here and the entity page's QR tab loader. */
+export const loadQrFormContext = async (
+  listing: ListingWithCount,
+): Promise<{ bookableDates: string[]; canDirectCheckout: boolean }> => {
+  const [bookableDates, canDirectCheckout] = await Promise.all([
+    loadBookableDates(listing),
+    listingSupportsDirectCheckout(listing),
+  ]);
+  return { bookableDates, canDirectCheckout };
+};
+
 /** Render the QR admin page; 404 when the listing is missing */
 const renderPage = (
   listingId: number,
@@ -103,10 +116,8 @@ const renderPage = (
 ): Promise<Response> =>
   withListing(listingId)((listing) =>
     unlessChild(listing, async () => {
-      const [bookableDates, canDirectCheckout] = await Promise.all([
-        loadBookableDates(listing),
-        listingSupportsDirectCheckout(listing),
-      ]);
+      const { bookableDates, canDirectCheckout } =
+        await loadQrFormContext(listing);
       return htmlResponse(
         adminListingQrPage({
           bookableDates,
@@ -119,13 +130,6 @@ const renderPage = (
       );
     }),
   );
-
-/** GET /admin/listing/:id/qr */
-const handleGet: TypedRouteHandler<"GET /admin/listing/:id/qr"> = (
-  request,
-  { id },
-) =>
-  requireSessionOr(request, (session) => renderPage(id, session, EMPTY_VALUES));
 
 /** Extract raw form values without validation */
 const extractRawValues = (form: FormParams): AdminListingQrValues => ({
@@ -253,7 +257,7 @@ const signAndRenderQr = async (
 };
 
 /** Process a validated QR form submission and render the result panel */
-const generateAndRender = async (
+const generateAndRender = (
   id: number,
   session: AdminSession,
   listing: ListingWithCount,
@@ -313,9 +317,10 @@ const handleJsonGet: TypedRouteHandler<"GET /admin/listing/:id/qr.json"> = (
     ),
   );
 
-/** Exported admin routes for the QR generator */
+/** Exported admin routes for the QR generator. The GET form is the listing
+ * entity page's QR tab now; the POST (result render) + qr.json refresh stay
+ * here. */
 export const listingQrRoutes = defineRoutes({
-  "GET /admin/listing/:id/qr": handleGet,
   "GET /admin/listing/:id/qr.json": handleJsonGet,
   "POST /admin/listing/:id/qr": handlePost,
 });

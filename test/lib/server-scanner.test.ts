@@ -626,9 +626,9 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     test("logs activity when checking in via scanner", async () => {
       const { listing, session } = await setupAndScan("Eve", "eve@test.com");
 
-      // Check activity log
+      // Check activity log (now the listing entity page's Activity tab)
       const logResponse = await awaitTestRequest(
-        `/admin/listing/${listing.id}/log`,
+        `/admin/listing/${listing.id}/activity`,
         { cookie: session.cookie },
       );
       const logBody = await logResponse.text();
@@ -661,9 +661,9 @@ describeWithEnv("QR Scanner", { db: true }, () => {
   });
 
   describe("listing page scanner link", () => {
-    test("listing admin page has scanner link", async () => {
+    test("listing actions tab has scanner link", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const response = await adminGet(`/admin/listing/${listing.id}`);
+      const response = await adminGet(`/admin/listing/${listing.id}/actions`);
       const body = await response.text();
       expect(body).toContain(`/admin/listing/${listing.id}/scanner`);
       expect(body).toContain("Scanner");

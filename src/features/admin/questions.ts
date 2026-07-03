@@ -44,7 +44,6 @@ import {
   getAnswerAggregateRecalculation,
   getAnswerModifierId,
   getAnswerSelectionTotals,
-  getListingQuestionIds,
   getNextAnswerSortOrder,
   getQuestionListingIds,
   getQuestionWithAnswers,
@@ -71,7 +70,6 @@ import {
   adminAnswerDeletePage,
   adminAnswerEditPage,
   adminAnswerRecalculatePage,
-  adminListingQuestionsPage,
   adminQuestionDeletePage,
   adminQuestionPage,
   adminQuestionsPage,
@@ -554,26 +552,8 @@ const handleMoveQuestionUp = moveQuestionHandler(-1);
 /** Handle POST /admin/questions/:id/move-down */
 const handleMoveQuestionDown = moveQuestionHandler(1);
 
-/** Handle GET /admin/listing/:id/questions */
-const handleListingQuestionsGet = ownerGetById(
-  getListingWithCount,
-  async (listing, session) => {
-    const [allQuestions, assignedIds] = await Promise.all([
-      getAllQuestionsWithAnswers(),
-      getListingQuestionIds(listing.id),
-    ]);
-    return htmlResponse(
-      adminListingQuestionsPage(
-        listing,
-        allQuestions,
-        new Set(assignedIds),
-        session,
-      ),
-    );
-  },
-);
-
-/** Handle POST /admin/listing/:id/questions */
+/** Handle POST /admin/listing/:id/questions — the listing entity page's
+ * Questions tab (GET) posts here, and the save returns to that tab. */
 const handleListingQuestionsPost = ownerFormById(async (id, _session, form) => {
   const listing = await getListingWithCount(id);
   if (!listing) return notFoundResponse();
@@ -585,14 +565,13 @@ const handleListingQuestionsPost = ownerFormById(async (id, _session, form) => {
     })`,
     listing,
   );
-  return redirect(`/admin/listing/${id}`, "Questions updated", true);
+  return redirect(`/admin/listing/${id}/questions`, "Questions updated", true);
 });
 
 /** Questions routes */
 export const questionsRoutes = {
   ...questionDelete.routes,
   ...defineRoutes({
-    "GET /admin/listing/:id/questions": handleListingQuestionsGet,
     "GET /admin/questions": handleQuestionsGet,
     "GET /admin/questions/:id": handleQuestionGet,
     "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,

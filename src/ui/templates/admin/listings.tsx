@@ -6,7 +6,6 @@ import { filter, joinStrings, map, mapNotNullish, pipe } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { formatCountdown } from "#routes/format.ts";
-import { targetQuery } from "#shared/bulk-email.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import {
   formatDateLabel,
@@ -81,11 +80,7 @@ import {
   type AttendeeTableRow,
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
-import {
-  ActionButton,
-  MaybeButtonLink,
-  SubmitButton,
-} from "#templates/components/actions.tsx";
+import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
 import {
   moneyPattern,
   PriceInput,
@@ -286,9 +281,6 @@ const FailedPaymentsTable = ({
     </table>,
   );
 
-/** Check-in message to display after toggling */
-export type CheckinMessage = { name: string; status: string } | null;
-
 /** Filter attendees by check-in status. The in/out filters operate on real
  * (quantity > 0) lines only — a no-quantity sentinel row isn't checkable, so it
  * appears only in the unfiltered "all" view, never in the checked-in or
@@ -324,30 +316,41 @@ const FilterLink = ({
     ? String(<strong>{label}</strong>)
     : String(<a href={href}>{label}</a>);
 
-/** Build the path suffix for a checkin filter (preserves date query) */
-const filterSuffix = (activeFilter: AttendeeFilter): string =>
-  activeFilter === "all" ? "" : `/${activeFilter}`;
+/** Build an Attendees-tab URL that carries the check-in filter and date as
+ *  query params — the roster's filters live on one `/admin/listing/:id/attendees`
+ *  tab now, not on the old `/in` and `/out` sub-paths. `all` / no-date are
+ *  omitted so the canonical roster URL stays clean. */
+const rosterHref = (
+  listingId: number,
+  activeFilter: AttendeeFilter,
+  dateFilter: string | null,
+): string => {
+  const params = new URLSearchParams();
+  if (activeFilter !== "all") params.set("filter", activeFilter);
+  if (dateFilter) params.set("date", dateFilter);
+  const qs = params.toString();
+  return `/admin/listing/${listingId}/attendees${qs ? `?${qs}` : ""}`;
+};
 
 /** Date selector dropdown for daily listings */
 const DateSelector = ({
-  basePath,
+  listingId,
   activeFilter,
   dateFilter,
   dates,
 }: {
-  basePath: string;
+  listingId: number;
   activeFilter: AttendeeFilter;
   dateFilter: string | null;
   dates: DateOption[];
 }): string => {
-  const suffix = filterSuffix(activeFilter);
   const options = [
-    `<option value="${basePath}${suffix}#attendees"${
+    `<option value="${rosterHref(listingId, activeFilter, null)}"${
       !dateFilter ? " selected" : ""
     }>${t("listings_table.all_dates")}</option>`,
     ...dates.map(
       (d) =>
-        `<option value="${basePath}${suffix}?date=${d.value}#attendees"${
+        `<option value="${rosterHref(listingId, activeFilter, d.value)}"${
           dateFilter === d.value ? " selected" : ""
         }>${d.label}</option>`,
     ),
@@ -507,19 +510,17 @@ export type GroupContext = {
   attendeeCount: number;
 };
 
-export type AdminListingPageOptions = {
+/** The listing detail data the Overview / Roster panels render. The entity
+ *  page's tab loaders build this directly. */
+export type ListingPanelOptions = {
   listing: ListingWithCount;
   attendees: Attendee[];
   allowedDomain: string;
-  session: AdminSession;
   aggregateRecalculation?: ListingAggregateRecalculation | undefined;
-  checkinMessage?: CheckinMessage | undefined;
   activeFilter?: AttendeeFilter | undefined;
   dateFilter?: string | null | undefined;
   availableDates?: DateOption[] | undefined;
-  errorMessage?: string | undefined;
   phonePrefix?: string | undefined;
-  successMessage?: string | undefined;
   questionData?: TableQuestionData | undefined;
   groupContext?: GroupContext | undefined;
   /** The listing's revenue-account breakdown (gross sales, manual adjustments,
@@ -548,111 +549,6 @@ export type AdminListingPageOptions = {
   /** Decrypted notes for the listed attendees (empty when none) — surfaced as a
    * red expandable above the attendee table. */
   systemNotes?: SystemNote[] | undefined;
-};
-
-/** Top action nav for the listing detail page */
-const ListingActionNav = ({
-  listing,
-  hasPaidListing,
-  isOwner,
-  hasEmailableAttendees,
-  isChild,
-  isHiddenPackageMember,
-}: {
-  listing: ListingWithCount;
-  hasPaidListing: boolean;
-  isOwner: boolean;
-  hasEmailableAttendees: boolean;
-  isChild: boolean;
-  isHiddenPackageMember: boolean;
-}): JSX.Element => {
-  const readOnly = isReadOnly();
-  // A child or a hidden package's member has no standalone public page, so the
-  // booking QR (which points at /ticket/<slug>) would 404.
-  const shareSuppressed = isChild || isHiddenPackageMember;
-  return (
-    <nav>
-      <ul>
-        {!readOnly && (
-          <li>
-            <a href={`/admin/listing/${listing.id}/edit`}>{t("common.edit")}</a>
-          </li>
-        )}
-        {!readOnly && (
-          <li>
-            <a href={`/admin/listing/${listing.id}/duplicate`}>
-              {t("listings_table.duplicate")}
-            </a>
-          </li>
-        )}
-        <li>
-          <a href={`/admin/listing/${listing.id}/log`}>
-            {t("listings_table.log")}
-          </a>
-        </li>
-        {!listing.purchase_only && (
-          <li>
-            <a href={`/admin/listing/${listing.id}/scanner`}>
-              {t("listings_table.scanner")}
-            </a>
-          </li>
-        )}
-        <li>
-          <a href={`/admin/listing/${listing.id}/questions`}>
-            {t("terms.questions")}
-          </a>
-        </li>
-        {!readOnly && !shareSuppressed && (
-          <li>
-            <a href={`/admin/listing/${listing.id}/qr`}>
-              {t("listings_table.booking_qr")}
-            </a>
-          </li>
-        )}
-        {isOwner && (
-          <li>
-            <MaybeButtonLink
-              disabled={!hasEmailableAttendees}
-              href={`/admin/emails${targetQuery({
-                kind: "listing",
-                listingId: listing.id,
-              })}`}
-              {...(hasEmailableAttendees
-                ? {}
-                : { title: t("listings_table.no_email_attendees") })}
-            >
-              {t("common.email")}
-            </MaybeButtonLink>
-          </li>
-        )}
-        {hasPaidListing && (
-          <li>
-            <a class="danger" href={`/admin/listing/${listing.id}/refund-all`}>
-              {t("listings_table.refund_all")}
-            </a>
-          </li>
-        )}
-        {listing.active ? (
-          <li>
-            <a class="danger" href={`/admin/listing/${listing.id}/deactivate`}>
-              {t("listings_table.deactivate")}
-            </a>
-          </li>
-        ) : (
-          <li>
-            <a href={`/admin/listing/${listing.id}/reactivate`}>
-              {t("listings_table.reactivate")}
-            </a>
-          </li>
-        )}
-        <li>
-          <a class="danger" href={`/admin/listing/${listing.id}/delete`}>
-            {t("common.delete")}
-          </a>
-        </li>
-      </ul>
-    </nav>
-  );
 };
 
 /** Detail row listing each offered day count and its price, shown when a
@@ -865,6 +761,57 @@ const GroupAttendeesRow = ({
         </small>
       </td>
     </tr>
+  );
+};
+
+/** The date-scoped capacity summary shown on a daily listing's roster tab when
+ * a `?date=` filter is active: the listing's own per-date capacity and, when it
+ * belongs to a capped group, that group's per-date remaining. The Overview tab
+ * only ever shows whole-listing totals, so this is where staff inspect a single
+ * day's remaining capacity. Null unless a daily listing has a date selected. */
+const RosterDateCapacity = ({
+  listing,
+  dateFilter,
+  dailySuffix,
+  adjustedCount,
+  completeQuantitySum,
+  groupContext,
+  sharedRowsHtml,
+}: {
+  listing: ListingWithCount;
+  dateFilter: string | null;
+  dailySuffix: string;
+  adjustedCount: number;
+  completeQuantitySum: number;
+  groupContext: GroupContext | undefined;
+  /** The date-filtered checked-in / revenue / answer-summary rows, so the
+   *  selected day keeps the summaries the combined detail page showed. */
+  sharedRowsHtml: string;
+}): JSX.Element | null => {
+  if (listing.listing_type !== "daily" || !dateFilter) return null;
+  return (
+    <div class="table-scroll">
+      <table class="listing-details-table">
+        <tbody>
+          <AttendeesSummaryRow
+            adjustedCount={adjustedCount}
+            completeQuantitySum={completeQuantitySum}
+            dailySuffix={dailySuffix}
+            dateFilter={dateFilter}
+            isDaily
+            listing={listing}
+          />
+          {groupContext && (
+            <GroupAttendeesRow
+              dailySuffix={dailySuffix}
+              group={groupContext.group}
+              groupAttendeeCount={groupContext.attendeeCount}
+            />
+          )}
+          <Raw html={sharedRowsHtml} />
+        </tbody>
+      </table>
+    </div>
   );
 };
 
@@ -1148,19 +1095,19 @@ const ListingDetailsTable = ({
 
 /** Attendees filter links (All / Checked In / Checked Out) */
 const AttendeesFilterLinks = ({
-  basePath,
-  dateQs,
+  listingId,
+  dateFilter,
   activeFilter,
 }: {
-  basePath: string;
-  dateQs: string;
+  listingId: number;
+  dateFilter: string | null;
   activeFilter: AttendeeFilter;
 }): JSX.Element => (
   <p>
     <Raw
       html={FilterLink({
         active: activeFilter === "all",
-        href: `${basePath}${dateQs}#attendees`,
+        href: rosterHref(listingId, "all", dateFilter),
         label: t("listings_table.all"),
       })}
     />
@@ -1168,7 +1115,7 @@ const AttendeesFilterLinks = ({
     <Raw
       html={FilterLink({
         active: activeFilter === "in",
-        href: `${basePath}/in${dateQs}#attendees`,
+        href: rosterHref(listingId, "in", dateFilter),
         label: t("common.checked_in"),
       })}
     />
@@ -1176,49 +1123,39 @@ const AttendeesFilterLinks = ({
     <Raw
       html={FilterLink({
         active: activeFilter === "out",
-        href: `${basePath}/out${dateQs}#attendees`,
+        href: rosterHref(listingId, "out", dateFilter),
         label: t("listings_table.checked_out"),
       })}
     />
   </p>
 );
 
-/** Attendees article section (header, optional check-in flash, filters, table) */
+/** Attendees article section (header, filters, table) */
 const AttendeesSection = ({
+  listingId,
   allowedDomain,
-  checkinMessage,
   isDaily,
   availableDates,
   activeFilter,
   dateFilter,
   basePath,
-  dateQs,
   returnUrl,
   tableRows,
   questionData,
   phonePrefix,
 }: {
+  listingId: number;
   allowedDomain: string;
-  checkinMessage: CheckinMessage | undefined;
   isDaily: boolean;
   availableDates: DateOption[];
   activeFilter: AttendeeFilter;
   dateFilter: string | null;
   basePath: string;
-  dateQs: string;
   returnUrl: string;
   tableRows: AttendeeTableRow[];
   questionData: TableQuestionData | undefined;
   phonePrefix: string | undefined;
 }): JSX.Element => {
-  const checkedInLabel =
-    checkinMessage?.status === "in"
-      ? t("listings_table.in")
-      : t("listings_table.out");
-  const checkedInClass =
-    checkinMessage?.status === "in"
-      ? "checkin-message-in"
-      : "checkin-message-out";
   // The export mirrors the current view: the date filter plus the active
   // check-in filter (/in or /out), so the CSV matches the rows on screen.
   const exportParams = new URLSearchParams();
@@ -1232,29 +1169,21 @@ const AttendeesSection = ({
     <article>
       <div class="prose">
         <h2 id="attendees">{t("terms.attendees")}</h2>
-        {checkinMessage && (
-          <p class={checkedInClass} id="message">
-            {t("listings_table.checked", {
-              name: checkinMessage.name,
-              status: checkedInLabel,
-            })}
-          </p>
-        )}
       </div>
       {isDaily && availableDates.length > 0 && (
         <Raw
           html={DateSelector({
             activeFilter,
-            basePath,
             dateFilter,
             dates: availableDates,
+            listingId,
           })}
         />
       )}
       <AttendeesFilterLinks
         activeFilter={activeFilter}
-        basePath={basePath}
-        dateQs={dateQs}
+        dateFilter={dateFilter}
+        listingId={listingId}
       />
       <div class="table-scroll">
         <Raw
@@ -1376,29 +1305,35 @@ const computeAttendeeStats = (
   };
 };
 
-export const adminListingPage = ({
-  listing,
-  attendees,
-  allowedDomain,
-  session,
-  aggregateRecalculation,
-  checkinMessage,
-  activeFilter = "all",
-  dateFilter = null,
-  availableDates = [],
-  errorMessage,
-  phonePrefix,
-  successMessage,
-  questionData,
-  groupContext,
-  revenueBreakdown,
-  ledger,
-  hasEmailableAttendees = false,
-  isChild = false,
-  isHiddenPackageMember = false,
-  childNames = [],
-  systemNotes = [],
-}: AdminListingPageOptions): string => {
+/**
+ * Derive every value the Overview and Roster panels share from the raw page
+ * options, applying the same defaults the detail page always used. Both panels
+ * read from this so the roster
+ * stats, capacity rows, and filter URLs are computed in exactly one place.
+ */
+/** The always-visible "this listing is deactivated" warning, rendered in the
+ *  listing entity page's banner region (above the tab strip) and in the legacy
+ *  detail page. Null when the listing is active, so nothing renders. */
+export const ListingDeactivatedBanner = ({
+  active,
+}: {
+  active: boolean;
+}): JSX.Element | null =>
+  active ? null : (
+    <div class="error" role="alert">
+      {t("listings_table.listing_deactivated_warning")}
+    </div>
+  );
+
+const deriveListingView = (opts: ListingPanelOptions) => {
+  const {
+    listing,
+    attendees,
+    allowedDomain,
+    activeFilter = "all",
+    dateFilter = null,
+    questionData,
+  } = opts;
   const ticketUrl = `https://${allowedDomain}/ticket/${listing.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
     buildEmbedSnippets(ticketUrl);
@@ -1427,10 +1362,11 @@ export const adminListingPage = ({
     ...(questionData !== undefined ? { questionData } : {}),
     skipAttendees: true,
   });
+  // basePath keeps the bare listing URL for the CSV export link (a standalone
+  // route); the roster's own filter/date navigation goes to the Attendees tab
+  // via rosterHref, and checkins return to the current filtered roster view.
   const basePath = `/admin/listing/${listing.id}`;
-  const dateQs = dateFilter ? `?date=${dateFilter}` : "";
-  const suffix = filterSuffix(activeFilter);
-  const returnUrl = `${basePath}${suffix}${dateQs}#attendees`;
+  const returnUrl = rosterHref(listing.id, activeFilter, dateFilter);
   const tableRows: AttendeeTableRow[] = pipe(
     map(
       (a: Attendee): AttendeeTableRow => ({
@@ -1440,41 +1376,63 @@ export const adminListingPage = ({
       }),
     ),
   )(filteredAttendees);
+  return {
+    activeFilter,
+    adjustedCount,
+    basePath,
+    completeQuantitySum,
+    dailySuffix,
+    dateFilter,
+    embedIframeCode,
+    embedScriptCode,
+    incompleteAttendees,
+    isDaily,
+    returnUrl,
+    sharedRows,
+    tableRows,
+    ticketUrl,
+  };
+};
 
-  return String(
-    <Layout title={t("listings_table.detail_title", { name: listing.name })}>
-      <AdminNav active="/admin/" session={session} />
-      <ListingActionNav
-        hasEmailableAttendees={hasEmailableAttendees}
-        hasPaidListing={hasPaidListing}
-        isChild={isChild}
-        isHiddenPackageMember={isHiddenPackageMember}
-        isOwner={session.adminLevel === "owner"}
-        listing={listing}
-      />
-      <Flash success={successMessage} />
-      {!listing.active && (
-        <div class="error" role="alert">
-          {t("listings_table.listing_deactivated_warning")}
-        </div>
-      )}
-      <Flash error={errorMessage} />
+/**
+ * The listing "Overview" panel: the read-only details table, the income/ledger
+ * money sections (owner-only callers pass them), and the attendee-notes
+ * summary. Rendered as the listing entity page's Overview tab.
+ */
+export const ListingOverviewPanel = (
+  opts: ListingPanelOptions,
+): JSX.Element => {
+  const v = deriveListingView(opts);
+  const {
+    listing,
+    aggregateRecalculation,
+    allowedDomain,
+    groupContext,
+    revenueBreakdown,
+    ledger,
+    attendees,
+    isChild = false,
+    isHiddenPackageMember = false,
+    systemNotes = [],
+  } = opts;
+  return (
+    <>
       <ListingDetailsTable
-        adjustedCount={adjustedCount}
+        adjustedCount={v.adjustedCount}
         aggregateRecalculation={aggregateRecalculation}
         allowedDomain={allowedDomain}
-        completeQuantitySum={completeQuantitySum}
-        dailySuffix={dailySuffix}
-        dateFilter={dateFilter}
-        embedIframeCode={embedIframeCode}
-        embedScriptCode={embedScriptCode}
+        completeQuantitySum={v.completeQuantitySum}
+        dailySuffix={v.dailySuffix}
+        dateFilter={v.dateFilter}
+        embedIframeCode={v.embedIframeCode}
+        embedScriptCode={v.embedScriptCode}
         groupContext={groupContext}
         isChild={isChild}
-        isDaily={isDaily}
+        isDaily={v.isDaily}
         isHiddenPackageMember={isHiddenPackageMember}
         listing={listing}
-        sharedRowsHtml={renderDetailRows(sharedRows)}
-        ticketUrl={ticketUrl}
+        sharedRowsHtml={renderDetailRows(v.sharedRows)}
+        ticketUrl={v.ticketUrl}
       />
       {revenueBreakdown && (
         <ListingIncomeLedgerSection
@@ -1489,30 +1447,70 @@ export const adminListingPage = ({
         names={attendeeNameMap(attendees)}
         notes={systemNotes}
       />
+    </>
+  );
+};
+
+/**
+ * The listing "Attendees" panel: the roster table (with filter links + optional
+ * check-in flash), the failed-payments split-out, and the quick add-attendee
+ * form (suppressed in read-only mode). Rendered as the listing entity page's
+ * Attendees tab.
+ */
+export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
+  const v = deriveListingView(opts);
+  const {
+    listing,
+    allowedDomain,
+    attendees = [],
+    availableDates = [],
+    phonePrefix,
+    questionData,
+    childNames = [],
+    groupContext,
+    systemNotes = [],
+  } = opts;
+  return (
+    <>
+      {RosterDateCapacity({
+        adjustedCount: v.adjustedCount,
+        completeQuantitySum: v.completeQuantitySum,
+        dailySuffix: v.dailySuffix,
+        dateFilter: v.dateFilter,
+        groupContext,
+        listing,
+        sharedRowsHtml: renderDetailRows(v.sharedRows),
+      })}
+      {/* The operator now works the roster from this tab (attendee rows, failed
+          payments, quick-add), so the contact/history notes summary that used to
+          sit above the table on the combined page renders here as well. */}
+      <AttendeeNotesSummary
+        names={attendeeNameMap(attendees)}
+        notes={systemNotes}
+      />
       <AttendeesSection
-        activeFilter={activeFilter}
+        activeFilter={v.activeFilter}
         allowedDomain={allowedDomain}
         availableDates={availableDates}
-        basePath={basePath}
-        checkinMessage={checkinMessage}
-        dateFilter={dateFilter}
-        dateQs={dateQs}
-        isDaily={isDaily}
+        basePath={v.basePath}
+        dateFilter={v.dateFilter}
+        isDaily={v.isDaily}
+        listingId={listing.id}
         phonePrefix={phonePrefix}
         questionData={questionData}
-        returnUrl={returnUrl}
-        tableRows={tableRows}
+        returnUrl={v.returnUrl}
+        tableRows={v.tableRows}
       />
-      {incompleteAttendees.length > 0 && (
+      {v.incompleteAttendees.length > 0 && (
         <FailedPaymentsSection
-          attendees={incompleteAttendees}
+          attendees={v.incompleteAttendees}
           listingId={listing.id}
         />
       )}
       {!isReadOnly() && (
         <AddAttendeeSection childNames={childNames} listing={listing} />
       )}
-    </Layout>,
+    </>
   );
 };
 
@@ -2359,7 +2357,7 @@ const ChildCandidateLabel = ({
       />
       {` ${candidate.listing.name}`}
       {candidate.ineligibleReason !== null && (
-        <span class="muted small"> — {candidate.ineligibleReason}</span>
+        <span class="muted small">— {candidate.ineligibleReason}</span>
       )}
     </label>
   );
@@ -2411,20 +2409,43 @@ const ListingChildrenSection = ({
   </details>
 );
 
-export const adminListingEditPage = (
-  listing: ListingWithCount,
-  groups: Group[],
-  session: AdminSession,
-  error?: string,
-  aggregateRecalculation?: ListingAggregateRecalculation | undefined,
-  success?: string,
-  parents?: {
-    candidates: ChildCandidate[];
-    childIds: ReadonlySet<number>;
-    offeredUnder: ListingWithCount[];
-  },
-  selectedGroupIds: number[] = [],
-): string => {
+/** Options for {@link ListingEditPanel}. The
+ *  `parents` shape matches (structurally) the loader's `ListingParentsSection`
+ *  in listings-parents.ts; it stays inline here so the template never imports
+ *  from a route module. */
+export type ListingEditPanelOptions = {
+  listing: ListingWithCount;
+  groups: Group[];
+  session: AdminSession;
+  error?: string | undefined;
+  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
+  parents?:
+    | {
+        candidates: ChildCandidate[];
+        childIds: ReadonlySet<number>;
+        offeredUnder: ListingWithCount[];
+      }
+    | undefined;
+  selectedGroupIds?: number[] | undefined;
+};
+
+/**
+ * The listing "Edit" panel: the multipart edit form (all field sections, day
+ * prices, running totals), the owner-only income adjuster, the image/attachment
+ * removers, and the parent/child editor. Rendered as the listing entity page's
+ * Edit tab — and, on a rejected save, re-rendered in place with the submitted
+ * error — so it carries its own error flash rather than relying on the page
+ * frame.
+ */
+export const ListingEditPanel = ({
+  listing,
+  groups,
+  session,
+  error,
+  aggregateRecalculation,
+  parents,
+  selectedGroupIds = [],
+}: ListingEditPanelOptions): JSX.Element => {
   // A listing offered as a child inherits its parent's booking date/duration, so
   // its own date/duration settings have no effect when chosen as a child. Surface
   // that with a top banner and an inline note on the affected sections.
@@ -2460,12 +2481,9 @@ export const adminListingEditPage = (
   // running-totals and income-adjust sections are omitted for them (and the edit
   // POST ignores any aggregate fields they craft — defence in depth).
   const showFinancials = session.adminLevel !== "editor";
-  return String(
-    <Layout
-      title={t("listings_table.edit_listing_title", { name: listing.name })}
-    >
-      <AdminNav active="/admin/" session={session} />
-      <Flash error={error} success={success} />
+  return (
+    <>
+      <Flash error={error} />
       {childOfNames !== null && (
         <p class="notice listing-child-banner">
           {t("listings_table.child_banner", { names: childOfNames })}
@@ -2537,7 +2555,7 @@ export const adminListingEditPage = (
           offeredUnder={parents.offeredUnder}
         />
       )}
-    </Layout>,
+    </>
   );
 };
 
