@@ -814,6 +814,9 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("Group Attendees");
       expect(html).toContain(`href="/admin/groups/${group.id}"`);
+      // The selected day keeps its checked-in summary (the combined page's
+      // date-filtered shared rows), not just the capacity snippet.
+      expect(html).toContain("Checked In");
     });
   });
 

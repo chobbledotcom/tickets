@@ -776,6 +776,7 @@ const RosterDateCapacity = ({
   adjustedCount,
   completeQuantitySum,
   groupContext,
+  sharedRowsHtml,
 }: {
   listing: ListingWithCount;
   dateFilter: string | null;
@@ -783,6 +784,9 @@ const RosterDateCapacity = ({
   adjustedCount: number;
   completeQuantitySum: number;
   groupContext: GroupContext | undefined;
+  /** The date-filtered checked-in / revenue / answer-summary rows, so the
+   *  selected day keeps the summaries the combined detail page showed. */
+  sharedRowsHtml: string;
 }): JSX.Element | null => {
   if (listing.listing_type !== "daily" || !dateFilter) return null;
   return (
@@ -804,6 +808,7 @@ const RosterDateCapacity = ({
               groupAttendeeCount={groupContext.attendeeCount}
             />
           )}
+          <Raw html={sharedRowsHtml} />
         </tbody>
       </table>
     </div>
@@ -1474,6 +1479,7 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
         dateFilter: v.dateFilter,
         groupContext,
         listing,
+        sharedRowsHtml: renderDetailRows(v.sharedRows),
       })}
       {/* The operator now works the roster from this tab (attendee rows, failed
           payments, quick-add), so the contact/history notes summary that used to
