@@ -22,6 +22,16 @@ import {
 export const operationsSections = (): GuideSection[] => [
   {
     entries: [
+      faq("what_is_servicing"),
+      faq("create_service_event"),
+      faq("record_servicing_costs"),
+      faq("servicing_and_profit"),
+    ],
+    id: "servicing",
+    titleKey: "servicing",
+  },
+  {
+    entries: [
       faq("what_is_the_backup_feature"),
       faq("how_do_i_create_a_backup"),
       faq("how_do_i_restore_from_a_backup"),
@@ -50,6 +60,7 @@ export const operationsSections = (): GuideSection[] => [
     entries: [
       faq("customise_system"),
       faq("customise_for_me"),
+      faq("custom_css"),
       faq("hosting_and_images"),
     ],
     titleKey: "customising_your_site",

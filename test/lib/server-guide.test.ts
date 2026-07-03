@@ -496,7 +496,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     // Modifiers renders as its own <h3> section immediately before Booking
     // Questions, so the slice between those two headings is exactly the
     // Modifiers section's body — every <summary> in it is a Modifiers FAQ.
-    test("Modifiers section contains exactly its own two FAQs", async () => {
+    test("Modifiers section contains exactly its own three FAQs", async () => {
       const html = await guideHtml();
       const start = html.indexOf(`>${t("guide.sections.modifiers")}</h3>`);
       const end = html.indexOf(
@@ -512,6 +512,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       expect(summaries).toEqual([
         t("guide.q.what_are_modifiers"),
         t("guide.q.how_modifier_values_work"),
+        t("guide.q.modifier_value_precision"),
       ]);
     });
 
