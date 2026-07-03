@@ -8,7 +8,8 @@
  * The textarea remains the real form control — every rich edit is serialized
  * back to markdown into it and re-announced as an `input` event — so form
  * submission, server-side validation, the character counter and the preview
- * dialog all keep working unchanged. A footer button toggles to the raw
+ * dialog all keep working unchanged. A formatting toolbar sits above the
+ * editing surface for discoverability. A footer button toggles to the raw
  * textarea for anything the visual editor doesn't model (e.g. tables) — and
  * a field whose stored markdown wouldn't survive the round trip opens in raw
  * mode so rich editing never silently rewrites it. A blocked required-field
@@ -22,6 +23,7 @@ import {
   roundTripsCleanly,
   serializeMarkdown,
 } from "./markdown-editor-setup.ts";
+import { createToolbar } from "./markdown-editor-toolbar.ts";
 
 /** Applied to whichever of the textarea / rich editor is inactive. */
 const HIDDEN_CLASS = "md-editor-hidden";
@@ -47,18 +49,42 @@ export const enhanceMarkdownTextarea = (
   mount.className = "md-editor";
   textarea.after(mount);
 
+  // The field's markdown maxlength (−1 when unset). Rich-mode typing edits the
+  // ProseMirror document, not the textarea, so the browser's own maxlength no
+  // longer bites — this replicates it against the serialized markdown, which
+  // is exactly what the server validates.
+  const maxLength = textarea.maxLength;
+
   const view: EditorView = new EditorView(mount, {
     dispatchTransaction: (tr) => {
+      const nextMarkdown = tr.docChanged ? serializeMarkdown(tr.doc) : null;
+      // Reject an edit that would push the stored markdown past the limit, but
+      // only when it grows the text — deletions that stay over are still
+      // allowed, so an over-long field can always be trimmed back down.
+      if (
+        nextMarkdown !== null &&
+        maxLength > 0 &&
+        nextMarkdown.length > maxLength &&
+        nextMarkdown.length > textarea.value.length
+      ) {
+        return;
+      }
       view.updateState(view.state.apply(tr));
-      if (!tr.docChanged) return;
+      toolbar.update(view.state);
+      if (nextMarkdown === null) return;
       // Keep the textarea current on every doc change (not just on submit) so
       // everything reading it — char counter, preview, unload warnings — sees
       // live content. The input event is what the char counter listens for.
-      textarea.value = serializeMarkdown(view.state.doc);
+      textarea.value = nextMarkdown;
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
     },
     state: createEditorState(textarea.value),
   });
+
+  const toolbar = createToolbar(view);
+  mount.prepend(toolbar.dom);
+  // The toolbar's initial highlight is set by the setMode(mode) call below:
+  // its rich branch refreshes the toolbar, and a raw start keeps it hidden.
 
   const toggle = document.createElement("button");
   toggle.type = "button";
@@ -79,7 +105,10 @@ export const enhanceMarkdownTextarea = (
     toggle.textContent = TOGGLE_LABELS[next];
     // Raw-mode edits happen directly in the textarea, so entering rich mode
     // rebuilds the document from the textarea's current markdown.
-    if (!raw) view.updateState(createEditorState(textarea.value));
+    if (!raw) {
+      view.updateState(createEditorState(textarea.value));
+      toolbar.update(view.state);
+    }
   };
   setMode(mode);
 
