@@ -474,6 +474,10 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     return rowToBuiltSite(row);
   },
 
+  // findByIdPrimary is intentionally omitted: it is optional on Table (like
+  // insertStatement/updateStatement) and only used on the transactional
+  // afterWrite write-back path, which this façade resource never takes.
+
   fromDb: (row: BuiltSite): Promise<BuiltSite> => Promise.resolve(row),
   inputKeyMap: builtSiteInputKeyMap,
 

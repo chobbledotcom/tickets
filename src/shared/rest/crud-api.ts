@@ -209,6 +209,14 @@ export interface CrudApiConfig<
   listExtras?: (session: AdminSession) => Record<string, unknown>;
   /** Custom single-row lookup (e.g. to include joined counts). Defaults to table.findById. */
   lookup?: (id: number) => Promise<FullRow | null>;
+  /** Custom single-row lookup used ONLY to read a row back right after committing
+   * its own write, which must be pinned to the primary (read-your-writes): the
+   * default `lookup` runs in "read" mode and can hit a replica that lags the
+   * commit, returning null for the just-written row and crashing on `.id`.
+   * Defaults to `table.findByIdPrimary`; a resource whose `lookup` joins extra
+   * columns (e.g. listings' counts) must pass a primary-pinned equivalent so the
+   * write response still carries those columns. */
+  lookupAfterWrite?: (id: number) => Promise<FullRow | null>;
   /** Resource name (lowercase plural, used in routes and log messages) */
   name: string;
   /** Field on Row that holds the display name (for delete confirmation) */
@@ -317,6 +325,15 @@ export const defineCrudApi = <
   const lookup: (id: number) => Promise<FullRow | null> =
     config.lookup ??
     ((id) => table.findById(id) as unknown as Promise<FullRow | null>);
+  // Reading a row back right after committing its write must hit the primary, or
+  // a lagging replica can return null and the create/update path crashes on
+  // `.id`. Defaults to the primary-pinned base-row read; a resource whose
+  // `lookup` joins extra columns passes its own primary equivalent.
+  const lookupAfterWrite: (id: number) => Promise<FullRow | null> =
+    config.lookupAfterWrite ??
+    // Present on every table that reaches the transactional write path (set
+    // alongside insertStatement/updateStatement).
+    ((id) => table.findByIdPrimary!(id) as unknown as Promise<FullRow | null>);
 
   /** Clean a row for JSON response, hydrating any join-table fields. */
   const toResponse = async (
@@ -388,7 +405,9 @@ export const defineCrudApi = <
         if (config.afterWrite) await config.afterWrite(tx, rowId, input);
       },
     );
-    return (await lookup(id))!;
+    // Primary read-your-writes: a replica read here can lag the commit and miss
+    // the just-written row (null → crash on `.id`). See lookupAfterWrite.
+    return (await lookupAfterWrite(id))!;
   };
 
   /** Validate the body-only side effect BEFORE the row write (atomicity):

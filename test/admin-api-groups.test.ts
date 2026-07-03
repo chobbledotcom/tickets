@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import {
   getAllGroups,
@@ -174,6 +175,33 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
           expect(body.group.max_attendees).toBe(0);
         },
       );
+    });
+
+    test("still creates when the read-back replica lags the just-committed write", async () => {
+      // Regression (JSON API, shared crud write-back): after committing the row in
+      // a transaction on the primary, the API read it back with a plain "read"-mode
+      // `findById`, which Turso can serve from a replica lagging the commit —
+      // returning null and crashing on `row.id`. The read-back now uses the
+      // primary-pinned `findByIdPrimary`. Stub the replica read (`findById`) to
+      // miss the row — the create must still succeed.
+      const findByIdStub = stub(groupsTable, "findById", () =>
+        Promise.resolve(null),
+      );
+      try {
+        await assertJson(
+          apiRequest("/api/admin/groups", {
+            body: { name: "Lagged API Group" },
+            method: "POST",
+          }),
+          201,
+          (body) => {
+            expect(body.group.name).toBe("Lagged API Group");
+            expect(body.group.id).toBeGreaterThan(0);
+          },
+        );
+      } finally {
+        findByIdStub.restore();
+      }
     });
 
     test("creates group with all fields", async () => {

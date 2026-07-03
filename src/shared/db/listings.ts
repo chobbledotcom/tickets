@@ -33,6 +33,7 @@ import {
   queryAll,
   queryBatch,
   queryOne,
+  queryOnePrimary,
   resetAggregates,
   resultRows,
 } from "#shared/db/client.ts";
@@ -828,6 +829,28 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
 export const getListingWithCount = (
   id: number,
 ): Promise<ListingWithCount | null> => listingsCache.getById(id);
+
+/**
+ * Read one listing with its counts pinned to the primary (read-your-writes).
+ *
+ * Use only to read a listing back immediately after committing its own write:
+ * the cache-backed {@link getListingWithCount} fetches on a miss with a plain
+ * "read"-mode query, which Turso may serve from a replica that lags the just-
+ * committed write and so returns null — which the JSON API create/update path
+ * would then dereference (`row.id`) and crash on. This bypasses the cache and
+ * reads on the primary, decrypting/overlaying defaults the same way.
+ */
+export const getListingWithCountPrimary = async (
+  id: number,
+): Promise<ListingWithCount> => {
+  const row = await queryOnePrimary<ListingWithCount>(
+    `${LISTING_COUNT_SELECT} WHERE listing.id = ? ${LISTING_COUNT_GROUP_BY}`,
+    [id],
+  );
+  // The caller reads back a row it just committed, and this reads on the primary
+  // (read-your-writes), so the row is always present — no missing-row branch.
+  return decryptListingWithCount(row!);
+};
 
 /**
  * Get listing with attendee count by slug (from cache)
