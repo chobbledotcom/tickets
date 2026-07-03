@@ -18,7 +18,7 @@ import type {
  * {@link TicketListing} so availability (isSoldOut/isClosed/maxPurchasable) is
  * resolved for the gate/render. Empty when the parents flag is off or the page
  * has no parents; children are never added to `ctx.listings` (they are not URL
- * slugs). See parents.md "Public: the booking-page gate". */
+ * slugs). */
 export type ChildrenByParentId = Map<number, TicketListing[]>;
 
 /** Ticket shared context shape */
@@ -32,15 +32,15 @@ export type TicketSharedContext = {
   childrenByParentId: ChildrenByParentId;
   /** Each DAILY child's holiday-aware serveable start dates, keyed by the
    * (parent, child) PAIR (`childDateKey`) so a child required by two parents
-   * carries each parent's own dates (Fix 4); emitted as `data-child-dates` for
-   * the client compatibility script (Codex 430); empty map when the page has no
-   * daily children. Per selectable parent span ({@link ChildSpanDates}, Fix 4). */
+   * carries each parent's own dates; emitted as `data-child-dates` for
+   * the client compatibility script; empty map when the page has no
+   * daily children. Per selectable parent span ({@link ChildSpanDates}). */
   childDatesById: Map<string, ChildSpanDates>;
   groupName?: string;
   groupDescription?: string;
   /** Set when the booking page is a package group: the group's id (for signed
-   * metadata) and listing-id → override price map (only members with a non-zero
-   * `package_price`). `null`/absent for non-package pages. */
+   * metadata) and listing-id → override price map (only members with a flat
+   * `group` override in listing_prices). `null`/absent for non-package pages. */
   packageGroupId?: number | null;
   packagePrices?: ReadonlyMap<number, number> | null;
   /** Set on a package page: each customisable member's per-day overrides
@@ -81,8 +81,8 @@ export type TicketCtx = TicketSharedContext & {
   listings: TicketListing[];
   /** Each GROUP id → its remaining spots (uncapped groups omitted), set on the
    * render path so a parent sharing a capped group with its child clamps its
-   * quantity by the combined parent+child demand against the SPECIFIC shared group
-   * (invariant I7, Fix 3, Codex #3). Omitted on submit/quote (the fold's
+   * quantity by the combined parent+child demand against the SPECIFIC shared
+   * group. Omitted on submit/quote (the fold's
    * authoritative date-specific check runs there instead). */
   groupRemainingByGroupId?: ReadonlyMap<number, number>;
   /** Each listing id → the ids of the groups it belongs to, set on the render

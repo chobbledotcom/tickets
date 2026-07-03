@@ -124,14 +124,24 @@ export const exportListing = async (
   const listing = await getStoredListingWithCount(id);
   if (!listing) return null;
 
+  // `day_prices` is a projected column (its source rows live in `listing_prices`
+  // now that the `listings.day_prices` column is retired), so `rowToInput` omits
+  // it — carry it explicitly when the listing actually has per-day prices.
+  const dayPrices =
+    Object.keys(listing.day_prices).length > 0
+      ? { dayPrices: listing.day_prices }
+      : {};
   const listingData = parseExport(
     ListingDataSchema,
-    listingsTable.rowToInput(
-      listing,
-      adminLevel === "editor"
-        ? EDITOR_EXPORT_EXCLUDED
-        : LISTING_EXPORT_EXCLUDED,
-    ),
+    {
+      ...listingsTable.rowToInput(
+        listing,
+        adminLevel === "editor"
+          ? EDITOR_EXPORT_EXCLUDED
+          : LISTING_EXPORT_EXCLUDED,
+      ),
+      ...dayPrices,
+    },
     "listing",
   );
   if (listingData instanceof CatalogExportError) return listingData;

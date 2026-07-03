@@ -238,7 +238,7 @@ describe("site-pages core", () => {
     });
 
     test("a move followed by its opposite restores the order (self-inverse)", () => {
-      // pages.md's promised property: applying planReorder's swap and then the
+      // The promised property: applying planReorder's swap and then the
       // opposite move's swap is the identity, for every non-boundary position.
       const applySwap = (
         order: readonly TargetKey[],
@@ -437,7 +437,7 @@ describe("site-pages core", () => {
     });
 
     test("active flags equal chain membership exactly, across every node", () => {
-      // pages.md's promised set-equality property, checked over EVERY node of
+      // The promised set-equality property, checked over EVERY node of
       // a deep multi-sibling model: at each level the one active node is the
       // next chain page — every sibling (and every non-chain root) is not.
       // Forest: roots 1 and 6; 1 → {4, 2}; 2 → {5, 3}; current is page 3.

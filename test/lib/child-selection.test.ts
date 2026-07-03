@@ -87,10 +87,10 @@ describe("child selection helpers", () => {
     expect([...selectedListingIds()]).toEqual(["101"]);
   });
 
-  test("selectedListingIds includes a sole auto-selected child when its parent is in the cart (Fix 1)", () => {
+  test("selectedListingIds includes a sole auto-selected child when its parent is in the cart", () => {
     // A sole child renders an informational `data-sole-child` marker with NO
     // `child_qty_*` control, so the only signal it is active is the parent being
-    // in the cart. Without Fix 1 the active set omits it and its required
+    // in the cart. Without this the active set omits it and its required
     // question would be hidden/de-required, failing the server fold.
     installFakeDom([
       quantity("101", "2"),
@@ -101,7 +101,7 @@ describe("child selection helpers", () => {
     expect([...selectedListingIds()].sort()).toEqual(["101", "202"]);
   });
 
-  test("selectedListingIds omits a sole auto-selected child when its parent is at zero quantity (Fix 1)", () => {
+  test("selectedListingIds omits a sole auto-selected child when its parent is at zero quantity", () => {
     installFakeDom([
       quantity("101", "0"),
       childSelector("101"),

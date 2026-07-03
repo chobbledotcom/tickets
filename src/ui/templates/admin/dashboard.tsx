@@ -86,7 +86,7 @@ const MultiBookingCheckbox = ({ e }: { e: ListingWithCount }): string =>
 
 /** Multi-booking link builder section (only rendered when 2+ selectable
  * listings). The caller has already excluded every listing with no standalone
- * public page — a child (invariant I3) and a hidden package's member both 404
+ * public page — a child and a hidden package's member both 404
  * on their own `/ticket/<slug>` — so an operator can't build a
  * `/ticket/<…+unbookable+…>` URL the server then rejects. */
 const multiBookingSection = (

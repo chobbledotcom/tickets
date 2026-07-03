@@ -14,7 +14,10 @@
 
 import type { InValue } from "@libsql/client";
 import { queryAll, type TxScope } from "#shared/db/client.ts";
-import { PRICE_TYPE_GROUP_DAY } from "#shared/db/listing-prices.ts";
+import {
+  PRICE_TYPE_GROUP,
+  PRICE_TYPE_GROUP_DAY,
+} from "#shared/db/listing-prices.ts";
 import {
   type DayPrices,
   type GroupListing,
@@ -23,12 +26,21 @@ import {
 
 /** Every group a listing belongs to, with this listing's per-package override
  * and quantity — the membership facet a catalog export captures for one listing.
- * A `null` `package_price` means "no override"; `quantity` defaults to 1. */
+ * A `null` `package_price` means "no override"; `quantity` defaults to 1. The
+ * flat override lives in the `group` dimension of `listing_prices` (the
+ * `group_listings.package_price` column was retired), read back by subquery. */
 export const getListingGroupMemberships = (
   listingId: number,
 ): Promise<GroupListing[]> =>
   queryAll<GroupListing>(
-    "SELECT group_id, listing_id, package_price, quantity FROM group_listings WHERE listing_id = ? ORDER BY group_id ASC",
+    `SELECT groupListing.group_id, groupListing.listing_id, groupListing.quantity,
+            (SELECT listingPrice.unit_price FROM listing_prices AS listingPrice
+               WHERE listingPrice.listing_id = groupListing.listing_id
+                 AND listingPrice.price_type = '${PRICE_TYPE_GROUP}'
+                 AND listingPrice.price_id = CAST(groupListing.group_id AS TEXT))
+              AS package_price
+       FROM group_listings AS groupListing
+      WHERE groupListing.listing_id = ? ORDER BY groupListing.group_id ASC`,
     [listingId],
   );
 
@@ -63,17 +75,25 @@ const multiRowInsert = (
 };
 
 /** The (at most two) batched statements that create every membership row plus
- * its `group_day` per-day overrides. Targeted inserts (no group-wide delete), so
- * importing into an already-populated package never disturbs its other members. */
+ * its price overrides. The `group_listings` row carries only membership +
+ * `quantity`; the flat package override and each per-day override are `group` /
+ * `group_day` rows in `listing_prices` (the `group_listings.package_price` column
+ * was retired). Targeted inserts (no group-wide delete), so importing into an
+ * already-populated package never disturbs its other members. */
 export const membershipStatements = (
   memberships: readonly ImportedMembership[],
 ): Statement[] => {
   const memberRows = memberships.map((m) => [
     m.groupId,
     m.listingId,
-    m.packagePrice,
     m.quantity,
   ]);
+  // A `null` package price means "no override" — write no `group` row for it.
+  const flatRows = memberships.flatMap((m) =>
+    m.packagePrice === null
+      ? []
+      : [[m.listingId, PRICE_TYPE_GROUP, String(m.groupId), m.packagePrice]],
+  );
   const dayRows = memberships.flatMap((m) =>
     Object.entries(parseDayPrices(m.dayPrices)).map(([days, price]) => [
       m.listingId,
@@ -85,13 +105,13 @@ export const membershipStatements = (
   return [
     multiRowInsert(
       "group_listings",
-      ["group_id", "listing_id", "package_price", "quantity"],
+      ["group_id", "listing_id", "quantity"],
       memberRows,
     ),
     multiRowInsert(
       "listing_prices",
       ["listing_id", "price_type", "price_id", "unit_price"],
-      dayRows,
+      [...flatRows, ...dayRows],
     ),
   ].filter((stmt): stmt is Statement => stmt !== null);
 };

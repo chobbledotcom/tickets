@@ -31,7 +31,10 @@ import {
   addParentEdgesTx,
   getChildListingIds,
 } from "#shared/db/listing-parents.ts";
-import { syncListingPrices } from "#shared/db/listing-prices.ts";
+import {
+  syncListingPrices,
+  writeListingDayCounts,
+} from "#shared/db/listing-prices.ts";
 import {
   getListingsById,
   getListingsWithCountsByIds,
@@ -412,12 +415,17 @@ const importListing = async (
     await listingsTable.insertStatement!(input),
     null,
     async (tx, newId) => {
+      // insertStatement bypasses the listingsTable wrapper, which normally writes
+      // the listing's own `day_count` price rows (their source of truth is
+      // listing_prices, not a column). Write them here so an imported customisable
+      // listing keeps its per-day prices, committed atomically with the row.
+      await writeListingDayCounts(tx, newId, input.dayPrices);
       await writeMembershipsTx(tx, withNewId(specs, "listingId", newId));
       await addParentEdgesTx(tx, newId, parentResolve.ids);
     },
   );
-  // insertStatement bypassed the table wrapper, so re-sync the derived
-  // base/day_count price rows from the just-written columns (as afterCommit does).
+  // insertStatement bypassed the table wrapper, so re-sync the derived `base`
+  // price row from the just-written `unit_price` column (as afterCommit does).
   await syncListingPrices(id);
   return { id, kind: "listing", name: input.name, ok: true };
 };

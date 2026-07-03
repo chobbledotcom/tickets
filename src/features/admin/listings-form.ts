@@ -15,7 +15,10 @@ import {
   copyPackageMemberOverridesTx,
   setListingGroupsTx,
 } from "#shared/db/groups.ts";
-import { syncListingPrices } from "#shared/db/listing-prices.ts";
+import {
+  syncListingPrices,
+  writeListingDayCounts,
+} from "#shared/db/listing-prices.ts";
 import {
   computeSlugIndex,
   type ListingAggregateValues,
@@ -167,6 +170,7 @@ const extractCommonFields = (
   const closesAt = normalizeOptionalDatetime(values.closes_at, "closes_at");
   return {
     assignBuiltSite: isBuilderEnabled() && values.assign_built_site === "1",
+    bookableAlone: form.getString("bookable_alone") === "1",
     bookableDays,
     canPayMore: values.can_pay_more === "1",
     closesAt,
@@ -243,11 +247,20 @@ const buildListingResourceFields = (): Field[] => [
   getAssignBuiltSiteField(),
 ];
 
-/** Persist the listing's group memberships in the row write's transaction.
- * extractCommonFields always sets groupIds (parseGroupIds returns an array), so
- * it is non-null here. */
-const writeListingGroups = (tx: TxScope, id: number, input: ListingInput) =>
-  setListingGroupsTx(tx, id, input.groupIds!);
+/** Persist the listing's group memberships AND its per-day-count prices in the
+ * row write's transaction. extractCommonFields always sets groupIds (parseGroupIds
+ * returns an array) and dayPrices, so both are non-null here. The transactional
+ * insertStatement/updateStatement path doesn't write `day_count` rows (they are
+ * no longer a column), so this writes them from the submitted day prices; the
+ * `base` mirror is reconciled from the `unit_price` column by afterCommit. */
+const writeListingGroups = async (
+  tx: TxScope,
+  id: number,
+  input: ListingInput,
+) => {
+  await setListingGroupsTx(tx, id, input.groupIds!);
+  await writeListingDayCounts(tx, id, input.dayPrices);
+};
 
 /** Create-only afterWrite: persist the memberships, then — for a duplicate —
  * copy the source's package overrides onto the new membership rows in the SAME

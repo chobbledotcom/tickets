@@ -1,28 +1,26 @@
 /**
- * Acquire ring for the public site-pages nav (pages.md "Functional core"): load
- * the forest's rows plus the resolved leaf targets as plain data, then hand it
- * to the pure `buildNavModel`. The page/edge reads are the request-cached
- * narrow projections; leaf resolution runs only on `/page/:slug` renders (the
- * fixed pages pass a null current and skip it entirely).
+ * Data-loading side of the public site-pages nav: load the forest's rows plus
+ * the resolved leaf targets as plain data, then hand them to the pure
+ * `buildNavModel`. The page/edge reads are the request-cached narrow
+ * projections; leaf resolution runs only on `/page/:slug` renders (the fixed
+ * pages pass a null current and skip it entirely).
  *
- * Liveness mirrors the discovery classification the rest of the public site
- * uses, so the nav never renders a link that would 404 or dead-end: a listing
- * is live iff it is active, not a renewal tier (the renewal flow needs a site
- * token the normal ticket flow never supplies), not a child (a booking can
- * never start from a child, invariant I3), and not a parent projected sold
- * out (its `/ticket` page would offer nothing to book); a group is live iff
- * it has a standalone-bookable member (the same gate as its QR). A HIDDEN
- * listing/group is still live: hidden governs the public index, not
- * bookability — its `/ticket` page serves (with noindex), and an operator
- * placing a hidden item on a page is choosing to link it. Page targets are
- * always live.
+ * Liveness uses the same gates the rest of the public site does, so the nav
+ * never renders a link that would 404 or dead-end. A listing is live iff it is
+ * active, not a renewal tier (that flow needs a site token the normal ticket
+ * flow never supplies), has its OWN standalone booking page (not a
+ * non-standalone child, not a hidden package member — both 404 their
+ * `/ticket/<slug>`), and is not a parent projected sold out. A group is live iff
+ * its `/ticket/<group>` page would serve — a regular group needs a
+ * standalone-bookable visible member, a package needs the whole bundle to fit
+ * (the shared `groupBookable` gate, the same one the group card and QR use).
+ * Being marked HIDDEN does not remove liveness: hidden governs the public index,
+ * not bookability, so a hidden but bookable item an operator placed on a page
+ * keeps its link (its page serves with noindex). Page targets are always live.
  */
 
-import { filter, map, pipe, unique } from "#fp";
-import {
-  getActiveListingsByGroupIds,
-  getGroupLinkRows,
-} from "#shared/db/groups.ts";
+import { filter, map, mapParallel, pipe, unique } from "#fp";
+import { getAllGroups, getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings.ts";
 import { getAllPageItems } from "#shared/db/site-page-items.ts";
 import { getSitePageNavRows } from "#shared/db/site-pages.ts";
@@ -38,9 +36,13 @@ import type {
   TargetKey,
   TargetMap,
 } from "#shared/site-pages/types.ts";
-import type { SitePageItem, SitePageItemType } from "#shared/types.ts";
+import type { Group, SitePageItem, SitePageItemType } from "#shared/types.ts";
 import { navFlags, type PublicNavProps } from "#templates/public.tsx";
-import { classifyForDiscovery } from "./discovery.ts";
+import {
+  classifyForDiscovery,
+  getVisibleGroupMembersByGroupIds,
+  groupBookable,
+} from "./discovery.ts";
 
 /** The distinct item ids of one leaf type among the loaded edges. */
 const leafIds = (
@@ -59,13 +61,11 @@ const resolveTargets = async (
 ): Promise<TargetMap> => {
   const listingIds = leafIds(items, "listing");
   const groupIds = leafIds(items, "group");
-  const [referenced, groupRows] = await Promise.all([
+  const [referenced, allGroups] = await Promise.all([
     getListingsWithCountsByIds(listingIds),
-    getGroupLinkRows(groupIds),
+    getAllGroups(),
   ]);
-  const membersByGroup = await getActiveListingsByGroupIds(
-    groupRows.map((row) => row.id),
-  );
+  const groups = allGroups.filter((group) => groupIds.includes(group.id));
   const targets = new Map<TargetKey, ResolvedTarget>();
   const setLeaf = (
     type: SitePageItemType,
@@ -78,31 +78,49 @@ const resolveTargets = async (
       live,
     });
   };
-  // ONE classification over the union of every listing the nav must judge —
-  // the referenced listings plus every group's active members (all bounded to
-  // the referenced ids, never the whole catalog). A listing's class depends
-  // only on its own parent/child relations, so the union classifies exactly
-  // as per-listing/per-group calls would, in a fixed number of queries. The
-  // liveness test is then the same classification as /listings: child
-  // suppression and sold-out-parent projection, plus tier/active checks.
-  const judged = [...membersByGroup.values()].flat().concat(referenced);
-  const { childIds, soldOutParentIds } =
-    judged.length > 0
-      ? await classifyForDiscovery(judged)
-      : { childIds: new Set<number>(), soldOutParentIds: new Set<number>() };
-  const bookable = (listing: { id: number }): boolean =>
-    !childIds.has(listing.id) && !soldOutParentIds.has(listing.id);
+  // A referenced listing is live iff its own booking page would serve: it is
+  // active and not a renewal tier, has a standalone public page (not a
+  // non-standalone child, not a hidden package member — both 404 their
+  // /ticket/<slug>), and is not a parent the classifier projects sold out. One
+  // classification over the referenced listings serves the whole set; it loads
+  // each parent's children itself, so the sold-out projection is complete.
+  const [{ nonStandaloneChildIds, soldOutParentIds }, hiddenMemberIds] =
+    await Promise.all([
+      referenced.length > 0
+        ? classifyForDiscovery(referenced)
+        : {
+            nonStandaloneChildIds: new Set<number>(),
+            soldOutParentIds: new Set<number>(),
+          },
+      getHiddenPackageMemberIds(listingIds),
+    ]);
+  const bookableLeaf = (listing: { id: number }): boolean =>
+    !nonStandaloneChildIds.has(listing.id) &&
+    !soldOutParentIds.has(listing.id) &&
+    !hiddenMemberIds.has(listing.id);
   for (const listing of referenced) {
     setLeaf(
       "listing",
       listing,
-      listing.active && !isQualifyingTierListing(listing) && bookable(listing),
+      listing.active &&
+        !isQualifyingTierListing(listing) &&
+        bookableLeaf(listing),
     );
   }
-  // A group is live iff it has a standalone-bookable active member — the same
-  // gate as `groupHasBookableMember`, applied to the batched member rows.
-  for (const row of groupRows) {
-    setLeaf("group", row, (membersByGroup.get(row.id) ?? []).some(bookable));
+  // A group is live iff its /ticket/<group> page would serve — the shared
+  // groupBookable gate: a regular group needs one standalone-bookable visible
+  // member, a package needs the whole bundle to fit. Matches what the /listings
+  // group card and the group QR advertise, so the nav can't link to a dead page.
+  // Members for every group are loaded in one batch so a page with many group
+  // leaves does not run a member query per group (a package's own bundle-cap
+  // read still runs per group inside groupBookable — that is per-package work).
+  const membersByGroup = await getVisibleGroupMembersByGroupIds(groups);
+  // getVisibleGroupMembersByGroupIds returns an entry for every group passed.
+  const groupLive = await mapParallel((group: Group) =>
+    groupBookable(group, membersByGroup.get(group.id)!),
+  )(groups);
+  for (const [index, group] of groups.entries()) {
+    setLeaf("group", group, groupLive[index]!);
   }
   return targets;
 };

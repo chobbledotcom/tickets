@@ -90,8 +90,8 @@ type FeedData = { items: FeedItem[]; domain: string; title: string };
 
 /** Load feed data: active open listings plus bookable packages. Children are
  * never syndicated (a feed item is a standalone `/ticket/<slug>` link, which a
- * booking can't start from — invariant I3), and a parent with no bookable child
- * is omitted (it would publish a link the gate rejects as sold out — I6).
+ * booking can't start from), and a parent with no bookable child
+ * is omitted (it would publish a link the gate rejects as sold out).
  * Packages are first-class products: the bundle itself is syndicated (booked
  * whole at `/ticket/<group-slug>`), so a hidden package stays discoverable even
  * though its member listings are dropped. */
@@ -103,7 +103,8 @@ const loadFeedData = async (): Promise<FeedData> => {
   // A hidden package's members are never syndicated standalone — only the
   // package name is public.
   const listings = await dropHiddenPackageMembers(allListings);
-  const { childIds, soldOutParentIds } = await classifyForDiscovery(listings);
+  const { nonStandaloneChildIds, soldOutParentIds } =
+    await classifyForDiscovery(listings);
   const packages = (await loadPublicGroups())
     .filter((g) => g.is_package)
     .map(
@@ -121,7 +122,10 @@ const loadFeedData = async (): Promise<FeedData> => {
     domain: getEffectiveDomain(),
     items: [
       ...listings
-        .filter((e) => !childIds.has(e.id) && !soldOutParentIds.has(e.id))
+        .filter(
+          (e) =>
+            !nonStandaloneChildIds.has(e.id) && !soldOutParentIds.has(e.id),
+        )
         .map(listingFeedItem),
       ...packages,
     ],

@@ -160,7 +160,10 @@ export const handlePublicListings = (
         applyParentSoldOut(ticketListings, classification),
         settings.websiteTitle,
         groups,
-        childCardState(classification.childIds, classification.addOnChildIds),
+        childCardState(
+          classification.nonStandaloneChildIds,
+          classification.addOnChildIds,
+        ),
         dateFilter,
         nav,
       ),

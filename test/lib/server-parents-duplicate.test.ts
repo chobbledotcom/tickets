@@ -169,7 +169,7 @@ describeWithEnv(
       expect(await getChildIds(copy.id)).toEqual([]);
     });
 
-    test("duplicating a parent whose child carries a {parent,child}-scoped opt-in add-on warns and does not silently copy a gateless standalone (Fix 1)", async () => {
+    test("duplicating a parent whose child carries a {parent,child}-scoped opt-in add-on warns and does not silently copy a gateless standalone", async () => {
       // The child has an active opt-in add-on scoped to {originalParent, child}
       // (valid originally — reachable from the original parent's page). On the
       // COPY the add-on is reachable only through the original parent and the
@@ -270,8 +270,8 @@ describeWithEnv(
       expect(await getChildIds(parentCopy.id)).toEqual([outsideChild.id]);
     });
 
-    test("group duplicate remaps an incoming edge from a parent outside the group (Fix 2)", async () => {
-      // Fix 2: when a cloned member is a CHILD whose parent lives OUTSIDE the
+    test("group duplicate remaps an incoming edge from a parent outside the group", async () => {
+      // When a cloned member is a CHILD whose parent lives OUTSIDE the
       // group, the incoming `outsideParent -> clonedChild` edge must be
       // recreated, so the clone stays a child (never standalone-bookable) — the
       // one-cloned-endpoint rule keeps the original opposite endpoint.
@@ -307,7 +307,7 @@ describeWithEnv(
       expect(await getChildIds(childCopy.id)).toEqual([]);
     });
 
-    test("group duplicate whose cloned parent's edge copy fails surfaces a warning and leaves no gateless clone (Fix 5)", async () => {
+    test("group duplicate whose cloned parent's edge copy fails surfaces a warning and leaves no gateless clone", async () => {
       // `remapDuplicatedGroupEdges` used to discard `copyDuplicatedChildEdges`'s
       // return, so a cloned parent could be left gateless while the bulk
       // duplicate reported success. Scenario: a group parent P requires an
@@ -362,7 +362,7 @@ describeWithEnv(
       )(response);
     });
 
-    test("group duplicate surfaces a warning when an incoming external-parent edge fails re-validation (Fix 5)", async () => {
+    test("group duplicate surfaces a warning when an incoming external-parent edge fails re-validation", async () => {
       // Exercises the Direction-2 (incoming) edge-copy of a group duplicate: a
       // group member C is a CHILD of an EXTERNAL parent P. C carries an opt-in
       // add-on reachable only through C itself (scoped to {C}), so the P->C edge
@@ -412,8 +412,8 @@ describeWithEnv(
       )(response);
     });
 
-    test("a member-only-child group's cloned child 404s on its own ticket page (Fix 2)", async () => {
-      // End-to-end consequence of Fix 2: the cloned child is a child, so its
+    test("a member-only-child group's cloned child 404s on its own ticket page", async () => {
+      // End-to-end consequence: the cloned child is a child, so its
       // standalone /ticket/<clonedChild> page must 404 (a booking can never start
       // from a child) instead of letting it be booked standalone.
       const { settings } = await import("#shared/db/settings.ts");
@@ -477,6 +477,33 @@ describeWithEnv(
       expect((await getGroupDayPrices(group.id)).get(copy.id)?.get(2)).toBe(
         1600,
       );
+    });
+
+    test("does not copy a package override for a group the duplicate did not join", async () => {
+      const { queryAll } = await import("#shared/db/client.ts");
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Bundle2",
+      });
+      const source = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Member2",
+      });
+      await setGroupPackageMembers(group.id, [
+        { dayPrices: { 2: 1600 }, listingId: source.id, price: 1500 },
+      ]);
+
+      // Duplicate WITHOUT joining the package (group_ids omitted). The clone is
+      // in no package group, so its source's group/group_day overrides must NOT
+      // be copied — an orphaned override would resurrect if it later joined.
+      const { copy } = await duplicateListingResponse(source.id, "Loner copy");
+      expect(
+        await queryAll(
+          "SELECT price_type FROM listing_prices WHERE listing_id = ? AND price_type IN ('group', 'group_day')",
+          [copy.id],
+        ),
+      ).toEqual([]);
     });
 
     test("duplicating a parent into a package keeps children when visible, drops them when hidden", async () => {

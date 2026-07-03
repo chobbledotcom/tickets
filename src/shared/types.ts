@@ -245,7 +245,7 @@ export const PARENT_CHILD_GROUP_UNITS = 2;
 
 /**
  * The capped groups a parent and one of its children BOTH belong to — the pool(s)
- * the combined parent+child demand actually contends for (invariant I7). A capped
+ * the combined parent+child demand actually contends for. A capped
  * group is one present in `byGroup` (uncapped groups are omitted from that map).
  * Empty when they share no capped group.
  */
@@ -259,15 +259,15 @@ const sharedCappedGroupIds = (
 /**
  * The remaining spots of the **capped group a parent and one of its children
  * share**, or `undefined` when they don't share a capped group. A parent and its
- * required child in the same capped group consume two group spots per order
- * (invariant I7), so callers must reason about combined demand, not each row in
+ * required child in the same capped group consume two group spots per order,
+ * so callers must reason about combined demand, not each row in
  * isolation.
  *
  * `remainingByGroupId` is the PER-GROUP remaining (groupId → free spots; uncapped
  * groups omitted), so the result is the tightest SHARED group's remaining — the
  * group the parent and child actually contend over — NOT the child's tightest
  * group overall. A child also in a tighter NON-shared group must not drag the
- * shared-pool calc down to that unrelated cap (Codex #3).
+ * shared-pool calc down to that unrelated cap.
  *
  * The single source of truth for both discovery (does the minimum order fit?) and
  * the booking-page quantity ceiling (how many orders fit?), so the two surfaces
@@ -315,7 +315,7 @@ export type SharedGroupCapacity = {
  * Both facts are the tightest value over the groups they SHARE — the pool(s) the
  * combined demand actually contends for — NOT the child's tightest group overall.
  * A child also in a tighter non-shared group must not pull the shared cap down to
- * an unrelated group's value (Codex #3); the static cap and remaining are taken
+ * an unrelated group's value; the static cap and remaining are taken
  * from the SAME shared groups so date-less surfaces reject a share too small to
  * ever hold both even when a daily child's per-date remaining is unknown.
  */
@@ -389,6 +389,12 @@ export interface Listing {
    * (see {@link resolveListingDefaults}). A single per-listing flag, never a
    * per-field one, so a stored `false` is never ambiguous. */
   use_defaults: boolean;
+  /** When true, a listing that is also a child (offered under one or more
+   * parents) keeps its OWN standalone booking page, catalog entry and API
+   * eligibility, instead of existing only as a foldable add-on. Default false
+   * ⇒ being a child strips standalone existence, the historic behaviour. The
+   * hidden-package-member arm of the gate still outranks this flag. */
+  bookable_alone: boolean;
 }
 
 /** A logistics agent (typically a van) used for drop-off and collection. */
@@ -572,8 +578,8 @@ export interface Group {
   hide_package_listings: boolean;
   id: number;
   /** When true the group is a bookable "package": its member listings can carry
-   * per-listing price overrides (group_listings.package_price) and fixed
-   * per-package quantities (group_listings.quantity). */
+   * per-listing price overrides (the `group` dimension of listing_prices) and
+   * fixed per-package quantities (group_listings.quantity). */
   is_package: boolean;
   max_attendees: number;
   name: string;
@@ -582,13 +588,14 @@ export interface Group {
   terms_and_conditions: string;
 }
 
-/** A row in the group_listings join table: listing_id belongs to group_id. A
- * listing may have many such rows (membership in several groups). `package_price`
- * (minor units) is the per-listing price when the group is a package: `null`
- * means no override (use the listing's own price), `0` means explicitly free in
- * the package, and a positive value overrides the price. `quantity` (≥1) is how
- * many of this listing one unit of the package includes. Both are ignored for
- * non-package groups. */
+/** A membership of `listing_id` in `group_id`, hydrated for the package editor
+ * and booking flow. A listing may belong to several groups. `package_price`
+ * (minor units) is the per-listing override when the group is a package, read
+ * from the `group` dimension of `listing_prices` (not a column on the join
+ * table): `null` means no override (use the listing's own price), `0` means
+ * explicitly free in the package, and a positive value overrides the price.
+ * `quantity` (≥1, stored on the join row) is how many of this listing one unit of
+ * the package includes. Both are ignored for non-package groups. */
 export interface GroupListing {
   group_id: number;
   listing_id: number;
@@ -609,7 +616,7 @@ export const isSitePageItemType = (s: string): s is SitePageItemType =>
 
 /** A user-created content page. All free-text columns are stored encrypted;
  * `slug_index` is the plaintext HMAC blind index, `sort_order` positions the
- * page among root-level pages. See pages.md. */
+ * page among root-level pages. */
 export interface SitePage {
   id: number;
   slug: string;
@@ -623,7 +630,7 @@ export interface SitePage {
 
 /** The narrow projection used to build the public nav: enough to render a link
  * and order it, without decrypting the large `content`/`meta_*` blobs on every
- * public request (cold-start efficiency — see pages.md "Functional core"). */
+ * public request (cold-start efficiency). */
 export interface SitePageNavRow {
   id: number;
   slug: string;

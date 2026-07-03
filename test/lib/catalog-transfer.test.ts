@@ -535,6 +535,9 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
     for (const name of parentNames) {
       const slug = name.toLowerCase().replace(/\s+/g, "-");
       await listingsTable.insert({
+        // Supply dayPrices so insert doesn't read them back per row (which would
+        // trip the N+1 guard across this 30-row setup loop).
+        dayPrices: {},
         maxAttendees: 1,
         maxPrice: 0,
         name,
@@ -628,8 +631,10 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
     }));
     const statements = membershipStatements(memberships);
     expect(statements.length).toBe(2);
-    // Every member appears in the single group_listings insert (4 args each).
-    expect(statements[0]!.args.length).toBe(40 * 4);
+    // Every member appears in the single group_listings insert (3 args each:
+    // group_id, listing_id, quantity — the flat price override, when present,
+    // lives in the separate listing_prices insert).
+    expect(statements[0]!.args.length).toBe(40 * 3);
   });
 });
 

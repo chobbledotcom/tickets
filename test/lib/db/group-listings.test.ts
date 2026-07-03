@@ -85,6 +85,69 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     );
   });
 
+  test("stores the flat override in listing_prices' group dimension, not on group_listings", async () => {
+    const { group, a } = await groupWithTwoMembers("storage");
+    await setGroupPackageMembers(group.id, [{ listingId: a.id, price: 1500 }]);
+    // The override is a ("group", "<groupId>") row keyed to the member listing —
+    // the source of truth since group_listings.package_price was retired.
+    expect(
+      await queryAll(
+        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'group' AND price_id = ?",
+        [a.id, String(group.id)],
+      ),
+    ).toEqual([{ unit_price: 1500 }]);
+    // Clearing the overrides removes the row (so getGroupPackagePrices reads null).
+    await setGroupPackageMembers(group.id, []);
+    expect(
+      await queryAll(
+        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'group'",
+        [a.id],
+      ),
+    ).toEqual([]);
+    expect((await getGroupPackagePrices(group.id))[0]!.package_price).toBe(
+      null,
+    );
+  });
+
+  test("leaving a package group clears the listing's override row (no resurrection on re-add)", async () => {
+    const { group, a } = await groupWithTwoMembers("leave");
+    await setGroupPackageMembers(group.id, [{ listingId: a.id, price: 1500 }]);
+    const overrideRows = () =>
+      queryAll(
+        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'group' AND price_id = ?",
+        [a.id, String(group.id)],
+      );
+    expect((await overrideRows()).length).toBe(1);
+
+    // Untick the listing from the group: its override row must go with the
+    // membership, not survive it.
+    await setListingGroups(a.id, []);
+    expect(await overrideRows()).toEqual([]);
+
+    // Re-adding starts from no override, exactly like the old package_price
+    // column did when the membership row was deleted.
+    await setListingGroups(a.id, [group.id]);
+    const readded = await getGroupPackagePrices(group.id);
+    expect(
+      readded.find((r) => r.listing_id === a.id)?.package_price ?? null,
+    ).toBe(null);
+  });
+
+  test("collapses duplicate member entries (last wins) without a unique-constraint abort", async () => {
+    const { group, a } = await groupWithTwoMembers("dup");
+    // The JSON API accepts an array, so a client can send the same listing_id
+    // twice — this must not abort on the unique listing_prices index; the last
+    // entry wins (matching the retired CASE-update behaviour).
+    await setGroupPackageMembers(group.id, [
+      { listingId: a.id, price: 100, quantity: 2 },
+      { listingId: a.id, price: 900, quantity: 5 },
+    ]);
+    const rows = await getGroupPackagePrices(group.id);
+    const member = rows.find((r) => r.listing_id === a.id)!;
+    expect(member.package_price).toBe(900);
+    expect(member.quantity).toBe(5);
+  });
+
   test("setGroupPackageMembers stores per-package quantities (default 1)", async () => {
     const { group, a, b } = await groupWithTwoMembers("qty");
 

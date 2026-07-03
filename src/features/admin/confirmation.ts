@@ -169,8 +169,8 @@ export type ConfirmedHandlerConfig<T, TSession = AuthSession> = {
    * Optional guard producing a user-facing error message (or null when the
    * action is allowed). Unlike {@link preValidate} — which returns a full
    * Response and runs identically on the GET and the POST — this distinguishes
-   * the two requests so the confirmation GET never redirects to itself
-   * (parents.md Fix 1): the GET **renders** the confirmation page *with* the
+   * the two requests so the confirmation GET never redirects to itself:
+   * the GET **renders** the confirmation page *with* the
    * error (still 200), while the POST **blocks** the action with an error
    * redirect back to the confirmation page. Runs after the entity loads, so it
    * can reason about the loaded model's id.
@@ -252,7 +252,7 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
       const result = await loadOrNotFound(id, session);
       if (result instanceof Response) return result;
       // A guard error is rendered into the confirmation page (200), never a
-      // redirect — so the GET can't loop back to itself (Fix 1). A flash error
+      // redirect — so the GET can't loop back to itself. A flash error
       // from a prior POST block takes precedence when present.
       const flash = getFlash();
       const error = flash.error ?? (await guardError(result, id, session));

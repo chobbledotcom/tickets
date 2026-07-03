@@ -1,9 +1,9 @@
 /**
  * `site_page_items` edge operations — the ordered membership of listings,
- * groups, and sub-pages inside a page (see pages.md). Edges carry no encrypted
+ * groups, and sub-pages inside a page. Edges carry no encrypted
  * data, so reads are cheap; the whole set feeds the public nav's forest.
  *
- * The single-parent invariant for pages (N3) has no DB constraint (the schema
+ * The single-parent invariant for pages has no DB constraint (the schema
  * can't express a partial-unique index), so {@link addPageItem} serialises the
  * existence check, next-order computation, and insert in **one write
  * transaction** — two concurrent adds of the same page can't both slip through.
@@ -61,7 +61,7 @@ export const getItemsForPage = (pageId: number): Promise<SitePageItem[]> =>
  * on the write lock and can never create a duplicate edge or a second parent —
  * the loser simply sees the row already there. Returns `false` (nothing
  * inserted) when the edge already exists, the page is already nested elsewhere
- * (single-parent, N3), or nesting would close a cycle (N4); `true` when the edge
+ * (single-parent), or nesting would close a cycle; `true` when the edge
  * was created. The new row gets `sort_order = MAX(page's orders) + 1` (0 first).
  */
 export const addPageItem = (
@@ -101,9 +101,9 @@ export const addPageItem = (
           sql: `SELECT ${SELECT_COLS} FROM site_page_items WHERE item_type = 'page'`,
         }),
       );
-      // Single-parent (N3): the page must not already be nested elsewhere.
+      // Single-parent: the page must not already be nested elsewhere.
       if (pageEdges.some((e) => e.item_id === itemId)) return false;
-      // Acyclic (N4): nesting it here must not close a loop (self or ancestor).
+      // Acyclic: nesting it here must not close a loop (self or ancestor).
       // The walk needs only the child → parent edge map — never a page row.
       const parentByChild = pageParentMapFromEdges(pageEdges);
       if (wouldCreateCycle({ parentByChild }, pageId, itemId)) {

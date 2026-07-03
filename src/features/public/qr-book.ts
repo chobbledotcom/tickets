@@ -13,7 +13,10 @@ import { getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingForListing } from "#shared/db/attendees/capacity.ts";
 import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getChildIds } from "#shared/db/listing-parents.ts";
+import {
+  anyNonStandaloneChild,
+  getChildIds,
+} from "#shared/db/listing-parents.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { listingSupportsDirectCheckout } from "#shared/qr.ts";
@@ -25,15 +28,17 @@ import {
   qrBookErrorPage,
   type TicketPrefill,
 } from "#templates/public.tsx";
-import {
-  anyChildListing,
-  getTicketContext,
-  runCheckoutFlow,
-} from "./ticket-payment.ts";
+import { getTicketContext, runCheckoutFlow } from "./ticket-payment.ts";
 import { handleTicket } from "./ticket-submit.ts";
 
 const errorResponse = (slug: string, status: number): Response =>
   htmlResponse(qrBookErrorPage(slug), status);
+
+/** QR error with NO fallback booking link — for a listing that has no standalone
+ * `/ticket/<slug>` page (a non-standalone child or a hidden package member),
+ * where offering that link would just dead-end on another 404. */
+const noPageErrorResponse = (status: number): Response =>
+  htmlResponse(qrBookErrorPage(null), status);
 
 /** Build per-listing prefill entries from a QR payload */
 const buildListingPrefills = (
@@ -125,7 +130,7 @@ const skipToCheckout = (
 /** Whether the scanned parent has any required child, so its QR must NOT skip
  * straight to checkout (which would build parent-only metadata that omits the
  * required child). Falling back to the form runs `prepareOrder`, which folds the
- * child in (parents.md QR entry-point). */
+ * child in. */
 const parentHasChildren = async (listing: ListingWithCount): Promise<boolean> =>
   (await getChildIds(listing.id)).length > 0;
 
@@ -176,11 +181,14 @@ export const handleQrBookGet = async (
   if (!payload) return errorResponse(slug, 400);
   const listing = await getListingWithCountBySlug(slug);
   if (!listing?.active) return errorResponse(slug, 404);
-  // A booking can never start from a child (invariant I3): a signed QR for a
-  // child would otherwise skip straight to checkout for it alone. A hidden
-  // package's member is likewise reachable only through the package, never its
-  // own page or a direct-to-checkout QR.
-  if (await anyChildListing([listing.id])) return errorResponse(slug, 404);
-  if (await isHiddenPackageMember(listing.id)) return errorResponse(slug, 404);
+  // A booking can never start from a non-standalone child: a signed QR for one
+  // would otherwise skip straight to checkout for it alone. A child that can be
+  // booked by itself keeps its own page, so its QR is allowed. A hidden package
+  // member is likewise reachable only through the package, never its own page or
+  // a direct-to-checkout QR. Neither has a standalone `/ticket/<slug>` page, so
+  // the error offers no fallback booking link (it would 404 too).
+  if (await anyNonStandaloneChild([listing.id]))
+    return noPageErrorResponse(404);
+  if (await isHiddenPackageMember(listing.id)) return noPageErrorResponse(404);
   return dispatchVerified(request, slug, token, payload, listing);
 };

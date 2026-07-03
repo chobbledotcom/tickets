@@ -221,7 +221,7 @@ export type TicketListing = {
  * by composing the atoms it used before — no more, no less.
  */
 
-/** The composite key for a parent→child date constraint (Fix 4). The same daily
+/** The composite key for a parent→child date constraint. The same daily
  * child can be required by two parents whose calendars differ, so its serveable
  * dates (`data-child-dates`) must be keyed by the (parent, child) PAIR — keying by
  * child id alone let the later parent overwrite the earlier parent's constraint,
@@ -232,7 +232,7 @@ export type TicketListing = {
 export const childDateKey = (parentId: number, childId: number): string =>
   `${parentId}:${childId}`;
 
-/** A daily child's serveable start dates per selectable parent day-count (Fix 4):
+/** A daily child's serveable start dates per selectable parent day-count:
  * span (day-count) → the holiday-aware starts from which the child can serve the
  * WHOLE span. A FIXED-duration parent has a single entry keyed by its one span; a
  * CUSTOMISABLE parent has one entry per selectable day-count, so the render and
@@ -243,7 +243,7 @@ export const childDateKey = (parentId: number, childId: number): string =>
 export type ChildSpanDates = ReadonlyMap<number, string[]>;
 
 /** Encode a child's per-span serveable dates for the `data-child-dates`
- * attribute: each `span:date,date,…` segment joined by `|` (Fix 4). The single
+ * attribute: each `span:date,date,…` segment joined by `|`. The single
  * source of truth both the render producer ({@link childCompatAttrs}) and the
  * client consumer (`child-compat.ts` `parseChildSpanDates`) format/parse, so the
  * span-keyed wire shape lives in one place. Empty spans are kept (a span the
@@ -271,7 +271,7 @@ export const childInStock = (child: TicketListing): boolean => !child.isSoldOut;
  * exists", shared by discovery's sold-out projection and the fold's date union):
  * each candidate start is validated with {@link isBookingRangeValid} over `span`,
  * the same rule the date union uses. `parentDates`, when non-null, ALSO restricts
- * the candidate starts to the parent's own bookable dates (Fix 5) — so a child
+ * the candidate starts to the parent's own bookable dates — so a child
  * whose only bookable weekdays are disjoint from the parent's counts as
  * unbookable (the parent renders sold out rather than advertising a date the
  * booking context can never serve). A `null` `parentDates` means the parent has
@@ -293,11 +293,11 @@ const childHasStartForSpan = (
  * inherited span is FIXED at discovery (a fixed daily parent): a daily child
  * counts only when a valid start covering `span` exists ({@link
  * childHasStartForSpan}) — not merely any one-day start — so a parent whose only
- * child can never fit its fixed multi-day window reads sold out (parents.md Fix
- * 1). A `null` span (a customisable parent, whose span the buyer picks later)
+ * child can never fit its fixed multi-day window reads sold out. A `null` span
+ * (a customisable parent, whose span the buyer picks later)
  * checks a single-day start. `parentDates`, when non-null (a DAILY parent's own
  * candidate dates), additionally requires the child's bookable start to OVERLAP
- * the parent's dates (Fix 5): disjoint weekdays leave the parent sold out. A
+ * the parent's dates: disjoint weekdays leave the parent sold out. A
  * `null` `parentDates` (a non-daily parent, which has no date selector) imposes
  * no overlap. A non-daily child has no date constraint, so it is judged by its
  * date-less in-stock state ({@link childInStock}). */
@@ -346,7 +346,7 @@ export const childDateOk =
   };
 
 /** The *combined* one-parent-plus-one-child minimum order fits the capacity the
- * two share (invariant I7): co-grouped in a capped group they consume
+ * two share: co-grouped in a capped group they consume
  * {@link PARENT_CHILD_GROUP_UNITS} spots, so the share must clear that minimum
  * on BOTH facts of {@link SharedGroupCapacity} — its structural ceiling
  * (`staticCap`, so a group too small to EVER hold parent+child is rejected even
@@ -378,7 +378,7 @@ export const selectableChild =
  * sold out date-lessly; its per-date capacity is judged downstream). The single
  * source of truth both the date union (ticket-payment.ts) and the day-count
  * union (reservations.tsx) use to drop children the fold would categorically
- * reject (parents.md Fixes 2–4). Span- and date-dependent checks layer on top in
+ * reject. Span- and date-dependent checks layer on top in
  * the caller that knows the inherited span/date. */
 export const childSelectableIgnoringSpan: (child: TicketListing) => boolean =
   selectableChild([childActive, childOpen, childInStock]);
@@ -397,7 +397,7 @@ export const bookableChildIds = (
   );
 
 /** Single source of truth for the duration a parent's children inherit
- * (invariant I4), parameterised by what each surface uses when the parent's span
+ * parameterised by what each surface uses when the parent's span
  * is NOT fixed at the call: a CUSTOMISABLE parent yields `customisableValue` (the
  * resolved/submitted day count, or `null` at render when no span is chosen yet);
  * a fixed DAILY parent yields its `duration_days`; a STANDARD parent yields
@@ -424,7 +424,7 @@ export const resolveInheritedDuration = <T extends number | null>(
  * day-count — its `duration_days` for a fixed daily parent, 1 for a standard
  * parent, and `null` for a customisable parent (the buyer picks the span). The
  * single source of truth shared by the booking-page date union (ticket-payment.ts)
- * and discovery's span-aware sold-out projection (discovery.ts, Fix 1).
+ * and discovery's span-aware sold-out projection (discovery.ts).
  * Specialises {@link resolveInheritedDuration} with `(null, duration_days)`. */
 export const fixedParentSpan = (
   parent: Pick<
@@ -439,8 +439,8 @@ export const fixedParentSpan = (
   );
 
 /**
- * One "union over selectable children" combinator (parents.md "union before
- * selection"): constrain a parent's offered `options` to those at least one of
+ * One "union over selectable children" combinator (union before selection):
+ * constrain a parent's offered `options` to those at least one of
  * its SELECTABLE children supports — `options ∩ (UNION of each child's
  * contribution)`. The two booking-page surfaces specialise it: the date selector
  * (`constrainDatesByChildUnion`, ticket-payment.ts) over bookable start dates,

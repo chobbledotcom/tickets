@@ -115,7 +115,8 @@ type CheckoutMetaFields = {
   allocations?: ChildAllocation[] | undefined;
   /** Set when the booking is for a package group: its id, carried through the
    * signed metadata so the webhook re-derives each member's expected price from
-   * the group's current `group_listings.package_price`. Absent otherwise. */
+   * the group's current package overrides (the `group` dimension of
+   * listing_prices). Absent otherwise. */
   packageGroupId?: number | undefined;
 };
 
@@ -209,8 +210,8 @@ export type SessionMetadata = {
    * doesn't drop it ("" when the default single-listing derivation applies). */
   thank_you_url: string;
   /** JSON-encoded ChildAllocation[] from the fold, carried through the paid
-   * round-trip so the webhook can expand child bookings into per-parent rows
-   * (Stage C). "" when no children were folded. */
+   * round-trip so the webhook can expand child bookings into per-parent rows.
+   * "" when no children were folded. */
   allocations: string;
   /** The package group's id when the booking is a package ("" otherwise), so the
    * webhook re-prices members against the current package overrides. */

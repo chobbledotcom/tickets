@@ -1,14 +1,14 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
 /** Disable a child whose date/day-count the current selection can't serve
- * (Codex 430, progressive enhancement).
+ * (progressive enhancement).
  *
  * A parent's date and day-count selectors are the UNION across its children's
  * availability, so a buyer can pick a date (or span) only SOME children support.
  * The no-JS baseline lets the buyer put quantity on an incompatible child and the
  * server fold rejects it. With JS we tighten it: each bookable child qty control
  * carries the server's holiday-aware `data-child-dates` (a daily child's
- * serveable starts PER selectable span, encoded `span:d,d|span:d,d` — Fix 4)
+ * serveable starts PER selectable span, encoded `span:d,d|span:d,d`)
  * and/or `data-child-spans` (a customisable/fixed-daily child's supported day
  * counts). On a `date` / `day_count` change we DISABLE and zero any child the
  * current selection can't serve, re-enabling it when a compatible selection returns.
@@ -18,7 +18,7 @@
  * still show and the submit would hit `child_sold_out`. So a sole child instead
  * FLAGS/disables its PARENT: its quantity selector is disabled+zeroed and the sole
  * block marked `data-sole-incompatible`, surfacing that the parent can't be booked
- * for that date/span (parents.md Fix 1).
+ * for that date/span.
  *
  * Only JS-driven disabling is toggled: a SERVER-disabled (sold out) child carries
  * no `data-child-qty` marker, so it is never touched and stays disabled throughout. */
@@ -52,7 +52,7 @@ const selectedSpan = (): string => {
 const tokens = (raw: string): string[] => raw.split(",");
 
 /** Parse the span-keyed `data-child-dates` wire shape (`span:d,d|span:d,d`, from
- * `encodeChildSpanDates`) into a span → dates map (Fix 4). An empty dates segment
+ * `encodeChildSpanDates`) into a span → dates map. An empty dates segment
  * (`span:`) yields an empty list — a span the child can't serve on any date. */
 const parseChildSpanDates = (raw: string): Map<string, string[]> => {
   const bySpan = new Map<string, string[]>();
@@ -65,7 +65,7 @@ const parseChildSpanDates = (raw: string): Map<string, string[]> => {
   return bySpan;
 };
 
-/** The serveable dates that apply for the current span selection (Fix 4): the
+/** The serveable dates that apply for the current span selection: the
  * entry for the chosen `day_count`, or — when no span is chosen (fixed-duration
  * parent, or not picked yet) and there is exactly ONE span entry — that single
  * entry. Returns null when no span is chosen and multiple spans exist, leaving the
@@ -82,7 +82,7 @@ const datesForSpan = (
 /** Whether a child (its `data-child-dates`/`data-child-spans`) is compatible with
  * the current date/span selection. A constraint only applies once its control has
  * a value, so with no date chosen yet a date-constrained child stays enabled. The
- * date set is picked PER the selected span (Fix 4) — a 2-day span uses the 2-day
+ * date set is picked PER the selected span — a 2-day span uses the 2-day
  * serveable starts. A child carrying neither attribute (e.g. a standard child) is
  * always compatible. */
 const isCompatible = (
@@ -115,7 +115,7 @@ const managedControls = (
 /** Disable + zero a control the selection can't serve; re-enable a compatible one.
  * Zeroing keeps the running total and chosen-count hint honest and, via
  * `setControlDisabled`, fires a `change` so the removed child's required question /
- * pay-more price input stops blocking submit (Fix 2). */
+ * pay-more price input stops blocking submit. */
 const applyCompat = (
   control: HTMLSelectElement | HTMLInputElement,
   compatible: boolean,
@@ -129,7 +129,7 @@ const soleMarker = (parentId: string): HTMLElement | null =>
     : document.querySelector<HTMLElement>(`[data-sole-parent="${parentId}"]`);
 
 /** A sole child can't be disabled directly (it has no quantity control), so its
- * incompatibility is surfaced on its PARENT (Fix 1): the parent's quantity selector
+ * incompatibility is surfaced on its PARENT: the parent's quantity selector
  * is disabled+zeroed and the sole block flagged `data-sole-incompatible` — showing
  * the parent can't be booked for the chosen date/span rather than showing "Includes
  * …" and hitting the submit-side rejection. A compatible selection re-enables the

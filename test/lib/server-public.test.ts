@@ -333,7 +333,7 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
     test("suppresses the CTA of a group with no active members on listings page", async () => {
       // A group with no active (standalone-bookable) member has no valid
       // `/ticket/<group>` entry point (its group page 404s), so its Book CTA must
-      // be suppressed on /listings rather than advertise a dead link (Fix 6).
+      // be suppressed on /listings rather than advertise a dead link.
       await settings.update.showPublicSite(true);
       const group = await createTestGroup({
         name: "Empty Group",

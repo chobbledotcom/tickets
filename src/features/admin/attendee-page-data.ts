@@ -1,5 +1,5 @@
 /**
- * Data loaders for the attendee entity page (edit-pages.md) — everything the
+ * Data loaders for the attendee entity page — everything the
  * tabs and the create form need, factored so each tab loads only its own
  * data. The submit handlers live in attendee-form-routes.ts; the page
  * definition lives in attendee-page.ts. This module is the seam between

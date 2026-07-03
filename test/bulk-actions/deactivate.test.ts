@@ -98,7 +98,7 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       expect((await getListingWithCount(listing.id))?.active).toBe(true);
     });
 
-    test("rejects deactivating a group that holds the only rescuing page of a child add-on, leaving every listing active (Fix 5)", async () => {
+    test("rejects deactivating a group that holds the only rescuing page of a child add-on, leaving every listing active", async () => {
       // A {child, rescuingPage}-scoped opt-in add-on is reachable only via
       // `rescuingPage` (the child is suppressed). `rescuingPage` lives in the
       // group, so a bulk deactivate would mark it inactive together with the

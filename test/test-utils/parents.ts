@@ -92,6 +92,29 @@ export const apiGet = async (path: string): Promise<Response> => {
   );
 };
 
+/** GET a path with the public site enabled and return the raw Response. The
+ * shared fetch behind {@link publicBody} and {@link ticketPageStatus}. */
+const publicFetch = async (path: string): Promise<Response> => {
+  const { settings } = await import("#shared/db/settings.ts");
+  await settings.update.showPublicSite(true);
+  const { handleRequest } = await import("#routes");
+  const { mockRequest } = await import("#test-utils/mocks.ts");
+  return handleRequest(mockRequest(path));
+};
+
+/** Fetch a public page body with the public site enabled. Shared by the
+ * discovery-suppression and bookable-alone surface suites. */
+export const publicBody = async (path: string): Promise<string> =>
+  (await publicFetch(path)).text();
+
+/** Fetch a `/ticket/<slug>` page (public site enabled) and return its status,
+ * draining the body — the shared standalone-page reachability probe. */
+export const ticketPageStatus = async (slug: string): Promise<number> => {
+  const response = await publicFetch(`/ticket/${slug}`);
+  response.body?.cancel();
+  return response.status;
+};
+
 /** POST `/api/listings/<slug>/book` with a minimal valid contact payload merged
  * with any extra body fields (e.g. `children`, `quantity`). */
 export const apiBook = async (

@@ -37,10 +37,10 @@ import {
  * facets and the tree's form-field-name single source of truth. Pure and DB-free:
  * the caller (`foldSelectedChildren`) builds the tree, resolves each node's
  * availability, and fetches holidays, then hands them in — so this walk is a
- * direct function of its inputs (see `booking-unification-phase2.md`, 2a).
+ * direct function of its inputs.
  */
 
-/** The booking duration a parent's customisable children inherit (invariant I4):
+/** The booking duration a parent's customisable children inherit:
  * the shared `dayCount` for a customisable parent, fixed `duration_days` for a
  * fixed daily parent, 1 for a standard parent. Specialises the shared
  * {@link resolveInheritedDuration} with `(dayCount, 1)`. */
@@ -65,8 +65,8 @@ type ChildBookableCtx = {
  * must equal it ({@link childDurationMatches}). A null `duration` (CUSTOMISABLE
  * parent, span not yet chosen at render) skips only those span atoms — enforced
  * per-span at submit. Deliberately omits the child's own date calendar
- * ({@link childDateOk}), which the union folds in per-candidate-date instead
- * (parents.md Fixes 2–4). Shared with the render-side date union
+ * ({@link childDateOk}), which the union folds in per-candidate-date instead.
+ * Shared with the render-side date union
  * (`constrainDatesByChildUnion`). */
 export const childSelectableForSpan = (
   child: TicketListing,
@@ -178,8 +178,7 @@ export const resolveChildSelections = (
   const bookableIds = new Set(bookable.map((c) => c.listing.id));
   // Reject a positive quantity for a child not currently bookable under this
   // parent (unknown id, stranger listing, or a sibling that sold out/closed
-  // between render and submit) — never silently swap in a still-bookable sibling
-  // (parents.md step 3).
+  // between render and submit) — never silently swap in a still-bookable sibling.
   const prefix = `child_qty_${parentId}_`;
   for (const key of form.keys()) {
     if (!key.startsWith(prefix)) continue;
@@ -243,7 +242,7 @@ const childCustomPrice = (
 
 /** Record a customisable line's duration into the order's single shared duration,
  * rejecting a second distinct value (the single CheckoutIntent dayCount can't
- * represent two — parents.md "Pricing & payment round-trip"). Shared by the page's
+ * represent two). Shared by the page's
  * own customisable lines and folded customisable children. Returns null on success
  * or the mixed-duration error. */
 const recordDuration = (state: FoldState, duration: number): string | null => {
@@ -280,8 +279,8 @@ export const foldChild = (
   const summed = (state.quantities.get(childId) ?? 0) + childQty;
   // A DAILY child's `maxPurchasable` is the date-less aggregate cap, which reads
   // 0 once the child is full on ANY single date — so it must NOT gate a booking on
-  // a different date with capacity (same date-less-aggregate trap as `isSoldOut`,
-  // Codex 336); its per-date cap is enforced by the folded `checkAvailability`
+  // a different date with capacity (same date-less-aggregate trap as `isSoldOut`);
+  // its per-date cap is enforced by the folded `checkAvailability`
   // (rejected, never clamped). A STANDARD child's cap is cumulative and
   // date-independent, so it stays authoritative here.
   if (child.listing.listing_type !== "daily" && summed > child.maxPurchasable) {
@@ -386,7 +385,7 @@ export const resolvedByNodeKey = (
 
 /**
  * Fold every in-cart parent's selected children into the order by walking the
- * booking tree (steps 4–5 core, parents.md "Server-side validation"). Each
+ * booking tree (server-side validation). Each
  * top-level node with a positive quantity and child edges folds its bookable
  * children — a package member, a group member and a standalone parent all take
  * the same path — expanding the listing set + quantity/custom-price maps +

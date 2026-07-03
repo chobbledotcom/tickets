@@ -220,7 +220,7 @@ export const singleListingAnswerIds = (
  * `total` is the agreed order total the provider is billing for. The caller
  * prices the order once and passes that same total here, so the signed proof
  * and the charged amount can never disagree even if pricing settings change
- * mid-checkout (re-pricing here would reopen that window — see #1300).
+ * mid-checkout (re-pricing here would reopen that window).
  *
  * `maxValueLength` is the provider's per-value metadata cap, and `maxEntries`
  * its optional entry-count cap (Square's 10; Stripe/SumUp omit it). The one
@@ -235,8 +235,8 @@ export const singleListingAnswerIds = (
  * completes and falls back to the generic success page). Dropping it *before*
  * `signPriceSync` keeps the signed payload and the emitted metadata identical,
  * so the webhook's unpack-then-verify never sees a key the proof was signed with
- * but the wire omitted (which would classify the paid session as tampered —
- * parents.md Fix 3). The entry count is judged against the **packed** shape (the
+ * but the wire omitted (which would classify the paid session as tampered).
+ * The entry count is judged against the **packed** shape (the
  * provider packs before emitting) plus the `price_proof` entry added below,
  * matching exactly what reaches the wire.
  */
@@ -248,7 +248,7 @@ export const singleListingAnswerIds = (
  * without the URL; the wire entry count with the URL kept is its packed-size
  * plus the URL (a top-level, non-packed entry) plus `price_proof`. The URL is
  * the LAST-priority optional field to drop, so it is the only one omitted when
- * the payload would otherwise overflow (parents.md Fix 3).
+ * the payload would otherwise overflow.
  */
 const thankYouUrlFits = (
   thankYouUrl: string | undefined,
@@ -511,8 +511,7 @@ const parsePackedFields = (raw: string): Partial<Record<string, string>> => {
  * **before** the metadata is signed, in `buildItemsMetadata`. Capping it here —
  * after `signPriceSync` — would strip a key the proof was signed with, so the
  * webhook's verification would classify the paid session as tampered. Bounding
- * it pre-sign keeps the signed payload and the emitted metadata identical
- * (parents.md Fix 1).
+ * it pre-sign keeps the signed payload and the emitted metadata identical.
  */
 export const enforceMetadataLimits = (
   metadata: Record<string, string>,

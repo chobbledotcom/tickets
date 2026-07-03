@@ -34,8 +34,10 @@ import {
   setGroupListingsActive,
 } from "#shared/db/groups.ts";
 import {
+  dayCountPriceStatements,
   getGroupDayPrices,
   groupDayPriceStatements,
+  groupFlatPriceStatements,
   syncListingPricesForIds,
 } from "#shared/db/listing-prices.ts";
 import {
@@ -107,7 +109,7 @@ const groupTogglePost = (opts: { active: boolean; action: string }) =>
       // orphan a child-scoped opt-in add-on rescued only by those members'
       // pages. Run the same shared guard the single-listing/API paths use,
       // with all members' ids marked inactive together, and block before the
-      // batch UPDATE (parents.md Fix 5). Reactivation can only add pages.
+      // batch UPDATE. Reactivation can only add pages.
       if (!opts.active) {
         const members = await getListingsByGroupId(group.id);
         const error = await deactivationOrphanedAddOnError(
@@ -235,12 +237,12 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   );
   const membershipInserts = cloneInputs.map(({ sourceId, input }) => {
     // Every clone was just read as a member of the source group, so it always
-    // has a group_listings row whose price/quantity the clone copies.
+    // has a group_listings row whose quantity the clone copies. The flat price
+    // override lives in listing_prices and is rewritten to the new group below.
     const source = memberBySource.get(sourceId)!;
     return cloneGroupMembershipStatement({
       groupSlugIndex: slugIndex,
       listingSlugIndex: input.slugIndex,
-      packagePrice: source.package_price,
       quantity: source.quantity,
     });
   });
@@ -253,8 +255,8 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
     (await getListingsByGroupId(newGroupId)).map((l) => [l.slug_index, l.id]),
   );
   // The clones were inserted via insertStatement in the batch above, bypassing
-  // the listingsTable wrapper, so sync their listing_prices rows explicitly —
-  // otherwise a priced clone has no matching price rows until it is edited.
+  // the listingsTable wrapper, so sync their `base` price rows explicitly —
+  // otherwise a priced clone has no matching base row until it is edited.
   await syncListingPricesForIds([...idBySlugIndex.values()]);
   const idMap = new Map(
     cloneInputs.map(({ sourceId, input }) => [
@@ -262,20 +264,37 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
       idBySlugIndex.get(input.slugIndex)!,
     ]),
   );
-  // The members' per-day package overrides can't be batch-copied like the flat
-  // price/quantity (their `group_day` price_ids embed the group id, and the new
-  // group's id only exists after the batch), so rewrite them here keyed to the
-  // NEW group and each source member's clone.
+  // The clones' own per-day-count prices are no longer a column, so the raw
+  // insert didn't carry them — write each clone's day_count rows from the day
+  // prices its duplicate input carried over from the source.
+  if (cloneInputs.length > 0) {
+    await executeBatch(
+      cloneInputs.flatMap(({ sourceId, input }) =>
+        dayCountPriceStatements(idMap.get(sourceId)!, input.dayPrices),
+      ),
+    );
+  }
+  // The members' package price overrides can't be batch-copied like the quantity
+  // (their `group`/`group_day` price_ids embed the group id, and the new group's
+  // id only exists after the batch), so rewrite them here keyed to the NEW group
+  // and each source member's clone.
   const sourceDayPrices = await getGroupDayPrices(group.id);
-  await executeBatch(
-    groupDayPriceStatements(
+  await executeBatch([
+    ...groupFlatPriceStatements(
+      newGroupId,
+      [...memberBySource].map(([sourceId, row]) => ({
+        listingId: idMap.get(sourceId)!,
+        price: row.package_price,
+      })),
+    ),
+    ...groupDayPriceStatements(
       newGroupId,
       [...sourceDayPrices].map(([sourceId, byDay]) => ({
         dayPrices: Object.fromEntries(byDay),
         listingId: idMap.get(sourceId)!,
       })),
     ),
-  );
+  ]);
 
   // A cloned parent whose remapped edge set fails re-validation is left gateless
   // rather than written; surface those as a warning flash (mirroring the

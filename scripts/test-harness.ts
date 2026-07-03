@@ -174,6 +174,13 @@ const buildDenoTestArgs = (
     "--allow-sys",
     "--allow-ffi",
     "--parallel",
+    // Expose `globalThis.gc` so the test DB layer can reclaim libsql's
+    // file-descriptor leak (a fresh client per test + every interactive
+    // transaction leaks an fd that close() never releases — only GC does). Under
+    // high --parallel worker counts these outrun GC and exhaust the process fd
+    // limit ("Too many open files"), which surfaces as flaky, moving failures.
+    // See maybeReclaimLeakedFds in test/test-utils/db.ts.
+    "--v8-flags=--expose-gc",
   ];
   if (reporter) args.push("--reporter", reporter);
   if (useCoverage) args.push("--coverage=coverage");

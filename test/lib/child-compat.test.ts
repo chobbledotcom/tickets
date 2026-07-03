@@ -122,7 +122,7 @@ describe("child date/span compatibility", () => {
     expect(byName(roots, "child_qty_101_202").disabled).toBe(true);
   });
 
-  test("zeroing an incompatible child notifies dependents so its price stops being required (Fix 2)", () => {
+  test("zeroing an incompatible child notifies dependents so its price stops being required", () => {
     // A pay-more child chosen (qty 1) under an in-cart parent: child-required has
     // marked its price input `required`. When a date change disables+zeroes the
     // child, child-compat must fire a `change` so child-required re-runs and
@@ -150,7 +150,7 @@ describe("child date/span compatibility", () => {
     expect(price.required).toBe(false);
   });
 
-  test("does not notify dependents when an already-zero incompatible child is disabled (Fix 2)", () => {
+  test("does not notify dependents when an already-zero incompatible child is disabled", () => {
     // An incompatible child whose quantity is already 0 must NOT fire a redundant
     // `change` (nothing was cleared), so a dependent listener stays unfired.
     const roots = installFakeDom([
@@ -185,7 +185,7 @@ describe("child date/span compatibility", () => {
     expectChildQty101202Enabled(roots);
   });
 
-  test("picks the date set matching the selected day-count for a customisable parent (Fix 4)", () => {
+  test("picks the date set matching the selected day-count for a customisable parent", () => {
     // A daily child under a customisable parent serves a different set of start
     // dates per span: it can start 2026-06-08 for a 1-day span but only
     // 2026-06-09 for a 2-day span. With day_count=2 chosen, selecting 2026-06-08
@@ -214,7 +214,7 @@ describe("child date/span compatibility", () => {
     expect(byName(roots, "child_qty_101_202").disabled).toBe(false);
   });
 
-  test("flags and disables the parent when a sole child can't serve the selection (Fix 1)", () => {
+  test("flags and disables the parent when a sole child can't serve the selection", () => {
     // A sole auto-selected child has no quantity control, so its incompatibility
     // is surfaced on the PARENT: when the selected date can't be served the
     // parent's quantity is disabled+zeroed and the sole block flagged, rather
@@ -229,7 +229,7 @@ describe("child date/span compatibility", () => {
     expect(sole.getAttribute("data-sole-incompatible")).toBe("");
   });
 
-  test("re-enables the parent and clears the flag when the sole child can serve the selection (Fix 1)", () => {
+  test("re-enables the parent and clears the flag when the sole child can serve the selection", () => {
     const roots = soleSetup();
 
     initChildCompat();
@@ -243,7 +243,7 @@ describe("child date/span compatibility", () => {
     expect(sole.getAttribute("data-sole-incompatible")).toBe(null);
   });
 
-  test("restores an auto-hidden sole-child parent quantity to 1 when the selection becomes compatible (Fix 5)", () => {
+  test("restores an auto-hidden sole-child parent quantity to 1 when the selection becomes compatible", () => {
     // A single-parent sole-child page auto-hides the parent quantity as a hidden
     // value="1" input. An incompatible date disables+zeroes it; switching back to
     // a compatible date must restore it to "1" — otherwise it re-enables at "0"
@@ -283,7 +283,7 @@ describe("child date/span compatibility", () => {
     expect(changeCount).toBe(1);
   });
 
-  test("does not clobber a visible sole-child parent quantity when the selection becomes compatible (Fix 5)", () => {
+  test("does not clobber a visible sole-child parent quantity when the selection becomes compatible", () => {
     // A visible quantity select that was zeroed when incompatible stays at the
     // buyer's re-pickable "0" on re-enable (only the hidden auto-quantity, which
     // the buyer can't re-pick, is restored).
@@ -317,7 +317,7 @@ describe("child date/span compatibility", () => {
     expect(byName(roots, "child_qty_101_202").disabled).toBe(false);
   });
 
-  test("disables a child whose selected span serves no date (empty per-span set) (Fix 4)", () => {
+  test("disables a child whose selected span serves no date (empty per-span set)", () => {
     // The child serves the 8th for a 1-day span, but its 2-day span serves no
     // date at all (encoded `2:`); with day_count=2 chosen it can't be booked.
     const roots = installFakeDom([
@@ -336,7 +336,7 @@ describe("child date/span compatibility", () => {
     expect(byName(roots, "child_qty_101_202").value).toBe("0");
   });
 
-  test("leaves a child enabled when the selected day-count has no date entry (Fix 4)", () => {
+  test("leaves a child enabled when the selected day-count has no date entry", () => {
     // The child only declares dates for a 1-day span; with day_count=3 (no entry)
     // the date constraint can't be applied, so it stays enabled and the fold
     // decides at submit.
@@ -353,7 +353,7 @@ describe("child date/span compatibility", () => {
     expectChildQty101202Enabled(roots);
   });
 
-  test("leaves a multi-span child enabled until a day-count is chosen (Fix 4)", () => {
+  test("leaves a multi-span child enabled until a day-count is chosen", () => {
     // Two span entries but no day-count chosen yet: the applicable date set is
     // ambiguous, so the date constraint is left un-applied (enabled).
     const roots = installFakeDom([
@@ -371,7 +371,7 @@ describe("child date/span compatibility", () => {
     expect(byName(roots, "child_qty_101_202").disabled).toBe(false);
   });
 
-  test("flags an incompatible sole child even when the parent has no quantity control (Fix 1)", () => {
+  test("flags an incompatible sole child even when the parent has no quantity control", () => {
     // A hidden-quantity page has no `quantity_<parent>` control, so an
     // incompatible sole child only flags its marker (nothing to disable).
     const roots = installFakeDom([

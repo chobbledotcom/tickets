@@ -141,7 +141,7 @@ const resolveErrorTemplateId = (form: FormParams): string | null => {
  * Returns a **warning** message when the gate could NOT be copied (the edges
  * failed re-validation on the copy — e.g. the child carries an opt-in add-on
  * reachable only through the source parent, so it would dead-end from the new
- * one). Surfacing this instead of swallowing it (Fix 1) prevents a silent
+ * one). Surfacing this instead of swallowing it prevents a silent
  * "success" that leaves the copy a gateless standalone bookable listing; the copy
  * is kept but the operator is told its required children weren't carried over.
  * Returns null when the edges copied cleanly (or there were none to copy).

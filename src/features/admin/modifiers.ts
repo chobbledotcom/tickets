@@ -26,7 +26,7 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllGroups, getGroupIdsByListingIds } from "#shared/db/groups.ts";
-import { getChildListingIds } from "#shared/db/listing-parents.ts";
+import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
   childUnreachableAddOnError,
@@ -162,16 +162,18 @@ const childAddOnSaveError = async (
   const allListings = await getAllListings();
   const allIds = allListings.map((listing) => listing.id);
   const [childIds, membership] = await Promise.all([
-    getChildListingIds(allIds),
+    getNonStandaloneChildIds(allIds),
     getGroupIdsByListingIds(allIds),
   ]);
   const membershipListings: ListingGroupMembership[] = allListings.map(
     (listing) => toListingGroupMembership(listing, membership),
   );
-  // Only an ACTIVE non-child listing can serve a booking page (public ticket
-  // contexts load active listings only — `withActiveListings`), so an inactive
-  // non-child listing must NOT count as a reachable page that rescues a
-  // child-only add-on from being a dead end.
+  // Only an ACTIVE listing that serves its own booking page can rescue a
+  // child-only add-on. That is any active listing except a non-standalone child
+  // (a `bookable_alone` child DOES serve its own page, so it counts): public
+  // ticket contexts load active listings only (`withActiveListings`), so an
+  // inactive listing serves nothing. `childIds` here is the narrowed
+  // non-standalone set, so a flagged child is neither suppressed nor excluded.
   const reachableIds = new Set(
     allListings
       .filter((listing) => listing.active && !childIds.has(listing.id))
