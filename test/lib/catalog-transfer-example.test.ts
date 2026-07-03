@@ -50,11 +50,13 @@ describe("catalog transfer example", () => {
     expect(CATALOG_LISTING_EXAMPLE_JSON).toContain('\n  "kind": "listing"');
   });
 
-  test("the package-member listing carries no parents, so the pair imports", () => {
+  test("the package-member listing carries no parents (not an add-on child)", () => {
     // The importer rejects a listing that is both a package member and an
     // add-on child. The listing example is a member of the group example's
-    // package, so it must not carry parent references — otherwise the two
-    // documented blobs could not be imported together.
+    // package, so it must not carry parent references, otherwise its own blob
+    // would be a shape the importer refuses. (Name-based references still
+    // require the referenced group/listings to pre-exist on import — that is by
+    // design, documented as a prerequisite, not something these blobs bootstrap.)
     expect(CATALOG_GROUP_EXAMPLE.group.isPackage).toBe(true);
     const isMemberOfThePackage = CATALOG_LISTING_EXAMPLE.groups.some(
       (membership) => membership.group === CATALOG_GROUP_EXAMPLE.group.name,
