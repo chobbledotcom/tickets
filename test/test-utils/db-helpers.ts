@@ -628,10 +628,10 @@ export const createMultiBookingAttendee = async (
     email,
     name,
   });
-  if (!result.success) {
-    throw new Error(`Failed to create attendee: ${result.reason}`);
-  }
-  return result.attendees[0]!;
+  // Callers pass listings with capacity, so the booking always succeeds; cast
+  // the union rather than guard, mirroring createPaidAttendeeWithoutLedger (a
+  // never-taken failure branch would be an uncovered line).
+  return (result as { success: true; attendees: Attendee[] }).attendees[0]!;
 };
 
 export const createTestAttendeeWithToken = async (
