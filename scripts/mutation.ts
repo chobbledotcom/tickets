@@ -30,6 +30,8 @@ Options:
   --exhaustive     Try every operator replacement, not just one per operator.
   --harness        Build static assets and start stripe-mock first (needed for
                    tests that import the app / Stripe; slower).
+  --jobs <n>       Concurrent test-file batches per mutant (default: CPU-aware,
+                   or MUTATION_JOBS when set).
   --timeout <ms>   Per-mutant timeout floor (default ${DEFAULT_TIMEOUT}).
   -h, --help       Show this help.
 
@@ -39,6 +41,7 @@ Examples:
 
 interface ParsedArgs {
   error: string | null;
+  batchJobs?: number;
   exhaustive: boolean;
   help: boolean;
   sources: string[];
@@ -74,6 +77,9 @@ const parseArgs = (args: string[]): ParsedArgs => {
     } else if (arg === "--timeout" && next !== undefined) {
       parsed.timeout = Number(next);
       index += 1;
+    } else if (arg === "--jobs" && next !== undefined) {
+      parsed.batchJobs = Number(next);
+      index += 1;
     } else if (arg !== undefined) positional.push(arg);
     index += 1;
   }
@@ -102,6 +108,12 @@ const parseArgs = (args: string[]): ParsedArgs => {
   if (!Number.isFinite(parsed.timeout) || parsed.timeout < 0) {
     parsed.error ??=
       "Invalid --timeout: expected a non-negative number of milliseconds.";
+  }
+  if (
+    parsed.batchJobs !== undefined &&
+    (!Number.isInteger(parsed.batchJobs) || parsed.batchJobs <= 0)
+  ) {
+    parsed.error ??= "Invalid --jobs: expected a positive integer.";
   }
   return parsed;
 };
@@ -186,6 +198,7 @@ const main = async (): Promise<void> => {
   }
 
   const code = await runMutationTesting({
+    ...(args.batchJobs === undefined ? {} : { batchJobs: args.batchJobs }),
     exhaustive: args.exhaustive,
     sourceFiles,
     testFiles,

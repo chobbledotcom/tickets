@@ -1,4 +1,4 @@
-import { bold, dim, green, red, write, yellow } from "./colors.ts";
+import { bold, dim, green, red, yellow } from "./colors.ts";
 import {
   getMergeConflictWarning,
   runCommand,
@@ -11,6 +11,7 @@ import {
   canShowProgress,
   currentTerminalState,
 } from "./terminal.ts";
+import { write } from "./write.ts";
 
 const canPromptNow = (): boolean => canPrompt(currentTerminalState());
 

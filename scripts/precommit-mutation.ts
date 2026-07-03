@@ -18,7 +18,7 @@ import { join } from "@std/path";
 import { runMutationTesting } from "./mutation/runner.ts";
 import { runCommand } from "./precommit/merge-warning.ts";
 import { runMutationStep } from "./precommit/mutation-step.ts";
-import { projectRoot } from "./test-harness.ts";
+import { projectRoot } from "./project-root.ts";
 
 /** Per-mutant timeout floor; mirrors `deno task mutation`'s default. */
 const MUTANT_TIMEOUT_MS = 10_000;

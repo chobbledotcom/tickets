@@ -1,0 +1,190 @@
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import {
+  formatProgressLine,
+  formatSummaryLines,
+  type MutantResult,
+  rel,
+  summarize,
+  writeStepSummary,
+} from "../../scripts/mutation/summary.ts";
+import { projectRoot } from "../../scripts/project-root.ts";
+
+const fakeResult = (
+  status: MutantResult["status"],
+  line: number,
+  operator: string,
+  newOperator: string,
+  file = `${projectRoot}/src/example.ts`,
+): MutantResult => ({
+  file,
+  mutant: {
+    column: 3,
+    end: 1,
+    line,
+    newOperator,
+    operator,
+    start: 0,
+  },
+  status,
+});
+
+describe("mutation summary", () => {
+  const withStepSummary = async (
+    path: string | null,
+    run: () => void,
+  ): Promise<string> => {
+    const previous = Deno.env.get("GITHUB_STEP_SUMMARY");
+    try {
+      if (path === null) Deno.env.delete("GITHUB_STEP_SUMMARY");
+      else Deno.env.set("GITHUB_STEP_SUMMARY", path);
+      run();
+      return path === null ? "" : await Deno.readTextFile(path).catch(() => "");
+    } finally {
+      if (previous === undefined) Deno.env.delete("GITHUB_STEP_SUMMARY");
+      else Deno.env.set("GITHUB_STEP_SUMMARY", previous);
+    }
+  };
+
+  test("excludes ignored equivalent survivors from the score denominator", () => {
+    const summary = summarize([
+      fakeResult("killed", 1, "===", "!="),
+      fakeResult("timed-out", 2, "while", "(removed)"),
+      fakeResult("survived", 3, "true", "false"),
+      fakeResult("ignored", 4, "??", "||"),
+    ]);
+
+    expect(summary).toMatchObject({
+      detected: 2,
+      effective: 3,
+      ignored: 1,
+      killed: 1,
+      survived: 1,
+      timedOut: 1,
+      total: 4,
+    });
+    expect(summary.score).toBeCloseTo(66.666, 2);
+  });
+
+  test("summarizes an empty result as an inconclusive perfect denominator", () => {
+    expect(summarize([])).toMatchObject({
+      detected: 0,
+      effective: 0,
+      ignored: 0,
+      killed: 0,
+      score: 100,
+      survived: 0,
+      survivors: [],
+      timedOut: 0,
+      total: 0,
+    });
+  });
+
+  test("keeps relative paths unchanged", () => {
+    expect(rel("src/example.ts")).toBe("src/example.ts");
+  });
+
+  test("formats survivor locations with project-relative paths", () => {
+    const lines = formatSummaryLines(
+      summarize([
+        fakeResult("survived", 12, "return value", "return undefined"),
+      ]),
+    );
+
+    expect(lines.join("\n")).toContain("src/example.ts:12:3");
+    expect(lines.join("\n")).toContain("return value");
+  });
+
+  test("formats inconclusive and all-ignored terminal summaries", () => {
+    expect(formatSummaryLines(summarize([])).join("\n")).toContain(
+      "INCONCLUSIVE",
+    );
+    expect(
+      formatSummaryLines(
+        summarize([fakeResult("ignored", 4, "??", "||")]),
+      ).join("\n"),
+    ).toContain("suppressed as known-equivalent");
+  });
+
+  test("formats detected terminal summaries with ignored counts", () => {
+    const lines = formatSummaryLines(
+      summarize([
+        fakeResult("killed", 1, "===", "!=="),
+        fakeResult("ignored", 2, "??", "||"),
+      ]),
+    ).join("\n");
+
+    expect(lines).toContain("ignored:");
+    expect(lines).toContain("All mutants were detected");
+    expect(lines).toContain("1 suppressed as known-equivalent");
+  });
+
+  test("formats plain progress lines with counts and the latest mutation", () => {
+    const last = fakeResult("survived", 9, "?:", "arms swapped");
+
+    expect(
+      formatProgressLine({
+        completed: 7,
+        ignored: 1,
+        killed: 5,
+        last,
+        survived: 1,
+        timedOut: 0,
+        total: 20,
+      }),
+    ).toBe(
+      "Mutation progress: 7/20 (35.0%); killed 5; survived 1; timed out 0; " +
+        "ignored 1; last survived src/example.ts:9:3 ?: -> arms swapped",
+    );
+  });
+
+  test("formats zero-total progress as complete", () => {
+    expect(
+      formatProgressLine({
+        completed: 0,
+        ignored: 0,
+        killed: 0,
+        last: fakeResult("killed", 1, "true", "false", "outside.ts"),
+        survived: 0,
+        timedOut: 0,
+        total: 0,
+      }),
+    ).toContain("0/0 (100.0%)");
+  });
+
+  test("writes GitHub step summaries when configured", async () => {
+    const path = await Deno.makeTempFile({ prefix: "mutation-summary-" });
+    try {
+      const text = await withStepSummary(path, () => {
+        writeStepSummary(summarize([]));
+        writeStepSummary(summarize([fakeResult("ignored", 1, "??", "||")]));
+        writeStepSummary(
+          summarize([
+            fakeResult("killed", 2, "===", "!=="),
+            fakeResult("ignored", 3, "??", "||"),
+          ]),
+        );
+        writeStepSummary(
+          summarize([
+            fakeResult("survived", 4, "return x", "return undefined"),
+          ]),
+        );
+      });
+
+      expect(text).toContain("Inconclusive");
+      expect(text).toContain("nothing killable");
+      expect(text).toContain("All 1 mutants detected");
+      expect(text).toContain("Survivors");
+      expect(text).toContain("src/example.ts:4:3");
+    } finally {
+      await Deno.remove(path).catch(() => {});
+    }
+  });
+
+  test("ignores absent or unwritable GitHub step summary paths", async () => {
+    await withStepSummary(null, () => writeStepSummary(summarize([])));
+    await withStepSummary("/tmp/missing-dir/mutation-summary.md", () =>
+      writeStepSummary(summarize([fakeResult("killed", 1, "true", "false")])),
+    );
+  });
+});

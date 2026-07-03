@@ -12,12 +12,10 @@
  * counts as detected).
  */
 
-import { dim, green, red, write, yellow } from "../precommit/colors.ts";
-import {
-  projectRoot,
-  STRIPE_MOCK_PORT,
-  withTestHarness,
-} from "../test-harness.ts";
+import { dim, green, red, yellow } from "../precommit/colors.ts";
+import { write } from "../precommit/write.ts";
+import { projectRoot } from "../project-root.ts";
+import { STRIPE_MOCK_PORT, withTestHarness } from "../test-harness.ts";
 import { type AssetRebuilder, createAssetRebuilder } from "./assets.ts";
 import { batchTestFiles } from "./batch.ts";
 import { applyMutant, generateMutants, type Mutant } from "./generate.ts";
@@ -28,6 +26,7 @@ import {
   loadIgnoreList,
 } from "./ignore.ts";
 import {
+  formatProgressLine,
   formatSummaryLines,
   type MutantResult,
   rel,
@@ -37,6 +36,7 @@ import {
 } from "./summary.ts";
 
 export interface MutationOptions {
+  batchJobs?: number;
   exhaustive: boolean;
   sourceFiles: string[];
   testFiles: string[];
@@ -48,6 +48,19 @@ type Outcome = "failed" | "passed" | "timed-out";
 
 const BASELINE_TIMEOUT = 120_000;
 const TIMEOUT_MULTIPLIER = 3;
+const PROGRESS_INTERVAL = 10;
+
+const parsePositiveInt = (value: string | undefined): number | null => {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const hardwareConcurrency = (): number => navigator.hardwareConcurrency || 1;
+
+const defaultBatchJobs = (): number =>
+  parsePositiveInt(Deno.env.get("MUTATION_JOBS")) ??
+  Math.max(1, Math.min(4, hardwareConcurrency() - 1));
 
 const testEnv = (): Record<string, string> => ({
   ...Deno.env.toObject(),
@@ -63,7 +76,14 @@ const runTestBatch = async (
   signal: AbortSignal,
 ): Promise<number> => {
   const { code } = await new Deno.Command(Deno.execPath(), {
-    args: ["test", "--no-check", "--allow-all", ...batch],
+    args: [
+      "test",
+      "--no-check",
+      "--allow-all",
+      "--parallel",
+      "--v8-flags=--expose-gc",
+      ...batch,
+    ],
     cwd: projectRoot,
     env: testEnv(),
     signal,
@@ -89,6 +109,7 @@ const runTestBatch = async (
 const runTests = async (
   testFiles: string[],
   timeoutMs: number,
+  batchJobs: number,
   abortSignal?: AbortSignal,
 ): Promise<{ durationMs: number; outcome: Outcome }> => {
   const controller = new AbortController();
@@ -99,11 +120,35 @@ const runTests = async (
   const startedAt = performance.now();
   const elapsed = (): number => performance.now() - startedAt;
   try {
-    for (const batch of batchTestFiles(testFiles)) {
-      const code = await runTestBatch(batch, controller.signal);
-      if (code !== 0) return { durationMs: elapsed(), outcome: "failed" };
-    }
-    return { durationMs: elapsed(), outcome: "passed" };
+    const batches = batchTestFiles(testFiles);
+    let nextBatch = 0;
+    const worker = async (): Promise<Outcome | null> => {
+      while (!controller.signal.aborted) {
+        const batch = batches[nextBatch];
+        nextBatch += 1;
+        if (!batch) return null;
+        try {
+          const code = await runTestBatch(batch, controller.signal);
+          if (code !== 0) {
+            controller.abort();
+            return "failed";
+          }
+        } catch {
+          return "timed-out";
+        }
+      }
+      return null;
+    };
+    const jobs = Math.min(Math.max(1, batchJobs), Math.max(1, batches.length));
+    const outcomes = await Promise.all(
+      Array.from({ length: jobs }, () => worker()),
+    );
+    const outcome = outcomes.includes("failed")
+      ? "failed"
+      : outcomes.includes("timed-out")
+        ? "timed-out"
+        : "passed";
+    return { durationMs: elapsed(), outcome };
   } catch {
     return { durationMs: elapsed(), outcome: "timed-out" };
   } finally {
@@ -137,6 +182,13 @@ interface MutantAssetHooks {
   restore: () => Promise<void>;
 }
 
+interface FileMutationPlan {
+  assets: MutantAssetHooks | null;
+  file: string;
+  mutants: Mutant[];
+  original: string;
+}
+
 /** Mutate the file, run the tests, and always restore the original. */
 const evaluateMutant = async (
   file: string,
@@ -144,6 +196,7 @@ const evaluateMutant = async (
   mutant: Mutant,
   testFiles: string[],
   timeoutMs: number,
+  batchJobs: number,
   assets: MutantAssetHooks | null,
   abortSignal: AbortSignal,
 ): Promise<Status> => {
@@ -153,12 +206,55 @@ const evaluateMutant = async (
     // stale baseline asset (the tests would pass and it would falsely survive).
     // A failed build means the mutation is detected, so count it as killed.
     if (assets && !(await assets.rebuild())) return "killed";
-    const { outcome } = await runTests(testFiles, timeoutMs, abortSignal);
+    const { outcome } = await runTests(
+      testFiles,
+      timeoutMs,
+      batchJobs,
+      abortSignal,
+    );
     return toStatus(outcome);
   } finally {
     await Deno.writeTextFile(file, original);
     if (assets) await assets.restore();
   }
+};
+
+const logFilePlan = (plan: FileMutationPlan, affectedCount: number): void => {
+  if (plan.mutants.length === 0) {
+    console.log(yellow(`  no mutable operators in ${rel(plan.file)}`));
+    return;
+  }
+  const note =
+    affectedCount > 0
+      ? dim(` (rebuilding ${affectedCount} bundle(s) per mutant)`)
+      : "";
+  console.log(
+    dim(`  ${rel(plan.file)}: ${plan.mutants.length} mutants`) + note,
+  );
+};
+
+const filePlan = async (
+  rebuilder: AssetRebuilder | null,
+  exhaustive: boolean,
+  file: string,
+): Promise<FileMutationPlan> => {
+  const original = await Deno.readTextFile(file);
+  const affected = rebuilder ? rebuilder.affected(file) : [];
+  const assets: MutantAssetHooks | null =
+    rebuilder && affected.length > 0
+      ? {
+          rebuild: () => rebuilder.rebuild(affected),
+          restore: () => rebuilder.restore(affected),
+        }
+      : null;
+  const plan = {
+    assets,
+    file,
+    mutants: generateMutants(original, file, exhaustive),
+    original,
+  };
+  logFilePlan(plan, affected.length);
+  return plan;
 };
 
 /**
@@ -179,6 +275,7 @@ const report = (results: MutantResult[]): number => {
 
 interface RunMutantsOptions {
   abortSignal: AbortSignal;
+  batchJobs: number;
   exhaustive: boolean;
   ignoreList: IgnoreList;
   isAborted: () => boolean;
@@ -195,6 +292,7 @@ interface RunMutantsOptions {
 const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   const {
     abortSignal,
+    batchJobs,
     exhaustive,
     ignoreList,
     isAborted,
@@ -208,7 +306,12 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   } = opts;
 
   console.log(dim("Running baseline (unmutated) tests…"));
-  const baseline = await runTests(testFiles, BASELINE_TIMEOUT, abortSignal);
+  const baseline = await runTests(
+    testFiles,
+    BASELINE_TIMEOUT,
+    batchJobs,
+    abortSignal,
+  );
   if (isAborted()) return 130;
   if (baseline.outcome !== "passed") {
     console.error(red(`\nBaseline tests did not pass (${baseline.outcome}).`));
@@ -229,6 +332,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
       `Baseline passed in ${Math.round(baseline.durationMs)}ms; per-mutant timeout ${perMutantTimeout}ms.\n`,
     ),
   );
+  console.log(dim(`Using up to ${batchJobs} concurrent test batch(es).`));
 
   // Under --harness the client bundles are built once; a mutant on a bundled
   // source must rebuild the affected bundle(s) or it would falsely survive.
@@ -237,49 +341,66 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
     : null;
 
   try {
+    const plans: FileMutationPlan[] = [];
     for (const file of sourceFiles) {
+      plans.push(await filePlan(rebuilder, exhaustive, file));
+    }
+    const totalMutants = plans.reduce(
+      (sum, plan) => sum + plan.mutants.length,
+      0,
+    );
+    const counts: Record<Status, number> = {
+      ignored: 0,
+      killed: 0,
+      survived: 0,
+      "timed-out": 0,
+    };
+
+    for (const plan of plans) {
       if (isAborted()) break;
-      const original = await Deno.readTextFile(file);
-      originals.set(file, original);
-      const affected = rebuilder ? rebuilder.affected(file) : [];
-      const assets: MutantAssetHooks | null =
-        rebuilder && affected.length > 0
-          ? {
-              rebuild: () => rebuilder.rebuild(affected),
-              restore: () => rebuilder.restore(affected),
-            }
-          : null;
-      const mutants = generateMutants(original, file, exhaustive);
-      if (mutants.length === 0) {
-        console.log(yellow(`  no mutable operators in ${rel(file)}`));
-      } else {
-        const note =
-          affected.length > 0
-            ? dim(` (rebuilding ${affected.length} bundle(s) per mutant)`)
-            : "";
-        console.log(dim(`  ${rel(file)}: ${mutants.length} mutants`) + note);
-      }
-      for (const mutant of mutants) {
+      for (const mutant of plan.mutants) {
         if (isAborted()) break;
+        originals.set(plan.file, plan.original);
         const outcome = await evaluateMutant(
-          file,
-          original,
+          plan.file,
+          plan.original,
           mutant,
           testFiles,
           perMutantTimeout,
-          assets,
+          batchJobs,
+          plan.assets,
           abortSignal,
         );
+        originals.delete(plan.file);
         if (isAborted()) break;
         // A survivor recorded as known-equivalent is suppressed, not a failure.
         const status: Status =
-          outcome === "survived" && isIgnored(ignoreList, file, mutant)
+          outcome === "survived" && isIgnored(ignoreList, plan.file, mutant)
             ? "ignored"
             : outcome;
-        results.push({ file, mutant, status });
+        const result = { file: plan.file, mutant, status };
+        results.push(result);
+        counts[status] += 1;
         write(statusGlyph(status));
+        if (
+          results.length % PROGRESS_INTERVAL === 0 ||
+          results.length === totalMutants ||
+          status !== "killed"
+        ) {
+          write("\n");
+          console.log(
+            formatProgressLine({
+              completed: results.length,
+              ignored: counts.ignored,
+              killed: counts.killed,
+              last: result,
+              survived: counts.survived,
+              timedOut: counts["timed-out"],
+              total: totalMutants,
+            }),
+          );
+        }
       }
-      originals.delete(file);
     }
   } finally {
     restoreAll();
@@ -310,6 +431,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
 
 const mutate = async (options: MutationOptions): Promise<number> => {
   const { exhaustive, sourceFiles, testFiles, timeout } = options;
+  const batchJobs = options.batchJobs ?? defaultBatchJobs();
   const ignoreList = await loadIgnoreList();
 
   const results: MutantResult[] = [];
@@ -354,6 +476,7 @@ const mutate = async (options: MutationOptions): Promise<number> => {
   try {
     return await runMutants({
       abortSignal: abortController.signal,
+      batchJobs,
       exhaustive,
       ignoreList,
       isAborted: () => aborted,

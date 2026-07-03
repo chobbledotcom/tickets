@@ -7,8 +7,9 @@
  */
 
 import { join } from "node:path";
+import { projectRoot } from "./project-root.ts";
 import { JUNIT_PATH, readSlowTestsReport } from "./test-durations.ts";
-import { projectRoot, runTests, withTestHarness } from "./test-harness.ts";
+import { runTests, withTestHarness } from "./test-harness.ts";
 
 type CoverageMetricFailure = {
   covered: number;
