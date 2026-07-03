@@ -543,6 +543,22 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
     expect((await getParentIds(result.id)).length).toBe(30);
   });
 
+  test("imports a listing that belongs to many groups", async () => {
+    // More groups than the per-request N+1 guard (25) would allow one
+    // compatibility SELECT each — proves group-compat validation batch-loads the
+    // siblings for every referenced group instead of one query per group.
+    const groupNames = Array.from({ length: 30 }, (_, i) => `Group ${i}`);
+    for (const name of groupNames) await createTestGroup({ name });
+    const result = await importCatalog({
+      groups: groupNames.map((group) => ({ group })),
+      kind: "listing",
+      listing: { maxAttendees: 1, name: "Joins Many" },
+      version: 1,
+    });
+    if (!result.ok) throw new Error(result.error);
+    expect((await getGroupIdsByListingId(result.id)).length).toBe(30);
+  });
+
   test("hides the webhook URL from an editor export", async () => {
     const listing = await createTestListing({
       name: "Hooked",

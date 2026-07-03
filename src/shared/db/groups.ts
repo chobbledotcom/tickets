@@ -185,17 +185,23 @@ export const groupExists = async (id: number): Promise<boolean> =>
     [id],
   )) !== null;
 
-/** Active listings of several groups in two bounded queries, keyed by group id
- * (a group with no active member gets no entry). The public nav's one-shot
- * liveness read — never one query per group. Membership is many-to-many
+/** Listings of several groups in two bounded queries, keyed by group id (a group
+ * with no matching member gets no entry). The batched form of
+ * {@link getListingsByGroupId} — never one query per group, so a caller checking
+ * many groups (e.g. group-compatibility validation for a listing that joins many
+ * groups) stays under the N+1 read guard. Membership is many-to-many
  * (`group_listings`), so a listing appears under EVERY requested group it
- * belongs to. Empty input ⇒ no query. */
-export const getActiveListingsByGroupIds = async (
+ * belongs to. Empty input ⇒ no query. `activeOnly` restricts to active listings
+ * (the public nav's liveness read); the default includes inactive (the
+ * validators' compatibility read). */
+export const getListingsByGroupIds = async (
   groupIds: readonly number[],
+  activeOnly = false,
 ): Promise<Map<number, ListingWithCount[]>> => {
   if (groupIds.length === 0) return new Map();
+  const activeClause = activeOnly ? "listing.active = 1 AND " : "";
   const rows = await queryListingsWithCounts(
-    `WHERE listing.active = 1 AND listing.id IN
+    `WHERE ${activeClause}listing.id IN
        (SELECT listing_id FROM group_listings WHERE group_id IN (${inPlaceholders(groupIds)}))`,
     [...groupIds],
   );
@@ -213,6 +219,13 @@ export const getActiveListingsByGroupIds = async (
   }
   return byGroup;
 };
+
+/** Active listings of several groups, keyed by group id — the public nav's
+ * one-shot liveness read. */
+export const getActiveListingsByGroupIds = (
+  groupIds: readonly number[],
+): Promise<Map<number, ListingWithCount[]>> =>
+  getListingsByGroupIds(groupIds, true);
 
 /**
  * Get all listings in a group with attendee counts (including inactive).
@@ -234,8 +247,27 @@ export const validateGroupListingType = async (
   listingType: ListingType,
   customisableDays: boolean,
   excludeListingId?: number,
-): Promise<string | null> => {
-  const allSiblings = await getListingsByGroupId(groupId);
+): Promise<string | null> =>
+  groupListingTypeError(
+    await getListingsByGroupId(groupId),
+    listingType,
+    customisableDays,
+    excludeListingId,
+  );
+
+/**
+ * The in-memory core of {@link validateGroupListingType}: given a group's
+ * already-loaded members, return the homogeneity error (or null). Callers that
+ * validate many groups at once batch the member reads (see
+ * {@link getListingsByGroupIds}) and drive this directly, so they never issue
+ * one sibling query per group and trip the N+1 read guard.
+ */
+export const groupListingTypeError = (
+  allSiblings: readonly ListingWithCount[],
+  listingType: ListingType,
+  customisableDays: boolean,
+  excludeListingId?: number,
+): string | null => {
   const siblings = allSiblings.filter((e) => e.id !== excludeListingId);
   const typeMismatch = siblings.find((e) => e.listing_type !== listingType);
   if (typeMismatch) {

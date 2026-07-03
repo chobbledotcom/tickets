@@ -9,9 +9,10 @@ import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
+  getAllGroups,
   getGroupIdsByListingIds,
-  groupsTable,
-  validateGroupListingType,
+  getListingsByGroupIds,
+  groupListingTypeError,
 } from "#shared/db/groups.ts";
 import {
   edgeIdsTouching,
@@ -101,16 +102,24 @@ const packageMembershipError = async (
 };
 
 const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
+  const groupIds = input.groupIds ?? [];
+  if (groupIds.length === 0) return null;
   // Only pay-what-you-want pricing is package-incompatible: a package needs an
   // operator-set price per member. Daily/customisable members are packageable
   // (the group keeps members homogeneous, sharing one date/day-count selector).
   const incompatibleByType = input.canPayMore ?? false;
-  for (const groupId of input.groupIds ?? []) {
-    const group = await groupsTable.findById(groupId);
+  // Batch the per-group reads so a listing that joins many groups (e.g. a
+  // catalog import of a listing exported from a group-heavy site) stays under
+  // the N+1 read guard: one cached groups load plus one sibling query for all
+  // referenced groups, then the compatibility check runs in memory per group.
+  const groupsById = new Map((await getAllGroups()).map((g) => [g.id, g]));
+  const siblingsByGroup = await getListingsByGroupIds(groupIds);
+  for (const groupId of groupIds) {
+    const group = groupsById.get(groupId);
     if (!group) return "Selected group does not exist";
 
-    const typeError = await validateGroupListingType(
-      groupId,
+    const typeError = groupListingTypeError(
+      siblingsByGroup.get(groupId) ?? [],
       // The DB column defaults to "standard" when omitted (e.g. a JSON API
       // create that sends group_ids but no listing_type), so validate against
       // that default rather than passing undefined and reading every standard
