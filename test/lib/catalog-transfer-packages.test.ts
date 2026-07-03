@@ -57,6 +57,25 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
     expect(stored.day_prices[5]).toBeUndefined();
   });
 
+  test("keeps a day price when no duration is given (defaults to 1)", async () => {
+    // No durationDays → the filter compares against the default of 1, so a
+    // 1-day price is retained.
+    const result = await importCatalog({
+      kind: "listing",
+      listing: {
+        customisableDays: true,
+        dayPrices: { 1: 1000 },
+        listingType: "daily",
+        maxAttendees: 1,
+        name: "Default Duration",
+      },
+      version: 1,
+    });
+    if (!result.ok) throw new Error(result.error);
+    const stored = (await getListing(result.id))!;
+    expect(stored.day_prices[1]).toBe(1000);
+  });
+
   test("rejects a package member day-override for an unoffered span", async () => {
     // The member offers 1- and 2-day bookings; a 5-day override is a span it
     // doesn't have, so the package editor would never render that input.
