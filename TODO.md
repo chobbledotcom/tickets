@@ -120,23 +120,6 @@ Migration is deliberately gradual and hardest-first.
 
 ---
 
-## Admin nav on the recursive renderer
-
-*Origin: `pages.md` (step 6, flagged optional/non-blocking).*
-
-**Background.** Site → Pages shipped (PR #1496): user-created content pages
-(`site_pages` / `site_page_items`), an admin CRUD + item manager, a public
-`/page` route, and a recursive contextual public nav built from `buildNavModel`
-(`src/features/public/site-nav.ts`, consumed in
-`src/ui/templates/public/shared.tsx`).
-
-**Remaining.** The *admin* nav (`src/ui/templates/admin/nav.tsx`) still uses
-hand-coded fixed-depth `Section` / `NestedSub` markup. Migrate it onto the same
-shared recursive renderer the public nav uses, deleting the last of the
-fixed-depth code. Purely a simplification — no behaviour change expected.
-
----
-
 ## Servicing — read-only guard (optional variant)
 
 *Origin: `servicing.md` (+ its review docs `review.md`, `tests.md`).*

@@ -236,9 +236,9 @@ const overbookedListingIds = async (
     excludeAttendeeId,
   );
   const overbooked = new Set<number>();
-  checkable.forEach((line, i) => {
+  for (const [i, line] of checkable.entries()) {
     if (!fits[i]) overbooked.add(line.listingId);
-  });
+  }
   return overbooked;
 };
 

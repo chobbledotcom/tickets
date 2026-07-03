@@ -3,14 +3,9 @@
  *
  * AdminNav builds the whole menu for the current page from one schema: the
  * top-level links, plus — for the section the page belongs to — that section's
- * sub-nav. It emits two structures and lets CSS show whichever fits:
- *
- *  - a desktop sidebar, where the sub-nav is nested inside its parent <li>, and
- *  - mobile bars, where the sub-nav follows the top-level row as its own bar.
- *
- * Each layout keeps its own correctly-ordered DOM, so tab/reading order always
- * matches what's shown — no CSS `order` reshuffling, and the two can diverge
- * freely in future.
+ * sub-nav. The schema is lifted into the shared leveled-nav model and rendered
+ * by the same `leveledNav` renderer the public nav uses (the desktop sidebar
+ * with nested levels, and the stacked mobile bars).
  */
 
 import { compact } from "#fp";
@@ -28,7 +23,12 @@ import { isSupportEnabled } from "#shared/support.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { markAdminFooter } from "#templates/admin/footer.tsx";
 import { SettingsNagBanner } from "#templates/admin/settings-nag-banner.tsx";
-import { desktopNavShell, mobileNavBar } from "#templates/components/nav.tsx";
+import {
+  type LeveledNavLevel,
+  type LeveledNavNode,
+  leveledNav,
+  nodeLis,
+} from "#templates/components/nav.tsx";
 
 /** One navigation link. */
 interface NavItem {
@@ -211,50 +211,20 @@ const resolveSection = (
   return null;
 };
 
-/** A single link, highlighted when its href is the active top-level link. */
-const navAnchor = (item: NavItem, highlight: string): JSX.Element => (
-  <a class={item.href === highlight ? "active" : undefined} href={item.href}>
-    {item.label}
-  </a>
-);
+/** Lift the plain link schema into leveled-nav nodes: every admin link is live
+ * (the schema already omits links the viewer's role can't open), and `active`
+ * highlights the current section's top-level link. Sub-navs pass an empty
+ * `highlight` since the section route alone can't tell which sub-page is open. */
+const toNodes = (items: NavItem[], highlight: string): LeveledNavNode[] =>
+  items.map((item) => ({
+    ...item,
+    active: item.href === highlight,
+    live: true,
+  }));
 
-/** Flat <li> list of links. Sub-navs pass an empty `highlight` since the
- * section route alone can't tell which sub-page is open. */
-const navItems = (items: NavItem[], highlight: string): JSX.Element[] =>
-  items.map((item) => <li>{navAnchor(item, highlight)}</li>);
-
-/** The props both viewport-specific navs render from. */
-type LeveledNavProps = {
-  items: NavItem[];
-  highlight: string;
-  section: Section | null;
-};
-
-/** Desktop sidebar: one nav with the sub-nav nested inside its parent <li>, and
- * the site third level nested again — DOM order matches the stacked visual.
- * `#main-nav` marks the page as an admin page for the stylesheet. */
-const DesktopNav = ({ items, highlight, section }: LeveledNavProps) =>
-  desktopNavShell(
-    t("nav.admin"),
-    items.map((item) => (
-      <li>
-        {navAnchor(item, highlight)}
-        {section && item.href === highlight && (
-          <ul class="admin-subnav">{navItems(section.items, "")}</ul>
-        )}
-      </li>
-    )),
-    "main-nav",
-  );
-
-/** Mobile: the top-level bar, then each sub-nav level as its own bar below —
- * the separate stacked bars admin has always shown on small screens. */
-const MobileNav = ({ items, highlight, section }: LeveledNavProps) => (
-  <>
-    {mobileNavBar(t("nav.admin"), navItems(items, highlight))}
-    {section && mobileNavBar(section.label, navItems(section.items, ""))}
-  </>
-);
+/** The section's sub-nav as the model's submenu levels — one level, or none. */
+const sectionLevels = (section: Section | null): LeveledNavLevel[] =>
+  section ? [{ label: section.label, nodes: toNodes(section.items, "") }] : [];
 
 interface AdminNavProps {
   active: string;
@@ -270,9 +240,9 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
   // Flag this render as an admin page so the Layout emits the admin footer
   // (Chobble link, optional debug menu, and the logout button).
   markAdminFooter(session.adminLevel);
-  const items = topLevelItems(session, active);
   const section = resolveSection(active, session.adminLevel);
   const highlight = section?.topHref ?? active;
+  const rootNodes = toNodes(topLevelItems(session, active), highlight);
   return (
     <>
       {renderReadOnlyBanner(
@@ -288,12 +258,12 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
             : {})}
         />
       )}
-      {/* The desktop sidebar nav and the mobile bars share one wrapper so the
-          desktop grid can pin it as a single sticky left-hand column. */}
-      <div class="admin-nav-group">
-        <DesktopNav highlight={highlight} items={items} section={section} />
-        <MobileNav highlight={highlight} items={items} section={section} />
-      </div>
+      {leveledNav({
+        id: "main-nav",
+        label: t("nav.admin"),
+        levels: sectionLevels(section),
+        rootLis: (nested) => nodeLis(rootNodes, nested),
+      })}
     </>
   );
 };

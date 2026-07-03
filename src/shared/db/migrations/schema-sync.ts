@@ -84,9 +84,9 @@ export const snapshotLiveSchema = async (): Promise<LiveSchema> => {
     {
       args: [],
       sql:
-        "SELECT m.name AS tbl, ti.name AS col " +
-        "FROM sqlite_master m JOIN pragma_table_info(m.name) ti " +
-        "WHERE m.type = 'table'",
+        "SELECT master.name AS tbl, tableInfo.name AS col " +
+        "FROM sqlite_master AS master JOIN pragma_table_info(master.name) AS tableInfo " +
+        "WHERE master.type = 'table'",
     },
     {
       args: [],

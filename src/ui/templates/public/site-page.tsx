@@ -7,12 +7,12 @@
 
 import type { NavNode } from "#shared/site-pages/types.ts";
 import type { SitePage } from "#shared/types.ts";
+import { nodeLis } from "#templates/components/nav.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import {
   FEED_DISCOVERY_TAGS,
   LoginFooter,
   MarkdownProse,
-  NodeLink,
   PublicNav,
   type PublicNavProps,
 } from "./shared.tsx";
@@ -35,15 +35,7 @@ export const sitePagePage = (
       <PublicNav {...nav} />
       <h1>{page.name}</h1>
       <MarkdownProse markdown={page.content} />
-      {items.length > 0 && (
-        <ul class="page-items">
-          {items.map((node) => (
-            <li>
-              <NodeLink node={node} />
-            </li>
-          ))}
-        </ul>
-      )}
+      {items.length > 0 && <ul class="page-items">{nodeLis(items)}</ul>}
       <LoginFooter />
     </Layout>,
   );

@@ -409,14 +409,14 @@ export const hasPaidLine = (
   listingIds: number[],
 ): Promise<boolean> =>
   rowExists(
-    `SELECT 1 FROM listing_attendees la
-     WHERE la.attendee_id = ? AND la.listing_id IN (${inPlaceholders(listingIds)})
+    `SELECT 1 FROM listing_attendees AS listingAttendee
+     WHERE listingAttendee.attendee_id = ? AND listingAttendee.listing_id IN (${inPlaceholders(listingIds)})
        AND EXISTS (
          SELECT 1 FROM transfers
          WHERE ${saleLegPredicate(
-           "la.attendee_id",
-           "la.listing_id",
-           "la.ledger_event_group",
+           "listingAttendee.attendee_id",
+           "listingAttendee.listing_id",
+           "listingAttendee.ledger_event_group",
          )}
        ) LIMIT 1`,
     [attendeeId, ...listingIds],
