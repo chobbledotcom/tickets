@@ -449,6 +449,33 @@ describeWithEnv(
       );
     });
 
+    test("does not copy a package override for a group the duplicate did not join", async () => {
+      const { queryAll } = await import("#shared/db/client.ts");
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Bundle2",
+      });
+      const source = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Member2",
+      });
+      await setGroupPackageMembers(group.id, [
+        { dayPrices: { 2: 1600 }, listingId: source.id, price: 1500 },
+      ]);
+
+      // Duplicate WITHOUT joining the package (group_ids omitted). The clone is
+      // in no package group, so its source's group/group_day overrides must NOT
+      // be copied — an orphaned override would resurrect if it later joined.
+      const { copy } = await duplicateListingResponse(source.id, "Loner copy");
+      expect(
+        await queryAll(
+          "SELECT price_type FROM listing_prices WHERE listing_id = ? AND price_type IN ('group', 'group_day')",
+          [copy.id],
+        ),
+      ).toEqual([]);
+    });
+
     test("duplicating a parent into a package keeps children when visible, drops them when hidden", async () => {
       const { groupsTable } = await import("#shared/db/groups.ts");
       const child = await createTestListing({ name: "Child" });

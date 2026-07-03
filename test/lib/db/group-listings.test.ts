@@ -133,6 +133,21 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     ).toBe(null);
   });
 
+  test("collapses duplicate member entries (last wins) without a unique-constraint abort", async () => {
+    const { group, a } = await groupWithTwoMembers("dup");
+    // The JSON API accepts an array, so a client can send the same listing_id
+    // twice — this must not abort on the unique listing_prices index; the last
+    // entry wins (matching the retired CASE-update behaviour).
+    await setGroupPackageMembers(group.id, [
+      { listingId: a.id, price: 100, quantity: 2 },
+      { listingId: a.id, price: 900, quantity: 5 },
+    ]);
+    const rows = await getGroupPackagePrices(group.id);
+    const member = rows.find((r) => r.listing_id === a.id)!;
+    expect(member.package_price).toBe(900);
+    expect(member.quantity).toBe(5);
+  });
+
   test("setGroupPackageMembers stores per-package quantities (default 1)", async () => {
     const { group, a, b } = await groupWithTwoMembers("qty");
 

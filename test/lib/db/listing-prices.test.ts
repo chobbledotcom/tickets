@@ -104,17 +104,26 @@ describe("sourceRowStatements", () => {
 });
 
 describe("groupDayPriceStatements", () => {
-  test("emits a group-scoped LIKE delete, then one insert per member day price", () => {
+  test("emits a group-scoped LIKE delete, then ONE multi-row insert of every day price", () => {
     const stmts = groupDayPriceStatements(12, [
-      { dayPrices: { 2: 1500 }, listingId: 5 },
-      // A member with no per-day overrides contributes no inserts.
+      { dayPrices: { 2: 1500, 3: 2000 }, listingId: 5 },
+      // A member with no per-day overrides contributes no rows.
       { listingId: 6 },
     ]);
-    expect(stmts.map((s) => s.args)).toEqual([
-      ["group_day", "12/%"],
-      [5, "group_day", "12/2", 1500],
-    ]);
+    expect(stmts.length).toBe(2);
     expect(stmts[0]!.sql).toContain("price_id LIKE ?");
+    expect(stmts[0]!.args).toEqual(["group_day", "12/%"]);
+    // A single multi-row insert (bounded round-trips), one row per member day.
+    expect(stmts[1]!.args).toEqual([
+      5,
+      "group_day",
+      "12/2",
+      1500,
+      5,
+      "group_day",
+      "12/3",
+      2000,
+    ]);
   });
 
   test("normalises day-price entries like every other day-price write", () => {
@@ -131,27 +140,33 @@ describe("groupDayPriceStatements", () => {
 });
 
 describe("groupFlatPriceStatements", () => {
-  test("emits a group-scoped delete, then one insert per member with an override", () => {
+  test("emits a group-scoped delete, then ONE multi-row insert for all overrides", () => {
     const stmts = groupFlatPriceStatements(12, [
       // A positive override and an explicit free (0) both get a row.
       { listingId: 5, price: 1500 },
       { listingId: 6, price: 0 },
     ]);
-    expect(stmts.map((s) => s.args)).toEqual([
-      ["group", "12"],
-      [5, "group", "12", 1500],
-      [6, "group", "12", 0],
-    ]);
-    // The delete scopes to this group's flat rows by exact price_id (not LIKE),
-    // and every following statement is an insert.
+    // Two statements regardless of member count (the insert is multi-row), so the
+    // interactive-transaction round-trips stay bounded.
+    expect(stmts.length).toBe(2);
+    // The delete scopes to this group's flat rows by exact price_id (not LIKE).
     expect(stmts[0]!.sql).toBe(
       "DELETE FROM listing_prices WHERE price_type = ? AND price_id = ?",
     );
-    expect(
-      stmts
-        .slice(1)
-        .every((s) => s.sql.startsWith("INSERT INTO listing_prices")),
-    ).toBe(true);
+    expect(stmts[0]!.args).toEqual(["group", "12"]);
+    expect(stmts[1]!.sql).toBe(
+      "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?), (?, ?, ?, ?)",
+    );
+    expect(stmts[1]!.args).toEqual([
+      5,
+      "group",
+      "12",
+      1500,
+      6,
+      "group",
+      "12",
+      0,
+    ]);
   });
 
   test("skips members with a null or absent price (no override → no row)", () => {

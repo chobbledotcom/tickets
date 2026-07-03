@@ -734,8 +734,11 @@ const copyPackageOverridesStatement = (
  * the SAME transaction that inserted them (the create write's `afterWrite`), so a
  * failure rolls the whole duplicate back rather than leaving a live member at the
  * default price. The flat `group` and per-day `group_day` price rows are copied
- * straight across — the clone joins the same package groups, so the same
- * `"<groupId>"` / `"<groupId>/<n>"` price_ids apply to it verbatim. */
+ * only for package groups the NEW listing actually joined (the duplicate form may
+ * untick some of the source's groups) — scoping each source row's encoded group
+ * to the clone's `group_listings`, exactly as the quantity copy does. Otherwise a
+ * copied override for a non-joined group would lurk invisibly and resurrect the
+ * source's price if the clone were later added to that package. */
 export const copyPackageMemberOverridesTx = async (
   tx: TxScope,
   sourceListingId: number,
@@ -750,10 +753,20 @@ export const copyPackageMemberOverridesTx = async (
       sourceListingId,
       PRICE_TYPE_GROUP,
       PRICE_TYPE_GROUP_DAY,
+      newListingId,
     ],
     sql: `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price)
-          SELECT ?, price_type, price_id, unit_price FROM listing_prices
-           WHERE listing_id = ? AND price_type IN (?, ?)`,
+          SELECT ?, sourcePrice.price_type, sourcePrice.price_id, sourcePrice.unit_price
+            FROM listing_prices AS sourcePrice
+           WHERE sourcePrice.listing_id = ? AND sourcePrice.price_type IN (?, ?)
+             AND EXISTS (
+               SELECT 1 FROM group_listings AS groupListing
+                WHERE groupListing.listing_id = ?
+                  AND ((sourcePrice.price_type = '${PRICE_TYPE_GROUP}'
+                          AND sourcePrice.price_id = CAST(groupListing.group_id AS TEXT))
+                    OR (sourcePrice.price_type = '${PRICE_TYPE_GROUP_DAY}'
+                          AND sourcePrice.price_id LIKE (groupListing.group_id || '/%')))
+             )`,
   });
 };
 
@@ -785,11 +798,21 @@ const memberQuantityStatement = (
 };
 
 /** Keep only the submitted members that are CURRENT members of the group, so a
- * stale or crafted id is ignored rather than wiping real overrides. */
+ * stale or crafted id is ignored rather than wiping real overrides, and collapse
+ * duplicate `listing_id` entries (last one wins). The JSON API accepts an array,
+ * so a client can send the same member twice; the price-row builders emit one row
+ * per entry, and two rows for the same (listing, group) would abort on the unique
+ * index (the retired CASE-update `package_price` path silently took the last). */
 const validMembers = (
   members: PackageMemberInput[],
   currentIds: Set<number>,
-): PackageMemberInput[] => members.filter((m) => currentIds.has(m.listingId));
+): PackageMemberInput[] => [
+  ...new Map(
+    members
+      .filter((m) => currentIds.has(m.listingId))
+      .map((m) => [m.listingId, m] as const),
+  ).values(),
+];
 
 /**
  * Apply package-member overrides via the caller-supplied reader and runner, so

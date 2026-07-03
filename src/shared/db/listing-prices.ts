@@ -29,6 +29,7 @@
  * them.
  */
 
+import { compact, mapNotNullish } from "#fp";
 import {
   execute,
   executeBatch,
@@ -66,43 +67,62 @@ export type GroupDayPriceInput = {
 /** One managed `listing_prices` write statement. */
 type PriceStatement = { sql: string; args: (number | string)[] };
 
+/** One managed price row's (listing, type, key, price) tuple. */
+type PriceRow = [number, string, string, number];
+
 /** The one INSERT every managed dimension shares, parameterised by its
  * (listing, type, key, price) args. */
-const insertPriceStatement = (
-  args: [number, string, string, number],
-): PriceStatement => ({
+const insertPriceStatement = (args: PriceRow): PriceStatement => ({
   args,
   sql: "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?)",
 });
 
+/** A SINGLE multi-row INSERT over the managed price rows, or `null` when there
+ * are none. Every full-replace dimension (`day_count`, `group`, `group_day`)
+ * pairs its delete with one of these, so a replace is at most two statements
+ * regardless of row count — the write paths run them inside an interactive
+ * transaction, and a per-row insert would trip the round-trip guard. */
+const multiInsertPriceStatement = (
+  rows: readonly PriceRow[],
+): PriceStatement | null => {
+  if (rows.length === 0) return null;
+  return {
+    args: rows.flat(),
+    sql: `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES ${rows
+      .map(() => "(?, ?, ?, ?)")
+      .join(", ")}`,
+  };
+};
+
 /** The delete-then-insert statements that make a package group's `group_day`
  * rows exactly match the submitted members — a full replace per group, so a
  * removed member's stale overrides can't outlive it. Entries are normalised
- * through {@link parseDayPrices} like every other day-price write. */
+ * through {@link parseDayPrices} like every other day-price write, and the
+ * inserts are a single multi-row statement (see {@link multiInsertPriceStatement}). */
 export const groupDayPriceStatements = (
   groupId: number,
   members: readonly GroupDayPriceInput[],
 ): PriceStatement[] => {
-  const statements: PriceStatement[] = [
+  const rows: PriceRow[] = [];
+  for (const member of members) {
+    for (const [days, price] of Object.entries(
+      parseDayPrices(member.dayPrices ?? {}),
+    )) {
+      rows.push([
+        member.listingId,
+        PRICE_TYPE_GROUP_DAY,
+        groupDayPriceId(groupId, days),
+        price,
+      ]);
+    }
+  }
+  return compact([
     {
       args: [PRICE_TYPE_GROUP_DAY, groupDayPriceId(groupId, "%")],
       sql: "DELETE FROM listing_prices WHERE price_type = ? AND price_id LIKE ?",
     },
-  ];
-  for (const member of members) {
-    const dayPrices = parseDayPrices(member.dayPrices ?? {});
-    for (const [days, price] of Object.entries(dayPrices)) {
-      statements.push(
-        insertPriceStatement([
-          member.listingId,
-          PRICE_TYPE_GROUP_DAY,
-          groupDayPriceId(groupId, days),
-          price,
-        ]),
-      );
-    }
-  }
-  return statements;
+    multiInsertPriceStatement(rows),
+  ]);
 };
 
 /** One member's flat package override as applied by the group save. `price` is
@@ -122,24 +142,18 @@ export const groupFlatPriceStatements = (
   groupId: number,
   members: readonly GroupFlatPriceInput[],
 ): PriceStatement[] => {
-  const statements: PriceStatement[] = [
+  const rows = mapNotNullish((member: GroupFlatPriceInput): PriceRow | null =>
+    member.price === null || member.price === undefined
+      ? null
+      : [member.listingId, PRICE_TYPE_GROUP, String(groupId), member.price],
+  )(members as GroupFlatPriceInput[]);
+  return compact([
     {
       args: [PRICE_TYPE_GROUP, String(groupId)],
       sql: "DELETE FROM listing_prices WHERE price_type = ? AND price_id = ?",
     },
-  ];
-  for (const member of members) {
-    if (member.price === null || member.price === undefined) continue;
-    statements.push(
-      insertPriceStatement([
-        member.listingId,
-        PRICE_TYPE_GROUP,
-        String(groupId),
-        member.price,
-      ]),
-    );
-  }
-  return statements;
+    multiInsertPriceStatement(rows),
+  ]);
 };
 
 /** The statement that drops a listing's package price overrides — flat `group`
@@ -279,26 +293,16 @@ export const dayCountPriceStatements = (
   listingId: number,
   dayPrices: DayPrices | undefined,
 ): PriceStatement[] => {
-  const statements: PriceStatement[] = [
+  const rows = Object.entries(parseDayPrices(dayPrices ?? {})).map(
+    ([days, price]): PriceRow => [listingId, PRICE_TYPE_DAY_COUNT, days, price],
+  );
+  return compact([
     {
       args: [listingId, PRICE_TYPE_DAY_COUNT],
       sql: "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
     },
-  ];
-  const entries = Object.entries(parseDayPrices(dayPrices ?? {}));
-  if (entries.length > 0) {
-    const args: (number | string)[] = [];
-    for (const [days, price] of entries) {
-      args.push(listingId, PRICE_TYPE_DAY_COUNT, days, price);
-    }
-    statements.push({
-      args,
-      sql: `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES ${entries
-        .map(() => "(?, ?, ?, ?)")
-        .join(", ")}`,
-    });
-  }
-  return statements;
+    multiInsertPriceStatement(rows),
+  ]);
 };
 
 /** One listing's per-day-count prices from its `day_count` rows, as a
