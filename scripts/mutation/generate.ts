@@ -383,18 +383,22 @@ const NON_RUNTIME_FIELDS = new Set([
 
 /**
  * Depth-first stream of every typed node, tagged with whether it sits inside a
- * non-runtime context. Types are erased at runtime, and module specifiers are
- * load wiring rather than application behavior, so those nodes are skipped.
+ * non-runtime context. Types are erased at runtime, module specifiers are load
+ * wiring rather than application behavior, and `declare` statements are
+ * ambient (erased) declarations, so those nodes are skipped. Array elisions
+ * (`const [, year] = parts`) appear as `null` children, hence the guard.
  */
 function* walk(
   node: unknown,
   inNonRuntime = false,
 ): Generator<{ inNonRuntime: boolean; node: AstNode }> {
+  if (!node || typeof node !== "object") return;
   const record = node as Record<string, unknown>;
+  const nonRuntime = inNonRuntime || record.declare === true;
   if (typeof record.type === "string")
-    yield { inNonRuntime, node: record as AstNode };
+    yield { inNonRuntime: nonRuntime, node: record as AstNode };
   for (const [key, value] of Object.entries(record)) {
-    const childInNonRuntime = inNonRuntime || NON_RUNTIME_FIELDS.has(key);
+    const childInNonRuntime = nonRuntime || NON_RUNTIME_FIELDS.has(key);
     if (Array.isArray(value)) {
       for (const child of value) yield* walk(child, childInNonRuntime);
     } else if (value && typeof value === "object") {
@@ -403,12 +407,17 @@ function* walk(
   }
 }
 
-/** Generate every mutant for a source file's contents. */
+/**
+ * Generate every mutant for a source file's contents. Declaration files are
+ * entirely ambient — erased at runtime, run with `--no-check` — so no test can
+ * observe a mutation to one; they yield no mutants rather than false survivors.
+ */
 export const generateMutants = (
   content: string,
   filePath: string,
   exhaustive: boolean,
 ): Mutant[] => {
+  if (filePath.endsWith(".d.ts")) return [];
   const fileName = filePath.split("/").pop() as string;
   const { program } = parseSync(fileName, content);
   const mutate = mutantsForNode(content, exhaustive);
