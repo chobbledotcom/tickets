@@ -101,6 +101,30 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       method: "POST",
     });
 
+    test("is disabled in demo mode", async () => {
+      const { setDemoModeForTest } = await import("#shared/demo.ts");
+      setDemoModeForTest(true);
+      try {
+        const response = await importUpload({
+          group: { name: "Demo Group" },
+          kind: "group",
+          members: [],
+          version: 1,
+        });
+        await expectFlashRedirect(
+          "/admin/catalog/import",
+          "Catalog import is disabled in demo mode.",
+          false,
+        )(response);
+        // Nothing was imported.
+        expect(
+          (await getAllListings()).some((l) => l.name === "Demo Group"),
+        ).toBe(false);
+      } finally {
+        setDemoModeForTest(false);
+      }
+    });
+
     test("creates a listing from an uploaded blob and redirects", async () => {
       const group = await createTestGroup({ name: "Host Group" });
       const response = await importUpload({

@@ -20,7 +20,12 @@ import {
   generateUniqueGroupSlug,
 } from "#routes/admin/groups.ts";
 import { writeRowInTransaction } from "#shared/db/client.ts";
-import { type GroupInput, groupsTable } from "#shared/db/groups.ts";
+import {
+  type GroupInput,
+  getAllGroups,
+  getGroupIdsByListingIds,
+  groupsTable,
+} from "#shared/db/groups.ts";
 import {
   addParentEdgesTx,
   getChildListingIds,
@@ -141,16 +146,26 @@ const firstPackageGroup = async (
   return null;
 };
 
-/** Read the shared package-override fields off a membership/member entry. */
-const membershipSpec = (entry: {
-  packagePrice?: number | null | undefined;
-  quantity?: number | undefined;
-  dayPrices?: Record<string, number> | undefined;
-}): MembershipSpec => ({
-  dayPrices: entry.dayPrices ? parseDayPrices(entry.dayPrices) : {},
-  packagePrice: entry.packagePrice ?? null,
-  quantity: entry.quantity ?? 1,
-});
+/** Read the shared package-override fields off a membership/member entry.
+ * `isPackage` false clears every override (price/quantity/day prices) — those
+ * only apply to a package group, and the normal group save drops them when a
+ * group isn't a package, so a blob can't plant a hidden free price or quantity
+ * that silently activates if the group is later converted. */
+const membershipSpec = (
+  entry: {
+    packagePrice?: number | null | undefined;
+    quantity?: number | undefined;
+    dayPrices?: Record<string, number> | undefined;
+  },
+  isPackage: boolean,
+): MembershipSpec =>
+  isPackage
+    ? {
+        dayPrices: entry.dayPrices ? parseDayPrices(entry.dayPrices) : {},
+        packagePrice: entry.packagePrice ?? null,
+        quantity: entry.quantity ?? 1,
+      }
+    : { dayPrices: {}, packagePrice: null, quantity: 1 };
 
 /** Project a validated listing blob onto a `ListingInput`, minting a fresh slug
  * and clearing the (non-transferred) image/attachment columns. Optional fields
@@ -202,13 +217,21 @@ const validateParentEdges = async (
     return `"${input.name}" is a member of the package "${pkg.name}", so it cannot also be an add-on child of another listing.`;
   }
   const childEdge = listingInputToEdge(input, 0);
-  // Two batched reads (never one query per parent): the listing rows, and the
-  // subset of parents that are themselves children — a many-parent import must
-  // not trip the request's N+1 guard.
-  const [byId, nestedParents] = await Promise.all([
+  // Batched reads (never one query per parent, so a many-parent import can't
+  // trip the request's N+1 guard): the listing rows, the parents that are
+  // themselves children, each parent's group ids, and the whole (cached) group
+  // set to identify hidden packages.
+  const [byId, nestedParents, parentGroupIds, allGroups] = await Promise.all([
     getListingsById(),
     getChildListingIds(parentIds),
+    getGroupIdsByListingIds([...parentIds]),
+    getAllGroups(),
   ]);
+  const hiddenPackageIds = new Set(
+    allGroups
+      .filter((g) => g.is_package && g.hide_package_listings)
+      .map((g) => g.id),
+  );
   for (const parentId of parentIds) {
     // parentIds were resolved by name from the same cached catalog byId reads,
     // so every id is present (trust the invariant rather than guard a dead path).
@@ -219,6 +242,14 @@ const validateParentEdges = async (
       return t("listings_table.children_err_parent_is_child", {
         name: parent.name,
       });
+    }
+    // A hidden-package member is collapsed on buyer surfaces and can't render a
+    // child selector, so it may not gain children — the same rule the edge
+    // editor enforces via packageChildEdgeConflict.
+    if (
+      (parentGroupIds.get(parentId) ?? []).some((g) => hiddenPackageIds.has(g))
+    ) {
+      return `"${parent.name}" is a member of a hidden package, so it cannot offer add-on children.`;
     }
     const error = edgeFieldError(listingToEdge(parent), childEdge);
     if (error) return error;
@@ -284,10 +315,18 @@ const importListing = async (
   );
   if (edgeError) return fail(edgeError);
 
-  const specs = memberships.map((m, i) => ({
-    ...membershipSpec(m),
-    groupId: groupResolve.ids[i]!,
-  }));
+  // Package overrides only apply to a package group; clear them for any regular
+  // group the listing joins (matching the normal group save).
+  const packageGroupIds = new Set(
+    (await getAllGroups()).filter((g) => g.is_package).map((g) => g.id),
+  );
+  const specs = memberships.map((m, i) => {
+    const groupId = groupResolve.ids[i]!;
+    return {
+      ...membershipSpec(m, packageGroupIds.has(groupId)),
+      groupId,
+    };
+  });
   const id = await writeRowInTransaction(
     await listingsTable.insertStatement!(input),
     null,
@@ -361,8 +400,11 @@ const importGroup = async (transfer: GroupTransfer): Promise<ImportResult> => {
   // Cast bridges valibot's `T | undefined` optionals to GroupInput's exact
   // optionals; members are written separately (not via GroupInput.packageMembers).
   const input = { ...group, slug, slugIndex } as GroupInput;
+  // Package overrides only apply to a package group; a non-package group clears
+  // them (matching the normal group save).
+  const isPackage = group.isPackage ?? false;
   const specs = members.map((m, i) => ({
-    ...membershipSpec(m),
+    ...membershipSpec(m, isPackage),
     listingId: memberResolve.ids[i]!,
   }));
   const id = await writeRowInTransaction(

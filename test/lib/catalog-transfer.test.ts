@@ -462,6 +462,59 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
     expect((await getListing(result.id))!.uses_logistics).toBe(true);
   });
 
+  test("clears package overrides for a non-package group membership", async () => {
+    const group = await createTestGroup({ name: "Regular Group" });
+    const result = await importCatalog({
+      groups: [{ group: "Regular Group", packagePrice: 500, quantity: 3 }],
+      kind: "listing",
+      listing: { maxAttendees: 1, name: "Joiner", unitPrice: 900 },
+      version: 1,
+    });
+    if (!result.ok) throw new Error(result.error);
+    const row = (await getGroupPackagePrices(group.id)).find(
+      (r) => r.listing_id === result.id,
+    )!;
+    // The override is dropped because the group isn't a package.
+    expect(row.package_price).toBeNull();
+    expect(row.quantity).toBe(1);
+  });
+
+  test("clears member overrides when importing a non-package group", async () => {
+    await createTestListing({ name: "Plain Member", unitPrice: 800 });
+    const result = await importCatalog({
+      group: { name: "Plain Group" },
+      kind: "group",
+      members: [{ listing: "Plain Member", packagePrice: 200, quantity: 5 }],
+      version: 1,
+    });
+    if (!result.ok) throw new Error(result.error);
+    const row = (await getGroupPackagePrices(result.id))[0]!;
+    expect(row.package_price).toBeNull();
+    expect(row.quantity).toBe(1);
+  });
+
+  test("rejects a parent that is a hidden-package member", async () => {
+    const pkg = await createTestGroup({ isPackage: true, name: "Hidden Pkg" });
+    // createTestGroup can't set hide_package_listings, so set it directly and
+    // refresh the cached group set the import reads.
+    await execute("UPDATE groups SET hide_package_listings = 1 WHERE id = ?", [
+      pkg.id,
+    ]);
+    const { invalidateGroupsCache } = await import("#shared/db/groups.ts");
+    invalidateGroupsCache();
+    const parent = await createTestListing({ name: "Pkg Parent" });
+    await assignListingsToGroup([parent.id], pkg.id);
+    const result = await importCatalog({
+      kind: "listing",
+      listing: { maxAttendees: 1, name: "Kid" },
+      parents: ["Pkg Parent"],
+      version: 1,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("hidden package");
+  });
+
   test("imports a listing with many parents in one batched insert", async () => {
     // More parents than the per-request N+1 guard (25) and the transaction
     // round-trip cap (~30) would allow one query/insert each — proves the
