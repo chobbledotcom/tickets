@@ -9,8 +9,8 @@ import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
-  getAllGroups,
   getGroupIdsByListingIds,
+  getGroupsById,
   getListingsByGroupIds,
   groupListingTypeError,
 } from "#shared/db/groups.ts";
@@ -112,7 +112,7 @@ const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
   // catalog import of a listing exported from a group-heavy site) stays under
   // the N+1 read guard: one cached groups load plus one sibling query for all
   // referenced groups, then the compatibility check runs in memory per group.
-  const groupsById = new Map((await getAllGroups()).map((g) => [g.id, g]));
+  const groupsById = await getGroupsById();
   const siblingsByGroup = await getListingsByGroupIds(groupIds);
   for (const groupId of groupIds) {
     const group = groupsById.get(groupId);

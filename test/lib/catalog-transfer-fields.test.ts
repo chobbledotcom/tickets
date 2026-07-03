@@ -90,6 +90,15 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
     );
   });
 
+  test("rejects a datetime with an out-of-range offset", async () => {
+    // A well-formed prefix with an impossible timezone offset ("+99:99") must be
+    // a field error, not stored as an empty datetime by the storage normaliser.
+    await expectListingImportError(
+      { closesAt: "2030-01-01T00:00+99:99", maxAttendees: 1, name: "Offset" },
+      "closesAt",
+    );
+  });
+
   test("accepts an explicitly empty closesAt (never closes)", async () => {
     const result = await importCatalog({
       kind: "listing",

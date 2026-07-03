@@ -122,6 +122,12 @@ export const invalidateGroupsCache = (): void => groupsCache.invalidate();
  */
 export const getAllGroups = (): Promise<Group[]> => groupsCache.getAll();
 
+/** Every group keyed by id, from the request-cached set — the batched
+ * alternative to one findById per id when resolving or validating many groups
+ * without tripping the N+1 read guard. */
+export const getGroupsById = async (): Promise<Map<number, Group>> =>
+  new Map((await getAllGroups()).map((g) => [g.id, g]));
+
 /** Narrow id → name map for every group (selects + decrypts only the name), for
  * pickers/labels that must not load the whole groups cache. */
 export const getAllGroupNames = (): Promise<Map<number, string>> =>

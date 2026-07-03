@@ -546,9 +546,22 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
   test("imports a listing that belongs to many groups", async () => {
     // More groups than the per-request N+1 guard (25) would allow one
     // compatibility SELECT each — proves group-compat validation batch-loads the
-    // siblings for every referenced group instead of one query per group.
+    // siblings for every referenced group instead of one query per group. Insert
+    // the groups directly (like the many-parents case) rather than via
+    // createTestGroup, whose trailing getAllGroups() would itself trip the read
+    // guard 30 times over in this one test context.
+    const { computeGroupSlugIndex, groupsTable } = await import(
+      "#shared/db/groups.ts"
+    );
     const groupNames = Array.from({ length: 30 }, (_, i) => `Group ${i}`);
-    for (const name of groupNames) await createTestGroup({ name });
+    for (const name of groupNames) {
+      const slug = name.toLowerCase().replace(/\s+/g, "-");
+      await groupsTable.insert({
+        name,
+        slug,
+        slugIndex: await computeGroupSlugIndex(slug),
+      });
+    }
     const result = await importCatalog({
       groups: groupNames.map((group) => ({ group })),
       kind: "listing",
@@ -557,6 +570,24 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
     });
     if (!result.ok) throw new Error(result.error);
     expect((await getGroupIdsByListingId(result.id)).length).toBe(30);
+  });
+
+  test("imports a child listing that also belongs to a regular group", async () => {
+    // A child (has a parent) that joins a non-package group exercises the
+    // package-membership guard over a real, non-package group set — it must find
+    // no package and let the parent edge through.
+    await createTestListing({ name: "Edge Parent" });
+    await createTestGroup({ name: "Plain Joiner Group" });
+    const result = await importCatalog({
+      groups: [{ group: "Plain Joiner Group" }],
+      kind: "listing",
+      listing: { maxAttendees: 1, name: "Grouped Kid" },
+      parents: ["Edge Parent"],
+      version: 1,
+    });
+    if (!result.ok) throw new Error(result.error);
+    expect((await getParentIds(result.id)).length).toBe(1);
+    expect((await getGroupIdsByListingId(result.id)).length).toBe(1);
   });
 
   test("hides the webhook URL from an editor export", async () => {

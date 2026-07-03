@@ -24,6 +24,7 @@ import {
   type GroupInput,
   getAllGroups,
   getGroupIdsByListingIds,
+  getGroupsById,
   groupsTable,
 } from "#shared/db/groups.ts";
 import {
@@ -139,8 +140,12 @@ const withNewId = (
 const firstPackageGroup = async (
   groupIds: readonly number[],
 ): Promise<Group | null> => {
+  if (groupIds.length === 0) return null;
+  // Resolve against the cached group set rather than one findById per group, so a
+  // child listing that belongs to many groups doesn't trip the request N+1 guard.
+  const byId = await getGroupsById();
   for (const groupId of groupIds) {
-    const group = await groupsTable.findById(groupId);
+    const group = byId.get(groupId);
     if (group?.is_package) return group;
   }
   return null;
