@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { decryptBytes, encryptBytes } from "#shared/crypto/encryption.ts";
+import { FULL_IMAGE_TARGET } from "#shared/images/targets.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
   deleteAllListingStorageFiles,
@@ -23,7 +24,6 @@ import {
   validateAttachment,
   validateImage,
 } from "#shared/storage.ts";
-import { FULL_IMAGE_TARGET } from "#shared/images/targets.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
 import {
   describeWithEnv,
@@ -561,8 +561,18 @@ describeWithEnv(
               image_thumb_url: "img1-thumb.webp",
               image_url: "img1.jpg",
             },
-            { attachment_url: "", id: 2, image_thumb_url: "", image_url: "img2.png" },
-            { attachment_url: "att3.pdf", id: 3, image_thumb_url: "", image_url: "" },
+            {
+              attachment_url: "",
+              id: 2,
+              image_thumb_url: "",
+              image_url: "img2.png",
+            },
+            {
+              attachment_url: "att3.pdf",
+              id: 3,
+              image_thumb_url: "",
+              image_url: "",
+            },
           ];
 
           await withBunnyDeleteCapture(async (deletedUrls) => {
@@ -600,7 +610,12 @@ describeWithEnv(
 
         test("continues deleting when individual file delete fails", async () => {
           const listings = [
-            { attachment_url: "", id: 1, image_thumb_url: "", image_url: "fail.jpg" },
+            {
+              attachment_url: "",
+              id: 1,
+              image_thumb_url: "",
+              image_url: "fail.jpg",
+            },
             {
               attachment_url: "",
               id: 2,

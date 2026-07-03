@@ -1,6 +1,6 @@
+import jpegEncode from "@jsquash/jpeg/encode.js";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import jpegEncode from "@jsquash/jpeg/encode.js";
 import { decodeImage } from "#shared/images/codecs.ts";
 import {
   FULL_IMAGE_TARGET,

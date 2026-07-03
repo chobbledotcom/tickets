@@ -4,8 +4,8 @@
  * Secrets are read at runtime via Bunny's native environment variables
  */
 
-import { denoPlugins } from "@luca/esbuild-deno-loader";
 import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
+import { denoPlugins } from "@luca/esbuild-deno-loader";
 import { fromFileUrl } from "@std/path";
 import type { Plugin } from "esbuild";
 import * as esbuild from "esbuild";
@@ -196,7 +196,9 @@ const buildWasmBytesModule = async (): Promise<string> => {
   for (const [exportName, file] of WASM_BYTES_EXPORTS) {
     const bytes = await Deno.readFile(`./src/shared/images/wasm/${file}`);
     const b64 = encodeBase64(bytes);
-    lines.push(`const ${exportName}Bytes = b64ToBytes(${JSON.stringify(b64)});`);
+    lines.push(
+      `const ${exportName}Bytes = b64ToBytes(${JSON.stringify(b64)});`,
+    );
     lines.push(`export const ${exportName} = () => ${exportName}Bytes;`);
   }
   return lines.join("\n");

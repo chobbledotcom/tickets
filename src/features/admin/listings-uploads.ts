@@ -18,11 +18,11 @@ import {
   type ListingInput,
   listingsTable,
 } from "#shared/db/listings.ts";
-import type { DecodableMime } from "#shared/images/types.ts";
 import {
   FULL_IMAGE_TARGET,
   THUMB_IMAGE_TARGET,
 } from "#shared/images/targets.ts";
+import type { DecodableMime } from "#shared/images/types.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
@@ -114,7 +114,10 @@ const processFormImage = (
         v.detectedType,
         [FULL_IMAGE_TARGET, THUMB_IMAGE_TARGET],
       );
-      return { imageThumbUrl: imageThumbUrl as string, imageUrl: imageUrl as string };
+      return {
+        imageThumbUrl: imageThumbUrl as string,
+        imageUrl: imageUrl as string,
+      };
     },
     validate: (data, file) => {
       const v = validateImage(data, file.type);
@@ -184,6 +187,18 @@ export const processUploadsAndRedirect = async (
   return redirect(redirectUrl, successMessage, true);
 };
 
+/** Best-effort delete of derived files (e.g. an image's thumbnail) — a missing
+ * or failed derived file must never block clearing the primary record. */
+const deleteExtraFiles = async (
+  urls: ReadonlyArray<string>,
+  listingId: number,
+  label: string,
+): Promise<void> => {
+  for (const extra of urls) {
+    if (extra) await tryDeleteFile(extra, listingId, `${label} thumb`);
+  }
+};
+
 /** Generic handler for deleting an listing's uploaded file (image or attachment) */
 const handleFileDelete =
   (
@@ -201,11 +216,11 @@ const handleFileDelete =
         if (url) {
           const [deleteResult] = await Promise.allSettled([deleteFile(url)]);
           if (deleteResult.status === "fulfilled") {
-            // Best-effort cleanup of derived files (e.g. the image thumbnail):
-            // a missing/failed thumb must not block clearing the primary.
-            for (const extra of getExtraUrls?.(listing) ?? []) {
-              if (extra) await tryDeleteFile(extra, listing.id, `${label} thumb`);
-            }
+            await deleteExtraFiles(
+              getExtraUrls?.(listing) ?? [],
+              listing.id,
+              label,
+            );
             await listingsTable.update(id, clearFields);
             await logActivity(
               `${label} removed for '${listing.name}'`,

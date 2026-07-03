@@ -41,23 +41,21 @@ export const pickEncoderWasm = (useSimd: boolean): Uint8Array =>
   useSimd ? webpEncSimdWasm() : webpEncWasm();
 
 /** Compile all codec modules and hand each to its jSquash init, exactly once. */
-const ensureCodecs = once(
-  async (): Promise<void> => {
-    const encWasm = pickEncoderWasm(await simd());
-    const [pngMod, jpegMod, webpDecMod, webpEncMod] = await Promise.all([
-      compileWasm(pngDecWasm()),
-      compileWasm(jpegDecWasm()),
-      compileWasm(webpDecWasm()),
-      compileWasm(encWasm),
-    ]);
-    await Promise.all([
-      pngInit(pngMod),
-      jpegInit(jpegMod),
-      webpDecInit(webpDecMod),
-      webpEncInit(webpEncMod),
-    ]);
-  },
-);
+const ensureCodecs = once(async (): Promise<void> => {
+  const encWasm = pickEncoderWasm(await simd());
+  const [pngMod, jpegMod, webpDecMod, webpEncMod] = await Promise.all([
+    compileWasm(pngDecWasm()),
+    compileWasm(jpegDecWasm()),
+    compileWasm(webpDecWasm()),
+    compileWasm(encWasm),
+  ]);
+  await Promise.all([
+    pngInit(pngMod),
+    jpegInit(jpegMod),
+    webpDecInit(webpDecMod),
+    webpEncInit(webpEncMod),
+  ]);
+});
 
 /** Decoder per accepted MIME type — exhaustive, so a new format is a compile error. */
 const DECODERS: Record<

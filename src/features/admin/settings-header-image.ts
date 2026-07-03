@@ -9,9 +9,9 @@ import { OWNER_MULTIPART, withAuth } from "#routes/auth.ts";
 import { errorRedirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
+import { FULL_IMAGE_TARGET } from "#shared/images/targets.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { fail, ok } from "#shared/response.ts";
-import { FULL_IMAGE_TARGET } from "#shared/images/targets.ts";
 import {
   deleteFile,
   IMAGE_ERROR_MESSAGES,

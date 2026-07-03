@@ -25,7 +25,10 @@ export const transcodeToWebp = async (
   const variants: Uint8Array[] = [];
   for (const target of targets) {
     variants.push(
-      await encodeWebp(resizeToMaxWidth(decoded, target.maxWidth), target.quality),
+      await encodeWebp(
+        resizeToMaxWidth(decoded, target.maxWidth),
+        target.quality,
+      ),
     );
   }
   return variants;

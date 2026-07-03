@@ -59,7 +59,11 @@ const submitHeaderJpeg = async (
   csrfToken?: string,
 ): Promise<Response> =>
   submitHeaderImage(
-    { contentType: "image/png", data: await makeTestPng(64, 48), name: filename },
+    {
+      contentType: "image/png",
+      data: await makeTestPng(64, 48),
+      name: filename,
+    },
     cookie,
     csrfToken,
   );
