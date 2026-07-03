@@ -12,6 +12,7 @@ import {
   expectHtmlResponse,
   expectRedirectWithFlash,
   JPEG_HEADER,
+  makeTestPng,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
@@ -49,14 +50,16 @@ const submitHeaderImage = async (
   );
 };
 
-/** Submit a valid JPEG to the header-image upload endpoint */
-const submitHeaderJpeg = (
+/** Submit a valid (real, decodable) image to the header-image upload endpoint.
+ * Uploads are transcoded to WebP, so the source must be a genuine image the
+ * pipeline can decode — a real PNG, not a magic-byte stub. */
+const submitHeaderJpeg = async (
   filename: string,
   cookie?: string,
   csrfToken?: string,
 ): Promise<Response> =>
   submitHeaderImage(
-    { contentType: "image/jpeg", data: JPEG_HEADER, name: filename },
+    { contentType: "image/png", data: await makeTestPng(64, 48), name: filename },
     cookie,
     csrfToken,
   );
@@ -119,7 +122,8 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
       await withStorageMock(async () => {
         const response = await submitHeaderJpeg("logo.jpg");
         expectSettingsRedirect(response);
-        expect(settings.headerImageUrl).toMatch(/\.jpg$/);
+        // Every upload is transcoded to WebP regardless of source format.
+        expect(settings.headerImageUrl).toMatch(/\.webp$/);
       });
     });
 
@@ -132,7 +136,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
         });
         await expectFlashRedirect(
           HEADER_IMAGE_FORM_REDIRECT,
-          expect.stringContaining("JPEG, PNG, GIF, or WebP"),
+          expect.stringContaining("JPEG, PNG, or WebP"),
           false,
         )(response);
       });

@@ -19,6 +19,7 @@ import {
   flashCookieHeader,
   installUrlHandler,
   JPEG_HEADER,
+  makeTestPng,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
@@ -89,16 +90,18 @@ const submitEditFile =
 /** Submit an edit-form multipart request with an image file attached */
 const submitEditImage = submitEditFile("image");
 
-/** Submit a JPEG image via the edit form (most common upload case) */
-const submitEditJpeg = (
+/** Submit a real (decodable) image via the edit form (most common upload case).
+ * Uploads are transcoded to WebP, so the source must be a genuine image — a
+ * real PNG, not a magic-byte stub. */
+const submitEditJpeg = async (
   listingId: number,
   cookie: string,
   csrfToken: string,
   filename: string,
 ): Promise<Response> =>
   submitEditImage(listingId, cookie, csrfToken, {
-    contentType: "image/jpeg",
-    data: JPEG_HEADER,
+    contentType: "image/png",
+    data: await makeTestPng(80, 60),
     name: filename,
   });
 
@@ -291,7 +294,7 @@ describeWithEnv(
               name: "test.pdf",
             },
           );
-          await expectImageErrorRedirect(response, "JPEG, PNG, GIF, or WebP");
+          await expectImageErrorRedirect(response, "JPEG, PNG, or WebP");
           const updated = await getListingWithCount(listing.id);
           expect(updated?.image_url).toBe("");
         });
@@ -342,14 +345,19 @@ describeWithEnv(
           )(response);
 
           const updated = await getListingWithCount(listing.id);
-          expect(updated?.image_url).not.toBe("");
-          expect(updated?.image_url).toMatch(/\.jpg$/);
+          // Source PNG is transcoded to a full WebP plus a WebP thumbnail.
+          expect(updated?.image_url).toMatch(/\.webp$/);
+          expect(updated?.image_thumb_url).toMatch(/\.webp$/);
+          expect(updated?.image_thumb_url).not.toBe(updated?.image_url);
         });
       });
 
-      test("deletes old image when uploading new one via edit form", async () => {
+      test("deletes old image and thumbnail when uploading new one via edit form", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await listingsTable.update(listing.id, { imageUrl: "old-image.jpg" });
+        await listingsTable.update(listing.id, {
+          imageThumbUrl: "old-thumb.webp",
+          imageUrl: "old-image.jpg",
+        });
 
         await withStorageMock(async (fetchCalls) => {
           const response = await submitEditJpeg(
@@ -360,10 +368,13 @@ describeWithEnv(
           );
           expect(response.status).toBe(302);
 
-          const deleteCall = fetchCalls.find((url) =>
-            url.includes("old-image.jpg"),
-          );
-          expect(deleteCall).not.toBeUndefined();
+          // Both the old full image and its old thumbnail are deleted.
+          expect(
+            fetchCalls.find((url) => url.includes("old-image.jpg")),
+          ).not.toBeUndefined();
+          expect(
+            fetchCalls.find((url) => url.includes("old-thumb.webp")),
+          ).not.toBeUndefined();
         });
       });
 
@@ -390,7 +401,7 @@ describeWithEnv(
           );
           expect(response.status).toBe(302);
           const updated = await getListingWithCount(listing.id);
-          expect(updated?.image_url).toMatch(/\.jpg$/);
+          expect(updated?.image_url).toMatch(/\.webp$/);
         });
       });
     });
@@ -405,7 +416,11 @@ describeWithEnv(
             cookie,
             csrfToken,
             "Image Test Listing",
-            { contentType: "image/jpeg", data: JPEG_HEADER, name: "photo.jpg" },
+            {
+              contentType: "image/png",
+              data: await makeTestPng(80, 60),
+              name: "photo.png",
+            },
           );
           expect(response.status).toBe(302);
 
@@ -413,7 +428,8 @@ describeWithEnv(
           const listings = await getAllListings();
           const created = listings.find((e) => e.name === "Image Test Listing");
           expect(created).not.toBeUndefined();
-          expect(created?.image_url).toMatch(/\.jpg$/);
+          expect(created?.image_url).toMatch(/\.webp$/);
+          expect(created?.image_thumb_url).toMatch(/\.webp$/);
         });
       });
 
@@ -432,7 +448,7 @@ describeWithEnv(
               name: "test.pdf",
             },
           );
-          expectImageErrorRedirect(response, "JPEG, PNG, GIF, or WebP");
+          expectImageErrorRedirect(response, "JPEG, PNG, or WebP");
 
           const { getAllListings } = await import("#shared/db/listings.ts");
           const listings = await getAllListings();
@@ -504,11 +520,14 @@ describeWithEnv(
           "Image removed",
         )(response);
 
-      test("removes image from listing and storage", async () => {
+      test("removes image and thumbnail from listing and storage", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await listingsTable.update(listing.id, { imageUrl: "to-delete.jpg" });
+        await listingsTable.update(listing.id, {
+          imageThumbUrl: "to-delete-thumb.webp",
+          imageUrl: "to-delete.webp",
+        });
 
-        await withStorageMock(async () => {
+        await withStorageMock(async (fetchCalls) => {
           const response = await submitImageDelete(
             listing.id,
             cookie,
@@ -518,6 +537,14 @@ describeWithEnv(
 
           const updated = await getListingWithCount(listing.id);
           expect(updated?.image_url).toBe("");
+          expect(updated?.image_thumb_url).toBe("");
+          // Both the full image and the thumbnail file are deleted from storage.
+          expect(
+            fetchCalls.find((url) => url.includes("to-delete.webp")),
+          ).not.toBeUndefined();
+          expect(
+            fetchCalls.find((url) => url.includes("to-delete-thumb.webp")),
+          ).not.toBeUndefined();
         });
       });
 
