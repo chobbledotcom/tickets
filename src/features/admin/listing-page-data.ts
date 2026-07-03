@@ -19,6 +19,7 @@ import { formatDateLabel } from "#shared/dates.ts";
 import {
   type ActivityLogEntry,
   getListingActivityLog,
+  getListingWithActivityLog,
 } from "#shared/db/activityLog.ts";
 import { decryptAttendees } from "#shared/db/attendees.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
@@ -175,7 +176,7 @@ export const loadListingOverviewPanel = async ({
     loadDecryptedListingAttendees(listing.id),
     deleteAllStaleReservations(),
   ]);
-  const [recalc, revenueBreakdown, groupContext, systemNotes] =
+  const [recalc, revenueBreakdown, groupContext, systemNotes, questionData] =
     await Promise.all([
       getListingAggregateRecalculation(listing),
       listingRevenueBreakdown(listing.id),
@@ -186,6 +187,12 @@ export const loadListingOverviewPanel = async ({
         attendees.map((a) => a.id),
         requireRequestPrivateKey,
       ),
+      // Whole-listing answer aggregates for the details table's answer-summary
+      // rows (all attendees, not the roster's date-filtered subset).
+      loadListingQuestionData(
+        listing.id,
+        attendees.map((a) => a.id),
+      ),
     ]);
   return ListingOverviewPanel({
     aggregateRecalculation: recalc,
@@ -195,6 +202,7 @@ export const loadListingOverviewPanel = async ({
     isChild,
     isHiddenPackageMember,
     listing,
+    questionData,
     revenueBreakdown,
     systemNotes,
   });
@@ -256,13 +264,14 @@ export const loadListingActivityPreview = ({
 }: LoadedListing): Promise<ActivityLogEntry[]> =>
   getListingActivityLog(listing.id, ACTIVITY_PREVIEW_LIMIT);
 
-/** The full activity log for the Activity tab. The page frame already holds the
- *  listing, so this fetches only the log entries (a plain array — empty when the
- *  listing has no activity). */
-export const loadListingActivity = ({
+/** The full activity log for the Activity tab. Uses the batched listing+log
+ *  fetch; the framework has already resolved (and 404'd) the listing before this
+ *  tab loads, so the row is present — assert it rather than carry a null branch
+ *  this tab can never reach. */
+export const loadListingActivity = async ({
   listing,
 }: LoadedListing): Promise<ActivityLogEntry[]> =>
-  getListingActivityLog(listing.id);
+  (await getListingWithActivityLog(listing.id))!.entries;
 
 /**
  * Build the Edit tab: the multipart edit form and its side panels. Reloads via

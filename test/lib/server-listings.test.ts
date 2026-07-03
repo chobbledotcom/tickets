@@ -711,6 +711,39 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expect(html).toContain('<span title="Size: Small">Small</span>');
     });
 
+    test("shows the whole-listing answer aggregate on the Overview tab", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Overview Answers Listing",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ada Lovelace",
+        "ada@example.com",
+      );
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Size",
+      });
+      const small = await answersTable.insert({
+        questionId: q.id,
+        sortOrder: 0,
+        text: "Small",
+      });
+      await setListingQuestions(listing.id, [q.id]);
+      await saveAttendeeAnswers(new Map([[attendee.id, [small.id]]]));
+
+      // The Overview details table carries the aggregate answer-count row for
+      // the whole listing (distinct from the roster's per-attendee answers).
+      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).toContain("Size");
+      expect(html).toContain("Small (1)");
+    });
+
     test("shows the full activity log on the Activity tab", async () => {
       const { listing, cookie } = await setupListingAndLogin({
         maxAttendees: 100,
