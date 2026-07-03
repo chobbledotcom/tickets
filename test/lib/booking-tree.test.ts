@@ -50,7 +50,7 @@ describe("booking tree — node identity (nodeKey scheme)", () => {
     // Parent listing 5 reached standalone vs as package group 3's member: its
     // required child 9 must NOT collapse to one signed identity, because the
     // package path carries different provenance (group id, hidden projection,
-    // package-scaled quantity) that Phase 2 signs/revalidates by nodeKey (Codex).
+    // package-scaled quantity) that the signature layer revalidates by nodeKey.
     expect(childNodeKey(listingNodeKey(5), 9)).not.toBe(
       childNodeKey(packageMemberNodeKey(3, 5), 9),
     );
@@ -328,7 +328,7 @@ describe("buildBookingTree — package members", () => {
   test("a hidden package member hides its auto-included children too", () => {
     // hide_package_listings hides the member AND its whole subtree, so a
     // HIDDEN-dropping projection can never name the child of a hidden member —
-    // even when the child listing is not itself hidden (Codex).
+    // even when the child listing is not itself hidden.
     const tree = packageMemberWithChild(true);
     const member = tree.nodes[0]!;
     expect(member.visibility).toBe("HIDDEN");

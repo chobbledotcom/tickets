@@ -13,7 +13,7 @@
  *
  * `attendeeFormPage` is the standalone /admin/attendees/new page;
  * {@link AttendeeFormPanel} is the same warnings + errors + form block the
- * attendee entity page's Edit tab embeds (edit-pages.md).
+ * attendee entity page's Edit tab embeds.
  */
 
 import { t } from "#i18n";

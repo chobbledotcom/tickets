@@ -15,7 +15,7 @@ import {
 } from "./shared.tsx";
 
 /** How a public listing card should treat a child listing. A booking can never
- * start from a child (invariant I3), so a child never gets a standalone Book/Buy
+ * start from a child, so a child never gets a standalone Book/Buy
  * CTA: `"addon"` (the child has a live parent page) shows the "available as an
  * add-on" note, while `"unavailable"` (no active parent page can offer it) reads
  * as currently unavailable rather than pointing at a dead end. `"none"` is an
@@ -30,7 +30,7 @@ export const childCardState =
   (id: number): ChildCardState =>
     addOnChildIds.has(id) ? "addon" : childIds.has(id) ? "unavailable" : "none";
 
-/** The /listings `?date=` filter for DAILY cards (#51). Present whenever the
+/** The /listings `?date=` filter for DAILY cards. Present whenever the
  * page shows daily listings — their capacity is a per-date fact, so their
  * cards make no availability claim until the visitor picks a date here.
  * `date` is the validated chosen date (null when none picked yet) and
@@ -57,14 +57,14 @@ const renderDateFilter = (filter: DailyDateFilter): string => {
 };
 
 /** Booking CTA / status line for a public listing card. A child listing is
- * never standalone-bookable (invariant I3), so its Book/Buy button is replaced
+ * never standalone-bookable, so its Book/Buy button is replaced
  * with the "available as an add-on" note (a child with a live bookable parent)
  * or the "currently unavailable" note (a child with no bookable parent to offer
  * it)
  * — but only when the child is otherwise bookable: an unavailable child (sold
  * out / closed / read-only site) must still read as such, so those checks run
- * first (parents.md, "Public listing cards"). */
-/** A daily card's `?date=`-filtered state (#51): the filtered date it can
+ * first. */
+/** A daily card's `?date=`-filtered state: the filtered date it can
  * serve (carried into its Book CTA so the booking page pre-selects it), the
  * date it can't ("filtered-out"), or no filter in play for this card. */
 type CardDateState =

@@ -48,7 +48,7 @@ const signedValue = (modifier: Modifier): number => {
 
 /** Resolve the listing ids each "groups"-scoped modifier covers. The default
  * resolves the group→listing membership live (the DB join); the would-be variant
- * (parents.md Fix 4) passes a resolver that expands against in-memory listings. */
+ * passes a resolver that expands against in-memory listings. */
 type GroupScopeResolver = (
   groupScopedIds: number[],
 ) => Promise<Map<number, number[]>>;
@@ -423,8 +423,8 @@ const addOnCanRequirePayment = (modifier: Modifier): boolean =>
 /** Active opt-in ("optional") add-on modifiers paired with their resolved
  * listing scopes (null = whole order), the shared starting point for the add-on
  * listing and the child-reachability hard block. `resolveGroupScopes` chooses how
- * group scopes resolve (live join by default; in-memory for the would-be Fix 4
- * check). */
+ * group scopes resolve (live join by default; in-memory for the would-be
+ * pre-save check). */
 const optionalAddOnsWithScopes = async (
   resolveGroupScopes?: GroupScopeResolver,
 ): Promise<{
@@ -489,8 +489,7 @@ export const getOptionalAddOns = async (
  * add-on whose entire reachable scope is suppressed children. The test is
  * **reachability**, not "the child appears in the scope": an add-on scoped to
  * the child *and also* to the parent (or to a group containing the parent) still
- * loads via the parent's page ids and must NOT block the edge. (See parents.md,
- * the "Optional add-ons" fold-checklist bullet.)
+ * loads via the parent's page ids and must NOT block the edge.
  */
 export const childOnlyAddOnName = async (
   childId: number,
@@ -563,7 +562,7 @@ export const listingIdsInGroups = (
  * A {@link GroupScopeResolver} that expands each group-scoped modifier against
  * an **in-memory** listing set, so a caller can test reachability under a
  * listing's *would-be* `group_id` (which the live `modifier_groups`→`listings`
- * join wouldn't yet reflect — parents.md Fix 4). Fetches each modifier's linked
+ * join wouldn't yet reflect). Fetches each modifier's linked
  * group ids, then maps them to the supplied listings' ids via
  * {@link listingIdsInGroups}.
  */
@@ -583,8 +582,7 @@ const inMemoryGroupScopeResolver =
  * Like {@link childOnlyAddOnName}, but resolving add-on scopes against the
  * supplied **in-memory** listings (with the saved listing's would-be `group_id`
  * already applied), so a listing save that moves a parent out of the group a
- * child-only add-on is scoped to is caught before it orphans the add-on
- * (parents.md Fix 4).
+ * child-only add-on is scoped to is caught before it orphans the add-on.
  */
 export const childOnlyAddOnNameForListings = async (
   childId: number,
@@ -637,7 +635,7 @@ export const childUnreachableAddOnError = (
  * (reachable only through a suppressed child) given an **in-memory** listing set,
  * or null when every add-on still has a live page that can offer it. Used by a
  * listing save that flips `active` to re-check reachability for the *whole* set
- * of add-ons — not just edges touching the saved listing (parents.md Fix 5): a
+ * of add-ons — not just edges touching the saved listing: a
  * plain non-child page that is the only thing rescuing a child-scoped add-on has
  * no edge of its own, so the edge-touching traversal would miss it.
  *

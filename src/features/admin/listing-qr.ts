@@ -52,8 +52,8 @@ export const EMPTY_QR_VALUES: AdminListingQrValues = {
  * span on the booking form — so every individually-bookable start is offered.
  *
  * When the listing is a parent, the offered dates are constrained to those at
- * least one required child can serve for the inherited span (Fix 2,
- * `constrainParentDailyDates`) — the same union the scanned booking form
+ * least one required child can serve for the inherited span
+ * (`constrainParentDailyDates`) — the same union the scanned booking form
  * enforces — so an admin can't mint a QR for a date the child-constrained
  * booking form would reject. A no-op for a daily listing with no child edges. */
 export const loadBookableDates = async (
@@ -71,7 +71,7 @@ export const loadBookableDates = async (
 const withListing = withEntityLoader(getListingWithCount);
 
 /** Run `fn` only when `listing` has a standalone booking entry point; otherwise
- * 404. A child (invariant I3) and a hidden package's member both have no public
+ * 404. A child and a hidden package's member both have no public
  * page — their /ticket slug 404s — so the QR generator (which signs
  * `/ticket/<slug>/qr-book`) would mint a dead-end link. No query for either when
  * the respective feature is off, so existing behaviour is unchanged. */
@@ -81,7 +81,7 @@ const unlessChild = async (
 ): Promise<Response> =>
   (await lacksStandalonePublicPage(listing.id)) ? notFoundResponse() : fn();
 
-/** A listing with its child-constrained bookable date set (Fix 2), the context
+/** A listing with its child-constrained bookable date set, the context
  * the QR validator needs so a submitted date is checked against the same dates
  * the form offers. */
 type QrContext = { listing: ListingWithCount; bookableDates: string[] };
@@ -149,14 +149,14 @@ const getPriceBounds = (
 
 /**
  * Build a form validator for the QR form, using listing config for range checks.
- * `bookableDates` is the child-constrained date set the form offers (Fix 2): a
+ * `bookableDates` is the child-constrained date set the form offers: a
  * daily listing's submitted date must be one of them, so an admin can't sign a
  * QR for a date a required child can't serve (which the scanned booking form
  * would then reject) by posting a raw date past the dropdown.
  */
 /** The error for a daily listing's submitted date, or null when it is allowed:
  * required, and one of the child-constrained `bookableDates` the form offers
- * (Fix 2). A no-op for a non-daily listing (which has no date control). */
+ * A no-op for a non-daily listing (which has no date control). */
 const qrDateError = (
   listing: ListingWithCount,
   date: string,

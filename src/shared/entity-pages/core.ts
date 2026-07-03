@@ -1,6 +1,6 @@
 /**
- * Entity pages — the pure core of the tabbed admin "edit X" framework
- * (edit-pages.md). The impure shell (`#routes/admin/entity-pages.ts`)
+ * Entity pages — the pure core of the tabbed admin "edit X" framework.
+ * The impure shell (`#routes/admin/entity-pages.ts`)
  * evaluates each tab's visibility predicate once and hands the resulting
  * plain {@link TabState} list to these functions, so tab resolution and
  * strip building are total data-in/data-out functions with no entity type,

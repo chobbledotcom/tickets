@@ -1,6 +1,6 @@
 /**
- * Pure data shapes for the site-pages functional core (see pages.md,
- * "Functional core"). This module imports nothing but domain types — every
+ * Pure data shapes for the site-pages functional core. This module imports
+ * nothing but domain types — every
  * value here is plain, serialisable data that the pure functions in `core.ts`
  * transform. No DB, no crypto, no JSX.
  */

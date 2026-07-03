@@ -11,7 +11,6 @@
  */
 
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
-import { anyChildListing } from "#routes/public/ticket-payment.ts";
 import { resolveRecipientEmails } from "#shared/bulk-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatDateLabel } from "#shared/dates.ts";
@@ -22,7 +21,10 @@ import {
 } from "#shared/db/activityLog.ts";
 import { decryptAttendees } from "#shared/db/attendees.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
-import { getChildrenForParents } from "#shared/db/listing-parents.ts";
+import {
+  anyNonStandaloneChild,
+  getChildrenForParents,
+} from "#shared/db/listing-parents.ts";
 import {
   getAttendeesByListingIds,
   getListingAggregateRecalculation,
@@ -78,7 +80,9 @@ export const loadListingForPage = async (
   const listing = await getListingWithCount(id);
   if (!listing) return null;
   const [isChild, hiddenMemberIds] = await Promise.all([
-    anyChildListing([id]),
+    // A `bookable_alone` child keeps its standalone share / QR affordances, so
+    // gate on non-standalone children only (matches the public booking guard).
+    anyNonStandaloneChild([id]),
     getHiddenPackageMemberIds([id]),
   ]);
   return {

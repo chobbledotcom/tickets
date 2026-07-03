@@ -1,7 +1,7 @@
 import { schemaMigration } from "./define.ts";
 
 /**
- * User-created content pages (pages.md). Adds two tables:
+ * User-created content pages. Adds two tables:
  *
  * - `site_pages` — one row per page. All free-text columns (slug, name,
  *   meta_title, meta_description, content) are stored encrypted; `slug_index`
@@ -11,7 +11,7 @@ import { schemaMigration } from "./define.ts";
  *   `(page_id, item_type, item_id)`, where an item is a listing, group, or
  *   another page. The single-parent invariant for `page` items is enforced in
  *   application code (the schema machinery can't express a partial-unique
- *   index — see pages.md N3).
+ *   index).
  */
 export default schemaMigration(
   "2026-07-01_site_pages",

@@ -163,7 +163,7 @@ describeWithEnv(
       expect(await getChildIds(copy.id)).toEqual([]);
     });
 
-    test("duplicating a parent whose child carries a {parent,child}-scoped opt-in add-on warns and does not silently copy a gateless standalone (Fix 1)", async () => {
+    test("duplicating a parent whose child carries a {parent,child}-scoped opt-in add-on warns and does not silently copy a gateless standalone", async () => {
       // The child has an active opt-in add-on scoped to {originalParent, child}
       // (valid originally — reachable from the original parent's page). On the
       // COPY the add-on is reachable only through the original parent and the
@@ -254,8 +254,8 @@ describeWithEnv(
       expect(await getChildIds(parentCopy.id)).toEqual([outsideChild.id]);
     });
 
-    test("group duplicate remaps an incoming edge from a parent outside the group (Fix 2)", async () => {
-      // Fix 2: when a cloned member is a CHILD whose parent lives OUTSIDE the
+    test("group duplicate remaps an incoming edge from a parent outside the group", async () => {
+      // When a cloned member is a CHILD whose parent lives OUTSIDE the
       // group, the incoming `outsideParent -> clonedChild` edge must be
       // recreated, so the clone stays a child (never standalone-bookable) — the
       // one-cloned-endpoint rule keeps the original opposite endpoint.
@@ -286,7 +286,7 @@ describeWithEnv(
       expect(await getChildIds(childCopy.id)).toEqual([]);
     });
 
-    test("group duplicate whose cloned parent's edge copy fails surfaces a warning and leaves no gateless clone (Fix 5)", async () => {
+    test("group duplicate whose cloned parent's edge copy fails surfaces a warning and leaves no gateless clone", async () => {
       // `remapDuplicatedGroupEdges` used to discard `copyDuplicatedChildEdges`'s
       // return, so a cloned parent could be left gateless while the bulk
       // duplicate reported success. Scenario: a group parent P requires an
@@ -339,7 +339,7 @@ describeWithEnv(
       )(response);
     });
 
-    test("group duplicate surfaces a warning when an incoming external-parent edge fails re-validation (Fix 5)", async () => {
+    test("group duplicate surfaces a warning when an incoming external-parent edge fails re-validation", async () => {
       // Exercises the Direction-2 (incoming) edge-copy of a group duplicate: a
       // group member C is a CHILD of an EXTERNAL parent P. C carries an opt-in
       // add-on reachable only through C itself (scoped to {C}), so the P->C edge
@@ -387,8 +387,8 @@ describeWithEnv(
       )(response);
     });
 
-    test("a member-only-child group's cloned child 404s on its own ticket page (Fix 2)", async () => {
-      // End-to-end consequence of Fix 2: the cloned child is a child, so its
+    test("a member-only-child group's cloned child 404s on its own ticket page", async () => {
+      // End-to-end consequence: the cloned child is a child, so its
       // standalone /ticket/<clonedChild> page must 404 (a booking can never start
       // from a child) instead of letting it be booked standalone.
       const { settings } = await import("#shared/db/settings.ts");

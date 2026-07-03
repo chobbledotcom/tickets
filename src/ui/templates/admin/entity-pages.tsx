@@ -1,6 +1,6 @@
 /**
- * Entity pages — the shared renderer for the tabbed admin "edit X" framework
- * (edit-pages.md). One page shell (title → banner → tab strip → sections)
+ * Entity pages — the shared renderer for the tabbed admin "edit X" framework.
+ * One page shell (title → banner → tab strip → sections)
  * plus an exhaustive per-kind section renderer. Tabs are plain links to real
  * URLs (full page loads), so the strip uses link semantics with
  * `aria-current="page"` — never ARIA tablist, which would misdescribe

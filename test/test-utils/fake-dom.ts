@@ -25,12 +25,12 @@ export type FakeElement = {
   getAttribute: (name: string) => string | null;
   /** Add (force=true) or remove (force=false) a boolean-ish attribute, mirroring
    * the DOM `Element.toggleAttribute(name, force)` the scripts use to flag a
-   * sole-child block incompatible (Fix 1). */
+   * sole-child block incompatible. */
   toggleAttribute: (name: string, force: boolean) => void;
   querySelectorAll: (selector: string) => FakeElement[];
   addEventListener: (event: string, listener: () => void) => void;
   /** Dispatch a real `Event` to the registered listeners (the production scripts
-   * call this to notify dependents — Fix 2). Returns true like the DOM API. */
+   * call this to notify dependents). Returns true like the DOM API. */
   dispatchEvent: (event: Event) => boolean;
   /** Fire a registered listener by name (test-only convenience). */
   dispatch: (event: string) => void;
@@ -203,7 +203,7 @@ export const packageSelectorSpec = (
  * value="1">`), the shape a single-parent sole-child page renders when the
  * quantity selector is suppressed (`hideQuantity`). Defaults to "1", matching the
  * server template, so a test can assert it is restored after a compatible
- * selection returns (Fix 5). */
+ * selection returns. */
 export const hiddenQuantitySpec = (id: string, value = "1"): ElementSpec => ({
   name: `quantity_${id}`,
   tag: "input",
@@ -229,8 +229,8 @@ export const childSelectorSpec = (
   tag: "fieldset",
 });
 
-/** The date/span compatibility attributes a bookable child carries (Codex 430,
- * Fix 4). `data-child-dates` is the span-keyed wire shape `span:d,d|span:d,d`
+/** The date/span compatibility attributes a bookable child carries.
+ * `data-child-dates` is the span-keyed wire shape `span:d,d|span:d,d`
  * (`encodeChildSpanDates`). `dates` is given as span → dates (a single span when
  * the parent is fixed-duration); a flat `string[]` is sugar for one span "1".
  * `spans` are the supported day counts. */
@@ -264,7 +264,7 @@ const compatData = (
  * (default "0"); a disabled control models a sold-out child.
  *
  * `compat` adds the date/span compatibility attributes the server emits for a
- * BOOKABLE child (Codex 430): `data-child-qty` (the JS-managed marker) plus the
+ * BOOKABLE child: `data-child-qty` (the JS-managed marker) plus the
  * optional `data-child-dates` / `data-child-spans`. A server-disabled (sold-out)
  * child renders WITHOUT `data-child-qty`, so omit `compat` to model one. */
 export const childQtySpec = (
@@ -284,9 +284,9 @@ export const childQtySpec = (
 /** A sole auto-selected child's informational marker (`renderSoleChildOption`):
  * a `data-sole-parent`/`data-sole-child` element with NO `child_qty_*` control,
  * so the active-listing set must pick it up from the parent being in the cart
- * alone (Fix 1). `compat` adds the same `data-child-dates` / `data-child-spans`
+ * alone. `compat` adds the same `data-child-dates` / `data-child-spans`
  * the server now emits on the marker so the compatibility script can flag the
- * parent when the sole child can't serve the selection (Fix 1). */
+ * parent when the sole child can't serve the selection. */
 export const soleChildSpec = (
   parentId: string,
   childId: string,

@@ -534,7 +534,7 @@ export type ListingPanelOptions = {
    * address — gates the owner-only "Email" action. */
   hasEmailableAttendees?: boolean | undefined;
   /** Whether this listing is a child of another listing. A child has no
-   * standalone booking entry point (invariant I3), so the per-listing share
+   * standalone booking entry point, so the per-listing share
    * generators (public URL / embed snippets / QR) are suppressed and the booking
    * QR menu action is hidden — they would only publish a dead-end link. */
   isChild?: boolean | undefined;
@@ -1561,6 +1561,7 @@ const listingFieldFormatters: Partial<
   Record<keyof ListingWithCount, (e: ListingWithCount) => string | null>
 > = {
   assign_built_site: (e) => booleanToCheckbox(e.assign_built_site),
+  bookable_alone: (e) => booleanToCheckbox(e.bookable_alone),
   bookable_days: (e) => formatBookableDays(e.bookable_days),
   can_pay_more: (e) => booleanToCheckbox(e.can_pay_more),
   closes_at: (e) => formatDatetimeLocal(e.closes_at),
@@ -1953,6 +1954,7 @@ const OPTION_FIELDS = [
   "fields",
   "non_transferable",
   "purchase_only",
+  "bookable_alone",
   "uses_logistics",
   "hidden",
 ] as const;
@@ -2446,7 +2448,7 @@ export const ListingEditPanel = ({
 }: ListingEditPanelOptions): JSX.Element => {
   // A listing offered as a child inherits its parent's booking date/duration, so
   // its own date/duration settings have no effect when chosen as a child. Surface
-  // that with a top banner and an inline note on the affected sections (#3).
+  // that with a top banner and an inline note on the affected sections.
   const offeredUnder = parents?.offeredUnder ?? [];
   const childOfNames =
     offeredUnder.length > 0 ? offeredUnder.map((p) => p.name).join(", ") : null;

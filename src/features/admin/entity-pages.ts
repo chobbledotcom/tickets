@@ -1,6 +1,6 @@
 /**
  * Entity pages — the impure shell of the tabbed admin "edit X" framework
- * (edit-pages.md). `defineEntityPage` turns one declarative page definition
+ * `defineEntityPage` turns one declarative page definition
  * (tabs of typed sections) into handlers the feature file binds under its
  * literal route keys:
  *

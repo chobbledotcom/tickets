@@ -209,3 +209,55 @@ keeps the bundles honest by failing when a route reads a key it didn't declare.
 - **Generation counter for concurrent partial-load/write races.** Only add this
   if profiling shows real concurrency between a partial load and a settings
   write. Not needed today.
+
+---
+
+## Packages / choice slots (parent members with a pick count)
+
+- **Chooser own-cap footgun.** A choice slot is a package member that is a
+  parent listing; its own `max_quantity` feeds the bundle cap
+  (`min(own_cap, child_units) ÷ pick_count`). A chooser left at the default
+  `max_quantity: 1` under a pick-2 slot silently caps the whole package at 0,
+  with no save-time warning. Fix: reject (or warn on) a parent package member
+  whose per-order cap is below its pick count.
+
+- **`allocations` metadata length limit.** `enforceMetadataLimits`
+  length-checks `items`, answers, `modifiers`, the entry count and the packed
+  field, but not `allocations` — the fastest-growing field once every pick adds
+  an allocation. A large multi-slot checkout can fail with a raw payment-provider
+  error instead of the app's "book in smaller batches" message. Add
+  `allocations` to the same length guard.
+
+- **Capacity edge cases beyond the shipped model.** The shipped bundle-cap model
+  (per-member child caps, sole-child pools, all-children forced demand) covers
+  the common configurations but is not a full per-candidate feasibility solver:
+  partial-overlap cases stay approximate — pool-subset unions (e.g. three pick-1
+  slots over two 1-spot pools), a multi-pool candidate double-counted as
+  alternative supply, and jointly-infeasible cross-slot mixes. All fail SAFE (the
+  atomic submit write rejects; capacity is never clamped, only rejected), so the
+  cost is a rare dead-end submit or an over-advertised bundle, never overbooking.
+  Revisit only if a real configuration hits it.
+
+- **Deferred choice-slot semantics.** Optional slots (a min/max pick count, e.g.
+  "choose 0–2"); a per-slot "distinct picks" flag; per-package-unit pick mixes
+  (today N packages × pick-K allows any mix of N×K picks, following the
+  parent-quantity distribution); and a group-edit "add choice slot" affordance
+  that mints the chooser listing plus its child edges in one step with sensible
+  default caps.
+
+## Listings offered under multiple parents / "can be booked by itself"
+
+- No outstanding items — the row-identity fix (per-parent attendee rows, paid
+  mapping by listing id, remainder rows) and the `bookable_alone` flag shipped.
+
+## Public nav / group liveness
+
+- **Batch package bundle-cap evaluation across group leaves.** A site page's
+  group nav links now load their members in one batch
+  (`getVisibleGroupMembersByGroupIds`), but each PACKAGE group still evaluates its
+  own whole-bundle cap independently in `packageGroupBookable` (membership,
+  per-member capacity, prices, booking tree), and each regular group runs its own
+  `classifyForDiscovery`. So a page with many group links still issues O(groups)
+  liveness reads beyond the shared member batch. Fully batching would mean
+  computing bundle caps for several packages in one pass over shared capacity
+  maps — worthwhile only if a page with many package links shows up hot.

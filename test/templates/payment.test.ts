@@ -203,6 +203,17 @@ describe("paymentCancelPage", () => {
     const html = paymentCancelPage(listing, "/ticket/ab12c");
     expect(html).toContain('data-payment-result="cancel"');
   });
+
+  test("shows a return-home link (no retry) when the listing has no standalone page", () => {
+    // A null ticket URL means the listing lost its own page mid-checkout (a
+    // now-non-standalone child or hidden package member), so a /ticket retry
+    // would 404 — the page offers a way home instead of a dead retry link.
+    const html = paymentCancelPage(listing, null);
+    expect(html).toContain("Payment Cancelled");
+    expect(html).toContain("Return home");
+    expect(html).toContain('href="/"');
+    expect(html).not.toContain("Try again");
+  });
 });
 
 describe("checkoutPopupPage", () => {

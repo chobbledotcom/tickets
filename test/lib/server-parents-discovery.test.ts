@@ -1,7 +1,7 @@
 /**
- * Discovery/share-surface suppression for the listing parent/child feature
- * (parents.md, the "Other entry points" + "no bookable child ⇒ sold out"
- * sections). A *visible* child must never advertise a standalone `/ticket/<slug>`
+ * Discovery/share-surface suppression for the listing parent/child feature:
+ * the "Other entry points" and "no bookable child ⇒ sold out" behaviours.
+ * A *visible* child must never advertise a standalone `/ticket/<slug>`
  * entry point, and a parent with no bookable child must read as sold out, on
  * every discovery surface: public cards, RSS/ICS feeds, the /order gallery, the
  * admin multi-booking link builder, and the per-listing share/QR generators.
@@ -21,14 +21,9 @@ import {
   describeWithEnv,
   makeParent,
   mockRequest,
+  publicBody,
+  ticketPageStatus,
 } from "#test-utils";
-
-/** Fetch a public page body with the public site enabled. */
-const publicBody = async (path: string): Promise<string> => {
-  await settings.update.showPublicSite(true);
-  const response = await handleRequest(mockRequest(path));
-  return response.text();
-};
 
 /** Fetch the gallery body with the public site + order page enabled. */
 const galleryBody = async (): Promise<string> => {
@@ -171,7 +166,7 @@ describeWithEnv(
       // closed registration) has a dead-end "available as an add-on" CTA and is
       // never standalone-bookable (the slug guard rejects all children), so its
       // card must read as currently unavailable rather than a dead-end Book link
-      // or add-on note (Fix 1, parentBookable). Each row disables the only parent
+      // or add-on note (parentBookable). Each row disables the only parent
       // a different way; the assertions are identical.
       const UNAVAILABLE_CHILD_CASES: {
         name: string;
@@ -234,21 +229,16 @@ describeWithEnv(
 
       test("a child whose only parent is deactivated still 404s its ticket page", async () => {
         // The slug guard rejects every child regardless of parent.active, so the
-        // advertised-as-unavailable child must not be standalone-bookable (Fix 1).
+        // advertised-as-unavailable child must not be standalone-bookable.
         const { parent, child } = await makeDefaultParentChild();
         await deactivateTestListing(parent.id);
-        await settings.update.showPublicSite(true);
-        const response = await handleRequest(
-          mockRequest(`/ticket/${child.slug}`),
-        );
-        response.body?.cancel();
-        expect(response.status).toBe(404);
+        expect(await ticketPageStatus(child.slug)).toBe(404);
       });
 
       test("a child with a bookable parent shows the add-on note", async () => {
         // The parent is active, not sold out, and not closed, so it can fold the
         // child into a booking — the child's card shows the add-on note and the
-        // child's own standalone CTA stays suppressed (Fix 1, parentBookable
+        // child's own standalone CTA stays suppressed (parentBookable
         // bookable case).
         const { child } = await makeDefaultParentChild();
         await assertAddOnNote(child.slug);
@@ -256,7 +246,7 @@ describeWithEnv(
 
       test("a child with one active and one inactive parent stays labeled add-on", async () => {
         // At least one active parent can still offer the child, so the standalone
-        // CTA must stay suppressed (Fix 1).
+        // CTA must stay suppressed.
         const activeParent = await createTestListing({ name: "Active base" });
         const deadParent = await createTestListing({ name: "Dead base" });
         const child = await createTestListing({ name: "Add-on" });
@@ -268,7 +258,7 @@ describeWithEnv(
 
       test("a sold-out visible child shows sold out, not the add-on note", async () => {
         // The unavailable state must take precedence over the add-on note so the
-        // card does not advertise an add-on the gate would reject (Fix 2).
+        // card does not advertise an add-on the gate would reject.
         await setupSoldOutChild();
         const body = await publicBody("/listings");
         expect(body).toContain("Add-on");
@@ -280,19 +270,19 @@ describeWithEnv(
         // Parent and its only child share a capped group, so the minimum order
         // (one parent + one auto-selected child) consumes TWO group spots. With
         // one spot left, the parent reads sold out even though the child looks
-        // individually bookable (Fix 4, combined demand).
+        // individually bookable (combined demand).
         const { parent } = await setupOneSpotPool();
         await assertSoldOut(parent.slug);
       });
 
       test("a parent + child sharing a capped group with 2 spots is bookable", async () => {
         // With two spots free, the combined parent+child demand fits, so the
-        // parent keeps its Book link (Fix 4).
+        // parent keeps its Book link.
         const { parent } = await makeTwoSpotPool();
         await assertBookable(parent.slug);
       });
 
-      test("a child in a roomy SHARED group is bookable despite a tighter NON-shared group (Codex #3)", async () => {
+      test("a child in a roomy SHARED group is bookable despite a tighter NON-shared group", async () => {
         // The child belongs to the parent's capped group A (10 spots) AND its own
         // tighter capped group B (1 spot). The combined-demand check must use the
         // SHARED group's remaining (A = 10), not the child's tightest group overall
@@ -392,25 +382,25 @@ describeWithEnv(
         // Mondays are bookable, so Mon–Wed always hits an unbookable Tue/Wed). A
         // span-blind discovery check (any one-day start exists) would advertise
         // the parent, but the gate's date union span-constrains it to empty and
-        // the submit rejects — so it must read sold out (Fix 1).
+        // the submit rejects — so it must read sold out.
         const { parent } = await makeThreeDayParent(["Monday"]);
         await assertSoldOut(parent.slug);
       });
 
       test("a fixed multi-day daily parent whose child can fit the span is advertised", async () => {
         // Same fixed 3-day parent, but the child can be booked any weekday, so a
-        // Mon–Wed 3-day run is valid — the parent keeps its Book link (Fix 1).
+        // Mon–Wed 3-day run is valid — the parent keeps its Book link.
         const { parent } = await makeThreeDayParent();
         await assertBookable(parent.slug);
       });
 
-      test("a daily parent whose only child has disjoint bookable weekdays is sold out (Fix 5)", async () => {
+      test("a daily parent whose only child has disjoint bookable weekdays is sold out", async () => {
         // Both are single-day daily listings, but the parent is bookable only on
         // Mondays and its only child only on Tuesdays. The child has a bookable
         // start on its own calendar (Tuesday), so a child-calendar-only check
         // would still advertise the parent — yet there is NO date the parent can
         // offer on which the child is bookable, so `getTicketContext`'s date union
-        // renders empty and the parent must read sold out (Fix 5).
+        // renders empty and the parent must read sold out.
         const { parent } = await makeParent({
           children: [
             {
@@ -428,10 +418,10 @@ describeWithEnv(
         await assertSoldOut(parent.slug);
       });
 
-      test("a daily parent whose child shares a bookable weekday stays advertised (Fix 5)", async () => {
+      test("a daily parent whose child shares a bookable weekday stays advertised", async () => {
         // The child is bookable on a weekday the parent also offers (Monday), so
         // there is an overlapping date the gate can serve — the parent keeps its
-        // Book link (the Fix 5 overlap is satisfied, not over-eager).
+        // Book link (the overlap is satisfied, not over-eager).
         const { parent } = await makeParent({
           children: [
             {
@@ -452,7 +442,7 @@ describeWithEnv(
       test("a parent + child in different capped groups stays bookable", async () => {
         // When parent and child sit in different capped groups they do not share
         // a pool, so the combined-demand check does not apply and the per-row
-        // check stands — the parent keeps its Book link (Fix 4, non-shared case).
+        // check stands — the parent keeps its Book link (non-shared case).
         const groupA = await createTestGroup({
           maxAttendees: 5,
           name: "PoolA",
@@ -478,7 +468,7 @@ describeWithEnv(
         // The child's only parent shares a capped group with it, so the minimum
         // parent+child order needs two spots. With one spot left the parent is
         // projected sold out, so the add-on note would be a dead end — the child
-        // must read unavailable, NOT "available as an add-on" (Fix 5: addOnChildIds
+        // must read unavailable, NOT "available as an add-on" (addOnChildIds
         // must use the same combined-demand check as the parent sold-out
         // projection).
         await setupOneSpotPool();
@@ -489,7 +479,7 @@ describeWithEnv(
 
       test("a child whose only parent shares a 2-spot capped group shows the add-on note", async () => {
         // Two spots free ⇒ the combined parent+child demand fits, so the parent
-        // can offer the child and the add-on note appears (Fix 5).
+        // can offer the child and the add-on note appears.
         const { child } = await makeTwoSpotPool();
         await assertAddOnNote(child.slug);
       });

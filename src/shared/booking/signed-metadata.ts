@@ -95,6 +95,17 @@ const childIdsByParentNodeKey = (tree: BookingTree): Map<string, number[]> => {
  * the `price_changed` refund rather than booking a stale bundle. Per-line price
  * drift is checked separately.
  */
+/** Total folded (allocated) quantity per child id across every allocation. */
+const allocatedQtyByChild = (
+  allocations: readonly ChildAllocation[],
+): Map<number, number> => {
+  const byChild = new Map<number, number>();
+  for (const alloc of allocations) {
+    byChild.set(alloc.childId, (byChild.get(alloc.childId) ?? 0) + alloc.qty);
+  }
+  return byChild;
+};
+
 export const edgeDrifted = (
   tree: BookingTree,
   items: readonly BookingItem[],
@@ -102,11 +113,17 @@ export const edgeDrifted = (
 ): boolean => {
   const keys = treeNodeKeys(tree);
   const childIdsByParentKey = childIdsByParentNodeKey(tree);
-  const foldedChildIds = new Set(allocations.map((a) => a.childId));
+  const foldedQty = allocatedQtyByChild(allocations);
   const allocatedParentIds = new Set(allocations.map((a) => a.parentId));
   const lineByListing = new Map(items.map((item) => [item.e, item]));
   for (const line of items) {
-    if (foldedChildIds.has(line.e)) continue;
+    // A folded child collapses to one line whose folded units live in
+    // `allocations`; skip it ONLY when every unit is folded. A bookable_alone
+    // child can carry standalone SURPLUS (line.q beyond its allocated units),
+    // which must still be revalidated as a standalone line — else a required
+    // child added to it mid-checkout would let the surplus book without the
+    // add-on the current page now demands.
+    if ((foldedQty.get(line.e) ?? 0) >= line.q) continue;
     const key = lineNodeKey(line);
     if (!keys.has(key)) return true;
     const childIds = childIdsByParentKey.get(key);
