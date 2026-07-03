@@ -135,25 +135,25 @@ describe("external-order", () => {
       ).toBe(false);
     });
 
-    test("keys package bundles by slug, separate from listings", () => {
+    test("keys groups by slug, separate from listings", () => {
       const catalog = buildCatalog({
         ...base,
-        listings: [testListing({ id: 1, name: "Solo", slug: "solo" })],
-        packages: [
+        groups: [
           { name: "Camp Bundle", slug: "camp" },
-          { name: "Beach Bundle", slug: "beach" },
+          { name: "Registration", slug: "register" },
         ],
+        listings: [testListing({ id: 1, name: "Solo", slug: "solo" })],
       });
       expect(Object.keys(catalog.listings)).toEqual(["solo"]);
-      expect(catalog.packages).toEqual({
-        beach: { name: "Beach Bundle", slug: "beach" },
+      expect(catalog.groups).toEqual({
         camp: { name: "Camp Bundle", slug: "camp" },
+        register: { name: "Registration", slug: "register" },
       });
     });
 
-    test("defaults packages to an empty object when none are given", () => {
+    test("defaults groups to an empty object when none are given", () => {
       const catalog = buildCatalog({ ...base, listings: [] });
-      expect(catalog.packages).toEqual({});
+      expect(catalog.groups).toEqual({});
     });
   });
 

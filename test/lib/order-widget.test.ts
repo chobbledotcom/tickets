@@ -38,12 +38,17 @@ const runnableBody = orderWidgetBody().replace(
   `;globalThis.${MODULE_MARKER}=$1;`,
 );
 
-const makeCatalog = (listings: CatalogSourceListing[], debug: boolean) =>
+const makeCatalog = (
+  listings: CatalogSourceListing[],
+  debug: boolean,
+  groups: { slug: string; name: string }[] = [],
+) =>
   buildCatalog({
     currency: "GBP",
     debug,
     decimalPlaces: 2,
     generatedAt: "2026-06-30T00:00:00Z",
+    groups,
     listings,
     origin: ORIGIN,
   });
@@ -330,7 +335,7 @@ describe("order widget", {
       "- not a valid URL",
       `- origin https://elsewhere.test is not the tickets origin ${ORIGIN}`,
       "- path /not-a-ticket is not a /ticket/<slug> URL",
-      `- slug "register" is not a known listing or package`,
+      `- slug "register" is not a known listing or group`,
     ]);
   });
 
@@ -339,6 +344,28 @@ describe("order widget", {
     clickAnchor(h, "open");
 
     expect(h.logs).toHaveLength(0);
+  });
+
+  test("navigates to a group page instead of adding a cart line", () => {
+    // A regular group (like a package) is booked via its own /ticket/<slug>
+    // page, so a link to it is enhanced to navigate straight there rather than
+    // joining the multi-listing cart.
+    setBody(h, `<a data-add-listing="${ORIGIN}/ticket/register">Register</a>`);
+    h.run(
+      makeCatalog([listing({ id: 1, slug: "open" })], false, [
+        { name: "Registration", slug: "register" },
+      ]),
+    );
+
+    const anchor = h.document.querySelector(
+      `a[data-add-listing="${ORIGIN}/ticket/register"]`,
+    );
+    expect(anchor?.getAttribute("data-chobble-enhanced")).toBe("1");
+    const prevented = clickAnchor(h, "register");
+    expect(prevented).toBe(true);
+    expect(h.navigations).toEqual([`${ORIGIN}/ticket/register`]);
+    // Navigating to the group page must not add a cart line.
+    expect(storedCart(h)).toEqual([]);
   });
 
   test("adding a listing reveals the cart button with a live count", () => {

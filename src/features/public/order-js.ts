@@ -89,21 +89,23 @@ export const handleOrderJs = async (request: Request): Promise<Response> => {
     getCatalogListings(),
     loadPublicGroups(),
   ]);
-  // Package bundles are booked as a whole via /ticket/<group>, so the widget
-  // links to them directly rather than as cart lines (mirroring the /order
-  // gallery). Only bookable, non-hidden packages — hidden-package MEMBERS are
-  // already excluded from the listing catalog by getCatalogListings.
-  const packages = publicGroups
-    .filter((group) => group.is_package)
-    .map((group) => ({ name: group.name, slug: group.slug }));
+  // Public groups (both regular galleries and package bundles) are reached via
+  // their own /ticket/<group> page, so the widget links to them directly rather
+  // than as cart lines (mirroring the /order gallery). loadPublicGroups already
+  // gates to non-hidden groups whose page can sell; hidden-package MEMBERS are
+  // excluded from the listing catalog by getCatalogListings.
+  const groups = publicGroups.map((group) => ({
+    name: group.name,
+    slug: group.slug,
+  }));
   const catalog = buildCatalog({
     currency,
     debug: url.searchParams.get("debug") === "true",
     decimalPlaces: getDecimalPlaces(currency),
     generatedAt: nowIso(),
+    groups,
     listings,
     origin: url.origin,
-    packages,
   });
 
   return jsResponse(

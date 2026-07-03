@@ -72,7 +72,7 @@ describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
     expect(body).not.toContain(memberSlug);
   });
 
-  test("advertises a bookable package's bundle slug in the catalog packages", async () => {
+  test("advertises a bookable package's bundle slug in the catalog groups", async () => {
     await settings.update.externalOrderEnabled(true);
     const group = await createTestGroup({
       isPackage: true,
@@ -83,9 +83,26 @@ describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
 
     const body = await (await orderJs()).text();
     // The bundle is bookable via /ticket/<group>, so its slug rides in the
-    // packages map even though it's not a listing cart line.
-    expect(body).toContain('"packages"');
+    // groups map even though it's not a listing cart line.
+    expect(body).toContain('"groups"');
     expect(body).toContain('"camp-bundle"');
+  });
+
+  test("advertises a bookable REGULAR group's slug in the catalog groups", async () => {
+    await settings.update.externalOrderEnabled(true);
+    // A non-package group is reached via its own /ticket/<group> page too, so a
+    // public one with a bookable member must ride in the groups map — not just
+    // packages (the previous behaviour silently dropped it).
+    const group = await createTestGroup({
+      isPackage: false,
+      name: "Registration",
+      slug: "register",
+    });
+    await createTestListing({ groupId: group.id, name: "Adult Ticket" });
+
+    const body = await (await orderJs()).text();
+    expect(body).toContain('"groups"');
+    expect(body).toContain('"register"');
   });
 
   test("a hidden package's bundle is still bookable from the widget", async () => {

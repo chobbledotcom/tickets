@@ -103,17 +103,17 @@ const resolveListing = (raw: string): CatalogEntry | null => {
   return slug ? (catalogEntry(slug) ?? null) : null;
 };
 
-/** Resolve a `data-add-listing` URL to a PACKAGE group slug, or null. A package
- * is booked as a whole via its own page, so the widget navigates straight there
- * rather than adding a cart line. */
-const resolvePackageSlug = (raw: string): string | null => {
+/** Resolve a `data-add-listing` URL to a GROUP slug, or null. A group (a regular
+ * gallery or a package bundle) is reached via its own page, so the widget
+ * navigates straight there rather than adding a cart line. */
+const resolveGroupSlug = (raw: string): string | null => {
   const slug = ticketSlug(raw);
-  return slug && Object.hasOwn(CATALOG.packages, slug) ? slug : null;
+  return slug && Object.hasOwn(CATALOG.groups, slug) ? slug : null;
 };
 
 /** Explain why a `data-add-listing` value can't be enhanced, so the skip log
  * says WHY rather than just naming the link. Mirrors the checks in
- * `ticketSlug`/`resolveListing`/`resolvePackageSlug`. */
+ * `ticketSlug`/`resolveListing`/`resolveGroupSlug`. */
 const skipReason = (raw: string): string => {
   if (!raw) return "no data-add-listing value";
   let url: URL;
@@ -126,7 +126,7 @@ const skipReason = (raw: string): string => {
     return `origin ${url.origin} is not the tickets origin ${CATALOG.origin}`;
   const slug = url.pathname.match(/^\/ticket\/([^/+]+)$/)?.[1];
   if (!slug) return `path ${url.pathname} is not a /ticket/<slug> URL`;
-  return `slug "${slug}" is not a known listing or package`;
+  return `slug "${slug}" is not a known listing or group`;
 };
 
 class CartController {
@@ -463,7 +463,7 @@ const init = (): void => {
   const enhance = (link: HTMLAnchorElement): void => {
     if (link.dataset.chobbleEnhanced) return;
     const raw = link.dataset.addListing ?? "";
-    if (!resolveListing(raw) && !resolvePackageSlug(raw)) {
+    if (!resolveListing(raw) && !resolveGroupSlug(raw)) {
       debugLog(
         "skipped un-enhanceable link",
         link.dataset.addListing,
@@ -484,12 +484,13 @@ const init = (): void => {
         controller.add(entry, parseAddQuantity(link.dataset.addQuantity));
         return;
       }
-      // A package books as a whole bundle: navigate straight to its page rather
-      // than adding a cart line it could never combine with other listings.
-      const packageSlug = resolvePackageSlug(current);
-      if (packageSlug) {
+      // A group (regular gallery or package bundle) is reached via its own page:
+      // navigate straight there rather than adding a cart line it could never
+      // combine with the standalone listings.
+      const groupSlug = resolveGroupSlug(current);
+      if (groupSlug) {
         event.preventDefault();
-        globalThis.location.assign(`${CATALOG.origin}/ticket/${packageSlug}`);
+        globalThis.location.assign(`${CATALOG.origin}/ticket/${groupSlug}`);
       }
     });
   };

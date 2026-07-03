@@ -89,11 +89,12 @@ export interface CatalogListing {
   variablePrice: boolean;
 }
 
-/** A package bundle the visitor books as a whole via its own `/ticket/<group>`
- * page. Unlike a listing it never joins the multi-listing cart (a package is
- * all-or-nothing at fixed quantities), so it carries no price — the widget links
- * straight to the package page, where the bundle is priced. */
-export interface CatalogPackage {
+/** A public group the visitor reaches via its own `/ticket/<group>` page. Both a
+ * regular group (a gallery of standalone-bookable members) and a package bundle
+ * (booked all-or-nothing) are represented here: neither joins the multi-listing
+ * cart, so the widget links straight to the group page rather than adding a cart
+ * line, and neither carries a price (the group page prices whatever it sells). */
+export interface CatalogGroup {
   slug: string;
   name: string;
 }
@@ -108,10 +109,11 @@ export interface Catalog {
    * it happens. Toggled per request with `?debug=true` on `/order.js`. */
   debug: boolean;
   listings: Record<string, CatalogListing>;
-  /** Bookable package groups keyed by group slug. A `data-add-listing` link to
-   * one of these navigates straight to `/ticket/<slug>` instead of adding a cart
-   * line. Empty when the site has no bookable packages. */
-  packages: Record<string, CatalogPackage>;
+  /** Public, bookable groups keyed by group slug — both regular groups and
+   * package bundles. A `data-add-listing` link to one of these navigates
+   * straight to `/ticket/<slug>` instead of adding a cart line. Empty when the
+   * site has no public bookable groups. */
+  groups: Record<string, CatalogGroup>;
 }
 
 type VariablePriceFields = Pick<
@@ -152,27 +154,28 @@ export const buildCatalog = (params: {
   generatedAt: string;
   debug: boolean;
   listings: CatalogSourceListing[];
-  /** Bookable package groups (slug + decrypted name). The caller has already
-   * gated these to whole-bundle-bookable, non-hidden packages — the same set
-   * `/listings` and `/order` advertise. */
-  packages?: CatalogPackage[];
+  /** Public bookable groups (slug + decrypted name), both regular groups and
+   * package bundles. The caller has already gated these to non-hidden groups
+   * whose page can actually sell — the same set `/listings` and `/order`
+   * advertise. */
+  groups?: CatalogGroup[];
 }): Catalog => ({
   currency: params.currency,
   debug: params.debug,
   decimalPlaces: params.decimalPlaces,
   generatedAt: params.generatedAt,
+  groups: Object.fromEntries(
+    (params.groups ?? []).map((group) => [
+      group.slug,
+      { name: group.name, slug: group.slug },
+    ]),
+  ),
   listings: Object.fromEntries(
     params.listings
       .filter((listing) => listing.active && !listing.hidden)
       .map((listing) => [listing.slug, buildCatalogEntry(listing)]),
   ),
   origin: params.origin,
-  packages: Object.fromEntries(
-    (params.packages ?? []).map((pkg) => [
-      pkg.slug,
-      { name: pkg.name, slug: pkg.slug },
-    ]),
-  ),
 });
 
 /** Characters that are safe in JSON but unsafe verbatim in served JS: `<`
