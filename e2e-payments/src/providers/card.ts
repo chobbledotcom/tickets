@@ -15,14 +15,17 @@ const FILL_TIMEOUT = 8_000;
 /** All frames worth searching: the main frame plus every child frame. */
 const searchRoots = (page: Page): (Page | Frame)[] => [page, ...page.frames()];
 
-/** Try each selector across the page and its frames; fill the first that shows. */
-export const fillFirst = async (
+/**
+ * Poll the page and its frames until `act` succeeds on the first visible
+ * locator matching any candidate selector, then return its result. Returns null
+ * if nothing matched before FILL_TIMEOUT — the caller decides whether that is
+ * fatal.
+ */
+const withFirstVisible = async <T>(
   page: Page,
-  label: string,
   selectors: string[],
-  value: string,
-  { required = true, type = false }: { required?: boolean; type?: boolean } = {},
-): Promise<boolean> => {
+  act: (loc: Locator, selector: string) => Promise<T>,
+): Promise<T | null> => {
   const deadline = Date.now() + FILL_TIMEOUT;
   while (Date.now() < deadline) {
     for (const root of searchRoots(page)) {
@@ -30,20 +33,7 @@ export const fillFirst = async (
         const loc: Locator = root.locator(selector).first();
         try {
           if (await loc.isVisible({ timeout: 250 })) {
-            if (type) {
-              // Some hosted fields (Stripe's card iframe) track real keystrokes
-              // and ignore a programmatic .fill(), reporting the field as still
-              // "Required" — so click and type the value character by character.
-              await loc.click({ timeout: FILL_TIMEOUT });
-              await loc.pressSequentially(value, {
-                delay: 25,
-                timeout: FILL_TIMEOUT,
-              });
-            } else {
-              await loc.fill(value, { timeout: FILL_TIMEOUT });
-            }
-            log(`  filled ${label} via "${selector}"`);
-            return true;
+            return await act(loc, selector);
           }
         } catch {
           // selector not present in this root right now
@@ -52,6 +42,31 @@ export const fillFirst = async (
     }
     await page.waitForTimeout(250);
   }
+  return null;
+};
+
+/** Try each selector across the page and its frames; fill the first that shows. */
+export const fillFirst = async (
+  page: Page,
+  label: string,
+  selectors: string[],
+  value: string,
+  { required = true, type = false }: { required?: boolean; type?: boolean } = {},
+): Promise<boolean> => {
+  const filled = await withFirstVisible(page, selectors, async (loc, selector) => {
+    if (type) {
+      // Some hosted fields (Stripe's card iframe) track real keystrokes and
+      // ignore a programmatic .fill(), reporting the field as still "Required" —
+      // so click and type the value character by character.
+      await loc.click({ timeout: FILL_TIMEOUT });
+      await loc.pressSequentially(value, { delay: 25, timeout: FILL_TIMEOUT });
+    } else {
+      await loc.fill(value, { timeout: FILL_TIMEOUT });
+    }
+    log(`  filled ${label} via "${selector}"`);
+    return true;
+  });
+  if (filled) return true;
   const msg = `could not locate field "${label}" on the hosted checkout page`;
   if (required) throw new Error(msg);
   warn(`  ${msg} (optional — continuing)`);
@@ -64,25 +79,16 @@ export const clickFirst = async (
   label: string,
   selectors: string[],
 ): Promise<void> => {
-  const deadline = Date.now() + FILL_TIMEOUT;
-  while (Date.now() < deadline) {
-    for (const root of searchRoots(page)) {
-      for (const selector of selectors) {
-        const loc = root.locator(selector).first();
-        try {
-          if (await loc.isVisible({ timeout: 250 })) {
-            await loc.click({ timeout: FILL_TIMEOUT });
-            log(`  clicked ${label} via "${selector}"`);
-            return;
-          }
-        } catch {
-          // not present yet
-        }
-      }
-    }
-    await page.waitForTimeout(250);
+  const clicked = await withFirstVisible(page, selectors, async (loc, selector) => {
+    await loc.click({ timeout: FILL_TIMEOUT });
+    log(`  clicked ${label} via "${selector}"`);
+    return true;
+  });
+  if (!clicked) {
+    throw new Error(
+      `could not locate "${label}" control on the hosted checkout page`,
+    );
   }
-  throw new Error(`could not locate "${label}" control on the hosted checkout page`);
 };
 
 /**

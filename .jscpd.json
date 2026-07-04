@@ -23,6 +23,7 @@
   "minLines": 1,
   "minTokens": 23,
   "path": [
-    "src"
+    "src",
+    "e2e-payments"
   ]
 }

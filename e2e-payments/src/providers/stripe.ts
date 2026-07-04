@@ -1,9 +1,10 @@
+/* jscpd:ignore-start */
 import type { Page } from "playwright";
-import type { BrowserSession } from "../browser.ts";
 import { log, warn } from "../log.ts";
 import { clickFirst, fillFirst } from "./card.ts";
-import { assertConfigured, selectProvider } from "./shared.ts";
+import { configureProvider } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
+/* jscpd:ignore-end */
 
 /**
  * Stripe. Configuring the key registers a webhook endpoint against the site's
@@ -22,12 +23,10 @@ export const stripe: PaymentProvider = {
   name: "stripe",
   setupCountry: "US",
 
-  configure: async (session: BrowserSession, secrets): Promise<void> => {
-    await selectProvider(session, "stripe");
+  configure: configureProvider("stripe", async (session, secrets) => {
     await session.fill("stripe_secret_key", secrets.secretKey);
     await session.clickButton("Update Stripe Key");
-    await assertConfigured(session, "stripe");
-  },
+  }),
 
   payHostedCheckout: async (page: Page): Promise<void> => {
     log("Filling Stripe Checkout hosted page…");
