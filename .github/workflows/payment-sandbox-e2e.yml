@@ -16,6 +16,8 @@
 #   SQUARE_LOCATION_ID         — Square sandbox location id
 #   SUMUP_API_KEY              — SumUp sandbox secret API key
 #   SUMUP_MERCHANT_CODE        — SumUp sandbox merchant code
+# Optional repository secret:
+#   NTFY_URL                   — ntfy topic URL pinged if a leg fails
 # The "free" leg needs no secrets — it is a harness/app self-test.
 
 name: Payment sandbox e2e
@@ -114,6 +116,7 @@ jobs:
           SQUARE_SANDBOX: "true"
           SUMUP_API_KEY: ${{ secrets.SUMUP_API_KEY }}
           SUMUP_MERCHANT_CODE: ${{ secrets.SUMUP_MERCHANT_CODE }}
+          NTFY_URL: ${{ secrets.NTFY_URL }}
         run: node --import tsx src/main.ts ${{ matrix.target }}
 
       - name: Upload run artifacts (screenshots, page HTML, server logs)

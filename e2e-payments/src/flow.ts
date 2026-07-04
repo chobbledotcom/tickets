@@ -227,19 +227,15 @@ export const assertPaidBookingConfirmed = async (
   }
   log(`  ✔ customer saw the success page (${page.url()})`);
 
-  // 2. Cross-check in admin: the booker appears on the listing…
+  // 2. Cross-check in admin: the listing's Overview tab shows the captured
+  // income, and its Attendees tab shows the booker — the listing detail page
+  // was split into tabs (Overview / Attendees / …), so the roster no longer
+  // renders inline on the tab reached by clicking the listing name.
   await session.goto("/admin/");
   await login(session);
   await session.clickLink(LISTING_NAME);
-  const adminBody = await session.bodyText();
-  if (!adminBody.includes(BOOKER_EMAIL)) {
-    await session.screenshot("paid-admin-missing-booker");
-    throw new Error(
-      `paid booker ${BOOKER_EMAIL} not visible on the admin listing page`,
-    );
-  }
 
-  // …and, crucially, that the payment was actually captured. Assert against the
+  // …crucially, that the payment was actually captured. Assert against the
   // listing's INCOME LEDGER specifically — it projects from the payment ledger,
   // so a regression that creates the attendee but drops the payment
   // (price_paid = 0) records no income and the ledger section does not render.
@@ -275,6 +271,18 @@ export const assertPaidBookingConfirmed = async (
         `Income ledger:\n${paidRegion.slice(0, 600)}`,
     );
   }
+
+  // 3. The booker itself appears on the Attendees tab, not the Overview tab
+  // just checked above.
+  await session.clickLink("Attendees");
+  const attendeesBody = await session.bodyText();
+  if (!attendeesBody.includes(BOOKER_EMAIL)) {
+    await session.screenshot("paid-admin-missing-booker");
+    throw new Error(
+      `paid booker ${BOOKER_EMAIL} not visible on the admin listing's Attendees tab`,
+    );
+  }
+
   log(
     `  ✔ admin listing shows the paid booker (${BOOKER_EMAIL}) and captured amount (${withDecimals})`,
   );
