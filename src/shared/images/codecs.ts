@@ -2,12 +2,13 @@
  * jSquash WebAssembly codec wrappers: decode JPEG/PNG/WebP to RGBA, encode
  * RGBA to WebP.
  *
- * The `.wasm` bytes are vendored (`./wasm`) and initialised manually rather than
- * left to jSquash's own loader, which relies on `fetch`/filesystem paths that do
- * not resolve inside the single-file Bunny edge bundle. Initialisation is
- * `once()`-guarded and only happens on the first transcode — this module is
- * dynamically imported by the upload path, never at cold boot — so the ~1MB of
- * codec wasm is compiled lazily and exactly once per isolate.
+ * The `.wasm` bytes come from the jSquash package sidecars and are initialised
+ * manually rather than left to jSquash's own loader, which relies on
+ * `fetch`/filesystem paths that do not resolve inside the single-file Bunny edge
+ * bundle. Initialisation is `once()`-guarded and only happens on the first
+ * transcode — this module is dynamically imported by the upload path, never at
+ * cold boot — so the ~1MB of codec wasm is compiled lazily and exactly once per
+ * isolate.
  *
  * The WebP encoder ships two builds; we pick the SIMD one when the runtime
  * reports WASM SIMD support, matching jSquash's own selection so the glue code
@@ -22,14 +23,14 @@ import { simd } from "wasm-feature-detect";
 import { once } from "#fp";
 import type { DecodableMime, RawImage } from "./types.ts";
 import {
-  jpegDecWasm,
-  pngDecWasm,
-  webpDecWasm,
-  webpEncSimdWasm,
-  webpEncWasm,
+  jpegDec as jpegDecBytes,
+  pngDec as pngDecBytes,
+  webpDec as webpDecBytes,
+  webpEnc as webpEncBytes,
+  webpEncSimd as webpEncSimdBytes,
 } from "./wasm-bytes.ts";
 
-/** Compile vendored codec bytes into a WebAssembly.Module. */
+/** Compile package codec bytes into a WebAssembly.Module. */
 const compileWasm = (bytes: Uint8Array): Promise<WebAssembly.Module> =>
   WebAssembly.compile(bytes as BufferSource);
 
@@ -37,17 +38,17 @@ const compileWasm = (bytes: Uint8Array): Promise<WebAssembly.Module> =>
  * SIMD build is meaningfully faster where available; the scalar build is the
  * portable fallback. Split out so both arms are unit-testable without needing
  * to force `simd()`'s result. */
-export const pickEncoderWasm = (useSimd: boolean): Uint8Array =>
-  useSimd ? webpEncSimdWasm() : webpEncWasm();
+export const pickEncoderBytes = (useSimd: boolean): Uint8Array =>
+  useSimd ? webpEncSimdBytes() : webpEncBytes();
 
 /** Compile all codec modules and hand each to its jSquash init, exactly once. */
 const ensureCodecs = once(async (): Promise<void> => {
-  const encWasm = pickEncoderWasm(await simd());
+  const encBytes = pickEncoderBytes(await simd());
   const [pngMod, jpegMod, webpDecMod, webpEncMod] = await Promise.all([
-    compileWasm(pngDecWasm()),
-    compileWasm(jpegDecWasm()),
-    compileWasm(webpDecWasm()),
-    compileWasm(encWasm),
+    compileWasm(pngDecBytes()),
+    compileWasm(jpegDecBytes()),
+    compileWasm(webpDecBytes()),
+    compileWasm(encBytes),
   ]);
   await Promise.all([
     pngInit(pngMod),
