@@ -313,3 +313,17 @@ src/features/admin/modifiers.ts:521:10  return Promise.resolve() → return unde
 src/features/admin/group-page-data.ts:56:33  return false → return undefined   # hasPaidListing used only as a boolean; undefined and false coincide
 src/features/admin/group-page-data.ts:61:44  ?? → ||    # (row.package_price ?? 0): number|null, only falsy-non-null is 0 and 0 ?? 0 === 0 || 0
 src/features/admin/group-page-data.ts:182:49  ?? → ||   # dayPrices.get(): DayPrices (a Map) | undefined — a Map is always truthy
+
+# questions.ts — notFoundResponse() returns hit routeMainApp's
+# `?? notFoundResponse()` fallthrough (undefined → the same 404); the two form
+# `id`s feed only CSRF/flash-form coordination (never the rendered CsrfForm id,
+# which is "new-question"); and parseInt(raw, 10) vs (…, 0) agree on the plain
+# decimal modifier ids the field ever carries.
+src/features/admin/questions.ts:114:7  questionText → ""    # defineForm config.id: only feeds CSRF/flash-form coordination; the page's CsrfForm uses id="new-question", so this value is never rendered observably
+src/features/admin/questions.ts:129:7  answerText → ""    # answerTextForm config.id: same as questionText — unobservable form-coordination id
+src/features/admin/questions.ts:219:27  return notFoundResponse() → return undefined    # undefined hits routeMainApp's `?? notFoundResponse()` → the same 404
+src/features/admin/questions.ts:238:25  return notFoundResponse() → return undefined    # same: undefined → routeMainApp `?? notFoundResponse()` → 404
+src/features/admin/questions.ts:263:27  return notFoundResponse() → return undefined    # same: undefined → routeMainApp `?? notFoundResponse()` → 404
+src/features/admin/questions.ts:324:27  return notFoundResponse() → return undefined    # same: undefined → routeMainApp `?? notFoundResponse()` → 404
+src/features/admin/questions.ts:428:51  10 → 0    # Number.parseInt(raw, 10) vs (…, 0): raw is a decimal modifier id, and parseInt(dec, 0) defaults to base 10, so the results agree
+src/features/admin/questions.ts:559:24  return notFoundResponse() → return undefined    # same: undefined → routeMainApp `?? notFoundResponse()` → 404
