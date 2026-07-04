@@ -10,15 +10,18 @@ import {
   MAX_BULK_EMAIL_SUBJECT_LENGTH,
   targetQuery,
 } from "#shared/bulk-email.ts";
-import { ConfirmForm, CsrfForm, Flash, hiddenInputs } from "#shared/forms.tsx";
+import { CsrfForm, hiddenInputs } from "#shared/forms.tsx";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
+import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { ProsePanel } from "#templates/components/prose-panel.tsx";
 import { rawParagraph } from "#templates/components/raw-paragraph.tsx";
+import { SelectField } from "#templates/components/select-field.tsx";
 
 const NAV_ACTIVE = "/admin/settings";
 
@@ -35,9 +38,7 @@ const bulkEmailPage = (
 ): string =>
   String(
     <AdminPage active={NAV_ACTIVE} session={session} title={title}>
-      <div class="prose">
-        <h1>{title}</h1>
-      </div>
+      <ProseHeading heading={title} />
       {body}
     </AdminPage>,
   );
@@ -103,16 +104,14 @@ const TargetField = ({
     return (
       <label>
         {control.label}
-        <select name={control.name}>
-          {control.options.map((option) => (
-            <option
-              selected={option.value === control.selected}
-              value={option.value}
-            >
-              {option.label}
-            </option>
-          ))}
-        </select>
+        <SelectField
+          name={control.name}
+          options={control.options.map((option) => ({
+            label: option.label,
+            value: option.value,
+          }))}
+          value={control.selected}
+        />
       </label>
     );
   }
@@ -253,16 +252,14 @@ export const bulkEmailComposePage = (
           <div class="template-update-fields">
             <label>
               {t("bulk_email.template_to_update_label")}
-              <select name="template_id">
-                {state.templates.map((tpl) => (
-                  <option
-                    selected={tpl.id === state.selectedTemplateId}
-                    value={String(tpl.id)}
-                  >
-                    {tpl.subject}
-                  </option>
-                ))}
-              </select>
+              <SelectField
+                name="template_id"
+                options={state.templates.map((tpl) => ({
+                  label: tpl.subject,
+                  value: String(tpl.id),
+                }))}
+                value={String(state.selectedTemplateId)}
+              />
             </label>
           </div>
         )}
@@ -290,28 +287,26 @@ export const bulkEmailTemplateDeletePage = (
   template: { id: number; subject: string },
   error?: string,
 ): string =>
-  String(
-    <AdminPage
-      active={NAV_ACTIVE}
-      flash={<Flash error={error} />}
-      session={session}
-      title={t("bulk_email.delete_template_heading")}
-    >
-      <ConfirmForm
-        action={`/admin/emails/templates/${template.id}/delete`}
-        buttonText={t("bulk_email.delete_template_submit")}
-        label={t("bulk_email.subject_label")}
-        name={template.subject}
-      >
-        <h1>{t("bulk_email.delete_template_heading")}</h1>
+  ConfirmPage({
+    action: `/admin/emails/templates/${template.id}/delete`,
+    active: NAV_ACTIVE,
+    buttonText: t("bulk_email.delete_template_submit"),
+    children: (
+      <>
         <p>
           {t("bulk_email.delete_template_intro")}{" "}
           <strong>{template.subject}</strong>
         </p>
         <p>{t("bulk_email.delete_template_prompt")}</p>
-      </ConfirmForm>
-    </AdminPage>,
-  );
+      </>
+    ),
+    error,
+    heading: t("bulk_email.delete_template_heading"),
+    label: t("bulk_email.subject_label"),
+    name: template.subject,
+    session,
+    title: t("bulk_email.delete_template_heading"),
+  });
 
 export type BulkEmailPreviewState = {
   draft: BulkEmailDraft;

@@ -20,15 +20,14 @@ import type {
   AttendeeTableRow,
   ListingWithCount,
 } from "#shared/types.ts";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
-import { AdminNav } from "#templates/admin/nav.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
 import {
   SelectField,
   type SelectOption,
 } from "#templates/components/select-field.tsx";
-import { Layout } from "#templates/layout.tsx";
 
 /* jscpd:ignore-end */
 
@@ -186,15 +185,16 @@ const Pagination = ({
 /** Admin attendees browser page */
 export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
   String(
-    <Layout title={t("terms.attendees")}>
-      <AdminNav active={NAV_ACTIVE} session={props.session} />
-
-      <p class="actions">
+    <AdminPage
+      actions={
         <ActionButton href="/admin/attendees/new" icon="plus">
           {t("admin.listings.add_attendee")}
         </ActionButton>
-      </p>
-
+      }
+      active={NAV_ACTIVE}
+      session={props.session}
+      title={t("terms.attendees")}
+    >
       <div class="table-controls">
         {props.categories.length > 1 && (
           <Raw
@@ -251,5 +251,5 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
         sortOrder={props.sort}
         type={props.type}
       />
-    </Layout>,
+    </AdminPage>,
   );

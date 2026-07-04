@@ -46,10 +46,10 @@ import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
+import { DataTable } from "#templates/components/data-table.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
-import { Layout } from "#templates/layout.tsx";
 
 const SERVICING_FORM_ID = "servicing-form";
 
@@ -181,8 +181,7 @@ const renderServicingPage = ({
     ? `/admin/servicing/${event.id}`
     : "/admin/servicing/new";
   return String(
-    <Layout title={title}>
-      <AdminNav active="/admin/servicing" session={session} />
+    <AdminPage active="/admin/servicing" session={session} title={title}>
       <h1>{title}</h1>
       {deletedHolds.length > 0 && (
         <p class="warning">
@@ -198,17 +197,10 @@ const renderServicingPage = ({
             start_date: firstBookingDate(event, prefill),
           })}
         />
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Listing</th>
-                <th>Quantity</th>
-              </tr>
-            </thead>
-            <tbody>{listingRows(listings, event, prefill)}</tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={[{ header: "Listing" }, { header: "Quantity" }]}
+          rows={listingRows(listings, event, prefill)}
+        />
         <SubmitButton icon={event ? "save" : "plus"}>
           {event ? "Save Service Event" : "Create Service Event"}
         </SubmitButton>
@@ -246,45 +238,37 @@ const renderServicingPage = ({
             <SubmitButton icon="plus">Record Cost</SubmitButton>
           </CsrfForm>
           {costs.length > 0 && (
-            <div class="table-scroll">
+            <>
               <h2>Recorded costs</h2>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Listing</th>
-                    <th>Date</th>
-                    <th>Amount</th>
-                    <th>Memo</th>
-                    <th>Edit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {costs.map((cost) => (
-                    <tr>
-                      <td>{listingNames.get(cost.listingId)}</td>
-                      <td>{formatDateLabel(cost.date.slice(0, 10))}</td>
-                      <td>{formatCurrency(cost.amount)}</td>
-                      <td>{cost.memo}</td>
-                      <td>
-                        <CsrfForm
-                          action={`/admin/servicing/${event.id}/cost/${cost.id}`}
-                        >
-                          <PriceInput
-                            name="amount"
-                            value={toMajorUnits(cost.amount)}
-                          />
-                          <SubmitButton icon="save">Edit</SubmitButton>
-                        </CsrfForm>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+              <DataTable
+                columns={[
+                  { header: "Listing" },
+                  { header: "Date" },
+                  { class: "amount", header: "Amount" },
+                  { header: "Memo" },
+                  { header: "Edit" },
+                ]}
+                rows={costs.map((cost) => [
+                  listingNames.get(cost.listingId),
+                  formatDateLabel(cost.date.slice(0, 10)),
+                  formatCurrency(cost.amount),
+                  cost.memo,
+                  <CsrfForm
+                    action={`/admin/servicing/${event.id}/cost/${cost.id}`}
+                  >
+                    <PriceInput
+                      name="amount"
+                      value={toMajorUnits(cost.amount)}
+                    />
+                    <SubmitButton icon="save">Edit</SubmitButton>
+                  </CsrfForm>,
+                ])}
+              />
+            </>
           )}
         </>
       )}
-    </Layout>,
+    </AdminPage>,
   );
 };
 
@@ -322,36 +306,31 @@ const renderServicingList = async (session: AuthSession): Promise<string> => {
   ]);
   const rows = serviceEventListRows(events, listings);
   return String(
-    <Layout title="Servicing">
-      <AdminNav active="/admin/servicing" session={session} />
+    <AdminPage active="/admin/servicing" session={session} title="Servicing">
       <h1>Servicing</h1>
       <p>
         <ActionButton href="/admin/servicing/new" icon="plus">
           New service event
         </ActionButton>
       </p>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Date</th>
-              <th>Listings</th>
-              <th>Quantity</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length > 0 ? (
-              rows
-            ) : (
-              <tr>
-                <td colspan="4">No service events yet</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </Layout>,
+      <DataTable
+        columns={[
+          { header: "Name" },
+          { header: "Date" },
+          { header: "Listings" },
+          { header: "Quantity" },
+        ]}
+        rows={
+          rows.length > 0
+            ? rows
+            : [
+                <tr>
+                  <td colspan="4">No service events yet</td>
+                </tr>,
+              ]
+        }
+      />
+    </AdminPage>,
   );
 };
 

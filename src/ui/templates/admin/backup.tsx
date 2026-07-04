@@ -12,6 +12,7 @@ import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { ErrorAlert } from "#templates/components/error-alert.tsx";
+import { ProseHeading } from "#templates/components/prose-heading.tsx";
 /* jscpd:ignore-end */
 
 export type BackupEntry = {
@@ -63,14 +64,13 @@ export const adminBackupPage = (
 ): string =>
   flashAdminPage(t("backup.page_title"))(session, error, success)(
     <>
-      <div class="prose">
-        <h1>{t("backup.heading")}</h1>
+      <ProseHeading heading={t("backup.heading")}>
         <p class="actions">
           <GuideLink href="/admin/guide#backups">
             {t("backup.guide_link")}
           </GuideLink>
         </p>
-      </div>
+      </ProseHeading>
 
       {!state.isRemote && (
         <p>

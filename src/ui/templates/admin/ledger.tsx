@@ -36,26 +36,23 @@ import {
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
-import { Raw, type SafeHtml } from "#shared/jsx/jsx-runtime.ts";
+import { ConfirmForm, CsrfForm } from "#shared/forms.tsx";
+import type { SafeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { sameAccount } from "#shared/ledger/account.ts";
 import type { StatementLine } from "#shared/ledger/project.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import type { AdminSession } from "#shared/types.ts";
-import {
-  type DetailRow,
-  renderDetailRows,
-} from "#templates/admin/detail-rows.tsx";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
+import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import {
   ActionButton,
   GuideLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { DetailTable } from "#templates/components/detail-table.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
-import { Layout } from "#templates/layout.tsx";
 
 /**
  * Display names for the row-backed account legs the ledger renders, each a
@@ -785,13 +782,7 @@ const LedgerViewToggle = ({ data }: { data: LedgerPageData }): SafeHtml => (
 const LedgerStats = ({ data }: { data: LedgerPageData }): SafeHtml => (
   <>
     <h2>{data.statsHeading}</h2>
-    <div class="table-scroll">
-      <table class="listing-details-table">
-        <tbody>
-          <Raw html={renderDetailRows(data.stats)} />
-        </tbody>
-      </table>
-    </div>
+    <DetailTable rows={data.stats} />
   </>
 );
 
@@ -806,13 +797,16 @@ export const adminLedgerPage = (
   session: AdminSession,
 ): string =>
   String(
-    <Layout title={t("admin.ledger.heading")}>
-      <AdminNav active="/admin/ledger" session={session} />
-      <p class="actions">
+    <AdminPage
+      actions={
         <GuideLink href="/admin/guide#ledger">
           {t("admin.ledger.guide")}
         </GuideLink>
-      </p>
+      }
+      active="/admin/ledger"
+      session={session}
+      title={t("admin.ledger.heading")}
+    >
       <LedgerStats data={data} />
       <div class="table-controls">
         <div class="ledger-date-range">
@@ -839,7 +833,7 @@ export const adminLedgerPage = (
         )}
         {data.truncated && <p>{t("admin.ledger.recent")}</p>}
       </div>
-    </Layout>,
+    </AdminPage>,
   );
 
 /**
@@ -854,15 +848,18 @@ export const adminAccountStatementPage = (
   session: AdminSession,
 ): string =>
   String(
-    <Layout title={t("admin.ledger.statement_heading")}>
-      <AdminNav active="/admin/ledger" session={session} />
+    <AdminPage
+      active="/admin/ledger"
+      session={session}
+      title={t("admin.ledger.statement_heading")}
+    >
       <AccountStatementSection
         account={account}
         lines={lines}
         names={names}
         returnUrl={`/admin/ledger/${account.type}/${account.id}`}
       />
-    </Layout>,
+    </AdminPage>,
   );
 
 export type LedgerEntryFormValues = {
@@ -915,46 +912,45 @@ export const adminLedgerEntryAddPage = ({
   session: AdminSession;
   error?: string | undefined;
 }): string =>
-  String(
-    <Layout title={t("admin.ledger.add.heading")}>
-      <AdminNav active="/admin/ledger" session={session} />
-      <CsrfForm action={`/admin/ledger/${account.type}/${account.id}/add`}>
-        <h1>{t("admin.ledger.add.heading")}</h1>
-        <Flash error={error} />
-        <p>
-          {t("admin.ledger.add.account")}{" "}
-          <strong>{accountLabelText(account, names)}</strong>
-        </p>
-        <input name="return_url" type="hidden" value={returnUrl} />
-        <label>
-          {t("admin.ledger.add.type")}
-          <select name="entry_type" required>
-            {options.map((option) => (
-              <option
-                selected={values.entryType === option.type}
-                value={option.type}
-              >
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <ul>
+  errorAdminPage(t("admin.ledger.add.heading"), "/admin/ledger")(
+    session,
+    error,
+  )(
+    <CsrfForm action={`/admin/ledger/${account.type}/${account.id}/add`}>
+      <h1>{t("admin.ledger.add.heading")}</h1>
+      <p>
+        {t("admin.ledger.add.account")}{" "}
+        <strong>{accountLabelText(account, names)}</strong>
+      </p>
+      <input name="return_url" type="hidden" value={returnUrl} />
+      <label>
+        {t("admin.ledger.add.type")}
+        <select name="entry_type" required>
           {options.map((option) => (
-            <li>
-              <strong>{option.label}:</strong> {option.hint}
-            </li>
+            <option
+              selected={values.entryType === option.type}
+              value={option.type}
+            >
+              {option.label}
+            </option>
           ))}
-        </ul>
-        <LedgerEntryFields values={values} />
-        <SubmitButton icon="plus">{t("admin.ledger.add.submit")}</SubmitButton>
-        <p>
-          <ActionButton href={returnUrl} variant="secondary">
-            {t("common.cancel")}
-          </ActionButton>
-        </p>
-      </CsrfForm>
-    </Layout>,
+        </select>
+      </label>
+      <ul>
+        {options.map((option) => (
+          <li>
+            <strong>{option.label}:</strong> {option.hint}
+          </li>
+        ))}
+      </ul>
+      <LedgerEntryFields values={values} />
+      <SubmitButton icon="plus">{t("admin.ledger.add.submit")}</SubmitButton>
+      <p>
+        <ActionButton href={returnUrl} variant="secondary">
+          {t("common.cancel")}
+        </ActionButton>
+      </p>
+    </CsrfForm>,
   );
 
 export const adminLedgerEntryEditPage = ({
@@ -972,11 +968,12 @@ export const adminLedgerEntryEditPage = ({
   session: AdminSession;
   error?: string | undefined;
 }): string =>
-  String(
-    <Layout title={t("admin.ledger.edit.heading")}>
-      <AdminNav active="/admin/ledger" session={session} />
+  errorAdminPage(t("admin.ledger.edit.heading"), "/admin/ledger")(
+    session,
+    error,
+  )(
+    <>
       <h1>{t("admin.ledger.edit.heading")}</h1>
-      <Flash error={error} />
       <p>{humanDescription(transfer, names)}</p>
       <CsrfForm action={`/admin/ledger/entries/${transfer.id}/edit`}>
         <input name="return_url" type="hidden" value={returnUrl} />
@@ -1003,5 +1000,5 @@ export const adminLedgerEntryEditPage = ({
           {t("common.cancel")}
         </ActionButton>
       </p>
-    </Layout>,
+    </>,
   );

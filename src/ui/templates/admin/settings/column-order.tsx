@@ -20,6 +20,7 @@ import {
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
+import { TextField } from "#templates/components/text-field.tsx";
 
 /* jscpd:ignore-end */
 
@@ -66,16 +67,13 @@ const ColumnOrderForm = ({
     submitLabel={t(submitLabelKey)}
     title={t(titleKey)}
   >
-    <label>
-      {t("settings.column_order.label")}
-      <input
-        autocomplete="off"
-        name="column_order"
-        placeholder={placeholder}
-        type="text"
-        value={value || placeholder}
-      />
-    </label>
+    <TextField
+      label={t("settings.column_order.label")}
+      name="column_order"
+      placeholder={placeholder}
+      type="text"
+      value={value || placeholder}
+    />
     <p>
       <AvailableTags columns={columns} />
     </p>

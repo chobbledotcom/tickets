@@ -13,7 +13,7 @@ import type {
   SitePageItemType,
   SitePageNavRow,
 } from "#shared/types.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { AdminPage, adminFormPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   ActionButton,
@@ -139,16 +139,19 @@ const sitePageFormShell = (
   error?: string,
   children?: JSX.Element,
 ): string =>
-  String(
-    <AdminPage active={ACTIVE} session={session} title={title}>
-      <CsrfForm action={action}>
-        <h1>{title}</h1>
-        <Flash error={error} />
+  adminFormPage({
+    action,
+    active: ACTIVE,
+    children: (
+      <>
         <Raw html={fieldsHtml} />
         {children}
-      </CsrfForm>
-    </AdminPage>,
-  );
+      </>
+    ),
+    error,
+    session,
+    title,
+  });
 
 export const adminSitePageNewPage = (
   session: AdminSession,

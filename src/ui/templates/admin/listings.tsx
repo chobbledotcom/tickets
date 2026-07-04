@@ -26,13 +26,13 @@ import { isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms.tsx";
 import {
   booleanToCheckbox,
-  ConfirmForm,
   CsrfForm,
   entityToFieldValues,
   type FieldValues,
   Flash,
   renderFields,
 } from "#shared/forms.tsx";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   hasAnyListingDefault,
@@ -60,7 +60,9 @@ import {
   type ListingWithCount,
   normalizeDurationDays,
 } from "#shared/types.ts";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
+import { ConfirmPage, type TCall } from "#templates/admin/confirm-page.tsx";
 import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
 import {
   type ExpectedActualItem,
@@ -797,28 +799,24 @@ const RosterDateCapacity = ({
 }): JSX.Element | null => {
   if (listing.listing_type !== "daily" || !dateFilter) return null;
   return (
-    <div class="table-scroll">
-      <table class="listing-details-table">
-        <tbody>
-          <AttendeesSummaryRow
-            adjustedCount={adjustedCount}
-            completeQuantitySum={completeQuantitySum}
-            dailySuffix={dailySuffix}
-            dateFilter={dateFilter}
-            isDaily
-            listing={listing}
-          />
-          {groupContext && (
-            <GroupAttendeesRow
-              dailySuffix={dailySuffix}
-              group={groupContext.group}
-              groupAttendeeCount={groupContext.attendeeCount}
-            />
-          )}
-          <Raw html={sharedRowsHtml} />
-        </tbody>
-      </table>
-    </div>
+    <DetailTable>
+      <AttendeesSummaryRow
+        adjustedCount={adjustedCount}
+        completeQuantitySum={completeQuantitySum}
+        dailySuffix={dailySuffix}
+        dateFilter={dateFilter}
+        isDaily
+        listing={listing}
+      />
+      {groupContext && (
+        <GroupAttendeesRow
+          dailySuffix={dailySuffix}
+          group={groupContext.group}
+          groupAttendeeCount={groupContext.attendeeCount}
+        />
+      )}
+      <Raw html={sharedRowsHtml} />
+    </DetailTable>
   );
 };
 
@@ -1980,8 +1978,11 @@ const listingFormClass = (template: ListingTemplate): string =>
  */
 export const adminListingPickerPage = (session: AdminSession): string =>
   String(
-    <Layout title={t("listings_table.add_listing")}>
-      <AdminNav active="/admin/" session={session} />
+    <AdminPage
+      active="/admin/"
+      session={session}
+      title={t("listings_table.add_listing")}
+    >
       <h1>{t("listings_table.listing_type_picker_heading")}</h1>
       <p>{t("listings_table.listing_type_picker_subheading")}</p>
       <div class="listing-type-picker">
@@ -2011,7 +2012,7 @@ export const adminListingPickerPage = (session: AdminSession): string =>
           </span>
         </a>
       </div>
-    </Layout>,
+    </AdminPage>,
   );
 
 // ---------------------------------------------------------------------------
@@ -2379,12 +2380,13 @@ export const adminDuplicateListingPage = (
   const defaults = settings.listingDefaults;
   const showUseDefaults = showUseDefaultsToggle(session, defaults);
   return String(
-    <Layout
+    <AdminPage
+      active="/admin/"
+      session={session}
       title={t("listings_table.duplicate_listing_title", {
         name: listing.name,
       })}
     >
-      <AdminNav active="/admin/" session={session} />
       <div class="prose">
         <h2>{t("listings_table.duplicate_listing")}</h2>
         <p>
@@ -2421,7 +2423,7 @@ export const adminDuplicateListingPage = (
           {t("listings_table.create_listing")}
         </SubmitButton>
       </CsrfForm>
-    </Layout>,
+    </AdminPage>,
   );
 };
 
@@ -2678,6 +2680,36 @@ export const ListingEditPanel = ({
 };
 
 /**
+ * Shared opener for the listing delete/deactivate/reactivate confirmation
+ * pages. All three wrap a `<ConfirmForm>` under `<AdminPage active="/admin/">`
+ * with a "type the listing name to confirm" prompt, so the session/error/label/
+ * name plumbing lives here and each caller passes only what differs (title,
+ * action, button, danger, and the warning/body markup).
+ */
+const listingConfirmPage = (
+  listing: ListingWithCount,
+  session: AdminSession,
+  error: string | undefined,
+  opts: {
+    title: string;
+    action: string;
+    buttonText: string;
+    danger?: boolean;
+    warning?: Child;
+    prompt?: TCall;
+    children?: Child;
+  },
+): string =>
+  ConfirmPage({
+    active: "/admin/",
+    error,
+    label: t("listings_table.listing_name"),
+    name: listing.name,
+    session,
+    ...opts,
+  });
+
+/**
  * Admin delete listing confirmation page
  */
 export const adminDeleteListingPage = (
@@ -2685,31 +2717,23 @@ export const adminDeleteListingPage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  String(
-    <Layout
-      title={t("listings_table.delete_listing_title", { name: listing.name })}
-    >
-      <AdminNav active="/admin/" session={session} />
-      <Flash error={error} />
-
-      <ConfirmForm
-        action={`/admin/listing/${listing.id}/delete`}
-        buttonText={t("listings_table.delete_listing")}
-        label={t("listings_table.listing_name")}
-        name={listing.name}
-      >
-        <p>
-          <strong>{t("listings_table.warning")}:</strong>{" "}
-          {t("listings_table.delete_warning_text", {
-            count: listing.attendee_count,
-          })}
-        </p>
-        <p>
-          {t("listings_table.delete_confirmation_text", { name: listing.name })}
-        </p>
-      </ConfirmForm>
-    </Layout>,
-  );
+  listingConfirmPage(listing, session, error, {
+    action: `/admin/listing/${listing.id}/delete`,
+    buttonText: t("listings_table.delete_listing"),
+    prompt: {
+      args: { name: listing.name },
+      key: "listings_table.delete_confirmation_text",
+    },
+    title: t("listings_table.delete_listing_title", { name: listing.name }),
+    warning: (
+      <p>
+        <strong>{t("listings_table.warning")}:</strong>{" "}
+        {t("listings_table.delete_warning_text", {
+          count: listing.attendee_count,
+        })}
+      </p>
+    ),
+  });
 
 /**
  * Admin deactivate listing confirmation page
@@ -2719,25 +2743,11 @@ export const adminDeactivateListingPage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  String(
-    <Layout
-      title={t("listings_table.deactivate_listing_title", {
-        name: listing.name,
-      })}
-    >
-      <AdminNav active="/admin/" session={session} />
-      <Flash error={error} />
-
-      <ConfirmForm
-        action={`/admin/listing/${listing.id}/deactivate`}
-        buttonText={t("listings_table.deactivate_listing")}
-        label={t("listings_table.listing_name")}
-        name={listing.name}
-      >
-        <p>
-          <strong>{t("listings_table.warning")}:</strong>{" "}
-          {t("listings_table.deactivate_warning")}
-        </p>
+  listingConfirmPage(listing, session, error, {
+    action: `/admin/listing/${listing.id}/deactivate`,
+    buttonText: t("listings_table.deactivate_listing"),
+    children: (
+      <>
         <ul>
           <li>{t("listings_table.deactivate_effect_404")}</li>
           <li>{t("listings_table.deactivate_effect_prevent_registrations")}</li>
@@ -2749,9 +2759,16 @@ export const adminDeactivateListingPage = (
             name: listing.name,
           })}
         </p>
-      </ConfirmForm>
-    </Layout>,
-  );
+      </>
+    ),
+    title: t("listings_table.deactivate_listing_title", { name: listing.name }),
+    warning: (
+      <p>
+        <strong>{t("listings_table.warning")}:</strong>{" "}
+        {t("listings_table.deactivate_warning")}
+      </p>
+    ),
+  });
 
 /**
  * Admin reactivate listing confirmation page
@@ -2761,22 +2778,11 @@ export const adminReactivateListingPage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  String(
-    <Layout
-      title={t("listings_table.reactivate_listing_title", {
-        name: listing.name,
-      })}
-    >
-      <AdminNav active="/admin/" session={session} />
-      <Flash error={error} />
-
-      <ConfirmForm
-        action={`/admin/listing/${listing.id}/reactivate`}
-        buttonText={t("listings_table.reactivate_listing")}
-        danger={false}
-        label={t("listings_table.listing_name")}
-        name={listing.name}
-      >
+  listingConfirmPage(listing, session, error, {
+    action: `/admin/listing/${listing.id}/reactivate`,
+    buttonText: t("listings_table.reactivate_listing"),
+    children: (
+      <>
         <p>{t("listings_table.reactivate_will_make_available")}</p>
         <p>
           {t(
@@ -2788,6 +2794,8 @@ export const adminReactivateListingPage = (
             name: listing.name,
           })}
         </p>
-      </ConfirmForm>
-    </Layout>,
-  );
+      </>
+    ),
+    danger: false,
+    title: t("listings_table.reactivate_listing_title", { name: listing.name }),
+  });

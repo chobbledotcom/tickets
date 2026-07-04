@@ -4,28 +4,33 @@
  * whether a listing or a group is created).
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
-import { adminPage } from "#templates/admin/seeds.tsx";
+import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { ProseHeading } from "#templates/components/prose-heading.tsx";
+/* jscpd:ignore-end */
 
 export const adminCatalogImportPage = (
   session: AdminSession,
   error?: string,
   success?: string,
-): string =>
-  adminPage(
-    "/admin/listings",
+): string => {
+  const page = flashAdminPage(
     t("catalog_transfer.page_title"),
+    "/admin/listings",
+  );
+  return page(
     session,
+    error,
+    success,
   )(
     <>
-      <div class="prose">
-        <h1>{t("catalog_transfer.heading")}</h1>
+      <ProseHeading heading={t("catalog_transfer.heading")}>
         <p>{t("catalog_transfer.description")}</p>
-      </div>
-      <Flash error={error} success={success} />
+      </ProseHeading>
       <CsrfForm
         action="/admin/catalog/import"
         enctype="multipart/form-data"
@@ -46,3 +51,4 @@ export const adminCatalogImportPage = (
       </CsrfForm>
     </>,
   );
+};

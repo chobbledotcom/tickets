@@ -8,7 +8,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms.tsx";
 import {
   listingDefaultInputName as inputName,
   LISTING_DEFAULT_FIELDS,
@@ -19,12 +19,11 @@ import {
   listingDefaultLabelKey,
 } from "#shared/listing-defaults.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
-import { Layout } from "#templates/layout.tsx";
 
 /* jscpd:ignore-end */
 
@@ -187,22 +186,22 @@ export const adminListingDefaultsPage = (
   const fields = LISTING_DEFAULT_FIELDS.filter(
     (field) => field.field !== "uses_logistics" || hasLogistics,
   );
-  return String(
-    <Layout title={t("listing_defaults.title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <Flash error={error} success={success} />
-      <CsrfForm action="/admin/listing-defaults" id="listing-defaults">
-        <div class="prose">
-          <h2>{t("listing_defaults.title")}</h2>
-          <p>{t("listing_defaults.intro")}</p>
-        </div>
-        <div class="stack">
-          {fields.map((field) => (
-            <DefaultControl defaults={defaults} field={field} />
-          ))}
-        </div>
-        <SubmitButton icon="save">{t("listing_defaults.save")}</SubmitButton>
-      </CsrfForm>
-    </Layout>,
+  return flashAdminPage(t("listing_defaults.title"), "/admin/settings")(
+    session,
+    error,
+    success,
+  )(
+    <CsrfForm action="/admin/listing-defaults" id="listing-defaults">
+      <div class="prose">
+        <h2>{t("listing_defaults.title")}</h2>
+        <p>{t("listing_defaults.intro")}</p>
+      </div>
+      <div class="stack">
+        {fields.map((field) => (
+          <DefaultControl defaults={defaults} field={field} />
+        ))}
+      </div>
+      <SubmitButton icon="save">{t("listing_defaults.save")}</SubmitButton>
+    </CsrfForm>,
   );
 };

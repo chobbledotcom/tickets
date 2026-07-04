@@ -56,20 +56,20 @@ import {
   type Attendee,
   MAX_DURATION_DAYS,
 } from "#shared/types.ts";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
 import {
   BookingStatusBadges,
   InactiveNote,
 } from "#templates/admin/attendee-detail.tsx";
 import { EditQuestions } from "#templates/admin/attendees.tsx";
-import { AdminNav } from "#templates/admin/nav.tsx";
 import { Icon } from "#templates/components/actions.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
+import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import {
   SelectField,
   type SelectOption,
 } from "#templates/components/select-field.tsx";
 import { PHONE_INPUT_PATTERN } from "#templates/fields.ts";
-import { Layout } from "#templates/layout.tsx";
 
 /** Template data for the attendee form: everything the editable form itself
  * renders. The other tabs' data (log, ledger, notes, contact history) lives
@@ -663,8 +663,8 @@ export const AttendeeFormPanel = ({
 );
 
 /**
- * The standard admin-attendees page shell: the {@link Layout}, the attendees
- * nav, and a `prose` heading whose `<h1>` reuses the page title. Extra prose
+ * The standard admin-attendees page shell: the {@link AdminPage} scaffold and
+ * a `prose` heading whose `<h1>` reuses the page title. Extra prose
  * (below the heading) goes in `prose`; the page body (below the prose block)
  * goes in `children`. Shared by the create form and the contact-history editor.
  */
@@ -676,14 +676,10 @@ export const AttendeesPageLayout = (props: {
 }): JSX.Element => {
   const { children, prose, session, title } = props;
   return (
-    <Layout title={title}>
-      <AdminNav active="/admin/attendees" session={session} />
-      <div class="prose">
-        <h1>{title}</h1>
-        {prose}
-      </div>
+    <AdminPage active="/admin/attendees" session={session} title={title}>
+      <ProseHeading heading={title}>{prose}</ProseHeading>
       {children}
-    </Layout>
+    </AdminPage>
   );
 };
 

@@ -6,17 +6,16 @@
 /* jscpd:ignore-start */
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type {
   AdminSession,
   Attendee,
   ListingWithCount,
 } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
-import { Layout } from "#templates/layout.tsx";
 /* jscpd:ignore-end */
 
 /** A text-message activity-log entry, shown as conversation history. */
@@ -105,17 +104,17 @@ const ComposeForm = ({
   );
 
 export const smsPage = (session: AdminSession, opts: SmsPageOptions): string =>
-  String(
-    <Layout
-      title={
-        opts.target
-          ? t("sms.contact.title", { name: opts.target.attendee.name })
-          : t("sms.page.title")
-      }
-    >
-      <AdminNav active="/admin/" session={session} />
-      <Flash error={opts.flash.error} success={opts.flash.success} />
-
+  flashAdminPage(
+    opts.target
+      ? t("sms.contact.title", { name: opts.target.attendee.name })
+      : t("sms.page.title"),
+    "/admin/",
+  )(
+    session,
+    opts.flash.error,
+    opts.flash.success,
+  )(
+    <>
       <h1>{t("sms.page.title")}</h1>
       <p>{t("sms.queue.awaiting", { count: opts.queueCount })}</p>
 
@@ -129,5 +128,5 @@ export const smsPage = (session: AdminSession, opts: SmsPageOptions): string =>
           })}
         />
       )}
-    </Layout>,
+    </>,
   );
