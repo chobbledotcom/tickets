@@ -1,9 +1,10 @@
+/* jscpd:ignore-start */
 import type { Page } from "playwright";
-import type { BrowserSession } from "../browser.ts";
 import { log, warn } from "../log.ts";
 import { clickFirst, fillCard, fillFirst, fillFrameInput } from "./card.ts";
-import { assertConfigured, selectProvider } from "./shared.ts";
+import { configureProvider } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
+/* jscpd:ignore-end */
 
 /**
  * SumUp. Sandbox vs live is inferred from the API key itself, and no webhook
@@ -33,13 +34,11 @@ export const sumup: PaymentProvider = {
   name: "sumup",
   setupCountry: "GB",
 
-  configure: async (session: BrowserSession, secrets): Promise<void> => {
-    await selectProvider(session, "sumup");
+  configure: configureProvider("sumup", async (session, secrets) => {
     await session.fill("sumup_api_key", secrets.apiKey);
     await session.fill("sumup_merchant_code", secrets.merchantCode);
     await session.clickButton("Update SumUp Credentials");
-    await assertConfigured(session, "sumup");
-  },
+  }),
 
   payHostedCheckout: async (page: Page): Promise<void> => {
     log("Filling SumUp hosted checkout…");

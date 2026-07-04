@@ -10,10 +10,7 @@
     "**/node_modules/**",
     "**/package-lock.json",
     "**/deno.lock",
-    "**/fp.ts",
-    "**/test-utils/**",
-    "**/src/features/admin/bulk-actions.ts",
-    "**/src/features/admin/builder.ts"
+    "**/fp.ts"
   ],
   "format": [
     "typescript",
@@ -26,6 +23,7 @@
   "minLines": 1,
   "minTokens": 23,
   "path": [
-    "src"
+    "src",
+    "e2e-payments"
   ]
 }

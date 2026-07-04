@@ -35,3 +35,26 @@ export const assertConfigured = async (
     );
   }
 };
+
+/**
+ * Build a provider's `configure` from just its credential-saving step. Every
+ * provider selects itself as the active provider, saves credentials, then
+ * verifies it reports configured — only the middle step differs, so the
+ * select/verify bookends live here rather than being repeated per provider.
+ */
+export const configureProvider =
+  (
+    provider: ProviderName,
+    saveCredentials: (
+      session: BrowserSession,
+      secrets: Record<string, string>,
+    ) => Promise<void>,
+  ) =>
+  async (
+    session: BrowserSession,
+    secrets: Record<string, string>,
+  ): Promise<void> => {
+    await selectProvider(session, provider);
+    await saveCredentials(session, secrets);
+    await assertConfigured(session, provider);
+  };

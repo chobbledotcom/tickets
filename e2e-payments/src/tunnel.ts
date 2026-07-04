@@ -7,18 +7,18 @@
  * the provider return URLs work end-to-end from an ephemeral CI runner.
  */
 
+/* jscpd:ignore-start */
 import { type ChildProcess, spawn } from "node:child_process";
 import { config } from "./config.ts";
 import { log, warn } from "./log.ts";
+import { sleep, stopChild } from "./util.ts";
+/* jscpd:ignore-end */
 
 export interface Tunnel {
   /** Public base URL, e.g. https://foo-bar.trycloudflare.com (no trailing slash). */
   publicBaseUrl: string;
   stop: () => Promise<void>;
 }
-
-const sleep = (ms: number): Promise<void> =>
-  new Promise((r) => setTimeout(r, ms));
 
 const TRYCLOUDFLARE_RE = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/i;
 
@@ -39,15 +39,7 @@ const attemptTunnel = async (localPort: number): Promise<Tunnel | null> => {
   child.stdout?.on("data", scan);
   child.stderr?.on("data", scan);
 
-  const stop = (): Promise<void> =>
-    new Promise<void>((resolveP) => {
-      child.once("exit", () => resolveP());
-      child.kill("SIGTERM");
-      setTimeout(() => {
-        child.kill("SIGKILL");
-        resolveP();
-      }, 3_000);
-    });
+  const stop = stopChild(child);
 
   const deadline = Date.now() + config.tunnelTimeoutMs;
   while (Date.now() < deadline) {

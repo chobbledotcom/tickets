@@ -4,6 +4,7 @@
  * (src/index.ts) — no mocks, no in-process test harness.
  */
 
+/* jscpd:ignore-start */
 import { type ChildProcess, spawn } from "node:child_process";
 import { mkdirSync, rmSync } from "node:fs";
 import { createWriteStream } from "node:fs";
@@ -11,6 +12,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.ts";
 import { log, warn } from "./log.ts";
+import { sleep, stopChild } from "./util.ts";
+/* jscpd:ignore-end */
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const repoRoot = resolve(here, "..", "..");
@@ -23,9 +26,6 @@ export interface AppServer {
   logPath: string;
   stop: () => Promise<void>;
 }
-
-const sleep = (ms: number): Promise<void> =>
-  new Promise((r) => setTimeout(r, ms));
 
 /** Pick a port in a high range; the OS will reject a genuine clash on bind. */
 const pickPort = (): number => 34_000 + Math.floor(Math.random() * 4_000);
@@ -99,15 +99,7 @@ export const startAppServer = async (): Promise<AppServer> => {
           localBaseUrl,
           port,
           logPath,
-          stop: () =>
-            new Promise<void>((resolveP) => {
-              child.once("exit", () => resolveP());
-              child.kill("SIGTERM");
-              setTimeout(() => {
-                child.kill("SIGKILL");
-                resolveP();
-              }, 3_000);
-            }),
+          stop: stopChild(child),
         };
       }
       await res.body?.cancel();

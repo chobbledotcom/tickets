@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import type { Page } from "playwright";
-import type { BrowserSession } from "../browser.ts";
 import { log } from "../log.ts";
-import { assertConfigured, selectProvider } from "./shared.ts";
+import { sleep } from "../util.ts";
+import { configureProvider } from "./shared.ts";
 import type { HostedCheckoutContext, PaymentProvider } from "./types.ts";
 
 /**
@@ -53,8 +53,8 @@ const SANDBOX_CARD_NONCE = "cnon:card-nonce-ok";
 
 type SquareMoney = { amount: number; currency: string };
 
-const sleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+/** Options for a single Square REST call. */
+type SquareRequest = { method?: string; body?: unknown };
 
 /** Recover the Square order id the app created for this booking from its server
  * log (it is logged as `[Square] Payment link created orderId=…`). Polled
@@ -85,7 +85,7 @@ const squareFetch = async (
   base: string,
   token: string,
   path: string,
-  init?: { method?: string; body?: unknown },
+  init?: SquareRequest,
 ): Promise<unknown> => {
   const res = await fetch(`${base}${path}`, {
     method: init?.method ?? "GET",
@@ -196,14 +196,12 @@ export const square: PaymentProvider = {
   // differently-configured Square sandbox location.
   setupCountry: "GB",
 
-  configure: async (session: BrowserSession, secrets): Promise<void> => {
-    await selectProvider(session, "square");
+  configure: configureProvider("square", async (session, secrets) => {
     await session.fill("square_access_token", secrets.token);
     await session.fill("square_location_id", secrets.locationId);
     if (secrets.sandbox === "true") await session.check("square_sandbox");
     await session.clickButton("Update Square Credentials");
-    await assertConfigured(session, "square");
-  },
+  }),
 
   payHostedCheckout: async (
     page: Page,

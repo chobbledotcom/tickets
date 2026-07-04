@@ -84,14 +84,19 @@ export const launchBrowser = async (baseUrl: string): Promise<BrowserSession> =>
    * invalid `pattern` that throws in recent Chromium. An out-of-band submit()
    * isn't tracked by Playwright's auto-wait, so wait for the navigation.
    */
+  /** Force-click a control and wait for the resulting navigation to commit. */
+  const clickAndWait = async (locator: Locator): Promise<void> => {
+    await locator.click({ force: true, timeout: T });
+    await page.waitForLoadState("domcontentloaded");
+  };
+
   const robustSubmit = async (locator: Locator): Promise<void> => {
     await locator.waitFor({ state: "attached", timeout: T });
     const hasForm = await locator.evaluate(
       (el) => !!(el as HTMLButtonElement).form,
     );
     if (!hasForm) {
-      await locator.click({ force: true, timeout: T });
-      await page.waitForLoadState("domcontentloaded");
+      await clickAndWait(locator);
     } else {
       await Promise.all([
         page.waitForNavigation({ waitUntil: "domcontentloaded" }),
@@ -151,8 +156,7 @@ export const launchBrowser = async (baseUrl: string): Promise<BrowserSession> =>
       ) {
         await page.goto(href, { waitUntil: "domcontentloaded" });
       } else {
-        await link.click({ force: true, timeout: T });
-        await page.waitForLoadState("domcontentloaded");
+        await clickAndWait(link);
       }
       await logWhere(`link "${text}"`);
     },
