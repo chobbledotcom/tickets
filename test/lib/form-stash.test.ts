@@ -100,6 +100,23 @@ describe("form stash", () => {
     });
   });
 
+  test("treats a token as expired exactly at its expiry instant", () => {
+    withTimedStash("name=Exact")(FORM_STASH_TTL_MS)((token) => {
+      expect(takeForm(token)).toBeNull();
+    });
+  });
+
+  test("sweeps an entry exactly at its expiry instant when a new one is stashed", () => {
+    withTimedStash("name=ExactSweep")(FORM_STASH_TTL_MS)((stale) => {
+      // A fresh stash triggers evict()'s own expiry check, independent of
+      // takeForm()'s — confirm the sweep itself treats the boundary as expired.
+      const fresh = stashRequired("name=New");
+      expect(formStashStat().entries).toBe(1);
+      expect(takeForm(stale)).toBeNull();
+      expect(takeForm(fresh)).toBe("name=New");
+    });
+  });
+
   test("sweeps expired entries when stashing a new one", () => {
     withTimedStash("name=Old")(FORM_STASH_TTL_MS + 1)((stale) => {
       // A fresh stash triggers the eviction sweep that removes the stale entry.
