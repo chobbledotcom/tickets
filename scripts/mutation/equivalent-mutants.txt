@@ -313,3 +313,9 @@ src/features/admin/modifiers.ts:521:10  return Promise.resolve() → return unde
 src/features/admin/group-page-data.ts:56:33  return false → return undefined   # hasPaidListing used only as a boolean; undefined and false coincide
 src/features/admin/group-page-data.ts:61:44  ?? → ||    # (row.package_price ?? 0): number|null, only falsy-non-null is 0 and 0 ?? 0 === 0 || 0
 src/features/admin/group-page-data.ts:182:49  ?? → ||   # dayPrices.get(): DayPrices (a Map) | undefined — a Map is always truthy
+
+# buildAssetPathsModule embed-script gate `pathConst === "EMBED_JS_PATH"`:
+# pathConst is the string 4th element of an AssetDef tuple compared against a
+# string literal, so === and == never disagree — no null/undefined/number
+# operand exists to coerce.
+scripts/edge-bundle-modules.ts:40:36  === → ==
