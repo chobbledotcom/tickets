@@ -936,6 +936,26 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(await getAnswerModifierId(aId)).toBeNull();
     });
 
+    test("parses the modifier id as decimal, rejecting a hex-encoded id", async () => {
+      const qId = await createQuestion("Hex modifier question");
+      const aId = await addAnswer(qId, "Pick");
+      const modifierId = await createAnswerModifier("Hex surcharge");
+
+      // A forged POST sends the real modifier id hex-encoded. Decimal parsing
+      // (radix 10) reads "0x…" as 0 → no such modifier → rejected. A base-0
+      // parse would read the hex digits and wrongly accept it, silently linking
+      // the modifier, so the id must be parsed as decimal.
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId}/edit`,
+        { modifier_id: `0x${modifierId.toString(16)}`, text: "Pick" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Invalid modifier"), false);
+
+      const { getAnswerModifierId } = await import("#shared/db/questions.ts");
+      expect(await getAnswerModifierId(aId)).toBeNull();
+    });
+
     test("rejects linking a modifier that isn't answer-triggered", async () => {
       const qId = await createQuestion("Wrong trigger question");
       const aId = await addAnswer(qId, "Pick");
