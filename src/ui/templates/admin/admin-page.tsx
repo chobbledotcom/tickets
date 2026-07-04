@@ -14,7 +14,7 @@
  */
 
 /* jscpd:ignore-start */
-import { Flash } from "#shared/forms.tsx";
+import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -58,6 +58,37 @@ export const AdminPage = ({
     {children}
   </Layout>
 );
+
+/** An admin page whose whole body is one CSRF form headed by an `<h1>{title}</h1>`
+ *  and an error/success Flash — the shape the recalculate pages and the
+ *  site-page create/edit forms share. `children` is the form body after the
+ *  flash (fields, tables, extra controls). */
+export const adminFormPage = ({
+  title,
+  active,
+  session,
+  action,
+  error,
+  success,
+  children,
+}: {
+  title: string;
+  active: string;
+  session: AdminSession;
+  action: string;
+  error?: string | undefined;
+  success?: string | undefined;
+  children: Child;
+}): string =>
+  String(
+    <AdminPage active={active} session={session} title={title}>
+      <CsrfForm action={action}>
+        <h1>{title}</h1>
+        <Flash error={error} success={success} />
+        {children}
+      </CsrfForm>
+    </AdminPage>,
+  );
 
 /** Build the props for an optional error/success Flash notice. The dashboards
  *  and landing pages share the

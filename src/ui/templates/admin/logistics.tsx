@@ -24,11 +24,8 @@ import type {
 } from "#shared/types.ts";
 import { successAdminPage } from "#templates/admin/admin-page.tsx";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
-import {
-  GuideLink,
-  SaveButton,
-  SubmitButton,
-} from "#templates/components/actions.tsx";
+import { booleanSettingsSection } from "#templates/admin/settings/boolean-settings-section.tsx";
+import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
 import {
   CheckboxFieldset,
   CheckboxLabel,
@@ -37,18 +34,16 @@ import {
   type DataColumn,
   dataTable,
 } from "#templates/components/data-table.tsx";
-import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
 import { logisticsAgentFields } from "#templates/fields.ts";
 
 /** The has-logistics enable/disable toggle. */
-const HasLogisticsForm = (hasLogistics: boolean): JSX.Element => (
-  <CsrfForm action="/admin/logistics/has-logistics">
-    <h2>{t("logistics.title")}</h2>
-    <p>{t("logistics.enable_hint")}</p>
-    <YesNoRadios name="has_logistics" on={hasLogistics} />
-    {SaveButton()}
-  </CsrfForm>
-);
+const HasLogisticsForm = booleanSettingsSection<boolean>({
+  action: "/admin/logistics/has-logistics",
+  description: <p>{t("logistics.enable_hint")}</p>,
+  fieldName: "has_logistics",
+  title: t("logistics.title"),
+  value: (hasLogistics) => hasLogistics,
+});
 
 /** Single-column table of logistics agents (name linking to edit). */
 const agentColumns: DataColumn<LogisticsAgent>[] = [

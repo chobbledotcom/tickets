@@ -1,10 +1,9 @@
 /* jscpd:ignore-start */
-import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { adminFormPage } from "#templates/admin/admin-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
-import { Layout } from "#templates/layout.tsx";
+import { DataTable } from "#templates/components/data-table.tsx";
 /* jscpd:ignore-end */
 
 export type RecalculateRow = {
@@ -39,45 +38,42 @@ export const adminRecalculatePage = ({
   submitLabel: string;
   title: string;
 }): string =>
-  String(
-    <Layout title={title}>
-      <AdminNav active={active} session={session} />
-      <CsrfForm action={action}>
-        <h1>{title}</h1>
-        <Flash error={error} success={success} />
+  adminFormPage({
+    action,
+    active,
+    children: (
+      <>
         <div class="prose">
           <p>{description}</p>
         </div>
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th></th>
-                <th>{currentLabel}</th>
-                <th>{recalculatedLabel}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr>
-                  <th>
-                    <label>
-                      <input
-                        name={RECALCULATE_FIELD_NAME}
-                        type="checkbox"
-                        value={row.name}
-                      />{" "}
-                      {row.label}
-                    </label>
-                  </th>
-                  <td>{row.current}</td>
-                  <td>{row.recalculated}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={[
+            { header: "" },
+            { header: currentLabel },
+            { header: recalculatedLabel },
+          ]}
+          rows={rows.map((row) => (
+            <tr>
+              <th>
+                <label>
+                  <input
+                    name={RECALCULATE_FIELD_NAME}
+                    type="checkbox"
+                    value={row.name}
+                  />{" "}
+                  {row.label}
+                </label>
+              </th>
+              <td>{row.current}</td>
+              <td>{row.recalculated}</td>
+            </tr>
+          ))}
+        />
         <SubmitButton icon="save">{submitLabel}</SubmitButton>
-      </CsrfForm>
-    </Layout>,
-  );
+      </>
+    ),
+    error,
+    session,
+    success,
+    title,
+  });

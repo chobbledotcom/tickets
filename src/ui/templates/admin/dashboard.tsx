@@ -23,7 +23,6 @@ import { formatDateLabel } from "#shared/dates.ts";
 import type { ServicingEventSummary } from "#shared/db/attendees/servicing.ts";
 import type { ActiveListingStats } from "#shared/db/attendees.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
@@ -38,14 +37,14 @@ import type {
   Holiday,
   ListingWithCount,
 } from "#shared/types.ts";
+import { AdminPage, flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { HolidayTable } from "#templates/admin/holidays.tsx";
-import { AdminNav } from "#templates/admin/nav.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
 import {
   ActionButton,
   ImportCatalogButton,
 } from "#templates/components/actions.tsx";
-import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { escapeHtml } from "#templates/layout.tsx";
 
 /** The "Add listing" action button — shared by the editor and staff dashboards.
  *  Optional `children` render as extra buttons inside the same actions row
@@ -387,12 +386,12 @@ export const adminDashboardPage = (
         )
       : "";
 
-  return String(
-    <Layout title={t("terms.listings")}>
-      <AdminNav active="/admin/" session={session} />
-
-      <Flash error={imageError} success={successMessage} />
-
+  return flashAdminPage(t("terms.listings"), "/admin/")(
+    session,
+    imageError,
+    successMessage,
+  )(
+    <>
       {!isReadOnly() && <AddListingButton />}
 
       <ListingsTableBlock
@@ -419,7 +418,7 @@ export const adminDashboardPage = (
       {newestAttendees.length > 0 && (
         <Raw html={newestAttendeesSection(newestAttendees, listings)} />
       )}
-    </Layout>,
+    </>,
   );
 };
 
@@ -447,9 +446,11 @@ export const adminListingsPage = (
   );
 
   return String(
-    <Layout title={t("terms.listings")}>
-      <AdminNav active="/admin/listings" session={session} />
-
+    <AdminPage
+      active="/admin/listings"
+      session={session}
+      title={t("terms.listings")}
+    >
       {!isReadOnly() && (
         <AddListingButton>
           <ImportCatalogButton />
@@ -477,6 +478,6 @@ export const adminListingsPage = (
           />
         </>
       )}
-    </Layout>,
+    </AdminPage>,
   );
 };

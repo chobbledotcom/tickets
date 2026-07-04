@@ -17,6 +17,7 @@ import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { questionTextFlat } from "#templates/admin/questions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
+import { DetailTable } from "#templates/components/detail-table.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 
 /** One key/value row of a detail table. */
@@ -191,15 +192,11 @@ export const AttendeeAnswersTable = ({
   return (
     <>
       <h3>{t("attendee_detail.answers")}</h3>
-      <div class="table-scroll">
-        <table class="listing-details-table">
-          <tbody>
-            {answered.map((row) => (
-              <DetailTableRow label={row.question}>{row.answer}</DetailTableRow>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DetailTable>
+        {answered.map((row) => (
+          <DetailTableRow label={row.question}>{row.answer}</DetailTableRow>
+        ))}
+      </DetailTable>
     </>
   );
 };

@@ -5,7 +5,6 @@
  */
 
 import { t } from "#i18n";
-import { formatCurrency } from "#shared/currency.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { OrderSummary } from "#shared/db/attendees/balance.ts";
@@ -50,19 +49,17 @@ export const AttendeeBalancePanel = (
           label={t("attendee_balance.paid_so_far_label")}
         />
         {status?.is_reservation && (
-          <p>
-            <strong>
-              {t("attendee_balance.reservation_deposit_label", {
-                amount: status.reservation_amount,
-              })}
-            </strong>{" "}
-            {formatCurrency(deposit)}
-          </p>
+          <AmountLine
+            amount={deposit}
+            label={t("attendee_balance.reservation_deposit_label", {
+              amount: status.reservation_amount,
+            })}
+          />
         )}
-        <p>
-          <strong>{t("attendee_balance.balance_outstanding_label")}</strong>{" "}
-          {formatCurrency(remainingBalance)}
-        </p>
+        <AmountLine
+          amount={remainingBalance}
+          label={t("attendee_balance.balance_outstanding_label")}
+        />
       </div>
 
       {!outstanding ? (
