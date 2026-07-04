@@ -1,33 +1,32 @@
 /**
- * Raw bytes of the vendored jSquash codec WebAssembly modules.
+ * Raw bytes of the jSquash codec WebAssembly modules.
  *
- * Development and tests read the `.wasm` files from disk (relative to this
- * module). The Bunny edge runtime has no filesystem, so the edge build
- * (`scripts/build-edge.ts`, `inlineWasmPlugin`) replaces this module with one
- * that returns the same bytes baked in as base64 — exactly the shape the
- * `inline-assets` / `build-info` plugins already use for other filesystem reads.
+ * The JS glue comes from `@jsquash/*`, but those packages also ship matching
+ * `.wasm` sidecars. Development and tests resolve those sidecars through Deno's
+ * locked npm resolver and read the package files directly. Single-file deploy
+ * bundles have no filesystem, so the build replaces this module with base64
+ * literals produced from the same package sidecars.
+ *
  * Either way the exported interface is identical: five `Uint8Array` getters,
  * read lazily so importing this module does no filesystem work until a codec is
- * actually initialised (the transcode path is dynamically imported on the first
- * image upload, never at cold boot).
- *
- * See `src/shared/images/wasm/README.md` for how the files are vendored.
+ * actually initialised.
  */
 
-const read = (name: string): Uint8Array =>
-  Deno.readFileSync(new URL(`./wasm/${name}`, import.meta.url));
+import { ASSETS, readAsset } from "./wasm-assets.ts";
+
+const [JPEG_DEC, PNG_DEC, WEBP_DEC, WEBP_ENC, WEBP_ENC_SIMD] = ASSETS;
 
 /** mozjpeg decoder (JPEG → RGBA). */
-export const jpegDecWasm = (): Uint8Array => read("jpeg_dec.wasm");
+export const jpegDec = (): Uint8Array => readAsset(JPEG_DEC);
 
 /** squoosh PNG decoder (PNG → RGBA). */
-export const pngDecWasm = (): Uint8Array => read("png_dec.wasm");
+export const pngDec = (): Uint8Array => readAsset(PNG_DEC);
 
 /** libwebp decoder (WebP → RGBA). */
-export const webpDecWasm = (): Uint8Array => read("webp_dec.wasm");
+export const webpDec = (): Uint8Array => readAsset(WEBP_DEC);
 
 /** libwebp encoder, scalar build (RGBA → WebP). */
-export const webpEncWasm = (): Uint8Array => read("webp_enc.wasm");
+export const webpEnc = (): Uint8Array => readAsset(WEBP_ENC);
 
 /** libwebp encoder, SIMD build — used when the runtime reports WASM SIMD. */
-export const webpEncSimdWasm = (): Uint8Array => read("webp_enc_simd.wasm");
+export const webpEncSimd = (): Uint8Array => readAsset(WEBP_ENC_SIMD);

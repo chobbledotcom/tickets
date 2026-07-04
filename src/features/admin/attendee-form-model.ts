@@ -23,7 +23,11 @@ import type {
 } from "#shared/db/attendee-types.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
-import { type ListingWithCount, normalizeDurationDays } from "#shared/types.ts";
+import {
+  type ContactInfo,
+  type ListingWithCount,
+  normalizeDurationDays,
+} from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import {
   parseNonNegativeInt,
@@ -108,12 +112,7 @@ export type AttendeeBooking = {
 };
 
 /** The full parsed form — attendee fields, the shared range, and line items. */
-export type ParsedAttendeeForm = {
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-  special_instructions: string;
+export type ParsedAttendeeForm = ContactInfo & {
   /** Selected attendee status id, or null for "no status". */
   statusId: number | null;
   /** Outstanding balance in minor units (order-level, plaintext). */
@@ -128,7 +127,7 @@ export type ParsedAttendeeForm = {
 
 /** Attendee-level validation error. */
 export type AttendeeFieldError = {
-  field: "name" | "email" | "phone" | "address" | "special_instructions";
+  field: keyof ContactInfo;
   message: string;
 };
 
@@ -457,14 +456,9 @@ const lineDate = (line: AttendeeFormLine, parsed: ParsedAttendeeForm) =>
 
 export const toCreateInput = (
   parsed: ParsedAttendeeForm,
-): {
-  address: string;
+): ContactInfo & {
   bookings: ListingBooking[];
-  email: string;
-  name: string;
-  phone: string;
   remainingBalance: number;
-  special_instructions: string;
   statusId: number | null;
 } => ({
   address: parsed.address,

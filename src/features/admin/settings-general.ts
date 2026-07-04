@@ -24,14 +24,13 @@ import { settings } from "#shared/db/settings.ts";
 import { applyDemoOverrides, TERMS_DEMO_FIELDS } from "#shared/demo.ts";
 import { parseEmbedHosts, validateEmbedHosts } from "#shared/embed-hosts.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import type { PaymentProviderType } from "#shared/payments.ts";
 import { ok } from "#shared/response.ts";
-import type { Theme } from "#shared/types.ts";
+import {
+  isPaymentProvider,
+  type PaymentProviderType,
+  type Theme,
+} from "#shared/types.ts";
 import { isValidEmail, updateBusinessEmail } from "#shared/validation/email.ts";
-
-/** Type guard: check if a string is a valid payment provider */
-const isPaymentProvider = (s: string): s is PaymentProviderType =>
-  s === "stripe" || s === "square" || s === "sumup";
 
 /**
  * Handle POST /admin/settings/payment-provider - owner only

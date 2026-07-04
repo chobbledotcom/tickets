@@ -14,6 +14,7 @@ import {
 } from "#shared/crypto/keys.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
 import type {
+  AttendeePii,
   EncryptedAttendeeData,
   EncryptInput,
   UpdateAttendeePIIInput,
@@ -26,9 +27,7 @@ import type { Attendee, ContactInfo, PiiBlob } from "#shared/types.ts";
 export const PII_BLOB_VERSION = 1;
 
 /** Build a PII blob JSON from contact fields */
-export const buildPiiBlob = (
-  info: ContactInfo & { payment_id: string; ticket_token: string },
-): string =>
+export const buildPiiBlob = (info: AttendeePii): string =>
   JSON.stringify({
     a: info.address,
     e: info.email,

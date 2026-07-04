@@ -7,6 +7,9 @@ import { t } from "#i18n";
 import { formatCurrency, getDecimalPlaces } from "#shared/currency.ts";
 import { DAY_NAMES } from "#shared/dates.ts";
 import { isUpdateTier } from "#shared/db/built-sites.ts";
+import type { ListingAggregateValues } from "#shared/db/listings.ts";
+import type { ModifierAggregateValues } from "#shared/db/modifiers.ts";
+import type { AnswerAggregateValues } from "#shared/db/questions.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { type Field, validateForm } from "#shared/forms.tsx";
@@ -88,10 +91,7 @@ export type ListingEditFormValues = ListingFormValues & {
   slug: string;
 };
 
-export type ListingAggregateFormValues = {
-  booked_quantity: number;
-  tickets_count: number;
-};
+export type ListingAggregateFormValues = ListingAggregateValues;
 
 /** Typed values from group create form validation (no slug - auto-generated) */
 export type GroupCreateFormValues = {
@@ -858,10 +858,7 @@ export type ModifierFormValues = {
   active: string;
 };
 
-export type ModifierAggregateFormValues = {
-  total_uses: number;
-  usage_count: number;
-};
+export type ModifierAggregateFormValues = ModifierAggregateValues;
 
 const aggregateIntegerField = (name: string, label: string): Field => ({
   label,
@@ -883,9 +880,7 @@ export const modifierAggregateFields: Field[] = [
   aggregateIntegerField("usage_count", t("fields.modifier.usage_count")),
 ];
 
-export type AnswerAggregateFormValues = {
-  times_selected: number;
-};
+export type AnswerAggregateFormValues = AnswerAggregateValues;
 
 export const answerAggregateFields: Field[] = [
   aggregateIntegerField("times_selected", t("fields.answer.times_selected")),
