@@ -38,9 +38,18 @@ export const handleSmsGatewayPost = settingsHandler<SmsGatewayFormData>({
   save: async ({ username, baseUrl, password, passphrase, webhookSecret }) => {
     await settings.update.smsGatewayUsername(username);
     await settings.update.smsGatewayBaseUrl(baseUrl);
-    await saveSecret(password, settings.update.smsGatewayPassword);
-    await saveSecret(passphrase, settings.update.smsGatewayPassphrase);
-    await saveSecret(webhookSecret, settings.update.smsGatewayWebhookSecret);
+    const clearable = { clearable: true };
+    await saveSecret(password, settings.update.smsGatewayPassword, clearable);
+    await saveSecret(
+      passphrase,
+      settings.update.smsGatewayPassphrase,
+      clearable,
+    );
+    await saveSecret(
+      webhookSecret,
+      settings.update.smsGatewayWebhookSecret,
+      clearable,
+    );
   },
   validate: ({ baseUrl, passphrase }) => {
     const baseUrlError = validateSafeServerFetchUrl(

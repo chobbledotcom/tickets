@@ -230,15 +230,21 @@ const processSecretField = (
 };
 
 /**
- * Apply a masked-secret field to its updater: provided → set the new value,
- * cleared → store the empty string, unchanged → leave the stored value as-is.
+ * Apply a masked-secret field to its updater.
+ * - provided → set the new value
+ * - unchanged → leave the stored value as-is
+ * - cleared → no-op by default, so blanking a field can't silently wipe a
+ *   credential a handler still treats as required (and whose provider stays
+ *   selected). Pass `clearable: true` for genuinely optional secrets whose
+ *   empty submission should store `""` (e.g. the SMS gateway credentials).
  */
 const saveSecret = async (
   field: SecretFieldResult,
   update: (value: string) => Promise<void>,
+  opts: { clearable?: boolean } = {},
 ): Promise<void> => {
   if (field.action === "provided") return update(field.value);
-  if (field.action === "cleared") return update("");
+  if (opts.clearable && field.action === "cleared") return update("");
 };
 
 type SecretFieldConfig = FieldConfig & {
