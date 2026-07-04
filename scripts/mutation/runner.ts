@@ -70,6 +70,51 @@ const testEnv = (): Record<string, string> => ({
   STRIPE_MOCK_PORT: String(STRIPE_MOCK_PORT),
 });
 
+/**
+ * Resolve how to invoke Biome's linter — the native binary when it is on PATH
+ * (matches the Nix dev shell), otherwise the npm package (hosted CI). Mirrors
+ * scripts/biome.ts so the mutation gate lints exactly as `deno task lint` does.
+ */
+const resolveBiome = async (): Promise<{ bin: string; pre: string[] }> => {
+  try {
+    const which = await new Deno.Command("which", { args: ["biome"] }).output();
+    if (which.success) return { bin: "biome", pre: [] };
+  } catch {
+    // fall through to the npm package
+  }
+  return { bin: Deno.execPath(), pre: ["run", "-A", "npm:@biomejs/biome"] };
+};
+
+/**
+ * Lint the mutated file. The unmutated tree is lint-clean (CI enforces it), so
+ * any diagnostic here was introduced by the mutation — meaning the mutant
+ * produces code the project forbids and could never pass review, which we count
+ * as detected (see evaluateMutant). Two deliberate restrictions stop this from
+ * ever *masking* a genuine survivor:
+ *   - error-severity only (plain `biome lint`, never `--error-on-warnings`):
+ *     the `noExcessiveCognitiveComplexity` *warning* can trip when an
+ *     `&&`/`||`/`??` swap changes a borderline function's operator mix, and
+ *     killing on that would hide a real logical survivor.
+ *   - lint, never `check`: a mutation that merely lengthens a line past the
+ *     formatter's width is a formatting diff, not a real detection.
+ * The rule this reliably catches is `noDoubleEquals` — every `=== → ==` and
+ * `!== → !=` mutant produces forbidden `==`/`!=` and dies here without a test.
+ */
+type MutantLinter = (file: string) => Promise<boolean>;
+
+const createLinter = async (): Promise<MutantLinter> => {
+  const { bin, pre } = await resolveBiome();
+  return async (file: string): Promise<boolean> => {
+    const { code } = await new Deno.Command(bin, {
+      args: [...pre, "lint", file],
+      cwd: projectRoot,
+      stderr: "null",
+      stdout: "null",
+    }).output();
+    return code === 0;
+  };
+};
+
 /** Run one `deno test` process over `batch`, returning its exit code. */
 const runTestBatch = async (
   batch: string[],
@@ -198,10 +243,15 @@ const evaluateMutant = async (
   timeoutMs: number,
   batchJobs: number,
   assets: MutantAssetHooks | null,
+  lint: MutantLinter,
   abortSignal: AbortSignal,
 ): Promise<Status> => {
   await Deno.writeTextFile(file, applyMutant(original, mutant));
   try {
+    // A mutant that produces code the linter rejects (e.g. `==` under
+    // noDoubleEquals) is detected statically — killed before we spend a full
+    // test run on it. See createLinter for why this can't mask a survivor.
+    if (!(await lint(file))) return "killed";
     // A mutant that breaks the client-bundle build must not be tested against a
     // stale baseline asset (the tests would pass and it would falsely survive).
     // A failed build means the mutation is detected, so count it as killed.
@@ -339,6 +389,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   const rebuilder: AssetRebuilder | null = useHarness
     ? await createAssetRebuilder()
     : null;
+  const lint = await createLinter();
 
   try {
     const plans: FileMutationPlan[] = [];
@@ -369,6 +420,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
           perMutantTimeout,
           batchJobs,
           plan.assets,
+          lint,
           abortSignal,
         );
         originals.delete(plan.file);
