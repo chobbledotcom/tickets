@@ -853,6 +853,46 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(html).toContain(`/admin/listing/${listing.id}`);
     });
 
+    test("Attendees tab renders the roster's answers column when a listing has questions", async () => {
+      // A listing question makes the roster carry question data, so the
+      // Attendees tab renders the Answers column (the questionData branch that
+      // is absent for a question-free group).
+      const group = await createTestGroup({
+        name: "Q Attendees",
+        slug: "q-attendees",
+      });
+      const listing = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Q Attendee Listing",
+      });
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Quentin",
+        "quentin@test.com",
+      );
+      const { questionsTable, answersTable, setListingQuestions } =
+        await import("#shared/db/questions.ts");
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Meal choice",
+      });
+      await answersTable.insert({
+        questionId: q.id,
+        sortOrder: 0,
+        text: "Veg",
+      });
+      await setListingQuestions(listing.id, [q.id]);
+
+      const html = await (
+        await adminGet(`/admin/groups/${group.id}/attendees`)
+      ).text();
+      expect(html).toContain("Quentin");
+      // The Answers column only renders when the roster carries question data.
+      expect(html).toContain("<th>Answers</th>");
+    });
+
     test("shows question answer summary in group details", async () => {
       const group = await createTestGroup({
         name: "Q Group",
