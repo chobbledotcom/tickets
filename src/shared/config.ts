@@ -71,6 +71,14 @@ export const seedEffectiveDomainHost = (requestUrl: string): void => {
 /** Get the effective domain synchronously (must call loadEffectiveDomain first). */
 export const getEffectiveDomain = (): string => effectiveDomainState.domain;
 
+/**
+ * Whether we are serving a real, resolved host rather than the default. Gates
+ * HTTPS-only behaviour — Secure/`__Host-` cookies and the HSTS header — which
+ * must stay off for local development on DEFAULT_DOMAIN.
+ */
+export const isSecureMode = (): boolean =>
+  effectiveDomainState.domain !== DEFAULT_DOMAIN;
+
 /** Reset effective domain cache back to the default (for testing). */
 export const resetEffectiveDomain = (): void => {
   effectiveDomainState.domain = DEFAULT_DOMAIN;
