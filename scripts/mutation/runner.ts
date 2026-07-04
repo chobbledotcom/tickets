@@ -70,6 +70,68 @@ const testEnv = (): Record<string, string> => ({
   STRIPE_MOCK_PORT: String(STRIPE_MOCK_PORT),
 });
 
+/**
+ * Resolve how to invoke Biome's linter — the native binary when it is on PATH
+ * (matches the Nix dev shell), otherwise the npm package (hosted CI). Mirrors
+ * scripts/biome.ts so the mutation gate lints exactly as `deno task lint` does.
+ */
+const resolveBiome = async (): Promise<{ bin: string; pre: string[] }> => {
+  try {
+    const which = await new Deno.Command("which", { args: ["biome"] }).output();
+    if (which.success) return { bin: "biome", pre: [] };
+  } catch {
+    // fall through to the npm package
+  }
+  return { bin: Deno.execPath(), pre: ["run", "-A", "npm:@biomejs/biome"] };
+};
+
+/**
+ * Biome linter for the mutation gate. `exit(file)` returns the raw `biome lint`
+ * exit code (0 = clean) for the file's *current on-disk contents*.
+ *
+ * A non-zero exit is read as "the mutation introduced a diagnostic" (the mutant
+ * produces code the project forbids and could never pass review, so we count it
+ * as detected — see evaluateMutant). That reading is only sound once the runner
+ * has confirmed, per file, that the *unmutated* target lints clean (see the
+ * baseline probe in runMutants): otherwise a broken Biome (uncached npm
+ * fallback, unreadable config, a crash) or a pre-existing lint error in the
+ * target would fail every mutant and report a bogus 100%. Two restrictions keep
+ * a passing mutant from ever *masking* a genuine survivor:
+ *   - error-severity only (plain `biome lint`, never `--error-on-warnings`):
+ *     the `noExcessiveCognitiveComplexity` *warning* can trip when an
+ *     `&&`/`||`/`??` swap changes a borderline function's operator mix, and
+ *     killing on that would hide a real logical survivor.
+ *   - lint, never `check`: a mutation that merely lengthens a line past the
+ *     formatter's width is a formatting diff, not a real detection.
+ * The rule this reliably catches is `noDoubleEquals` — every `=== → ==` and
+ * `!== → !=` mutant produces forbidden `==`/`!=` and dies here without a test.
+ */
+interface MutantLinter {
+  /** `biome lint` exit code for the file's current on-disk contents (0 = clean). */
+  exit(file: string): Promise<number>;
+}
+
+const createLinter = async (): Promise<MutantLinter> => {
+  const { bin, pre } = await resolveBiome();
+  return {
+    exit: async (file: string): Promise<number> => {
+      const { code } = await new Deno.Command(bin, {
+        // --no-errors-on-unmatched: a source deliberately outside Biome's
+        // includes (e.g. src/ui/client/scanner.js) is still a mutation target
+        // via src/**/*.js, and linting an excluded path exits non-zero for
+        // "no files processed". Silencing that makes such a file lint clean
+        // (exit 0) so its mutants fall through to the test/build path instead
+        // of the baseline probe mistaking it for a dirty target and aborting.
+        args: [...pre, "lint", "--no-errors-on-unmatched", file],
+        cwd: projectRoot,
+        stderr: "null",
+        stdout: "null",
+      }).output();
+      return code;
+    },
+  };
+};
+
 /** Run one `deno test` process over `batch`, returning its exit code. */
 const runTestBatch = async (
   batch: string[],
@@ -198,10 +260,17 @@ const evaluateMutant = async (
   timeoutMs: number,
   batchJobs: number,
   assets: MutantAssetHooks | null,
+  lint: MutantLinter,
   abortSignal: AbortSignal,
 ): Promise<Status> => {
   await Deno.writeTextFile(file, applyMutant(original, mutant));
   try {
+    // A mutant that produces code the linter rejects (e.g. `==` under
+    // noDoubleEquals) is detected statically — killed before we spend a full
+    // test run on it. The unmutated target is verified lint-clean per file
+    // (see runMutants), so a non-zero exit here is a mutation-introduced
+    // diagnostic, not a broken Biome. See createLinter for the full rationale.
+    if ((await lint.exit(file)) !== 0) return "killed";
     // A mutant that breaks the client-bundle build must not be tested against a
     // stale baseline asset (the tests would pass and it would falsely survive).
     // A failed build means the mutation is detected, so count it as killed.
@@ -339,6 +408,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   const rebuilder: AssetRebuilder | null = useHarness
     ? await createAssetRebuilder()
     : null;
+  const lint = await createLinter();
 
   try {
     const plans: FileMutationPlan[] = [];
@@ -358,6 +428,30 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
 
     for (const plan of plans) {
       if (isAborted()) break;
+      // The lint gate can only tell a mutation-introduced diagnostic apart from
+      // a broken Biome or an already-dirty target if the *unmutated* file lints
+      // clean. The file on disk is the original here (restored after every
+      // mutant), so probe it once per file. A non-zero exit means the gate
+      // can't be trusted — precommit runs `lint:ci` before mutation, but a
+      // standalone `deno task mutation` does not — so abort loudly rather than
+      // record every mutant as a bogus lint-kill. Probing the target itself
+      // (not a fixed path) also means a run that mutates this very file never
+      // reprobes a path that is currently holding a mutant.
+      if (plan.mutants.length > 0 && (await lint.exit(plan.file)) !== 0) {
+        console.error(
+          red(`\nThe unmutated ${rel(plan.file)} does not lint clean.`),
+        );
+        console.error(
+          "The mutation lint gate needs a lint-clean target and a working Biome.",
+        );
+        console.error(
+          "Run `deno task lint` and fix any errors (precommit runs lint:ci first;",
+        );
+        console.error(
+          "a standalone `deno task mutation` does not), then retry.",
+        );
+        return 1;
+      }
       for (const mutant of plan.mutants) {
         if (isAborted()) break;
         originals.set(plan.file, plan.original);
@@ -369,6 +463,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
           perMutantTimeout,
           batchJobs,
           plan.assets,
+          lint,
           abortSignal,
         );
         originals.delete(plan.file);
