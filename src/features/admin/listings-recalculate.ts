@@ -12,7 +12,6 @@ import {
   selectedRecalculationFields,
 } from "#routes/admin/aggregate-recalculation.ts";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -38,7 +37,6 @@ export const handleListingRecalculateGet: TypedRouteHandler<
 > = (request, { listingId }) =>
   requireSessionOr(request, (session) =>
     withEntityFromParam(listingId, getListingWithCount, (listing) => {
-      applyFlash(request);
       const flash = getFlash();
       return renderListingRecalculatePage(
         listing,
