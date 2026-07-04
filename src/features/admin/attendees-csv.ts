@@ -87,27 +87,20 @@ export const standardAttendeeColumns = (domain: string): Column<Attendee>[] => [
   },
 ];
 
-/** Optional Listing Date / Listing Location columns (fixed for every row). The
- * listing date is a UTC ISO datetime, shown as a date + time in `tz`. */
-const listingInfoColumns = (
-  tz: string,
-  info?: CsvListingInfo,
-): Column<Attendee>[] => [
-  ...(info?.listingDate
-    ? [
-        {
-          header: t("csv.col.listing_date"),
-          value: () => formatDatetimeShortInTz(info.listingDate, tz),
-        },
-      ]
+/** Optional Listing Date / Listing Location columns, shared by the attendee and
+ * calendar exports. Each column is emitted only when its `show` flag is set; its
+ * `value` reads the cell from the row (a per-row listing for the calendar, a
+ * fixed listing for a single-listing attendee export). The listing date is a UTC
+ * ISO datetime, which the supplied `value` is expected to render in the site tz. */
+export const listingInfoColumns = <T>(
+  date: { show: boolean; value: Column<T>["value"] },
+  location: { show: boolean; value: Column<T>["value"] },
+): Column<T>[] => [
+  ...(date.show
+    ? [{ header: t("csv.col.listing_date"), value: date.value }]
     : []),
-  ...(info?.listingLocation
-    ? [
-        {
-          header: t("csv.col.listing_location"),
-          value: () => info.listingLocation,
-        },
-      ]
+  ...(location.show
+    ? [{ header: t("csv.col.listing_location"), value: location.value }]
     : []),
 ];
 
@@ -166,7 +159,16 @@ const attendeeColumns = ({
         },
       ]
     : []),
-  ...listingInfoColumns(tz, listingInfo),
+  ...listingInfoColumns<Attendee>(
+    {
+      show: Boolean(listingInfo?.listingDate),
+      value: () => formatDatetimeShortInTz(listingInfo!.listingDate, tz),
+    },
+    {
+      show: Boolean(listingInfo?.listingLocation),
+      value: () => listingInfo!.listingLocation,
+    },
+  ),
   ...standardAttendeeColumns(domain),
   ...questionColumns(questionData),
 ];
