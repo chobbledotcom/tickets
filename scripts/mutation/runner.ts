@@ -86,11 +86,17 @@ const resolveBiome = async (): Promise<{ bin: string; pre: string[] }> => {
 };
 
 /**
- * Lint the mutated file. The unmutated tree is lint-clean (CI enforces it), so
- * any diagnostic here was introduced by the mutation — meaning the mutant
- * produces code the project forbids and could never pass review, which we count
- * as detected (see evaluateMutant). Two deliberate restrictions stop this from
- * ever *masking* a genuine survivor:
+ * Biome linter for the mutation gate. `exit(file)` returns the raw `biome lint`
+ * exit code (0 = clean) for the file's *current on-disk contents*.
+ *
+ * A non-zero exit is read as "the mutation introduced a diagnostic" (the mutant
+ * produces code the project forbids and could never pass review, so we count it
+ * as detected — see evaluateMutant). That reading is only sound once the runner
+ * has confirmed, per file, that the *unmutated* target lints clean (see the
+ * baseline probe in runMutants): otherwise a broken Biome (uncached npm
+ * fallback, unreadable config, a crash) or a pre-existing lint error in the
+ * target would fail every mutant and report a bogus 100%. Two restrictions keep
+ * a passing mutant from ever *masking* a genuine survivor:
  *   - error-severity only (plain `biome lint`, never `--error-on-warnings`):
  *     the `noExcessiveCognitiveComplexity` *warning* can trip when an
  *     `&&`/`||`/`??` swap changes a borderline function's operator mix, and
@@ -100,48 +106,23 @@ const resolveBiome = async (): Promise<{ bin: string; pre: string[] }> => {
  * The rule this reliably catches is `noDoubleEquals` — every `=== → ==` and
  * `!== → !=` mutant produces forbidden `==`/`!=` and dies here without a test.
  */
-type MutantLinter = (file: string) => Promise<boolean>;
+interface MutantLinter {
+  /** `biome lint` exit code for the file's current on-disk contents (0 = clean). */
+  exit(file: string): Promise<number>;
+}
 
 const createLinter = async (): Promise<MutantLinter> => {
   const { bin, pre } = await resolveBiome();
-  const lintExit = async (file: string): Promise<number> => {
-    const { code } = await new Deno.Command(bin, {
-      args: [...pre, "lint", file],
-      cwd: projectRoot,
-      stderr: "null",
-      stdout: "null",
-    }).output();
-    return code;
-  };
-
-  // The gate is only trustworthy if Biome actually runs: a non-zero exit must
-  // mean "found a diagnostic", never "couldn't start" (npm fallback uncached,
-  // unreadable config, a crash). If a failed *invocation* were read as a
-  // diagnostic, every mutant would be recorded as killed while nothing detected
-  // it — a silent perfect score. The committed tree is lint-clean (CI enforces
-  // it), so linting this very file is a known-good probe that must exit 0.
-  // Prove it up front, and re-prove it before trusting any non-zero result
-  // below; if the probe ever fails, abort loudly instead of inflating the score.
-  const selfPath = import.meta.filename;
-  if (!selfPath) throw new Error("mutation lint gate: no local module path");
-  const brokenGate = (exit: number): Error =>
-    new Error(
-      `Biome lint gate is not operational: linting a known-clean file exited ${exit}. ` +
-        "Fix the Biome install/config before running mutation testing.",
-    );
-  const probe = await lintExit(selfPath);
-  if (probe !== 0) throw brokenGate(probe);
-
-  return async (file: string): Promise<boolean> => {
-    if ((await lintExit(file)) === 0) return true;
-    // Non-zero: a real mutation-introduced diagnostic, or Biome broke mid-run.
-    // Distinguish by re-probing the known-clean file — only reached on would-be
-    // kills (rare), so the extra invocation is cheap. A clean probe confirms a
-    // genuine diagnostic (killed); a failing probe means the tooling died, so
-    // abort rather than record a bogus kill.
-    const reprobe = await lintExit(selfPath);
-    if (reprobe !== 0) throw brokenGate(reprobe);
-    return false;
+  return {
+    exit: async (file: string): Promise<number> => {
+      const { code } = await new Deno.Command(bin, {
+        args: [...pre, "lint", file],
+        cwd: projectRoot,
+        stderr: "null",
+        stdout: "null",
+      }).output();
+      return code;
+    },
   };
 };
 
@@ -280,8 +261,10 @@ const evaluateMutant = async (
   try {
     // A mutant that produces code the linter rejects (e.g. `==` under
     // noDoubleEquals) is detected statically — killed before we spend a full
-    // test run on it. See createLinter for why this can't mask a survivor.
-    if (!(await lint(file))) return "killed";
+    // test run on it. The unmutated target is verified lint-clean per file
+    // (see runMutants), so a non-zero exit here is a mutation-introduced
+    // diagnostic, not a broken Biome. See createLinter for the full rationale.
+    if ((await lint.exit(file)) !== 0) return "killed";
     // A mutant that breaks the client-bundle build must not be tested against a
     // stale baseline asset (the tests would pass and it would falsely survive).
     // A failed build means the mutation is detected, so count it as killed.
@@ -439,6 +422,30 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
 
     for (const plan of plans) {
       if (isAborted()) break;
+      // The lint gate can only tell a mutation-introduced diagnostic apart from
+      // a broken Biome or an already-dirty target if the *unmutated* file lints
+      // clean. The file on disk is the original here (restored after every
+      // mutant), so probe it once per file. A non-zero exit means the gate
+      // can't be trusted — precommit runs `lint:ci` before mutation, but a
+      // standalone `deno task mutation` does not — so abort loudly rather than
+      // record every mutant as a bogus lint-kill. Probing the target itself
+      // (not a fixed path) also means a run that mutates this very file never
+      // reprobes a path that is currently holding a mutant.
+      if (plan.mutants.length > 0 && (await lint.exit(plan.file)) !== 0) {
+        console.error(
+          red(`\nThe unmutated ${rel(plan.file)} does not lint clean.`),
+        );
+        console.error(
+          "The mutation lint gate needs a lint-clean target and a working Biome.",
+        );
+        console.error(
+          "Run `deno task lint` and fix any errors (precommit runs lint:ci first;",
+        );
+        console.error(
+          "a standalone `deno task mutation` does not), then retry.",
+        );
+        return 1;
+      }
       for (const mutant of plan.mutants) {
         if (isAborted()) break;
         originals.set(plan.file, plan.original);
