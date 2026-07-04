@@ -16,6 +16,7 @@ import {
   assertAdminHtml,
   awaitTestRequest,
   createTestAttendee,
+  createTestEditorSession,
   createTestGroup,
   createTestListing,
   createTestManagerSession,
@@ -227,14 +228,16 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         termsAndConditions: "Original terms",
       });
       const response = await adminGet(`/admin/groups/${group.id}/edit`);
+      // The Edit tab renders the group form pre-filled; the page title is the
+      // group name (the old "Edit Group" heading is now the tab label).
       await expectHtmlResponse(
         response,
         200,
-        "Edit Group",
         "Editable",
         "editable",
         "Editable description",
         "Original terms",
+        'action="/admin/groups/',
       );
     });
 
@@ -245,7 +248,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: "hidden-editable",
       });
       const response = await adminGet(`/admin/groups/${group.id}/edit`);
-      const html = await expectHtmlResponse(response, 200, "Edit Group");
+      const html = await expectHtmlResponse(response, 200, "Hidden Editable");
       expect(html).toContain("checked");
     });
 
@@ -508,6 +511,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       });
 
       const response = await adminGet(`/admin/groups/${group.id}`);
+      // Edit/delete moved to the Edit and Actions tabs; the Overview tab keeps
+      // the info table, member listings, and share/embed affordances.
       await expectHtmlResponse(
         response,
         200,
@@ -515,8 +520,6 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "detail-group",
         "Grouped Listing",
         `/admin/listing/${listing.id}`,
-        "Edit Group",
-        "Delete Group",
         "Public URL",
         "/ticket/detail-group",
         "QR Code",
@@ -552,6 +555,58 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       // The embed/share affordances render despite the member being sold out.
       expect(html).toContain("Embed Script");
       expect(html).toContain("/ticket/sold-out-group");
+    });
+
+    test("a bookable package is shareable — public URL, QR, and embed render", async () => {
+      // A package (unlike a regular group) gates its share affordances on the
+      // whole bundle being bookable. A priced, uncapped member makes it so.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Bookable Pkg",
+        slug: "bookable-pkg",
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Bookable Member",
+        unitPrice: 1000,
+      });
+      await setGroupPackageMembers(group.id, [
+        { listingId: member.id, price: 1000 },
+      ]);
+
+      const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
+      expect(html).toContain("/ticket/bookable-pkg");
+      expect(html).toContain(`embed-script-${group.id}`);
+    });
+
+    test("a sold-out package hides its share affordances", async () => {
+      // The bundle can't be booked once its only member is full, so the package
+      // (unlike a regular group) drops the public URL / QR / embed.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Sold Out Pkg",
+        slug: "sold-out-pkg",
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 1,
+        name: "Sold Package Member",
+        unitPrice: 1000,
+      });
+      await setGroupPackageMembers(group.id, [
+        { listingId: member.id, price: 1000 },
+      ]);
+      await createTestAttendee(
+        member.id,
+        member.slug,
+        "Buyer",
+        "pkgbuyer@test.com",
+      );
+
+      const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
+      expect(html).toContain("isn't currently bookable");
+      expect(html).not.toContain("/ticket/sold-out-pkg");
     });
 
     test("add-listings form offers listings from other groups, not this group's own members", async () => {
@@ -636,7 +691,16 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: "empty-group",
       });
       const response = await adminGet(`/admin/groups/${group.id}`);
-      await expectHtmlResponse(response, 200, "No listings in this group");
+      // A group with no visible members has no live /ticket page, so the Overview
+      // shows the share-unavailable note instead of a public URL / embed / QR.
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "No listings in this group",
+        "isn't currently bookable",
+      );
+      expect(html).not.toContain(`/ticket/${group.slug}`);
+      expect(html).not.toContain(`embed-script-${group.id}`);
     });
 
     test("shows ungrouped listings for adding to group", async () => {
@@ -780,12 +844,53 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "charlie@test.com",
       );
 
-      const response = await adminGet(`/admin/groups/${group.id}`);
+      // The roster now lives on the Attendees tab, not the Overview.
+      const response = await adminGet(`/admin/groups/${group.id}/attendees`);
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).toContain("Charlie");
       expect(html).toContain("Table Listing");
       expect(html).toContain(`/admin/listing/${listing.id}`);
+    });
+
+    test("Attendees tab renders the roster's answers column when a listing has questions", async () => {
+      // A listing question makes the roster carry question data, so the
+      // Attendees tab renders the Answers column (the questionData branch that
+      // is absent for a question-free group).
+      const group = await createTestGroup({
+        name: "Q Attendees",
+        slug: "q-attendees",
+      });
+      const listing = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Q Attendee Listing",
+      });
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Quentin",
+        "quentin@test.com",
+      );
+      const { questionsTable, answersTable, setListingQuestions } =
+        await import("#shared/db/questions.ts");
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Meal choice",
+      });
+      await answersTable.insert({
+        questionId: q.id,
+        sortOrder: 0,
+        text: "Veg",
+      });
+      await setListingQuestions(listing.id, [q.id]);
+
+      const html = await (
+        await adminGet(`/admin/groups/${group.id}/attendees`)
+      ).text();
+      expect(html).toContain("Quentin");
+      // The Answers column only renders when the roster carries question data.
+      expect(html).toContain("<th>Answers</th>");
     });
 
     test("shows question answer summary in group details", async () => {
@@ -862,8 +967,11 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Free-Standalone Member",
         unitPrice: 0,
       });
+      // A one-penny override is the tightest "paid" boundary: any positive
+      // package price makes the package paid, so the paid check must use `> 0`,
+      // not `> 1`.
       await setGroupPackageMembers(group.id, [
-        { listingId: member.id, price: 2500 },
+        { listingId: member.id, price: 1 },
       ]);
       await createTestAttendee(
         member.id,
@@ -900,8 +1008,10 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Free-Days Member",
         unitPrice: 0,
       });
+      // A one-penny per-day override is the tightest "paid" boundary (`> 0`,
+      // not `> 1`): any positive day price makes the package paid.
       await setGroupPackageMembers(group.id, [
-        { dayPrices: { 2: 2500 }, listingId: member.id, price: null },
+        { dayPrices: { 2: 1 }, listingId: member.id, price: null },
       ]);
       // A daily member needs a dated booking; the form helper posts date-less,
       // so book atomically like the checkout would.
@@ -976,6 +1086,13 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       return response.text();
     };
 
+    // The roster moved to the Attendees tab; attendee-row assertions read it.
+    const getGroupAttendeesHtml = async (groupId: number): Promise<string> => {
+      const response = await adminGet(`/admin/groups/${groupId}/attendees`);
+      expectStatus(200)(response);
+      return response.text();
+    };
+
     test("hides total revenue for free listings", async () => {
       const { group } = await createGroupWithListing(
         "Free Group",
@@ -1010,7 +1127,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "bob@test.com",
       );
 
-      const html = await getGroupPageHtml(group.id);
+      const html = await getGroupAttendeesHtml(group.id);
       expect(html).toContain("Alice Alpha");
       expect(html).toContain("Bob Beta");
       expect(html).toContain("Listing Alpha");
@@ -1023,8 +1140,69 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "no-reg-group",
         "Empty Listing",
       );
-      const html = await getGroupPageHtml(group.id);
+      const html = await getGroupAttendeesHtml(group.id);
       expect(html).toContain("No attendees yet");
+    });
+  });
+
+  describe("group entity page tabs", () => {
+    test("renders a tab strip linking Overview, Attendees, Edit, and Actions", async () => {
+      const group = await createTestGroup({ name: "Tabbed", slug: "tabbed" });
+      const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
+      expect(html).toContain(`href="/admin/groups/${group.id}"`);
+      expect(html).toContain(`href="/admin/groups/${group.id}/attendees"`);
+      expect(html).toContain(`href="/admin/groups/${group.id}/edit"`);
+      expect(html).toContain(`href="/admin/groups/${group.id}/actions"`);
+      // The admin nav highlights the Groups section (navActive).
+      expect(html).toContain('class="active" href="/admin/groups"');
+    });
+
+    test("Actions tab shows the export, bulk-actions, and delete links", async () => {
+      const group = await createTestGroup({
+        name: "Actions Group",
+        slug: "actions-group",
+      });
+      const html = await (
+        await adminGet(`/admin/groups/${group.id}/actions`)
+      ).text();
+      expect(html).toContain(`/admin/groups/${group.id}/export.json`);
+      expect(html).toContain(`/admin/groups/${group.id}/bulk-actions`);
+      expect(html).toContain(`/admin/groups/${group.id}/delete`);
+      // Each action carries its icon (an empty icon name drops the <use> ref);
+      // the nav renders none of these, so the refs are unique to the buttons.
+      expect(html).toContain("#save");
+      expect(html).toContain("#hammer");
+      expect(html).toContain("#trash-2");
+      // Delete is destructive, so it renders inside the danger zone (danger: true).
+      expect(html).toContain("entity-danger-zone");
+    });
+
+    test("returns 404 for an unknown tab", async () => {
+      const group = await createTestGroup({
+        name: "Unknown Tab",
+        slug: "unknown-tab",
+      });
+      const response = await adminGet(`/admin/groups/${group.id}/nope`);
+      expectStatus(404)(response);
+    });
+
+    test("an editor's group page resolves to the staff-free Edit tab", async () => {
+      // Editors never saw the staff-only detail page; every tab but Edit is
+      // staff-gated, so a bare group URL lands them on the Edit form and hides
+      // the Overview's share affordances.
+      const group = await createTestGroup({
+        name: "Editor Group",
+        slug: "editor-group",
+      });
+      const response = await awaitTestRequest(`/admin/groups/${group.id}`, {
+        cookie: (
+          await createTestEditorSession({ username: "editor-group-page" })
+        ).cookie,
+      });
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain(`action="/admin/groups/${group.id}/edit"`);
+      expect(html).not.toContain("Public URL");
     });
   });
 
