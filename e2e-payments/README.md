@@ -86,8 +86,9 @@ Watch it happen in a real window with `HEADLESS=false`.
 A target with missing secrets **skips** (exits 0) rather than failing.
 
 `NTFY_URL` (optional) — an ntfy topic URL (e.g. `https://ntfy.sh/your-topic`)
-pinged with the failed target and error message when a leg fails. Unset ⇒ no
-notification.
+pinged when a leg fails. Only the failed target is reported (no error detail,
+which can include booker emails or scraped page text) — full diagnostics stay
+in the CI job log/artifacts. Unset ⇒ no notification.
 
 Other knobs (all optional): `DENO_BIN`, `CLOUDFLARED_BIN`,
 `CHROMIUM_EXECUTABLE` (unset in CI so Playwright uses its own build),

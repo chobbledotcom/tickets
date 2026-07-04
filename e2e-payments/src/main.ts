@@ -125,7 +125,7 @@ const run = async (): Promise<void> => {
     fail(`FAIL — ${target}: ${message}`);
     if (session) await session.screenshot(`fail-${target}`);
     if (server) dumpServerLog(server.logPath);
-    await notifyFailure(target, message);
+    await notifyFailure(target);
     throw err;
   } finally {
     if (session) await session.stop();
