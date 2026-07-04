@@ -1468,6 +1468,23 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expect(updated?.tickets_count).toBe(5);
     });
 
+    test("records an activity-log entry when totals are recalculated", async () => {
+      const { listing } = await setupListingAndLogin({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      await adminFormPost(`/admin/listings/recalculate/${listing.id}`, {
+        recalculate_fields: "booked_quantity",
+      });
+
+      const log = await getAllActivityLog(10);
+      const entry = log.find((e) => e.message.includes("totals recalculated"));
+      expect(entry?.message).toBe(
+        `Listing '${listing.name}' totals recalculated`,
+      );
+    });
+
     test("shows recalculation success on the redirected edit page", async () => {
       const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
