@@ -33,7 +33,6 @@ import {
 } from "#shared/types.ts";
 import {
   errorAdminPage,
-  flashAdminPage,
   successAdminPage,
 } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
@@ -235,39 +234,40 @@ const PackageMembersTable = ({
 );
 
 /**
- * Admin group edit page. Loads the group's listings and their current package
- * overrides (per-unit price + per-package quantity) so the members table can be
- * pre-filled.
+ * The Edit tab of the group entity page: the group form plus the per-listing
+ * package-price table, pre-filled from the group's current overrides (per-unit
+ * price + per-package quantity). Session-free and error-free — a rejected save
+ * re-renders the same tab with the flash error surfaced by the Layout backstop.
  */
-export const adminGroupEditPage = (
-  group: Group,
-  listings: ListingWithCount[],
-  members: PackageMemberValues,
-  session: AdminSession,
-  error?: string,
-): string =>
-  errorAdminPage(t("groups.edit.heading"), "/admin/groups")(session, error)(
-    <>
-      {/* Export lives here too, not only on the (staff-only) detail page, so a
-          content editor — who reaches this edit form but not the detail page —
-          can still download the group's catalog blob. */}
-      <nav>
-        <ul>
-          <li>
-            <a href={`/admin/groups/${group.id}/export.json`}>
-              {t("catalog_transfer.export_link")}
-            </a>
-          </li>
-        </ul>
-      </nav>
-      <CsrfForm action={`/admin/groups/${group.id}/edit`}>
-        <h1>{t("groups.edit.heading")}</h1>
-        <Raw html={renderFields(getGroupFields(), groupToFieldValues(group))} />
-        <PackageMembersTable listings={listings} members={members} />
-        {SaveChangesButton()}
-      </CsrfForm>
-    </>,
-  );
+export const GroupEditPanel = ({
+  group,
+  listings,
+  members,
+}: {
+  group: Group;
+  listings: ListingWithCount[];
+  members: PackageMemberValues;
+}): JSX.Element => (
+  <>
+    {/* Export lives here too, not only on the (staff-only) Overview/Actions
+        tabs, so a content editor — who only reaches this Edit tab, never the
+        staff surfaces — can still download the group's catalog blob. */}
+    <nav>
+      <ul>
+        <li>
+          <a href={`/admin/groups/${group.id}/export.json`}>
+            {t("catalog_transfer.export_link")}
+          </a>
+        </li>
+      </ul>
+    </nav>
+    <CsrfForm action={`/admin/groups/${group.id}/edit`}>
+      <Raw html={renderFields(getGroupFields(), groupToFieldValues(group))} />
+      <PackageMembersTable listings={listings} members={members} />
+      {SaveChangesButton()}
+    </CsrfForm>
+  </>
+);
 
 /**
  * Admin group delete confirmation page
@@ -485,20 +485,31 @@ const GroupShareRows = ({
     </tr>
   );
 
-export const adminGroupDetailPage = (
-  group: Group,
-  listings: ListingWithCount[],
-  ungroupedListings: ListingWithCount[],
-  attendees: Attendee[],
-  session: AdminSession,
-  allowedDomain: string,
-  hasPaidListing: boolean,
-  shareable: boolean,
-  phonePrefix?: string,
-  successMessage?: string,
-  questionData?: TableQuestionData,
-  error?: string,
-): string => {
+/**
+ * The Overview tab of the group entity page: the group's detail table (share /
+ * QR / embed rows, hidden status, capacity, aggregate-integrity check, shared
+ * totals), the member-listings table, and the add-listings membership form.
+ * Staff-only and session-free — the entity page renders the title + flash.
+ */
+export const GroupOverviewPanel = ({
+  group,
+  listings,
+  ungroupedListings,
+  attendees,
+  allowedDomain,
+  hasPaidListing,
+  shareable,
+  questionData,
+}: {
+  group: Group;
+  listings: ListingWithCount[];
+  ungroupedListings: ListingWithCount[];
+  attendees: Attendee[];
+  allowedDomain: string;
+  hasPaidListing: boolean;
+  shareable: boolean;
+  questionData?: TableQuestionData;
+}): JSX.Element => {
   const { columnKeys, filters } = resolveColumnLayout(
     settings.listingColumnOrder,
     Object.keys(LISTING_TABLE_COLUMNS),
@@ -515,7 +526,6 @@ export const adminGroupDetailPage = (
   const { script: embedScriptCode, iframe: embedIframeCode } =
     buildEmbedSnippets(ticketUrl);
   const totalCount = totalAttendeeCount(listings);
-  const tableRows = buildAttendeeRows(attendees, listings);
   const sharedRows = buildSharedDetailRows({
     attendeeCount: totalCount,
     attendees,
@@ -529,41 +539,8 @@ export const adminGroupDetailPage = (
     skipAttendees: true,
   });
 
-  return flashAdminPage(group.name, "/admin/groups")(
-    session,
-    error,
-    successMessage,
-  )(
+  return (
     <>
-      <nav>
-        <ul>
-          {!isReadOnly() && (
-            <>
-              <li>
-                <a href={`/admin/groups/${group.id}/edit`}>
-                  {t("groups.detail.edit_group")}
-                </a>
-              </li>
-              <li>
-                <a href={`/admin/groups/${group.id}/bulk-actions`}>
-                  Bulk Actions
-                </a>
-              </li>
-            </>
-          )}
-          <li>
-            <a href={`/admin/groups/${group.id}/export.json`}>
-              {t("catalog_transfer.export_link")}
-            </a>
-          </li>
-          <li>
-            <a class="danger" href={`/admin/groups/${group.id}/delete`}>
-              {t("groups.detail.delete_group")}
-            </a>
-          </li>
-        </ul>
-      </nav>
-
       <article>
         <DetailTable>
           <tr>
@@ -597,23 +574,6 @@ export const adminGroupDetailPage = (
         <Raw html={renderListingTable(columnKeys, listingRows)} />
       </div>
 
-      <article>
-        <h2 id="attendees">{t("terms.attendees")}</h2>
-        <div class="table-scroll">
-          <Raw
-            html={AttendeeTable({
-              allowedDomain,
-              ...(phonePrefix !== undefined ? { phonePrefix } : {}),
-              ...(questionData !== undefined ? { questionData } : {}),
-              returnUrl: `/admin/groups/${group.id}#attendees`,
-              rows: tableRows,
-              showDate: listings.some((e) => e.listing_type === "daily"),
-              showListing: true,
-            })}
-          />
-        </div>
-      </article>
-
       {!isReadOnly() && ungroupedListings.length > 0 && (
         <>
           <h2>{t("groups.detail.add_listings")}</h2>
@@ -636,6 +596,44 @@ export const adminGroupDetailPage = (
           </CsrfForm>
         </>
       )}
-    </>,
+    </>
   );
 };
+
+/**
+ * The Attendees tab of the group entity page: one attendee row per booking line
+ * across every listing in the group, each keeping its own check-in action.
+ * Staff-only and session-free.
+ */
+export const GroupAttendeesPanel = ({
+  group,
+  listings,
+  attendees,
+  allowedDomain,
+  phonePrefix,
+  questionData,
+}: {
+  group: Group;
+  listings: ListingWithCount[];
+  attendees: Attendee[];
+  allowedDomain: string;
+  phonePrefix?: string;
+  questionData?: TableQuestionData;
+}): JSX.Element => (
+  <article>
+    <h2 id="attendees">{t("terms.attendees")}</h2>
+    <div class="table-scroll">
+      <Raw
+        html={AttendeeTable({
+          allowedDomain,
+          ...(phonePrefix !== undefined ? { phonePrefix } : {}),
+          ...(questionData !== undefined ? { questionData } : {}),
+          returnUrl: `/admin/groups/${group.id}/attendees`,
+          rows: buildAttendeeRows(attendees, listings),
+          showDate: listings.some((e) => e.listing_type === "daily"),
+          showListing: true,
+        })}
+      />
+    </div>
+  </article>
+);

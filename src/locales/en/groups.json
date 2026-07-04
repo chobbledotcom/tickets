@@ -16,6 +16,7 @@
   "groups.detail.terms_label": "Terms and Conditions:",
   "groups.detail.edit_group": "Edit Group",
   "groups.detail.delete_group": "Delete Group",
+  "groups.detail.bulk_actions": "Bulk Actions",
   "groups.detail.group_details": "Group Details",
   "groups.detail.col.listing_name": "Listing Name",
   "groups.detail.no_listings": "No listings in this group",

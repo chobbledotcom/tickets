@@ -157,7 +157,6 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const forbidden: Array<[string, string]> = [
         ["attendee CSV", `/admin/listing/${listing.id}/attendees.csv`],
         ["listings CSV", "/admin/listings/csv"],
-        ["group detail (attendees)", `/admin/groups/${group.id}`],
         ["attendees", "/admin/attendees"],
         ["calendar", "/admin/calendar"],
         ["ledger", "/admin/ledger"],
@@ -186,6 +185,19 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const baseHtml = await base.text();
       expect(base.status).toBe(200);
       expect(baseHtml).toContain("listing-edit-form");
+
+      // Groups are the same tabbed shape: the staff-only tabs (Overview,
+      // Attendees, Actions) 404 for an editor, and the base URL resolves to the
+      // Edit tab they may use.
+      for (const tab of ["attendees", "actions"]) {
+        const hidden = await getAs(`/admin/groups/${group.id}/${tab}`, cookie);
+        expect(hidden.status, `hidden group ${tab} tab`).toBe(404);
+      }
+      const groupBase = await getAs(`/admin/groups/${group.id}`, cookie);
+      expect(groupBase.status).toBe(200);
+      expect(await groupBase.text()).toContain(
+        `action="/admin/groups/${group.id}/edit"`,
+      );
     });
 
     test("editor POSTs to forbidden actions are rejected", async () => {
@@ -260,14 +272,19 @@ describeWithEnv("server (editor role)", { db: true }, () => {
   });
 
   describe("keyless security", () => {
-    test("editor session derives no private key", async () => {
+    test("editor cannot reach the group's PII roster tab", async () => {
       const { cookie } = await createTestEditorSession();
-      // The group detail page is the canonical private-key consumer; an editor's
-      // keyless session can't open it (fails closed) — proving the key is absent.
+      // The group Attendees tab is the canonical private-key consumer (it
+      // decrypts the roster). It is staff-only, so an editor's keyless session
+      // can never reach it — visibility is authorization, so it 404s rather than
+      // exposing the decrypt path. The base URL resolves to the keyless Edit tab
+      // instead, which needs no private key.
       const group = await createTestGroup();
       await createTestListing({ groupId: group.id });
-      const response = await getAs(`/admin/groups/${group.id}`, cookie);
-      expect(response.status).toBe(403);
+      const roster = await getAs(`/admin/groups/${group.id}/attendees`, cookie);
+      expect(roster.status).toBe(404);
+      const base = await getAs(`/admin/groups/${group.id}`, cookie);
+      expect(base.status).toBe(200);
     });
 
     test("editor cannot overwrite trigger-maintained booking aggregates", async () => {

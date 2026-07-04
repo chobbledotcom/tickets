@@ -16,6 +16,7 @@ import {
   assertAdminHtml,
   awaitTestRequest,
   createTestAttendee,
+  createTestEditorSession,
   createTestGroup,
   createTestListing,
   createTestManagerSession,
@@ -227,14 +228,16 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         termsAndConditions: "Original terms",
       });
       const response = await adminGet(`/admin/groups/${group.id}/edit`);
+      // The Edit tab renders the group form pre-filled; the page title is the
+      // group name (the old "Edit Group" heading is now the tab label).
       await expectHtmlResponse(
         response,
         200,
-        "Edit Group",
         "Editable",
         "editable",
         "Editable description",
         "Original terms",
+        'action="/admin/groups/',
       );
     });
 
@@ -245,7 +248,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: "hidden-editable",
       });
       const response = await adminGet(`/admin/groups/${group.id}/edit`);
-      const html = await expectHtmlResponse(response, 200, "Edit Group");
+      const html = await expectHtmlResponse(response, 200, "Hidden Editable");
       expect(html).toContain("checked");
     });
 
@@ -508,6 +511,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       });
 
       const response = await adminGet(`/admin/groups/${group.id}`);
+      // Edit/delete moved to the Edit and Actions tabs; the Overview tab keeps
+      // the info table, member listings, and share/embed affordances.
       await expectHtmlResponse(
         response,
         200,
@@ -515,8 +520,6 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "detail-group",
         "Grouped Listing",
         `/admin/listing/${listing.id}`,
-        "Edit Group",
-        "Delete Group",
         "Public URL",
         "/ticket/detail-group",
         "QR Code",
@@ -780,7 +783,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "charlie@test.com",
       );
 
-      const response = await adminGet(`/admin/groups/${group.id}`);
+      // The roster now lives on the Attendees tab, not the Overview.
+      const response = await adminGet(`/admin/groups/${group.id}/attendees`);
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).toContain("Charlie");
@@ -976,6 +980,13 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       return response.text();
     };
 
+    // The roster moved to the Attendees tab; attendee-row assertions read it.
+    const getGroupAttendeesHtml = async (groupId: number): Promise<string> => {
+      const response = await adminGet(`/admin/groups/${groupId}/attendees`);
+      expectStatus(200)(response);
+      return response.text();
+    };
+
     test("hides total revenue for free listings", async () => {
       const { group } = await createGroupWithListing(
         "Free Group",
@@ -1010,7 +1021,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "bob@test.com",
       );
 
-      const html = await getGroupPageHtml(group.id);
+      const html = await getGroupAttendeesHtml(group.id);
       expect(html).toContain("Alice Alpha");
       expect(html).toContain("Bob Beta");
       expect(html).toContain("Listing Alpha");
@@ -1023,8 +1034,60 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "no-reg-group",
         "Empty Listing",
       );
-      const html = await getGroupPageHtml(group.id);
+      const html = await getGroupAttendeesHtml(group.id);
       expect(html).toContain("No attendees yet");
+    });
+  });
+
+  describe("group entity page tabs", () => {
+    test("renders a tab strip linking Overview, Attendees, Edit, and Actions", async () => {
+      const group = await createTestGroup({ name: "Tabbed", slug: "tabbed" });
+      const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
+      expect(html).toContain(`href="/admin/groups/${group.id}"`);
+      expect(html).toContain(`href="/admin/groups/${group.id}/attendees"`);
+      expect(html).toContain(`href="/admin/groups/${group.id}/edit"`);
+      expect(html).toContain(`href="/admin/groups/${group.id}/actions"`);
+    });
+
+    test("Actions tab shows the export, bulk-actions, and delete links", async () => {
+      const group = await createTestGroup({
+        name: "Actions Group",
+        slug: "actions-group",
+      });
+      const html = await (
+        await adminGet(`/admin/groups/${group.id}/actions`)
+      ).text();
+      expect(html).toContain(`/admin/groups/${group.id}/export.json`);
+      expect(html).toContain(`/admin/groups/${group.id}/bulk-actions`);
+      expect(html).toContain(`/admin/groups/${group.id}/delete`);
+    });
+
+    test("returns 404 for an unknown tab", async () => {
+      const group = await createTestGroup({
+        name: "Unknown Tab",
+        slug: "unknown-tab",
+      });
+      const response = await adminGet(`/admin/groups/${group.id}/nope`);
+      expectStatus(404)(response);
+    });
+
+    test("an editor's group page resolves to the staff-free Edit tab", async () => {
+      // Editors never saw the staff-only detail page; every tab but Edit is
+      // staff-gated, so a bare group URL lands them on the Edit form and hides
+      // the Overview's share affordances.
+      const group = await createTestGroup({
+        name: "Editor Group",
+        slug: "editor-group",
+      });
+      const response = await awaitTestRequest(`/admin/groups/${group.id}`, {
+        cookie: (
+          await createTestEditorSession({ username: "editor-group-page" })
+        ).cookie,
+      });
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain(`action="/admin/groups/${group.id}/edit"`);
+      expect(html).not.toContain("Public URL");
     });
   });
 
