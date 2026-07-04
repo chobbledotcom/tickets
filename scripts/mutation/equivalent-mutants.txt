@@ -320,3 +320,14 @@ src/features/admin/group-page-data.ts:182:49  ?? → ||   # dayPrices.get(): Day
 # string literal, so === and == never disagree — no null/undefined/number
 # operand exists to coerce.
 scripts/edge-bundle-modules.ts:40:36  === → ==
+
+# renderFilteredValue's pre-conversion of a date-parseable string to a Date
+# object before handing it to LiquidJS's `date` filter is provably redundant:
+# probing every input shape (ISO timestamps, date-only, offset/Z timezones,
+# RFC 1123, slash format, %A/%z/%H specifiers) shows LiquidJS's built-in
+# strftime date filter parses a raw date-parseable string identically to
+# passing the equivalent Date object. So whenever the real literal `"| date"`
+# match would fire (i.e. the raw value is genuinely a date being formatted by
+# a date filter), converting or not converting renders the same string — no
+# input can tell the two apart.
+src/shared/column-order.ts:174:59  | date → "| date mutated"
