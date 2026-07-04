@@ -35,6 +35,7 @@ import {
   type AttendeeTableRow,
   hasTicketQuantity,
 } from "#shared/types.ts";
+import { Badge } from "#templates/components/badge.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
 
 export { formatAddressInline } from "#shared/columns/attendee-columns.ts";
@@ -244,9 +245,9 @@ const createStatusRenderer =
     }
     if (row.attendee.refunded) {
       return String(
-        <span class="badge-alert">
+        <Badge variant="alert">
           {t("admin.attendee_table.refunded_badge")}
-        </span>,
+        </Badge>,
       );
     }
     // Check-in is a per-booking-line action, and every table that shows it

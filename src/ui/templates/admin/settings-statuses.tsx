@@ -16,6 +16,7 @@ import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
+import { Badge } from "#templates/components/badge.tsx";
 import type { DataColumn } from "#templates/components/data-table.tsx";
 import { ReorderArrows } from "#templates/components/reorder.tsx";
 
@@ -23,24 +24,15 @@ import { ReorderArrows } from "#templates/components/reorder.tsx";
 
 const LIST_PATH = "/admin/settings/statuses";
 
-/** Small inline badge for a status flag. */
-const Badge = ({ label }: { label: string }): JSX.Element => (
-  <span class="badge"> {label} </span>
-);
-
 /** Render one row's flag badges. */
 const statusBadges = (s: AttendeeStatus): JSX.Element => (
   <>
-    {s.is_public_default && (
-      <Badge label={t("statuses.badge_public_default")} />
-    )}
-    {s.is_paid_default && <Badge label={t("statuses.badge_paid")} />}
+    {s.is_public_default && <Badge>{t("statuses.badge_public_default")}</Badge>}
+    {s.is_paid_default && <Badge>{t("statuses.badge_paid")}</Badge>}
     {s.is_reservation && (
-      <Badge
-        label={t("statuses.badge_reservation", {
-          amount: s.reservation_amount,
-        })}
-      />
+      <Badge>
+        {t("statuses.badge_reservation", { amount: s.reservation_amount })}
+      </Badge>
     )}
   </>
 );
