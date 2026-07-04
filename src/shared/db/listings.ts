@@ -38,6 +38,8 @@ import {
   resultRows,
 } from "#shared/db/client.ts";
 import {
+  type AggregateRecalculation,
+  type AggregateValues,
   cachedEntityTable,
   defineIdTable,
   encryptedNameSchema,
@@ -869,12 +871,10 @@ export const LISTING_AGGREGATE_FIELDS = [
 
 export type ListingAggregateField = (typeof LISTING_AGGREGATE_FIELDS)[number];
 
-export type ListingAggregateValues = Record<ListingAggregateField, number>;
+export type ListingAggregateValues = AggregateValues<ListingAggregateField>;
 
-export type ListingAggregateRecalculation = Record<
-  ListingAggregateField,
-  { current: number; recalculated: number }
->;
+export type ListingAggregateRecalculation =
+  AggregateRecalculation<ListingAggregateField>;
 
 /**
  * Recalculate every listing aggregate in one pass. tickets_count counts only

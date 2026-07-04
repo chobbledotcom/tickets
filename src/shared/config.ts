@@ -26,11 +26,19 @@ export const getBookingFee = (): number =>
   Number.parseFloat(settings.bookingFee) || 0;
 
 /**
+ * The domain used before any request has resolved a real one — and the single
+ * place the "localhost" fallback lives. The effective domain is seeded to this
+ * at module load and reset to it between tests, so it is always a real string.
+ */
+const DEFAULT_DOMAIN = "localhost";
+
+/**
  * Effective domain: custom_domain (from DB) if set, otherwise the request's
  * own hostname. Loaded once per request via loadEffectiveDomain(), then read
- * synchronously via getEffectiveDomain().
+ * synchronously via getEffectiveDomain(). Never null — it starts at
+ * DEFAULT_DOMAIN and is refined as each request resolves its real host.
  */
-const effectiveDomainState = { domain: null as string | null };
+const effectiveDomainState = { domain: DEFAULT_DOMAIN };
 
 /** Load the effective domain from DB, falling back to the request URL hostname. */
 export const loadEffectiveDomain = (requestUrl: string): string => {
@@ -41,7 +49,7 @@ export const loadEffectiveDomain = (requestUrl: string): string => {
   } else if (settings.bunnySubdomain) {
     effectiveDomainState.domain = settings.bunnySubdomain;
   } else {
-    effectiveDomainState.domain = new URL(requestUrl).hostname;
+    seedEffectiveDomainHost(requestUrl);
   }
   return effectiveDomainState.domain;
 };
@@ -60,13 +68,20 @@ export const seedEffectiveDomainHost = (requestUrl: string): void => {
   effectiveDomainState.domain = new URL(requestUrl).hostname;
 };
 
-/** Get the effective domain synchronously (must call loadEffectiveDomain first). */
-export const getEffectiveDomain = (): string =>
-  effectiveDomainState.domain ?? "localhost";
+/** Get the effective domain synchronously; DEFAULT_DOMAIN until a request resolves a real one. */
+export const getEffectiveDomain = (): string => effectiveDomainState.domain;
 
-/** Reset effective domain cache (for testing). */
+/**
+ * Whether we are serving a real, resolved host rather than the default. Gates
+ * HTTPS-only behaviour — Secure/`__Host-` cookies and the HSTS header — which
+ * must stay off for local development on DEFAULT_DOMAIN.
+ */
+export const isSecureMode = (): boolean =>
+  effectiveDomainState.domain !== DEFAULT_DOMAIN;
+
+/** Reset effective domain cache back to the default (for testing). */
 export const resetEffectiveDomain = (): void => {
-  effectiveDomainState.domain = null;
+  effectiveDomainState.domain = DEFAULT_DOMAIN;
 };
 
 /** Set effective domain directly (for testing). */

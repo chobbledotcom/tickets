@@ -1,78 +1,57 @@
 /**
  * Admin Stripe settings routes - credential configuration, webhook setup and
- * connection test. Owner-only access enforced via settingsRoute / testRoute.
+ * connection test. Owner-only access enforced via defineProviderCredentialsRoute.
  */
 
 import { t } from "#i18n";
 import {
+  defineProviderCredentialsRoute,
   getWebhookUrl,
-  processSecretField,
-  settingsRoute,
-  testRoute,
 } from "#routes/admin/settings-helpers.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo.ts";
-import { ok } from "#shared/response.ts";
 import {
   detectStripeKeyMode,
   setupWebhookEndpoint,
   testStripeConnection,
 } from "#shared/stripe.ts";
 
-/**
- * Handle POST /admin/settings/stripe - owner only
- */
-export const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
-  if (isDemoMode()) {
-    return errorPage(t("error.stripe_demo_mode"), 400, "settings-stripe");
-  }
-
-  const field = processSecretField(form, "stripe_secret_key");
-
-  if (field.action === "unchanged") {
-    return ok("/admin/settings", t("success.stripe_unchanged"), {
-      formId: "settings-stripe",
-    });
-  }
-
-  if (field.action === "cleared") {
-    if (!settings.stripe.hasKey) {
-      return errorPage(t("error.stripe_key_required"), 400, "settings-stripe");
-    }
-    return ok("/admin/settings", t("success.stripe_unchanged"), {
-      formId: "settings-stripe",
-    });
-  }
-
-  if (!detectStripeKeyMode(field.value)) {
-    return errorPage(t("error.stripe_key_format"), 400, "settings-stripe");
-  }
-
-  const webhookUrl = getWebhookUrl();
-  const webhookResult = await setupWebhookEndpoint(
-    field.value,
-    webhookUrl,
-    settings.stripe.webhookEndpointId,
-  );
-
-  if (!webhookResult.success) {
-    return errorPage(
-      `Failed to set up Stripe webhook: ${webhookResult.error}`,
-      400,
-      "settings-stripe",
+const stripeRoutes = defineProviderCredentialsRoute<undefined>({
+  // Provision the Stripe webhook before the key is persisted, so a setup
+  // failure aborts the save leaving nothing configured.
+  afterSave: async (value) => {
+    const result = await setupWebhookEndpoint(
+      value,
+      getWebhookUrl(),
+      settings.stripe.webhookEndpointId,
     );
-  }
-
-  await settings.update.stripe.secretKey(field.value);
-  await settings.update.stripe.webhookConfig(webhookResult);
-  await settings.update.paymentProvider("stripe");
-
-  await logActivity("Stripe key configured");
-  return ok("/admin/settings", t("success.stripe_updated"), {
-    formId: "settings-stripe",
-  });
+    if (!result.success) {
+      return `Failed to set up Stripe webhook: ${result.error}`;
+    }
+    await settings.update.stripe.webhookConfig(result);
+    return null;
+  },
+  formId: "settings-stripe",
+  hasSecret: () => settings.stripe.hasKey,
+  logMessage: "Stripe key configured",
+  provider: "stripe",
+  saveSecret: (value) => settings.update.stripe.secretKey(value),
+  secretField: "stripe_secret_key",
+  secretRequiredError: t("error.stripe_key_required"),
+  successMessage: t("success.stripe_updated"),
+  testFn: testStripeConnection,
+  unchangedMessage: t("success.stripe_unchanged"),
+  validate: (_fields, secret) => {
+    if (isDemoMode()) return t("error.stripe_demo_mode");
+    if (secret.action === "provided" && !detectStripeKeyMode(secret.value)) {
+      return t("error.stripe_key_format");
+    }
+    return null;
+  },
 });
 
+/** Handle POST /admin/settings/stripe - owner only */
+export const handleAdminStripePost = stripeRoutes.save;
+
 /** Handle POST /admin/settings/stripe/test - owner only */
-export const handleStripeTestPost = testRoute(testStripeConnection);
+export const handleStripeTestPost = stripeRoutes.test;

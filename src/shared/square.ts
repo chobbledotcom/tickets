@@ -420,23 +420,20 @@ type SquareOrder = {
   createdAt?: string | undefined;
 };
 
+/** A Square Money object with both fields optional, as returned on a payment's
+ * `amountMoney` / `refundedMoney`. */
+type SquareMoney = {
+  amount?: bigint | undefined;
+  currency?: string | undefined;
+};
+
 /** Square payment response shape (subset we use) */
 type SquarePayment = {
   id?: string | undefined;
   status?: string | undefined;
   orderId?: string | undefined;
-  amountMoney?:
-    | {
-        amount?: bigint | undefined;
-        currency?: string | undefined;
-      }
-    | undefined;
-  refundedMoney?:
-    | {
-        amount?: bigint | undefined;
-        currency?: string | undefined;
-      }
-    | undefined;
+  amountMoney?: SquareMoney | undefined;
+  refundedMoney?: SquareMoney | undefined;
 };
 
 /** Result of creating a payment link */

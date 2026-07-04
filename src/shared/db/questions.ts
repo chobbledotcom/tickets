@@ -27,6 +27,10 @@ import {
   resultRows,
 } from "#shared/db/client.ts";
 /* jscpd:ignore-end */
+import type {
+  AggregateRecalculation,
+  AggregateValues,
+} from "#shared/db/common-schema.ts";
 import { columnMapByIds, swapSortOrder } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
@@ -1098,12 +1102,10 @@ export const ANSWER_AGGREGATE_FIELDS = ["times_selected"] as const;
 
 export type AnswerAggregateField = (typeof ANSWER_AGGREGATE_FIELDS)[number];
 
-export type AnswerAggregateValues = Record<AnswerAggregateField, number>;
+export type AnswerAggregateValues = AggregateValues<AnswerAggregateField>;
 
-export type AnswerAggregateRecalculation = Record<
-  AnswerAggregateField,
-  { current: number; recalculated: number }
->;
+export type AnswerAggregateRecalculation =
+  AggregateRecalculation<AnswerAggregateField>;
 
 /** The stored selection total (times_selected) for every answer of a question,
  * keyed by answer id. Reads the trigger-maintained column directly rather than

@@ -1,18 +1,13 @@
 /**
  * Admin Square settings routes - credentials, webhook signature key and
- * connection test. Owner-only access enforced via settingsHandler /
- * settingsSecret / testRoute.
+ * connection test. Owner-only access enforced via
+ * defineProviderCredentialsRoute / settingsSecret.
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
-  processSecretField,
-  type SecretFieldResult,
-  saveSecret,
-  settingsHandler,
+  defineProviderCredentialsRoute,
   settingsSecret,
-  testRoute,
 } from "#routes/admin/settings-helpers.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo.ts";
@@ -23,46 +18,43 @@ import {
   validateSquareWebhookSignatureKey,
 } from "#shared/square-validation.ts";
 
-/* jscpd:ignore-end */
-
-/**
- * Handle POST /admin/settings/square - owner only
- */
-type SquareFormData = {
-  token: SecretFieldResult;
+type SquareFields = {
   locationId: string;
   sandbox: boolean;
 };
 
-export const handleAdminSquarePost = settingsHandler<SquareFormData>({
-  extract: (form) => ({
+const squareRoutes = defineProviderCredentialsRoute<SquareFields>({
+  extraFields: (form) => ({
     locationId: form.getString("square_location_id"),
     sandbox: form.get("square_sandbox") === "on",
-    token: processSecretField(form, "square_access_token"),
   }),
   formId: "settings-square",
-  label: "Square credentials",
-  save: async ({ token, locationId, sandbox }) => {
-    await saveSecret(token, settings.update.square.accessToken);
+  hasSecret: () => settings.square.hasToken,
+  logMessage: "Square credentials updated",
+  provider: "square",
+  saveFields: async ({ locationId, sandbox }) => {
     await settings.update.square.locationId(locationId);
     await settings.update.square.sandbox(sandbox);
-    await settings.update.paymentProvider("square");
   },
-  validate: ({ token, locationId }) => {
+  saveSecret: (value) => settings.update.square.accessToken(value),
+  secretField: "square_access_token",
+  secretRequiredError: t("error.square_token_required"),
+  successMessage: "Square credentials updated",
+  testFn: testSquareConnection,
+  validate: ({ locationId }, secret) => {
     if (isDemoMode()) return t("error.square_demo_mode");
     if (!locationId) return t("error.square_location_required");
     const locationError = validateSquareLocationId(locationId);
     if (locationError) return locationError;
-    if (token.action === "cleared" && !settings.square.hasToken) {
-      return t("error.square_token_required");
-    }
-    if (token.action === "provided") {
-      const tokenError = validateSquareAccessToken(token.value);
-      if (tokenError) return tokenError;
+    if (secret.action === "provided") {
+      return validateSquareAccessToken(secret.value);
     }
     return null;
   },
 });
+
+/** Handle POST /admin/settings/square - owner only */
+export const handleAdminSquarePost = squareRoutes.save;
 
 /**
  * Handle POST /admin/settings/square-webhook - owner only
@@ -77,4 +69,4 @@ export const handleAdminSquareWebhookPost = settingsSecret({
 });
 
 /** Handle POST /admin/settings/square/test - owner only */
-export const handleSquareTestPost = testRoute(testSquareConnection);
+export const handleSquareTestPost = squareRoutes.test;

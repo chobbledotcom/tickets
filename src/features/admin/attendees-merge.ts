@@ -36,7 +36,7 @@ import type {
   MergeValueChoice,
 } from "#shared/merge/attendee-merge-types.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { Attendee } from "#shared/types.ts";
+import type { Attendee, ContactInfo } from "#shared/types.ts";
 import { AttendeeMergePanel } from "#templates/admin/attendees.tsx";
 
 /* jscpd:ignore-end */
@@ -59,16 +59,14 @@ const loadMergeTarget = async (
 /** Look up and decrypt a source attendee by ticket token */
 const loadMergeSource = async (
   token: string,
-): Promise<{
-  id: number;
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-  special_instructions: string;
-  ticket_token: string;
-  bookings: ListingAttendeeRow[];
-} | null> => {
+): Promise<
+  | (ContactInfo & {
+      id: number;
+      ticket_token: string;
+      bookings: ListingAttendeeRow[];
+    })
+  | null
+> => {
   const pk = await requireRequestPrivateKey();
   const results = await getAttendeesByTokens([token]);
   const raw = results[0];
