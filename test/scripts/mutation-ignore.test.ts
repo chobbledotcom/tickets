@@ -70,6 +70,28 @@ describe("mutation ignore list", () => {
     }
   });
 
+  test("loads an entry with an empty 'from' side, for an already-empty string literal mutant", async () => {
+    // stringLiteralMutants displays an empty label when the original literal
+    // is already "" (its only replacement is "mutated"), so a legitimate
+    // ignore-list entry can have nothing between the location and the arrow.
+    const path = await Deno.makeTempFile({ prefix: "mutation-ignore-" });
+    try {
+      await Deno.writeTextFile(
+        path,
+        [`src/example.ts:12:5  → "mutated" # always-empty date sentinel`].join(
+          "\n",
+        ),
+      );
+
+      const loaded = await loadIgnoreList(path);
+
+      expect(loaded.entries).toEqual(['src/example.ts:12:5 →"mutated"']);
+      expect(isIgnored(loaded, file, mutant(12, "", '"mutated"'))).toBe(true);
+    } finally {
+      await Deno.remove(path).catch(() => {});
+    }
+  });
+
   test("uses an empty ignore list when the file is absent", async () => {
     const loaded = await loadIgnoreList(
       "/tmp/missing-mutation-ignore-list.txt",

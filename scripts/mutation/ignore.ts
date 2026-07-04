@@ -37,7 +37,10 @@ export const mutantKey = (file: string, mutant: Mutant): string =>
 const parseLine = (line: string): string | null => {
   const body = line.replace(/#.*$/, "").trim();
   if (body === "") return null;
-  const match = body.match(/^(.+:\d+:\d+)\s+(.+?)\s*→\s*(.+?)$/);
+  // The "from" side is `.*?` (not `.+?`): an already-empty string literal
+  // mutates with an empty display label (see stringLiteralMutants), so a
+  // legitimate key can have nothing between the location and the arrow.
+  const match = body.match(/^(.+:\d+:\d+)\s+(.*?)\s*→\s*(.+?)$/);
   return match ? `${match[1]} ${match[2]}→${match[3]}` : null;
 };
 
