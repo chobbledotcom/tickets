@@ -211,6 +211,20 @@ describe("renderFilteredValue", () => {
       "2026-01-01",
     );
   });
+
+  test("does not convert to a Date when a filter runs before the date filter", () => {
+    // Regression: converting whenever the expression merely *contains*
+    // "| date" (rather than checking `date` is the first filter) fed a Date
+    // object into `append`, breaking the pipeline — the appended string
+    // "T00:00:00Z" landed on the Date's toString() instead of the raw string.
+    expect(
+      renderFilteredValue(
+        'created | append: "T00:00:00Z" | date: "%Y"',
+        "2026-04-10",
+        "created",
+      ),
+    ).toBe("2026");
+  });
 });
 
 describe("renderCells", () => {
