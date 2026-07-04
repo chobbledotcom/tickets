@@ -273,8 +273,21 @@ export const assertPaidBookingConfirmed = async (
   }
 
   // 3. The booker itself appears on the Attendees tab, not the Overview tab
-  // just checked above.
-  await session.clickLink("Attendees");
+  // just checked above. Scoped to the tab strip (`nav.entity-tabs`): the
+  // global admin nav also has an "Attendees" link (the site-wide
+  // `/admin/attendees` index), and clickLink's unscoped `.first()` would match
+  // that link — landing on the wrong page and passing without ever exercising
+  // this listing's tab.
+  const attendeesTabLink = session.page
+    .locator("nav.entity-tabs a", { hasText: "Attendees" })
+    .first();
+  const attendeesHref = await attendeesTabLink.getAttribute("href", {
+    timeout: config.navTimeoutMs,
+  });
+  if (!attendeesHref) {
+    throw new Error("no Attendees tab link found on the listing page");
+  }
+  await session.goto(attendeesHref);
   const attendeesBody = await session.bodyText();
   if (!attendeesBody.includes(BOOKER_EMAIL)) {
     await session.screenshot("paid-admin-missing-booker");
