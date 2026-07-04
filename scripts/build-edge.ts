@@ -4,7 +4,6 @@
  * Secrets are read at runtime via Bunny's native environment variables
  */
 
-import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
 import { denoPlugins } from "@luca/esbuild-deno-loader";
 import { fromFileUrl } from "@std/path";
 import type { Plugin } from "esbuild";
@@ -12,6 +11,7 @@ import * as esbuild from "esbuild";
 import { buildStaticAssets } from "./build-static-assets.ts";
 import { isoToTag } from "./build-tag.ts";
 import { minifyCss } from "./css-minify.ts";
+import { inlineWasmPlugin } from "./inline-jsquash-wasm.ts";
 
 // --- Step 1: Build client bundles ---
 await buildStaticAssets();
@@ -163,56 +163,6 @@ const inlineAssetsPlugin: Plugin = {
 
     build.onLoad({ filter: /.*/, namespace: "inline-assets" }, () => ({
       contents: buildAssetsModule(),
-      loader: "ts",
-    }));
-  },
-};
-
-/**
- * Plugin to inline the image-pipeline codec wasm.
- *
- * `src/shared/images/wasm-bytes.ts` reads the vendored `.wasm` files from disk
- * (via `Deno.readFileSync`) in dev/test. The edge runtime has no filesystem, so
- * — exactly like `inlineAssetsPlugin` does for static assets — replace that
- * module with one that returns the same bytes decoded from inline base64.
- */
-const WASM_BYTES_EXPORTS: [string, string][] = [
-  ["jpegDecWasm", "jpeg_dec.wasm"],
-  ["pngDecWasm", "png_dec.wasm"],
-  ["webpDecWasm", "webp_dec.wasm"],
-  ["webpEncWasm", "webp_enc.wasm"],
-  ["webpEncSimdWasm", "webp_enc_simd.wasm"],
-];
-
-const buildWasmBytesModule = async (): Promise<string> => {
-  const lines = [
-    "const b64ToBytes = (b64) => {",
-    "  const bin = atob(b64);",
-    "  const out = new Uint8Array(bin.length);",
-    "  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);",
-    "  return out;",
-    "};",
-  ];
-  for (const [exportName, file] of WASM_BYTES_EXPORTS) {
-    const bytes = await Deno.readFile(`./src/shared/images/wasm/${file}`);
-    const b64 = encodeBase64(bytes);
-    lines.push(
-      `const ${exportName}Bytes = b64ToBytes(${JSON.stringify(b64)});`,
-    );
-    lines.push(`export const ${exportName} = () => ${exportName}Bytes;`);
-  }
-  return lines.join("\n");
-};
-
-const inlineWasmPlugin: Plugin = {
-  name: "inline-wasm",
-  setup(build) {
-    build.onResolve({ filter: /images\/wasm-bytes\.ts$/ }, (args) => ({
-      namespace: "inline-wasm",
-      path: args.path,
-    }));
-    build.onLoad({ filter: /.*/, namespace: "inline-wasm" }, async () => ({
-      contents: await buildWasmBytesModule(),
       loader: "ts",
     }));
   },

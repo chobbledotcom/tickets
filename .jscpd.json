@@ -16,9 +16,11 @@
     "**/src/features/admin/builder.ts"
   ],
   "format": [
+    "javascript",
+    "json",
+    "scss",
     "typescript",
-    "tsx",
-    "json"
+    "tsx"
   ],
   "absolute": false,
   "gitignore": true,

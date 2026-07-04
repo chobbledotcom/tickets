@@ -7,8 +7,8 @@
  * `@libsql/client` binding plus the Stripe/SumUp/Sentry SDKs), whose artifact
  * upload exceeds Deploy's limit.
  *
- * The bundling mirrors `scripts/build-edge.ts` (same asset inlining, Node-global
- * banner, crypto shim, and `platform: "browser"` — which resolves
+ * The bundling mirrors `scripts/build-edge.ts` (same asset/WASM inlining,
+ * Node-global banner, crypto shim, and `platform: "browser"` — which resolves
  * `@libsql/client` to its pure-JS `web` export). The only differences are the
  * entry point (`src/deploy.ts`, a `Deno.serve` wrapper) and the output path;
  * there is no Bunny 10MB script-size ceiling and no release-tag emission. The
@@ -23,6 +23,7 @@ import type { Plugin } from "esbuild";
 import * as esbuild from "esbuild";
 import { buildStaticAssets } from "./build-static-assets.ts";
 import { minifyCss } from "./css-minify.ts";
+import { inlineWasmPlugin } from "./inline-jsquash-wasm.ts";
 
 // --- Step 1: Build client bundles ---
 await buildStaticAssets();
@@ -221,6 +222,7 @@ await esbuild.build({
   plugins: [
     shimBareNodeCryptoPlugin,
     inlineAssetsPlugin,
+    inlineWasmPlugin,
     ...denoPlugins({
       configPath: fromFileUrl(new URL("../deno.json", import.meta.url)),
     }),

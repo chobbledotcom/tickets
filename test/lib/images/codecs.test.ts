@@ -4,17 +4,17 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   decodeImage,
   encodeWebp,
-  pickEncoderWasm,
+  pickEncoderBytes,
 } from "#shared/images/codecs.ts";
 import {
   expectWebpContainer,
   makeTestPng,
 } from "#test/test-utils/test-image.ts";
 
-describe("pickEncoderWasm", () => {
+describe("pickEncoderBytes", () => {
   test("selects the SIMD build when SIMD is supported, scalar otherwise", () => {
-    const simdBytes = pickEncoderWasm(true);
-    const scalarBytes = pickEncoderWasm(false);
+    const simdBytes = pickEncoderBytes(true);
+    const scalarBytes = pickEncoderBytes(false);
     expect(scalarBytes.length).toBeGreaterThan(0);
     // The SIMD build is a distinct, larger binary — pins which arm is which.
     expect(simdBytes.length).toBeGreaterThan(scalarBytes.length);
