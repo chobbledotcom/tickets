@@ -8,11 +8,7 @@ import { formatLimitValue, type LIMIT_ENTRIES } from "#shared/limits.ts";
 import type { RuntimeInfo } from "#shared/runtime.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { themedAdminPage } from "#templates/admin/admin-page.tsx";
-import {
-  Badge,
-  type BadgeVariant,
-  statusBadge,
-} from "#templates/components/badge.tsx";
+import { Badge, statusBadge } from "#templates/components/badge.tsx";
 
 export type DebugPageState = {
   appleWallet: {
@@ -332,22 +328,16 @@ const SiteSection = ({ site }: { site: DebugPageState["site"] }): JSX.Element =>
     title: t("debug.section.site"),
   });
 
-const AVAILABILITY_BADGE: Record<
-  DebugPageState["availability"]["state"],
-  { variant: BadgeVariant; label: string }
-> = {
-  active: { label: "Active", variant: "ok" },
-  readonly: { label: "Read-only", variant: "missing" },
-  warning: { label: "Expiring soon", variant: "missing" },
-};
-
 const AvailabilityStateBadge = ({
   state,
 }: {
   state: DebugPageState["availability"]["state"];
 }): JSX.Element => {
-  const { variant, label } = AVAILABILITY_BADGE[state];
-  return <Badge variant={variant}>{label}</Badge>;
+  if (state === "readonly") return <Badge variant="missing">Read-only</Badge>;
+  if (state === "warning") {
+    return <Badge variant="missing">Expiring soon</Badge>;
+  }
+  return <Badge variant="ok">Active</Badge>;
 };
 
 const AvailabilitySection = ({
@@ -374,22 +364,16 @@ const AvailabilitySection = ({
     title: t("debug.section.availability"),
   });
 
-const STORAGE_BACKEND_BADGE: Record<
-  DebugPageState["bunny"]["storageBackend"],
-  { variant: BadgeVariant; label: string }
-> = {
-  bunny: { label: "Bunny CDN", variant: "ok" },
-  local: { label: "Local filesystem", variant: "ok" },
-  none: { label: "Not configured", variant: "missing" },
-};
-
 const StorageBackendBadge = ({
   backend,
 }: {
   backend: DebugPageState["bunny"]["storageBackend"];
 }): JSX.Element => {
-  const { variant, label } = STORAGE_BACKEND_BADGE[backend];
-  return <Badge variant={variant}>{label}</Badge>;
+  if (backend === "bunny") return <Badge variant="ok">Bunny CDN</Badge>;
+  if (backend === "local") {
+    return <Badge variant="ok">Local filesystem</Badge>;
+  }
+  return <Badge variant="missing">Not configured</Badge>;
 };
 
 const BunnySection = ({
