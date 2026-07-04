@@ -193,6 +193,36 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
     });
 
+    test("empty Square token with existing token preserves it", async () => {
+      await settings.update.paymentProvider("square");
+      await postSettings("/admin/settings/square", {
+        square_access_token: "EAAAl_keep_me",
+        square_location_id: "L_orig",
+      });
+      const response = await postSettings("/admin/settings/square", {
+        square_access_token: "",
+        square_location_id: "L_new",
+      });
+      expect(response.status).toBe(302);
+      expect(settings.square.accessToken).toBe("EAAAl_keep_me");
+      expect(settings.square.locationId).toBe("L_new");
+    });
+
+    test("empty email API key with existing key preserves it", async () => {
+      await postSettings("/admin/settings/email", {
+        email_api_key: "re_keep_me",
+        email_from_address: "from@test.com",
+        email_provider: "resend",
+      });
+      const response = await postSettings("/admin/settings/email", {
+        email_api_key: "",
+        email_from_address: "from@test.com",
+        email_provider: "resend",
+      });
+      expect(response.status).toBe(302);
+      expect(settings.email.apiKey).toBe("re_keep_me");
+    });
+
     test("empty Square webhook key rejected", async () => {
       expectRequiredError(
         await postSettings("/admin/settings/square-webhook", {

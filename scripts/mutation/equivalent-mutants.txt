@@ -12,6 +12,10 @@
 #
 # Format — copy a survivor line from the report and add a reason:
 #   <path>:<line>:<col>  <from> → <to>   # why it is equivalent
+#
+# Do NOT list a mutant whose output the linter rejects (e.g. `=== → ==` or
+# `!== → !=`, forbidden by Biome's noDoubleEquals): the runner lints each mutant
+# and counts a lint failure as killed, so those never survive to be recorded.
 
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
 # cases where x can't be such a value, or F equals the only one it can be.
@@ -135,8 +139,6 @@ test/test-utils/test-browser.ts:351:58  ?? → ||  # RequestInit.method is omitt
 test/test-utils/test-browser.ts:414:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined
 src/ui/templates/admin/listing-defaults.tsx:90:19  ?? → ||  # UrlControl value: string|undefined; the only falsy-non-null string is "" which equals the "" fallback, so ?? and || coincide
 src/ui/templates/admin/listing-defaults.tsx:119:42  ?? → ||  # value?.includes(day): boolean|undefined; for boolean b, b ?? false === b || false, and undefined ?? false === undefined || false
-src/shared/listing-defaults.ts:95:52  === → ==  # hidden gate `months_per_unit === 0`: months_per_unit is a number (DB integer column), so === and == never disagree — there is no string/null operand to coerce
-src/shared/listing-defaults.ts:123:59  !== → !=  # setListingDefaultFields "is set" check: ListingDefaults values are boolean|number|string|string[]|undefined and never null, so `!== undefined` and `!= undefined` always agree
 src/shared/booking/build-tree.ts:121:48  ?? → ||    # childrenByParentId.get(): readonly TicketListing[]|undefined — an array is always truthy
 src/shared/booking/build-tree.ts:161:62  ?? → ||    # packageQuantities.get(): a member's fixed per-package quantity is ≥1 (group_listings.quantity DEFAULT 1), never 0, so ?? and || coincide
 src/shared/booking/build-tree.ts:208:30  ?? → ||    # entry: EntryContext|undefined — an object literal is always truthy
@@ -247,7 +249,6 @@ src/features/admin/groups.ts:432:55  ?? → ||   # handleGroupEditGet dayPrices.
 src/shared/listings-actions.ts:120:17  ?? → ||   # validateListingGroup existingId ?? 0: a listing id is ≥1 or undefined, never 0, so ?? and || coincide
 
 # attendee merge/refund route: mutants with no observable effect.
-src/features/admin/attendees-merge.ts:356:10  === → !=    # toBookingChoice: keep_target and skip_source are consumed identically (attendee-merge.ts "do nothing for this booking"), so normalizing one to the other is unobservable
 src/features/admin/attendee-refunds.ts:172:24  ?? → ||    # flash.error: string|undefined from applyFlash; a refund error flash is always a non-empty message, so the only falsy-non-null value "" never occurs and ?? / || agree
 
 # attendee columns Listings/answers rework
@@ -325,3 +326,9 @@ src/features/admin/questions.ts:238:25  return notFoundResponse() → return und
 src/features/admin/questions.ts:263:27  return notFoundResponse() → return undefined    # same: undefined → routeMainApp `?? notFoundResponse()` → 404
 src/features/admin/questions.ts:324:27  return notFoundResponse() → return undefined    # same: undefined → routeMainApp `?? notFoundResponse()` → 404
 src/features/admin/questions.ts:559:24  return notFoundResponse() → return undefined    # same: undefined → routeMainApp `?? notFoundResponse()` → 404
+
+# buildAssetPathsModule embed-script gate `pathConst === "EMBED_JS_PATH"`:
+# pathConst is the string 4th element of an AssetDef tuple compared against a
+# string literal, so === and == never disagree — no null/undefined/number
+# operand exists to coerce.
+scripts/edge-bundle-modules.ts:40:36  === → ==

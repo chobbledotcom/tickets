@@ -16,6 +16,7 @@ import {
   expectRedirect,
   getAllActivityLog,
   mockFormRequest,
+  redirectFormId,
   testCookie,
   testRequiresAuth,
   withMocks,
@@ -141,6 +142,10 @@ describeAdminSettings(() => {
         async (response) => {
           expect(response.status).toBe(302);
           expectRedirect(response, "/admin/settings");
+          // Flash anchors back to the Stripe form (scroll-to-form UX). Assert
+          // the exact form param, not a substring, so a wrong-but-prefixed
+          // form id can't slip through.
+          expect(redirectFormId(response)).toBe("settings-stripe");
           expectFlash(response, expect.stringContaining("Stripe key updated"));
           expectFlash(response, expect.stringContaining("webhook configured"));
           // The webhook config returned by setupWebhookEndpoint must be

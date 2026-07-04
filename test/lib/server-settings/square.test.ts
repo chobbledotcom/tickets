@@ -15,6 +15,7 @@ import {
   expectHtmlResponse,
   getAllActivityLog,
   mockFormRequest,
+  redirectFormId,
   testCookie,
   testRequiresAuth,
   withMocks,
@@ -76,6 +77,9 @@ describeAdminSettings(() => {
         response,
         expect.stringContaining("Square credentials updated"),
       );
+      // Flash anchors back to the Square credentials form — the exact form id,
+      // not a prefix of settings-square-webhook.
+      expect(redirectFormId(response)).toBe("settings-square");
       // No sandbox checkbox submitted → production mode persisted.
       expect(settings.square.sandbox).toBe(false);
     });
@@ -171,6 +175,8 @@ describeAdminSettings(() => {
         response,
         expect.stringContaining("Square webhook signature key updated"),
       );
+      // Flash anchors back to the webhook form — the exact form id.
+      expect(redirectFormId(response)).toBe("settings-square-webhook");
     });
 
     test("rejects a signature key that looks like an application ID", async () => {

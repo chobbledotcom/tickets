@@ -10,6 +10,8 @@ import {
   assertJson,
   describeWithEnv,
   expectFlash,
+  getAllActivityLog,
+  redirectFormId,
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
@@ -78,6 +80,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("SumUp credentials"));
+      // Flash anchors back to the SumUp form — the exact form id.
+      expect(redirectFormId(response)).toBe("settings-sumup");
       expect(settings.paymentProvider).toBe("sumup");
       expect(settings.sumup.merchantCode).toBe("MC_new");
     });
@@ -154,5 +158,17 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         },
       );
     });
+  });
+
+  test("logs activity when SumUp credentials are configured", async () => {
+    await adminFormPost("/admin/settings/sumup", {
+      sumup_api_key: "sk_test_log",
+      sumup_merchant_code: "MC_log",
+    });
+
+    const logs = await getAllActivityLog();
+    expect(
+      logs.some((l) => l.message.includes("SumUp credentials updated")),
+    ).toBe(true);
   });
 });
