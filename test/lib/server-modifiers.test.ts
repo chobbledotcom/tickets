@@ -31,6 +31,7 @@ import {
   expectHtmlResponse,
   expectStatus,
   followRedirectWithFlash,
+  getAllActivityLog,
   getTestSession,
   insertModifier,
   insertModifierUsage,
@@ -447,7 +448,6 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       await adminFormPost(`/admin/modifiers/${id}/revenue`, {
         total_revenue: "12.34",
       });
-      const { getAllActivityLog } = await import("#test-utils");
       const log = await getAllActivityLog(10);
       const entry = log.find((e) => e.message.includes("revenue adjusted"));
       expect(entry?.message).toBe("Modifier 'Promo' revenue adjusted");
@@ -494,6 +494,10 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const updated = (await getAllModifiers()).find((m) => m.id === id)!;
       expect(updated.name).toBe("After");
       expect(updated.calc_value).toBe(20);
+
+      const log = await getAllActivityLog(10);
+      const entry = log.find((e) => e.message.includes("updated"));
+      expect(entry?.message).toBe("Modifier 'After' updated");
     });
 
     test("updates modifier running totals from the edit form", async () => {
@@ -637,6 +641,10 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       // total_revenue is projected from the ledger (no modifier legs here), so
       // it is 0 and unaffected by the count-only recalculation.
       expect(updated.total_revenue).toBe(0);
+
+      const log = await getAllActivityLog(10);
+      const entry = log.find((e) => e.message.includes("totals recalculated"));
+      expect(entry?.message).toBe("Modifier 'Reset' totals recalculated");
     });
 
     test("shows recalculation success on the redirected edit page", async () => {
@@ -791,6 +799,19 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       await adminFormPost(`/admin/modifiers/${id}/links`, { group_ids: "42" });
       expect(await getModifierGroupIds(id)).toEqual([42]);
+    });
+
+    test("drops a non-positive id from the scope form", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ name: "Filtered", scope: "groups" }),
+      );
+      const { id } = await lastModifier();
+      // selectedIds keeps only positive integers: -1 is an integer but not
+      // > 0, so it must be dropped — the filter is `isInteger(n) && n > 0`,
+      // not `||` (which would let -1 through and store it).
+      await adminFormPost(`/admin/modifiers/${id}/links`, { group_ids: "-1" });
+      expect(await getModifierGroupIds(id)).toEqual([]);
     });
 
     test("the scope form is a no-op for a whole-order modifier", async () => {
