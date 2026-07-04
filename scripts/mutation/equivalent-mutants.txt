@@ -387,3 +387,11 @@ src/shared/sort-listings.ts:46:31  1 → 2   # sign-preserving magnitude change 
 # at every call site (a literal null, or attendeeIdByLedgerEventGroup's typed
 # Promise<number|null> return) — no undefined case exists, so === and == agree.
 src/shared/session-ledger.ts:48:22  === → ==   # ownerAttendeeId is number|null (no undefined), so === and == agree on null
+
+# orphan-retention.ts's Number.parseInt(safeValue, 10) radix: safeValue is
+# gated by isOrphanRetentionValue to always be one of ORPHAN_RETENTION_OPTIONS'
+# values or the DEFAULT_ORPHAN_RETENTION fallback — a closed set of plain
+# decimal digit strings ("0","182","365",...) that never start with "0x"/"0o"/
+# "0b". Radix 0 (auto-detect) and radix 10 agree on every value in that set
+# (confirmed directly), so no input safeValue can ever take distinguishes them.
+src/shared/orphan-retention.ts:61:43  10 → 0   # safeValue is a closed set of plain decimal strings; radix 0 and 10 agree on all of them
