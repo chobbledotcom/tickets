@@ -104,14 +104,44 @@ type MutantLinter = (file: string) => Promise<boolean>;
 
 const createLinter = async (): Promise<MutantLinter> => {
   const { bin, pre } = await resolveBiome();
-  return async (file: string): Promise<boolean> => {
+  const lintExit = async (file: string): Promise<number> => {
     const { code } = await new Deno.Command(bin, {
       args: [...pre, "lint", file],
       cwd: projectRoot,
       stderr: "null",
       stdout: "null",
     }).output();
-    return code === 0;
+    return code;
+  };
+
+  // The gate is only trustworthy if Biome actually runs: a non-zero exit must
+  // mean "found a diagnostic", never "couldn't start" (npm fallback uncached,
+  // unreadable config, a crash). If a failed *invocation* were read as a
+  // diagnostic, every mutant would be recorded as killed while nothing detected
+  // it — a silent perfect score. The committed tree is lint-clean (CI enforces
+  // it), so linting this very file is a known-good probe that must exit 0.
+  // Prove it up front, and re-prove it before trusting any non-zero result
+  // below; if the probe ever fails, abort loudly instead of inflating the score.
+  const selfPath = import.meta.filename;
+  if (!selfPath) throw new Error("mutation lint gate: no local module path");
+  const brokenGate = (exit: number): Error =>
+    new Error(
+      `Biome lint gate is not operational: linting a known-clean file exited ${exit}. ` +
+        "Fix the Biome install/config before running mutation testing.",
+    );
+  const probe = await lintExit(selfPath);
+  if (probe !== 0) throw brokenGate(probe);
+
+  return async (file: string): Promise<boolean> => {
+    if ((await lintExit(file)) === 0) return true;
+    // Non-zero: a real mutation-introduced diagnostic, or Biome broke mid-run.
+    // Distinguish by re-probing the known-clean file — only reached on would-be
+    // kills (rare), so the extra invocation is cheap. A clean probe confirms a
+    // genuine diagnostic (killed); a failing probe means the tooling died, so
+    // abort rather than record a bogus kill.
+    const reprobe = await lintExit(selfPath);
+    if (reprobe !== 0) throw brokenGate(reprobe);
+    return false;
   };
 };
 
