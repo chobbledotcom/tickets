@@ -9,6 +9,7 @@ import { t } from "#i18n";
 import {
   processSecretField,
   type SecretFieldResult,
+  saveSecret,
   settingsHandler,
   settingsSecret,
   testRoute,
@@ -42,9 +43,7 @@ export const handleAdminSquarePost = settingsHandler<SquareFormData>({
   formId: "settings-square",
   label: "Square credentials",
   save: async ({ token, locationId, sandbox }) => {
-    if (token.action === "provided") {
-      await settings.update.square.accessToken(token.value);
-    }
+    await saveSecret(token, settings.update.square.accessToken);
     await settings.update.square.locationId(locationId);
     await settings.update.square.sandbox(sandbox);
     await settings.update.paymentProvider("square");

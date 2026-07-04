@@ -9,6 +9,7 @@
 import {
   processSecretField,
   type SecretFieldResult,
+  saveSecret,
   settingsHandler,
 } from "#routes/admin/settings-helpers.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -21,15 +22,6 @@ type SmsGatewayFormData = {
   password: SecretFieldResult;
   passphrase: SecretFieldResult;
   webhookSecret: SecretFieldResult;
-};
-
-/** Apply a masked-secret field: provided → set, cleared → empty, unchanged → skip. */
-const saveSecret = async (
-  field: SecretFieldResult,
-  update: (value: string) => Promise<void>,
-): Promise<void> => {
-  if (field.action === "provided") return update(field.value);
-  if (field.action === "cleared") return update("");
 };
 
 export const handleSmsGatewayPost = settingsHandler<SmsGatewayFormData>({

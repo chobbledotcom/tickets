@@ -229,6 +229,18 @@ const processSecretField = (
   return { action: "provided", value: raw };
 };
 
+/**
+ * Apply a masked-secret field to its updater: provided → set the new value,
+ * cleared → store the empty string, unchanged → leave the stored value as-is.
+ */
+const saveSecret = async (
+  field: SecretFieldResult,
+  update: (value: string) => Promise<void>,
+): Promise<void> => {
+  if (field.action === "provided") return update(field.value);
+  if (field.action === "cleared") return update("");
+};
+
 type SecretFieldConfig = FieldConfig & {
   required?: boolean;
   afterSave?: (value: string) => Promise<void> | void;
@@ -288,6 +300,7 @@ export {
   createSettingsHandler,
   getWebhookUrl,
   processSecretField,
+  saveSecret,
   secretFieldHandler,
   settingsClearable,
   settingsHandler,

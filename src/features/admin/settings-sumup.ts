@@ -6,6 +6,7 @@
 import {
   processSecretField,
   type SecretFieldResult,
+  saveSecret,
   settingsHandler,
   testRoute,
 } from "#routes/admin/settings-helpers.ts";
@@ -29,9 +30,7 @@ export const handleAdminSumupPost = settingsHandler<SumupFormData>({
   formId: "settings-sumup",
   label: "SumUp credentials",
   save: async ({ apiKey, merchantCode }) => {
-    if (apiKey.action === "provided") {
-      await settings.update.sumup.apiKey(apiKey.value);
-    }
+    await saveSecret(apiKey, settings.update.sumup.apiKey);
     await settings.update.sumup.merchantCode(merchantCode);
     await settings.update.paymentProvider("sumup");
   },
