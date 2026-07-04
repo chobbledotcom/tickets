@@ -387,12 +387,3 @@ src/shared/sort-listings.ts:46:31  1 → 2   # sign-preserving magnitude change 
 # at every call site (a literal null, or attendeeIdByLedgerEventGroup's typed
 # Promise<number|null> return) — no undefined case exists, so === and == agree.
 src/shared/session-ledger.ts:48:22  === → ==   # ownerAttendeeId is number|null (no undefined), so === and == agree on null
-
-# session-ledger.ts's `hasLegs ? await attendeeIdByLedgerEventGroup(group) : null`
-# is a pure optimization (skip the owner lookup for the common fresh-session
-# case), not a correctness branch: classifyBookingLedger's own pinned test
-# cases show `!hasLegs` alone determines "unrecorded" regardless of the owner
-# value ([false, null] and [false, 42] both give unrecorded). So forcing the
-# lookup to always run changes only the number of DB queries, never
-# bookingLedgerDisposition's return value.
-src/shared/session-ledger.ts:63:17  ?: → consequent only   # owner lookup is a skip-when-unneeded optimization; classifyBookingLedger ignores the owner value whenever hasLegs is false

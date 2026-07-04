@@ -3,6 +3,11 @@ import { it as test } from "@std/testing/bdd";
 import { bookingEventGroup } from "#shared/accounting/mappers.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
+import {
   type BookingLedgerDisposition,
   bookingLedgerDisposition,
   classifyBookingLedger,
@@ -39,6 +44,16 @@ describeWithEnv("bookingLedgerDisposition", { db: true }, () => {
   test("returns unrecorded when the ledger holds no legs for the event", async () => {
     const disposition = await bookingLedgerDisposition("never-happened-event");
     expect(disposition).toEqual({ status: "unrecorded" });
+  });
+
+  test("skips the owner lookup for an unrecorded session, costing a single existence probe", async () => {
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      await bookingLedgerDisposition("never-happened-event-2");
+      // Only eventGroupHasLegs' existence check — attendeeIdByLedgerEventGroup
+      // must not run when there are no legs to own.
+      expect(getQueryLog().length).toBe(1);
+    });
   });
 
   test("returns orphaned when legs exist but no listing_attendees row owns the group", async () => {
