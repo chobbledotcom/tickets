@@ -39,11 +39,11 @@ const compareDaily = (
   a: Listing,
   b: Listing,
 ): number => {
-  const dateA = nextDates.get(a.id) ?? "";
-  const dateB = nextDates.get(b.id) ?? "";
-  if (dateA === "" && dateB === "") return a.name.localeCompare(b.name);
-  if (dateA === "") return 1;
-  if (dateB === "") return -1;
+  const dateA = nextDates.get(a.id) ?? null;
+  const dateB = nextDates.get(b.id) ?? null;
+  if (dateA === null && dateB === null) return a.name.localeCompare(b.name);
+  if (dateA === null) return 1;
+  if (dateB === null) return -1;
   return compareDateThenName(dateA, dateB, a, b);
 };
 
