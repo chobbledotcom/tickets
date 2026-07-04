@@ -11,6 +11,7 @@ import {
   describeWithEnv,
   expectFlash,
   getAllActivityLog,
+  redirectFormId,
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
@@ -79,8 +80,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("SumUp credentials"));
-      // Flash anchors back to the SumUp form (scroll-to-form UX).
-      expect(response.headers.get("location")).toContain("form=settings-sumup");
+      // Flash anchors back to the SumUp form — the exact form id.
+      expect(redirectFormId(response)).toBe("settings-sumup");
       expect(settings.paymentProvider).toBe("sumup");
       expect(settings.sumup.merchantCode).toBe("MC_new");
     });
