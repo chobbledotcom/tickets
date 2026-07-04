@@ -96,4 +96,18 @@ describe("balance-link", () => {
     const token = await signBalanceToken(42, BALANCE_LINK_MAX_AGE_S + 1000);
     expect(await verifyBalanceToken(token)).toBeNull();
   });
+
+  test("does not verify a token minted by a different scheme", async () => {
+    // Balance and QR tokens are built on the same signed-token factory; the
+    // distinct prefix and HMAC domain keep them isolated, so a QR token must
+    // never pass as a balance token even though the signing machinery is shared.
+    const { buildQrBookPayload, signQrBookToken } = await import(
+      "#shared/qr-token.ts"
+    );
+    const qrToken = await signQrBookToken(
+      "listing",
+      buildQrBookPayload({ name: "Ada" }),
+    );
+    expect(await verifyBalanceToken(qrToken)).toBeNull();
+  });
 });
