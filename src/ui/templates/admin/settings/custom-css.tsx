@@ -10,14 +10,14 @@ import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanc
 import { textareaSettingsSection } from "#templates/components/settings-field-section.tsx";
 
 export const CustomCssForm = textareaSettingsSection<AdvancedSettingsPageState>(
-  {
+  (s) => ({
     action: "/admin/settings/custom-css",
     description: <p>{t("settings.advanced.custom_css_hint")}</p>,
-    getValue: (s) => s.customCss,
     label: t("settings.advanced.custom_css_label"),
     name: "custom_css",
     placeholder: t("settings.advanced.custom_css_placeholder"),
     submitLabel: t("settings.advanced.save_custom_css"),
     title: t("settings.advanced.custom_css"),
-  },
+    value: s.customCss,
+  }),
 );

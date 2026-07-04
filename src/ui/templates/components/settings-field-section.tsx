@@ -4,8 +4,13 @@
  * Several settings sections are the same {@link SettingsSection} shell wrapped
  * around exactly one field: a labelled text input (business email, embed hosts)
  * or a single textarea (terms, custom CSS). These factories own that shape so
- * each section only declares its copy, field name, and how to read its value
- * from the page state — rather than re-hand-rolling the wrapper per section.
+ * each section only declares its copy and field — rather than re-hand-rolling
+ * the wrapper per section.
+ *
+ * Each factory takes a `(state) => config` builder rather than a plain config
+ * object. The builder runs inside the returned renderer, so `t(...)` calls in
+ * the copy resolve against the request-scoped locale on every render instead of
+ * being frozen to the default locale at module-import time.
  */
 
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
@@ -21,61 +26,64 @@ type SectionCopy = {
 };
 
 /** Copy shared by both single-field section factories. */
-type FieldCopy<S> = SectionCopy & {
+type FieldCopy = SectionCopy & {
   label: Child;
   name: string;
   placeholder?: string;
-  getValue: (state: S) => string;
+  value: string;
 };
 
 /**
  * Build a single-field section factory: wrap the {@link SettingsSection} shell
- * around whatever `build` renders from the config and the current page state.
- * Owning this curry once keeps the two field factories to a single expression.
+ * around whatever `build` renders from the per-render config. Owning this curry
+ * once keeps the two field factories to a single expression.
  */
 const singleFieldSection =
-  <S, C extends SectionCopy>(build: (cfg: C, state: S) => Child) =>
-  (cfg: C) =>
-  (state: S): JSX.Element => (
-    <SettingsSection
-      action={cfg.action}
-      description={cfg.description}
-      submitLabel={cfg.submitLabel}
-      title={cfg.title}
-    >
-      {build(cfg, state)}
-    </SettingsSection>
-  );
+  <S, C extends SectionCopy>(build: (cfg: C) => Child) =>
+  (config: (state: S) => C) =>
+  (state: S): JSX.Element => {
+    const cfg = config(state);
+    return (
+      <SettingsSection
+        action={cfg.action}
+        description={cfg.description}
+        submitLabel={cfg.submitLabel}
+        title={cfg.title}
+      >
+        {build(cfg)}
+      </SettingsSection>
+    );
+  };
 
 /** A settings section holding a single labelled text input. */
 export const textSettingsSection = <S,>(
-  cfg: FieldCopy<S> & {
+  config: (state: S) => FieldCopy & {
     type: string;
     /** Optional note rendered under the input (e.g. wildcard hint). */
     footer?: Child;
   },
 ) =>
-  singleFieldSection<S, typeof cfg>((c, state) => [
+  singleFieldSection<S, ReturnType<typeof config>>((c) => [
     <TextField
       label={c.label}
       name={c.name}
       placeholder={c.placeholder}
       type={c.type}
-      value={c.getValue(state)}
+      value={c.value}
     />,
     c.footer,
-  ])(cfg);
+  ])(config);
 
 /** A settings section holding a single textarea. */
 export const textareaSettingsSection = <S,>(
-  cfg: FieldCopy<S> & {
+  config: (state: S) => FieldCopy & {
     /** Extra content rendered inside the `<label>`, after the label text. */
     labelHint?: Child;
     /** Enable the client-side markdown preview on the textarea. */
     markdownPreview?: boolean;
   },
 ) =>
-  singleFieldSection<S, typeof cfg>((c, state) => (
+  singleFieldSection<S, ReturnType<typeof config>>((c) => (
     <label>
       {c.label}
       {c.labelHint}
@@ -85,7 +93,7 @@ export const textareaSettingsSection = <S,>(
         name={c.name}
         placeholder={c.placeholder}
       >
-        {c.getValue(state)}
+        {c.value}
       </textarea>
     </label>
-  ))(cfg);
+  ))(config);

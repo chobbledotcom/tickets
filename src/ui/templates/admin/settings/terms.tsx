@@ -8,11 +8,10 @@ import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { textareaSettingsSection } from "#templates/components/settings-field-section.tsx";
 import { FORMATTING_HINT } from "#templates/fields.ts";
 
-export const TermsForm = textareaSettingsSection<SettingsPageState>({
+export const TermsForm = textareaSettingsSection<SettingsPageState>((s) => ({
   action: "/admin/settings/terms",
   description: <p>{t("settings.terms_hint")}</p>,
-  getValue: (s) => s.termsAndConditions,
-  label: "Terms and Conditions",
+  label: t("settings.terms"),
   labelHint: (
     <p>
       <small>
@@ -25,4 +24,5 @@ export const TermsForm = textareaSettingsSection<SettingsPageState>({
   placeholder: t("settings.terms_placeholder"),
   submitLabel: t("settings.save_terms"),
   title: t("settings.terms"),
-});
+  value: s.termsAndConditions,
+}));

@@ -8,22 +8,19 @@ import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { textSettingsSection } from "#templates/components/settings-field-section.tsx";
 /* jscpd:ignore-end */
 
-export const EmbedHostsForm = textSettingsSection<SettingsPageState>({
+export const EmbedHostsForm = textSettingsSection<SettingsPageState>((s) => ({
   action: "/admin/settings/embed-hosts",
   description: <p>{t("settings.embed_hosts_hint")}</p>,
   footer: (
     <p>
-      <small>
-        Use <code>*.example.com</code> to allow all subdomains. Direct visits to
-        the booking page are always allowed.
-      </small>
+      <small>{t("settings.embed_hosts_wildcard_hint")}</small>
     </p>
   ),
-  getValue: (s) => s.embedHosts,
   label: t("settings.embed_hosts_label"),
   name: "embed_hosts",
-  placeholder: "example.com, *.mysite.org",
+  placeholder: t("settings.embed_hosts_placeholder"),
   submitLabel: t("settings.save_embed_hosts"),
   title: t("settings.embed_hosts"),
   type: "text",
-});
+  value: s.embedHosts,
+}));
