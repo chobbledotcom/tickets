@@ -395,3 +395,15 @@ src/shared/session-ledger.ts:48:22  === → ==   # ownerAttendeeId is number|nul
 # "0b". Radix 0 (auto-detect) and radix 10 agree on every value in that set
 # (confirmed directly), so no input safeValue can ever take distinguishes them.
 src/shared/orphan-retention.ts:61:43  10 → 0   # safeValue is a closed set of plain decimal strings; radix 0 and 10 agree on all of them
+
+# listing-templates.ts's matchesSignature is a private helper consumed only as
+# an Array.prototype.find() predicate, which coerces its result with
+# ToBoolean rather than comparing strictly to `true`/`false` — so an early
+# `return false` becoming `return undefined` is unobservable through
+# inferTemplate (the only caller) for any input, even though the exhaustive
+# 16-combo dimension table already covers every reachable production case.
+src/shared/listing-templates.ts:114:12  return false → return undefined   # find()'s predicate only checks truthiness; undefined and false agree
+src/shared/listing-templates.ts:121:12  return false → return undefined   # find()'s predicate only checks truthiness; undefined and false agree
+src/shared/listing-templates.ts:122:60  return false → return undefined   # find()'s predicate only checks truthiness; undefined and false agree
+src/shared/listing-templates.ts:123:54  return false → return undefined   # find()'s predicate only checks truthiness; undefined and false agree
+src/shared/listing-templates.ts:132:4  ?? → ||   # LISTING_TEMPLATES.find(): ListingTemplate|undefined — an object is always truthy, so ?? and || agree
