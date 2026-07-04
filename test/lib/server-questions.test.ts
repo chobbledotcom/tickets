@@ -12,6 +12,7 @@ import {
   expectFlashRedirect,
   expectHtmlResponse,
   expectStatus,
+  getAllActivityLog,
   mockFormRequest,
   testCookie,
   testCsrfToken,
@@ -118,12 +119,27 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         display_type: "radio" as const,
         text: "",
       });
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
+      // Invalid create bounces back to the questions list with the error flash;
+      // the redirect target must be the real path, not an empty string.
+      await expectFlashRedirect(
+        "/admin/questions",
         expect.stringContaining("Question text is required"),
         false,
-      );
+      )(response);
+    });
+
+    test("requires a display type", async () => {
+      // Omitting display_type entirely exercises the field's `required: true`:
+      // without it the field-level check is skipped and the picklist validator
+      // reports a different message.
+      const { response } = await adminFormPost("/admin/questions", {
+        text: "No display type?",
+      });
+      await expectFlashRedirect(
+        "/admin/questions",
+        expect.stringContaining("Display as is required"),
+        false,
+      )(response);
     });
 
     test("creates select questions", async () => {
@@ -508,6 +524,13 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const body = await response.text();
       expect(body).toContain("assigned to 1 listing");
       expect(body).not.toContain("assigned to 1 listings");
+      // Exact message: the singular suffix is "" (not "s" and not anything
+      // else), so `toContain` alone can't catch a corrupted empty suffix.
+      const log = await getAllActivityLog(10);
+      const entry = log.find((e) => e.message.includes("assigned to"));
+      expect(entry?.message).toBe(
+        "Question 'Singular listings log' assigned to 1 listing",
+      );
     });
 
     test("logs plural when assigned to zero listings", async () => {
@@ -598,9 +621,11 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         { confirm_identifier: "Wrong Text" },
       );
       expect(response.status).toBe(302);
+      // The mismatch prompt names the identifier's label ("Question text"), so
+      // an emptied label would leave a nameless " does not match" message.
       expectFlash(
         response,
-        expect.stringContaining("to confirm deletion"),
+        expect.stringContaining("Question text does not match"),
         false,
       );
 
@@ -737,9 +762,11 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         { confirm_identifier: "Wrong Text" },
       );
       expect(response.status).toBe(302);
+      // The mismatch prompt names the identifier's label ("Answer text"), so an
+      // emptied label would leave a nameless " does not match" message.
       expectFlash(
         response,
-        expect.stringContaining("to confirm deletion"),
+        expect.stringContaining("Answer text does not match"),
         false,
       );
 
@@ -901,6 +928,26 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/answers/${aId}/edit`,
         { modifier_id: "9999", text: "Pick" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Invalid modifier"), false);
+
+      const { getAnswerModifierId } = await import("#shared/db/questions.ts");
+      expect(await getAnswerModifierId(aId)).toBeNull();
+    });
+
+    test("parses the modifier id as decimal, rejecting a hex-encoded id", async () => {
+      const qId = await createQuestion("Hex modifier question");
+      const aId = await addAnswer(qId, "Pick");
+      const modifierId = await createAnswerModifier("Hex surcharge");
+
+      // A forged POST sends the real modifier id hex-encoded. Decimal parsing
+      // (radix 10) reads "0x…" as 0 → no such modifier → rejected. A base-0
+      // parse would read the hex digits and wrongly accept it, silently linking
+      // the modifier, so the id must be parsed as decimal.
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId}/edit`,
+        { modifier_id: `0x${modifierId.toString(16)}`, text: "Pick" },
       );
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Invalid modifier"), false);
@@ -1088,6 +1135,14 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Selection total recalculated",
       )(response);
       expect((await getAnswerSelectionTotals(qId)).get(aId)).toBe(1);
+
+      const log = await getAllActivityLog(10);
+      const entry = log.find((e) =>
+        e.message.includes("selection total recalculated"),
+      );
+      expect(entry?.message).toBe(
+        `Answer 'Pick' selection total recalculated in question ${qId}`,
+      );
     });
   });
 
