@@ -208,6 +208,15 @@ export const expectRedirect = (
 export const expectAdminRedirect = (response: Response): string =>
   expectRedirect(response, "/admin");
 
+/** The exact `form` search param of a redirect's Location (the flash anchor
+ * targeting a specific CsrfForm), or null when absent. Parsed rather than
+ * substring-matched so a wrong-but-prefixed form id (settings-square vs
+ * settings-square-webhook) can't pass. */
+export const redirectFormId = (response: Response): string | null =>
+  new URL(getHeader(response, "location"), "http://localhost").searchParams.get(
+    "form",
+  );
+
 /** Parse the `flash_*` cookie off a redirect response into its message fields. */
 export const parseFlashCookie = (
   response: Response,

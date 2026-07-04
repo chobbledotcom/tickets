@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { MASK_SENTINEL } from "#shared/db/settings.ts";
+import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
@@ -586,5 +587,52 @@ describe("adminAdvancedSettingsPage", () => {
     expect(html).not.toContain(
       "Changing your domain changes your payment webhook",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Payment provider radio — labels come from the PAYMENT_PROVIDERS registry
+// ---------------------------------------------------------------------------
+
+describe("adminSettingsPage > PaymentProviderForm radio labels", () => {
+  /** The visible label text attached to the radio option with this value, or
+   * null if none. Scoped to the single <label> so a label attached to the
+   * wrong option isn't mistaken for a match. */
+  const labelForValue = (html: string, value: string): string | null => {
+    const m = html.match(
+      new RegExp(
+        `<input\\b[^>]*value="${value}"[^>]*>\\s*([^<]*?)\\s*</label>`,
+      ),
+    );
+    return m?.[1] ?? null;
+  };
+
+  test("attaches each registry label to its own radio value", () => {
+    const html = adminSettingsPage(TEST_SESSION, defaultState());
+    // The label must sit inside the SAME option as its value, so a swap (e.g.
+    // the "Stripe" label on the square radio) is caught — a page-wide toContain
+    // would miss it.
+    expect(labelForValue(html, "stripe")).toBe("Stripe");
+    expect(labelForValue(html, "square")).toBe("Square");
+    expect(labelForValue(html, "sumup")).toBe("SumUp");
+  });
+
+  test("checks exactly the radio matching the persisted provider", () => {
+    // "" is the persisted value for the "none" option; the rest come from the
+    // registry so this stays exhaustive as providers are added.
+    const values = ["none", ...PAYMENT_PROVIDER_IDS];
+    for (const selected of values) {
+      const html = adminSettingsPage(TEST_SESSION, {
+        ...defaultState(),
+        paymentProvider: selected === "none" ? "" : selected,
+      });
+      // Exactly the selected radio is checked; every other one is not. This
+      // fails an implementation that hard-codes one provider as checked.
+      for (const value of values) {
+        expect(hasCheckedInput(html, "payment_provider", value)).toBe(
+          value === selected,
+        );
+      }
+    }
   });
 });
