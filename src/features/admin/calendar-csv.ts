@@ -9,6 +9,7 @@
 import { t } from "#i18n";
 import {
   csvDateRange,
+  listingInfoColumns,
   standardAttendeeColumns,
 } from "#routes/admin/attendees-csv.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -65,32 +66,6 @@ export const toCalendarAttendees = <
     };
   });
 };
-
-/** Optional Listing Date / Listing Location columns (per booking's listing).
- * The listing date is a UTC ISO datetime, shown as a date + time in `tz`. */
-const listingInfoColumns = (
-  tz: string,
-  showDate: boolean,
-  showLocation: boolean,
-): Column<CalendarAttendee>[] => [
-  ...(showDate
-    ? [
-        {
-          header: t("csv.col.listing_date"),
-          value: (a: CalendarAttendee) =>
-            a.listingDate ? formatDatetimeShortInTz(a.listingDate, tz) : "",
-        },
-      ]
-    : []),
-  ...(showLocation
-    ? [
-        {
-          header: t("csv.col.listing_location"),
-          value: (a: CalendarAttendee) => a.listingLocation,
-        },
-      ]
-    : []),
-];
 
 /** The six logistics columns; each is blank for non-logistics bookings. */
 const logisticsColumns = (
@@ -160,10 +135,16 @@ const calendarColumns = ({
   return [
     { header: t("terms.listing"), value: (a) => a.listingName },
     { header: "Type", value: typeLabel },
-    ...listingInfoColumns(
-      tz,
-      attendees.some((a) => a.listingDate !== ""),
-      attendees.some((a) => a.listingLocation !== ""),
+    ...listingInfoColumns<CalendarAttendee>(
+      {
+        show: attendees.some((a) => a.listingDate !== ""),
+        value: (a) =>
+          a.listingDate ? formatDatetimeShortInTz(a.listingDate, tz) : "",
+      },
+      {
+        show: attendees.some((a) => a.listingLocation !== ""),
+        value: (a) => a.listingLocation,
+      },
     ),
     {
       header: t("common.date"),
