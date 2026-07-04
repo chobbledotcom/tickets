@@ -382,3 +382,8 @@ src/shared/sort-listings.ts:45:30  return 1 → return undefined   # non-negativ
 src/shared/sort-listings.ts:45:30  1 → 0   # non-negative result; see block comment above
 src/shared/sort-listings.ts:45:30  1 → 2   # sign-preserving magnitude change; see block comment above
 src/shared/sort-listings.ts:46:31  1 → 2   # sign-preserving magnitude change on `return -1`; only the sign is ever observed
+
+# session-ledger.ts's bookingLedgerDisposition: ownerAttendeeId is number|null
+# at every call site (a literal null, or attendeeIdByLedgerEventGroup's typed
+# Promise<number|null> return) — no undefined case exists, so === and == agree.
+src/shared/session-ledger.ts:48:22  === → ==   # ownerAttendeeId is number|null (no undefined), so === and == agree on null
