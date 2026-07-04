@@ -26,6 +26,7 @@ import type {
 } from "#shared/types.ts";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { Badge } from "#templates/components/badge.tsx";
 import {
   questionFieldset,
   questionWrapper,
@@ -317,7 +318,7 @@ export const PaymentDetails = ({
         <p>
           <strong>{t("admin.attendees.refund_status")}</strong>{" "}
           {isRefunded ? (
-            <span class="badge-alert">{t("admin.attendees.refunded")}</span>
+            <Badge variant="alert">{t("admin.attendees.refunded")}</Badge>
           ) : (
             t("admin.attendees.not_refunded")
           )}

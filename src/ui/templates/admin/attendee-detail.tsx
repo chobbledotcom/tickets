@@ -16,6 +16,7 @@ import { formatDateRangeLabel } from "#shared/dates.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { questionTextFlat } from "#templates/admin/questions.tsx";
+import { Badge } from "#templates/components/badge.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
@@ -46,11 +47,9 @@ export const BookingStatusBadges = ({
   refunded: boolean;
 }): JSX.Element | null => {
   const badges = compact([
-    checkedIn ? (
-      <span class="badge">{t("attendee_form.checked_in")}</span>
-    ) : null,
+    checkedIn ? <Badge>{t("attendee_form.checked_in")}</Badge> : null,
     refunded ? (
-      <span class="badge danger">{t("attendee_form.refunded")}</span>
+      <Badge variant="danger">{t("attendee_form.refunded")}</Badge>
     ) : null,
   ]);
   return badges.length > 0 ? (

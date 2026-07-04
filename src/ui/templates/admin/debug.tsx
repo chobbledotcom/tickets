@@ -8,6 +8,7 @@ import { formatLimitValue, type LIMIT_ENTRIES } from "#shared/limits.ts";
 import type { RuntimeInfo } from "#shared/runtime.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { themedAdminPage } from "#templates/admin/admin-page.tsx";
+import { Badge, statusBadge } from "#templates/components/badge.tsx";
 
 export type DebugPageState = {
   appleWallet: {
@@ -89,34 +90,6 @@ export type DebugPageState = {
   theme: Theme;
 };
 
-const StatusBadge = ({ ok }: { ok: boolean }): JSX.Element =>
-  ok ? (
-    <span class="badge-ok">{t("common.configured")}</span>
-  ) : (
-    <span class="badge-missing">{t("common.not_configured")}</span>
-  );
-
-/** Badge with caller-chosen labels for a two-state (on/off) value. */
-const OnOffBadge = ({
-  on,
-  onLabel,
-  offLabel,
-}: {
-  on: boolean;
-  onLabel: string;
-  offLabel: string;
-}): JSX.Element =>
-  on ? (
-    <span class="badge-ok">{onLabel}</span>
-  ) : (
-    <span class="badge-missing">{offLabel}</span>
-  );
-
-/** Specialised OnOffBadge for the "Enabled/Disabled" pair used by SiteSection. */
-const EnabledDisabledBadge = ({ on }: { on: boolean }): JSX.Element => (
-  <OnOffBadge offLabel="Disabled" on={on} onLabel="Enabled" />
-);
-
 /** A two-column label/value row in a debug section table. */
 const Row = ({
   label,
@@ -142,7 +115,7 @@ const renderRows = (rows: readonly RowSpec[]): JSX.Element[] =>
  *  shape used throughout the debug sections. */
 const statusRow = (label: string, ok: boolean): RowSpec => ({
   label,
-  value: <StatusBadge ok={ok} />,
+  value: statusBadge(ok, t("common.configured"), t("common.not_configured")),
 });
 
 /** The article/h2/table-scroll scaffolding shared by every debug section. */
@@ -336,21 +309,15 @@ const SiteSection = ({ site }: { site: DebugPageState["site"] }): JSX.Element =>
     rows: [
       {
         label: t("debug.field.public_site"),
-        value: (
-          <OnOffBadge
-            offLabel="Hidden"
-            on={site.publicSite}
-            onLabel="Visible"
-          />
-        ),
+        value: statusBadge(site.publicSite, "Visible", "Hidden"),
       },
       {
         label: t("debug.field.public_api"),
-        value: <EnabledDisabledBadge on={site.publicApi} />,
+        value: statusBadge(site.publicApi, "Enabled", "Disabled"),
       },
       {
         label: t("debug.field.contact_form"),
-        value: <EnabledDisabledBadge on={site.contactForm} />,
+        value: statusBadge(site.contactForm, "Enabled", "Disabled"),
       },
       statusRow(t("debug.field.spam_protection"), site.spamProtection),
       { label: t("debug.field.country"), value: site.country || "—" },
@@ -366,13 +333,11 @@ const AvailabilityStateBadge = ({
 }: {
   state: DebugPageState["availability"]["state"];
 }): JSX.Element => {
-  if (state === "readonly") {
-    return <span class="badge-missing">Read-only</span>;
-  }
+  if (state === "readonly") return <Badge variant="missing">Read-only</Badge>;
   if (state === "warning") {
-    return <span class="badge-missing">Expiring soon</span>;
+    return <Badge variant="missing">Expiring soon</Badge>;
   }
-  return <span class="badge-ok">Active</span>;
+  return <Badge variant="ok">Active</Badge>;
 };
 
 const AvailabilitySection = ({
@@ -404,11 +369,11 @@ const StorageBackendBadge = ({
 }: {
   backend: DebugPageState["bunny"]["storageBackend"];
 }): JSX.Element => {
-  if (backend === "bunny") return <span class="badge-ok">Bunny CDN</span>;
+  if (backend === "bunny") return <Badge variant="ok">Bunny CDN</Badge>;
   if (backend === "local") {
-    return <span class="badge-ok">Local filesystem</span>;
+    return <Badge variant="ok">Local filesystem</Badge>;
   }
-  return <span class="badge-missing">Not configured</span>;
+  return <Badge variant="missing">Not configured</Badge>;
 };
 
 const BunnySection = ({
@@ -454,13 +419,7 @@ const DatabaseDomainSection = ({
       { label: t("debug.field.effective_domain"), value: domain },
       {
         label: t("debug.field.schema_status"),
-        value: (
-          <OnOffBadge
-            offLabel="Out of sync"
-            on={database.schemaInSync}
-            onLabel="Up to date"
-          />
-        ),
+        value: statusBadge(database.schemaInSync, "Up to date", "Out of sync"),
       },
       {
         label: t("debug.field.schema_hash"),

@@ -1,4 +1,5 @@
 import { t } from "#i18n";
+import { Badge } from "#templates/components/badge.tsx";
 
 export type ExpectedActualItem = {
   actual: string;
@@ -36,7 +37,7 @@ export const ExpectedActualNotice = ({
   return (
     <details class="expected-actual-notice" role="alert">
       <summary>
-        <span class="badge-alert">{badge}</span> <strong>{first.label}</strong>:{" "}
+        <Badge variant="alert">{badge}</Badge> <strong>{first.label}</strong>:{" "}
         {t("expected_actual.expected")} <strong>{first.expected}</strong>,{" "}
         {t("expected_actual.got")} <strong>{first.actual}</strong>
         {extra}.

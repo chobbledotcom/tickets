@@ -51,6 +51,7 @@ import {
   PARENT_CHILD_GROUP_UNITS,
   sharedGroupRemaining,
 } from "#shared/types.ts";
+import { Badge } from "#templates/components/badge.tsx";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import {
   questionFieldset,
@@ -1504,10 +1505,10 @@ const TicketPageHeader = ({
           <strong>{t("public.ticket.date_label")}</strong>{" "}
           {formatDatetimeLabel(singleListing.date)}
           {pastDays !== null && (
-            <span class="badge-alert">
+            <Badge variant="alert">
               {" "}
               {t("public.ticket.days_ago", { count: pastDays })}
-            </span>
+            </Badge>
           )}
         </p>
       )}
