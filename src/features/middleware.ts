@@ -5,9 +5,9 @@
 import { SCAN_API_PATTERN } from "#routes/admin/scanner.ts";
 import { encodeBody } from "#routes/response.ts";
 import {
-  getEffectiveDomain,
   getEmbedHosts,
   isBotpoisonEnabled,
+  isSecureMode,
 } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildFrameAncestors } from "#shared/embed-hosts.ts";
@@ -89,7 +89,7 @@ export const getSecurityHeaders = (
   ...BASE_SECURITY_HEADERS,
   ...(!embeddable && { "x-frame-options": "DENY" }),
   ...(embeddable && { "x-robots-tag": "index, follow" }),
-  ...(getEffectiveDomain() !== "localhost" && {
+  ...(isSecureMode() && {
     "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
   }),
   "content-security-policy": buildCspHeader(embeddable),
