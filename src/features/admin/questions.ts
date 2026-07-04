@@ -6,7 +6,7 @@ import { mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import {
   parseEditableAggregateForm,
-  selectedRecalculationFields,
+  runRecalculatePost,
 } from "#routes/admin/aggregate-recalculation.ts";
 import {
   createConfirmedHandlers,
@@ -487,26 +487,25 @@ const handleAnswerRecalculateGet = answerRoute((question, answer, session) => {
 
 /** Handle POST /admin/questions/:id/answers/:answerId/recalculate */
 const handleAnswerRecalculatePost = answerActionHandler(
-  async ({ context: { answer, question }, form, params, session }) => {
-    const selected = selectedRecalculationFields(form, ANSWER_AGGREGATE_FIELDS);
-    if (selected.length === 0) {
-      return renderAnswerRecalculatePage(
-        question,
-        answer,
-        session,
-        t("questions.recalculate.choose"),
-      );
-    }
-    await resetAnswerAggregateFields(answer.id, selected);
-    await logActivity(
-      `Answer '${answer.text}' selection total recalculated in question ${question.id}`,
-    );
-    return redirect(
-      editAnswerPath(params),
-      t("questions.recalculate.success"),
-      true,
-    );
-  },
+  ({ context: { answer, question }, form, params, session }) =>
+    runRecalculatePost({
+      fields: ANSWER_AGGREGATE_FIELDS,
+      form,
+      log: () =>
+        logActivity(
+          `Answer '${answer.text}' selection total recalculated in question ${question.id}`,
+        ),
+      renderChoose: () =>
+        renderAnswerRecalculatePage(
+          question,
+          answer,
+          session,
+          t("questions.recalculate.choose"),
+        ),
+      reset: (selected) => resetAnswerAggregateFields(answer.id, selected),
+      successMessage: t("questions.recalculate.success"),
+      successPath: editAnswerPath(params),
+    }),
 );
 
 /** Factory for move-up/move-down handlers */
