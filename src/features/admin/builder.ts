@@ -3,6 +3,7 @@
  * Owner-only access, gated behind CAN_BUILD_SITES=true env var
  */
 
+/* jscpd:ignore-start */
 import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import {
@@ -12,6 +13,7 @@ import {
   redirect,
 } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
+/* jscpd:ignore-end */
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { builderApi } from "#shared/builder.ts";
 import {

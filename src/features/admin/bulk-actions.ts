@@ -15,9 +15,11 @@ import {
   groupFormPost,
   withGroup,
 } from "#routes/admin/groups.ts";
+/* jscpd:ignore-start */
 import { requireSessionOr } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+/* jscpd:ignore-end */
 import {
   applyNameReplacement,
   computeDayOffset,
