@@ -19,8 +19,7 @@ import {
 } from "#shared/columns/listing-columns.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
-import { SettingsSection } from "#templates/components/settings-section.tsx";
-import { TextField } from "#templates/components/text-field.tsx";
+import { textSettingsSection } from "#templates/components/settings-field-section.tsx";
 
 /* jscpd:ignore-end */
 
@@ -41,67 +40,51 @@ const AvailableTags = ({
   </small>
 );
 
-type ColumnOrderField = {
+type ColumnOrderConfig = {
   action: string;
   descriptionKey: string;
   submitLabelKey: string;
   titleKey: string;
   placeholder: string;
-  value: string;
   columns: Record<string, { label: string }>;
+  getValue: (s: AdvancedSettingsPageState) => string;
 };
 
 /** A single column-order settings form. The two exports below specialise it. */
-const ColumnOrderForm = ({
-  action,
-  descriptionKey,
-  submitLabelKey,
-  titleKey,
-  placeholder,
-  value,
-  columns,
-}: ColumnOrderField): JSX.Element => (
-  <SettingsSection
-    action={action}
-    description={<Raw html={t(descriptionKey)} />}
-    submitLabel={t(submitLabelKey)}
-    title={t(titleKey)}
-  >
-    <TextField
-      label={t("settings.column_order.label")}
-      name="column_order"
-      placeholder={placeholder}
-      type="text"
-      value={value || placeholder}
-    />
-    <p>
-      <AvailableTags columns={columns} />
-    </p>
-  </SettingsSection>
-);
+const columnOrderForm = (cfg: ColumnOrderConfig) =>
+  textSettingsSection<AdvancedSettingsPageState>((s) => ({
+    action: cfg.action,
+    description: <Raw html={t(cfg.descriptionKey)} />,
+    footer: (
+      <p>
+        <AvailableTags columns={cfg.columns} />
+      </p>
+    ),
+    label: t("settings.column_order.label"),
+    name: "column_order",
+    placeholder: cfg.placeholder,
+    submitLabel: t(cfg.submitLabelKey),
+    title: t(cfg.titleKey),
+    type: "text",
+    value: cfg.getValue(s) || cfg.placeholder,
+  }));
 
-export const ListingColumnOrderForm = (
-  s: AdvancedSettingsPageState,
-): JSX.Element =>
-  ColumnOrderForm({
-    action: "/admin/settings/listing-column-order",
-    columns: LISTING_TABLE_COLUMNS,
-    descriptionKey: "settings.column_order.listing_desc",
-    placeholder: listingDefault,
-    submitLabelKey: "settings.column_order.listing_submit",
-    titleKey: "settings.column_order.listing_title",
-    value: s.listingColumnOrder,
-  });
+export const ListingColumnOrderForm = columnOrderForm({
+  action: "/admin/settings/listing-column-order",
+  columns: LISTING_TABLE_COLUMNS,
+  descriptionKey: "settings.column_order.listing_desc",
+  getValue: (s) => s.listingColumnOrder,
+  placeholder: listingDefault,
+  submitLabelKey: "settings.column_order.listing_submit",
+  titleKey: "settings.column_order.listing_title",
+});
 
-export const AttendeeColumnOrderForm = (
-  s: AdvancedSettingsPageState,
-): JSX.Element =>
-  ColumnOrderForm({
-    action: "/admin/settings/attendee-column-order",
-    columns: ATTENDEE_TABLE_COLUMNS,
-    descriptionKey: "settings.column_order.attendee_desc",
-    placeholder: attendeeDefault,
-    submitLabelKey: "settings.column_order.attendee_submit",
-    titleKey: "settings.column_order.attendee_title",
-    value: s.attendeeColumnOrder,
-  });
+export const AttendeeColumnOrderForm = columnOrderForm({
+  action: "/admin/settings/attendee-column-order",
+  columns: ATTENDEE_TABLE_COLUMNS,
+  descriptionKey: "settings.column_order.attendee_desc",
+  getValue: (s) => s.attendeeColumnOrder,
+  placeholder: attendeeDefault,
+  submitLabelKey: "settings.column_order.attendee_submit",
+  titleKey: "settings.column_order.attendee_title",
+});

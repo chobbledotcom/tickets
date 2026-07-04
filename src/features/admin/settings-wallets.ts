@@ -7,6 +7,7 @@ import { t } from "#i18n";
 import {
   processSecretField,
   type SecretFieldResult,
+  saveSecret,
   settingsHandler,
 } from "#routes/admin/settings-helpers.ts";
 import {
@@ -62,15 +63,9 @@ export const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
     }
     await settings.update.appleWallet.passTypeId(d.passTypeId);
     await settings.update.appleWallet.teamId(d.teamId);
-    if (d.cert.action === "provided") {
-      await settings.update.appleWallet.signingCert(d.cert.value);
-    }
-    if (d.key.action === "provided") {
-      await settings.update.appleWallet.signingKey(d.key.value);
-    }
-    if (d.wwdr.action === "provided") {
-      await settings.update.appleWallet.wwdrCert(d.wwdr.value);
-    }
+    await saveSecret(d.cert, settings.update.appleWallet.signingCert);
+    await saveSecret(d.key, settings.update.appleWallet.signingKey);
+    await saveSecret(d.wwdr, settings.update.appleWallet.wwdrCert);
   },
   validate: (d) => {
     if (isAllCleared(d)) return null;
@@ -147,9 +142,7 @@ export const handleGoogleWalletPost = settingsHandler<GoogleWalletFormData>({
     }
     await settings.update.googleWallet.issuerId(d.issuerId);
     await settings.update.googleWallet.serviceAccountEmail(d.email);
-    if (d.key.action === "provided") {
-      await settings.update.googleWallet.serviceAccountKey(d.key.value);
-    }
+    await saveSecret(d.key, settings.update.googleWallet.serviceAccountKey);
   },
   validate: async (d) => {
     if (isGoogleWalletCleared(d)) return null;
