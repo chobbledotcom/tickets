@@ -156,6 +156,9 @@ export const resolveColumnLayout = (
     : { columnKeys: [...defaultOrder], filters: new Map() };
 };
 
+/** Matches only when `date` is the first filter applied to the raw value */
+const FIRST_FILTER_IS_DATE_RE = /^[^|]*\|\s*date\b/;
+
 /**
  * Render a single column value through a Liquid filter expression.
  *
@@ -169,9 +172,15 @@ export const renderFilteredValue = (
   key: string,
 ): string => {
   // For date filters, convert ISO strings to Date objects so LiquidJS's
-  // built-in strftime works correctly.
+  // built-in strftime works correctly. Only convert when `date` is the first
+  // filter in the chain — converting for a later `| date` (e.g. a filter
+  // that transforms the raw string before a date filter downstream) would
+  // feed that earlier filter a Date instead of the raw string.
   let contextValue = rawValue;
-  if (typeof rawValue === "string" && expression.includes("| date")) {
+  if (
+    typeof rawValue === "string" &&
+    FIRST_FILTER_IS_DATE_RE.test(expression)
+  ) {
     const d = new Date(rawValue);
     if (!Number.isNaN(d.getTime())) contextValue = d;
   }
