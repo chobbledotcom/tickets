@@ -20,6 +20,8 @@ import {
   resetAggregates,
 } from "#shared/db/client.ts";
 import {
+  type AggregateRecalculation,
+  type AggregateValues,
   defineIdTable,
   encryptedNameSchema,
 } from "#shared/db/common-schema.ts";
@@ -141,12 +143,10 @@ export const MODIFIER_AGGREGATE_FIELDS = ["total_uses", "usage_count"] as const;
 
 export type ModifierAggregateField = (typeof MODIFIER_AGGREGATE_FIELDS)[number];
 
-export type ModifierAggregateValues = Record<ModifierAggregateField, number>;
+export type ModifierAggregateValues = AggregateValues<ModifierAggregateField>;
 
-export type ModifierAggregateRecalculation = Record<
-  ModifierAggregateField,
-  { current: number; recalculated: number }
->;
+export type ModifierAggregateRecalculation =
+  AggregateRecalculation<ModifierAggregateField>;
 
 /** The modifier count aggregates as they would be if rebuilt from usage rows.
  * Takes the stored {@link ModifierRow} — total_revenue is no longer a

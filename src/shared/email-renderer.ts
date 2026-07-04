@@ -22,7 +22,11 @@ import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { packagePrivacyOfDisplay } from "#shared/package-privacy.ts";
-import { isPaidListing, normalizeDurationDays } from "#shared/types.ts";
+import {
+  type ContactInfo,
+  isPaidListing,
+  normalizeDurationDays,
+} from "#shared/types.ts";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 import { listingNames } from "#templates/email/shared.ts";
@@ -55,12 +59,7 @@ type TemplateEntry = {
     slug: string;
     is_paid: boolean;
   };
-  attendee: {
-    name: string;
-    email: string;
-    phone: string;
-    address: string;
-    special_instructions: string;
+  attendee: ContactInfo & {
     quantity: number;
     price_paid: string;
     date: string | null;

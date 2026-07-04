@@ -6,7 +6,10 @@
  * 2. Apply: the admin submits explicit decisions for each conflict.
  */
 
-import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
+import type {
+  AttendeePii,
+  ListingAttendeeRow,
+} from "#shared/db/attendee-types.ts";
 import type { ContactInfo } from "#shared/types.ts";
 
 // ---------------------------------------------------------------------------
@@ -169,7 +172,7 @@ export type BuildAttendeeMergeDiffInput = {
 export type ApplyAttendeeMergeInput = {
   targetId: number;
   sourceId: number;
-  targetPii: ContactInfo & { payment_id: string; ticket_token: string };
+  targetPii: AttendeePii;
   sourcePii: ContactInfo;
   diff: AttendeeMergeDiff;
   decision: AttendeeMergeDecisionInput;
