@@ -1446,16 +1446,36 @@ input[type="submit"].danger:hover,
   font-weight: bold;
 }
 
+/* Pill/label badges shared across admin & public pages. All share one shape;
+   the variant sets the colour. `.badge-alert` additionally carries the inline
+   margins it needs when it sits mid-sentence. */
+.badge,
+.badge-ok,
+.badge-missing,
 .badge-alert {
+  display: inline-block;
   font-size: 0.6rem;
   font-weight: bold;
   color: #fff;
-  background-color: #cc0000;
-  margin-left: 1rem;
-  margin-right: 1rem;
   padding: 0.2rem 0.5rem;
   border-radius: 999px;
   white-space: nowrap;
+}
+
+.badge,
+.badge-missing {
+  background-color: #6b6b6b;
+}
+.badge-ok {
+  background-color: #006600;
+}
+.badge.danger,
+.badge-alert {
+  background-color: #cc0000;
+}
+.badge-alert {
+  margin-left: 1rem;
+  margin-right: 1rem;
 }
 
 [data-theme="dark"] .password-warning {
@@ -1467,6 +1487,14 @@ input[type="submit"].danger:hover,
 [data-theme="dark"] .success-text {
   color: #50fa7b;
 }
+[data-theme="dark"] .badge,
+[data-theme="dark"] .badge-missing {
+  background-color: #44475a;
+}
+[data-theme="dark"] .badge-ok {
+  background-color: #1a7a1a;
+}
+[data-theme="dark"] .badge.danger,
 [data-theme="dark"] .badge-alert {
   background-color: #991919;
 }

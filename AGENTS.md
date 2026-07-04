@@ -28,6 +28,23 @@ mise exec -- deno --version
 
 The `.tool-versions` file is kept in sync for asdf-compatible tooling.
 
+## stripe-mock
+
+The test harness needs the `stripe-mock` binary at `.bin/stripe-mock` (any test
+that imports the app boots the harness, which starts it on port 12111). The
+harness normally downloads a prebuilt release from GitHub, but in sandboxes
+where GitHub release downloads are blocked you can build it from source with Go
+instead — the Go module proxy is usually reachable when GitHub isn't:
+
+```bash
+GOBIN="$PWD/.bin" go install github.com/stripe/stripe-mock@v0.188.0
+```
+
+Pin the same version the harness expects (`STRIPE_MOCK_VERSION` in
+`scripts/test-harness.ts`). Once `.bin/stripe-mock` exists the harness uses it
+as-is and skips the download, so `deno task test`, `deno task test:files`, and
+`--harness` mutation runs all work offline from GitHub.
+
 ## Preferences
 
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over imperative loops
