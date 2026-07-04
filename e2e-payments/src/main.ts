@@ -28,6 +28,7 @@ import {
 } from "./flow.ts";
 import { buildStaticAssets, startAppServer } from "./server.ts";
 import { noTunnel, startTunnel } from "./tunnel.ts";
+import { notifyFailure } from "./notify.ts";
 
 /**
  * Print the tail of the app server's log to stdout. On CI the server log is
@@ -120,9 +121,11 @@ const run = async (): Promise<void> => {
 
     step(`PASS — ${target} end-to-end booking completed`);
   } catch (err) {
-    fail(`FAIL — ${target}: ${err instanceof Error ? err.message : String(err)}`);
+    const message = err instanceof Error ? err.message : String(err);
+    fail(`FAIL — ${target}: ${message}`);
     if (session) await session.screenshot(`fail-${target}`);
     if (server) dumpServerLog(server.logPath);
+    await notifyFailure(target, message);
     throw err;
   } finally {
     if (session) await session.stop();

@@ -89,6 +89,9 @@ export const config = {
 
   /** Where to drop screenshots / server logs on failure. */
   artifactsDir: env("E2E_ARTIFACTS_DIR") ?? "artifacts",
+
+  /** Ntfy endpoint pinged on failure (e.g. `https://ntfy.sh/your-topic`). Unset ⇒ no notification. */
+  ntfyUrl: env("NTFY_URL"),
 };
 
 /** Whether a public tunnel is required for the given target. */

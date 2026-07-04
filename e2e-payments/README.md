@@ -32,8 +32,8 @@ For a target (`stripe` | `square` | `sumup` | `free`):
    - books, is redirected to the provider's hosted checkout, and pays with the
      provider's sandbox test card;
    - lands back on the app return URL and asserts the booking shows as paid
-     (customer success page, the booker on the admin listing, **and** the
-     captured amount in the listing's income ledger).
+     (customer success page, the captured amount in the listing's Overview
+     income ledger, **and** the booker on the listing's Attendees tab).
 
 ### What is (and isn't) exercised per provider
 
@@ -84,6 +84,10 @@ Watch it happen in a real window with `HEADLESS=false`.
 | `SUMUP_API_KEY`, `SUMUP_MERCHANT_CODE` | SumUp | Sandbox secret key + matching merchant code. |
 
 A target with missing secrets **skips** (exits 0) rather than failing.
+
+`NTFY_URL` (optional) — an ntfy topic URL (e.g. `https://ntfy.sh/your-topic`)
+pinged with the failed target and error message when a leg fails. Unset ⇒ no
+notification.
 
 Other knobs (all optional): `DENO_BIN`, `CLOUDFLARED_BIN`,
 `CHROMIUM_EXECUTABLE` (unset in CI so Playwright uses its own build),
