@@ -116,7 +116,13 @@ const createLinter = async (): Promise<MutantLinter> => {
   return {
     exit: async (file: string): Promise<number> => {
       const { code } = await new Deno.Command(bin, {
-        args: [...pre, "lint", file],
+        // --no-errors-on-unmatched: a source deliberately outside Biome's
+        // includes (e.g. src/ui/client/scanner.js) is still a mutation target
+        // via src/**/*.js, and linting an excluded path exits non-zero for
+        // "no files processed". Silencing that makes such a file lint clean
+        // (exit 0) so its mutants fall through to the test/build path instead
+        // of the baseline probe mistaking it for a dirty target and aborting.
+        args: [...pre, "lint", "--no-errors-on-unmatched", file],
         cwd: projectRoot,
         stderr: "null",
         stdout: "null",
