@@ -18,6 +18,8 @@
 src/shared/checkout-pricing.ts:85:35  ?? → ||    # Map<number,number> sum: 0 ?? 0 === 0 || 0
 src/shared/checkout-pricing.ts:334:41  ?? → ||   # intent.modifiers: an array is always truthy
 src/shared/logistics-filter.ts:22:35  ?? → ||    # raw: string|null, only falsy string "" === fallback ""
+src/shared/qr-token.ts:60:18  ?? → ||    # input.date?: string, only falsy string "" === fallback ""
+src/shared/qr-token.ts:62:18  ?? → ||    # input.name?: string, only falsy string "" === fallback ""
 src/shared/site-assignment.ts:192:57  ?? → ||    # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
 src/shared/site-assignment.ts:370:34  ?? → ||    # available[idx]: object|undefined, never falsy non-null
 src/shared/site-assignment.ts:392:34  ?? → ||    # getEmailConfig(): EmailConfig|null
