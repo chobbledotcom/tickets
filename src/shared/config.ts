@@ -26,11 +26,19 @@ export const getBookingFee = (): number =>
   Number.parseFloat(settings.bookingFee) || 0;
 
 /**
+ * The domain used before any request has resolved a real one — and the single
+ * place the "localhost" fallback lives. The effective domain is seeded to this
+ * at module load and reset to it between tests, so it is always a real string.
+ */
+const DEFAULT_DOMAIN = "localhost";
+
+/**
  * Effective domain: custom_domain (from DB) if set, otherwise the request's
  * own hostname. Loaded once per request via loadEffectiveDomain(), then read
- * synchronously via getEffectiveDomain().
+ * synchronously via getEffectiveDomain(). Never null — it starts at
+ * DEFAULT_DOMAIN and is refined as each request resolves its real host.
  */
-const effectiveDomainState = { domain: null as string | null };
+const effectiveDomainState = { domain: DEFAULT_DOMAIN };
 
 /** Load the effective domain from DB, falling back to the request URL hostname. */
 export const loadEffectiveDomain = (requestUrl: string): string => {
@@ -61,12 +69,11 @@ export const seedEffectiveDomainHost = (requestUrl: string): void => {
 };
 
 /** Get the effective domain synchronously (must call loadEffectiveDomain first). */
-export const getEffectiveDomain = (): string =>
-  effectiveDomainState.domain ?? "localhost";
+export const getEffectiveDomain = (): string => effectiveDomainState.domain;
 
-/** Reset effective domain cache (for testing). */
+/** Reset effective domain cache back to the default (for testing). */
 export const resetEffectiveDomain = (): void => {
-  effectiveDomainState.domain = null;
+  effectiveDomainState.domain = DEFAULT_DOMAIN;
 };
 
 /** Set effective domain directly (for testing). */
