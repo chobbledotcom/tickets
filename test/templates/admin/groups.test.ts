@@ -221,13 +221,17 @@ describe("GroupEditPanel package members table", () => {
 
   test("shows the empty-state prompt when the package has no listings", () => {
     const group = testGroup({ is_package: true, name: "Empty" });
-    const html = String(GroupEditPanel({ group, listings: [], members: new Map() }));
+    const html = String(
+      GroupEditPanel({ group, listings: [], members: new Map() }),
+    );
     expect(html).toContain("Add listings to this group");
   });
 
   test("links to the JSON export (reachable by a content editor)", () => {
     const group = testGroup({ id: 7, name: "Exportable" });
-    const html = String(GroupEditPanel({ group, listings: [], members: new Map() }));
+    const html = String(
+      GroupEditPanel({ group, listings: [], members: new Map() }),
+    );
     // The Edit tab is content-gated, so an editor who never sees the staff-only
     // Overview/Actions tabs can still export the group from here.
     expect(html).toContain(`/admin/groups/${group.id}/export.json`);

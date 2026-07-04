@@ -15,6 +15,7 @@
  * their own routes in groups.ts; this file owns only the GET surface.
  */
 
+/* jscpd:ignore-start */
 import {
   type ActionDef,
   defineEntityPage,
@@ -22,6 +23,7 @@ import {
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
+/* jscpd:ignore-end */
 import { isReadOnly } from "#shared/env.ts";
 import { type Group, isStaffRole } from "#shared/types.ts";
 import {
@@ -35,6 +37,21 @@ import {
  * attendee PII), so gate them to staff; an editor's page resolves to Edit. */
 const staffOnly = (_group: Group, session: AuthSession): boolean =>
   isStaffRole(session.adminLevel);
+
+/** A tab whose one section is a custom-rendered panel — the shape every group
+ * tab but Actions takes. Keeps the tab list declarative and free of repeated
+ * `{ kind: "custom", load }` boilerplate. */
+const panelTab = (
+  slug: string,
+  labelKey: string,
+  load: (group: Group) => Promise<JSX.Element>,
+  visible: (group: Group, session: AuthSession) => boolean,
+): TabDef<Group> => ({
+  labelKey,
+  sections: [{ kind: "custom", load }],
+  slug,
+  visible,
+});
 
 /** The Actions tab entries. Each `visible` mirrors the gate its old detail-nav
  * link used, so no dead or forbidden link renders. */
@@ -62,15 +79,21 @@ const GROUP_ACTIONS: readonly ActionDef<Group>[] = [
   },
 ];
 
-/** The Overview tab: the group detail table, member listings, add-listings. */
-const overviewTab: TabDef<Group> = {
-  labelKey: "entity.tab.overview",
+/** The Edit tab is content-gated but hidden in read-only mode: the global guard
+ * redirects the edit route to /read-only, so rather than render a link that
+ * immediately bounces (and so an editor's bare-URL default can't resolve onto an
+ * un-editable form), hide the tab. */
+const editVisible = (): boolean => !isReadOnly();
+
+/** The Actions tab: the plain export/bulk links plus the delete danger zone. */
+const actionsTab = (): TabDef<Group> => ({
+  labelKey: "entity.tab.actions",
   sections: [
-    { kind: "custom", load: (group) => loadGroupOverviewPanel(group) },
+    { actions: GROUP_ACTIONS, kind: "actions", titleKey: "entity.tab.actions" },
   ],
-  slug: "",
+  slug: "actions",
   visible: staffOnly,
-};
+});
 
 /** The tabbed group page. */
 export const groupPage: EntityPage<Group> = defineEntityPage({
@@ -81,39 +104,15 @@ export const groupPage: EntityPage<Group> = defineEntityPage({
   load: (id) => loadGroupForPage(id),
   navActive: "/admin/groups",
   tabs: [
-    overviewTab,
-    {
-      labelKey: "entity.tab.attendees",
-      sections: [
-        { kind: "custom", load: (group) => loadGroupAttendeesPanel(group) },
-      ],
-      slug: "attendees",
-      visible: staffOnly,
-    },
-    {
-      labelKey: "entity.tab.edit",
-      sections: [
-        { kind: "custom", load: (group) => loadGroupEditPanel(group) },
-      ],
-      slug: "edit",
-      // Editors and above may edit, but not in read-only mode — where the
-      // global guard redirects the edit POST. Hide the tab then rather than
-      // render a form that can't submit (and so an editor's bare-URL default
-      // can't resolve onto an un-editable form).
-      visible: () => !isReadOnly(),
-    },
-    {
-      labelKey: "entity.tab.actions",
-      sections: [
-        {
-          actions: GROUP_ACTIONS,
-          kind: "actions",
-          titleKey: "entity.tab.actions",
-        },
-      ],
-      slug: "actions",
-      visible: staffOnly,
-    },
+    panelTab("", "entity.tab.overview", loadGroupOverviewPanel, staffOnly),
+    panelTab(
+      "attendees",
+      "entity.tab.attendees",
+      loadGroupAttendeesPanel,
+      staffOnly,
+    ),
+    panelTab("edit", "entity.tab.edit", loadGroupEditPanel, editVisible),
+    actionsTab(),
   ],
   titleOf: (group) => group.name,
 });

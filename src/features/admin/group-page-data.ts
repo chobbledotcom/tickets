@@ -27,7 +27,6 @@ import { settings } from "#shared/db/settings.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import {
-  type Attendee,
   type Group,
   isPaidListing,
   type ListingWithCount,
@@ -82,15 +81,14 @@ const loadGroupRoster = async (group: Group) => {
   // decrypts payment fields AND whether the detail table shows the revenue row.
   const hasPaidListing = await groupHasPaidListing(group, sortedListings);
   const privateKey = await requireRequestPrivateKey();
-  let attendees: Attendee[] = [];
-  if (listingIds.length > 0) {
-    const rawAttendees = await getAttendeesByListingIds(listingIds);
-    attendees = await decryptAttendees(
-      rawAttendees,
-      privateKey,
-      hasPaidListing,
-    );
-  }
+  // getAttendeesByListingIds resolves to [] for an empty id list, so no guard is
+  // needed — an empty group simply yields an empty roster.
+  const rawAttendees = await getAttendeesByListingIds(listingIds);
+  const attendees = await decryptAttendees(
+    rawAttendees,
+    privateKey,
+    hasPaidListing,
+  );
   const questionData = await loadAttendeeQuestionData(
     listingIds,
     attendees.map((attendee) => attendee.id),
@@ -105,12 +103,36 @@ const loadGroupRoster = async (group: Group) => {
   };
 };
 
+type GroupRoster = Awaited<ReturnType<typeof loadGroupRoster>>;
+
+/** The props both roster-reading tabs share: the display domain, the group, its
+ * sorted listings, the decrypted attendees, and the optional question data.
+ * Each tab spreads these and adds its own extras. */
+const rosterPanelProps = (group: Group, roster: GroupRoster) => ({
+  allowedDomain: getEffectiveDomain(),
+  attendees: roster.attendees,
+  group,
+  listings: roster.listings,
+  ...(roster.questionData !== undefined
+    ? { questionData: roster.questionData }
+    : {}),
+});
+
+/** Load the roster once, then hand it (with its group) to a panel builder — the
+ * single place the Overview and Attendees tabs share their roster fetch. */
+const rosterTab =
+  (
+    build: (
+      group: Group,
+      roster: GroupRoster,
+    ) => JSX.Element | Promise<JSX.Element>,
+  ) =>
+  async (group: Group): Promise<JSX.Element> =>
+    build(group, await loadGroupRoster(group));
+
 /** Build the Overview tab: the group detail table, the member-listings table,
  * and the add-listings membership form. */
-export const loadGroupOverviewPanel = async (
-  group: Group,
-): Promise<JSX.Element> => {
-  const roster = await loadGroupRoster(group);
+export const loadGroupOverviewPanel = rosterTab(async (group, roster) => {
   // The add-listings form offers any listing not already in THIS group —
   // membership is many-to-many, so a listing in another group can still join.
   const ungroupedListings = sortListings(
@@ -126,36 +148,21 @@ export const loadGroupOverviewPanel = async (
     visibleMembers.length > 0 &&
     (!group.is_package || (await groupBookable(group, visibleMembers)));
   return GroupOverviewPanel({
-    allowedDomain: getEffectiveDomain(),
-    attendees: roster.attendees,
-    group,
+    ...rosterPanelProps(group, roster),
     hasPaidListing: roster.hasPaidListing,
-    listings: roster.listings,
-    ...(roster.questionData !== undefined
-      ? { questionData: roster.questionData }
-      : {}),
     shareable,
     ungroupedListings,
   });
-};
+});
 
 /** Build the Attendees tab: one row per booking line across the group's
  * listings. */
-export const loadGroupAttendeesPanel = async (
-  group: Group,
-): Promise<JSX.Element> => {
-  const roster = await loadGroupRoster(group);
-  return GroupAttendeesPanel({
-    allowedDomain: getEffectiveDomain(),
-    attendees: roster.attendees,
-    group,
-    listings: roster.listings,
+export const loadGroupAttendeesPanel = rosterTab((group, roster) =>
+  GroupAttendeesPanel({
+    ...rosterPanelProps(group, roster),
     phonePrefix: settings.phonePrefix,
-    ...(roster.questionData !== undefined
-      ? { questionData: roster.questionData }
-      : {}),
-  });
-};
+  }),
+);
 
 /** Build the Edit tab: the group form with the per-listing package-price table
  * pre-filled from the group's current overrides. A null price renders blank (no

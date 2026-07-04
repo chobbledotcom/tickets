@@ -290,3 +290,11 @@ src/shared/images/resize.ts:78:17  = → +=    # out[o+3] = A into fresh-zeroed 
 src/shared/images/codecs.ts:52:3  await Promise.all([ pngInit(pngMod), jp… → (removed)   # edge-only codec init; jSquash self-inits in Deno
 src/shared/images/codecs.ts:75:3  await ensureCodecs(); → (removed)   # decodeImage edge-only init; jSquash self-inits in Deno
 src/shared/images/codecs.ts:84:3  await ensureCodecs(); → (removed)   # encodeWebp edge-only init; jSquash self-inits in Deno
+
+# group-page-data: groupHasPaidListing's result is consumed only in boolean
+# context (decryptAttendees's paidListing flag and the revenue-row gate), so a
+# false vs undefined early-return is indistinguishable; the two `?? →  ||` are
+# over operands whose only falsy-non-null value coincides with the fallback.
+src/features/admin/group-page-data.ts:56:33  return false → return undefined   # hasPaidListing used only as a boolean; undefined and false coincide
+src/features/admin/group-page-data.ts:61:44  ?? → ||    # (row.package_price ?? 0): number|null, only falsy-non-null is 0 and 0 ?? 0 === 0 || 0
+src/features/admin/group-page-data.ts:182:49  ?? → ||   # dayPrices.get(): DayPrices (a Map) | undefined — a Map is always truthy

@@ -557,6 +557,58 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(html).toContain("/ticket/sold-out-group");
     });
 
+    test("a bookable package is shareable — public URL, QR, and embed render", async () => {
+      // A package (unlike a regular group) gates its share affordances on the
+      // whole bundle being bookable. A priced, uncapped member makes it so.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Bookable Pkg",
+        slug: "bookable-pkg",
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Bookable Member",
+        unitPrice: 1000,
+      });
+      await setGroupPackageMembers(group.id, [
+        { listingId: member.id, price: 1000 },
+      ]);
+
+      const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
+      expect(html).toContain("/ticket/bookable-pkg");
+      expect(html).toContain(`embed-script-${group.id}`);
+    });
+
+    test("a sold-out package hides its share affordances", async () => {
+      // The bundle can't be booked once its only member is full, so the package
+      // (unlike a regular group) drops the public URL / QR / embed.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Sold Out Pkg",
+        slug: "sold-out-pkg",
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 1,
+        name: "Sold Package Member",
+        unitPrice: 1000,
+      });
+      await setGroupPackageMembers(group.id, [
+        { listingId: member.id, price: 1000 },
+      ]);
+      await createTestAttendee(
+        member.id,
+        member.slug,
+        "Buyer",
+        "pkgbuyer@test.com",
+      );
+
+      const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
+      expect(html).toContain("isn't currently bookable");
+      expect(html).not.toContain("/ticket/sold-out-pkg");
+    });
+
     test("add-listings form offers listings from other groups, not this group's own members", async () => {
       // Membership is many-to-many, so a listing already in another group is a
       // valid candidate to also join this one; only this group's current members
@@ -639,7 +691,16 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: "empty-group",
       });
       const response = await adminGet(`/admin/groups/${group.id}`);
-      await expectHtmlResponse(response, 200, "No listings in this group");
+      // A group with no visible members has no live /ticket page, so the Overview
+      // shows the share-unavailable note instead of a public URL / embed / QR.
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "No listings in this group",
+        "isn't currently bookable",
+      );
+      expect(html).not.toContain(`/ticket/${group.slug}`);
+      expect(html).not.toContain(`embed-script-${group.id}`);
     });
 
     test("shows ungrouped listings for adding to group", async () => {
@@ -866,8 +927,11 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Free-Standalone Member",
         unitPrice: 0,
       });
+      // A one-penny override is the tightest "paid" boundary: any positive
+      // package price makes the package paid, so the paid check must use `> 0`,
+      // not `> 1`.
       await setGroupPackageMembers(group.id, [
-        { listingId: member.id, price: 2500 },
+        { listingId: member.id, price: 1 },
       ]);
       await createTestAttendee(
         member.id,
@@ -904,8 +968,10 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Free-Days Member",
         unitPrice: 0,
       });
+      // A one-penny per-day override is the tightest "paid" boundary (`> 0`,
+      // not `> 1`): any positive day price makes the package paid.
       await setGroupPackageMembers(group.id, [
-        { dayPrices: { 2: 2500 }, listingId: member.id, price: null },
+        { dayPrices: { 2: 1 }, listingId: member.id, price: null },
       ]);
       // A daily member needs a dated booking; the form helper posts date-less,
       // so book atomically like the checkout would.
