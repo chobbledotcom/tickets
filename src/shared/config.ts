@@ -49,7 +49,7 @@ export const loadEffectiveDomain = (requestUrl: string): string => {
   } else if (settings.bunnySubdomain) {
     effectiveDomainState.domain = settings.bunnySubdomain;
   } else {
-    effectiveDomainState.domain = new URL(requestUrl).hostname;
+    seedEffectiveDomainHost(requestUrl);
   }
   return effectiveDomainState.domain;
 };
@@ -68,7 +68,7 @@ export const seedEffectiveDomainHost = (requestUrl: string): void => {
   effectiveDomainState.domain = new URL(requestUrl).hostname;
 };
 
-/** Get the effective domain synchronously (must call loadEffectiveDomain first). */
+/** Get the effective domain synchronously; DEFAULT_DOMAIN until a request resolves a real one. */
 export const getEffectiveDomain = (): string => effectiveDomainState.domain;
 
 /**
