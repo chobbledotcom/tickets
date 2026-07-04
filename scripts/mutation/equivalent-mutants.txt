@@ -407,3 +407,15 @@ src/shared/listing-templates.ts:121:12  return false → return undefined   # fi
 src/shared/listing-templates.ts:122:60  return false → return undefined   # find()'s predicate only checks truthiness; undefined and false agree
 src/shared/listing-templates.ts:123:54  return false → return undefined   # find()'s predicate only checks truthiness; undefined and false agree
 src/shared/listing-templates.ts:132:4  ?? → ||   # LISTING_TEMPLATES.find(): ListingTemplate|undefined — an object is always truthy, so ?? and || agree
+
+# bulk-replace.ts's formatIsoForPreview 24:00→00:00 fix-up: this guards against
+# an ICU/V8 midnight-formatting quirk (`toLocaleString` with hour12:false
+# rendering exact local midnight as "24:00" instead of rolling to the next
+# day's "00:00") that may occur on the Bunny edge runtime's ICU build. Swept
+# many timezone/date combinations (including a DST transition) against this
+# Deno runtime's ICU and never observed "24:" in the output — the regex this
+# replacement string feeds never matches here, so the replacement's own
+# content is unobservable in this test environment. Same class as
+# src/shared/images/codecs.ts's edge-only codec init below.
+src/shared/bulk-replace.ts:103:56  $1 00: → ""   # this runtime's ICU never renders local midnight as "24:00", so the regex this feeds never matches
+src/shared/bulk-replace.ts:103:56  $1 00: → "$1 00: mutated"   # same as above
