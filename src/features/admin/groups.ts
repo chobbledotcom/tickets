@@ -2,33 +2,24 @@
  * Admin group management routes - accessible to owners and managers
  */
 
-import { compact, map } from "#fp";
+import { compact } from "#fp";
 import { t } from "#i18n";
 import {
   createContentCrudHandlers,
   createCrudHandlers,
 } from "#routes/admin/owner-crud.ts";
-import { requireContentOr, requireSessionOr } from "#routes/auth.ts";
-import {
-  getVisibleGroupMembers,
-  groupBookable,
-} from "#routes/public/discovery.ts";
-import { htmlResponse, redirect } from "#routes/response.ts";
+import { redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { groupReturnPath } from "#shared/admin-paths.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
-import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { decryptAttendees } from "#shared/db/attendees.ts";
 import { executeBatch, type TxScope } from "#shared/db/client.ts";
 import {
   assignListingsToGroup,
   computeGroupSlugIndex,
   type GroupInput,
   getAllGroups,
-  getGroupPackagePrices,
   getListingsByGroupId,
-  getListingsNotInGroup,
   groupsTable,
   hasPackageBookings,
   isGroupSlugTaken,
@@ -37,35 +28,23 @@ import {
   setGroupPackageMembers,
   validateGroupListingType,
 } from "#shared/db/groups.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { edgeIdsTouchingMany } from "#shared/db/listing-parents.ts";
-import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
-import { getAttendeesByListingIds, getListing } from "#shared/db/listings.ts";
+import { getListing } from "#shared/db/listings.ts";
 import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
-import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
-import { settings } from "#shared/db/settings.ts";
 import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
 import { GROUP_DEMO_FIELDS, wrapResourceForDemo } from "#shared/demo.ts";
-import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
-import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
-import { sortListings } from "#shared/sort-listings.ts";
-import {
-  type AdminSession,
-  type Attendee,
-  type DayPrices,
-  type Group,
-  isPaidListing,
-  type ListingType,
-  type ListingWithCount,
+import type {
+  AdminSession,
+  DayPrices,
+  Group,
+  ListingType,
 } from "#shared/types.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import {
   adminGroupDeletePage,
-  adminGroupDetailPage,
-  adminGroupEditPage,
   adminGroupNewPage,
   adminGroupsPage,
 } from "#templates/admin/groups.tsx";
@@ -76,6 +55,7 @@ import {
   getGroupFields,
 } from "#templates/fields.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
+import { groupPage } from "./group-page.ts";
 
 /** Generate a unique group slug, retrying on collision */
 export const generateUniqueGroupSlug = () =>
@@ -395,52 +375,6 @@ const staffCrud = createCrudHandlers({
 /** Look up group by id, return 404 if not found */
 export const withGroup = withEntityLoader(groupsTable.findById);
 
-/** Build a GET handler (guarded by `requireSession`) that loads the group by id
- * and hands it, with the session, to `render`. The edit form is content-gated
- * (editors included); the detail page stays staff-only (it decrypts PII). */
-const groupPage =
-  (
-    requireSession: typeof requireSessionOr,
-    render: (group: Group, session: AdminSession) => Promise<Response>,
-  ) =>
-  (request: Request, id: number): Promise<Response> =>
-    requireSession(request, (session) =>
-      withGroup(id)((group) => render(group, session)),
-    );
-
-/** Handle GET /admin/groups/:id/edit — the edit form with the per-listing
- * package price table pre-filled from the group's current overrides. */
-const handleGroupEditGet: TypedRouteHandler<"GET /admin/groups/:id/edit"> = (
-  request,
-  { id },
-) =>
-  groupPage(requireContentOr, async (group, session) => {
-    const [listings, rows, dayPrices] = await Promise.all([
-      getListingsByGroupId(id),
-      getGroupPackagePrices(id),
-      getGroupDayPrices(id),
-    ]);
-    // listing id → saved per-unit price + per-package quantity + per-day
-    // overrides, to pre-fill the members table. A null price renders blank (no
-    // override); an explicit 0 renders as 0 (free in the package).
-    const members = new Map(
-      rows.map(
-        (row) =>
-          [
-            row.listing_id,
-            {
-              dayPrices: dayPrices.get(row.listing_id) ?? new Map(),
-              price: row.package_price,
-              quantity: row.quantity,
-            },
-          ] as const,
-      ),
-    );
-    return htmlResponse(
-      adminGroupEditPage(group, listings, members, session, getFlash().error),
-    );
-  })(request, id);
-
 /**
  * POST handler factory: CSRF-validated form + loaded group.
  * Callers receive the group and the parsed form; a missing session or
@@ -453,99 +387,6 @@ export const groupFormPost = (
     handle: ({ context, form }) => handler(context, form),
     loadContext: ({ id }) => groupsTable.findById(id),
   });
-
-/** Whether a group's roster has any paid attendee data to decrypt. A package
- * member can carry a `package_price` override while its own `unit_price` is 0,
- * so it's paid in practice; treat any positive override as paid (alongside the
- * usual {@link isPaidListing} checks) so the roster decrypts payment fields. */
-const groupHasPaidListing = async (
-  group: Group,
-  listings: ListingWithCount[],
-): Promise<boolean> => {
-  if (listings.some(isPaidListing)) return true;
-  if (!group.is_package) return false;
-  // Only a positive override charges money; a null (no override → base price,
-  // already covered above) or an explicit free (0) adds no revenue. Per-day
-  // overrides can make an otherwise-free customisable member paid the same way.
-  const rows = await getGroupPackagePrices(group.id);
-  if (rows.some((row) => (row.package_price ?? 0) > 0)) return true;
-  const dayRows = await getGroupDayPrices(group.id);
-  return [...dayRows.values()].some((byDay) =>
-    [...byDay.values()].some((price) => price > 0),
-  );
-};
-
-/** Handle GET /admin/groups/:id - group detail page */
-const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
-  request,
-  { id },
-) =>
-  groupPage(requireSessionOr, async (group, session) => {
-    // The add-listings form offers any listing not already in THIS group —
-    // membership is many-to-many, so a listing in another group can still join.
-    const [listings, addableListings, holidays] = await Promise.all([
-      getListingsByGroupId(id),
-      getListingsNotInGroup(id),
-      getActiveHolidays(),
-    ]);
-    const sortedListings = sortListings(listings, holidays);
-    const listingIds = map((e: { id: number }) => e.id)(sortedListings);
-    let attendees: Attendee[] = [];
-    let phonePrefix: string | undefined;
-    // Package-aware: an override-priced package charges via package_price even
-    // when its member listings are free, so this (not listings.some(isPaid))
-    // decides whether the roster decrypts payment fields AND whether the detail
-    // page shows the revenue row.
-    const hasPaidListing = await groupHasPaidListing(group, sortedListings);
-    const privateKey = await requireRequestPrivateKey();
-    if (listingIds.length > 0) {
-      const [rawAttendees, prefix] = await Promise.all([
-        getAttendeesByListingIds(listingIds),
-        Promise.resolve(settings.phonePrefix),
-      ]);
-      attendees = await decryptAttendees(
-        rawAttendees,
-        privateKey,
-        hasPaidListing,
-      );
-      phonePrefix = prefix;
-    }
-    const allowedDomain = getEffectiveDomain();
-    const flash = getFlash();
-    const questionData = await loadAttendeeQuestionData(
-      listingIds,
-      attendees.map((a) => a.id),
-      privateKey,
-    );
-    // Mirror exactly when the public /ticket/<group> page renders vs 404s
-    // (see withActiveGroupListingsBySlug), so the admin never offers a dead
-    // share/QR/embed link: it 404s when the buyer-VISIBLE member list is empty
-    // (e.g. a regular group whose only active members are hidden-package
-    // members, which are dropped) and, for a package, when the bundle isn't
-    // bookable. A regular group with merely sold-out (but visible) members still
-    // renders, so it stays shareable.
-    const visibleMembers = await getVisibleGroupMembers(group);
-    const shareable =
-      visibleMembers.length > 0 &&
-      (!group.is_package || (await groupBookable(group, visibleMembers)));
-
-    return htmlResponse(
-      adminGroupDetailPage(
-        group,
-        sortedListings,
-        sortListings(addableListings, holidays),
-        attendees,
-        session,
-        allowedDomain,
-        hasPaidListing,
-        shareable,
-        phonePrefix,
-        flash.success,
-        questionData,
-        flash.error,
-      ),
-    );
-  })(request, id);
 
 /** Validate that all listing types match the group; returns error message or
  * null. When the group is a package, also reject listings that can't be packaged
@@ -603,17 +444,21 @@ export const groupsRoutes = {
   ...content.routes,
   // …but group deletion stays staff-only — override the content delete routes.
   ...staffCrud.deleteRoutes,
-  // Create uses the auto-generated-slug resource; detail has a custom page.
+  // Create uses the auto-generated-slug resource.
   "GET /admin/groups/new": contentCreate.newGet,
   "POST /admin/groups": contentCreate.createPost,
   ...defineRoutes({
-    // Detail decrypts attendee PII and add-listings is staff group management —
-    // both stay on the default staff gate (editors are excluded).
-    "GET /admin/groups/:id": handleGroupDetail,
-    // Custom edit GET so the per-listing package-price table is loaded and
-    // pre-filled. The edit POST is the generic CRUD route — groupsResource
-    // handles package prices + the invariant via validate/afterWrite.
-    "GET /admin/groups/:id/edit": handleGroupEditGet,
+    // The detail + edit pages are one tabbed entity page now: `/admin/groups/:id`
+    // is its Overview, `/admin/groups/:id/:tab` its other tabs (attendees, edit,
+    // actions). Per-tab authorization lives in the page definition (group-page.ts);
+    // literal sub-routes below (add-listings, and delete/export/bulk-actions in
+    // their own files) are matched ahead of the `:tab` wildcard. The edit POST is
+    // still the generic CRUD route — groupsResource handles package prices + the
+    // invariant via validate/afterWrite.
+    "GET /admin/groups/:id": (request, { id }) =>
+      groupPage.renderTab(request, id, ""),
+    "GET /admin/groups/:id/:tab": (request, { id, tab }) =>
+      groupPage.renderTab(request, id, tab),
     "POST /admin/groups/:id/add-listings": handleAddListingsToGroup,
   }),
 };
