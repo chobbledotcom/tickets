@@ -119,4 +119,48 @@ describe("mutation ignore list", () => {
       `duplicate entry: ${ignored}`,
     ]);
   });
+
+  test("accepts an exhaustive-only entry this run didn't generate, given a wider possible-key set", () => {
+    // Regression: a non-exhaustive run (e.g. the precommit gate) never
+    // generates an --exhaustive-only mutant, so without possibleKeys an entry
+    // for one always looks "stale" even though it's a real, valid mutant.
+    const exhaustiveOnly = mutantKey(file, mutant(5));
+
+    expect(
+      ignoreListProblems(
+        ignoreList([exhaustiveOnly]),
+        [result("killed", 2)],
+        [file],
+        new Set([exhaustiveOnly]),
+      ),
+    ).toEqual([]);
+  });
+
+  test("still reports an entry as stale when it matches no mutant, even under the wider possible-key set", () => {
+    const stale = mutantKey(file, mutant(99));
+
+    expect(
+      ignoreListProblems(
+        ignoreList([stale]),
+        [result("killed", 2)],
+        [file],
+        new Set([mutantKey(file, mutant(5))]),
+      ),
+    ).toEqual([`stale (no mutant here — did the code move?): ${stale}`]);
+  });
+
+  test("still reports an entry as redundant when this run tested and killed it, given the wider possible-key set", () => {
+    const redundant = mutantKey(file, mutant(2));
+
+    expect(
+      ignoreListProblems(
+        ignoreList([redundant]),
+        [result("killed", 2)],
+        [file],
+        new Set([redundant]),
+      ),
+    ).toEqual([
+      `redundant (a test kills this mutant, not a survivor): ${redundant}`,
+    ]);
+  });
 });

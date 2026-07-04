@@ -345,29 +345,30 @@ scripts/edge-bundle-modules.ts:40:36  === → ==
 # items tie on date and fall through to the same name comparison the real
 # tier-0 branch would have used; a same-tier compare that lands in
 # compareDaily instead (via a tier value matching neither 0 nor 1) hits its
-# own non-daily fallback-to-name-comparison, again the same result.
-#
-# `deno task mutation --exhaustive` additionally reports 18:48 (2→3), 19:10
-# (?: → alternate only), 19:32 (0→-1), and 59:19 (0→-1) as survivors under
-# the exact same reasoning — they're genuinely equivalent too, but those
-# specific replacements are only generated in --exhaustive mode, so an active
-# entry for them would always show "stale" under the default-mode precommit
-# gate (which never generates that mutant to match against). Only the
-# default-mode variant below is listed as an active entry.
+# own non-daily fallback-to-name-comparison, again the same result. Several
+# entries below only exist as mutants under --exhaustive (extra number-literal
+# offsets, and the ternary's "consequent/alternate only" variants); the
+# ignore-list checker cross-checks staleness against the full --exhaustive
+# mutant set regardless of which mode a given run used, so they stay valid
+# (not "stale") even under the default-mode precommit gate.
+src/shared/sort-listings.ts:18:48  2 → 3    # daily tier constant; only used via tierA-tierB's sign, never compared for equality
+src/shared/sort-listings.ts:19:10  ?: → alternate only   # listingTier always-1: masked by compareDatedStandard's ""-sorts-first + same-tier name fallback, see block comment above
 src/shared/sort-listings.ts:19:27   → "mutated"   # same effect as "always 1" above, for any date value that isn't literally the string "mutated"
 src/shared/sort-listings.ts:19:32  0 → 1    # same effect as "always 1" above
+src/shared/sort-listings.ts:19:32  0 → -1   # tier -1 preserves sign vs 1/2, and same-tier dispatch falls through to compareDaily's non-daily name fallback — same result
+src/shared/sort-listings.ts:59:19  0 → -1   # tierA===-1 never matches a real tier; tier-0 same-tier compares fall through to compareDaily's non-daily fallback, which returns the same name comparison
 
 # sort-listings.ts's compareDaily: nextDates.get() is typed string|null (never
 # undefined in practice — every daily listing gets an explicit entry — and
 # getNextBookableDate never returns ""), so `?? null` and `|| null` agree,
-# and every `=== null` check has no undefined operand to disagree with `==`.
-#
-# `--exhaustive` additionally reports 44:12/44:30/45:12/46:12 (=== → ==) as
-# survivors under the same reasoning; those replacements only exist in
-# --exhaustive mode (default only generates === → !=, which these branches
-# correctly fail), so no active entry is listed for them (see note above).
+# and every `=== null` check has no undefined operand to disagree with `==`
+# (the `=== → ==` entries below are --exhaustive-only mutants; see note above).
 src/shared/sort-listings.ts:42:36  ?? → ||   # nextDates.get(a.id): string|null, never a falsy-non-null string
 src/shared/sort-listings.ts:43:36  ?? → ||   # nextDates.get(b.id): string|null, never a falsy-non-null string
+src/shared/sort-listings.ts:44:12  === → ==   # dateA is string|null (no undefined), so === and == agree on null
+src/shared/sort-listings.ts:44:30  === → ==   # dateB is string|null (no undefined), so === and == agree on null
+src/shared/sort-listings.ts:45:12  === → ==   # dateA is string|null (no undefined), so === and == agree on null
+src/shared/sort-listings.ts:46:12  === → ==   # dateB is string|null (no undefined), so === and == agree on null
 
 # sort-listings.ts's compareDaily return values on the dateA===null branch:
 # confirmed by direct experiment that Array.sort's swap decision only checks
@@ -375,10 +376,9 @@ src/shared/sort-listings.ts:43:36  ?? → ||   # nextDates.get(b.id): string|nul
 # NaN (from `return undefined`) are all treated identically ("don't swap").
 # Since the mirrored `dateB === null` branch independently and correctly
 # returns -1 for the reverse pairing, no input can ever make this branch's
-# non-negative return value observably differ from the intended `1`.
-#
-# `--exhaustive` additionally reports 45:30 (1→2) and 46:31 (1→2) as
-# survivors (sign-preserving magnitude changes); those replacements only
-# exist in --exhaustive mode, so no active entry is listed for them.
+# non-negative return value observably differ from the intended `1` (the
+# magnitude-only `1 → 2` entries below are --exhaustive-only; see note above).
 src/shared/sort-listings.ts:45:30  return 1 → return undefined   # non-negative result; see block comment above
 src/shared/sort-listings.ts:45:30  1 → 0   # non-negative result; see block comment above
+src/shared/sort-listings.ts:45:30  1 → 2   # sign-preserving magnitude change; see block comment above
+src/shared/sort-listings.ts:46:31  1 → 2   # sign-preserving magnitude change on `return -1`; only the sign is ever observed

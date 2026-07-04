@@ -24,6 +24,7 @@ import {
   ignoreListProblems,
   isIgnored,
   loadIgnoreList,
+  mutantKey,
 } from "./ignore.ts";
 import {
   formatProgressLine,
@@ -410,8 +411,11 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
     : null;
   const lint = await createLinter();
 
+  // Hoisted out of the try block: the ignore-list staleness check after it
+  // needs each plan's original source to regenerate the --exhaustive mutant
+  // set, regardless of which mode this run used.
+  const plans: FileMutationPlan[] = [];
   try {
-    const plans: FileMutationPlan[] = [];
     for (const file of sourceFiles) {
       plans.push(await filePlan(rebuilder, exhaustive, file));
     }
@@ -512,7 +516,23 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   // The ignore-list is location-based, so it drifts as code moves. Re-check it
   // here — only for the files just mutated — and fail if any entry no longer
   // lines up with a real survivor, so it gets fixed instead of rotting.
-  const problems = ignoreListProblems(ignoreList, results, sourceFiles);
+  // Staleness is checked against every mutant --exhaustive could produce
+  // (regardless of the mode this run used), so an entry for an
+  // exhaustive-only replacement isn't falsely flagged during a non-exhaustive
+  // (e.g. precommit) run.
+  const possibleKeys = new Set(
+    plans.flatMap((plan) =>
+      generateMutants(plan.original, plan.file, true).map((mutant) =>
+        mutantKey(plan.file, mutant),
+      ),
+    ),
+  );
+  const problems = ignoreListProblems(
+    ignoreList,
+    results,
+    sourceFiles,
+    possibleKeys,
+  );
   if (problems.length === 0) return exitCode;
   console.error(
     yellow("\nIgnore-list issues (scripts/mutation/equivalent-mutants.txt):"),
