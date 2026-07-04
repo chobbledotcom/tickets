@@ -163,18 +163,18 @@ export type BatchAvailabilityItem = {
   durationDays?: number;
 };
 
-/** Input for updating attendee PII (shared across listings) */
-export type UpdateAttendeePIIInput = {
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-  special_instructions: string;
+/** Contact PII plus the decrypted identifiers needed to rebuild a PII blob:
+ * the {@link ContactInfo} fields alongside the attendee's `payment_id` and
+ * `ticket_token`. The single shape used to (re)build an encrypted PII blob. */
+export type AttendeePii = ContactInfo & {
   /** Decrypted payment_id for PII blob rebuild (from existing attendee) */
   payment_id: string;
   /** Decrypted ticket_token for PII blob rebuild (from existing attendee) */
   ticket_token: string;
 };
+
+/** Input for updating attendee PII (shared across listings) */
+export type UpdateAttendeePIIInput = AttendeePii;
 
 /**
  * A desired final-state listing line for the atomic attendee edit path.

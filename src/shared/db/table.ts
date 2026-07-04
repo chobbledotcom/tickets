@@ -46,66 +46,6 @@ export type TableSchema<Row> = {
   [K in keyof Row]: ColumnDef<Row[K]>;
 };
 
-/** Derive column metadata: whether it's an input column and whether it has a default */
-type ColumnMeta<K, Row, Schema extends TableSchema<Row>> = K extends keyof Row
-  ? {
-      isInput: Schema[K]["generated"] extends true ? false : true;
-      hasDefault: Schema[K]["default"] extends () => Row[K] ? true : false;
-    }
-  : { isInput: false; hasDefault: false };
-
-/** Check if column is input-eligible (not generated) */
-type IsInputColumn<K, Row, Schema extends TableSchema<Row>> = ColumnMeta<
-  K,
-  Row,
-  Schema
->["isInput"];
-
-/** Check if column has a default value */
-type ColumnHasDefault<K, Row, Schema extends TableSchema<Row>> = ColumnMeta<
-  K,
-  Row,
-  Schema
->["hasDefault"];
-
-/** Extract input keys based on whether they have defaults */
-type InputKeysWith<
-  Row,
-  Schema extends TableSchema<Row>,
-  WithDefault extends boolean,
-> = {
-  [K in keyof Row]: IsInputColumn<K, Row, Schema> extends true
-    ? ColumnHasDefault<K, Row, Schema> extends WithDefault
-      ? K
-      : never
-    : never;
-}[keyof Row];
-
-/** Required input keys (non-generated, no default) */
-type RequiredInputKeys<Row, Schema extends TableSchema<Row>> = InputKeysWith<
-  Row,
-  Schema,
-  false
->;
-
-/** Optional input keys (has default) */
-type OptionalInputKeys<Row, Schema extends TableSchema<Row>> = InputKeysWith<
-  Row,
-  Schema,
-  true
->;
-
-/**
- * Derive Input type from Row type and Schema
- * - Excludes generated columns
- * - Makes columns with defaults optional
- */
-export type InputFor<Row, Schema extends TableSchema<Row>> = {
-  [K in RequiredInputKeys<Row, Schema>]: Row[K];
-} & {
-  [K in OptionalInputKeys<Row, Schema>]?: Row[K];
-};
-
 // Case conversion is delegated to valibot's `toCamelCase`/`toSnakeCase` actions
 // rather than bespoke regexes. The schemas are built once at module load and
 // reused on every call. valibot's word-splitting is more robust than a plain

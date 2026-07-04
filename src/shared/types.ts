@@ -100,9 +100,7 @@ export const isPaymentProvider = (s: string): s is PaymentProviderType =>
 /** Persisted payment-provider setting: an explicit provider, "none" (admin saved
  *  payments-disabled), or absent (never saved — drives the settings nag). */
 export const PaymentProviderSettingSchema = v.picklist([
-  "stripe",
-  "square",
-  "sumup",
+  ...PaymentProviderSchema.options,
   "none",
 ]);
 
