@@ -588,3 +588,31 @@ describe("adminAdvancedSettingsPage", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Payment provider radio — labels come from the PAYMENT_PROVIDERS registry
+// ---------------------------------------------------------------------------
+
+describe("adminSettingsPage > PaymentProviderForm radio labels", () => {
+  test("renders each provider's registry label against its radio value", () => {
+    const html = adminSettingsPage(TEST_SESSION, defaultState());
+    // Each pairing guards the label text so blanking a registry label is caught.
+    for (const [value, label] of [
+      ["stripe", "Stripe"],
+      ["square", "Square"],
+      ["sumup", "SumUp"],
+    ]) {
+      expect(html).toContain(`value="${value}"`);
+      expect(html).toContain(label);
+    }
+  });
+
+  test("checks the radio matching the persisted provider", () => {
+    const html = adminSettingsPage(TEST_SESSION, {
+      ...defaultState(),
+      paymentProvider: "square",
+    });
+    expect(hasCheckedInput(html, "payment_provider", "square")).toBe(true);
+    expect(hasCheckedInput(html, "payment_provider", "stripe")).toBe(false);
+  });
+});

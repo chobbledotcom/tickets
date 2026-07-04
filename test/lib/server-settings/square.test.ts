@@ -76,6 +76,10 @@ describeAdminSettings(() => {
         response,
         expect.stringContaining("Square credentials updated"),
       );
+      // Flash anchors back to the Square form (scroll-to-form UX).
+      expect(response.headers.get("location")).toContain(
+        "form=settings-square",
+      );
       // No sandbox checkbox submitted → production mode persisted.
       expect(settings.square.sandbox).toBe(false);
     });
@@ -170,6 +174,10 @@ describeAdminSettings(() => {
       expectFlash(
         response,
         expect.stringContaining("Square webhook signature key updated"),
+      );
+      // Flash anchors back to the webhook form (scroll-to-form UX).
+      expect(response.headers.get("location")).toContain(
+        "form=settings-square-webhook",
       );
     });
 

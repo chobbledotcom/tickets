@@ -141,6 +141,10 @@ describeAdminSettings(() => {
         async (response) => {
           expect(response.status).toBe(302);
           expectRedirect(response, "/admin/settings");
+          // Flash anchors back to the Stripe form (scroll-to-form UX).
+          expect(response.headers.get("location")).toContain(
+            "form=settings-stripe",
+          );
           expectFlash(response, expect.stringContaining("Stripe key updated"));
           expectFlash(response, expect.stringContaining("webhook configured"));
           // The webhook config returned by setupWebhookEndpoint must be
