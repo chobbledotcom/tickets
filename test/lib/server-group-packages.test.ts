@@ -1,3 +1,8 @@
+// Package-pricing coverage for the group entity page (groups.ts / groups.tsx):
+// the per-listing package price + per-day override editing and paid-detection
+// paths the migrated Edit and Overview tabs render. Kept in the mutation gate's
+// changed set alongside the entity-page migration so the whole-file mutants in
+// those modules are exercised by their real covering tests.
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";

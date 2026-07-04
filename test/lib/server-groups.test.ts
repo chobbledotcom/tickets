@@ -1113,6 +1113,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(html).toContain(`href="/admin/groups/${group.id}/attendees"`);
       expect(html).toContain(`href="/admin/groups/${group.id}/edit"`);
       expect(html).toContain(`href="/admin/groups/${group.id}/actions"`);
+      // The admin nav highlights the Groups section (navActive).
+      expect(html).toContain('class="active" href="/admin/groups"');
     });
 
     test("Actions tab shows the export, bulk-actions, and delete links", async () => {
@@ -1126,6 +1128,13 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(html).toContain(`/admin/groups/${group.id}/export.json`);
       expect(html).toContain(`/admin/groups/${group.id}/bulk-actions`);
       expect(html).toContain(`/admin/groups/${group.id}/delete`);
+      // Each action carries its icon (an empty icon name drops the <use> ref);
+      // the nav renders none of these, so the refs are unique to the buttons.
+      expect(html).toContain("#save");
+      expect(html).toContain("#hammer");
+      expect(html).toContain("#trash-2");
+      // Delete is destructive, so it renders inside the danger zone (danger: true).
+      expect(html).toContain("entity-danger-zone");
     });
 
     test("returns 404 for an unknown tab", async () => {

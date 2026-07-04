@@ -1,3 +1,7 @@
+// JSON CRUD coverage for the group resource behind the migrated group entity
+// page (groups.ts): the create/update/delete validation shared with the web
+// edit route. Kept in the mutation gate's changed set alongside the entity-page
+// migration so groups.ts's whole-file mutants meet their real covering tests.
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
