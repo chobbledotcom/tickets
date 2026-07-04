@@ -12,8 +12,6 @@
   "settings.payment_provider": "Payment Provider",
   "settings.payment_provider_hint": "Choose which payment provider to use for paid listings.",
   "settings.payment_none": "None (payments disabled)",
-  "settings.payment_stripe": "Stripe",
-  "settings.payment_square": "Square",
   "settings.save_payment_provider": "Save Payment Provider",
   "settings.stripe.heading": "Stripe Settings",
   "settings.stripe.configured_hint": "A Stripe secret key is currently configured. Enter a new key below to replace it.",

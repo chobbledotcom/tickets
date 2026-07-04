@@ -6,6 +6,10 @@ import { t } from "#i18n";
 import { MASK_SENTINEL } from "#shared/db/settings.ts";
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import {
+  PAYMENT_PROVIDER_IDS,
+  PAYMENT_PROVIDERS,
+} from "#shared/payment-providers.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { RadioOption } from "#templates/components/radio-option.tsx";
@@ -33,27 +37,15 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
       >
         {t("settings.payment_none")}
       </RadioOption>
-      <RadioOption
-        checked={s.paymentProvider === "stripe"}
-        name="payment_provider"
-        value="stripe"
-      >
-        {t("settings.payment_stripe")}
-      </RadioOption>
-      <RadioOption
-        checked={s.paymentProvider === "square"}
-        name="payment_provider"
-        value="square"
-      >
-        {t("settings.payment_square")}
-      </RadioOption>
-      <RadioOption
-        checked={s.paymentProvider === "sumup"}
-        name="payment_provider"
-        value="sumup"
-      >
-        SumUp
-      </RadioOption>
+      {PAYMENT_PROVIDER_IDS.map((id) => (
+        <RadioOption
+          checked={s.paymentProvider === id}
+          name="payment_provider"
+          value={id}
+        >
+          {PAYMENT_PROVIDERS[id].label}
+        </RadioOption>
+      ))}
     </fieldset>
     <SubmitButton icon="save">
       {t("settings.save_payment_provider")}

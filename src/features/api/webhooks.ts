@@ -43,6 +43,7 @@ import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListing } from "#shared/db/listings.ts";
 import { clearSessionTokens } from "#shared/db/processed-payments.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { WEBHOOK_SIGNATURE_HEADERS } from "#shared/payment-providers.ts";
 import {
   getActivePaymentProvider,
   type ValidatedPaymentSession,
@@ -287,11 +288,13 @@ const webhookResultResponse = (
   return webhookAckResponse({ error: result.error, processed: false });
 };
 
-/** Detect which provider sent the webhook based on request headers */
+/** Detect which provider sent the webhook based on request headers. Reads the
+ * signature header of each provider that signs its webhooks (per the shared
+ * registry) and returns the first one present. */
 const getWebhookSignatureHeader = (request: Request): string | null =>
-  request.headers.get("stripe-signature") ??
-  request.headers.get("x-square-hmacsha256-signature") ??
-  null;
+  WEBHOOK_SIGNATURE_HEADERS.map((header) => request.headers.get(header)).find(
+    Boolean,
+  ) ?? null;
 
 /**
  * Authenticate an incoming webhook: resolve the provider, require the signature

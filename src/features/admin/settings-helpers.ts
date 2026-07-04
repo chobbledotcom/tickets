@@ -18,8 +18,9 @@ import {
 import { errorRedirect, jsonResponse, redirect } from "#routes/response.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { isMaskSentinel } from "#shared/db/settings.ts";
+import { isMaskSentinel, settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { PaymentProviderType } from "#shared/types.ts";
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -271,6 +272,113 @@ const settingsSecret = (
 ): ((request: Request) => Promise<Response>) =>
   asRoute(cfg, secretFieldHandler(cfg));
 
+// ── Payment-provider credential routes ──────────────────────────────
+
+/**
+ * Config for a payment provider's credential-save route. Collapses the shape
+ * shared by Stripe/Square/SumUp: extract a masked secret (+ optional text
+ * fields) → validate → "secret required unless already stored" → persist
+ * credentials → select the provider → sibling test route.
+ */
+type ProviderCredentialsConfig<T> = {
+  /** Provider selected on a successful save. */
+  provider: PaymentProviderType;
+  /** Form ID for flash-message targeting. */
+  formId: string;
+  /** Form field name of the masked secret. */
+  secretField: string;
+  /** Whether a secret is already stored (drives the "required" guard). */
+  hasSecret: () => boolean;
+  /** Error shown when the secret is cleared and none is stored. */
+  secretRequiredError: string;
+  /** Flash message + activity-log entry on a successful save. */
+  successMessage: string;
+  logMessage: string;
+  /** Flash for a secret-only provider (no extra fields) when the submission
+   * carries no new secret — a genuine no-op. Set only by such providers;
+   * providers with extra fields always persist and never go "unchanged". */
+  unchangedMessage?: string;
+  /** Extract the non-secret fields (location, merchant code, …). */
+  extraFields?: (form: FormParams) => T;
+  /** Provider-specific validation (demo-mode guard, field/format checks).
+   * Receives the extra fields and the classified secret. Every provider has at
+   * least a demo-mode guard, so this is required. */
+  validate: (
+    fields: T,
+    secret: SecretFieldResult,
+  ) => string | null | Promise<string | null>;
+  /** Persist the secret (only called when a new value was provided). */
+  saveSecret: (value: string) => Promise<void> | void;
+  /** Persist the non-secret fields (called on every successful save). */
+  saveFields?: (fields: T) => Promise<void> | void;
+  /** Side effects for a newly provided secret — e.g. Stripe provisions its
+   * webhook and persists the returned config. Runs before the secret is saved,
+   * so returning an error string aborts the save with nothing persisted. */
+  afterSave?: (value: string) => Promise<string | null> | string | null;
+  /** Connection-test function behind the sibling `/test` route. */
+  testFn: () => Promise<unknown>;
+};
+
+/** Persist a validated submission: run `afterSave` + save the secret when a new
+ * value was provided, then save the extra fields and select the provider.
+ * Returns an `afterSave` error string (nothing persisted) or null on success. */
+const persistProviderCredentials = async <T>(
+  cfg: ProviderCredentialsConfig<T>,
+  fields: T,
+  secret: SecretFieldResult,
+): Promise<string | null> => {
+  if (secret.action === "provided") {
+    const error = cfg.afterSave ? await cfg.afterSave(secret.value) : null;
+    if (error) return error;
+    await cfg.saveSecret(secret.value);
+  }
+  if (cfg.saveFields) await cfg.saveFields(fields);
+  await settings.update.paymentProvider(cfg.provider);
+  return null;
+};
+
+/**
+ * Build the `{ save, test }` route pair for a payment provider's credentials.
+ * Stripe passes its webhook provisioning as `afterSave`; the rest differ only
+ * in their fields, validation, and persistence.
+ */
+const defineProviderCredentialsRoute = <T>(
+  cfg: ProviderCredentialsConfig<T>,
+): {
+  save: (request: Request) => Promise<Response>;
+  test: (request: Request) => Promise<Response>;
+} => {
+  const save = settingsRoute(async (form, errorPage) => {
+    const secret = processSecretField(form, cfg.secretField);
+    const fields = cfg.extraFields
+      ? cfg.extraFields(form)
+      : (undefined as unknown as T);
+
+    const settingsFlash = (message: string): Response =>
+      redirect(SETTINGS_PATH, message, true, { formId: cfg.formId });
+
+    // Provider validation + the "secret required unless already stored" guard.
+    const invalid = await cfg.validate(fields, secret);
+    if (invalid) return errorPage(invalid, 400, cfg.formId);
+    if (secret.action === "cleared" && !cfg.hasSecret()) {
+      return errorPage(cfg.secretRequiredError, 400, cfg.formId);
+    }
+
+    // A secret-only provider with no new secret is a genuine no-op.
+    if (cfg.unchangedMessage && secret.action !== "provided") {
+      return settingsFlash(cfg.unchangedMessage);
+    }
+
+    const saveError = await persistProviderCredentials(cfg, fields, secret);
+    if (saveError) return errorPage(saveError, 400, cfg.formId);
+
+    await logActivity(cfg.logMessage);
+    return settingsFlash(cfg.successMessage);
+  });
+
+  return { save, test: testRoute(cfg.testFn) };
+};
+
 // ── Exports ─────────────────────────────────────────────────────────
 
 export type {
@@ -286,6 +394,7 @@ export {
   advancedSettingsRoute,
   clearableFieldHandler,
   createSettingsHandler,
+  defineProviderCredentialsRoute,
   getWebhookUrl,
   processSecretField,
   secretFieldHandler,
