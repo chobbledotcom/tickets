@@ -7,7 +7,7 @@ import { t } from "#i18n";
 import {
   createRecalculatePageRenderer,
   parseEditableAggregateForm,
-  selectedRecalculationFields,
+  runRecalculatePost,
 } from "#routes/admin/aggregate-recalculation.ts";
 import { loadAccountLedger } from "#routes/admin/ledger.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
@@ -456,26 +456,24 @@ const handleModifierRecalculatePost: TypedRouteHandler<
   "POST /admin/modifiers/recalculate/:modifierId"
 > = (request, { modifierId }) =>
   withAuth(request, AUTH_FORM, (session, form) =>
-    withModifier(modifierId)(async (modifier) => {
-      const selected = selectedRecalculationFields(
+    withModifier(modifierId)((modifier) =>
+      runRecalculatePost({
+        fields: MODIFIER_AGGREGATE_FIELDS,
         form,
-        MODIFIER_AGGREGATE_FIELDS,
-      );
-      if (selected.length === 0) {
-        return renderModifierRecalculatePage(
-          modifier,
-          session,
-          t("modifiers.recalculate.choose"),
-        );
-      }
-      await resetModifierAggregateFields(modifier.id, selected);
-      await logActivity(`Modifier '${modifier.name}' totals recalculated`);
-      return redirect(
-        `/admin/modifiers/${modifier.id}/edit`,
-        t("modifiers.recalculate.success"),
-        true,
-      );
-    }),
+        log: () =>
+          logActivity(`Modifier '${modifier.name}' totals recalculated`),
+        renderChoose: () =>
+          renderModifierRecalculatePage(
+            modifier,
+            session,
+            t("modifiers.recalculate.choose"),
+          ),
+        reset: (selected) =>
+          resetModifierAggregateFields(modifier.id, selected),
+        successMessage: t("modifiers.recalculate.success"),
+        successPath: `/admin/modifiers/${modifier.id}/edit`,
+      }),
+    ),
   );
 
 /** Selected ids from a checkbox group, positive integers only. */
