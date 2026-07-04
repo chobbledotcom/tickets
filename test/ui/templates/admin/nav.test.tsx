@@ -4,6 +4,18 @@ import { AdminNav } from "#templates/admin/nav.tsx";
 import { describeWithEnv, withSetting } from "#test-utils";
 
 describeWithEnv("AdminNav", {}, () => {
+  /** Assert that both owners and managers see a nav link to `href` labelled
+   *  `text` (rendered from the "/admin/" landing nav). */
+  const expectOwnerAndManagerLink = (href: string, text: string): void => {
+    for (const adminLevel of ["owner", "manager"] as const) {
+      const html = String(
+        AdminNav({ active: "/admin/", session: { adminLevel } }),
+      );
+      expect(html).toContain(`href="${href}"`);
+      expect(html).toContain(text);
+    }
+  };
+
   test("AdminNav passes session.settingsNagItems to SettingsNagBanner for owner sessions", () => {
     const superuserNag = {
       href: "/admin/settings#settings-superuser",
@@ -23,23 +35,11 @@ describeWithEnv("AdminNav", {}, () => {
   });
 
   test("AdminNav links to the attendees browser for owners and managers", () => {
-    for (const adminLevel of ["owner", "manager"] as const) {
-      const html = String(
-        AdminNav({ active: "/admin/", session: { adminLevel } }),
-      );
-      expect(html).toContain('href="/admin/attendees"');
-      expect(html).toContain("Attendees");
-    }
+    expectOwnerAndManagerLink("/admin/attendees", "Attendees");
   });
 
   test("AdminNav links to servicing for owners and managers", () => {
-    for (const adminLevel of ["owner", "manager"] as const) {
-      const html = String(
-        AdminNav({ active: "/admin/", session: { adminLevel } }),
-      );
-      expect(html).toContain('href="/admin/servicing"');
-      expect(html).toContain("Servicing");
-    }
+    expectOwnerAndManagerLink("/admin/servicing", "Servicing");
   });
 
   test("AdminNav shows the Ledger link to owners but not managers", () => {

@@ -7,14 +7,17 @@
  * time. Each leg can be toggled done so a driver can tick off their round.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
+import { flashProps } from "#templates/admin/admin-page.tsx";
 import { markAdminFooter } from "#templates/admin/footer.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { Layout } from "#templates/layout.tsx";
+/* jscpd:ignore-end */
 
 /** A single drop-off or collection job within a booking on the run sheet. */
 export type DeliveryLegView = {
@@ -171,10 +174,7 @@ export const agentDeliveriesPage = (
           <h1>{t("deliveries.title")}</h1>
         </>
       )}
-      <Flash
-        {...(opts.error !== undefined ? { error: opts.error } : {})}
-        {...(opts.success !== undefined ? { success: opts.success } : {})}
-      />
+      <Flash {...flashProps(opts.error, opts.success)} />
       {opts.noAgents ? (
         <p>
           <em>{t("deliveries.no_agents")}</em>

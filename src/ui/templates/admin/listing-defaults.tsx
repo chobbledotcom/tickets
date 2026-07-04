@@ -6,6 +6,7 @@
  * deciding it themselves; any other value becomes the inherited default.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import {
@@ -20,14 +21,33 @@ import {
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
+import { SelectField } from "#templates/components/select-field.tsx";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
+
+/* jscpd:ignore-end */
 
 const labelFor = (field: ListingDefaultField): string =>
   t(listingDefaultLabelKey(field));
 
 const hintFor = (field: ListingDefaultField): string =>
   t(listingDefaultHintKey(field));
+
+/** Label + control + hint wrapper shared by the single-input controls. */
+const LabeledInput = ({
+  children,
+  field,
+}: {
+  children: JSX.Element;
+  field: ListingDefaultField;
+}): JSX.Element => (
+  <label>
+    {labelFor(field)}
+    {children}
+    <small>{hintFor(field)}</small>
+  </label>
+);
 
 /** Tri-state select: no default / yes / no. */
 const BoolControl = ({
@@ -39,17 +59,15 @@ const BoolControl = ({
 }): JSX.Element => (
   <label>
     {labelFor(field)}
-    <select name={inputName(field)}>
-      <option selected={value === undefined} value="">
-        {t("listing_defaults.no_default")}
-      </option>
-      <option selected={value === true} value="1">
-        {t("listing_defaults.bool_yes")}
-      </option>
-      <option selected={value === false} value="0">
-        {t("listing_defaults.bool_no")}
-      </option>
-    </select>
+    <SelectField
+      name={inputName(field)}
+      options={[
+        { label: t("listing_defaults.no_default"), value: "" },
+        { label: t("listing_defaults.bool_yes"), value: "1" },
+        { label: t("listing_defaults.bool_no"), value: "0" },
+      ]}
+      value={value === undefined ? "" : value === true ? "1" : "0"}
+    />
     <small>{hintFor(field)}</small>
   </label>
 );
@@ -62,16 +80,14 @@ const NumberControl = ({
   field: ListingDefaultField;
   value: number | undefined;
 }): JSX.Element => (
-  <label>
-    {labelFor(field)}
+  <LabeledInput field={field}>
     <input
       min={0}
       name={inputName(field)}
       type="number"
       value={value === undefined ? "" : String(value)}
     />
-    <small>{hintFor(field)}</small>
-  </label>
+  </LabeledInput>
 );
 
 /** URL input; blank means no default. */
@@ -82,16 +98,14 @@ const UrlControl = ({
   field: ListingDefaultField;
   value: string | undefined;
 }): JSX.Element => (
-  <label>
-    {labelFor(field)}
+  <LabeledInput field={field}>
     <input
       name={inputName(field)}
       placeholder={t("listing_defaults.url_placeholder")}
       type="url"
       value={value ?? ""}
     />
-    <small>{hintFor(field)}</small>
-  </label>
+  </LabeledInput>
 );
 
 /** Enable toggle plus the day checkboxes. */
@@ -115,15 +129,12 @@ const DaysControl = ({
     </label>
     <div class="stack">
       {VALID_DAY_NAMES.map((day) => (
-        <label>
-          <input
-            checked={value?.includes(day) ?? false}
-            name={inputName(field)}
-            type="checkbox"
-            value={day}
-          />
-          {day}
-        </label>
+        <CheckboxLabel
+          checked={value?.includes(day) ?? false}
+          label={day}
+          name={inputName(field)}
+          value={day}
+        />
       ))}
     </div>
     <small>{hintFor(field)}</small>

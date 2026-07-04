@@ -144,6 +144,16 @@ describe("saved form data", () => {
     expect(html).not.toContain('value="');
   });
 
+  test("does not restore a partial datetime saved with time but no date", () => {
+    // A time without a date is an incomplete datetime, so the re-fill stash
+    // yields no value rather than a lone time.
+    setSavedFormData(new FormParams("start_time=14%3A30"));
+    const html = renderFields([
+      field({ label: "Start", name: "start", type: "datetime" }),
+    ]);
+    expect(html).not.toContain('value="');
+  });
+
   test("clearSavedFormData stops restoration", () => {
     setSavedFormData(new FormParams("name=Alice"));
     clearSavedFormData();

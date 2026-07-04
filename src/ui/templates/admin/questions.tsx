@@ -4,6 +4,7 @@
 
 import { map } from "#fp";
 import { t } from "#i18n";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { answerTextForm, questionTextForm } from "#routes/admin/questions.ts";
 import type {
@@ -12,13 +13,14 @@ import type {
   AnswerAggregateRecalculation,
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
-import { ConfirmForm, CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
+import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
+import { errorAdminPage } from "#templates/admin/admin-page.tsx";
+import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   type ExpectedActualItem,
   ExpectedActualNotice,
 } from "#templates/admin/expected-actual.tsx";
-import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   adminRecalculatePage,
   type RecalculateRow,
@@ -28,10 +30,13 @@ import {
   GuideLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
-import { ReorderArrows } from "#templates/components/reorder.tsx";
+import {
+  ReorderArrows,
+  type ReorderProps,
+} from "#templates/components/reorder.tsx";
+import { SelectField } from "#templates/components/select-field.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { answerAggregateFields } from "#templates/fields.ts";
-import { Layout } from "#templates/layout.tsx";
 
 /** Render question text flat for admin display: line breaks are replaced with
  * " / " so the text fits on one line in tables, headings, and confirmation
@@ -47,14 +52,34 @@ const ReorderControls = ({
   action,
   index,
   count,
-}: {
-  action: (direction: "up" | "down") => string;
-  index: number;
-  count: number;
-}): JSX.Element => (
+}: ReorderProps): JSX.Element => (
   <td class={colClass("reorder")}>
     <ReorderArrows action={action} count={count} index={index} />
   </td>
+);
+
+/** A reorderable admin table: the scroll wrapper, the shared leading "order"
+ *  column header, the caller's remaining column headers, and the row body. The
+ *  question and answer tables differ only in their non-order columns, so this
+ *  keeps that scaffold (table-scroll → table → thead → order th) in one place. */
+const ReorderTable = ({
+  columns,
+  children,
+}: {
+  columns: Child;
+  children: Child;
+}): JSX.Element => (
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th class={colClass("reorder")}>{t("questions.order_column")}</th>
+          {columns}
+        </tr>
+      </thead>
+      <tbody>{children}</tbody>
+    </table>
+  </div>
 );
 
 /** Listings cell for a question row: a count whose title attribute spells out
@@ -89,14 +114,8 @@ export const adminQuestionsPage = (
   listingNames: Map<number, string[]> = new Map(),
   totalListings = 0,
 ): string =>
-  String(
-    <Layout title={t("questions.title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <p class="actions">
-        <GuideLink href="/admin/guide#questions">Questions guide</GuideLink>
-      </p>
-      <Flash error={error} />
-
+  errorAdminPage(t("questions.title"), "/admin/settings")(session, error)(
+    <>
       <CsrfForm action="/admin/questions" id="new-question">
         <Raw html={questionTextForm.render()} />
         <SubmitButton icon="plus">{t("questions.add_submit")}</SubmitButton>
@@ -107,48 +126,43 @@ export const adminQuestionsPage = (
           <em>{t("questions.no_questions")}</em>
         </p>
       ) : (
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th class={colClass("reorder")}>
-                  {t("questions.order_column")}
-                </th>
-                <th>{t("questions.question_column")}</th>
-                <th class={colClass("quantity")}>
-                  {t("questions.answers_column")}
-                </th>
-                <th class={colClass("quantity")}>
-                  {t("questions.listings_column")}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {questions.map((q, i) => (
-                <tr>
-                  <ReorderControls
-                    action={(d) => `/admin/questions/${q.id}/move-${d}`}
-                    count={questions.length}
-                    index={i}
-                  />
-                  <td>
-                    <a href={`/admin/questions/${q.id}`}>
-                      {questionTextFlat(q.text)}
-                    </a>
-                  </td>
-                  <td class={colClass("quantity")}>{q.answers.length}</td>
-                  <QuestionListingsCell
-                    listingNames={listingNames.get(q.id) ?? []}
-                    question={q}
-                    totalListings={totalListings}
-                  />
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ReorderTable
+          columns={
+            <>
+              <th>{t("questions.question_column")}</th>
+              <th class={colClass("quantity")}>
+                {t("questions.answers_column")}
+              </th>
+              <th class={colClass("quantity")}>
+                {t("questions.listings_column")}
+              </th>
+            </>
+          }
+        >
+          {questions.map((q, i) => (
+            <tr>
+              <ReorderControls
+                action={(d) => `/admin/questions/${q.id}/move-${d}`}
+                count={questions.length}
+                index={i}
+              />
+              <td>
+                <a href={`/admin/questions/${q.id}`}>
+                  {questionTextFlat(q.text)}
+                </a>
+              </td>
+              <td class={colClass("quantity")}>{q.answers.length}</td>
+              <QuestionListingsCell
+                listingNames={listingNames.get(q.id) ?? []}
+                question={q}
+                totalListings={totalListings}
+              />
+            </tr>
+          ))}
+        </ReorderTable>
       )}
-    </Layout>,
+    </>,
+    <GuideLink href="/admin/guide#questions">Questions guide</GuideLink>,
   );
 
 /** Single question detail / edit page */
@@ -160,11 +174,15 @@ export const adminQuestionPage = (
   allListings: ListingWithCount[] = [],
   assignedListingIds: Set<number> = new Set(),
 ): string =>
-  String(
-    <Layout title={`Question: ${questionTextFlat(question.text)}`}>
-      <AdminNav active="/admin/settings" session={session} />
+  errorAdminPage(
+    `Question: ${questionTextFlat(question.text)}`,
+    "/admin/settings",
+  )(
+    session,
+    error,
+  )(
+    <>
       <h1>{questionTextFlat(question.text)}</h1>
-      <Flash error={error} />
 
       <CsrfForm action={`/admin/questions/${question.id}/edit`}>
         <Raw html={questionTextForm.field("text").render(question.text)} />
@@ -175,20 +193,14 @@ export const adminQuestionPage = (
         ) : (
           <label>
             Display as
-            <select name="display_type">
-              <option
-                selected={question.display_type === "radio"}
-                value="radio"
-              >
-                Radio buttons
-              </option>
-              <option
-                selected={question.display_type === "select"}
-                value="select"
-              >
-                Select box
-              </option>
-            </select>
+            <SelectField
+              name="display_type"
+              options={[
+                { label: "Radio buttons", value: "radio" },
+                { label: "Select box", value: "select" },
+              ]}
+              value={question.display_type}
+            />
           </label>
         )}
         <SubmitButton icon="save">{t("questions.edit.update")}</SubmitButton>
@@ -219,44 +231,38 @@ export const adminQuestionPage = (
               <em>{t("questions.edit.no_answers")}</em>
             </p>
           ) : (
-            <div class="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th class={colClass("reorder")}>
-                      {t("questions.order_column")}
-                    </th>
-                    <th>{t("questions.answer_column")}</th>
-                    <th class={colClass("quantity")}>
-                      {t("questions.selected_column")}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {question.answers.map((a, i) => (
-                    <tr>
-                      <ReorderControls
-                        action={(d) =>
-                          `/admin/questions/${question.id}/answers/${a.id}/move-${d}`
-                        }
-                        count={question.answers.length}
-                        index={i}
-                      />
-                      <td>
-                        <a
-                          href={`/admin/questions/${question.id}/answers/${a.id}/edit`}
-                        >
-                          {a.text}
-                        </a>
-                      </td>
-                      <td class={colClass("quantity")}>
-                        {answerCounts?.get(a.id) ?? 0}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ReorderTable
+              columns={
+                <>
+                  <th>{t("questions.answer_column")}</th>
+                  <th class={colClass("quantity")}>
+                    {t("questions.selected_column")}
+                  </th>
+                </>
+              }
+            >
+              {question.answers.map((a, i) => (
+                <tr>
+                  <ReorderControls
+                    action={(d) =>
+                      `/admin/questions/${question.id}/answers/${a.id}/move-${d}`
+                    }
+                    count={question.answers.length}
+                    index={i}
+                  />
+                  <td>
+                    <a
+                      href={`/admin/questions/${question.id}/answers/${a.id}/edit`}
+                    >
+                      {a.text}
+                    </a>
+                  </td>
+                  <td class={colClass("quantity")}>
+                    {answerCounts?.get(a.id) ?? 0}
+                  </td>
+                </tr>
+              ))}
+            </ReorderTable>
           )}
         </>
       )}
@@ -301,7 +307,7 @@ export const adminQuestionPage = (
           {t("questions.delete.link")}
         </a>
       </p>
-    </Layout>,
+    </>,
   );
 
 /** A linkable "answer"-trigger modifier for the answer edit page selector. */
@@ -379,9 +385,11 @@ export const adminAnswerEditPage = (
   modifiers: AnswerModifierOption[],
   modifierId: number | null,
 ): string =>
-  String(
-    <Layout title={t("questions.edit_answer.title")}>
-      <AdminNav active="/admin/settings" session={session} />
+  errorAdminPage(t("questions.edit_answer.title"), "/admin/settings")(
+    session,
+    error,
+  )(
+    <>
       <p>
         <BackButton href={`/admin/questions/${question.id}`}>
           {t("questions.edit_answer.back_to_question")}
@@ -396,7 +404,6 @@ export const adminAnswerEditPage = (
           })}
         </small>
       </p>
-      <Flash error={error} />
 
       <CsrfForm
         action={`/admin/questions/${question.id}/answers/${answer.id}/edit`}
@@ -404,16 +411,15 @@ export const adminAnswerEditPage = (
         <Raw html={answerTextForm.render({ text: answer.text })} />
         <label>
           {t("questions.edit_answer.modifier_label")}
-          <select id="modifier_id" name="modifier_id">
-            <option selected={modifierId === null} value="">
-              {t("questions.edit_answer.modifier_none")}
-            </option>
-            {modifiers.map((m) => (
-              <option selected={m.id === modifierId} value={String(m.id)}>
-                {m.name}
-              </option>
-            ))}
-          </select>
+          <SelectField
+            id="modifier_id"
+            name="modifier_id"
+            options={[
+              { label: t("questions.edit_answer.modifier_none"), value: "" },
+              ...modifiers.map((m) => ({ label: m.name, value: String(m.id) })),
+            ]}
+            value={modifierId === null ? "" : String(modifierId)}
+          />
           <small>{t("questions.edit_answer.modifier_hint")}</small>
         </label>
         <label>
@@ -447,7 +453,7 @@ export const adminAnswerEditPage = (
           {t("questions.delete_answer.submit")}
         </a>
       </p>
-    </Layout>,
+    </>,
   );
 
 /** Build the recalculate table rows comparing the stored selection total with
@@ -489,31 +495,52 @@ export const adminAnswerRecalculatePage = (
     title: t("questions.recalculate.heading", { text: answer.text }),
   });
 
+/** The question and answer delete-confirmation pages share one confirm shell:
+ *  same `/admin/settings` nav and the standard `<prefix>.submit/heading/
+ *  confirm_label/confirm_prompt` locale keys, differing only in action URL,
+ *  confirmed name, page title, and warning copy. Parameterising the locale
+ *  prefix keeps the repeated `t()` block in one place. */
+const questionDeleteConfirmPage = (
+  opts: {
+    action: string;
+    name: string;
+    prefix: string;
+    title: string;
+    warning: JSX.Element;
+    session: AdminSession;
+  },
+  error?: string,
+): string =>
+  ConfirmPage({
+    action: opts.action,
+    active: "/admin/settings",
+    buttonText: t(`${opts.prefix}.submit`),
+    error,
+    heading: t(`${opts.prefix}.heading`),
+    label: t(`${opts.prefix}.confirm_label`),
+    name: opts.name,
+    prompt: { args: { text: opts.name }, key: `${opts.prefix}.confirm_prompt` },
+    session: opts.session,
+    title: opts.title,
+    warning: opts.warning,
+  });
+
 /** Question delete confirmation page */
 export const adminQuestionDeletePage = (
   question: QuestionWithAnswers,
   session: AdminSession,
   error?: string,
 ): string =>
-  String(
-    <Layout title={t("questions.delete.heading")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <ConfirmForm
-        action={`/admin/questions/${question.id}/delete`}
-        buttonText={t("questions.delete.submit")}
-        label={t("questions.delete.confirm_label")}
-        name={questionTextFlat(question.text)}
-      >
-        <h1>{t("questions.delete.heading")}</h1>
-        <Flash error={error} />
-        <p>{t("questions.delete.warning")}</p>
-        <p>
-          {t("questions.delete.confirm_prompt", {
-            text: questionTextFlat(question.text),
-          })}
-        </p>
-      </ConfirmForm>
-    </Layout>,
+  questionDeleteConfirmPage(
+    {
+      action: `/admin/questions/${question.id}/delete`,
+      name: questionTextFlat(question.text),
+      prefix: "questions.delete",
+      session,
+      title: t("questions.delete.heading"),
+      warning: <p>{t("questions.delete.warning")}</p>,
+    },
+    error,
   );
 
 /** Answer delete confirmation page */
@@ -522,30 +549,27 @@ export const adminAnswerDeletePage = (
   answer: Answer,
   session: AdminSession,
   error?: string,
-): string =>
-  String(
-    <Layout title={t("questions.delete_answer.title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <ConfirmForm
-        action={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
-        buttonText={t("questions.delete_answer.submit")}
-        label={t("questions.delete_answer.confirm_label")}
-        name={answer.text}
-      >
-        <h1>{t("questions.delete_answer.heading")}</h1>
-        <Flash error={error} />
-        <p>
-          {t("questions.delete_answer.warning", {
-            answerText: answer.text,
-            questionText: questionTextFlat(question.text),
-          })}
-        </p>
-        <p>
-          {t("questions.delete_answer.confirm_prompt", { text: answer.text })}
-        </p>
-      </ConfirmForm>
-    </Layout>,
+): string => {
+  const warning = (
+    <p>
+      {t("questions.delete_answer.warning", {
+        answerText: answer.text,
+        questionText: questionTextFlat(question.text),
+      })}
+    </p>
   );
+  return questionDeleteConfirmPage(
+    {
+      action: `/admin/questions/${question.id}/answers/${answer.id}/delete`,
+      name: answer.text,
+      prefix: "questions.delete_answer",
+      session,
+      title: t("questions.delete_answer.title"),
+      warning,
+    },
+    error,
+  );
+};
 
 /** Listing questions assignment page */
 /**

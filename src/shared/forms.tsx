@@ -13,16 +13,10 @@ import {
 } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { appendIframeParam } from "#shared/iframe.ts";
+import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { createRequestScoped } from "#shared/request-scoped.ts";
 import { Icon } from "#templates/components/actions.tsx";
-
-const escapeHtml = (str: string): string =>
-  str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 
 export type FieldType =
   | "text"
@@ -174,12 +168,26 @@ const getDatetimeValue = (form: FormParams, name: string): string | null => {
   return null;
 };
 
+/** Parse a checkbox-group field's values from a form: collect all checked
+ *  values via getAll(), trim, drop empties, join as comma-separated. */
+const parseCheckboxGroup = (form: FormParams, name: string): string =>
+  form
+    .getAll(name)
+    .map((v) => v.trim())
+    .filter((v) => v)
+    .join(",");
+
 /** Split a datetime value (YYYY-MM-DDTHH:MM) into date and time parts */
 const splitDatetime = (value: string): { date: string; time: string } => {
   if (!value) return { date: "", time: "" };
   const [date = "", time = ""] = value.split("T");
   return { date, time };
 };
+
+/** Render an arbitrary HTML string as a JSX element — the per-field renderers
+ *  that build raw HTML (selects, checkbox groups) wrap their output in this so
+ *  the `<Raw html={...}/>` shape lives in one place. */
+const rawField = (html: string): JSX.Element => <Raw html={html} />;
 
 /** Render the input element for a field based on its type */
 const renderFieldInput = (field: Field, value: string): JSX.Element => {
@@ -199,23 +207,19 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
     );
   }
   if (field.type === "select" && field.options) {
-    return (
-      <Raw
-        html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(
-          field.id ?? field.name,
-        )}">${renderSelectOptions(field.options, value)}</select>`}
-      />
+    return rawField(
+      `<select name="${escapeHtml(field.name)}" id="${escapeHtml(
+        field.id ?? field.name,
+      )}">${renderSelectOptions(field.options, value)}</select>`,
     );
   }
   if (field.type === "checkbox-group" && field.options) {
-    return (
-      <Raw
-        html={renderCheckboxGroup(
-          field.name,
-          field.options,
-          new Set(value ? value.split(",").map((v) => v.trim()) : []),
-        )}
-      />
+    return rawField(
+      renderCheckboxGroup(
+        field.name,
+        field.options,
+        new Set(value ? value.split(",").map((v) => v.trim()) : []),
+      ),
     );
   }
   if (field.type === "datetime") {
@@ -359,11 +363,7 @@ const collectFieldValue = (
     return result;
   }
   if (field.type === "checkbox-group") {
-    return form
-      .getAll(field.name)
-      .map((v) => v.trim())
-      .filter((v) => v)
-      .join(",");
+    return parseCheckboxGroup(form, field.name);
   }
   return form.getString(field.name);
 };
@@ -603,18 +603,10 @@ const getSavedValue = (field: Field): string => {
   const form = savedFormScope.current().form;
   if (!form || SENSITIVE_FIELD_TYPES.has(field.type)) return "";
   if (field.type === "checkbox-group") {
-    return form
-      .getAll(field.name)
-      .map((v) => v.trim())
-      .filter((v) => v)
-      .join(",");
+    return parseCheckboxGroup(form, field.name);
   }
   if (field.type === "datetime") {
-    const date = form.getString(`${field.name}_date`);
-    const time = form.getString(`${field.name}_time`);
-    if (date && time) return `${date}T${time}`;
-    if (date) return `${date}T00:00`;
-    return "";
+    return getDatetimeValue(form, field.name) ?? "";
   }
   return form.getString(field.name);
 };
@@ -706,6 +698,15 @@ export const MessageFields = ({
  * is shown inline on the confirmation page). The `name`/`label` props become
  * optional in that mode; the type-the-name input is omitted entirely.
  */
+/** Render a `[name, value]` list as hidden `<input>`s — the shared shape used
+ *  by ConfirmForm's `hiddenFields` and the bulk-email recipient control. */
+export const hiddenInputs = (
+  entries: readonly (readonly [string, string])[],
+): JSX.Element[] =>
+  entries.map(([name, value]) => (
+    <input name={name} type="hidden" value={value} />
+  ));
+
 export const ConfirmForm = ({
   action,
   name,
@@ -733,10 +734,7 @@ export const ConfirmForm = ({
   <CsrfForm action={action} id={id}>
     {children && <div class="prose">{children}</div>}
     {returnUrl && <input name="return_url" type="hidden" value={returnUrl} />}
-    {hiddenFields &&
-      Object.entries(hiddenFields).map(([fieldName, value]) => (
-        <input name={fieldName} type="hidden" value={value} />
-      ))}
+    {hiddenFields && hiddenInputs(Object.entries(hiddenFields))}
     {confirmName && (
       <label>
         {label}

@@ -7,6 +7,7 @@
  * `<use>`, so nothing is bundled into the JS payload.
  */
 
+import { t } from "#i18n";
 import type { Child, SafeHtml } from "#jsx/jsx-runtime.ts";
 import { ICONS_PATH } from "#shared/asset-paths.ts";
 
@@ -63,6 +64,14 @@ export const ActionButton = ({
   </a>
 );
 
+/** The outline "Import" button linking to the catalog JSON import — shown on
+ *  both the listings dashboard and the groups index action rows. */
+export const ImportCatalogButton = (): SafeHtml => (
+  <ActionButton href="/admin/catalog/import" variant="outline">
+    {t("catalog_transfer.import_button")}
+  </ActionButton>
+);
+
 /**
  * A form submit button with a leading icon. Mirrors {@link ActionButton} for
  * the primary action of a form (e.g. "Save", "Create Listing"). Pass `class`
@@ -84,6 +93,16 @@ export const SubmitButton = ({
     <Icon name={icon} />
     <span>{children}</span>
   </button>
+);
+
+/** The standard "Save changes" submit button used on admin edit pages. */
+export const SaveChangesButton = (): SafeHtml => (
+  <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
+);
+
+/** The "Save" submit button (shorter label than SaveChangesButton). */
+export const SaveButton = (): SafeHtml => (
+  <SubmitButton icon="save">{t("common.save")}</SubmitButton>
 );
 
 /**
@@ -147,37 +166,43 @@ export const MaybeButtonLink = ({
   );
 
 /**
+ * Shared prop shape for an icon-prefixed link: an `href` plus an optional label
+ * rendered as the link's body. Used by {@link BackButton} (arrow-left icon)
+ * and {@link GuideLink} (book-open icon) — both share the same name/children
+ * shape and only differ in the rendered icon and link class. */
+type IconLinkProps = {
+  href: string;
+  children?: Child;
+};
+
+/**
+ * Build an icon link renderer: takes the link class and icon name, returns a
+ * component taking {@link IconLinkProps}. {@link BackButton} and {@link GuideLink}
+ * are specialisations of this — they share the `<a class=... href=...><Icon/><span>{children}</span></a>`
+ * shape; only the class and icon differ.
+ */
+const iconLink =
+  (
+    linkClass: string,
+    iconName: IconName,
+  ): (({ href, children }: IconLinkProps) => SafeHtml) =>
+  ({ href, children }: IconLinkProps): SafeHtml => (
+    <a class={linkClass} href={href}>
+      <Icon name={iconName} />
+      <span>{children}</span>
+    </a>
+  );
+
+/**
  * A compact, button-styled "Back to …" navigation link. Renders a leading
  * arrow-left icon followed by the label (e.g. "Back to attendee"). Pair the
  * `href` with the destination and pass the label as children — omit the arrow
  * glyph, the icon supplies it.
  */
-export const BackButton = ({
-  href,
-  children,
-}: {
-  href: string;
-  children?: Child;
-}): SafeHtml => (
-  <a class="btn small" href={href}>
-    <Icon name="arrow-left" />
-    <span>{children}</span>
-  </a>
-);
+export const BackButton = iconLink("btn small", "arrow-left");
 
 /**
  * A consistent, understated link to a help/guide section. Renders a book icon
  * followed by the label in muted text.
  */
-export const GuideLink = ({
-  href,
-  children,
-}: {
-  href: string;
-  children?: Child;
-}): SafeHtml => (
-  <a class="guide-link" href={href}>
-    <Icon name="book-open" />
-    <span>{children}</span>
-  </a>
-);
+export const GuideLink = iconLink("guide-link", "book-open");

@@ -9,6 +9,7 @@ import {
   faq,
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
+import { PricedJsonExample } from "#templates/admin/guide/integrations.tsx";
 
 export const accountsSections = (): GuideSection[] => [
   {
@@ -55,15 +56,11 @@ export const accountsSections = (): GuideSection[] => [
             <code>Content-Type: application/json</code>. Here is an example
             payload for a paid listing booking:
           </p>
-          <pre>
-            <code>{WEBHOOK_EXAMPLE_JSON}</code>
-          </pre>
-          <p>
-            Prices are in the smallest currency unit (e.g. pence for GBP, cents
-            for USD). The <code>ticket_url</code> links to the attendee's ticket
-            page. For multi-listing bookings the <code>tickets</code> array
-            contains one entry per listing, all sharing the same ticket token.
-          </p>
+          <PricedJsonExample json={WEBHOOK_EXAMPLE_JSON}>
+            The <code>ticket_url</code> links to the attendee's ticket page. For
+            multi-listing bookings the <code>tickets</code> array contains one
+            entry per listing, all sharing the same ticket token.
+          </PricedJsonExample>
         </>,
       ),
     ],

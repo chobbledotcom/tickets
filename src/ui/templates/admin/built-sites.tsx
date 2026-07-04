@@ -7,7 +7,6 @@ import { formatCurrency } from "#shared/currency.ts";
 import { type BuiltSite, DEFAULT_UPDATE_TIER } from "#shared/db/built-sites.ts";
 import {
   booleanToCheckbox,
-  ConfirmForm,
   CsrfForm,
   Flash,
   renderFields,
@@ -21,15 +20,22 @@ import {
 } from "#shared/site-secrets.ts";
 import type { BuiltSiteUpdateState } from "#shared/site-update.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+/* jscpd:ignore-start */
+import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
+import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+/* jscpd:ignore-end */
 import {
   ActionButton,
   Icon,
+  type IconName,
+  SaveChangesButton,
   SubmitButton,
 } from "#templates/components/actions.tsx";
-import { colClass } from "#templates/components/table-columns.ts";
+import { DataTable } from "#templates/components/data-table.tsx";
+import { ErrorAlert } from "#templates/components/error-alert.tsx";
+import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
+import { ProsePanel } from "#templates/components/prose-panel.tsx";
 import { getBuiltSiteFields } from "#templates/fields.ts";
-import { Layout } from "#templates/layout.tsx";
 
 /** Renewal tier summary row rendered beneath the built-sites table. */
 const RenewalTierSummary = ({
@@ -41,47 +47,27 @@ const RenewalTierSummary = ({
     return (
       <section>
         <h2>{t("built_sites.renewal_tiers_title")}</h2>
-        <div class="error" role="alert">
-          <Raw html={t("built_sites.no_renewal_tier")} />
-        </div>
+        <ErrorAlert message={t("built_sites.no_renewal_tier")} />
       </section>
     );
   }
   return (
     <section>
       <h2>{t("built_sites.renewal_tiers_title")}</h2>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>{t("built_sites.tier_table_tier")}</th>
-              <th class={colClass("quantity")}>
-                {t("built_sites.tier_table_months")}
-              </th>
-              <th class={colClass("amount")}>
-                {t("built_sites.tier_table_price")}
-              </th>
-              <th class={colClass("quantity")}>
-                {t("built_sites.tier_table_units")}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {tiers.map((tier) => (
-              <tr>
-                <td>
-                  <a href={`/admin/listing/${tier.id}`}>{tier.name}</a>
-                </td>
-                <td class={colClass("quantity")}>{tier.months_per_unit}</td>
-                <td class={colClass("amount")}>
-                  {formatCurrency(tier.unit_price)}
-                </td>
-                <td class={colClass("quantity")}>{tier.attendee_count}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={[
+          { header: t("built_sites.tier_table_tier") },
+          { class: "quantity", header: t("built_sites.tier_table_months") },
+          { class: "amount", header: t("built_sites.tier_table_price") },
+          { class: "quantity", header: t("built_sites.tier_table_units") },
+        ]}
+        rows={tiers.map((tier) => [
+          <a href={`/admin/listing/${tier.id}`}>{tier.name}</a>,
+          tier.months_per_unit,
+          formatCurrency(tier.unit_price),
+          tier.attendee_count,
+        ])}
+      />
     </section>
   );
 };
@@ -101,8 +87,11 @@ export const adminBuiltSitesPage = (
     .join("|");
 
   return String(
-    <Layout title={t("built_sites.list_title")}>
-      <AdminNav active="/admin/settings" session={session} />
+    <AdminPage
+      active="/admin/settings"
+      session={session}
+      title={t("built_sites.list_title")}
+    >
       <Flash success={successMessage} />
       <p class="actions">
         <ActionButton href="/admin/built-sites/new" icon="plus">
@@ -116,51 +105,35 @@ export const adminBuiltSitesPage = (
         <p>{t("built_sites.no_built_sites")}</p>
       ) : (
         <div>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>{t("common.name")}</th>
-                  <th>{t("built_sites.table_site_url")}</th>
-                  <th>{t("common.status")}</th>
-                  <th>{t("built_sites.table_updates")}</th>
-                  <th>{t("built_sites.table_read_only")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sites.map((site) => (
-                  <tr>
-                    <td>
-                      <a href={`/admin/built-sites/${site.id}/edit`}>
-                        {site.name}
-                      </a>
-                    </td>
-                    <td>
-                      <a href={site.siteUrl} rel="noopener" target="_blank">
-                        {site.siteUrl}
-                      </a>
-                    </td>
-                    <td>
-                      {site.assignedAttendeeId
-                        ? t("built_sites.status_assigned", {
-                            id: site.assignedAttendeeId,
-                          })
-                        : site.assignable
-                          ? t("built_sites.status_available")
-                          : t("built_sites.status_not_assignable")}
-                    </td>
-                    <td>{site.updates}</td>
-                    <td>{formatDeadlineLabel(site.readOnlyFrom)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={[
+              { header: t("common.name") },
+              { header: t("built_sites.table_site_url") },
+              { header: t("common.status") },
+              { header: t("built_sites.table_updates") },
+              { header: t("built_sites.table_read_only") },
+            ]}
+            rows={sites.map((site) => [
+              <a href={`/admin/built-sites/${site.id}/edit`}>{site.name}</a>,
+              <a href={site.siteUrl} rel="noopener" target="_blank">
+                {site.siteUrl}
+              </a>,
+              site.assignedAttendeeId
+                ? t("built_sites.status_assigned", {
+                    id: site.assignedAttendeeId,
+                  })
+                : site.assignable
+                  ? t("built_sites.status_available")
+                  : t("built_sites.status_not_assignable"),
+              site.updates,
+              formatDeadlineLabel(site.readOnlyFrom),
+            ])}
+          />
           <p>{hostingIds}</p>
         </div>
       )}
       <RenewalTierSummary tiers={renewalTiers} />
-    </Layout>,
+    </AdminPage>,
   );
 };
 
@@ -188,18 +161,16 @@ export const adminBuiltSiteNewPage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  String(
-    <Layout title={t("built_sites.add_site_title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <CsrfForm action="/admin/built-sites">
-        <h1>{t("built_sites.add_site_title")}</h1>
-        <Flash error={error} />
-        <Raw html={renderFields(getBuiltSiteFields())} />
-        <SubmitButton icon="plus">
-          {t("built_sites.create_built_site_button")}
-        </SubmitButton>
-      </CsrfForm>
-    </Layout>,
+  errorAdminPage(t("built_sites.add_site_title"), "/admin/settings")(
+    session,
+    error,
+  )(
+    <NewResourceForm
+      action="/admin/built-sites"
+      fieldsHtml={renderFields(getBuiltSiteFields())}
+      submitLabel={t("built_sites.create_built_site_button")}
+      title={t("built_sites.add_site_title")}
+    />,
   );
 
 type SiteActionProps = {
@@ -208,6 +179,9 @@ type SiteActionProps = {
   children: Child;
 };
 
+/** `<div class="prose"><p><strong>{label}</strong> {value}</p>…children</div>` —
+ *  the shared shell of the deadline/update panels: a labelled prose header
+ *  paragraph followed by the rest of the panel content. */
 /** Standard built-site action form wrapper — CSRF + path scoping in one place. */
 const SiteActionForm = ({
   siteId,
@@ -217,6 +191,41 @@ const SiteActionForm = ({
   <CsrfForm action={`/admin/built-sites/${siteId}/${action}`}>
     {children}
   </CsrfForm>
+);
+
+/** A `<ul>` of `<li><code>name</code></li>` for the secrets panel's
+ *  missing/present secret lists. */
+const CodeNameList = ({ names }: { names: string[] }): JSX.Element => (
+  <ul>
+    {names.map((name) => (
+      <li>
+        <code>{name}</code>
+      </li>
+    ))}
+  </ul>
+);
+
+/** A confirm-button submit form: the same `confirm('…')` guard + Icon + label
+ *  pattern the rotate-renewal-token and update actions share. */
+const ConfirmActionButton = ({
+  action,
+  confirmKey,
+  icon,
+  labelKey,
+  siteId,
+}: {
+  action: string;
+  confirmKey: string;
+  icon: IconName;
+  labelKey: string;
+  siteId: number;
+}): JSX.Element => (
+  <SiteActionForm action={action} siteId={siteId}>
+    <button onclick={`return confirm('${t(confirmKey)}')`} type="submit">
+      <Icon name={icon} />
+      <span>{t(labelKey)}</span>
+    </button>
+  </SiteActionForm>
 );
 
 const MonthsInput = ({
@@ -238,74 +247,69 @@ const MonthsInput = ({
 
 type DeadlineFormProps = { site: BuiltSite; inputId?: string };
 
-/**
- * Bump-deadline form, shared by the provisioned and unprovisioned panels.
- * Pass `inputId` to render an inline label (provisioned); omit it when a
- * surrounding heading already labels the field (unprovisioned).
- */
-const BumpDeadlineForm = ({
-  site,
-  inputId,
-}: DeadlineFormProps): JSX.Element => (
-  <SiteActionForm action="bump-deadline" siteId={site.id}>
-    {inputId ? (
-      <label for={inputId}>{t("built_sites.bump_deadline_label")}</label>
-    ) : null}
-    <MonthsInput id={inputId} />
-    <SubmitButton icon="save">
-      {t("built_sites.bump_deadline_button")}
-    </SubmitButton>
-  </SiteActionForm>
+/** Curried deadline form: caller specialises the action, the field element,
+ *  its label translation key, and the submit label; the shared shell renders
+ *  the {@link SiteActionForm} wrapper, the optional `<label for>`, the field,
+ *  and the submit button. Used by BumpDeadlineForm and OverrideDeadlineForm. */
+const deadlineForm =
+  (
+    action: Parameters<typeof SiteActionForm>[0]["action"],
+    field: (inputId?: string) => JSX.Element,
+    labelKey: string,
+    submitKey: string,
+  ): ((props: DeadlineFormProps) => JSX.Element) =>
+  ({ site, inputId }: DeadlineFormProps): JSX.Element => (
+    <SiteActionForm action={action} siteId={site.id}>
+      {inputId ? <label for={inputId}>{t(labelKey)}</label> : null}
+      {field(inputId)}
+      <SubmitButton icon="save">{t(submitKey)}</SubmitButton>
+    </SiteActionForm>
+  );
+
+const BumpDeadlineForm = deadlineForm(
+  "bump-deadline",
+  (inputId) => <MonthsInput id={inputId} />,
+  "built_sites.bump_deadline_label",
+  "built_sites.bump_deadline_button",
 );
 
-/**
- * Override-deadline form, shared by both panels. See {@link BumpDeadlineForm}
- * for the `inputId` labelling convention.
- */
-const OverrideDeadlineForm = ({
-  site,
-  inputId,
-}: DeadlineFormProps): JSX.Element => (
-  <SiteActionForm action="override-deadline" siteId={site.id}>
-    {inputId ? (
-      <label for={inputId}>{t("built_sites.override_deadline_label")}</label>
-    ) : null}
-    <input id={inputId} name="date" type="date" />
-    <SubmitButton icon="save">
-      {t("built_sites.override_deadline_button")}
-    </SubmitButton>
-  </SiteActionForm>
+const OverrideDeadlineForm = deadlineForm(
+  "override-deadline",
+  (inputId) => <input id={inputId} name="date" type="date" />,
+  "built_sites.override_deadline_label",
+  "built_sites.override_deadline_button",
 );
 
 const ProvisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => {
   const renewalUrl = renewalUrlFor(site.renewalToken!);
   return (
-    <div class="prose">
-      <p>
-        <strong>{t("built_sites.current_deadline")}</strong>{" "}
-        {formatDeadlineLabel(site.readOnlyFrom)}
-        {site.readOnlyFrom && (
-          <Raw
-            html={`<details><summary>${t(
-              "built_sites.raw_iso",
-            )}</summary><code>${site.readOnlyFrom}</code></details>`}
-          />
-        )}
-      </p>
+    <ProsePanel
+      label={t("built_sites.current_deadline")}
+      value={
+        <>
+          {formatDeadlineLabel(site.readOnlyFrom)}
+          {site.readOnlyFrom && (
+            <Raw
+              html={`<details><summary>${t(
+                "built_sites.raw_iso",
+              )}</summary><code>${site.readOnlyFrom}</code></details>`}
+            />
+          )}
+        </>
+      }
+    >
       <p>
         <strong>{t("built_sites.renewal_url")}</strong>{" "}
         <code>{renewalUrl}</code>
       </p>
 
-      <SiteActionForm action="rotate-renewal-token" siteId={site.id}>
-        <button
-          onclick={`return confirm('${t("built_sites.rotate_token_confirm")}')`}
-          type="submit"
-        >
-          <Icon name="rotate-ccw" />
-          <span>{t("built_sites.rotate_token")}</span>
-        </button>
-      </SiteActionForm>
+      <ConfirmActionButton
+        action="rotate-renewal-token"
+        confirmKey="built_sites.rotate_token_confirm"
+        icon="rotate-ccw"
+        labelKey="built_sites.rotate_token"
+        siteId={site.id}
+      />
 
       <BumpDeadlineForm inputId="bump_months" site={site} />
 
@@ -316,17 +320,15 @@ const ProvisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => {
           {t("built_sites.resync_deadline_button")}
         </SubmitButton>
       </SiteActionForm>
-    </div>
+    </ProsePanel>
   );
 };
 
 const UnprovisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => (
-  <div class="prose">
-    <p>
-      <strong>{t("built_sites.current_deadline")}</strong>{" "}
-      {formatDeadlineLabel(site.readOnlyFrom)}
-    </p>
-
+  <ProsePanel
+    label={t("built_sites.current_deadline")}
+    value={formatDeadlineLabel(site.readOnlyFrom)}
+  >
     <h3>{t("built_sites.provision_renewal_title")}</h3>
     <SiteActionForm action="provision-renewal" siteId={site.id}>
       <label for="provision_months">{t("built_sites.initial_months")}</label>
@@ -341,7 +343,7 @@ const UnprovisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => (
 
     <h3>{t("built_sites.override_deadline_title")}</h3>
     <OverrideDeadlineForm site={site} />
-  </div>
+  </ProsePanel>
 );
 
 /**
@@ -363,9 +365,9 @@ const SecretsPanel = ({
   if (!view.ok) {
     return (
       <div class="prose">
-        <div class="error" role="alert">
-          <Raw html={t("built_sites.secrets_error", { error: view.error })} />
-        </div>
+        <ErrorAlert
+          message={t("built_sites.secrets_error", { error: view.error })}
+        />
       </div>
     );
   }
@@ -385,13 +387,7 @@ const SecretsPanel = ({
       ) : (
         <SiteActionForm action="add-secrets" siteId={site.id}>
           <p>{t("built_sites.missing_secrets")}</p>
-          <ul>
-            {view.missing.map((name) => (
-              <li>
-                <code>{name}</code>
-              </li>
-            ))}
-          </ul>
+          <CodeNameList names={view.missing} />
           {infraMissing.length > 0 && (
             <p role="note">
               <strong>{t("built_sites.infra_secrets_heading")}</strong>{" "}
@@ -410,13 +406,7 @@ const SecretsPanel = ({
       {view.present.length > 0 && (
         <details>
           <summary>{t("built_sites.secrets_on_site")}</summary>
-          <ul>
-            {view.present.map((name) => (
-              <li>
-                <code>{name}</code>
-              </li>
-            ))}
-          </ul>
+          <CodeNameList names={view.present} />
         </details>
       )}
     </div>
@@ -436,16 +426,17 @@ const UpdatePanel = ({
   site: BuiltSite;
   state: BuiltSiteUpdateState;
 }): JSX.Element => (
-  <div class="prose">
-    <p>
-      <strong>{t("built_sites.update_site_version_label")}</strong>{" "}
-      {state.siteVersionLabel ??
-        (state.siteVersionError
-          ? t("built_sites.update_version_error", {
-              error: state.siteVersionError,
-            })
-          : t("built_sites.update_unknown_version"))}
-    </p>
+  <ProsePanel
+    label={t("built_sites.update_site_version_label")}
+    value={
+      state.siteVersionLabel ??
+      (state.siteVersionError
+        ? t("built_sites.update_version_error", {
+            error: state.siteVersionError,
+          })
+        : t("built_sites.update_unknown_version"))
+    }
+  >
     <p>
       <strong>{t("built_sites.update_latest_label")}</strong>{" "}
       {state.latestVersion
@@ -460,21 +451,19 @@ const UpdatePanel = ({
       <output class="success">{t("built_sites.update_up_to_date")}</output>
     ) : null}
     {state.providerConfigured && state.hasHostingId ? (
-      <SiteActionForm action="update" siteId={site.id}>
-        <button
-          onclick={`return confirm('${t("built_sites.update_confirm")}')`}
-          type="submit"
-        >
-          <Icon name="rotate-ccw" />
-          <span>{t("built_sites.update_button")}</span>
-        </button>
-      </SiteActionForm>
+      <ConfirmActionButton
+        action="update"
+        confirmKey="built_sites.update_confirm"
+        icon="rotate-ccw"
+        labelKey="built_sites.update_button"
+        siteId={site.id}
+      />
     ) : (
       <p>
         <em>{t("built_sites.update_unavailable")}</em>
       </p>
     )}
-  </div>
+  </ProsePanel>
 );
 
 /**
@@ -491,8 +480,11 @@ export const adminBuiltSiteEditPage = (
   const provisioned = isProvisioned(site);
 
   return String(
-    <Layout title={t("built_sites.edit_site_title")}>
-      <AdminNav active="/admin/settings" session={session} />
+    <AdminPage
+      active="/admin/settings"
+      session={session}
+      title={t("built_sites.edit_site_title")}
+    >
       <CsrfForm action={`/admin/built-sites/${site.id}/edit`}>
         <h1>{t("built_sites.edit_site_title")}</h1>
         <Flash error={error} success={success} />
@@ -502,7 +494,7 @@ export const adminBuiltSiteEditPage = (
             builtSiteToFieldValues(site),
           )}
         />
-        <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
+        {SaveChangesButton()}
       </CsrfForm>
 
       <h2>{t("built_sites.renewal_title")}</h2>
@@ -532,7 +524,7 @@ export const adminBuiltSiteEditPage = (
           {t("built_sites.delete_this_site")}
         </ActionButton>
       </p>
-    </Layout>,
+    </AdminPage>,
   );
 };
 
@@ -544,18 +536,13 @@ export const adminBuiltSiteDeletePage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  String(
-    <Layout title={t("built_sites.delete_page_title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <ConfirmForm
-        action={`/admin/built-sites/${site.id}/delete`}
-        buttonText={t("built_sites.delete_built_site_button")}
-        danger={false}
-        label={t("built_sites.delete_label")}
-        name={site.name}
-      >
+  ConfirmPage({
+    action: `/admin/built-sites/${site.id}/delete`,
+    active: "/admin/settings",
+    buttonText: t("built_sites.delete_built_site_button"),
+    children: (
+      <>
         <h1>{t("built_sites.delete_page_title")}</h1>
-        <Flash error={error} />
         <p>
           <Raw
             html={t("built_sites.delete_confirmation", {
@@ -566,6 +553,12 @@ export const adminBuiltSiteDeletePage = (
         <p>
           {t("built_sites.delete_confirmation_prompt", { name: site.name })}
         </p>
-      </ConfirmForm>
-    </Layout>,
-  );
+      </>
+    ),
+    danger: false,
+    error,
+    label: t("built_sites.delete_label"),
+    name: site.name,
+    session,
+    title: t("built_sites.delete_page_title"),
+  });

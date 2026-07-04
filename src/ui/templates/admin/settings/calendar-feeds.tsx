@@ -1,8 +1,11 @@
 /** Calendar feed settings form for the settings page. */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
+import { SelectField } from "#templates/components/select-field.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
+/* jscpd:ignore-end */
 
 export const CalendarFeedsForm = (s: SettingsPageState): JSX.Element => (
   <SettingsSection
@@ -27,16 +30,20 @@ export const CalendarFeedsForm = (s: SettingsPageState): JSX.Element => (
     <label for="calendar_feeds_group_by">
       {t("settings.calendar_feeds_group_by")}
     </label>
-    <select id="calendar_feeds_group_by" name="calendar_feeds_group_by">
-      <option
-        selected={s.calendarFeedsGroupBy === "attendees"}
-        value="attendees"
-      >
-        {t("settings.calendar_feeds_group_by_attendees")}
-      </option>
-      <option selected={s.calendarFeedsGroupBy === "listings"} value="listings">
-        {t("settings.calendar_feeds_group_by_listings")}
-      </option>
-    </select>
+    <SelectField
+      id="calendar_feeds_group_by"
+      name="calendar_feeds_group_by"
+      options={[
+        {
+          label: t("settings.calendar_feeds_group_by_attendees"),
+          value: "attendees",
+        },
+        {
+          label: t("settings.calendar_feeds_group_by_listings"),
+          value: "listings",
+        },
+      ]}
+      value={s.calendarFeedsGroupBy}
+    />
   </SettingsSection>
 );

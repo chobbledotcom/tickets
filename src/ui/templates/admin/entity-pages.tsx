@@ -23,6 +23,7 @@ import {
 } from "#templates/admin/ledger.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { ActionButton, type IconName } from "#templates/components/actions.tsx";
+import { DetailTable } from "#templates/components/detail-table.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** One row of a read-only summary table. `href` renders the value as a link
@@ -83,18 +84,14 @@ const SummarySection = ({
 }: {
   section: Extract<LoadedSection, { kind: "summary" }>;
 }): JSX.Element => (
-  <div class="table-scroll">
-    <table class="listing-details-table">
-      <tbody>
-        {section.rows.map((row) => (
-          <tr>
-            <th scope="row">{t(row.labelKey)}</th>
-            <td>{summaryValue(row)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
+  <DetailTable>
+    {section.rows.map((row) => (
+      <tr>
+        <th scope="row">{t(row.labelKey)}</th>
+        <td>{summaryValue(row)}</td>
+      </tr>
+    ))}
+  </DetailTable>
 );
 
 /** The entity's ledger account statement — the same shared component the

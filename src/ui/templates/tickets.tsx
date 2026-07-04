@@ -34,17 +34,27 @@ export type TicketCard = {
 /** Pluralize ticket count */
 const ticketCount = (count: number): string => t("tickets.count", { count });
 
+/** Render a wallet link: `<a href="/prefix/${token}[suffix]" class="wallet-link">label</a>` */
+const walletLink =
+  (
+    prefix: string,
+    labelKey: string,
+    suffix = "",
+  ): ((token: string) => string) =>
+  (token: string) =>
+    `<a href="/${prefix}/${escapeHtml(token)}${suffix}" class="wallet-link">${t(
+      labelKey,
+    )}</a>`;
+
 /** Render an "Apple Wallet" link for a token (.pkpass extension aids iOS detection) */
-const renderAppleWalletLink = (token: string): string =>
-  `<a href="/wallet/${escapeHtml(
-    token,
-  )}.pkpass" class="wallet-link">${t("tickets.apple_wallet")}</a>`;
+const renderAppleWalletLink = walletLink(
+  "wallet",
+  "tickets.apple_wallet",
+  ".pkpass",
+);
 
 /** Render a "Google Wallet" link for a token */
-const renderGoogleWalletLink = (token: string): string =>
-  `<a href="/gwallet/${escapeHtml(
-    token,
-  )}" class="wallet-link">${t("tickets.google_wallet")}</a>`;
+const renderGoogleWalletLink = walletLink("gwallet", "tickets.google_wallet");
 
 /** Render `render(value)` when `value` is truthy, else "". Replaces the
  * `value ? `<div>${render(value)}`</div>` : ""` pattern that dominates the

@@ -10,21 +10,24 @@
  *    copy/paste confirmation), returning to wherever the operator came from.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import {
   groupNotesByAttendee,
   type SystemNote,
 } from "#shared/db/system-notes.ts";
-import { ConfirmForm, CsrfForm, Flash, renderField } from "#shared/forms.tsx";
+import { CsrfForm, Flash, renderField } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
 import { FORMATTING_HINT } from "#templates/fields.ts";
-import { Layout } from "#templates/layout.tsx";
+
+/* jscpd:ignore-end */
 
 /** The attendee edit page — where the note controls return after an action. */
 const attendeeUrl = (attendeeId: number): string =>
@@ -39,6 +42,26 @@ const deleteNoteUrl = (note: SystemNote, returnUrl: string): string =>
 /** Render a note's body as (safe) markdown — links and emphasis, HTML escaped. */
 const NoteBody = ({ note }: { note: SystemNote }): JSX.Element => (
   <Raw html={renderMarkdown(note.note)} />
+);
+
+/**
+ * The trailing action row shared by the add and delete note pages: a "Cancel"
+ * button back to `returnUrl`, optionally led by a `submit` control (the add
+ * page's Save button; the delete page has none — its submit lives elsewhere).
+ */
+const NoteActions = ({
+  returnUrl,
+  submit,
+}: {
+  returnUrl: string;
+  submit?: JSX.Element;
+}): JSX.Element => (
+  <p class="actions">
+    {submit}
+    <ActionButton href={returnUrl} variant="secondary">
+      {t("notes.cancel")}
+    </ActionButton>
+  </p>
 );
 
 /**
@@ -147,13 +170,16 @@ export const adminAddNotePage = ({
   error?: string | undefined;
 }): string =>
   String(
-    <Layout title={t("notes.add_title")}>
-      <AdminNav active="/admin/attendees" session={session} />
+    <AdminPage
+      active="/admin/attendees"
+      flash={<Flash error={error} />}
+      session={session}
+      title={t("notes.add_title")}
+    >
       <div class="prose">
         <h1>{t("notes.add_heading", { name: attendeeName })}</h1>
       </div>
       <CsrfForm action={`/admin/attendee/${attendeeId}/note`}>
-        <Flash error={error} />
         <input name="return_url" type="hidden" value={returnUrl} />
         <Raw
           html={renderField({
@@ -167,14 +193,12 @@ export const adminAddNotePage = ({
             type: "textarea",
           })}
         />
-        <p class="actions">
-          <SubmitButton icon="save">{t("notes.save")}</SubmitButton>
-          <ActionButton href={returnUrl} variant="secondary">
-            {t("notes.cancel")}
-          </ActionButton>
-        </p>
+        <NoteActions
+          returnUrl={returnUrl}
+          submit={<SubmitButton icon="save">{t("notes.save")}</SubmitButton>}
+        />
       </CsrfForm>
-    </Layout>,
+    </AdminPage>,
   );
 
 /**
@@ -193,9 +217,22 @@ export const adminDeleteNotePage = ({
   returnUrl: string;
   error?: string | undefined;
 }): string =>
-  String(
-    <Layout title={t("notes.delete_title")}>
-      <AdminNav active="/admin/attendees" session={session} />
+  ConfirmPage({
+    action: `/admin/attendee/${note.attendee_id}/note/${note.id}/delete`,
+    active: "/admin/attendees",
+    buttonText: t("notes.delete_submit"),
+    children: (
+      <>
+        <h1>{t("notes.delete_title")}</h1>
+        <p>{t("notes.delete_confirm")}</p>
+        <NoteActions returnUrl={returnUrl} />
+      </>
+    ),
+    confirmName: false,
+    error,
+    label: "",
+    name: "",
+    prefix: (
       <div
         class={
           note.type === "system"
@@ -205,20 +242,8 @@ export const adminDeleteNotePage = ({
       >
         <NoteBody note={note} />
       </div>
-      <ConfirmForm
-        action={`/admin/attendee/${note.attendee_id}/note/${note.id}/delete`}
-        buttonText={t("notes.delete_submit")}
-        confirmName={false}
-        returnUrl={returnUrl}
-      >
-        <h1>{t("notes.delete_title")}</h1>
-        <Flash error={error} />
-        <p>{t("notes.delete_confirm")}</p>
-      </ConfirmForm>
-      <p class="actions">
-        <ActionButton href={returnUrl} variant="secondary">
-          {t("notes.cancel")}
-        </ActionButton>
-      </p>
-    </Layout>,
-  );
+    ),
+    returnUrl,
+    session,
+    title: t("notes.delete_title"),
+  });

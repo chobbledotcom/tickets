@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
@@ -6,16 +7,36 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { SELECT_PREFIX } from "#shared/order-select.ts";
 import type { Group } from "#shared/types.ts";
-import { Icon } from "#templates/components/actions.tsx";
-import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { Icon, type IconName } from "#templates/components/actions.tsx";
+import { escapeHtml } from "#templates/layout.tsx";
 import {
-  FEED_DISCOVERY_TAGS,
-  LoginFooter,
-  PublicNav,
+  compareGroupsByName,
+  PackagesSection,
   type PublicNavProps,
+  /* jscpd:ignore-end */
+  publicPage,
   renderListingImage,
   type TicketListing,
 } from "./shared.tsx";
+
+/**
+ * The inner content of an `.order-cart` submit button: the leading {@link Icon},
+ * the CSS-driven selection count, and the button label. Shared by the public
+ * order gallery and the admin availability checker so the markup lives once.
+ */
+export const OrderCartButtonBody = ({
+  icon,
+  label,
+}: {
+  icon: IconName;
+  label: string;
+}): JSX.Element => (
+  <>
+    <Icon name={icon} />
+    <span aria-hidden="true" class="order-cart-count"></span>
+    <span class="order-cart-label">{label}</span>
+  </>
+);
 
 /**
  * One listing card in the order gallery. A `<label>` wraps a hidden checkbox so
@@ -95,21 +116,22 @@ export const orderGalleryPage = (
   listings: TicketListing[],
   packageGroups: Group[],
   nav: PublicNavProps,
-  websiteTitle?: string | null,
+  websiteTitle: string,
   introText?: string | null,
 ): string => {
   const orderTitle = t("nav.public.order");
   const title = websiteTitle ? `${orderTitle} - ${websiteTitle}` : orderTitle;
   const cards = pipe(map(renderOrderCard), (rows) => rows.join(""))(listings);
-  const byName = (a: Group, b: Group): number => a.name.localeCompare(b.name);
   const packageCards = pipe(map(renderOrderPackageCard), (rows) =>
     rows.join(""),
-  )(packageGroups.toSorted(byName));
+  )(packageGroups.toSorted(compareGroupsByName));
 
-  return String(
-    <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
-      {websiteTitle && <h1>{websiteTitle}</h1>}
-      <PublicNav {...nav} />
+  return publicPage(
+    title,
+    websiteTitle,
+    nav,
+  )(
+    <>
       {introText && (
         <div class="prose">
           <Raw html={renderMarkdown(introText)} />
@@ -121,14 +143,11 @@ export const orderGalleryPage = (
         </p>
       ) : (
         <>
-          {packageGroups.length > 0 && (
-            <>
-              <h2>{t("public.packages")}</h2>
-              <div class="order-grid">
-                <Raw html={packageCards} />
-              </div>
-            </>
-          )}
+          <PackagesSection groups={packageGroups}>
+            <div class="order-grid">
+              <Raw html={packageCards} />
+            </div>
+          </PackagesSection>
           {listings.length > 0 && (
             <form action="/order" class="order-gallery" method="get">
               <fieldset class="order-grid">
@@ -138,17 +157,15 @@ export const orderGalleryPage = (
                 <Raw html={cards} />
               </fieldset>
               <button class="order-cart" type="submit">
-                <Icon name="shopping-cart" />
-                <span aria-hidden="true" class="order-cart-count"></span>
-                <span class="order-cart-label">
-                  {t("public.order.view_order")}
-                </span>
+                <OrderCartButtonBody
+                  icon="shopping-cart"
+                  label={t("public.order.view_order")}
+                />
               </button>
             </form>
           )}
         </>
       )}
-      <LoginFooter />
-    </Layout>,
+    </>,
   );
 };

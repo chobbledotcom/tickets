@@ -9,7 +9,7 @@
  */
 
 import { t } from "#i18n";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { rawParagraph } from "#templates/components/raw-paragraph.tsx";
 
 export const DomainPaymentWebhookWarning = ({
   paymentProvider,
@@ -24,15 +24,9 @@ export const DomainPaymentWebhookWarning = ({
           <strong>{t("settings.domain_warning.title")}</strong>{" "}
           {t("settings.domain_warning.body")}
         </p>
-        {paymentProvider === "square" ? (
-          <p>
-            <Raw html={t("settings.domain_warning.square")} />
-          </p>
-        ) : (
-          <p>
-            <Raw html={t("settings.domain_warning.stripe")} />
-          </p>
-        )}
+        {paymentProvider === "square"
+          ? rawParagraph("settings.domain_warning.square")
+          : rawParagraph("settings.domain_warning.stripe")}
       </aside>
     </article>
   );

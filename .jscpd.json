@@ -17,6 +17,7 @@
   ],
   "format": [
     "typescript",
+    "tsx",
     "json"
   ],
   "absolute": false,

@@ -79,6 +79,17 @@ export const getCheckedInStats = (allAttendees: Attendee[]): CheckedInStats => {
 const formatProgress = (done: number, total: number): string =>
   `${done} / ${total} ${t("detail_rows.mdash")} ${total - done} ${t("detail_rows.remain")}`;
 
+/** A progress DetailRow: `${t(labelKey)}${suffix}` keyed to "done / total …". */
+const progressRow = (
+  labelKey: string,
+  suffix: string,
+  done: number,
+  total: number,
+): DetailRow => ({
+  key: `${t(labelKey)}${suffix}`,
+  value: formatProgress(done, total),
+});
+
 /** Build the checked-in detail row(s) — splits into two when multi-quantity */
 const buildCheckedInRows = (
   stats: CheckedInStats,
@@ -86,20 +97,26 @@ const buildCheckedInRows = (
 ): DetailRow[] =>
   stats.hasMultiQuantity
     ? [
-        {
-          key: `${t("detail_rows.tickets_checked_in")}${suffix}`,
-          value: formatProgress(stats.rowsCheckedIn, stats.rowsTotal),
-        },
-        {
-          key: `${t("detail_rows.attendees_checked_in")}${suffix}`,
-          value: formatProgress(stats.ticketsCheckedIn, stats.ticketsTotal),
-        },
+        progressRow(
+          "detail_rows.tickets_checked_in",
+          suffix,
+          stats.rowsCheckedIn,
+          stats.rowsTotal,
+        ),
+        progressRow(
+          "detail_rows.attendees_checked_in",
+          suffix,
+          stats.ticketsCheckedIn,
+          stats.ticketsTotal,
+        ),
       ]
     : [
-        {
-          key: `${t("common.checked_in")}${suffix}`,
-          value: formatProgress(stats.ticketsCheckedIn, stats.ticketsTotal),
-        },
+        progressRow(
+          "common.checked_in",
+          suffix,
+          stats.ticketsCheckedIn,
+          stats.ticketsTotal,
+        ),
       ];
 
 // ---------------------------------------------------------------------------

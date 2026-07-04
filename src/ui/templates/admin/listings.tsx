@@ -83,6 +83,7 @@ import {
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
+import { DetailTable } from "#templates/components/detail-table.tsx";
 import {
   moneyPattern,
   PriceInput,
@@ -913,188 +914,179 @@ const ListingDetailsTable = ({
   const shareSuppressed = isChild || isHiddenPackageMember;
   return (
     <article>
-      <div class="table-scroll">
-        <table class="listing-details-table">
-          <tbody>
-            <tr>
-              <th colspan="2">{listing.name}</th>
-            </tr>
-            {listing.date && (
-              <tr>
-                <th>{t("listings_table.listing_date")}</th>
-                <td>
-                  <span>
-                    <a
-                      href={`/admin/calendar?date=${listing.date.slice(0, 10)}`}
-                    >
-                      {formatDatetimeLabel(listing.date)}
-                    </a>{" "}
-                    <small>
-                      <em>({formatCountdown(listing.date)})</em>
-                    </small>
-                  </span>
-                </td>
-              </tr>
+      <DetailTable>
+        <tr>
+          <th colspan="2">{listing.name}</th>
+        </tr>
+        {listing.date && (
+          <tr>
+            <th>{t("listings_table.listing_date")}</th>
+            <td>
+              <span>
+                <a href={`/admin/calendar?date=${listing.date.slice(0, 10)}`}>
+                  {formatDatetimeLabel(listing.date)}
+                </a>{" "}
+                <small>
+                  <em>({formatCountdown(listing.date)})</em>
+                </small>
+              </span>
+            </td>
+          </tr>
+        )}
+        {listing.location && (
+          <tr>
+            <th>{t("listings_table.location")}</th>
+            <td>{listing.location}</td>
+          </tr>
+        )}
+        <tr>
+          <th>{t("listings_table.listing_type")}</th>
+          <td>
+            {listing.listing_type === "daily"
+              ? t("listings_table.daily")
+              : t("listings_table.standard")}
+          </td>
+        </tr>
+        <ListingPriceRow listing={listing} />
+        {listing.customisable_days && <CustomisableDaysRow listing={listing} />}
+        {listing.months_per_unit > 0 && (
+          <tr>
+            <th>{t("listings_table.renewal")}</th>
+            <td>
+              {listing.months_per_unit} {t("listings_table.months_per_ticket")}
+            </td>
+          </tr>
+        )}
+        {listing.non_transferable && (
+          <tr>
+            <th>{t("listings_table.non_transferable")}</th>
+            <td>{t("listings_table.yes_id_verification_required")}</td>
+          </tr>
+        )}
+        {listing.hidden && (
+          <tr>
+            <th>{t("listings_table.hidden")}</th>
+            <td>{t("listings_table.yes_not_shown_in_public_list")}</td>
+          </tr>
+        )}
+        {listing.listing_type === "daily" && (
+          <DailyScheduleRows listing={listing} />
+        )}
+        <tr>
+          <th>{t("listings_table.registration_closes")}</th>
+          <td>
+            {listing.closes_at ? (
+              <span>
+                {formatDatetimeLabel(listing.closes_at)}{" "}
+                <small>
+                  <em>({formatCountdown(listing.closes_at)})</em>
+                </small>
+              </span>
+            ) : (
+              <em>{t("listings_table.no_deadline")}</em>
             )}
-            {listing.location && (
-              <tr>
-                <th>{t("listings_table.location")}</th>
-                <td>{listing.location}</td>
-              </tr>
-            )}
-            <tr>
-              <th>{t("listings_table.listing_type")}</th>
-              <td>
-                {listing.listing_type === "daily"
-                  ? t("listings_table.daily")
-                  : t("listings_table.standard")}
-              </td>
-            </tr>
-            <ListingPriceRow listing={listing} />
-            {listing.customisable_days && (
-              <CustomisableDaysRow listing={listing} />
-            )}
-            {listing.months_per_unit > 0 && (
-              <tr>
-                <th>{t("listings_table.renewal")}</th>
-                <td>
-                  {listing.months_per_unit}{" "}
-                  {t("listings_table.months_per_ticket")}
-                </td>
-              </tr>
-            )}
-            {listing.non_transferable && (
-              <tr>
-                <th>{t("listings_table.non_transferable")}</th>
-                <td>{t("listings_table.yes_id_verification_required")}</td>
-              </tr>
-            )}
-            {listing.hidden && (
-              <tr>
-                <th>{t("listings_table.hidden")}</th>
-                <td>{t("listings_table.yes_not_shown_in_public_list")}</td>
-              </tr>
-            )}
-            {listing.listing_type === "daily" && (
-              <DailyScheduleRows listing={listing} />
-            )}
-            <tr>
-              <th>{t("listings_table.registration_closes")}</th>
-              <td>
-                {listing.closes_at ? (
-                  <span>
-                    {formatDatetimeLabel(listing.closes_at)}{" "}
-                    <small>
-                      <em>({formatCountdown(listing.closes_at)})</em>
-                    </small>
-                  </span>
-                ) : (
-                  <em>{t("listings_table.no_deadline")}</em>
-                )}
-              </td>
-            </tr>
-            <PublicUrlRow
-              allowedDomain={allowedDomain}
-              isChild={isChild}
-              listing={listing}
-              shareSuppressed={shareSuppressed}
-              ticketUrl={ticketUrl}
-            />
-            {listing.thank_you_url && (
-              <tr>
-                <th>
-                  <label for={`thank-you-url-${listing.id}`}>
-                    {t("listings_table.thank_you_url")}
-                  </label>
-                </th>
-                <td>
-                  <input
-                    data-select-on-click
-                    id={`thank-you-url-${listing.id}`}
-                    readonly
-                    type="text"
-                    value={listing.thank_you_url}
-                  />
-                </td>
-              </tr>
-            )}
-            {listing.webhook_url && (
-              <tr>
-                <th>
-                  <label for={`webhook-url-${listing.id}`}>
-                    {t("listings_table.webhook_url")}
-                  </label>
-                </th>
-                <td>
-                  <input
-                    data-select-on-click
-                    id={`webhook-url-${listing.id}`}
-                    readonly
-                    type="text"
-                    value={listing.webhook_url}
-                  />
-                </td>
-              </tr>
-            )}
-            {!shareSuppressed && (
-              <tr class="listing-embed-row">
-                <th>
-                  <label for={`embed-script-${listing.id}`}>
-                    {t("common.embed_script")}
-                  </label>
-                </th>
-                <td>
-                  <input
-                    data-select-on-click
-                    id={`embed-script-${listing.id}`}
-                    readonly
-                    type="text"
-                    value={embedScriptCode}
-                  />
-                </td>
-              </tr>
-            )}
-            {!shareSuppressed && (
-              <tr class="listing-embed-row">
-                <th>
-                  <label for={`embed-iframe-${listing.id}`}>
-                    {t("common.embed_iframe")}
-                  </label>
-                </th>
-                <td>
-                  <input
-                    data-select-on-click
-                    id={`embed-iframe-${listing.id}`}
-                    readonly
-                    type="text"
-                    value={embedIframeCode}
-                  />
-                </td>
-              </tr>
-            )}
-            <AttendeesSummaryRow
-              adjustedCount={adjustedCount}
-              completeQuantitySum={completeQuantitySum}
-              dailySuffix={dailySuffix}
-              dateFilter={dateFilter}
-              isDaily={isDaily}
-              listing={listing}
-            />
-            {groupContext && (
-              <GroupAttendeesRow
-                dailySuffix={dailySuffix}
-                group={groupContext.group}
-                groupAttendeeCount={groupContext.attendeeCount}
+          </td>
+        </tr>
+        <PublicUrlRow
+          allowedDomain={allowedDomain}
+          isChild={isChild}
+          listing={listing}
+          shareSuppressed={shareSuppressed}
+          ticketUrl={ticketUrl}
+        />
+        {listing.thank_you_url && (
+          <tr>
+            <th>
+              <label for={`thank-you-url-${listing.id}`}>
+                {t("listings_table.thank_you_url")}
+              </label>
+            </th>
+            <td>
+              <input
+                data-select-on-click
+                id={`thank-you-url-${listing.id}`}
+                readonly
+                type="text"
+                value={listing.thank_you_url}
               />
-            )}
-            <ListingAggregateMismatchRow
-              aggregateRecalculation={aggregateRecalculation}
-              listing={listing}
-            />
-            <Raw html={sharedRowsHtml} />
-          </tbody>
-        </table>
-      </div>
+            </td>
+          </tr>
+        )}
+        {listing.webhook_url && (
+          <tr>
+            <th>
+              <label for={`webhook-url-${listing.id}`}>
+                {t("listings_table.webhook_url")}
+              </label>
+            </th>
+            <td>
+              <input
+                data-select-on-click
+                id={`webhook-url-${listing.id}`}
+                readonly
+                type="text"
+                value={listing.webhook_url}
+              />
+            </td>
+          </tr>
+        )}
+        {!shareSuppressed && (
+          <tr class="listing-embed-row">
+            <th>
+              <label for={`embed-script-${listing.id}`}>
+                {t("common.embed_script")}
+              </label>
+            </th>
+            <td>
+              <input
+                data-select-on-click
+                id={`embed-script-${listing.id}`}
+                readonly
+                type="text"
+                value={embedScriptCode}
+              />
+            </td>
+          </tr>
+        )}
+        {!shareSuppressed && (
+          <tr class="listing-embed-row">
+            <th>
+              <label for={`embed-iframe-${listing.id}`}>
+                {t("common.embed_iframe")}
+              </label>
+            </th>
+            <td>
+              <input
+                data-select-on-click
+                id={`embed-iframe-${listing.id}`}
+                readonly
+                type="text"
+                value={embedIframeCode}
+              />
+            </td>
+          </tr>
+        )}
+        <AttendeesSummaryRow
+          adjustedCount={adjustedCount}
+          completeQuantitySum={completeQuantitySum}
+          dailySuffix={dailySuffix}
+          dateFilter={dateFilter}
+          isDaily={isDaily}
+          listing={listing}
+        />
+        {groupContext && (
+          <GroupAttendeesRow
+            dailySuffix={dailySuffix}
+            group={groupContext.group}
+            groupAttendeeCount={groupContext.attendeeCount}
+          />
+        )}
+        <ListingAggregateMismatchRow
+          aggregateRecalculation={aggregateRecalculation}
+          listing={listing}
+        />
+        <Raw html={sharedRowsHtml} />
+      </DetailTable>
     </article>
   );
 };

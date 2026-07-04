@@ -7,6 +7,36 @@
 
 import { CsrfForm } from "#shared/forms.tsx";
 
+/** The reorder inputs shared by {@link ReorderArrows} and the per-table cells
+ *  that wrap it (e.g. `ReorderControls` in questions.tsx): a direction-to-path
+ *  builder plus the row's `index` within `count` rows. */
+export type ReorderProps = {
+  action: (direction: "up" | "down") => string;
+  index: number;
+  count: number;
+};
+
+/** The triangle glyph rendered on each direction's arrow button. */
+const ARROW_GLYPH = { down: "▼", up: "▲" } as const;
+
+/** One direction's reorder button — a tiny inline CSRF form. Rendered only
+ *  when the row can actually move that way (see {@link ReorderArrows}). */
+const ArrowButton = ({
+  action,
+  direction,
+  title,
+}: {
+  action: (direction: "up" | "down") => string;
+  direction: "up" | "down";
+  title?: string | undefined;
+}): JSX.Element => (
+  <CsrfForm action={action(direction)} class="inline">
+    <button class="link-button small" title={title} type="submit">
+      {ARROW_GLYPH[direction]}
+    </button>
+  </CsrfForm>
+);
+
 /** The arrows for the row at `index` of `count`. `action` builds the POST path
  * for a direction; `titles`, when given, adds a tooltip per arrow. */
 export const ReorderArrows = ({
@@ -14,26 +44,15 @@ export const ReorderArrows = ({
   index,
   count,
   titles,
-}: {
-  action: (direction: "up" | "down") => string;
-  index: number;
-  count: number;
+}: ReorderProps & {
   titles?: { up: string; down: string };
 }): JSX.Element => (
   <>
     {index > 0 && (
-      <CsrfForm action={action("up")} class="inline">
-        <button class="link-button small" title={titles?.up} type="submit">
-          &#9650;
-        </button>
-      </CsrfForm>
+      <ArrowButton action={action} direction="up" title={titles?.up} />
     )}{" "}
     {index < count - 1 && (
-      <CsrfForm action={action("down")} class="inline">
-        <button class="link-button small" title={titles?.down} type="submit">
-          &#9660;
-        </button>
-      </CsrfForm>
+      <ArrowButton action={action} direction="down" title={titles?.down} />
     )}
   </>
 );

@@ -56,6 +56,7 @@
     "npm:happy-dom@^15.11.7": "15.11.7",
     "npm:intl-messageformat@10": "10.7.18",
     "npm:jscpd@*": "4.0.8",
+    "npm:jscpd@4.0.8": "4.0.8",
     "npm:jsqr@^1.4.0": "1.4.0",
     "npm:liquidjs@^10.25.5": "10.25.7",
     "npm:mailgun.js@*": "13.2.0",

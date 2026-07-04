@@ -2,38 +2,17 @@
  * External order library toggle form for advanced settings.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
+import { booleanSettingsSection } from "#templates/admin/settings/boolean-settings-section.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
-import { SettingsSection } from "#templates/components/settings-section.tsx";
+/* jscpd:ignore-end */
 
-export const ExternalOrderForm = (
-  s: AdvancedSettingsPageState,
-): JSX.Element => (
-  <SettingsSection
-    action="/admin/settings/external-order"
-    description={<p>{t("settings.advanced.external_order_hint")}</p>}
-    submitLabel={t("common.save")}
-    title={t("settings.advanced.external_order")}
-  >
-    <fieldset class="radios">
-      <label>
-        <input
-          checked={s.externalOrderEnabled === true}
-          name="external_order_enabled"
-          type="radio"
-          value="true"
-        />
-        {t("common.yes")}
-      </label>
-      <label>
-        <input
-          checked={s.externalOrderEnabled !== true}
-          name="external_order_enabled"
-          type="radio"
-          value="false"
-        />
-        {t("common.no")}
-      </label>
-    </fieldset>
-  </SettingsSection>
-);
+export const ExternalOrderForm =
+  booleanSettingsSection<AdvancedSettingsPageState>({
+    action: "/admin/settings/external-order",
+    description: <p>{t("settings.advanced.external_order_hint")}</p>,
+    fieldName: "external_order_enabled",
+    title: t("settings.advanced.external_order"),
+    value: (s) => s.externalOrderEnabled,
+  });

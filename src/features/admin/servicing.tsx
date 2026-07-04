@@ -67,6 +67,9 @@ const listingsByIdMap = (
   listings: ListingWithCount[],
 ): Map<number, ListingWithCount> => new Map(listings.map((l) => [l.id, l]));
 
+const listingsByNameMap = (listings: ListingWithCount[]): Map<number, string> =>
+  new Map(listings.map((listing) => [listing.id, listing.name]));
+
 const activeListings = (listings: ListingWithCount[]): ListingWithCount[] =>
   listings.filter((listing) => listing.active);
 
@@ -173,9 +176,7 @@ const renderServicingPage = ({
   session: AuthSession;
 }): string => {
   const title = event ? event.name : "New service event";
-  const listingNames = new Map(
-    listings.map((listing) => [listing.id, listing.name]),
-  );
+  const listingNames = listingsByNameMap(listings);
   const action = event
     ? `/admin/servicing/${event.id}`
     : "/admin/servicing/new";
@@ -291,9 +292,7 @@ const serviceEventListRows = (
   events: Awaited<ReturnType<typeof getAllServicingEvents>>,
   listings: ListingWithCount[],
 ) => {
-  const listingNames = new Map(
-    listings.map((listing) => [listing.id, listing.name]),
-  );
+  const listingNames = listingsByNameMap(listings);
   // One row per service event: a multi-listing hold's listings are joined
   // inside the Listing cell, and its quantity is the event total — not one row
   // per booking line. JSX escapes each cell (the listing names are joined raw,
@@ -396,21 +395,22 @@ const loadEditPage = async (
   });
 };
 
-const handleServicingNewGet: TypedRouteHandler<"GET /admin/servicing/new"> = (
-  request,
-) =>
+const renderFlashHtml = (
+  request: Request,
+  render: (session: AuthSession) => Promise<string>,
+): Promise<Response> =>
   requireSessionOr(request, async (session) => {
     applyFlash(request);
-    return htmlResponse(await renderCreate(request, session));
+    return htmlResponse(await render(session));
   });
+
+const handleServicingNewGet: TypedRouteHandler<"GET /admin/servicing/new"> = (
+  request,
+) => renderFlashHtml(request, (session) => renderCreate(request, session));
 
 const handleServicingListGet: TypedRouteHandler<"GET /admin/servicing"> = (
   request,
-) =>
-  requireSessionOr(request, async (session) => {
-    applyFlash(request);
-    return htmlResponse(await renderServicingList(session));
-  });
+) => renderFlashHtml(request, renderServicingList);
 
 const handleServicingGet: TypedRouteHandler<"GET /admin/servicing/:id"> = (
   request,
@@ -507,26 +507,17 @@ const handleServicingPost: TypedRouteHandler<"POST /admin/servicing/:id"> = (
     if (!event) return notFoundResponse();
     const costResponse = await handleCostPost(id, form, event);
     if (costResponse) return costResponse;
-    try {
-      const updated = await updateServicingEvent(
-        id,
-        await parseCreateInput(form),
-      );
-      return redirect(
-        `/admin/servicing/${updated.id}`,
-        `Updated ${updated.name}`,
-        true,
-      );
-    } catch (err) {
-      return redirect(`/admin/servicing/${id}`, (err as Error).message, false);
-    }
+    return redirectServicingResult(
+      id,
+      async () => updateServicingEvent(id, await parseCreateInput(form)),
+      (updated) => `Updated ${updated.name}`,
+    );
   });
 
 const handleServicingDeletePost: TypedRouteHandler<
   "POST /admin/servicing/:id/delete"
 > = (request, { id }) =>
-  withAuth(request, AUTH_FORM, async () => {
-    if (!(await getServicingEvent(id))) return notFoundResponse();
+  withServicingEvent(request, id, async () => {
     await deleteServicingEvent(id);
     return redirect("/admin/", "Deleted service event", true);
   });
@@ -534,19 +525,13 @@ const handleServicingDeletePost: TypedRouteHandler<
 const handleServicingDuplicatePost: TypedRouteHandler<
   "POST /admin/servicing/:id/duplicate"
 > = (request, { id }) =>
-  withAuth(request, AUTH_FORM, async () => {
-    if (!(await getServicingEvent(id))) return notFoundResponse();
-    try {
-      const copy = await duplicateServicingEvent(id);
-      return redirect(
-        `/admin/servicing/${copy.id}`,
-        `Duplicated ${copy.name}`,
-        true,
-      );
-    } catch (err) {
-      return redirect(`/admin/servicing/${id}`, (err as Error).message, false);
-    }
-  });
+  withServicingEvent(request, id, async () =>
+    redirectServicingResult(
+      id,
+      () => duplicateServicingEvent(id),
+      (copy) => `Duplicated ${copy.name}`,
+    ),
+  );
 
 const handleServicingCostPost: TypedRouteHandler<
   "POST /admin/servicing/:id/cost/:costId"
@@ -567,6 +552,34 @@ const handleServicingCostPost: TypedRouteHandler<
     await editServiceCost(costId, { amount }, id);
     return redirect(`/admin/servicing/${id}`, "Updated service cost", true);
   });
+
+const withServicingEvent = (
+  request: Request,
+  id: number,
+  body: () => Promise<Response>,
+): Promise<Response> =>
+  withAuth(request, AUTH_FORM, async () => {
+    const existing = await getServicingEvent(id);
+    if (!existing) return notFoundResponse();
+    return body();
+  });
+
+const redirectServicingResult = async <T extends { id: number; name: string }>(
+  id: number,
+  action: () => Promise<T>,
+  successMessage: (result: T) => string,
+): Promise<Response> => {
+  try {
+    const result = await action();
+    return redirect(
+      `/admin/servicing/${result.id}`,
+      successMessage(result),
+      true,
+    );
+  } catch (err) {
+    return redirect(`/admin/servicing/${id}`, (err as Error).message, false);
+  }
+};
 
 export const servicingRoutes = defineRoutes({
   "GET /admin/servicing": handleServicingListGet,

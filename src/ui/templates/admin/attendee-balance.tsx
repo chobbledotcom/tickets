@@ -9,6 +9,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { OrderSummary } from "#shared/db/attendees/balance.ts";
+import { AmountLine } from "#templates/public/shared.tsx";
 
 export type AttendeeBalanceView = {
   status: AttendeeStatus | null;
@@ -40,14 +41,14 @@ export const AttendeeBalancePanel = (
           <strong>{t("attendee_balance.status_label")}</strong>{" "}
           {status ? status.name : "—"}
         </p>
-        <p>
-          <strong>{t("attendee_balance.full_order_price_label")}</strong>{" "}
-          {formatCurrency(summary.fullPrice)}
-        </p>
-        <p>
-          <strong>{t("attendee_balance.paid_so_far_label")}</strong>{" "}
-          {formatCurrency(summary.depositPaid)}
-        </p>
+        <AmountLine
+          amount={summary.fullPrice}
+          label={t("attendee_balance.full_order_price_label")}
+        />
+        <AmountLine
+          amount={summary.depositPaid}
+          label={t("attendee_balance.paid_so_far_label")}
+        />
         {status?.is_reservation && (
           <p>
             <strong>

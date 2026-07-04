@@ -12,16 +12,12 @@ import { settings } from "#shared/db/settings.ts";
 import { DEMO_BANNER, isDemoMode } from "#shared/demo.ts";
 import { flashConsumed, getFlash } from "#shared/flash-context.ts";
 import { Flash } from "#shared/forms.tsx";
+import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import type { Theme } from "#shared/types.ts";
 import { renderAdminFooter } from "#templates/admin/footer.tsx";
 
-export const escapeHtml = (str: string): string =>
-  str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+export { escapeHtml };
 
 interface LayoutProps {
   bodyClass?: string | undefined;

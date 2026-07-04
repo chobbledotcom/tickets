@@ -5,6 +5,7 @@
  * contact's aggregated history directly — the hidden DB row made malleable.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import type { ContactRecord } from "#shared/db/contact-preferences.ts";
@@ -13,9 +14,9 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AttendeesPageLayout } from "#templates/admin/attendee-form.tsx";
 import { FORMATTING_HINT } from "#templates/fields.ts";
-import { Layout } from "#templates/layout.tsx";
+/* jscpd:ignore-end */
 
 export type ContactHistoryPageData = {
   /** The contact's HMAC blind index (contact_hash), also the route param. */
@@ -53,17 +54,18 @@ export const contactHistoryPage = ({
   formError,
 }: ContactHistoryPageData): string =>
   String(
-    <Layout title={t("contact_history.title")}>
-      <AdminNav active="/admin/attendees" session={session} />
-
-      <div class="prose">
-        <h1>{t("contact_history.title")}</h1>
-        <p>{t("contact_history.description")}</p>
-        <p class="muted small">
-          {t("contact_history.hash_label")}: <code>{hmac}</code>
-        </p>
-      </div>
-
+    <AttendeesPageLayout
+      prose={
+        <>
+          <p>{t("contact_history.description")}</p>
+          <p class="muted small">
+            {t("contact_history.hash_label")}: <code>{hmac}</code>
+          </p>
+        </>
+      }
+      session={session}
+      title={t("contact_history.title")}
+    >
       <CsrfForm action={`/admin/history/${hmac}`} id="contact-history-form">
         <Flash error={flashError} success={flashSuccess} />
         {formError && (
@@ -134,5 +136,5 @@ export const contactHistoryPage = ({
           </button>
         </p>
       </CsrfForm>
-    </Layout>,
+    </AttendeesPageLayout>,
   );
