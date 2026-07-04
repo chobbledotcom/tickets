@@ -6,6 +6,7 @@
 import { t } from "#i18n";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
+import { TextField } from "#templates/components/text-field.tsx";
 /* jscpd:ignore-end */
 
 export const BusinessEmailForm = (s: SettingsPageState): JSX.Element => (
@@ -15,15 +16,12 @@ export const BusinessEmailForm = (s: SettingsPageState): JSX.Element => (
     submitLabel={t("settings.save_business_email")}
     title={t("settings.business_email")}
   >
-    <label>
-      {t("settings.business_email")}
-      <input
-        autocomplete="off"
-        name="business_email"
-        placeholder="contact@example.com"
-        type="email"
-        value={s.businessEmail}
-      />
-    </label>
+    <TextField
+      label={t("settings.business_email")}
+      name="business_email"
+      placeholder="contact@example.com"
+      type="email"
+      value={s.businessEmail}
+    />
   </SettingsSection>
 );

@@ -24,6 +24,10 @@ import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
+import {
+  SelectField,
+  type SelectOption,
+} from "#templates/components/select-field.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /* jscpd:ignore-end */
@@ -94,29 +98,19 @@ const csvHref = (listingId: number | null, type: ListingFilter): string =>
 const typeFilterHref = (type: ListingFilter, sortOrder: AttendeeSort): string =>
   pageHref(null, type, sortOrder, 0);
 
-/** Listing <option>s sorted by name, deactivated listings flagged inline */
-const ListingOptions = ({
-  listings,
-  selectedId,
-}: {
-  listings: ListingWithCount[];
-  selectedId: number | null;
-}): JSX.Element => {
+/** Listing options sorted by name, deactivated listings flagged inline, with a
+ * leading "all listings" entry. */
+const listingOptions = (listings: ListingWithCount[]): SelectOption[] => {
   const sorted = sort((a: ListingWithCount, b: ListingWithCount) =>
     a.name.localeCompare(b.name),
   )(listings);
-  return (
-    <>
-      <option selected={selectedId === null} value="">
-        {t("attendees_list.all_listings")}
-      </option>
-      {sorted.map((e) => (
-        <option selected={e.id === selectedId} value={String(e.id)}>
-          {e.active ? e.name : `${e.name} ${t("attendees_list.deactivated")}`}
-        </option>
-      ))}
-    </>
-  );
+  return [
+    { label: t("attendees_list.all_listings"), value: "" },
+    ...sorted.map((e) => ({
+      label: e.active ? e.name : `${e.name} ${t("attendees_list.deactivated")}`,
+      value: String(e.id),
+    })),
+  ];
 };
 
 /** Filter + sort form — a plain GET form so results stay bookmarkable */
@@ -132,20 +126,22 @@ const FilterForm = ({
   <form action="/admin/attendees" class="filter-row" method="get">
     <label>
       {t("terms.listing")}
-      <select name="listing">
-        <ListingOptions listings={listings} selectedId={listingId} />
-      </select>
+      <SelectField
+        name="listing"
+        options={listingOptions(listings)}
+        value={listingId === null ? "" : String(listingId)}
+      />
     </label>
     <label>
       {t("attendees_list.sort")}
-      <select name="sort">
-        <option selected={sortOrder === "newest"} value="newest">
-          {t("attendees_list.newest_first")}
-        </option>
-        <option selected={sortOrder === "oldest"} value="oldest">
-          {t("attendees_list.oldest_first")}
-        </option>
-      </select>
+      <SelectField
+        name="sort"
+        options={[
+          { label: t("attendees_list.newest_first"), value: "newest" },
+          { label: t("attendees_list.oldest_first"), value: "oldest" },
+        ]}
+        value={sortOrder}
+      />
     </label>
     <button type="submit">{t("attendees_list.apply")}</button>
   </form>

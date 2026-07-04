@@ -22,6 +22,7 @@ import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
+import { SelectField } from "#templates/components/select-field.tsx";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -58,17 +59,15 @@ const BoolControl = ({
 }): JSX.Element => (
   <label>
     {labelFor(field)}
-    <select name={inputName(field)}>
-      <option selected={value === undefined} value="">
-        {t("listing_defaults.no_default")}
-      </option>
-      <option selected={value === true} value="1">
-        {t("listing_defaults.bool_yes")}
-      </option>
-      <option selected={value === false} value="0">
-        {t("listing_defaults.bool_no")}
-      </option>
-    </select>
+    <SelectField
+      name={inputName(field)}
+      options={[
+        { label: t("listing_defaults.no_default"), value: "" },
+        { label: t("listing_defaults.bool_yes"), value: "1" },
+        { label: t("listing_defaults.bool_no"), value: "0" },
+      ]}
+      value={value === undefined ? "" : value === true ? "1" : "0"}
+    />
     <small>{hintFor(field)}</small>
   </label>
 );

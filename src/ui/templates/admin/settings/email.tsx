@@ -8,7 +8,9 @@ import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#shared/email.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { SelectField } from "#templates/components/select-field.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
+import { TextField } from "#templates/components/text-field.tsx";
 
 export const EmailNotificationsForm = (
   s: AdvancedSettingsPageState,
@@ -27,37 +29,35 @@ export const EmailNotificationsForm = (
     >
       <label>
         {t("settings.advanced.email_provider")}
-        <select name="email_provider">
-          <option selected={!s.emailProvider} value="">
-            {s.hostEmailLabel || t("settings.advanced.email_none")}
-          </option>
-          {VALID_EMAIL_PROVIDERS.map((p) => (
-            <option selected={s.emailProvider === p} value={p}>
-              {EMAIL_PROVIDER_LABELS[p]}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        {t("settings.advanced.api_key")}
-        <input
-          autocomplete="off"
-          name="email_api_key"
-          placeholder={t("settings.advanced.api_key_placeholder")}
-          type="password"
-          value={s.emailApiKeyConfigured ? MASK_SENTINEL : undefined}
+        <SelectField
+          name="email_provider"
+          options={[
+            {
+              label: s.hostEmailLabel || t("settings.advanced.email_none"),
+              value: "",
+            },
+            ...VALID_EMAIL_PROVIDERS.map((p) => ({
+              label: EMAIL_PROVIDER_LABELS[p],
+              value: p,
+            })),
+          ]}
+          value={s.emailProvider}
         />
       </label>
-      <label>
-        {t("settings.advanced.from_address")}
-        <input
-          autocomplete="off"
-          name="email_from_address"
-          placeholder={s.businessEmail || "tickets@yourdomain.com"}
-          type="email"
-          value={s.emailFromAddress}
-        />
-      </label>
+      <TextField
+        label={t("settings.advanced.api_key")}
+        name="email_api_key"
+        placeholder={t("settings.advanced.api_key_placeholder")}
+        type="password"
+        value={s.emailApiKeyConfigured ? MASK_SENTINEL : undefined}
+      />
+      <TextField
+        label={t("settings.advanced.from_address")}
+        name="email_from_address"
+        placeholder={s.businessEmail || "tickets@yourdomain.com"}
+        type="email"
+        value={s.emailFromAddress}
+      />
     </SettingsSection>
     {s.emailProvider && (
       <CsrfForm action="/admin/settings/email/test" id="settings-email-test">

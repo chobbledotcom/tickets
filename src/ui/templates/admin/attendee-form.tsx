@@ -64,6 +64,10 @@ import { EditQuestions } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Icon } from "#templates/components/actions.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
+import {
+  SelectField,
+  type SelectOption,
+} from "#templates/components/select-field.tsx";
 import { PHONE_INPUT_PATTERN } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -374,11 +378,8 @@ const LogisticsSection = ({
 
 /** Option list for the day-count select: 1…horizon, each labelled with the
  * resulting end date when a start date is known. */
-const dayCountOptions = (
-  startDate: string,
-  selected: number,
-): JSX.Element[] => {
-  const options: JSX.Element[] = [];
+const dayCountOptions = (startDate: string): SelectOption[] => {
+  const options: SelectOption[] = [];
   for (let n = 1; n <= MAX_DURATION_DAYS; n++) {
     const label = startDate
       ? t("attendee_form.day_count_option_with_end", {
@@ -386,11 +387,7 @@ const dayCountOptions = (
           end: formatDateLabel(addDays(startDate, n - 1)),
         })
       : t("attendee_form.day_count_option", { count: n });
-    options.push(
-      <option selected={n === selected} value={n}>
-        {label}
-      </option>,
-    );
+    options.push({ label, value: String(n) });
   }
   return options;
 };
@@ -437,9 +434,12 @@ const SharedDateFields = ({
       </output>
       <label data-day-count-label for={DAY_COUNT_FIELD}>
         {t("attendee_form.length")}
-        <select id={DAY_COUNT_FIELD} name={DAY_COUNT_FIELD}>
-          {dayCountOptions(data.parsed.startDate, data.parsed.dayCount)}
-        </select>
+        <SelectField
+          id={DAY_COUNT_FIELD}
+          name={DAY_COUNT_FIELD}
+          options={dayCountOptions(data.parsed.startDate)}
+          value={String(data.parsed.dayCount)}
+        />
       </label>
     </>
   );
@@ -469,13 +469,15 @@ const StatusAndBalanceFields = ({
       ) : (
         <label for={STATUS_FIELD}>
           {t("common.status")}
-          <select id={STATUS_FIELD} name={STATUS_FIELD}>
-            {data.statuses.map((s) => (
-              <option selected={s.id === selectedId} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+          <SelectField
+            id={STATUS_FIELD}
+            name={STATUS_FIELD}
+            options={data.statuses.map((s) => ({
+              label: s.name,
+              value: String(s.id),
+            }))}
+            value={String(selectedId)}
+          />
         </label>
       )}
       <label for={REMAINING_BALANCE_FIELD}>

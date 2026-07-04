@@ -34,6 +34,7 @@ import {
   ReorderArrows,
   type ReorderProps,
 } from "#templates/components/reorder.tsx";
+import { SelectField } from "#templates/components/select-field.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { answerAggregateFields } from "#templates/fields.ts";
 
@@ -192,20 +193,14 @@ export const adminQuestionPage = (
         ) : (
           <label>
             Display as
-            <select name="display_type">
-              <option
-                selected={question.display_type === "radio"}
-                value="radio"
-              >
-                Radio buttons
-              </option>
-              <option
-                selected={question.display_type === "select"}
-                value="select"
-              >
-                Select box
-              </option>
-            </select>
+            <SelectField
+              name="display_type"
+              options={[
+                { label: "Radio buttons", value: "radio" },
+                { label: "Select box", value: "select" },
+              ]}
+              value={question.display_type}
+            />
           </label>
         )}
         <SubmitButton icon="save">{t("questions.edit.update")}</SubmitButton>
@@ -416,16 +411,15 @@ export const adminAnswerEditPage = (
         <Raw html={answerTextForm.render({ text: answer.text })} />
         <label>
           {t("questions.edit_answer.modifier_label")}
-          <select id="modifier_id" name="modifier_id">
-            <option selected={modifierId === null} value="">
-              {t("questions.edit_answer.modifier_none")}
-            </option>
-            {modifiers.map((m) => (
-              <option selected={m.id === modifierId} value={String(m.id)}>
-                {m.name}
-              </option>
-            ))}
-          </select>
+          <SelectField
+            id="modifier_id"
+            name="modifier_id"
+            options={[
+              { label: t("questions.edit_answer.modifier_none"), value: "" },
+              ...modifiers.map((m) => ({ label: m.name, value: String(m.id) })),
+            ]}
+            value={modifierId === null ? "" : String(modifierId)}
+          />
           <small>{t("questions.edit_answer.modifier_hint")}</small>
         </label>
         <label>

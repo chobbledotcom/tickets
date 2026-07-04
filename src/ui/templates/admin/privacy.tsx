@@ -17,6 +17,7 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { ORPHAN_RETENTION_OPTIONS } from "#shared/orphan-retention.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { SelectField } from "#templates/components/select-field.tsx";
 /* jscpd:ignore-end */
 
 export type PrivacyPageData = {
@@ -35,13 +36,14 @@ export type PrivacyPageData = {
 const RetentionSelect = ({ selected }: { selected: string }): JSX.Element => (
   <label>
     {t("privacy.orphans.retention_label")}
-    <select name="retention">
-      {ORPHAN_RETENTION_OPTIONS.map((option) => (
-        <option selected={option.value === selected} value={option.value}>
-          {t(option.labelKey)}
-        </option>
-      ))}
-    </select>
+    <SelectField
+      name="retention"
+      options={ORPHAN_RETENTION_OPTIONS.map((option) => ({
+        label: t(option.labelKey),
+        value: option.value,
+      }))}
+      value={selected}
+    />
   </label>
 );
 
@@ -91,10 +93,14 @@ const EraseForm = (): JSX.Element => (
     </div>
     <label>
       {t("privacy.erase.type_label")}
-      <select name="contact_type">
-        <option value="email">{t("privacy.erase.type_email")}</option>
-        <option value="sms">{t("privacy.erase.type_phone")}</option>
-      </select>
+      <SelectField
+        name="contact_type"
+        options={[
+          { label: t("privacy.erase.type_email"), value: "email" },
+          { label: t("privacy.erase.type_phone"), value: "sms" },
+        ]}
+        value=""
+      />
     </label>
     <label>
       {t("privacy.erase.identifier_label")}
