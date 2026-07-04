@@ -2,16 +2,22 @@
  * Admin API keys page template
  */
 
+/* jscpd:ignore-start */
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { apiKeyForm } from "#routes/admin/api-keys.ts";
 import type { EndpointDoc } from "#shared/admin-api-example.ts";
-import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
+import { CsrfForm, Flash } from "#shared/forms.tsx";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { DeleteSection, SubmitButton } from "#templates/components/actions.tsx";
-import { Layout } from "#templates/layout.tsx";
+import { DataTable, textColumns } from "#templates/components/data-table.tsx";
+import { DetailTable } from "#templates/components/detail-table.tsx";
+
+/* jscpd:ignore-end */
 
 type ApiKeyDisplay = {
   id: number;
@@ -20,18 +26,24 @@ type ApiKeyDisplay = {
   lastUsed: string;
 };
 
+/** Render a last-used date, or "never" when the key has not been used. */
+const lastUsedCell = (apiKey: ApiKeyDisplay): string =>
+  apiKey.lastUsed
+    ? new Date(apiKey.lastUsed).toLocaleDateString()
+    : t("api_keys.never");
+
+/** Render a created date as a locale-formatted date string. */
+const createdCell = (apiKey: ApiKeyDisplay): string =>
+  new Date(apiKey.created).toLocaleDateString();
+
 const ApiKeyRow = ({ apiKey }: { apiKey: ApiKeyDisplay }): string =>
   String(
     <tr>
       <td>
         <a href={`/admin/api-keys/${apiKey.id}`}>{apiKey.name}</a>
       </td>
-      <td>{new Date(apiKey.created).toLocaleDateString()}</td>
-      <td>
-        {apiKey.lastUsed
-          ? new Date(apiKey.lastUsed).toLocaleDateString()
-          : t("api_keys.never")}
-      </td>
+      <td>{createdCell(apiKey)}</td>
+      <td>{lastUsedCell(apiKey)}</td>
     </tr>,
   );
 
@@ -56,8 +68,11 @@ export const adminApiKeysPage = (
       : `<tr><td colspan="3">${t("api_keys.no_keys")}</td></tr>`;
 
   return String(
-    <Layout title={t("api_keys.title")}>
-      <AdminNav active="/admin/users" session={adminSession} />
+    <AdminPage
+      active="/admin/users"
+      session={adminSession}
+      title={t("api_keys.title")}
+    >
       <Flash error={opts.error} success={opts.success} />
 
       {opts.newKey && (
@@ -77,20 +92,14 @@ export const adminApiKeysPage = (
         documentation.
       </p>
 
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>{t("common.name")}</th>
-              <th>{t("common.created")}</th>
-              <th>{t("api_keys.col.last_used")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Raw html={keyRows} />
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={textColumns(
+          "common.name",
+          "common.created",
+          "api_keys.col.last_used",
+        )}
+        rows={keyRows}
+      />
 
       <br />
 
@@ -99,7 +108,7 @@ export const adminApiKeysPage = (
         <Raw html={apiKeyForm.render()} />
         <SubmitButton icon="plus">{t("api_keys.create_submit")}</SubmitButton>
       </CsrfForm>
-    </Layout>,
+    </AdminPage>,
   );
 };
 
@@ -115,35 +124,30 @@ export const adminApiKeyManagePage = (
   opts: { error?: string | undefined; success?: string | undefined } = {},
 ): string =>
   String(
-    <Layout title={`${t("api_keys.title")}: ${apiKey.name}`}>
-      <AdminNav active="/admin/users" session={session} />
+    <AdminPage
+      active="/admin/users"
+      session={session}
+      title={`${t("api_keys.title")}: ${apiKey.name}`}
+    >
       <h1>{apiKey.name}</h1>
       <Flash error={opts.error} success={opts.success} />
-      <div class="table-scroll">
-        <table class="listing-details-table">
-          <tbody>
-            <tr>
-              <th>{t("common.created")}</th>
-              <td>{new Date(apiKey.created).toLocaleDateString()}</td>
-            </tr>
-            <tr>
-              <th>{t("api_keys.col.last_used")}</th>
-              <td>
-                {apiKey.lastUsed
-                  ? new Date(apiKey.lastUsed).toLocaleDateString()
-                  : t("api_keys.never")}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <DetailTable>
+        <tr>
+          <th>{t("common.created")}</th>
+          <td>{createdCell(apiKey)}</td>
+        </tr>
+        <tr>
+          <th>{t("api_keys.col.last_used")}</th>
+          <td>{lastUsedCell(apiKey)}</td>
+        </tr>
+      </DetailTable>
       <DeleteSection
         heading={t("common.delete")}
         href={`/admin/api-keys/${apiKey.id}/delete`}
       >
         {t("api_keys.delete_submit")}
       </DeleteSection>
-    </Layout>,
+    </AdminPage>,
   );
 
 /**
@@ -153,21 +157,45 @@ export const adminDeleteApiKeyPage = (
   apiKey: { id: number; name: string },
   session: AdminSession,
 ): string =>
-  String(
-    <Layout title={`Delete: ${apiKey.name}`}>
-      <AdminNav active="/admin/users" session={session} />
-
-      <ConfirmForm
-        action={`/admin/api-keys/${apiKey.id}/delete`}
-        buttonText={t("api_keys.delete_submit")}
-        label={t("api_keys.delete_label")}
-        name={apiKey.name}
-      >
+  ConfirmPage({
+    action: `/admin/api-keys/${apiKey.id}/delete`,
+    active: "/admin/users",
+    buttonText: t("api_keys.delete_submit"),
+    children: (
+      <>
         <p>{t("api_keys.delete_warning")}</p>
         <p>{t("api_keys.delete_confirm", { name: apiKey.name })}</p>
-      </ConfirmForm>
-    </Layout>,
-  );
+      </>
+    ),
+    label: t("api_keys.delete_label"),
+    name: apiKey.name,
+    session,
+    title: `Delete: ${apiKey.name}`,
+  });
+
+/** A `<pre><code>…</code></pre>` block — the request/response payload
+ *  container shared by every endpoint entry. */
+const CodeBlock = ({ children }: { children: Child }): JSX.Element => (
+  <pre>
+    <code>{children}</code>
+  </pre>
+);
+
+/** A labelled payload section: "<strong>Label:</strong>" then the code block. */
+const PayloadBlock = ({
+  label,
+  body,
+}: {
+  label: string;
+  body: string;
+}): JSX.Element => (
+  <>
+    <p>
+      <strong>{label}</strong>
+    </p>
+    <CodeBlock>{body}</CodeBlock>
+  </>
+);
 
 const EndpointEntry = ({ endpoint }: { endpoint: EndpointDoc }): string =>
   String(
@@ -179,21 +207,9 @@ const EndpointEntry = ({ endpoint }: { endpoint: EndpointDoc }): string =>
         &mdash; {endpoint.description}
       </summary>
       {endpoint.request && (
-        <>
-          <p>
-            <strong>Request:</strong>
-          </p>
-          <pre>
-            <code>{endpoint.request}</code>
-          </pre>
-        </>
+        <PayloadBlock body={endpoint.request} label="Request:" />
       )}
-      <p>
-        <strong>Response:</strong>
-      </p>
-      <pre>
-        <code>{endpoint.response}</code>
-      </pre>
+      <PayloadBlock body={endpoint.response} label="Response:" />
     </details>,
   );
 
@@ -202,6 +218,25 @@ const EndpointList = ({ endpoints }: { endpoints: EndpointDoc[] }): string =>
     map((e: EndpointDoc) => EndpointEntry({ endpoint: e })),
     joinStrings,
   )(endpoints);
+
+/** A `<div class="stack-md column">` section with a prose heading + intro,
+ *  followed by arbitrary body content. The docs page renders three of these
+ *  (authentication, public API, admin API) with the same shell. */
+type DocsSectionProps = {
+  heading: string;
+  intro: Child;
+  children?: Child;
+};
+
+const DocsSection = (props: DocsSectionProps): JSX.Element => (
+  <div class="stack-md column">
+    <div class="prose">
+      <h3>{props.heading}</h3>
+      <p>{props.intro}</p>
+    </div>
+    {props.children}
+  </div>
+);
 
 /**
  * Admin API documentation page
@@ -212,41 +247,38 @@ export const adminApiDocsPage = (
   adminEndpoints: EndpointDoc[],
 ): string =>
   String(
-    <Layout title={t("api_keys.docs_title")}>
-      <AdminNav active="/admin/users" session={session} />
-      <div class="stack-md column">
-        <div class="prose">
-          <h3>{t("api_keys.authentication")}</h3>
-          <p>
-            Admin API endpoints require authentication via API key or session
-            cookie:
-          </p>
-        </div>
-        <pre>
-          <code>Authorization: Bearer YOUR_API_KEY</code>
-        </pre>
+    <AdminPage
+      active="/admin/users"
+      session={session}
+      title={t("api_keys.docs_title")}
+    >
+      <DocsSection
+        heading={t("api_keys.authentication")}
+        intro="Admin API endpoints require authentication via API key or session cookie:"
+      >
+        <CodeBlock>Authorization: Bearer YOUR_API_KEY</CodeBlock>
         <p>
           Public API endpoints require no authentication. All responses are
           JSON.
         </p>
-      </div>
+      </DocsSection>
 
-      <div class="stack-md column">
-        <div class="prose">
-          <h3>{t("api_keys.public_api")}</h3>
-          <p>{t("api_keys.public_api_note")}</p>
-        </div>
+      <DocsSection
+        heading={t("api_keys.public_api")}
+        intro={t("api_keys.public_api_note")}
+      >
         <Raw html={EndpointList({ endpoints: publicEndpoints })} />
-      </div>
+      </DocsSection>
 
-      <div class="stack-md column">
-        <div class="prose">
-          <h3>{t("api_keys.admin_api")}</h3>
-          <p>
+      <DocsSection
+        heading={t("api_keys.admin_api")}
+        intro={
+          <>
             Requires <code>Authorization: Bearer YOUR_API_KEY</code> header.
-          </p>
-        </div>
+          </>
+        }
+      >
         <Raw html={EndpointList({ endpoints: adminEndpoints })} />
-      </div>
-    </Layout>,
+      </DocsSection>
+    </AdminPage>,
   );

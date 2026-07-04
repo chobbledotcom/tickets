@@ -12,7 +12,8 @@
     "**/deno.lock"
   ],
   "format": [
-    "typescript"
+    "typescript",
+    "tsx"
   ],
   "absolute": false,
   "gitignore": true,

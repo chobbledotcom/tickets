@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import { formatDateLabel, formatDatetimeLabel } from "#shared/dates.ts";
@@ -5,12 +6,13 @@ import { isReadOnly } from "#shared/env.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { Group } from "#shared/types.ts";
-import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { escapeHtml } from "#templates/layout.tsx";
 import {
-  FEED_DISCOVERY_TAGS,
-  LoginFooter,
-  PublicNav,
+  compareGroupsByName,
+  PackagesSection,
   type PublicNavProps,
+  /* jscpd:ignore-end */
+  publicPage,
   type TicketListing,
 } from "./shared.tsx";
 
@@ -172,7 +174,7 @@ const renderGroupListing = (group: Group): string => {
  */
 export const homepagePage = (
   listings: TicketListing[],
-  websiteTitle: string | null | undefined,
+  websiteTitle: string,
   groups: Group[],
   childStateOf: (id: number) => ChildCardState,
   dateFilter: DailyDateFilter | null,
@@ -184,47 +186,47 @@ export const homepagePage = (
     : listingsTitle;
 
   if (listings.length === 0 && groups.length === 0) {
-    return String(
-      <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
-        {websiteTitle && <h1>{websiteTitle}</h1>}
-        <PublicNav {...nav} />
-        <p>
-          <em>{t("public.no_listings_listed")}</em>
-        </p>
-        <LoginFooter />
-      </Layout>,
+    return publicPage(
+      title,
+      websiteTitle,
+      nav,
+    )(
+      <p>
+        <em>{t("public.no_listings_listed")}</em>
+      </p>,
     );
   }
 
   // Packages are sold as bundles, so they lead the page under their own heading;
   // regular groups and individual listings follow together. Each set is sorted by
   // decrypted name in app code (SQL can't order the encrypted column).
-  const byName = (a: Group, b: Group): number => a.name.localeCompare(b.name);
   const renderGroupCards = (gs: Group[]): string =>
     pipe(map(renderGroupListing), (rows) => rows.join(""))(gs);
-  const packageGroups = groups.filter((g) => g.is_package).toSorted(byName);
-  const regularGroups = groups.filter((g) => !g.is_package).toSorted(byName);
+  const packageGroups = groups
+    .filter((g) => g.is_package)
+    .toSorted(compareGroupsByName);
+  const regularGroups = groups
+    .filter((g) => !g.is_package)
+    .toSorted(compareGroupsByName);
 
   const listingListings = pipe(
     map(renderListingListing(childStateOf, dateFilter)),
     (rows) => rows.join(""),
   )(listings);
 
-  return String(
-    <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
-      {websiteTitle && <h1>{websiteTitle}</h1>}
-      <PublicNav {...nav} />
+  return publicPage(
+    title,
+    websiteTitle,
+    nav,
+  )(
+    <>
       {dateFilter !== null && <Raw html={renderDateFilter(dateFilter)} />}
-      {packageGroups.length > 0 && (
-        <>
-          <h2>{t("public.packages")}</h2>
-          <Raw html={renderGroupCards(packageGroups)} />
-        </>
-      )}
+      <PackagesSection groups={packageGroups}>
+        <Raw html={renderGroupCards(packageGroups)} />
+      </PackagesSection>
       <h2>{t("public.all_bookable_listings")}</h2>
       <Raw html={renderGroupCards(regularGroups)} />
       <Raw html={listingListings} />
-      <LoginFooter />
-    </Layout>,
+    </>,
   );
 };

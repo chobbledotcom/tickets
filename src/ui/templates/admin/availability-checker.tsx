@@ -15,8 +15,9 @@ import { sort } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { SELECT_PREFIX, START_DATE_FIELD } from "#shared/order-select.ts";
-import { Icon } from "#templates/components/actions.tsx";
+import { DataTable } from "#templates/components/data-table.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
+import { OrderCartButtonBody } from "#templates/public/order-gallery.tsx";
 
 /** One row of the availability table: a bookable listing and its remaining
  * capacity for the selected date (or overall when no date is selected). */
@@ -97,49 +98,40 @@ export const AvailabilityChecker = ({
           method="get"
         >
           {date && <input name={START_DATE_FIELD} type="hidden" value={date} />}
-          <div class="table-scroll">
-            <table class="availability-table">
-              <thead>
-                <tr>
-                  <th>
-                    <span class="visually-hidden">
-                      {t("availability.select")}
-                    </span>
-                  </th>
-                  <th>{t("availability.listing")}</th>
-                  <th class={colClass("quantity")}>
-                    {t("availability.remaining")}
-                  </th>
-                  <th class={colClass("amount")}>{t("availability.price")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sort((a: AvailabilityRow, b: AvailabilityRow) =>
-                  a.name.localeCompare(b.name),
-                )(rows).map((row) => (
-                  <Row row={row} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={[
+              {
+                header: (
+                  <span class="visually-hidden">
+                    {t("availability.select")}
+                  </span>
+                ),
+              },
+              { header: t("availability.listing") },
+              { class: "quantity", header: t("availability.remaining") },
+              { class: "amount", header: t("availability.price") },
+            ]}
+            rows={sort((a: AvailabilityRow, b: AvailabilityRow) =>
+              a.name.localeCompare(b.name),
+            )(rows).map((row) => <Row row={row} />)}
+            tableClass="availability-table"
+          />
           <div class="order-actions">
             <button class="order-cart" type="submit">
-              <Icon name="user-plus" />
-              <span aria-hidden="true" class="order-cart-count"></span>
-              <span class="order-cart-label">
-                {t("availability.create_attendee")}
-              </span>
+              <OrderCartButtonBody
+                icon="user-plus"
+                label={t("availability.create_attendee")}
+              />
             </button>
             <button
               class="order-cart"
               formaction="/admin/servicing/new"
               type="submit"
             >
-              <Icon name="hammer" />
-              <span aria-hidden="true" class="order-cart-count"></span>
-              <span class="order-cart-label">
-                {t("availability.create_service_event")}
-              </span>
+              <OrderCartButtonBody
+                icon="hammer"
+                label={t("availability.create_service_event")}
+              />
             </button>
           </div>
         </form>

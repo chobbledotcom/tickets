@@ -6,7 +6,7 @@ import { t } from "#i18n";
 import { joinForm } from "#routes/join.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { ActionButton } from "#templates/components/actions.tsx";
+import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /**
@@ -35,20 +35,12 @@ export const joinPage = (
  * Join complete page - password set and account self-activated, ready to log in
  */
 export const joinCompletePage = (): string =>
-  String(
-    <Layout title={t("join.success.title")}>
-      <h1>{t("join.success.heading")}</h1>
-      <div class="success" role="alert">
-        <p>{t("join.success.message")}</p>
-        <p>{t("join.success.ready")}</p>
-      </div>
-      <p class="actions">
-        <ActionButton href="/admin/login" icon="log-in">
-          {t("join.success.login_link")}
-        </ActionButton>
-      </p>
-    </Layout>,
-  );
+  SuccessCompletePage({
+    heading: t("join.success.heading"),
+    loginLink: t("join.success.login_link"),
+    messages: [t("join.success.message"), t("join.success.ready")],
+    title: t("join.success.title"),
+  });
 
 /**
  * Join error page - invalid or expired invite

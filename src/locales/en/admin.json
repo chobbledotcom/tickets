@@ -129,6 +129,7 @@
   "admin.log.col.activity": "Activity",
   "admin.log.no_activity": "No activity recorded yet",
   "admin.log.recent_entries": "Showing the most recent 200 entries.",
+  "admin.log.guide_link": "Activity log guide",
   "admin.ledger.heading": "Ledger",
   "admin.ledger.statement_heading": "Account statement",
   "admin.ledger.guide": "Ledger guide",

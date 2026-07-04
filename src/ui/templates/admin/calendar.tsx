@@ -17,10 +17,7 @@ import {
   AvailabilityChecker,
   type AvailabilityRow,
 } from "#templates/admin/availability-checker.tsx";
-import {
-  buildSharedDetailRows,
-  renderDetailRows,
-} from "#templates/admin/detail-rows.tsx";
+import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   AttendeeTable,
@@ -28,6 +25,7 @@ import {
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import { GuideLink } from "#templates/components/actions.tsx";
+import { DetailTable } from "#templates/components/detail-table.tsx";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -127,15 +125,7 @@ export const adminCalendarPage = (
           </p>
         )}
         <AvailabilityChecker date={dateFilter} rows={availabilityRows} />
-        {sharedRows.length > 0 && (
-          <div class="table-scroll">
-            <table class="listing-details-table">
-              <tbody>
-                <Raw html={renderDetailRows(sharedRows)} />
-              </tbody>
-            </table>
-          </div>
-        )}
+        {sharedRows.length > 0 && <DetailTable rows={sharedRows} />}
         {agents.length > 0 && (
           <Raw html={renderAgentFilter(agentFilter, agents, agentHref)} />
         )}

@@ -62,8 +62,7 @@ const refundError = (
  * page with a message at 400; the clean GET renders the flashed error (if
  * any) at 200 — attendeeActionPage supplies exactly that shape. */
 const handleAdminAttendeeRefundGet = attendeeActionPage(
-  (data, session, returnUrl, error) =>
-    adminRefundAttendeePage(data, session, error, returnUrl),
+  adminRefundAttendeePage,
   async (data) => {
     // The no-payment branch also covers a no-quantity ghost home line: the
     // guard runs against the exact (attendee, home listing) row, so a refund

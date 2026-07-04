@@ -13,6 +13,7 @@
  */
 
 import { t } from "#i18n";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { accountsSections } from "#templates/admin/guide/accounts.tsx";
 import {
@@ -49,25 +50,57 @@ export const guideSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
   ...operationsSections(),
 ];
 
+/**
+ * Shared shell for the guide pages: the Layout + AdminNav + prose heading that
+ * both `adminGuidePage` and `adminFormattingHelpPage` wrap their sections in.
+ * `AdminPage` (admin-page.tsx) is intentionally not reused here because it does
+ * not support `bodyClass`.
+ */
+type GuideShellProps = {
+  active: string;
+  heading: string;
+  proseExtra?: Child;
+  sections: JSX.Element;
+  session: AdminSession;
+  title: string;
+};
+
+const guideShell = ({
+  active,
+  heading,
+  proseExtra,
+  sections,
+  session,
+  title,
+}: GuideShellProps): JSX.Element => (
+  <Layout bodyClass="guide" title={title}>
+    <AdminNav active={active} session={session} />
+    <div class="prose">
+      <h2>{heading}</h2>
+      {proseExtra}
+    </div>
+    {sections}
+  </Layout>
+);
+
 export const adminGuidePage = (
   adminSession: AdminSession,
   hostConfig?: GuideHostConfig,
 ): string =>
   String(
-    <Layout bodyClass="guide" title={t("guide.title")}>
-      <AdminNav active="/admin/guide" session={adminSession} />
-
-      <div class="prose">
-        <h2>{t("guide.title")}</h2>
-
+    guideShell({
+      active: "/admin/guide",
+      heading: t("guide.title"),
+      proseExtra: (
         <p class="search-hint">
           Press <kbd>Ctrl</kbd>+<kbd>F</kbd> (or <kbd>&#8984;</kbd>+<kbd>F</kbd>{" "}
           on Mac) to search this page.
         </p>
-      </div>
-
-      {renderGuideSections(guideSections(hostConfig))}
-    </Layout>,
+      ),
+      sections: renderGuideSections(guideSections(hostConfig)),
+      session: adminSession,
+      title: t("guide.title"),
+    }),
   );
 
 /**
@@ -79,11 +112,11 @@ export const adminGuidePage = (
  */
 export const adminFormattingHelpPage = (adminSession: AdminSession): string =>
   String(
-    <Layout bodyClass="guide" title={t("guide.sections.text_formatting")}>
-      <AdminNav active="" session={adminSession} />
-      <div class="prose">
-        <h2>{t("guide.sections.text_formatting")}</h2>
-      </div>
-      {renderGuideSections([textFormattingSection])}
-    </Layout>,
+    guideShell({
+      active: "",
+      heading: t("guide.sections.text_formatting"),
+      sections: renderGuideSections([textFormattingSection]),
+      session: adminSession,
+      title: t("guide.sections.text_formatting"),
+    }),
   );

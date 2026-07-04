@@ -4,6 +4,7 @@
  * shared attendee table (read-only), and previous/next paging.
  */
 
+/* jscpd:ignore-start */
 import { sort } from "#fp";
 import { t } from "#i18n";
 import type { AttendeeSort } from "#shared/db/attendees.ts";
@@ -24,6 +25,8 @@ import { AdminNav } from "#templates/admin/nav.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
+
+/* jscpd:ignore-end */
 
 const NAV_ACTIVE = "/admin/attendees";
 

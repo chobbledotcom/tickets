@@ -3,13 +3,11 @@ import { CONTACT_JS_PATH } from "#shared/asset-paths.ts";
 import { CsrfForm, Flash, MessageFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
-import { Layout } from "#templates/layout.tsx";
 import {
   FEED_DISCOVERY_TAGS,
-  LoginFooter,
   MarkdownProse,
-  PublicNav,
   type PublicNavProps,
+  publicPage,
 } from "./shared.tsx";
 
 /** Public site page type */
@@ -21,7 +19,7 @@ export type PublicPageType = "home" | "terms" | "contact";
 export const publicSitePage = (
   pageType: PublicPageType,
   nav: PublicNavProps,
-  websiteTitle?: string | null,
+  websiteTitle: string,
   content?: string | null,
 ): string => {
   const titles: Record<PublicPageType, string> = {
@@ -33,21 +31,20 @@ export const publicSitePage = (
     ? `${titles[pageType]} - ${websiteTitle}`
     : titles[pageType];
 
-  return String(
-    <Layout headExtra={FEED_DISCOVERY_TAGS} title={pageTitle}>
-      {websiteTitle && <h1>{websiteTitle}</h1>}
-      <PublicNav {...nav} />
-      <div class="prose">
-        {content ? (
-          <Raw html={renderMarkdown(content)} />
-        ) : (
-          <p>
-            <em>{t("public.no_content")}</em>
-          </p>
-        )}
-      </div>
-      <LoginFooter />
-    </Layout>,
+  return publicPage(
+    pageTitle,
+    websiteTitle,
+    nav,
+  )(
+    <div class="prose">
+      {content ? (
+        <Raw html={renderMarkdown(content)} />
+      ) : (
+        <p>
+          <em>{t("public.no_content")}</em>
+        </p>
+      )}
+    </div>,
   );
 };
 
@@ -78,7 +75,7 @@ const ContactForm = ({
  * public key is configured (progressive enhancement).
  */
 export const contactPage = (options: {
-  websiteTitle?: string | null;
+  websiteTitle: string;
   content?: string | null;
   formActive: boolean;
   botpoisonPublicKey: string;
@@ -96,14 +93,16 @@ export const contactPage = (options: {
     ? `${FEED_DISCOVERY_TAGS}\n<script defer src="${CONTACT_JS_PATH}"></script>`
     : FEED_DISCOVERY_TAGS;
 
-  return String(
-    <Layout headExtra={headExtra} title={pageTitle}>
-      {websiteTitle && <h1>{websiteTitle}</h1>}
-      <PublicNav {...options.nav} />
+  return publicPage(
+    pageTitle,
+    websiteTitle,
+    options.nav,
+    headExtra,
+  )(
+    <>
       <Flash error={options.error} success={options.success} />
       <MarkdownProse markdown={content ?? ""} />
       {formActive && <ContactForm botpoisonPublicKey={botpoisonPublicKey} />}
-      <LoginFooter />
-    </Layout>,
+    </>,
   );
 };

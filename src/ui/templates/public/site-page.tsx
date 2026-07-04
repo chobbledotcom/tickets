@@ -20,7 +20,7 @@ import {
 export const sitePagePage = (
   page: SitePage,
   nav: PublicNavProps,
-  websiteTitle?: string | null,
+  websiteTitle: string,
 ): string => {
   // The page's own items, straight off the model (empty when a concurrent
   // delete raced the nav reads and the page is no longer on the tree).

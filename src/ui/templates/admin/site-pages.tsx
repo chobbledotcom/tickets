@@ -5,7 +5,7 @@
 
 import { t } from "#i18n";
 import { pageToValues, sitePageForm } from "#routes/admin/site-pages-form.ts";
-import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
+import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type {
   AdminSession,
@@ -13,14 +13,16 @@ import type {
   SitePageItemType,
   SitePageNavRow,
 } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   ActionButton,
   DeleteSection,
+  SaveChangesButton,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { DataTable } from "#templates/components/data-table.tsx";
 import { ReorderArrows } from "#templates/components/reorder.tsx";
-import { Layout } from "#templates/layout.tsx";
 
 const ACTIVE = "/admin/site";
 const LIST = "/admin/site/pages";
@@ -72,8 +74,7 @@ export const adminSitePagesListPage = (
   successMessage?: string,
 ): string =>
   String(
-    <Layout title={t("site.pages.title")}>
-      <AdminNav active={ACTIVE} session={session} />
+    <AdminPage active={ACTIVE} session={session} title={t("site.pages.title")}>
       <h1>{t("site.pages.title")}</h1>
       <Flash success={successMessage} />
       <p class="actions">
@@ -90,88 +91,76 @@ export const adminSitePagesListPage = (
           {/* A nested page always has a root ancestor, so reaching here (not the
               all-empty case above) guarantees at least one root to list. */}
           <h2>{t("site.pages.roots_heading")}</h2>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>{t("site.pages.order_column")}</th>
-                  <th>{t("site.pages.name_column")}</th>
-                  <th>{t("common.slug")}</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {model.roots.map((page, i) => (
-                  <tr>
-                    <td>
-                      <Arrows
-                        base={`${LIST}/${page.id}`}
-                        count={model.roots.length}
-                        index={i}
-                      />
-                    </td>
-                    <td>
-                      <a href={`${LIST}/${page.id}/edit`}>{page.name}</a>
-                    </td>
-                    <td>
-                      <code>/page/{page.slug}</code>
-                    </td>
-                    <td>
-                      <DeleteLink id={page.id} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={[
+              { header: t("site.pages.order_column") },
+              { header: t("site.pages.name_column") },
+              { header: t("common.slug") },
+              { header: "" },
+            ]}
+            rows={model.roots.map((page, i) => [
+              <Arrows
+                base={`${LIST}/${page.id}`}
+                count={model.roots.length}
+                index={i}
+              />,
+              <a href={`${LIST}/${page.id}/edit`}>{page.name}</a>,
+              <code>/page/{page.slug}</code>,
+              <DeleteLink id={page.id} />,
+            ])}
+          />
           {model.nested.length > 0 && (
             <>
               <h2>{t("site.pages.nested_heading")}</h2>
-              <div class="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{t("site.pages.name_column")}</th>
-                      <th>{t("site.pages.parent_column")}</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {model.nested.map(({ page, parentName }) => (
-                      <tr>
-                        <td>
-                          <a href={`${LIST}/${page.id}/edit`}>{page.name}</a>
-                        </td>
-                        <td>{parentName}</td>
-                        <td>
-                          <DeleteLink id={page.id} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                columns={[
+                  { header: t("site.pages.name_column") },
+                  { header: t("site.pages.parent_column") },
+                  { header: "" },
+                ]}
+                rows={model.nested.map(({ page, parentName }) => [
+                  <a href={`${LIST}/${page.id}/edit`}>{page.name}</a>,
+                  parentName,
+                  <DeleteLink id={page.id} />,
+                ])}
+              />
             </>
           )}
         </>
       )}
-    </Layout>,
+    </AdminPage>,
+  );
+
+const sitePageFormShell = (
+  title: string,
+  action: string,
+  session: AdminSession,
+  fieldsHtml: string,
+  error?: string,
+  children?: JSX.Element,
+): string =>
+  String(
+    <AdminPage active={ACTIVE} session={session} title={title}>
+      <CsrfForm action={action}>
+        <h1>{title}</h1>
+        <Flash error={error} />
+        <Raw html={fieldsHtml} />
+        {children}
+      </CsrfForm>
+    </AdminPage>,
   );
 
 export const adminSitePageNewPage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  String(
-    <Layout title={t("site.pages.new_title")}>
-      <AdminNav active={ACTIVE} session={session} />
-      <CsrfForm action={LIST}>
-        <h1>{t("site.pages.new_title")}</h1>
-        <Flash error={error} />
-        <Raw html={sitePageForm.renderFields()} />
-        <SubmitButton icon="plus">{t("site.pages.create_submit")}</SubmitButton>
-      </CsrfForm>
-    </Layout>,
+  sitePageFormShell(
+    t("site.pages.new_title"),
+    LIST,
+    session,
+    sitePageForm.renderFields(),
+    error,
+    <SubmitButton icon="plus">{t("site.pages.create_submit")}</SubmitButton>,
   );
 
 /** A single "add <type>" picker: a select of eligible targets + an Add button. */
@@ -214,13 +203,16 @@ export const adminSitePageEditPage = (
   const itemBase = (item: ResolvedItem): string =>
     `${LIST}/${page.id}/items/${item.type}/${item.id}`;
   return String(
-    <Layout title={t("site.pages.edit_title")}>
-      <AdminNav active={ACTIVE} session={session} />
+    <AdminPage
+      active={ACTIVE}
+      session={session}
+      title={t("site.pages.edit_title")}
+    >
       <CsrfForm action={`${LIST}/${page.id}/edit`}>
         <h1>{t("site.pages.edit_title")}</h1>
         <Flash error={error} />
         <Raw html={sitePageForm.renderFields(pageToValues(page))} />
-        <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
+        {SaveChangesButton()}
       </CsrfForm>
 
       <h2>{t("site.pages.items_heading")}</h2>
@@ -229,43 +221,24 @@ export const adminSitePageEditPage = (
           <em>{t("site.pages.no_items")}</em>
         </p>
       ) : (
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>{t("site.pages.order_column")}</th>
-                <th>{t("site.pages.item_type_column")}</th>
-                <th>{t("site.pages.name_column")}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, i) => (
-                <tr>
-                  <td>
-                    <Arrows
-                      base={itemBase(item)}
-                      count={items.length}
-                      index={i}
-                    />
-                  </td>
-                  <td>{t(`site.pages.type.${item.type}`)}</td>
-                  <td>{item.label}</td>
-                  <td>
-                    <CsrfForm
-                      action={`${itemBase(item)}/remove`}
-                      class="inline"
-                    >
-                      <button class="link-button small" type="submit">
-                        {t("site.pages.remove")}
-                      </button>
-                    </CsrfForm>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={[
+            { header: t("site.pages.order_column") },
+            { header: t("site.pages.item_type_column") },
+            { header: t("site.pages.name_column") },
+            { header: "" },
+          ]}
+          rows={items.map((item, i) => [
+            <Arrows base={itemBase(item)} count={items.length} index={i} />,
+            t(`site.pages.type.${item.type}`),
+            item.label,
+            <CsrfForm action={`${itemBase(item)}/remove`} class="inline">
+              <button class="link-button small" type="submit">
+                {t("site.pages.remove")}
+              </button>
+            </CsrfForm>,
+          ])}
+        />
       )}
 
       <h3>{t("site.pages.add_item_heading")}</h3>
@@ -294,7 +267,7 @@ export const adminSitePageEditPage = (
       >
         {t("site.pages.delete_submit")}
       </DeleteSection>
-    </Layout>,
+    </AdminPage>,
   );
 };
 
@@ -303,18 +276,19 @@ export const adminSitePageDeletePage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  String(
-    <Layout title={t("site.pages.delete_title")}>
-      <AdminNav active={ACTIVE} session={session} />
-      <ConfirmForm
-        action={`${LIST}/${page.id}/delete`}
-        buttonText={t("site.pages.delete_submit")}
-        label={t("site.pages.name_label")}
-        name={page.name}
-      >
+  ConfirmPage({
+    action: `${LIST}/${page.id}/delete`,
+    active: ACTIVE,
+    buttonText: t("site.pages.delete_submit"),
+    children: (
+      <>
         <h1>{t("site.pages.delete_title")}</h1>
-        <Flash error={error} />
         <p>{t("site.pages.delete_prompt", { name: page.name })}</p>
-      </ConfirmForm>
-    </Layout>,
-  );
+      </>
+    ),
+    error,
+    label: t("site.pages.name_label"),
+    name: page.name,
+    session,
+    title: t("site.pages.delete_title"),
+  });

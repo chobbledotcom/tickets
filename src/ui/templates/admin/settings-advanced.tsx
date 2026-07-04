@@ -4,8 +4,8 @@
 
 import { t } from "#i18n";
 import type { AdminSession, Theme } from "#shared/types.ts";
+import { themedAdminPage } from "#templates/admin/admin-page.tsx";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
-import { AdminNav } from "#templates/admin/nav.tsx";
 import { AppleWalletForm } from "#templates/admin/settings/apple-wallet.tsx";
 import {
   AttendeeColumnOrderForm,
@@ -21,7 +21,6 @@ import { GoogleWalletForm } from "#templates/admin/settings/google-wallet.tsx";
 import { PublicApiForm } from "#templates/admin/settings/public-api.tsx";
 import { SmsGatewayForm } from "#templates/admin/settings/sms-gateway.tsx";
 import { HostSubdomainForm } from "#templates/admin/settings/subdomain.tsx";
-import { Layout } from "#templates/layout.tsx";
 
 export type AdvancedSettingsPageState = {
   showPublicApi: boolean;
@@ -74,9 +73,8 @@ export const adminAdvancedSettingsPage = (
   session: AdminSession,
   s: AdvancedSettingsPageState,
 ): string =>
-  String(
-    <Layout theme={s.theme} title={t("settings.advanced.title")}>
-      <AdminNav active="/admin/settings" session={session} />
+  themedAdminPage(t("settings.advanced.title"))(session, s.theme)(
+    <>
       <article>
         <aside>
           <p>{t("settings.advanced.warning")}</p>
@@ -101,5 +99,5 @@ export const adminAdvancedSettingsPage = (
         action="/admin/settings/reset-database"
         id="settings-reset-database"
       />
-    </Layout>,
+    </>,
   );

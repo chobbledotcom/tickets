@@ -38,6 +38,7 @@ describe("orderGalleryPage packages", () => {
         }),
       ],
       emptyNav,
+      "",
     );
     expect(html).toContain("Packages");
     expect(html).toContain('class="order-card order-card--package"');
@@ -67,6 +68,7 @@ describe("orderGalleryPage packages", () => {
           }),
         ],
         emptyNav,
+        "",
       );
       expect(html).toContain("Frozen Bundle");
       expect(html).toContain("order-card--unavailable");

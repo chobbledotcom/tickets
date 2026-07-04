@@ -1,13 +1,16 @@
 import { t } from "#i18n";
 import { isContactFormActive } from "#shared/contact-form.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { NavModel } from "#shared/site-pages/types.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import {
   dayPriceFor,
+  type Group,
   type Holiday,
   type ListingWithCount,
   normalizeDurationDays,
@@ -19,7 +22,7 @@ import {
   leveledNav,
   nodeLis,
 } from "#templates/components/nav.tsx";
-import { escapeHtml } from "#templates/layout.tsx";
+import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /** Everything {@link PublicNav} renders: the settings-driven page flags plus
  * the site-pages tree (built per request by `publicNavProps`, site-nav.ts). */
@@ -124,6 +127,90 @@ export const ICS_DISCOVERY_TAG =
   '<link rel="alternate" type="text/calendar" title="Listings" href="/feeds/listings.ics" />';
 
 export const FEED_DISCOVERY_TAGS = `${RSS_DISCOVERY_TAG}\n${ICS_DISCOVERY_TAG}`;
+
+export const compareGroupsByName = (a: Group, b: Group): number =>
+  a.name.localeCompare(b.name);
+
+/** A `<p><strong>{label}</strong> {formatCurrency(amount)}</p>` money line —
+ *  the order-total rows shared by the public balance page and the admin
+ *  attendee-balance panel. `label` carries its own trailing punctuation. */
+export const AmountLine = ({
+  label,
+  amount,
+}: {
+  label: Child;
+  amount: number;
+}): JSX.Element => (
+  <p>
+    <strong>{label}</strong> {formatCurrency(amount)}
+  </p>
+);
+
+/** The "Packages" heading that opens both the homepage listings and the order
+ *  gallery: shown only when the page has package groups, with the caller
+ *  supplying the package-card markup. */
+export const PackagesSection = ({
+  groups,
+  children,
+}: {
+  groups: Group[];
+  children: Child;
+}): JSX.Element | null =>
+  groups.length > 0 ? (
+    <>
+      <h2>{t("public.packages")}</h2>
+      {children}
+    </>
+  ) : null;
+
+/** Curried public-page helper. The homepage, order-gallery, and basic-pages
+ *  all open with
+ *    String(<Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
+ *      {websiteTitle && <h1>{websiteTitle}</h1>}<PublicNav {...nav} />
+ *      {body}<LoginFooter /></Layout>)
+ *  — this captures that so they only declare their differences (title, body). */
+export const publicPage =
+  (
+    title: string,
+    websiteTitle: string,
+    nav: PublicNavProps,
+    headExtra: string = FEED_DISCOVERY_TAGS,
+  ) =>
+  (body: Child): string =>
+    String(
+      <Layout headExtra={headExtra} title={title}>
+        {websiteTitle && <h1>{websiteTitle}</h1>}
+        <PublicNav {...nav} />
+        {body}
+        <LoginFooter />
+      </Layout>,
+    );
+
+/** The `<Layout title><div class="prose"><h1>{heading}</h1>{prose}</div>
+ *  {afterProse}</Layout>` shell. {@link simplePublicPage} wraps its whole body
+ *  in the prose block; the balance page keeps its recap intro in prose but
+ *  renders its table/form as siblings after it. */
+export const prosePage =
+  (title: string, heading: string) =>
+  (prose: Child, afterProse?: Child): string =>
+    String(
+      <Layout title={title}>
+        <div class="prose">
+          <h1>{heading}</h1>
+          {prose}
+        </div>
+        {afterProse}
+      </Layout>,
+    );
+
+/** Curried simple public page: <Layout title={title}><div class="prose">
+ *  <h1>{heading}</h1>{body}</div></Layout>. No nav, no footer — used by the
+ *  simple status pages (balance errors, rate-limited, check-in, renewal).
+ *  Takes the page title and heading text, returns a body receiver. */
+export const simplePublicPage =
+  (title: string, heading: string) =>
+  (body: Child): string =>
+    prosePage(title, heading)(body);
 
 /** Render listing image HTML if an image is set.
  *

@@ -1,9 +1,11 @@
+/* jscpd:ignore-start */
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
+/* jscpd:ignore-end */
 
 export type RecalculateRow = {
   current: string;

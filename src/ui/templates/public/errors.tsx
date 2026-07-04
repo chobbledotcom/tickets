@@ -1,7 +1,38 @@
 import { t } from "#i18n";
 import { getRenewalUrl } from "#shared/env.ts";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { simplePublicPage } from "./shared.tsx";
+
+/** A message paragraph rendered as a `<Raw>` (for HTML messages that come from
+ *  t() with embedded markup) — used by the migration-in-progress page. */
+const rawMessage = (key: string): JSX.Element => (
+  <p>
+    <Raw html={t(key)} />
+  </p>
+);
+
+/**
+ * Curried error-page factory. The temporary/database-busy/migration/
+ * not-activated pages share the
+ *   String(<Layout headExtra={headStyle} title={t(titleKey)}>
+ *     <div class="prose"><h1>{t(headingKey)}</h1>{body...}</div></Layout>)
+ * shape; this captures it so the four pages only declare their differences
+ * (head style, title/heading keys, body).
+ */
+const errorPage =
+  (titleKey: string, headingKey: string, headExtra: string) =>
+  (body: Child): string =>
+    String(
+      <Layout headExtra={headExtra} title={t(titleKey)}>
+        <div class="prose">
+          <h1>{t(headingKey)}</h1>
+          {body}
+        </div>
+      </Layout>,
+    );
+
 /**
  * Not found page
  */
@@ -20,34 +51,30 @@ export const notFoundPage = (): string =>
  * renders the error without a dead link to offer.
  */
 export const qrBookErrorPage = (slug: string | null): string =>
-  String(
-    <Layout title={t("public.qr_book_error.title")}>
-      <div class="prose">
-        <h1>{t("public.qr_book_error.heading")}</h1>
-        <p>{t("public.qr_book_error.message")}</p>
-        {slug !== null && (
-          <p>
-            <a href={`/ticket/${escapeHtml(slug)}`}>
-              {t("public.qr_book_error.booking_link")}
-            </a>
-          </p>
-        )}
-      </div>
-    </Layout>,
+  simplePublicPage(
+    t("public.qr_book_error.title"),
+    t("public.qr_book_error.heading"),
+  )(
+    <>
+      <p>{t("public.qr_book_error.message")}</p>
+      {slug !== null && (
+        <p>
+          <a href={`/ticket/${escapeHtml(slug)}`}>
+            {t("public.qr_book_error.booking_link")}
+          </a>
+        </p>
+      )}
+    </>,
   );
 
 /**
  * Rate limit page shown on 429 responses for token URLs
  */
 export const rateLimitedPage = (): string =>
-  String(
-    <Layout title={t("public.rate_limited.title")}>
-      <div class="prose">
-        <h1>{t("public.rate_limited.heading")}</h1>
-        <p>{t("public.rate_limited.message")}</p>
-      </div>
-    </Layout>,
-  );
+  simplePublicPage(
+    t("public.rate_limited.title"),
+    t("public.rate_limited.heading"),
+  )(<p>{t("public.rate_limited.message")}</p>);
 
 /**
  * Inline styles for error dialog pages — self-contained so the page renders
@@ -69,24 +96,22 @@ const TEMPORARY_ERROR_HEAD = `<meta http-equiv="refresh" content="2" />
 ${ERROR_DIALOG_STYLE}`;
 
 export const temporaryErrorPage = (): string =>
-  String(
-    <Layout
-      headExtra={TEMPORARY_ERROR_HEAD}
-      title={t("public.temporary_error.title")}
-    >
-      <div class="prose">
-        <h1>{t("public.temporary_error.heading")}</h1>
-        <p>{t("public.temporary_error.message")}</p>
-        <p>
-          <small>
-            Check{" "}
-            <strong>
-              <a href="https://status.bunny.net/">status.bunny.net</a>
-            </strong>
-          </small>
-        </p>
-      </div>
-    </Layout>,
+  errorPage(
+    "public.temporary_error.title",
+    "public.temporary_error.heading",
+    TEMPORARY_ERROR_HEAD,
+  )(
+    <>
+      <p>{t("public.temporary_error.message")}</p>
+      <p>
+        <small>
+          Check{" "}
+          <strong>
+            <a href="https://status.bunny.net/">status.bunny.net</a>
+          </strong>
+        </small>
+      </p>
+    </>,
   );
 
 /**
@@ -99,20 +124,16 @@ export const temporaryErrorPage = (): string =>
  * the refresh and ask the user to go back and resubmit instead.
  */
 export const databaseBusyPage = (autoRefresh: boolean): string =>
-  String(
-    <Layout
-      headExtra={autoRefresh ? TEMPORARY_ERROR_HEAD : ERROR_DIALOG_STYLE}
-      title={t("public.database_busy.title")}
-    >
-      <div class="prose">
-        <h1>{t("public.database_busy.heading")}</h1>
-        <p>
-          {autoRefresh
-            ? t("public.database_busy.message")
-            : t("public.database_busy.message_manual")}
-        </p>
-      </div>
-    </Layout>,
+  errorPage(
+    "public.database_busy.title",
+    "public.database_busy.heading",
+    autoRefresh ? TEMPORARY_ERROR_HEAD : ERROR_DIALOG_STYLE,
+  )(
+    <p>
+      {autoRefresh
+        ? t("public.database_busy.message")
+        : t("public.database_busy.message_manual")}
+    </p>,
   );
 
 /**
@@ -126,19 +147,11 @@ const MIGRATION_IN_PROGRESS_HEAD = `<meta http-equiv="refresh" content="5" />
 ${ERROR_DIALOG_STYLE}`;
 
 export const migrationInProgressPage = (): string =>
-  String(
-    <Layout
-      headExtra={MIGRATION_IN_PROGRESS_HEAD}
-      title={t("public.migration_in_progress.title")}
-    >
-      <div class="prose">
-        <h1>{t("public.migration_in_progress.heading")}</h1>
-        <p>
-          <Raw html={t("public.migration_in_progress.message")} />
-        </p>
-      </div>
-    </Layout>,
-  );
+  errorPage(
+    "public.migration_in_progress.title",
+    "public.migration_in_progress.heading",
+    MIGRATION_IN_PROGRESS_HEAD,
+  )(rawMessage("public.migration_in_progress.message"));
 
 /**
  * Shown on non-setup routes when the site's database has not been set up
@@ -146,17 +159,11 @@ export const migrationInProgressPage = (): string =>
  * /setup, so an endlessly reloading error page would just be confusing.
  */
 export const siteNotActivatedPage = (): string =>
-  String(
-    <Layout
-      headExtra={ERROR_DIALOG_STYLE}
-      title={t("public.not_activated.title")}
-    >
-      <div class="prose">
-        <h1>{t("public.not_activated.heading")}</h1>
-        <p>{t("public.not_activated.message")}</p>
-      </div>
-    </Layout>,
-  );
+  errorPage(
+    "public.not_activated.title",
+    "public.not_activated.heading",
+    ERROR_DIALOG_STYLE,
+  )(<p>{t("public.not_activated.message")}</p>);
 
 /**
  * Read-only mode page

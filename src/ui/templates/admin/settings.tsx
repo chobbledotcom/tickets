@@ -5,7 +5,7 @@
 import { t } from "#i18n";
 import type { SuperuserState } from "#shared/superuser.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { themedAdminPage } from "#templates/admin/admin-page.tsx";
 import { BusinessEmailForm } from "#templates/admin/settings/business-email.tsx";
 import { CalendarFeedsForm } from "#templates/admin/settings/calendar-feeds.tsx";
 import { ChangePasswordForm } from "#templates/admin/settings/change-password.tsx";
@@ -23,7 +23,6 @@ import { PublicSiteForm } from "#templates/admin/settings/public-site.tsx";
 import { SuperuserForm } from "#templates/admin/settings/superuser.tsx";
 import { TermsForm } from "#templates/admin/settings/terms.tsx";
 import { ThemeForm } from "#templates/admin/settings/theme.tsx";
-import { Layout } from "#templates/layout.tsx";
 
 export type SettingsPageState = {
   stripeKeyConfigured: boolean;
@@ -70,9 +69,8 @@ export const adminSettingsPage = (
   session: AdminSession,
   s: SettingsPageState,
 ): string =>
-  String(
-    <Layout theme={s.theme} title={t("settings.title")}>
-      <AdminNav active="/admin/settings" session={session} />
+  themedAdminPage(t("settings.title"))(session, s.theme)(
+    <>
       {BusinessEmailForm(s)}
       {HeaderImageForm(s)}
       {ThemeForm(s)}
@@ -90,5 +88,5 @@ export const adminSettingsPage = (
       <SuperuserForm superuser={s.superuser} />
       <ChangePasswordForm />
       {CalendarFeedsForm(s)}
-    </Layout>,
+    </>,
   );

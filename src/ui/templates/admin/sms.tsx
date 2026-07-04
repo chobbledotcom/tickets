@@ -3,6 +3,7 @@
  * form and the conversation history.
  */
 
+/* jscpd:ignore-start */
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
@@ -14,7 +15,9 @@ import type {
 } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { DataTable } from "#templates/components/data-table.tsx";
 import { Layout } from "#templates/layout.tsx";
+/* jscpd:ignore-end */
 
 /** A text-message activity-log entry, shown as conversation history. */
 export type SmsHistoryItem = {
@@ -42,24 +45,16 @@ const historyTable = (history: SmsHistoryItem[]): string =>
   history.length === 0
     ? `<p>${t("sms.contact.no_messages")}</p>`
     : String(
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>{t("sms.contact.col_when")}</th>
-                <th>{t("sms.contact.col_message")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <Raw
-                html={pipe(
-                  map((item: SmsHistoryItem) => HistoryRow({ item })),
-                  joinStrings,
-                )(history)}
-              />
-            </tbody>
-          </table>
-        </div>,
+        <DataTable
+          columns={[
+            { header: t("sms.contact.col_when") },
+            { header: t("sms.contact.col_message") },
+          ]}
+          rows={pipe(
+            map((item: SmsHistoryItem) => HistoryRow({ item })),
+            joinStrings,
+          )(history)}
+        />,
       );
 
 const ComposeForm = ({

@@ -1,8 +1,32 @@
 import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms.tsx";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { SuperuserState } from "#shared/superuser.ts";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import type { SuperuserChoice } from "#shared/types.ts";
+import { SaveButton } from "#templates/components/actions.tsx";
+
+/** A radio-label option for the superuser choice. `checkedValue` is the
+ *  SuperuserChoice that should mark this option checked — note the radio's
+ *  submitted value ("enable-superuser") differs from the stored choice
+ *  ("enabled"), so they're passed separately. */
+const superuserChoiceOption = (
+  choice: SuperuserChoice,
+  checkedValue: SuperuserChoice,
+  value: string,
+  label: Child,
+): JSX.Element => (
+  <label class="radio-label">
+    <input
+      checked={choice === checkedValue}
+      name="superuser_choice"
+      required
+      type="radio"
+      value={value}
+    />
+    <span>{label}</span>
+  </label>
+);
 
 export const SuperuserForm = (s: {
   superuser: SuperuserState;
@@ -29,33 +53,19 @@ export const SuperuserForm = (s: {
       ) : (
         <>
           <p>{t("settings.superuser.intro")}</p>
-          <label class="radio-label">
-            <input
-              checked={superuser.choice === "self-managed"}
-              disabled={disabled}
-              name="superuser_choice"
-              required
-              type="radio"
-              value="self-managed"
-            />
-            <span>{t("settings.superuser.self_managed")}</span>
-          </label>
-
-          <label class="radio-label">
-            <input
-              checked={superuser.choice === "enabled"}
-              disabled={disabled}
-              name="superuser_choice"
-              required
-              type="radio"
-              value="enable-superuser"
-            />
-            <span>
-              {t("settings.superuser.enable_super", { email: superuser.email })}
-            </span>
-          </label>
-
-          <SubmitButton icon="save">{t("common.save")}</SubmitButton>
+          {superuserChoiceOption(
+            superuser.choice,
+            "self-managed",
+            "self-managed",
+            t("settings.superuser.self_managed"),
+          )}
+          {superuserChoiceOption(
+            superuser.choice,
+            "enabled",
+            "enable-superuser",
+            t("settings.superuser.enable_super", { email: superuser.email }),
+          )}
+          {SaveButton()}
         </>
       )}
     </CsrfForm>

@@ -24,6 +24,7 @@ import type { ServicingEventSummary } from "#shared/db/attendees/servicing.ts";
 import type { ActiveListingStats } from "#shared/db/attendees.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Flash } from "#shared/forms.tsx";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   filterListingsByType,
@@ -40,8 +41,34 @@ import type {
 import { HolidayTable } from "#templates/admin/holidays.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
-import { ActionButton } from "#templates/components/actions.tsx";
+import {
+  ActionButton,
+  ImportCatalogButton,
+} from "#templates/components/actions.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
+
+/** The "Add listing" action button — shared by the editor and staff dashboards.
+ *  Optional `children` render as extra buttons inside the same actions row
+ *  (the listings page also offers a catalog import). */
+const AddListingButton = ({
+  children,
+}: {
+  children?: Child;
+} = {}): JSX.Element => (
+  <p class="actions">
+    <ActionButton href="/admin/listing/new" icon="plus">
+      {t("admin.dashboard.add_listing")}
+    </ActionButton>
+    {children}
+  </p>
+);
+
+/** The ordered column layout a listings table (or single row) renders from. */
+type ListingColumnArgs = {
+  columnKeys: string[];
+  filters: Map<string, string>;
+  columns?: ColumnGenerators<ListingWithCount>;
+};
 
 /** Render a single listing table row using ordered column keys. `columns`
  * defaults to the full staff column set; the editor variant passes its
@@ -51,12 +78,7 @@ export const ListingRow = ({
   columnKeys,
   filters,
   columns = LISTING_TABLE_COLUMNS,
-}: {
-  e: ListingWithCount;
-  columnKeys: string[];
-  filters: Map<string, string>;
-  columns?: ColumnGenerators<ListingWithCount>;
-}): string => {
+}: ListingColumnArgs & { e: ListingWithCount }): string => {
   const isInactive = !e.active;
   const cells = renderCells(
     e,
@@ -193,9 +215,12 @@ const upcomingHolidaysSection = (holidays: Holiday[]): string =>
   String(
     <details open>
       <summary>{t("holidays.upcoming_heading")}</summary>
-      <div class="table-scroll dashboard-holidays-scroll">
-        <Raw html={HolidayTable({ holidays })} />
-      </div>
+      <Raw
+        html={HolidayTable({
+          holidays,
+          scrollClass: "dashboard-holidays-scroll",
+        })}
+      />
     </details>,
   );
 
@@ -226,6 +251,36 @@ const upcomingServicingSection = (events: ServicingEventSummary[]): string =>
     </details>,
   );
 
+/** The subset of `columnKeys` that the given column set actually defines. */
+export const validListingColumnKeys = (
+  columnKeys: string[],
+  columns: ColumnGenerators<ListingWithCount>,
+): string[] => columnKeys.filter((key) => columns[key]);
+
+/** Render the listing rows (or the single empty-state row) for a listings
+ *  table body. Shared by the dashboard listings section and the group detail
+ *  page; `emptyText` is the message shown when there are no listings. */
+/** The listing collection + column layout every listings table renders from. */
+type ListingTableArgs = ListingColumnArgs & {
+  listings: ListingWithCount[];
+};
+
+export const renderListingRows = ({
+  listings,
+  columnKeys,
+  filters,
+  emptyText,
+  columns = LISTING_TABLE_COLUMNS,
+}: ListingTableArgs & { emptyText: string }): string =>
+  listings.length > 0
+    ? pipe(
+        map((e: ListingWithCount) =>
+          ListingRow({ columnKeys, columns, e, filters }),
+        ),
+        joinStrings,
+      )(listings)
+    : `<tr><td colspan="${columnKeys.length}">${emptyText}</td></tr>`;
+
 /** Render the listing table with dynamic column keys. `columns` defaults to the
  * staff column set; the editor variant passes its money-free set. */
 export const renderListingTable = (
@@ -233,11 +288,10 @@ export const renderListingTable = (
   rows: string,
   columns: ColumnGenerators<ListingWithCount> = LISTING_TABLE_COLUMNS,
 ): string => {
-  const validColumnKeys = columnKeys.filter((key) => columns[key]);
   const headers = pipe(
     map((key: string) => `<th>${getHeaderText(columns[key]!)}</th>`),
     joinStrings,
-  )(validColumnKeys);
+  )(validListingColumnKeys(columnKeys, columns));
   return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
 };
 
@@ -247,16 +301,13 @@ export const renderListingsTableSection = (
   filters: Map<string, string>,
   columns: ColumnGenerators<ListingWithCount> = LISTING_TABLE_COLUMNS,
 ): string => {
-  const validColumnKeys = columnKeys.filter((key) => columns[key]);
-  const listingRows =
-    listings.length > 0
-      ? pipe(
-          map((e: ListingWithCount) =>
-            ListingRow({ columnKeys: validColumnKeys, columns, e, filters }),
-          ),
-          joinStrings,
-        )(listings)
-      : `<tr><td colspan="${validColumnKeys.length}">${t("admin.dashboard.no_listings")}</td></tr>`;
+  const listingRows = renderListingRows({
+    columnKeys: validListingColumnKeys(columnKeys, columns),
+    columns,
+    emptyText: t("admin.dashboard.no_listings"),
+    filters,
+    listings,
+  });
 
   return String(
     <div class="table-scroll">
@@ -276,13 +327,9 @@ const ListingsTableBlock = ({
   csvExport = false,
   headerHtml = "",
   columns = LISTING_TABLE_COLUMNS,
-}: {
-  listings: ListingWithCount[];
-  columnKeys: string[];
-  filters: Map<string, string>;
+}: ListingTableArgs & {
   csvExport?: boolean;
   headerHtml?: string;
-  columns?: ColumnGenerators<ListingWithCount>;
 }): JSX.Element => (
   <div class="table-block">
     <Raw html={headerHtml} />
@@ -346,13 +393,7 @@ export const adminDashboardPage = (
 
       <Flash error={imageError} success={successMessage} />
 
-      {!isReadOnly() && (
-        <p class="actions">
-          <ActionButton href="/admin/listing/new" icon="plus">
-            {t("admin.dashboard.add_listing")}
-          </ActionButton>
-        </p>
-      )}
+      {!isReadOnly() && <AddListingButton />}
 
       <ListingsTableBlock
         columnKeys={columnKeys}
@@ -410,14 +451,9 @@ export const adminListingsPage = (
       <AdminNav active="/admin/listings" session={session} />
 
       {!isReadOnly() && (
-        <p class="actions">
-          <ActionButton href="/admin/listing/new" icon="plus">
-            {t("admin.dashboard.add_listing")}
-          </ActionButton>
-          <ActionButton href="/admin/catalog/import" variant="outline">
-            {t("catalog_transfer.import_button")}
-          </ActionButton>
-        </p>
+        <AddListingButton>
+          <ImportCatalogButton />
+        </AddListingButton>
       )}
 
       <ListingsTableBlock

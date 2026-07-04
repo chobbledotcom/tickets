@@ -2,10 +2,12 @@
  * Google Wallet form for advanced settings
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
-import { MASK_SENTINEL } from "#shared/db/settings.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
+import { MaskedTextarea } from "#templates/components/masked-textarea.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
+/* jscpd:ignore-end */
 
 export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
   <SettingsSection
@@ -46,15 +48,11 @@ export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
         value={s.googleWalletServiceAccountEmail}
       />
     </label>
-    <label>
-      {t("settings.advanced.google_service_key")}
-      <textarea
-        name="google_wallet_service_account_key"
-        placeholder="-----BEGIN PRIVATE KEY-----"
-        rows={4}
-      >
-        {s.googleWalletConfigured ? MASK_SENTINEL : ""}
-      </textarea>
-    </label>
+    <MaskedTextarea
+      configured={s.googleWalletConfigured}
+      labelKey="settings.advanced.google_service_key"
+      name="google_wallet_service_account_key"
+      placeholder="-----BEGIN PRIVATE KEY-----"
+    />
   </SettingsSection>
 );

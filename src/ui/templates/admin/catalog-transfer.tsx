@@ -7,18 +7,20 @@
 import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { adminPage } from "#templates/admin/seeds.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
-import { Layout } from "#templates/layout.tsx";
 
 export const adminCatalogImportPage = (
   session: AdminSession,
   error?: string,
   success?: string,
 ): string =>
-  String(
-    <Layout title={t("catalog_transfer.page_title")}>
-      <AdminNav active="/admin/listings" session={session} />
+  adminPage(
+    "/admin/listings",
+    t("catalog_transfer.page_title"),
+    session,
+  )(
+    <>
       <div class="prose">
         <h1>{t("catalog_transfer.heading")}</h1>
         <p>{t("catalog_transfer.description")}</p>
@@ -42,5 +44,5 @@ export const adminCatalogImportPage = (
           {t("catalog_transfer.upload_button")}
         </SubmitButton>
       </CsrfForm>
-    </Layout>,
+    </>,
   );

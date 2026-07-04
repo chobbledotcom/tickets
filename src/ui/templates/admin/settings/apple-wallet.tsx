@@ -2,10 +2,12 @@
  * Apple Wallet form for advanced settings
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
-import { MASK_SENTINEL } from "#shared/db/settings.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
+import { MaskedTextarea } from "#templates/components/masked-textarea.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
+/* jscpd:ignore-end */
 
 export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
   <SettingsSection
@@ -45,35 +47,23 @@ export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
         value={s.appleWalletTeamId}
       />
     </label>
-    <label>
-      {t("settings.advanced.apple_signing_cert")}
-      <textarea
-        name="apple_wallet_signing_cert"
-        placeholder="-----BEGIN CERTIFICATE-----"
-        rows={4}
-      >
-        {s.appleWalletConfigured ? MASK_SENTINEL : ""}
-      </textarea>
-    </label>
-    <label>
-      {t("settings.advanced.apple_signing_key")}
-      <textarea
-        name="apple_wallet_signing_key"
-        placeholder="-----BEGIN PRIVATE KEY-----"
-        rows={4}
-      >
-        {s.appleWalletConfigured ? MASK_SENTINEL : ""}
-      </textarea>
-    </label>
-    <label>
-      {t("settings.advanced.apple_wwdr_cert")}
-      <textarea
-        name="apple_wallet_wwdr_cert"
-        placeholder="-----BEGIN CERTIFICATE-----"
-        rows={4}
-      >
-        {s.appleWalletConfigured ? MASK_SENTINEL : ""}
-      </textarea>
-    </label>
+    <MaskedTextarea
+      configured={s.appleWalletConfigured}
+      labelKey="settings.advanced.apple_signing_cert"
+      name="apple_wallet_signing_cert"
+      placeholder="-----BEGIN CERTIFICATE-----"
+    />
+    <MaskedTextarea
+      configured={s.appleWalletConfigured}
+      labelKey="settings.advanced.apple_signing_key"
+      name="apple_wallet_signing_key"
+      placeholder="-----BEGIN PRIVATE KEY-----"
+    />
+    <MaskedTextarea
+      configured={s.appleWalletConfigured}
+      labelKey="settings.advanced.apple_wwdr_cert"
+      name="apple_wallet_wwdr_cert"
+      placeholder="-----BEGIN CERTIFICATE-----"
+    />
   </SettingsSection>
 );

@@ -8,6 +8,7 @@ import { CsrfForm, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { RadioOption } from "#templates/components/radio-option.tsx";
 import {
   getSquareAccessTokenFields,
   getSquareWebhookFields,
@@ -25,42 +26,34 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
       <p>{t("settings.payment_provider_hint")}</p>
     </div>
     <fieldset class="radios">
-      <label>
-        <input
-          checked={!s.paymentProvider}
-          name="payment_provider"
-          type="radio"
-          value="none"
-        />
+      <RadioOption
+        checked={!s.paymentProvider}
+        name="payment_provider"
+        value="none"
+      >
         {t("settings.payment_none")}
-      </label>
-      <label>
-        <input
-          checked={s.paymentProvider === "stripe"}
-          name="payment_provider"
-          type="radio"
-          value="stripe"
-        />
+      </RadioOption>
+      <RadioOption
+        checked={s.paymentProvider === "stripe"}
+        name="payment_provider"
+        value="stripe"
+      >
         {t("settings.payment_stripe")}
-      </label>
-      <label>
-        <input
-          checked={s.paymentProvider === "square"}
-          name="payment_provider"
-          type="radio"
-          value="square"
-        />
+      </RadioOption>
+      <RadioOption
+        checked={s.paymentProvider === "square"}
+        name="payment_provider"
+        value="square"
+      >
         {t("settings.payment_square")}
-      </label>
-      <label>
-        <input
-          checked={s.paymentProvider === "sumup"}
-          name="payment_provider"
-          type="radio"
-          value="sumup"
-        />
+      </RadioOption>
+      <RadioOption
+        checked={s.paymentProvider === "sumup"}
+        name="payment_provider"
+        value="sumup"
+      >
         SumUp
-      </label>
+      </RadioOption>
     </fieldset>
     <SubmitButton icon="save">
       {t("settings.save_payment_provider")}
@@ -97,6 +90,28 @@ const ApiKeyModeNotice = ({
   return null;
 };
 
+/** The save/Test Connection footer plus its hidden result div, shared by the
+ *  Stripe and SumUp key forms. Curried by the provider's id-slug, the
+ *  "Update <provider> Credentials" label, and the "Test Connection" label. */
+const paymentTestFooter = (
+  provider: string,
+  keyConfigured: boolean,
+  updateLabel: string,
+  testConnectionLabel: string,
+): JSX.Element => (
+  <>
+    <footer>
+      <SubmitButton icon="save">{updateLabel}</SubmitButton>
+      {keyConfigured && (
+        <button class="secondary" id={`${provider}-test-btn`} type="button">
+          {testConnectionLabel}
+        </button>
+      )}
+    </footer>
+    <div class="hidden" id={`${provider}-test-result`} />
+  </>
+);
+
 export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider === "stripe" ? (
     <CsrfForm action="/admin/settings/stripe" id="settings-stripe">
@@ -124,17 +139,12 @@ export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
           s.stripeKeyConfigured ? { stripe_secret_key: MASK_SENTINEL } : {},
         )}
       />
-      <footer>
-        <SubmitButton icon="save">
-          {t("settings.stripe.update_key")}
-        </SubmitButton>
-        {s.stripeKeyConfigured && (
-          <button class="secondary" id="stripe-test-btn" type="button">
-            {t("settings.stripe.test_connection")}
-          </button>
-        )}
-      </footer>
-      <div class="hidden" id="stripe-test-result"></div>
+      {paymentTestFooter(
+        "stripe",
+        s.stripeKeyConfigured,
+        t("settings.stripe.update_key"),
+        t("settings.stripe.test_connection"),
+      )}
     </CsrfForm>
   ) : null;
 
@@ -271,15 +281,12 @@ export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
           s.sumupKeyConfigured ? { sumup_api_key: MASK_SENTINEL } : {},
         )}
       />
-      <footer>
-        <SubmitButton icon="save">Update SumUp Credentials</SubmitButton>
-        {s.sumupKeyConfigured && (
-          <button class="secondary" id="sumup-test-btn" type="button">
-            Test Connection
-          </button>
-        )}
-      </footer>
-      <div class="hidden" id="sumup-test-result"></div>
+      {paymentTestFooter(
+        "sumup",
+        s.sumupKeyConfigured,
+        "Update SumUp Credentials",
+        "Test Connection",
+      )}
     </CsrfForm>
   ) : null;
 

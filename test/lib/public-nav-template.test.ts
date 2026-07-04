@@ -98,12 +98,16 @@ describe("sitePagePage (nav-model race)", () => {
       new Map(),
       targetKey("page", gone.id),
     );
-    const html = sitePagePage(gone, {
-      hasContact: false,
-      hasOrder: false,
-      hasTerms: false,
-      pages: model,
-    });
+    const html = sitePagePage(
+      gone,
+      {
+        hasContact: false,
+        hasOrder: false,
+        hasTerms: false,
+        pages: model,
+      },
+      "",
+    );
     expect(html).toContain("<h1>Racy Page</h1>");
     expect(html).toContain("<strong>here</strong>");
     expect(html).not.toContain('class="page-items"');

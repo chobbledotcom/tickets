@@ -6,11 +6,15 @@
  * contact state — link prefetchers and scanners follow GETs).
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { settings } from "#shared/db/settings.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { flashProps } from "#templates/admin/admin-page.tsx";
 import { Layout } from "#templates/layout.tsx";
+/* jscpd:ignore-end */
 
 export type UnsubscribeState = {
   /** Opaque contact hash from the link, or null when missing/invalid. */
@@ -20,6 +24,44 @@ export type UnsubscribeState = {
   error?: string | undefined;
   info?: string | undefined;
 };
+
+/** A `<div class="prose">` section led by an `<h2>` heading, wrapping the
+ *  page-specific body. Shared by the admin attendee-details block and the
+ *  public forget/contact-preferences section, so the wrapper markup can't
+ *  drift between admin and public. */
+export const ProseSection = ({
+  children,
+  heading,
+}: {
+  children?: Child;
+  heading: string;
+}): JSX.Element => (
+  <div class="prose">
+    <h2>{heading}</h2>
+    {children}
+  </div>
+);
+
+/** A hidden form field paired with the form's submit button — the shared tail
+ *  of the unsubscribe action forms and the admin check-in form. */
+export const SubmitWithHidden = ({
+  buttonClass,
+  label,
+  name,
+  value,
+}: {
+  buttonClass?: string | undefined;
+  label: Child;
+  name: string;
+  value: string;
+}): JSX.Element => (
+  <>
+    <input name={name} type="hidden" value={value} />
+    <button class={buttonClass} type="submit">
+      {label}
+    </button>
+  </>
+);
 
 /** The action form — carries the hash and the action, never the address. */
 const ToggleForm = ({
@@ -35,16 +77,17 @@ const ToggleForm = ({
 }): JSX.Element => (
   <CsrfForm action="/unsubscribe" class="inline" id={`action-${action}`}>
     <input name="email" type="hidden" value={hash} />
-    <input name="action" type="hidden" value={action} />
-    <button class={danger ? "danger" : undefined} type="submit">
-      {label}
-    </button>
+    <SubmitWithHidden
+      buttonClass={danger ? "danger" : undefined}
+      label={label}
+      name="action"
+      value={action}
+    />
   </CsrfForm>
 );
 
 const ForgetSection = ({ hash }: { hash: string }): JSX.Element => (
-  <div class="prose">
-    <h2>{t("unsubscribe.forget_heading")}</h2>
+  <ProseSection heading={t("unsubscribe.forget_heading")}>
     <p>{t("unsubscribe.forget_explainer")}</p>
     <ToggleForm
       action="forget"
@@ -52,7 +95,7 @@ const ForgetSection = ({ hash }: { hash: string }): JSX.Element => (
       hash={hash}
       label={t("unsubscribe.forget_button")}
     />
-  </div>
+  </ProseSection>
 );
 
 export const unsubscribePage = (state: UnsubscribeState): string => {
@@ -62,11 +105,7 @@ export const unsubscribePage = (state: UnsubscribeState): string => {
   return String(
     <Layout title={title}>
       <h1>{t("unsubscribe.email_preferences")}</h1>
-      <Flash
-        {...(state.error !== undefined ? { error: state.error } : {})}
-        {...(state.info !== undefined ? { info: state.info } : {})}
-        {...(state.success !== undefined ? { success: state.success } : {})}
-      />
+      <Flash {...flashProps(state.error, state.success, state.info)} />
       {!state.hash ? (
         <div class="prose">
           <p>{t("unsubscribe.invalid_link")}</p>

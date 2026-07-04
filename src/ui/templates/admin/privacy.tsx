@@ -10,13 +10,14 @@
  * HTML there and rendered via <Raw>, matching the admin guide.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { ORPHAN_RETENTION_OPTIONS } from "#shared/orphan-retention.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
-import { Layout } from "#templates/layout.tsx";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
+/* jscpd:ignore-end */
 
 export type PrivacyPageData = {
   /** Total orphaned attendee records currently in the database. */
@@ -111,8 +112,11 @@ export const adminPrivacyPage = (
   data: PrivacyPageData,
 ): string =>
   String(
-    <Layout title={t("privacy.title")}>
-      <AdminNav active="/admin/settings" session={session} />
+    <AdminPage
+      active="/admin/settings"
+      session={session}
+      title={t("privacy.title")}
+    >
       <div class="prose">
         <h1>{t("privacy.title")}</h1>
         <h2>{t("privacy.not_a_crm_heading")}</h2>
@@ -132,5 +136,5 @@ export const adminPrivacyPage = (
       />
 
       <EraseForm />
-    </Layout>,
+    </AdminPage>,
   );

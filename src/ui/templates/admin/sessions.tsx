@@ -5,12 +5,11 @@
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { CsrfForm } from "#shared/forms.tsx";
 import type { AdminSession, Session } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { successAdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
-import { Layout } from "#templates/layout.tsx";
+import { DataTable } from "#templates/components/data-table.tsx";
 
 const SessionRow = ({
   session,
@@ -50,29 +49,23 @@ export const adminSessionsPage = (
     (s) => s.token !== currentToken,
   ).length;
 
-  return String(
-    <Layout title={t("sessions.title")}>
-      <AdminNav active="/admin/users" session={adminSession} />
-      <Flash success={success} />
-
+  return successAdminPage(t("sessions.title"), "/admin/users")(
+    adminSession,
+    success,
+  )(
+    <>
       <p class="actions">
         <GuideLink href="/admin/guide#login">Sessions guide</GuideLink>
       </p>
 
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>{t("sessions.col.token")}</th>
-              <th>{t("sessions.col.expires")}</th>
-              <th>{t("common.status")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Raw html={sessionRows} />
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={[
+          { header: t("sessions.col.token") },
+          { header: t("sessions.col.expires") },
+          { header: t("common.status") },
+        ]}
+        rows={sessionRows}
+      />
 
       {otherSessionCount > 0 && (
         <>
@@ -85,6 +78,6 @@ export const adminSessionsPage = (
           </CsrfForm>
         </>
       )}
-    </Layout>,
+    </>,
   );
 };

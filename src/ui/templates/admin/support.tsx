@@ -6,13 +6,15 @@
  * set. Rendered only when the Support feature is enabled (ADMIN_EMAIL_ADDRESS).
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
-import { CsrfForm, Flash, MessageFields } from "#shared/forms.tsx";
+import { CsrfForm, MessageFields } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
-import { Layout } from "#templates/layout.tsx";
+import { flashAdminPage } from "#templates/admin/admin-page.tsx";
+
+/* jscpd:ignore-end */
 
 /** Message form delivering to the platform host (no Botpoison). Just a message
  * box: support always comes from the site's own business email, so there's no
@@ -54,10 +56,12 @@ export const adminSupportPage = (opts: {
   success?: string | undefined;
   error?: string | undefined;
 }): string =>
-  String(
-    <Layout title={t("support.page_title")}>
-      <AdminNav active="/admin/settings" session={opts.session} />
-      <Flash error={opts.error} success={opts.success} />
+  flashAdminPage(t("support.page_title"), "/admin/settings")(
+    opts.session,
+    opts.error,
+    opts.success,
+  )(
+    <>
       <div class="prose">
         {opts.supportText ? (
           <Raw html={renderMarkdown(opts.supportText)} />
@@ -66,5 +70,5 @@ export const adminSupportPage = (opts: {
         )}
       </div>
       {opts.formActive && <SupportForm nagLabel={opts.nagLabel} />}
-    </Layout>,
+    </>,
   );

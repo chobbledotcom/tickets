@@ -56,7 +56,10 @@ import {
   type Attendee,
   MAX_DURATION_DAYS,
 } from "#shared/types.ts";
-import { BookingStatusBadges } from "#templates/admin/attendee-detail.tsx";
+import {
+  BookingStatusBadges,
+  InactiveNote,
+} from "#templates/admin/attendee-detail.tsx";
 import { EditQuestions } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Icon } from "#templates/components/actions.tsx";
@@ -129,11 +132,7 @@ const ListingRow = ({
     <tr class={booked ? "attendee-line" : "attendee-line attendee-line-empty"}>
       <td>
         <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
-        {listing.active ? (
-          ""
-        ) : (
-          <span class="muted small">({t("common.inactive")})</span>
-        )}
+        <InactiveNote active={listing.active} />
         {BookingStatusBadges({
           checkedIn: Boolean(line.existingBooking?.checked_in),
           refunded: Boolean(line.existingBooking?.refunded),
@@ -661,6 +660,31 @@ export const AttendeeFormPanel = ({
   </>
 );
 
+/**
+ * The standard admin-attendees page shell: the {@link Layout}, the attendees
+ * nav, and a `prose` heading whose `<h1>` reuses the page title. Extra prose
+ * (below the heading) goes in `prose`; the page body (below the prose block)
+ * goes in `children`. Shared by the create form and the contact-history editor.
+ */
+export const AttendeesPageLayout = (props: {
+  children: JSX.Element;
+  prose?: JSX.Element;
+  session: AdminSession;
+  title: string;
+}): JSX.Element => {
+  const { children, prose, session, title } = props;
+  return (
+    <Layout title={title}>
+      <AdminNav active="/admin/attendees" session={session} />
+      <div class="prose">
+        <h1>{title}</h1>
+        {prose}
+      </div>
+      {children}
+    </Layout>
+  );
+};
+
 /** Render the standalone create page (/admin/attendees/new). Edit renders
  * through the attendee entity page instead. */
 export const attendeeFormPage = (
@@ -668,11 +692,10 @@ export const attendeeFormPage = (
   session: AdminSession,
 ): string =>
   String(
-    <Layout title={t("attendee_form.title_create")}>
-      <AdminNav active="/admin/attendees" session={session} />
-      <div class="prose">
-        <h1>{t("attendee_form.title_create")}</h1>
-      </div>
+    <AttendeesPageLayout
+      session={session}
+      title={t("attendee_form.title_create")}
+    >
       <AttendeeFormPanel data={data} />
-    </Layout>,
+    </AttendeesPageLayout>,
   );
