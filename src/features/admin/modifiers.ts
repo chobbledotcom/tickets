@@ -442,7 +442,6 @@ const handleModifierRecalculateGet: TypedRouteHandler<
 > = (request, { modifierId }) =>
   requireSessionOr(request, (session) =>
     withModifier(modifierId)((modifier) => {
-      applyFlash(request);
       const flash = getFlash();
       return renderModifierRecalculatePage(
         modifier,
