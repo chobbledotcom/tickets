@@ -162,10 +162,13 @@ const ADMIN_SETTINGS: readonly string[] = [...SNAPSHOT_KEYS, "db_schema_hash"];
 const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   // --- Public HTML pages (full nav) ---
   "": [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.HOMEPAGE_TEXT, CONFIG_KEYS.COUNTRY],
-  // --- Address lookup proxy (JSON only): provider choice + its API key ---
+  // --- Address lookup proxy (JSON only): provider choice + its API key.
+  // Session resolution (staff skip the rate limit) can hit the owner
+  // settings-nag reads, so the owner-auth keys ride along. ---
   "address-lookup": [
     CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER,
     CONFIG_KEYS.ADDRESS_LOOKUP_API_KEY,
+    ...OWNER_AUTH_SETTINGS,
   ],
   // --- Everything (may touch any setting) ---
   admin: ADMIN_SETTINGS,

@@ -77,21 +77,44 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
     expect(response.status).toBe(400);
   });
 
-  test("429s while the client IP is locked out", async () => {
-    await enableEasypostcodes();
-    stubFetch(() => Promise.resolve(new Response(PROVIDER_BODY)));
-    // Tests reach getClientIp's "direct" fallback; lock that IP in the
-    // limiter's own namespace exactly as recordIpAttempt would.
+  // Lock the test client's IP ("direct" — getClientIp's fallback) in the
+  // limiter's own namespace exactly as recordIpAttempt would.
+  const lockOutTestIp = async (): Promise<void> => {
     await execute(
       "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
       [await hmacHash("address:direct"), 30, nowMs() + 60_000],
     );
+  };
+
+  test("429s while the client IP is locked out", async () => {
+    await enableEasypostcodes();
+    stubFetch(() => Promise.resolve(new Response(PROVIDER_BODY)));
+    await lockOutTestIp();
 
     const response = await lookupGet("SW1A 2AA");
 
     expect(response.status).toBe(429);
     expect(await response.json()).toEqual({
       error: "Too many address lookups. Please try again later.",
+    });
+  });
+
+  test("authenticated staff are never rate limited", async () => {
+    await enableEasypostcodes();
+    stubFetch(() => Promise.resolve(new Response(PROVIDER_BODY)));
+    await lockOutTestIp();
+    const { cookie } = await getTestSession();
+
+    const { handleRequest } = await import("#routes");
+    const response = await handleRequest(
+      mockRequest("/address-lookup?search=SW1A%202AA", {
+        headers: { cookie },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      addresses: ["10 Downing Street, LONDON, SW1A 2AA"],
     });
   });
 });

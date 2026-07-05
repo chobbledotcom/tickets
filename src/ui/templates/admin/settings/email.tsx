@@ -3,11 +3,11 @@
  */
 
 import { t } from "#i18n";
-import { MASK_SENTINEL } from "#shared/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#shared/email.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { MaskedInput } from "#templates/components/masked-input.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
@@ -44,12 +44,11 @@ export const EmailNotificationsForm = (
           value={s.emailProvider}
         />
       </label>
-      <TextField
+      <MaskedInput
+        configured={s.emailApiKeyConfigured}
         label={t("settings.advanced.api_key")}
         name="email_api_key"
         placeholder={t("settings.advanced.api_key_placeholder")}
-        type="password"
-        value={s.emailApiKeyConfigured ? MASK_SENTINEL : undefined}
       />
       <TextField
         label={t("settings.advanced.from_address")}

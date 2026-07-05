@@ -7,10 +7,12 @@
  * to the configured provider. It 404s when no provider is configured (the
  * pages don't render a search box then either), and is throttled per IP
  * because each cache miss spends one of the operator's paid provider
- * requests.
+ * requests. Authenticated staff are never throttled — the limiter guards
+ * against anonymous abuse, not the operator's own attendee forms.
  */
 
 import { t } from "#i18n";
+import { getAuthenticatedSession } from "#routes/auth.ts";
 import { jsonResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getClientIp } from "#routes/url.ts";
@@ -35,11 +37,13 @@ export const handleAddressLookupGet: TypedRouteHandler<
   const provider = activeAddressLookupProvider();
   if (!provider) return notFoundResponse();
 
-  const ip = getClientIp(request, server);
-  if (await limiter.isLimited(ip)) {
-    return jsonResponse({ error: t("address_lookup.rate_limited") }, 429);
+  if (!(await getAuthenticatedSession(request))) {
+    const ip = getClientIp(request, server);
+    if (await limiter.isLimited(ip)) {
+      return jsonResponse({ error: t("address_lookup.rate_limited") }, 429);
+    }
+    await limiter.record(ip);
   }
-  await limiter.record(ip);
 
   const search = new URL(request.url).searchParams.get("search") ?? "";
   const outcome = await lookupAddresses(provider, search);

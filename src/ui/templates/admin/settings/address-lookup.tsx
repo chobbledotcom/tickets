@@ -9,11 +9,10 @@ import {
   ADDRESS_LOOKUP_SETTINGS,
   type AddressLookupSetting,
 } from "#shared/address-lookup/types.ts";
-import { MASK_SENTINEL } from "#shared/db/settings.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
+import { MaskedInput } from "#templates/components/masked-input.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
-import { TextField } from "#templates/components/text-field.tsx";
 
 /* jscpd:ignore-end */
 
@@ -45,12 +44,11 @@ export const AddressLookupForm = (
         ))}
       </select>
     </label>
-    <TextField
+    <MaskedInput
+      configured={s.addressLookupApiKeyConfigured}
       label={t("address_lookup.settings.api_key")}
       name="address_lookup_api_key"
       placeholder={t("address_lookup.settings.api_key_placeholder")}
-      type="password"
-      value={s.addressLookupApiKeyConfigured ? MASK_SENTINEL : undefined}
     />
   </SettingsSection>
 );
