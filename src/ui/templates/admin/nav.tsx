@@ -76,14 +76,43 @@ const renderReadOnlyBanner = (
   return null;
 };
 
+/** A section's index link paired with its "Add X" sibling — the repeated
+ * two-item shape every top-level section with its own create page uses
+ * (Listings, Groups, Attendees, Modifiers, Servicing, Users), so the pair is
+ * built once instead of hand-typed at every call site. */
+const sectionWithAdd = (
+  href: string,
+  label: string,
+  addHref: string,
+  addLabel: string,
+): NavItem[] => [
+  { href, label },
+  { href: addHref, label: addLabel },
+];
+
+const listingsNavItems = (): NavItem[] =>
+  sectionWithAdd(
+    "/admin/listings",
+    t("terms.listings"),
+    "/admin/listing/new",
+    t("listings_table.add_listing"),
+  );
+
+const groupsNavItems = (): NavItem[] =>
+  sectionWithAdd(
+    "/admin/groups",
+    t("terms.groups"),
+    "/admin/groups/new",
+    t("groups.add_group"),
+  );
+
 /** Editors only ever reach the content pages: listings, groups, and the public
  * site editor. Everything else is gated away, so their nav lists exactly those
  * (no dead/forbidden links). The Site editor is surfaced top-level here because
  * the owner-only Settings parent it normally nests under is hidden from them. */
 const editorTopLevelItems = (): NavItem[] => [
-  { href: "/admin/listings", label: t("terms.listings") },
-  { href: "/admin/listing/new", label: t("listings_table.add_listing") },
-  { href: "/admin/groups", label: t("terms.groups") },
+  ...listingsNavItems(),
+  ...groupsNavItems(),
   { href: "/admin/site", label: t("nav.site") },
 ];
 
@@ -97,16 +126,35 @@ const topLevelItems = (session: AdminSession, active: string): NavItem[] =>
     ? editorTopLevelItems()
     : compact([
         { href: "/admin/", label: t("nav.public.home") },
-        { href: "/admin/listings", label: t("terms.listings") },
-        { href: "/admin/listing/new", label: t("listings_table.add_listing") },
+        ...listingsNavItems(),
         { href: "/admin/calendar", label: t("nav.calendar") },
-        { href: "/admin/servicing", label: t("nav.servicing") },
-        { href: "/admin/attendees", label: t("terms.attendees") },
-        session.adminLevel === "owner"
-          ? { href: "/admin/users", label: t("terms.users") }
-          : null,
-        { href: "/admin/groups", label: t("terms.groups") },
-        { href: "/admin/modifiers", label: t("terms.modifiers") },
+        ...sectionWithAdd(
+          "/admin/servicing",
+          t("nav.servicing"),
+          "/admin/servicing/new",
+          t("nav.servicing_add"),
+        ),
+        ...sectionWithAdd(
+          "/admin/attendees",
+          t("terms.attendees"),
+          "/admin/attendees/new",
+          t("admin.listings.add_attendee"),
+        ),
+        ...(session.adminLevel === "owner"
+          ? sectionWithAdd(
+              "/admin/users",
+              t("terms.users"),
+              "/admin/user/new",
+              t("users.invite_user"),
+            )
+          : []),
+        ...groupsNavItems(),
+        ...sectionWithAdd(
+          "/admin/modifiers",
+          t("terms.modifiers"),
+          "/admin/modifiers/new",
+          t("modifiers.add_modifier"),
+        ),
         session.adminLevel === "owner"
           ? { href: "/admin/ledger", label: t("nav.ledger") }
           : null,

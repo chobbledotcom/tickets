@@ -411,6 +411,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       expect(html).toContain('href="/admin/listings"');
       expect(html).toContain('href="/admin/listing/new"');
       expect(html).toContain('href="/admin/groups"');
+      expect(html).toContain('href="/admin/groups/new"');
       expect(html).toContain('href="/admin/site"');
       for (const forbidden of [
         '"/admin/users"',
