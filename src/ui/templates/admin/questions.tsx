@@ -31,6 +31,10 @@ import {
   SubmitButton,
 } from "#templates/components/actions.tsx";
 import {
+  CheckboxForm,
+  CheckboxLabel,
+} from "#templates/components/aggregate-sections.tsx";
+import {
   ReorderArrows,
   type ReorderProps,
 } from "#templates/components/reorder.tsx";
@@ -273,33 +277,25 @@ export const adminQuestionPage = (
           <em>No listings yet.</em>
         </p>
       ) : (
-        <CsrfForm
+        <CheckboxForm
           action={`/admin/questions/${question.id}/listings`}
           id="question-listings"
+          submitLabel="Save Listings"
         >
-          <fieldset class="checkboxes">
-            <label>
-              <input
-                checked={question.assign_all || undefined}
-                name="assign_all"
-                type="checkbox"
-              />
-              {" Assign to all listings"}
-            </label>
-            {map((e: ListingWithCount) => (
-              <label>
-                <input
-                  checked={assignedListingIds.has(e.id) || undefined}
-                  name="listing_ids"
-                  type="checkbox"
-                  value={String(e.id)}
-                />
-                {` ${e.name}`}
-              </label>
-            ))(allListings)}
-          </fieldset>
-          <SubmitButton icon="save">Save Listings</SubmitButton>
-        </CsrfForm>
+          <CheckboxLabel
+            checked={question.assign_all || undefined}
+            label=" Assign to all listings"
+            name="assign_all"
+          />
+          {map((e: ListingWithCount) => (
+            <CheckboxLabel
+              checked={assignedListingIds.has(e.id) || undefined}
+              label={` ${e.name}`}
+              name="listing_ids"
+              value={String(e.id)}
+            />
+          ))(allListings)}
+        </CheckboxForm>
       )}
 
       <p>
@@ -598,30 +594,28 @@ export const ListingQuestionsPanel = ({
         <a href="/admin/questions">Create questions</a> first.
       </p>
     ) : (
-      <CsrfForm action={`/admin/listing/${listing.id}/questions`}>
-        <fieldset class="checkboxes">
-          {map((q: QuestionWithAnswers) => (
-            <label>
-              <input
-                checked={assignedIds.has(q.id) || undefined}
-                name="question_ids"
-                type="checkbox"
-                value={String(q.id)}
-              />
-              {` ${questionTextFlat(q.text)}`}
-              <small>
-                {" "}
-                ({q.answers.length} option{q.answers.length !== 1 ? "s" : ""}
-                {q.answers.length > 0 && (
-                  <>: {map((a: Answer) => a.text)(q.answers).join(", ")}</>
-                )}
-                )
-              </small>
-            </label>
-          ))(allQuestions)}
-        </fieldset>
-        <SubmitButton icon="save">{t("common.save")}</SubmitButton>
-      </CsrfForm>
+      <CheckboxForm
+        action={`/admin/listing/${listing.id}/questions`}
+        submitLabel={t("common.save")}
+      >
+        {map((q: QuestionWithAnswers) => (
+          <CheckboxLabel
+            checked={assignedIds.has(q.id) || undefined}
+            label={` ${questionTextFlat(q.text)}`}
+            name="question_ids"
+            value={String(q.id)}
+          >
+            <small>
+              {" "}
+              ({q.answers.length} option{q.answers.length !== 1 ? "s" : ""}
+              {q.answers.length > 0 && (
+                <>: {map((a: Answer) => a.text)(q.answers).join(", ")}</>
+              )}
+              )
+            </small>
+          </CheckboxLabel>
+        ))(allQuestions)}
+      </CheckboxForm>
     )}
     <p>
       <a href="/admin/questions">{t("questions.listing.manage")}</a>

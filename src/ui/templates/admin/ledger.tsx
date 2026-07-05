@@ -602,7 +602,7 @@ export const AccountStatementSection = ({
   lines: StatementLine[];
   names: LedgerNames;
   returnUrl: string;
-  fullLedgerHref?: string;
+  fullLedgerHref?: string | undefined;
 }): JSX.Element => (
   <div class="table-controls">
     <AccountStatementHeading account={account} lines={lines} names={names} />
@@ -619,6 +619,29 @@ export const AccountStatementSection = ({
       returnUrl={returnUrl}
     />
   </div>
+);
+
+export const EmbeddedAccountStatementSection = ({
+  id,
+  ledger,
+  returnUrl,
+  fullLedgerHref,
+}: {
+  id?: string;
+  ledger: AccountLedgerData;
+  returnUrl: string;
+  fullLedgerHref?: string | undefined;
+}): JSX.Element => (
+  <section id={id}>
+    <h2>{t("admin.ledger.statement_heading")}</h2>
+    <AccountStatementSection
+      account={ledger.account}
+      fullLedgerHref={fullLedgerHref}
+      lines={ledger.lines}
+      names={ledger.names}
+      returnUrl={returnUrl}
+    />
+  </section>
 );
 
 /** The whole filter state the ledger page round-trips through the query string:
