@@ -301,6 +301,36 @@ describeWithEnv(
       expect(html).toContain("add-on under Addon Parent");
     });
 
+    test("an add-on row under a deleted parent is labelled by the parent's id", async () => {
+      const parent = await createTestListing({
+        maxAttendees: 10,
+        name: "Doomed Parent",
+      });
+      const child = await createTestListing({
+        maxAttendees: 10,
+        name: "Orphan Child",
+      });
+      const made = await createAttendeeAtomic({
+        bookings: [
+          { listingId: child.id, parentListingId: parent.id, quantity: 1 },
+        ],
+        email: "orphan@example.com",
+        name: "Orphan Booker",
+      });
+      expect(made.success).toBe(true);
+      const attendeeId = (made as Extract<typeof made, { success: true }>)
+        .attendees[0]!.id;
+      // Deleting the parent removes only ITS rows; the child row keeps the
+      // stale parent id, so the label falls back to the id.
+      const { deleteListing } = await import("#shared/db/listings.ts");
+      await deleteListing(parent.id);
+
+      const html = await (
+        await adminGet(`/admin/attendees/${attendeeId}/edit`)
+      ).text();
+      expect(html).toContain(`add-on under ${parent.id}`);
+    });
+
     test("an inactive unbooked package member offers no blank path line", async () => {
       const { group, listing } = await packageAndMember("Idle Kit");
       const spare = await createTestListing({
