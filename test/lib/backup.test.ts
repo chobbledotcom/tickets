@@ -28,13 +28,13 @@ import {
 } from "#shared/db/backup.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
 import { listingsTable } from "#shared/db/listings.ts";
+import { SCHEMA, TRIGGERS } from "#shared/db/migrations/schema.ts";
 import {
   initDb,
   LATEST_UPDATE,
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
 } from "#shared/db/migrations.ts";
-import { SCHEMA, TRIGGERS } from "#shared/db/migrations/schema.ts";
 import { listFiles, uploadRaw } from "#shared/storage.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
 import { createTestListing, describeWithEnv, setTestEnv } from "#test-utils";
@@ -669,7 +669,9 @@ describeWithEnv("backup", { db: true }, () => {
         },
         { rows: TRIGGERS.map((trigger) => ({ name: trigger.name })) },
       ] as unknown as ResultSet[];
-      const isSnapshotRead = (stmts: Array<string | { sql: string }>): boolean =>
+      const isSnapshotRead = (
+        stmts: Array<string | { sql: string }>,
+      ): boolean =>
         stmts.some((stmt) => sqlOf(stmt).includes("pragma_table_info"));
       const batchStub = stub(client, "batch", ((
         stmts: Array<string | { sql: string }>,
