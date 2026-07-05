@@ -92,7 +92,8 @@ describeWithEnv(
     test("webhook with missing items in multi-ticket metadata acknowledges without processing", async () => {
       await setupStripe();
 
-      const mockVerify = await stubWebhookVerify(
+      // Returns 200 to prevent provider retries
+      await expectWebhookIgnored(
         checkoutSessionEvent({
           amountTotal: 0,
           eventId: "evt_no_items",
@@ -104,17 +105,6 @@ describeWithEnv(
           paymentIntent: "pi_no_items",
           sessionId: "cs_no_items",
         }),
-      );
-
-      // Returns 200 to prevent provider retries
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-        },
       );
     });
 

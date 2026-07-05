@@ -1,5 +1,4 @@
 // jscpd:ignore-start
-import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
@@ -7,10 +6,9 @@ import {
   createTestListing,
   describeWithEnv,
   expectWebhookIgnored,
-  postWebhookAndAssert,
+  expectWebhookPending,
   setupStripe,
   singleItem,
-  stubWebhookVerify,
   webhookMeta,
 } from "#test-utils";
 
@@ -27,44 +25,24 @@ describeWithEnv(
     test("acknowledges non-checkout listings", async () => {
       await setupStripe();
 
-      const mockVerify = await stubWebhookVerify({
+      await expectWebhookIgnored({
         data: { object: {} },
         id: "evt_test",
         type: "payment_intent.created",
       });
-
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-        },
-      );
     });
 
     test("acknowledges webhook with unrecognized session metadata", async () => {
       await setupStripe();
 
-      const mockVerify = await stubWebhookVerify(
+      // Returns 200 to prevent provider retries
+      await expectWebhookIgnored(
         checkoutSessionEvent({
           amountTotal: 0,
           eventId: "evt_test",
           metadata: {}, // Missing required fields — not our session
           sessionId: "cs_test",
         }),
-      );
-
-      // Returns 200 to prevent provider retries
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-        },
       );
     });
 
@@ -76,7 +54,7 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const mockVerify = await stubWebhookVerify(
+      await expectWebhookPending(
         checkoutSessionEvent({
           amountTotal: 1000,
           eventId: "evt_test",
@@ -89,17 +67,6 @@ describeWithEnv(
           paymentStatus: "unpaid",
           sessionId: "cs_test",
         }),
-      );
-
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-          expect(json.status).toBe("pending");
-        },
       );
     });
 

@@ -11,14 +11,13 @@ import {
   describeWithEnv,
   expectRefundedWithNote,
   expectSessionFailed,
+  expectWebhookIgnored,
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
   makeParent,
-  postWebhookAndAssert,
   setupStripe,
   signedMeta,
   singleItem,
-  stubWebhookVerify,
   webhookMeta,
 } from "#test-utils";
 
@@ -194,7 +193,12 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
   test("multi-ticket webhook handles listing not found without refund", async () => {
     await setupStripe();
 
-    const mockVerify = await stubWebhookVerify(
+    const mockRefund = spy(stripeApi, "refundPayment");
+
+    // Unsigned session (no valid price proof) for a listing we don't have:
+    // ignored (200 ack) without processing — and crucially without a refund,
+    // since the webhook may be for a different instance sharing the provider.
+    await expectWebhookIgnored(
       checkoutSessionEvent({
         amountTotal: 1000,
         eventId: "evt_multi_notfound",
@@ -206,22 +210,8 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
         paymentIntent: "pi_multi_notfound",
         sessionId: "cs_multi_notfound",
       }),
-    );
-
-    const mockRefund = spy(stripeApi, "refundPayment");
-
-    // Unsigned session (no valid price proof) for a listing we don't have:
-    // ignored (200 ack) without processing — and crucially without a refund,
-    // since the webhook may be for a different instance sharing the provider.
-    await postWebhookAndAssert(
       () => {
-        mockVerify.restore();
         mockRefund.restore();
-      },
-      200,
-      (json) => {
-        expect(json.received).toBe(true);
-        expect(json.processed).toBeUndefined();
       },
     );
     // An unverifiable session must NOT trigger a refund.

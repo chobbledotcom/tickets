@@ -9,6 +9,7 @@ import {
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
+  expectWebhookIgnored,
   mockWebhookRequest,
   postWebhookAndAssert,
   setupStripe,
@@ -133,7 +134,11 @@ describeWithEnv(
       });
       // listing2 does not exist (id 99999) — validation fails before any attendees are created
 
-      const mockVerify = await stubWebhookVerify(
+      const mockRefund = spy(stripeApi, "refundPayment");
+
+      // Unsigned session (no valid price proof): ignored (200 ack) without
+      // processing, without a refund, and without creating any attendee.
+      await expectWebhookIgnored(
         checkoutSessionEvent({
           amountTotal: 500,
           eventId: "evt_multi_rollback",
@@ -148,21 +153,8 @@ describeWithEnv(
           paymentIntent: "pi_multi_rollback",
           sessionId: "cs_multi_rollback_cleanup",
         }),
-      );
-
-      const mockRefund = spy(stripeApi, "refundPayment");
-
-      // Unsigned session (no valid price proof): ignored (200 ack) without
-      // processing, without a refund, and without creating any attendee.
-      await postWebhookAndAssert(
         () => {
-          mockVerify.restore();
           mockRefund.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-          expect(json.processed).toBeUndefined();
         },
       );
 

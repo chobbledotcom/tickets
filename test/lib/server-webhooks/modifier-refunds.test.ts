@@ -10,8 +10,7 @@ import {
   expectKeptAsQuantityZeroAndRefunded,
   expectWebhookKeptAndRefunded,
   setupStripe,
-  signedMeta,
-  singleItem,
+  singleModifierMeta,
 } from "#test-utils";
 import { createServiceChargeScenario } from "./service-charge-scenario.ts";
 
@@ -34,15 +33,12 @@ describeWithEnv(
           // Paid only the ticket, not the surcharge the metadata records.
           amountTotal: 1000,
           eventId: "evt_modifier_mismatch",
-          metadata: signedMeta(
-            {
-              email: "mod@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
-              name: "Mod Buyer",
-            },
-            1000,
-          ),
+          metadata: singleModifierMeta({
+            amountTotal: 1000,
+            listingId: listing.id,
+            modifierId: modifier.id,
+            unitPrice: 1000,
+          }),
           paymentIntent: "pi_modifier_mismatch",
           sessionId: "cs_modifier_mismatch",
         }),
@@ -77,15 +73,12 @@ describeWithEnv(
           // Expected total is the £5 add-on; simulate a stale £4 session.
           amountTotal: 400,
           eventId: "evt_addon_only_mismatch",
-          metadata: signedMeta(
-            {
-              email: "mod@example.com",
-              items: singleItem(listing.id, 1, 0),
-              modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
-              name: "Mod Buyer",
-            },
-            400,
-          ),
+          metadata: singleModifierMeta({
+            amountTotal: 400,
+            listingId: listing.id,
+            modifierId: modifier.id,
+            unitPrice: 0,
+          }),
           paymentIntent: "pi_addon_only_mismatch",
           sessionId: "cs_addon_only_mismatch",
         }),
@@ -123,15 +116,12 @@ describeWithEnv(
         checkoutSessionEvent({
           amountTotal: 1100,
           eventId: "evt_modifier_soldout",
-          metadata: signedMeta(
-            {
-              email: "mod@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
-              name: "Mod Buyer",
-            },
-            1100,
-          ),
+          metadata: singleModifierMeta({
+            amountTotal: 1100,
+            listingId: listing.id,
+            modifierId: modifier.id,
+            unitPrice: 1000,
+          }),
           paymentIntent: "pi_modifier_soldout",
           sessionId: "cs_modifier_soldout",
         }),

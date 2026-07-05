@@ -1,11 +1,11 @@
 // jscpd:ignore-start
-import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
   checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
+  expectAttendeeWithPricePaid,
   expectKeptAsQuantityZeroAndRefunded,
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
@@ -51,12 +51,7 @@ describeWithEnv(
       );
 
       // Verify attendee was created with the actual amount paid (2500), not the minimum (1000)
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-      expect(
-        (attendees[0] as unknown as Record<string, unknown>).price_paid,
-      ).toBe(2500);
+      await expectAttendeeWithPricePaid(listing.id, 2500);
     });
 
     test("single-ticket can_pay_more keeps and refunds amount below minimum price", async () => {

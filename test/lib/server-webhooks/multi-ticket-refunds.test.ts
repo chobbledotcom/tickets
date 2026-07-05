@@ -9,7 +9,7 @@ import {
   createTestListing,
   describeWithEnv,
   expectKeptAsQuantityZeroAndRefunded,
-  expectRefundedWithNote,
+  expectMergedMultiListingAttendee,
   expectSessionFailed,
   expectWebhookKeptAndRefunded,
   postWebhookAndAssert,
@@ -93,12 +93,11 @@ describeWithEnv(
 
       // Signed by us → the order is kept as a quantity-0 placeholder (one
       // attendee across both listings), not dropped, and refunded once.
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees1 = await getAttendeesRaw(listing1.id);
-      expect(attendees1.length).toBe(1);
-      expect(attendees1[0]!.quantity).toBe(0);
-      await expectRefundedWithNote(attendees1[0]!.id, mockRefund);
-      await expectSessionFailed("cs_multi_cap");
+      await expectKeptAsQuantityZeroAndRefunded(
+        listing1.id,
+        "cs_multi_cap",
+        mockRefund,
+      );
     });
 
     test("multi-ticket is kept and refunded when prices changed since checkout", async () => {
@@ -140,15 +139,12 @@ describeWithEnv(
 
       // The multi-listing booking is kept across both listings as one
       // quantity-0 placeholder and refunded once, with a system note.
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees1 = await getAttendeesRaw(listing1.id);
-      const attendees2 = await getAttendeesRaw(listing2.id);
-      expect(attendees1.length).toBe(1);
-      expect(attendees2.length).toBe(1);
-      expect(attendees1[0]!.id).toBe(attendees2[0]!.id);
-      expect(attendees1[0]!.quantity).toBe(0);
+      const attendee = await expectMergedMultiListingAttendee(
+        listing1.id,
+        listing2.id,
+      );
       const { getNoteRows } = await import("#shared/db/system-notes.ts");
-      expect((await getNoteRows([attendees1[0]!.id])).length).toBe(1);
+      expect((await getNoteRows([attendee.id])).length).toBe(1);
       await expectSessionFailed("cs_multi_mismatch");
 
       // Verify refund was attempted exactly once

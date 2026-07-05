@@ -8,8 +8,7 @@ import {
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
-  expectRefundedWithNote,
-  expectSessionFailed,
+  expectKeptAsQuantityZeroAndRefunded,
   expectWebhookKeptAndRefunded,
   postWebhookAndAssert,
   setupStripe,
@@ -112,12 +111,11 @@ describeWithEnv(
 
       // Signed by us → the whole order is kept as a quantity-0 placeholder
       // (one attendee against both listings), not dropped, and refunded once.
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees1 = await getAttendeesRaw(listing1.id);
-      expect(attendees1.length).toBe(1);
-      expect(attendees1[0]!.quantity).toBe(0);
-      await expectRefundedWithNote(attendees1[0]!.id, mockRefund);
-      await expectSessionFailed("cs_multi_soldout_wh");
+      await expectKeptAsQuantityZeroAndRefunded(
+        listing1.id,
+        "cs_multi_soldout_wh",
+        mockRefund,
+      );
     });
 
     test("webhook replays an already-processed session as success even if its listing was deleted", async () => {

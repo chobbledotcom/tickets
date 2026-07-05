@@ -7,6 +7,7 @@ import {
   createTestListing,
   describeWithEnv,
   expectKeptAsQuantityZeroAndRefunded,
+  expectMergedMultiListingAttendee,
   expectRefundedWithNote,
   expectSessionFailed,
   expectWebhookKeptAndRefunded,
@@ -115,14 +116,11 @@ describeWithEnv(
 
       // Signed by us → the order is kept as one quantity-0 placeholder across
       // both listings and refunded once, with a system note.
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees1 = await getAttendeesRaw(listing1.id);
-      const attendees2 = await getAttendeesRaw(listing2.id);
-      expect(attendees1.length).toBe(1);
-      expect(attendees2.length).toBe(1);
-      expect(attendees1[0]!.id).toBe(attendees2[0]!.id);
-      expect(attendees1[0]!.quantity).toBe(0);
-      await expectRefundedWithNote(attendees1[0]!.id, mockRefund);
+      const attendee = await expectMergedMultiListingAttendee(
+        listing1.id,
+        listing2.id,
+      );
+      await expectRefundedWithNote(attendee.id, mockRefund);
       await expectSessionFailed("cs_no_pay_more");
     });
 

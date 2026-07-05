@@ -206,24 +206,64 @@ export const expectKeptAsQuantityZeroAndRefunded = async (
 };
 
 /**
- * The third canonical webhook outcome alongside "processed" and "kept and
- * refunded": the session carries no valid price proof (corrupt/missing/non-array
- * items, an unparseable body, ...) so it classifies as "ignore" — acknowledged
- * (200, `received: true`) without processing, never a throw or refund.
+ * Assert a multi-listing order was kept as a single quantity-0 placeholder
+ * shared across both listings (never dropped or split), and return that
+ * attendee so the caller can continue with its own refund/note/failure
+ * checks — the shared "did the two listings merge onto one attendee" check
+ * at the top of the `can_pay_more` and price-mismatch multi-ticket
+ * "kept and refunded" scenarios.
  */
-export const expectWebhookIgnored = async (
+export const expectMergedMultiListingAttendee = async (
+  listing1Id: number,
+  listing2Id: number,
+): Promise<{ id: number }> => {
+  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const attendees1 = await getAttendeesRaw(listing1Id);
+  const attendees2 = await getAttendeesRaw(listing2Id);
+  expect(attendees1.length).toBe(1);
+  expect(attendees2.length).toBe(1);
+  expect(attendees1[0]!.id).toBe(attendees2[0]!.id);
+  expect(attendees1[0]!.quantity).toBe(0);
+  return attendees1[0]!;
+};
+
+/**
+ * Shared tail of every "acknowledged, no throw" webhook outcome
+ * (ignored/pending): stub-post-assert `received: true`, then hand `json` to
+ * `assertOutcome` for the one field that distinguishes the outcome. Curries
+ * the "received" check out of `expectWebhookIgnored`/`expectWebhookPending`
+ * so the two differ only in that one assertion.
+ */
+const expectWebhookAcknowledged = async (
   event: Parameters<typeof stubWebhookVerify>[0],
+  assertOutcome: (json: Record<string, unknown>) => void,
   extraCleanup?: () => void,
 ): Promise<void> => {
   await stubAndPostWebhook(
     event,
     (json) => {
       expect(json.received).toBe(true);
-      expect(json.processed).toBeUndefined();
+      assertOutcome(json);
     },
     extraCleanup,
   );
 };
+
+/**
+ * The third canonical webhook outcome alongside "processed" and "kept and
+ * refunded": the session carries no valid price proof (corrupt/missing/non-array
+ * items, an unparseable body, ...) so it classifies as "ignore" — acknowledged
+ * (200, `received: true`) without processing, never a throw or refund.
+ */
+export const expectWebhookIgnored = (
+  event: Parameters<typeof stubWebhookVerify>[0],
+  extraCleanup?: () => void,
+): Promise<void> =>
+  expectWebhookAcknowledged(
+    event,
+    (json) => expect(json.processed).toBeUndefined(),
+    extraCleanup,
+  );
 
 /**
  * Stub `stripeApi.retrieveCheckoutSession` — the shape the `/payment/success`
@@ -264,6 +304,22 @@ export const stubRetrieveCheckoutSession = (session: {
     >),
   );
 
+/** Assert a listing has exactly one attendee recorded with the given
+ *  `price_paid` — the tail check for a processed webhook whose test cares
+ *  about the actual amount charged (can_pay_more, amount_total-as-number
+ *  extraction, ...) rather than just "an attendee exists". */
+export const expectAttendeeWithPricePaid = async (
+  listingId: number,
+  pricePaid: number,
+): Promise<void> => {
+  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const attendees = await getAttendeesRaw(listingId);
+  expect(attendees.length).toBe(1);
+  expect((attendees[0] as unknown as Record<string, unknown>).price_paid).toBe(
+    pricePaid,
+  );
+};
+
 /** Assert a listing has exactly one attendee whose PII was encrypted on
  *  create — the standard "booking succeeded" check after a processed
  *  single-ticket webhook. */
@@ -285,4 +341,20 @@ export const stubRefundPayment = (refundId = "re_test") =>
     Promise.resolve({ id: refundId } as unknown as Awaited<
       ReturnType<typeof stripeApi.refundPayment>
     >),
+  );
+
+/**
+ * A fourth webhook outcome alongside processed/kept-and-refunded/ignored: the
+ * session is treated as unpaid (an invalid or not-yet-settled payment
+ * status), so the webhook acknowledges it as a pending retry rather than
+ * processing, refunding, or dropping it.
+ */
+export const expectWebhookPending = (
+  event: Parameters<typeof stubWebhookVerify>[0],
+  extraCleanup?: () => void,
+): Promise<void> =>
+  expectWebhookAcknowledged(
+    event,
+    (json) => expect(json.status).toBe("pending"),
+    extraCleanup,
   );

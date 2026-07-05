@@ -299,6 +299,35 @@ export const singleItem = (
   price: number,
 ): string => JSON.stringify([{ e: listingId, p: price, q: quantity }]);
 
+/**
+ * signedMeta for the recurring "one ticket + one modifier" checkout shape —
+ * a single-item session whose price proof also covers a single applied
+ * modifier. Shared by the `server-webhooks > modifiers` and
+ * `server-webhooks > modifier price-mismatch refunds` suites, which build
+ * this exact metadata shape (differing only in the listing/modifier/amount
+ * values) for their "modifier total is/isn't honoured" scenarios.
+ */
+export const singleModifierMeta = (opts: {
+  listingId: number;
+  unitPrice: number;
+  modifierId: number;
+  amountTotal: number;
+  modifierQuantity?: number;
+  email?: string;
+  name?: string;
+}): SessionMetadata =>
+  signedMeta(
+    {
+      email: opts.email ?? "mod@example.com",
+      items: singleItem(opts.listingId, 1, opts.unitPrice),
+      modifiers: JSON.stringify([
+        { i: opts.modifierId, q: opts.modifierQuantity ?? 1 },
+      ]),
+      name: opts.name ?? "Mod Buyer",
+    },
+    opts.amountTotal,
+  );
+
 export const JPEG_HEADER = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
 export const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]);

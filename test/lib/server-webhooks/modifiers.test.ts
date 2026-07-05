@@ -17,6 +17,7 @@ import {
   setupStripe,
   signedMeta,
   singleItem,
+  singleModifierMeta,
 } from "#test-utils";
 import { createServiceChargeScenario } from "./service-charge-scenario.ts";
 
@@ -80,15 +81,12 @@ describeWithEnv("server webhooks > modifiers", { db: true }, () => {
         // £10 ticket + 10% service charge = £11.00.
         amountTotal: 1100,
         eventId: "evt_modifier_ok",
-        metadata: signedMeta(
-          {
-            email: "mod@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
-            name: "Mod Buyer",
-          },
-          1100,
-        ),
+        metadata: singleModifierMeta({
+          amountTotal: 1100,
+          listingId: listing.id,
+          modifierId: modifier.id,
+          unitPrice: 1000,
+        }),
         paymentIntent: "pi_modifier_ok",
         sessionId: "cs_modifier_ok",
       }),
