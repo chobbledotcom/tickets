@@ -2,7 +2,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { awaitTestRequest, describeWithEnv, mockRequest } from "#test-utils";
+import { describeWithEnv, mockRequest } from "#test-utils";
+import {
+  expect404ForNonGetStatic,
+  expectLongCacheHeaders,
+  expectStaticFile,
+} from "./static-route-checks.ts";
 
 // jscpd:ignore-end
 
@@ -12,11 +17,7 @@ describeWithEnv(
   () => {
     describe("GET /robots.txt", () => {
       test("returns plain text robots.txt", async () => {
-        const response = await handleRequest(mockRequest("/robots.txt"));
-        expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toBe(
-          "text/plain; charset=utf-8",
-        );
+        await expectStaticFile("/robots.txt", "text/plain; charset=utf-8");
       });
 
       test("allows crawlers on /listings/ but disallows everything else", async () => {
@@ -28,111 +29,79 @@ describeWithEnv(
       });
 
       test("returns 404 for non-GET requests to /robots.txt", async () => {
-        const response = await awaitTestRequest("/robots.txt", {
-          data: {},
-          method: "POST",
-        });
-        expect(response.status).toBe(404);
+        await expect404ForNonGetStatic("/robots.txt");
       });
 
       test("has long cache headers", async () => {
-        const response = await handleRequest(mockRequest("/robots.txt"));
-        expect(response.headers.get("cache-control")).toBe(
-          "public, max-age=31536000, immutable",
-        );
+        await expectLongCacheHeaders("/robots.txt");
       });
     });
 
     describe("GET /favicon.ico", () => {
       test("returns SVG favicon", async () => {
-        const response = await handleRequest(mockRequest("/favicon.ico"));
-        expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toBe("image/svg+xml");
-        const svg = await response.text();
-        expect(svg).toContain("<svg");
-        expect(svg).toContain("viewBox");
+        await expectStaticFile("/favicon.ico", "image/svg+xml", (svg) => {
+          expect(svg).toContain("<svg");
+          expect(svg).toContain("viewBox");
+        });
       });
 
       test("returns 404 for non-GET requests to /favicon.ico", async () => {
-        const response = await awaitTestRequest("/favicon.ico", {
-          data: {},
-          method: "POST",
-        });
-        expect(response.status).toBe(404);
+        await expect404ForNonGetStatic("/favicon.ico");
       });
 
       test("has long cache headers", async () => {
-        const response = await handleRequest(mockRequest("/favicon.ico"));
-        expect(response.headers.get("cache-control")).toBe(
-          "public, max-age=31536000, immutable",
-        );
+        await expectLongCacheHeaders("/favicon.ico");
       });
     });
 
     describe("GET /icons.svg", () => {
       test("returns SVG icon sprite", async () => {
-        const response = await handleRequest(mockRequest("/icons.svg"));
-        expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toBe("image/svg+xml");
-        const svg = await response.text();
-        expect(svg).toContain("<svg");
-        expect(svg).toContain('id="plus"');
+        await expectStaticFile("/icons.svg", "image/svg+xml", (svg) => {
+          expect(svg).toContain("<svg");
+          expect(svg).toContain('id="plus"');
+        });
       });
 
       test("returns 404 for non-GET requests to /icons.svg", async () => {
-        const response = await awaitTestRequest("/icons.svg", {
-          data: {},
-          method: "POST",
-        });
-        expect(response.status).toBe(404);
+        await expect404ForNonGetStatic("/icons.svg");
       });
 
       test("has long cache headers", async () => {
-        const response = await handleRequest(mockRequest("/icons.svg"));
-        expect(response.headers.get("cache-control")).toBe(
-          "public, max-age=31536000, immutable",
-        );
+        await expectLongCacheHeaders("/icons.svg");
       });
     });
 
     describe("GET /style.css", () => {
       test("returns CSS stylesheet", async () => {
-        const response = await handleRequest(mockRequest("/style.css"));
-        expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toBe(
+        await expectStaticFile(
+          "/style.css",
           "text/css; charset=utf-8",
+          (css) => {
+            expect(css).toContain(":root");
+            expect(css).toContain("--color-link");
+          },
         );
-        const css = await response.text();
-        expect(css).toContain(":root");
-        expect(css).toContain("--color-link");
       });
 
       test("returns 404 for non-GET requests to /style.css", async () => {
-        const response = await awaitTestRequest("/style.css", {
-          data: {},
-          method: "POST",
-        });
-        expect(response.status).toBe(404);
+        await expect404ForNonGetStatic("/style.css");
       });
 
       test("has long cache headers", async () => {
-        const response = await handleRequest(mockRequest("/style.css"));
-        expect(response.headers.get("cache-control")).toBe(
-          "public, max-age=31536000, immutable",
-        );
+        await expectLongCacheHeaders("/style.css");
       });
     });
 
     describe("GET /admin.js", () => {
       test("returns JavaScript file", async () => {
-        const response = await handleRequest(mockRequest("/admin.js"));
-        expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toBe(
+        await expectStaticFile(
+          "/admin.js",
           "application/javascript; charset=utf-8",
+          (js) => {
+            expect(js).toContain("data-select-on-click");
+            expect(js).toContain("data-nav-select");
+          },
         );
-        const js = await response.text();
-        expect(js).toContain("data-select-on-click");
-        expect(js).toContain("data-nav-select");
       });
 
       test("bundles every admin page behavior", async () => {
@@ -175,46 +144,30 @@ describeWithEnv(
       });
 
       test("returns 404 for non-GET requests to /admin.js", async () => {
-        const response = await awaitTestRequest("/admin.js", {
-          data: {},
-          method: "POST",
-        });
-        expect(response.status).toBe(404);
+        await expect404ForNonGetStatic("/admin.js");
       });
 
       test("has long cache headers", async () => {
-        const response = await handleRequest(mockRequest("/admin.js"));
-        expect(response.headers.get("cache-control")).toBe(
-          "public, max-age=31536000, immutable",
-        );
+        await expectLongCacheHeaders("/admin.js");
       });
     });
 
     describe("GET /scanner.js and /contact.js", () => {
       test("serves each standalone client bundle as JavaScript", async () => {
         for (const path of ["/scanner.js", "/contact.js"]) {
-          const response = await handleRequest(mockRequest(path));
-          expect(response.status).toBe(200);
-          expect(response.headers.get("content-type")).toBe(
-            "application/javascript; charset=utf-8",
-          );
+          await expectStaticFile(path, "application/javascript; charset=utf-8");
         }
       });
     });
 
     describe("GET /markdown-editor.js", () => {
       test("serves the rich editor bundle with long cache headers", async () => {
-        const response = await handleRequest(
-          mockRequest("/markdown-editor.js"),
-        );
-        expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toBe(
+        await expectStaticFile(
+          "/markdown-editor.js",
           "application/javascript; charset=utf-8",
+          (js) => expect(js).toContain("md-editor"),
         );
-        expect(response.headers.get("cache-control")).toBe(
-          "public, max-age=31536000, immutable",
-        );
-        expect(await response.text()).toContain("md-editor");
+        await expectLongCacheHeaders("/markdown-editor.js");
       });
     });
   },

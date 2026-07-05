@@ -1,8 +1,12 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { handleRequest } from "#routes";
-import { awaitTestRequest, describeWithEnv, mockRequest } from "#test-utils";
+import { describeWithEnv } from "#test-utils";
+import {
+  expect404ForNonGetStatic,
+  expectLongCacheHeaders,
+  expectStaticFile,
+} from "./static-route-checks.ts";
 
 // jscpd:ignore-end
 
@@ -12,87 +16,63 @@ describeWithEnv(
   () => {
     describe("GET /embed.js", () => {
       test("returns JavaScript file", async () => {
-        const response = await handleRequest(mockRequest("/embed.js"));
-        expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toBe(
+        await expectStaticFile(
+          "/embed.js",
           "application/javascript; charset=utf-8",
+          (js) => expect(js.length).toBeGreaterThan(0),
         );
-        const js = await response.text();
-        expect(js.length).toBeGreaterThan(0);
       });
 
       test("returns 404 for non-GET requests to /embed.js", async () => {
-        const response = await awaitTestRequest("/embed.js", {
-          data: {},
-          method: "POST",
-        });
-        expect(response.status).toBe(404);
+        await expect404ForNonGetStatic("/embed.js");
       });
 
       test("has long cache headers", async () => {
-        const response = await handleRequest(mockRequest("/embed.js"));
-        expect(response.headers.get("cache-control")).toBe(
-          "public, max-age=31536000, immutable",
-        );
+        await expectLongCacheHeaders("/embed.js");
       });
     });
 
     describe("GET /iframe-resizer-parent.js", () => {
       test("returns JavaScript file", async () => {
-        const response = await handleRequest(
-          mockRequest("/iframe-resizer-parent.js"),
-        );
-        expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toBe(
+        await expectStaticFile(
+          "/iframe-resizer-parent.js",
           "application/javascript; charset=utf-8",
         );
       });
 
       test("has long cache headers", async () => {
-        const response = await handleRequest(
-          mockRequest("/iframe-resizer-parent.js"),
-        );
-        expect(response.headers.get("cache-control")).toBe(
-          "public, max-age=31536000, immutable",
-        );
+        await expectLongCacheHeaders("/iframe-resizer-parent.js");
       });
     });
 
     describe("GET /iframe-resizer-child.js", () => {
       test("returns JavaScript file", async () => {
-        const response = await handleRequest(
-          mockRequest("/iframe-resizer-child.js"),
-        );
-        expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toBe(
+        await expectStaticFile(
+          "/iframe-resizer-child.js",
           "application/javascript; charset=utf-8",
         );
       });
 
       test("has long cache headers", async () => {
-        const response = await handleRequest(
-          mockRequest("/iframe-resizer-child.js"),
-        );
-        expect(response.headers.get("cache-control")).toBe(
-          "public, max-age=31536000, immutable",
-        );
+        await expectLongCacheHeaders("/iframe-resizer-child.js");
       });
     });
 
+    // This second "GET /embed.js" block duplicates two checks from the first
+    // one above verbatim (same route, same assertions) — that duplication
+    // already existed in the pre-split monolith. Preserved as its own test
+    // case per the "do not merge distinct test cases" rule; only the
+    // boilerplate underneath is shared via the static-route-checks helpers.
     describe("GET /embed.js", () => {
       test("returns JavaScript file", async () => {
-        const response = await handleRequest(mockRequest("/embed.js"));
-        expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toBe(
+        await expectStaticFile(
+          "/embed.js",
           "application/javascript; charset=utf-8",
         );
       });
 
       test("has long cache headers", async () => {
-        const response = await handleRequest(mockRequest("/embed.js"));
-        expect(response.headers.get("cache-control")).toBe(
-          "public, max-age=31536000, immutable",
-        );
+        await expectLongCacheHeaders("/embed.js");
       });
     });
   },
