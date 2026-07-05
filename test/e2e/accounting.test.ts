@@ -436,15 +436,22 @@ const submitRefund = async (
 // -- Attendee-edit driver (scrapes the real edit form) -------------------- //
 
 /** Extract the hidden/select fields the attendee edit form round-trips
- *  (`qty_*`, `line_key_*`, `status_id`) from the rendered edit page, so a
- *  balance correction re-submits the EXACT booking and changes only the owed
- *  figure — exactly what a browser would post back. */
+ *  (`line_listing_*`, `qty_*`, `line_key_*`, `line_package_*`, `status_id`)
+ *  from the rendered edit page, so a balance correction re-submits the EXACT
+ *  booking and changes only the owed figure — exactly what a browser would
+ *  post back. */
 const scrapeEditFields = (html: string): Record<string, string> => {
   const fields: Record<string, string> = {};
   for (const match of html.matchAll(/<input\b[^>]*name="([^"]+)"[^>]*>/g)) {
     const tag = match[0];
     const fieldName = match[1]!;
-    if (!/^(qty_\d+|line_key_\d+)$/.test(fieldName)) continue;
+    if (
+      !/^(line_listing_\d+|qty_\d+|line_key_\d+|line_package_\d+)$/.test(
+        fieldName,
+      )
+    ) {
+      continue;
+    }
     fields[fieldName] = tag.match(/value="([^"]*)"/)?.[1] ?? "";
   }
   const select = html.match(/<select\b[^>]*name="status_id"[\s\S]*?<\/select>/);

@@ -17,6 +17,7 @@ import {
   addAttendee,
   createListing,
   gotoListing,
+  lineIndexOnPage,
   openAttendeeEditor,
   setupAndLogin,
   useE2eBrowser,
@@ -146,7 +147,8 @@ describe("e2e: ticket editing flow", () => {
     const browser = ctx.browser;
     await setupAndLogin(browser);
 
-    // Create two listings, capturing their ids for the editor's qty_<id> fields.
+    // Create two listings, capturing their ids so each submit can resolve the
+    // editor line for the right listing (fields are indexed by line position).
     const morningWorkshopId = await createListing(browser, {
       name: "Morning Workshop",
     });
@@ -169,10 +171,14 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
-    // Add Alice to Evening Seminar by setting its quantity. submitForm also
-    // re-submits the visible Morning Workshop quantity, so that booking stays.
+    // Add Alice to Evening Seminar by setting its line's quantity. submitForm
+    // also re-submits the visible Morning Workshop quantity, so that booking
+    // stays.
     await browser.submitForm(
-      { name: "Alice Smith", [`qty_${eveningSeminarId}`]: "1" },
+      {
+        name: "Alice Smith",
+        [`qty_${lineIndexOnPage(browser, eveningSeminarId)}`]: "1",
+      },
       "Save Attendee",
     );
     expect(browser.containsText("Updated Alice Smith")).toBe(true);
@@ -180,10 +186,13 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
-    // Remove Alice from Morning Workshop by zeroing its quantity; the save
+    // Remove Alice from Morning Workshop by zeroing its line; the save
     // deletes that booking while keeping the Evening Seminar one.
     await browser.submitForm(
-      { name: "Alice Smith", [`qty_${morningWorkshopId}`]: "0" },
+      {
+        name: "Alice Smith",
+        [`qty_${lineIndexOnPage(browser, morningWorkshopId)}`]: "0",
+      },
       "Save Attendee",
     );
     expect(browser.containsText("Updated Alice Smith")).toBe(true);
@@ -202,16 +211,22 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.containsText("Bob Jones")).toBe(true);
     expect(browser.containsText("Morning Workshop")).toBe(true);
     await browser.submitForm(
-      { name: "Bob Jones", [`qty_${eveningSeminarId}`]: "1" },
+      {
+        name: "Bob Jones",
+        [`qty_${lineIndexOnPage(browser, eveningSeminarId)}`]: "1",
+      },
       "Save Attendee",
     );
     expect(browser.containsText("Updated Bob Jones")).toBe(true);
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
-    // Remove Bob from Morning Workshop by zeroing its quantity, then save.
+    // Remove Bob from Morning Workshop by zeroing its line, then save.
     await browser.submitForm(
-      { name: "Bob Jones", [`qty_${morningWorkshopId}`]: "0" },
+      {
+        name: "Bob Jones",
+        [`qty_${lineIndexOnPage(browser, morningWorkshopId)}`]: "0",
+      },
       "Save Attendee",
     );
     expect(browser.containsText("Updated Bob Jones")).toBe(true);

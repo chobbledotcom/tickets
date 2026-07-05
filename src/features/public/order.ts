@@ -132,7 +132,9 @@ const loadOrderCatalog = async (): Promise<OrderCatalog> => {
     ]);
   // Drop non-standalone children (not selectable), then build cards and project
   // child-derived sold-out onto the surviving parents. A `bookable_alone` child
-  // keeps its card (a direct book link to its own page).
+  // keeps its card and joins the cart like any listing; when its parent lands
+  // on the same booking page (directly or inside a package) the form re-folds
+  // it, so its units are chosen through the parent's child selector there.
   const offered = listings.filter(
     (e) => !classification.nonStandaloneChildIds.has(e.id),
   );
