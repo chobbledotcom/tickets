@@ -24,7 +24,7 @@ export const IntroFormPage = ({
   action: string;
   heading: string;
   intro: string;
-  error?: string;
+  error?: string | undefined;
   fieldsHtml: string;
   submitLabel: string;
   children?: Child;

@@ -276,38 +276,48 @@ const ledgerTableWithTime = <Row,>(
     rows,
   });
 
+/** The props every transfer-list table takes: the visible transfers, their
+ *  name lookup, and an optional return URL for the edit links. */
+type TransferTableProps = {
+  transfers: Transfer[];
+  names: LedgerNames;
+  returnUrl?: string;
+};
+
+/** Build a transfer-list table: the shared leading time column and trailing
+ *  amount column always wrap the caller's middle columns, which describe the
+ *  transfer (its from→to legs, or a plain-language sentence). The middle
+ *  columns are built from `names` at render time. */
+const transferTable =
+  (middleColumns: (names: LedgerNames) => LedgerColumn<Transfer>[]) =>
+  ({ transfers, names, returnUrl }: TransferTableProps): JSX.Element =>
+    ledgerTableWithTime(
+      (transfer) => transfer.occurredAt,
+      [
+        ...middleColumns(names),
+        amountColumn<Transfer>("admin.ledger.col.amount", (transfer) =>
+          amountCell(transfer, formatCurrency(transfer.amount), returnUrl),
+        ),
+      ],
+      transfers,
+    );
+
 /**
  * The historical transfer list: every leg as From → To with its kind, time, and
  * amount. Scrollable on narrow screens like the other admin tables.
  */
-export const LedgerTable = ({
-  transfers,
-  names,
-  returnUrl,
-}: {
-  transfers: Transfer[];
-  names: LedgerNames;
-  returnUrl?: string;
-}): JSX.Element =>
-  LedgerColumnsTable({
-    columns: [
-      timeColumn((transfer: Transfer) => transfer.occurredAt),
-      { cell: kindLabel, headerKey: "admin.ledger.col.event" },
-      {
-        cell: (transfer) => (
-          <>
-            {accountCell(transfer.source, names)} &rarr;{" "}
-            {accountCell(transfer.destination, names)}
-          </>
-        ),
-        headerKey: "admin.ledger.col.from_to",
-      },
-      amountColumn<Transfer>("admin.ledger.col.amount", (transfer) =>
-        amountCell(transfer, formatCurrency(transfer.amount), returnUrl),
-      ),
-    ],
-    rows: transfers,
-  });
+export const LedgerTable = transferTable((names) => [
+  { cell: kindLabel, headerKey: "admin.ledger.col.event" },
+  {
+    cell: (transfer) => (
+      <>
+        {accountCell(transfer.source, names)} &rarr;{" "}
+        {accountCell(transfer.destination, names)}
+      </>
+    ),
+    headerKey: "admin.ledger.col.from_to",
+  },
+]);
 
 const humanAccount = (transfer: Transfer, type: string): AccountRef | null => {
   if (transfer.source.type === type) return transfer.source;
@@ -328,26 +338,42 @@ const sentenceWithAccount = (
     <span>{t(key)}</span>
   );
 
-const fallbackHumanDescription = (
+/** A leg described as "[lead] <source> <between> <destination>": both accounts
+ *  as cells with a connecting word between them, and an optional leading word
+ *  before the source. */
+const legDescription = (
   transfer: Transfer,
   names: LedgerNames,
+  between: string,
+  lead?: string,
 ): JSX.Element => (
   <>
-    {t("admin.ledger.human.transfer_from")}{" "}
-    {accountCell(transfer.source, names)} {t("admin.ledger.human.transfer_to")}{" "}
+    {lead !== undefined && (
+      <>
+        {t(lead)}{" "}
+      </>
+    )}
+    {accountCell(transfer.source, names)} {t(between)}{" "}
     {accountCell(transfer.destination, names)}
   </>
 );
 
+const fallbackHumanDescription = (
+  transfer: Transfer,
+  names: LedgerNames,
+): JSX.Element =>
+  legDescription(
+    transfer,
+    names,
+    "admin.ledger.human.transfer_to",
+    "admin.ledger.human.transfer_from",
+  );
+
 const saleDescription = (
   transfer: Transfer,
   names: LedgerNames,
-): JSX.Element => (
-  <>
-    {accountCell(transfer.source, names)} {t("admin.ledger.human.booked")}{" "}
-    {accountCell(transfer.destination, names)}
-  </>
-);
+): JSX.Element =>
+  legDescription(transfer, names, "admin.ledger.human.booked");
 
 const adjustmentDescription = (
   transfer: Transfer,
@@ -434,28 +460,12 @@ const humanDescription = (
   }
 };
 
-export const HumanLedgerTable = ({
-  transfers,
-  names,
-  returnUrl,
-}: {
-  transfers: Transfer[];
-  names: LedgerNames;
-  returnUrl?: string;
-}): JSX.Element =>
-  LedgerColumnsTable({
-    columns: [
-      timeColumn((transfer: Transfer) => transfer.occurredAt),
-      {
-        cell: (transfer) => humanDescription(transfer, names),
-        headerKey: "admin.ledger.col.activity",
-      },
-      amountColumn<Transfer>("admin.ledger.col.amount", (transfer) =>
-        amountCell(transfer, formatCurrency(transfer.amount), returnUrl),
-      ),
-    ],
-    rows: transfers,
-  });
+export const HumanLedgerTable = transferTable((names) => [
+  {
+    cell: (transfer) => humanDescription(transfer, names),
+    headerKey: "admin.ledger.col.activity",
+  },
+]);
 
 /** The signed delta of a statement line, formatted with an explicit sign so a
  * credit and a debit of the same magnitude never read alike. */
@@ -503,9 +513,9 @@ export const AccountStatementTable = ({
   names: LedgerNames;
   returnUrl?: string;
 }): JSX.Element =>
-  LedgerColumnsTable({
-    columns: [
-      timeColumn((line: StatementLine) => line.transfer.occurredAt),
+  ledgerTableWithTime(
+    (line: StatementLine) => line.transfer.occurredAt,
+    [
       {
         cell: (line) => kindLabel(line.transfer),
         headerKey: "admin.ledger.col.event",
@@ -525,8 +535,8 @@ export const AccountStatementTable = ({
         formatCurrency(shownFigure(line.running, account)),
       ),
     ],
-    rows: lines,
-  });
+    lines,
+  );
 
 /** The plain display text for an account (no link), for headings/captions. */
 export const accountLabelText = (
@@ -827,8 +837,11 @@ const LedgerStats = ({ data }: { data: LedgerPageData }): SafeHtml => (
 export const adminLedgerPage = (
   data: LedgerPageData,
   session: AdminSession,
-): string =>
-  String(
+): string => {
+  // Both renderings take the same props, so pick the component then render once.
+  const TransferList =
+    data.filters.view === "dual" ? LedgerTable : HumanLedgerTable;
+  return String(
     <AdminPage
       actions={
         <GuideLink href="/admin/guide#ledger">
@@ -850,23 +863,16 @@ export const adminLedgerPage = (
         </div>
         <ListingFilter data={data} />
         <LedgerViewToggle data={data} />
-        {data.filters.view === "dual" ? (
-          <LedgerTable
-            names={data.names}
-            returnUrl={data.returnUrl}
-            transfers={data.transfers}
-          />
-        ) : (
-          <HumanLedgerTable
-            names={data.names}
-            returnUrl={data.returnUrl}
-            transfers={data.transfers}
-          />
-        )}
+        <TransferList
+          names={data.names}
+          returnUrl={data.returnUrl}
+          transfers={data.transfers}
+        />
         {data.truncated && <p>{t("admin.ledger.recent")}</p>}
       </div>
     </AdminPage>,
   );
+};
 
 /**
  * One account's statement page: the account heading + balance and its full

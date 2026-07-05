@@ -46,6 +46,66 @@
   justify-content: center;
 }
 
+// A horizontal flex row whose items sit a small gap apart, with the same small
+// gap of breathing room beneath the row. $align/$display cover the variants.
+@mixin flex-row-gap-below($align: center, $display: flex) {
+  display: $display;
+  align-items: $align;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+}
+
+// A centred, wrapping horizontal row (toolbars and action-button rows).
+@mixin flex-row-wrap($gap) {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: $gap;
+}
+
+// A responsive card grid: as many ~200px columns as fit, standard gap.
+@mixin card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-m);
+}
+
+// A coloured, rounded chip: a background fill with matching readable text.
+@mixin chip($background, $text) {
+  background-color: $background;
+  border-radius: var(--border-radius);
+  color: $text;
+}
+
+// A link-coloured fill with page-background text (selected/active states).
+@mixin link-fill {
+  background: var(--color-link);
+  color: var(--color-bg);
+}
+
+// The muted/disabled fill: secondary background and border.
+@mixin muted-fill {
+  background-color: var(--color-bg-secondary);
+  border-color: var(--color-bg-secondary);
+}
+
+// Round only the top corners (image/toolbar sitting flush against content).
+@mixin rounded-top {
+  border-radius: var(--border-radius) var(--border-radius) 0 0;
+}
+
+// Pin an element to the top-right of its positioned parent, a small step in.
+@mixin pin-top-right {
+  position: absolute;
+  top: var(--space-s);
+  right: var(--space-s);
+}
+
+// The `:checked` selector fragment for a named <select> sitting on $value.
+@function select-on-value($name, $value) {
+  @return 'select[name="#{$name}"] option[value="#{$value}"]:checked';
+}
+
 // Status/alert panels shared by the manual check-in and camera scanner
 // overlays — identical fills, so grouped rather than repeated.
 %status-panel-success {
@@ -80,12 +140,37 @@
 // Small inline toggle row (a checkbox + label control) used above the attendee
 // listing editor and the logistics agent selectors.
 %inline-toggle-row {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-s);
-  margin-bottom: var(--space-s);
+  @include flex-row-gap-below($display: inline-flex);
   font-weight: normal;
   cursor: pointer;
+}
+
+// A block-level toggle control with vertical breathing room.
+%toggle-block {
+  display: block;
+  margin-block: var(--space-m);
+}
+
+// An absolutely-positioned layer filling its positioned parent.
+%overlay-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+// The check mark drawn in a ticked selection box.
+%tick-mark {
+  content: "\2713";
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+// Keyboard-focus ring in the secondary colour.
+%focus-outline-secondary {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
 }
 
 :root {

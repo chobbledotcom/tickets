@@ -252,7 +252,7 @@ const renderQuestion = (
   const answered = savedFormValue(`question_${q.id}`);
   const options = q.answers.filter((a) => a.active);
   if (q.display_type === "free_text") {
-    return freeTextQuestion({ q, listingIds, required, value: answered });
+    return freeTextQuestion({ listingIds, q, required, value: answered });
   }
   if (q.display_type === "select") {
     return questionWrapper(q, listingIds, (labelledBy) => (
@@ -639,23 +639,19 @@ const renderChildOption = (ctx: ChildOptionCtx, childLimit: number): string => {
  * constrained to the child's calendar) the client script can tell the auto-selected
  * sole child can't serve the chosen date/span and flag/disable the parent — rather
  * than letting the buyer hit the submit-side `child_sold_out` rejection. */
-const renderSoleChildOption = (
-  parent: ListingWithCount,
-  child: TicketListing,
-  childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
-  showZero: boolean,
-): string => {
-  const parentId = parent.id;
-  const { listing } = child;
+const renderSoleChildOption = (ctx: ChildOptionCtx): string => {
+  const { parentId, listing } = childRefs(ctx);
   const priceHtml = childPayMoreInput(parentId, listing);
   const visible = !listing.hidden;
   const namePart = visible ? escapeHtml(listing.name) : "";
-  const pricePart = visible ? childPriceLabel(listing, parent, showZero) : "";
+  const pricePart = visible
+    ? childPriceLabel(listing, ctx.parent, ctx.showZero)
+    : "";
   const label = `${namePart} ${pricePart}`.trim();
   return `<p class="child-option child-sole" data-sole-parent="${parentId}" data-sole-child="${listing.id}"${childDateAttrs(
     parentId,
-    child,
-    childDatesById,
+    ctx.child,
+    ctx.childDatesById,
   )}>${label}</p>${priceHtml}`;
 };
 
@@ -694,12 +690,17 @@ const renderChildBlock = (
   const isSole = (child: TicketListing): boolean =>
     bookable.length === 1 && bookable[0]!.listing.id === child.listing.id;
   const options = children
-    .map((child) =>
-      isSole(child)
-        ? renderSoleChildOption(parent, child, ctx.childDatesById, showZero)
+    .map((child) => {
+      const optionCtx: ChildOptionCtx = {
+        child,
+        childDatesById: ctx.childDatesById,
+        parent,
+        showZero,
+      };
+      return isSole(child)
+        ? renderSoleChildOption(optionCtx)
         : renderChildOption(
-            parent,
-            child,
+            optionCtx,
             childCanBeBooked(child)
               ? Math.min(
                   total,
@@ -713,10 +714,8 @@ const renderChildBlock = (
                   ),
                 )
               : 0,
-            ctx.childDatesById,
-            showZero,
-          ),
-    )
+          );
+    })
     .join("");
   const questionsHtml = children
     .map((child) => {

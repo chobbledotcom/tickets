@@ -16,10 +16,7 @@ import { appendIframeParam } from "#shared/iframe.ts";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { createRequestScoped } from "#shared/request-scoped.ts";
-import {
-  type IconName,
-  SubmitButton,
-} from "#templates/components/actions.tsx";
+import { type IconName, SubmitButton } from "#templates/components/actions.tsx";
 
 export type FieldType =
   | "text"
@@ -672,15 +669,18 @@ export const SubmitForm = ({
   children,
 }: {
   action: string;
-  id?: string;
-  submitClass?: string;
+  id?: string | undefined;
+  submitClass?: string | undefined;
   submitIcon?: IconName;
   submitLabel: Child;
   children?: Child;
 }): JSX.Element => (
   <CsrfForm action={action} id={id}>
     {children}
-    <SubmitButton class={submitClass} icon={submitIcon}>
+    <SubmitButton
+      icon={submitIcon}
+      {...(submitClass !== undefined ? { class: submitClass } : {})}
+    >
       {submitLabel}
     </SubmitButton>
   </CsrfForm>

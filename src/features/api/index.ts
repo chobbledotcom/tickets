@@ -311,6 +311,15 @@ const parseApiJsonBody = async (
   }
 };
 
+/** A public route keyed by a `:slug` path param (optionally passed the server
+ * context). Every `/api/…/:slug` handler and the wrappers that build them share
+ * this shape. */
+type SlugRouteHandler = (
+  request: Request,
+  params: { slug: string },
+  server?: ServerContext,
+) => Promise<Response>;
+
 /** Wrap a handler that needs an active listing — handles slug lookup + 404 */
 const withActiveListing =
   (
@@ -319,12 +328,8 @@ const withActiveListing =
       listing: ListingWithCount,
       server?: ServerContext,
     ) => Promise<Response>,
-  ) =>
-  async (
-    request: Request,
-    { slug }: { slug: string },
-    server?: ServerContext,
-  ): Promise<Response> => {
+  ): SlugRouteHandler =>
+  async (request, { slug }, server) => {
     const result = await findActiveListing(slug);
     return result instanceof Response
       ? result
@@ -1065,9 +1070,8 @@ const handleBook = withActiveListing(async (request, listing, server) => {
     return apiResponse({ error: "Registration is closed" }, 400);
   }
 
-  const bodyOrError = await parseApiJsonBody(request);
-  if (bodyOrError instanceof Response) return bodyOrError;
-  const body = bodyOrError;
+  const body = await parseApiJsonBody(request);
+  if (body instanceof Response) return body;
 
   // Resolve the booking quantity + date once, shared by the parent and standalone
   // paths so neither re-derives it (and the JSON contract reads one way).
@@ -1095,13 +1099,7 @@ const handleBook = withActiveListing(async (request, listing, server) => {
   const form = toFormParams(body);
 
   // Validate fields using the same form validation as the web
-  const paid = isPaidListing(listing);
-  const valResult = tryValidateTicketFields(
-    form,
-    listing.fields,
-    (msg) => apiResponse({ error: msg }, 400),
-    paid,
-  );
+  const valResult = validateFields(form, listing.fields, isPaidListing(listing));
   if (valResult instanceof Response) return valResult;
   const values = valResult;
 
@@ -1154,6 +1152,35 @@ const loadPackageContext = async (slug: string) => {
 
 const PACKAGE_NOT_FOUND = { error: "Package not found" } as const;
 
+/** A loaded, still-bookable package: its booking context, group, per-order limit,
+ * and pricing tree. */
+type PackageContext = NonNullable<
+  Awaited<ReturnType<typeof loadPackageContext>>
+>;
+
+/** Wrap a package route handler: load the bundle by slug (404 when it's gone or
+ * fully booked) and hand the loaded context to the handler. `rateLimit` throttles
+ * by client IP first (before the load), for the booking endpoint. Shared by the
+ * package detail and package booking routes so neither repeats the load + 404. */
+const withPackageContext =
+  (
+    opts: { rateLimit?: boolean },
+    handler: (
+      request: Request,
+      pkg: PackageContext,
+      server?: ServerContext,
+    ) => Promise<Response>,
+  ): SlugRouteHandler =>
+  async (request, { slug }, server) => {
+    if (opts.rateLimit) {
+      const limited = await checkBookingRateLimit(request, server);
+      if (limited) return limited;
+    }
+    const pkg = await loadPackageContext(slug);
+    if (!pkg) return apiResponse(PACKAGE_NOT_FOUND, 404);
+    return handler(request, pkg, server);
+  };
+
 /** The contact-field requirement a package booking can validate against: the
  * members' settings merged with their children's (a chosen add-on can add a
  * field). Published as one package-level value, so an API client — which cannot
@@ -1175,14 +1202,10 @@ const packageMergedFields = (ctx: TicketCtx): string => {
  * with its whole-bundle total (only counts every member's required-child mix
  * can serve — an empty list means no span is currently bookable). A HIDDEN
  * package omits its members entirely. */
-const handleGetPackage = async (
-  _request: Request,
-  { slug }: { slug: string },
-): Promise<Response> => {
-  const pkg = await loadPackageContext(slug);
-  if (!pkg) return apiResponse(PACKAGE_NOT_FOUND, 404);
-  const { ctx, group, limit, tree } = pkg;
-  const customisable = ctx.listings.some((e) => e.listing.customisable_days);
+const handleGetPackage = withPackageContext(
+  {},
+  async (_request, { ctx, group, limit, tree }) => {
+    const customisable = ctx.listings.some((e) => e.listing.customisable_days);
   const dayCounts = customisable
     ? packageDayCountsChildrenSupport(ctx.listings, ctx.childrenByParentId)
     : [];
@@ -1235,7 +1258,8 @@ const handleGetPackage = async (
       ...(members ? { members } : {}),
     },
   });
-};
+  },
+);
 
 /** Apply a package booking's child selections (each tagged with its member's
  * `parent` slug) onto the fold form, member by member. Returns a 400 response
@@ -1260,7 +1284,7 @@ const applyPackageChildSelections = (
       );
     }
     const children = ctx.childrenByParentId.get(member.listing.id) ?? [];
-    const childBySlug = new Map(children.map((c) => [c.listing.slug, c]));
+    const childBySlug = childrenBySlug(children);
     const error = applyChildSelectionsToForm(
       form,
       member.listing.id,
@@ -1288,17 +1312,9 @@ const resolvePackageOrder = async (
       quantities: Map<number, number>;
     }
 > => {
-  const parsedQuantity = parseNonNegativeInt(String(body.quantity ?? "1"));
-  if (parsedQuantity === 0) {
-    return apiResponse({ error: "Quantity must be at least 1" }, 400);
-  }
-  const packageQty = Math.min(parsedQuantity ?? 1, limit);
-  const quantities = new Map(
-    [...fixedQuantitiesByListingId(tree)].map(([listingId, fixed]) => [
-      listingId,
-      fixed * packageQty,
-    ]),
-  );
+  const packageQty = clampBookingQuantity(body, limit);
+  if (packageQty instanceof Response) return packageQty;
+  const quantities = scaleFixedQuantities(tree, packageQty);
 
   let date: string | null = null;
   if (ctx.dates.length > 0) {
@@ -1331,80 +1347,60 @@ const resolvePackageOrder = async (
  * `{ parent, slug, quantity }` choosing each parent member's add-ons — all
  * driving the SAME context, clamp, fold, and pricing walk the web package page
  * submits through. */
-const handleBookPackage = async (
-  request: Request,
-  { slug }: { slug: string },
-  server?: ServerContext,
-): Promise<Response> => {
-  const limited = await checkBookingRateLimit(request, server);
-  if (limited) return limited;
-  const pkg = await loadPackageContext(slug);
-  if (!pkg) return apiResponse(PACKAGE_NOT_FOUND, 404);
-  const { ctx, group, limit, tree } = pkg;
+const handleBookPackage = withPackageContext(
+  { rateLimit: true },
+  async (request, { ctx, group, limit, tree }) => {
+    const body = await parseApiJsonBody(request);
+    if (body instanceof Response) return body;
 
-  const bodyOrError = await parseApiJsonBody(request);
-  if (bodyOrError instanceof Response) return bodyOrError;
-  const body = bodyOrError;
-
-  const privacy = packagePrivacy(group.hide_package_listings, group.name);
-  const order = await resolvePackageOrder(
-    body,
-    ctx,
-    tree,
-    limit,
-    memberStandInName(privacy),
-  );
-  if (order instanceof Response) return order;
-  const { date, dayCount, form, quantities } = order;
-
-  const selections = parseApiChildSelections(body, PackageChildrenSchema);
-  if (selections === null) {
-    return apiResponse(
-      {
-        error:
-          "Provide a `children` array of { parent, slug, quantity } choosing each member's add-ons.",
-      },
-      400,
+    const privacy = packagePrivacy(group.hide_package_listings, group.name);
+    const order = await resolvePackageOrder(
+      body,
+      ctx,
+      tree,
+      limit,
+      memberStandInName(privacy),
     );
-  }
-  const selectionError = applyPackageChildSelections(form, ctx, selections);
-  if (selectionError) return selectionError;
+    if (order instanceof Response) return order;
+    const { date, dayCount, form, quantities } = order;
 
-  const fold = await foldSelectedChildren(
-    ctx,
-    form,
-    {
-      customPrices: new Map(),
+    const selections = parseApiChildSelections(body, PackageChildrenSchema);
+    if (selections === null) {
+      return apiResponse(
+        {
+          error:
+            "Provide a `children` array of { parent, slug, quantity } choosing each member's add-ons.",
+        },
+        400,
+      );
+    }
+    const selectionError = applyPackageChildSelections(form, ctx, selections);
+    if (selectionError) return selectionError;
+
+    const fold = await foldSelectedChildren(
+      ctx,
+      form,
+      {
+        customPrices: new Map(),
+        date,
+        dayCount,
+        hasCustomisable: ctx.listings.some((e) => e.listing.customisable_days),
+        quantities,
+      },
+      tree,
+    );
+    // Paid-ness must come from the tree's price rules, not `isPaidListing`: a
+    // package override can make a free member paid (and a paid member free).
+    return validateAndCompleteFold(
+      request,
+      form,
       date,
-      dayCount,
-      hasCustomisable: ctx.listings.some((e) => e.listing.customisable_days),
-      quantities,
-    },
-    tree,
-  );
-  if (!fold.ok) return apiResponse({ error: fold.error }, 400);
-
-  // Paid-ness must come from the tree's price rules, not `isPaidListing`: a
-  // package override can make a free member paid (and a paid member free).
-  const paid = buildRegistrationItems(
-    fold.listings,
-    fold.quantities,
-    fold.customPrices,
-    fold.priceRuleByListingId,
-    fold.dayCount,
-  ).some((item) => item.unitPrice > 0);
-  const valResult = tryValidateTicketFields(
-    form,
-    mergeListingFields(fold.listings.map((e) => e.listing.fields)),
-    (msg) => apiResponse({ error: msg }, 400),
-    paid,
-  );
-  if (valResult instanceof Response) return valResult;
-  return completeFoldedBooking(request, extractContact(valResult), date, fold, {
-    packageGroupId: group.id,
-    privacy,
-  });
-};
+      fold,
+      (f) => registrationItemsFromFold(f).some((item) => item.unitPrice > 0),
+      { packageGroupId: group.id, privacy },
+    );
+  },
+);
 
 // =============================================================================
 // Route definitions

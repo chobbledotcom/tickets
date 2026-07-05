@@ -9,13 +9,11 @@ import type { IconName } from "#templates/components/actions.tsx";
  *  scaffold can't drift between call sites. Extra `children` (e.g. an agent
  *  selector) render between the fields and the submit button when given. */
 export const NewResourceForm = ({
-  action,
   children,
   fieldsHtml,
-  id,
-  submitLabel,
   title,
   submitIcon = "plus",
+  ...rest
 }: {
   action: string;
   children?: Child;
@@ -25,12 +23,7 @@ export const NewResourceForm = ({
   submitIcon?: IconName;
   title: string;
 }): JSX.Element => (
-  <SubmitForm
-    action={action}
-    id={id}
-    submitIcon={submitIcon}
-    submitLabel={submitLabel}
-  >
+  <SubmitForm submitIcon={submitIcon} {...rest}>
     <h1>{title}</h1>
     <Raw html={fieldsHtml} />
     {children}
