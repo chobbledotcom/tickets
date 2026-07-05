@@ -94,39 +94,43 @@ the engine runs the same pipeline for all of them.
   literals (or that a trivial second schema runs end-to-end), so the second real
   format doesn't require an engine rewrite.
 
-## In-Progress PR Context (read first)
+## Landed Dependencies (read first)
 
-This revision of the plan is written against the in-progress branches for this
-repo. Two of them change the ground the importer stands on:
+The importer builds on several systems that were in-progress branches when this
+plan was first written and have **since merged into main**:
 
-- **PR #1335 — "Add free-text custom questions with encrypted string storage and
-  answer plumbing"** (the "free text question answers" feature). This is now a
-  hard dependency: the importer builds directly on the schema and helpers it
-  adds, and **must not** reintroduce any of them. The whole "Custom Questions"
-  story below is rewritten around its concrete API. See
+- **Free-text custom questions** (PR #1335 — "Add free-text custom questions with
+  encrypted string storage and answer plumbing") is **in main**. The importer
+  builds directly on its schema and helpers and **must not** reintroduce any of
+  them; the "Custom Questions" story below uses its concrete, shipped API. See
   [Free-Text Questions Dependency](#free-text-questions-dependency).
-- **PRs #1332 / #1333 — contact/attendee notes rework.** These move operator
-  notes off the attendee form and into per-contact, owner-key-encrypted records
-  keyed by an email/phone HMAC (`GET`/`POST /admin/history/:hmac`), and
-  **remove** the per-attendee admin-note textareas. The original plan assumed it
-  would add a single per-attendee `notes` column as the home for all legacy
-  metadata. That assumption no longer holds; see
-  [Where Legacy Metadata Goes](#where-legacy-metadata-goes) for how the importer
-  reconciles with this. Land order between #1332 and #1333 is not yet decided,
-  so the plan depends only on the *shape* they agree on (encrypted per-contact
-  records), not on a specific column.
-
-The other open PRs (#1330 scheduled tasks, #1331 recalculate table, #1334
-balance N+1, #1336 delivery dates, #1337 modifier batching, #1338 test browser)
-do not interact with the importer and are not dependencies.
+- **The immutable double-entry `transfers` ledger** (main's accounting work) is
+  **in main** — a listing's income, an attendee's owed balance, a booking's
+  amount-paid, and a modifier's revenue all project from it, and the importer
+  records money by posting to it. See [Financial Mapping](#financial-mapping).
+- **The no-quantity (`quantity = 0`) sentinel** shipped as **PR #1366** ("Add
+  no-quantity booking lines"): the shared `TICKET_COUNTS_PREDICATE`, the owner
+  "no quantity" checkbox + save-path guards, and the operational/public/marketing
+  exclusions all exist. The importer is a **consumer** of it (it writes
+  `quantity = 0` lines); only the *importer-specific* additions remain to build
+  (see Phase 6). Its surface-by-surface audit is
+  [`no-quantity-spec.md`](./no-quantity-spec.md).
+- **Contact/attendee notes rework** landed as a per-attendee **`system_notes`**
+  table (owner-public-key-encrypted `owner` notes + DB-key `system` notes) plus
+  per-contact `/admin/history/:hmac` records. The original plan's single
+  per-attendee `notes` column no longer applies; the importer's raw audit trail
+  lands in `system_notes` **owner** notes (`createOwnerNote`, owner-public-key —
+  no unwrapped private key needed to write). See
+  [Where Legacy Metadata Goes](#where-legacy-metadata-goes).
 
 ## Free-Text Questions Dependency
 
-PR #1335 is the mechanism the importer uses for every legacy free-text column
-(`Surface`, `Age Group`, the party questions, exhibition stand number, etc.).
-The plan previously hedged this as "once the custom question system supports
-text answers" — that system now exists, so the hedging is replaced with the real
-contract.
+The free-text custom questions feature (PR #1335, **now in main**) is the
+mechanism the importer uses for every legacy free-text column (`Surface`,
+`Age Group`, the party questions, exhibition stand number, etc.). The plan
+previously hedged this as "once the custom question system supports text
+answers" — that system now exists, so the hedging is replaced with the real,
+shipped contract.
 
 What #1335 provides, and the importer reuses verbatim:
 
@@ -136,14 +140,17 @@ What #1335 provides, and the importer reuses verbatim:
   their `answers` array is empty. So a free-text question is identified purely by
   `display_type === "free_text"` and its decrypted `text`.
 - **`strings` table** — a deduplicated, owner-key-encrypted text repository:
-  `(id, text_index TEXT UNIQUE, encrypted_text, used_count)`.
+  `(id, text_index TEXT UNIQUE, encrypted_text, used_count, created)`.
   - `text_index = hmacHash(text)` (deterministic HMAC; the unique index is what
     makes dedup work).
   - `encrypted_text = encryptWithOwnerKey(text, settings.publicKey)` — hybrid
     encryption against the **owner public key**, *not* the symmetric
     `DB_ENCRYPTION_KEY`.
-  - `used_count` is trigger-maintained from `attendee_answers`, and a string row
-    is auto-deleted when `used_count` drops to `<= 0`.
+  - `used_count` is trigger-maintained from `attendee_answers`; the delete trigger
+    only **decrements** it (it does not remove the row). Unused rows are reaped by
+    an **age-based pruner** — `pruneUnusedStrings` deletes where
+    `used_count = 0 AND created < cutoff` — and `getOrCreateStringIds` refreshes
+    `created` on every row it references, so a reused string's prune clock resets.
 - **`attendee_answers` shape change.** `answer_id` is now nullable; new
   `question_id` (now required on **every** row) and `string_id` columns. BEFORE
   triggers enforce a strict XOR per row:
@@ -286,24 +293,26 @@ ledger; the importer **reads from and writes to it**, it does not own it:
 Attendee notes / legacy metadata storage:
 
 - The original plan added a per-attendee encrypted `notes` column as the single
-  home for `Customer Notes`, `Operator Notes`, payment metadata, etc. PRs
-  #1332/#1333 are concurrently reworking where operator notes live (per-contact
-  encrypted records keyed by email/phone HMAC, edited at `/admin/history/:hmac`,
-  with the per-attendee note textareas removed). **Do not** add a competing
-  per-attendee `notes` column without reconciling with whichever of those lands.
+  home for `Customer Notes`, `Operator Notes`, payment metadata, etc. The notes
+  rework has since **landed**: main added a per-attendee **`system_notes`** table
+  (`src/shared/db/system-notes.ts`) — owner-public-key-encrypted `owner` notes
+  (`createOwnerNote`) plus DB-key `system` notes — alongside per-contact
+  `/admin/history/:hmac` records. **Do not** add a competing per-attendee `notes`
+  column; `system_notes` is the home.
 - Net effect on this plan: lean on **free-text questions** for the legacy text we
   actually want surfaced and searchable per booking (see
-  [Custom Questions](#custom-questions)), and treat the raw audit-trail dump as a
-  smaller, secondary concern whose destination is decided once the notes rework
-  settles. Keep `special_instructions` for customer-facing booking instructions.
+  [Custom Questions](#custom-questions)), and write the raw audit-trail dump to a
+  per-attendee `system_notes` **owner** note. Keep `special_instructions` for
+  customer-facing booking instructions.
 - A durable encrypted home for the raw audit trail is a **prerequisite for the
-  writer**, not an optional extra: the importer must preserve the raw legacy
-  fields somewhere encrypted (a labelled block on the per-contact record, or a
-  minimal attendee `notes` column added in agreement with the notes-rework work).
-  Free-text questions cover the high-value columns, but the writer must not be
-  enabled until the remaining audit fields have a persistent destination — see
-  [Where Legacy Metadata Goes](#where-legacy-metadata-goes). Only the *choice of
-  column/record* is deferred; persistence itself is not.
+  writer** — and it now exists: `system_notes` **owner** notes are encrypted with
+  the **owner public key** (`createOwnerNote`), so the keyless import write path
+  can persist them with no unwrapped private key, exactly like the free-text string
+  writes. The writer must still fold the note inserts into its own guarded
+  transaction (not call `createOwnerNote` per row) and must **block** any import
+  carrying unmapped audit fields rather than dropping them — never import with data
+  loss. The destination is **decided** (`system_notes` owner notes); see
+  [Where Legacy Metadata Goes](#where-legacy-metadata-goes).
 
 ## Proposed Routes And UI
 
@@ -357,6 +366,24 @@ Extend listing creation:
     form value.
   - The readonly HTML is for the user experience; the server must still enforce
     the locked name.
+
+**Integration with landed admin infrastructure:**
+
+- **Respect read-only mode.** Main added a site read-only mode (#1454) that
+  default-denies mutating methods; the importer's `POST /admin/imports/:schema` and
+  the `POST /admin/listing` create must honour it like every other admin write, so
+  a bulk import can't run while the site is frozen.
+- **Reuse the `catalog-transfer` resolver + `entity-pages` framework — don't
+  reinvent them.** Main's merged `catalog-transfer` importer
+  (`src/features/admin/catalog-transfer/`) already does name-based, id-free
+  reference resolution with duplicate/ambiguity detection and per-field issue
+  reporting (`formatTransferIssues`) — the same shape this plan's
+  product/status/question resolver and error report need. It imports *catalog
+  structure* (listings/groups/pricing), **not** bookings, so it does not supersede
+  this importer, but the resolver/report should mirror its patterns and the admin
+  pages should use the `entity-pages`/`define*` factories rather than hand-rolled
+  routes. (The `docs/external-order-library.md` spec (#1443) is unrelated — an
+  outbound, client-side add-to-cart widget that writes nothing server-side.)
 
 **Persist the missing-setup set server-side from the first implementation** — a
 short-lived stash keyed by a token in the redirect URL — rather than packing
@@ -545,7 +572,9 @@ Product matching:
   dated rows; or (b) the listing is in a **group with any other listings** —
   `validateGroupListingType` forces every listing in a group to share
   `listing_type` *regardless of whether the siblings are populated*, so the
-  operator can't convert just this one in place (they must ungroup it first); and
+  operator can't convert just this one in place (they must first remove it from
+  **every** group whose members force the incompatible type — listings now have
+  multi-group membership); and
   if the siblings are populated standard listings, converting the whole group
   would push their undated rows into the same hole.
   Block both cases as unresolvable setup errors (the operator must migrate /
@@ -664,14 +693,13 @@ to `booked_quantity` (`SUM`), and the attendee keeps a real line so it is **not*
 orphan and its products stay structured/matched.
 
 > **`quantity = 0` is a cross-cutting feature with a large blast radius, so it has
-> its own standalone spec — [`no-quantity-spec.md`](./no-quantity-spec.md) — which
-> is the single source of truth.** It covers the mechanism (the `tickets_count`
-> aggregate change across all five query sites + shared predicate; the owner
-> "no quantity" checkbox; forbidding conversion of a line with money recognised
-> against it in the ledger) and the full
-> reader/writer/action audit. **The importer depends on that feature; build it
-> first, per the spec.** This plan deliberately does **not** re-document those
-> surfaces, so they can't drift between the two files.
+> its own standalone spec — [`no-quantity-spec.md`](./no-quantity-spec.md).** That
+> feature has now **shipped as PR #1366**: the shared `TICKET_COUNTS_PREDICATE`
+> (`quantity > 0 AND kind = 'attendee'`), the owner "no quantity" checkbox +
+> save-path guards, and the full reader/writer/action exclusions all exist. **The
+> importer is a consumer of it** — it writes `quantity = 0` lines; only the
+> *importer-specific* additions remain (see Phase 6). This plan deliberately does
+> **not** re-document those surfaces, so they can't drift between the two files.
 
 ## Quantity-0 Sentinel: Reader/Writer Audit
 
@@ -731,7 +759,12 @@ real-cash reports. Instead:
   leaves live income/cash reports undistorted.
 - **Business time = source `Date Booked`** (`occurredAt`), so an imported booking
   lands in its own historical period; the range-scoped Ledger page doesn't read it
-  as today's activity.
+  as today's activity. The import-specific `kind`s (`import_owed`/`import_paid`)
+  keep imports out of the `income`, `refunded`, and `fees` headline buckets (which
+  filter on specific kinds), but the **`due`** headline (net receivable) is
+  kind-agnostic, so an imported booking's owed/paid legs **do** contribute to `due`
+  for any range covering its `Date Booked` — the intended, faithful outstanding
+  figure.
 - **Idempotent.** Derive each booking's ledger `eventId` from its
   `(schema, old_id)`, so the event group and per-leg `reference`s are
   deterministic and a re-import replays as a no-op (the importer also skips
@@ -907,9 +940,11 @@ Writing (in the whole-file transaction — see
   one row), and uses only the owner public key.
 - Emit `INSERT ... attendee_answers (attendee_id, question_id, string_id)` rows
   into the importer's single batch, using the resolved `stringId` and the
-  matched `question_id`. Do **not** call the per-attendee `saveAttendeeAnswers`
-  helper in a loop — it issues its own `DELETE`/`executeBatch` per attendee and
-  would break whole-file atomicity (it is the answer-equivalent of the existing
+  matched `question_id`. Do **not** call `saveAttendeeAnswers` — even once for the
+  whole file: it commits **three separate batches** (a `DELETE` batch across all
+  its attendees, then `getOrCreateStringIds`' string batch, then the insert batch),
+  **none** inside the importer's transaction, so it would break whole-file
+  atomicity (the answer-equivalent of the existing
   "don't call `createAttendeeAtomic` per row" rule). Resolving the string ids and
   then doing direct `attendee_answers` inserts mirrors what `ticket-submit` does
   on the paid path — but the string upserts themselves must be unwound on
@@ -969,18 +1004,17 @@ There are now three possible destinations; pick per column by value:
    Modifiers: ...
    ```
 
-   Keep this idea. Which **column/record** it lands in is unresolved until PRs
-   #1332/#1333 settle (they remove the per-attendee note textareas and move notes
-   to per-contact encrypted records) — but *that* a durable encrypted destination
-   exists is a **hard prerequisite for enabling the writer**, not a follow-up.
-   The import report is an ephemeral page, so it is **not** a system of record:
-   if `Customer Notes`, `Operator Notes`, payment/modifier history, etc. are only
-   shown in the report, a successful import permanently loses them once the page
-   is gone. So: every audit-trail field must be written to a durable encrypted
-   store (the chosen notes column or per-contact record) before a booking is
-   created. If no destination is agreed yet, the writer must **block** imports
-   that carry unmapped audit fields rather than dropping them — never import with
-   data loss. The report only *summarises* what was persisted.
+   Keep this idea. The destination is now **decided**: the notes rework landed as
+   the per-attendee **`system_notes`** table, so the raw audit dump goes to a
+   `system_notes` **owner** note (`createOwnerNote`, owner-public-key). That a
+   durable encrypted destination exists is a **hard prerequisite for enabling the
+   writer**, and it now does. The import report is an ephemeral page, so it is
+   **not** a system of record: if `Customer Notes`, `Operator Notes`,
+   payment/modifier history, etc. are only shown in the report, a successful import
+   permanently loses them once the page is gone. So: every audit-trail field must
+   be written to `system_notes` before a booking is created, and the writer must
+   **block** an import that carries unmapped audit fields rather than dropping them
+   — never import with data loss. The report only *summarises* what was persisted.
 
 Do not add a product/status/question alias mechanism. Matching is normalized
 exact matching everywhere.
@@ -1048,12 +1082,13 @@ bookings imports the rest and reports the skip.
       key, not `last_insert_rowid()` (see implementation notes);
     - **fire no registration side-effects.** A bulk import of historical bookings
       must not call `logAndNotifyRegistration` (or its parts): no customer
-      registration emails, no registration webhooks, and no built-site
-      assignment/renewal — `logAndNotifyRegistration` (`shared/webhook.ts`) queues
-      all three (`sendRegistrationEmails`, `sendRegistrationWebhooks`,
-      `assignAndNotifyBuiltSites`) via `addPendingWork`. The importer writes rows
-      directly and stays silent; contacting customers or mutating
-      built-site/renewal state for old or quantity-0 rows would be wrong;
+      registration emails, no registration webhooks, no built-site assignment, and
+      no renewals — `logAndNotifyRegistration` (`shared/webhook.ts`) writes a
+      per-booking `logActivity` entry and queues **four** items
+      (`sendRegistrationWebhooks`, `sendRegistrationEmails`,
+      `assignAndNotifyBuiltSites`, `applyRenewalsForEntries`) via `addPendingWork`.
+      The importer writes rows directly and stays silent; contacting customers or
+      mutating built-site/renewal state for old or quantity-0 rows would be wrong;
     - insert each `listing_attendees` line — `quantity = 0` for cancelled rows
       and for interested-in/quoted products, a real quantity otherwise (every
       candidate writes at least one line, so no attendee is an orphan);
@@ -1078,7 +1113,7 @@ bookings imports the rest and reports the skip.
     - record a visit for candidates that have ≥1 real (`quantity > 0`) line, so
       imported repeat customers aren't treated as first-time visitors by
       visit-gated modifiers — but **not** for cancelled or quote-only
-      (quantity-0-only) candidates. Do **not** reuse `recordOrderVisit` /
+      (quantity-0-only) candidates. Do **not** reuse `recordOrderActivity` /
       `recordVisit` as-is: they set `last_activity = nowMs()`, which makes an old
       imported booking look freshly active to `pruneContacts`. Increment `visits`
       using the **source booking date** (`Date Booked`) while keeping the **newer**
@@ -1107,10 +1142,12 @@ Implementation notes:
   any `attendee_answers` insert, so a naive call there would persist every
   distinct imported answer (notes, addresses, invoice fields — encrypted source
   PII) even when the main transaction later rolls back. Those rows are created
-  with `used_count = 0`, are never referenced by `attendee_answers`, and so are
-  never pruned by the delete trigger: a failed "all-or-nothing" import would
-  leave imported PII behind. That breaks both atomicity and the privacy stance,
-  so it is **not** acceptable. The writer must do one of:
+  with `used_count = 0` and never referenced by `attendee_answers`; the delete
+  trigger only **decrements** `used_count`, so they linger until the **age-based**
+  `pruneUnusedStrings` sweep (`used_count = 0 AND created < cutoff`) eventually
+  reaps them. A failed "all-or-nothing" import would therefore leave imported PII
+  sitting in `strings` until that sweep — breaking both atomicity and the privacy
+  stance, so it is **not** acceptable. The writer must do one of:
   - fold the `strings` upserts into the same guarded transaction and resolve the
     ids within it, so a rollback unwinds them too (preferred); or
   - on any failure/rollback, explicitly delete the strings it newly created that
@@ -1439,19 +1476,19 @@ order. The **engine/schema split** (see
 them: phases 2–5 and 7 are the generic engine, while the `event_bookings`
 `SchemaDefinition` + the schema registry are built alongside phase 3 (they supply
 the column mappings, parsers, and resolver config the engine consumes — no schema
-literals in the engine). One hard cross-dependency to call out: the **no-quantity
-feature (item 6) is a prerequisite for the transactional writer (item 5)** — the
-writer emits `quantity = 0` lines and must not land until the no-quantity guards
-from [`no-quantity-spec.md`](./no-quantity-spec.md) exist.
+literals in the engine). One cross-dependency to call out: the transactional
+writer (item 5) emits `quantity = 0` lines, so it depends on the no-quantity guards
+from [`no-quantity-spec.md`](./no-quantity-spec.md) — which **shipped as #1366** and
+are already in main; only the importer-specific additions in item 6 remain.
 
 1. Schema and import-map helper
    - Add `booking_imports` (migration sequenced after
      `2026-06-20_free_text_questions`).
    - Add narrow helpers to fetch existing old IDs and insert mappings.
-   - Reconcile the legacy-notes destination with the #1332/#1333 notes rework
-     (decide column vs per-contact record — report-only is **not** an option, it
-     loses data). A durable encrypted destination must exist before the writer is
-     enabled. Free-text questions cover the high-value columns regardless.
+   - Point the legacy-notes audit trail at the landed **`system_notes`** owner note
+     (`createOwnerNote`, owner-public-key) — report-only is **not** an option, it
+     loses data. The durable encrypted destination now exists; free-text questions
+     cover the high-value columns, the owner note holds the raw remainder.
    - Tests for idempotency helpers.
 2. CSV parser and source model
    - Parse row arrays into typed `SourceBooking` values.
@@ -1484,13 +1521,13 @@ from [`no-quantity-spec.md`](./no-quantity-spec.md) exist.
    - Report skipped, creatable, non-creatable, missing setup, warnings, and
      unmapped metadata.
 5. Transactional writer
-   - **Blocked on the no-quantity feature (item 6): do not land/enable this
-     writer until that feature exists.** It writes `quantity = 0` lines
-     (cancelled and interested-in/quoted products), which depend on the
-     `tickets_count` aggregate change and the reader/writer/action guards in
-     [`no-quantity-spec.md`](./no-quantity-spec.md); landing the writer first
-     would let imported ghost rows inflate `tickets_count` and leak through the
-     token/calendar/email/logistics surfaces.
+   - **Relies on the no-quantity feature (shipped as #1366).** It writes
+     `quantity = 0` lines (cancelled and interested-in/quoted products), which
+     depend on the shipped `TICKET_COUNTS_PREDICATE` and the reader/writer/action
+     guards in [`no-quantity-spec.md`](./no-quantity-spec.md) — all now in main, so
+     imported ghost rows stay out of `tickets_count` and the
+     token/calendar/email/logistics surfaces. Build the importer-specific additions
+     in item 6 alongside the writer.
    - Resolve candidate text answers to string ids **inside the guarded
      transaction** (or clean up newly-created `used_count = 0` strings on
      failure) — not via the stock out-of-transaction `getOrCreateStringIds`.
@@ -1508,23 +1545,23 @@ from [`no-quantity-spec.md`](./no-quantity-spec.md) exist.
      lines (never zero lines); confirmed `Equipments` products get real
      quantities.
    - Record visit counts for candidates with ≥1 real (`quantity > 0`) line only
-     (the writer bypasses `createAttendeeAtomic`/`recordOrderVisit`), using the
+     (the writer bypasses `createAttendeeAtomic`/`recordOrderActivity`), using the
      source `Date Booked` with `last_activity = MAX(existing, source)` (see step
      14), within the rollback boundary.
    - Allow overbooked legacy rows (active bookings only; quantity-0 lines don't
      count toward capacity).
    - Prove whole-file rollback (attendees, lines, text answers, new strings,
      audit records, visit counts, import map all gone).
-6. No-quantity feature (prerequisite — implement first, per
+6. No-quantity feature (**shipped as PR #1366** — consume it, per
    [`no-quantity-spec.md`](./no-quantity-spec.md))
-   - The importer writes `quantity = 0` lines, so the whole no-quantity feature
-     must exist first: the `tickets_count` aggregate change (+ shared predicate +
-     guard test + migration), the owner "no quantity" checkbox and save path
-     (forbid converting a line with money recognised against it in the ledger), the
-     full reader/writer/action audit, and the public form + JSON API guard. All of
-     that — and its tests —
-     lives in the spec; don't restate it here.
-   - Importer-specific work alongside it (NOT part of the no-quantity spec):
+   - The importer writes `quantity = 0` lines; the whole no-quantity feature is
+     **already in main**: the `tickets_count` aggregate change (shared
+     `TICKET_COUNTS_PREDICATE = "quantity > 0 AND kind = 'attendee'"` + guard test +
+     migration), the owner "no quantity" checkbox and save path (forbid converting a
+     line with money recognised against it in the ledger), the full
+     reader/writer/action audit, and the public form + JSON API guard. All of that —
+     and its tests — lives in main and the spec; don't restate it here.
+   - Importer-specific work that remains (NOT part of the shipped no-quantity work):
      - Add a **staff-only / import-only flag** to free-text questions (a PR #1335
        addition) so import-only legacy columns render on the admin edit form but
        never on the public path (incl. QR direct-checkout gating); assignment is
@@ -1589,12 +1626,14 @@ from [`no-quantity-spec.md`](./no-quantity-spec.md) exist.
   cancelled rows — they'd be purged as orphans while `booking_imports.old_id`
   blocks re-import.)
 - A quantity-0 line counts toward **neither** capacity (`booked_quantity`,
-  `SUM(quantity)`) **nor** `tickets_count`. `tickets_count` is changed from a
-  plain `COUNT(*)` to "count lines where `quantity > 0`" at every site (triggers,
-  reset/recalc SQL, schema-sync backfill), with the predicate shared in one place
-  and a guard test against trigger/repair drift. Listing `income` is unaffected: it
-  projects from `revenue:<listing>` ledger legs, and a quantity-0 ghost line posts
-  none (the importer posts no `revenue` legs at all).
+  `SUM(quantity)`) **nor** `tickets_count`. `tickets_count` already counts only
+  real-ticket rows via the shipped shared `TICKET_COUNTS_PREDICATE`
+  (`quantity > 0 AND kind = 'attendee'` — it also excludes servicing-kind rows) at
+  every site (triggers, reset/recalc SQL, schema-sync backfill), guarded against
+  drift by a test. The importer only writes `kind = 'attendee'` rows, so its
+  quantity-0 lines land outside `tickets_count` exactly as intended. Listing
+  `income` is unaffected: it projects from `revenue:<listing>` ledger legs, and a
+  quantity-0 ghost line posts none (the importer posts no `revenue` legs at all).
 - Quantity-0 is admin/importer-only; the public booking/checkout path must never
   create a quantity-0 line.
 - Legacy imports may overbook — for *active* bookings only; quantity-0 lines
@@ -1617,7 +1656,7 @@ from [`no-quantity-spec.md`](./no-quantity-spec.md) exist.
 - The writer records visit counts for confirmed (real-quantity) imported bookings
   only, since it bypasses `createAttendeeAtomic` and would otherwise leave
   imported customers looking like first-time visitors for visit-gated modifiers.
-  It must **not** use `recordOrderVisit`/`recordVisit` (they stamp
+  It must **not** use `recordOrderActivity`/`recordVisit` (they stamp
   `last_activity = nowMs()`); increment `visits` with the source `Date Booked` and
   `last_activity = MAX(existing.last_activity, source)` so old imports don't look
   freshly active to pruning (see the writer step).
@@ -1670,9 +1709,9 @@ from [`no-quantity-spec.md`](./no-quantity-spec.md) exist.
 - Child rows are wired to each attendee via its generated `ticket_token_index`
   (the pattern in `attendees/create.ts`), never `last_insert_rowid()`, which
   drifts across a multi-row batch.
-- The raw audit trail must have a durable encrypted destination before the writer
-  is enabled — the import report is not a system of record. Only the *choice* of
-  destination is deferred to align with the #1332/#1333 notes rework; imports that
+- The raw audit trail has its durable encrypted destination: the per-attendee
+  `system_notes` **owner** note (`createOwnerNote`, owner-public-key), landed with
+  the notes rework. The import report is not a system of record; an import that
   would otherwise drop unmapped audit fields must block, never lose data.
 - Marking a line "no quantity" (`quantity = 0`) is **forbidden on a paid line** —
   one with money recognised against it in the ledger (its `ledger_event_group`'s
@@ -1688,8 +1727,8 @@ from [`no-quantity-spec.md`](./no-quantity-spec.md) exist.
   conversion is blocked as unresolvable when the listing is **populated** (undated
   rows would drop off the daily calendar/capacity) or in a **group with any
   siblings** (`validateGroupListingType` forbids a single in-place type change
-  regardless of sibling bookings, so it can't be converted alone); never
-  auto-convert. Gating to daily keeps
+  regardless of sibling bookings — and with multi-group membership it must be
+  removed from every such group first); never auto-convert. Gating to daily keeps
   every imported line inherently dated — the daily listing carries the
   `Delivery`/`Collection` range on `start_at`/`end_at`, so the **day-calendar**
   (`getDailyListingAttendeesByDate`) works out of the box. (Run sheets need an
