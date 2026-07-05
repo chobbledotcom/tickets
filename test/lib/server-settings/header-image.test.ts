@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { encryptBytes } from "#shared/crypto/encryption.ts";
 import { settings } from "#shared/db/settings.ts";
+import { MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import {
   adminGet,
   assertAdminHtml,
@@ -147,7 +148,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
     });
 
     test("rejects oversized image", async () => {
-      const oversized = new Uint8Array(257 * 1024);
+      const oversized = new Uint8Array(MAX_IMAGE_SIZE + 1);
       oversized.set(JPEG_HEADER);
 
       await withStorageMock(async () => {
@@ -158,7 +159,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
         });
         await expectFlashRedirect(
           HEADER_IMAGE_FORM_REDIRECT,
-          expect.stringContaining("256KB"),
+          expect.stringContaining("32MB"),
           false,
         )(response);
       });

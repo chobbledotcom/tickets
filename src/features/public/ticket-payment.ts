@@ -55,6 +55,7 @@ import {
   loadPackageMemberPricing,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { getImageFilenamesForItem } from "#shared/db/images.ts";
 import {
   anyNonStandaloneChild,
   getChildIds,
@@ -799,14 +800,21 @@ export const getTicketContext = async (
     ...listingIds,
     ...childListingIdsOf(childrenByParentId),
   ];
-  const [sharedDates, globalTerms, questionsResult, promoCodesEnabled, addOns] =
-    await Promise.all([
-      computeSharedDates(activeListings),
-      Promise.resolve(settings.terms),
-      getQuestionsWithListingIds(questionListingIds),
-      hasPromoCodeModifiers(),
-      getOptionalAddOns(listingIds),
-    ]);
+  const [
+    sharedDates,
+    globalTerms,
+    questionsResult,
+    promoCodesEnabled,
+    addOns,
+    groupImage,
+  ] = await Promise.all([
+    computeSharedDates(activeListings),
+    Promise.resolve(settings.terms),
+    getQuestionsWithListingIds(questionListingIds),
+    hasPromoCodeModifiers(),
+    getOptionalAddOns(listingIds),
+    group ? getImageFilenamesForItem("group", group.id) : undefined,
+  ]);
   // A daily parent's offered dates must intersect the union of its children's
   // bookable dates; the client compatibility script also needs each
   // daily child's serveable dates. Both are holiday-aware, so fetch
@@ -871,6 +879,7 @@ export const getTicketContext = async (
     ...questionsResult,
     ...(group && {
       groupDescription: group.description,
+      groupImage: groupImage!,
       groupName: group.name,
     }),
   };

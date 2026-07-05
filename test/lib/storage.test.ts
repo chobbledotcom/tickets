@@ -3,9 +3,11 @@ import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { decryptBytes, encryptBytes } from "#shared/crypto/encryption.ts";
 import { FULL_IMAGE_TARGET } from "#shared/images/targets.ts";
+import { MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
-  deleteAllListingStorageFiles,
+  deleteAllImageStorageFiles,
+  deleteAllListingAttachmentFiles,
   deleteFile,
   detectImageType,
   downloadImage,
@@ -25,6 +27,7 @@ import {
   validateImage,
 } from "#shared/storage.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   describeWithEnv,
   expectWebpContainer,
@@ -378,7 +381,7 @@ describeWithEnv(
       });
 
       test("rejects image exceeding size limit", () => {
-        const largeData = new Uint8Array(256 * 1024 + 1);
+        const largeData = new Uint8Array(MAX_IMAGE_SIZE + 1);
         largeData[0] = 0xff;
         largeData[1] = 0xd8;
         largeData[2] = 0xff;
@@ -407,7 +410,7 @@ describeWithEnv(
       });
 
       test("accepts image exactly at size limit", () => {
-        const data = new Uint8Array(256 * 1024);
+        const data = new Uint8Array(MAX_IMAGE_SIZE);
         data[0] = 0xff;
         data[1] = 0xd8;
         data[2] = 0xff;
@@ -543,7 +546,7 @@ describeWithEnv(
     });
 
     describeWithEnv(
-      "deleteAllListingStorageFiles",
+      "deleteAllListingAttachmentFiles",
       {
         env: {
           STORAGE_ZONE_KEY: "testkey",
@@ -551,51 +554,38 @@ describeWithEnv(
         },
       },
       () => {
-        test("deletes images and attachments for all listings", async () => {
+        test("deletes attachments for all listings", async () => {
           const listings = [
             {
               attachment_url: "att1.pdf",
               id: 1,
-              image_thumb_url: "img1-thumb.webp",
-              image_url: "img1.jpg",
             },
             {
               attachment_url: "",
               id: 2,
-              image_thumb_url: "",
-              image_url: "img2.png",
             },
             {
               attachment_url: "att3.pdf",
               id: 3,
-              image_thumb_url: "",
-              image_url: "",
             },
           ];
 
           await withBunnyDeleteCapture(async (deletedUrls) => {
-            await deleteAllListingStorageFiles(listings);
+            await deleteAllListingAttachmentFiles(listings);
 
-            expect(deletedUrls.some((u) => u.includes("img1.jpg"))).toBe(true);
-            expect(deletedUrls.some((u) => u.includes("img1-thumb.webp"))).toBe(
-              true,
-            );
             expect(deletedUrls.some((u) => u.includes("att1.pdf"))).toBe(true);
-            expect(deletedUrls.some((u) => u.includes("img2.png"))).toBe(true);
             expect(deletedUrls.some((u) => u.includes("att3.pdf"))).toBe(true);
-            // Empty URLs should not trigger delete calls (img1 adds a thumb ⇒ 5)
-            expect(deletedUrls).toHaveLength(5);
+            // Empty URLs should not trigger delete calls.
+            expect(deletedUrls).toHaveLength(2);
           });
         });
 
-        test("skips listings with no image or attachment", async () => {
-          const listings = [
-            { attachment_url: "", id: 1, image_thumb_url: "", image_url: "" },
-          ];
+        test("skips listings with no attachment", async () => {
+          const listings = [{ attachment_url: "", id: 1 }];
 
           await withBunnyDeleteCapture(
             async (deletedUrls) => {
-              await deleteAllListingStorageFiles(listings);
+              await deleteAllListingAttachmentFiles(listings);
               expect(deletedUrls).toHaveLength(0);
             },
             { withConfig: false },
@@ -603,39 +593,64 @@ describeWithEnv(
         });
 
         test("handles empty listings array", async () => {
-          await deleteAllListingStorageFiles([]);
+          await deleteAllListingAttachmentFiles([]);
         });
 
         test("continues deleting when individual file delete fails", async () => {
           const listings = [
             {
-              attachment_url: "",
+              attachment_url: "fail.pdf",
               id: 1,
-              image_thumb_url: "",
-              image_url: "fail.jpg",
             },
             {
-              attachment_url: "",
+              attachment_url: "succeed.pdf",
               id: 2,
-              image_thumb_url: "",
-              image_url: "succeed.jpg",
             },
           ];
 
           await withBunnyDeleteCapture(
             async (deletedUrls) => {
-              await deleteAllListingStorageFiles(listings);
-              expect(deletedUrls.some((u) => u.includes("succeed.jpg"))).toBe(
+              await deleteAllListingAttachmentFiles(listings);
+              expect(deletedUrls.some((u) => u.includes("succeed.pdf"))).toBe(
                 true,
               );
             },
             {
               extraHandler: (url) =>
-                url.includes("fail.jpg")
+                url.includes("fail.pdf")
                   ? Promise.reject(new Error("CDN error"))
                   : null,
             },
           );
+        });
+
+        test("deletes image files and thumbnails for all images", async () => {
+          const images = [
+            {
+              filename: nonEmptyString("img1.webp"),
+              filename_thumb: nonEmptyString("img1-thumb.webp"),
+              id: 1,
+            },
+            {
+              filename: nonEmptyString("img2.webp"),
+              filename_thumb: nonEmptyString("img2-thumb.webp"),
+              id: 2,
+            },
+          ];
+
+          await withBunnyDeleteCapture(async (deletedUrls) => {
+            await deleteAllImageStorageFiles(images);
+
+            expect(deletedUrls.some((u) => u.includes("img1.webp"))).toBe(true);
+            expect(deletedUrls.some((u) => u.includes("img1-thumb.webp"))).toBe(
+              true,
+            );
+            expect(deletedUrls.some((u) => u.includes("img2.webp"))).toBe(true);
+            expect(deletedUrls.some((u) => u.includes("img2-thumb.webp"))).toBe(
+              true,
+            );
+            expect(deletedUrls).toHaveLength(4);
+          });
         });
       },
     );

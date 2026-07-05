@@ -15,7 +15,6 @@ import {
 import {
   getAssignBuiltSiteField,
   getAttachmentField,
-  getImageField,
   getInitialSiteMonthsField,
   getListingFields,
   getMonthsPerUnitField,
@@ -61,7 +60,7 @@ export const listingFieldsFor = (
         getAssignBuiltSiteField(),
       ]
     : []),
-  ...(isStorageEnabled() ? [getImageField(), getAttachmentField()] : []),
+  ...(isStorageEnabled() ? [getAttachmentField()] : []),
   ...(opts.includeSlug ? [getSlugField()] : []),
 ];
 
@@ -108,7 +107,6 @@ const BASICS_FIELDS = [
   "description",
   "date",
   "location",
-  "image",
   "attachment",
 ] as const;
 
@@ -189,7 +187,6 @@ export const ListingFormSections = ({
   selectedGroupIds,
   dayPricesListing,
   durationWarning,
-  imagePreview,
   advancedOpen,
   childOfNote = "",
   customiseOpen,
@@ -203,7 +200,6 @@ export const ListingFormSections = ({
   selectedGroupIds: number[];
   dayPricesListing?: ListingWithCount;
   durationWarning: string;
-  imagePreview: string;
   advancedOpen: boolean;
   childOfNote?: string;
   customiseOpen: boolean;
@@ -224,7 +220,6 @@ export const ListingFormSections = ({
       children: (
         <>
           <Raw html={sectionFields(BASICS_FIELDS)} />
-          {imagePreview && <Raw html={imagePreview} />}
           <ListingGroupSelect
             groups={groups}
             selectedGroupIds={selectedGroupIds}

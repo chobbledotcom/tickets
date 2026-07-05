@@ -142,7 +142,7 @@ export type PublicListing = {
   description: string;
   date: string | null;
   location: string | null;
-  imageUrl: string | null;
+  imageUrl: string;
   unitPrice: number;
   canPayMore: boolean;
   maxPrice: number;
@@ -196,7 +196,7 @@ export const resolvedToPublicListing = (
     date: listing.date || null,
     description: listing.description,
     fields: listing.fields,
-    imageUrl: listing.image_url || null,
+    imageUrl: listing.image_url,
     isClosed: closed,
     isSoldOut,
     listingType: listing.listing_type,

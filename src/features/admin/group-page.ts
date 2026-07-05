@@ -25,11 +25,13 @@ import {
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 /* jscpd:ignore-end */
 import { isReadOnly } from "#shared/env.ts";
+import { isStorageEnabled } from "#shared/storage.ts";
 import { type Group, isStaffRole } from "#shared/types.ts";
 import {
   loadGroupAttendeesPanel,
   loadGroupEditPanel,
   loadGroupForPage,
+  loadGroupImagesPanel,
   loadGroupOverviewPanel,
 } from "./group-page-data.ts";
 
@@ -84,6 +86,7 @@ const GROUP_ACTIONS: readonly ActionDef<Group>[] = [
  * immediately bounces (and so an editor's bare-URL default can't resolve onto an
  * un-editable form), hide the tab. */
 const editVisible = (): boolean => !isReadOnly();
+const imagesVisible = (): boolean => editVisible() && isStorageEnabled();
 
 /** The Actions tab: the plain export/bulk links plus the delete danger zone. */
 const actionsTab = (): TabDef<Group> => ({
@@ -112,6 +115,12 @@ export const groupPage: EntityPage<Group> = defineEntityPage({
       staffOnly,
     ),
     panelTab("edit", "entity.tab.edit", loadGroupEditPanel, editVisible),
+    panelTab(
+      "images",
+      "entity.tab.images",
+      loadGroupImagesPanel,
+      imagesVisible,
+    ),
     actionsTab(),
   ],
   titleOf: (group) => group.name,

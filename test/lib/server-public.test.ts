@@ -7,6 +7,7 @@ import { capacityErrorFormatter } from "#shared/capacity-error.ts";
 import { addDays } from "#shared/dates.ts";
 import { insertBuiltSite } from "#shared/db/built-sites.ts";
 import { hashPhone, recordVisit } from "#shared/db/contact-preferences.ts";
+import { imagesTable, setItemsForImage } from "#shared/db/images.ts";
 import {
   getAllModifiers,
   modifiersTable,
@@ -21,6 +22,7 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
 import {
   assertJson,
@@ -466,7 +468,7 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         maxAttendees: 50,
         name: "Hidden Group Listing",
       });
-      await assertPublicHtml(`/ticket/${group.slug}`, "Hidden Group Listing");
+      await assertPublicHtml(`/ticket/${group.slug}`, "Hidden Group");
     });
 
     test("grouped listings also appear individually on listings page", async () => {
@@ -1410,6 +1412,33 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         `/ticket/${group.slug}`,
         "Festival Group",
         "A wonderful festival with multiple listings",
+      );
+    });
+
+    test("shows the linked group image on the group ticket page", async () => {
+      const group = await createTestGroup({
+        name: "Poster Group",
+        slug: "poster-group",
+      });
+      await createTestListing({
+        groupId: group.id,
+        maxAttendees: 50,
+        name: "Poster Group Listing",
+      });
+      const image = await imagesTable.insert({
+        altText: "Poster group hero",
+        filename: nonEmptyString("poster-group.webp"),
+        filenameThumb: nonEmptyString("poster-group-thumb.webp"),
+        name: "Poster group image",
+      });
+      await setItemsForImage(image.id, [
+        { itemId: group.id, itemType: "group" },
+      ]);
+
+      await assertPublicHtml(
+        `/ticket/${group.slug}`,
+        "/image/poster-group.webp",
+        'alt="Poster group hero"',
       );
     });
 

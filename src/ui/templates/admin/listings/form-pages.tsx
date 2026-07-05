@@ -176,7 +176,6 @@ export const adminListingNewPage = (
           advancedOpen: !!error,
           customiseOpen,
           durationWarning: "",
-          imagePreview: "",
           useDefaultsChecked,
           values: newValues,
         })}
@@ -217,7 +216,6 @@ export const adminDuplicateListingPage = (
           customiseOpen: false,
           dayPricesListing: listing,
           durationWarning: "",
-          imagePreview: "",
           useDefaultsChecked: listing.use_defaults,
           values,
         })}

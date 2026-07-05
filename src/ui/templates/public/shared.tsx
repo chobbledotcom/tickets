@@ -205,11 +205,15 @@ export const simplePublicPage =
 
 /** Render listing image HTML if an image is set.
  *
- * In `thumb` contexts (list rows, gallery cards) the 480px WebP thumbnail is
- * used when the listing has one, falling back to the full image for listings
- * uploaded before thumbnails existed — so the link is never dead. */
+ * In `thumb` contexts (list rows, gallery cards) the linked thumbnail is used
+ * when one is stored, falling back to the full image for records without a
+ * thumbnail filename. */
 export const renderListingImage = (
-  listing: { image_url: string; image_thumb_url?: string },
+  listing: {
+    image_alt_text?: string | undefined;
+    image_url: string;
+    image_thumb_url: string;
+  },
   className = "listing-image",
   options: { thumb?: boolean } = {},
 ): string => {
@@ -218,8 +222,8 @@ export const renderListingImage = (
       ? listing.image_thumb_url
       : listing.image_url;
   return src
-    ? `<img src="${escapeHtml(
-        getImageProxyUrl(src),
-      )}" alt="" class="${className}" />`
+    ? `<img src="${escapeHtml(getImageProxyUrl(src))}" alt="${escapeHtml(
+        listing.image_alt_text ?? "",
+      )}" class="${className}" />`
     : "";
 };
