@@ -7,9 +7,13 @@ import { resetStripeClient } from "#shared/stripe.ts";
 import {
   assertPublicHtml,
   awaitTestRequest,
+  bookTwoListings,
   createTestAttendeeWithToken,
   createTestListing,
   describeWithEnv,
+  expectAttendeeCounts,
+  expectBookOneEachRejected,
+  expectCheckoutRedirect,
   expectFlash,
   expectReservedRedirectWithTokens,
   getTicketCsrfToken,
@@ -17,6 +21,7 @@ import {
   mockRequest,
   setTestEnv,
   setupStripe,
+  submitMultiTicketForm,
   submitTicketForm,
 } from "#test-utils";
 
@@ -164,30 +169,16 @@ describeWithEnv(
           unitPrice: 1000,
         });
 
-        const path = `/ticket/${listing1.slug}+${listing2.slug}`;
-        const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("Failed to get CSRF token");
-
-        const response = await handleRequest(
-          mockFormRequest(
-            path,
-            {
-              email: "john@example.com",
-              name: "John Doe",
-              [`quantity_${listing1.id}`]: "1",
-              [`quantity_${listing2.id}`]: "2",
-              csrf_token: csrfToken,
-            },
-            `csrf_token=${csrfToken}`,
-          ),
+        const response = await bookTwoListings(
+          `${listing1.slug}+${listing2.slug}`,
+          listing1.id,
+          "1",
+          listing2.id,
+          "2",
         );
 
         // Should redirect to Stripe checkout
-        expect(response.status).toBe(302);
-        const location = response.headers.get("location");
-        expect(location).not.toBeNull();
-        expect(location?.startsWith("https://")).toBe(true);
+        expectCheckoutRedirect(response);
       });
 
       test("shows error when no tickets selected in ticket paid form", async () => {
@@ -206,24 +197,13 @@ describeWithEnv(
           unitPrice: 1000,
         });
 
-        const path = `/ticket/${listing1.slug}+${listing2.slug}`;
-        const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("Failed to get CSRF token");
-
         // Submit with all quantities at 0
-        const response = await handleRequest(
-          mockFormRequest(
-            path,
-            {
-              email: "john@example.com",
-              name: "John Doe",
-              [`quantity_${listing1.id}`]: "0",
-              [`quantity_${listing2.id}`]: "0",
-              csrf_token: csrfToken,
-            },
-            `csrf_token=${csrfToken}`,
-          ),
+        const response = await bookTwoListings(
+          `${listing1.slug}+${listing2.slug}`,
+          listing1.id,
+          "0",
+          listing2.id,
+          "0",
         );
 
         expect(response.status).toBe(302);
@@ -248,11 +228,6 @@ describeWithEnv(
           name: "Multi Free Cap 2",
         });
 
-        const path = `/ticket/${listing1.slug}+${listing2.slug}`;
-        const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("Failed to get CSRF token");
-
         // Mock atomic create to fail (simulates race condition / capacity exceeded)
         const { attendeesApi } = await import("#shared/db/attendees.ts");
         // A free order with a ledger order goes through createBookingAtomic; a plain
@@ -264,32 +239,14 @@ describeWithEnv(
             success: false as const,
           });
         const mockCreate = stub(attendeesApi, "createAttendeeAtomic", failure);
-        const mockBooking = stub(
-          attendeesApi,
-          "createBookingAtomic",
-          failure,
-        );
+        const mockBooking = stub(attendeesApi, "createBookingAtomic", failure);
 
         try {
-          const response = await handleRequest(
-            mockFormRequest(
-              path,
-              {
-                email: "john@example.com",
-                name: "John Doe",
-                [`quantity_${listing1.id}`]: "1",
-                [`quantity_${listing2.id}`]: "1",
-                csrf_token: csrfToken,
-              },
-              `csrf_token=${csrfToken}`,
-            ),
-          );
-
-          expect(response.status).toBe(302);
-          expectFlash(
-            response,
-            expect.stringContaining("no longer has enough spots"),
-            false,
+          await expectBookOneEachRejected(
+            `${listing1.slug}+${listing2.slug}`,
+            listing1.id,
+            listing2.id,
+            "no longer has enough spots",
           );
         } finally {
           mockCreate.restore();
@@ -309,35 +266,23 @@ describeWithEnv(
           name: "Multi Free Ok 2",
         });
 
-        const path = `/ticket/${listing1.slug}+${listing2.slug}`;
-        const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("Failed to get CSRF token");
-
-        const response = await handleRequest(
-          mockFormRequest(
-            path,
-            {
-              email: "multifree@example.com",
-              name: "Multi Free User",
-              [`quantity_${listing1.id}`]: "2",
-              [`quantity_${listing2.id}`]: "1",
-              csrf_token: csrfToken,
-            },
-            `csrf_token=${csrfToken}`,
-          ),
+        const response = await submitMultiTicketForm(
+          `${listing1.slug}+${listing2.slug}`,
+          {
+            email: "multifree@example.com",
+            name: "Multi Free User",
+            [`quantity_${listing1.id}`]: "2",
+            [`quantity_${listing2.id}`]: "1",
+          },
         );
 
         expectReservedRedirectWithTokens(response);
 
         // Verify attendees created for both listings
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        const attendees2 = await getAttendeesRaw(listing2.id);
-        expect(attendees1.length).toBe(1);
-        expect(attendees1[0]?.quantity).toBe(2);
-        expect(attendees2.length).toBe(1);
-        expect(attendees2[0]?.quantity).toBe(1);
+        await expectAttendeeCounts([
+          { count: 1, listingId: listing1.id, quantity: 2 },
+          { count: 1, listingId: listing2.id, quantity: 1 },
+        ]);
       });
     });
 

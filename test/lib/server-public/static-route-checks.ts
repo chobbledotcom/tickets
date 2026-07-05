@@ -29,9 +29,7 @@ export const expectLongCacheHeaders = async (path: string): Promise<void> => {
   );
 };
 
-export const expect404ForNonGetStatic = async (
-  path: string,
-): Promise<void> => {
+export const expect404ForNonGetStatic = async (path: string): Promise<void> => {
   const response = await awaitTestRequest(path, { data: {}, method: "POST" });
   expect(response.status).toBe(404);
 };

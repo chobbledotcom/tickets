@@ -11,6 +11,7 @@ import {
   bookAttendee,
   createTestListing,
   describeWithEnv,
+  expectAttendeeCounts,
   expectCheckoutRedirect,
   expectFlash,
   expectRedirect,
@@ -19,10 +20,34 @@ import {
   mockFormRequest,
   mockRequest,
   setupStripe,
+  submitMultiTicketForm,
   submitTicketForm,
 } from "#test-utils";
 
 // jscpd:ignore-end
+
+/** A free, phone-only listing plus a £5 "Returning customer fee" modifier
+ * that only fires once the buyer's phone has visited before — the shared
+ * setup behind both returning-customer Square tests below (one records the
+ * visit without an email configured, the other with). */
+const setupReturningCustomerFeeListing = async () => {
+  await recordVisit(await hashPhone("555-1234"));
+  const listing = await createTestListing({
+    fields: "phone",
+    maxAttendees: 50,
+    thankYouUrl: "https://example.com/thanks",
+    unitPrice: 0,
+  });
+  await modifiersTable.insert({
+    calcKind: "fixed",
+    calcValue: 5,
+    direction: "charge",
+    minVisits: 1,
+    name: "Returning customer fee",
+    trigger: "automatic",
+  });
+  return listing;
+};
 
 describeWithEnv(
   "server public > ticket additional coverage",
@@ -81,21 +106,7 @@ describeWithEnv(
 
       test("Square requires email when a returning-customer charge makes a free listing paid", async () => {
         await settings.update.paymentProvider("square");
-        await recordVisit(await hashPhone("555-1234"));
-        const listing = await createTestListing({
-          fields: "phone",
-          maxAttendees: 50,
-          thankYouUrl: "https://example.com/thanks",
-          unitPrice: 0,
-        });
-        await modifiersTable.insert({
-          calcKind: "fixed",
-          calcValue: 5,
-          direction: "charge",
-          minVisits: 1,
-          name: "Returning customer fee",
-          trigger: "automatic",
-        });
+        const listing = await setupReturningCustomerFeeListing();
 
         const response = await submitTicketForm(listing.slug, {
           name: "John Doe",
@@ -114,21 +125,7 @@ describeWithEnv(
         await settings.update.paymentProvider("square");
         await settings.update.square.accessToken("EAAAl_test_123");
         await settings.update.square.locationId("L_test_123");
-        await recordVisit(await hashPhone("555-1234"));
-        const listing = await createTestListing({
-          fields: "phone",
-          maxAttendees: 50,
-          thankYouUrl: "https://example.com/thanks",
-          unitPrice: 0,
-        });
-        await modifiersTable.insert({
-          calcKind: "fixed",
-          calcValue: 5,
-          direction: "charge",
-          minVisits: 1,
-          name: "Returning customer fee",
-          trigger: "automatic",
-        });
+        const listing = await setupReturningCustomerFeeListing();
         const { squarePaymentProvider } = await import(
           "#shared/square-provider.ts"
         );
@@ -240,33 +237,23 @@ describeWithEnv(
           name: "Multi Invalid Qty 2",
         });
 
-        const path = `/ticket/${listing1.slug}+${listing2.slug}`;
-        const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("Failed to get CSRF token");
-
         // Submit with non-numeric quantity for listing1 and valid for listing2
-        const response = await handleRequest(
-          mockFormRequest(
-            path,
-            {
-              email: "john@example.com",
-              name: "John Doe",
-              [`quantity_${listing1.id}`]: "abc",
-              [`quantity_${listing2.id}`]: "1",
-              csrf_token: csrfToken,
-            },
-            `csrf_token=${csrfToken}`,
-          ),
+        const response = await submitMultiTicketForm(
+          `${listing1.slug}+${listing2.slug}`,
+          {
+            email: "john@example.com",
+            name: "John Doe",
+            [`quantity_${listing1.id}`]: "abc",
+            [`quantity_${listing2.id}`]: "1",
+          },
         );
         expectReservedRedirectWithTokens(response);
 
         // Only listing2 should have an attendee
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        const attendees2 = await getAttendeesRaw(listing2.id);
-        expect(attendees1.length).toBe(0);
-        expect(attendees2.length).toBe(1);
+        await expectAttendeeCounts([
+          { count: 0, listingId: listing1.id },
+          { count: 1, listingId: listing2.id },
+        ]);
       });
 
       test("ticket paid checks availability and rejects sold out", async () => {
@@ -292,23 +279,14 @@ describeWithEnv(
           paymentId: "pi_first",
         });
 
-        const path = `/ticket/${listing1.slug}+${listing2.slug}`;
-        const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("Failed to get CSRF token");
-
         // Try to purchase - listing1 is sold out
-        const response = await handleRequest(
-          mockFormRequest(
-            path,
-            {
-              email: "john@example.com",
-              name: "John Doe",
-              [`quantity_${listing2.id}`]: "1",
-              csrf_token: csrfToken,
-            },
-            `csrf_token=${csrfToken}`,
-          ),
+        const response = await submitMultiTicketForm(
+          `${listing1.slug}+${listing2.slug}`,
+          {
+            email: "john@example.com",
+            name: "John Doe",
+            [`quantity_${listing2.id}`]: "1",
+          },
         );
 
         // Should redirect to checkout since only listing2 has quantity (listing1 is sold out and skipped)

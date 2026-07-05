@@ -20,6 +20,24 @@ describeWithEnv(
   { db: true, triggers: true },
   () => {
     describe("GET /listings", () => {
+      /** Creates a standalone listing (to keep /listings non-empty) then
+       * asserts a group/package's Book CTA is absent from the public
+       * listings page — the shared tail of every "suppress the CTA"
+       * scenario (no active members, sold-out member, inactive member, no
+       * members at all). */
+      const expectGroupCtaSuppressed = async (
+        group: { slug: string },
+        groupName: string,
+      ): Promise<void> => {
+        await createTestListing({
+          maxAttendees: 50,
+          name: "Standalone Listing",
+        });
+        const html = await assertPublicHtml("/listings", "Standalone Listing");
+        expect(html).not.toContain(`href="/ticket/${group.slug}"`);
+        expect(html).not.toContain(groupName);
+      };
+
       test("redirects legacy /events to /listings when public site is enabled", async () => {
         await settings.update.showPublicSite(true);
         const response = await handleRequest(mockRequest("/events"));
@@ -120,9 +138,7 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest(`/ticket/${listing.slug}`),
         );
-        expect(response.headers.get("x-robots-tag")).toBe(
-          "noindex, nofollow",
-        );
+        expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
       });
 
       test("non-hidden listing ticket page has index x-robots-tag", async () => {
@@ -222,13 +238,7 @@ describeWithEnv(
         });
         // A standalone listing keeps the page non-empty so this proves the GROUP
         // CTA is suppressed (not merely the empty-page fallback).
-        await createTestListing({
-          maxAttendees: 50,
-          name: "Standalone Listing",
-        });
-        const html = await assertPublicHtml("/listings", "Standalone Listing");
-        expect(html).not.toContain(`href="/ticket/${group.slug}"`);
-        expect(html).not.toContain("Empty Group");
+        await expectGroupCtaSuppressed(group, "Empty Group");
       });
 
       test("suppresses a package CTA when a member is sold out", async () => {
@@ -251,15 +261,7 @@ describeWithEnv(
           maxAttendees: 0,
           name: "Sold Out Member",
         });
-        // A standalone listing keeps the page non-empty.
-        await createTestListing({
-          maxAttendees: 50,
-          name: "Standalone Listing",
-        });
-
-        const html = await assertPublicHtml("/listings", "Standalone Listing");
-        expect(html).not.toContain(`href="/ticket/${pkg.slug}"`);
-        expect(html).not.toContain("Half Bundle");
+        await expectGroupCtaSuppressed(pkg, "Half Bundle");
       });
 
       test("suppresses a package CTA when a member is inactive", async () => {
@@ -282,14 +284,7 @@ describeWithEnv(
           name: "Inactive Member",
         });
         await deactivateTestListing(inactive.id);
-        await createTestListing({
-          maxAttendees: 50,
-          name: "Standalone Listing",
-        });
-
-        const html = await assertPublicHtml("/listings", "Standalone Listing");
-        expect(html).not.toContain(`href="/ticket/${pkg.slug}"`);
-        expect(html).not.toContain("Partial Bundle");
+        await expectGroupCtaSuppressed(pkg, "Partial Bundle");
       });
 
       test("suppresses a package CTA when the group has no members", async () => {
@@ -299,15 +294,7 @@ describeWithEnv(
           name: "Empty Bundle",
           slug: "empty-bundle",
         });
-        // A standalone listing keeps the page non-empty.
-        await createTestListing({
-          maxAttendees: 50,
-          name: "Standalone Listing",
-        });
-
-        const html = await assertPublicHtml("/listings", "Standalone Listing");
-        expect(html).not.toContain(`href="/ticket/${empty.slug}"`);
-        expect(html).not.toContain("Empty Bundle");
+        await expectGroupCtaSuppressed(empty, "Empty Bundle");
       });
 
       test("shows group description on listings page", async () => {

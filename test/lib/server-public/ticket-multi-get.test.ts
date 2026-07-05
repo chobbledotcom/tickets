@@ -187,9 +187,21 @@ describeWithEnv(
         expect(zebraPos).toBeLessThan(alphaPos);
       });
 
-      test("does not set CSRF cookies for ticket (uses signed tokens)", async () => {
+      /** Two plain listings, each purchasable — the shared fixture behind
+       * every "does not set CSRF cookies" / iframe check below. */
+      const createTwoListings = async (): Promise<
+        [
+          Awaited<ReturnType<typeof createTestListing>>,
+          Awaited<ReturnType<typeof createTestListing>>,
+        ]
+      > => {
         const listing1 = await createTestListing({ maxAttendees: 50 });
         const listing2 = await createTestListing({ maxAttendees: 50 });
+        return [listing1, listing2];
+      };
+
+      test("does not set CSRF cookies for ticket (uses signed tokens)", async () => {
+        const [listing1, listing2] = await createTwoListings();
         const response = await handleRequest(
           mockRequest(`/ticket/${listing1.slug}+${listing2.slug}`),
         );
@@ -197,25 +209,31 @@ describeWithEnv(
         expect(cookie).not.toContain("csrf_token=");
       });
 
-      test("form action includes ?iframe=true in iframe mode", async () => {
-        const listing1 = await createTestListing({ maxAttendees: 50 });
-        const listing2 = await createTestListing({ maxAttendees: 50 });
+      /** Creates two listings and GETs their combined ticket page with
+       * `?iframe=true` — the shared setup behind the iframe form-action and
+       * signed-CSRF-token checks below. */
+      const getMultiTicketIframePage = async (): Promise<{
+        listing1: Awaited<ReturnType<typeof createTestListing>>;
+        listing2: Awaited<ReturnType<typeof createTestListing>>;
+        html: string;
+      }> => {
+        const [listing1, listing2] = await createTwoListings();
         const response = await handleRequest(
           mockRequest(`/ticket/${listing1.slug}+${listing2.slug}?iframe=true`),
         );
         const html = await response.text();
+        return { html, listing1, listing2 };
+      };
+
+      test("form action includes ?iframe=true in iframe mode", async () => {
+        const { listing1, listing2, html } = await getMultiTicketIframePage();
         expect(html).toContain(
           `action="/ticket/${listing1.slug}+${listing2.slug}?iframe=true"`,
         );
       });
 
       test("ticket GET returns signed CSRF token in form", async () => {
-        const listing1 = await createTestListing({ maxAttendees: 50 });
-        const listing2 = await createTestListing({ maxAttendees: 50 });
-        const response = await handleRequest(
-          mockRequest(`/ticket/${listing1.slug}+${listing2.slug}?iframe=true`),
-        );
-        const html = await response.text();
+        const { html } = await getMultiTicketIframePage();
         expect(extractInputValue(html, "csrf_token")).toMatch(/^s1\./);
       });
 

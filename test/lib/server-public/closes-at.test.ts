@@ -8,13 +8,47 @@ import {
   describeWithEnv,
   expectFlash,
   expectHtmlResponse,
+  futureCloseTime,
   getTicketCsrfToken,
   mockFormRequest,
   mockRequest,
+  pastCloseTime,
   updateTestListing,
 } from "#test-utils";
 
 // jscpd:ignore-end
+
+/** POSTs `formData` to `path` after closing `listingIdToClose` mid-submission
+ * (having already fetched a valid CSRF token while it was still open) and
+ * asserts the "closed while you were submitting" flash — the shared shape
+ * behind both the single-ticket and ticket race-condition tests below. */
+const expectClosesDuringSubmission = async (
+  path: string,
+  formData: Record<string, string>,
+  listingIdToClose: number,
+): Promise<void> => {
+  const getResponse = await handleRequest(mockRequest(path));
+  const csrfToken = getTicketCsrfToken(await getResponse.text());
+  if (!csrfToken) throw new Error("No CSRF token");
+
+  await updateTestListing(listingIdToClose, { closesAt: pastCloseTime() });
+
+  const response = await handleRequest(
+    mockFormRequest(
+      path,
+      { ...formData, csrf_token: csrfToken },
+      `csrf_token=${csrfToken}`,
+    ),
+  );
+  expect(response.status).toBe(302);
+  expectFlash(
+    response,
+    expect.stringContaining(
+      "Sorry, registration closed while you were submitting.",
+    ),
+    false,
+  );
+};
 
 describeWithEnv(
   "server public > closes_at",
@@ -22,10 +56,9 @@ describeWithEnv(
   () => {
     describe("closes_at (single ticket)", () => {
       test("shows 'Registration closed.' when closes_at is in the past", async () => {
-        const pastDate = new Date(Date.now() - 60000)
-          .toISOString()
-          .slice(0, 16);
-        const listing = await createTestListing({ closesAt: pastDate });
+        const listing = await createTestListing({
+          closesAt: pastCloseTime(),
+        });
 
         const response = await handleRequest(
           mockRequest(`/ticket/${listing.slug}`),
@@ -39,10 +72,9 @@ describeWithEnv(
       });
 
       test("shows form when closes_at is in the future", async () => {
-        const futureDate = new Date(Date.now() + 3600000)
-          .toISOString()
-          .slice(0, 16);
-        const listing = await createTestListing({ closesAt: futureDate });
+        const listing = await createTestListing({
+          closesAt: futureCloseTime(),
+        });
 
         const html = await assertPublicHtml(
           `/ticket/${listing.slug}`,
@@ -63,52 +95,25 @@ describeWithEnv(
 
       test("shows 'registration closed while you were submitting' on POST when closes_at is past", async () => {
         // Create listing with future closes_at so we can get CSRF token
-        const futureDate = new Date(Date.now() + 3600000)
-          .toISOString()
-          .slice(0, 16);
-        const listing = await createTestListing({ closesAt: futureDate });
+        const listing = await createTestListing({
+          closesAt: futureCloseTime(),
+        });
 
-        // Get CSRF token from the ticket page
-        const getResponse = await handleRequest(
-          mockRequest(`/ticket/${listing.slug}`),
-        );
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("No CSRF token");
-
-        // Now set closes_at to past
-        const pastDate = new Date(Date.now() - 60000)
-          .toISOString()
-          .slice(0, 16);
-        await updateTestListing(listing.id, { closesAt: pastDate });
-
-        const response = await handleRequest(
-          mockFormRequest(
-            `/ticket/${listing.slug}`,
-            {
-              email: "test@example.com",
-              name: "Test User",
-              [`quantity_${listing.id}`]: "1",
-              csrf_token: csrfToken,
-            },
-            `csrf_token=${csrfToken}`,
-          ),
-        );
-        expect(response.status).toBe(302);
-        expectFlash(
-          response,
-          expect.stringContaining(
-            "Sorry, registration closed while you were submitting.",
-          ),
-          false,
+        await expectClosesDuringSubmission(
+          `/ticket/${listing.slug}`,
+          {
+            email: "test@example.com",
+            name: "Test User",
+            [`quantity_${listing.id}`]: "1",
+          },
+          listing.id,
         );
       });
     });
 
     describe("closes_at (ticket)", () => {
       test("shows 'Registration closed.' when all listings are closed", async () => {
-        const pastDate = new Date(Date.now() - 60000)
-          .toISOString()
-          .slice(0, 16);
+        const pastDate = pastCloseTime();
         const listing1 = await createTestListing({ closesAt: pastDate });
         const listing2 = await createTestListing({ closesAt: pastDate });
 
@@ -119,10 +124,9 @@ describeWithEnv(
       });
 
       test("shows 'Registration Closed' label for individual closed listing in ticket", async () => {
-        const pastDate = new Date(Date.now() - 60000)
-          .toISOString()
-          .slice(0, 16);
-        const listing1 = await createTestListing({ closesAt: pastDate });
+        const listing1 = await createTestListing({
+          closesAt: pastCloseTime(),
+        });
         const listing2 = await createTestListing();
 
         await assertPublicHtml(
@@ -134,45 +138,20 @@ describeWithEnv(
 
       test("shows error on POST when listing closes during submission", async () => {
         // Create two listings, one will close during submission
-        const futureDate = new Date(Date.now() + 3600000)
-          .toISOString()
-          .slice(0, 16);
-        const listing1 = await createTestListing({ closesAt: futureDate });
+        const listing1 = await createTestListing({
+          closesAt: futureCloseTime(),
+        });
         const listing2 = await createTestListing();
 
-        // Get CSRF token
-        const getResponse = await handleRequest(
-          mockRequest(`/ticket/${listing1.slug}+${listing2.slug}`),
-        );
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("No CSRF token");
-
-        // Close listing1
-        const pastDate = new Date(Date.now() - 60000)
-          .toISOString()
-          .slice(0, 16);
-        await updateTestListing(listing1.id, { closesAt: pastDate });
-
-        const response = await handleRequest(
-          mockFormRequest(
-            `/ticket/${listing1.slug}+${listing2.slug}`,
-            {
-              email: "test@example.com",
-              name: "Test User",
-              [`quantity_${listing1.id}`]: "1",
-              [`quantity_${listing2.id}`]: "1",
-              csrf_token: csrfToken,
-            },
-            `csrf_token=${csrfToken}`,
-          ),
-        );
-        expect(response.status).toBe(302);
-        expectFlash(
-          response,
-          expect.stringContaining(
-            "Sorry, registration closed while you were submitting.",
-          ),
-          false,
+        await expectClosesDuringSubmission(
+          `/ticket/${listing1.slug}+${listing2.slug}`,
+          {
+            email: "test@example.com",
+            name: "Test User",
+            [`quantity_${listing1.id}`]: "1",
+            [`quantity_${listing2.id}`]: "1",
+          },
+          listing1.id,
         );
       });
     });

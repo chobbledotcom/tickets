@@ -2,19 +2,18 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { handleRequest } from "#routes";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
   bookAttendee,
+  bookOneEachViaTicketForm,
   createTestListing,
   describeWithEnv,
-  expectFlash,
+  expectBookOneEachRejected,
+  expectCheckoutRedirect,
   expectHtmlResponse,
   expectReservedRedirectWithTokens,
-  getTicketCsrfToken,
-  mockFormRequest,
-  mockRequest,
   setupStripe,
+  submitMultiTicketForm,
   submitTicketForm,
 } from "#test-utils";
 
@@ -43,23 +42,10 @@ describeWithEnv(
           unitPrice: 500,
         });
 
-        const path = `/ticket/${listing1.slug}+${listing2.slug}`;
-        const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("Failed to get CSRF token");
-
-        const response = await handleRequest(
-          mockFormRequest(
-            path,
-            {
-              email: "john@example.com",
-              name: "John Doe",
-              [`quantity_${listing1.id}`]: "1",
-              [`quantity_${listing2.id}`]: "1",
-              csrf_token: csrfToken,
-            },
-            `csrf_token=${csrfToken}`,
-          ),
+        const response = await bookOneEachViaTicketForm(
+          `${listing1.slug}+${listing2.slug}`,
+          listing1.id,
+          listing2.id,
         );
         // Should redirect to Stripe checkout
         expect(response.status).toBe(302);
@@ -81,11 +67,6 @@ describeWithEnv(
           unitPrice: 500,
         });
 
-        const path = `/ticket/${listing1.slug}+${listing2.slug}`;
-        const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("Failed to get CSRF token");
-
         // Mock createCheckoutSession to return no URL
         const { stripePaymentProvider } = await import(
           "#shared/stripe-provider.ts"
@@ -97,24 +78,11 @@ describeWithEnv(
         );
 
         try {
-          const response = await handleRequest(
-            mockFormRequest(
-              path,
-              {
-                email: "john@example.com",
-                name: "John Doe",
-                [`quantity_${listing1.id}`]: "1",
-                [`quantity_${listing2.id}`]: "1",
-                csrf_token: csrfToken,
-              },
-              `csrf_token=${csrfToken}`,
-            ),
-          );
-          expect(response.status).toBe(302);
-          expectFlash(
-            response,
-            expect.stringContaining("Failed to create payment session"),
-            false,
+          await expectBookOneEachRejected(
+            `${listing1.slug}+${listing2.slug}`,
+            listing1.id,
+            listing2.id,
+            "Failed to create payment session",
           );
         } finally {
           mockCreate.restore();
@@ -135,11 +103,6 @@ describeWithEnv(
           unitPrice: 500,
         });
 
-        const path = `/ticket/${listing1.slug}+${listing2.slug}`;
-        const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("Failed to get CSRF token");
-
         const { stripePaymentProvider } = await import(
           "#shared/stripe-provider.ts"
         );
@@ -150,24 +113,11 @@ describeWithEnv(
         );
 
         try {
-          const response = await handleRequest(
-            mockFormRequest(
-              path,
-              {
-                email: "john@example.com",
-                name: "John Doe",
-                [`quantity_${listing1.id}`]: "1",
-                [`quantity_${listing2.id}`]: "1",
-                csrf_token: csrfToken,
-              },
-              `csrf_token=${csrfToken}`,
-            ),
-          );
-          expect(response.status).toBe(302);
-          expectFlash(
-            response,
-            expect.stringContaining("Invalid phone number format"),
-            false,
+          await expectBookOneEachRejected(
+            `${listing1.slug}+${listing2.slug}`,
+            listing1.id,
+            listing2.id,
+            "Invalid phone number format",
           );
         } finally {
           mockCreate.restore();
@@ -191,24 +141,11 @@ describeWithEnv(
           quantity: 1,
         });
 
-        const path = `/ticket/${listing1.slug}+${listing2.slug}`;
-        const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("Failed to get CSRF token");
-
         // Submit with qty for both listings, but listing1 should be skipped as sold out
-        const response = await handleRequest(
-          mockFormRequest(
-            path,
-            {
-              email: "john@example.com",
-              name: "John Doe",
-              [`quantity_${listing1.id}`]: "1",
-              [`quantity_${listing2.id}`]: "1",
-              csrf_token: csrfToken,
-            },
-            `csrf_token=${csrfToken}`,
-          ),
+        const response = await bookOneEachViaTicketForm(
+          `${listing1.slug}+${listing2.slug}`,
+          listing1.id,
+          listing2.id,
         );
         // Should succeed for listing2 only
         expectReservedRedirectWithTokens(response);
@@ -236,11 +173,6 @@ describeWithEnv(
           unitPrice: 1000,
         });
 
-        const path = `/ticket/${listing1.slug}+${listing2.slug}`;
-        const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("Failed to get CSRF token");
-
         // Mock checkBatchAvailability via attendeesApi to return false,
         // simulating a race condition where listing sells out between page load and check
         const { attendeesApi } = await import("#shared/db/attendees.ts");
@@ -249,25 +181,11 @@ describeWithEnv(
         );
 
         try {
-          const response = await handleRequest(
-            mockFormRequest(
-              path,
-              {
-                email: "john@example.com",
-                name: "John Doe",
-                [`quantity_${listing1.id}`]: "1",
-                [`quantity_${listing2.id}`]: "1",
-                csrf_token: csrfToken,
-              },
-              `csrf_token=${csrfToken}`,
-            ),
-          );
-
-          expect(response.status).toBe(302);
-          expectFlash(
-            response,
-            expect.stringContaining("some tickets are no longer available"),
-            false,
+          await expectBookOneEachRejected(
+            `${listing1.slug}+${listing2.slug}`,
+            listing1.id,
+            listing2.id,
+            "some tickets are no longer available",
           );
         } finally {
           mockBatch.restore();
@@ -288,22 +206,13 @@ describeWithEnv(
           unitPrice: 1000,
         });
 
-        const path = `/ticket/${listing.slug}?iframe=true`;
-        const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("Failed to get CSRF token");
-
-        const response = await handleRequest(
-          mockFormRequest(
-            path,
-            {
-              email: "john@example.com",
-              name: "John Doe",
-              [`quantity_${listing.id}`]: "1",
-              csrf_token: csrfToken,
-            },
-            `csrf_token=${csrfToken}`,
-          ),
+        const response = await submitMultiTicketForm(
+          `${listing.slug}?iframe=true`,
+          {
+            email: "john@example.com",
+            name: "John Doe",
+            [`quantity_${listing.id}`]: "1",
+          },
         );
 
         await expectHtmlResponse(
@@ -328,10 +237,7 @@ describeWithEnv(
           name: "John Doe",
         });
 
-        expect(response.status).toBe(302);
-        const location = response.headers.get("location");
-        expect(location).not.toBeNull();
-        expect(location?.startsWith("https://")).toBe(true);
+        expectCheckoutRedirect(response);
       });
 
       test("returns popup page for ticket paid listing in iframe", async () => {
@@ -349,23 +255,14 @@ describeWithEnv(
           unitPrice: 1000,
         });
 
-        const path = `/ticket/${listing1.slug}+${listing2.slug}?iframe=true`;
-        const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("Failed to get CSRF token");
-
-        const response = await handleRequest(
-          mockFormRequest(
-            path,
-            {
-              email: "john@example.com",
-              name: "John Doe",
-              [`quantity_${listing1.id}`]: "1",
-              [`quantity_${listing2.id}`]: "1",
-              csrf_token: csrfToken,
-            },
-            `csrf_token=${csrfToken}`,
-          ),
+        const response = await submitMultiTicketForm(
+          `${listing1.slug}+${listing2.slug}?iframe=true`,
+          {
+            email: "john@example.com",
+            name: "John Doe",
+            [`quantity_${listing1.id}`]: "1",
+            [`quantity_${listing2.id}`]: "1",
+          },
         );
 
         await expectHtmlResponse(

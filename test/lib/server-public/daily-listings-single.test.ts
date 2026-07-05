@@ -8,7 +8,6 @@ import { todayInTz } from "#shared/timezone.ts";
 import {
   assertPublicHtml,
   createTestHoliday,
-  createTestListing,
   describeWithEnv,
   expectFlash,
   expectRedirect,
@@ -18,6 +17,7 @@ import {
   setupStripe,
   submitTicketForm,
 } from "#test-utils";
+import { createDailyListing } from "./daily-listing.ts";
 
 // jscpd:ignore-end
 
@@ -30,20 +30,7 @@ describeWithEnv(
       const validDate = addDays(todayInTz("UTC"), 1);
 
       test("GET shows date selector for daily listing", async () => {
-        const listing = await createTestListing({
-          bookableDays: [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-          ],
-          listingType: "daily",
-          maximumDaysAfter: 14,
-          minimumDaysBefore: 0,
-        });
+        const listing = await createDailyListing();
         await assertPublicHtml(
           `/ticket/${listing.slug}`,
           "Select Date",
@@ -52,11 +39,10 @@ describeWithEnv(
       });
 
       test("GET shows no-dates message when no dates available", async () => {
-        // Create a daily listing where minimum_days_before > maximum_days_after
-        // so the date range is empty (start > end)
-        const listing = await createTestListing({
+        // A daily listing where minimum_days_before > maximum_days_after so
+        // the date range is empty (start > end)
+        const listing = await createDailyListing({
           bookableDays: ["Monday"],
-          listingType: "daily",
           maximumDaysAfter: 7,
           minimumDaysBefore: 30,
         });
@@ -67,20 +53,7 @@ describeWithEnv(
       });
 
       test("POST succeeds for free daily listing with valid date", async () => {
-        const listing = await createTestListing({
-          bookableDays: [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-          ],
-          listingType: "daily",
-          maximumDaysAfter: 14,
-          minimumDaysBefore: 0,
-        });
+        const listing = await createDailyListing();
         const response = await submitTicketForm(listing.slug, {
           date: validDate,
           email: "daily@example.com",
@@ -90,20 +63,7 @@ describeWithEnv(
       });
 
       test("POST rejects daily listing with missing date", async () => {
-        const listing = await createTestListing({
-          bookableDays: [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-          ],
-          listingType: "daily",
-          maximumDaysAfter: 14,
-          minimumDaysBefore: 0,
-        });
+        const listing = await createDailyListing();
         const response = await submitTicketForm(listing.slug, {
           email: "daily@example.com",
           name: "Daily User",
@@ -117,20 +77,7 @@ describeWithEnv(
       });
 
       test("POST rejects daily listing with invalid date", async () => {
-        const listing = await createTestListing({
-          bookableDays: [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-          ],
-          listingType: "daily",
-          maximumDaysAfter: 14,
-          minimumDaysBefore: 0,
-        });
+        const listing = await createDailyListing();
         const response = await submitTicketForm(listing.slug, {
           date: "2099-01-01",
           email: "daily@example.com",
@@ -145,21 +92,7 @@ describeWithEnv(
       });
 
       test("POST checks per-date capacity for daily listings", async () => {
-        const listing = await createTestListing({
-          bookableDays: [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-          ],
-          listingType: "daily",
-          maxAttendees: 1,
-          maximumDaysAfter: 14,
-          minimumDaysBefore: 0,
-        });
+        const listing = await createDailyListing({ maxAttendees: 1 });
 
         // Fill up the date
         await submitTicketForm(listing.slug, {
@@ -184,21 +117,7 @@ describeWithEnv(
       });
 
       test("POST allows booking different dates at capacity", async () => {
-        const listing = await createTestListing({
-          bookableDays: [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-          ],
-          listingType: "daily",
-          maxAttendees: 1,
-          maximumDaysAfter: 14,
-          minimumDaysBefore: 0,
-        });
+        const listing = await createDailyListing({ maxAttendees: 1 });
 
         // Book first date
         const response1 = await submitTicketForm(listing.slug, {
@@ -221,21 +140,7 @@ describeWithEnv(
       test("POST redirects to checkout for paid daily listing", async () => {
         await setupStripe();
 
-        const listing = await createTestListing({
-          bookableDays: [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-          ],
-          listingType: "daily",
-          maximumDaysAfter: 14,
-          minimumDaysBefore: 0,
-          unitPrice: 500,
-        });
+        const listing = await createDailyListing({ unitPrice: 500 });
 
         const getResponse = await handleRequest(
           mockRequest(`/ticket/${listing.slug}`),
@@ -270,20 +175,7 @@ describeWithEnv(
           startDate: validDate,
         });
 
-        const listing = await createTestListing({
-          bookableDays: [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-          ],
-          listingType: "daily",
-          maximumDaysAfter: 14,
-          minimumDaysBefore: 0,
-        });
+        const listing = await createDailyListing();
         const html = await assertPublicHtml(`/ticket/${listing.slug}`);
         // The holiday date should not appear as an option
         expect(html).not.toContain(`value="${validDate}"`);

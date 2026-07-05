@@ -10,12 +10,26 @@ import {
 import {
   createTestListing,
   describeWithEnv,
+  expectAttendeeCounts,
   expectFlash,
   expectReservedRedirectWithTokens,
   submitMultiTicketForm,
 } from "#test-utils";
 
 // jscpd:ignore-end
+
+/** The multi-listing attendee `listingId` shares, and the set of answer ids
+ * saved on it — the shared "look up what got recorded" step behind every
+ * multi-listing custom-question assertion below. */
+const getSharedAttendeeAnswers = async (
+  listingId: number,
+): Promise<number[]> => {
+  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const attendees = await getAttendeesRaw(listingId);
+  const attendeeId = attendees[0]!.id;
+  const batch = await getAttendeeAnswersBatch([attendeeId], { texts: false });
+  return batch.get(attendeeId) ?? [];
+};
 
 describeWithEnv(
   "server public > custom questions (ticket)",
@@ -71,13 +85,9 @@ describeWithEnv(
 
         // With multi-listing attendees, both listings share one attendee.
         // The shared question's answer is saved once on the attendee.
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const att1 = await getAttendeesRaw(listing1.id);
-        const attendeeId = att1[0]!.id;
-        const batch = await getAttendeeAnswersBatch([attendeeId], {
-          texts: false,
-        });
-        expect(batch.get(attendeeId)).toEqual([answer1.id]);
+        expect(await getSharedAttendeeAnswers(listing1.id)).toEqual([
+          answer1.id,
+        ]);
       });
 
       test("saves listing-specific answers only for each attendee", async () => {
@@ -128,13 +138,7 @@ describeWithEnv(
 
         // With multi-listing attendees, one attendee is linked to both listings.
         // Both listings' answers are stored on the same attendee.
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const att1 = await getAttendeesRaw(listing1.id);
-        const attendeeId = att1[0]!.id;
-        const batch = await getAttendeeAnswersBatch([attendeeId], {
-          texts: false,
-        });
-        const answers = batch.get(attendeeId) ?? [];
+        const answers = await getSharedAttendeeAnswers(listing1.id);
         expect(answers).toContain(a1.id);
         expect(answers).toContain(a2.id);
       });
@@ -175,15 +179,11 @@ describeWithEnv(
         expectReservedRedirectWithTokens(response);
 
         // Verify answer saved only for listing1's attendee
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const att1 = await getAttendeesRaw(listing1.id);
-        expect(att1.length).toBe(1);
-        const batch = await getAttendeeAnswersBatch([att1[0]!.id], {
-          texts: false,
-        });
-        expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
-        const att2 = await getAttendeesRaw(listing2.id);
-        expect(att2.length).toBe(0);
+        await expectAttendeeCounts([
+          { count: 1, listingId: listing1.id },
+          { count: 0, listingId: listing2.id },
+        ]);
+        expect(await getSharedAttendeeAnswers(listing1.id)).toEqual([a1.id]);
       });
 
       test("validates question answers for selected listings only", async () => {

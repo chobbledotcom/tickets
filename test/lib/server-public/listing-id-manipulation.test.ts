@@ -6,11 +6,11 @@ import {
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
+  expectAttendeeCounts,
   expectReservedRedirectWithTokens,
-  getTicketCsrfToken,
-  mockFormRequest,
   mockRequest,
   singleItem,
+  submitMultiTicketForm,
   submitTicketForm,
 } from "#test-utils";
 
@@ -41,11 +41,10 @@ describeWithEnv(
         expect(response.status).toBe(302);
 
         // Verify booking went to the URL's listing, not the injected one
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const targetAttendees = await getAttendeesRaw(target.id);
-        const otherAttendees = await getAttendeesRaw(other.id);
-        expect(targetAttendees.length).toBe(1);
-        expect(otherAttendees.length).toBe(0);
+        await expectAttendeeCounts([
+          { count: 1, listingId: target.id },
+          { count: 0, listingId: other.id },
+        ]);
       });
 
       test("ticket form ignores quantity fields for listings not in URL", async () => {
@@ -67,31 +66,24 @@ describeWithEnv(
 
         // Submit ticket form with only listing1+listing2 in URL
         // but inject quantity for the secret listing
-        const path = `/ticket/${listing1.slug}+${listing2.slug}`;
-        const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("Failed to get CSRF token");
-
-        const response = await handleRequest(
-          mockFormRequest(path, {
+        const response = await submitMultiTicketForm(
+          `${listing1.slug}+${listing2.slug}`,
+          {
             email: "mallory@example.com",
             name: "Mallory",
             [`quantity_${listing1.id}`]: "1",
             [`quantity_${listing2.id}`]: "0",
             [`quantity_${secret.id}`]: "3",
-            csrf_token: csrfToken,
-          }),
+          },
         );
         expectReservedRedirectWithTokens(response);
 
         // Verify only listing1 was booked; secret listing was not
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        const attendees2 = await getAttendeesRaw(listing2.id);
-        const secretAttendees = await getAttendeesRaw(secret.id);
-        expect(attendees1.length).toBe(1);
-        expect(attendees2.length).toBe(0);
-        expect(secretAttendees.length).toBe(0);
+        await expectAttendeeCounts([
+          { count: 1, listingId: listing1.id },
+          { count: 0, listingId: listing2.id },
+          { count: 0, listingId: secret.id },
+        ]);
       });
 
       test("ticket URL cannot book inactive listings", async () => {

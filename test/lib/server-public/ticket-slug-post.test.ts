@@ -9,13 +9,14 @@ import {
   deactivateTestListing,
   describeWithEnv,
   expectFlash,
-  expectRedirect,
+  expectMissingCsrfRejected,
   expectReservedRedirectWithTokens,
   getTicketCsrfToken,
   mockFormRequest,
   mockRequest,
   submitTicketForm,
 } from "#test-utils";
+import { expectBasicTicketBookingRedirectsToThanks } from "./basic-ticket-booking.ts";
 
 // jscpd:ignore-end
 
@@ -172,18 +173,10 @@ describeWithEnv(
           maxAttendees: 50,
           thankYouUrl: "https://example.com",
         });
-        const response = await handleRequest(
-          mockFormRequest(`/ticket/${listing.slug}`, {
-            email: "john@example.com",
-            name: "John",
-          }),
-        );
-        expect(response.status).toBe(302);
-        expectFlash(
-          response,
-          expect.stringContaining("Invalid or expired form"),
-          false,
-        );
+        await expectMissingCsrfRejected(`/ticket/${listing.slug}`, {
+          email: "john@example.com",
+          name: "John",
+        });
       });
 
       test("preserves form data on CSRF failure", async () => {
@@ -191,18 +184,10 @@ describeWithEnv(
           maxAttendees: 50,
           thankYouUrl: "https://example.com",
         });
-        const response = await handleRequest(
-          mockFormRequest(`/ticket/${listing.slug}`, {
-            email: "john@example.com",
-            name: "John Doe",
-          }),
-        );
-        expect(response.status).toBe(302);
-        expectFlash(
-          response,
-          expect.stringContaining("Invalid or expired form"),
-          false,
-        );
+        await expectMissingCsrfRejected(`/ticket/${listing.slug}`, {
+          email: "john@example.com",
+          name: "John Doe",
+        });
       });
 
       test("does not leak saved form data into subsequent GET request", async () => {
@@ -292,15 +277,7 @@ describeWithEnv(
       });
 
       test("creates attendee and redirects to thank you page", async () => {
-        const listing = await createTestListing({
-          maxAttendees: 50,
-          thankYouUrl: "https://example.com/thanks",
-        });
-        const response = await submitTicketForm(listing.slug, {
-          email: "john@example.com",
-          name: "John Doe",
-        });
-        expectRedirect(response, "https://example.com/thanks");
+        await expectBasicTicketBookingRedirectsToThanks();
       });
 
       test("shows order success for purchase_only listing", async () => {

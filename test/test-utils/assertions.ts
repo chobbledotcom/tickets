@@ -214,6 +214,21 @@ export const expectReservedRedirectWithTokens = (response: Response): void => {
   expectRedirect(response, /^\/ticket\/reserved\?tokens=.+$/);
 };
 
+/** Asserts each listing in `expectations` ended up with exactly `count` raw
+ *  attendee rows, and (when given) that the single resulting attendee's
+ *  `quantity` matches. This is the "who got booked, and for how many" check
+ *  repeated after almost every multi-listing booking POST. */
+export const expectAttendeeCounts = async (
+  expectations: { count: number; listingId: number; quantity?: number }[],
+): Promise<void> => {
+  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  for (const { count, listingId, quantity } of expectations) {
+    const attendees = await getAttendeesRaw(listingId);
+    expect(attendees.length).toBe(count);
+    if (quantity !== undefined) expect(attendees[0]?.quantity).toBe(quantity);
+  }
+};
+
 /** The exact `form` search param of a redirect's Location (the flash anchor
  * targeting a specific CsrfForm), or null when absent. Parsed rather than
  * substring-matched so a wrong-but-prefixed form id (settings-square vs

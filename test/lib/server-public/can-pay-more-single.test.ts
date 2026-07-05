@@ -28,12 +28,35 @@ describeWithEnv(
         resetStripeClient();
       });
 
-      test("GET shows price input when can_pay_more is enabled", async () => {
-        const listing = await payMoreListing();
+      /** GETs a listing's ticket page and returns the rendered HTML — the
+       * shared fetch behind every can_pay_more price-input assertion below. */
+      const getTicketHtml = async (
+        listing: Awaited<ReturnType<typeof createTestListing>>,
+      ): Promise<string> => {
         const response = await handleRequest(
           mockRequest(`/ticket/${listing.slug}`),
         );
-        const html = await response.text();
+        return response.text();
+      };
+
+      /** Asserts a POST registered the buyer for free rather than sending
+       * them to checkout — shared by the empty-price and zero-price
+       * can_pay_more donation tests. */
+      const expectFreeRegistrationNotCheckout = async (
+        listing: Awaited<ReturnType<typeof createTestListing>>,
+        response: Response,
+      ): Promise<void> => {
+        expect(response.status).toBe(302);
+        const location = response.headers.get("location") || "";
+        expect(location).not.toContain("checkout");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees.length).toBe(1);
+      };
+
+      test("GET shows price input when can_pay_more is enabled", async () => {
+        const listing = await payMoreListing();
+        const html = await getTicketHtml(listing);
         expect(html).toMatch(/name="custom_price(_\d+)?"/);
 
         expect(html).toContain("Price per ticket (£10 minimum)");
@@ -46,19 +69,13 @@ describeWithEnv(
           maxAttendees: 50,
           unitPrice: 1000,
         });
-        const response = await handleRequest(
-          mockRequest(`/ticket/${listing.slug}`),
-        );
-        const html = await response.text();
+        const html = await getTicketHtml(listing);
         expect(html).not.toMatch(/name="custom_price(_\d+)?"/);
       });
 
       test("GET shows price input for can_pay_more listings with zero unit_price", async () => {
         const listing = await payMoreListing({ unitPrice: undefined });
-        const response = await handleRequest(
-          mockRequest(`/ticket/${listing.slug}`),
-        );
-        const html = await response.text();
+        const html = await getTicketHtml(listing);
         expect(html).toMatch(/name="custom_price(_\d+)?"/);
 
         expect(html).toContain("Price per ticket (optional, up to £100)");
@@ -67,10 +84,7 @@ describeWithEnv(
 
       test("GET shows optional price input for free can_pay_more listings", async () => {
         const listing = await payMoreListing({ unitPrice: 0 });
-        const response = await handleRequest(
-          mockRequest(`/ticket/${listing.slug}`),
-        );
-        const html = await response.text();
+        const html = await getTicketHtml(listing);
         expect(html).toMatch(/name="custom_price(_\d+)?"/);
 
         expect(html).toContain("Price per ticket (optional, up to £100)");
@@ -97,12 +111,7 @@ describeWithEnv(
           name: "Freebie",
           quantity: "1",
         });
-        expect(response.status).toBe(302);
-        const location = response.headers.get("location") || "";
-        expect(location).not.toContain("checkout");
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees.length).toBe(1);
+        await expectFreeRegistrationNotCheckout(listing, response);
       });
 
       test("POST free can_pay_more with zero price registers for free", async () => {
@@ -113,12 +122,7 @@ describeWithEnv(
           name: "Freebie",
           quantity: "1",
         });
-        expect(response.status).toBe(302);
-        const location = response.headers.get("location") || "";
-        expect(location).not.toContain("checkout");
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees.length).toBe(1);
+        await expectFreeRegistrationNotCheckout(listing, response);
       });
 
       test("POST rejects price below minimum", async () => {
@@ -195,19 +199,13 @@ describeWithEnv(
 
       test("GET shows min price in label", async () => {
         const listing = await payMoreListing();
-        const response = await handleRequest(
-          mockRequest(`/ticket/${listing.slug}`),
-        );
-        const html = await response.text();
+        const html = await getTicketHtml(listing);
         expect(html).toContain("£10 minimum");
       });
 
       test("GET shows max price for free can_pay_more listing", async () => {
         const listing = await payMoreListing({ unitPrice: 0 });
-        const response = await handleRequest(
-          mockRequest(`/ticket/${listing.slug}`),
-        );
-        const html = await response.text();
+        const html = await getTicketHtml(listing);
         expect(html).toContain("up to £100");
       });
 

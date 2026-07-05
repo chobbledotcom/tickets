@@ -2,7 +2,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
-import { getAllModifiers, modifiersTable, setModifierAnswers } from "#shared/db/modifiers.ts";
+import {
+  getAllModifiers,
+  modifiersTable,
+  setModifierAnswers,
+} from "#shared/db/modifiers.ts";
 import {
   answersTable,
   getAttendeeAnswersBatch,
@@ -17,6 +21,7 @@ import {
   expectReservedRedirectWithTokens,
   submitTicketForm,
 } from "#test-utils";
+import { createDailyListing } from "./daily-listing.ts";
 
 // jscpd:ignore-end
 
@@ -50,9 +55,7 @@ describeWithEnv(
           maxAttendees: 50,
           thankYouUrl: "",
         });
-        const { question, answer1 } = await setupQuestionForListing(
-          listing.id,
-        );
+        const { question, answer1 } = await setupQuestionForListing(listing.id);
 
         const response = await submitTicketForm(listing.slug, {
           email: "question@example.com",
@@ -72,9 +75,7 @@ describeWithEnv(
 
       test("blocks the booking when a sold-out answer tier is selected", async () => {
         const listing = await createTestListing({ maxAttendees: 50 });
-        const { question, answer1 } = await setupQuestionForListing(
-          listing.id,
-        );
+        const { question, answer1 } = await setupQuestionForListing(listing.id);
         // A stock-limited answer tier with no stock left, linked to "Small".
         const tier = await modifiersTable.insert({
           calcKind: "fixed",
@@ -104,9 +105,7 @@ describeWithEnv(
           maxAttendees: 50,
           thankYouUrl: "",
         });
-        const { question, answer1 } = await setupQuestionForListing(
-          listing.id,
-        );
+        const { question, answer1 } = await setupQuestionForListing(listing.id);
         // Payments are disabled here, so bookings are taken without charging — but
         // a stock-limited answer tier must still be consumed so it can't be
         // over-sold across bookings.
@@ -185,25 +184,11 @@ describeWithEnv(
       test("daily listing parses date after question validation", async () => {
         const today = todayInTz("UTC");
         const validDate = addDays(today, 1);
-        const listing = await createTestListing({
-          bookableDays: [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-          ],
-          listingType: "daily",
+        const listing = await createDailyListing({
           maxAttendees: 50,
-          maximumDaysAfter: 14,
-          minimumDaysBefore: 0,
           thankYouUrl: "",
         });
-        const { question, answer1 } = await setupQuestionForListing(
-          listing.id,
-        );
+        const { question, answer1 } = await setupQuestionForListing(listing.id);
 
         const response = await submitTicketForm(listing.slug, {
           date: validDate,

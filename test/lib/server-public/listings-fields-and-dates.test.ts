@@ -12,6 +12,7 @@ import {
   createTestListing,
   describeWithEnv,
   mockFormRequest,
+  pastCloseTime,
 } from "#test-utils";
 
 // jscpd:ignore-end
@@ -140,11 +141,8 @@ describeWithEnv(
 
       test("shows registration closed for listings past closes_at", async () => {
         await settings.update.showPublicSite(true);
-        const pastDate = new Date(Date.now() - 60000)
-          .toISOString()
-          .slice(0, 16);
         await createTestListing({
-          closesAt: pastDate,
+          closesAt: pastCloseTime(),
           maxAttendees: 100,
           name: "Closed Listing",
         });

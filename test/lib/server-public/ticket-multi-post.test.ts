@@ -5,6 +5,7 @@ import { handleRequest } from "#routes";
 import {
   createTestListing,
   describeWithEnv,
+  expectAttendeeCounts,
   expectFlash,
   expectHtmlResponse,
   expectReservedRedirectWithTokens,
@@ -145,13 +146,10 @@ describeWithEnv(
         expectReservedRedirectWithTokens(response);
 
         // Verify attendees were created
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        const attendees2 = await getAttendeesRaw(listing2.id);
-        expect(attendees1.length).toBe(1);
-        expect(attendees1[0]?.quantity).toBe(2);
-        expect(attendees2.length).toBe(1);
-        expect(attendees2[0]?.quantity).toBe(1);
+        await expectAttendeeCounts([
+          { count: 1, listingId: listing1.id, quantity: 2 },
+          { count: 1, listingId: listing2.id, quantity: 1 },
+        ]);
       });
 
       test("only registers for listings with quantity > 0", async () => {
@@ -175,11 +173,10 @@ describeWithEnv(
         expectReservedRedirectWithTokens(response);
 
         // Verify only listing1 has an attendee
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        const attendees2 = await getAttendeesRaw(listing2.id);
-        expect(attendees1.length).toBe(1);
-        expect(attendees2.length).toBe(0);
+        await expectAttendeeCounts([
+          { count: 1, listingId: listing1.id },
+          { count: 0, listingId: listing2.id },
+        ]);
       });
 
       test("caps quantity at max purchasable", async () => {
@@ -205,10 +202,9 @@ describeWithEnv(
         expectReservedRedirectWithTokens(response);
 
         // Verify quantity was capped
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(listing1.id);
-        expect(attendees.length).toBe(1);
-        expect(attendees[0]?.quantity).toBe(2); // Capped at maxQuantity
+        await expectAttendeeCounts([
+          { count: 1, listingId: listing1.id, quantity: 2 }, // Capped at maxQuantity
+        ]);
       });
     });
   },

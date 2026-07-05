@@ -1,20 +1,19 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import {
   assertPublicHtml,
   createTestListing,
   describeWithEnv,
+  expectBookOneEachRejected,
   expectFlash,
   expectRedirect,
   expectReservedRedirectWithTokens,
-  getTicketCsrfToken,
-  mockFormRequest,
-  mockRequest,
+  submitMultiTicketForm,
   submitTicketForm,
 } from "#test-utils";
+import { expectBasicTicketBookingRedirectsToThanks } from "./basic-ticket-booking.ts";
 
 // jscpd:ignore-end
 
@@ -52,9 +51,7 @@ describeWithEnv(
         expect(response.status).toBe(302);
         expectFlash(
           response,
-          expect.stringContaining(
-            "You must agree to the terms and conditions",
-          ),
+          expect.stringContaining("You must agree to the terms and conditions"),
           false,
         );
       });
@@ -75,15 +72,7 @@ describeWithEnv(
       });
 
       test("succeeds without checkbox when no terms configured", async () => {
-        const listing = await createTestListing({
-          maxAttendees: 50,
-          thankYouUrl: "https://example.com/thanks",
-        });
-        const response = await submitTicketForm(listing.slug, {
-          email: "john@example.com",
-          name: "John Doe",
-        });
-        expectRedirect(response, "https://example.com/thanks");
+        await expectBasicTicketBookingRedirectsToThanks();
       });
     });
 
@@ -118,31 +107,11 @@ describeWithEnv(
           name: "TC Multi Rej 2",
         });
 
-        const path = `/ticket/${listing1.slug}+${listing2.slug}`;
-        const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("Failed to get CSRF token");
-
-        const response = await handleRequest(
-          mockFormRequest(
-            path,
-            {
-              email: "john@example.com",
-              name: "John Doe",
-              [`quantity_${listing1.id}`]: "1",
-              [`quantity_${listing2.id}`]: "1",
-              csrf_token: csrfToken,
-            },
-            `csrf_token=${csrfToken}`,
-          ),
-        );
-        expect(response.status).toBe(302);
-        expectFlash(
-          response,
-          expect.stringContaining(
-            "You must agree to the terms and conditions",
-          ),
-          false,
+        await expectBookOneEachRejected(
+          `${listing1.slug}+${listing2.slug}`,
+          listing1.id,
+          listing2.id,
+          "You must agree to the terms and conditions",
         );
       });
 
@@ -158,24 +127,15 @@ describeWithEnv(
           name: "TC Multi Ok 2",
         });
 
-        const path = `/ticket/${listing1.slug}+${listing2.slug}`;
-        const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
-        if (!csrfToken) throw new Error("Failed to get CSRF token");
-
-        const response = await handleRequest(
-          mockFormRequest(
-            path,
-            {
-              email: "john@example.com",
-              name: "John Doe",
-              [`quantity_${listing1.id}`]: "1",
-              [`quantity_${listing2.id}`]: "1",
-              agree_terms: "1",
-              csrf_token: csrfToken,
-            },
-            `csrf_token=${csrfToken}`,
-          ),
+        const response = await submitMultiTicketForm(
+          `${listing1.slug}+${listing2.slug}`,
+          {
+            agree_terms: "1",
+            email: "john@example.com",
+            name: "John Doe",
+            [`quantity_${listing1.id}`]: "1",
+            [`quantity_${listing2.id}`]: "1",
+          },
         );
         expectReservedRedirectWithTokens(response);
       });
