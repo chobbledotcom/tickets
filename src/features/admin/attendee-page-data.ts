@@ -104,9 +104,11 @@ export const loadPackagePaths = async (): Promise<PackagePath[]> => {
   );
   return packages.map((group) => ({
     groupId: group.id,
-    memberListingIds: (membersByGroupId.get(group.id) ?? []).map(
-      (listing) => listing.id,
-    ),
+    // The loader seeds every requested group id, so the lookup always hits
+    // (a memberless package maps to an empty array).
+    memberListingIds: membersByGroupId
+      .get(group.id)!
+      .map((listing) => listing.id),
     packageName: group.name,
   }));
 };
@@ -135,7 +137,9 @@ const lineForExistingRow = (
   error: null,
   existingBooking: existing.booking,
   key: existing.key,
-  listing: listingsById.get(existing.booking.listing_id) ?? null,
+  // A stored row's listing always renders: booked inactive listings are in the
+  // render set, and deleting a listing deletes its rows.
+  listing: listingsById.get(existing.booking.listing_id)!,
   listingId: existing.booking.listing_id,
   // A stored quantity-0 line renders with the "no quantity" box ticked.
   noQuantity: existing.booking.quantity === 0,

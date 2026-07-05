@@ -5,6 +5,7 @@ import { getSessionCookieName } from "#shared/cookies.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import type { Field } from "#shared/forms.tsx";
 import {
+  attendeeLineIndex,
   awaitTestRequest,
   buildAttendeeEditForm,
   buildMigrationContext,
@@ -45,6 +46,7 @@ import {
   hasSelectedOption,
   installRecordingFetch,
   invalidateTestDbCache,
+  lineIndexOnPage,
   loginAsAdmin,
   mockFormRequest,
   mockRequest,
@@ -1582,6 +1584,27 @@ describe("test-utils", () => {
       expect(form.line_listing_0).toBe(String(listing.id));
       expect(form.qty_0).toBe("1");
       expect(form.line_key_0).toBe("");
+    });
+
+    test("attendeeLineIndex distinguishes package paths and misses cleanly", () => {
+      const html = [
+        '<input name="line_listing_0" value="7">',
+        '<input name="line_package_0" value="3">',
+        '<input name="line_listing_1" value="7">',
+      ].join("");
+      expect(attendeeLineIndex(html, 7, 3)).toBe("0");
+      expect(attendeeLineIndex(html, 7, 0)).toBe("1");
+      expect(attendeeLineIndex(html, 7, 9)).toBeNull();
+      expect(attendeeLineIndex(html, 8)).toBeNull();
+    });
+
+    test("lineIndexOnPage throws when the page has no line for the listing", () => {
+      const browser = {
+        currentHtml: "<p>no editor here</p>",
+      } as unknown as import("#test-utils/test-browser.ts").TestBrowser;
+      expect(() => lineIndexOnPage(browser, 42)).toThrow(
+        "no editor line for listing 42",
+      );
     });
 
     test("updateTestBuiltSite handles assignable and validation failure paths", async () => {

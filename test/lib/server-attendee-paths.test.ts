@@ -19,6 +19,7 @@ import {
   buildAttendeeEditForm,
   createTestGroup,
   createTestListing,
+  deactivateTestListing,
   describeWithEnv,
 } from "#test-utils";
 
@@ -253,6 +254,80 @@ describeWithEnv(
         [0, 1],
         [group.id, 2],
       ]);
+    });
+
+    test("a row tagged with a deleted package is labelled by its id", async () => {
+      const { group, listing } = await packageAndMember("Gone Kit");
+      const attendeeId = await dualPathAttendee(
+        group,
+        listing,
+        "gone@example.com",
+      );
+      // Deleting the group leaves the booked row tagged with its id — the
+      // label falls back to the id rather than hiding the path.
+      const { deleteGroup } = await import("#routes/admin/groups.ts");
+      await deleteGroup(group.id);
+
+      const html = await (
+        await adminGet(`/admin/attendees/${attendeeId}/edit`)
+      ).text();
+      expect(html).toContain(`via deleted package #${group.id}`);
+    });
+
+    test("a folded add-on row is labelled under its parent", async () => {
+      const parent = await createTestListing({
+        maxAttendees: 10,
+        name: "Addon Parent",
+      });
+      const child = await createTestListing({
+        maxAttendees: 10,
+        name: "Addon Child",
+      });
+      const made = await createAttendeeAtomic({
+        bookings: [
+          { listingId: parent.id, quantity: 1 },
+          { listingId: child.id, parentListingId: parent.id, quantity: 1 },
+        ],
+        email: "addon@example.com",
+        name: "Addon Booker",
+      });
+      expect(made.success).toBe(true);
+      const attendeeId = (made as Extract<typeof made, { success: true }>)
+        .attendees[0]!.id;
+
+      const html = await (
+        await adminGet(`/admin/attendees/${attendeeId}/edit`)
+      ).text();
+      expect(html).toContain("add-on under Addon Parent");
+    });
+
+    test("an inactive unbooked package member offers no blank path line", async () => {
+      const { group, listing } = await packageAndMember("Idle Kit");
+      const spare = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Idle Kit Spare",
+        unitPrice: 500,
+      });
+      await setGroupPackageMembers(group.id, [
+        { listingId: listing.id, price: 1000 },
+        { listingId: spare.id, price: 500 },
+      ]);
+      await deactivateTestListing(spare.id);
+      const made = await createAttendeeAtomic({
+        bookings: [{ listingId: listing.id, quantity: 1 }],
+        email: "idle@example.com",
+        name: "Idle Booker",
+      });
+      const attendeeId = (made as Extract<typeof made, { success: true }>)
+        .attendees[0]!.id;
+
+      // The dead member's path renders no blank line; the live member's does.
+      const html = await (
+        await adminGet(`/admin/attendees/${attendeeId}/edit`)
+      ).text();
+      expect(attendeeLineIndex(html, spare.id, group.id)).toBeNull();
+      expect(attendeeLineIndex(html, listing.id, group.id)).not.toBeNull();
     });
 
     test("the balance survives zeroing one path and clears only with no real line", async () => {
