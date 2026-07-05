@@ -17,6 +17,7 @@ import {
   signedMeta,
   singleItem,
 } from "#test-utils";
+import { createServiceChargeScenario } from "./service-charge-scenario.ts";
 
 /** Two listings (£10 / £25) for the in-scope-vs-out-of-scope modifier tests
  *  below — identical for both the listing-scoped and group-scoped variants,
@@ -61,16 +62,7 @@ describeWithEnv("server webhooks > modifiers", { db: true }, () => {
 
   test("accepts a webhook whose total includes an applied modifier", async () => {
     await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 1000,
-    });
-    const modifier = await modifiersTable.insert({
-      calcKind: "percent",
-      calcValue: 10,
-      direction: "charge",
-      name: "Service charge",
-    });
+    const { listing, modifier } = await createServiceChargeScenario();
 
     await expectWebhookProcessed(
       checkoutSessionEvent({

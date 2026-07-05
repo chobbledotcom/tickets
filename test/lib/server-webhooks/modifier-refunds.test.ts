@@ -12,6 +12,7 @@ import {
   signedMeta,
   singleItem,
 } from "#test-utils";
+import { createServiceChargeScenario } from "./service-charge-scenario.ts";
 
 describeWithEnv(
   "server webhooks > modifier price-mismatch refunds",
@@ -23,16 +24,7 @@ describeWithEnv(
 
     test("refunds a webhook whose total omits an applied modifier", async () => {
       await setupStripe();
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        unitPrice: 1000,
-      });
-      const modifier = await modifiersTable.insert({
-        calcKind: "percent",
-        calcValue: 10,
-        direction: "charge",
-        name: "Service charge",
-      });
+      const { listing, modifier } = await createServiceChargeScenario();
 
       const { mockRefund } = await expectWebhookKeptAndRefunded(
         checkoutSessionEvent({
