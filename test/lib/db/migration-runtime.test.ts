@@ -1,9 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
+import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
 import {
   applyMigrationWithRetry,
   initDb,
+  initializeFreshSchema,
   invalidateInitDbCache,
   MIGRATION_LOCK_TTL_MS,
   type Migration,
@@ -347,6 +349,27 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
       expect(listing.id).toBe(1);
       expect(listing.name).toBe("New Listing");
+    });
+
+    test("initializeFreshSchema rebuilds a wiped database directly", async () => {
+      // The restore path calls this straight after resetDatabase() — with no
+      // initDb state check in between — so it must produce a complete,
+      // bootable schema purely from the declarative SCHEMA.
+      await resetDatabase();
+      invalidateTestDbCache();
+      resetTestSession();
+
+      await initializeFreshSchema();
+
+      // Every app-schema table, index, and trigger is present...
+      await verifyCurrentAppSchema();
+      // ...and the schema markers were written, so a normal boot treats the
+      // database as fully migrated rather than throwing MissingSettingsTable.
+      await initDb();
+
+      await settings.setup.complete("testadmin", TEST_ADMIN_PASSWORD, "USD");
+      const listing = await createTestListing({ name: "Fresh Schema Listing" });
+      expect(listing.name).toBe("Fresh Schema Listing");
     });
   });
 });
