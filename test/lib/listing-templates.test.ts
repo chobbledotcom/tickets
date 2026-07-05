@@ -197,8 +197,12 @@ describe("inferTemplate — template flags", () => {
   });
 
   // Pins the exact key per template — the prefix check above would still
-  // pass on a typo'd or truncated key (e.g. an appended suffix), which would
-  // surface as a broken/missing translation on the real template picker.
+  // pass on a typo'd or truncated key (e.g. an appended suffix). i18n's t()
+  // throws on an unknown key rather than degrading silently, but that only
+  // protects a key that actually gets rendered in some test; hireable-item
+  // is gated behind requiresLogistics and isn't exercised by the default
+  // settings fixture in server-listings.test.ts, so this is the only test
+  // that would catch a typo in its label/description key.
   const EXPECTED_KEYS: Record<
     TemplateId,
     { label: string; description: string }
