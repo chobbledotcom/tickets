@@ -14,8 +14,18 @@
 #   <path>:<line>:<col>  <from> → <to>   # why it is equivalent
 #
 # Do NOT list a mutant whose output the linter rejects (e.g. `=== → ==` or
-# `!== → !=`, forbidden by Biome's noDoubleEquals): the runner lints each mutant
-# and counts a lint failure as killed, so those never survive to be recorded.
+# `!== → !=` comparing two non-null-literal operands, forbidden by Biome's
+# noDoubleEquals): the runner lints each mutant and counts a lint failure as
+# killed, so those never survive to be recorded.
+#
+# Exception: `x === null` → `x == null` (and `!==`/`!=`) is NOT rejected —
+# Biome's noDoubleEquals allows `== null`/`!= null` as the idiomatic
+# null-or-undefined check. So when `x` is typed to exclude `undefined`, this
+# mutant genuinely reaches the test stage and can be a real equivalent (===
+# and == agree on every value `x` can hold); it belongs here like any other
+# equivalent, not excluded by the rule above. Verify by hand if in doubt:
+# mutate the line, then `deno run -A scripts/biome.ts check --error-on-warnings
+# <file>` — exit 0 means lint did not kill it.
 
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
 # cases where x can't be such a value, or F equals the only one it can be.
