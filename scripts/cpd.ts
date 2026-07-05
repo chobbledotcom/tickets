@@ -2,6 +2,11 @@
 /**
  * jscpd runner that prints actionable guidance when duplication is found.
  *
+ * Prefers a `jscpd` binary already on PATH (e.g. `npm i -g jscpd`); if none is
+ * found, it falls back to `deno run -A npm:jscpd`, the version pinned by
+ * `deno.lock` (currently 5.0.11). Either way the rest of jscpd's args are
+ * forwarded verbatim, so the two paths behave identically.
+ *
  * jscpd's own console report tells you *where* the duplication is, but not what
  * to do about it. This wrapper runs jscpd unchanged and forwards every arg, then
  * — only on a non-zero exit — appends a loud reminder of the project's
@@ -13,9 +18,20 @@
 
 import { bold, red, yellow } from "./precommit/colors.ts";
 
-const { code } = await new Deno.Command(Deno.execPath(), {
-  args: ["run", "-A", "npm:jscpd", ...Deno.args],
-}).spawn().status;
+// Try the locally-installed jscpd first (saves the per-run cold-start of
+// `deno run` and uses the developer's own tooling). If it isn't on PATH,
+// spawn() throws NotFound and we fall back to the npm version via deno.
+let code: number;
+try {
+  ({ code } = await new Deno.Command("jscpd", {
+    args: Deno.args,
+  }).spawn().status);
+} catch (error) {
+  if (!(error instanceof Deno.errors.NotFound)) throw error;
+  ({ code } = await new Deno.Command(Deno.execPath(), {
+    args: ["run", "-A", "npm:jscpd", ...Deno.args],
+  }).spawn().status);
+}
 
 if (code !== 0) {
   console.error(`
