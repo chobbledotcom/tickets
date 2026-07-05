@@ -96,13 +96,10 @@ const sectionWithAdd = (
   label: string,
   addHref: string,
   addLabel: string,
-): NavItem[] =>
-  isReadOnly()
-    ? [{ href, label }]
-    : [
-        { href, label },
-        { href: addHref, label: addLabel },
-      ];
+): NavItem[] => [
+  { href, label },
+  ...(isReadOnly() ? [] : [{ href: addHref, label: addLabel }]),
+];
 
 const listingsNavItems = (): NavItem[] =>
   sectionWithAdd(

@@ -12,6 +12,7 @@ import {
   distinct as stdDistinct,
   distinctBy as stdDistinctBy,
   mapNotNullish as stdMapNotNullish,
+  partition as stdPartition,
   sumOf as stdSumOf,
 } from "@std/collections";
 
@@ -120,6 +121,15 @@ export const flatMap =
   <T, U>(fn: (item: T) => U[]) =>
   (array: T[]): U[] =>
     array.flatMap(fn);
+
+/**
+ * Split an array into [matching, rest] by a predicate, keeping order.
+ * Curried adapter over `@std/collections.partition`.
+ */
+export const partition =
+  <T>(predicate: (item: T) => boolean) =>
+  (array: T[]): [T[], T[]] =>
+    stdPartition(array, predicate);
 
 /**
  * Curried map that drops null/undefined results in one pass.

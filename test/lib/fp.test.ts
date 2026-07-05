@@ -10,6 +10,7 @@ import {
   lazyRef,
   map,
   once,
+  partition,
   pipe,
   sumByKey,
   ttlCache,
@@ -269,6 +270,21 @@ describe("fp", () => {
       expect(cache.get("q")).toBe(2); // entries still accessible
       cache.clear();
       expect(cache.size()).toBe(0);
+    });
+  });
+
+  describe("partition", () => {
+    test("splits into [matching, rest], keeping order", () => {
+      const [evens, odds] = partition((n: number) => n % 2 === 0)([
+        1, 2, 3, 4, 5,
+      ]);
+      expect(evens).toEqual([2, 4]);
+      expect(odds).toEqual([1, 3, 5]);
+    });
+
+    test("all-match and none-match land everything on one side", () => {
+      expect(partition((n: number) => n > 0)([1, 2])).toEqual([[1, 2], []]);
+      expect(partition((n: number) => n > 9)([1, 2])).toEqual([[], [1, 2]]);
     });
   });
 

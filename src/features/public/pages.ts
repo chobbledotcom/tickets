@@ -158,8 +158,14 @@ const memberUnavailableOn = (
  * page's own listing set) because a hidden package's members never join that
  * set, yet still decide whether their package is sold out. A `null` requested
  * date means no search is in play, so nothing is projected sold out here.
- * (Approximation: a member needing quantity > 1 is judged on having any spot
- * left, not that many — the booking page still enforces the real limit.) */
+ *
+ * This is a projection of the booking page's date rules, not a re-run of
+ * them: each direct member is judged on having any spot left for the date.
+ * Two knowingly-unchecked edges — a member needing quantity > 1 when exactly
+ * one spot is left, and a daily parent whose required child can't serve the
+ * date — can keep a Book link up for a date the booking page will refuse.
+ * The booking page stays the real gate either way; re-running its full
+ * bundle-and-children date logic per package here isn't worth the cost yet. */
 const soldOutPackageIds = async (
   groups: readonly Group[],
   requestedDate: string | null,
