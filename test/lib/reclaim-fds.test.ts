@@ -10,6 +10,45 @@ import {
 // boundaries regardless of the shared counter's starting phase, so these
 // assertions are independent of test order and of any DB setups that also
 // advanced the counter.
+
+/** Runs `body` with globalThis.gc genuinely absent and asserts it survives.
+ *  The harness runs with --expose-gc, so passing `undefined` would fall back
+ *  to the (present) default — actually clearing globalThis.gc is the only way
+ *  to exercise the bare-`deno test` path where the flag is missing. */
+const expectSafeWithoutGlobalGc = (body: () => void): void => {
+  const glob = globalThis as { gc?: (() => void) | undefined };
+  const original = glob.gc;
+  glob.gc = undefined;
+  try {
+    let threw = false;
+    try {
+      body();
+    } catch {
+      threw = true;
+    }
+    expect(threw).toBe(false);
+  } finally {
+    glob.gc = original;
+  }
+};
+
+/** Runs `body` with a counting stand-in installed as globalThis.gc and
+ *  returns how many times the default-argument path invoked it. */
+const countDefaultGcCalls = (body: () => void): number => {
+  const glob = globalThis as { gc?: (() => void) | undefined };
+  const original = glob.gc;
+  let called = 0;
+  glob.gc = () => {
+    called += 1;
+  };
+  try {
+    body();
+  } finally {
+    glob.gc = original;
+  }
+  return called;
+};
+
 describe("maybeReclaimLeakedFds", () => {
   test("invokes an explicitly injected gc once per RECLAIM_FDS_EVERY calls", () => {
     let calls = 0;
@@ -21,38 +60,16 @@ describe("maybeReclaimLeakedFds", () => {
   });
 
   test("is a safe no-op on a boundary call when gc is genuinely unavailable", () => {
-    // The harness runs with --expose-gc, so passing `undefined` would fall back
-    // to the (present) default. Actually clear globalThis.gc to exercise the
-    // absent path — a bare `deno test` without the flag.
-    const glob = globalThis as { gc?: (() => void) | undefined };
-    const original = glob.gc;
-    glob.gc = undefined;
-    try {
-      let threw = false;
-      try {
-        for (let i = 0; i < RECLAIM_FDS_EVERY; i++) maybeReclaimLeakedFds();
-      } catch {
-        threw = true;
-      }
-      expect(threw).toBe(false);
-    } finally {
-      glob.gc = original;
-    }
+    expectSafeWithoutGlobalGc(() => {
+      for (let i = 0; i < RECLAIM_FDS_EVERY; i++) maybeReclaimLeakedFds();
+    });
   });
 
   test("defaults to globalThis.gc when called without an argument", () => {
-    const glob = globalThis as { gc?: (() => void) | undefined };
-    const original = glob.gc;
-    let called = 0;
-    glob.gc = () => {
-      called += 1;
-    };
-    try {
+    const called = countDefaultGcCalls(() => {
       for (let i = 0; i < RECLAIM_FDS_EVERY; i++) maybeReclaimLeakedFds();
-      expect(called).toBe(1);
-    } finally {
-      glob.gc = original;
-    }
+    });
+    expect(called).toBe(1);
   });
 });
 
@@ -73,34 +90,12 @@ describe("reclaimLeakedFdsNow", () => {
   });
 
   test("is a safe no-op when gc is genuinely unavailable", () => {
-    const glob = globalThis as { gc?: (() => void) | undefined };
-    const original = glob.gc;
-    glob.gc = undefined;
-    try {
-      let threw = false;
-      try {
-        reclaimLeakedFdsNow();
-      } catch {
-        threw = true;
-      }
-      expect(threw).toBe(false);
-    } finally {
-      glob.gc = original;
-    }
+    expectSafeWithoutGlobalGc(() => {
+      reclaimLeakedFdsNow();
+    });
   });
 
   test("defaults to globalThis.gc when called without an argument", () => {
-    const glob = globalThis as { gc?: (() => void) | undefined };
-    const original = glob.gc;
-    let called = 0;
-    glob.gc = () => {
-      called += 1;
-    };
-    try {
-      reclaimLeakedFdsNow();
-      expect(called).toBe(1);
-    } finally {
-      glob.gc = original;
-    }
+    expect(countDefaultGcCalls(() => reclaimLeakedFdsNow())).toBe(1);
   });
 });
