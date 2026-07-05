@@ -16,6 +16,7 @@ import {
   signedMeta,
   signMeta,
   singleItem,
+  stubRefundPayment,
   webhookMeta,
 } from "#test-utils";
 
@@ -99,11 +100,7 @@ describeWithEnv(
         >),
       );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_redirect" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
-      );
+      const mockRefund = stubRefundPayment("re_redirect");
 
       try {
         const response = await handleRequest(

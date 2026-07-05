@@ -8,12 +8,14 @@ import {
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
+  expectAttendeeCreatedWithPiiBlob,
   expectHtmlResponse,
   expectWebhookProcessed,
   mockRequest,
   setupStripe,
   signedMeta,
   singleItem,
+  stubRefundPayment,
   stubRetrieveCheckoutSession,
 } from "#test-utils";
 
@@ -84,11 +86,7 @@ describeWithEnv(
         }),
       );
 
-      // Verify attendee was created with encrypted PII blob
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-      expect(attendees[0]?.pii_blob).not.toBe("");
+      await expectAttendeeCreatedWithPiiBlob(listing.id);
     });
 
     test("formatPaymentError returns plain error when refunded is undefined", async () => {
@@ -155,11 +153,7 @@ describeWithEnv(
         paymentIntent: "pi_create_boom",
         sessionId: "cs_create_boom",
       });
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_test" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
-      );
+      const mockRefund = stubRefundPayment();
       const { attendeesApi } = await import("#shared/db/attendees.ts");
       // The booking honour path uses createBookingAtomic; the quantity-0
       // placeholder fallback uses createAttendeeAtomic. A genuinely broken
@@ -208,11 +202,7 @@ describeWithEnv(
         >),
       );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_test" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
-      );
+      const mockRefund = stubRefundPayment();
 
       try {
         const response = await handleRequest(

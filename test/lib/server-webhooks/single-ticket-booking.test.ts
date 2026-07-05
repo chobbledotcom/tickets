@@ -5,6 +5,7 @@ import {
   checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
+  expectAttendeeCreatedWithPiiBlob,
   expectWebhookProcessed,
   setupStripe,
   signedMeta,
@@ -41,11 +42,7 @@ describeWithEnv("server webhooks > single-ticket booking", { db: true }, () => {
       }),
     );
 
-    // Verify attendee was created with encrypted PII blob
-    const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-    const attendees = await getAttendeesRaw(listing.id);
-    expect(attendees.length).toBe(1);
-    expect(attendees[0]?.pii_blob).not.toBe("");
+    await expectAttendeeCreatedWithPiiBlob(listing.id);
 
     // Verify tokens ARE persisted in DB (webhook stores them for redirect to consume)
     const { isSessionProcessed } = await import(

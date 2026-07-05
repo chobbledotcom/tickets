@@ -263,3 +263,26 @@ export const stubRetrieveCheckoutSession = (session: {
       ReturnType<typeof stripeApi.retrieveCheckoutSession>
     >),
   );
+
+/** Assert a listing has exactly one attendee whose PII was encrypted on
+ *  create — the standard "booking succeeded" check after a processed
+ *  single-ticket webhook. */
+export const expectAttendeeCreatedWithPiiBlob = async (
+  listingId: number,
+): Promise<void> => {
+  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const attendees = await getAttendeesRaw(listingId);
+  expect(attendees.length).toBe(1);
+  expect(attendees[0]?.pii_blob).not.toBe("");
+};
+
+/** Stub `stripeApi.refundPayment` to succeed with the given (or default)
+ *  provider refund id — the bare stub for tests that drive the refund
+ *  through the `/payment/success` redirect path directly rather than through
+ *  `expectWebhookKeptAndRefunded`. */
+export const stubRefundPayment = (refundId = "re_test") =>
+  stub(stripeApi, "refundPayment", () =>
+    Promise.resolve({ id: refundId } as unknown as Awaited<
+      ReturnType<typeof stripeApi.refundPayment>
+    >),
+  );

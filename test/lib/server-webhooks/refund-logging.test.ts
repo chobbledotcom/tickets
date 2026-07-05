@@ -1,9 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { setSuppressDebugLogs } from "#shared/logger.ts";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { resetStripeClient } from "#shared/stripe.ts";
 import {
   checkoutSessionEvent,
   createTestListing,
@@ -13,6 +12,7 @@ import {
   setupStripe,
   signedMeta,
   singleItem,
+  stubRefundPayment,
   stubWebhookVerify,
 } from "#test-utils";
 
@@ -61,11 +61,7 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
       }),
     );
 
-    const mockRefund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_log" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
-    );
+    const mockRefund = stubRefundPayment("re_log");
 
     const debugLogs: string[] = [];
     const origDebug = console.debug;
@@ -123,11 +119,7 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
       }),
     );
 
-    const mockRefund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_activity" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
-    );
+    const mockRefund = stubRefundPayment("re_activity");
 
     try {
       const response = await handleRequest(
