@@ -16,11 +16,11 @@
 import { expect } from "@std/expect";
 import { setChildIds } from "#shared/db/listing-parents.ts";
 import type { Group, Listing } from "#shared/types.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
-  createTestGroup,
   createTestListing,
-} from "#test-utils/db-helpers.ts";
+} from "#test-utils/db-helpers/listings.ts";
 
 // ---------------------------------------------------------------------------
 // HTTP request helpers (one definition, shared by every parent suite)

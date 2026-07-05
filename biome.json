@@ -173,7 +173,6 @@
         "test/lib/server-modifiers.test.ts",
         "test/lib/server-parents-booking.test.ts",
         "test/lib/server-parents-gate.test.ts",
-        "test/lib/server-payments-success.test.ts",
         "test/lib/server-payments.test.ts",
         "test/lib/server-questions.test.ts",
         "test/lib/server-reservation.test.ts",
@@ -183,8 +182,7 @@
         "test/lib/webhook-price-signature.test.ts",
         "test/routes/api.test.ts",
         "test/templates/admin/listings.test.ts",
-        "test/templates/public.test.ts",
-        "test/test-utils/db-helpers.ts"
+        "test/templates/public.test.ts"
       ],
       "linter": {
         "rules": {

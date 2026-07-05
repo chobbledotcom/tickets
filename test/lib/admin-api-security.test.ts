@@ -8,7 +8,7 @@ import {
   requestAsApiKey,
   requestAsSession,
 } from "#test-utils";
-import { createTestListing } from "#test-utils/db-helpers.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("admin API security", { db: true }, () => {
   describe("malformed JSON with API key auth", () => {

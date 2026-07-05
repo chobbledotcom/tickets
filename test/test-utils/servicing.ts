@@ -28,7 +28,7 @@ import { getAllListings } from "#shared/db/listings.ts";
 import { nowMs } from "#shared/now.ts";
 import type { Attendee, Listing, ListingWithCount } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
-import { createTestListing } from "#test-utils/db-helpers.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { getTestSession, withTestSession } from "#test-utils/session.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
@@ -442,7 +442,9 @@ export const createDatedServicingScenario = async (): Promise<{
   id: number;
   listing: Listing;
 }> => {
-  const { createDailyTestListing } = await import("#test-utils/db-helpers.ts");
+  const { createDailyTestListing } = await import(
+    "#test-utils/db-helpers/listings.ts"
+  );
   const listing = await createDailyTestListing({ maxAttendees: 5, name: "L" });
   const { id } = await createTestServicingEvent({
     bookings: [{ date: "2026-07-01", listingId: listing.id, quantity: 1 }],
@@ -458,7 +460,9 @@ export const createDailyListingPair = async (
   nameB: string,
   maxAttendees = 10,
 ): Promise<[Listing, Listing]> => {
-  const { createDailyTestListing } = await import("#test-utils/db-helpers.ts");
+  const { createDailyTestListing } = await import(
+    "#test-utils/db-helpers/listings.ts"
+  );
   const a = await createDailyTestListing({ maxAttendees, name: nameA });
   const b = await createDailyTestListing({ maxAttendees, name: nameB });
   return [a, b];
@@ -489,7 +493,7 @@ export const createRealAttendee = async (
   listing: Listing;
 }> => {
   const { createTestAttendeeDirect } = await import(
-    "#test-utils/db-helpers.ts"
+    "#test-utils/db-helpers/attendees.ts"
   );
   const listing = await resolveTestListing({
     maxAttendees: 10,
