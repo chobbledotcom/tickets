@@ -5,12 +5,12 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { queryOne } from "#shared/db/client.ts";
 import {
   computeAddressSearchIndex,
   getCachedAddresses,
   storeCachedAddresses,
 } from "#shared/db/address-cache.ts";
+import { queryOne } from "#shared/db/client.ts";
 import { pruneAddressCache } from "#shared/db/prune.ts";
 import { ADDRESS_CACHE_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";

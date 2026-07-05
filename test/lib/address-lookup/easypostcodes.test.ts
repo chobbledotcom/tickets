@@ -133,9 +133,7 @@ describe("fetchEasypostcodesAddresses", () => {
   });
 
   test("reports a provider error with its status", async () => {
-    stubFetch(() =>
-      Promise.resolve(new Response("denied", { status: 403 })),
-    );
+    stubFetch(() => Promise.resolve(new Response("denied", { status: 403 })));
     const result = await fetchEasypostcodesAddresses("SW1A 1AA", "bad-key");
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("403");

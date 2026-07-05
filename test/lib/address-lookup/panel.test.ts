@@ -9,8 +9,8 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
 import { type Field, renderField, renderFields } from "#shared/forms.tsx";
-import { getAddAttendeeFields, getTicketFields } from "#templates/fields.ts";
 import { renderAddressLookupPanel } from "#templates/components/address-lookup.tsx";
+import { getAddAttendeeFields, getTicketFields } from "#templates/fields.ts";
 
 const enableProviderForTest = (): void => {
   settings.setForTest({ address_lookup_provider: "easypostcodes" });

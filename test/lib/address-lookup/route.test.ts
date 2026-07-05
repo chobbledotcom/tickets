@@ -90,7 +90,9 @@ describeWithEnv("address lookup search panels", { db: true }, () => {
   test("the booking form has no panel while lookup is off", async () => {
     const { listing } = await setupListingAndLogin({ fields: "address" });
     const { handleRequest } = await import("#routes");
-    const response = await handleRequest(mockRequest(`/ticket/${listing.slug}`));
+    const response = await handleRequest(
+      mockRequest(`/ticket/${listing.slug}`),
+    );
     const html = await response.text();
     expect(html).toContain('name="address"');
     expect(html).not.toContain("data-address-lookup");
@@ -100,7 +102,9 @@ describeWithEnv("address lookup search panels", { db: true }, () => {
     const { listing } = await setupListingAndLogin({ fields: "address" });
     await enableEasypostcodes();
     const { handleRequest } = await import("#routes");
-    const response = await handleRequest(mockRequest(`/ticket/${listing.slug}`));
+    const response = await handleRequest(
+      mockRequest(`/ticket/${listing.slug}`),
+    );
     const html = await response.text();
     expect(html).toContain('data-address-lookup="locked"');
     // The panel sits directly above the address textarea, hidden until the

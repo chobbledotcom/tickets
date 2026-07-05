@@ -39,7 +39,10 @@ export type FakeElement = {
   toggleAttribute: (name: string, force: boolean) => void;
   querySelector: (selector: string) => FakeElement | null;
   querySelectorAll: (selector: string) => FakeElement[];
-  addEventListener: (event: string, listener: (event?: unknown) => void) => void;
+  addEventListener: (
+    event: string,
+    listener: (event?: unknown) => void,
+  ) => void;
   /** Dispatch a real `Event` to the registered listeners (the production scripts
    * call this to notify dependents). Returns true like the DOM API. */
   dispatchEvent: (event: Event) => boolean;

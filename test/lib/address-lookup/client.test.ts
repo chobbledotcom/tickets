@@ -222,8 +222,7 @@ describe("address lookup client", () => {
 
   test("no matches shows the no-results message and keeps the select hidden", async () => {
     stubFetch(() => Promise.resolve(jsonResponse({ addresses: [] })));
-    const { findButton, resultsLabel, searchInput, status } =
-      setup("editable");
+    const { findButton, resultsLabel, searchInput, status } = setup("editable");
     searchInput.value = "ZZ99 9ZZ";
 
     findButton.dispatch("click");

@@ -88,8 +88,7 @@ describeWithEnv("address lookup service", { db: true }, () => {
     const outcome = await lookupAddresses("easypostcodes", "SW1A 2AA");
 
     expect(outcome).toEqual({
-      error:
-        "Address lookup failed — please try again or type your address",
+      error: "Address lookup failed — please try again or type your address",
       ok: false,
     });
     expect(errors.lastMessage()).toContain("E_ADDRESS_LOOKUP");
