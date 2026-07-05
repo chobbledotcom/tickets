@@ -864,17 +864,30 @@ const choiceAnswerMapFromRows = (
     new Map(),
   )(rows);
 
-const choiceAnswerIdsBatch = async (
+// Runs a batched read of attendee_answers for the given attendees: an empty id
+// list short-circuits to an empty map, otherwise it runs `sql` (bound to the
+// ids) and hands the rows to `build`. Keeps the empty-guard and the query in one
+// place so every per-attendee batch reads the same way.
+const attendeeAnswersBatch = async <Row, Result extends Map<unknown, unknown>>(
   attendeeIds: number[],
-): Promise<Map<number, number[]>> => {
-  if (attendeeIds.length === 0) return new Map();
-  const rows = await queryAll<{ attendee_id: number; answer_id: number }>(
+  sql: string,
+  build: (rows: Row[]) => Result | Promise<Result>,
+): Promise<Result> => {
+  if (attendeeIds.length === 0) return new Map() as Result;
+  const rows = await queryAll<Row>(sql, attendeeIds);
+  return build(rows);
+};
+
+const choiceAnswerIdsBatch = (
+  attendeeIds: number[],
+): Promise<Map<number, number[]>> =>
+  attendeeAnswersBatch(
+    attendeeIds,
     `SELECT attendee_id, answer_id FROM attendee_answers
      WHERE answer_id IS NOT NULL AND attendee_id IN (${inPlaceholders(attendeeIds)})`,
-    attendeeIds,
+    (rows: { attendee_id: number; answer_id: number }[]) =>
+      choiceAnswerMapFromRows(rows),
   );
-  return choiceAnswerMapFromRows(rows);
-};
 
 /**
  * Attendee → chosen-answer-ids map for every real (`kind = 'attendee'`)
@@ -902,39 +915,41 @@ export const getListingChoiceAnswerMap = async (
 
 /** Decrypted free-text answers for several attendees: attendeeId → (questionId
  * → text). Needs the owner private key, so callers must opt in deliberately. */
-export const getAttendeeTextAnswersBatch = async (
+export const getAttendeeTextAnswersBatch = (
   attendeeIds: number[],
   privateKey: CryptoKey,
-): Promise<Map<number, Map<number, string>>> => {
-  if (attendeeIds.length === 0) return new Map();
-  const rows = await queryAll<{
-    attendee_id: number;
-    question_id: number;
-    encrypted_text: string;
-  }>(
+): Promise<Map<number, Map<number, string>>> =>
+  attendeeAnswersBatch(
+    attendeeIds,
     `SELECT attendee_answer.attendee_id, attendee_answer.question_id,
             string.encrypted_text
      FROM attendee_answers AS attendee_answer
      JOIN strings AS string ON string.id = attendee_answer.string_id
      WHERE attendee_answer.question_id IS NOT NULL
        AND attendee_answer.attendee_id IN (${inPlaceholders(attendeeIds)})`,
-    attendeeIds,
+    async (
+      rows: {
+        attendee_id: number;
+        question_id: number;
+        encrypted_text: string;
+      }[],
+    ) => {
+      const decrypted = await Promise.all(
+        rows.map(async (row) => ({
+          attendeeId: row.attendee_id,
+          questionId: row.question_id,
+          text: await decryptWithOwnerKey(row.encrypted_text, privateKey),
+        })),
+      );
+      const result = new Map<number, Map<number, string>>();
+      for (const { attendeeId, questionId, text } of decrypted) {
+        const inner = result.get(attendeeId) ?? new Map<number, string>();
+        inner.set(questionId, text);
+        result.set(attendeeId, inner);
+      }
+      return result;
+    },
   );
-  const decrypted = await Promise.all(
-    rows.map(async (row) => ({
-      attendeeId: row.attendee_id,
-      questionId: row.question_id,
-      text: await decryptWithOwnerKey(row.encrypted_text, privateKey),
-    })),
-  );
-  const result = new Map<number, Map<number, string>>();
-  for (const { attendeeId, questionId, text } of decrypted) {
-    const inner = result.get(attendeeId) ?? new Map<number, string>();
-    inner.set(questionId, text);
-    result.set(attendeeId, inner);
-  }
-  return result;
-};
 
 /** Choice answer ids plus, when requested, decrypted free-text answers. */
 export type AttendeeAnswersBatch = {

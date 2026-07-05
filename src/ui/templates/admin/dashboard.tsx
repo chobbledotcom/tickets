@@ -343,6 +343,28 @@ const ListingsTableBlock = ({
   </div>
 );
 
+/** Work out which listing columns to show from a saved column template, then
+ *  split off the active listings — the two listing index pages open the same
+ *  way, so this keeps that shared first step in one place. */
+const resolveListingColumns = (
+  listings: ListingWithCount[],
+  template: string,
+  columns: Record<string, unknown>,
+  defaultOrder: readonly string[],
+): {
+  columnKeys: string[];
+  filters: Map<string, string>;
+  activeListings: ListingWithCount[];
+} => {
+  const { columnKeys, filters } = resolveColumnLayout(
+    template,
+    Object.keys(columns),
+    defaultOrder,
+  );
+  const activeListings = filter((e: ListingWithCount) => e.active)(listings);
+  return { columnKeys, filters, activeListings };
+};
+
 /**
  * Admin dashboard page
  */
@@ -359,9 +381,10 @@ export const adminDashboardPage = (
   unbookableIds: ReadonlySet<number> = new Set(),
   upcomingServicingEvents: ServicingEventSummary[] = [],
 ): string => {
-  const { columnKeys, filters } = resolveColumnLayout(
+  const { columnKeys, filters, activeListings } = resolveListingColumns(
+    listings,
     listingColumnTemplate ?? "",
-    Object.keys(LISTING_TABLE_COLUMNS),
+    LISTING_TABLE_COLUMNS,
     LISTING_DEFAULT_ORDER,
   );
 
@@ -369,7 +392,6 @@ export const adminDashboardPage = (
   // newest-attendee sections below stay based on the full set. Offer the bar
   // (same control as the public/attendee filters) only when more than one
   // listing type is present.
-  const activeListings = filter((e: ListingWithCount) => e.active)(listings);
   // The multi-booking builder offers only standalone-bookable listings; a child
   // is never an entry point (I3) and a hidden package's member 404s on its own
   // page, so both are excluded from the selectable set and the "2+ listings"
@@ -435,12 +457,12 @@ export const adminListingsPage = (
   const columns = isEditor
     ? EDITOR_LISTING_TABLE_COLUMNS
     : LISTING_TABLE_COLUMNS;
-  const { columnKeys, filters } = resolveColumnLayout(
+  const { columnKeys, filters, activeListings } = resolveListingColumns(
+    listings,
     isEditor ? "" : (listingColumnTemplate ?? ""),
-    Object.keys(columns),
+    columns,
     isEditor ? EDITOR_LISTING_DEFAULT_ORDER : LISTING_DEFAULT_ORDER,
   );
-  const activeListings = filter((e: ListingWithCount) => e.active)(listings);
   const deactivatedListings = filter((e: ListingWithCount) => !e.active)(
     listings,
   );

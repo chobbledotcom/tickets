@@ -19,6 +19,7 @@ import type {
 import {
   childPriceFieldName,
   childQuantityFieldName,
+  nodesDeepestFirst,
 } from "#shared/booking/tree.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -355,18 +356,14 @@ export const resolvedByNodeKey = (
     ]),
   );
   const resolved = new Map<string, TicketListing>();
-  const visit = (nodes: readonly BookingNode[]): void => {
-    for (const node of nodes) {
-      resolved.set(
-        node.nodeKey,
-        node.edgeRef.kind === "parent_child"
-          ? childByParent.get(node.edgeRef.parentId)!.get(node.listingId)!
-          : topById.get(node.listingId)!,
-      );
-      visit(node.children);
-    }
-  };
-  visit(tree.nodes);
+  for (const node of nodesDeepestFirst(tree.nodes)) {
+    resolved.set(
+      node.nodeKey,
+      node.edgeRef.kind === "parent_child"
+        ? childByParent.get(node.edgeRef.parentId)!.get(node.listingId)!
+        : topById.get(node.listingId)!,
+    );
+  }
   return resolved;
 };
 

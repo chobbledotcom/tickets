@@ -4,8 +4,8 @@
  */
 
 import { t } from "#i18n";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
-import { BackButton, SubmitButton } from "#templates/components/actions.tsx";
+import { Flash, SubmitForm } from "#shared/forms.tsx";
+import { BackButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** Confirmation phrase that must be typed to reset the database */
@@ -24,7 +24,13 @@ export const ResetDatabaseForm = ({
   action: string;
   id?: string;
 }): JSX.Element => (
-  <CsrfForm action={action} id={id}>
+  <SubmitForm
+    action={action}
+    id={id}
+    submitClass="danger"
+    submitIcon="trash-2"
+    submitLabel={t("settings.advanced.database_reset.submit")}
+  >
     <h2>{t("settings.advanced.database_reset.heading")}</h2>
     <article>
       <aside>
@@ -48,10 +54,7 @@ export const ResetDatabaseForm = ({
       required
       type="text"
     />
-    <SubmitButton class="danger" icon="trash-2">
-      {t("settings.advanced.database_reset.submit")}
-    </SubmitButton>
-  </CsrfForm>
+  </SubmitForm>
 );
 
 /**

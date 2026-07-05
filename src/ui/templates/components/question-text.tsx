@@ -7,6 +7,7 @@
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { isSimpleMarkdown, renderMarkdown } from "#shared/markdown.ts";
 
 /**
@@ -63,6 +64,34 @@ export const questionWrapper = (
       {control(questionProseId(q))}
     </div>
   );
+
+/**
+ * A free-text custom-question control: a single-line text input wrapped by
+ * {@link questionWrapper}. Shared by the public booking form and the admin
+ * attendee editor, which differ only in whether the field is required and what
+ * value pre-fills it (the admin editor never marks it required).
+ */
+export const freeTextQuestion = ({
+  q,
+  listingIds,
+  required,
+  value,
+}: {
+  q: QuestionWithAnswers;
+  listingIds?: string | undefined;
+  required?: boolean | undefined;
+  value: string;
+}): JSX.Element =>
+  questionWrapper(q, listingIds, (labelledBy) => (
+    <input
+      aria-labelledby={labelledBy}
+      maxlength={MAX_TEXTAREA_LENGTH}
+      name={`question_${q.id}`}
+      required={required}
+      type="text"
+      value={value}
+    />
+  ));
 
 /**
  * Wrap a multi-control question (radio answers) in a fieldset. Simple question

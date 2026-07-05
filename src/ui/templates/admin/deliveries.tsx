@@ -12,7 +12,7 @@ import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
-import { markAdminFooter } from "#templates/admin/footer.tsx";
+import { AgentHeader } from "#templates/admin/footer.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";

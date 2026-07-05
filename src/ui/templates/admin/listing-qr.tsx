@@ -15,7 +15,7 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { ListingLink, SubmitButton } from "#templates/components/actions.tsx";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 
 const EXPIRY_LABEL = `${Math.round(QR_TOKEN_MAX_AGE_S / 60)} minutes`;
@@ -167,7 +167,7 @@ export const ListingQrPanel = ({
       <div class="prose">
         <h1>
           {t("listing_qr.page_title")}{" "}
-          <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
+          <ListingLink listing={listing} />
         </h1>
         <p>
           {t("listing_qr.page_description_start")}{" "}

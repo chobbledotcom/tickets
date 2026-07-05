@@ -48,7 +48,7 @@ import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
+import { DataTable, TableSection } from "#templates/components/data-table.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
 
 const SERVICING_FORM_ID = "servicing-form";
@@ -237,35 +237,26 @@ const renderServicingPage = ({
             </label>
             <SubmitButton icon="plus">Record Cost</SubmitButton>
           </CsrfForm>
-          {costs.length > 0 && (
-            <>
-              <h2>Recorded costs</h2>
-              <DataTable
-                columns={[
-                  { header: "Listing" },
-                  { header: "Date" },
-                  { class: "amount", header: "Amount" },
-                  { header: "Memo" },
-                  { header: "Edit" },
-                ]}
-                rows={costs.map((cost) => [
-                  listingNames.get(cost.listingId),
-                  formatDateLabel(cost.date.slice(0, 10)),
-                  formatCurrency(cost.amount),
-                  cost.memo,
-                  <CsrfForm
-                    action={`/admin/servicing/${event.id}/cost/${cost.id}`}
-                  >
-                    <PriceInput
-                      name="amount"
-                      value={toMajorUnits(cost.amount)}
-                    />
-                    <SubmitButton icon="save">Edit</SubmitButton>
-                  </CsrfForm>,
-                ])}
-              />
-            </>
-          )}
+          <TableSection
+            columns={[
+              { header: "Listing" },
+              { header: "Date" },
+              { class: "amount", header: "Amount" },
+              { header: "Memo" },
+              { header: "Edit" },
+            ]}
+            heading="Recorded costs"
+            rows={costs.map((cost) => [
+              listingNames.get(cost.listingId),
+              formatDateLabel(cost.date.slice(0, 10)),
+              formatCurrency(cost.amount),
+              cost.memo,
+              <CsrfForm action={`/admin/servicing/${event.id}/cost/${cost.id}`}>
+                <PriceInput name="amount" value={toMajorUnits(cost.amount)} />
+                <SubmitButton icon="save">Edit</SubmitButton>
+              </CsrfForm>,
+            ])}
+          />
         </>
       )}
     </AdminPage>,
@@ -414,6 +405,11 @@ const parseCreateInput = async (form: FormParams) => {
 
 const COST_AMOUNT_LABEL = "cost amount";
 
+/** Send the operator back to a service event's page, showing the error that a
+ *  failed action threw. */
+const redirectServicingError = (id: number, err: unknown): Response =>
+  redirect(`/admin/servicing/${id}`, (err as Error).message, false);
+
 const handleCostPost = async (
   id: number,
   form: FormParams,
@@ -452,7 +448,7 @@ const handleCostPost = async (
   } catch (err) {
     // A reused idempotency key whose payload changed (or any other recording
     // failure) is a recoverable form error, not a 500.
-    return redirect(`/admin/servicing/${id}`, (err as Error).message, false);
+    return redirectServicingError(id, err);
   }
   return redirect(
     `/admin/servicing/${id}`,
@@ -556,7 +552,7 @@ const redirectServicingResult = async <T extends { id: number; name: string }>(
       true,
     );
   } catch (err) {
-    return redirect(`/admin/servicing/${id}`, (err as Error).message, false);
+    return redirectServicingError(id, err);
   }
 };
 

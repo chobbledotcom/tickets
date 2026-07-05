@@ -45,6 +45,12 @@ export const parseApiError = (
   };
 };
 
+/** JSON request headers for an external API call: the caller's auth header(s)
+ * plus the shared `Content-Type: application/json` every provider request sends. */
+export const jsonHeaders = (
+  auth: Record<string, string>,
+): Record<string, string> => ({ ...auth, "Content-Type": "application/json" });
+
 /** Fetch a URL and eagerly read the response body, preventing resource leaks. */
 export const fetchText = async (
   url: string,

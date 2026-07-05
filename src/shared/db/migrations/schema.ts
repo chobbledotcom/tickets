@@ -37,6 +37,26 @@ export const LATEST_UPDATE = "Create first-class images and image_uses tables.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
+/** The columns every slugged entity starts with: an autoincrement id, its slug
+ * plus the plaintext `slug_index` blind index, and a name. Callers append their
+ * own extra columns after these. */
+const slugEntityColumns = (): Column[] => [
+  ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+  ["slug", "TEXT NOT NULL"],
+  ["slug_index", "TEXT NOT NULL"],
+  ["name", "TEXT NOT NULL"],
+];
+
+/** The columns of an ordered membership-edge table: an owner id (the parent the
+ * edge belongs to) plus the `(item_type, item_id)` it points at and a
+ * `sort_order` for arranging siblings. */
+const membershipEdgeColumns = (ownerColumn: Column): Column[] => [
+  ownerColumn,
+  ["item_type", "TEXT NOT NULL"],
+  ["item_id", "INTEGER NOT NULL"],
+  ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+];
+
 export const SCHEMA_MIGRATIONS_TABLE = "schema_migrations";
 
 export const SCHEMA: [name: string, table: Table][] = [
@@ -241,12 +261,7 @@ export const SCHEMA: [name: string, table: Table][] = [
     // one item.
     "image_uses",
     {
-      columns: [
-        ["image_id", "INTEGER NOT NULL"],
-        ["item_type", "TEXT NOT NULL"],
-        ["item_id", "INTEGER NOT NULL"],
-        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
-      ],
+      columns: membershipEdgeColumns(["image_id", "INTEGER NOT NULL"]),
       indexes: [
         {
           columns: ["item_type", "item_id", "sort_order"],
@@ -547,10 +562,7 @@ export const SCHEMA: [name: string, table: Table][] = [
     "groups",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["slug", "TEXT NOT NULL"],
-        ["slug_index", "TEXT NOT NULL"],
-        ["name", "TEXT NOT NULL"],
+        ...slugEntityColumns(),
         ["description", "TEXT NOT NULL DEFAULT ''"],
         ["terms_and_conditions", "TEXT NOT NULL DEFAULT ''"],
         ["max_attendees", "INTEGER NOT NULL DEFAULT 0"],
@@ -1099,10 +1111,7 @@ export const SCHEMA: [name: string, table: Table][] = [
     "site_pages",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["slug", "TEXT NOT NULL"],
-        ["slug_index", "TEXT NOT NULL"],
-        ["name", "TEXT NOT NULL"],
+        ...slugEntityColumns(),
         ["meta_title", "TEXT NOT NULL DEFAULT ''"],
         ["meta_description", "TEXT NOT NULL DEFAULT ''"],
         ["content", "TEXT NOT NULL DEFAULT ''"],
@@ -1124,12 +1133,7 @@ export const SCHEMA: [name: string, table: Table][] = [
     // (the schema can't express a partial-unique index).
     "site_page_items",
     {
-      columns: [
-        ["page_id", "INTEGER NOT NULL"],
-        ["item_type", "TEXT NOT NULL"],
-        ["item_id", "INTEGER NOT NULL"],
-        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
-      ],
+      columns: membershipEdgeColumns(["page_id", "INTEGER NOT NULL"]),
       indexes: [
         {
           columns: ["page_id", "sort_order"],

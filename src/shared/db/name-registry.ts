@@ -111,3 +111,26 @@ export const isNameTakenAnywhere = async (
     );
   return ownedByOther(listing, "listing") || ownedByOther(group, "group");
 };
+
+/**
+ * Walk candidate names in order and stop at the first that's a problem: a name
+ * that repeats (case/whitespace-folded) within this same batch, or one your own
+ * `check` rejects. The repeat guard runs before `check`, so a duplicate within
+ * the batch is always reported ahead of anything `check` would say about it.
+ * Returns the problem message, or null when every name is unique and passes.
+ */
+export const firstNameProblem = async (
+  names: readonly string[],
+  duplicateMessage: (name: string) => string,
+  check: (name: string) => string | null | Promise<string | null>,
+): Promise<string | null> => {
+  const seen = new Set<string>();
+  for (const name of names) {
+    const key = normalizeEntityName(name);
+    if (seen.has(key)) return duplicateMessage(name);
+    seen.add(key);
+    const problem = await check(name);
+    if (problem) return problem;
+  }
+  return null;
+};

@@ -154,10 +154,15 @@ export const createWithClient =
  * A package order's top-level lines carry their package edge (`k:"p"`, `r`=group
  * id) so the webhook can revalidate each line's `nodeKey`; folded children (in
  * `allocations`) and standalone lines stay untagged. See signed-metadata.ts. */
+/** The ids of children folded under a parent in this order — they ride in the
+ * order's `allocations`; an order with no allocations folds nothing. Shared by
+ * the metadata builder and the webhook's order-tree checks. */
+export const foldedChildIdSet = (
+  allocations: readonly { childId: number }[] | undefined,
+): Set<number> => new Set((allocations ?? []).map((a) => a.childId));
+
 export const toBookingItems = (intent: CheckoutIntent): BookingItem[] => {
-  const foldedChildIds = new Set(
-    (intent.allocations ?? []).map((a) => a.childId),
-  );
+  const foldedChildIds = foldedChildIdSet(intent.allocations);
   return map(
     (i: CheckoutIntent["items"][number]): BookingItem => ({
       e: i.listingId,

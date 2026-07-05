@@ -14,7 +14,6 @@ import { unique } from "#fp";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import { resolveRecipientEmails } from "#shared/bulk-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { formatDateLabel } from "#shared/dates.ts";
 import {
   type ActivityLogEntry,
   getListingActivityLog,
@@ -70,7 +69,12 @@ import { loadItemImagesPanel } from "./item-images.ts";
 import { EMPTY_QR_VALUES, loadQrFormContext } from "./listing-qr.ts";
 import { getListingAndGroups } from "./listings-edit.ts";
 import { loadListingParentsSection } from "./listings-parents.ts";
-import { loadGroupContext, loadListingQuestionData } from "./listings-view.ts";
+import {
+  attendeeDateOptions,
+  attendeesOnDate,
+  loadGroupContext,
+  loadListingQuestionData,
+} from "./listings-view.ts";
 
 /**
  * The listing entity page's loaded row: the listing plus the derived flags any
@@ -163,24 +167,13 @@ const loadDecryptedListingAttendees = async (
   return decryptAttendees(attendeesRaw, pk);
 };
 
-/** Attendees filtered to a single date (daily listings), else the full set. */
-const filterByDate = (
-  attendees: Attendee[],
-  date: string | null,
-): Attendee[] => (date ? attendees.filter((a) => a.date === date) : attendees);
-
 /** The distinct booking dates present on a daily listing, ascending, as the
  *  roster's date-picker options; empty for a non-daily listing. */
 const availableDatesFor = (
   listing: ListingWithCount,
   attendees: Attendee[],
-): { value: string; label: string }[] => {
-  if (listing.listing_type !== "daily") return [];
-  const dates = [
-    ...new Set(attendees.map((a) => a.date).filter((d): d is string => !!d)),
-  ].sort((a, b) => a.localeCompare(b));
-  return dates.map((value) => ({ label: formatDateLabel(value), value }));
-};
+): { value: string; label: string }[] =>
+  listing.listing_type === "daily" ? attendeeDateOptions(attendees) : [];
 
 /** The Overview's answer summary needs only the questions and each attendee's
  *  chosen answer ids (counted per option) — never the free-text answers. So it
@@ -269,7 +262,7 @@ export const loadListingRosterPanel = async (
     ctx.query,
   );
   const attendees = await loadDecryptedListingAttendees(listing.id);
-  const filteredByDate = filterByDate(attendees, dateFilter);
+  const filteredByDate = attendeesOnDate(attendees, dateFilter);
   const [questionData, childrenByParent, groupContext, systemNotes] =
     await Promise.all([
       loadListingQuestionData(

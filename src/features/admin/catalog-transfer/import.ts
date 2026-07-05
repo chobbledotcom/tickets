@@ -47,11 +47,11 @@ import {
   toListingGroupMembership,
 } from "#shared/db/modifier-resolve.ts";
 import {
+  firstNameProblem,
   isNameTakenAnywhere,
   loadCatalogNameIndex,
   matchName,
   type NameIndex,
-  normalizeEntityName,
 } from "#shared/db/name-registry.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -94,35 +94,30 @@ const fail = (error: string): ImportResult => ({ error, ok: false });
  * the first reference that can't be resolved (missing or, on legacy duplicate
  * data, ambiguous) as an intelligible error. `noun` names the referenced kind
  * in the message. */
-const resolveNames = (
+const resolveNames = async (
   index: NameIndex,
   names: readonly string[],
   noun: string,
-): { ids: number[] } | { error: string } => {
+): Promise<{ ids: number[] } | { error: string }> => {
   const ids: number[] = [];
-  const seen = new Set<string>();
-  for (const name of names) {
-    // A repeated reference would insert a duplicate edge/membership row and trip
-    // a unique index (a raw 500); reject it with an intelligible message first.
-    const key = normalizeEntityName(name);
-    if (seen.has(key)) {
-      return {
-        error: `The ${noun} "${name}" is referenced more than once — remove the duplicate.`,
-      };
-    }
-    seen.add(key);
-    const match = matchName(index, name);
-    if (!match.ok) {
-      return {
-        error:
-          match.reason === "missing"
-            ? `No ${noun} named "${name}" exists — it must already exist to import this reference.`
-            : `More than one ${noun} is named "${name}"; names must be unique to import by name.`,
-      };
-    }
-    ids.push(match.id);
-  }
-  return { ids };
+  // A repeated reference would insert a duplicate edge/membership row and trip a
+  // unique index (a raw 500); the batch guard reports it before resolving.
+  const error = await firstNameProblem(
+    names,
+    (name) =>
+      `The ${noun} "${name}" is referenced more than once — remove the duplicate.`,
+    (name) => {
+      const match = matchName(index, name);
+      if (!match.ok) {
+        return match.reason === "missing"
+          ? `No ${noun} named "${name}" exists — it must already exist to import this reference.`
+          : `More than one ${noun} is named "${name}"; names must be unique to import by name.`;
+      }
+      ids.push(match.id);
+      return null;
+    },
+  );
+  return error ? { error } : { ids };
 };
 
 /** The uniform "this name is already taken" refusal for both entity kinds. */
@@ -361,9 +356,9 @@ const importListing = async (
   }
 
   const index = await loadCatalogNameIndex();
-  const parentResolve = resolveNames(index.listing, parents, "listing");
+  const parentResolve = await resolveNames(index.listing, parents, "listing");
   if ("error" in parentResolve) return fail(parentResolve.error);
-  const groupResolve = resolveNames(
+  const groupResolve = await resolveNames(
     index.group,
     memberships.map((m) => m.group),
     "group",
@@ -464,7 +459,7 @@ const importGroup = async (transfer: GroupTransfer): Promise<ImportResult> => {
   }
 
   const index = await loadCatalogNameIndex();
-  const memberResolve = resolveNames(
+  const memberResolve = await resolveNames(
     index.listing,
     members.map((m) => m.listing),
     "listing",

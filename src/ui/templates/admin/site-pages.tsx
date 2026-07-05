@@ -21,7 +21,7 @@ import {
   SaveChangesButton,
   SubmitButton,
 } from "#templates/components/actions.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
+import { DataTable, TableSection } from "#templates/components/data-table.tsx";
 import { ReorderArrows } from "#templates/components/reorder.tsx";
 
 const ACTIVE = "/admin/site";
@@ -68,6 +68,11 @@ const DeleteLink = ({ id }: { id: number }): JSX.Element => (
   <a href={`${LIST}/${id}/delete`}>{t("common.delete")}</a>
 );
 
+/** The link to a page's edit form, labelled with the page's name. */
+const EditLink = ({ page }: { page: SitePageNavRow }): JSX.Element => (
+  <a href={`${LIST}/${page.id}/edit`}>{page.name}</a>
+);
+
 export const adminSitePagesListPage = (
   model: ListModel,
   session: AdminSession,
@@ -104,28 +109,24 @@ export const adminSitePagesListPage = (
                 count={model.roots.length}
                 index={i}
               />,
-              <a href={`${LIST}/${page.id}/edit`}>{page.name}</a>,
+              <EditLink page={page} />,
               <code>/page/{page.slug}</code>,
               <DeleteLink id={page.id} />,
             ])}
           />
-          {model.nested.length > 0 && (
-            <>
-              <h2>{t("site.pages.nested_heading")}</h2>
-              <DataTable
-                columns={[
-                  { header: t("site.pages.name_column") },
-                  { header: t("site.pages.parent_column") },
-                  { header: "" },
-                ]}
-                rows={model.nested.map(({ page, parentName }) => [
-                  <a href={`${LIST}/${page.id}/edit`}>{page.name}</a>,
-                  parentName,
-                  <DeleteLink id={page.id} />,
-                ])}
-              />
-            </>
-          )}
+          <TableSection
+            columns={[
+              { header: t("site.pages.name_column") },
+              { header: t("site.pages.parent_column") },
+              { header: "" },
+            ]}
+            heading={t("site.pages.nested_heading")}
+            rows={model.nested.map(({ page, parentName }) => [
+              <EditLink page={page} />,
+              parentName,
+              <DeleteLink id={page.id} />,
+            ])}
+          />
         </>
       )}
     </AdminPage>,

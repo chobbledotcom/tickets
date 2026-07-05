@@ -10,7 +10,7 @@ import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { Child, SafeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { ErrorCode, errorCodeLabel } from "#shared/logger.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideLink } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 
@@ -29,15 +29,9 @@ const activityLogPage =
   (title: string) =>
   (session: AdminSession) =>
   (body: Child): string =>
-    String(
-      <AdminPage
-        actions={activityLogActions}
-        active="/admin/log"
-        session={session}
-        title={title}
-      >
-        {body}
-      </AdminPage>,
+    renderAdminPage(
+      { actions: activityLogActions, active: "/admin/log", session, title },
+      body,
     );
 
 /** Label of the Square signature error, used to spot it in log messages */

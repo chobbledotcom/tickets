@@ -59,6 +59,15 @@ export const AdminPage = ({
   </Layout>
 );
 
+/** String-render an {@link AdminPage} with `body` as its children. Every admin
+ *  opener below — plus the confirm/form pages — shares this one
+ *  `String(<AdminPage …>{body}</AdminPage>)` idiom, so keeping it here means the
+ *  wrapper can't drift across those pages. */
+export const renderAdminPage = (
+  props: Omit<AdminPageProps, "children">,
+  body: Child,
+): string => String(<AdminPage {...props}>{body}</AdminPage>);
+
 /** An admin page whose whole body is one CSRF form headed by an `<h1>{title}</h1>`
  *  and an error/success Flash — the shape the recalculate pages and the
  *  site-page create/edit forms share. `children` is the form body after the
@@ -80,14 +89,13 @@ export const adminFormPage = ({
   success?: string | undefined;
   children: Child;
 }): string =>
-  String(
-    <AdminPage active={active} session={session} title={title}>
-      <CsrfForm action={action}>
-        <h1>{title}</h1>
-        <Flash error={error} success={success} />
-        {children}
-      </CsrfForm>
-    </AdminPage>,
+  renderAdminPage(
+    { active, session, title },
+    <CsrfForm action={action}>
+      <h1>{title}</h1>
+      <Flash error={error} success={success} />
+      {children}
+    </CsrfForm>,
   );
 
 /** Build the props for an optional error/success Flash notice. The dashboards
@@ -126,16 +134,9 @@ const curriedAdminPage =
   ) =>
   (session: AdminSession, ...flashArgs: FlashArgs) =>
   (body: Child, actions?: Child): string =>
-    String(
-      <AdminPage
-        actions={actions}
-        active={active}
-        flash={flash(...flashArgs)}
-        session={session}
-        title={title}
-      >
-        {body}
-      </AdminPage>,
+    renderAdminPage(
+      { actions, active, flash: flash(...flashArgs), session, title },
+      body,
     );
 
 /** Themed admin opener for the settings/debug pages, which preview the site's

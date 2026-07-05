@@ -8,7 +8,7 @@
  */
 
 import { ActionButton } from "#templates/components/actions.tsx";
-import { Layout } from "#templates/layout.tsx";
+import { HeadingPage } from "#templates/components/heading-page.tsx";
 
 export const SuccessCompletePage = ({
   title,
@@ -21,18 +21,21 @@ export const SuccessCompletePage = ({
   messages: string[];
   loginLink: string;
 }): string =>
-  String(
-    <Layout title={title}>
-      <h1>{heading}</h1>
-      <div class="success" role="alert">
-        {messages.map((message) => (
-          <p>{message}</p>
-        ))}
-      </div>
-      <p class="actions">
-        <ActionButton href="/admin/login" icon="log-in">
-          {loginLink}
-        </ActionButton>
-      </p>
-    </Layout>,
-  );
+  HeadingPage({
+    children: (
+      <>
+        <div class="success" role="alert">
+          {messages.map((message) => (
+            <p>{message}</p>
+          ))}
+        </div>
+        <p class="actions">
+          <ActionButton href="/admin/login" icon="log-in">
+            {loginLink}
+          </ActionButton>
+        </p>
+      </>
+    ),
+    heading,
+    title,
+  });

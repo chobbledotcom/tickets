@@ -12,7 +12,7 @@
 import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { MaskedTextarea } from "#templates/components/masked-textarea.tsx";
-import { SettingsSection } from "#templates/components/settings-section.tsx";
+import { ConfiguredSettingsSection } from "#templates/components/settings-section.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 /* jscpd:ignore-end */
 
@@ -53,12 +53,7 @@ export const WalletSettingsForm = (config: {
   textFields: readonly WalletTextField[];
   secretFields: readonly WalletSecretField[];
 }): JSX.Element => (
-  <SettingsSection
-    action={config.action}
-    description={config.description}
-    submitLabel={config.submitLabel}
-    title={config.title}
-  >
+  <ConfiguredSettingsSection config={config}>
     {config.textFields.map((field) => (
       <TextField
         label={t(field.labelKey)}
@@ -76,5 +71,5 @@ export const WalletSettingsForm = (config: {
         placeholder={field.placeholder}
       />
     ))}
-  </SettingsSection>
+  </ConfiguredSettingsSection>
 );

@@ -1,6 +1,6 @@
-import { CsrfForm } from "#shared/forms.tsx";
+import { SubmitForm } from "#shared/forms.tsx";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
-import { type IconName, SubmitButton } from "#templates/components/actions.tsx";
+import type { IconName } from "#templates/components/actions.tsx";
 
 /** The shared body of an admin "create resource" new-page:
  *  `<CsrfForm action={action}><h1>{title}</h1><Raw html={fieldsHtml}/><SubmitButton icon={icon}>{submitLabel}</SubmitButton></CsrfForm>`.
@@ -25,10 +25,14 @@ export const NewResourceForm = ({
   submitIcon?: IconName;
   title: string;
 }): JSX.Element => (
-  <CsrfForm action={action} id={id}>
+  <SubmitForm
+    action={action}
+    id={id}
+    submitIcon={submitIcon}
+    submitLabel={submitLabel}
+  >
     <h1>{title}</h1>
     <Raw html={fieldsHtml} />
     {children}
-    <SubmitButton icon={submitIcon}>{submitLabel}</SubmitButton>
-  </CsrfForm>
+  </SubmitForm>
 );

@@ -48,8 +48,8 @@ import {
   listingsTable,
 } from "#shared/db/listings.ts";
 import {
+  firstNameProblem,
   isNameTakenAnywhere,
-  normalizeEntityName,
 } from "#shared/db/name-registry.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import {
@@ -154,24 +154,19 @@ const handleReactivateGroupPost = groupTogglePost({
  * insert below bypasses the create-path validators, so the rule the form/API
  * enforce is re-checked here; otherwise a blank find/replace would clone names
  * verbatim and later make name-based catalog imports ambiguous. */
-const firstDuplicateNameError = async (
+const firstDuplicateNameError = (
   newGroupName: string,
   cloneInputs: readonly { input: ListingInput }[],
-): Promise<string | null> => {
-  const seen = new Set<string>();
-  const names = [newGroupName, ...cloneInputs.map(({ input }) => input.name)];
-  for (const name of names) {
-    const key = normalizeEntityName(name);
-    if (seen.has(key)) {
-      return `More than one duplicated listing or group would be named "${name}" — set a find/replace so each name is unique.`;
-    }
-    seen.add(key);
-    if (await isNameTakenAnywhere(name)) {
-      return `A listing or group named "${name}" already exists — choose a different group name, or a find/replace that makes each clone's name unique.`;
-    }
-  }
-  return null;
-};
+): Promise<string | null> =>
+  firstNameProblem(
+    [newGroupName, ...cloneInputs.map(({ input }) => input.name)],
+    (name) =>
+      `More than one duplicated listing or group would be named "${name}" — set a find/replace so each name is unique.`,
+    async (name) =>
+      (await isNameTakenAnywhere(name))
+        ? `A listing or group named "${name}" already exists — choose a different group name, or a find/replace that makes each clone's name unique.`
+        : null,
+  );
 
 /** POST /admin/groups/:id/bulk-actions/duplicate */
 const handleDuplicateGroupPost = groupFormPost(async (group, form) => {

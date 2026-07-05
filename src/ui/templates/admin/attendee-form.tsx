@@ -62,7 +62,7 @@ import {
   InactiveNote,
 } from "#templates/admin/attendee-detail.tsx";
 import { EditQuestions } from "#templates/admin/attendees.tsx";
-import { Icon } from "#templates/components/actions.tsx";
+import { Icon, ListingLink } from "#templates/components/actions.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import {
@@ -135,7 +135,7 @@ const ListingRow = ({
   return (
     <tr class={booked ? "attendee-line" : "attendee-line attendee-line-empty"}>
       <td>
-        <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
+        <ListingLink listing={listing} />
         <InactiveNote active={listing.active} />
         {BookingStatusBadges({
           checkedIn: Boolean(line.existingBooking?.checked_in),

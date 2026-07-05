@@ -56,7 +56,6 @@ import {
 } from "#shared/forms.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import {
@@ -70,6 +69,7 @@ import {
 import { Badge } from "#templates/components/badge.tsx";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import {
+  freeTextQuestion,
   questionFieldset,
   questionWrapper,
 } from "#templates/components/question-text.tsx";
@@ -252,16 +252,7 @@ const renderQuestion = (
   const answered = savedFormValue(`question_${q.id}`);
   const options = q.answers.filter((a) => a.active);
   if (q.display_type === "free_text") {
-    return questionWrapper(q, listingIds, (labelledBy) => (
-      <input
-        aria-labelledby={labelledBy}
-        maxlength={MAX_TEXTAREA_LENGTH}
-        name={`question_${q.id}`}
-        required={required}
-        type="text"
-        value={answered}
-      />
-    ));
+    return freeTextQuestion({ q, listingIds, required, value: answered });
   }
   if (q.display_type === "select") {
     return questionWrapper(q, listingIds, (labelledBy) => (
@@ -532,11 +523,12 @@ const restoredChildQty = (
   parentId: number,
   childId: number,
   max: number,
-): number => {
-  const saved = savedFormValue(childQuantityFieldName(parentId, childId));
-  if (saved === "") return 0;
-  return Math.max(0, Math.min(Number.parseInt(saved, 10) || 0, max));
-};
+): number =>
+  clampSavedQuantity(
+    savedFormValue(childQuantityFieldName(parentId, childId)),
+    max,
+    0,
+  );
 
 /** Adds the child date data the browser uses to disable impossible choices. */
 const childDateAttrs = (
@@ -558,6 +550,22 @@ const childDateAttrs = (
   return attrs.join("");
 };
 
+/** The child's own (non-required) pay-more price input, or empty when the child
+ * isn't a pay-more listing. Shared by the selectable and sole-child renderers,
+ * which both offer this same input for a pay-more child. */
+const childPayMoreInput = (
+  parentId: number,
+  listing: ListingWithCount,
+): string =>
+  listing.can_pay_more
+    ? renderPayMoreInput(
+        listing,
+        childPriceFieldName(parentId, listing.id),
+        undefined,
+        false,
+      )
+    : "";
+
 /** Render one child as a per-unit quantity row: a `child_qty_<parentId>_<childId>`
  * select over `0..childLimit`, plus — for a bookable pay-more child — its
  * non-required price input. A sold-out/closed/inactive child renders a disabled
@@ -576,15 +584,8 @@ const renderChildOption = (
   const { listing } = child;
   const bookable = childCanBeBooked(child);
   const selectName = childQuantityFieldName(parentId, listing.id);
-  const priceHtml =
-    listing.can_pay_more && bookable
-      ? renderPayMoreInput(
-          listing,
-          childPriceFieldName(parentId, listing.id),
-          undefined,
-          false,
-        )
-      : "";
+  // Only a bookable pay-more child offers the price input here.
+  const priceHtml = bookable ? childPayMoreInput(parentId, listing) : "";
   const label = bookable
     ? `${escapeHtml(listing.name)} ${childPriceLabel(
         listing,
@@ -634,14 +635,7 @@ const renderSoleChildOption = (
 ): string => {
   const parentId = parent.id;
   const { listing } = child;
-  const priceHtml = listing.can_pay_more
-    ? renderPayMoreInput(
-        listing,
-        childPriceFieldName(parentId, listing.id),
-        undefined,
-        false,
-      )
-    : "";
+  const priceHtml = childPayMoreInput(parentId, listing);
   const visible = !listing.hidden;
   const namePart = visible ? escapeHtml(listing.name) : "";
   const pricePart = visible ? childPriceLabel(listing, parent, showZero) : "";
@@ -756,6 +750,18 @@ const renderChildBlock = (
   );
 };
 
+/** The two figures both listing renderers open with: how many of this listing
+ * can still be bought, and the quantity field name for its booking node. A
+ * top-level booking node always carries a buyer-chosen quantity field. */
+const listingRowBasics = (
+  info: TicketListing,
+  node: BookingNode,
+  childCtx: ChildRenderCtx | undefined,
+): { maxPurchasable: number; fieldName: string } => ({
+  fieldName: nodeQuantityFieldName(node)!,
+  maxPurchasable: childLimitedMax(info, childCtx),
+});
+
 /** Render quantity selector for an listing row.
  *
  * An optional per-listing `prefill` pre-selects the quantity (clamped to the
@@ -768,9 +774,7 @@ const renderListingRow = (
   childCtx?: ChildRenderCtx,
 ): string => {
   const { listing, isSoldOut, isClosed } = info;
-  const maxPurchasable = childLimitedMax(info, childCtx);
-  // A top-level booking node always carries a buyer-chosen quantity field.
-  const fieldName = nodeQuantityFieldName(node)!;
+  const { maxPurchasable, fieldName } = listingRowBasics(info, node, childCtx);
   const imageHtml = renderListingImage(listing);
 
   if (isClosed) {
@@ -888,9 +892,7 @@ const renderSingleListingControls = (
   childCtx?: ChildRenderCtx,
 ): string => {
   const { listing } = info;
-  const maxPurchasable = childLimitedMax(info, childCtx);
-  // A top-level booking node always carries a buyer-chosen quantity field.
-  const fieldName = nodeQuantityFieldName(node)!;
+  const { maxPurchasable, fieldName } = listingRowBasics(info, node, childCtx);
   const prefilledQty = restoredQuantity(listing.id, prefill, maxPurchasable);
   const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
   const quantityHtml = hideQuantity
@@ -1123,6 +1125,16 @@ const PromoCodeField = (): JSX.Element => (
   </div>
 );
 
+/** The "number of days" selector inputs a page derives from its listings:
+ * whether any listing is customisable-days, the day-count options, and (on a
+ * single-listing page) a per-option pricer. Shared by {@link dayConfig}'s
+ * result and the {@link TicketPageForm} props so the shape can't drift. */
+type DayCountConfig = {
+  hasCustomisable: boolean;
+  dayCounts: number[];
+  dayCountPriceFor?: ((days: number) => number | null) | undefined;
+};
+
 /** Form body with fields, date selector, listing rows, questions, terms, and submit */
 const TicketPageForm = ({
   slugs,
@@ -1151,9 +1163,6 @@ const TicketPageForm = ({
   hasDaily: boolean;
   durationDays: number;
   dates: string[] | undefined;
-  hasCustomisable: boolean;
-  dayCounts: number[];
-  dayCountPriceFor?: ((days: number) => number | null) | undefined;
   listingRows: string;
   hideQuantity: boolean;
   isPackage: boolean;
@@ -1164,7 +1173,7 @@ const TicketPageForm = ({
   prefill?: BookingPrefill | undefined;
   addOns: AddOnOption[] | undefined;
   promoCodesEnabled: boolean | undefined;
-}): JSX.Element => {
+} & DayCountConfig): JSX.Element => {
   const fieldValues: Record<string, string> = {};
   if (prefill?.name) fieldValues.name = prefill.name;
   return (
@@ -1242,10 +1251,7 @@ const resolveDayCountPriceFor = (
   isPackage: boolean,
   tree: BookingTree,
   bookableChildren: ReadonlySet<number>,
-  dayCfg: {
-    hasCustomisable: boolean;
-    dayCountPriceFor?: ((days: number) => number | null) | undefined;
-  },
+  dayCfg: DayCountConfig,
 ): ((days: number) => number | null) | undefined =>
   isPackage && dayCfg.hasCustomisable
     ? packageDayCountPriceFor(tree, bookableChildren)
@@ -1262,12 +1268,7 @@ const dayConfig = (
   singleListing: ListingWithCount | null,
   childrenByParentId: Map<number, TicketListing[]> | undefined,
   isPackage: boolean,
-): {
-  hasCustomisable: boolean;
-  dayCounts: number[];
-  dayCountPriceFor?: ((days: number) => number | null) | undefined;
-  dateDurationDays: number;
-} => ({
+): DayCountConfig & { dateDurationDays: number } => ({
   dateDurationDays:
     singleListing && !singleListing.customisable_days
       ? singleListing.duration_days

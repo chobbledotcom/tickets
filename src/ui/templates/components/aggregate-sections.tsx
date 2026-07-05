@@ -1,8 +1,8 @@
-import { CsrfForm, type Field, renderFields } from "#shared/forms.tsx";
+import { type Field, renderFields, SubmitForm } from "#shared/forms.tsx";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { adminRecalculatePage } from "#templates/admin/recalculate.tsx";
-import { type IconName, SubmitButton } from "#templates/components/actions.tsx";
+import type { IconName } from "#templates/components/actions.tsx";
 
 type StackBaseProps = {
   children: Child;
@@ -129,10 +129,14 @@ export const CheckboxForm = ({
   submitIcon?: IconName;
   submitLabel: string;
 }): JSX.Element => (
-  <CsrfForm action={action} id={id}>
+  <SubmitForm
+    action={action}
+    id={id}
+    submitIcon={submitIcon}
+    submitLabel={submitLabel}
+  >
     <fieldset class="checkboxes">{children}</fieldset>
-    <SubmitButton icon={submitIcon}>{submitLabel}</SubmitButton>
-  </CsrfForm>
+  </SubmitForm>
 );
 
 export type RunningTotalsConfig = {

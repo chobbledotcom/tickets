@@ -185,6 +185,17 @@ export const writeListingDate = (v: string): Promise<string> =>
   encryptDatetime(v, "date");
 
 /**
+ * A projected image field (alt text / thumbnail URL / full URL) read back from
+ * the linked first-class image. An unlinked listing is projected as the
+ * encrypted-text empty-string convention (`''`), and a stray SELECT that forgot
+ * the projection reads `undefined`; both read back as `""`. Otherwise decrypt.
+ */
+const projectedImageText = () =>
+  col.projected<string>((v) =>
+    v === "" || v === undefined ? "" : decrypt(v as string),
+  );
+
+/**
  * Listings table definition
  * slug is encrypted; slug_index is HMAC for lookups
  * Write methods (insert, update, deleteById) auto-invalidate the listings cache.
@@ -224,15 +235,9 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   hidden: col.boolean(false),
   // Projected from the first linked first-class image; an unlinked listing is
   // projected as the encrypted-text empty string convention (`''`).
-  image_alt_text: col.projected<string>((v) =>
-    v === "" || v === undefined ? "" : decrypt(v as string),
-  ),
-  image_thumb_url: col.projected<string>((v) =>
-    v === "" || v === undefined ? "" : decrypt(v as string),
-  ),
-  image_url: col.projected<string>((v) =>
-    v === "" || v === undefined ? "" : decrypt(v as string),
-  ),
+  image_alt_text: projectedImageText(),
+  image_thumb_url: projectedImageText(),
+  image_url: projectedImageText(),
   initial_site_months: col.withDefault(() => 0),
   listing_type: col.withDefault<ListingType>(() => "standard"),
   location: col.encryptedText(encrypt, decrypt),
@@ -301,6 +306,16 @@ export const listingDayPricesSubquery = (idExpr: string): string =>
 
 const listingImageSubqueries = (idExpr: string): string =>
   imageFilenameSubqueries("listing", idExpr);
+
+/** Batch statement that loads one listing row by id with its money, day-price
+ * and image projections — the listing half of the batched listing+attendee(s)
+ * round-trips. */
+const listingByIdStatement = (id: number) => ({
+  args: [id],
+  sql: `SELECT listings.*, ${listingMoneySubqueries("listings.id")}, ${listingDayPricesSubquery(
+    "listings.id",
+  )}, ${listingImageSubqueries("listings.id")} FROM listings WHERE id = ?`,
+});
 
 /**
  * A transparent breakdown of a listing's `revenue:<id>` account, deriving BOTH
@@ -1015,12 +1030,7 @@ export const getListingWithAttendeesRaw = async (
   id: number,
 ): Promise<ListingWithAttendees | null> => {
   const [listingResult, attendeesResult] = await queryBatch([
-    {
-      args: [id],
-      sql: `SELECT listings.*, ${listingMoneySubqueries("listings.id")}, ${listingDayPricesSubquery(
-        "listings.id",
-      )}, ${listingImageSubqueries("listings.id")} FROM listings WHERE id = ?`,
-    },
+    listingByIdStatement(id),
     {
       args: [id],
       sql: `SELECT ${ATTENDEE_JOIN_SELECT}
@@ -1160,12 +1170,7 @@ export const getListingWithAttendeeRaw = async (
   attendeeId: number,
 ): Promise<ListingWithAttendeeRaw | null> => {
   const [listingResult, attendeeResult] = await queryBatch([
-    {
-      args: [listingId],
-      sql: `SELECT listings.*, ${listingMoneySubqueries("listings.id")}, ${listingDayPricesSubquery(
-        "listings.id",
-      )}, ${listingImageSubqueries("listings.id")} FROM listings WHERE id = ?`,
-    },
+    listingByIdStatement(listingId),
     {
       args: [attendeeId],
       sql: `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}

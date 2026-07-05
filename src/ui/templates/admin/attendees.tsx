@@ -10,7 +10,6 @@ import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   bookingConflictLabel,
   bookingKey,
@@ -28,6 +27,7 @@ import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import {
+  freeTextQuestion,
   questionFieldset,
   questionWrapper,
 } from "#templates/components/question-text.tsx";
@@ -54,6 +54,34 @@ const mergeRadioCell = ({
       {children}
     </RadioOption>
   </td>
+);
+
+/** A stack of radio choices that all post to the same field name, each shown as
+ *  `<space> {label}` and separated by line breaks. The booking-decision cell (keep
+ *  / replace / skip) and its discarded-payment cell (credit / write-off) both
+ *  render one, so the near-identical per-radio markup lives here once. */
+const RadioStack = ({
+  name,
+  options,
+}: {
+  name: string;
+  options: { value: string; label: string; checked?: boolean }[];
+}): JSX.Element => (
+  <>
+    {options.map((option, index) => (
+      <>
+        {index > 0 && <br />}
+        <RadioOption
+          checked={option.checked ?? false}
+          name={name}
+          value={option.value}
+        >
+          {" "}
+          {option.label}
+        </RadioOption>
+      </>
+    ))}
+  </>
 );
 
 /** A merge-decision table: an optional heading + a scroll-wrapped table whose
@@ -373,15 +401,7 @@ export const EditQuestions = ({
   <>
     {questions.map((q) =>
       q.display_type === "free_text"
-        ? questionWrapper(q, undefined, (labelledBy) => (
-            <input
-              aria-labelledby={labelledBy}
-              maxlength={MAX_TEXTAREA_LENGTH}
-              name={`question_${q.id}`}
-              type="text"
-              value={selectedTextAnswers.get(q.id) ?? ""}
-            />
-          ))
+        ? freeTextQuestion({ q, value: selectedTextAnswers.get(q.id) ?? "" })
         : q.display_type === "select"
           ? questionWrapper(q, undefined, (labelledBy) => (
               <select aria-labelledby={labelledBy} name={`question_${q.id}`}>
@@ -644,20 +664,14 @@ const MergeBookingsDecisionTable = ({
                 ` (target qty: ${targetQty}, source qty: ${sourceQty})`}
             </td>
             <td>
-              <RadioOption checked name={name} value="keep_target">
-                {" "}
-                Keep target
-              </RadioOption>
-              <br />
-              <RadioOption checked={false} name={name} value="take_source">
-                {" "}
-                Replace with source
-              </RadioOption>
-              <br />
-              <RadioOption checked={false} name={name} value="skip_source">
-                {" "}
-                Skip source
-              </RadioOption>
+              <RadioStack
+                name={name}
+                options={[
+                  { checked: true, label: "Keep target", value: "keep_target" },
+                  { label: "Replace with source", value: "take_source" },
+                  { label: "Skip source", value: "skip_source" },
+                ]}
+              />
               {moneyAtStake > 0 && (
                 <div class="merge-money-decision">
                   <p class="muted">
@@ -668,23 +682,16 @@ const MergeBookingsDecisionTable = ({
                     {formatCurrency(item.targetSaleAmount)}) — this can't be
                     undone, so choose explicitly:
                   </p>
-                  <RadioOption
-                    checked={false}
+                  <RadioStack
                     name={`money_${key}`}
-                    value="credit"
-                  >
-                    {" "}
-                    Keep as the person's credit
-                  </RadioOption>
-                  <br />
-                  <RadioOption
-                    checked={false}
-                    name={`money_${key}`}
-                    value="writeoff"
-                  >
-                    {" "}
-                    Write it off
-                  </RadioOption>
+                    options={[
+                      {
+                        label: "Keep as the person's credit",
+                        value: "credit",
+                      },
+                      { label: "Write it off", value: "writeoff" },
+                    ]}
+                  />
                 </div>
               )}
             </td>

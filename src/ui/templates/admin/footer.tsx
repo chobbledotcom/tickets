@@ -45,6 +45,18 @@ export const markAdminFooter = (adminLevel: AdminLevel): void => {
   _adminFooterStore.adminLevel = adminLevel;
 };
 
+/** The bare header an agent-class user sees: just a page title, no staff nav
+ *  (an agent may only reach the run sheet / logout). Flags the render as an
+ *  admin page so the footer's agent logout button shows. Pass the page title. */
+export const AgentHeader = ({ title }: { title: string }): JSX.Element => {
+  markAdminFooter("agent");
+  return (
+    <header class="agent-header">
+      <h1>{title}</h1>
+    </header>
+  );
+};
+
 /** Total query work: the sum of every query's duration, counting concurrent
  * and batched queries in full. Pairs with the wall-clock figure to expose how
  * much of that work overlapped (the parallel factor). */

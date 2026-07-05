@@ -98,7 +98,10 @@ export interface CatalogPackage {
   name: string;
 }
 
-export interface Catalog {
+/** The site-wide facts every served catalog carries, independent of which
+ * listings/packages it lists — shared by the {@link Catalog} shape and the
+ * {@link buildCatalog} params so the two can't drift. */
+export interface CatalogMeta {
   origin: string;
   currency: string;
   decimalPlaces: number;
@@ -107,6 +110,9 @@ export interface Catalog {
    * integrator can see add-to-cart enhancement, cart state, and navigation as
    * it happens. Toggled per request with `?debug=true` on `/order.js`. */
   debug: boolean;
+}
+
+export interface Catalog extends CatalogMeta {
   listings: Record<string, CatalogListing>;
   /** Bookable package groups keyed by group slug. A `data-add-listing` link to
    * one of these navigates straight to `/ticket/<slug>` instead of adding a cart
@@ -145,18 +151,15 @@ const buildCatalogEntry = (listing: CatalogSourceListing): CatalogListing => ({
  * enumerable; inactive listings 404 by direct URL today, so embedding their
  * slug/name would leak otherwise-private names. A `data-add-listing` to a
  * listing outside this set is simply not enhanced and keeps its plain `href`. */
-export const buildCatalog = (params: {
-  origin: string;
-  currency: string;
-  decimalPlaces: number;
-  generatedAt: string;
-  debug: boolean;
-  listings: CatalogSourceListing[];
-  /** Bookable package groups (slug + decrypted name). The caller has already
-   * gated these to whole-bundle-bookable, non-hidden packages — the same set
-   * `/listings` and `/order` advertise. */
-  packages?: CatalogPackage[];
-}): Catalog => ({
+export const buildCatalog = (
+  params: CatalogMeta & {
+    listings: CatalogSourceListing[];
+    /** Bookable package groups (slug + decrypted name). The caller has already
+     * gated these to whole-bundle-bookable, non-hidden packages — the same set
+     * `/listings` and `/order` advertise. */
+    packages?: CatalogPackage[];
+  },
+): Catalog => ({
   currency: params.currency,
   debug: params.debug,
   decimalPlaces: params.decimalPlaces,

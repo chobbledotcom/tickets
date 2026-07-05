@@ -8,7 +8,7 @@
 
 import { parseBunnyError } from "#shared/bunny-cdn.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
-import { type ApiResult, fetchText } from "#shared/fetch.ts";
+import { fetchText, jsonHeaders } from "#shared/fetch.ts";
 import type { DatabaseProviderApi } from "#shared/provider-types.ts";
 
 const DB_API_BASE = "https://api.bunny.net/database";
@@ -54,25 +54,17 @@ interface GenerateTokenResponse {
   token: string;
 }
 
-export interface CreateDatabaseResult {
-  dbId: string;
-  dbUrl: string;
-  dbToken: string;
-}
-
 /** Headers for all Bunny Database API requests. */
-const dbApiHeaders = (): Record<string, string> => ({
-  AccessKey: getBunnyApiKey(),
-  "Content-Type": "application/json",
-});
+const dbApiHeaders = (): Record<string, string> =>
+  jsonHeaders({ AccessKey: getBunnyApiKey() });
 
 /**
  * Create a new Bunny database with the given name.
  * Returns the database URL and a full-access token.
  */
-const createDatabaseImpl = async (
-  name: string,
-): Promise<ApiResult<CreateDatabaseResult>> => {
+const createDatabaseImpl: DatabaseProviderApi["createDatabase"] = async (
+  name,
+) => {
   // 1. Create the database with all European nodes as primaries and replicas
   const createRes = await fetchText(`${DB_API_BASE}/v2/databases`, {
     body: JSON.stringify({

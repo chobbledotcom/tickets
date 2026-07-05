@@ -14,7 +14,7 @@
 
 import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { Raw, SafeHtml } from "#shared/jsx/jsx-runtime.ts";
 import {
   type ColumnKind,
   colClass,
@@ -114,6 +114,30 @@ export const DataTable = ({
     </div>
   );
 };
+
+/**
+ * A heading above a data table, shown only when there are rows to list. When
+ * `rows` is empty it renders nothing, so a caller can drop in an optional
+ * section without writing the "only when there's something to show" guard and
+ * the surrounding fragment itself.
+ */
+export const TableSection = ({
+  heading,
+  columns,
+  rows,
+}: {
+  heading: Child;
+  columns: Column[];
+  rows: Child[][];
+}): JSX.Element =>
+  rows.length > 0 ? (
+    <>
+      <h2>{heading}</h2>
+      <DataTable columns={columns} rows={rows} />
+    </>
+  ) : (
+    new SafeHtml("")
+  );
 
 /**
  * A typed table column: its header, optional column-kind class, and a cell

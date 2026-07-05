@@ -6,7 +6,6 @@
  * export mirrors the on-screen attendee table.
  */
 
-import { compact, filter, map, pipe, sort, unique } from "#fp";
 import { getDateFilter } from "#routes/admin/actions.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { formatDateLabel } from "#shared/dates.ts";
@@ -21,23 +20,21 @@ import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import type { GroupContext } from "#templates/admin/listings/types.ts";
 
-/** Filter attendees by date for daily listings */
-const filterByDate = (
+/** Keep only the attendees booked on `date`; the whole set when no date is
+ * chosen. Shared with the listing entity page's roster tab. */
+export const attendeesOnDate = (
   attendees: Attendee[],
   date: string | null,
-): Attendee[] =>
-  date ? filter((a: Attendee) => a.date === date)(attendees) : attendees;
+): Attendee[] => (date ? attendees.filter((a) => a.date === date) : attendees);
 
-/** Collect unique dates from attendees, sorted ascending */
-const getUniqueDates: (
+/** The distinct booking dates across these attendees, ascending, as the
+ * roster's date-picker options. Shared with the listing entity page. */
+export const attendeeDateOptions = (
   attendees: Attendee[],
-) => { value: string; label: string }[] = pipe(
-  map((a: Attendee) => a.date),
-  (dates) => compact(dates),
-  (dates) => unique(dates),
-  sort((a, b) => a.localeCompare(b)),
-  map((d) => ({ label: formatDateLabel(d), value: d })),
-);
+): { value: string; label: string }[] =>
+  [...new Set(attendees.map((a) => a.date).filter((d): d is string => !!d))]
+    .sort((a, b) => a.localeCompare(b))
+    .map((value) => ({ label: formatDateLabel(value), value }));
 
 /** Get date filter and filtered attendees for daily listings */
 const applyDateFilter = (
@@ -48,11 +45,11 @@ const applyDateFilter = (
   const dateFilter =
     listing.listing_type === "daily" ? getDateFilter(request) : null;
   const availableDates =
-    listing.listing_type === "daily" ? getUniqueDates(attendees) : [];
+    listing.listing_type === "daily" ? attendeeDateOptions(attendees) : [];
   return {
     availableDates,
     dateFilter,
-    filteredByDate: filterByDate(attendees, dateFilter),
+    filteredByDate: attendeesOnDate(attendees, dateFilter),
   };
 };
 

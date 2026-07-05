@@ -105,6 +105,24 @@ export const SaveButton = (): SafeHtml => (
   <SubmitButton icon="save">{t("common.save")}</SubmitButton>
 );
 
+/** A link to a listing's admin page, with the listing's name as the link text.
+ *  Used wherever a listing is named-and-linked (the attendee editor rows, the
+ *  QR page heading, …) so the `/admin/listing/{id}` href lives in one place. */
+export const ListingLink = ({
+  listing,
+}: {
+  listing: { id: number; name: string };
+}): SafeHtml => <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>;
+
+/** A link to an external URL that opens in a new tab, using the URL itself as
+ *  the visible label. Keeps the `rel="noopener" target="_blank"` pair in one
+ *  place for the built-site tables that show a site's own address. */
+export const ExternalUrlLink = ({ url }: { url: string }): SafeHtml => (
+  <a href={url} rel="noopener" target="_blank">
+    {url}
+  </a>
+);
+
 /**
  * The "Delete" affordance shown at the bottom of an entity's edit page. Renders
  * a heading plus a secondary, button-styled link to the delete-confirmation

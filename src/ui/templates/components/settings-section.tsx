@@ -11,6 +11,7 @@
  * secondary action in a `<footer>`) keep using {@link CsrfForm} directly.
  */
 
+import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
@@ -58,4 +59,39 @@ export const SettingsSection = ({
     {children}
     <SubmitButton icon="save">{submitLabel}</SubmitButton>
   </CsrfForm>
+);
+
+/**
+ * Shared facts of a config-driven settings section: the section's POST target,
+ * heading, intro copy, and an optional save-button label (defaults to "Save").
+ */
+export type SettingsSectionConfig = {
+  action: string;
+  title: string;
+  description: Child;
+  submitLabel?: string;
+};
+
+/**
+ * Render a {@link SettingsSection} from a {@link SettingsSectionConfig}, wrapping
+ * the caller's own fields as children. The boolean-toggle and wallet settings
+ * forms both lift their shared action/title/description/label shell through
+ * this, so the `<SettingsSection>` opening lives in one place instead of being
+ * re-typed at each config-driven form.
+ */
+export const ConfiguredSettingsSection = ({
+  config,
+  children,
+}: {
+  config: SettingsSectionConfig;
+  children: Child;
+}): JSX.Element => (
+  <SettingsSection
+    action={config.action}
+    description={config.description}
+    submitLabel={config.submitLabel ?? t("common.save")}
+    title={config.title}
+  >
+    {children}
+  </SettingsSection>
 );

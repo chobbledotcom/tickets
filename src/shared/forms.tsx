@@ -16,7 +16,10 @@ import { appendIframeParam } from "#shared/iframe.ts";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { createRequestScoped } from "#shared/request-scoped.ts";
-import { Icon } from "#templates/components/actions.tsx";
+import {
+  type IconName,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 
 export type FieldType =
   | "text"
@@ -653,6 +656,37 @@ export const CsrfForm = ({
 );
 
 /**
+ * A CSRF-protected form whose body is followed by a single submit button — the
+ * shared shell behind the admin new-resource, checkbox, reset, and confirm
+ * forms. Each caller passes its own body as `children`; the submit button's
+ * icon, label, and optional style modifier (`submitClass`, e.g. "danger") are
+ * props, so the wrapping `<form>` and button live in one place instead of being
+ * re-typed at every form.
+ */
+export const SubmitForm = ({
+  action,
+  id,
+  submitClass,
+  submitIcon = "save",
+  submitLabel,
+  children,
+}: {
+  action: string;
+  id?: string;
+  submitClass?: string;
+  submitIcon?: IconName;
+  submitLabel: Child;
+  children?: Child;
+}): JSX.Element => (
+  <CsrfForm action={action} id={id}>
+    {children}
+    <SubmitButton class={submitClass} icon={submitIcon}>
+      {submitLabel}
+    </SubmitButton>
+  </CsrfForm>
+);
+
+/**
  * The message textarea and submit button shared by the public contact form and
  * the admin support form. Each form supplies its own surrounding <form> and
  * heading; the contact form adds its own email input above this. Any `children`
@@ -731,7 +765,13 @@ export const ConfirmForm = ({
   confirmName?: boolean;
   children?: Child;
 }): JSX.Element => (
-  <CsrfForm action={action} id={id}>
+  <SubmitForm
+    action={action}
+    id={id}
+    submitClass={danger ? "danger" : undefined}
+    submitIcon={danger ? "trash-2" : "check"}
+    submitLabel={buttonText}
+  >
     {children && <div class="prose">{children}</div>}
     {returnUrl && <input name="return_url" type="hidden" value={returnUrl} />}
     {hiddenFields && hiddenInputs(Object.entries(hiddenFields))}
@@ -747,9 +787,5 @@ export const ConfirmForm = ({
         />
       </label>
     )}
-    <button class={danger ? "danger" : undefined} type="submit">
-      <Icon name={danger ? "trash-2" : "check"} />
-      <span>{buttonText}</span>
-    </button>
-  </CsrfForm>
+  </SubmitForm>
 );

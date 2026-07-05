@@ -2,6 +2,7 @@ import {
   type BookingNode,
   type BookingTree,
   nodeFixedQuantity,
+  nodesDeepestFirst,
   type PriceRule,
 } from "#shared/booking/tree.ts";
 import { type DayPricedListing, dayPriceFor } from "#shared/types.ts";
@@ -129,13 +130,11 @@ export const packageBundleTotal = (
 export const priceRuleByListingId = (
   tree: BookingTree,
 ): Map<number, PriceRule> => {
+  // Walk deepest first so a top-level node's rule is written after a same-id
+  // descendant's and overwrites it — top-level wins.
   const map = new Map<number, PriceRule>();
-  // Set deeper (child) rules first, then shallower (top-level) rules, so a
-  // top-level node overwrites a same-id descendant — top-level wins.
-  const visit = (nodes: readonly BookingNode[]): void => {
-    for (const node of nodes) visit(node.children);
-    for (const node of nodes) map.set(node.listingId, node.priceRule);
-  };
-  visit(tree.nodes);
+  for (const node of nodesDeepestFirst(tree.nodes)) {
+    map.set(node.listingId, node.priceRule);
+  }
   return map;
 };

@@ -166,6 +166,24 @@ export const PACKAGE_QUANTITY_FIELD = "package_quantity";
 export const nodeFixedQuantity = (node: BookingNode): number =>
   node.quantityRule.kind === "FIXED" ? node.quantityRule.qty : 1;
 
+/** Every node in the tree, each one listed after all of its own descendants
+ * (deepest first). Building a map by walking this order means a shallower node
+ * is written last, so it wins over a same-keyed descendant — which is exactly
+ * how "a top-level node beats a child with the same listing id" falls out. */
+export const nodesDeepestFirst = (
+  nodes: readonly BookingNode[],
+): BookingNode[] => {
+  const flat: BookingNode[] = [];
+  const collect = (group: readonly BookingNode[]): void => {
+    for (const node of group) {
+      collect(node.children);
+      flat.push(node);
+    }
+  };
+  collect(nodes);
+  return flat;
+};
+
 /** Each top-level node's fixed per-package quantity keyed by listing id — the
  * tree-derived member quantity map, so consumers holding a tree never re-read
  * (and non-null-assert) the ctx's parallel packageQuantities. */
@@ -173,6 +191,20 @@ export const fixedQuantitiesByListingId = (
   tree: BookingTree,
 ): Map<number, number> =>
   new Map(tree.nodes.map((node) => [node.listingId, nodeFixedQuantity(node)]));
+
+/** Each member's booked quantity for a whole-package order of `packageCount`
+ * bundles: its fixed per-package quantity multiplied by the bundle count. Shared
+ * by the web and API package-booking paths so both scale the members the same. */
+export const scaleFixedQuantities = (
+  tree: BookingTree,
+  packageCount: number,
+): Map<number, number> =>
+  new Map(
+    [...fixedQuantitiesByListingId(tree)].map(([listingId, fixed]) => [
+      listingId,
+      fixed * packageCount,
+    ]),
+  );
 
 /** The quantity form field a node's control posts, or `null` when the node has
  * no buyer-chosen quantity of its own (a package member — its quantity is the

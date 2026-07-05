@@ -6,14 +6,13 @@
  * Auth: Authorization: Bearer {TURSO_API_TOKEN}
  */
 
-import type { CreateDatabaseResult } from "#shared/bunny-db.ts";
 import {
   getTursoApiToken,
   getTursoGroup,
   getTursoOrganization,
   slugifyForProvider,
 } from "#shared/config.ts";
-import { type ApiResult, fetchText, parseApiError } from "#shared/fetch.ts";
+import { fetchText, jsonHeaders, parseApiError } from "#shared/fetch.ts";
 import type { DatabaseProviderApi } from "#shared/provider-types.ts";
 
 const TURSO_API_BASE = "https://api.turso.tech";
@@ -40,18 +39,16 @@ interface CreateTursoTokenResponse {
 }
 
 /** Headers for all Turso API requests. */
-const tursoApiHeaders = (): Record<string, string> => ({
-  Authorization: `Bearer ${getTursoApiToken()}`,
-  "Content-Type": "application/json",
-});
+const tursoApiHeaders = (): Record<string, string> =>
+  jsonHeaders({ Authorization: `Bearer ${getTursoApiToken()}` });
 
 /**
  * Create a new Turso database with the given name.
  * Returns the database URL and a full-access JWT token.
  */
-const createDatabaseImpl = async (
-  name: string,
-): Promise<ApiResult<CreateDatabaseResult>> => {
+const createDatabaseImpl: DatabaseProviderApi["createDatabase"] = async (
+  name,
+) => {
   const org = getTursoOrganization();
   const group = getTursoGroup();
   const dbSlug = slugifyForTurso(name);
