@@ -33,7 +33,9 @@ import {
 import {
   CheckboxForm,
   CheckboxLabel,
+  entityCheckboxes,
 } from "#templates/components/aggregate-sections.tsx";
+import { ScrollTable } from "#templates/components/data-table.tsx";
 import {
   ReorderArrows,
   type ReorderProps,
@@ -73,17 +75,16 @@ const ReorderTable = ({
   columns: Child;
   children: Child;
 }): JSX.Element => (
-  <div class="table-scroll">
-    <table>
-      <thead>
-        <tr>
-          <th class={colClass("reorder")}>{t("questions.order_column")}</th>
-          {columns}
-        </tr>
-      </thead>
-      <tbody>{children}</tbody>
-    </table>
-  </div>
+  <ScrollTable
+    head={
+      <>
+        <th class={colClass("reorder")}>{t("questions.order_column")}</th>
+        {columns}
+      </>
+    }
+  >
+    {children}
+  </ScrollTable>
 );
 
 /** Listings cell for a question row: a count whose title attribute spells out
@@ -287,14 +288,11 @@ export const adminQuestionPage = (
             label=" Assign to all listings"
             name="assign_all"
           />
-          {map((e: ListingWithCount) => (
-            <CheckboxLabel
-              checked={assignedListingIds.has(e.id) || undefined}
-              label={` ${e.name}`}
-              name="listing_ids"
-              value={String(e.id)}
-            />
-          ))(allListings)}
+          {entityCheckboxes({
+            entities: allListings,
+            fieldName: "listing_ids",
+            selected: assignedListingIds,
+          })}
         </CheckboxForm>
       )}
 

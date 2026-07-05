@@ -225,6 +225,37 @@ export type ChildCapacityInfo = {
   membership: ReadonlyMap<number, number[]>;
 };
 
+/** Bundle the child-capacity facts a bookability check reads: each child's own
+ * remaining and group memberships, plus the shared group's remaining and static
+ * cap. Shared by the discovery classifier and the booking-page render context. */
+export const toChildCapacityInfo = (
+  sharedCaps: {
+    remaining: ReadonlyMap<number, number>;
+    staticCap: ReadonlyMap<number, number>;
+  },
+  childOwnRemaining: ReadonlyMap<number, number>,
+  membership: ReadonlyMap<number, number[]>,
+): ChildCapacityInfo => ({
+  childOwnRemaining,
+  membership,
+  remainingByGroupId: sharedCaps.remaining,
+  staticCapByGroupId: sharedCaps.staticCap,
+});
+
+/** The child ids whose parent list passes the given test — walks each child's
+ * parents once and keeps the child when the test says yes. Shared wherever a set
+ * of child ids is collected from a `parentsByChild` map. */
+export const childIdsWhereParents = <Parent>(
+  parentsByChild: ReadonlyMap<number, Parent[]>,
+  keep: (childId: number, parents: Parent[]) => boolean,
+): Set<number> => {
+  const kept = new Set<number>();
+  for (const [childId, parents] of parentsByChild) {
+    if (keep(childId, parents)) kept.add(childId);
+  }
+  return kept;
+};
+
 /** Checks whether this parent can offer this child on public listing surfaces. */
 const childCanBeBookedForParent = (
   parent: ListingWithCount,
@@ -308,12 +339,7 @@ export const classifyForDiscovery = async (
   // Per-GROUP shared facts (the group a parent+child SHARE) plus each
   // child's OWN per-listing remaining (its sold-out state). `membership` covers
   // parents and children alike, so it stands in for `childCaps.membership`.
-  const caps: ChildCapacityInfo = {
-    childOwnRemaining,
-    membership,
-    remainingByGroupId: childCaps.remaining,
-    staticCapByGroupId: childCaps.staticCap,
-  };
+  const caps = toChildCapacityInfo(childCaps, childOwnRemaining, membership);
   // A child is an add-on only when at least one parent is itself bookable AND can
   // offer THIS child given the *combined* parent+child group demand. Using only
   // `parentBookable` (the parent's own row) would mark a child
@@ -321,21 +347,19 @@ export const classifyForDiscovery = async (
   // reads the parent sold out, leaving the note a dead end (e.g. a child whose only
   // parent shares a 1-spot capped group with it: one parent+child order needs two
   // spots). Reuse the same combined-demand check both surfaces use.
-  const addOnChildIds = new Set<number>();
-  for (const [childId, parents] of parentsByChild) {
+  const addOnChildIds = childIdsWhereParents(parentsByChild, (childId, parents) => {
     // A `bookable_alone` child gets its own Book CTA rather than the add-on note,
     // so it never enters this set — otherwise `childCardState` would short-circuit
     // to "addon" before it could read as a normal standalone card.
-    if (!nonStandaloneChildIds.has(childId)) continue;
+    if (!nonStandaloneChildIds.has(childId)) return false;
     // childId comes from the displayed `ids`, so it is always present in `byId`.
     const child = byId.get(childId)!;
-    const offerable = parents.some(
+    return parents.some(
       (p) =>
         parentBookable(p, parentGroupRemaining.get(p.id)) &&
         childCanBeBookedForParent(p, child, caps, holidays),
     );
-    if (offerable) addOnChildIds.add(childId);
-  }
+  });
   const soldOutParentIds = new Set<number>();
   for (const [parentId, children] of childrenByParent) {
     const parent = byId.get(parentId);
@@ -435,6 +459,13 @@ export const loadPublicGroups = async (): Promise<Group[]> => {
   )(groups);
   return groups.filter((_, i) => bookable[i]);
 };
+
+/** The bookable PACKAGE bundles among the public groups — first-class products
+ * listed by name/slug (booked whole at `/ticket/<group-slug>`), so a hidden
+ * package stays discoverable even when its member listings are dropped. Shared by
+ * the JSON API listing and the syndication feeds. */
+export const bookablePackageGroups = async (): Promise<Group[]> =>
+  (await loadPublicGroups()).filter((g) => g.is_package);
 
 /** Force a {@link TicketListing} into the sold-out state (no Book CTA, no
  * purchasable quantity) — projecting a parent with no bookable child onto the

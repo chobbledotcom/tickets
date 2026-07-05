@@ -3,7 +3,6 @@ import { type BuiltSite, DEFAULT_UPDATE_TIER } from "#shared/db/built-sites.ts";
 import {
   booleanToCheckbox,
   CsrfForm,
-  Flash,
   renderFields,
 } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -28,6 +27,7 @@ import {
   ActionButton,
   SaveChangesButton,
 } from "#templates/components/actions.tsx";
+import { FlashFields } from "#templates/components/flash-fields.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { getBuiltSiteFields } from "#templates/fields.ts";
 
@@ -104,12 +104,11 @@ export const adminBuiltSiteEditPage = (
     >
       <CsrfForm action={`/admin/built-sites/${site.id}/edit`}>
         <h1>{t("built_sites.edit_site_title")}</h1>
-        <Flash error={error} success={success} />
-        <Raw
-          html={renderFields(
-            getBuiltSiteFields(),
-            builtSiteToFieldValues(site),
-          )}
+        <FlashFields
+          error={error}
+          fields={getBuiltSiteFields()}
+          success={success}
+          values={builtSiteToFieldValues(site)}
         />
         {SaveChangesButton()}
       </CsrfForm>

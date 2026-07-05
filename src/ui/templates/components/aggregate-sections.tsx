@@ -136,11 +136,8 @@ export const CheckboxesFieldset = <T extends { id: number; name: string }>({
   );
 
 export const CheckboxForm = ({
-  action,
   children,
-  id,
-  submitIcon = "save",
-  submitLabel,
+  ...rest
 }: {
   action: string;
   children: Child;
@@ -148,12 +145,7 @@ export const CheckboxForm = ({
   submitIcon?: IconName;
   submitLabel: string;
 }): JSX.Element => (
-  <SubmitForm
-    action={action}
-    id={id}
-    submitIcon={submitIcon}
-    submitLabel={submitLabel}
-  >
+  <SubmitForm {...rest}>
     <fieldset class="checkboxes">{children}</fieldset>
   </SubmitForm>
 );

@@ -632,6 +632,22 @@ const resolveBookingDate = async (
   return submittedDate;
 };
 
+/** Read the booking `quantity` from a JSON body and clamp it to `cap`. A missing
+ * or malformed value keeps the lenient default of 1; an explicit 0 — the
+ * admin-only no-quantity sentinel, never created through the public API — is
+ * rejected with a 400 (parseNonNegativeInt accepts 0, where parsePositiveInt
+ * would mask it as null). Shared by the standalone, parent, and package paths. */
+const clampBookingQuantity = (
+  body: Record<string, unknown>,
+  cap: number,
+): number | Response => {
+  const parsedQuantity = parseNonNegativeInt(String(body.quantity ?? "1"));
+  if (parsedQuantity === 0) {
+    return apiResponse({ error: "Quantity must be at least 1" }, 400);
+  }
+  return Math.min(parsedQuantity ?? 1, cap);
+};
+
 /** Resolve a booking's quantity (clamped to the listing's per-order max) and its
  * date (validated for daily listings), or a 400 response for an invalid date.
  * Shared by the standalone and parent booking paths. */
@@ -639,17 +655,8 @@ const resolveQuantityAndDate = async (
   listing: ListingWithCount,
   body: Record<string, unknown>,
 ): Promise<{ quantity: number; date: string | null } | Response> => {
-  // A submitted quantity of exactly 0 must NOT become a one-ticket booking — a
-  // quantity-0 line is the admin-only no-quantity sentinel and is never created
-  // through the public API. Malformed/absent values keep the lenient default of 1;
-  // only an explicit 0 is rejected (parseNonNegativeInt accepts 0, where
-  // parsePositiveInt would mask it as null). Resolving it here applies the guard
-  // to both the standalone and parent/child booking paths.
-  const parsedQuantity = parseNonNegativeInt(String(body.quantity ?? "1"));
-  if (parsedQuantity === 0) {
-    return apiResponse({ error: "Quantity must be at least 1" }, 400);
-  }
-  const quantity = Math.min(parsedQuantity ?? 1, listing.max_quantity);
+  const quantity = clampBookingQuantity(body, listing.max_quantity);
+  if (quantity instanceof Response) return quantity;
   const date = await resolveBookingDate(listing, body);
   return date instanceof Response ? date : { date, quantity };
 };
@@ -751,6 +758,31 @@ const applyChildSelectionsToForm = (
   return null;
 };
 
+/** A children-fold that succeeded — the resolved listings, quantities, prices and
+ * allocations a folded parent/package order is built from. */
+type OkFold = Extract<FoldChildrenResult, { ok: true }>;
+
+/** Where a completed folded order should route and how it's tagged: the single
+ * parent's thank-you URL (carried only once a child folds in), the package group
+ * id to stamp on every row, and the privacy that conceals a hidden package's
+ * member names. */
+type FoldedBookingOpts = {
+  parentThankYouUrl?: string;
+  packageGroupId?: number;
+  privacy?: PackagePrivacy;
+};
+
+/** The registration line items a folded order books, in one place so the paid,
+ * free, and paid-ness-check paths all price the same fold identically. */
+const registrationItemsFromFold = (fold: OkFold): CheckoutItem[] =>
+  buildRegistrationItems(
+    fold.listings,
+    fold.quantities,
+    fold.customPrices,
+    fold.priceRuleByListingId,
+    fold.dayCount,
+  );
+
 /** The price (minor units) of a folded multi-item order. */
 const foldedOrderTotal = (items: CheckoutItem[]): number =>
   sumOf((item: CheckoutItem) => item.unitPrice * item.quantity)(items);
@@ -762,9 +794,9 @@ const foldedOrderTotal = (items: CheckoutItem[]): number =>
 const foldedIntent = (
   contact: ContactInfo,
   date: string | null,
-  fold: Extract<FoldChildrenResult, { ok: true }>,
+  fold: OkFold,
   items: CheckoutItem[],
-  opts: { parentThankYouUrl?: string; packageGroupId?: number },
+  opts: FoldedBookingOpts,
 ): CheckoutIntent => ({
   ...contact,
   // Carry the per-(child,parent) allocations so the paid session signs them and
@@ -805,21 +837,11 @@ const completeFoldedBooking = async (
   request: Request,
   contact: ContactInfo,
   date: string | null,
-  fold: Extract<FoldChildrenResult, { ok: true }>,
-  opts: {
-    parentThankYouUrl?: string;
-    packageGroupId?: number;
-    privacy?: PackagePrivacy;
-  },
+  fold: OkFold,
+  opts: FoldedBookingOpts,
 ): Promise<Response> => {
   const items = concealMemberNames(
-    buildRegistrationItems(
-      fold.listings,
-      fold.quantities,
-      fold.customPrices,
-      fold.priceRuleByListingId,
-      fold.dayCount,
-    ),
+    registrationItemsFromFold(fold),
     opts.privacy ?? packagePrivacy(false, ""),
   );
   const total = foldedOrderTotal(items);
@@ -888,6 +910,53 @@ const completeFoldedBooking = async (
   });
 };
 
+/** Validate the submitted contact fields against the required `fields`, returning
+ * a 400 API response on the first failure or the parsed values on success. The one
+ * place the API turns a field-validation error into a JSON 400. */
+const validateFields = (form: FormParams, fields: string, paid: boolean) =>
+  tryValidateTicketFields(
+    form,
+    fields,
+    (msg) => apiResponse({ error: msg }, 400),
+    paid,
+  );
+
+/** Finish a folded parent/package order: reject a failed fold with a 400, validate
+ * the MERGED parent+child contact fields against the folded paid-ness (`isPaid`
+ * reads it from the succeeded fold — a free parent with a paid child still needs
+ * Square's email), then charge or create the order. Shared tail of the parent and
+ * package booking paths so they validate-and-complete a fold identically. */
+const validateAndCompleteFold = async (
+  request: Request,
+  form: FormParams,
+  date: string | null,
+  fold: FoldChildrenResult,
+  isPaid: (fold: OkFold) => boolean,
+  opts: FoldedBookingOpts,
+): Promise<Response> => {
+  if (!fold.ok) return apiResponse({ error: fold.error }, 400);
+  const valResult = validateFields(
+    form,
+    mergeListingFields(fold.listings.map((e) => e.listing.fields)),
+    isPaid(fold),
+  );
+  if (valResult instanceof Response) return valResult;
+  return completeFoldedBooking(
+    request,
+    extractContact(valResult),
+    date,
+    fold,
+    opts,
+  );
+};
+
+/** Index a parent's resolved children by their slug, so a submitted child slug
+ * resolves to its listing. Shared by the parent and package selection paths. */
+const childrenBySlug = (
+  children: TicketListing[],
+): Map<string, TicketListing> =>
+  new Map(children.map((c) => [c.listing.slug, c]));
+
 /**
  * Book a parent listing through the JSON API with its required children (per-unit
  * selection, mirroring the web fold): resolve the chosen child slugs, fold them
@@ -935,7 +1004,7 @@ const processParentApiBooking = async (
   // parentRequiresChild guaranteed ≥1 edge and listing deletes cascade their
   // edges, so a parent here always has a children entry in the context.
   const children = ctx.childrenByParentId.get(listing.id)!;
-  const childBySlug = new Map(children.map((c) => [c.listing.slug, c]));
+  const childBySlug = childrenBySlug(children);
   const form = toFormParams(body);
   const selectionError = applyChildSelectionsToForm(
     form,
@@ -963,22 +1032,17 @@ const processParentApiBooking = async (
     hasCustomisable: false,
     quantities: new Map([[listing.id, quantity]]),
   });
-  if (!fold.ok) return apiResponse({ error: fold.error }, 400);
-
-  // Validate contact fields against the MERGED parent+child requirements and the
-  // folded paid-ness (a free parent with a paid child still needs Square's email).
-  const valResult = tryValidateTicketFields(
+  // Paid-ness merges parent+child (a free parent with a paid child still needs
+  // Square's email). The fold always starts from this single parent, so its
+  // configured thank-you URL is the one a folded order would otherwise drop.
+  return validateAndCompleteFold(
+    request,
     form,
-    mergeListingFields(fold.listings.map((e) => e.listing.fields)),
-    (msg) => apiResponse({ error: msg }, 400),
-    fold.listings.some((e) => isPaidListing(e.listing)),
+    date,
+    fold,
+    (f) => f.listings.some((e) => isPaidListing(e.listing)),
+    { parentThankYouUrl: listing.thank_you_url },
   );
-  if (valResult instanceof Response) return valResult;
-  return completeFoldedBooking(request, extractContact(valResult), date, fold, {
-    // The fold always starts from this single parent, so its configured
-    // thank-you URL is the one a folded order would otherwise drop.
-    parentThankYouUrl: listing.thank_you_url,
-  });
 };
 
 /** POST /api/listings/:slug/book — create a booking */

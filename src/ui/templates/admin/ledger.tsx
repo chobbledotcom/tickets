@@ -49,6 +49,7 @@ import {
   GuideLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { ScrollTable } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
@@ -87,6 +88,15 @@ type RowAccountKind = {
   fallbackKey: string;
 };
 
+/** Both listing-backed account types (a listing's cost and its revenue) resolve
+ * to the same listing name and `/admin/listing/<id>` page, so they share one
+ * config rather than repeating it. */
+const listingAccountKind: RowAccountKind = {
+  fallbackKey: "admin.ledger.fallback.revenue",
+  href: (id) => `/admin/listing/${id}`,
+  names: (refs) => refs.listings,
+};
+
 /** Row-backed account resolvers keyed by ledger account type — exhaustive over
  * {@link RowAccountType}, so a new row-backed type cannot render without
  * deciding its label source and link target here. */
@@ -96,21 +106,13 @@ const ROW_ACCOUNT_KINDS: Record<RowAccountType, RowAccountKind> = {
     href: (id) => `/admin/attendees/${id}`,
     names: (refs) => refs.attendees,
   },
-  cost: {
-    fallbackKey: "admin.ledger.fallback.revenue",
-    href: (id) => `/admin/listing/${id}`,
-    names: (refs) => refs.listings,
-  },
+  cost: listingAccountKind,
   modifier: {
     fallbackKey: "admin.ledger.fallback.modifier",
     href: (id) => `/admin/modifiers/${id}/edit`,
     names: (refs) => refs.modifiers,
   },
-  revenue: {
-    fallbackKey: "admin.ledger.fallback.revenue",
-    href: (id) => `/admin/listing/${id}`,
-    names: (refs) => refs.listings,
-  },
+  revenue: listingAccountKind,
 };
 
 /** The bounded id→name lookup for one row-backed account type — the single
@@ -231,32 +233,25 @@ const LedgerColumnsTable = <Row,>({
   columns: LedgerColumn<Row>[];
   rows: Row[];
 }): JSX.Element => (
-  <div class="table-scroll">
-    <table>
-      <thead>
+  <ScrollTable
+    head={columns.map((column) => (
+      <th class={column.class}>{t(column.headerKey)}</th>
+    ))}
+  >
+    {rows.length > 0 ? (
+      rows.map((row) => (
         <tr>
           {columns.map((column) => (
-            <th class={column.class}>{t(column.headerKey)}</th>
+            <td class={column.class}>{column.cell(row)}</td>
           ))}
         </tr>
-      </thead>
-      <tbody>
-        {rows.length > 0 ? (
-          rows.map((row) => (
-            <tr>
-              {columns.map((column) => (
-                <td class={column.class}>{column.cell(row)}</td>
-              ))}
-            </tr>
-          ))
-        ) : (
-          <tr>
-            <td colspan={columns.length}>{t("admin.ledger.empty")}</td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  </div>
+      ))
+    ) : (
+      <tr>
+        <td colspan={columns.length}>{t("admin.ledger.empty")}</td>
+      </tr>
+    )}
+  </ScrollTable>
 );
 
 /** The shared leading column: a transfer's business time. */
@@ -266,6 +261,20 @@ const timeColumn = <Row,>(
   cell: (row) => formatDatetimeShort(occurredAt(row)),
   headerKey: "admin.ledger.col.time",
 });
+
+/** A ledger table whose first column is always the business-time column; the
+ *  caller says how to read the time from each row and supplies the remaining
+ *  columns. Every ledger table (both transfer lists and the account statement)
+ *  starts this way, so the leading-time scaffold lives here once. */
+const ledgerTableWithTime = <Row,>(
+  occurredAt: (row: Row) => string,
+  restColumns: LedgerColumn<Row>[],
+  rows: Row[],
+): JSX.Element =>
+  LedgerColumnsTable({
+    columns: [timeColumn(occurredAt), ...restColumns],
+    rows,
+  });
 
 /**
  * The historical transfer list: every leg as From → To with its kind, time, and

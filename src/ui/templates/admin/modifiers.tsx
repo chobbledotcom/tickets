@@ -14,7 +14,6 @@ import {
   booleanToCheckbox,
   CsrfForm,
   entityToFieldValues,
-  Flash,
   renderFields,
 } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -40,7 +39,8 @@ import {
   RunningTotalsFieldset,
   recalculatePageRenderer,
 } from "#templates/components/aggregate-sections.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
+import { DataTableOrEmpty } from "#templates/components/data-table.tsx";
+import { FlashFields } from "#templates/components/flash-fields.tsx";
 import { modifierAggregateFields, modifierFields } from "#templates/fields.ts";
 
 /** Renders the static config bits of the modifier recalculate page (action,
@@ -281,28 +281,23 @@ export const adminModifiersPage = (
     ),
     active: "/admin/modifiers",
     children: (
-      <>
-        {modifiers.length === 0 ? (
-          <p>{t("modifiers.no_modifiers")}</p>
-        ) : (
-          <DataTable
-            columns={[
-              { header: t("common.name") },
-              { header: t("modifiers.rule_column") },
-              { class: "quantity", header: t("modifiers.uses_column") },
-              { class: "quantity", header: t("modifiers.orders_column") },
-              { class: "amount", header: t("modifiers.revenue_column") },
-            ]}
-            rows={modifiers.map((m) => [
-              <a href={`/admin/modifiers/${m.id}/edit`}>{m.name}</a>,
-              ruleSummary(m),
-              m.total_uses,
-              m.usage_count,
-              formatCurrency(m.total_revenue),
-            ])}
-          />
-        )}
-      </>
+      <DataTableOrEmpty
+        columns={[
+          { header: t("common.name") },
+          { header: t("modifiers.rule_column") },
+          { class: "quantity", header: t("modifiers.uses_column") },
+          { class: "quantity", header: t("modifiers.orders_column") },
+          { class: "amount", header: t("modifiers.revenue_column") },
+        ]}
+        emptyText={t("modifiers.no_modifiers")}
+        rows={modifiers.map((m) => [
+          <a href={`/admin/modifiers/${m.id}/edit`}>{m.name}</a>,
+          ruleSummary(m),
+          m.total_uses,
+          m.usage_count,
+          formatCurrency(m.total_revenue),
+        ])}
+      />
     ),
     session,
     successMessage,
@@ -347,9 +342,11 @@ export const adminModifierEditPage = (
     >
       <CsrfForm action={`/admin/modifiers/${modifier.id}/edit`}>
         {modifierFormHeader(t("modifiers.edit.heading"))}
-        <Flash error={error} success={success} />
-        <Raw
-          html={renderFields(modifierFields, modifierToFieldValues(modifier))}
+        <FlashFields
+          error={error}
+          fields={modifierFields}
+          success={success}
+          values={modifierToFieldValues(modifier)}
         />
         <ModifierRunningTotalsSection modifier={modifier} />
         {SaveChangesButton()}

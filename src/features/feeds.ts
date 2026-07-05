@@ -7,9 +7,9 @@ import { map, pipe } from "#fp";
 import { withAuth } from "#routes/auth.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
+  bookablePackageGroups,
   classifyForDiscovery,
   dropHiddenPackageMembers,
-  loadPublicGroups,
 } from "#routes/public/discovery.ts";
 import {
   icsResponse,
@@ -105,10 +105,8 @@ const loadFeedData = async (): Promise<FeedData> => {
   const listings = await dropHiddenPackageMembers(allListings);
   const { nonStandaloneChildIds, soldOutParentIds } =
     await classifyForDiscovery(listings);
-  const packages = (await loadPublicGroups())
-    .filter((g) => g.is_package)
-    .map(
-      (g: Group): FeedItem => ({
+  const packages = (await bookablePackageGroups()).map(
+    (g: Group): FeedItem => ({
         created: null,
         date: null,
         description: g.description,

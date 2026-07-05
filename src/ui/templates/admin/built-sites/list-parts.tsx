@@ -3,7 +3,10 @@ import type { BuiltSite } from "#shared/db/built-sites.ts";
 import { formatDeadlineLabel } from "#shared/renewal-helpers.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { RenewalTierSummary } from "#templates/admin/built-sites/renewal-summary.tsx";
-import { ActionButton } from "#templates/components/actions.tsx";
+import {
+  ActionButton,
+  ExternalUrlLink,
+} from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 
 export const BuiltSitesListActions = (): JSX.Element => (
@@ -35,9 +38,7 @@ const BuiltSitesTable = ({
       ]}
       rows={sites.map((site) => [
         <a href={`/admin/built-sites/${site.id}/edit`}>{site.name}</a>,
-        <a href={site.siteUrl} rel="noopener" target="_blank">
-          {site.siteUrl}
-        </a>,
+        <ExternalUrlLink url={site.siteUrl} />,
         site.assignedAttendeeId
           ? t("built_sites.status_assigned", { id: site.assignedAttendeeId })
           : site.assignable

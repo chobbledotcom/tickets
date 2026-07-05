@@ -14,7 +14,23 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { SaveButton } from "#templates/components/actions.tsx";
+
 /* jscpd:ignore-end */
+
+/** A site-page settings form: the rendered form fields inside a CSRF form,
+ *  followed by the Save button. The site editors below all share this shape. */
+const SettingsForm = ({
+  action,
+  fields,
+}: {
+  action: string;
+  fields: string;
+}): JSX.Element => (
+  <CsrfForm action={action}>
+    <Raw html={fields} />
+    {SaveButton()}
+  </CsrfForm>
+);
 
 /**
  * Homepage editor - website title + homepage text
@@ -30,15 +46,13 @@ export const adminSiteHomePage = (
     <>
       <h2>{t("site.home.heading")}</h2>
 
-      <CsrfForm action="/admin/site">
-        <Raw
-          html={siteHomeForm.render({
-            homepage_text: homepageText,
-            website_title: websiteTitle,
-          })}
-        />
-        {SaveButton()}
-      </CsrfForm>
+      <SettingsForm
+        action="/admin/site"
+        fields={siteHomeForm.render({
+          homepage_text: homepageText,
+          website_title: websiteTitle,
+        })}
+      />
     </>,
   );
 
@@ -124,14 +138,12 @@ export const adminSiteContactPage = (
     <>
       <h2>{t("site.contact.heading")}</h2>
 
-      <CsrfForm action="/admin/site/contact">
-        <Raw
-          html={siteContactForm.render({
-            contact_page_text: contactPageText,
-          })}
-        />
-        {SaveButton()}
-      </CsrfForm>
+      <SettingsForm
+        action="/admin/site/contact"
+        fields={siteContactForm.render({
+          contact_page_text: contactPageText,
+        })}
+      />
 
       <ContactFormToggle
         botpoisonEnabled={contactForm.botpoisonEnabled}
@@ -206,9 +218,9 @@ export const adminSiteOrderPage = (
         {SaveButton()}
       </CsrfForm>
 
-      <CsrfForm action="/admin/site/order">
-        <Raw html={siteOrderForm.render({ order_intro_text: introText })} />
-        {SaveButton()}
-      </CsrfForm>
+      <SettingsForm
+        action="/admin/site/order"
+        fields={siteOrderForm.render({ order_intro_text: introText })}
+      />
     </>,
   );

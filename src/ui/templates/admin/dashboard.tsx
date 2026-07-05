@@ -362,7 +362,7 @@ const resolveListingColumns = (
     defaultOrder,
   );
   const activeListings = filter((e: ListingWithCount) => e.active)(listings);
-  return { columnKeys, filters, activeListings };
+  return { activeListings, columnKeys, filters };
 };
 
 /**

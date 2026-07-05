@@ -764,28 +764,33 @@ export const ConfirmForm = ({
   /** When false, omit the type-the-name input — a plain are-you-sure page. */
   confirmName?: boolean;
   children?: Child;
-}): JSX.Element => (
-  <SubmitForm
-    action={action}
-    id={id}
-    submitClass={danger ? "danger" : undefined}
-    submitIcon={danger ? "trash-2" : "check"}
-    submitLabel={buttonText}
-  >
-    {children && <div class="prose">{children}</div>}
-    {returnUrl && <input name="return_url" type="hidden" value={returnUrl} />}
-    {hiddenFields && hiddenInputs(Object.entries(hiddenFields))}
-    {confirmName && (
-      <label>
-        {label}
-        <input
-          autocomplete="off"
-          name="confirm_identifier"
-          placeholder={name}
-          required
-          type="text"
-        />
-      </label>
-    )}
-  </SubmitForm>
-);
+}): JSX.Element => {
+  // A destructive confirm gets the red button and trash icon; a plain
+  // are-you-sure confirm gets a neutral check.
+  const submit = {
+    action,
+    id,
+    submitClass: danger ? "danger" : undefined,
+    submitIcon: (danger ? "trash-2" : "check") as IconName,
+    submitLabel: buttonText,
+  };
+  return (
+    <SubmitForm {...submit}>
+      {children && <div class="prose">{children}</div>}
+      {returnUrl && <input name="return_url" type="hidden" value={returnUrl} />}
+      {hiddenFields && hiddenInputs(Object.entries(hiddenFields))}
+      {confirmName && (
+        <label>
+          {label}
+          <input
+            autocomplete="off"
+            name="confirm_identifier"
+            placeholder={name}
+            required
+            type="text"
+          />
+        </label>
+      )}
+    </SubmitForm>
+  );
+};

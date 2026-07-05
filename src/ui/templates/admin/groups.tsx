@@ -69,8 +69,12 @@ import {
   SaveChangesButton,
   SubmitButton,
 } from "#templates/components/actions.tsx";
-import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
-import { DataTable, textColumns } from "#templates/components/data-table.tsx";
+import { entityCheckboxes } from "#templates/components/aggregate-sections.tsx";
+import {
+  DataTable,
+  DataTableOrEmpty,
+  textColumns,
+} from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { getGroupCreateFields, getGroupFields } from "#templates/fields.ts";
@@ -93,19 +97,16 @@ export const adminGroupsPage = (
           </ActionButton>
         </p>
       )}
-      {groups.length === 0 ? (
-        <p>{t("groups.no_groups")}</p>
-      ) : (
-        // Staff open the detail page; editors can't (it decrypts attendee PII),
-        // so they link straight to the edit form.
-        <DataTable
-          columns={[{ header: t("common.name") }, { header: t("common.slug") }]}
-          rows={groups.map((g) => [
-            <a href={groupReturnPath(session.adminLevel, g.id)}>{g.name}</a>,
-            g.slug,
-          ])}
-        />
-      )}
+      {/* Staff open the detail page; editors can't (it decrypts attendee PII),
+          so they link straight to the edit form. */}
+      <DataTableOrEmpty
+        columns={[{ header: t("common.name") }, { header: t("common.slug") }]}
+        emptyText={t("groups.no_groups")}
+        rows={groups.map((g) => [
+          <a href={groupReturnPath(session.adminLevel, g.id)}>{g.name}</a>,
+          g.slug,
+        ])}
+      />
     </>,
   );
 
@@ -558,14 +559,10 @@ export const GroupOverviewPanel = ({
           <h2>{t("groups.detail.add_listings")}</h2>
           <CsrfForm action={`/admin/groups/${group.id}/add-listings`}>
             <fieldset class="checkboxes">
-              {ungroupedListings.map((e) => (
-                <CheckboxLabel
-                  checked={undefined}
-                  label={` ${e.name}`}
-                  name="listing_ids"
-                  value={String(e.id)}
-                />
-              ))}
+              {entityCheckboxes({
+                entities: ungroupedListings,
+                fieldName: "listing_ids",
+              })}
             </fieldset>
             <SubmitButton icon="plus">
               {t("groups.detail.add_listings_submit")}

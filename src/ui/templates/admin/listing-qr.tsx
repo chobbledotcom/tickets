@@ -166,8 +166,7 @@ export const ListingQrPanel = ({
     <article>
       <div class="prose">
         <h1>
-          {t("listing_qr.page_title")}{" "}
-          <ListingLink listing={listing} />
+          {t("listing_qr.page_title")} <ListingLink listing={listing} />
         </h1>
         <p>
           {t("listing_qr.page_description_start")}{" "}

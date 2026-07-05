@@ -20,9 +20,9 @@ import {
 } from "#shared/booking/package-cap.ts";
 import {
   customPriceFieldName,
-  fixedQuantitiesByListingId,
   PACKAGE_QUANTITY_FIELD,
   quantityFieldName,
+  scaleFixedQuantities,
 } from "#shared/booking/tree.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import {
@@ -85,7 +85,7 @@ import {
 } from "#templates/public.tsx";
 import {
   applyBookingPageParentSoldOut,
-  type ChildCapacityInfo,
+  toChildCapacityInfo,
 } from "./discovery.ts";
 import {
   buildListingAnswerMap,
@@ -608,12 +608,7 @@ const resolvePageQuantities = (
     ),
   );
   const packageQty = Math.max(0, Math.min(parsePackageCount(form), cap));
-  return new Map(
-    [...fixedQuantitiesByListingId(tree)].map(([listingId, fixed]) => [
-      listingId,
-      fixed * packageQty,
-    ]),
-  );
+  return scaleFixedQuantities(tree, packageQty);
 };
 
 /** A parsed-and-priced submission, or the message explaining why it could not
@@ -908,26 +903,38 @@ const processSubmission = async (
   });
 };
 
-const withTicketCsrfForm = (
-  request: Request,
-  onError: (message: string) => Response,
-  onForm: (form: FormParams) => Promise<Response>,
-): Promise<Response> => withCsrfForm(request, onError, onForm);
+/** Build a ticket-page POST handler that runs its body inside CSRF-form handling:
+ * the CSRF/parse failure becomes `onError`, a valid form becomes `onForm`. Shared
+ * by the real submission and the `/calculate` quote so both wire the form the same
+ * way and only differ in how they report errors and what they do with the form. */
+const ticketCsrfPost =
+  (
+    onError: (ctx: TicketCtx, message: string) => Response,
+    onForm: (
+      request: Request,
+      ctx: TicketCtx,
+      form: FormParams,
+    ) => Promise<Response>,
+  ) =>
+  (request: Request, ctx: TicketCtx): Promise<Response> =>
+    withCsrfForm(
+      request,
+      (message) => onError(ctx, message),
+      (form) => onForm(request, ctx, form),
+    );
 
 /** Handle POST for ticket registration */
-const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
-  withTicketCsrfForm(
-    request,
-    // CSRF failures redirect with a flash (the token expired or was tampered
-    // with — the page reloads with a fresh token). Field-level validation
-    // errors instead re-render inline so the visitor keeps what they entered.
-    (message) =>
-      errorRedirect(ctx.actionUrl ?? `/ticket/${ctx.slugs.join("+")}`, message),
-    (form) => {
-      applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-      return processSubmission(request, ctx, form);
-    },
-  );
+const submitTicket = ticketCsrfPost(
+  // CSRF failures redirect with a flash (the token expired or was tampered
+  // with — the page reloads with a fresh token). Field-level validation
+  // errors instead re-render inline so the visitor keeps what they entered.
+  (ctx, message) =>
+    errorRedirect(ctx.actionUrl ?? `/ticket/${ctx.slugs.join("+")}`, message),
+  (request, ctx, form) => {
+    applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
+    return processSubmission(request, ctx, form);
+  },
+);
 
 /**
  * Build the running-total fragment for a parsed-and-priced quote, matching what
@@ -992,12 +999,10 @@ const renderQuote = async (
  * read here — a quote prices the cart with an empty contact — so the client
  * strips them before sending and the server ignores any that arrive.
  */
-const calculateTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
-  withTicketCsrfForm(
-    request,
-    (message) => htmlResponse(orderSummaryMessage(message), 403),
-    (form) => renderQuote(ctx, form),
-  );
+const calculateTicket = ticketCsrfPost(
+  (_ctx, message) => htmlResponse(orderSummaryMessage(message), 403),
+  (_request, ctx, form) => renderQuote(ctx, form),
+);
 
 /**
  * Inputs to the booking-page framework: the listings to offer, a context
@@ -1062,12 +1067,7 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
         ...children.map((c) => c.id),
       ]),
     ]);
-  const caps: ChildCapacityInfo = {
-    childOwnRemaining,
-    membership,
-    remainingByGroupId: childCaps.remaining,
-    staticCapByGroupId: childCaps.staticCap,
-  };
+  const caps = toChildCapacityInfo(childCaps, childOwnRemaining, membership);
   return {
     ...ctx,
     // The PER-GROUP remaining drives the per-parent quantity clamp keyed by the

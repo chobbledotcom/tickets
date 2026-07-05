@@ -566,6 +566,25 @@ const childPayMoreInput = (
       )
     : "";
 
+/** The shared inputs for rendering one of a parent's children: the parent
+ * listing, the child itself, the child's date/span lookup, and whether £0 prices
+ * are shown. Both the selectable and sole-child renderers take one. */
+type ChildOptionCtx = {
+  parent: ListingWithCount;
+  child: TicketListing;
+  childDatesById: ReadonlyMap<string, ChildDatesByDayCount>;
+  showZero: boolean;
+};
+
+/** The parent id and child listing both renderers pull off the context before
+ * building the child's markup. */
+const childRefs = (
+  ctx: ChildOptionCtx,
+): { parentId: number; listing: ListingWithCount } => ({
+  listing: ctx.child.listing,
+  parentId: ctx.parent.id,
+});
+
 /** Render one child as a per-unit quantity row: a `child_qty_<parentId>_<childId>`
  * select over `0..childLimit`, plus — for a bookable pay-more child — its
  * non-required price input. A sold-out/closed/inactive child renders a disabled
@@ -573,31 +592,24 @@ const childPayMoreInput = (
  * markup; the server fold validates the per-parent total. A bookable
  * child also carries its date/span compatibility attributes ({@link
  * childDateAttrs}) for the client compatibility script. */
-const renderChildOption = (
-  parent: ListingWithCount,
-  child: TicketListing,
-  childLimit: number,
-  childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
-  showZero: boolean,
-): string => {
-  const parentId = parent.id;
-  const { listing } = child;
-  const bookable = childCanBeBooked(child);
+const renderChildOption = (ctx: ChildOptionCtx, childLimit: number): string => {
+  const { parentId, listing } = childRefs(ctx);
+  const bookable = childCanBeBooked(ctx.child);
   const selectName = childQuantityFieldName(parentId, listing.id);
   // Only a bookable pay-more child offers the price input here.
   const priceHtml = bookable ? childPayMoreInput(parentId, listing) : "";
   const label = bookable
     ? `${escapeHtml(listing.name)} ${childPriceLabel(
         listing,
-        parent,
-        showZero,
+        ctx.parent,
+        ctx.showZero,
       )}`.trim()
     : escapeHtml(t("public.ticket.child_unavailable", { name: listing.name }));
   const select = bookable
     ? `<select name="${selectName}" data-child-qty="${listing.id}"${childDateAttrs(
         parentId,
-        child,
-        childDatesById,
+        ctx.child,
+        ctx.childDatesById,
       )}>${quantityOptions(
         childLimit,
         restoredChildQty(parentId, listing.id, childLimit),
@@ -1365,6 +1377,18 @@ const foldReserveByChildId = (
   return reserve;
 };
 
+/** A package page's price overrides: a flat per-member override (listing id →
+ * minor units) and per-day overrides (listing id → day count → minor units).
+ * Both empty/absent on a non-package page. Bundled so the paid-in-context checks
+ * don't each re-declare the same pair of parameters. */
+type PackagePriceOverrides = {
+  packagePrices: ReadonlyMap<number, number> | null | undefined;
+  packageDayPrices:
+    | ReadonlyMap<number, ReadonlyMap<number, number>>
+    | null
+    | undefined;
+};
+
 /** Whether a listing is paid in context. A flat package override REPLACES the
  * base price for this purpose: a member with one is paid only when it is
  * positive (an explicit free 0 makes a paid base listing free here). Without a
@@ -1373,12 +1397,9 @@ const foldReserveByChildId = (
  * provider contact fields — and the listing's own pricing covers the rest. */
 const paidInContext = (
   listing: TicketListing,
-  packagePrices: ReadonlyMap<number, number> | null | undefined,
-  packageDayPrices:
-    | ReadonlyMap<number, ReadonlyMap<number, number>>
-    | null
-    | undefined,
+  overrides: PackagePriceOverrides,
 ): boolean => {
+  const { packagePrices, packageDayPrices } = overrides;
   const override = packagePrices?.get(listing.listing.id);
   if (override !== undefined) return override > 0;
   const dayOverrides = packageDayPrices?.get(listing.listing.id);
@@ -1393,13 +1414,9 @@ const paidInContext = (
 const pagePaid = (
   listings: TicketListing[],
   addOns: AddOnOption[] | undefined,
-  packagePrices: ReadonlyMap<number, number> | null | undefined,
-  packageDayPrices:
-    | ReadonlyMap<number, ReadonlyMap<number, number>>
-    | null
-    | undefined,
+  overrides: PackagePriceOverrides,
 ): boolean =>
-  listings.some((e) => paidInContext(e, packagePrices, packageDayPrices)) ||
+  listings.some((e) => paidInContext(e, overrides)) ||
   (addOns?.some((addOn) => addOn.requiresPayment) ?? false);
 
 /** Whether the contact-field set must include a paid order's provider-imposed
@@ -1410,17 +1427,13 @@ const pageOrChildPaid = (
   listings: TicketListing[],
   childrenByParentId: Map<number, TicketListing[]> | undefined,
   addOns: AddOnOption[] | undefined,
-  packagePrices: ReadonlyMap<number, number> | null | undefined,
-  packageDayPrices:
-    | ReadonlyMap<number, ReadonlyMap<number, number>>
-    | null
-    | undefined,
+  overrides: PackagePriceOverrides,
 ): boolean => {
   const children = childrenByParentId
     ? [...childrenByParentId.values()].flat()
     : [];
   return (
-    pagePaid(listings, addOns, packagePrices, packageDayPrices) ||
+    pagePaid(listings, addOns, overrides) ||
     children.some((e) => isPaidListing(e.listing))
   );
 };
@@ -1612,17 +1625,12 @@ export const ticketPage = ({
     },
   );
   const allClosed = listings.every((e) => e.isClosed);
+  const priceOverrides = { packageDayPrices, packagePrices };
   const fields: Field[] = buildContactFields(
     listings,
     childrenByParentId,
-    pagePaid(listings, addOns, packagePrices, packageDayPrices),
-    pageOrChildPaid(
-      listings,
-      childrenByParentId,
-      addOns,
-      packagePrices,
-      packageDayPrices,
-    ),
+    pagePaid(listings, addOns, priceOverrides),
+    pageOrChildPaid(listings, childrenByParentId, addOns, priceOverrides),
   );
   const hasDaily = listings.some((e) => e.listing.listing_type === "daily");
 
