@@ -58,8 +58,6 @@ export type ImportedMembership = {
   dayPrices: DayPrices;
 };
 
-/** A prepared write statement. */
-
 /** Build a multi-row INSERT for `table(columns)` from `rows`, or null when there
  * are no rows. Each row supplies one value per column, in order. */
 const multiRowInsert = (

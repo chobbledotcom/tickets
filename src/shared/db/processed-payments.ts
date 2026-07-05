@@ -275,8 +275,6 @@ export const parseSessionFailure = async (
   }
 };
 
-/** A built SQL statement: the text and its positional bind args. */
-
 /** Shared UPDATE shape for the finalize statement builders. */
 const buildFinalizeStatement = (
   attendeeId: number,

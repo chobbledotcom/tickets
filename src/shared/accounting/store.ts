@@ -42,8 +42,6 @@ import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { assertValidTransfer } from "#shared/ledger/validate.ts";
 import { nowIso } from "#shared/now.ts";
 
-/** A built INSERT statement ready for the batch writer. */
-
 /** Outcome of {@link postTransfers}: rows newly written vs idempotent replays. */
 export type PostResult = {
   readonly inserted: number;

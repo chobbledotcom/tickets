@@ -25,8 +25,6 @@ import {
 } from "#shared/site-pages/core.ts";
 import type { SitePageItem, SitePageItemType } from "#shared/types.ts";
 
-/** A parameterised statement for a batch / transaction. */
-
 const SELECT_COLS = "page_id, item_type, item_id, sort_order";
 
 const fetchAllItems = (): Promise<SitePageItem[]> =>

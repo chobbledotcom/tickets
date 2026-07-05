@@ -72,8 +72,6 @@ const rowToTransfer = (row: TransferRow): Transfer => ({
  *  for its value, and the args that expression binds. */
 type LegColumn = { col: string; expr: string; args: InValue[] };
 
-/** A built statement ready for `execute`/`executeBatch`. */
-
 /** A plain bound-placeholder column. */
 const lit = (col: string, value: InValue): LegColumn => ({
   args: [value],

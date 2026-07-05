@@ -25,8 +25,6 @@ export type ModifierUsage = {
   amountApplied: number;
 };
 
-/** A built SQL fragment: the text and its positional bind args. */
-
 /** Used quantity per modifier id, for remaining-stock checks at resolve time. */
 export const modifierUsedQuantities = (
   ids: number[],
