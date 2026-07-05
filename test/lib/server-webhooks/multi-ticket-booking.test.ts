@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { spy, stub } from "@std/testing/mock";
+import { spy } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
@@ -10,6 +10,7 @@ import {
   describeWithEnv,
   expectRefundedWithNote,
   expectSessionFailed,
+  expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
   makeParent,
   postWebhookAndAssert,
@@ -148,7 +149,7 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
       paymentId: "pi_first",
     });
 
-    const mockVerify = await stubWebhookVerify(
+    const { mockRefund } = await expectWebhookKeptAndRefunded(
       checkoutSessionEvent({
         amountTotal: 1000,
         eventId: "evt_soldout",
@@ -163,27 +164,6 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
         paymentIntent: "pi_soldout",
         sessionId: "cs_soldout",
       }),
-    );
-
-    const mockRefund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_test" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
-    );
-
-    await postWebhookAndAssert(
-      () => {
-        mockVerify.restore();
-        mockRefund.restore();
-      },
-      200,
-      (json) => {
-        expect(json.received).toBe(true);
-        expect(json.processed).toBe(false);
-        // The sold-out reason now lives in the note; the customer sees the
-        // generic saved-details message.
-        expect(json.error).toContain("saved your details");
-      },
     );
     // The late buyer is not dropped: a quantity-0 placeholder is kept
     // alongside the original sold-out attendee, refunded once, with a note.

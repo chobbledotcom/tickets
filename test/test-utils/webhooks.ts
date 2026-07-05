@@ -122,7 +122,8 @@ export const expectWebhookProcessed = async (
 export const expectWebhookKeptAndRefunded = async (
   event: Parameters<typeof stubWebhookVerify>[0],
   refundId = "re_test",
-  errorContains = "saved your details",
+  errorContains: string | string[] = "saved your details",
+  signature?: string,
 ) => {
   const mockVerify = await stubWebhookVerify(event);
   const mockRefund = stub(stripeApi, "refundPayment", () =>
@@ -137,9 +138,15 @@ export const expectWebhookKeptAndRefunded = async (
     },
     200,
     (json) => {
+      expect(json.received).toBe(true);
       expect(json.processed).toBe(false);
-      expect(json.error).toContain(errorContains);
+      for (const substring of Array.isArray(errorContains)
+        ? errorContains
+        : [errorContains]) {
+        expect(json.error).toContain(substring);
+      }
     },
+    signature ?? "sig_valid",
   );
   return { mockRefund };
 };

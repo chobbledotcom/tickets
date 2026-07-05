@@ -8,14 +8,13 @@ import {
   createTestListing,
   describeWithEnv,
   expectHtmlResponse,
+  expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
   mockRequest,
-  postWebhookAndAssert,
   setupStripe,
   signedMeta,
   signMeta,
   singleItem,
-  stubWebhookVerify,
   webhookMeta,
 } from "#test-utils";
 
@@ -88,7 +87,7 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const mockVerify = await stubWebhookVerify(
+      await expectWebhookKeptAndRefunded(
         checkoutSessionEvent({
           amountTotal: 1000,
           eventId: "evt_closed",
@@ -103,23 +102,8 @@ describeWithEnv(
           paymentIntent: "pi_closed_wh",
           sessionId: "cs_closed_wh",
         }),
-      );
-
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_closed" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
-      );
-
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-          mockRefund.restore();
-        },
-        200,
-        (json) => {
-          expect(json.error).toContain("registration closed");
-        },
+        "re_closed",
+        "registration closed",
         "sig_closed",
       );
     });
@@ -139,7 +123,7 @@ describeWithEnv(
         unitPrice: 500,
       });
 
-      const mockVerify = await stubWebhookVerify(
+      await expectWebhookKeptAndRefunded(
         checkoutSessionEvent({
           amountTotal: 1500,
           eventId: "evt_multi_closed",
@@ -157,24 +141,8 @@ describeWithEnv(
           paymentIntent: "pi_multi_closed",
           sessionId: "cs_multi_closed",
         }),
-      );
-
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_multi_closed" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
-      );
-
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-          mockRefund.restore();
-        },
-        200,
-        (json) => {
-          expect(json.error).toContain("registration for");
-          expect(json.error).toContain("closed");
-        },
+        "re_multi_closed",
+        ["registration for", "closed"],
         "sig_multi_closed",
       );
 
