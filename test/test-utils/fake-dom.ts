@@ -124,8 +124,11 @@ const matchesClause = (el: FakeElement, clause: Clause): boolean => {
   return true;
 };
 
-const matchesSelector = (el: FakeElement, selector: string): boolean =>
-  selector.split(",").some((alt) => matchesClause(el, parseClause(alt)));
+const matchesSelector = (el: FakeElement, selector: string): boolean => {
+  // Real DOM query methods throw a SyntaxError on an empty selector.
+  if (!selector.trim()) throw new SyntaxError("empty selector");
+  return selector.split(",").some((alt) => matchesClause(el, parseClause(alt)));
+};
 
 const datasetKey = (attr: string): string =>
   attr.replace(/^data-/, "").replace(/-([a-z])/g, (_, c) => c.toUpperCase());
@@ -379,7 +382,11 @@ export const installFakeDom = (specs: ElementSpec[]): FakeElement[] => {
   Object.defineProperty(globalThis, "document", {
     configurable: true,
     value: {
-      createElement: (tag: string) => makeElement({ tag }),
+      createElement: (tag: string) => {
+        // Real DOM throws an InvalidCharacterError on an empty tag name.
+        if (!tag) throw new Error("invalid tag name");
+        return makeElement({ tag });
+      },
       querySelector: (selector: string) =>
         all.find((el) => matchesSelector(el, selector)) ?? null,
       querySelectorAll: (selector: string) =>

@@ -136,7 +136,9 @@ describe("fetchEasypostcodesAddresses", () => {
     stubFetch(() => Promise.resolve(new Response("denied", { status: 403 })));
     const result = await fetchEasypostcodesAddresses("SW1A 1AA", "bad-key");
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toContain("403");
+    if (!result.ok) {
+      expect(result.error).toBe("EasyPostcodes lookup failed (403): denied");
+    }
   });
 
   test("reports a network failure without throwing", async () => {
@@ -160,6 +162,16 @@ describe("EASYPOSTCODES_PROVIDER", () => {
     expect(EASYPOSTCODES_PROVIDER.normaliseSearch).toBe(normaliseUkPostcode);
     expect(EASYPOSTCODES_PROVIDER.fetchAddresses).toBe(
       fetchEasypostcodesAddresses,
+    );
+  });
+
+  test("names real message keys for the search box copy", () => {
+    // The panel template t()s these — a broken key throws at render time.
+    expect(EASYPOSTCODES_PROVIDER.searchLabelKey).toBe(
+      "address_lookup.search.postcode",
+    );
+    expect(EASYPOSTCODES_PROVIDER.searchPlaceholderKey).toBe(
+      "address_lookup.search.postcode_placeholder",
     );
   });
 });

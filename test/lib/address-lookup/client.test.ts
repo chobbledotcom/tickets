@@ -96,6 +96,24 @@ describe("address lookup client", () => {
     restoreDocument();
   });
 
+  test("a select without its results-label wrapper stays disabled", () => {
+    // The select alone isn't enough — revealing it needs the label to unhide.
+    const partial = panelSpec("locked");
+    partial.children = partial.children!.map((c) =>
+      "addressResultsLabel" in (c.data ?? {})
+        ? { data: { addressResults: "" }, tag: "select" as const }
+        : c,
+    );
+    const [form] = installFakeDom([
+      {
+        children: [partial, { name: "address", tag: "textarea" }],
+        tag: "form",
+      },
+    ]);
+    initAddressLookup();
+    expect(form!.querySelector("[data-address-lookup]")!.hidden).toBe(true);
+  });
+
   test("does nothing on a page without a panel", () => {
     const [textarea] = installFakeDom([{ name: "address", tag: "textarea" }]);
     expect(() => initAddressLookup()).not.toThrow();
@@ -116,6 +134,32 @@ describe("address lookup client", () => {
     initAddressLookup();
     expect(form!.querySelector("[data-address-lookup]")!.hidden).toBe(true);
   });
+
+  // Any single absent control disables the whole panel — a partial panel
+  // must never be revealed half-wired.
+  for (const missing of [
+    "addressSearch",
+    "addressFind",
+    "addressResultsLabel",
+    "addressResults",
+    "addressStatus",
+  ]) {
+    test(`leaves a panel missing its ${missing} control hidden`, () => {
+      const hasControl = (spec: ElementSpec): boolean =>
+        missing in (spec.data ?? {}) ||
+        (spec.children ?? []).some(hasControl);
+      const partial = panelSpec("locked");
+      partial.children = partial.children!.filter((c) => !hasControl(c));
+      const [form] = installFakeDom([
+        {
+          children: [partial, { name: "address", tag: "textarea" }],
+          tag: "form",
+        },
+      ]);
+      initAddressLookup();
+      expect(form!.querySelector("[data-address-lookup]")!.hidden).toBe(true);
+    });
+  }
 
   test("locked mode without an Edit button never locks the textarea", () => {
     // The server always renders the Edit button in locked mode; if it is
@@ -155,8 +199,10 @@ describe("address lookup client", () => {
 
   test("searching fills the select with a placeholder plus each address", async () => {
     let requested = "";
-    stubFetch((url) => {
+    let credentials = "";
+    stubFetch((url, init) => {
       requested = url;
+      credentials = String(init?.credentials);
       return Promise.resolve(
         jsonResponse({ addresses: ["10 Downing Street", "11 Downing Street"] }),
       );
@@ -169,6 +215,7 @@ describe("address lookup client", () => {
     await flush();
 
     expect(requested).toBe("/address-lookup?search=sw1a%202aa");
+    expect(credentials).toBe("same-origin");
     expect(select.children.map((o) => o.value)).toEqual([
       "",
       "10 Downing Street",
@@ -178,6 +225,33 @@ describe("address lookup client", () => {
     expect(select.children[1]!.textContent).toBe("10 Downing Street");
     expect(resultsLabel.hidden).toBe(false);
     expect(status.hidden).toBe(true);
+  });
+
+  test("shows the searching message while the lookup is in flight", async () => {
+    stubFetch(() => new Promise(() => {})); // never resolves
+    const { findButton, searchInput, status } = setup("editable");
+    searchInput.value = "SW1A 2AA";
+
+    findButton.dispatch("click");
+    await flush();
+
+    expect(status.textContent).toBe("Searching…");
+    expect(status.hidden).toBe(false);
+  });
+
+  test("an error response that still carries addresses is an error", async () => {
+    // The status code decides — a failing response never populates the select.
+    stubFetch(() =>
+      Promise.resolve(jsonResponse({ addresses: ["10 Downing Street"] }, 500)),
+    );
+    const { findButton, searchInput, select, status } = setup("editable");
+    searchInput.value = "SW1A 2AA";
+
+    findButton.dispatch("click");
+    await flush();
+
+    expect(status.textContent).toBe("Lookup failed");
+    expect(select.children.length).toBe(0);
   });
 
   test("an empty search box never calls the endpoint", async () => {
@@ -283,8 +357,9 @@ describe("address lookup client", () => {
     expect(status.hidden).toBe(true);
   });
 
-  test("choosing an address copies it into the textarea", () => {
+  test("choosing an address replaces whatever the textarea held", () => {
     const { select, textarea } = setup("editable");
+    textarea.value = "half-typed address";
     select.value = "10 Downing Street, LONDON";
 
     select.dispatch("change");

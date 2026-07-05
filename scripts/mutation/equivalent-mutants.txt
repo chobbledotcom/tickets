@@ -538,3 +538,12 @@ src/shared/logistics-filter.ts:22:39   → "mutated"   # parsePositiveIntId's sc
 src/shared/logistics-filter.ts:23:11  !== → !=   # n: number|null (no undefined), so !== and != agree on null
 src/shared/logistics-filter.ts:41:45  === → ==   # startAgentId: number|null at every call site (no undefined), so === and == agree on null
 src/shared/logistics-filter.ts:41:68  === → ==   # endAgentId: number|null at every call site (no undefined), so === and == agree on null
+
+# address-lookup client: panelText's "" fallback matches the only falsy
+# dataset value, freshly created options start with empty value/text, and
+# collectParts' null result is only ever consumed by a falsy `!parts` check.
+src/ui/client/admin/address-lookup.ts:40:21  ?? → ||   # dataset[key]: string|undefined, only falsy string "" === fallback ""
+src/ui/client/admin/address-lookup.ts:45:15  = → +=   # a just-created <option>'s value is "", so append equals assign
+src/ui/client/admin/address-lookup.ts:46:21  = → +=   # a just-created <option>'s textContent is "", so append equals assign
+src/ui/client/admin/address-lookup.ts:140:12  return null → return undefined   # collectParts' result is only checked with falsy `!parts`
+src/ui/client/admin/address-lookup.ts:142:25  return null → return undefined   # collectParts' result is only checked with falsy `!parts`

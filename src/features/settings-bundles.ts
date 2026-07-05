@@ -222,7 +222,9 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   pay: PAYMENT_SETTINGS,
   payment: [...PAYMENT_SETTINGS, ...EMAIL_SETTINGS],
   "read-only": [],
-  renew: BOOKING_FLOW_SETTINGS,
+  // Renewal renders the same booking form, whose contact-field builder checks
+  // the address-lookup provider.
+  renew: [...BOOKING_FLOW_SETTINGS, CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER],
   // Cron prune trigger: maybeRunPrunes only reads the last_pruned_*/orphan
   // settings, which are all in INFRA, so infra alone is enough.
   scheduled: [],
