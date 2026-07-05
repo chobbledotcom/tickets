@@ -766,7 +766,9 @@ describe("test-utils", () => {
           email: "missing@example.com",
           name: "Missing Listing",
         }),
-      ).rejects.toThrow("No CSRF token found on ticket page");
+      ).rejects.toThrow(
+        "Failed to get CSRF token from /ticket/missing-listing",
+      );
     });
   });
 
