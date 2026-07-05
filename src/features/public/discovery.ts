@@ -225,6 +225,21 @@ export type ChildCapacityInfo = {
   membership: ReadonlyMap<number, number[]>;
 };
 
+/** Assemble the child-capacity facts the sold-out projection reads: each
+ * child's own per-listing remaining (its sold-out state), the per-group shared
+ * capacity/remaining, and group membership (which covers parents and children
+ * alike, so it stands in for `childCaps.membership`). */
+export const childCapacityInfo = (
+  childCaps: Awaited<ReturnType<typeof getSharedGroupCapacities>>,
+  childOwnRemaining: ReadonlyMap<number, number>,
+  membership: ReadonlyMap<number, number[]>,
+): ChildCapacityInfo => ({
+  childOwnRemaining,
+  membership,
+  remainingByGroupId: childCaps.remaining,
+  staticCapByGroupId: childCaps.staticCap,
+});
+
 /** Checks whether this parent can offer this child on public listing surfaces. */
 const childCanBeBookedForParent = (
   parent: ListingWithCount,
@@ -305,15 +320,7 @@ export const classifyForDiscovery = async (
       ]),
     ),
   ]);
-  // Per-GROUP shared facts (the group a parent+child SHARE) plus each
-  // child's OWN per-listing remaining (its sold-out state). `membership` covers
-  // parents and children alike, so it stands in for `childCaps.membership`.
-  const caps: ChildCapacityInfo = {
-    childOwnRemaining,
-    membership,
-    remainingByGroupId: childCaps.remaining,
-    staticCapByGroupId: childCaps.staticCap,
-  };
+  const caps = childCapacityInfo(childCaps, childOwnRemaining, membership);
   // A child is an add-on only when at least one parent is itself bookable AND can
   // offer THIS child given the *combined* parent+child group demand. Using only
   // `parentBookable` (the parent's own row) would mark a child
