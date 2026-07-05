@@ -78,9 +78,10 @@ export type ListingBooking = {
   /** The parent listing this row was folded under when it is a chosen child
    * (defaults to 0 — not a folded child). */
   parentListingId?: number;
-  /** The package group this booking row belongs to (defaults to 0 — not a
-   * package order). Set once per create from the order-level value, the same on
-   * every row, so tickets/emails group the order under the package by this id. */
+  /** The package this row was booked through (defaults to 0 — not part of any
+   * package). Stamped per row by the caller (`stampBookingPackages`) — an order
+   * can carry several packages — so tickets/emails group each line under the
+   * right bundle by this id. */
   packageGroupId?: number | undefined;
 };
 
@@ -112,10 +113,6 @@ export type AttendeeInput = ContactFields & {
    * checkout path can never be silently left uncounted; the admin manual-add
    * paths pass "admin" explicitly. */
   source?: BookingSource;
-  /** When the order is a package checkout, the package group's id (stamped on
-   * every booking row so the ticket view / confirmation email group the lines
-   * under the package). 0 / absent for a non-package order. */
-  packageGroupId?: number;
 };
 
 /** Row from listing_attendees — per-listing booking data */

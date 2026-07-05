@@ -14,14 +14,17 @@ import { getBaseUrl } from "#routes/url.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import { parseCustomPrice } from "#shared/booking/form.ts";
 import type { TicketListing } from "#shared/booking/model.ts";
+import { pagePackageBundleLimit } from "#shared/booking/package-cap.ts";
 import {
-  packageBundleLimit,
-  packageLimitInfo,
-} from "#shared/booking/package-cap.ts";
+  packageGroupIdByListingId,
+  type PagePackage,
+  withoutPackageMembers,
+} from "#shared/booking/page-packages.ts";
 import {
   customPriceFieldName,
   fixedQuantitiesByListingId,
-  PACKAGE_QUANTITY_FIELD,
+  packageQuantityFieldName,
+  packageSubTree,
   quantityFieldName,
 } from "#shared/booking/tree.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
@@ -59,11 +62,7 @@ import {
 } from "#shared/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import {
-  concealMemberNames,
-  memberStandInName,
-  packagePrivacyOfCtx,
-} from "#shared/package-privacy.ts";
+import { concealNamesByListingId } from "#shared/package-privacy.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
@@ -105,6 +104,7 @@ import {
   buildRegistrationItems,
   checkAvailability,
   createFreeReservation,
+  ctxStandInNames,
   ctxToBuildTreeInput,
   dropChildListings,
   foldSelectedChildren,
@@ -308,6 +308,7 @@ const checkoutIntentForSubmission = (
     reservationAmount,
   } = params;
   const listingAnswerIds = computeListingAnswerMap(ctx, info);
+  const memberGroups = packageGroupIdByListingId(ctx.packages);
   return {
     ...contact,
     date,
@@ -320,7 +321,9 @@ const checkoutIntentForSubmission = (
     ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
     ...(reservationAmount ? { reservationAmount } : {}),
     ...(modifiers && modifiers.length > 0 ? { modifiers } : {}),
-    ...(ctx.packageGroupId ? { packageGroupId: ctx.packageGroupId } : {}),
+    ...(memberGroups.size > 0
+      ? { packageGroupIdByListingId: memberGroups }
+      : {}),
   };
 };
 
@@ -414,9 +417,10 @@ const handleFreePath = async (
     ledgerOrder,
     listings: ctx.listings,
     modifierUsages,
-    // Carry the package group id so each booking row stores it (0 = not a
-    // package), grouping the order under the package on the ticket view / email.
-    ...(ctx.packageGroupId ? { packageGroupId: ctx.packageGroupId } : {}),
+    // Carry which package each member was booked through so each booking row
+    // stores it (0 = none), grouping the order's lines under the right bundle
+    // on the ticket view / email.
+    packageGroupIdByListingId: packageGroupIdByListingId(ctx.packages),
     paidByListingId: paymentBreakdown?.paidByListingId,
     quantities,
     remainingBalance: paymentBreakdown?.remainingBalance,
@@ -569,51 +573,61 @@ const validatePaymentUpgrade = (
   return validateTicketFields(form, ctx, true);
 };
 
-/** The buyer-chosen number of packages (0 when absent/invalid → an empty order). */
-const parsePackageCount = (form: FormParams): number =>
-  parseNonNegativeInt(form.getString(PACKAGE_QUANTITY_FIELD)) ?? 0;
+/** The buyer-chosen count for one package (0 when absent/invalid). */
+const parsePackageCount = (form: FormParams, groupId: number): number =>
+  parseNonNegativeInt(form.getString(packageQuantityFieldName(groupId))) ?? 0;
+
+/** One page package's bundle cap, from the ctx's shared capacity maps. */
+const ctxPackageLimit = (
+  ctx: TicketCtx,
+  tree: ReturnType<typeof buildBookingTree>,
+  pkg: PagePackage,
+): number =>
+  pagePackageBundleLimit(
+    tree,
+    pkg,
+    ctx.listings,
+    ctx.childrenByParentId,
+    ctx.packageGroupRemainingByGroupId,
+    ctx.packageMemberGroupIds,
+  );
 
 /**
- * Resolve the page listings' quantities from the form. For a package group the
- * buyer chooses a single `package_quantity`; each member's booked quantity is
- * its fixed per-package quantity × that count (the per-member `quantity_<id>`
- * inputs are not offered, so they are ignored). The posted count is clamped to
- * the same capacity ceiling the page renders ({@link packageBundleLimit}) so a
- * crafted POST can't exceed a member's remaining capacity or book a
- * closed/sold-out member (whose `maxPurchasable` — and thus the cap — is 0). A
- * resulting count of 0 yields all-zero lines, which `prepareOrder` rejects as
- * "select at least one ticket". Non-package pages parse the per-listing
- * quantities as usual.
+ * Resolve the page listings' quantities from the form. Listings no package
+ * books keep their own `quantity_<id>` inputs. For each package the buyer
+ * chooses one `package_quantity_<groupId>` count; each member's booked quantity
+ * is its fixed per-package quantity × that count (members have no own inputs).
+ * Every posted count is clamped to the same per-package capacity ceiling the
+ * page renders ({@link pagePackageBundleLimit}) so a crafted POST can't exceed
+ * a member's remaining capacity or book a closed/sold-out member (whose
+ * `maxPurchasable` — and thus the cap — is 0). All-zero lines are rejected by
+ * `prepareOrder` as "select at least one ticket".
  */
 const resolvePageQuantities = (
   form: FormParams,
   ctx: TicketCtx,
 ): Map<number, number> => {
-  const { packageGroupId, packageQuantities } = ctx;
-  if (packageGroupId == null || !packageQuantities) {
-    return parseQuantities(form, ctx.listings);
-  }
-  // Clamp the posted count to the same tree-driven ceiling the page renders —
-  // packageBundleLimit, including required-child capacity — so a crafted POST
-  // can't exceed a member's remaining capacity, a shared pool, or the add-ons'
-  // combined capacity.
+  const standalone = withoutPackageMembers(
+    ctx.listings,
+    ctx.packages,
+    (info) => info.listing.id,
+  );
+  const quantities = parseQuantities(form, standalone);
+  if (ctx.packages.length === 0) return quantities;
   const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
-  const cap = packageBundleLimit(
-    tree,
-    packageLimitInfo(
-      ctx.listings,
-      ctx.childrenByParentId,
-      ctx.packageGroupRemainingByGroupId,
-      ctx.packageMemberGroupIds,
-    ),
-  );
-  const packageQty = Math.max(0, Math.min(parsePackageCount(form), cap));
-  return new Map(
-    [...fixedQuantitiesByListingId(tree)].map(([listingId, fixed]) => [
-      listingId,
-      fixed * packageQty,
-    ]),
-  );
+  for (const pkg of ctx.packages) {
+    const packageQty = Math.max(
+      0,
+      Math.min(parsePackageCount(form, pkg.groupId), ctxPackageLimit(ctx, tree, pkg)),
+    );
+    if (packageQty === 0) continue;
+    for (const [listingId, fixed] of fixedQuantitiesByListingId(
+      packageSubTree(tree, pkg.groupId),
+    )) {
+      quantities.set(listingId, fixed * packageQty);
+    }
+  }
+  return quantities;
 };
 
 /** A parsed-and-priced submission, or the message explaining why it could not
@@ -663,14 +677,11 @@ const prepareOrder = async (
   const baseHasCustomisable = pageSelected.some(
     ({ listing }) => listing.customisable_days,
   );
-  // A HIDDEN package's day-count errors must name the package, not a concealed
-  // member; `groupName` is always set alongside `hidePackageListings`.
-  const dayResult = await resolveDayCount(
-    pageSelected,
-    form,
-    date,
-    memberStandInName(packagePrivacyOfCtx(ctx)),
-  );
+  // A HIDDEN package's day-count errors must name that package, not a
+  // concealed member — resolved per listing, since a page can carry several
+  // packages with different hide flags.
+  const standIns = ctxStandInNames(ctx);
+  const dayResult = await resolveDayCount(pageSelected, form, date, standIns);
   if ("error" in dayResult) return { error: dayResult.error, ok: false };
 
   // Parse the page listings' pay-more prices, then apply any signed QR override
@@ -720,7 +731,7 @@ const prepareOrder = async (
   // Build items from the folded set; each line is priced by the tree's price rule
   // (a package member's override is a node facet scoped to the member line, so no
   // separate override pass is needed), then hidden-package names are masked.
-  const items = concealMemberNames(
+  const items = concealNamesByListingId(
     buildRegistrationItems(
       foldedCtx.listings,
       quantities,
@@ -728,7 +739,7 @@ const prepareOrder = async (
       fold.priceRuleByListingId,
       dayCount,
     ),
-    packagePrivacyOfCtx(ctx),
+    standIns,
   );
 
   const info: AnswerInfo = {
@@ -779,7 +790,7 @@ const prepareOrder = async (
  * a required child is handled separately: the single page ctx still drives this,
  * so a child fold never drops a single parent's URL.) */
 const singleListingThankYouUrl = (ctx: TicketCtx): string | null =>
-  ctx.listings.length === 1 && !ctx.hidePackageListings
+  ctx.listings.length === 1 && !ctx.packages.some((pkg) => pkg.hideListings)
     ? ctx.listings[0]!.listing.thank_you_url
     : null;
 
@@ -1109,9 +1120,10 @@ export const handleTicket = async (args: BookingRequest): Promise<Response> => {
  * `?q_<id>=n` (the order page redirects into `/ticket/<slugs>?q_<id>=1…` to
  * land the visitor with their chosen items selected) and the date selector
  * from `?date=YYYY-MM-DD` (the /listings date filter carries the searched
- * date into a daily listing's Book CTA, #51).
+ * date into a daily listing's Book CTA, #51). A package needs no count
+ * pre-fill — its selector already defaults to one bundle.
  */
-const parseQuantityPrefill = (
+export const parseQuantityPrefill = (
   request: Request,
   listings: TicketListing[],
 ): BookingPrefill | undefined => {
@@ -1198,7 +1210,10 @@ export const renderTicketFlow =
       }),
       listings: activeListings,
       mode: options.mode,
-      prefill: options.prefill,
+      // A caller-supplied pre-fill wins; otherwise read the query pre-fill so
+      // e.g. the order cart's chosen date carries onto a package page.
+      prefill:
+        options.prefill ?? parseQuantityPrefill(request, activeListings),
       request,
       slugs,
     });

@@ -8,9 +8,11 @@ import {
   type TicketListing,
   ticketsThatFitInPool,
 } from "#shared/booking/model.ts";
+import type { TreePackage } from "#shared/booking/page-packages.ts";
 import {
   type BookingTree,
   fixedQuantitiesByListingId,
+  packageSubTree,
 } from "#shared/booking/tree.ts";
 import {
   PARENT_CHILD_GROUP_UNITS,
@@ -331,3 +333,27 @@ export const packageBundleLimit = (
     ),
     sharedChildrenAcrossMembersLimit(tree, ctx),
   );
+
+/** Whole bundles of ONE page package the buyer may still book, on a page that
+ * can sell several bundles alongside other listings: {@link packageBundleLimit}
+ * over just that package's member nodes and member listings. The one ceiling
+ * the page render, the submit clamp, and the API all share. */
+export const pagePackageBundleLimit = (
+  tree: BookingTree,
+  pkg: TreePackage,
+  listings: readonly TicketListing[],
+  childrenByParentId: ReadonlyMap<number, readonly TicketListing[]> | undefined,
+  groupRemainingByGroupId: ReadonlyMap<number, number>,
+  groupIdsByListingId: ReadonlyMap<number, number[]>,
+): number => {
+  const memberIds = new Set(pkg.memberListingIds);
+  return packageBundleLimit(
+    packageSubTree(tree, pkg.groupId),
+    packageLimitInfo(
+      listings.filter((info) => memberIds.has(info.listing.id)),
+      childrenByParentId,
+      groupRemainingByGroupId,
+      groupIdsByListingId,
+    ),
+  );
+};

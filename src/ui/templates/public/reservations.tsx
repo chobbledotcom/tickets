@@ -20,10 +20,17 @@ import {
   childCanBeBooked,
   childTicketLimit,
   groupCapacityInfo,
-  packageBundleLimit,
   packageChildTicketLimits,
   packageLimitInfo,
+  pagePackageBundleLimit,
 } from "#shared/booking/package-cap.ts";
+import {
+  mergedPackageDayPrices,
+  mergedPackagePrices,
+  packageByMemberListingId,
+  type PagePackage,
+  withoutPackageMembers,
+} from "#shared/booking/page-packages.ts";
 import { packageBundleTotal } from "#shared/booking/price-tree.ts";
 import {
   type BookingNode,
@@ -32,7 +39,7 @@ import {
   childQuantityFieldName,
   nodePriceFieldName,
   nodeQuantityFieldName,
-  PACKAGE_QUANTITY_FIELD,
+  packageQuantityFieldName,
   quantityFieldName,
 } from "#shared/booking/tree.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
@@ -368,13 +375,14 @@ const restoredQuantity = (
     resolveQuantity(prefill, maxPurchasable),
   );
 
-/** The package count to pre-select: the value the buyer just submitted (restored
- * when a validation error re-renders the page) clamped to the limit, else 1 (or 0
- * when nothing can be ordered). Without this an error would silently reset a
+/** One package's count to pre-select: the value the buyer just submitted
+ * (restored when a validation error re-renders the page) clamped to the limit,
+ * else 1 (or 0 when nothing can be ordered) — one bundle is also exactly what
+ * an order-cart selection means. Without this an error would silently reset a
  * multi-package order to one, risking a wrong-quantity resubmit. */
-const restoredPackageQuantity = (limit: number): number =>
+const restoredPackageQuantity = (groupId: number, limit: number): number =>
   clampSavedQuantity(
-    savedFormValue(PACKAGE_QUANTITY_FIELD),
+    savedFormValue(packageQuantityFieldName(groupId)),
     limit,
     Math.min(1, limit),
   );
@@ -655,7 +663,7 @@ const renderSoleChildOption = (
 const renderChildBlock = (
   parentInfo: TicketListing,
   ctx: ChildRenderCtx,
-  packageFixedQty?: number,
+  packageMember?: { fixedQty: number; groupId: number },
 ): string => {
   const parent = parentInfo.listing;
   const parentId = parent.id;
@@ -736,11 +744,12 @@ const renderChildBlock = (
       )}</legend>`;
   // A package member parent has no quantity_<id> control, so the client scripts
   // derive its booked units from this fixed per-package quantity × the chosen
-  // package count.
+  // count of ITS package (named by data-package-group).
   const fixedQtyAttr =
-    packageFixedQty === undefined
+    packageMember === undefined
       ? ""
-      : ` data-package-fixed-qty="${packageFixedQty}"`;
+      : ` data-package-fixed-qty="${packageMember.fixedQty}"` +
+        ` data-package-group="${packageMember.groupId}"`;
   return (
     `<fieldset class="child-selector" data-parent-id="${parentId}"${fixedQtyAttr}>` +
     `${legend}${note}${options}${questionsHtml}</fieldset>`
@@ -823,6 +832,7 @@ const renderListingRow = (
 const renderPackageMemberRow = (
   info: TicketListing,
   fixedQty: number,
+  groupId: number,
   childCtx: ChildRenderCtx | undefined,
 ): string => `
     <div class="ticket-row package-member">
@@ -831,43 +841,66 @@ const renderPackageMemberRow = (
         info.listing.name,
       )} <span class="package-member-qty">&times;${fixedQty}</span></label>
       ${renderListingDescription(info.listing.description)}
-      ${childCtx ? renderChildBlock(info, childCtx, fixedQty) : ""}
+      ${childCtx ? renderChildBlock(info, childCtx, { fixedQty, groupId }) : ""}
     </div>
   `;
 
-/** A package booking page's listing area: the single "number of packages"
- * selector, then each member row (each showing its fixed quantity) — unless the
- * package hides its listings from buyers, in which case only the selector shows.
- * `limit` is the most packages the buyer can book. */
-const renderPackageRows = (
-  listings: TicketListing[],
-  quantities: ReadonlyMap<number, number>,
+/** One package's booking controls: its "number of packages" selector, then each
+ * member row (each showing its fixed quantity) — unless the package hides its
+ * listings from buyers, in which case only the selector shows. `limit` is the
+ * most bundles of this package the buyer can book. */
+const renderPackageControls = (
+  pkg: PagePackage,
+  members: TicketListing[],
   limit: number,
-  hide: boolean,
   childCtx: ChildRenderCtx | undefined,
 ): string => {
   // Every member listing id, so the client knows which listing-scoped questions
   // to show/require once a package is selected — even when members are hidden and
   // render no rows of their own.
-  const memberIds = listings.map((e) => e.listing.id).join(" ");
+  const memberIds = members.map((e) => e.listing.id).join(" ");
   const selector = `<label>${t(
     "public.package.quantity",
-  )}<select name="${PACKAGE_QUANTITY_FIELD}" data-package-members="${memberIds}">${quantityOptions(
+  )}<select name="${packageQuantityFieldName(
+    pkg.groupId,
+  )}" data-package-members="${memberIds}">${quantityOptions(
     limit,
-    restoredPackageQuantity(limit),
+    restoredPackageQuantity(pkg.groupId, limit),
   )}</select></label>`;
-  const members = hide
+  const memberRows = pkg.hideListings
     ? ""
-    : listings
+    : members
         .map((e) =>
           renderPackageMemberRow(
             e,
-            quantities.get(e.listing.id) ?? 1,
+            pkg.quantities.get(e.listing.id) ?? 1,
+            pkg.groupId,
             childCtx,
           ),
         )
         .join("");
-  return selector + members;
+  return selector + memberRows;
+};
+
+/** One package as a titled section of a page selling several things: the
+ * package's name (and description) above its controls, or a dimmed sold-out
+ * card when no whole bundle fits any more — the page stays usable for the
+ * other items, matching the order gallery's sold-out cards. */
+const renderPackageSection = (
+  pkg: PagePackage,
+  members: TicketListing[],
+  limit: number,
+  childCtx: ChildRenderCtx | undefined,
+): string => {
+  const heading = `<legend>${escapeHtml(pkg.name)}</legend>`;
+  const body =
+    limit < 1
+      ? `<span class="sold-out-label">${t("public.sold_out")}</span>`
+      : renderListingDescription(pkg.description) +
+        renderPackageControls(pkg, members, limit, childCtx);
+  return `<fieldset class="ticket-package${
+    limit < 1 ? " sold-out" : ""
+  }" data-package-section="${pkg.groupId}">${heading}${body}</fieldset>`;
 };
 
 /** Render controls for a single listing: quantity input + pay-more (no listing name/image/description). */
@@ -991,26 +1024,13 @@ export type TicketPageOptions = {
   groupRemainingByGroupId?: ReadonlyMap<number, number>;
   /** Groups each listing belongs to. */
   groupIdsByListingId?: ReadonlyMap<number, number[]>;
-  /** Package overrides (listing id → price) when this is a package page, so a
-   * member whose base price is 0 but override is paid still renders the provider
-   * contact fields. Empty/omitted for non-package pages. */
-  packagePrices?: ReadonlyMap<number, number> | null | undefined;
-  /** A package page's per-member per-day overrides (listing id → day count →
-   * minor units), so the tree's `DAY_PRICE` rules — and the day-count selector's
-   * bundle totals — price by the package's entered day prices. */
-  packageDayPrices?:
-    | ReadonlyMap<number, ReadonlyMap<number, number>>
-    | null
-    | undefined;
-  /** Set on a package page: the group id, each member's fixed per-package
-   * quantity, and whether members are hidden from buyers. When set, the page
-   * shows one package-quantity selector instead of per-member quantities. */
-  packageGroupId?: number | null;
-  packageQuantities?: ReadonlyMap<number, number> | null;
+  /** The package bundles sold on this page, in page order. Each package's
+   * members render under its own count selector instead of per-member
+   * quantities; listings outside every package keep their own controls. */
+  packages?: PagePackage[];
   /** Remaining spots for package member groups. */
   packageGroupRemainingByGroupId?: ReadonlyMap<number, number>;
   packageMemberGroupIds?: ReadonlyMap<number, number[]>;
-  hidePackageListings?: boolean;
 };
 
 /** Unavailability message shown when all listings are sold out or closed */
@@ -1223,11 +1243,12 @@ const packageDayCountPriceFor =
   (days: number): number =>
     packageBundleTotal(tree, days, bookableChildren);
 
-/** The day-count option pricer for a page: a customisable PACKAGE prices each
- * option as the whole bundle's total; every other page keeps the pricer
- * {@link dayConfig} resolved (the single listing's own day prices, or none). */
+/** The day-count option pricer for a page: a page that IS one customisable
+ * package prices each option as the whole bundle's total; every other page
+ * keeps the pricer {@link dayConfig} resolved (the single listing's own day
+ * prices, or none). */
 const resolveDayCountPriceFor = (
-  isPackage: boolean,
+  singlePackagePage: boolean,
   tree: BookingTree,
   bookableChildren: ReadonlySet<number>,
   dayCfg: {
@@ -1235,7 +1256,7 @@ const resolveDayCountPriceFor = (
     dayCountPriceFor?: ((days: number) => number | null) | undefined;
   },
 ): ((days: number) => number | null) | undefined =>
-  isPackage && dayCfg.hasCustomisable
+  singlePackagePage && dayCfg.hasCustomisable
     ? packageDayCountPriceFor(tree, bookableChildren)
     : dayCfg.dayCountPriceFor;
 
@@ -1249,7 +1270,7 @@ const dayConfig = (
   listings: TicketListing[],
   singleListing: ListingWithCount | null,
   childrenByParentId: Map<number, TicketListing[]> | undefined,
-  isPackage: boolean,
+  hasPackages: boolean,
 ): {
   hasCustomisable: boolean;
   dayCounts: number[];
@@ -1267,7 +1288,7 @@ const dayConfig = (
   // constrains the bundle's spans; other pages constrain only the
   // single-listing-parent case.
   dayCounts:
-    isPackage && childrenByParentId
+    hasPackages && childrenByParentId
       ? packageDayCountsChildrenSupport(listings, childrenByParentId)
       : keepParentDayCountsChildrenSupport(
           listings,
@@ -1433,64 +1454,102 @@ const buildListingRows = (
         )
         .join("");
 
-/** Build the page's listing area: a package shows one package-quantity selector
- * plus read-only member rows; any other page shows the per-listing controls. */
+/** Build the page's listing area. A page that IS one package (every listing a
+ * member) shows that package's count selector plus read-only member rows, as
+ * before. A page selling several things shows each package as a titled section,
+ * then the per-listing controls for everything outside the packages. */
 const buildPageListingRows = (opts: {
-  isPackage: boolean;
+  singlePackagePage: boolean;
   listings: TicketListing[];
+  packages: PagePackage[];
+  packageLimits: ReadonlyMap<number, number>;
   nodeByListingId: ReadonlyMap<number, BookingNode>;
-  packageQuantities: ReadonlyMap<number, number> | null | undefined;
-  packageLimit: number;
-  hidePackageListings: boolean;
   isSingleListing: boolean;
   hideQuantity: boolean;
   prefill?: BookingPrefill | undefined;
   childCtx?: ChildRenderCtx | undefined;
 }): string => {
-  if (opts.isPackage) {
-    const quantities = opts.packageQuantities ?? new Map<number, number>();
-    return renderPackageRows(
-      opts.listings,
-      quantities,
-      opts.packageLimit,
-      opts.hidePackageListings,
+  const membersOf = (pkg: PagePackage): TicketListing[] => {
+    const memberIds = new Set(pkg.memberListingIds);
+    return opts.listings.filter((info) => memberIds.has(info.listing.id));
+  };
+  if (opts.singlePackagePage) {
+    const pkg = opts.packages[0]!;
+    return renderPackageControls(
+      pkg,
+      membersOf(pkg),
+      opts.packageLimits.get(pkg.groupId) ?? 0,
       opts.childCtx,
     );
   }
-  return buildListingRows(
+  const packageSections = opts.packages
+    .map((pkg) =>
+      renderPackageSection(
+        pkg,
+        membersOf(pkg),
+        opts.packageLimits.get(pkg.groupId) ?? 0,
+        opts.childCtx,
+      ),
+    )
+    .join("");
+  const standalone = withoutPackageMembers(
     opts.listings,
-    opts.nodeByListingId,
-    opts.isSingleListing,
-    opts.hideQuantity,
-    opts.prefill,
-    opts.childCtx,
+    opts.packages,
+    (info) => info.listing.id,
+  );
+  return (
+    packageSections +
+    buildListingRows(
+      standalone,
+      opts.nodeByListingId,
+      opts.isSingleListing,
+      opts.hideQuantity,
+      opts.prefill,
+      opts.childCtx,
+    )
   );
 };
 
-/** Package limit for this page, plus whether it should show as sold out. */
+/** Each page package's bundle limit, plus whether the whole page should show as
+ * sold out (nothing standalone left AND no package bookable). */
 const packagePageAvailability = (
-  isPackage: boolean,
+  packages: PagePackage[],
   tree: BookingTree,
   listings: TicketListing[],
   childrenByParentId: Map<number, TicketListing[]> | undefined,
   groupRemainingByGroupId: ReadonlyMap<number, number>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
-): { packageLimit: number; soldOut: boolean } => {
-  const limit = isPackage
-    ? packageBundleLimit(
+): { packageLimits: Map<number, number>; soldOut: boolean } => {
+  const packageLimits = new Map(
+    packages.map((pkg) => [
+      pkg.groupId,
+      pagePackageBundleLimit(
         tree,
-        packageLimitInfo(
-          listings,
-          childrenByParentId,
-          groupRemainingByGroupId,
-          groupIdsByListingId,
-        ),
-      )
-    : null;
-  const membersUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
+        pkg,
+        listings,
+        childrenByParentId,
+        groupRemainingByGroupId,
+        groupIdsByListingId,
+      ),
+    ]),
+  );
+  const standalone = withoutPackageMembers(
+    listings,
+    packages,
+    (info) => info.listing.id,
+  );
+  const standaloneUnavailable = standalone.every(
+    (e) => e.isSoldOut || e.isClosed,
+  );
+  const packagesUnavailable = [...packageLimits.values()].every(
+    (limit) => limit === 0,
+  );
   return {
-    packageLimit: limit ?? 0,
-    soldOut: membersUnavailable || limit === 0,
+    packageLimits,
+    // Sold out only when every standalone row AND every bundle is dead (a
+    // bundle with an unavailable member already reads limit 0; a package-less
+    // page has no bundles, leaving just its listings' own availability).
+    soldOut: standaloneUnavailable && packagesUnavailable,
   };
 };
 
@@ -1499,9 +1558,11 @@ const packagePageAvailability = (
  * — a hidden package with one active member must not expose that member here. */
 const headerListing = (
   listings: TicketListing[],
-  hidePackageListings: boolean,
+  packages: PagePackage[],
 ): ListingWithCount | null =>
-  listings.length === 1 && !hidePackageListings ? listings[0]!.listing : null;
+  listings.length === 1 && !packages.some((pkg) => pkg.hideListings)
+    ? listings[0]!.listing
+    : null;
 
 /**
  * Ticket page - register for one or more listings
@@ -1527,29 +1588,25 @@ export const ticketPage = ({
   childDatesById,
   groupRemainingByGroupId = new Map(),
   groupIdsByListingId = new Map(),
-  packagePrices,
-  packageDayPrices,
-  packageGroupId,
-  packageQuantities,
+  packages = [],
   packageGroupRemainingByGroupId = new Map(),
   packageMemberGroupIds = new Map(),
-  hidePackageListings = false,
 }: TicketPageOptions): string => {
-  // getTicketContext always sets packageQuantities alongside packageGroupId.
-  const isPackage = packageGroupId != null;
+  // A page that IS one package (every listing a member) keeps the classic
+  // package-page layout; packages beside other items render as sections.
+  const memberPackages = packageByMemberListingId(packages);
+  const singlePackagePage =
+    packages.length === 1 &&
+    listings.every((info) => memberPackages.has(info.listing.id));
+  // Merged per-listing override maps (member sets are disjoint), for paid-ness.
+  const packagePrices = mergedPackagePrices(packages);
+  const packageDayPrices = mergedPackageDayPrices(packages);
   // The canonical booking tree drives node identity + the stable form field names
   // (via nodeQuantityFieldName/nodePriceFieldName); render output is unchanged.
   const treeInput: BuildTreeInput = {
     childrenByParentId,
-    hidePackageListings,
     listings,
-    packageDayPrices,
-    packagePrices,
-    packageQuantities,
-    root:
-      packageGroupId != null
-        ? { groupId: packageGroupId, kind: "package" }
-        : undefined,
+    packages,
     slugs,
   };
   const tree = buildBookingTree(treeInput);
@@ -1557,8 +1614,8 @@ export const ticketPage = ({
     tree.nodes.map((node) => [node.listingId, node]),
   );
   const inIframe = getIframeMode();
-  const { packageLimit, soldOut: allUnavailable } = packagePageAvailability(
-    isPackage,
+  const { packageLimits, soldOut: allUnavailable } = packagePageAvailability(
+    packages,
     tree,
     listings,
     childrenByParentId,
@@ -1580,7 +1637,7 @@ export const ticketPage = ({
   );
   const hasDaily = listings.some((e) => e.listing.listing_type === "daily");
 
-  const singleListing = headerListing(listings, hidePackageListings);
+  const singleListing = headerListing(listings, packages);
   const isSingleListing = singleListing !== null;
   const pastDays = singleListing?.date ? daysAgo(singleListing.date) : null;
 
@@ -1588,11 +1645,11 @@ export const ticketPage = ({
     listings,
     singleListing,
     childrenByParentId,
-    isPackage,
+    packages.length > 0,
   );
   const { hasCustomisable, dayCounts, dateDurationDays } = dayCfg;
   const dayCountPriceFor = resolveDayCountPriceFor(
-    isPackage,
+    singlePackagePage,
     tree,
     bookableChildIds(childrenByParentId),
     dayCfg,
@@ -1600,6 +1657,7 @@ export const ticketPage = ({
 
   const availableListings = listings.filter((e) => !e.isSoldOut && !e.isClosed);
   const hideQuantity =
+    packages.length === 0 &&
     availableListings.length === 1 &&
     availableListings[0]?.maxPurchasable === 1;
 
@@ -1614,18 +1672,18 @@ export const ticketPage = ({
   );
 
   // A package page shows one "number of packages" selector plus read-only member
-  // rows (each ×its fixed quantity); other pages show per-listing controls.
+  // rows (each ×its fixed quantity); a mixed page shows each package as a titled
+  // section above the per-listing controls.
   const listingRows = buildPageListingRows({
     childCtx,
-    hidePackageListings,
     hideQuantity,
-    isPackage,
     isSingleListing,
     listings,
     nodeByListingId,
-    packageLimit,
-    packageQuantities,
+    packageLimits,
+    packages,
     prefill,
+    singlePackagePage,
   });
 
   // Caller-supplied group metadata (groups, renewals) takes priority over
@@ -1670,7 +1728,7 @@ export const ticketPage = ({
           hasCustomisable={hasCustomisable}
           hasDaily={hasDaily}
           hideQuantity={hideQuantity}
-          isPackage={isPackage}
+          isPackage={singlePackagePage}
           isSingleListing={isSingleListing}
           listingRows={listingRows}
           prefill={prefill}

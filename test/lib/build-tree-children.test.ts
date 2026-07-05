@@ -4,6 +4,7 @@ import type { BuildTreeInput } from "#shared/booking/build-tree.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { resolved } from "./booking-model-fixtures.ts";
+import { treePackage } from "./package-cap-fixtures.ts";
 
 /** A parent (id 1) with one required child (id 9), for tests that only need
  * to vary the child's own listing fields or the surrounding tree input. */
@@ -71,8 +72,7 @@ describe("buildBookingTree — price rule", () => {
           unit_price: 1000,
         }),
       ],
-      packagePrices: new Map([[1, 2500]]),
-      root: { groupId: 3, kind: "package" },
+      packages: [treePackage(3, [1], { prices: new Map([[1, 2500]]) })],
       slugs: ["ab12c"],
     });
     expect(tree.nodes[0]!.priceRule).toEqual({
@@ -85,8 +85,7 @@ describe("buildBookingTree — price rule", () => {
     const dayOverrides = new Map([[3, 900]]);
     const tree = buildBookingTree({
       listings: [resolved({ customisable_days: true, id: 1 })],
-      packageDayPrices: new Map([[1, dayOverrides]]),
-      root: { groupId: 3, kind: "package" },
+      packages: [treePackage(3, [1], { dayPrices: new Map([[1, dayOverrides]]) })],
       slugs: ["ab12c"],
     });
     expect(tree.nodes[0]!.priceRule).toEqual({
@@ -145,7 +144,7 @@ describe("buildBookingTree — child nodes", () => {
   });
 
   test("a package member's own children use the package-member ancestor path", () => {
-    const tree = treeWithChild({}, { root: { groupId: 3, kind: "package" } });
+    const tree = treeWithChild({}, { packages: [treePackage(3, [1])] });
     expect(tree.nodes[0]!.children[0]!.nodeKey).toBe(
       "package:3/member:1/child:9",
     );
@@ -165,7 +164,7 @@ describe("buildBookingTree — child nodes", () => {
     test("a child is hidden when its hidden package-member parent is hidden, even if the child itself isn't", () => {
       const tree = treeWithChild(
         {},
-        { hidePackageListings: true, root: { groupId: 3, kind: "package" } },
+        { packages: [treePackage(3, [1], { hideListings: true })] },
       );
       expect(tree.nodes[0]!.children[0]!.visibility).toBe("HIDDEN");
     });

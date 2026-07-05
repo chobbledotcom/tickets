@@ -5,7 +5,9 @@
 import { notFoundResponse } from "#routes/response.ts";
 import {
   computeGroupSlugIndex,
+  getActiveListingsByGroupId,
   getGroupBySlugIndex,
+  getGroupListingIds,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { sortListings } from "#shared/sort-listings.ts";
@@ -62,6 +64,29 @@ export const loadBookablePackageBySlug = async (
 ): Promise<GroupWithListings | null> => {
   const loaded = await loadActiveGroupListingsBySlug(slug);
   return loaded?.group.is_package ? loaded : null;
+};
+
+/** Load a COMPLETE package group by slug for a multi-item cart page, or null
+ * (unknown slug, not a package, no members, or a member was deactivated — an
+ * incomplete bundle must never sell partially). Unlike the single
+ * `/ticket/<group>` gate this does NOT require the bundle to still fit: a cart
+ * renders a sold-out package as a dimmed section so the rest of the cart still
+ * books, mirroring the order gallery's sold-out cards. */
+export const loadCartPackageBySlug = async (
+  slug: string,
+): Promise<GroupWithListings | null> => {
+  const slugIndex = await computeGroupSlugIndex(slug);
+  const group = await getGroupBySlugIndex(slugIndex);
+  if (!group?.is_package) return null;
+  const [members, allMemberIds, holidays] = await Promise.all([
+    getActiveListingsByGroupId(group.id),
+    getGroupListingIds(group.id),
+    getActiveHolidays(),
+  ]);
+  if (members.length === 0 || members.length < allMemberIds.length) {
+    return null;
+  }
+  return { group, listings: sortListings(members, holidays) };
 };
 
 /** Handle group ticket page by slug. With `mode: "calculate"` a POST prices the

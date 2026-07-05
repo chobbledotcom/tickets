@@ -27,6 +27,7 @@ import {
   createFreeReservation,
   ctxToBuildTreeInput,
   foldSelectedChildren,
+  ctxStandInNames,
   getTicketContext,
   keepParentDailyDatesChildrenCanServe,
   parentRequiresChild,
@@ -50,6 +51,7 @@ import {
   packageBundleLimit,
   packageLimitInfo,
 } from "#shared/booking/package-cap.ts";
+import { packageGroupIdByListingId } from "#shared/booking/page-packages.ts";
 import { packageBundleTotal } from "#shared/booking/price-tree.ts";
 import {
   type BookingTree,
@@ -82,7 +84,6 @@ import {
 import { FormParams } from "#shared/form-data.ts";
 import {
   concealMemberNames,
-  memberStandInName,
   namesConcealed,
   type PackagePrivacy,
   packagePrivacy,
@@ -764,7 +765,10 @@ const foldedIntent = (
   date: string | null,
   fold: Extract<FoldChildrenResult, { ok: true }>,
   items: CheckoutItem[],
-  opts: { parentThankYouUrl?: string; packageGroupId?: number },
+  opts: {
+    parentThankYouUrl?: string;
+    packageGroups?: ReadonlyMap<number, number>;
+  },
 ): CheckoutIntent => ({
   ...contact,
   // Carry the per-(child,parent) allocations so the paid session signs them and
@@ -781,7 +785,9 @@ const foldedIntent = (
   ...(opts.parentThankYouUrl && fold.listings.length > 1
     ? { thankYouUrl: opts.parentThankYouUrl }
     : {}),
-  ...(opts.packageGroupId ? { packageGroupId: opts.packageGroupId } : {}),
+  ...(opts.packageGroups && opts.packageGroups.size > 0
+    ? { packageGroupIdByListingId: opts.packageGroups }
+    : {}),
 });
 
 /** Charge or create a folded parent+children order. Paid (with a provider): a
@@ -796,11 +802,11 @@ const foldedIntent = (
  * (`ticket-submit.ts`), which sets `intent.thankYouUrl` only once a child was
  * actually folded in.
  *
- * A PACKAGE order sets `packageGroupId` so the id is stamped onto every booking
- * row and signed into the paid metadata (driving the webhook's package
- * revalidation); the order's {@link PackagePrivacy} conceals a HIDDEN
- * package's member names on the hosted checkout's line items so the provider
- * page never reveals them. */
+ * A PACKAGE order sets `packageGroups` (member listing id → group id) so each
+ * row is stamped with its bundle and each member line is edge-tagged in the
+ * signed metadata (driving the webhook's package revalidation); the order's
+ * {@link PackagePrivacy} conceals a HIDDEN package's member names on the hosted
+ * checkout's line items so the provider page never reveals them. */
 const completeFoldedBooking = async (
   request: Request,
   contact: ContactInfo,
@@ -808,7 +814,7 @@ const completeFoldedBooking = async (
   fold: Extract<FoldChildrenResult, { ok: true }>,
   opts: {
     parentThankYouUrl?: string;
-    packageGroupId?: number;
+    packageGroups?: ReadonlyMap<number, number>;
     privacy?: PackagePrivacy;
   },
 ): Promise<Response> => {
@@ -865,7 +871,7 @@ const completeFoldedBooking = async (
         : null,
     listings: fold.listings,
     modifierUsages: [],
-    ...(opts.packageGroupId ? { packageGroupId: opts.packageGroupId } : {}),
+    packageGroupIdByListingId: opts.packageGroups,
     quantities: fold.quantities,
     remainingBalance,
   });
@@ -1214,7 +1220,7 @@ const resolvePackageOrder = async (
   ctx: TicketCtx,
   tree: BookingTree,
   limit: number,
-  hiddenName: string | undefined,
+  standIns: ReadonlyMap<number, string>,
 ): Promise<
   | Response
   | {
@@ -1253,7 +1259,7 @@ const resolvePackageOrder = async (
     listingsWithQuantity(ctx.listings, quantities),
     form,
     date,
-    hiddenName,
+    standIns,
   );
   if ("error" in dayResult) {
     return apiResponse({ error: dayResult.error }, 400);
@@ -1288,7 +1294,7 @@ const handleBookPackage = async (
     ctx,
     tree,
     limit,
-    memberStandInName(privacy),
+    ctxStandInNames(ctx),
   );
   if (order instanceof Response) return order;
   const { date, dayCount, form, quantities } = order;
@@ -1337,7 +1343,7 @@ const handleBookPackage = async (
   );
   if (valResult instanceof Response) return valResult;
   return completeFoldedBooking(request, extractContact(valResult), date, fold, {
-    packageGroupId: group.id,
+    packageGroups: packageGroupIdByListingId(ctx.packages),
     privacy,
   });
 };

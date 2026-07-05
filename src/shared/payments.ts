@@ -113,11 +113,12 @@ type CheckoutMetaFields = {
    * signed metadata so the webhook can expand child bookings into per-parent
    * rows. Absent for legacy/no-parent orders. */
   allocations?: ChildAllocation[] | undefined;
-  /** Set when the booking is for a package group: its id, carried through the
-   * signed metadata so the webhook re-derives each member's expected price from
-   * the group's current package overrides (the `group` dimension of
-   * listing_prices). Absent otherwise. */
-  packageGroupId?: number | undefined;
+  /** Which package each member listing was booked through (listing id → group
+   * id). Carried per LINE in the signed items (each member line's `k`/`r` edge
+   * tag), so the webhook re-derives each member's expected price from its own
+   * group's current package overrides and stamps each booking row under the
+   * right bundle. Absent/empty when the order books no package. */
+  packageGroupIdByListingId?: ReadonlyMap<number, number> | undefined;
 };
 
 /** Fields shared by the booking and checkout intents: the contact, answer,
@@ -213,8 +214,10 @@ export type SessionMetadata = {
    * round-trip so the webhook can expand child bookings into per-parent rows.
    * "" when no children were folded. */
   allocations: string;
-  /** The package group's id when the booking is a package ("" otherwise), so the
-   * webhook re-prices members against the current package overrides. */
+  /** LEGACY read-only field: sessions created before packages became per-line
+   * carried one order-wide package group id here ("" otherwise). New sessions
+   * tag each member line instead (`k`/`r` on the signed items); this stays so
+   * an in-flight pre-cutover session still completes as a package order. */
   package_group_id: string;
   /** The agreed order total (minor units) the buyer was charged, packed with a
    * server HMAC over the price/booking fields as `total.sig` in a single key —

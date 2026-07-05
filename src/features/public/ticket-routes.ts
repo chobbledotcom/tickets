@@ -14,6 +14,7 @@ import { getListingWithCountBySlug } from "#shared/db/listings.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";
+import { handleCartBySlugs } from "./cart.ts";
 import { getVisibleGroupMembers, groupBookable } from "./discovery.ts";
 import { handleGroupTicketBySlug } from "./groups.ts";
 import { handleQrBookGet } from "./qr-book.ts";
@@ -49,12 +50,17 @@ const handleReservedGet = async (request: Request): Promise<Response> => {
  * the whole flow: it picks booking vs quote for the listings lookup, and — for
  * a single slug that 404s (no such listing) — carries through to the group
  * fallback, since the group booking form posts its group slug, not its member
- * slugs.
+ * slugs. A multi-slug URL naming at least one PACKAGE (the order cart's
+ * "packages alongside listings" bookings) takes the cart path instead.
  */
 const slugHandler =
   (mode?: "calculate") =>
   async (request: Request, { slug }: { slug: string }): Promise<Response> => {
     const slugs = parseSlugs(slug);
+    if (slugs.length > 1) {
+      const cartResponse = await handleCartBySlugs(request, slugs, mode);
+      if (cartResponse) return cartResponse;
+    }
     const response = await handleBySlugs(request, slugs, mode);
     if (response.status === 404 && slugs.length === 1) {
       return handleGroupTicketBySlug(request, slugs[0]!, mode);

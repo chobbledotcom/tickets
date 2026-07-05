@@ -5,6 +5,7 @@ import {
   buildBookingTree,
 } from "#shared/booking/build-tree.ts";
 import { buildTicketListing } from "#shared/booking/model.ts";
+import type { TreePackage } from "#shared/booking/page-packages.ts";
 import {
   type BookingNode,
   childNodeKey,
@@ -15,14 +16,30 @@ import {
   listingNodeKey,
   nodePriceFieldName,
   nodeQuantityFieldName,
-  PACKAGE_QUANTITY_FIELD,
   packageMemberNodeKey,
+  packageQuantityFieldName,
+  packageSubTree,
   quantityFieldName,
 } from "#shared/booking/tree.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 const resolved = (overrides = {}, closed = false, groupRemaining = undefined) =>
   buildTicketListing(testListingWithCount(overrides), closed, groupRemaining);
+
+/** A package bundle for tree inputs, defaulting every map empty. */
+const pkg = (
+  groupId: number,
+  memberListingIds: number[],
+  overrides: Partial<TreePackage> = {},
+): TreePackage => ({
+  dayPrices: new Map(),
+  groupId,
+  hideListings: false,
+  memberListingIds,
+  prices: new Map(),
+  quantities: new Map(),
+  ...overrides,
+});
 
 describe("booking tree — node identity (nodeKey scheme)", () => {
   test("addresses each path distinctly so the same listing never collapses", () => {
@@ -63,7 +80,9 @@ describe("booking tree — form field-name SSOT", () => {
     expect(customPriceFieldName(4)).toBe("custom_price_4");
     expect(childQuantityFieldName(2, 9)).toBe("child_qty_2_9");
     expect(childPriceFieldName(2, 9)).toBe("child_price_2_9");
-    expect(PACKAGE_QUANTITY_FIELD).toBe("package_quantity");
+    // Per group, so a page selling several bundles posts one count each.
+    expect(packageQuantityFieldName(3)).toBe("package_quantity_3");
+    expect(packageQuantityFieldName(8)).not.toBe(packageQuantityFieldName(3));
   });
 
   test("child field names embed both the parent and child id", () => {
@@ -97,11 +116,10 @@ describe("booking tree — nodeKey → field-name projection", () => {
     expect(qtyField(child)).toBe("child_qty_4_9");
   });
 
-  test("a package member has no per-member quantity field (uses package_quantity)", () => {
+  test("a package member has no per-member quantity field (uses its package's count)", () => {
     const tree = buildBookingTree({
       listings: [resolved({ id: 7, slug: "ab12c" })],
-      packageQuantities: new Map([[7, 2]]),
-      root: { groupId: 3, kind: "package" },
+      packages: [pkg(3, [7], { quantities: new Map([[7, 2]]) })],
       slugs: ["ab12c"],
     });
     expect(qtyField(tree.nodes[0]!)).toBeNull();
@@ -177,13 +195,31 @@ describe("buildBookingTree — root identity", () => {
     expect(tree.rootRef).toEqual({ groupId: 3, kind: "group" });
   });
 
-  test("a package root carries its group id", () => {
+  test("a page that IS one package carries a package root", () => {
     const tree = buildBookingTree({
       listings: [resolved({ id: 7 })],
-      root: { groupId: 3, kind: "package" },
+      packages: [pkg(3, [7])],
       slugs: ["ab12c"],
     });
     expect(tree.rootRef).toEqual({ groupId: 3, kind: "package" });
+  });
+
+  test("a cart mixing a package with other listings is a listing root", () => {
+    const tree = buildBookingTree({
+      listings: [resolved({ id: 7 }), resolved({ id: 8 })],
+      packages: [pkg(3, [7])],
+      slugs: ["pkg-3", "ab12c"],
+    });
+    expect(tree.rootRef).toEqual({ kind: "listing", slugs: ["pkg-3", "ab12c"] });
+  });
+
+  test("a cart of two packages is a listing root (no single package identity)", () => {
+    const tree = buildBookingTree({
+      listings: [resolved({ id: 7 }), resolved({ id: 8 })],
+      packages: [pkg(3, [7]), pkg(4, [8])],
+      slugs: ["a", "b"],
+    });
+    expect(tree.rootRef).toEqual({ kind: "listing", slugs: ["a", "b"] });
   });
 });
 
@@ -266,10 +302,13 @@ describe("buildBookingTree — package members", () => {
   const packageMemberWithChild = (hidePackageListings: boolean) =>
     buildBookingTree({
       childrenByParentId: new Map([[7, [resolved({ id: 20, slug: "kid20" })]]]),
-      hidePackageListings,
       listings: [resolved({ id: 7, slug: "tent1" })],
-      packageQuantities: new Map([[7, 1]]),
-      root: { groupId: 3, kind: "package" },
+      packages: [
+        pkg(3, [7], {
+          hideListings: hidePackageListings,
+          quantities: new Map([[7, 1]]),
+        }),
+      ],
       slugs: ["tent1"],
     });
 
@@ -279,9 +318,12 @@ describe("buildBookingTree — package members", () => {
         resolved({ id: 7, slug: "tent1" }),
         resolved({ id: 8, slug: "chr12" }),
       ],
-      packagePrices: new Map([[7, 1500]]),
-      packageQuantities: new Map([[8, 4]]),
-      root: { groupId: 3, kind: "package" },
+      packages: [
+        pkg(3, [7, 8], {
+          prices: new Map([[7, 1500]]),
+          quantities: new Map([[8, 4]]),
+        }),
+      ],
       slugs: ["tent1"],
     });
     const [tent, chair] = tree.nodes;
@@ -294,9 +336,8 @@ describe("buildBookingTree — package members", () => {
 
   test("hide_package_listings makes every member HIDDEN", () => {
     const tree = buildBookingTree({
-      hidePackageListings: true,
       listings: [resolved({ id: 7 }), resolved({ id: 8 })],
-      root: { groupId: 3, kind: "package" },
+      packages: [pkg(3, [7, 8], { hideListings: true })],
       slugs: ["tent1"],
     });
     expect(tree.nodes.every((n) => n.visibility === "HIDDEN")).toBe(true);
@@ -305,10 +346,50 @@ describe("buildBookingTree — package members", () => {
   test("shown by default when the package does not hide members", () => {
     const tree = buildBookingTree({
       listings: [resolved({ id: 7 })],
-      root: { groupId: 3, kind: "package" },
+      packages: [pkg(3, [7])],
       slugs: ["tent1"],
     });
     expect(tree.nodes[0]!.visibility).toBe("SHOWN");
+  });
+
+  test("each listing builds under ITS OWN package on a two-package cart", () => {
+    // A cart selling two bundles side by side: member nodes must carry each
+    // package's own group id, quantity, and override — never the other's.
+    const tree = buildBookingTree({
+      listings: [
+        resolved({ id: 7 }),
+        resolved({ id: 8 }),
+        resolved({ id: 9 }),
+      ],
+      packages: [
+        pkg(3, [7], { prices: new Map([[7, 1500]]) }),
+        pkg(4, [8], { quantities: new Map([[8, 2]]) }),
+      ],
+      slugs: ["a", "b", "c"],
+    });
+    const [seven, eight, nine] = tree.nodes;
+    expect(seven!.nodeKey).toBe("package:3/member:7");
+    expect(seven!.priceRule).toEqual({ amountMinor: 1500, kind: "OVERRIDE" });
+    expect(eight!.nodeKey).toBe("package:4/member:8");
+    expect(eight!.quantityRule).toEqual({ kind: "FIXED", qty: 2 });
+    // The listing outside both packages stays a standalone buyer-choice node.
+    expect(nine!.nodeKey).toBe("listing:9");
+    expect(nine!.quantityRule).toEqual({ kind: "BUYER_CHOICE" });
+  });
+
+  test("packageSubTree keeps just one package's member nodes", () => {
+    const tree = buildBookingTree({
+      listings: [
+        resolved({ id: 7 }),
+        resolved({ id: 8 }),
+        resolved({ id: 9 }),
+      ],
+      packages: [pkg(3, [7]), pkg(4, [8])],
+      slugs: ["a", "b", "c"],
+    });
+    const sub = packageSubTree(tree, 4);
+    expect(sub.rootRef).toEqual({ groupId: 4, kind: "package" });
+    expect(sub.nodes.map((n) => n.nodeKey)).toEqual(["package:4/member:8"]);
   });
 
   test("a package member that is a parent nests its required children", () => {
@@ -345,8 +426,7 @@ describe("buildBookingTree — price rule precedence", () => {
     expect(
       priceOf({
         listings: [resolved({ can_pay_more: true, id: 7, max_price: 9000 })],
-        packagePrices: new Map([[7, 500]]),
-        root: { groupId: 3, kind: "package" },
+        packages: [pkg(3, [7], { prices: new Map([[7, 500]]) })],
         slugs: ["x"],
       }),
     ).toEqual({ amountMinor: 500, kind: "OVERRIDE" });

@@ -29,6 +29,13 @@ import {
   type TicketListing,
   updateForMembersWithChildren,
 } from "#shared/booking/model.ts";
+import {
+  buildPagePackage,
+  combinedPackageTerms,
+  type PagePackage,
+  stampBookingPackages,
+} from "#shared/booking/page-packages.ts";
+import { standInNamesByListingId } from "#shared/package-privacy.ts";
 import { effectivePrice } from "#shared/booking/price-tree.ts";
 import type { BookingTree, PriceRule } from "#shared/booking/tree.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
@@ -39,6 +46,7 @@ import type {
   ChildAllocation,
   CreateAttendeeResult,
   LineBooking,
+  ListingBooking,
 } from "#shared/db/attendee-types.ts";
 import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import {
@@ -242,23 +250,27 @@ export const buildRegistrationItems = (
   }));
 };
 
-/** A package group's per-member overrides for the booking flow: `prices` keeps
- * every member that has a flat override — a positive price OR an explicit free
- * (0), but not a `null` "no override"; `quantities` carries every member's
- * per-package quantity (≥1); `dayPrices` carries each customisable member's
- * per-day overrides (day count → per-unit minor price). The loader's shape,
- * minus the raw rows the booking flow never reads. */
-export type PackageMemberMaps = Pick<
-  Awaited<ReturnType<typeof loadPackageMemberPricing>>,
-  "prices" | "quantities" | "dayPrices"
->;
+/** Load one group's package pricing and shape it into the {@link PagePackage}
+ * the booking flow carries — the group's display fields plus its member
+ * quantity/price maps, scoped to the members actually on the page. */
+export const loadPagePackage = async (
+  group: Group,
+  memberListingIds: readonly number[],
+): Promise<PagePackage> =>
+  buildPagePackage(group, memberListingIds, await loadPackageMemberPricing(group.id));
 
-/** Load a package group's member rows once into the price + quantity + per-day
- * maps the booking flow needs (so quote and submit price/derive quantities with
- * no extra query). */
-export const loadPackageMemberMaps = (
-  groupId: number,
-): Promise<PackageMemberMaps> => loadPackageMemberPricing(groupId);
+/** Each concealed listing id on this page → the package name standing in for
+ * it: every HIDDEN package's members and their required children. Buyer-facing
+ * line names and error text resolve through this map so a concealed member is
+ * never named. Empty when nothing on the page is concealed. */
+export const ctxStandInNames = (
+  ctx: Pick<TicketCtx, "packages" | "childrenByParentId">,
+): Map<number, string> =>
+  standInNamesByListingId(ctx.packages, (memberId) =>
+    (ctx.childrenByParentId.get(memberId) ?? []).map(
+      (child) => child.listing.id,
+    ),
+  );
 
 export const handlePaymentFlow = (
   request: Request,
@@ -288,16 +300,19 @@ const buildBookings = (
  * Parse and validate the chosen day count for "customisable days" listings.
  * Returns `{ dayCount }` (1 when nothing selected is customisable), or `{ error }`
  * when the choice is missing, unpriced, or — for daily listings — runs the range
- * into a holiday or past the booking window. `hiddenName` (a HIDDEN package's
- * name) replaces the listing names in errors, so a concealed member is never
- * named in the flash the buyer is bounced back with.
+ * into a holiday or past the booking window. `standIns` maps each concealed
+ * listing to its HIDDEN package's name, which replaces that listing's name in
+ * errors so a concealed member is never named in the flash the buyer is bounced
+ * back with.
  */
 export const resolveDayCount = async (
   selected: ListingQty[],
   form: FormParams,
   date: string | null,
-  hiddenName?: string,
+  standIns?: ReadonlyMap<number, string>,
 ): Promise<{ dayCount: number } | { error: string }> => {
+  const shownName = (listing: ListingWithCount): string =>
+    standIns?.get(listing.id) ?? listing.name;
   const customisable = selected.filter(
     ({ listing }) => listing.customisable_days,
   );
@@ -310,9 +325,7 @@ export const resolveDayCount = async (
   for (const { listing } of customisable) {
     if (dayPriceFor(listing, raw) === null) {
       return {
-        error: `${
-          hiddenName ?? listing.name
-        } does not offer a ${raw}-day booking`,
+        error: `${shownName(listing)} does not offer a ${raw}-day booking`,
       };
     }
   }
@@ -324,9 +337,9 @@ export const resolveDayCount = async (
     for (const { listing } of dailyCustomisable) {
       if (!isBookingRangeValid(listing, date, raw, holidays)) {
         return {
-          error: `${
-            hiddenName ?? listing.name
-          }: ${raw} days aren't all available from that date — choose fewer days or a different start date`,
+          error: `${shownName(
+            listing,
+          )}: ${raw} days aren't all available from that date — choose fewer days or a different start date`,
         };
       }
     }
@@ -335,22 +348,14 @@ export const resolveDayCount = async (
 };
 
 /** Build the pure {@link BuildTreeInput} from a resolved ticket context, so the
- * fold walks the same canonical tree render builds. `packageGroupId` (set only for
- * a package group) selects the package root + FIXED/override member semantics; a
- * regular group carries no id on the ctx yet, so its members build as standalone
- * listing nodes (identical fold field names — the group-root identity is threaded
- * in a later sub-step, for capacity/metadata). */
+ * fold walks the same canonical tree render builds. Each page package's members
+ * build as that package's FIXED/override member nodes; every other listing as a
+ * standalone node (a regular group carries no id on the ctx yet, so its members
+ * build as standalone listing nodes — identical fold field names). */
 export const ctxToBuildTreeInput = (ctx: TicketCtx): BuildTreeInput => ({
   childrenByParentId: ctx.childrenByParentId,
-  hidePackageListings: ctx.hidePackageListings,
   listings: ctx.listings,
-  packageDayPrices: ctx.packageDayPrices,
-  packagePrices: ctx.packagePrices,
-  packageQuantities: ctx.packageQuantities,
-  root:
-    ctx.packageGroupId != null
-      ? { groupId: ctx.packageGroupId, kind: "package" }
-      : undefined,
+  packages: ctx.packages,
   slugs: ctx.slugs,
 });
 
@@ -408,10 +413,11 @@ type FreeReservationParams = {
    * allocation instead of one summed row, giving each row its real
    * `parentListingId`. Absent for legacy/no-parent orders. */
   allocations?: ChildAllocation[] | undefined;
-  /** When the order is a package checkout, the package group's id (stamped on
-   * every booking row so the ticket view / confirmation email group the order
-   * under the package). Absent / 0 for a non-package order. */
-  packageGroupId?: number;
+  /** Which package each member listing was booked through (listing id → group
+   * id), stamped on that listing's booking rows so the ticket view /
+   * confirmation email group the order under the right package. Empty/absent
+   * for an order with no packages. */
+  packageGroupIdByListingId?: ReadonlyMap<number, number> | undefined;
 };
 
 type FreeReservationResult =
@@ -446,7 +452,7 @@ export const createFreeReservation = async ({
   modifierUsages,
   ledgerOrder,
   allocations,
-  packageGroupId,
+  packageGroupIdByListingId,
 }: FreeReservationParams): Promise<FreeReservationResult> => {
   const selected = listingsWithQuantity(listings, quantities);
   const bookings = buildBookings(selected, date, dayCount).map((booking) => ({
@@ -462,11 +468,17 @@ export const createFreeReservation = async ({
   // (hasDuplicateBookingSlot) permits same-child/different-parent rows because
   // it keys on (listingId, date, parentListingId). The expanded list replaces
   // the summed list for the create call; ensureAllBookings' count uses the
-  // expanded length.
-  const finalBookings =
+  // expanded length. Each row is then stamped with the package it was booked
+  // through (members by their own id, folded children by their parent's), so
+  // an order carrying several bundles records each row under the right one.
+  const expanded: ListingBooking[] =
     allocations && allocations.length > 0
       ? expandChildAllocations(bookings, allocations)
       : bookings;
+  const finalBookings = stampBookingPackages(
+    expanded,
+    packageGroupIdByListingId,
+  );
   // When there are legs to post or stock to consume, commit the booking, its
   // modifier stock, and its sale legs as ONE batch (exactly as the paid webhook
   // does) — never an interactive transaction held open across a read-per-leg. The
@@ -480,10 +492,6 @@ export const createFreeReservation = async ({
   const input = {
     ...contact,
     bookings: finalBookings,
-    // Stamp the package group id on every booking row (0 = not a package), so
-    // the ticket view / confirmation email group the order under the package by
-    // this persisted id rather than membership equality.
-    packageGroupId: packageGroupId ?? 0,
     remainingBalance,
     statusId,
   };
@@ -507,7 +515,10 @@ export const createFreeReservation = async ({
     // A package order must never name a member in the capacity error — a hidden
     // package would leak the listing it concealed. Omit the name (generic
     // message) for a package; a non-package order keeps its single listing's name.
-    const errorName = packageGroupId ? "" : selected[0]!.listing.name;
+    const errorName =
+      packageGroupIdByListingId && packageGroupIdByListingId.size > 0
+        ? ""
+        : selected[0]!.listing.name;
     return {
       error: formatAtomicError(check.reason, errorName),
       success: false,
@@ -789,6 +800,7 @@ export const loadPackageLimitGroupMaps = async (
 export const getTicketContext = async (
   activeListings: TicketListing[],
   group?: Group,
+  pagePackages?: PagePackage[],
 ): Promise<TicketSharedContext> => {
   const listingIds = activeListings.map((e) => e.listing.id);
   const childrenByParentId = await loadChildrenByParentId(activeListings);
@@ -812,6 +824,15 @@ export const getTicketContext = async (
   // daily child's serveable dates. Both are holiday-aware, so fetch
   // holidays once when the page has any parents; pages with none skip it entirely.
   const holidays = childrenByParentId.size > 0 ? await getActiveHolidays() : [];
+  // The page's bundles: a mixed cart passes its already-loaded packages in; a
+  // single-group package page builds its one PagePackage from the group ("a
+  // single item is an array of one"). Loaded once here so quote and submit
+  // price/derive against the same maps with no extra query.
+  const packages =
+    pagePackages ??
+    (group?.is_package === true
+      ? [await loadPagePackage(group, listingIds)]
+      : []);
   const dailyParent = singleDailyParent(activeListings, childrenByParentId);
   const dates = dailyParent
     ? keepDatesSomeChildCanServe(
@@ -820,7 +841,7 @@ export const getTicketContext = async (
         dailyParent.fixedDays,
         holidays,
       )
-    : group?.is_package === true
+    : packages.length > 0
       ? keepPackageDatesChildrenCanServe(
           activeListings,
           childrenByParentId,
@@ -833,39 +854,25 @@ export const getTicketContext = async (
     childrenByParentId,
     holidays,
   );
+  // A group page's own terms win; a cart shows every selected package's terms.
   const terms = group
     ? group.terms_and_conditions || globalTerms || ""
-    : globalTerms;
-  // For a package group, load the per-listing overrides (price + quantity) once
-  // here so both the quote and submit paths can price/derive against them with
-  // no extra query.
-  const [packageMaps, packageCapMaps] =
-    group?.is_package === true
-      ? await Promise.all([
-          loadPackageMemberMaps(group.id),
-          loadPackageLimitGroupMaps(activeListings, childrenByParentId),
-        ])
-      : [
-          null,
-          {
-            groupIdsByListingId: new Map<number, number[]>(),
-            groupRemainingByGroupId: new Map<number, number>(),
-          },
-        ];
+    : combinedPackageTerms(packages, globalTerms || "");
+  const packageCapMaps =
+    packages.length > 0
+      ? await loadPackageLimitGroupMaps(activeListings, childrenByParentId)
+      : {
+          groupIdsByListingId: new Map<number, number[]>(),
+          groupRemainingByGroupId: new Map<number, number>(),
+        };
   return {
     addOns,
     childDatesById,
     childrenByParentId,
     dates,
-    ...(group?.is_package
-      ? { hidePackageListings: group.hide_package_listings }
-      : {}),
-    packageDayPrices: packageMaps?.dayPrices ?? null,
-    packageGroupId: group?.is_package ? group.id : null,
     packageGroupRemainingByGroupId: packageCapMaps.groupRemainingByGroupId,
     packageMemberGroupIds: packageCapMaps.groupIdsByListingId,
-    packagePrices: packageMaps?.prices ?? null,
-    packageQuantities: packageMaps?.quantities ?? null,
+    packages,
     promoCodesEnabled,
     terms,
     ...questionsResult,

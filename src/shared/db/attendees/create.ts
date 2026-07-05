@@ -350,17 +350,10 @@ const prepareAttendeeWrite = async (
   // pricing, capacity and availability are untouched). One choke point for every
   // create caller (public free/paid webhook, admin manual add), so the free and
   // paid paths persist the pairing identically without a round-trip change.
-  const annotated = await annotateOrderParents(rawBookings);
-  // Stamp the order-level package group id (0 = not a package) onto every row,
-  // so the ticket view / confirmation email group the order's lines under the
-  // package by this persisted id rather than by membership equality.
-  const bookings =
-    input.packageGroupId && input.packageGroupId > 0
-      ? annotated.map((booking) => ({
-          ...booking,
-          packageGroupId: input.packageGroupId,
-        }))
-      : annotated;
+  // Each row's `packageGroupId` (which bundle it was booked through, 0 = none)
+  // arrives already stamped by the caller — an order can carry several
+  // packages, so there is no order-level value to apply here.
+  const bookings = await annotateOrderParents(rawBookings);
 
   // Use first booking's pricePaid for encryption (PII blob is shared)
   const enc = await encryptAttendeeFields({
@@ -446,7 +439,7 @@ const finishAttendeeWrite = async (
               ? { durationDays: booking.durationDays }
               : {}),
             kind: input.kind ?? ATTENDEE_KIND,
-            packageGroupId: input.packageGroupId ?? 0,
+            packageGroupId: booking.packageGroupId ?? 0,
             paymentId: input.paymentId ?? "",
             pricePaid: booking.pricePaid ?? 0,
             quantity: booking.quantity ?? 1,

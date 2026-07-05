@@ -45,16 +45,6 @@ export const packagePrivacyOfDisplay = (
     ? VISIBLE
     : packagePrivacy(display.hideListings, display.name);
 
-/** The privacy the booking page ctx carries (set alongside `packageGroupId`
- * when the page is a package). */
-export const packagePrivacyOfCtx = (ctx: {
-  hidePackageListings?: boolean | undefined;
-  groupName?: string | undefined;
-}): PackagePrivacy =>
-  ctx.hidePackageListings === true && ctx.groupName !== undefined
-    ? { kind: "hidden", packageName: ctx.groupName }
-    : VISIBLE;
-
 /** Whether the member names are concealed from buyers. */
 export const namesConcealed = (privacy: PackagePrivacy): boolean =>
   privacy.kind === "hidden";
@@ -80,12 +70,60 @@ export const concealMemberNames = <T extends { name: string }>(
     : items;
 
 /** Whether a SIGNED order's member names must be concealed, resolved fail-safe
- * from its persisted package group id: a package intent whose group no longer
- * resolves (deleted/un-packaged mid-checkout) reads as hidden, because the
- * stale group may have been a hidden package and the refund path must not name
- * its members either way. */
+ * from its persisted package group ids: hidden when ANY booked package hides
+ * its listings, and a group that no longer resolves (deleted/un-packaged
+ * mid-checkout) reads as hidden, because the stale group may have been a hidden
+ * package and the refund path must not name its members either way. An order
+ * with no packages conceals nothing. */
 export const resolveNamesConcealed = async (
-  packageGroupId: number | undefined,
-): Promise<boolean> =>
-  packageGroupId !== undefined &&
-  ((await getPackageDisplayById(packageGroupId))?.hideListings ?? true);
+  packageGroupIds: Iterable<number>,
+): Promise<boolean> => {
+  for (const groupId of new Set(packageGroupIds)) {
+    if ((await getPackageDisplayById(groupId))?.hideListings ?? true) {
+      return true;
+    }
+  }
+  return false;
+};
+
+/** Each concealed listing id → the package name standing in for it: every
+ * hidden package's members, plus those members' required children (a child
+ * booked as part of a hidden bundle must not be named either). The per-listing
+ * form of {@link concealMemberNames} for pages selling several bundles. */
+export const standInNamesByListingId = (
+  packages: readonly {
+    name: string;
+    hideListings: boolean;
+    memberListingIds: readonly number[];
+  }[],
+  childIdsOfMember: (memberListingId: number) => readonly number[],
+): Map<number, string> => {
+  const standIns = new Map<number, string>();
+  for (const pkg of packages) {
+    if (!pkg.hideListings) continue;
+    for (const memberId of pkg.memberListingIds) {
+      standIns.set(memberId, pkg.name);
+      for (const childId of childIdsOfMember(memberId)) {
+        standIns.set(childId, pkg.name);
+      }
+    }
+  }
+  return standIns;
+};
+
+/** Replace each concealed line's buyer-facing name with its package's name,
+ * by listing id — the several-bundles form of {@link concealMemberNames}.
+ * Prices, quantities and listing ids are untouched. A no-op when nothing on
+ * the page is concealed. */
+export const concealNamesByListingId = <
+  T extends { name: string; listingId: number },
+>(
+  items: T[],
+  standIns: ReadonlyMap<number, string>,
+): T[] =>
+  standIns.size === 0
+    ? items
+    : items.map((item) => {
+        const standIn = standIns.get(item.listingId);
+        return standIn === undefined ? item : { ...item, name: standIn };
+      });

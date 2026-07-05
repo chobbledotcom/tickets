@@ -37,6 +37,33 @@ export const signedEdgeFor = (
     ? { k: "p", r: packageGroupId }
     : {};
 
+/** Reconstruct which package each member line was booked through (listing id →
+ * group id) from the signed lines' edge tags. Sessions from before the per-line
+ * cutover carried ONE order-wide id in the legacy `package_group_id` metadata
+ * field instead — apply it to every non-folded line so an in-flight pre-cutover
+ * session still completes as a package order. */
+export const packageGroupIdsFromLines = (
+  items: readonly BookingItem[],
+  allocations: readonly ChildAllocation[],
+  legacyGroupId: number | undefined,
+): Map<number, number> => {
+  const byListingId = new Map<number, number>();
+  for (const item of items) {
+    if (item.k === "p" && item.r !== undefined) {
+      byListingId.set(item.e, item.r);
+    }
+  }
+  if (byListingId.size === 0 && legacyGroupId !== undefined) {
+    const foldedChildIds = new Set(allocations.map((a) => a.childId));
+    for (const item of items) {
+      if (!foldedChildIds.has(item.e)) {
+        byListingId.set(item.e, legacyGroupId);
+      }
+    }
+  }
+  return byListingId;
+};
+
 /** Reconstruct a top-level line's canonical `nodeKey` from its compact edge tag.
  * A package/group member needs its group id (`r`); a line missing that ref (or
  * untagged) is a standalone `listing:<id>`. */

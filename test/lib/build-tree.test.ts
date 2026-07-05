@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import type { TreePackage } from "#shared/booking/page-packages.ts";
 import { resolved } from "./booking-model-fixtures.ts";
+import { treePackage } from "./package-cap-fixtures.ts";
 
 describe("buildBookingTree — root ref", () => {
   test("defaults to a listing root using the given slugs when no root is given", () => {
@@ -21,10 +23,10 @@ describe("buildBookingTree — root ref", () => {
     expect(tree.rootRef).toEqual({ groupId: 7, kind: "group" });
   });
 
-  test("uses the given package root", () => {
+  test("derives a package root when one package spans every listing", () => {
     const tree = buildBookingTree({
       listings: [resolved({ id: 1 })],
-      root: { groupId: 7, kind: "package" },
+      packages: [treePackage(7, [1])],
       slugs: ["ab12c"],
     });
     expect(tree.rootRef).toEqual({ groupId: 7, kind: "package" });
@@ -73,17 +75,11 @@ describe("buildBookingTree — group member nodes", () => {
 });
 
 describe("buildBookingTree — package member nodes", () => {
-  const packageMemberTree = (
-    overrides: {
-      hidePackageListings?: boolean;
-      packageQuantities?: ReadonlyMap<number, number>;
-    } = {},
-  ) =>
+  const packageMemberTree = (overrides: Partial<TreePackage> = {}) =>
     buildBookingTree({
       listings: [resolved({ id: 5 })],
-      root: { groupId: 3, kind: "package" },
+      packages: [treePackage(3, [5], overrides)],
       slugs: ["ab12c"],
-      ...overrides,
     });
 
   test("builds a node addressed by the package group and listing id", () => {
@@ -101,9 +97,7 @@ describe("buildBookingTree — package member nodes", () => {
   });
 
   test("uses the given fixed quantity for a member", () => {
-    const tree = packageMemberTree({
-      packageQuantities: new Map([[5, 3]]),
-    });
+    const tree = packageMemberTree({ quantities: new Map([[5, 3]]) });
     expect(tree.nodes[0]!.quantityRule).toEqual({ kind: "FIXED", qty: 3 });
   });
 
@@ -112,7 +106,19 @@ describe("buildBookingTree — package member nodes", () => {
   });
 
   test("is hidden when the package hides its listings", () => {
-    const tree = packageMemberTree({ hidePackageListings: true });
+    const tree = packageMemberTree({ hideListings: true });
     expect(tree.nodes[0]!.visibility).toBe("HIDDEN");
+  });
+
+  test("a listing outside the package's members builds standalone", () => {
+    // The owning package is looked up per listing, so a bundle beside an
+    // ordinary listing never swallows it.
+    const tree = buildBookingTree({
+      listings: [resolved({ id: 5 }), resolved({ id: 6 })],
+      packages: [treePackage(3, [5])],
+      slugs: ["ab12c", "cd34e"],
+    });
+    expect(tree.nodes[1]!.nodeKey).toBe("listing:6");
+    expect(tree.nodes[1]!.quantityRule).toEqual({ kind: "BUYER_CHOICE" });
   });
 });
