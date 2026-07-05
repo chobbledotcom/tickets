@@ -7,11 +7,7 @@ import { clearFormStash, takeForm } from "#shared/form-stash.ts";
 import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
 import { FORM_STASH_MAX_BYTES } from "#shared/limits.ts";
 import { fail, ok } from "#shared/response.ts";
-import {
-  expectFlash,
-  expectRedirect,
-  expectRedirectWithFlash,
-} from "#test-utils";
+import { expectRedirectWithFlash, parseFlashCookie } from "#test-utils";
 
 describe("ok", () => {
   test("returns a 302 redirect with success flash cookie", () => {
@@ -19,24 +15,16 @@ describe("ok", () => {
       formId: "settings-test",
     });
 
-    expect(response.status).toBe(302);
-    const location = expectRedirect(response);
-    expect(location).toContain("/admin/settings?flash=");
-    expect(location).toContain("form=settings-test");
-    expect(location).toContain("#settings-test");
-    expectFlash(response, "Saved successfully");
+    expectRedirectWithFlash(
+      "/admin/settings?form=settings-test#settings-test",
+      "Saved successfully",
+    )(response);
   });
 
   test("includes result in flash cookie when provided", () => {
     const response = ok("/admin", "Done", { result: "abc123" });
     expectRedirectWithFlash("/admin", "Done")(response);
-
-    const cookies = response.headers.getSetCookie();
-    const flash = cookies.find((c) => c.startsWith("flash_"));
-    const cookiePart = flash!.split(";")[0] ?? "";
-    const value = cookiePart.split("=").slice(1).join("=");
-    const parsed = parseFlashValue(value);
-    expect(parsed.result).toBe("abc123");
+    expect(parseFlashCookie(response).result).toBe("abc123");
   });
 
   test("appends additional cookie when provided", () => {
@@ -60,12 +48,11 @@ describe("fail", () => {
       formId: "settings-test",
     });
 
-    expect(response.status).toBe(302);
-    const location = expectRedirect(response);
-    expect(location).toContain("/admin/settings?flash=");
-    expect(location).toContain("form=settings-test");
-    expect(location).toContain("#settings-test");
-    expectFlash(response, "Invalid input", false);
+    expectRedirectWithFlash(
+      "/admin/settings?form=settings-test#settings-test",
+      "Invalid input",
+      false,
+    )(response);
   });
 
   test("works without formId", () => {
@@ -76,13 +63,7 @@ describe("fail", () => {
   test("includes result in flash cookie when provided", () => {
     const response = fail("/admin", "Failed", { result: "err456" });
     expectRedirectWithFlash("/admin", "Failed", false)(response);
-
-    const cookies = response.headers.getSetCookie();
-    const flash = cookies.find((c) => c.startsWith("flash_"));
-    const cookiePart = flash!.split(";")[0] ?? "";
-    const value = cookiePart.split("=").slice(1).join("=");
-    const parsed = parseFlashValue(value);
-    expect(parsed.result).toBe("err456");
+    expect(parseFlashCookie(response).result).toBe("err456");
   });
 
   test("appends additional cookie when provided", () => {

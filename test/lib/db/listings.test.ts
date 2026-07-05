@@ -2,6 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { revenueAccount } from "#shared/accounting/accounts.ts";
+import {
+  MANUAL_LISTING_COST,
+  MANUAL_LISTING_INCOME,
+} from "#shared/accounting/manual-entries.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import {
@@ -18,8 +22,10 @@ import {
 } from "#shared/db/attendees.ts";
 import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
 import {
+  catalogVisibleSql,
   computeSlugIndex,
   deleteListing,
+  getAllListingNames,
   getAllListings,
   getListing,
   getListingNamesByIds,
@@ -27,6 +33,7 @@ import {
   getListingWithAttendeeRaw,
   getListingWithAttendeesRaw,
   getListingWithCount,
+  getStoredListingWithCount,
   isSlugTaken,
   listingIncomeSubquery,
   listingRevenueBreakdown,
@@ -40,12 +47,18 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
+import {
   answersTable,
   getAttendeeAnswersBatch,
   questionsTable,
   saveAttendeeAnswers,
   setListingQuestions,
 } from "#shared/db/questions.ts";
+import { settings } from "#shared/db/settings.ts";
 import { account } from "#shared/ledger/account.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import {
@@ -319,7 +332,9 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       );
 
       await reserveSession("sess_listing_delete");
-      await finalizePaymentSession("sess_listing_delete", attendee.id);
+      await finalizePaymentSession("sess_listing_delete", attendee.id, [
+        "tok-test",
+      ]);
 
       await deleteListing(listing.id);
 
@@ -442,7 +457,9 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     test("keeps the shared attendee's processed payment when one listing is deleted", async () => {
       const { attendeeId, listing1 } = await bookAttendeeOnTwoListings();
       await reserveSession("sess_multi_listing");
-      await finalizePaymentSession("sess_multi_listing", attendeeId);
+      await finalizePaymentSession("sess_multi_listing", attendeeId, [
+        "tok-test",
+      ]);
 
       await deleteListing(listing1.id);
 
@@ -852,6 +869,32 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   });
 
   describe("bounded name lookups", () => {
+    test("getAllListingNames returns every decrypted name through the narrow projection", async () => {
+      const alpha = await createTestListing({
+        maxAttendees: 10,
+        name: "Alpha",
+      });
+      const beta = await createTestListing({ maxAttendees: 10, name: "Beta" });
+
+      await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        const names = await getAllListingNames();
+
+        expect([...names.entries()]).toEqual([
+          [alpha.id, "Alpha"],
+          [beta.id, "Beta"],
+        ]);
+        expect(getQueryLog().map((entry) => entry.sql)).toEqual([
+          "SELECT listing.id, listing.name AS name FROM listings AS listing ORDER BY listing.id ASC",
+        ]);
+      });
+    });
+
+    test("getAllListingNames returns an empty map with no listings", async () => {
+      const names = await getAllListingNames();
+      expect(names.size).toBe(0);
+    });
+
     test("getListingNamesByIds returns decrypted names only for the given ids", async () => {
       const alpha = await createTestListing({
         maxAttendees: 10,
@@ -946,9 +989,11 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       const breakdown = await listingRevenueBreakdown(listing.id);
       // The refund also posts its own net-zero sale leg first, so gross is 10000.
       expect(breakdown.grossSales).toBe(10000);
+      expect(breakdown.externalIncome).toBe(0);
       expect(breakdown.manualAdjustments).toBe(-1000);
       expect(breakdown.recognisedIncome).toBe(9000);
       expect(breakdown.refunds).toBe(2000);
+      expect(breakdown.externalCosts).toBe(0);
       expect(breakdown.netBalance).toBe(7000);
 
       // Reconciliation invariants: recognised income equals the existing income
@@ -961,10 +1006,14 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       );
       // The breakdown reconciles on its own face, too.
       expect(breakdown.recognisedIncome).toBe(
-        breakdown.grossSales + breakdown.manualAdjustments,
+        breakdown.grossSales +
+          breakdown.externalIncome +
+          breakdown.manualAdjustments,
       );
       expect(breakdown.netBalance).toBe(
-        breakdown.recognisedIncome - breakdown.refunds,
+        breakdown.recognisedIncome -
+          breakdown.refunds -
+          breakdown.externalCosts,
       );
     });
 
@@ -1001,10 +1050,52 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       );
     });
 
+    test("includes owner-entered outside income and listing costs in the reconciliation", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const revenue = revenueAccount(listing.id);
+      await postTransfers([
+        {
+          amount: 600,
+          destination: revenue,
+          eventGroup: "manual-income",
+          kind: MANUAL_LISTING_INCOME,
+          occurredAt: "2026-06-21T09:00:00.000Z",
+          reference: "manual-income",
+          source: account("external", "world"),
+        },
+      ]);
+      await postTransfers([
+        {
+          amount: 250,
+          destination: account("external", "world"),
+          eventGroup: "manual-cost",
+          kind: MANUAL_LISTING_COST,
+          occurredAt: "2026-06-21T10:00:00.000Z",
+          reference: "manual-cost",
+          source: revenue,
+        },
+      ]);
+
+      const breakdown = await listingRevenueBreakdown(listing.id);
+      expect(breakdown.grossSales).toBe(0);
+      expect(breakdown.externalIncome).toBe(600);
+      expect(breakdown.manualAdjustments).toBe(0);
+      expect(breakdown.recognisedIncome).toBe(600);
+      expect(breakdown.refunds).toBe(0);
+      expect(breakdown.externalCosts).toBe(250);
+      expect(breakdown.netBalance).toBe(350);
+      expect(breakdown.recognisedIncome).toBe(
+        await projectedIncome(listing.id),
+      );
+      expect(breakdown.netBalance).toBe(await accountBalance(revenue));
+    });
+
     test("is all-zero for a listing with no ledger activity", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
       const breakdown = await listingRevenueBreakdown(listing.id);
       expect(breakdown).toEqual({
+        externalCosts: 0,
+        externalIncome: 0,
         grossSales: 0,
         manualAdjustments: 0,
         netBalance: 0,
@@ -1050,3 +1141,48 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     });
   });
 });
+
+describe("shared > db > listings > catalogVisibleSql", () => {
+  test("with no hidden default, only the stored flag matters", () => {
+    expect(catalogVisibleSql(undefined)).toBe("listing.hidden = 0");
+  });
+
+  test("a Hidden=true default hides every inheriting non-renewal listing", () => {
+    // Inheriting rows (use_defaults, not a renewal tier) are excluded even when
+    // their stored hidden flag is 0, matching resolveListingDefaults.
+    expect(catalogVisibleSql(true)).toBe(
+      "listing.hidden = 0 AND NOT (listing.use_defaults = 1 AND listing.months_per_unit = 0)",
+    );
+  });
+
+  test("a Hidden=false default reveals inheriting rows regardless of stored flag", () => {
+    expect(catalogVisibleSql(false)).toBe(
+      "((listing.use_defaults = 1 AND listing.months_per_unit = 0) OR listing.hidden = 0)",
+    );
+  });
+});
+
+describeWithEnv(
+  "db > listings > getStoredListingWithCount",
+  { db: true, triggers: true },
+  () => {
+    test("returns the listing's own stored values, not inherited defaults", async () => {
+      // Set the default first; creating the listing then invalidates the
+      // listings cache, so the resolving read sees the default live.
+      await settings.update.listingDefaults({ hidden: true });
+      const listing = await createTestListing({
+        hidden: false,
+        useDefaults: true,
+      });
+      // The resolving read overlays the default…
+      expect((await getListingWithCount(listing.id))?.hidden).toBe(true);
+      // …the stored read preserves the listing's own column, so an edit save
+      // built from it can't bake the default into the row.
+      expect((await getStoredListingWithCount(listing.id))?.hidden).toBe(false);
+    });
+
+    test("returns null for a missing listing", async () => {
+      expect(await getStoredListingWithCount(99999)).toBeNull();
+    });
+  },
+);

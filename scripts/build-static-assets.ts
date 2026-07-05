@@ -2,17 +2,28 @@
  * Build static client assets (admin, scanner, iframe-resizer, embed loader).
  */
 
+import { denoPlugins } from "@luca/esbuild-deno-loader";
 import { fromFileUrl } from "@std/path";
-import type { Plugin } from "esbuild";
 import * as esbuild from "esbuild";
 import * as sass from "sass";
 
-const denoConfig = JSON.parse(await Deno.readTextFile("./deno.json"));
-const denoImports: Record<string, string> = denoConfig.imports;
-
-const projectRoot = fromFileUrl(new URL("..", import.meta.url));
+/**
+ * deno.json path the deno-loader uses to resolve every bundle's imports —
+ * the `#` import map, npm/jsr specifiers, and each package's browser entry —
+ * exactly as the edge build (`build-edge.ts`) does. This replaces the
+ * per-package hand-rolled resolve plugins this file used to carry.
+ */
+const configPath = fromFileUrl(new URL("../deno.json", import.meta.url));
 
 const STATIC_DIR = "./src/ui/static";
+
+/**
+ * The loader ships its own esbuild type declarations, whose PluginBuild type can
+ * drift from the npm esbuild package even though the runtime plugin shape is the
+ * same. Keep that incompatibility at this adapter boundary.
+ */
+const denoLoaderPlugins = (): esbuild.Plugin[] =>
+  denoPlugins({ configPath }) as unknown as esbuild.Plugin[];
 
 /**
  * Output files produced by {@link buildStaticAssets}, keyed by bundle. These
@@ -26,6 +37,8 @@ export const STATIC_ASSET_OUTFILES = {
   embed: `${STATIC_DIR}/embed.js`,
   iframeResizerChild: `${STATIC_DIR}/iframe-resizer-child.js`,
   iframeResizerParent: `${STATIC_DIR}/iframe-resizer-parent.js`,
+  markdownEditor: `${STATIC_DIR}/markdown-editor.js`,
+  order: `${STATIC_DIR}/order.js`,
   scanner: `${STATIC_DIR}/scanner.js`,
 } as const;
 
@@ -64,73 +77,6 @@ const buildBundle = async (
   }
 };
 
-/** Resolve npm bare specifiers using Deno's import resolution */
-const denoNpmResolvePlugin: Plugin = {
-  name: "deno-npm-resolve",
-  setup(build) {
-    build.onResolve({ filter: /^jsqr$/ }, () => ({
-      path: fromFileUrl(import.meta.resolve("jsqr")),
-    }));
-  },
-};
-
-/** Match a single import map entry against a specifier */
-const matchImportEntry = (
-  specifier: string,
-  key: string,
-  value: unknown,
-): string | undefined => {
-  if (typeof value !== "string" || !value.startsWith("./")) return undefined;
-  if (key.endsWith("/") && specifier.startsWith(key)) {
-    return projectRoot + value.slice(2) + specifier.slice(key.length);
-  }
-  if (specifier === key) return projectRoot + value.slice(2);
-  return undefined;
-};
-
-/** Resolve a #-prefixed specifier using the deno.json import map */
-const resolveImportMap = (specifier: string): string | undefined => {
-  for (const [key, value] of Object.entries(denoImports)) {
-    const resolved = matchImportEntry(specifier, key, value);
-    if (resolved) return resolved;
-  }
-  return undefined;
-};
-
-/** Resolve #-prefixed imports using the deno.json import map */
-const denoImportMapPlugin: Plugin = {
-  name: "deno-import-map",
-  setup(build) {
-    build.onResolve({ filter: /^#/ }, (args) => {
-      const resolved = resolveImportMap(args.path);
-      return resolved ? { path: resolved } : undefined;
-    });
-  },
-};
-
-/** Resolve @iframe-resizer/* and auto-console-group using Deno's import resolution */
-const iframeResizerResolvePlugin: Plugin = {
-  name: "iframe-resizer-resolve",
-  setup(build) {
-    build.onResolve(
-      { filter: /^(@iframe-resizer\/|auto-console-group)/ },
-      (args) => ({
-        path: fromFileUrl(import.meta.resolve(args.path)),
-      }),
-    );
-  },
-};
-
-/** Resolve @botpoison/browser using Deno's import resolution */
-const botpoisonResolvePlugin: Plugin = {
-  name: "botpoison-resolve",
-  setup(build) {
-    build.onResolve({ filter: /^@botpoison\/browser$/ }, () => ({
-      path: fromFileUrl(import.meta.resolve("@botpoison/browser")),
-    }));
-  },
-};
-
 /**
  * The client JS bundles as data, so callers other than {@link buildStaticAssets}
  * can rebuild a single bundle with its exact esbuild config — entry point,
@@ -153,7 +99,7 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
       minify: true,
       outfile: STATIC_ASSET_OUTFILES.scanner,
       platform: "browser",
-      plugins: [denoNpmResolvePlugin],
+      plugins: denoLoaderPlugins(),
     },
   },
   {
@@ -165,7 +111,19 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
       minify: true,
       outfile: STATIC_ASSET_OUTFILES.admin,
       platform: "browser",
-      plugins: [denoImportMapPlugin],
+      plugins: denoLoaderPlugins(),
+    },
+  },
+  {
+    label: "Markdown editor",
+    options: {
+      bundle: true,
+      entryPoints: ["./src/ui/client/markdown-editor.ts"],
+      format: "iife",
+      minify: true,
+      outfile: STATIC_ASSET_OUTFILES.markdownEditor,
+      platform: "browser",
+      plugins: denoLoaderPlugins(),
     },
   },
   {
@@ -177,6 +135,7 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
       minify: true,
       outfile: STATIC_ASSET_OUTFILES.embed,
       platform: "browser",
+      plugins: denoLoaderPlugins(),
     },
   },
   {
@@ -188,7 +147,23 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
       minify: true,
       outfile: STATIC_ASSET_OUTFILES.contact,
       platform: "browser",
-      plugins: [botpoisonResolvePlugin],
+      plugins: denoLoaderPlugins(),
+    },
+  },
+  {
+    // ESM (not IIFE): the order widget is loaded as `<script type="module">`,
+    // and that module form is what makes the cross-origin CORS gate bite — a
+    // classic-script include would bypass it. The `export {}` in order.ts also
+    // forces module-only parsing.
+    label: "Order",
+    options: {
+      bundle: true,
+      entryPoints: ["./src/ui/client/order.ts"],
+      format: "esm",
+      minify: true,
+      outfile: STATIC_ASSET_OUTFILES.order,
+      platform: "browser",
+      plugins: denoLoaderPlugins(),
     },
   },
   {
@@ -200,7 +175,7 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
       minify: true,
       outfile: STATIC_ASSET_OUTFILES.iframeResizerParent,
       platform: "browser",
-      plugins: [iframeResizerResolvePlugin],
+      plugins: denoLoaderPlugins(),
     },
   },
   {
@@ -213,7 +188,7 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
       minify: true,
       outfile: STATIC_ASSET_OUTFILES.iframeResizerChild,
       platform: "browser",
-      plugins: [iframeResizerResolvePlugin],
+      plugins: denoLoaderPlugins(),
     },
   },
 ];

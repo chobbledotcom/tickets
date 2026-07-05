@@ -14,6 +14,7 @@ import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
+import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   ATTENDEE_LEFT_JOIN_SELECT,
   decryptAttendeeOrNull,
@@ -42,15 +43,18 @@ const loadRefreshContext = async (
   const pk = await requireRequestPrivateKey();
   const attendeeRaw = await queryOne<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
-     FROM attendees a
-     LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-     WHERE a.id = ?`,
+     FROM attendees AS attendee
+     LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+     WHERE attendee.id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,
     [attendeeId],
   );
   if (!attendeeRaw) return null;
   const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
   const bookings = await queryAll<ListingAttendeeRow>(
-    `SELECT ${LISTING_ATTENDEE_ROW_COLS} FROM listing_attendees WHERE attendee_id = ? ORDER BY start_at, listing_id LIMIT 1`,
+    // quantity > 0: refresh-payment refunds the picked row's (attendee, listing)
+    // pair, so it must target a real line — never a lower-id no-quantity ghost.
+    // LISTING_ATTENDEE_ROW_COLS projects refunded/price_paid from the ledger.
+    `SELECT ${LISTING_ATTENDEE_ROW_COLS} FROM listing_attendees WHERE attendee_id = ? AND quantity > 0 ORDER BY start_at, listing_id LIMIT 1`,
     [attendeeId],
   );
   const firstListingId = bookings[0]?.listing_id ?? attendee.listing_id;

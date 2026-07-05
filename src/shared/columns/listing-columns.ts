@@ -14,15 +14,27 @@ import { renderListingImage } from "#templates/public.tsx";
 
 type ListingCol = ColumnDef<ListingWithCount>;
 
+/** Name cell: thumbnail + a link to the given listing page. The link target
+ * varies by role — staff get the attendee detail page, editors (who can't open
+ * it) get the edit form — so the path is a parameter. */
+const nameCell = (e: ListingWithCount, href: string): string =>
+  `${renderListingImage(e, "listing-thumbnail", { thumb: true })}<a href="${href}">${escapeHtml(
+    e.name,
+  )}</a>`;
+
 const name: ListingCol = {
-  cell: (e) =>
-    `${renderListingImage(e, "listing-thumbnail")}<a href="/admin/listing/${e.id}">${escapeHtml(
-      e.name,
-    )}</a>`,
+  cell: (e) => nameCell(e, `/admin/listing/${e.id}`),
   description: "Listing name with thumbnail image and link to listing detail",
   headerText: "Listing Name",
   isHtml: true,
   label: "Name",
+};
+
+/** Editor variant of the name column: links to the edit form instead of the
+ * attendee-centric detail page, which editors may not open. */
+const editorName: ListingCol = {
+  ...name,
+  cell: (e) => nameCell(e, `/admin/listing/${e.id}/edit`),
 };
 
 const description: ListingCol = {
@@ -56,6 +68,20 @@ const revenue: ListingCol = {
   description: "Total income taken for this listing (sum of payments)",
   label: "Revenue",
   rawValue: (e) => e.income,
+};
+
+const cost: ListingCol = {
+  cell: (e) => formatCurrency(e.cost),
+  description: "Total servicing costs recorded for this listing",
+  label: "Costs",
+  rawValue: (e) => e.cost,
+};
+
+const profit: ListingCol = {
+  cell: (e) => formatCurrency(e.profit),
+  description: "Revenue less servicing costs for this listing",
+  label: "Profit",
+  rawValue: (e) => e.profit,
 };
 
 const created: ListingCol = {
@@ -101,12 +127,14 @@ const renewal: ListingCol = {
 /** All available listing table columns */
 export const LISTING_TABLE_COLUMNS: ColumnGenerators<ListingWithCount> = {
   attendees,
+  cost,
   created,
   date,
   description,
   location,
   name,
   price,
+  profit,
   renewal,
   revenue,
   status,
@@ -121,5 +149,35 @@ export const LISTING_DEFAULT_ORDER = [
   "attendees",
   "tickets",
   "revenue",
+  "cost",
+  "profit",
+  "created",
+] as const;
+
+/** Listing columns shown to editors: the ledger-derived money columns
+ * (revenue/cost/profit) are omitted entirely — not just unordered — so a saved
+ * column template can never surface them, and the name links to the edit form
+ * rather than the forbidden detail page. */
+export const EDITOR_LISTING_TABLE_COLUMNS: ColumnGenerators<ListingWithCount> =
+  {
+    attendees,
+    created,
+    date,
+    description,
+    location,
+    name: editorName,
+    price,
+    renewal,
+    status,
+    tickets,
+  };
+
+/** Default column order for the editor listing table (no money columns). */
+export const EDITOR_LISTING_DEFAULT_ORDER = [
+  "name",
+  "description",
+  "status",
+  "attendees",
+  "tickets",
   "created",
 ] as const;

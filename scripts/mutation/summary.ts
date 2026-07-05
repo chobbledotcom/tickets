@@ -10,7 +10,7 @@
  */
 
 import { bold, dim, green, red, yellow } from "../precommit/colors.ts";
-import { projectRoot } from "../test-harness.ts";
+import { projectRoot } from "../project-root.ts";
 import type { Mutant } from "./generate.ts";
 
 export type Status = "killed" | "survived" | "timed-out" | "ignored";
@@ -31,6 +31,16 @@ export interface Summary {
   score: number;
   survived: number;
   survivors: MutantResult[];
+  timedOut: number;
+  total: number;
+}
+
+export interface ProgressSnapshot {
+  completed: number;
+  ignored: number;
+  killed: number;
+  last: MutantResult;
+  survived: number;
   timedOut: number;
   total: number;
 }
@@ -66,6 +76,22 @@ export const summarize = (results: MutantResult[]): Summary => {
 
 const survivorLocation = (result: MutantResult): string =>
   `${rel(result.file)}:${result.mutant.line}:${result.mutant.column}`;
+
+const mutationLabel = (result: MutantResult): string =>
+  `${result.mutant.operator} -> ${result.mutant.newOperator}`;
+
+/** Plain progress line suitable for terminals, CI logs, and log parsers. */
+export const formatProgressLine = (p: ProgressSnapshot): string => {
+  const percent = p.total === 0 ? 100 : (p.completed / p.total) * 100;
+  return [
+    `Mutation progress: ${p.completed}/${p.total} (${percent.toFixed(1)}%)`,
+    `killed ${p.killed}`,
+    `survived ${p.survived}`,
+    `timed out ${p.timedOut}`,
+    `ignored ${p.ignored}`,
+    `last ${p.last.status} ${survivorLocation(p.last)} ${mutationLabel(p.last)}`,
+  ].join("; ");
+};
 
 // --- Terminal formatting -------------------------------------------------
 

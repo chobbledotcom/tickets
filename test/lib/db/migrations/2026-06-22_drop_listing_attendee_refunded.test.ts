@@ -3,12 +3,8 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import dropListingAttendeeRefundedMigration from "#shared/db/migrations/2026-06-22_drop_listing_attendee_refunded.ts";
 import { recreateTable } from "#shared/db/migrations/schema-sync.ts";
-import type {
-  AdditiveMigration,
-  Migration,
-  MigrationContext,
-} from "#shared/db/migrations/types.ts";
 import {
+  buildMigrationContext,
   createTestAttendee,
   createTestListing,
   describeWithEnv,
@@ -18,32 +14,8 @@ import {
   seedPreDropLedgerColumns,
 } from "../migration-test-helpers.ts";
 
-// Promise<never> so one stub satisfies both the void- and boolean-returning
-// context members; this migration's up() only recreates the table.
-const unused = async (): Promise<never> => {
-  throw new Error("unused migration context member called");
-};
-
-const context: MigrationContext = {
-  additive: (migration: AdditiveMigration): Migration => ({
-    ...migration,
-    verify: async () => {},
-  }),
-  applySchemaChanges: unused,
-  backfillAnswerAggregates: unused,
-  backfillListingAggregates: unused,
-  backfillModifierAggregates: unused,
-  ensureDefaultAttendeeStatus: unused,
-  getDb,
-  recreateTable,
-  renameEventsToListings: unused,
-  syncCurrentSchema: unused,
-  syncIndexes: unused,
-  syncTriggers: unused,
-  tableExists: unused,
-  verifyCurrentAppSchema: unused,
-  verifyRequirement: () => async () => {},
-};
+// This migration's up() only recreates the table.
+const context = buildMigrationContext({ recreateTable });
 
 const runMigration = () => dropListingAttendeeRefundedMigration(context).up();
 

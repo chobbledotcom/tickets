@@ -3,6 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   parseSelectedListingIds,
   SELECT_PREFIX,
+  selectedListingQuantities,
+  selectedStartDate,
 } from "#shared/order-select.ts";
 
 describe("parseSelectedListingIds", () => {
@@ -33,5 +35,29 @@ describe("parseSelectedListingIds", () => {
 
   test("returns an empty array when nothing is selected", () => {
     expect(parseSelectedListingIds(new URLSearchParams("foo=bar"))).toEqual([]);
+  });
+});
+
+describe("selectedListingQuantities", () => {
+  test("maps every selected listing to the default admin-create quantity", () => {
+    const params = new URLSearchParams("select_8=1&select_3=1");
+    expect([...selectedListingQuantities(params)]).toEqual([
+      [3, 1],
+      [8, 1],
+    ]);
+  });
+});
+
+describe("selectedStartDate", () => {
+  test("returns the selected ISO date", () => {
+    const params = new URLSearchParams("start_date=2026-07-01");
+    expect(selectedStartDate(params)).toBe("2026-07-01");
+  });
+
+  test("returns blank for missing or invalid dates", () => {
+    expect(selectedStartDate(new URLSearchParams())).toBe("");
+    expect(selectedStartDate(new URLSearchParams("start_date=tomorrow"))).toBe(
+      "",
+    );
   });
 });

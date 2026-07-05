@@ -17,6 +17,27 @@ export interface TicketOption {
   token: string;
 }
 
+/** The check-in message templates shared by both the camera scanner container
+ *  and the manual-checkin form, as `data-message-*` attributes to spread onto
+ *  each (each form then adds its own extra messages). Keeping the common set
+ *  here stops the two attribute lists drifting apart. */
+const sharedScanMessageAttrs = (messageTemplates: {
+  alreadyCheckedIn: string;
+  checkedIn: string;
+  refunded: string;
+  ticketCountOne: string;
+  ticketCountOther: string;
+}): Record<string, string> => ({
+  "data-message-already-checked-in": messageTemplates.alreadyCheckedIn,
+  "data-message-checked-in": messageTemplates.checkedIn,
+  "data-message-error": t("admin.scanner.error"),
+  "data-message-network-error": t("admin.scanner.network_error"),
+  "data-message-not-found": t("admin.scanner.not_found"),
+  "data-message-refunded": messageTemplates.refunded,
+  "data-message-ticket-count-one": messageTemplates.ticketCountOne,
+  "data-message-ticket-count-other": messageTemplates.ticketCountOther,
+});
+
 /**
  * Scanner page - camera feed with auto check-in + manual autocomplete
  */
@@ -59,7 +80,6 @@ export const adminScannerPage = (
       <div class="prose">
         <h1>{t("admin.scanner.heading")}</h1>
         <p class="actions">
-          <a href={`/admin/listing/${listing.id}`}>&larr; {listing.name}</a>
           <GuideLink href="/admin/guide#checkin">
             {t("admin.scanner.help")}
           </GuideLink>
@@ -68,19 +88,12 @@ export const adminScannerPage = (
 
       <article>
         <div
-          data-message-already-checked-in={messageTemplates.alreadyCheckedIn}
+          {...sharedScanMessageAttrs(messageTemplates)}
           data-message-camera-denied={t("admin.scanner.camera_denied")}
-          data-message-checked-in={messageTemplates.checkedIn}
-          data-message-error={t("admin.scanner.error")}
           data-message-id-mismatch={messageTemplates.idMismatch}
           data-message-invalid-qr={t("admin.scanner.invalid_qr")}
-          data-message-network-error={t("admin.scanner.network_error")}
-          data-message-not-found={t("admin.scanner.not_found")}
-          data-message-refunded={messageTemplates.refunded}
           data-message-scanning={t("admin.scanner.scanning")}
           data-message-skipped={messageTemplates.skipped}
-          data-message-ticket-count-one={messageTemplates.ticketCountOne}
-          data-message-ticket-count-other={messageTemplates.ticketCountOther}
           data-message-verify-id-confirm={messageTemplates.verifyIdConfirm}
           data-message-wrong-listing-confirm={
             messageTemplates.wrongListingConfirm
@@ -127,16 +140,9 @@ export const adminScannerPage = (
         <h2>{t("admin.scanner.manual_checkin")}</h2>
         <form
           action={`/admin/listing/${listing.id}/scan`}
+          {...sharedScanMessageAttrs(messageTemplates)}
           data-listing-id={String(listing.id)}
           data-manual-checkin
-          data-message-already-checked-in={messageTemplates.alreadyCheckedIn}
-          data-message-checked-in={messageTemplates.checkedIn}
-          data-message-error={t("admin.scanner.error")}
-          data-message-network-error={t("admin.scanner.network_error")}
-          data-message-not-found={t("admin.scanner.not_found")}
-          data-message-refunded={messageTemplates.refunded}
-          data-message-ticket-count-one={messageTemplates.ticketCountOne}
-          data-message-ticket-count-other={messageTemplates.ticketCountOther}
           data-message-verify-id-note={t("admin.scanner.verify_id_note")}
           id="manual-checkin"
           method="POST"

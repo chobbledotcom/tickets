@@ -10,6 +10,8 @@ import { createFormRoute } from "#shared/app-forms.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
   acceptInvite,
+  activateKeylessUser,
+  decryptAdminLevel,
   decryptUsername,
   getUserByInviteCode,
   isInviteValid,
@@ -55,10 +57,13 @@ const validateInvite = async (
     return htmlResponse(joinErrorPage(t("error.invite_expired")), 410);
   }
 
-  // Self-activation needs the DATA_KEY handoff wrapped under this invite code.
-  // Invites created before self-activation existed carry none and can't be
-  // completed; the owner re-invites (such invites expire within a week anyway).
-  if (!user.invite_wrapped_data_key) {
+  // Editors hold no DATA_KEY, so their invite deliberately carries no handoff —
+  // they activate keyless. Every other role self-activates by unwrapping the
+  // DATA_KEY handoff wrapped under this invite code; an invite missing that
+  // handoff (e.g. created before self-activation existed) can't be completed and
+  // the owner re-invites (such invites expire within a week anyway).
+  const adminLevel = await decryptAdminLevel(user);
+  if (adminLevel !== "editor" && !user.invite_wrapped_data_key) {
     return htmlResponse(joinErrorPage(t("error.invite_invalid")), 404);
   }
 
@@ -115,15 +120,17 @@ const setPasswordRoute = (code: string, user: User) =>
       if (values.password !== values.password_confirm) {
         return errorRedirect(`/join/${code}`, t("error.passwords_mismatch"));
       }
-      // Self-activates: unwrap the DATA_KEY handoff with this invite code and
-      // re-wrap it under the new password's KEK. validateInvite guaranteed the
-      // handoff is present.
-      const accepted = await acceptInvite(
-        user.id,
-        user.invite_wrapped_data_key!,
-        code,
-        values.password,
-      );
+      // Editors activate keyless (no DATA_KEY to unwrap); every other role
+      // unwraps the handoff with this invite code and re-wraps it under the new
+      // password's KEK. validateInvite guaranteed a handoff for non-editors.
+      const accepted = user.invite_wrapped_data_key
+        ? await acceptInvite(
+            user.id,
+            user.invite_wrapped_data_key,
+            code,
+            values.password,
+          )
+        : await activateKeylessUser(user.id, values.password);
       // The accept is a guarded single-use UPDATE. If a concurrent or replayed
       // submit already consumed this invite, no row changed — don't tell the
       // user their password was set, because the account is bound to the first

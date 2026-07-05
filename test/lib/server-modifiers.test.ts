@@ -1,10 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
-import { getDb } from "#shared/db/client.ts";
+import { setChildIds } from "#shared/db/listing-parents.ts";
 import {
   getAllModifiers,
   getModifier,
@@ -24,12 +25,21 @@ import {
   createTestGroup,
   createTestListing,
   createTestManagerSession,
+  deactivateTestListing,
   describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
   expectStatus,
   followRedirectWithFlash,
+  getAllActivityLog,
+  getTestSession,
+  insertModifier,
+  insertModifierUsage,
+  linkModifierListing,
+  makeParent,
+  patchModifier,
   testRequiresAuth,
+  updateTestListing,
 } from "#test-utils";
 import { postModifierLeg } from "#test-utils/ledger.ts";
 
@@ -48,17 +58,6 @@ const lastModifier = async (): Promise<Modifier> => {
   return all[all.length - 1]!;
 };
 
-const insertUsage = (
-  modifierId: number,
-  attendeeId: number,
-  quantity: number,
-  amountApplied: number,
-): Promise<unknown> =>
-  getDb().execute({
-    args: [modifierId, attendeeId, quantity, amountApplied, "2026-06-17"],
-    sql: "INSERT INTO modifier_usages (modifier_id, attendee_id, quantity, amount_applied, created) VALUES (?, ?, ?, ?, ?)",
-  });
-
 describeWithEnv("server (admin modifiers)", { db: true }, () => {
   describe("GET /admin/modifiers", () => {
     testRequiresAuth("/admin/modifiers");
@@ -71,7 +70,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     });
 
     test("shows empty list when no modifiers exist", async () => {
-      const { response } = await adminGet("/admin/modifiers");
+      const response = await adminGet("/admin/modifiers");
       await expectHtmlResponse(
         response,
         200,
@@ -82,14 +81,14 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
 
     test("lists modifiers with their rule summary", async () => {
       await adminFormPost("/admin/modifiers", createData({ name: "Loyalty" }));
-      const { response } = await adminGet("/admin/modifiers");
+      const response = await adminGet("/admin/modifiers");
       await expectHtmlResponse(response, 200, "Loyalty", "Discount · 10%");
     });
   });
 
   describe("GET /admin/modifiers/new", () => {
     test("shows the create form", async () => {
-      const { response } = await adminGet("/admin/modifiers/new");
+      const response = await adminGet("/admin/modifiers/new");
       await expectHtmlResponse(response, 200, "Add Modifier", "Direction");
     });
   });
@@ -141,6 +140,30 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect(modifier.direction).toBe("charge");
     });
 
+    test("accepts a fixed amount at the currency's precision", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ calc_kind: "fixed", calc_value: "5.50" }),
+      );
+      expect((await lastModifier()).calc_value).toBe(5.5);
+    });
+
+    test("rejects a fixed amount with too many decimals for the currency", async () => {
+      // A fixed amount is a currency value (major units, converted at resolve).
+      // 10.005 has 3 decimals — invalid in GBP (2) — so it's rejected rather
+      // than silently rounded when the modifier is applied. A percentage or
+      // multiplier keeps its precision, so this only guards the fixed kind.
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ calc_kind: "fixed", calc_value: "10.005" }),
+      );
+      await expectFlashRedirect(
+        "/admin/modifiers/new",
+        "Amount has more decimal places than your currency allows",
+        false,
+      )(response);
+    });
+
     test("stores the minimum order in minor units", async () => {
       await adminFormPost(
         "/admin/modifiers",
@@ -161,7 +184,21 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       await expectFlashRedirect(
         "/admin/modifiers/new",
-        "Minimum order must be a positive number",
+        "Minimum order must be a valid amount for your currency",
+        false,
+      )(response);
+    });
+
+    test("rejects a minimum order with too many decimals for the currency", async () => {
+      // 10.005 has 3 decimals — invalid in GBP (2). Without validation this
+      // would be rounded by toMinorUnits at save; instead it's rejected.
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ min_subtotal: "10.005" }),
+      );
+      await expectFlashRedirect(
+        "/admin/modifiers/new",
+        "Minimum order must be a valid amount for your currency",
         false,
       )(response);
     });
@@ -282,7 +319,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     test("shows the edit form with current values", async () => {
       await adminFormPost("/admin/modifiers", createData({ name: "Editable" }));
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(response, 200, "Edit Modifier", "Editable");
     });
 
@@ -292,19 +329,19 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         createData({ min_subtotal: "50" }),
       );
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(response, 200, 'value="50"');
     });
 
     test("shows the stock limit on the edit form", async () => {
       await adminFormPost("/admin/modifiers", createData({ stock: "7" }));
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(response, 200, 'value="7"');
     });
 
     test("returns 404 for a missing modifier", async () => {
-      const { response } = await adminGet("/admin/modifiers/999/edit");
+      const response = await adminGet("/admin/modifiers/999/edit");
       expectStatus(404)(response);
     });
 
@@ -314,12 +351,43 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         createData({ name: "Surcharge" }),
       );
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       const html = await response.text();
       expect(html).toContain("Adjust revenue");
       expect(html).toContain(`action="/admin/modifiers/${id}/revenue"`);
       expect(html).toContain('name="total_revenue"');
       expect(html).toContain("correcting entry to the money ledger");
+    });
+
+    test("shows the owner-only modifier ledger section", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ name: "Helmet hire" }),
+      );
+      const { id } = await lastModifier();
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
+      const html = await response.text();
+      expect(html).toContain("Account statement");
+      expect(html).toContain("Add entry");
+      expect(html).toContain(
+        `/admin/ledger/modifier/${id}/add?return_url=%2Fadmin%2Fmodifiers%2F${id}%2Fedit`,
+      );
+    });
+
+    test("omits the ledger section for managers", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ name: "Manager visible" }),
+      );
+      const { id } = await lastModifier();
+      const response = await awaitTestRequest(`/admin/modifiers/${id}/edit`, {
+        cookie: await createTestManagerSession("mgr-modifier-edit"),
+      });
+      const html = await response.text();
+      expect(response.status).toBe(200);
+      expect(html).toContain("Manager visible");
+      expect(html).not.toContain("Account statement");
+      expect(html).not.toContain(`/admin/ledger/modifier/${id}/add`);
     });
   });
 
@@ -380,7 +448,6 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       await adminFormPost(`/admin/modifiers/${id}/revenue`, {
         total_revenue: "12.34",
       });
-      const { getAllActivityLog } = await import("#test-utils");
       const log = await getAllActivityLog(10);
       const entry = log.find((e) => e.message.includes("revenue adjusted"));
       expect(entry?.message).toBe("Modifier 'Promo' revenue adjusted");
@@ -427,6 +494,10 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const updated = (await getAllModifiers()).find((m) => m.id === id)!;
       expect(updated.name).toBe("After");
       expect(updated.calc_value).toBe(20);
+
+      const log = await getAllActivityLog(10);
+      const entry = log.find((e) => e.message.includes("updated"));
+      expect(entry?.message).toBe("Modifier 'After' updated");
     });
 
     test("updates modifier running totals from the edit form", async () => {
@@ -526,13 +597,13 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     test("shows current and usage-derived modifier totals", async () => {
       await adminFormPost("/admin/modifiers", createData({ name: "Usage" }));
       const { id } = await lastModifier();
-      await insertUsage(id, 1, 2, 1000);
+      await insertModifierUsage(id, 1, 2, 1000);
       await updateModifierAggregateValues(id, {
         total_uses: 9,
         usage_count: 5,
       });
 
-      const { response } = await adminGet(`/admin/modifiers/recalculate/${id}`);
+      const response = await adminGet(`/admin/modifiers/recalculate/${id}`);
       await expectHtmlResponse(
         response,
         200,
@@ -548,7 +619,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     test("resets selected modifier totals", async () => {
       await adminFormPost("/admin/modifiers", createData({ name: "Reset" }));
       const { id } = await lastModifier();
-      await insertUsage(id, 1, 2, 1000);
+      await insertModifierUsage(id, 1, 2, 1000);
       await updateModifierAggregateValues(id, {
         total_uses: 9,
         usage_count: 5,
@@ -570,6 +641,10 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       // total_revenue is projected from the ledger (no modifier legs here), so
       // it is 0 and unaffected by the count-only recalculation.
       expect(updated.total_revenue).toBe(0);
+
+      const log = await getAllActivityLog(10);
+      const entry = log.find((e) => e.message.includes("totals recalculated"));
+      expect(entry?.message).toBe("Modifier 'Reset' totals recalculated");
     });
 
     test("shows recalculation success on the redirected edit page", async () => {
@@ -618,7 +693,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     test("shows the delete confirmation page", async () => {
       await adminFormPost("/admin/modifiers", createData({ name: "Doomed" }));
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/delete`);
+      const response = await adminGet(`/admin/modifiers/${id}/delete`);
       await expectHtmlResponse(response, 200, "Delete Modifier", "Doomed");
     });
 
@@ -672,7 +747,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         createData({ name: "Scoped", scope: "listings" }),
       );
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(
         response,
         200,
@@ -689,7 +764,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         createData({ name: "GS", scope: "groups" }),
       );
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(
         response,
         200,
@@ -724,6 +799,19 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       await adminFormPost(`/admin/modifiers/${id}/links`, { group_ids: "42" });
       expect(await getModifierGroupIds(id)).toEqual([42]);
+    });
+
+    test("drops a non-positive id from the scope form", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ name: "Filtered", scope: "groups" }),
+      );
+      const { id } = await lastModifier();
+      // selectedIds keeps only positive integers: -1 is an integer but not
+      // > 0, so it must be dropped — the filter is `isInteger(n) && n > 0`,
+      // not `||` (which would let -1 through and store it).
+      await adminFormPost(`/admin/modifiers/${id}/links`, { group_ids: "-1" });
+      expect(await getModifierGroupIds(id)).toEqual([]);
     });
 
     test("the scope form is a no-op for a whole-order modifier", async () => {
@@ -773,7 +861,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         createData({ name: "Tier", trigger: "answer" }),
       );
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(
         response,
         200,
@@ -813,7 +901,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     test("the edit page omits the answer editor for a non-answer modifier", async () => {
       await adminFormPost("/admin/modifiers", createData());
       const { id } = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
       const html = await response.text();
       expect(html).not.toContain("Linked answers");
     });
@@ -926,3 +1014,309 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     });
   });
 });
+
+describeWithEnv(
+  "server (admin modifiers) > child-only add-on guard",
+  { db: true },
+  () => {
+    /** An active opt-in, listings-scoped add-on with no links yet. */
+    const optInAddOn = async (name: string) => {
+      const modifier = await insertModifier({ name });
+      await patchModifier(modifier.id, {
+        active: 1,
+        scope: "listings",
+        trigger: "optional",
+      });
+      return modifier;
+    };
+
+    test("allows creating a whole-order opt-in add-on (reachable everywhere)", async () => {
+      // A whole-order (scope "all") add-on loads on every page, so it can never
+      // be a child-only dead end — creating one with the flag on is allowed.
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({
+          calc_kind: "fixed",
+          calc_value: "5",
+          direction: "charge",
+          name: "Order extra",
+          trigger: "optional",
+        }),
+      );
+      await expectFlashRedirect(
+        "/admin/modifiers",
+        "Modifier created",
+        true,
+      )(response);
+      expect((await lastModifier()).trigger).toBe("optional");
+    });
+
+    test("blocks scoping an opt-in add-on to only a child via the links form", async () => {
+      const { child } = await makeParent();
+      const modifier = await optInAddOn("Child-only extra");
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${modifier.id}/links`,
+        { listing_ids: String(child.id) },
+      );
+      await expectFlashRedirect(
+        `/admin/modifiers/${modifier.id}/edit`,
+        t("modifiers.err_child_only_addon", { name: "Child-only extra" }),
+        false,
+      )(response);
+      expect(await getModifierListingIds(modifier.id)).toEqual([]);
+    });
+
+    test("ALLOWS scoping an opt-in add-on to only a bookable_alone child", async () => {
+      // A `bookable_alone` child serves its own booking page, so an add-on
+      // scoped to it alone is reachable (not a dead end) — the two-sided
+      // reachability counts the flagged child as a live page.
+      const { child } = await makeParent({
+        children: [{ bookableAlone: true, name: "Solo Widget" }],
+      });
+      const modifier = await optInAddOn("Solo extra");
+      await adminFormPost(`/admin/modifiers/${modifier.id}/links`, {
+        listing_ids: String(child.id),
+      });
+      // The link stuck — no child-only dead-end block fired.
+      expect(await getModifierListingIds(modifier.id)).toEqual([child.id]);
+    });
+
+    test("clearing bookable_alone re-blocks when it orphans the child's add-on", async () => {
+      // The child's own page is the ONLY thing rescuing the add-on. Clearing the
+      // flag would strip that page and dead-end the add-on, so the listing save
+      // is rejected (the false-transition guard) and the flag stays true.
+      const { child } = await makeParent({
+        children: [{ bookableAlone: true, name: "Solo Widget" }],
+      });
+      const modifier = await optInAddOn("Solo extra");
+      await adminFormPost(`/admin/modifiers/${modifier.id}/links`, {
+        listing_ids: String(child.id),
+      });
+      // The edit endpoint 400s (non-302), so the helper throws; the flag is kept.
+      await expect(
+        updateTestListing(child.id, { bookableAlone: false }),
+      ).rejects.toThrow();
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      expect((await getListingWithCount(child.id))!.bookable_alone).toBe(true);
+    });
+
+    test("blocks flipping a child-scoped modifier to an opt-in add-on on edit", async () => {
+      const { child } = await makeParent();
+      const modifier = await insertModifier({ name: "Becomes add-on" });
+      await patchModifier(modifier.id, { scope: "listings" });
+      await linkModifierListing(modifier.id, child.id);
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${modifier.id}/edit`,
+        createData({
+          calc_kind: "fixed",
+          calc_value: "5",
+          direction: "charge",
+          name: "Becomes add-on",
+          scope: "listings",
+          trigger: "optional",
+        }),
+      );
+      await expectFlashRedirect(
+        `/admin/modifiers/${modifier.id}/edit`,
+        t("modifiers.err_child_only_addon", { name: "Becomes add-on" }),
+        false,
+      )(response);
+      expect((await modifiersTable.findById(modifier.id))!.trigger).toBe(
+        "automatic",
+      );
+    });
+
+    test("allows editing an active NON-opt-in child-scoped modifier (not an add-on)", async () => {
+      // The child-only-dead-end check applies only to opt-in add-ons: an active
+      // automatic modifier scoped solely to a child is never offered on a page,
+      // so a plain resource edit (here, a name change) must NOT be blocked even
+      // though its stored scope is child-only.
+      const { child } = await makeParent();
+      const modifier = await insertModifier({ name: "Auto child surcharge" });
+      await patchModifier(modifier.id, { active: 1, scope: "listings" });
+      await linkModifierListing(modifier.id, child.id);
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${modifier.id}/edit`,
+        createData({
+          active: "1",
+          calc_kind: "fixed",
+          calc_value: "5",
+          direction: "charge",
+          name: "Auto child surcharge renamed",
+          scope: "listings",
+          trigger: "automatic",
+        }),
+      );
+      await expectFlashRedirect(
+        "/admin/modifiers",
+        "Modifier updated",
+        true,
+      )(response);
+      expect((await modifiersTable.findById(modifier.id))!.name).toBe(
+        "Auto child surcharge renamed",
+      );
+    });
+
+    test("allows flipping a {child, parent}-scoped modifier to an opt-in add-on", async () => {
+      const { parent, child } = await makeParent();
+      const modifier = await insertModifier({ name: "Shared add-on" });
+      await patchModifier(modifier.id, { scope: "listings" });
+      // Scoped to both the parent (a reachable page) and the child: not a dead
+      // end, so flipping it to an opt-in add-on is allowed.
+      await linkModifierListing(modifier.id, parent.id);
+      await linkModifierListing(modifier.id, child.id);
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${modifier.id}/edit`,
+        createData({
+          calc_kind: "fixed",
+          calc_value: "5",
+          direction: "charge",
+          name: "Shared add-on",
+          scope: "listings",
+          trigger: "optional",
+        }),
+      );
+      await expectFlashRedirect(
+        "/admin/modifiers",
+        "Modifier updated",
+        true,
+      )(response);
+      expect((await modifiersTable.findById(modifier.id))!.trigger).toBe(
+        "optional",
+      );
+    });
+
+    test("blocks scoping an opt-in add-on to a group of only children", async () => {
+      const group = await createTestGroup({ name: "Add-ons" });
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({
+        groupId: group.id,
+        name: "Add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+      const modifier = await insertModifier({ name: "Group child extra" });
+      await patchModifier(modifier.id, {
+        active: 1,
+        scope: "groups",
+        trigger: "optional",
+      });
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${modifier.id}/links`,
+        { group_ids: String(group.id) },
+      );
+      await expectFlashRedirect(
+        `/admin/modifiers/${modifier.id}/edit`,
+        t("modifiers.err_child_only_addon", { name: "Group child extra" }),
+        false,
+      )(response);
+      expect(await getModifierGroupIds(modifier.id)).toEqual([]);
+    });
+
+    test("allows scoping a non-opt-in modifier to only a child (not an add-on)", async () => {
+      const { child } = await makeParent();
+      // An automatic surcharge is never offered as an opt-in add-on, so it can
+      // be scoped to a child without dead-ending.
+      const modifier = await insertModifier({ name: "Auto surcharge" });
+      await patchModifier(modifier.id, { active: 1, scope: "listings" });
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${modifier.id}/links`,
+        { listing_ids: String(child.id) },
+      );
+      await expectFlashRedirect(
+        `/admin/modifiers/${modifier.id}/edit`,
+        "Scope updated",
+        true,
+      )(response);
+      expect(await getModifierListingIds(modifier.id)).toEqual([child.id]);
+    });
+
+    test("allows an inactive child-scoped opt-in add-on (never loads on a page)", async () => {
+      const { child } = await makeParent();
+      const modifier = await insertModifier({ name: "Inactive extra" });
+      // An inactive *opt-in* add-on: the trigger would dead-end if it were
+      // active, but an inactive modifier never loads, so the save is allowed.
+      await patchModifier(modifier.id, {
+        active: 0,
+        scope: "listings",
+        trigger: "optional",
+      });
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${modifier.id}/links`,
+        { listing_ids: String(child.id) },
+      );
+      await expectFlashRedirect(
+        `/admin/modifiers/${modifier.id}/edit`,
+        "Scope updated",
+        true,
+      )(response);
+      expect(await getModifierListingIds(modifier.id)).toEqual([child.id]);
+    });
+
+    /** POST the scope-links form with repeated `listing_ids` values
+     * (mockFormRequest only carries a single value per key). */
+    const postListingLinks = async (
+      modifierId: number,
+      listingIds: number[],
+    ): Promise<Response> => {
+      const { cookie, csrfToken } = await getTestSession();
+      const body = new URLSearchParams();
+      body.set("csrf_token", csrfToken);
+      for (const id of listingIds) body.append("listing_ids", String(id));
+      return handleRequest(
+        new Request(`http://localhost/admin/modifiers/${modifierId}/links`, {
+          body: body.toString(),
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            cookie,
+            host: "localhost",
+          },
+          method: "POST",
+        }),
+      );
+    };
+
+    test("blocks scoping an opt-in add-on to {child, inactive non-child}", async () => {
+      // The non-child listing is INACTIVE, so it serves no public booking page
+      // and can't load the add-on. The add-on is therefore reachable only via
+      // the suppressed child — still a dead end, so the save is blocked.
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      const inactive = await createTestListing({ name: "Hidden extra page" });
+      await deactivateTestListing(inactive.id);
+      await setChildIds(parent.id, [child.id]);
+      const modifier = await optInAddOn("Stranded extra");
+      const response = await postListingLinks(modifier.id, [
+        child.id,
+        inactive.id,
+      ]);
+      await expectFlashRedirect(
+        `/admin/modifiers/${modifier.id}/edit`,
+        t("modifiers.err_child_only_addon", { name: "Stranded extra" }),
+        false,
+      )(response);
+      expect(await getModifierListingIds(modifier.id)).toEqual([]);
+    });
+
+    test("allows scoping an opt-in add-on to {child, active non-child}", async () => {
+      // The non-child listing is ACTIVE, so its booking page loads the add-on:
+      // not a dead end, so the save is allowed.
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      const reachable = await createTestListing({ name: "Live extra page" });
+      await setChildIds(parent.id, [child.id]);
+      const modifier = await optInAddOn("Reachable extra");
+      const response = await postListingLinks(modifier.id, [
+        child.id,
+        reachable.id,
+      ]);
+      await expectFlashRedirect(
+        `/admin/modifiers/${modifier.id}/edit`,
+        "Scope updated",
+        true,
+      )(response);
+      expect(await getModifierListingIds(modifier.id)).toEqual(
+        [child.id, reachable.id].sort((a, b) => a - b),
+      );
+    });
+  },
+);

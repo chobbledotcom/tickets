@@ -8,7 +8,7 @@
  * providers in lock-step and gives later pricing features one place to plug in.
  */
 
-import { sum, sumOf } from "#fp";
+import { sum, sumByKey, sumOf } from "#fp";
 import { feeSubtotalFor, getBookingFeeAmount } from "#shared/booking-fee.ts";
 import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
 import type {
@@ -47,6 +47,7 @@ export type ExtraLine = {
  * the signed net checkout change. */
 export type ModifierApplication = {
   modifierId: number;
+  name: string;
   quantity: number;
   amountApplied: number;
   delta: number;
@@ -77,14 +78,8 @@ export const ticketLineTotal = (order: Pick<PricedOrder, "lines">): number =>
 export const lineTotalsByListingId = (
   lines: PricedLine[],
   amountOf: (line: PricedLine) => number,
-): Map<number, number> => {
-  const totals = new Map<number, number>();
-  for (const line of lines) {
-    const id = line.item.listingId;
-    totals.set(id, (totals.get(id) ?? 0) + amountOf(line));
-  }
-  return totals;
-};
+): Map<number, number> =>
+  sumByKey((line: PricedLine) => line.item.listingId, amountOf)(lines);
 
 /** A line's full list price (`unitPrice × quantity`) — gross before modifiers
  *  and before any deposit reduction, for ledger revenue recognition. */
@@ -255,6 +250,7 @@ const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
         amountApplied,
         delta: signedDelta,
         modifierId: spec.id,
+        name: spec.name,
         quantity: spec.quantity,
         scopedSubtotal,
       },

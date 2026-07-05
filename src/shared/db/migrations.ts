@@ -14,7 +14,14 @@
 import type { Client } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import { getDb } from "#shared/db/client.ts";
+import { executeBatch, getDb } from "#shared/db/client.ts";
+import { invalidateGroupsCache } from "#shared/db/groups.ts";
+import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
+import { invalidateListingsCache } from "#shared/db/listings.ts";
+import { invalidateLogisticsAgentsCache } from "#shared/db/logistics-agents.ts";
+import { resetSessionCache } from "#shared/db/sessions.ts";
+import { settings } from "#shared/db/settings.ts";
+import { invalidateUsersCache } from "#shared/db/users.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -55,6 +62,7 @@ import contactBookingCountsMigration from "./migrations/2026-06-20_contact_booki
 import freeTextQuestionsMigration from "./migrations/2026-06-20_free_text_questions.ts";
 import stringCreatedMigration from "./migrations/2026-06-20_string_created.ts";
 import userKekV2Migration from "./migrations/2026-06-20_user_kek_v2.ts";
+import listingParentsMigration from "./migrations/2026-06-21_listing_parents.ts";
 import transfersMigration from "./migrations/2026-06-21_transfers.ts";
 import backfillTransfersMigration from "./migrations/2026-06-22_backfill_transfers.ts";
 import dropAttendeesPricePaidMigration from "./migrations/2026-06-22_drop_attendees_price_paid.ts";
@@ -66,12 +74,33 @@ import dropModifiersTotalRevenueMigration from "./migrations/2026-06-22_drop_mod
 import dropTransfersCurrencyMigration from "./migrations/2026-06-22_drop_transfers_currency.ts";
 import listingAttendeeLedgerEventGroupMigration from "./migrations/2026-06-22_listing_attendee_ledger_event_group.ts";
 import transfersTimeIntMigration from "./migrations/2026-06-22_transfers_time_int.ts";
+import attendeeOrderParentMigration from "./migrations/2026-06-23_attendee_order_parent.ts";
+import systemNotesMigration from "./migrations/2026-06-23_system_notes.ts";
+import ticketCountNoQuantityMigration from "./migrations/2026-06-23_ticket_count_no_quantity.ts";
+import attendeesKindMigration from "./migrations/2026-06-24_attendees_kind.ts";
+import builtSitesUpdatesMigration from "./migrations/2026-06-24_built_sites_updates.ts";
+import listingAttendeeLedgerEventGroupIndexMigration from "./migrations/2026-06-25_listing_attendee_ledger_event_group_index.ts";
+import attendeesKindNotNullMigration from "./migrations/2026-06-26_attendees_kind_not_null.ts";
+import serviceCostsMigration from "./migrations/2026-06-27_service_costs.ts";
+import groupListingsMigration from "./migrations/2026-06-28_group_listings.ts";
+import listingUseDefaultsMigration from "./migrations/2026-06-28_listing_use_defaults.ts";
+import attendeePackageGroupMigration from "./migrations/2026-06-29_attendee_package_group.ts";
+import packageQuantitiesMigration from "./migrations/2026-06-29_package_quantities.ts";
+import listingPricesMigration from "./migrations/2026-07-01_listing_prices.ts";
+import sitePagesMigration from "./migrations/2026-07-01_site_pages.ts";
+import bookableAloneMigration from "./migrations/2026-07-02_bookable_alone.ts";
+import dropListingsDayPricesMigration from "./migrations/2026-07-02_drop_listings_day_prices.ts";
+import groupFlatPricesMigration from "./migrations/2026-07-02_group_flat_prices.ts";
+import attendeeListingsTagMigration from "./migrations/2026-07-03_attendee_listings_tag.ts";
+import listingImageThumbMigration from "./migrations/2026-07-03_listing_image_thumb.ts";
+import firstClassImagesMigration from "./migrations/2026-07-05_first_class_images.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
   SCHEMA,
   SCHEMA_HASH,
   SCHEMA_MIGRATIONS_TABLE,
+  TRIGGERS,
 } from "./migrations/schema.ts";
 import {
   applySchemaChanges,
@@ -79,6 +108,7 @@ import {
   backfillListingAggregates,
   backfillModifierAggregates,
   createTableSql,
+  fullSchemaCreateStatements,
   recreateTable,
   runMigration,
   syncCurrentSchema as syncCurrentSchemaBase,
@@ -220,8 +250,13 @@ export const MIGRATIONS: Migration[] = [
   answerActiveMigration,
   contactBookingCountsMigration,
   userKekV2Migration,
+  listingParentsMigration,
   transfersMigration,
   transfersTimeIntMigration,
+  // Adds order_token + parent_listing_id to listing_attendees. Ordered BEFORE the
+  // ledger migrations that REBUILD listing_attendees, so those rebuilds (which
+  // copy from the current SCHEMA — already carrying these columns) find them.
+  attendeeOrderParentMigration,
   dropTransfersCurrencyMigration,
   listingAttendeeLedgerEventGroupMigration,
   backfillTransfersMigration,
@@ -231,11 +266,59 @@ export const MIGRATIONS: Migration[] = [
   dropAttendeesPricePaidMigration,
   dropAttendeesRemainingBalanceMigration,
   dropModifiersTotalRevenueMigration,
+  systemNotesMigration,
+  // Runs after drop_listing_income so the trigger rebuild lands on top of the
+  // income-free bodies: re-counts tickets_count as quantity > 0 only.
+  ticketCountNoQuantityMigration,
+  builtSitesUpdatesMigration,
+  attendeesKindMigration,
+  // Pure index add (idempotent CREATE INDEX IF NOT EXISTS via syncIndexes);
+  // order-independent, appended last.
+  listingAttendeeLedgerEventGroupIndexMigration,
+  attendeesKindNotNullMigration,
+  serviceCostsMigration,
+  // Pure additive column add (use_defaults on listings); from main.
+  listingUseDefaultsMigration,
+  groupListingsMigration,
+  packageQuantitiesMigration,
+  // Stamps package_group_id on each booking row of a package order, so tickets
+  // and emails group by the persisted id rather than membership equality.
+  attendeePackageGroupMigration,
+  // From main: two new tables for user-created content pages (additive).
+  sitePagesMigration,
+  // From main: listing_prices table + backfill from unit_price/day_prices.
+  listingPricesMigration,
+  // From main: pure additive column add (bookable_alone on listings).
+  bookableAloneMigration,
+  // Move the flat package override off group_listings into listing_prices'
+  // "group" dimension and drop the column — package pricing now lives entirely
+  // in listing_prices.
+  groupFlatPricesMigration,
+  // Move per-day-count prices off listings.day_prices into listing_prices'
+  // "day_count" dimension and drop the column — only unit_price stays a column.
+  dropListingsDayPricesMigration,
+  // Data-only: rewrite {{listing}} → {{listings}} in the stored attendee
+  // column-order template, matching the renamed grouped Listings column.
+  attendeeListingsTagMigration,
+  // Historical no-op: image thumbnails now live on first-class image records.
+  listingImageThumbMigration,
+  // Create reusable image records plus ordered item uses.
+  firstClassImagesMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(
   (migration) => migration.id,
 );
+
+/** Seed and stamp a freshly created schema: the default attendee status, the
+ *  schema markers, and every migration recorded as applied — so the next boot
+ *  treats the database as fully migrated. Shared by the fresh-install path and
+ *  the restore rebuild. */
+const sealFreshSchema = async (): Promise<void> => {
+  await ensureDefaultAttendeeStatus();
+  await writeSchemaMarkers();
+  await markMigrationsApplied(MIGRATIONS);
+};
 
 /**
  * Initialize a brand-new database directly from the current declarative schema.
@@ -249,10 +332,39 @@ const initializeFreshSchema = async (): Promise<void> => {
   logDebug("Migration", "Initializing fresh database from current schema");
   await applySchemaChanges();
   await syncIndexes();
-  await ensureDefaultAttendeeStatus();
   await syncTriggers();
-  await writeSchemaMarkers();
-  await markMigrationsApplied(MIGRATIONS);
+  await sealFreshSchema();
+};
+
+/**
+ * Rebuild the full schema on a database that resetDatabase() just wiped,
+ * without reading the database to decide what to create.
+ *
+ * The restore path cannot trust any schema or state read taken here: right
+ * after the drops, a replica AND even a freshly-routed primary connection can
+ * briefly serve the pre-wipe schema (read-your-writes propagation lag — the
+ * same effect VERIFY_RETRY_BACKOFF_MS documents). A lagged answer either
+ * routed boot into schema verification against the wiped primary ("missing
+ * table settings", via initDb's state check) or made the rebuild skip its
+ * CREATEs and die at the next write ("no such table: settings"), leaving the
+ * operator's database empty. So every statement here is unconditional and
+ * idempotent (IF NOT EXISTS), and nothing is consulted first. A just-wiped
+ * database has no legacy tables by definition, so the additive column
+ * reconciliation initializeFreshSchema performs (via applySchemaChanges) is
+ * not needed here.
+ */
+export const rebuildWipedSchema = async (): Promise<void> => {
+  logDebug("Migration", "Rebuilding wiped database from current schema");
+  await executeBatch(
+    fullSchemaCreateStatements().map((sql) => ({ args: [], sql })),
+  );
+  // A compound CREATE TRIGGER … BEGIN … END body carries internal semicolons
+  // that batch transports mis-split, so triggers run one by one, exactly as
+  // syncTriggers sends them.
+  for (const trigger of TRIGGERS) {
+    await runMigration(trigger.sql);
+  }
+  await sealFreshSchema();
 };
 
 const ensureMigrationTrackingTable = async (): Promise<void> => {
@@ -346,6 +458,17 @@ const pendingMigrations = async (): Promise<Migration[]> => {
  * lets the schema settle within the same request rather than 503-ing it. A
  * genuine schema defect stays missing across every attempt and still throws, so
  * this never masks a real bug.
+ *
+ * Retrying verify() alone is not always enough, though: up() can itself skip a
+ * write when its own snapshot lagged. syncIndexes() reads the live schema to
+ * decide which indexes to create and skips any whose table the snapshot doesn't
+ * show — correct for an index on a table a later migration creates, but it also
+ * skips an index whose table THIS migration just created when the read lags
+ * behind that write. The index is then never created, so verify() fails on every
+ * attempt until up() runs again — the observed "missing index
+ * idx_system_notes_attendee_id, passed on the next request" failure. So once
+ * verify()'s own retries are exhausted, {@link applyMigrationWithRetry} re-runs
+ * up() once and verifies again.
  */
 export const VERIFY_RETRY_BACKOFF_MS = [50, 150, 350] as const;
 
@@ -361,18 +484,53 @@ export const verifyMigrationWithRetry = (migration: Migration): Promise<void> =>
       if (!willRetry) return;
       logDebug(
         "Migration",
-        `verify ${migration.id} failed on attempt ${
-          attempt + 1
-        }, retrying: ${error instanceof Error ? error.message : String(error)}`,
+        `verify ${migration.id} failed on attempt ${attempt + 1}, retrying: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     },
   );
 
+/**
+ * Apply a migration: run up(), then verify() with retries. If verify() never
+ * passes across a full round of retries, re-run up() once and verify again.
+ *
+ * Re-running up() repairs the case where up() itself skipped a write because its
+ * own schema snapshot lagged (see VERIFY_RETRY_BACKOFF_MS) — the missing-index
+ * failure. up() is idempotent by construction (the runner already re-runs it on
+ * a later request whenever a prior run died before recording its marker), so the
+ * second pass — now reading a settled snapshot — completes the skipped write.
+ *
+ * The re-run is deferred until verify()'s own retries are exhausted, not fired
+ * on the first verify miss, so a migration whose up() is NOT a cheap no-op after
+ * success — e.g. 2026-06-20_free_text_questions, which recopies attendee_answers
+ * / listing_questions / questions via recreateTable — is not re-run on a pure
+ * verify-lag (up() did its work; only verify()'s snapshot lagged), which would
+ * recopy large tables and risk the edge request budget. up() therefore runs at
+ * most twice, never once per retry.
+ */
+export const applyMigrationWithRetry = async (
+  migration: Migration,
+): Promise<void> => {
+  await migration.up();
+  try {
+    await verifyMigrationWithRetry(migration);
+  } catch (error) {
+    logDebug(
+      "Migration",
+      `verify ${migration.id} still failing after retries, re-running up(): ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    await migration.up();
+    await verifyMigrationWithRetry(migration);
+  }
+};
+
 const runPendingMigrations = async (pending: Migration[]): Promise<void> => {
   for (const migration of pending) {
     logDebug("Migration", `Running ${migration.id}: ${migration.description}`);
-    await migration.up();
-    await verifyMigrationWithRetry(migration);
+    await applyMigrationWithRetry(migration);
     await markMigrationApplied(migration);
   }
 };
@@ -556,13 +714,35 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
 
 // ─── Reset ──────────────────────────────────────────────────────
 
+/** Clear every module-level in-process cache.
+ *
+ *  Call after any operation that bypasses the normal write path (full reset,
+ *  restore from backup) so stale reads cannot outlive the current isolate
+ *  lifecycle. Both resetDatabase (in its finally block, so even a partial-drop
+ *  failure invalidates caches) and restoreFromSql (after executeBatch completes)
+ *  use this to guarantee a consistent post-operation view. */
+export const clearAllCaches = (): void => {
+  invalidateInitDbCache();
+  settings.invalidateCache();
+  settings.setup.clearCache();
+  resetSessionCache();
+  invalidateUsersCache();
+  invalidateListingsCache();
+  invalidateHolidaysCache();
+  invalidateGroupsCache();
+  invalidateLogisticsAgentsCache();
+};
+
 /**
  * Reset the database by dropping all tables (reverse order for FK safety)
  */
 export const resetDatabase = async (): Promise<void> => {
-  invalidateInitDbCache();
   const client = getDb();
-  for (const [name] of [...SCHEMA].reverse()) {
-    await client.execute(`DROP TABLE IF EXISTS ${name}`);
+  try {
+    for (const [name] of [...SCHEMA].reverse()) {
+      await client.execute(`DROP TABLE IF EXISTS ${name}`);
+    }
+  } finally {
+    clearAllCaches();
   }
 };

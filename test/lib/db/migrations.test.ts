@@ -20,9 +20,13 @@ import {
   SCHEMA_HASH,
 } from "#shared/db/migrations.ts";
 import {
+  assertSchemaEmpty,
   describeWithEnv,
   invalidateTestDbCache,
-  setTestEnv,
+  schemaMarkerKeys,
+  settingsTableExists,
+  stubNtfyFetch,
+  tableExists,
 } from "#test-utils";
 import {
   markCurrentSchemaMigrationPending,
@@ -57,32 +61,47 @@ describeWithEnv("db > migrations", { db: true }, () => {
         transaction: () => Promise.reject(new Error("unexpected transaction")),
       }) as unknown as Client;
 
-    const settingsTableExists = async (): Promise<boolean> => {
-      const result = await getDb().execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'",
-      );
-      return result.rows.length > 0;
-    };
-
-    const tableExists = async (table: string): Promise<boolean> => {
-      const result = await getDb().execute({
-        args: [table],
-        sql: "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+    const mockMigrationClient = (
+      route: (sql: string) => Promise<ResultSet> | undefined,
+    ): Client =>
+      mockClient((statement) => {
+        const sql = typeof statement === "string" ? statement : statement.sql;
+        return (
+          route(sql) ??
+          Promise.reject(new Error(`unexpected migration query: ${sql}`))
+        );
       });
-      return result.rows.length > 0;
+
+    const rejectSettingsRead =
+      (message: string): ((sql: string) => Promise<ResultSet> | undefined) =>
+      (sql) =>
+        sql.includes("FROM settings")
+          ? Promise.reject(new Error(message))
+          : undefined;
+
+    const expectNtfySilent = async (
+      client: Client,
+      body: () => Promise<void>,
+    ): Promise<void> => {
+      const { fetchStub, restore } = stubNtfyFetch();
+      setDb(client);
+      try {
+        await body();
+        const ntfyCall = fetchStub.calls.find(
+          (c) => c.args[0] === "https://ntfy.sh/test-topic",
+        );
+        expect(ntfyCall).toBeUndefined();
+      } finally {
+        fetchStub.restore();
+        restore();
+        setDb(null);
+      }
     };
 
     const createEmptySettingsTable = () =>
       getDb().execute(
         "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
       );
-
-    const schemaMarkerKeys = async (): Promise<string[]> => {
-      const result = await getDb().execute(
-        "SELECT key FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash') ORDER BY key",
-      );
-      return result.rows.map((row) => String(row.key));
-    };
 
     const schemaMigrationsTableExists = async (): Promise<boolean> => {
       const result = await getDb().execute(
@@ -104,6 +123,22 @@ describeWithEnv("db > migrations", { db: true }, () => {
         sql: "SELECT value FROM settings WHERE key = ?",
       });
       return result.rows[0]?.value as string | undefined;
+    };
+
+    const bootstrapSettingsTable = async (
+      preInit?: () => Promise<unknown>,
+    ): Promise<void> => {
+      await resetDatabase();
+      invalidateTestDbCache();
+      await preInit?.();
+      await initDb({ allowMissingSettings: true });
+
+      expect(await settingsTableExists()).toBe(true);
+      expect(await schemaMarkerKeys()).toEqual([
+        "db_schema_hash",
+        "latest_db_update",
+      ]);
+      expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
     };
 
     test("initDb stores latest_db_update in settings", async () => {
@@ -132,6 +167,50 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
       expect(await schemaMigrationsTableExists()).toBe(true);
       expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
+    });
+
+    test("runs a schema-hash-neutral data migration on a site upgrading from the previous release", async () => {
+      // Reproduces the upgrade path for a data-only migration (one whose
+      // `requires` is empty, so SCHEMA_HASH is unchanged). A site last migrated
+      // at the previous release carries that release's `latest_db_update` marker
+      // and every migration EXCEPT the newly appended one. If LATEST_UPDATE were
+      // not bumped alongside the migration, the stored marker would still equal
+      // the code's, so getDbState() returns "up_to_date" and
+      // baselineCurrentSchemaIfNeeded() marks the migration applied WITHOUT
+      // running its up() — the {{listing}} → {{listings}} rewrite would silently
+      // never happen on real upgrades. Bumping LATEST_UPDATE flips the state to
+      // "needs_migration" so the migration actually runs.
+      const PREVIOUS_RELEASE_MARKER =
+        "Migrate listings.day_prices into the listing_prices 'day_count' dimension and drop the column.";
+      // Sanity: the previous marker must differ from the current one, else the
+      // upgrade would read as up_to_date and this scenario couldn't arise.
+      expect(PREVIOUS_RELEASE_MARKER).not.toBe(LATEST_UPDATE);
+
+      await getDb().execute({
+        args: [PREVIOUS_RELEASE_MARKER],
+        sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
+      });
+      await getDb().execute(
+        "DELETE FROM schema_migrations WHERE id = '2026-07-03_attendee_listings_tag'",
+      );
+      await getDb().execute({
+        args: ["{{name}}, {{listing}}, {{email}}"],
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('attendee_column_order', ?)",
+      });
+      invalidateInitDbCache();
+
+      await initDb();
+
+      // The migration ran: the stored template's tag is rewritten...
+      expect(await settingValue("attendee_column_order")).toBe(
+        "{{name}}, {{listings}}, {{email}}",
+      );
+      // ...it is now recorded in schema_migrations...
+      expect(await appliedMigrationIds()).toContain(
+        "2026-07-03_attendee_listings_tag",
+      );
+      // ...and the markers are refreshed to the current release.
+      expect(await settingValue("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
     test("initDb restores stale markers after a crash between recording migrations and writing markers", async () => {
@@ -258,42 +337,21 @@ describeWithEnv("db > migrations", { db: true }, () => {
     });
 
     test("initDb does not treat transient settings read failures as a new database", async () => {
-      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
-      );
-      setDb(
-        mockClient((statement) => {
-          const sql = typeof statement === "string" ? statement : statement.sql;
-          if (sql.includes("FROM settings")) {
-            return Promise.reject(new Error("temporary libsql read failure"));
-          }
-          return Promise.reject(
-            new Error(`unexpected migration query: ${sql}`),
+      await expectNtfySilent(
+        mockMigrationClient(
+          rejectSettingsRead("temporary libsql read failure"),
+        ),
+        async () => {
+          await expect(initDb()).rejects.toThrow(
+            "temporary libsql read failure",
           );
-        }),
+        },
       );
-      try {
-        await expect(initDb()).rejects.toThrow("temporary libsql read failure");
-        const ntfyCall = fetchStub.calls.find(
-          (c) => c.args[0] === "https://ntfy.sh/test-topic",
-        );
-        expect(ntfyCall).toBeUndefined();
-      } finally {
-        fetchStub.restore();
-        restore();
-        setDb(null);
-      }
     });
 
     test("initDb does not treat transient lock write failures as an acquired lock", async () => {
-      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
-      );
-      setDb(
-        mockClient((statement) => {
-          const sql = typeof statement === "string" ? statement : statement.sql;
+      await expectNtfySilent(
+        mockMigrationClient((sql) => {
           if (sql.includes("FROM settings")) {
             return Promise.resolve(
               resultSet([
@@ -305,37 +363,19 @@ describeWithEnv("db > migrations", { db: true }, () => {
           if (sql.includes("INSERT INTO settings")) {
             return Promise.reject(new Error("temporary libsql write failure"));
           }
-          return Promise.reject(
-            new Error(`unexpected migration query: ${sql}`),
-          );
+          return undefined;
         }),
+        async () => {
+          await expect(initDb()).rejects.toThrow(
+            "temporary libsql write failure",
+          );
+        },
       );
-      try {
-        await expect(initDb()).rejects.toThrow(
-          "temporary libsql write failure",
-        );
-        const ntfyCall = fetchStub.calls.find(
-          (c) => c.args[0] === "https://ntfy.sh/test-topic",
-        );
-        expect(ntfyCall).toBeUndefined();
-      } finally {
-        fetchStub.restore();
-        restore();
-        setDb(null);
-      }
     });
 
     test("initDb does not mistake another missing table for a missing settings table", async () => {
       setDb(
-        mockClient((statement) => {
-          const sql = typeof statement === "string" ? statement : statement.sql;
-          if (sql.includes("FROM settings")) {
-            return Promise.reject(new Error("no such table: user_settings"));
-          }
-          return Promise.reject(
-            new Error(`unexpected migration query: ${sql}`),
-          );
-        }),
+        mockMigrationClient(rejectSettingsRead("no such table: user_settings")),
       );
       try {
         const error = await initDb().catch((e: unknown) => e);
@@ -348,15 +388,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
     test("initDb recognizes a schema-qualified missing settings table error", async () => {
       setDb(
-        mockClient((statement) => {
-          const sql = typeof statement === "string" ? statement : statement.sql;
-          if (sql.includes("FROM settings")) {
-            return Promise.reject(new Error("no such table: main.settings"));
-          }
-          return Promise.reject(
-            new Error(`unexpected migration query: ${sql}`),
-          );
-        }),
+        mockMigrationClient(rejectSettingsRead("no such table: main.settings")),
       );
       try {
         await expect(initDb()).rejects.toBeInstanceOf(
@@ -383,94 +415,56 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
       await expect(initDb()).rejects.toThrow("settings table is uninitialized");
 
-      expect(await settingsTableExists()).toBe(true);
-      expect(await tableExists("listings")).toBe(false);
-      expect(await schemaMarkerKeys()).toEqual([]);
+      await assertSchemaEmpty();
     });
 
     test("initDb bootstraps a missing settings table when explicitly allowed", async () => {
-      await resetDatabase();
-      invalidateTestDbCache();
-
-      await initDb({ allowMissingSettings: true });
-
-      expect(await settingsTableExists()).toBe(true);
-      expect(await schemaMarkerKeys()).toEqual([
-        "db_schema_hash",
-        "latest_db_update",
-      ]);
-      expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
+      await bootstrapSettingsTable();
     });
 
     test("initDb bootstraps an empty settings table when explicitly allowed", async () => {
-      await resetDatabase();
-      invalidateTestDbCache();
-      await createEmptySettingsTable();
-
-      await initDb({ allowMissingSettings: true });
-
-      expect(await settingsTableExists()).toBe(true);
+      await bootstrapSettingsTable(() => createEmptySettingsTable());
       expect(await tableExists("listings")).toBe(true);
-      expect(await schemaMarkerKeys()).toEqual([
-        "db_schema_hash",
-        "latest_db_update",
-      ]);
-      expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
     });
 
-    test("named legacy migration drops legacy indexes not in declarative schema", async () => {
-      await getDb().execute(
-        `CREATE INDEX IF NOT EXISTS
-         idx_attendees_legacy_created
-         ON attendees(created)`,
-      );
-
-      const before = await getDb().execute(
-        `SELECT name FROM sqlite_master
-         WHERE type = 'index'
-           AND name = 'idx_attendees_legacy_created'`,
-      );
+    const assertLegacyObjectDropped = async (
+      type: string,
+      name: string,
+      createSql: string,
+    ): Promise<void> => {
+      await getDb().execute(createSql);
+      const before = await getDb().execute({
+        args: [type, name],
+        sql: "SELECT name FROM sqlite_master WHERE type = ? AND name = ?",
+      });
       expect(before.rows.length).toBe(1);
-
       await getDb().execute(
         "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
       );
       await markCurrentSchemaMigrationPending();
       await initDb();
-
-      const after = await getDb().execute(
-        `SELECT name FROM sqlite_master
-         WHERE type = 'index'
-           AND name = 'idx_attendees_legacy_created'`,
-      );
+      const after = await getDb().execute({
+        args: [type, name],
+        sql: "SELECT name FROM sqlite_master WHERE type = ? AND name = ?",
+      });
       expect(after.rows.length).toBe(0);
-    });
+    };
 
-    test("named legacy migration drops legacy triggers not in declarative schema", async () => {
-      await getDb().execute(
+    test("named legacy migration drops legacy indexes not in declarative schema", () =>
+      assertLegacyObjectDropped(
+        "index",
+        "idx_attendees_legacy_created",
+        "CREATE INDEX IF NOT EXISTS idx_attendees_legacy_created ON attendees(created)",
+      ));
+
+    test("named legacy migration drops legacy triggers not in declarative schema", () =>
+      assertLegacyObjectDropped(
+        "trigger",
+        "trg_legacy_noop",
         `CREATE TRIGGER IF NOT EXISTS trg_legacy_noop
          AFTER INSERT ON attendees
          FOR EACH ROW BEGIN SELECT 1; END`,
-      );
-
-      const before = await getDb().execute(
-        `SELECT name FROM sqlite_master
-         WHERE type = 'trigger' AND name = 'trg_legacy_noop'`,
-      );
-      expect(before.rows.length).toBe(1);
-
-      await getDb().execute(
-        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
-      );
-      await markCurrentSchemaMigrationPending();
-      await initDb();
-
-      const after = await getDb().execute(
-        `SELECT name FROM sqlite_master
-         WHERE type = 'trigger' AND name = 'trg_legacy_noop'`,
-      );
-      expect(after.rows.length).toBe(0);
-    });
+      ));
   });
 
   describe("initDb ready cache", () => {

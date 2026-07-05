@@ -5,6 +5,7 @@ import {
   type DatePickerDate,
   type DatePickerProps,
 } from "#templates/date-picker.tsx";
+import { selectOptionLabels } from "#test-utils";
 
 const baseProps: DatePickerProps = {
   ariaLabel: "Select a date",
@@ -28,12 +29,8 @@ const date = (overrides: Partial<DatePickerDate>): DatePickerDate => ({
 });
 
 /** Option labels of the day dropdown only (excludes the month picker). */
-const daySelectOptions = (html: string): (string | undefined)[] => {
-  const inner = html.match(
-    /<select aria-label="Select a date"[^>]*>([\s\S]*?)<\/select>/,
-  )![1]!;
-  return [...inner.matchAll(/<option[^>]*>([^<]+)</g)].map((m) => m[1]);
-};
+const daySelectOptions = (html: string): (string | undefined)[] =>
+  selectOptionLabels(html, baseProps.ariaLabel);
 
 describe("DatePicker month resolution", () => {
   test("defaults the displayed month to today's month", () => {

@@ -4,6 +4,7 @@
  */
 
 import { lazyRef, map } from "#fp";
+import { signedEdgeFor } from "#shared/booking/signed-metadata.ts";
 import type {
   ExtraLine,
   PricedLine,
@@ -22,6 +23,8 @@ import type {
   ModifierRef,
   SessionMetadata,
   ValidatedPaymentSession,
+  WebhookEvent,
+  WebhookVerifyResult,
 } from "#shared/payments.ts";
 import type { ContactInfo } from "#shared/types.ts";
 
@@ -147,15 +150,23 @@ export const createWithClient =
     return client ? safeAsync(() => op(client), errorCode) : null;
   };
 
-/** Convert registration line items to compact booking items */
-export const toBookingItems = (items: CheckoutIntent["items"]): BookingItem[] =>
-  map(
+/** Convert registration line items to compact, edge-tagged booking items (v2).
+ * A package order's top-level lines carry their package edge (`k:"p"`, `r`=group
+ * id) so the webhook can revalidate each line's `nodeKey`; folded children (in
+ * `allocations`) and standalone lines stay untagged. See signed-metadata.ts. */
+export const toBookingItems = (intent: CheckoutIntent): BookingItem[] => {
+  const foldedChildIds = new Set(
+    (intent.allocations ?? []).map((a) => a.childId),
+  );
+  return map(
     (i: CheckoutIntent["items"][number]): BookingItem => ({
       e: i.listingId,
       p: i.unitPrice * i.quantity,
       q: i.quantity,
+      ...signedEdgeFor(intent.packageGroupId, foldedChildIds.has(i.listingId)),
     }),
-  )(items);
+  )(intent.items);
+};
 
 /**
  * Spread optional contact/date fields into metadata (only if truthy).
@@ -167,7 +178,7 @@ export const toBookingItems = (items: CheckoutIntent["items"]): BookingItem[] =>
 const optionalFields = (
   intent: Partial<
     Pick<ContactInfo, "phone" | "address" | "special_instructions">
-  > & { date: string | null; dayCount?: number },
+  > & { date: string | null; dayCount?: number | undefined },
 ): Record<string, string> => ({
   ...(intent.phone ? { phone: intent.phone } : {}),
   ...(intent.address ? { address: intent.address } : {}),
@@ -209,20 +220,79 @@ export const singleListingAnswerIds = (
  * `total` is the agreed order total the provider is billing for. The caller
  * prices the order once and passes that same total here, so the signed proof
  * and the charged amount can never disagree even if pricing settings change
- * mid-checkout (re-pricing here would reopen that window — see #1300).
+ * mid-checkout (re-pricing here would reopen that window).
+ *
+ * `maxValueLength` is the provider's per-value metadata cap, and `maxEntries`
+ * its optional entry-count cap (Square's 10; Stripe/SumUp omit it). The one
+ * provider-cap-sensitive field that must **not** fail the checkout is
+ * `thank_you_url`: a folded paid parent copies its operator-configured URL into
+ * metadata, but it can break session creation for an order that is otherwise
+ * valid in **two** ways — a long URL exceeds the per-value cap, OR (even a short
+ * URL) it is one extra top-level entry that tips a full payload over the
+ * ENTRY-count cap once the small fields are packed. It is purely a
+ * post-completion redirect and the LAST-priority optional field to drop, so an
+ * over-cap URL (by either limit) is **omitted before signing** (the order
+ * completes and falls back to the generic success page). Dropping it *before*
+ * `signPriceSync` keeps the signed payload and the emitted metadata identical,
+ * so the webhook's unpack-then-verify never sees a key the proof was signed with
+ * but the wire omitted (which would classify the paid session as tampered).
+ * The entry count is judged against the **packed** shape (the
+ * provider packs before emitting) plus the `price_proof` entry added below,
+ * matching exactly what reaches the wire.
  */
+/**
+ * Whether the optional `thank_you_url` can be kept in the metadata: it must be
+ * present, within the provider's per-value length cap, AND — when the provider
+ * caps the entry count (Square) — leave room for itself plus the `price_proof`
+ * entry once the small fields are packed. `withoutUrl` is the metadata built
+ * without the URL; the wire entry count with the URL kept is its packed-size
+ * plus the URL (a top-level, non-packed entry) plus `price_proof`. The URL is
+ * the LAST-priority optional field to drop, so it is the only one omitted when
+ * the payload would otherwise overflow.
+ */
+const thankYouUrlFits = (
+  thankYouUrl: string | undefined,
+  withoutUrl: Record<string, string>,
+  caps: { maxValueLength: number; maxEntries?: number | undefined },
+): boolean => {
+  if (!thankYouUrl || thankYouUrl.length > caps.maxValueLength) return false;
+  if (caps.maxEntries === undefined) return true;
+  // +1 for the URL's own top-level entry, +1 for the price_proof entry added
+  // after signing; both are counted against the *packed* baseline the wire uses.
+  const wireEntries = Object.keys(packMetadata(withoutUrl)).length + 1 + 1;
+  return wireEntries <= caps.maxEntries;
+};
+
 export const buildItemsMetadata = async (
   intent: CheckoutIntent,
   total: number,
+  maxValueLength: number,
+  maxEntries?: number,
 ): Promise<Record<string, string>> => {
-  const base = buildMetadata({
-    ...intent,
-    items: toBookingItems(intent.items),
-    modifiers: toModifierRefs(intent.modifiers),
-    siteTokenIndex: intent.siteToken
-      ? await hmacHash(intent.siteToken)
-      : undefined,
+  // Build the metadata without the optional thank-you URL once; this is also the
+  // baseline whose entry count decides whether the URL can be added back below.
+  const modifiers = toModifierRefs(intent.modifiers);
+  const siteTokenIndex = intent.siteToken
+    ? await hmacHash(intent.siteToken)
+    : undefined;
+  const {
+    thankYouUrl: _thankYouUrl,
+    modifiers: _modifiers,
+    siteToken: _siteToken,
+    ...intentRest
+  } = intent;
+  const withoutUrl = buildMetadata({
+    ...intentRest,
+    items: toBookingItems(intent),
+    ...(modifiers !== undefined ? { modifiers } : {}),
+    ...(siteTokenIndex !== undefined ? { siteTokenIndex } : {}),
   });
+  const base = thankYouUrlFits(intent.thankYouUrl, withoutUrl, {
+    maxEntries,
+    maxValueLength,
+  })
+    ? { ...withoutUrl, thank_you_url: intent.thankYouUrl! }
+    : withoutUrl;
   // Sign the agreed total bound to every stored booking field, so the webhook
   // can trust it as an oracle rather than re-deriving and hoping they agree.
   // Returns the logical (unpacked) shape; only Square packs the small fields
@@ -267,6 +337,9 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "balanceAttendeeId"
       | "reservationAmount"
       | "modifiers"
+      | "thankYouUrl"
+      | "allocations"
+      | "packageGroupId"
     >
   >;
 
@@ -292,6 +365,13 @@ export const buildMetadata = (
     : {}),
   ...(intent.modifiers?.length
     ? { modifiers: JSON.stringify(intent.modifiers) }
+    : {}),
+  ...(intent.thankYouUrl ? { thank_you_url: intent.thankYouUrl } : {}),
+  ...(intent.allocations?.length
+    ? { allocations: JSON.stringify(intent.allocations) }
+    : {}),
+  ...(intent.packageGroupId
+    ? { package_group_id: String(intent.packageGroupId) }
     : {}),
 });
 
@@ -360,6 +440,7 @@ const PACKED_KEYS = [
   "reservation_amount",
   "balance_attendee_id",
   "site_token_index",
+  "package_group_id",
 ] as const;
 
 /** The single metadata key the packed small fields are stored under. */
@@ -423,6 +504,14 @@ const parsePackedFields = (raw: string): Partial<Record<string, string>> => {
  * ref can reach the 10-entry limit, so when `maxEntries` is supplied the key
  * count is checked too and surfaces the same batching error rather than a
  * generic provider rejection.
+ *
+ * `thank_you_url` is **not** handled here. It is the one provider-cap-sensitive
+ * field that must not fail the checkout (a long operator URL on a folded paid
+ * parent is purely a post-completion redirect), so an over-cap URL is dropped
+ * **before** the metadata is signed, in `buildItemsMetadata`. Capping it here —
+ * after `signPriceSync` — would strip a key the proof was signed with, so the
+ * webhook's verification would classify the paid session as tampered. Bounding
+ * it pre-sign keeps the signed payload and the emitted metadata identical.
  */
 export const enforceMetadataLimits = (
   metadata: Record<string, string>,
@@ -494,6 +583,7 @@ export const extractSessionMetadata = (
   return {
     _origin: get("_origin"),
     address: get("address"),
+    allocations: get("allocations"),
     answer_ids: get("answer_ids"),
     balance_attendee_id: get("balance_attendee_id"),
     date: get("date"),
@@ -502,11 +592,26 @@ export const extractSessionMetadata = (
     items: get("items"),
     modifiers: get("modifiers"),
     name: metadata.name,
+    package_group_id: get("package_group_id"),
     phone: get("phone"),
     price_proof: get("price_proof"),
     reservation_amount: get("reservation_amount"),
     site_token_index: get("site_token_index"),
     special_instructions: get("special_instructions"),
     text_answer_ids: get("text_answer_ids"),
+    thank_you_url: get("thank_you_url"),
   };
+};
+
+export const parseWebhookPayload = (
+  payload: string,
+  errorCode: ErrorCodeType,
+): WebhookVerifyResult => {
+  try {
+    const listing = JSON.parse(payload) as WebhookEvent;
+    return { listing, valid: true };
+  } catch (err) {
+    logError({ code: errorCode, detail: `invalid JSON: ${err}` });
+    return { error: "Invalid JSON payload", valid: false };
+  }
 };

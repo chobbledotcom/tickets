@@ -23,14 +23,19 @@ import {
   ATTENDEE_DEFAULT_ORDER,
   ATTENDEE_TABLE_COLUMNS,
 } from "#shared/columns/attendee-columns.ts";
+import { isServicing } from "#shared/db/attendees/kind.ts";
 import type {
-  Answer,
   AttendeeQuestionData,
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { CsrfForm } from "#shared/forms.tsx";
-import type { Attendee, AttendeeTableRow } from "#shared/types.ts";
+import {
+  type Attendee,
+  type AttendeeTableRow,
+  hasTicketQuantity,
+} from "#shared/types.ts";
+import { Badge } from "#templates/components/badge.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
 
 export { formatAddressInline } from "#shared/columns/attendee-columns.ts";
@@ -51,7 +56,7 @@ export type AttendeeColumnOpts = {
   answerTextMap: Map<number, string>;
   answerQuestionMap: Map<number, string>;
   /** Question data for the answers column */
-  questionData?: TableQuestionData;
+  questionData?: TableQuestionData | undefined;
 };
 
 /** Options for the unified AttendeeTable component */
@@ -60,17 +65,17 @@ export type AttendeeTableOptions = {
   allowedDomain: string;
   showListing: boolean;
   showDate: boolean;
-  activeFilter?: string;
-  returnUrl?: string;
+  activeFilter?: string | undefined;
+  returnUrl?: string | undefined;
   emptyMessage?: string;
-  phonePrefix?: string;
+  phonePrefix?: string | undefined;
   /** Show the check-in/check-out status column (default: true). Per-attendee
    * edit/refund/delete actions live on the attendee edit page, not the table. */
   showCheckin?: boolean;
   /** Skip default sort and use rows as-is (default: false) */
   presorted?: boolean;
   /** Question data for the Answers column */
-  questionData?: TableQuestionData;
+  questionData?: TableQuestionData | undefined;
   /** Liquid template controlling column order (e.g. "{{name}}, {{email}}, {{qty}}") */
   columnTemplate?: string;
 };
@@ -90,7 +95,7 @@ const computeVisibilityMap = (
     answers: !!opts.questionData && opts.questionData.questions.length > 0,
     date: opts.showDate,
     email: rows.some((r) => !!r.attendee.email),
-    listing: opts.showListing,
+    listings: opts.showListing,
     name: true,
     phone: rows.some((r) => !!r.attendee.phone),
     qty: true,
@@ -139,7 +144,9 @@ const compareAttendeeRows = (
     const dateCmp = dateA.localeCompare(dateB);
     if (dateCmp !== 0) return dateCmp;
   }
-  const nameCmp = a.listingName.localeCompare(b.listingName);
+  const listingA = a.listings[0]?.name ?? "";
+  const listingB = b.listings[0]?.name ?? "";
+  const nameCmp = listingA.localeCompare(listingB);
   if (nameCmp !== 0) return nameCmp;
   const attendeeCmp = a.attendee.name.localeCompare(b.attendee.name);
   if (attendeeCmp !== 0) return attendeeCmp;
@@ -162,7 +169,7 @@ const buildAnswerTextMap = (
   new Map(
     pipe(
       flatMap((q: QuestionWithAnswers) => q.answers),
-      map((a: Answer) => [a.id, a.text] as const),
+      map((a) => [a.id, a.text] as const),
     )(questions),
   );
 
@@ -220,17 +227,36 @@ const CheckinButton = ({
 const createStatusRenderer =
   (opts: AttendeeTableOptions) =>
   (row: AttendeeTableRow): string => {
-    if (row.attendee.refunded) {
+    if (isServicing(row.attendee.kind)) {
       return String(
-        <span class="badge-alert">
-          {t("admin.attendee_table.refunded_badge")}
+        <span class="servicing-event" data-servicing="true">
+          {t("admin.attendee_table.servicing")}
         </span>,
       );
     }
+    // A no-quantity sentinel row stays visible but isn't checkable — show the
+    // indicator instead of a check-in button (updateCheckedIn refuses it).
+    if (!hasTicketQuantity(row.attendee)) {
+      return String(
+        <span class="muted small">
+          {t("admin.attendee_table.no_quantity")}
+        </span>,
+      );
+    }
+    if (row.attendee.refunded) {
+      return String(
+        <Badge variant="alert">
+          {t("admin.attendee_table.refunded_badge")}
+        </Badge>,
+      );
+    }
+    // Check-in is a per-booking-line action, and every table that shows it
+    // renders one row per line — a one-listing array (grouped browsing tables
+    // pass showCheckin: false), so the row's first listing IS the line's.
     return CheckinButton({
       a: row.attendee,
       activeFilter: opts.activeFilter ?? "all",
-      listingId: row.listingId,
+      listingId: row.listings[0]!.id,
       returnUrl: opts.returnUrl,
     });
   };
@@ -246,7 +272,11 @@ const AttendeeRow = (
   colOpts: AttendeeColumnOpts,
   filters: Map<string, string>,
 ): string =>
-  `<tr>${renderCells(
+  `<tr${
+    isServicing(row.attendee.kind)
+      ? ' class="servicing-event" data-servicing="true"'
+      : ""
+  }>${renderCells(
     row,
     visibleColumns,
     ATTENDEE_TABLE_COLUMNS,

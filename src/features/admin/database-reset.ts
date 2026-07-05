@@ -16,12 +16,14 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import { createFormRoute } from "#shared/app-forms.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { getAllImages } from "#shared/db/images.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { resetDatabase } from "#shared/db/migrations.ts";
 import { isDemoMode } from "#shared/demo.ts";
 import { defineForm } from "#shared/forms.tsx";
 import {
-  deleteAllListingStorageFiles,
+  deleteAllImageStorageFiles,
+  deleteAllListingAttachmentFiles,
   isStorageEnabled,
 } from "#shared/storage.ts";
 import {
@@ -63,14 +65,19 @@ const handleDemoResetGet = (request: Request): Response | Promise<Response> =>
     return htmlResponse(demoResetPage());
   });
 
+export const deleteStorageAndResetDatabase = async (): Promise<void> => {
+  if (isStorageEnabled()) {
+    await deleteAllListingAttachmentFiles(await getAllListings());
+    await deleteAllImageStorageFiles(await getAllImages());
+  }
+  await resetDatabase();
+};
+
 const resetRoute = createFormRoute({
   form: demoResetForm,
   onInvalid: ({ error }) => errorRedirect("/demo/reset", error),
   onValid: async () => {
-    if (isStorageEnabled()) {
-      await deleteAllListingStorageFiles(await getAllListings());
-    }
-    await resetDatabase();
+    await deleteStorageAndResetDatabase();
     return redirect("/setup/", t("success.database_reset"), true, {
       cookie: clearSessionCookie(),
     });

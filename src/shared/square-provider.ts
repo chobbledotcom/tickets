@@ -127,9 +127,10 @@ export const squarePaymentProvider: PaymentProvider = {
       }
     }
 
+    const createdAt = toCanonicalIso(order.createdAt);
     return {
       amountTotal: Number(order.totalMoney.amount),
-      createdAt: toCanonicalIso(order.createdAt),
+      ...(createdAt !== undefined ? { createdAt } : {}),
       id: order.id,
       metadata: extractSessionMetadata(metadata),
       paymentReference,

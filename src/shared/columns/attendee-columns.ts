@@ -5,10 +5,13 @@
  * iterates the ordered columns and calls each one's cell() function.
  */
 
+import { t } from "#i18n";
+import { attendeeAdminPath } from "#shared/attendee-links.ts";
 import type { ColumnDef, ColumnGenerators } from "#shared/column-order.ts";
 import { formatDateLabel, formatDatetimeShort } from "#shared/dates.ts";
+import { isServicing } from "#shared/db/attendees/kind.ts";
 import { normalizePhone } from "#shared/phone.ts";
-import type { AttendeeTableRow } from "#shared/types.ts";
+import { type AttendeeTableRow, hasTicketQuantity } from "#shared/types.ts";
 import type { AttendeeColumnOpts } from "#templates/attendee-table.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { escapeHtml } from "#templates/layout.tsx";
@@ -36,12 +39,21 @@ const status = componentRenderedCol(
   (row, opts) => opts.renderStatus(row),
 );
 
-const listing: AttendeeCol = {
-  cell: (row) =>
-    `<a href="/admin/listing/${row.listingId}">${escapeHtml(row.listingName)}</a>`,
-  description: "Listing name with link to the listing detail page",
+const listings: AttendeeCol = {
+  // The wrapping span carries the full comma-separated list in its title and
+  // the .listings-cell truncation styles, so a long list ellipsizes at 30rem
+  // while hovering reveals every listing name.
+  cell: (row) => {
+    const fullList = escapeHtml(row.listings.map((l) => l.name).join(", "));
+    const links = row.listings
+      .map((l) => `<a href="/admin/listing/${l.id}">${escapeHtml(l.name)}</a>`)
+      .join(", ");
+    return `<span class="listings-cell" title="${fullList}">${links}</span>`;
+  },
+  description:
+    "The row's listings in display order, each linked to its detail page",
   isHtml: true,
-  label: "Listing",
+  label: "Listings",
 };
 
 const date: AttendeeCol = {
@@ -53,7 +65,7 @@ const date: AttendeeCol = {
 
 const name: AttendeeCol = {
   cell: (row) =>
-    `<a href="/admin/attendees/${row.attendee.id}">${escapeHtml(row.attendee.name)}</a>`,
+    `<a href="${attendeeAdminPath(row.attendee)}">${escapeHtml(row.attendee.name)}</a>`,
   description: "Attendee name with link to the edit attendee page",
   isHtml: true,
   label: "Name",
@@ -159,8 +171,16 @@ const qty: AttendeeCol = {
 };
 
 const ticket: AttendeeCol = {
+  // A no-quantity sentinel row has no live customer ticket: /t renders the
+  // attendee's OTHER real bookings (or 404s for an all-ghost attendee), so a
+  // link here would let staff copy a customer-facing URL that doesn't match this
+  // row's cancelled/interested listing. Show the indicator instead.
   cell: (row, opts) =>
-    `<a href="https://${opts.allowedDomain}/t/${row.attendee.ticket_token}">${row.attendee.ticket_token}</a>`,
+    isServicing(row.attendee.kind)
+      ? `<span class="muted small">${t("admin.attendee_table.servicing")}</span>`
+      : !hasTicketQuantity(row.attendee)
+        ? `<span class="muted small">${t("admin.attendee_table.no_quantity")}</span>`
+        : `<a href="https://${opts.allowedDomain}/t/${row.attendee.ticket_token}">${row.attendee.ticket_token}</a>`,
   description: "Clickable ticket token link",
   isHtml: true,
   label: "Ticket",
@@ -209,7 +229,7 @@ export const ATTENDEE_TABLE_COLUMNS: ColumnGenerators<
   answers,
   date,
   email,
-  listing,
+  listings,
   name,
   phone,
   qty,
@@ -222,9 +242,9 @@ export const ATTENDEE_TABLE_COLUMNS: ColumnGenerators<
 /** Default column order for the attendee table */
 export const ATTENDEE_DEFAULT_ORDER = [
   "status",
-  "listing",
   "date",
   "name",
+  "listings",
   "email",
   "phone",
   "address",

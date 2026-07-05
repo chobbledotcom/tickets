@@ -20,13 +20,14 @@ import {
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   decryptAttendees,
+  getAttendeeKindsByIds,
   getAttendeeNamesByIds,
 } from "#shared/db/attendees.ts";
 import { getListingWithAttendeesRaw } from "#shared/db/listings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
-import { isIsoDate } from "#shared/validation/date.ts";
+import { isIsoDate, isIsoMonth } from "#shared/validation/date.ts";
 
 /** Extract and validate ?date= query parameter. Returns null if absent or invalid. */
 export const getDateFilter = (request: Request): string | null => {
@@ -37,8 +38,7 @@ export const getDateFilter = (request: Request): string | null => {
 /** Extract and validate ?cal= month parameter (YYYY-MM). Returns null if absent or invalid. */
 export const getMonthFilter = (request: Request): string | null => {
   const month = new URL(request.url).searchParams.get("cal");
-  if (!month || !/^\d{4}-\d{2}$/.test(month)) return null;
-  return month;
+  return month && isIsoMonth(month) ? month : null;
 };
 
 /** Build a CSV file download response */
@@ -62,6 +62,25 @@ export const loadAttendeeNames = async (
   if (attendeeIds.length === 0) return new Map();
   const key = await requireRequestPrivateKey();
   return getAttendeeNamesByIds(attendeeIds, key);
+};
+
+export type AttendeeLinkRefs = {
+  kinds: Map<number, string>;
+  names: Map<number, string>;
+};
+
+export const loadAttendeeLinkRefs = async (
+  attendeeIds: number[],
+): Promise<AttendeeLinkRefs> => {
+  if (attendeeIds.length === 0) {
+    return { kinds: new Map(), names: new Map() };
+  }
+  const key = await requireRequestPrivateKey();
+  const [names, kinds] = await Promise.all([
+    getAttendeeNamesByIds(attendeeIds, key),
+    getAttendeeKindsByIds(attendeeIds),
+  ]);
+  return { kinds, names };
 };
 
 /** Handler that receives a decrypted listing with its attendees */
@@ -123,6 +142,8 @@ export type ActionHandlerConfig<TSession = AuthSession> = {
   successRedirect: string | ((session: TSession, form: FormParams) => string);
   /** Optional custom error mapping (falls back to errorRedirect with message) */
   onError?: ErrorMapper;
+  /** Thunk returning a Set-Cookie header for the success redirect, evaluated per request (e.g. clearSessionCookie) */
+  cookie?: () => string;
   /** Secret to redact from the activity log (e.g. API key shown in flash but not logged) */
   redactedSecret?:
     | string
@@ -175,8 +196,11 @@ export const createActionHandler = <TSession = AuthSession>(
         ? await value(session, form)
         : value;
 
-  return (request: Request) =>
-    withAuth(request, policy, async (session, body) => {
+  return (request: Request) => {
+    // Evaluate the cookie thunk per request so domain-dependent state (e.g.
+    // __Host- prefix) is resolved at request time, not module load time.
+    const successOpts = config.cookie ? { cookie: config.cookie() } : undefined;
+    return withAuth(request, policy, async (session, body) => {
       const form = body as FormParams;
       try {
         await config.execute(session as TSession, form);
@@ -211,6 +235,7 @@ export const createActionHandler = <TSession = AuthSession>(
         session as TSession,
         form,
       );
-      return redirect(redirectUrl, msg, true);
+      return redirect(redirectUrl, msg, true, successOpts);
     });
+  };
 };

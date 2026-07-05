@@ -4,15 +4,41 @@
 
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
+import { attendeeAdminPath } from "#shared/attendee-links.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
-import type { SafeHtml } from "#shared/jsx/jsx-runtime.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { Child, SafeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { ErrorCode, errorCodeLabel } from "#shared/logger.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideLink } from "#templates/components/actions.tsx";
-import { Layout } from "#templates/layout.tsx";
+import { DataTable } from "#templates/components/data-table.tsx";
+
+/** The "Activity log guide" action shown at the top of both activity-log
+ *  pages, rendered as the page's action row by {@link AdminPage}. */
+const activityLogActions = (
+  <GuideLink href="/admin/guide#activity-log">
+    {t("admin.log.guide_link")}
+  </GuideLink>
+);
+
+/** Curried `String(<AdminPage active="/admin/log" session=session
+ *  title={title} actions={activityLogActions}>{body})`. The two activity-log
+ *  pages (per-listing and global) share this opener + guide action. */
+const activityLogPage =
+  (title: string) =>
+  (session: AdminSession) =>
+  (body: Child): string =>
+    String(
+      <AdminPage
+        actions={activityLogActions}
+        active="/admin/log"
+        session={session}
+        title={title}
+      >
+        {body}
+      </AdminPage>,
+    );
 
 /** Label of the Square signature error, used to spot it in log messages */
 const SQUARE_SIGNATURE_LABEL = errorCodeLabel[ErrorCode.SQUARE_SIGNATURE];
@@ -38,7 +64,10 @@ const SquareSignatureHint = (): SafeHtml => (
  * and reading listing names from cache — so the template stays render-only.
  */
 export interface ActivityLogRefs {
-  attendees: Map<number, string>;
+  attendees: {
+    kinds: Map<number, string>;
+    names: Map<number, string>;
+  };
   listings: Map<number, string>;
 }
 
@@ -58,12 +87,24 @@ const refLink = (
   return name === undefined ? null : <a href={`${base}/${id}`}>{name}</a>;
 };
 
+const attendeeRefLink = (
+  id: number | null,
+  refs: ActivityLogRefs["attendees"],
+): JSX.Element | null => {
+  if (id === null) return null;
+  const name = refs.names.get(id);
+  const kind = refs.kinds.get(id);
+  return name === undefined || kind === undefined ? null : (
+    <a href={attendeeAdminPath({ id, kind })}>{name}</a>
+  );
+};
+
 const ActivityLogRow = ({
   entry,
   refs,
 }: {
   entry: ActivityLogEntry;
-  refs?: ActivityLogRefs;
+  refs?: ActivityLogRefs | undefined;
 }): string =>
   String(
     <tr>
@@ -76,9 +117,7 @@ const ActivityLogRow = ({
       </td>
       {refs ? (
         <>
-          <td>
-            {refLink(entry.attendee_id, refs.attendees, "/admin/attendees")}
-          </td>
+          <td>{attendeeRefLink(entry.attendee_id, refs.attendees)}</td>
           <td>{refLink(entry.listing_id, refs.listings, "/admin/listing")}</td>
         </>
       ) : null}
@@ -110,27 +149,20 @@ export const ActivityLogTable = ({
 }: {
   entries: ActivityLogEntry[];
   refs?: ActivityLogRefs;
-}): JSX.Element => (
-  <div class="table-scroll">
-    <table>
-      <thead>
-        <tr>
-          <th>{t("admin.log.col.time")}</th>
-          <th>{t("admin.log.col.activity")}</th>
-          {refs ? (
-            <>
-              <th>{t("terms.attendee")}</th>
-              <th>{t("terms.listing")}</th>
-            </>
-          ) : null}
-        </tr>
-      </thead>
-      <tbody>
-        <Raw html={activityLogRows(entries, refs)} />
-      </tbody>
-    </table>
-  </div>
-);
+}): JSX.Element => {
+  const baseColumns = [
+    { header: t("admin.log.col.time") },
+    { header: t("admin.log.col.activity") },
+  ];
+  const columns = refs
+    ? [
+        ...baseColumns,
+        { header: t("terms.attendee") },
+        { header: t("terms.listing") },
+      ]
+    : baseColumns;
+  return <DataTable columns={columns} rows={activityLogRows(entries, refs)} />;
+};
 
 /**
  * Admin activity log page for a specific listing
@@ -140,17 +172,8 @@ export const adminListingActivityLogPage = (
   entries: ActivityLogEntry[],
   session: AdminSession,
 ): string =>
-  String(
-    <Layout title={`${t("admin.log.heading")}: ${listing.name}`}>
-      <AdminNav active="/admin/log" session={session} />
-      <p class="actions">
-        <a href={`/admin/listing/${listing.id}`}>&larr; {listing.name}</a>
-        <GuideLink href="/admin/guide#activity-log">
-          Activity log guide
-        </GuideLink>
-      </p>
-      <ActivityLogTable entries={entries} />
-    </Layout>,
+  activityLogPage(`${t("admin.log.heading")}: ${listing.name}`)(session)(
+    <ActivityLogTable entries={entries} />,
   );
 
 /**
@@ -162,15 +185,9 @@ export const adminGlobalActivityLogPage = (
   session: AdminSession,
   refs: ActivityLogRefs,
 ): string =>
-  String(
-    <Layout title={t("admin.log.heading")}>
-      <AdminNav active="/admin/log" session={session} />
-      <p class="actions">
-        <GuideLink href="/admin/guide#activity-log">
-          Activity log guide
-        </GuideLink>
-      </p>
+  activityLogPage(t("admin.log.heading"))(session)(
+    <>
       <ActivityLogTable entries={entries} refs={refs} />
       {truncated && <p>{t("admin.log.recent_entries")}</p>}
-    </Layout>,
+    </>,
   );

@@ -5,10 +5,12 @@ import { type BuildSiteInput, builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import {
+  type BuiltSite,
   getAllBuiltSites,
   getAssignableBuiltSites,
   insertBuiltSite,
 } from "#shared/db/built-sites.ts";
+import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import {
   resetHostEmailConfig,
   setHostEmailConfigForTest,
@@ -36,11 +38,13 @@ const stubBuildSiteSuccess = (onCall?: (input: BuildSiteInput) => void) => {
     counter++;
     onCall?.(input);
     return Promise.resolve({
+      dbProvider: "bunny" as const,
       dbToken: `token-${counter}`,
       dbUrl: `libsql://auto-${counter}.test`,
       defaultHostname: `auto-${counter}.b-cdn.net`,
+      hostingId: String(1000 + counter),
+      hostingProvider: "bunny" as const,
       ok: true as const,
-      scriptId: 1000 + counter,
     });
   });
 };
@@ -54,6 +58,21 @@ const stubEdgeSecretSuccess = () =>
   stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
     Promise.resolve({ ok: true as const }),
   );
+
+/** Deactivate every active, hidden, purchase-only, monthly listing — the
+ *  "renewal tier" set — so tests can exercise the no-qualifying-tier path.
+ *  Both the "skips assignment" and "rejects missing renewal tier" tests
+ *  need this exact teardown. */
+const deactivateAllTierListings = async (): Promise<void> => {
+  const { getAllListings } = await import("#shared/db/listings.ts");
+  const { deactivateTestListing } = await import("#test-utils");
+  const listings = await getAllListings();
+  for (const ev of listings) {
+    if (ev.months_per_unit > 0 && ev.purchase_only && ev.hidden && ev.active) {
+      await deactivateTestListing(ev.id);
+    }
+  }
+};
 
 /** Build an entry with assign_built_site for testing */
 const siteEntry = (
@@ -95,6 +114,46 @@ describeWithEnv(
     // deno-lint-ignore no-explicit-any
     let fetchStub: any;
     let secretStub: ReturnType<typeof stubEdgeSecretSuccess>;
+
+    const assignAndCollectThreeSites = async (): Promise<BuiltSite[]> => {
+      await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
+      const sites = await getAllBuiltSites();
+      const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
+      expect(assigned).toHaveLength(3);
+      return assigned;
+    };
+
+    const expectFlagPushOutcome = async (
+      site: string,
+      expected: string,
+    ): Promise<BuiltSite> => {
+      const all = await getAllBuiltSites();
+      const found = all.find((s) => s.name === site)!;
+      expect(found.renewalTokenIndex).not.toBeNull();
+      expect(found.readOnlyFrom).toBeTruthy();
+      expect(found.readOnlyFrom.slice(0, 10)).toBe(expected);
+      return found;
+    };
+
+    const expectLastEmailBody = (expected: Record<string, unknown>) => {
+      expect(fetchStub.calls.length).toBe(1);
+      const body = JSON.parse(fetchStub.calls[0].args[1].body) as Record<
+        string,
+        unknown
+      >;
+      for (const [key, value] of Object.entries(expected)) {
+        expect(body[key]).toBe(value);
+      }
+      return body;
+    };
+
+    const expectSetupEmailBody = async (setupUrl: string) => {
+      await assignAndNotifyBuiltSites([siteEntry()]);
+      const body = JSON.parse(fetchStub.calls[0].args[1].body);
+      expect(body.html).toContain(`href="${setupUrl}"`);
+      expect(body.text).toContain(setupUrl);
+      return body;
+    };
 
     beforeEach(async () => {
       fetchStub = stub(globalThis, "fetch", () =>
@@ -192,7 +251,7 @@ describeWithEnv(
 
           const sites = await getAllBuiltSites();
           expect(sites).toHaveLength(1);
-          expect(sites[0]!.bunnyUrl).toBe("auto-1.b-cdn.net");
+          expect(sites[0]!.siteUrl).toBe("auto-1.b-cdn.net");
           expect(sites[0]!.assignedAttendeeId).not.toBeNull();
           expect(buildStub.calls.length).toBe(1);
           expect(fetchStub.calls.length).toBe(1);
@@ -208,11 +267,8 @@ describeWithEnv(
           builtNames.push(input.siteName);
         });
         try {
-          await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
+          await assignAndCollectThreeSites();
 
-          const sites = await getAllBuiltSites();
-          const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
-          expect(assigned).toHaveLength(3);
           expect(buildStub.calls.length).toBe(2);
           expect(fetchStub.calls.length).toBe(1);
         } finally {
@@ -254,30 +310,20 @@ describeWithEnv(
 
         await assignAndNotifyBuiltSites([siteEntry()]);
 
-        expect(fetchStub.calls.length).toBe(1);
-        const body = JSON.parse(fetchStub.calls[0].args[1].body);
-        expect(body.subject).toBe("Your new site is ready");
+        expectLastEmailBody({ subject: "Your new site is ready" });
       });
 
       test("email links to the assigned site's /setup/ page", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
 
-        await assignAndNotifyBuiltSites([siteEntry()]);
-
-        const body = JSON.parse(fetchStub.calls[0].args[1].body);
-        expect(body.html).toContain('href="https://a.test.net/setup/"');
+        const body = await expectSetupEmailBody("https://a.test.net/setup/");
         expect(body.html).toContain("activate your site");
-        expect(body.text).toContain("https://a.test.net/setup/");
       });
 
       test("email setup link keeps the scheme when the site URL already has one", async () => {
         await insertBuiltSite("Site C", "https://c.test.net/", "", "", true);
 
-        await assignAndNotifyBuiltSites([siteEntry()]);
-
-        const body = JSON.parse(fetchStub.calls[0].args[1].body);
-        expect(body.html).toContain('href="https://c.test.net/setup/"');
-        expect(body.text).toContain("https://c.test.net/setup/");
+        await expectSetupEmailBody("https://c.test.net/setup/");
       });
 
       test("uses DB email config when available and includes reply-to", async () => {
@@ -294,9 +340,7 @@ describeWithEnv(
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
         await assignAndNotifyBuiltSites([siteEntry()]);
 
-        expect(fetchStub.calls.length).toBe(1);
-        const body = JSON.parse(fetchStub.calls[0].args[1].body);
-        expect(body.reply_to).toBe("biz@example.com");
+        expectLastEmailBody({ reply_to: "biz@example.com" });
       });
 
       test("skips email when no email config", async () => {
@@ -352,16 +396,11 @@ describeWithEnv(
 
         await assignAndNotifyBuiltSites([siteEntry({ initialSiteMonths: 3 })]);
 
-        const sites = await getAllBuiltSites();
-        const assigned = sites.find((s) => s.name === "Site A")!;
-        expect(assigned.renewalTokenIndex).not.toBeNull();
-        expect(assigned.readOnlyFrom).toBeTruthy();
+        const expectedCutoff = addMonthsIso(nowIso(), 3).slice(0, 10);
+        const assigned = await expectFlagPushOutcome("Site A", expectedCutoff);
 
         expect(assigned.renewalToken).not.toBeNull();
         expect(assigned.renewalToken!.length).toBeGreaterThanOrEqual(32);
-
-        const expectedCutoff = addMonthsIso(nowIso(), 3).slice(0, 10);
-        expect(assigned.readOnlyFrom.slice(0, 10)).toBe(expectedCutoff);
 
         const secretCalls = secretStub.calls.map((c) => c.args);
         const secretNames = secretCalls.map((c) => c[1]);
@@ -414,19 +453,7 @@ describeWithEnv(
       });
 
       test("skips assignment and logs CONFIG_MISSING when no qualifying tier listings exist", async () => {
-        const { getAllListings } = await import("#shared/db/listings.ts");
-        const listings = await getAllListings();
-        const { deactivateTestListing } = await import("#test-utils");
-        for (const ev of listings) {
-          if (
-            ev.months_per_unit > 0 &&
-            ev.purchase_only &&
-            ev.hidden &&
-            ev.active
-          ) {
-            await deactivateTestListing(ev.id);
-          }
-        }
+        await deactivateAllTierListings();
 
         const buildStub = stubBuildSiteSuccess();
         const restoreEnv = setTestEnv({ NTFY_URL: "https://ntfy.test/topic" });
@@ -459,7 +486,7 @@ describeWithEnv(
 
       test("picks the cheapest qualifying tier listing", async () => {
         const cheap = await createTierListing(300);
-        const _expensive = await createTierListing(900);
+        await createTierListing(900);
 
         const result = await pickTierListing();
         expect(result).not.toBeNull();
@@ -474,10 +501,10 @@ describeWithEnv(
 
         await assignAndNotifyBuiltSites([siteEntry()]);
 
-        const sites = await getAllBuiltSites();
-        const assigned = sites.find((s) => s.name === "Site A")!;
-        expect(assigned.renewalTokenIndex).not.toBeNull();
-        expect(assigned.readOnlyFrom).toBeTruthy();
+        await expectFlagPushOutcome(
+          "Site A",
+          addMonthsIso(nowIso(), 3).slice(0, 10),
+        );
       });
 
       test("with quantity=3, three independent tokens and secret pushes are created", async () => {
@@ -488,11 +515,7 @@ describeWithEnv(
 
         const buildStub = stubBuildSiteSuccess();
         try {
-          await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
-
-          const sites = await getAllBuiltSites();
-          const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
-          expect(assigned).toHaveLength(3);
+          const assigned = await assignAndCollectThreeSites();
 
           const tokens = assigned.map((s) => s.renewalToken);
           const nonNullTokens = tokens.filter((t): t is string => t !== null);
@@ -521,7 +544,7 @@ describeWithEnv(
         await insertBuiltSite("Site B", "b.test.net", "", "", true, "1002");
 
         const assignableSites = await getAssignableBuiltSites();
-        const failScriptId = Number(assignableSites[0]!.bunnyScriptId);
+        const failScriptId = Number(assignableSites[0]!.hostingId);
 
         secretStub.restore();
         const failStub = stub(
@@ -548,10 +571,10 @@ describeWithEnv(
           expect(assigned).toHaveLength(3);
 
           const failedSite = assigned.find(
-            (s) => Number(s.bunnyScriptId) === failScriptId,
+            (s) => Number(s.hostingId) === failScriptId,
           );
           const succeededSites = assigned.filter(
-            (s) => Number(s.bunnyScriptId) !== failScriptId,
+            (s) => Number(s.hostingId) !== failScriptId,
           );
 
           expect(failedSite!.readOnlyFrom).toBe("");
@@ -658,19 +681,7 @@ describeWithEnv(
       });
 
       test("rejects missing renewal tier before checkout", async () => {
-        const { getAllListings } = await import("#shared/db/listings.ts");
-        const listings = await getAllListings();
-        const { deactivateTestListing } = await import("#test-utils");
-        for (const ev of listings) {
-          if (
-            ev.months_per_unit > 0 &&
-            ev.purchase_only &&
-            ev.hidden &&
-            ev.active
-          ) {
-            await deactivateTestListing(ev.id);
-          }
-        }
+        await deactivateAllTierListings();
 
         const result = await validateSiteAssignmentConfig([siteEntry()]);
         expect(result.ok).toBe(false);
@@ -698,6 +709,98 @@ describe("validateSiteAssignmentConfig without builder", () => {
     } finally {
       restore();
     }
+  });
+});
+
+describeWithEnv(
+  "syncReadOnlyFrom (Deno site)",
+  { db: true, env: { DENO_DEPLOY_TOKEN: "tok123" } },
+  () => {
+    type SetEnvVarsStub = Pick<ReturnType<typeof stub>, "calls" | "restore">;
+
+    const expectSetEnvVarIncludes = (
+      setStub: SetEnvVarsStub,
+      key: string,
+    ): void => {
+      const pairs = setStub.calls[0]!.args[1] as [string, string][];
+      expect(pairs.some(([k]) => k === key)).toBe(true);
+    };
+
+    const withStubbedSetEnvVars = async <T>(
+      body: (setStub: SetEnvVarsStub) => Promise<T>,
+    ): Promise<T> => {
+      const setStub = stub(denoDeployApi, "setEnvVars", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+      try {
+        return await body(setStub);
+      } finally {
+        setStub.restore();
+      }
+    };
+
+    test("pushes secrets via denoDeployApi.setEnvVars for a Deno site", async () => {
+      await insertBuiltSite(
+        "Deno Sync",
+        "https://app.deno.dev",
+        "",
+        "",
+        false,
+        "app_deno_123",
+        "release",
+        "deno",
+      );
+      const site = (await getAllBuiltSites()).find(
+        (s) => s.name === "Deno Sync",
+      )!;
+
+      await withStubbedSetEnvVars(async (setStub) => {
+        const result = await syncReadOnlyFrom(site, addMonthsIso(nowIso(), 3));
+        expect(result.ok).toBe(true);
+        expect(setStub.calls).toHaveLength(1);
+        expectSetEnvVarIncludes(setStub, "READ_ONLY_FROM");
+      });
+    });
+
+    test("pushes both READ_ONLY_FROM and RENEWAL_URL when renewalUrl is provided", async () => {
+      await insertBuiltSite(
+        "Deno Sync Both",
+        "https://app.deno.dev",
+        "",
+        "",
+        false,
+        "app_deno_456",
+        "release",
+        "deno",
+      );
+      const site = (await getAllBuiltSites()).find(
+        (s) => s.name === "Deno Sync Both",
+      )!;
+
+      await withStubbedSetEnvVars(async (setStub) => {
+        const result = await syncReadOnlyFrom(
+          site,
+          addMonthsIso(nowIso(), 3),
+          "https://example.com/renew/token123",
+        );
+        expect(result.ok).toBe(true);
+        expectSetEnvVarIncludes(setStub, "READ_ONLY_FROM");
+        expectSetEnvVarIncludes(setStub, "RENEWAL_URL");
+      });
+    });
+  },
+);
+
+describe("syncReadOnlyFrom with non-numeric bunny hostingId", () => {
+  test("returns error when bunny hostingId is not a valid number", async () => {
+    const { testBuiltSite } = await import("#test-utils");
+    const site = testBuiltSite({
+      hostingId: "not-a-number",
+      hostingProvider: "bunny",
+    });
+    const result = await syncReadOnlyFrom(site, "2099-01-01T00:00:00Z");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("No hostingId");
   });
 });
 

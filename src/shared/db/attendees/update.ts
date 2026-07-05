@@ -10,27 +10,22 @@ import { execute, queryAll, withTransaction } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
 
-/** Update a per-listing status field on listing_attendees */
-const updateListingAttendeeField =
-  (field: string) =>
-  async (
-    attendeeId: number,
-    listingId: number,
-    value: number,
-  ): Promise<void> => {
-    await execute(
-      `UPDATE listing_attendees SET ${field} = ? WHERE attendee_id = ? AND listing_id = ?`,
-      [value, attendeeId, listingId],
-    );
-  };
-
-const setCheckedIn = updateListingAttendeeField("checked_in");
-
-export const updateCheckedIn = (
+/**
+ * Set a line's check-in flag, refusing a no-quantity (quantity 0) line — it
+ * isn't a real ticket, mirroring the refunded-ticket guard in checkin.ts. The
+ * `quantity > 0` predicate scopes the write so a ghost row is a no-op (it can
+ * never have been checked in, so scoping the check-OUT case too is harmless).
+ */
+export const updateCheckedIn = async (
   attendeeId: number,
   listingId: number,
   checkedIn: boolean,
-): Promise<void> => setCheckedIn(attendeeId, listingId, checkedIn ? 1 : 0);
+): Promise<void> => {
+  await execute(
+    "UPDATE listing_attendees SET checked_in = ? WHERE attendee_id = ? AND listing_id = ? AND quantity > 0",
+    [checkedIn ? 1 : 0, attendeeId, listingId],
+  );
+};
 
 /**
  * Reconcile an attendee's ledger-projected outstanding balance to `target` — the
@@ -139,7 +134,6 @@ export const checkGroupCapAfterDurationChange = async (
   listingId: number,
   groupId: number,
 ): Promise<string | null> => {
-  if (groupId <= 0) return null;
   const cap = await queryAll<{ max_attendees: number }>(
     "SELECT max_attendees FROM groups WHERE id = ?",
     [groupId],
@@ -154,10 +148,10 @@ export const checkGroupCapAfterDurationChange = async (
     end_at: string | null;
     quantity: number;
   }>(
-    `SELECT ea.listing_id, listing.listing_type, ea.start_at, ea.end_at, ea.quantity
-     FROM listing_attendees ea
-     JOIN listings AS listing ON listing.id = ea.listing_id
-     WHERE listing.group_id = ?`,
+    `SELECT listingAttendee.listing_id, listing.listing_type, listingAttendee.start_at, listingAttendee.end_at, listingAttendee.quantity
+     FROM listing_attendees AS listingAttendee
+     JOIN listings AS listing ON listing.id = listingAttendee.listing_id
+     WHERE listingAttendee.listing_id IN (SELECT listing_id FROM group_listings WHERE group_id = ?)`,
     [groupId],
   );
 
@@ -176,7 +170,7 @@ export const checkGroupCapAfterDurationChange = async (
   });
   const base = pipe(
     filter((row: GroupRow) => row.listing_type !== "daily"),
-    sumOf((row: GroupRow) => row.quantity),
+    sumOf((row) => row.quantity),
   )(rows);
   const intervals = pipe(filter(isDailyWithRange), map(toDayInterval))(rows);
   const listingRanges = pipe(

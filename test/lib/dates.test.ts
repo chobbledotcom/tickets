@@ -3,6 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   addDays,
   addMonthsIso,
+  bookedRangeLabel,
+  bookedSpanDays,
   calendarGridDates,
   DAY_NAMES,
   daysAgo,
@@ -19,11 +21,18 @@ import {
   listingDateToCalendarDate,
   monthsAround,
   normalizeDatetime,
+  parseIsoDateParam,
   shiftMonth,
+  widestDatedEntry,
 } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
-import { testListing, testWithSetting, useSetting } from "#test-utils";
+import {
+  testHoliday,
+  testListing,
+  testWithSetting,
+  useSetting,
+} from "#test-utils";
 
 const today = () => todayInTz("UTC");
 
@@ -226,6 +235,17 @@ describe("dates", () => {
   });
 
   describe("getAvailableDates", () => {
+    /** A daily listing with a 5-day duration, full week, wide date range —
+     *  the fixture two duration-override tests share. */
+    const dailyOverrideListing = () =>
+      testListing({
+        bookable_days: [...VALID_DAY_NAMES],
+        duration_days: 5,
+        listing_type: "daily",
+        maximum_days_after: 14,
+        minimum_days_before: 0,
+      });
+
     test("returns dates filtered by bookable days", () => {
       const listing = testListing({
         bookable_days: ["Monday"],
@@ -360,15 +380,13 @@ describe("dates", () => {
       // duration_days is the max (5), but a customisable listing's date list is
       // built for a single day so every individually-bookable start appears.
       const holidayDay = addDays(today(), 2);
-      const listing = testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        duration_days: 5,
-        listing_type: "daily",
-        maximum_days_after: 14,
-        minimum_days_before: 0,
-      });
+      const listing = dailyOverrideListing();
       const holidays = [
-        { end_date: holidayDay, id: 1, name: "H", start_date: holidayDay },
+        testHoliday({
+          end_date: holidayDay,
+          name: "H",
+          start_date: holidayDay,
+        }),
       ];
       // With the listing's own duration (5), the day+1 start spans the holiday
       // and is excluded; with an override of 1 it is offered.
@@ -385,15 +403,13 @@ describe("dates", () => {
       // distinct from omitting it (which falls back to duration_days). This is
       // the `??` (not `||`) contract: `0 ?? duration_days` keeps the 0.
       const holidayDay = addDays(today(), 2);
-      const listing = testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        duration_days: 5,
-        listing_type: "daily",
-        maximum_days_after: 14,
-        minimum_days_before: 0,
-      });
+      const listing = dailyOverrideListing();
       const holidays = [
-        { end_date: holidayDay, id: 1, name: "H", start_date: holidayDay },
+        testHoliday({
+          end_date: holidayDay,
+          name: "H",
+          start_date: holidayDay,
+        }),
       ];
       // Override 0 → 1-day span, so the day+1 start clears the day+2 holiday and
       // is offered. Were 0 mistaken for "absent" it would use duration_days (5),
@@ -515,6 +531,112 @@ describe("dates", () => {
       expect(formatDateRangeLabel("2026-02-09T00:00:00Z", null)).toBe(
         "Monday 9 February 2026",
       );
+    });
+  });
+
+  describe("parseIsoDateParam", () => {
+    test("accepts a well-formed real date", () => {
+      expect(parseIsoDateParam("2026-08-20")).toBe("2026-08-20");
+    });
+
+    test("rejects an absent value", () => {
+      expect(parseIsoDateParam(null)).toBe(null);
+    });
+
+    test("rejects a malformed value", () => {
+      expect(parseIsoDateParam("20/08/2026")).toBe(null);
+      expect(parseIsoDateParam("2026-8-20")).toBe(null);
+    });
+
+    test("rejects a rolled-over calendar impossibility", () => {
+      expect(parseIsoDateParam("2026-02-30")).toBe(null);
+    });
+
+    test("rejects an unparseable month", () => {
+      expect(parseIsoDateParam("2026-99-01")).toBe(null);
+    });
+  });
+
+  describe("bookedRangeLabel", () => {
+    test("is empty without a booked date", () => {
+      expect(bookedRangeLabel(null, null)).toBe("");
+    });
+
+    test("a single booked day reads as one date", () => {
+      expect(bookedRangeLabel("2027-02-02", null)).toBe(
+        "Tuesday 2 February 2027",
+      );
+    });
+
+    test("the stored [start, end) range renders its actual span", () => {
+      expect(bookedRangeLabel("2027-02-02", "2027-02-05")).toBe(
+        "2\u20134 February 2027",
+      );
+    });
+
+    test("a degenerate stored range (one day) reads as one date", () => {
+      expect(bookedRangeLabel("2027-02-02", "2027-02-03")).toBe(
+        "Tuesday 2 February 2027",
+      );
+    });
+
+    test("a legacy row without a stored end falls back to the fixed duration", () => {
+      expect(bookedRangeLabel("2027-02-02", null, 3)).toBe(
+        "2\u20134 February 2027",
+      );
+    });
+
+    test("the stored range outranks the fixed-duration fallback", () => {
+      // Booked 2 days of a 7-day-max customisable listing: the stored range wins.
+      expect(bookedRangeLabel("2027-02-02", "2027-02-04", 7)).toBe(
+        "2\u20133 February 2027",
+      );
+    });
+  });
+
+  describe("widestDatedEntry", () => {
+    const entry = (date: string | null, endDate: string | null) => ({
+      attendee: { date, end_date: endDate },
+    });
+
+    test("is null when every entry is date-less", () => {
+      expect(widestDatedEntry([entry(null, null)])).toBeNull();
+    });
+
+    test("picks the entry whose booked range ends last", () => {
+      const narrow = entry("2027-02-02", "2027-02-03");
+      const wide = entry("2027-02-02", "2027-02-06");
+      const narrowB = entry("2027-02-02", "2027-02-03");
+      expect(widestDatedEntry([narrow, wide, narrowB])).toBe(wide);
+    });
+
+    test("an end-less dated entry sorts below any ranged stay", () => {
+      const dayOnly = entry("2027-02-02", null);
+      const ranged = entry("2027-02-02", "2027-02-04");
+      expect(widestDatedEntry([dayOnly, ranged])).toBe(ranged);
+      expect(widestDatedEntry([dayOnly])).toBe(dayOnly);
+    });
+  });
+
+  describe("bookedSpanDays", () => {
+    test("counts the whole days of a [start, end) range", () => {
+      expect(
+        bookedSpanDays("2026-08-01T00:00:00Z", "2026-08-03T00:00:00.000Z"),
+      ).toBe(2);
+    });
+
+    test("a one-day range and a degenerate range both read as 1", () => {
+      expect(
+        bookedSpanDays("2026-08-01T00:00:00Z", "2026-08-02T00:00:00.000Z"),
+      ).toBe(1);
+      expect(
+        bookedSpanDays("2026-08-01T00:00:00Z", "2026-08-01T00:00:00.000Z"),
+      ).toBe(1);
+    });
+
+    test("a missing start or end reads as 1", () => {
+      expect(bookedSpanDays(null, "2026-08-02T00:00:00Z")).toBe(1);
+      expect(bookedSpanDays("2026-08-01T00:00:00Z", null)).toBe(1);
     });
   });
 

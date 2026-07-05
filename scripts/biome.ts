@@ -22,7 +22,7 @@ const hasCommand = async (name: string): Promise<boolean> => {
 const hasLocalBiome = await hasCommand("biome");
 const cmd = hasLocalBiome
   ? new Deno.Command("biome", { args: Deno.args })
-  : new Deno.Command("deno", {
+  : new Deno.Command(Deno.execPath(), {
       args: ["run", "-A", "npm:@biomejs/biome", ...Deno.args],
     });
 

@@ -28,22 +28,302 @@ mise exec -- deno --version
 
 The `.tool-versions` file is kept in sync for asdf-compatible tooling.
 
+## stripe-mock
+
+The test harness needs the `stripe-mock` binary at `.bin/stripe-mock` (any test
+that imports the app boots the harness, which starts it on port 12111). The
+harness normally downloads a prebuilt release from GitHub, but in sandboxes
+where GitHub release downloads are blocked you can build it from source with Go
+instead — the Go module proxy is usually reachable when GitHub isn't:
+
+```bash
+GOBIN="$PWD/.bin" go install github.com/stripe/stripe-mock@v0.188.0
+```
+
+Pin the same version the harness expects (`STRIPE_MOCK_VERSION` in
+`scripts/test-harness.ts`). Once `.bin/stripe-mock` exists the harness uses it
+as-is and skips the download, so `deno task test`, `deno task test:files`, and
+`--harness` mutation runs all work offline from GitHub.
+
 ## Preferences
 
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over imperative loops
+- **Plain language for functional code**: Keep the functional style, but name helpers and write comments in simple domain words. Avoid CS jargon in code (`predicate`, `cohort`, `projection`, `fold`, `atom`, etc.) when a plain phrase works. A helper should explain itself like "Keeps only children that can still be booked for this ticket." Write for someone without a CS degree; a ten-year-old should understand the comment and the method name, even if the implementation uses `map`, `filter`, or `reduce`.
 - **Zero code duplication**: jscpd runs at a non-negotiable 0% threshold. Fix duplication with a helper or currying — see [Code Duplication](#code-duplication). `jscpd:ignore` is reserved for import blocks, essentially nothing else.
 - **100% test coverage**: All code must have complete test coverage - run `deno coverage` to find uncovered lines/branches. Coverage must also be *deterministic*: a line or branch reached only through a spawned subprocess or e2e test (e.g. the `cli/` scripts, exercised by `test/e2e/cli-api.test.ts` via `deno run`) is covered non-deterministically — the child process's coverage is collected through `DENO_COVERAGE_DIR` and is environment-sensitive, so it can pass CI on one run and fail on the next. Give any branch that must stay covered a direct in-process unit test, not just incidental subprocess coverage.
 - **Hardest first, no need to ask**: When the only open question is *what order to build several things in*, the answer is always "do the more difficult one first" — just proceed, don't ask.
 - **Always the complete version**: When choosing between a result that is less accurate/complete and the full, correct version, always do the complete version — even if it means changing more files than originally estimated. Our aim is always to create the most perfect software; don't ask permission to do it properly.
+- **Feature-complete by default**: When the open question is "should we take this feature all the way to complete?", the answer is yes — build the whole thing, not a partial slice, and don't ask permission to finish it. The *only* reason to stop short is when finishing would genuinely complicate the codebase: more branching, more special cases, a worse overall shape. That trade-off — completeness against simplicity — is the sole deciding factor; never the effort or the number of files touched. If the two genuinely pull apart, say so explicitly and let the codebase's health break the tie.
+- **Unify systems — the answer is yes**: When the question is "should we unify these two systems / collapse these two paths into one?", the answer is yes. A core aim is to *reduce the lines of code* needed to accomplish the same thing: the codebase has a finite size it must stay within, so it is critical we reuse and refactor toward one shared mechanism rather than maintain two parallel ones. Two things doing almost the same job are a standing invitation to find the single abstraction that does both — take it. The recent `serve-app.ts` extraction is the reference: it collapsed the Bunny edge and Deno Deploy entry points onto one shared production request handler, leaving `edge.ts`/`deploy.ts` as thin platform wrappers.
+- **No internal compatibility layers**: We own every internal caller. When replacing an internal API, migrate every caller in the same change and delete the old surface instead of keeping wrappers, aliases, re-exports, or "compatibility" shims. Keep adapters only at true external boundaries (provider APIs, serialized data/import formats, browser/platform contracts) or for an explicitly staged data migration with a named removal path.
+- **Keep files under ~400 lines**: When refactoring a file, aim to keep it under 400 lines — and if hitting that target means splitting one file into several, so be it: a new file is cheaper than an overloaded one. When you end up with a handful of files all about the same thing, group them in a folder and give them shorter names that don't repeat the folder's name (`ledger/project.ts`, not `ledger/ledger-project.ts` — see the `src/shared/ledger/` and `src/shared/db/attendees/` examples in [Modularised](#modularised)). While you're at it, use the split as a chance to separate pure from non-pure code — push the data-in/data-out logic into its own file and keep the IO in a thin shell (see [Pure, functional](#pure-functional)). **The same 400-line limit applies to test files**, and matters just as much: smaller, more specific test files let us run mutation tests far faster, because a source file's mutants only need to run against the narrow test file that covers it, not one giant suite. Biome enforces a hard 1,000-line ceiling as a lint error (`nursery.noExcessiveLinesPerFile` in `biome.json`); files that predate the rule are grandfathered in a `biome.json` override list — when you split one, delete its entry, and never add a new entry. (Expect a known side effect when splitting: jscpd cannot fully scan very large files, so a split routinely *surfaces* duplication that was silently passing inside the monolith — budget for extracting helpers, not just moving tests.)
 - **Good citizen — fix what you spot**: If you notice a bug, a coverage gap, or a flaky/fragile test while working — even in code you were not asked to touch and did not write — fix it in passing rather than stepping around it. A green build you helped produce is your responsibility too.
+- **Every bug fix ships with a regression test**: Never fix a bug without also adding a test that fails before the fix and passes after it. The test must exercise the real bug — reproduce the exact condition that was broken so it would have caught the original defect — not merely touch the changed lines for coverage. Write the failing test first, confirm it fails for the right reason, then apply the fix and watch it go green. This locks the bug out for good and proves the fix actually addresses it.
 - **Trust application invariants**: Do not design normal code paths around database states the application says are impossible. If an impossible state is observed, raise it as an error and repair the data explicitly rather than silently accepting or normalising it.
+- **Don't defend against the impossible**: Do not add fallbacks, placeholders, or `try/catch`es for failures that can only happen when a foundational system is already broken — the encryption/data key won't decrypt, the database has vanished, a core invariant the app guarantees is violated. You will never reach such a branch without the whole app already being down: you cannot render a page whose data won't decrypt, because the *same* key protects the attendee's own PII, so the request dies long before your guard runs. Such a guard only hides a system-wide failure behind an untestable, never-exercised branch (and a coverage gap). Let it throw, loudly. Reserve resilience for failures that genuinely occur in normal operation — a flaky network call, a provider timeout, a refund that already settled, a write that lost a race. Be confident in our own systems.
+- **One path for one-or-many — a single item is an array of one**: Don't write a separate "single" code path beside a "multiple" one (no `getThing(id)` next to `getThings(ids)`, no `length === 1` branch that renders/loads/books differently from the N-item case). Model the operation over a collection once and call it with an array of one when there's a single item; derive the singular answer from the array result (`(await getHiddenPackageMemberIds([id])).size > 0`). A thin singular wrapper that *delegates* to the array implementation is fine (it's still one path); two parallel implementations that can drift are not. The multi-group membership refactor is the reference: a listing's groups are always an array, never a special-cased single `group_id`. This keeps behaviour identical for 1 and N, and kills the class of bug where the single case is fixed but the batch case isn't (or vice-versa).
 - **Schema over organic structure**: Prefer a declarative schema plus functional composition (map/filter/`compact` over data) to hand-nested or imperative construction — *even for content that looks organic*, like help/FAQ pages, navigation, form layouts, or report sections. Model the thing as data (a typed list of sections/entries/fields), render it with one shared function, and let the types make invalid arrangements unrepresentable. The admin guide (`src/ui/templates/admin/guide/`) is the reference example: each topic exports a `GuideSection[]`, `renderGuideSections` turns it into markup, and because a section's `entries` can never be a section, a sub-section can't be mis-nested mid-list and drag unrelated questions under the wrong heading. When you catch yourself authoring repetitive nested JSX/markup by hand, lift it into a schema first.
+- **Shared interfaces over branch-per-case**: Prefer one tightly-defined shared interface that every case implements over a chain of "if this kind of situation, do this; else that". Branch-per-case does not grow naturally — each new case is another arm bolted onto every dispatcher, and a forgotten arm fails silently rather than loudly. Model the cases as data instead: a typed union plus an *exhaustive* `Record` keyed by it (so a new case is a compile error in every dispatcher), or per-entry predicates/handlers that carry their own rules, folded over uniformly. Schema-tizing this way is always a good end — it turns invalid arrangements into unrepresentable ones and makes the system additive to extend. The recent listing-defaults work is the reference: its `kind` dispatch was rewritten from parallel if/ternary chains (each silently falling through to a default arm) into exhaustive `Record` maps, and `resolveListingDefaults` became a plain fold over `LISTING_DEFAULT_FIELDS` whose per-field `appliesTo` predicates replaced the inline `if logistics-off / if renewal-tier` special-casing — the invariants now live with the fields they guard.
 - **Malleable software**: Prefer being up front with operators about the underlying data structure over hiding it. Where it's safe, expose stored records directly and give the operator a page to view and edit them — including aggregated/derived numbers — rather than treating the DB as a black box. The per-contact record editor at `/admin/history/:hmac` (raw booking/message counts plus the private note, keyed by the contact's HMAC) is the reference example. Repairing data should be a first-class operator action, not a manual DB surgery.
+- **Never render a dead or forbidden link**: Don't emit a link the viewer can't follow — one whose target would 404, or whose page the current user's admin level can't open. A rendered link is a promise that it works, so gate it on the same condition the target enforces; when that condition fails, show plain text or an indicator in its place rather than a link that breaks on click. The no-quantity attendee's ticket cell is the reference: a quantity-0-only attendee has no live `/t` page (it 404s), so admin views render a "No quantity" indicator instead of the `/t` link. This holds for permission-gated links too: an action a role can't reach must not be linked for that role. Mind the blind spot — a link to a restricted page still works when the page is viewed (or tested) as a high-privilege user, so the dead link the lower-privilege roles see goes unnoticed. Gate the link on the same permission the target enforces, and when testing visibility, render the page as each role rather than only the most-privileged one.
 - **Operator decides genuine conflicts — a required choice, never a silent default**: When an action hits a conflict the system cannot unambiguously resolve (e.g. an attendee merge where both records booked the same listing, or where each side carries a real payment), do NOT auto-pick a resolution and quietly proceed. Surface the conflict and make the operator choose explicitly via a **required** field — the request fails closed until they decide. Silently moving money, voiding a leg, or keeping one side by default hides a real decision behind a guess; an explicit operator choice keeps the irreversible call — especially anything that touches the money ledger — with the human who can see the context.
 - **Select only needed columns**: Avoid `SELECT *` and broad "load every row" helpers — query the specific columns a caller actually uses. See [Database Queries](#database-queries).
 - **SQL table aliases**: Alias tables with the full singular word using `AS`, not a single letter — write `FROM listings AS listing`, never `FROM listings e` (the `e` is a leftover from when listings were called "events"). When one query references the same table more than once (e.g. correlated subqueries that compare a row against its group), give each occurrence a descriptive word alias — `listing` for the row being checked, `groupListing` for sibling rows in its group.
 - **Never lose work — commit WIP even if broken**: Uncommitted changes are lost if the working environment is reclaimed (it has happened). If you have non-trivial work in progress and are about to pause, hand off, delegate to a background agent, or end a turn with a dirty tree, **commit and push it** rather than leaving it uncommitted. A known-broken checkpoint is fine and expected — mark it unmistakably in the commit message (e.g. `WIP: <chunk> — NOT GREEN, <what fails>`) so it is never mistaken for finished work, and follow up with a green commit. Do not hold a commit back purely because the tree does not yet build or pass; losing the work is worse.
-- **Final check**: Run `deno task precommit` (via `mise exec -- deno task precommit` when using the pinned toolchain) before finishing any job with code or documentation changes.
+- **Answer every PR review thread you address**: When a pull request review leaves comments — from an automated reviewer (e.g. Codex) or a human — reply to **each** thread directly with a concise, proper note: how it was resolved (the mechanism + the regression test that locks it), or why it is not actionable/incorrect. Do this even when the commit message already explains the change — an open thread reads as unaddressed, so close the loop on the thread itself. This is a deliberate exception to general GitHub-comment frugality: resolution replies on review threads are expected, not noise. Keep each reply tight (a few sentences), and reference the fixing commit.
+- **Final check**: Run `deno task precommit` (via `mise exec -- deno task precommit` when using the pinned toolchain) before finishing any job with code or documentation changes. It is the only check that mirrors CI exactly — it typechecks the **test** files too, so `deno check <src>` plus `test:files` is not a substitute (a test-only type error will pass locally and still break CI).
+
+## Designing New Systems
+
+When planning a new feature, design it to have every quality below. Each one
+names reference implementations in this codebase — read the exemplar before
+designing, and copy its shape rather than inventing a new one. These are the
+systems we want more of.
+
+### Schema-tized
+
+Model the thing as data first — a typed schema plus a few functions folded
+over it — and derive everything else (types, validation, rendering, routes)
+from that one declaration. The philosophy is in the Preferences ("Schema over
+organic structure", "Shared interfaces over branch-per-case"); these are the
+mechanisms to copy:
+
+- **A valibot schema as the single source of truth for a value type.**
+  Declare once; derive the TS type, the runtime guard, and the options list:
+
+  ```typescript
+  export const ContactFieldSchema = v.picklist(["email", "phone", "address", "special_instructions"]);
+  export type ContactField = v.InferOutput<typeof ContactFieldSchema>;
+  export const CONTACT_FIELDS = ContactFieldSchema.options;
+  export const isContactField = (s: string): s is ContactField =>
+    v.is(ContactFieldSchema, s);
+  ```
+
+  See `src/shared/types.ts` (six of these) and `src/shared/price-modifier.ts`
+  (a whole family). For structured values, compose `v.object` schemas into a
+  discriminated union with `v.variant("kind", […])` and a single `v.is` guard
+  — `src/shared/bulk-email-targets.ts` is the reference.
+- **Declarative tables.** `defineTable`/`defineIdTable`
+  (`src/shared/db/table.ts`, `src/shared/db/define-id-table.ts`): a `columns`
+  config built from the `col.*` builders (`col.boolean`, `col.encrypted`,
+  `col.generated`, …) drives serialization, encryption, and the derived
+  `Input` type. Never hand-write row mapping.
+- **Config-driven CRUD.** `defineCrudApi` (`src/shared/rest/crud-api.ts`)
+  turns one config object into the five standard admin API routes;
+  `defineResource`/`defineNamedResource` (`src/shared/rest/resource.ts`) turn
+  `{table, fields, toInput, validate}` into typed operations that the
+  handlers in `src/shared/rest/handlers.ts` wire to HTTP.
+- **Schema-driven forms.** `defineForm` + a `Field[]` (`src/shared/forms.tsx`):
+  one field list drives the HTML rendering, the parsing/validation, and the
+  `FormValuesFor<>` value types; `createFormRoute`/`createAuthedFormRoute`
+  (`src/shared/app-forms.ts`) wire that same schema to both the GET (render)
+  and POST (validate) handlers.
+- **A data table plus one fold.** `LISTING_DEFAULT_FIELDS` +
+  `resolveListingDefaults` (`src/shared/listing-defaults.ts`); the admin
+  guide's `GuideSection[]` + `renderGuideSections`.
+
+If your plan contains a hand-rolled dispatcher, an ad-hoc form, bespoke CRUD
+routes, or hand-written row (de)serialization, stop: there is a `define*`
+factory for that already. Use it — or extend it for every caller.
+
+### Pure, functional
+
+Write the core of a feature as pure data-in/data-out functions and keep IO
+(DB reads, settings, fetches) in a thin shell around it. Pure modules are
+trivially unit-testable, which is what keeps 100% coverage and a 100%
+mutation kill rate cheap to sustain.
+
+- `src/shared/largest-remainder.ts` — a complete allocation algorithm with
+  zero imports; the hardest logic in the money paths and the easiest to test.
+- `src/shared/listing-defaults.ts` — the header states "This module is
+  pure": callers fetch, it computes.
+- `src/shared/ledger/project.ts` — pure projections over a slice of
+  transfers; every derived total reuses the single `allBalances` fold, so no
+  two totals can disagree.
+- `src/shared/phone.ts`, `src/shared/countries.ts` — pure normalization, and
+  a pure data table with total accessors.
+
+Prefer the curried utilities from `#fp` over imperative loops (see
+[FP Imports](#fp-imports)). When a module needs both computation and
+configuration, split it the way `src/shared/dates.ts` does: the pure
+functions take the timezone as an argument, and thin wrappers inject
+`settings.timezone` — the pure core stays testable without a database.
+
+### Modularised
+
+One concept per file; one layer per directory. `REPO_STRUCTURE.md` defines
+where things go (`src/features/*` routes, `src/shared/*` domain logic,
+`src/ui/*` presentation). Within `shared/`, the shapes to copy:
+
+- `src/shared/rest/` — `resource.ts` (the resource abstraction),
+  `handlers.ts` (HTTP wiring), `crud-api.ts` (the JSON API): each file is
+  one layer, named for its job.
+- `src/shared/ledger/` — `types.ts`, `project.ts`, `account.ts`,
+  `reconcile.ts`: a domain split into files you can navigate blind.
+- `src/shared/db/attendees/` — `queries.ts`, `pii.ts`, `capacity.ts`,
+  `stats.ts`, `delete.ts`: a big table's concerns separated instead of one
+  1,500-line module.
+
+A new system should arrive as a small directory of single-purpose files, not
+one grab-bag module — and not as fragments scattered through unrelated
+existing files.
+
+### Well-named files
+
+The filename states the concept; the concept fills the file.
+`largest-remainder.ts`, `phone.ts`, `slug.ts`, `define-id-table.ts`,
+`request-cache.ts`, `keyed-cache.ts` — you can guess each file's exports
+from its name and vice versa. Function names carry contracts the same way:
+the `Raw` suffix on `getAttendeesRaw`/`getAttendeeRaw` means "PII still
+encrypted — decrypt before display", and `getUserDisplayFields` names the
+exact narrow column set it selects. If you can't name the file in a couple
+of words, it is probably two concepts — split it.
+
+### Valibot and standard libraries
+
+Validation is valibot; collections are `@std/collections` (via `#fp`);
+paths, media types, and cookies are `@std/path`, `@std/media-types`, and
+`@std/http/cookie`; date/timezone math is `Temporal` (temporal-polyfill);
+formatting is `Intl`. Valibot patterns to copy:
+
+- **Branded scalar** — `src/shared/validation/email.ts`:
+  `v.pipe(v.string(), v.trim(), v.toLowerCase(), v.email(), v.brand("ValidEmail"))`.
+  A `ValidEmail` can only be produced by validation, so downstream code
+  needs no re-checks.
+- **Coercing schema factory** — `src/shared/validation/number.ts`:
+  `createIntSchema(minimum)` validates digits *before* `v.transform(Number)`
+  (closing the `parseInt("5abc")` hole); `PositiveIntSchema` and friends are
+  its specializations.
+- **Boundary validation** — `src/features/api/sms-webhook.ts`: `v.safeParse`
+  an envelope `v.object` immediately after `JSON.parse`, 400 on failure.
+  Validate at the boundary; pass typed values inward.
+- **Deliberate non-use is fine when the platform is better** —
+  `src/shared/validation/timestamp.ts` delegates instant validation to
+  `Temporal.Instant.from` (valibot's `isoTimestamp` accepts overflow days)
+  and documents why.
+
+### Don't reinvent the wheel
+
+Before writing an algorithm, formatter, or parser, check `deno.json` — the
+answer is usually already a dependency. When the project's calling
+convention differs from a library's, write a thin adapter; don't
+re-implement:
+
+- `src/fp.ts` — `unique`, `uniqueBy`, `mapNotNullish`, `sumOf`, `chunk` are
+  one-line curried adapters over `@std/collections`.
+- `src/shared/db/table.ts` — `toCamelCase`/`toSnakeCase` delegate to
+  valibot's case actions rather than bespoke regexes.
+- `src/shared/timezone.ts` — all DST/offset math is `Temporal`;
+  `src/shared/currency.ts` gets currency symbols and decimal places from
+  `Intl.NumberFormat` instead of a hand-maintained table;
+  `src/shared/slug.ts` validates with `v.slug()`.
+
+When you genuinely must hand-roll, document the reason at the definition the
+way `#fp`'s `groupBy` does (it exists because `@std/collections` lacks the
+ordering guarantee its callers rely on).
+
+### Curried helpers
+
+Currying is the house style for both de-duplication (see
+[Code Duplication](#code-duplication)) and API design: the factory takes the
+configuration, the returned function takes the data.
+
+- `makeOutcome(succeeded)` → `export const ok = makeOutcome(true)` /
+  `fail = makeOutcome(false)` (`src/shared/response.ts`).
+- `roleIn(levels)` → `isStaffRole`, `isDeliveryRole` (`src/shared/types.ts`)
+  — predicate factories instead of near-identical functions.
+- `balanceOf(account)` → `(transfers) => number` and friends
+  (`src/shared/ledger/project.ts`) — curried projections that compose.
+- At larger scale the same shape becomes the config-driven factories:
+  `defineTable`, `defineCrudApi`, `defineForm`, and `cachedClientFactory`
+  (`src/shared/payment-helpers.ts`).
+
+### Built for cold starts
+
+Most production requests land on a freshly booted edge isolate with a
+~500ms startup budget and a limited subrequest budget
+(`scripts/profile-cold-boot.ts` measures both). The rules, with their
+reference implementations:
+
+- **Nothing heavy at module load.** Entry points only register the handler
+  (`src/edge.ts`); app boot runs `once()` on the *first request*
+  (`src/serve-app.ts`). Module-load work is fine only when pure and cheap
+  (e.g. `defineTable` building its schemas once).
+- **Lazy singletons via `once`/`lazyRef` from `#fp`.** The DB client
+  (`getDb` in `src/shared/db/client.ts`), the dynamically imported Stripe
+  SDK (`src/shared/stripe.ts`), the Liquid email engine, crypto key material
+  — all first-use, never import-time.
+- **Request-scoped memoization, not global state.** `requestCache`
+  (`src/shared/request-cache.ts`) shares one fetch among all callers within
+  a request; `createRequestScoped` (`src/shared/request-scoped.ts`) keeps
+  two concurrent requests on one isolate from clobbering each other.
+  Isolate-lived caches are best-effort and bounded
+  (`src/shared/db/keyed-cache.ts`; the settings version-stamp cache in
+  `src/shared/db/settings.ts`) — never authoritative for security
+  decisions, and invalidated automatically by the write-sniffing db client
+  (`src/shared/cache-registry.ts`).
+- **Compile once, render many.** ICU message templates (including the
+  `I18N_REPLACEMENTS` rebranding pass) compile once and cache
+  (`src/shared/i18n.ts`), so rendering is a plain format call.
+- **Respect the subrequest budget.** Fixed-cost designs like
+  `src/shared/limits.ts` (one SELECT plus one batch regardless of batch
+  size), `UPDATE … RETURNING` instead of update-then-select
+  (`src/shared/db/table.ts`), and `queryBatch` for multi-read round-trips.
+
+A new feature that adds a top-level `await`, an import-time SDK load, or a
+per-request whole-table read is a cold-start regression even if it works.
+
+### Efficient SQL
+
+The rules live in [Database Queries](#database-queries) (narrow column
+lists, bounded reads, batches vs interactive transactions). Beyond those,
+copy these shapes:
+
+- **Enforce invariants in the mutating statement itself.**
+  `src/shared/db/capacity.ts` embeds the capacity check in the same
+  INSERT/UPDATE that books the attendee — no read-modify-write race, no
+  second round-trip.
+- **Trigger-maintained aggregates instead of scans.**
+  `listings.booked_quantity`/`tickets_count` are maintained by triggers on
+  `listing_attendees`
+  (`src/shared/db/migrations/2026-06-16_listing_aggregates.ts`), so listing
+  reads never sum attendee rows.
+- **One-round-trip patterns.** `UPDATE … RETURNING *` in
+  `src/shared/db/table.ts`; `queryBatch`/`executeBatchWithResults` in
+  `src/shared/db/client.ts`; keyset pagination for unbounded reads
+  (`src/shared/db/backup.ts` with `BACKUP_PAGE_SIZE`).
+
+### Decrypt only what you need
+
+Encrypted data stays encrypted until the moment of display, and lookups
+never require decryption:
+
+- **Blind HMAC indexes for lookups.** Alongside each searchable encrypted
+  value sits a deterministic `hmacHash` index column: `username_index`
+  (`src/shared/db/users.ts`), `ticket_token_index`
+  (`src/shared/crypto/hashing.ts`, `src/shared/db/attendees/queries.ts`),
+  `phone_index` for inbound SMS (`src/shared/db/attendee-phone-index.ts`),
+  `code_index` on modifiers. Query `WHERE …_index = ?`; never
+  scan-and-decrypt. (The one sanctioned scan-decrypt — invite codes in
+  `users.ts` — is documented and bounded by a tiny keyspace.)
+- **One blob, one decrypt, decrypt late.** All attendee PII lives in a
+  single `pii_blob` (`src/shared/db/attendees/pii.ts`); list queries select
+  it without decrypting (`getAttendeesRaw` and friends in
+  `src/shared/db/attendees/queries.ts`), and `decryptAttendees` runs only at
+  render time. `decryptPiiBlob`'s `paidListing` flag even gates which fields
+  come out of the blob, and `getAttendeeNamesByIds` decrypts just the name.
+- **Skip encrypted columns entirely when you can.** `getUserAuthFieldsById`
+  (`SELECT id, admin_level`) and `getAttendeeKindsByIds` (`SELECT id, kind`)
+  answer their questions without touching a ciphertext — the same
+  discipline as "Select only needed columns", applied to
+  plaintext-in-memory.
+- **Declarative encryption at the column layer.**
+  `col.encrypted`/`col.encryptedText` in `src/shared/db/table.ts` decrypt
+  lazily, per present column; a new encrypted column is declared, not
+  hand-wired.
+- **Keys are request-scoped and short-lived.** The session private key is
+  fail-closed per request (`src/shared/session-private-key.ts`) and decrypt
+  caches are TTL-bounded to seconds (`src/shared/crypto/keys.ts`).
 
 ## FP Imports
 
@@ -179,8 +459,9 @@ logging and table-scoped cache invalidation stay automatic.
 - `deno task lint:ci` - Strict, read-only lint (`check --error-on-warnings`, no `--write`). Fails on lint warnings (e.g. cognitive complexity) and on any code that *would* be reformatted, without touching the checkout. This is the lint `deno task precommit` runs in **every** environment, so a clean `precommit` locally means the lint step will pass in CI too. Run `deno task lint` to auto-fix before re-running.
 - `deno task build:edge` - Build for Bunny Edge deployment
 - `deno task backup` - Dump the database out-of-band to a `.zip`. Uploads to the configured storage zone by default (so it appears on the Backups page and lets the next migration skip its own inline backup); pass `--out <path>` to write a local file. Runs in a full Deno process, so unlike the in-edge backup it has no per-request subrequest budget and can dump arbitrarily large databases.
-- `deno task precommit` - Run all checks (typecheck, lint, tests)
-- `deno task mutation <source-glob> <test-glob>` - Mutation-test your tests: mutate operators in the source and check your tests catch it (see [Mutation Testing](#mutation-testing))
+- `deno task precommit` - Run all checks (typecheck, lint, tests, changed-file mutation)
+- `deno task precommit:mutation` - The precommit mutation gate, runnable on its own: mutation-test every `src/` file this branch changed against every changed `test/` file and demand a 100% kill rate. The changed set is the branch's committed diff against the integration branch (`origin/main`, else a local `main`) via `base...HEAD` — three-dot/merge-base, so it's the branch's full diff vs main and stays bounded to the branch's own commits (precommit runs post-commit on a clean tree, so the index is empty). Because the project requires 100% coverage, a src change lands with its covering test change in the same commit range, so the changed set is its own source→test mapping. Skips cheaply when there is no base ref or no changed `src/` files (and likewise when src changed without any changed test). If a badly stale local `origin/main` balloons the changed set past `STALE_BASE_SOURCE_LIMIT`, it skips with a "run `git fetch origin main`" hint instead of mutating most of the tree. See [Mutation Testing](#mutation-testing).
+- `deno task mutation <source-glob> <test-glob>` - Mutation-test your tests on demand: mutate operators in the source and check your tests catch it (see [Mutation Testing](#mutation-testing))
 
 ### Running Individual Test Files
 
@@ -196,7 +477,7 @@ Arguments are forwarded verbatim to `deno test`, so multiple files, directories,
 
 ```bash
 deno task test:files test/lib/dates.test.ts --filter "formats date"
-deno task test:files test/lib/server-balance.test.ts test/lib/server-webhooks.test.ts
+deno task test:files test/lib/server-balance.test.ts test/lib/server-webhooks/*.test.ts
 ```
 
 #### Lower-level alternative
@@ -231,10 +512,11 @@ Environment variables are configured as **Bunny native secrets** in the Bunny Ed
 - `STORAGE_ZONE_NAME` - Bunny CDN storage zone name (required for image uploads)
 - `STORAGE_ZONE_KEY` - Bunny CDN storage zone access key (required for image uploads)
 - `BACKUP_PAGE_SIZE` - Rows read per keyset page when dumping a table for backup (default 500). Each page is one libsql response, so this bounds the response size to stay under libsqld's "Response is too large" payload cap. Used by `deno task backup` and the admin Backups page; migrations no longer back up inline (the edge subrequest budget can't fit a full dump), so backups are taken out-of-band.
-- `MAIN_INSTANCE_KEY` - Shared secret authorizing the inter-instance site-credentials endpoint (`POST /instance/site-credentials`). When set on a builder/main instance, that endpoint returns every built site's read-only DB URL + token to a caller presenting this key as a bearer token, so the upgrade workflow can back each site up to the builder's storage before deploying. Unset ⇒ the endpoint is disabled (404). The upgrade workflow receives it as a run-time input, not a stored GitHub secret.
+- `MAIN_INSTANCE_KEY` - Shared secret authorizing the inter-instance site-credentials endpoint (`POST /instance/site-credentials`). When set on a builder/main instance, that endpoint returns built sites' DB URL + token to a caller presenting this key as a bearer token, so the upgrade workflow can back each site up to the builder's storage before deploying. The returned token is each site's own full-access credential (the same one the site runs with) — callers only read, but must treat the response as write-capable production secrets. The caller passes the release tier it is publishing as `?tier=alpha|beta|release` (a tier-less call defaults to `release` ⇒ the whole fleet, which is what the single-site `backup-site` action relies on); each site carries an `updates` channel and only the sites at that tier or more eager are returned (a `release` deploy reaches every site, `beta` reaches beta + alpha sites, `alpha` only alpha sites — an unknown tier is a 400). The response echoes the applied `tier` so a caller can confirm the server actually filtered: a pre-tier build ignores the query string and omits it, letting the canary workflow fail closed instead of fanning a non-release deploy out to the whole fleet. Unset `MAIN_INSTANCE_KEY` ⇒ the endpoint is disabled (404). The upgrade workflow receives the key as a run-time input, not a stored GitHub secret.
 - `BUNNY_DNS_ZONE_ID` - Bunny DNS zone ID for subdomain registration (enables subdomain feature when set with `BUNNY_API_KEY`)
 - `BUNNY_DNS_SUBDOMAIN_SUFFIX` - Suffix appended to user-chosen subdomain (e.g. `.tickets`)
 - `NTFY_URL` - Ntfy endpoint URL for error notifications (e.g. `https://ntfy.sh/your-topic`). Sends domain and error code only, no personal or encrypted data.
+- `SENTRY_URL` - Sentry DSN for server-side error reporting (e.g. a self-hosted Bugsink: `https://<key>@bugs.example.com/<project>`). When set, the same classified server errors that log to the console and ping ntfy are also captured by Sentry, with a real stack trace when the originating exception is available. Unset ⇒ Sentry is disabled (the SDK never initializes). The release is `chobble-tickets@<commit>`, matching the source maps the deploy workflows upload; readable (un-minified) traces additionally require the `SENTRY_AUTH_TOKEN`, `SENTRY_CLI_URL` (the instance base URL, e.g. `https://bugs.example.com/`), `SENTRY_ORG`, and `SENTRY_PROJECT` GitHub Actions secrets so the deploy can inject debug IDs and upload the maps. Without those secrets the deploy still works; traces just stay minified.
 - `DEBUG_KEY` - Optional diagnostic key. `GET /health` returns a plain `Up :)` by default; a request with a matching `X-Debug-Key` header instead returns JSON build diagnostics (commit, build timestamp, server time) — non-private but useful to operators. Unset ⇒ verbose health disabled. The running build also records its commit into `settings.current_script_commit` on boot, so a backup carries the commit the site was on and a restore can surface which commit to redeploy (via `.github/workflows/restore-deploy.yml`).
 - `BOTPOISON_PUBLIC_KEY` - Optional Botpoison public key (sent to the browser). The contact form works without it; setting it together with `BOTPOISON_SECRET_KEY` adds proof-of-work spam protection as a progressive enhancement. The owner still enables the form under Site → Contact and sets a business email.
 - `BOTPOISON_SECRET_KEY` - Optional Botpoison secret key. Used server-side to verify contact form submissions when Botpoison is enabled. Never sent to the browser.
@@ -358,9 +640,25 @@ aliases. The operator tables and AST walk are vendored from
 [Mutasaurus](https://github.com/christoshrousis/mutasaurus) (MIT); its own
 execution model writes a temp copy but runs the original tests, so every mutant
 falsely "survives" on an alias-based project — see
-`scripts/mutation/LICENSE.mutasaurus.md`. It is a **targeted** tool (run it on
-the module you are hardening), not part of `deno task precommit`, which would be
-far too slow across the whole tree.
+`scripts/mutation/LICENSE.mutasaurus.md`. As a manual tool it is **targeted**
+(run `deno task mutation` on the module you are hardening) — running it across
+the whole tree would be far too slow. `deno task precommit` does run it
+automatically, but **only over the files this branch changed** (its committed
+diff against `origin/main`/`main`): the `precommit:mutation` step
+mutates each changed `src/` file against the changed `test/` files and demands a
+100% kill rate, so the cost stays bounded to what you actually changed.
+Known-equivalent survivors recorded in
+`scripts/mutation/equivalent-mutants.txt` are suppressed, as with a manual run.
+It is a deliberately mapping-free, best-effort check with three documented blind
+spots (see the header of `scripts/precommit/mutation-step.ts`): it scopes to the
+*committed* diff, so uncommitted work isn't checked until committed; it trusts
+that a changed src file's covering test changed alongside it, so a changed src
+whose test is unchanged — paired with an unrelated changed test — can report
+false survivors; and it diffs against your *local* `origin/main`, never
+re-fetching, so a stale local ref under a branch built on newer main commits can
+leak upstream src into the set (run `git fetch origin main` first; a branch's own
+author is unaffected). In each case, reach for `deno task mutation` on the
+specific module.
 
 ### Coverage Requirements
 

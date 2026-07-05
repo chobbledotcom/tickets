@@ -1,10 +1,12 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { groupsTable } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   assertPublicHtml,
   createTestAttendee,
+  createTestGroup,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
@@ -17,6 +19,17 @@ import {
 const selectOrder = (ids: number[]): Promise<Response> => {
   const query = ids.map((id) => `select_${id}=1`).join("&");
   return handleRequest(mockRequest(`/order?${query}`));
+};
+
+const enablePublicOrder = (): void => {
+  beforeEach(async () => {
+    await settings.update.showPublicSite(true);
+    await settings.update.orderEnabled(true);
+  });
+  afterEach(async () => {
+    await settings.update.showPublicSite(false);
+    await settings.update.orderEnabled(false);
+  });
 };
 
 describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
@@ -35,14 +48,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
   });
 
   describe("GET /order (gallery)", () => {
-    beforeEach(async () => {
-      await settings.update.showPublicSite(true);
-      await settings.update.orderEnabled(true);
-    });
-    afterEach(async () => {
-      await settings.update.showPublicSite(false);
-      await settings.update.orderEnabled(false);
-    });
+    enablePublicOrder();
 
     test("shows a selectable grid of every bookable listing", async () => {
       const standard = await createTestListing({ name: "Branded Mug" });
@@ -60,10 +66,14 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         'class="order-gallery"',
         'method="get"',
         'class="order-cart"',
+        'class="order-continue"',
         "View order",
+        "Continue",
       );
       expect(html).toContain(`name="select_${standard.id}"`);
       expect(html).toContain(`name="select_${daily.id}"`);
+      // The login footer is a homepage-only affordance (#69).
+      expect(html).not.toContain('href="/admin/login"');
     });
 
     test("renders the intro text as markdown", async () => {
@@ -79,6 +89,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         "No items are available to order",
       );
       expect(html).not.toContain('class="order-cart"');
+      expect(html).not.toContain('class="order-continue"');
     });
 
     test("excludes hidden and inactive listings", async () => {
@@ -133,17 +144,67 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       const html = await assertPublicHtml("/order", "Past", "Unavailable");
       expect(html).not.toContain("Sold Out");
     });
+
+    test("lists bookable packages as direct book links under a Packages heading", async () => {
+      // Two packages so the name sort actually runs (a single-element sort never
+      // invokes the comparator).
+      const camp = await createTestGroup({
+        isPackage: true,
+        name: "Camp Bundle",
+        slug: "camp-bundle",
+      });
+      await createTestListing({ groupId: camp.id, name: "Bundle Tent" });
+      const beach = await createTestGroup({
+        isPackage: true,
+        name: "Beach Bundle",
+        slug: "beach-bundle",
+      });
+      await createTestListing({ groupId: beach.id, name: "Bundle Towel" });
+
+      // A package is booked as a whole via its own page, so each surfaces as a
+      // direct book link (the order-card--package anchor to /ticket/<group>),
+      // under the Packages heading — not a selectable cart checkbox. (Their
+      // visible members are still independently selectable in the grid below,
+      // the same as on /listings.)
+      await assertPublicHtml(
+        "/order",
+        "Packages",
+        "Camp Bundle",
+        "Beach Bundle",
+        "order-card--package",
+        `href="/ticket/${camp.slug}"`,
+        `href="/ticket/${beach.slug}"`,
+      );
+    });
+
+    test("shows a hidden package's bundle as bookable while its members stay hidden", async () => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Mystery Box",
+        slug: "mystery-box",
+      });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      const secret = await createTestListing({
+        groupId: group.id,
+        name: "Secret Widget",
+      });
+
+      // The bundle is buyable from /order (the package card), even though its
+      // sole member is dropped from the selectable grid — so the page is not the
+      // empty state and never exposes the member name or a checkbox for it.
+      const html = await assertPublicHtml(
+        "/order",
+        "Mystery Box",
+        `/ticket/${group.slug}`,
+      );
+      expect(html).not.toContain("Secret Widget");
+      expect(html).not.toContain(`name="select_${secret.id}"`);
+      expect(html).not.toContain("No items are available to order");
+    });
   });
 
   describe("GET /order with a selection (redirect into the booking page)", () => {
-    beforeEach(async () => {
-      await settings.update.showPublicSite(true);
-      await settings.update.orderEnabled(true);
-    });
-    afterEach(async () => {
-      await settings.update.showPublicSite(false);
-      await settings.update.orderEnabled(false);
-    });
+    enablePublicOrder();
 
     test("redirects one selected item into its pre-filled booking page", async () => {
       const item = await createTestListing({ maxQuantity: 5, name: "Widget" });

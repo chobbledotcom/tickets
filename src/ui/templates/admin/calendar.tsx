@@ -4,6 +4,7 @@
 
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
+import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
@@ -12,23 +13,20 @@ import {
   renderAgentFilter,
 } from "#shared/logistics-filter.ts";
 import type { AdminSession, Attendee, LogisticsAgent } from "#shared/types.ts";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
 import {
   AvailabilityChecker,
   type AvailabilityRow,
 } from "#templates/admin/availability-checker.tsx";
-import {
-  buildSharedDetailRows,
-  renderDetailRows,
-} from "#templates/admin/detail-rows.tsx";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
 import {
   AttendeeTable,
   type AttendeeTableRow,
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import { GuideLink } from "#templates/components/actions.tsx";
+import { DetailTable } from "#templates/components/detail-table.tsx";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
-import { Layout } from "#templates/layout.tsx";
 
 /** Attendee row with listing context for display */
 export type CalendarAttendeeRow = Attendee & {
@@ -58,11 +56,8 @@ export const adminCalendarPage = (
 ): string => {
   const tableRows: AttendeeTableRow[] = pipe(
     map(
-      (a: CalendarAttendeeRow): AttendeeTableRow => ({
-        attendee: a,
-        listingId: a.listingId,
-        listingName: a.listingName,
-      }),
+      (a: CalendarAttendeeRow): AttendeeTableRow =>
+        attendeeLineRow(a, { id: a.listingId, name: a.listingName }),
     ),
   )(attendees);
 
@@ -101,12 +96,14 @@ export const adminCalendarPage = (
       : [];
 
   return String(
-    <Layout title={t("admin.calendar.title")}>
-      <AdminNav active="/admin/calendar" session={session} />
-      <p class="actions">
+    <AdminPage
+      actions={
         <GuideLink href="/admin/guide#calendar">Calendar guide</GuideLink>
-      </p>
-
+      }
+      active="/admin/calendar"
+      session={session}
+      title={t("admin.calendar.title")}
+    >
       <article>
         <h2 id="attendees">{t("admin.calendar.attendees_by_date")}</h2>
         <DatePicker
@@ -129,15 +126,7 @@ export const adminCalendarPage = (
           </p>
         )}
         <AvailabilityChecker date={dateFilter} rows={availabilityRows} />
-        {sharedRows.length > 0 && (
-          <div class="table-scroll">
-            <table class="listing-details-table">
-              <tbody>
-                <Raw html={renderDetailRows(sharedRows)} />
-              </tbody>
-            </table>
-          </div>
-        )}
+        {sharedRows.length > 0 && <DetailTable rows={sharedRows} />}
         {agents.length > 0 && (
           <Raw html={renderAgentFilter(agentFilter, agents, agentHref)} />
         )}
@@ -161,6 +150,6 @@ export const adminCalendarPage = (
           </div>
         )}
       </article>
-    </Layout>,
+    </AdminPage>,
   );
 };

@@ -13,7 +13,7 @@
  * public-page render in the same isolate.
  */
 
-import { reduce } from "#fp";
+import { compact, reduce } from "#fp";
 import { t } from "#i18n";
 import { type CacheStat, getAllCacheStats } from "#shared/cache-registry.ts";
 import {
@@ -23,6 +23,7 @@ import {
   type QueryLogEntry,
   sqlWallClockMs,
 } from "#shared/db/query-log.ts";
+import { type AdminLevel, isStaffRole } from "#shared/types.ts";
 import { getUptimeSeconds } from "#shared/uptime.ts";
 
 /** Data passed to the debug-details renderer */
@@ -33,12 +34,15 @@ export type DebugFooterData = {
   readonly uptimeSeconds: number;
 };
 
-/** Set while an admin page renders so its footer is emitted by the Layout. */
-const _adminFooterStore = { show: false };
+/** Set while an admin page renders so its footer is emitted by the Layout. Holds
+ * the viewer's role so the footer's utility links can be gated (e.g. the
+ * activity log is staff-only; the guide is hidden from delivery agents). */
+const _adminFooterStore = { adminLevel: null as AdminLevel | null };
 
-/** Flag the current render as an admin page so its footer (with logout) shows. */
-export const markAdminFooter = (): void => {
-  _adminFooterStore.show = true;
+/** Flag the current render as an admin page so its footer (with logout) shows,
+ * recording the viewer's role for the footer's role-aware links. */
+export const markAdminFooter = (adminLevel: AdminLevel): void => {
+  _adminFooterStore.adminLevel = adminLevel;
 };
 
 /** Total query work: the sum of every query's duration, counting concurrent
@@ -112,21 +116,30 @@ export const debugDetailsHtml = (data: DebugFooterData): string => {
   );
 };
 
+/** The footer's right-hand utility links, gated by role so none is a dead link:
+ * the activity log and the guide are staff-only (the guide body links to many
+ * owner/staff pages), and logout is for everyone. */
+const footerLinks = (adminLevel: AdminLevel): string =>
+  compact([
+    isStaffRole(adminLevel) ? `<a href="/admin/log">${t("nav.log")}</a>` : null,
+    isStaffRole(adminLevel)
+      ? `<a href="/admin/guide">${t("nav.guide")}</a>`
+      : null,
+    `<a href="/admin/logout">${t("nav.logout")}</a>`,
+  ]).join(" &middot; ");
+
 /** Build the admin footer: Chobble link (plus the debug menu when present) on
- * the left, utility links on the right. */
-export const adminFooterHtml = (debug: DebugFooterData | null): string =>
+ * the left, role-gated utility links on the right. */
+export const adminFooterHtml = (
+  debug: DebugFooterData | null,
+  adminLevel: AdminLevel,
+): string =>
   `<footer class="admin-footer">` +
   `<div class="admin-footer-top">` +
   `<a href="https://github.com/chobbledotcom/tickets">${t(
     "admin.footer.chobble_tickets",
   )}</a>` +
-  `<div class="admin-footer-links">` +
-  `<a href="/admin/log">${t("nav.log")}</a>` +
-  " &middot; " +
-  `<a href="/admin/guide">${t("nav.guide")}</a>` +
-  " &middot; " +
-  `<a href="/admin/logout">${t("nav.logout")}</a>` +
-  "</div>" +
+  `<div class="admin-footer-links">${footerLinks(adminLevel)}</div>` +
   "</div>" +
   (debug
     ? `<div class="admin-footer-info">${debugDetailsHtml(debug)}</div>`
@@ -140,9 +153,9 @@ export const adminFooterHtml = (debug: DebugFooterData | null): string =>
  * Edge). Consumes and resets the admin-page flag.
  */
 export const renderAdminFooter = (): string => {
-  const show = _adminFooterStore.show;
-  _adminFooterStore.show = false;
-  if (!show) return "";
+  const adminLevel = _adminFooterStore.adminLevel;
+  _adminFooterStore.adminLevel = null;
+  if (!adminLevel) return "";
   const debug = isFooterDebugEnabled()
     ? {
         cacheStats: getAllCacheStats(),
@@ -151,7 +164,7 @@ export const renderAdminFooter = (): string => {
         uptimeSeconds: getUptimeSeconds(),
       }
     : null;
-  return adminFooterHtml(debug);
+  return adminFooterHtml(debug, adminLevel);
 };
 
 /** Minimal HTML escaping for strings in the footer */

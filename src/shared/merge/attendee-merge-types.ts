@@ -6,7 +6,10 @@
  * 2. Apply: the admin submits explicit decisions for each conflict.
  */
 
-import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
+import type {
+  AttendeePii,
+  ListingAttendeeRow,
+} from "#shared/db/attendee-types.ts";
 import type { ContactInfo } from "#shared/types.ts";
 
 // ---------------------------------------------------------------------------
@@ -69,6 +72,7 @@ export type BookingConflictClass =
 export type AttendeeMergeDiffBookingItem = {
   listingId: number;
   startAt: string | null;
+  parentListingId: number;
   sourceBooking: ListingAttendeeRow;
   targetBooking: ListingAttendeeRow | null;
   conflictClass: BookingConflictClass;
@@ -103,10 +107,10 @@ export type AttendeeMergeDecisionPii = Record<string, MergeValueChoice>;
 /** Per-question decision */
 export type AttendeeMergeDecisionAnswers = Record<string, MergeAnswerChoice>;
 
-/** Per-booking decision (keyed by "listingId:startAt") */
+/** Per-booking decision (keyed by "listingId:startAt:parentListingId") */
 export type AttendeeMergeDecisionBookings = Record<string, MergeBookingChoice>;
 
-/** Per-conflict money decision (keyed by "listingId:startAt"), required when the
+/** Per-conflict money decision (keyed by "listingId:startAt:parentListingId"), required when the
  *  booking the operator discards carries money (decision 17). */
 export type AttendeeMergeDecisionMoney = Record<string, MergeMoneyChoice>;
 
@@ -168,7 +172,7 @@ export type BuildAttendeeMergeDiffInput = {
 export type ApplyAttendeeMergeInput = {
   targetId: number;
   sourceId: number;
-  targetPii: ContactInfo & { payment_id: string; ticket_token: string };
+  targetPii: AttendeePii;
   sourcePii: ContactInfo;
   diff: AttendeeMergeDiff;
   decision: AttendeeMergeDecisionInput;

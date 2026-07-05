@@ -2,8 +2,22 @@
  * Types for attendee operations
  */
 
+import type { AttendeeKind } from "#shared/db/attendees/kind.ts";
 import type { BookingSource } from "#shared/db/contact-preferences.ts";
 import type { Attendee, ContactFields, ContactInfo } from "#shared/types.ts";
+
+/** Per-(child, parent) unit allocation from the booking fold: the quantity of
+ * `childId` chosen under `parentId` in one order. An order where the same child
+ * appears under two parents has two entries (distinct parentIds); the summed
+ * `qty` over all entries for one child equals that child's `quantities` map
+ * value.
+ * Used by `expandChildAllocations` to produce one `listing_attendees` row per
+ * entry instead of one summed row. */
+export type ChildAllocation = {
+  childId: number;
+  parentId: number;
+  qty: number;
+};
 
 /** Aggregated statistics for active listings */
 export type ActiveListingStats = {
@@ -31,6 +45,7 @@ export type BuildAttendeeInput = ContactInfo & {
   insertId: number | bigint | undefined;
   listingId: number;
   created: string;
+  kind: string;
   paymentId: string;
   quantity: number;
   pricePaid: number;
@@ -40,6 +55,8 @@ export type BuildAttendeeInput = ContactInfo & {
   durationDays?: number;
   remainingBalance: number;
   statusId: number | null;
+  /** Package group this booking row belongs to (0 = not a package). */
+  packageGroupId: number;
 };
 
 /** Result of atomic attendee creation */
@@ -55,6 +72,16 @@ export type ListingBooking = {
   date?: string | null;
   /** Booking duration in days (defaults to 1 for 1-day bookings). Only meaningful when date is set. */
   durationDays?: number;
+  /** Shared per-order token written on every row of one checkout (defaults to
+   * "" — legacy/parent-less bookings). Set once per create, not per caller. */
+  orderToken?: string;
+  /** The parent listing this row was folded under when it is a chosen child
+   * (defaults to 0 — not a folded child). */
+  parentListingId?: number;
+  /** The package group this booking row belongs to (defaults to 0 — not a
+   * package order). Set once per create from the order-level value, the same on
+   * every row, so tickets/emails group the order under the package by this id. */
+  packageGroupId?: number | undefined;
 };
 
 /** A concrete booking line — every field resolved (unlike the optional-field
@@ -68,6 +95,8 @@ export type LineBooking = {
 
 /** Input for creating an attendee atomically (one or more listings) */
 export type AttendeeInput = ContactFields & {
+  /** Discriminator for attendee-like rows. Defaults to the customer attendee kind. */
+  kind?: AttendeeKind;
   paymentId?: string;
   bookings: ListingBooking[];
   /** Order-level remaining balance in minor units (plaintext). Defaults to 0. */
@@ -83,6 +112,10 @@ export type AttendeeInput = ContactFields & {
    * checkout path can never be silently left uncounted; the admin manual-add
    * paths pass "admin" explicitly. */
   source?: BookingSource;
+  /** When the order is a package checkout, the package group's id (stamped on
+   * every booking row so the ticket view / confirmation email group the lines
+   * under the package). 0 / absent for a non-package order. */
+  packageGroupId?: number;
 };
 
 /** Row from listing_attendees — per-listing booking data */
@@ -96,6 +129,13 @@ export type ListingAttendeeRow = {
   price_paid: number;
   ledger_event_group: string;
   attachment_downloads: number;
+  /** Per-order token shared by every row created in one checkout; "" for legacy
+   * rows and parent-less bookings. */
+  order_token: string;
+  /** Parent listing this row was folded under (a chosen child); 0 otherwise. */
+  parent_listing_id: number;
+  /** The package group this order belongs to; 0 when not a package order. */
+  package_group_id: number;
 };
 
 /** An attendee with all their listing bookings (for token resolution) */
@@ -103,6 +143,7 @@ export type AttendeeWithBookings = {
   /** Base attendee fields (PII, token, created — shared across listings) */
   id: number;
   created: string;
+  kind: string;
   ticket_token: string;
   ticket_token_index: string;
   pii_blob: string;
@@ -122,18 +163,18 @@ export type BatchAvailabilityItem = {
   durationDays?: number;
 };
 
-/** Input for updating attendee PII (shared across listings) */
-export type UpdateAttendeePIIInput = {
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-  special_instructions: string;
+/** Contact PII plus the decrypted identifiers needed to rebuild a PII blob:
+ * the {@link ContactInfo} fields alongside the attendee's `payment_id` and
+ * `ticket_token`. The single shape used to (re)build an encrypted PII blob. */
+export type AttendeePii = ContactInfo & {
   /** Decrypted payment_id for PII blob rebuild (from existing attendee) */
   payment_id: string;
   /** Decrypted ticket_token for PII blob rebuild (from existing attendee) */
   ticket_token: string;
 };
+
+/** Input for updating attendee PII (shared across listings) */
+export type UpdateAttendeePIIInput = AttendeePii;
 
 /**
  * A desired final-state listing line for the atomic attendee edit path.
@@ -142,8 +183,9 @@ export type UpdateAttendeePIIInput = {
  * (which applies it) so the shape is defined once.
  */
 export type DesiredListingLine = {
-  /** Stable identity of the existing row (`${listingId}|${startAt}`). Empty
-   * string for newly-added lines. */
+  /** Stable identity of the existing row
+   * (`${listingId}|${startAt}|${parentListingId}`). Empty string for
+   * newly-added lines. */
   key: string;
   listingId: number;
   quantity: number;

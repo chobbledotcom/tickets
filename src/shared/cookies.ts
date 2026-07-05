@@ -1,8 +1,8 @@
-import { getEffectiveDomain } from "#shared/config.ts";
+import { isSecureMode } from "#shared/config.ts";
 import type { Flash } from "#shared/flash-context.ts";
 import { SESSION_MAX_AGE_S } from "#shared/limits.ts";
 
-export const isSecureMode = (): boolean => getEffectiveDomain() !== "localhost";
+export { isSecureMode };
 
 const secureAttribute = (): string => (isSecureMode() ? "; Secure" : "");
 

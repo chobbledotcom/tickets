@@ -1,5 +1,5 @@
 /**
- * Bunny CDN storage integration for listing images and attachments.
+ * Bunny CDN storage integration for uploaded images and listing attachments.
  * Uses @bunny.net/storage-sdk to upload/delete files.
  * Only enabled when STORAGE_ZONE_NAME and STORAGE_ZONE_KEY env vars are set.
  * Files are encrypted with DB_ENCRYPTION_KEY before upload.
@@ -7,9 +7,10 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import * as BunnyStorageSDK from "@bunny.net/storage-sdk";
-import { sort } from "#fp";
+import { lazyRef, sort } from "#fp";
 import { decryptBytes, encryptBytes } from "#shared/crypto/encryption.ts";
 import { getEnv } from "#shared/env.ts";
+import type { DecodableMime, ImageTarget } from "#shared/images/types.ts";
 import {
   formatBytes,
   MAX_ATTACHMENT_SIZE,
@@ -17,6 +18,7 @@ import {
 } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { getDeleteOverride } from "#shared/test-overrides.ts";
+import type { NonEmptyString } from "#shared/validation/string.ts";
 
 // ---------------------------------------------------------------------------
 // Per-context storage config (eliminates env var races in concurrent tests)
@@ -37,9 +39,34 @@ export const runWithStorageConfig = <T>(
   fn: () => T,
 ): T => storageConfigStore.run(config, fn);
 
-/** Read storage config: AsyncLocalStorage context first, then env vars. */
+// Suite-level storage config for tests (describeWithEnv's `storage` option).
+// Layered *under* the per-call runWithStorageConfig scope and *over* the process
+// env, so a whole suite can declare its backend once — without wrapping each test
+// body or mutating STORAGE_ZONE_*/LOCAL_STORAGE_PATH env vars. Held as a typed
+// StorageConfig object, not env strings, so it can't reintroduce the env-var
+// races runWithStorageConfig exists to avoid; a per-test runWithStorageConfig
+// scope still wins over it.
+const [getTestStorageConfig, storageConfigRef] = lazyRef<StorageConfig | null>(
+  () => null,
+);
+
+/**
+ * Test-only: set the suite-level storage config that describeWithEnv's `storage`
+ * option applies. A directly-exported named function (not an `export {}` list,
+ * which the test-hook scanner does not detect, nor a module-level alias) so it is
+ * visible to and registered in `ALLOWED_TEST_HOOKS`
+ * (test/lib/code-quality.test.ts), alongside `runWithStorageConfig`.
+ */
+export function setStorageConfigForTest(config: StorageConfig | null): void {
+  storageConfigRef(config);
+}
+
+/**
+ * Read storage config: per-call AsyncLocalStorage scope first, then the
+ * suite-level test default, then env vars.
+ */
 const getStorageConfig = (): StorageConfig => {
-  const ctx = storageConfigStore.getStore();
+  const ctx = storageConfigStore.getStore() ?? getTestStorageConfig();
   if (ctx) return ctx;
   return {
     zoneKey: getEnv("STORAGE_ZONE_KEY") ?? "",
@@ -52,14 +79,17 @@ const getStorageConfig = (): StorageConfig => {
  * Returns null if local storage is not configured or explicitly disabled.
  */
 const getLocalStoragePath = (): string | null => {
-  const ctx = storageConfigStore.getStore();
+  const ctx = storageConfigStore.getStore() ?? getTestStorageConfig();
   if (ctx && "localPath" in ctx) {
     return ctx.localPath || null;
   }
   return getEnv("LOCAL_STORAGE_PATH") ?? null;
 };
 
-/** Supported image types — single source of truth for mime, extension, and magic bytes */
+/** Known image types — single source of truth for mime, extension, and magic
+ * bytes. GIF is still recognised so legacy `.gif` files (stored before uploads
+ * were transcoded to WebP) keep serving, but it is not an accepted *upload*
+ * format — see `UPLOADABLE_MIMES`. */
 const IMAGE_TYPES = [
   { ext: ".jpg", magic: [0xff, 0xd8, 0xff], mime: "image/jpeg" },
   { ext: ".png", magic: [0x89, 0x50, 0x4e, 0x47], mime: "image/png" },
@@ -67,8 +97,21 @@ const IMAGE_TYPES = [
   { ext: ".webp", magic: [0x52, 0x49, 0x46, 0x46], mime: "image/webp" },
 ] as const;
 
-/** Derived lookups */
-const MIME_TO_EXT = Object.fromEntries(IMAGE_TYPES.map((t) => [t.mime, t.ext]));
+/** MIME types accepted for *upload*. Every upload is decoded and transcoded to
+ * WebP, so this is exactly the set the image pipeline can decode
+ * (`DecodableMime`): JPEG, PNG, and WebP. GIF is deliberately excluded — a
+ * static WebP transcode would silently drop any animation. */
+export const UPLOADABLE_MIMES: readonly DecodableMime[] = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+];
+
+/** Whether a content type is an accepted image-upload format. */
+const isUploadableMime = (mime: string): mime is DecodableMime =>
+  (UPLOADABLE_MIMES as readonly string[]).includes(mime);
+
+/** Derived lookup: file extension → MIME type, for serving stored files. */
 const EXT_TO_MIME = Object.fromEntries(IMAGE_TYPES.map((t) => [t.ext, t.mime]));
 
 /**
@@ -123,11 +166,15 @@ export type ImageValidationError =
 
 /** Image validation result */
 export type ImageValidationResult =
-  | { valid: true; detectedType: string }
+  | { valid: true; detectedType: DecodableMime }
   | { valid: false; error: ImageValidationError };
 
 /**
- * Validate an image file: check MIME type, size, and magic bytes.
+ * Validate an image file: check size, the declared MIME type, and the magic
+ * bytes. Both the declared type and the sniffed content must be an accepted
+ * upload format (`UPLOADABLE_MIMES`); a mismatch or an unsupported format (e.g.
+ * a GIF, or a file whose bytes don't match any decodable format) is rejected.
+ * On success, `detectedType` is the sniffed format the transcoder will decode.
  */
 export const validateImage = (
   data: Uint8Array,
@@ -137,12 +184,12 @@ export const validateImage = (
     return { error: "too_large", valid: false };
   }
 
-  if (!IMAGE_TYPES.some((t) => t.mime === contentType)) {
+  if (!isUploadableMime(contentType)) {
     return { error: "invalid_type", valid: false };
   }
 
   const detectedType = detectImageType(data);
-  if (!detectedType) {
+  if (!detectedType || !isUploadableMime(detectedType)) {
     return { error: "invalid_content", valid: false };
   }
 
@@ -152,7 +199,7 @@ export const validateImage = (
 /** User-facing messages for image validation errors */
 export const IMAGE_ERROR_MESSAGES: Record<ImageValidationError, string> = {
   invalid_content: "File does not appear to be a valid image",
-  invalid_type: "Image must be a JPEG, PNG, GIF, or WebP file",
+  invalid_type: "Image must be a JPEG, PNG, or WebP file",
   too_large: `Image exceeds the ${formatBytes(MAX_IMAGE_SIZE)} size limit`,
 };
 
@@ -169,40 +216,59 @@ export const tryDeleteFile = async (
   }
 };
 
-/** Listing shape that owns storage files */
-type ListingWithStorage = {
+/** Listing shape that owns an attachment file */
+type ListingWithAttachmentStorage = {
   id: number;
-  image_url: string;
   attachment_url: string;
 };
 
-/** Delete the image and attachment files for a single listing */
-export const deleteListingStorageFiles = async (
-  listing: ListingWithStorage,
+/** Image shape that owns storage files */
+type ImageWithStorage = {
+  id: number;
+  filename: NonEmptyString;
+  filename_thumb: NonEmptyString;
+};
+
+/** Delete the attachment file for a single listing */
+export const deleteListingAttachmentFile = async (
+  listing: ListingWithAttachmentStorage,
   reason: string,
 ): Promise<void> => {
-  if (listing.image_url) {
-    await tryDeleteFile(listing.image_url, listing.id, reason);
-  }
   if (listing.attachment_url) {
     await tryDeleteFile(listing.attachment_url, listing.id, reason);
   }
 };
 
-/** Delete all storage files (images and attachments) for a list of listings */
-export const deleteAllListingStorageFiles = async (
-  listings: ReadonlyArray<ListingWithStorage>,
+/** Delete all attachment files for a list of listings */
+export const deleteAllListingAttachmentFiles = async (
+  listings: ReadonlyArray<ListingWithAttachmentStorage>,
 ): Promise<void> => {
   for (const listing of listings) {
-    await deleteListingStorageFiles(listing, "database reset");
+    await deleteListingAttachmentFile(listing, "database reset");
   }
 };
 
-/** Generate a random filename with the correct extension */
-export const generateImageFilename = (detectedType: string): string => {
-  const ext = MIME_TO_EXT[detectedType];
-  return `${crypto.randomUUID()}${ext}`;
+/** Delete the full-size image and thumbnail files for a first-class image. */
+export const deleteImageStorageFiles = async (
+  image: ImageWithStorage,
+  reason: string,
+): Promise<void> => {
+  await tryDeleteFile(image.filename, image.id, reason);
+  await tryDeleteFile(image.filename_thumb, image.id, reason);
 };
+
+/** Delete all first-class image files. */
+export const deleteAllImageStorageFiles = async (
+  images: ReadonlyArray<ImageWithStorage>,
+): Promise<void> => {
+  for (const image of images) {
+    await deleteImageStorageFiles(image, "database reset");
+  }
+};
+
+/** Generate a random `.webp` filename. Every uploaded image is transcoded to
+ * WebP, so stored image variants always carry the `.webp` extension. */
+export const generateWebpFilename = (): string => `${crypto.randomUUID()}.webp`;
 
 // ---------------------------------------------------------------------------
 // Local filesystem backend
@@ -284,15 +350,29 @@ const encryptAndUpload = async (
 ): Promise<string> => uploadRaw(await encryptBytes(data), filename);
 
 /**
- * Upload an image to Bunny storage.
- * Encrypts the image bytes before uploading.
- * Returns the filename (without path) on success.
+ * Transcode an uploaded image to WebP and store one file per target.
+ *
+ * The source bytes (of the validated `mime`) are decoded once, then each target
+ * is downscaled to its max width and encoded to WebP at its quality; each
+ * variant is encrypted and uploaded under a fresh `.webp` filename. Returns the
+ * stored filenames in the same order as `targets` — so a caller wanting a
+ * full-size image plus a thumbnail passes both targets and destructures the two
+ * filenames back out.
+ *
+ * The image pipeline (~1MB of codec wasm) is dynamically imported here so it is
+ * loaded only on the first upload, never at cold boot.
  */
-export const uploadImage = (
+export const uploadImageTargets = async (
   data: Uint8Array,
-  detectedType: string,
-): Promise<string> =>
-  encryptAndUpload(data, generateImageFilename(detectedType));
+  mime: DecodableMime,
+  targets: ReadonlyArray<ImageTarget>,
+): Promise<string[]> => {
+  const { transcodeToWebp } = await import("#shared/images/transcode.ts");
+  const variants = await transcodeToWebp(data, mime, targets);
+  return Promise.all(
+    variants.map((bytes) => encryptAndUpload(bytes, generateWebpFilename())),
+  );
+};
 
 /**
  * Collect a ReadableStream into a single Uint8Array.

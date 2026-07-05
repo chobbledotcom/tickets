@@ -8,29 +8,54 @@
  * derived from two reference dates.
  */
 
+import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
 import {
   generateUniqueGroupSlug,
   groupFormPost,
   withGroup,
 } from "#routes/admin/groups.ts";
+/* jscpd:ignore-start */
 import { requireSessionOr } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+/* jscpd:ignore-end */
 import {
   applyNameReplacement,
   computeDayOffset,
   shiftUtcIsoByDays,
 } from "#shared/bulk-replace.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { executeBatch } from "#shared/db/client.ts";
 import {
+  cloneGroupMembershipStatement,
+  getGroupBySlugIndex,
+  getGroupPackagePrices,
   getListingsByGroupId,
   groupsTable,
   setGroupListingsActive,
 } from "#shared/db/groups.ts";
-import { listingsTable } from "#shared/db/listings.ts";
+import {
+  dayCountPriceStatements,
+  getGroupDayPrices,
+  groupDayPriceStatements,
+  groupFlatPriceStatements,
+  syncListingPricesForIds,
+} from "#shared/db/listing-prices.ts";
+import {
+  getStoredListingWithCount,
+  type ListingInput,
+  listingsTable,
+} from "#shared/db/listings.ts";
+import {
+  isNameTakenAnywhere,
+  normalizeEntityName,
+} from "#shared/db/name-registry.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
+import {
+  buildDuplicateListingInput,
+  deactivationOrphanedAddOnError,
+} from "#shared/listings-actions.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import {
@@ -39,6 +64,7 @@ import {
   adminDuplicateGroupPage,
   adminReactivateGroupPage,
 } from "#templates/admin/bulk-actions.tsx";
+import { remapDuplicatedGroupEdges } from "./listings-parents.ts";
 
 /** Render a bulk-actions sub-page for an authenticated group detail view. */
 const groupListingsPage =
@@ -81,6 +107,23 @@ const groupTogglePost = (opts: { active: boolean; action: string }) =>
     mismatchRedirect: (group) =>
       `/admin/groups/${group.id}/bulk-actions/${opts.action}`,
     onConfirm: async ({ context: group }) => {
+      // A bulk DEACTIVATE marks every group member inactive at once, which can
+      // orphan a child-scoped opt-in add-on rescued only by those members'
+      // pages. Run the same shared guard the single-listing/API paths use,
+      // with all members' ids marked inactive together, and block before the
+      // batch UPDATE. Reactivation can only add pages.
+      if (!opts.active) {
+        const members = await getListingsByGroupId(group.id);
+        const error = await deactivationOrphanedAddOnError(
+          new Set(members.map((listing) => listing.id)),
+        );
+        if (error) {
+          return errorRedirect(
+            `/admin/groups/${group.id}/bulk-actions/${opts.action}`,
+            error,
+          );
+        }
+      }
       const affected = await setGroupListingsActive(group.id, opts.active);
       await logActivity(
         `Group '${group.name}' ${opts.action}d (${affected} listing(s))`,
@@ -105,6 +148,31 @@ const handleReactivateGroupPost = groupTogglePost({
   active: true,
 });
 
+/** The first generated name — the new group or one of the clones — that would
+ * break the cross-entity name invariant (already used by another listing/group,
+ * or duplicated within this batch), or null when every name is unique. The batch
+ * insert below bypasses the create-path validators, so the rule the form/API
+ * enforce is re-checked here; otherwise a blank find/replace would clone names
+ * verbatim and later make name-based catalog imports ambiguous. */
+const firstDuplicateNameError = async (
+  newGroupName: string,
+  cloneInputs: readonly { input: ListingInput }[],
+): Promise<string | null> => {
+  const seen = new Set<string>();
+  const names = [newGroupName, ...cloneInputs.map(({ input }) => input.name)];
+  for (const name of names) {
+    const key = normalizeEntityName(name);
+    if (seen.has(key)) {
+      return `More than one duplicated listing or group would be named "${name}" — set a find/replace so each name is unique.`;
+    }
+    seen.add(key);
+    if (await isNameTakenAnywhere(name)) {
+      return `A listing or group named "${name}" already exists — choose a different group name, or a find/replace that makes each clone's name unique.`;
+    }
+  }
+  return null;
+};
+
 /** POST /admin/groups/:id/bulk-actions/duplicate */
 const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   const formUrl = `/admin/groups/${group.id}/bulk-actions/duplicate`;
@@ -121,35 +189,137 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
 
   const listings = await getListingsByGroupId(group.id);
   const { slug, slugIndex } = await generateUniqueGroupSlug();
-  const newGroup = await groupsTable.insert({
+  // Build every clone's input up front — the reads (stored re-read + a fresh
+  // random slug) don't belong inside the write transaction, and the clone is
+  // taken from each listing's *stored* values, not the resolved view, so a
+  // duplicate made while a default is set doesn't bake that default into the
+  // new row (matching the single-listing edit/duplicate path).
+  const cloneInputs = await Promise.all(
+    listings.map(async (listing) => {
+      const stored = (await getStoredListingWithCount(listing.id))!;
+      return {
+        input: await buildDuplicateListingInput(stored, {
+          closesAt: shiftUtcIsoByDays(stored.closes_at ?? "", dayOffset),
+          date: shiftUtcIsoByDays(stored.date, dayOffset),
+          name: applyNameReplacement(stored.name, nameFind, nameReplace),
+        }),
+        sourceId: listing.id,
+      };
+    }),
+  );
+  // Reject before any write if the new group name or a clone name collides
+  // (with an existing entity or another clone) — upholding the name invariant.
+  const nameError = await firstDuplicateNameError(newName, cloneInputs);
+  if (nameError) return errorRedirect(formUrl, nameError);
+
+  const memberBySource = new Map(
+    (await getGroupPackagePrices(group.id)).map((row) => [row.listing_id, row]),
+  );
+
+  // The group row, its cloned listings, and their membership rows (each carrying
+  // the source's package price/quantity so a package duplicates identically) all
+  // land in ONE batch — atomic, a single round-trip, and clear of the
+  // interactive-transaction round-trip guard regardless of how many listings the
+  // group has. Memberships resolve the new group and clone by the slug_index each
+  // was just inserted with, so no per-row id read is needed. Parent/child edges
+  // are remapped after the batch commits, since they read the new clone rows.
+  const groupInsert = await groupsTable.insertStatement!({
     description: group.description,
     hidden: group.hidden,
+    hidePackageListings: group.hide_package_listings,
+    isPackage: group.is_package,
     maxAttendees: group.max_attendees,
     name: newName,
     slug,
     slugIndex,
     termsAndConditions: group.terms_and_conditions,
   });
-
-  for (const listing of listings) {
-    const input = await buildDuplicateListingInput(listing, {
-      closesAt: shiftUtcIsoByDays(listing.closes_at ?? "", dayOffset),
-      date: shiftUtcIsoByDays(listing.date, dayOffset),
-      groupId: newGroup.id,
-      name: applyNameReplacement(listing.name, nameFind, nameReplace),
+  const cloneInserts = await Promise.all(
+    cloneInputs.map(({ input }) => listingsTable.insertStatement!(input)),
+  );
+  const membershipInserts = cloneInputs.map(({ sourceId, input }) => {
+    // Every clone was just read as a member of the source group, so it always
+    // has a group_listings row whose quantity the clone copies. The flat price
+    // override lives in listing_prices and is rewritten to the new group below.
+    const source = memberBySource.get(sourceId)!;
+    return cloneGroupMembershipStatement({
+      groupSlugIndex: slugIndex,
+      listingSlugIndex: input.slugIndex,
+      quantity: source.quantity,
     });
-    await listingsTable.insert(input);
+  });
+  await executeBatch([groupInsert, ...cloneInserts, ...membershipInserts]);
+
+  // Resolve the freshly-inserted ids by their (unique) slug_index for the redirect
+  // and the edge remap — two reads, not one per clone.
+  const newGroupId = (await getGroupBySlugIndex(slugIndex))!.id;
+  const idBySlugIndex = new Map(
+    (await getListingsByGroupId(newGroupId)).map((l) => [l.slug_index, l.id]),
+  );
+  // The clones were inserted via insertStatement in the batch above, bypassing
+  // the listingsTable wrapper, so sync their `base` price rows explicitly —
+  // otherwise a priced clone has no matching base row until it is edited.
+  await syncListingPricesForIds([...idBySlugIndex.values()]);
+  const idMap = new Map(
+    cloneInputs.map(({ sourceId, input }) => [
+      sourceId,
+      idBySlugIndex.get(input.slugIndex)!,
+    ]),
+  );
+  // The clones' own per-day-count prices are no longer a column, so the raw
+  // insert didn't carry them — write each clone's day_count rows from the day
+  // prices its duplicate input carried over from the source.
+  if (cloneInputs.length > 0) {
+    await executeBatch(
+      cloneInputs.flatMap(({ sourceId, input }) =>
+        dayCountPriceStatements(idMap.get(sourceId)!, input.dayPrices),
+      ),
+    );
   }
+  // The members' package price overrides can't be batch-copied like the quantity
+  // (their `group`/`group_day` price_ids embed the group id, and the new group's
+  // id only exists after the batch), so rewrite them here keyed to the NEW group
+  // and each source member's clone.
+  const sourceDayPrices = await getGroupDayPrices(group.id);
+  await executeBatch([
+    ...groupFlatPriceStatements(
+      newGroupId,
+      [...memberBySource].map(([sourceId, row]) => ({
+        listingId: idMap.get(sourceId)!,
+        price: row.package_price,
+      })),
+    ),
+    ...groupDayPriceStatements(
+      newGroupId,
+      [...sourceDayPrices].map(([sourceId, byDay]) => ({
+        dayPrices: Object.fromEntries(byDay),
+        listingId: idMap.get(sourceId)!,
+      })),
+    ),
+  ]);
+
+  // A cloned parent whose remapped edge set fails re-validation is left gateless
+  // rather than written; surface those as a warning flash (mirroring the
+  // single-listing duplicate's "but: …" behaviour) instead of silently
+  // reporting success while producing a gateless standalone clone.
+  const edgeErrors = await remapDuplicatedGroupEdges(idMap);
 
   await logActivity(
-    `Group '${group.name}' duplicated to '${newGroup.name}' with ${listings.length} listing(s)`,
+    `Group '${group.name}' duplicated to '${newName}' with ${listings.length} listing(s)`,
   );
 
-  return redirect(
-    `/admin/groups/${newGroup.id}`,
-    `Duplicated '${group.name}' to '${newGroup.name}' (${listings.length} listing(s))`,
-    true,
-  );
+  const success = `Duplicated '${group.name}' to '${newName}' (${listings.length} listing(s))`;
+  if (edgeErrors.length > 0) {
+    return redirect(
+      `/admin/groups/${newGroupId}`,
+      t("listings_table.group_duplicate_children_dropped", {
+        reason: edgeErrors.join("; "),
+        success,
+      }),
+      false,
+    );
+  }
+  return redirect(`/admin/groups/${newGroupId}`, success, true);
 });
 
 /** Bulk actions routes */

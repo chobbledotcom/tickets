@@ -3,18 +3,20 @@
  * form and the conversation history.
  */
 
+/* jscpd:ignore-start */
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type {
   AdminSession,
   Attendee,
   ListingWithCount,
 } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
-import { Layout } from "#templates/layout.tsx";
+import { DataTable } from "#templates/components/data-table.tsx";
+/* jscpd:ignore-end */
 
 /** A text-message activity-log entry, shown as conversation history. */
 export type SmsHistoryItem = {
@@ -25,7 +27,7 @@ export type SmsHistoryItem = {
 type SmsPageOptions = {
   configured: boolean;
   queueCount: number;
-  flash: { success?: string; error?: string };
+  flash: { success?: string | undefined; error?: string | undefined };
   target?: { attendee: Attendee; listing: ListingWithCount };
   history: SmsHistoryItem[];
 };
@@ -42,24 +44,16 @@ const historyTable = (history: SmsHistoryItem[]): string =>
   history.length === 0
     ? `<p>${t("sms.contact.no_messages")}</p>`
     : String(
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>{t("sms.contact.col_when")}</th>
-                <th>{t("sms.contact.col_message")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <Raw
-                html={pipe(
-                  map((item: SmsHistoryItem) => HistoryRow({ item })),
-                  joinStrings,
-                )(history)}
-              />
-            </tbody>
-          </table>
-        </div>,
+        <DataTable
+          columns={[
+            { header: t("sms.contact.col_when") },
+            { header: t("sms.contact.col_message") },
+          ]}
+          rows={pipe(
+            map((item: SmsHistoryItem) => HistoryRow({ item })),
+            joinStrings,
+          )(history)}
+        />,
       );
 
 const ComposeForm = ({
@@ -110,17 +104,17 @@ const ComposeForm = ({
   );
 
 export const smsPage = (session: AdminSession, opts: SmsPageOptions): string =>
-  String(
-    <Layout
-      title={
-        opts.target
-          ? t("sms.contact.title", { name: opts.target.attendee.name })
-          : t("sms.page.title")
-      }
-    >
-      <AdminNav active="/admin/" session={session} />
-      <Flash error={opts.flash.error} success={opts.flash.success} />
-
+  flashAdminPage(
+    opts.target
+      ? t("sms.contact.title", { name: opts.target.attendee.name })
+      : t("sms.page.title"),
+    "/admin/",
+  )(
+    session,
+    opts.flash.error,
+    opts.flash.success,
+  )(
+    <>
       <h1>{t("sms.page.title")}</h1>
       <p>{t("sms.queue.awaiting", { count: opts.queueCount })}</p>
 
@@ -134,5 +128,5 @@ export const smsPage = (session: AdminSession, opts: SmsPageOptions): string =>
           })}
         />
       )}
-    </Layout>,
+    </>,
   );

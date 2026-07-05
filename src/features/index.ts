@@ -12,8 +12,12 @@ import {
   getCleanUrl,
   isEmbeddablePath,
   isValidContentType,
-  isWebhookPath,
 } from "#routes/middleware.ts";
+import {
+  emptyCustomCssResponse,
+  isCssResponse,
+} from "#routes/public/custom-css.ts";
+import { bufferRequestBody } from "#routes/request-body.ts";
 import {
   databaseBusyResponse,
   htmlResponse,
@@ -28,12 +32,7 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
-import {
-  getClientIp,
-  normalizePath,
-  parseCookies,
-  parseRequest,
-} from "#routes/url.ts";
+import { getClientIp, parseCookies, parseRequest } from "#routes/url.ts";
 import { runWithClientIp } from "#shared/client-context.ts";
 import {
   loadEffectiveDomain,
@@ -44,6 +43,7 @@ import {
   clearSessionCookie,
   parseFlashValue,
 } from "#shared/cookies.ts";
+import { runWithCsrfContext } from "#shared/csrf.ts";
 import { maybeBackfillActivityLog } from "#shared/db/activity-log-backfill.ts";
 import { DatabaseBusyError } from "#shared/db/client.ts";
 import {
@@ -56,7 +56,13 @@ import {
   enableQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
-import { CONFIG_KEYS, SNAPSHOT_KEYS, settings } from "#shared/db/settings.ts";
+import {
+  CONFIG_KEYS,
+  EMAIL_BODY_KEYS,
+  PRUNE_KEYS,
+  SNAPSHOT_KEYS,
+  settings,
+} from "#shared/db/settings.ts";
 import {
   assertSettingsReadsDeclared,
   runWithSettingsAudit,
@@ -69,8 +75,12 @@ import {
 } from "#shared/flash-context.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { takeForm } from "#shared/form-stash.ts";
-import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
-import { detectIframeMode } from "#shared/iframe.ts";
+import {
+  clearSavedFormData,
+  runWithSavedFormContext,
+  setSavedFormData,
+} from "#shared/forms.tsx";
+import { detectIframeMode, runWithIframeContext } from "#shared/iframe.ts";
 import {
   createRequestTimer,
   ErrorCode,
@@ -110,6 +120,18 @@ const loadTicketRoutes = lazyExport(
 const loadOrderRoutes = lazyExport(
   () => import("#routes/public/order.ts"),
   "routeOrder",
+);
+const loadSitePageRoutes = lazyExport(
+  () => import("#routes/public/site-page.ts"),
+  "routeSitePage",
+);
+const loadOrderJs = lazyExport(
+  () => import("#routes/public/order-js.ts"),
+  "handleOrderJs",
+);
+const loadCustomCss = lazyExport(
+  () => import("#routes/public/custom-css.ts"),
+  "handleCustomCss",
 );
 const loadPaymentRoutes = lazyExport(
   () => import("#routes/api/webhooks.ts"),
@@ -254,8 +276,13 @@ const getPrefix = (path: string): string => {
  * - pruning self-guards on last_pruned_*
  * - the activity-log backfill self-guards on its done flag + last-run stamp
  * - session auth + PII decryption read the key material
+ * - listing reads resolve listing defaults at the cache layer
+ *   (`resolveListingDefaults`), which can run on any route that loads a listing;
+ *   that resolution also reads has_logistics to gate the logistics default
  */
 const INFRA_SETTINGS: readonly string[] = [
+  CONFIG_KEYS.LISTING_DEFAULTS,
+  CONFIG_KEYS.HAS_LOGISTICS,
   CONFIG_KEYS.CUSTOM_DOMAIN,
   CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
   CONFIG_KEYS.BUNNY_SUBDOMAIN,
@@ -270,15 +297,10 @@ const INFRA_SETTINGS: readonly string[] = [
   CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
   CONFIG_KEYS.LAST_PRUNED_SESSIONS,
   CONFIG_KEYS.LAST_PRUNED_SUMUP,
-  CONFIG_KEYS.LAST_PRUNED_STRINGS,
-  CONFIG_KEYS.LAST_PRUNED_LOGINS,
-  CONFIG_KEYS.LAST_PRUNED_TOKENS,
-  CONFIG_KEYS.LAST_PRUNED_CONTACTS,
-  CONFIG_KEYS.LAST_PRUNED_INVITES,
   // The orphaned-attendee auto-purge runs from the same fire-and-forget
   // scheduler, so its enable flag, retention age, and last-run stamp must be
   // readable on every request.
-  CONFIG_KEYS.LAST_PRUNED_ORPHANS,
+  ...PRUNE_KEYS,
   CONFIG_KEYS.AUTO_PURGE_ORPHANS,
   CONFIG_KEYS.ORPHAN_PURGE_RETENTION,
   // The activity-log backfill runs from the same fire-and-forget scheduler and
@@ -327,14 +349,7 @@ const PAYMENT_SETTINGS: readonly string[] = [
 const EMAIL_SETTINGS: readonly string[] = [
   CONFIG_KEYS.BUSINESS_EMAIL,
   CONFIG_KEYS.EMAIL_PROVIDER,
-  CONFIG_KEYS.EMAIL_API_KEY,
-  CONFIG_KEYS.EMAIL_FROM_ADDRESS,
-  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
-  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
-  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT,
-  CONFIG_KEYS.EMAIL_TPL_ADMIN_SUBJECT,
-  CONFIG_KEYS.EMAIL_TPL_ADMIN_HTML,
-  CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT,
+  ...EMAIL_BODY_KEYS,
 ];
 
 /** Apple Wallet pass generation reads all five cert/identifier keys. */
@@ -407,6 +422,8 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   ],
   // Contact form submission sends an email to the business address.
   contact: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY, ...EMAIL_SETTINGS],
+  // The custom stylesheet route reads only the custom_css setting.
+  "custom.css": [CONFIG_KEYS.CUSTOM_CSS],
   demo: [],
   events: [],
   // --- Feeds (ICS/RSS): website title + country (timezone) ---
@@ -423,6 +440,16 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
     CONFIG_KEYS.ORDER_INTRO_TEXT,
     CONFIG_KEYS.COUNTRY,
   ],
+  // External order library module: enable flag + embed allow-list (CORS) +
+  // country (currency for the embedded prices). No public nav, no secrets.
+  "order.js": [
+    CONFIG_KEYS.EXTERNAL_ORDER_ENABLED,
+    CONFIG_KEYS.EMBED_HOSTS,
+    CONFIG_KEYS.COUNTRY,
+  ],
+  // --- User-created content pages (full public nav; country because the
+  // nav's group-liveness check reaches the timezone-aware calendar reads) ---
+  page: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY],
   // --- Checkout / payment (bare layout, no public nav) ---
   pay: PAYMENT_SETTINGS,
   payment: [...PAYMENT_SETTINGS, ...EMAIL_SETTINGS],
@@ -470,28 +497,62 @@ const READ_ONLY_GET_PATTERNS = [
   /^\/admin\/listing\/new$/,
   /^\/admin\/listing\/\d+\/edit$/,
   /^\/admin\/listing\/\d+\/duplicate$/,
+  /^\/admin\/listing\/\d+\/images$/,
+  /^\/admin\/groups\/\d+\/images$/,
+  /^\/admin\/images\/new$/,
+  /^\/admin\/images\/\d+\/edit$/,
+  /^\/admin\/images\/\d+\/delete$/,
   /^\/admin\/groups\/new$/,
   /^\/admin\/groups\/\d+\/edit$/,
+  /^\/admin\/site\/pages\/new$/,
+  /^\/admin\/site\/pages\/\d+\/edit$/,
   /^\/admin\/attendees\/new$/,
+  /^\/admin\/ledger\/[^/]+\/[^/]+\/add$/,
+  /^\/admin\/ledger\/entries\/\d+\/edit$/,
 ];
 
-/** Paths that should be blocked when POSTed in read-only mode */
-const READ_ONLY_POST_PATTERNS = [
-  /^\/ticket\//,
-  /^\/admin\/listing$/,
-  /^\/admin\/listing\/\d+\/edit$/,
-  /^\/admin\/groups$/,
-  /^\/admin\/groups\/\d+\/edit$/,
-  /^\/admin\/groups\/\d+\/add-listings$/,
-  /^\/admin\/listing\/\d+\/attendee$/,
-  /^\/admin\/attendees\/new$/,
-  // The unified attendee edit posts a writeoff balance correction to the money
-  // ledger (decision 14), so it mutates and must be blocked read-only. The `$`
-  // keeps it from matching the `/merge`, `/refresh-payment` sub-routes.
-  /^\/admin\/attendees\/\d+$/,
-  // Decision-14 income/revenue corrections post writeoff adjustment legs.
-  /^\/admin\/listing\/\d+\/income$/,
-  /^\/admin\/modifiers\/\d+\/revenue$/,
+const isMutatingMethod = (method: string): boolean =>
+  method === "DELETE" ||
+  method === "PATCH" ||
+  method === "POST" ||
+  method === "PUT";
+
+/**
+ * Paths that remain writable in read-only mode (default-deny allowlist).
+ * Any POST/PUT/PATCH/DELETE not matching one of these patterns is blocked.
+ *
+ * Categories:
+ *  - Auth: login / logout
+ *  - Billing lifecycle: renewal, balance payment, payment webhook
+ *  - Apple Wallet protocol stubs (/v1/*) — must return 200/201, not redirect
+ *  - Inbound webhooks: SMS
+ *  - Public / owner messaging: join, unsubscribe, contact, admin support
+ *  - Inter-instance machine endpoint: site credentials
+ *  - Scheduled maintenance cron (builder fleet pruning)
+ *  - Admin maintenance: backup creation (read-only DB dump)
+ *  - On-site ops: check-in (token and admin), scan, refresh-payment, deliveries
+ */
+const READ_ONLY_SAFE_PATHS = [
+  /^\/admin\/login$/,
+  /^\/admin\/logout$/,
+  /^\/renew$/,
+  /^\/pay\/[^/]+$/,
+  /^\/payment\/webhook$/,
+  /^\/v1\/devices\/[^/]+\/registrations\/[^/]+\/[^/]+$/,
+  /^\/v1\/log$/,
+  /^\/sms\/webhook$/,
+  /^\/join\/[^/]+$/,
+  /^\/unsubscribe$/,
+  /^\/contact$/,
+  /^\/admin\/support$/,
+  /^\/instance\/site-credentials$/,
+  /^\/scheduled$/,
+  /^\/admin\/backup\/create$/,
+  /^\/checkin\/[^/]+$/,
+  /^\/admin\/listing\/\d+\/attendee\/\d+\/checkin$/,
+  /^\/admin\/listing\/\d+\/scan$/,
+  /^\/admin\/attendees\/\d+\/refresh-payment$/,
+  /^\/admin\/deliveries\/mark$/,
 ];
 
 /**
@@ -501,23 +562,22 @@ const READ_ONLY_POST_PATTERNS = [
 const readOnlyGuard = (path: string, method: string): Response | null => {
   if (!isReadOnly()) return null;
 
-  // Block all JSON API mutations (POST/PUT/DELETE on /api/*)
-  if (path.startsWith("/api/") && method !== "GET" && method !== "OPTIONS") {
+  // Block all JSON API mutations (POST/PUT/PATCH/DELETE on /api/*)
+  if (path.startsWith("/api/") && isMutatingMethod(method)) {
     return jsonResponse({ error: READ_ONLY_MESSAGE }, 403);
   }
 
-  // Block GET pages for create/edit forms
+  // Block GET pages for create/edit forms (cosmetic blocklist)
   if (method === "GET") {
     for (const pattern of READ_ONLY_GET_PATTERNS) {
       if (pattern.test(path)) return redirectResponse("/read-only");
     }
   }
 
-  // Block form POSTs for create/edit actions
-  if (method === "POST") {
-    for (const pattern of READ_ONLY_POST_PATTERNS) {
-      if (pattern.test(path)) return redirectResponse("/read-only");
-    }
+  // Default-deny: block all mutating requests not on the safe list
+  if (isMutatingMethod(method)) {
+    if (READ_ONLY_SAFE_PATHS.some((p) => p.test(path))) return null;
+    return redirectResponse("/read-only");
   }
 
   return null;
@@ -577,6 +637,23 @@ const publicPageHandlers = reduce(
   {},
 )(PUBLIC_GET_PAGES);
 
+/** Serve the dynamic `/order.js` external-order module; ignore any other path
+ * under the `order.js` prefix. Named (not an inline arrow) so coverage
+ * attributes its branches correctly. */
+const orderJsPrefixHandler: RouterFn = async (request, path, method) => {
+  if (path !== "/order.js" || method !== "GET") return null;
+  const handle = await loadOrderJs();
+  return handle(request);
+};
+
+/** Serve the dynamic `/custom.css` stylesheet from the `custom_css` setting;
+ * ignore any other path under the `custom.css` prefix. */
+const customCssPrefixHandler: RouterFn = async (_request, path, method) => {
+  if (path !== "/custom.css" || method !== "GET") return null;
+  const handle = await loadCustomCss();
+  return handle();
+};
+
 /** Prefix dispatch table — O(1) lookup replaces the sequential ?? chain */
 const prefixHandlers: Record<string, RouterFn> = {
   ...publicPageHandlers,
@@ -601,6 +678,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   caldav: lazyRoute(loadFeedRoutes),
   checkin: lazyRoute(loadCheckinRoutes),
   contact: contactPrefixHandler,
+  "custom.css": customCssPrefixHandler,
   demo: lazyRoute(loadDemoResetRoutes),
   events: legacyEventsRedirectHandler,
   feeds: lazyRoute(loadFeedRoutes),
@@ -609,6 +687,8 @@ const prefixHandlers: Record<string, RouterFn> = {
   instance: lazyRoute(loadInstanceRoutes),
   join: lazyRoute(loadJoinRoutes),
   order: lazyRoute(loadOrderRoutes),
+  "order.js": orderJsPrefixHandler,
+  page: lazyRoute(loadSitePageRoutes),
   pay: lazyRoute(loadBalanceRoutes),
   payment: lazyRoute(loadPaymentRoutes),
   "read-only": (_request, path, method) =>
@@ -710,29 +790,43 @@ const logAndReturn = (
 };
 
 /**
- * Buffer POST bodies BEFORE entering async context wrappers. The Bunny Edge
- * runtime can garbage-collect the underlying request body resource during
- * awaits, so we must capture it while the resource is still alive.
- * This applies to webhook bodies (JSON) and multipart form uploads (file
- * data backed by Blob resources that are especially prone to GC).
- * Use normalizePath on the raw pathname so trailing-slash variants like
- * /payment/webhook/ are correctly detected (the router normalizes later,
- * but by then the body resource may already be garbage-collected).
+ * The POST content types whose bodies a handler actually reads, and which must
+ * therefore be buffered before the GC-prone awaits below. Mirrors the bodies
+ * `isValidContentType` accepts: forms (urlencoded/multipart) and JSON (webhooks
+ * + JSON API). A bodyless POST — `/scheduled`, `/instance/site-credentials`,
+ * sent with no content-type — matches none of these and is left unbuffered, so
+ * we never read a body the handler ignores.
+ */
+const BUFFERED_POST_CONTENT_TYPES = [
+  "application/x-www-form-urlencoded",
+  "multipart/form-data",
+  "application/json",
+] as const;
+
+/**
+ * Buffer a body-bearing POST body BEFORE the per-request DB init / settings
+ * load. The Bunny Edge runtime can garbage-collect the underlying request body
+ * resource during those awaits, so a handler that reads the body later — a form
+ * parse, a webhook payload, a JSON API call — would otherwise throw "Cannot read
+ * body as underlying resource unavailable" (logged as a generic CDN_REQUEST
+ * error). Capturing it while the resource is still alive closes that window for
+ * the booking/quote posts (`/calculate`, `/ticket`), webhooks, JSON API calls
+ * and multipart uploads alike. Gated on content type so bodyless POSTs and
+ * non-POST methods (GET/HEAD, the CalDAV verbs) pass straight through without an
+ * unnecessary read. The caller runs this inside the routed `try`, so a failed
+ * read is classified by `handleRoutingError` like any other.
  */
 const bufferRequestIfNeeded = async (request: Request): Promise<Request> => {
-  const { pathname } = new URL(request.url);
-  const contentType = request.headers.get("content-type") ?? "";
-  const needsBodyBuffer =
-    request.method === "POST" &&
-    (isWebhookPath(normalizePath(pathname)) ||
-      contentType.startsWith("multipart/form-data"));
-  if (!needsBodyBuffer) return request;
-  const bufferedBody = new Uint8Array(await request.arrayBuffer());
-  return new Request(request.url, {
-    body: bufferedBody,
-    headers: request.headers,
-    method: request.method,
-  });
+  if (request.method !== "POST") return request;
+  // Content-Type is case-insensitive (HTTP). Lowercase before matching so the
+  // buffer gate accepts the same casings `isValidContentType` does — otherwise a
+  // standards-compliant `Application/JSON` would be validated but skip buffering,
+  // reopening the GC window for that casing.
+  const contentType = (request.headers.get("content-type") ?? "").toLowerCase();
+  const needsBuffer = BUFFERED_POST_CONTENT_TYPES.some((type) =>
+    contentType.startsWith(type),
+  );
+  return needsBuffer ? bufferRequestBody(request) : request;
 };
 
 /**
@@ -783,8 +877,13 @@ const prepareRequestEnvironment = async (
   // (enableFooterDebug, after auth). Non-admin requests skip the overhead.
   if (method === "GET" && getPrefix(path) === "admin") enableQueryLog();
 
+  // Kick off the settings-version probe immediately so the tiny query overlaps
+  // the rest of request setup; loadKeys below awaits its result.
+  settings.prefetchVersion();
+
   // Load only the settings this route needs (infra ∪ prefix bundle) in one
-  // targeted query. The cache is a no-op when still valid (60 s TTL).
+  // targeted query. When the settings version is unchanged since this isolate
+  // last loaded, the cached snapshot is reused with no reload or decryption.
   await settings.loadKeys(settingsForPath(path));
 
   // Schedule DB pruning as fire-and-forget pending work. Each prune task
@@ -843,6 +942,7 @@ const handleRoutingError = (
     logError({
       code: ErrorCode.DB_BUSY,
       detail: formatRequestError(method, path, error),
+      error,
     });
     // Only auto-refresh idempotent requests: reloading a POST would drop the
     // submitted form body without replaying the write.
@@ -851,6 +951,7 @@ const handleRoutingError = (
   logError({
     code: ErrorCode.CDN_REQUEST,
     detail: formatRequestError(method, path, error),
+    error,
   });
   // In tests, surface the real error instead of swallowing it
   // behind a generic "Temporary Error" page
@@ -867,29 +968,61 @@ const handleRoutingError = (
   return temporaryErrorResponse();
 };
 
+const CUSTOM_CSS_PATH = "/custom.css";
+
+/** True for a 3xx redirect response (bodyless — never a stray stylesheet). */
+const isRedirectResponse = (response: Response): boolean =>
+  response.status >= 300 && response.status < 400;
+
 /**
  * The core request pipeline that runs inside all async context wrappers.
  * Performs parsing, early redirects, content-type validation, routing,
  * error handling, and logging.
  */
 const processRequest = async (
-  effectiveRequest: Request,
+  request: Request,
   server: ServerContext | undefined,
 ): Promise<Response> => {
-  const { url, path, method } = parseRequest(effectiveRequest);
+  const { url, path, method } = parseRequest(request);
   const getElapsed = createRequestTimer();
-  detectIframeMode(effectiveRequest.url);
+  detectIframeMode(request.url);
   clearSavedFormData();
+
+  // The public layout links /custom.css on every page, including the system
+  // pages the pipeline answers before the dynamic CSS route runs (setup /
+  // site-not-activated, migration-in-progress, transient error). Serving those
+  // HTML fallbacks for this asset trips the browser's strict MIME check, so an
+  // HTML response for /custom.css is coerced to an empty stylesheet. On a
+  // healthy site the route already returns text/css, making this a no-op.
+  // Redirects (3xx) pass through untouched — a bodyless redirect isn't a stray
+  // stylesheet, and coercing one would swallow the tracking-param cleanup that
+  // rewrites e.g. /custom.css?utm_source=x to the clean URL before the CSS is
+  // served.
+  const finish = (response: Response): Response =>
+    logAndReturn(
+      path === CUSTOM_CSS_PATH &&
+        !isRedirectResponse(response) &&
+        !isCssResponse(response)
+        ? emptyCustomCssResponse()
+        : response,
+      method,
+      path,
+      getElapsed,
+    );
 
   let response!: Response;
   try {
-    const staticResponse = await routeStatic(effectiveRequest, path, method);
+    // Buffer the POST body up front, before the DB init / settings load awaits
+    // below give the Bunny edge runtime a window to GC the body resource. Done
+    // inside this try (and before the first await) so a failed read is logged
+    // and rendered through handleRoutingError, not left to escape the routed
+    // error path.
+    const bufferedRequest = await bufferRequestIfNeeded(request);
+
+    const staticResponse = await routeStatic(bufferedRequest, path, method);
     if (staticResponse) {
-      return logAndReturn(
+      return finish(
         await applySecurityHeaders(staticResponse, isEmbeddablePath(path)),
-        method,
-        path,
-        getElapsed,
       );
     }
 
@@ -901,41 +1034,28 @@ const processRequest = async (
 
     const notActivated = await initializeDatabaseForPath(path);
     if (notActivated) {
-      return logAndReturn(notActivated, method, path, getElapsed);
+      return finish(notActivated);
     }
 
     const trackingRedirect = trackingParamRedirect(url, method);
     if (trackingRedirect) {
-      return logAndReturn(trackingRedirect, method, path, getElapsed);
+      return finish(trackingRedirect);
     }
 
-    await prepareRequestEnvironment(effectiveRequest, path, method);
+    await prepareRequestEnvironment(bufferedRequest, path, method);
 
-    if (!isValidContentType(effectiveRequest, path)) {
-      return logAndReturn(
-        contentTypeRejectionResponse(),
-        method,
-        path,
-        getElapsed,
-      );
+    if (!isValidContentType(bufferedRequest, path)) {
+      return finish(contentTypeRejectionResponse());
     }
 
-    response = logAndReturn(
-      await routeAndFinalize(effectiveRequest, path, method, server),
-      method,
-      path,
-      getElapsed,
+    response = finish(
+      await routeAndFinalize(bufferedRequest, path, method, server),
     );
     // Dev/test safety net: prove this route declared every setting it read.
     // No-op in production (audit scope is never entered).
     assertSettingsReadsDeclared(`${method} ${path}`);
   } catch (error) {
-    response = logAndReturn(
-      handleRoutingError(error, method, path),
-      method,
-      path,
-      getElapsed,
-    );
+    response = finish(handleRoutingError(error, method, path));
   } finally {
     await flushPendingWork();
   }
@@ -949,26 +1069,29 @@ export const handleRequest = async (
   request: Request,
   server?: ServerContext,
 ): Promise<Response> => {
-  const effectiveRequest = await bufferRequestIfNeeded(request);
-  const locale = parseAcceptLanguage(
-    effectiveRequest.headers.get("accept-language"),
-  );
+  const locale = parseAcceptLanguage(request.headers.get("accept-language"));
 
-  return runWithLocale(locale, () =>
-    runWithClientIp(getClientIp(request, server), () =>
-      runWithRequestId(() =>
-        runWithRequestCache(() =>
-          runWithQueryLogContext(() =>
-            runWithFlashContext(() =>
-              runWithSessionContext(() =>
-                runWithSettingsAudit(() =>
-                  processRequest(effectiveRequest, server),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
+  // Each request runs inside a stack of AsyncLocalStorage scopes so per-request
+  // state (locale, client IP, caches, flash, iframe mode, CSRF token, saved
+  // form data, …) stays isolated across concurrent requests sharing one edge
+  // isolate. Composed as a fold rather than hand-nested callbacks so the stack
+  // stays flat and adding a scope is a one-line change.
+  const scopes: ((fn: () => Promise<Response>) => Promise<Response>)[] = [
+    (fn) => runWithLocale(locale, fn),
+    (fn) => runWithClientIp(getClientIp(request, server), fn),
+    runWithRequestId,
+    runWithRequestCache,
+    runWithQueryLogContext,
+    runWithFlashContext,
+    runWithSessionContext,
+    runWithIframeContext,
+    runWithCsrfContext,
+    runWithSavedFormContext,
+    runWithSettingsAudit,
+  ];
+
+  return scopes.reduceRight<() => Promise<Response>>(
+    (next, scope) => () => scope(next),
+    () => processRequest(request, server),
+  )();
 };

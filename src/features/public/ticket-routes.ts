@@ -4,6 +4,7 @@
 
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
+import { verifyTokensWithRealLine } from "#routes/tickets/token-utils.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
   computeGroupSlugIndex,
@@ -13,8 +14,10 @@ import { getListingWithCountBySlug } from "#shared/db/listings.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";
+import { getVisibleGroupMembers, groupBookable } from "./discovery.ts";
 import { handleGroupTicketBySlug } from "./groups.ts";
 import { handleQrBookGet } from "./qr-book.ts";
+import { lacksStandalonePublicPage } from "./ticket-payment.ts";
 import { handleBySlugs } from "./ticket-submit.ts";
 import { parseSlugs } from "./types.ts";
 
@@ -30,8 +33,13 @@ const handleReservedGet = async (request: Request): Promise<Response> => {
   const tokensParam = url.searchParams.get("tokens");
   const normalizedTokens = tokensParam?.replaceAll(" ", "+") ?? "";
   const tokens = normalizedTokens.split("+").filter((t) => t.length > 0);
-  const ticketUrl = tokens.length > 0 ? `/t/${tokens.join("+")}` : null;
-  const fromEmail = tokens.length > 0 ? await getFromEmailIfConfigured() : "";
+  // Resolve and filter the tokens (like /payment/success): only show the
+  // "booking confirmed" CTA when a real (quantity > 0) line exists, so a
+  // stale/crafted no-quantity-only token doesn't link to a /t URL that 404s.
+  const { verifiedTokens } = await verifyTokensWithRealLine(tokens);
+  const ticketUrl =
+    verifiedTokens.length > 0 ? `/t/${verifiedTokens.join("+")}` : null;
+  const fromEmail = ticketUrl ? await getFromEmailIfConfigured() : "";
 
   return htmlResponse(successPage({ fromEmail, ticketUrl }));
 };
@@ -76,11 +84,29 @@ export const handleTicketQrGet = async (
   { slug }: { slug: string },
 ): Promise<Response> => {
   const listing = await getListingWithCountBySlug(slug);
-  if (listing) return qrResponse(slug);
+  // A child has no standalone booking page, so its QR — which
+  // encodes `/ticket/<child>` — would be a dead end. A hidden package's member
+  // is the same: its page now 404s, so its QR must too. Suppress both like the
+  // rest of the listing's share affordances.
+  if (listing) {
+    return (await lacksStandalonePublicPage(listing.id))
+      ? notFoundResponse()
+      : qrResponse(slug);
+  }
 
   const slugIndex = await computeGroupSlugIndex(slug);
   const group = await getGroupBySlugIndex(slugIndex);
-  if (group) return qrResponse(slug);
+  // A group QR encodes `/ticket/<group>`, which renders no bookable quantity
+  // when the group has no standalone-bookable member — every member is a child
+  // (a booking can never start from a child) or a parent projected
+  // sold out (its required children all unavailable). For a PACKAGE the whole
+  // bundle must fit. Use the SAME gate as the `/listings` group CTA so the QR
+  // 404s exactly when the page it points at would offer nothing to book.
+  if (group) {
+    return (await groupBookable(group, await getVisibleGroupMembers(group)))
+      ? qrResponse(slug)
+      : notFoundResponse();
+  }
 
   return notFoundResponse();
 };

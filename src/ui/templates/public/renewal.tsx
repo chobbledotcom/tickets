@@ -5,7 +5,8 @@
  */
 
 import { t } from "#i18n";
-import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { escapeHtml } from "#templates/layout.tsx";
+import { simplePublicPage } from "./shared.tsx";
 
 type RenewalErrorPageProps = {
   siteName: string;
@@ -13,16 +14,14 @@ type RenewalErrorPageProps = {
 
 /** Render the renewal error page (no qualifying renewal tier exists) */
 export const renewalErrorPage = ({ siteName }: RenewalErrorPageProps): string =>
-  String(
-    <Layout title={t("public_renewal.unavailable")}>
-      <div class="prose">
-        <h1>{t("public_renewal.unavailable")}</h1>
-        <p>
-          {t("public_renewal.link_invalid_for", {
-            siteName: escapeHtml(siteName),
-          })}{" "}
-          {t("public_renewal.contact_support")}
-        </p>
-      </div>
-    </Layout>,
+  simplePublicPage(
+    t("public_renewal.unavailable"),
+    t("public_renewal.unavailable"),
+  )(
+    <p>
+      {t("public_renewal.link_invalid_for", {
+        siteName: escapeHtml(siteName),
+      })}{" "}
+      {t("public_renewal.contact_support")}
+    </p>,
   );

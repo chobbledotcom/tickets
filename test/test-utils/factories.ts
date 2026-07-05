@@ -1,5 +1,12 @@
+import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import type { BuiltSite } from "#shared/db/built-sites.ts";
 import type { ListingInput } from "#shared/db/listings.ts";
+import type {
+  Answer,
+  AttendeeQuestionData,
+  QuestionDisplayType,
+  QuestionWithAnswers,
+} from "#shared/db/questions.ts";
 import type { EmailEntry, EmailListing } from "#shared/email.ts";
 import { signPriceSync } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
@@ -18,6 +25,7 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   assign_built_site: false,
   attachment_name: "",
   attachment_url: "",
+  bookable_alone: false,
   bookable_days: [
     "Monday",
     "Tuesday",
@@ -36,9 +44,10 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   description: "",
   duration_days: 1,
   fields: "email",
-  group_id: 0,
   hidden: false,
   id: 1,
+  image_alt_text: "",
+  image_thumb_url: "",
   image_url: "",
   initial_site_months: 0,
   listing_type: "standard",
@@ -56,6 +65,7 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   slug_index: "test-listing-index",
   thank_you_url: "https://example.com/thanks",
   unit_price: 0,
+  use_defaults: false,
   uses_logistics: false,
   webhook_url: "",
   ...overrides,
@@ -66,7 +76,9 @@ export const testListingWithCount = (
 ): ListingWithCount => ({
   ...testListing(overrides),
   attendee_count: 0,
+  cost: 0,
   income: 0,
+  profit: 0,
   tickets_count: 0,
   ...overrides,
 });
@@ -80,8 +92,10 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   email: "john@example.com",
   end_date: null,
   id: 1,
+  kind: "attendee",
   listing_id: 1,
   name: "John Doe",
+  package_group_id: 0,
   payment_id: "",
   phone: "",
   pii_blob: "",
@@ -97,10 +111,31 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   ...overrides,
 });
 
+/** Build a radio question fixture with answer options. Each `[id, text]` pair
+ * becomes an active answer whose sort_order follows the array order. */
+export const testRadioQuestion = (
+  id: number,
+  text: string,
+  answers: [number, string][],
+): QuestionWithAnswers => ({
+  answers: answers.map(([answerId, answerText], sort_order) => ({
+    active: true,
+    id: answerId,
+    question_id: id,
+    sort_order,
+    text: answerText,
+  })),
+  display_type: "radio",
+  id,
+  text,
+});
+
 export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   description: "",
   hidden: false,
+  hide_package_listings: false,
   id: 1,
+  is_package: false,
   max_attendees: 0,
   name: "Test Group",
   slug: "test-group",
@@ -117,34 +152,88 @@ export const testHoliday = (overrides: Partial<Holiday> = {}): Holiday => ({
   ...overrides,
 });
 
+/** Factory for an {@link Answer}: `active` defaults to `true` and the
+ *  `question_id`/`sort_order`/`id` defaults mirror the most common test shape
+ *  (a single question with id 1 and answers 10, 11, … in sort order). Override
+ *  only the fields a given test actually varies. */
+export const testAnswer = (overrides: Partial<Answer> = {}): Answer => ({
+  active: true,
+  id: 10,
+  question_id: 1,
+  sort_order: 0,
+  text: "A",
+  ...overrides,
+});
+
+/** Factory for a {@link QuestionWithAnswers}: `display_type` defaults to
+ *  `"radio"` (the overwhelmingly common case in tests) with no answers, so a
+ *  radio/dropdown/free-text question is built by overriding `display_type` and
+ *  passing `answers`. The returned type keeps `display_type` as the literal
+ *  {@link QuestionDisplayType}, so callers no longer need `… as const` on the
+ *  field. */
+export const testQuestion = (
+  overrides: Partial<QuestionWithAnswers> = {},
+): QuestionWithAnswers => ({
+  answers: [],
+  display_type: "radio",
+  id: 1,
+  text: "Question?",
+  ...overrides,
+});
+
 export const testBuiltSite = (
   overrides: Partial<BuiltSite> = {},
 ): BuiltSite => ({
   assignable: false,
   assignedAttendeeId: null,
   assignedListingId: null,
-  bunnyScriptId: "",
-  bunnyUrl: "https://test.b-cdn.net",
   created: "2026-01-01T00:00:00Z",
+  dbProvider: "bunny",
   dbToken: "",
   dbUrl: "",
+  hostingId: "",
+  hostingProvider: "bunny",
   id: 1,
   name: "Test Site",
   readOnlyFrom: "",
   renewalToken: null,
   renewalTokenIndex: null,
+  siteUrl: "https://test.b-cdn.net",
+  updates: "release",
   ...overrides,
 });
 
+/** Test-listing overrides accept the legacy single `groupId` (mapped to a
+ * one-group membership) as well as the new `groupIds` array, so existing call
+ * sites passing `{ groupId }` keep working while multi-group tests can pass
+ * `{ groupIds }`. Membership is written via setListingGroups by the factory. */
+export type TestListingOverrides = Partial<
+  Omit<ListingInput, "slug" | "slugIndex" | "groupIds">
+> & { groupId?: number; groupIds?: number[] };
+
+/** Resolve the group-id list a test override describes: explicit `groupIds`
+ * wins; otherwise a positive `groupId` becomes a single-group list; `groupId: 0`
+ * (legacy "ungrouped") and an absent value yield none. */
+export const resolveTestGroupIds = (
+  overrides: TestListingOverrides,
+): number[] =>
+  overrides.groupIds ??
+  (overrides.groupId !== undefined && overrides.groupId > 0
+    ? [overrides.groupId]
+    : []);
+
 export const testListingInput = (
-  overrides: Partial<Omit<ListingInput, "slugIndex" | "slug">> = {},
-): Omit<ListingInput, "slugIndex" | "slug"> => ({
-  maxAttendees: 100,
-  maxPrice: 10000,
-  name: generateTestListingName(),
-  thankYouUrl: "https://example.com/thanks",
-  ...overrides,
-});
+  overrides: TestListingOverrides = {},
+): Omit<ListingInput, "slugIndex" | "slug"> => {
+  const { groupId: _groupId, groupIds: _groupIds, ...rest } = overrides;
+  return {
+    maxAttendees: 100,
+    maxPrice: 10000,
+    name: generateTestListingName(),
+    thankYouUrl: "https://example.com/thanks",
+    ...rest,
+  };
+};
 
 export const baseListingForm: Record<string, string> = {
   max_attendees: "100",
@@ -158,6 +247,7 @@ export const webhookMeta = (
 ): SessionMetadata => ({
   _origin: "localhost",
   address: "",
+  allocations: "",
   answer_ids: "",
   balance_attendee_id: "",
   date: "",
@@ -165,12 +255,14 @@ export const webhookMeta = (
   email: "",
   items: "",
   modifiers: "",
+  package_group_id: "",
   phone: "",
   price_proof: "",
   reservation_amount: "",
   site_token_index: "",
   special_instructions: "",
   text_answer_ids: "",
+  thank_you_url: "",
   ...metadata,
 });
 
@@ -207,6 +299,35 @@ export const singleItem = (
   quantity: number,
   price: number,
 ): string => JSON.stringify([{ e: listingId, p: price, q: quantity }]);
+
+/**
+ * signedMeta for the recurring "one ticket + one modifier" checkout shape —
+ * a single-item session whose price proof also covers a single applied
+ * modifier. Shared by the `server-webhooks > modifiers` and
+ * `server-webhooks > modifier price-mismatch refunds` suites, which build
+ * this exact metadata shape (differing only in the listing/modifier/amount
+ * values) for their "modifier total is/isn't honoured" scenarios.
+ */
+export const singleModifierMeta = (opts: {
+  listingId: number;
+  unitPrice: number;
+  modifierId: number;
+  amountTotal: number;
+  modifierQuantity?: number;
+  email?: string;
+  name?: string;
+}): SessionMetadata =>
+  signedMeta(
+    {
+      email: opts.email ?? "mod@example.com",
+      items: singleItem(opts.listingId, 1, opts.unitPrice),
+      modifiers: JSON.stringify([
+        { i: opts.modifierId, q: opts.modifierQuantity ?? 1 },
+      ]),
+      name: opts.name ?? "Mod Buyer",
+    },
+    opts.amountTotal,
+  );
 
 export const JPEG_HEADER = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
@@ -247,6 +368,7 @@ export const makeTestAttendee = (
   end_date: null,
   id: 42,
   name: "Jane Doe",
+  package_group_id: 0,
   payment_id: "",
   phone: "555-1234",
   price_paid: "0",
@@ -263,4 +385,92 @@ export const makeTestEntry = (
 ): EmailEntry => ({
   attendee: makeTestAttendee(attendeeOverrides),
   listing: makeTestListing(listingOverrides),
+});
+
+/** Factory for a {@link PricedLine}: `chargedUnitAmount` defaults to `unitPrice`
+ *  but can be overridden to test discount/non-discount pricing paths. */
+export const pricedLine = (
+  listingId: number,
+  unitPrice: number,
+  quantity: number,
+  chargedUnitAmount = unitPrice,
+): PricedLine => ({
+  chargedUnitAmount,
+  item: {
+    listingId,
+    name: `L${listingId}`,
+    quantity,
+    slug: `l${listingId}`,
+    unitPrice,
+  },
+  quantity,
+});
+
+/** Factory for a {@link PricedOrder}: all totals default to zero so a test
+ *  only spells out the fields it varies (e.g. `lines`, `extras`). */
+export const pricedOrder = (
+  overrides: Partial<PricedOrder> = {},
+): PricedOrder => ({
+  extras: [],
+  fullSubtotal: 0,
+  lines: [],
+  modifierApplications: [],
+  total: 0,
+  ...overrides,
+});
+
+/** The canonical Small/Large answer pair (ids 10 and 11) reused by both the
+ *  factories and the questions template tests so the answer array lives in
+ *  one place. */
+export const smallLargeAnswers = [
+  testAnswer({ id: 10, sort_order: 0, text: "Small" }),
+  testAnswer({ id: 11, sort_order: 1, text: "Large" }),
+];
+
+/** The canonical "Size?" question answer-data fixture used by both the
+ *  detail-rows unit tests and the admin questions template tests: three
+ *  attendees (ids 1, 2, 3) answering a single "Size?" question (id 1) with
+ *  answers Small (id 10, picked by attendees 1 and 2) and Large (id 11,
+ *  picked by attendee 3). Returns the {@link AttendeeQuestionData} shape
+ *  `buildAnswerSummaryRows`/`AttendeeTable` consume. */
+export const sizeQuestionAnswerData = (): AttendeeQuestionData => ({
+  attendeeAnswerMap: new Map([
+    [1, [10]],
+    [2, [10]],
+    [3, [11]],
+  ]),
+  questions: [
+    testQuestion({
+      answers: smallLargeAnswers,
+      id: 1,
+      text: "Size?",
+    }),
+  ],
+});
+
+/** A minimal "Size?" question fixture: a single question with a single
+ *  answer "S" (id 10) and an empty `attendeeAnswerMap` (no one picked it).
+ *  Used to assert the question renders even with zero selections —
+ *  `buildSharedDetailRows` includes a question summary row, and
+ *  `ListingOverviewPanel` renders the answer header in the details table. */
+export const singleAnswerSizeQuestionData = (): AttendeeQuestionData => ({
+  attendeeAnswerMap: new Map(),
+  questions: [
+    testQuestion({
+      answers: [testAnswer({ id: 10, text: "S" })],
+      id: 1,
+      text: "Size?",
+    }),
+  ],
+});
+
+export const unselectedAnswerQuestionData = (): AttendeeQuestionData => ({
+  attendeeAnswerMap: new Map(),
+  questions: [
+    testQuestion({
+      answers: [testAnswer({ id: 10, text: "A" })],
+      id: 1,
+      text: "Q?",
+    }),
+  ],
 });

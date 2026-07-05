@@ -3,8 +3,8 @@ import { fileURLToPath } from "node:url";
 
 type Location = {
   file: string;
-  line?: number;
-  column?: number;
+  line?: number | undefined;
+  column?: number | undefined;
 };
 
 type TapDiagnostic = {
@@ -24,7 +24,7 @@ type PendingFailure = {
 export type CompactFailure = {
   name: string;
   message: string;
-  location?: Location;
+  location?: Location | undefined;
 };
 
 export type CompactTapSummary = {
@@ -36,7 +36,7 @@ export type CompactTapSummary = {
 
 type CompactTapReporterOptions = {
   cwd: string;
-  estimatedTotal?: number;
+  estimatedTotal?: number | undefined;
   hideProgress?: boolean;
   stdout?: (line: string) => void;
   stderr?: (line: string) => void;
@@ -310,14 +310,14 @@ export const estimateTapEventCount = async (
 
 export class CompactTapReporter {
   #cwd: string;
-  #estimatedTotal?: number;
+  #estimatedTotal?: number | undefined;
   #hideProgress: boolean;
   #stdout: (line: string) => void;
   #stderr: (line: string) => void;
   #passed = 0;
   #failed = 0;
-  #pendingFailure?: PendingFailure;
-  #diagnosticLines?: string[];
+  #pendingFailure?: PendingFailure | undefined;
+  #diagnosticLines?: string[] | undefined;
   #failures: CompactFailure[] = [];
   #sawTap = false;
 

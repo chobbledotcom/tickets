@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { ColumnGenerators } from "#shared/column-order.ts";
+import type { ColumnDef, ColumnGenerators } from "#shared/column-order.ts";
 import {
   buildDefaultTemplate,
   getHeaderText,
@@ -50,9 +50,20 @@ describe("validateColumnTemplate", () => {
     expect(error).toContain("Available columns");
   });
 
+  test("lists available columns comma-separated in the error message", () => {
+    const error = validateColumnTemplate("{{bogus}}", [
+      "alpha",
+      "beta",
+      "gamma",
+    ]);
+    expect(error).toBe(
+      'Unknown column "bogus". Available columns: alpha, beta, gamma',
+    );
+  });
+
   test("rejects empty template", () => {
     const error = validateColumnTemplate("", VALID_LISTING_KEYS);
-    expect(error).toContain("at least one column");
+    expect(error).toBe("Template must include at least one column");
   });
 
   test("accepts templates with date filter", () => {
@@ -141,6 +152,12 @@ describe("resolveColumnLayout", () => {
   });
 });
 
+describe("buildDefaultTemplate", () => {
+  test("joins column tags with a comma and space", () => {
+    expect(buildDefaultTemplate(["a", "b", "c"])).toBe("{{a}}, {{b}}, {{c}}");
+  });
+});
+
 describe("renderFilteredValue", () => {
   test("applies date filter with strftime format", () => {
     const result = renderFilteredValue(
@@ -178,6 +195,35 @@ describe("renderFilteredValue", () => {
 
   test("renders value without filter when no pipe", () => {
     expect(renderFilteredValue("name", "Alice", "name")).toBe("Alice");
+  });
+
+  test("does not attempt Date conversion for a non-string raw value", () => {
+    // A null rawValue is falsy-but-non-null, so it must skip conversion and
+    // render as empty — converting null via `new Date(null)` would render
+    // the 1970 epoch date instead.
+    expect(renderFilteredValue('date | date: "%B"', null, "date")).toBe("");
+  });
+
+  test("only converts to a Date when the filter expression is a date filter", () => {
+    // "2026-01-01" is Date-parseable, but the filter here is `upcase`, not a
+    // date filter, so the raw string must pass through unconverted.
+    expect(renderFilteredValue("date | upcase", "2026-01-01", "date")).toBe(
+      "2026-01-01",
+    );
+  });
+
+  test("does not convert to a Date when a filter runs before the date filter", () => {
+    // Regression: converting whenever the expression merely *contains*
+    // "| date" (rather than checking `date` is the first filter) fed a Date
+    // object into `append`, breaking the pipeline — the appended string
+    // "T00:00:00Z" landed on the Date's toString() instead of the raw string.
+    expect(
+      renderFilteredValue(
+        'created | append: "T00:00:00Z" | date: "%Y"',
+        "2026-04-10",
+        "created",
+      ),
+    ).toBe("2026");
   });
 });
 
@@ -251,6 +297,65 @@ describe("renderCells", () => {
     expect(html).toContain("&lt;script&gt;");
   });
 
+  test("joins rendered cells with no separator", () => {
+    const generators: ColumnGenerators<{ a: string; b: string }> = {
+      colA: { cell: (r) => r.a, description: "test", label: "A" },
+      colB: { cell: (r) => r.b, description: "test", label: "B" },
+    };
+    const html = renderCells(
+      { a: "1", b: "2" },
+      ["colA", "colB"],
+      generators,
+      undefined,
+      new Map(),
+      escapeHtml,
+    );
+    expect(html).toBe("<td>1</td><td>2</td>");
+  });
+
+  test("escapes filtered output even when the column is marked isHtml", () => {
+    // Filtered values are always plain text (per renderCells' contract), so
+    // a filter must still be escaped even on an isHtml column.
+    const generators: ColumnGenerators<{ raw: string }> = {
+      val: {
+        cell: (r) => r.raw,
+        description: "test",
+        isHtml: true,
+        label: "Val",
+        rawValue: (r) => r.raw,
+      },
+    };
+    const html = renderCells(
+      { raw: "<b>bold</b>" },
+      ["val"],
+      generators,
+      undefined,
+      new Map([["val", "val | upcase"]]),
+      escapeHtml,
+    );
+    expect(html).toBe("<td>&lt;B&gt;BOLD&lt;/B&gt;</td>");
+  });
+
+  test("does not escape isHtml column content when no filter is applied", () => {
+    const generators: ColumnGenerators<{ raw: string }> = {
+      val: {
+        cell: (r) => r.raw,
+        description: "test",
+        isHtml: true,
+        label: "Val",
+      },
+    };
+    const html = renderCells(
+      { raw: "<b>bold</b>" },
+      ["val"],
+      generators,
+      undefined,
+      new Map(),
+      escapeHtml,
+    );
+    expect(html).toBe("<td><b>bold</b></td>");
+  });
+
   test("applies CSS class from column definition", () => {
     const generators: ColumnGenerators<{ val: string }> = {
       val: {
@@ -279,5 +384,15 @@ describe("getHeaderText", () => {
 
   test("falls back to label when headerText is not set", () => {
     expect(getHeaderText(LISTING_TABLE_COLUMNS.location!)).toBe("Location");
+  });
+
+  test("keeps an explicit empty-string headerText instead of falling back to label", () => {
+    const col: ColumnDef<unknown> = {
+      cell: () => "",
+      description: "test",
+      headerText: "",
+      label: "Fallback Label",
+    };
+    expect(getHeaderText(col)).toBe("");
   });
 });

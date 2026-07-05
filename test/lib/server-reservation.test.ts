@@ -82,7 +82,12 @@ const latestAttendee = async (): Promise<{
   // the accepted gross-sale divergence (deposit accuracy returns in concern 5).
   const paid = await getDb().execute({
     args: [id],
-    sql: `SELECT ${pricePaidFromLedger("attendee_id", "listing_id", "ledger_event_group")} FROM listing_attendees WHERE attendee_id = ?`,
+    sql: `SELECT ${pricePaidFromLedger(
+      "listing_attendees.attendee_id",
+      "listing_attendees.listing_id",
+      "listing_attendees.ledger_event_group",
+      "listing_attendees.id",
+    )} FROM listing_attendees WHERE attendee_id = ?`,
   });
   return {
     id,
@@ -126,13 +131,20 @@ const setupSoldOutModifierRace = async (
     name: "Comp",
     stock: 1,
   });
+  // Simulate the race: a *different*, concurrent order consumes the modifier's
+  // last unit between pricing and our commit. Its usage lands on that other
+  // order's attendee (a sentinel id, never ours), so it stands after our order
+  // rolls back — exactly as a real competing booking's stock would. Firing on our
+  // attendee INSERT (just before the booking insert in the batch) is only the
+  // hook for "stock gone by commit time"; it must not attach to NEW.id, or it
+  // would look like our own consumption.
   await getDb().execute(
     `CREATE TRIGGER test_consume_modifier_before_order
      AFTER INSERT ON attendees
      BEGIN
        INSERT INTO modifier_usages
          (modifier_id, attendee_id, quantity, amount_applied, created)
-       VALUES (${modifier.id}, NEW.id, 1, 1000, '2024-01-01T00:00:00Z');
+       VALUES (${modifier.id}, 999999, 1, 1000, '2024-01-01T00:00:00Z');
      END`,
   );
   return { listing, modifier };
@@ -254,7 +266,12 @@ describeWithEnv(
         // £27 owed stays accurate; concern 5 restores the deposit distribution.
         const paidRows = await getDb().execute({
           args: [attendee.id],
-          sql: `SELECT listing_id, ${pricePaidFromLedger("attendee_id", "listing_id", "ledger_event_group")} FROM listing_attendees WHERE attendee_id = ?`,
+          sql: `SELECT listing_id, ${pricePaidFromLedger(
+            "listing_attendees.attendee_id",
+            "listing_attendees.listing_id",
+            "listing_attendees.ledger_event_group",
+            "listing_attendees.id",
+          )} FROM listing_attendees WHERE attendee_id = ?`,
         });
         const paidByListing = new Map(
           paidRows.rows.map((row) => [
@@ -305,7 +322,7 @@ describeWithEnv(
       }
     });
 
-    test("refunds when the charged total does not match deposit plus fee", async () => {
+    test("keeps and refunds when the charged total does not match deposit plus fee", async () => {
       await setupStripe();
       await settings.update.bookingFee("10");
       await setPublicReservation("10%");
@@ -333,12 +350,13 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_bad"),
         );
-        // Price mismatch → 409 and no attendee is created.
-        expect(response.status).toBe(409);
+        // Signed by us → the reservation is kept and refunded (HTTP 200), not
+        // dropped.
+        expect(response.status).toBe(200);
         const { rows } = await getDb().execute(
           "SELECT COUNT(*) AS c FROM attendees",
         );
-        expect(Number(rows[0]!.c)).toBe(0);
+        expect(Number(rows[0]!.c)).toBe(1);
       } finally {
         session.restore();
         refund.restore();
@@ -542,11 +560,16 @@ describeWithEnv(
         "An extra you selected sold out while you were checking out. Please try again.",
         false,
       );
-      expect(await modifierUsedQuantities([modifier.id])).toEqual(new Map());
+      // The racing order's single consumption stands (it really got the stock);
+      // our rejected order added none of its own — the batch's stock-guarded
+      // booking insert never landed, so its gated usage insert never fired.
+      expect(await modifierUsedQuantities([modifier.id])).toEqual(
+        new Map([[modifier.id, 1]]),
+      );
       expect(await attendeeCount()).toBe(0);
-      // The greedy create recorded a visit + public booking for this contact;
-      // the stock rollback must undo both so a sold-out free order leaves no
-      // phantom contact history (matching the paid SumUp-webhook path).
+      // A sold-out free order leaves no phantom contact history: the batch never
+      // reaches the success path that records a visit + public booking, so there
+      // is nothing to compensate (matching the paid SumUp-webhook path).
       expect(await totalContactActivity()).toEqual({ bookings: 0, visits: 0 });
     });
 
@@ -777,7 +800,7 @@ describeWithEnv(
       }
     });
 
-    test("refunds a zero-price reservation add-on when the total mismatches", async () => {
+    test("keeps and refunds a zero-price reservation add-on when the total mismatches", async () => {
       await setupStripe();
       await settings.update.bookingFee("0");
       await setPublicReservation("10%");
@@ -811,10 +834,21 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_free_addon_bad"),
         );
-        expect(response.status).toBe(409);
-        expect(await attendeeCount()).toBe(0);
+        // Signed by us → kept as a quantity-0 placeholder and refunded (HTTP 200):
+        // the reason now lives in a system note, so the customer sees the generic
+        // saved-details message rather than the specific price/total reason.
+        expect(response.status).toBe(200);
+        expect(await response.text()).toContain("saved your details");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees.length).toBe(1);
+        // The placeholder posts only payment + refund_cash (no sale leg), so it
+        // consumes no add-on stock — the old real-attendee usage of 1 is gone.
         expect(await modifierUsageCount(addOn.id)).toBe(0);
         expect(refund.calls[0]!.args).toEqual(["pi_cs_free_addon_bad"]);
+        expect(refund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
       } finally {
         session.restore();
         refund.restore();
@@ -882,7 +916,7 @@ describeWithEnv(
       }
     });
 
-    test("sold-out reservation add-on rolls back attendee creation", async () => {
+    test("keeps and refunds a sold-out reservation add-on as a quantity-0 placeholder", async () => {
       await setupStripe();
       await settings.update.bookingFee("0");
       await setPublicReservation("10%");
@@ -917,10 +951,29 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_addon_sold"),
         );
-        expect(response.status).toBe(409);
-        expect(await attendeeCount()).toBe(0);
+        // Signed by us → the sold-out add-on no longer drops the booking: it is
+        // kept as a quantity-0 placeholder and refunded (HTTP 200), with the
+        // reason recorded in a system note and the generic message to the buyer.
+        expect(response.status).toBe(200);
+        expect(await response.text()).toContain("saved your details");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees.length).toBe(1);
+        // The placeholder posts no sale leg, so the still-sold-out add-on is not
+        // consumed.
         expect(await modifierUsageCount(addOn.id)).toBe(0);
         expect(refund.calls[0]!.args).toEqual(["pi_cs_addon_sold"]);
+        expect(refund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
+        // The session is recorded as a terminal failure (placeholder kept, no
+        // ticket attendee): attendee_id stays null and failure_data is set.
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_addon_sold");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
       } finally {
         session.restore();
         refund.restore();

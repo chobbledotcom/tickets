@@ -9,17 +9,8 @@
  * HMAC input: "qr-book:{slug}:{payloadB64url}"
  */
 
-import {
-  buildSignedToken,
-  decodeTokenPayload,
-  encodeTokenPayload,
-  isTokenObject,
-  verifySignedToken,
-} from "#shared/crypto/signed-token.ts";
+import { defineSignedToken } from "#shared/crypto/define-signed-token.ts";
 import { nowMs } from "#shared/now.ts";
-
-const PREFIX = "qr1.";
-const DOMAIN = "qr-book:";
 
 /** QR token expiry in seconds from generation */
 export const QR_TOKEN_MAX_AGE_S = 300;
@@ -38,25 +29,20 @@ export type QrBookPayload = {
   e: number;
 };
 
-/** Decode payload JSON from base64url. Returns null on any decode failure. */
-const decodePayload = (encoded: string): QrBookPayload | null => {
-  const parsed = decodeTokenPayload(encoded);
-  if (
-    !isTokenObject(parsed) ||
-    typeof parsed.n !== "string" ||
-    typeof parsed.v !== "number" ||
-    typeof parsed.q !== "number" ||
-    typeof parsed.d !== "string" ||
-    typeof parsed.e !== "number"
-  ) {
-    return null;
-  }
-  return parsed as unknown as QrBookPayload;
-};
-
-/** Build the domain-separated HMAC input for a token */
-const buildMessage = (slug: string, encodedPayload: string): string =>
-  `${DOMAIN}${slug}:${encodedPayload}`;
+/** The QR scheme: HMAC message is keyed by the listing slug. */
+const qrToken = defineSignedToken<QrBookPayload, string>({
+  maxAgeS: QR_TOKEN_MAX_AGE_S,
+  message: (slug, encoded) => `qr-book:${slug}:${encoded}`,
+  parse: (parsed) =>
+    typeof parsed.n === "string" &&
+    typeof parsed.v === "number" &&
+    typeof parsed.q === "number" &&
+    typeof parsed.d === "string" &&
+    typeof parsed.e === "number"
+      ? (parsed as unknown as QrBookPayload)
+      : null,
+  prefix: "qr1.",
+});
 
 /**
  * Build a payload ready for signing.
@@ -86,32 +72,14 @@ export const buildQrBookPayload = (input: {
 export const signQrBookToken = (
   slug: string,
   payload: QrBookPayload,
-): Promise<string> => {
-  const encoded = encodeTokenPayload(payload);
-  return buildSignedToken(PREFIX, encoded, buildMessage(slug, encoded));
-};
+): Promise<string> => qrToken.sign(slug, payload);
 
 /**
  * Verify a QR booking token for the given listing slug.
  * Checks the prefix, HMAC signature, expiry, and clock-skew bounds.
  * Returns the decoded payload on success, or null on any failure.
  */
-export const verifyQrBookToken = async (
+export const verifyQrBookToken = (
   slug: string,
   token: string,
-): Promise<QrBookPayload | null> => {
-  const encoded = await verifySignedToken(PREFIX, token, (e) =>
-    buildMessage(slug, e),
-  );
-  if (encoded === null) return null;
-
-  const payload = decodePayload(encoded);
-  if (!payload) return null;
-
-  const nowS = Math.floor(nowMs() / 1000);
-  // Reject expired and future-dated tokens (60s clock skew tolerance)
-  if (payload.e < nowS) return null;
-  if (payload.e - nowS > QR_TOKEN_MAX_AGE_S + 60) return null;
-
-  return payload;
-};
+): Promise<QrBookPayload | null> => qrToken.verify(slug, token);

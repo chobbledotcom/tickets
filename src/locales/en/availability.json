@@ -8,5 +8,6 @@
   "availability.listing": "Listing",
   "availability.remaining": "Remaining",
   "availability.price": "Price",
-  "availability.create_attendee": "Create Attendee"
+  "availability.create_attendee": "Create Attendee",
+  "availability.create_service_event": "Create Service Event"
 }

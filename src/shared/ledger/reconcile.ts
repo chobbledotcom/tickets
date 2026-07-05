@@ -7,6 +7,7 @@
  * records say each event should have.
  */
 
+import { groupBy } from "#fp";
 import { instantToEpochMs } from "#shared/validation/timestamp.ts";
 import { accountKey } from "./account.ts";
 import { balanceOf } from "./project.ts";
@@ -131,12 +132,12 @@ const multisetDiff = (
 export const reconcileLegs =
   (expected: Map<string, LegFingerprint[]>) =>
   (transfers: Transfer[]): LegDiscrepancy[] => {
-    const observed = new Map<string, LegFingerprint[]>();
-    for (const t of transfers) {
-      const legs = observed.get(t.eventGroup) ?? [];
-      legs.push(legFingerprint(t));
-      observed.set(t.eventGroup, legs);
-    }
+    const observed = new Map(
+      [...groupBy(transfers, (t) => t.eventGroup)].map(([eventGroup, legs]) => [
+        eventGroup,
+        legs.map(legFingerprint),
+      ]),
+    );
     const groups = new Set([...expected.keys(), ...observed.keys()]);
     const discrepancies: LegDiscrepancy[] = [];
     for (const eventGroup of groups) {

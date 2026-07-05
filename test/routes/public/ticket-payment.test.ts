@@ -6,6 +6,10 @@ import {
   buildRegistrationItems,
   computeSharedDates,
   createFreeReservation,
+  foldSelectedChildren,
+  getTicketContext,
+  loadChildrenByParentId,
+  loadPackageMemberMaps,
   MODIFIER_SOLD_OUT_MESSAGE,
   resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
@@ -14,6 +18,11 @@ import {
   revenueAccount,
 } from "#shared/accounting/accounts.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
+import {
+  buildTicketListing,
+  type TicketListing,
+} from "#shared/booking/model.ts";
+import type { PriceRule } from "#shared/booking/tree.ts";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import { addDays } from "#shared/dates.ts";
 import {
@@ -28,18 +37,24 @@ import {
   getVisits,
   hashEmail,
 } from "#shared/db/contact-preferences.ts";
+import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { ContactInfo, ListingWithCount } from "#shared/types.ts";
-import { buildTicketListing, type TicketListing } from "#templates/public.tsx";
 import {
   createTestGroup,
   createTestListing,
   describeWithEnv,
   testListingWithCount,
 } from "#test-utils";
+import { makeParent } from "#test-utils/parents.ts";
 
 /** Wrap a listing-with-count as a selected cart line. */
 const line = (listing: ListingWithCount, qty = 1) => ({ listing, qty });
@@ -254,6 +269,140 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(1);
       expect((await getAttendeesRaw(e2.id))[0]!.quantity).toBe(2);
     });
+
+    test("a package order's capacity error omits the member name", async () => {
+      // A hidden package conceals its members, so a sellout between render and
+      // insert must not surface a member's name in the capacity error. The
+      // omission applies to every package order (packageGroupId set); the hidden
+      // package is the privacy-critical case.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Sellout Kit",
+        slug: "sellout-kit",
+      });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 1,
+        name: "Secret Widget",
+      });
+      // Fill the member's only spot so the package reservation can't be created.
+      const first = await createAttendeeAtomic({
+        bookings: [{ listingId: member.id, quantity: 1 }],
+        email: "first@test.com",
+        name: "First",
+      });
+      if (!first.success) throw new Error("setup booking failed");
+
+      const result = await createFreeReservation({
+        contact,
+        date: null,
+        ledgerOrder: null,
+        listings: [await ticketListingFor(member.id)],
+        modifierUsages: [],
+        packageGroupId: group.id,
+        quantities: new Map([[member.id, 1]]),
+      });
+      if (result.success) throw new Error("expected a capacity failure");
+      // Generic message — never the concealed member's name.
+      expect(result.error).toContain("not enough spots available");
+      expect(result.error).not.toContain("Secret Widget");
+    });
+  });
+
+  describe("concurrent parent/child reservations (capacity races)", () => {
+    // A folded parent/child cart reaches the reservation layer as a multi-line
+    // order (the parent line plus its chosen children). These prove the
+    // all-or-nothing atomic reservation holds when two such carts collide on a
+    // shared bottleneck — the loser must roll back fully, never leaving a parent
+    // booked without the child it required.
+    const freeCart = async (
+      parentId: number,
+      childId: number,
+      email: string,
+    ): Promise<{ success: boolean }> => {
+      const listings = await Promise.all([
+        ticketListingFor(parentId),
+        ticketListingFor(childId),
+      ]);
+      return createFreeReservation({
+        contact: { ...contact, email },
+        date: null,
+        ledgerOrder: null,
+        listings,
+        modifierUsages: [],
+        quantities: new Map([
+          [parentId, 1],
+          [childId, 1],
+        ]),
+      });
+    };
+
+    test("two carts racing for the last shared-child spot: only one wins, the loser's parent rolls back", async () => {
+      // parentA and parentB both fold the SAME child, which has a single spot.
+      const parentA = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "race-parent-a",
+      });
+      const parentB = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "race-parent-b",
+      });
+      const child = await createTestListing({
+        maxAttendees: 1,
+        maxQuantity: 1,
+        name: "race-shared-child",
+      });
+
+      const [a, b] = await Promise.all([
+        freeCart(parentA.id, child.id, "racea@example.com"),
+        freeCart(parentB.id, child.id, "raceb@example.com"),
+      ]);
+
+      // Exactly one reservation wins the single child spot.
+      expect([a.success, b.success].filter(Boolean).length).toBe(1);
+      expect((await getAttendeesRaw(child.id)).length).toBe(1);
+      // The winner's parent is booked; the loser's parent is fully rolled back,
+      // so no parent is left holding a booking without its required child.
+      const winner = a.success ? parentA.id : parentB.id;
+      const loser = a.success ? parentB.id : parentA.id;
+      expect((await getAttendeesRaw(winner)).length).toBe(1);
+      expect((await getAttendeesRaw(loser)).length).toBe(0);
+    });
+
+    test("parent+child sharing a capped group consume two group spots; a concurrent second order is refused", async () => {
+      // Parent and child share a group with only two spots, so one parent+child
+      // order (one spot each, PARENT_CHILD_GROUP_UNITS) fills the group exactly.
+      const group = await createTestGroup({
+        maxAttendees: 2,
+        name: "pc-group",
+        slug: "pc-group",
+      });
+      const parent = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "pc-parent",
+      });
+      const child = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "pc-child",
+      });
+
+      const [a, b] = await Promise.all([
+        freeCart(parent.id, child.id, "group1@example.com"),
+        freeCart(parent.id, child.id, "group2@example.com"),
+      ]);
+
+      // The group holds two spots; one parent+child order fills both, so exactly
+      // one order wins and the other is refused in full.
+      expect([a.success, b.success].filter(Boolean).length).toBe(1);
+      expect((await getAttendeesRaw(parent.id)).length).toBe(1);
+      expect((await getAttendeesRaw(child.id)).length).toBe(1);
+    });
   });
 
   describe("createFreeReservation (ledger)", () => {
@@ -299,6 +448,61 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       // ledger instead of finding no booking legs at all.
       expect(await accountBalance(revenueAccount(listing.id))).toBe(5000);
       expect(await accountBalance(attendeeAccount(attendeeId))).toBe(-5000);
+    });
+
+    test("commits a large free multi-listing order in a bounded number of round-trips", async () => {
+      // Regression: a free/owed multi-listing cart posts one sale leg per listing.
+      // Posting them inside an interactive transaction (a read-then-write per leg)
+      // held the write lock open and could blow the primary's transaction timeout.
+      // The whole reservation must be one batch — O(1) round-trips, not O(listings).
+      const N = 15;
+      // Sequential: each createTestListing runs an authenticated request that
+      // mints a session, so building them concurrently would collide session
+      // tokens — the round-trip count we assert on is the order, not the setup.
+      const listings: Awaited<ReturnType<typeof createTestListing>>[] = [];
+      for (let i = 0; i < N; i++) {
+        listings.push(await createTestListing({ maxAttendees: 5 }));
+      }
+      const ledgerOrder: PricedOrder = {
+        extras: [],
+        fullSubtotal: N * 1000,
+        lines: listings.map((l) => ({
+          chargedUnitAmount: 0,
+          item: {
+            listingId: l.id,
+            name: `L${l.id}`,
+            quantity: 1,
+            slug: `l${l.id}`,
+            unitPrice: 1000,
+          },
+          quantity: 1,
+        })),
+        modifierApplications: [],
+        total: 0,
+      };
+
+      const { result, roundTrips } = await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        const r = await createFreeReservation({
+          contact,
+          date: null,
+          ledgerOrder,
+          listings: await Promise.all(
+            listings.map((l) => ticketListingFor(l.id)),
+          ),
+          modifierUsages: [],
+          quantities: new Map(listings.map((l) => [l.id, 1])),
+        });
+        return {
+          result: r,
+          roundTrips: new Set(getQueryLog().map((q) => q.startedAtMs)).size,
+        };
+      });
+
+      expect(result.success).toBe(true);
+      // The N sale legs ride one batch, so the reservation's round-trips don't
+      // scale with N (an interactive per-leg post would be ~2N and trip the guard).
+      expect(roundTrips).toBeLessThanOrEqual(8);
     });
 
     test("rolls back and reports the add-on as sold out when its stock is gone", async () => {
@@ -380,47 +584,109 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
   });
 
   describe("buildRegistrationItems", () => {
-    test("prices customisable listings by the chosen day count", () => {
-      const listing = testListingWithCount({
-        customisable_days: true,
-        day_prices: { 1: 1000, 2: 1800 },
-        duration_days: 3,
-        id: 7,
-        unit_price: 0,
-      });
-      const items = buildRegistrationItems(
+    // Exhaustive unit-price precedence lives in test/lib/price-tree.test.ts; here
+    // we cover assembly (filter + field mapping) and that each line is priced by
+    // its own tree rule (a package OVERRIDE scoped to that line).
+    const build = (
+      listing: ListingWithCount,
+      quantities: Map<number, number>,
+      rules: Map<number, PriceRule>,
+    ) =>
+      buildRegistrationItems(
         [buildTicketListing(listing, false, undefined)],
+        quantities,
+        new Map(),
+        rules,
+      );
+
+    test("drops zero-quantity listings and assembles the checkout line", () => {
+      const listing = testListingWithCount({
+        id: 9,
+        name: "Widget",
+        slug: "wdgt1",
+        unit_price: 500,
+      });
+      const rules = new Map<number, PriceRule>([[9, { kind: "BASE" }]]);
+      expect(build(listing, new Map([[9, 2]]), rules)).toEqual([
+        {
+          listingId: 9,
+          name: "Widget",
+          quantity: 2,
+          slug: "wdgt1",
+          unitPrice: 500,
+        },
+      ]);
+      expect(build(listing, new Map([[9, 0]]), rules)).toEqual([]);
+    });
+
+    test("prices each line by its tree rule (package override on the member line)", () => {
+      const listing = testListingWithCount({ id: 7, unit_price: 500 });
+      const items = build(
+        listing,
         new Map([[7, 1]]),
-        new Map(),
-        2,
+        new Map<number, PriceRule>([
+          [7, { amountMinor: 1200, kind: "OVERRIDE" }],
+        ]),
       );
-      expect(items[0]!.unitPrice).toBe(1800);
+      expect(items[0]!.unitPrice).toBe(1200);
+    });
+  });
+
+  describe("loadPackageMemberMaps / getTicketContext packages", () => {
+    test("loadPackageMemberMaps keeps overrides incl. free, skips no-override, and every quantity", async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Pk" });
+      const a = await createTestListing({ name: "PA" });
+      const b = await createTestListing({ name: "PB" });
+      const c = await createTestListing({ name: "PC" });
+      await setListingGroups(a.id, [group.id]);
+      await setListingGroups(b.id, [group.id]);
+      await setListingGroups(c.id, [group.id]);
+      await setGroupPackageMembers(group.id, [
+        { listingId: a.id, price: 1500, quantity: 2 },
+        { listingId: b.id, price: 0 },
+        { listingId: c.id, price: null },
+      ]);
+
+      const { prices, quantities } = await loadPackageMemberMaps(group.id);
+      // A positive override and an explicit free (0) are both real prices kept
+      // in the map; a null (no override) member is skipped so it falls back to
+      // the listing's own price.
+      expect(prices.get(a.id)).toBe(1500);
+      expect(prices.get(b.id)).toBe(0);
+      expect(prices.has(c.id)).toBe(false);
+      // Quantities cover every member, including the override-free one.
+      expect(quantities.get(a.id)).toBe(2);
+      expect(quantities.get(b.id)).toBe(1);
+      expect(quantities.get(c.id)).toBe(1);
     });
 
-    test("prices an unoffered day count at zero for a customisable listing", () => {
-      const listing = testListingWithCount({
-        customisable_days: true,
-        day_prices: { 1: 1000 },
-        duration_days: 3,
-        id: 8,
-      });
-      const items = buildRegistrationItems(
-        [buildTicketListing(listing, false, undefined)],
-        new Map([[8, 1]]),
-        new Map(),
-        2,
+    test("getTicketContext exposes packageGroupId + prices for a package group", async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Ctx" });
+      const a = await createTestListing({ name: "CA" });
+      await setListingGroups(a.id, [group.id]);
+      await setGroupPackageMembers(group.id, [
+        { listingId: a.id, price: 2000 },
+      ]);
+
+      const ctx = await getTicketContext(
+        [
+          buildTicketListing(
+            testListingWithCount({ id: a.id }),
+            false,
+            undefined,
+          ),
+        ],
+        group,
       );
-      expect(items[0]!.unitPrice).toBe(0);
+      expect(ctx.packageGroupId).toBe(group.id);
+      expect(ctx.packagePrices?.get(a.id)).toBe(2000);
     });
 
-    test("prices non-customisable listings by custom or unit price", () => {
-      const listing = testListingWithCount({ id: 9, unit_price: 500 });
-      const items = buildRegistrationItems(
-        [buildTicketListing(listing, false, undefined)],
-        new Map([[9, 1]]),
-        new Map(),
-      );
-      expect(items[0]!.unitPrice).toBe(500);
+    test("getTicketContext leaves package fields null for a non-package group", async () => {
+      const group = await createTestGroup({ name: "Plain" });
+      const ctx = await getTicketContext([], group);
+      expect(ctx.packageGroupId).toBeNull();
+      expect(ctx.packagePrices).toBeNull();
     });
   });
 
@@ -544,6 +810,116 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       // The last day in the 3-day window can't fit a 5-day span, yet it's still
       // offered as a start because availability is computed for a single day.
       expect(dates).toContain(addDays(todayInTz("UTC"), 3));
+    });
+  });
+
+  describe("foldSelectedChildren — allocations", () => {
+    /** Minimal TicketCtx stub for foldSelectedChildren tests. */
+    const stubCtx = (
+      listings: TicketListing[],
+      childrenByParentId: import("#routes/public/types.ts").ChildrenByParentId,
+    ): import("#routes/public/types.ts").TicketCtx => ({
+      addOns: [],
+      childDatesById: new Map(),
+      childrenByParentId,
+      dates: [],
+      listings,
+      packageGroupRemainingByGroupId: new Map(),
+      packageMemberGroupIds: new Map(),
+      questionListingMap: new Map(),
+      questions: [],
+      slugs: [],
+      terms: "",
+    });
+
+    const doFold = (
+      ctx: import("#routes/public/types.ts").TicketCtx,
+      form: FormParams,
+      quantities: Map<number, number>,
+    ) =>
+      foldSelectedChildren(ctx, form, {
+        customPrices: new Map(),
+        date: null,
+        dayCount: 1,
+        hasCustomisable: false,
+        quantities,
+      });
+
+    test("single parent with one child records one allocation entry", async () => {
+      const { parent, child } = await makeParent({
+        children: [{ maxAttendees: 10, maxQuantity: 10 }],
+        parent: { maxAttendees: 10, maxQuantity: 10 },
+      });
+      const parentListing = await ticketListingFor(parent.id);
+      await ticketListingFor(child.id);
+      const childrenByParentId = await loadChildrenByParentId([parentListing]);
+      const ctx = stubCtx([parentListing], childrenByParentId);
+      const form = new FormParams({
+        [`child_qty_${parent.id}_${child.id}`]: "1",
+      });
+      const fold = await doFold(ctx, form, new Map([[parent.id, 1]]));
+      expect(fold.ok).toBe(true);
+      if (!fold.ok) return;
+      expect(fold.allocations).toHaveLength(1);
+      expect(fold.allocations[0]).toEqual({
+        childId: child.id,
+        parentId: parent.id,
+        qty: 1,
+      });
+    });
+
+    test("same child under two parents produces two allocation entries", async () => {
+      // Two parents each requiring the same child (qty 1 each).
+      // The fold sums the child to qty 2 but records two distinct allocations.
+      const child = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "shared-child",
+      });
+      // Both parents are wired directly to the shared child.
+      const { setChildIds } = await import("#shared/db/listing-parents.ts");
+      const parentA = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "parentA",
+      });
+      await setChildIds(parentA.id, [child.id]);
+      const parentB = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "parentB",
+      });
+      await setChildIds(parentB.id, [child.id]);
+
+      const parentAListing = await ticketListingFor(parentA.id);
+      const parentBListing = await ticketListingFor(parentB.id);
+      const childrenByParentId = await loadChildrenByParentId([
+        parentAListing,
+        parentBListing,
+      ]);
+      const ctx = stubCtx([parentAListing, parentBListing], childrenByParentId);
+      const form = new FormParams({
+        [`child_qty_${parentA.id}_${child.id}`]: "1",
+        [`child_qty_${parentB.id}_${child.id}`]: "1",
+      });
+      const fold = await doFold(
+        ctx,
+        form,
+        new Map([
+          [parentA.id, 1],
+          [parentB.id, 1],
+        ]),
+      );
+      expect(fold.ok).toBe(true);
+      if (!fold.ok) return;
+      // Two allocations: one per (child, parent) pair.
+      expect(fold.allocations).toHaveLength(2);
+      const parentIds = fold.allocations.map((a) => a.parentId);
+      expect(parentIds).toContain(parentA.id);
+      expect(parentIds).toContain(parentB.id);
+      // Every allocation is for the shared child with qty 1.
+      expect(fold.allocations.every((a) => a.childId === child.id)).toBe(true);
+      expect(fold.allocations.every((a) => a.qty === 1)).toBe(true);
     });
   });
 });

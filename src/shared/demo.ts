@@ -97,6 +97,60 @@ export const DEMO_NAMES = [
   "Amara Osei",
 ] as const;
 
+/** Demo servicing-event names (a reason/job for a capacity hold, not a person) */
+export const DEMO_SERVICING_NAMES = [
+  "Boiler Service",
+  "Deep Clean",
+  "Annual Inspection",
+  "Fire Alarm Test",
+  "Carpet Cleaning",
+  "Window Cleaning",
+  "Pest Control Visit",
+  "PAT Testing",
+  "Gas Safety Check",
+  "Electrical Inspection",
+  "Staff Training Day",
+  "Private Hire",
+  "Maintenance Window",
+  "Equipment Repair",
+  "Lift Servicing",
+  "Plumbing Repair",
+  "Painting & Decorating",
+  "Floor Resurfacing",
+  "Air Conditioning Service",
+  "Stocktake",
+  "Health & Safety Audit",
+  "Deep Sanitisation",
+  "Roof Repair",
+  "Garden Maintenance",
+  "Security Upgrade",
+  "Furniture Delivery",
+  "Photography Shoot",
+  "Film Crew Booking",
+  "Staff Meeting",
+  "Closed for Refurbishment",
+  "Kitchen Deep Clean",
+  "Drain Cleaning",
+  "Emergency Repair",
+  "Network Upgrade",
+  "CCTV Installation",
+  "Heating Repair",
+  "Locksmith Visit",
+  "Waste Collection",
+  "Building Survey",
+  "Damp Treatment",
+  "Guttering Clean",
+  "Signage Installation",
+  "AV Equipment Setup",
+  "Stage Construction",
+  "Marquee Setup",
+  "Grounds Maintenance",
+  "Window Replacement",
+  "Asbestos Survey",
+  "Insurance Inspection",
+  "Stage Lighting Focus",
+] as const;
+
 /** Demo first names for seed data (combined with surnames for more variety) */
 export const DEMO_FIRST_NAMES = [
   "Alice",
@@ -510,6 +564,12 @@ export const ATTENDEE_DEMO_FIELDS: DemoFieldMap = {
   name: DEMO_NAMES,
   phone: DEMO_PHONES,
   special_instructions: DEMO_SPECIAL_INSTRUCTIONS,
+};
+
+/** Servicing-event fields — name only, and a servicing reason rather than a
+ * person's name, so demo mode doesn't turn "Boiler Service" into "Bob Smith". */
+export const SERVICING_DEMO_FIELDS: DemoFieldMap = {
+  name: DEMO_SERVICING_NAMES,
 };
 
 /** Listing metadata fields */

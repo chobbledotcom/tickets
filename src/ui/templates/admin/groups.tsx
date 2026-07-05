@@ -2,54 +2,77 @@
  * Admin group management page templates
  */
 
-import { joinStrings, map, pipe, sumOf } from "#fp";
+import { map, pipe, sumOf } from "#fp";
 import { t } from "#i18n";
+import { groupReturnPath } from "#shared/admin-paths.ts";
+import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { resolveColumnLayout } from "#shared/column-order.ts";
 import {
   LISTING_DEFAULT_ORDER,
   LISTING_TABLE_COLUMNS,
 } from "#shared/columns/listing-columns.ts";
-import { formatCurrency } from "#shared/currency.ts";
+import { toMajorUnits } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
 import {
   booleanToCheckbox,
-  ConfirmForm,
   CsrfForm,
   entityToFieldValues,
-  Flash,
   renderFields,
 } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   type AdminSession,
   type Attendee,
+  availableDayCounts,
+  dayPriceFor,
   type Group,
-  isPaidListing,
+  hasTicketQuantity,
   type ListingWithCount,
 } from "#shared/types.ts";
-import { ListingRow, renderListingTable } from "#templates/admin/dashboard.tsx";
+import {
+  errorAdminPage,
+  successAdminPage,
+} from "#templates/admin/admin-page.tsx";
+import {
+  AttendeeTableBlock,
+  attendeeTableOptions,
+} from "#templates/admin/attendee-table-block.tsx";
+import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { CopyableInputRow } from "#templates/admin/copyable-row.tsx";
+import {
+  renderListingRows,
+  renderListingTable,
+} from "#templates/admin/dashboard.tsx";
 import {
   buildSharedDetailRows,
-  calculateTotalRevenue,
   renderDetailRows,
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
 import {
   type ExpectedActualItem,
-  ExpectedActualNotice,
-  hasExpectedActualMismatches,
+  ExpectedActualTableRow,
 } from "#templates/admin/expected-actual.tsx";
-import { AdminNav } from "#templates/admin/nav.tsx";
 import {
-  AttendeeTable,
-  type AttendeeTableRow,
-  type TableQuestionData,
+  PublicTicketLink,
+  UnavailablePublicUrlRow,
+} from "#templates/admin/share-rows.tsx";
+import type {
+  AttendeeTableRow,
+  TableQuestionData,
 } from "#templates/attendee-table.tsx";
-import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
+import {
+  ActionButton,
+  ImportCatalogButton,
+  SaveChangesButton,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
+import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
+import { DataTable, textColumns } from "#templates/components/data-table.tsx";
+import { DetailTable } from "#templates/components/detail-table.tsx";
+import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { getGroupCreateFields, getGroupFields } from "#templates/fields.ts";
-import { Layout } from "#templates/layout.tsx";
 
 /**
  * Admin groups list page
@@ -59,12 +82,11 @@ export const adminGroupsPage = (
   session: AdminSession,
   successMessage?: string,
 ): string =>
-  String(
-    <Layout title={t("terms.groups")}>
-      <AdminNav active="/admin/groups" session={session} />
-      <Flash success={successMessage} />
+  successAdminPage(t("terms.groups"), "/admin/groups")(session, successMessage)(
+    <>
       {!isReadOnly() && (
         <p class="actions">
+          <ImportCatalogButton />
           <ActionButton href="/admin/groups/new" icon="plus">
             {t("groups.add_group")}
           </ActionButton>
@@ -73,28 +95,17 @@ export const adminGroupsPage = (
       {groups.length === 0 ? (
         <p>{t("groups.no_groups")}</p>
       ) : (
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>{t("common.name")}</th>
-                <th>{t("common.slug")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {groups.map((g) => (
-                <tr>
-                  <td>
-                    <a href={`/admin/groups/${g.id}`}>{g.name}</a>
-                  </td>
-                  <td>{g.slug}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        // Staff open the detail page; editors can't (it decrypts attendee PII),
+        // so they link straight to the edit form.
+        <DataTable
+          columns={[{ header: t("common.name") }, { header: t("common.slug") }]}
+          rows={groups.map((g) => [
+            <a href={groupReturnPath(session.adminLevel, g.id)}>{g.name}</a>,
+            g.slug,
+          ])}
+        />
       )}
-    </Layout>,
+    </>,
   );
 
 /**
@@ -105,6 +116,8 @@ export const groupToFieldValues = (
 ): Record<string, string | number | null> =>
   entityToFieldValues(group, getGroupFields(), {
     hidden: (g) => booleanToCheckbox(g.hidden),
+    hide_package_listings: (g) => booleanToCheckbox(g.hide_package_listings),
+    is_package: (g) => booleanToCheckbox(g.is_package),
     max_attendees: (g) => g.max_attendees || null,
   });
 
@@ -115,39 +128,142 @@ export const adminGroupNewPage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  String(
-    <Layout title={t("groups.add.heading")}>
-      <AdminNav active="/admin/groups" session={session} />
-      <CsrfForm action="/admin/groups">
-        <h1>{t("groups.add.heading")}</h1>
-        <Flash error={error} />
-        <Raw
-          html={renderFields(getGroupCreateFields(), groupToFieldValues())}
-        />
-        <SubmitButton icon="plus">{t("groups.add.submit")}</SubmitButton>
-      </CsrfForm>
-    </Layout>,
+  errorAdminPage(t("groups.add.heading"), "/admin/groups")(session, error)(
+    <NewResourceForm
+      action="/admin/groups"
+      fieldsHtml={renderFields(getGroupCreateFields(), groupToFieldValues())}
+      submitLabel={t("groups.add.submit")}
+      title={t("groups.add.heading")}
+    />,
   );
 
+/** A package member's saved per-unit price override (minor units; `null` = no
+ * override, `0` = free), fixed per-package quantity, and any per-day overrides
+ * (day count → minor units) for a customisable member, keyed by listing id. */
+export type PackageMemberValues = ReadonlyMap<
+  number,
+  {
+    price: number | null;
+    quantity: number;
+    dayPrices?: ReadonlyMap<number, number>;
+  }
+>;
+
+/** Per-day override inputs for one customisable member — one input per day
+ * count the listing itself offers (an override can reprice a span, never invent
+ * one). The listing's own entered day price is the placeholder; a blank input
+ * charges it, an explicit 0 makes that span free in this package. */
+const MemberDayPriceInputs = ({
+  listing,
+  dayPrices,
+}: {
+  listing: ListingWithCount;
+  dayPrices: ReadonlyMap<number, number> | undefined;
+}): JSX.Element => (
+  <div class="package-day-prices">
+    {availableDayCounts(listing).map((days) => {
+      const override = dayPrices?.get(days);
+      return (
+        <label>
+          {t("fields.group.package_day_price", { count: days })}
+          <input
+            inputmode="decimal"
+            name={`package_day_price_${listing.id}_${days}`}
+            // Every count from availableDayCounts has a configured day price.
+            placeholder={toMajorUnits(dayPriceFor(listing, days)!)}
+            type="text"
+            value={override === undefined ? "" : toMajorUnits(override)}
+          />
+        </label>
+      );
+    })}
+  </div>
+);
+
 /**
- * Admin group edit page
+ * Per-listing package overrides (per-unit price + quantity per package). Shown
+ * only when "is a package" is ticked (the `.package-prices` block is hidden via
+ * CSS while the checkbox is clear). A blank price means "no override — use the
+ * listing's own price" (its base price is the placeholder); an explicit 0 means
+ * the listing is free within the package. Quantity defaults to 1.
  */
-export const adminGroupEditPage = (
-  group: Group,
-  session: AdminSession,
-  error?: string,
-): string =>
-  String(
-    <Layout title={t("groups.edit.heading")}>
-      <AdminNav active="/admin/groups" session={session} />
-      <CsrfForm action={`/admin/groups/${group.id}/edit`}>
-        <h1>{t("groups.edit.heading")}</h1>
-        <Flash error={error} />
-        <Raw html={renderFields(getGroupFields(), groupToFieldValues(group))} />
-        <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
-      </CsrfForm>
-    </Layout>,
-  );
+const PackageMembersTable = ({
+  listings,
+  members,
+}: {
+  listings: ListingWithCount[];
+  members: PackageMemberValues;
+}): JSX.Element => (
+  <div class="package-prices">
+    <h2>{t("groups.package_prices.heading")}</h2>
+    <p>{t("groups.package_prices.hint")}</p>
+    {listings.length === 0 ? (
+      <p>{t("groups.package_prices.no_listings")}</p>
+    ) : (
+      <DataTable
+        columns={textColumns(
+          "common.name",
+          "fields.group.package_price",
+          "fields.group.package_quantity",
+        )}
+        rows={listings.map((e) => {
+          const member = members.get(e.id);
+          // null/absent → blank (no override); 0 → "0" (free); N → amount.
+          const override = member?.price ?? null;
+          return [
+            e.name,
+            <>
+              <input
+                inputmode="decimal"
+                name={`package_price_${e.id}`}
+                placeholder={toMajorUnits(e.unit_price)}
+                type="text"
+                value={override === null ? "" : toMajorUnits(override)}
+              />
+              {e.customisable_days && (
+                <MemberDayPriceInputs
+                  dayPrices={member?.dayPrices}
+                  listing={e}
+                />
+              )}
+            </>,
+            <input
+              inputmode="numeric"
+              min="1"
+              name={`package_qty_${e.id}`}
+              type="number"
+              value={String(member?.quantity ?? 1)}
+            />,
+          ];
+        })}
+      />
+    )}
+  </div>
+);
+
+/**
+ * The Edit tab of the group entity page: the group form plus the per-listing
+ * package-price table, pre-filled from the group's current overrides (per-unit
+ * price + per-package quantity). Session-free and error-free — a rejected save
+ * re-renders the same tab with the flash error surfaced by the Layout backstop.
+ */
+export const GroupEditPanel = ({
+  group,
+  listings,
+  members,
+}: {
+  group: Group;
+  listings: ListingWithCount[];
+  members: PackageMemberValues;
+}): JSX.Element => (
+  <>
+    <CsrfForm action={`/admin/groups/${group.id}/edit`}>
+      <Raw html={renderFields(getGroupFields(), groupToFieldValues(group))} />
+      <PackageMembersTable listings={listings} members={members} />
+      {SaveChangesButton()}
+    </CsrfForm>
+  </>
+);
 
 /**
  * Admin group delete confirmation page
@@ -157,18 +273,13 @@ export const adminGroupDeletePage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  String(
-    <Layout title={t("groups.delete.heading")}>
-      <AdminNav active="/admin/groups" session={session} />
-      <ConfirmForm
-        action={`/admin/groups/${group.id}/delete`}
-        buttonText={t("groups.delete.submit")}
-        danger={false}
-        label={t("groups.name_label")}
-        name={group.name}
-      >
+  ConfirmPage({
+    action: `/admin/groups/${group.id}/delete`,
+    active: "/admin/groups",
+    buttonText: t("groups.delete.submit"),
+    children: (
+      <>
         <h1>{t("groups.delete.heading")}</h1>
-        <Flash error={error} />
         <p>
           {t("groups.delete.confirm", {
             name: `<strong>${group.name}</strong>`,
@@ -180,11 +291,19 @@ export const adminGroupDeletePage = (
           of the group.
         </p>
         <p>Type the group name "{group.name}" to confirm:</p>
-      </ConfirmForm>
-    </Layout>,
-  );
+      </>
+    ),
+    danger: false,
+    error,
+    label: t("groups.name_label"),
+    name: group.name,
+    session,
+    title: t("groups.delete.heading"),
+  });
 
-/** Build AttendeeTableRows from attendees with listing lookup */
+/** Build one AttendeeTableRow per booking line, looking up each line's listing.
+ * Stays per-line (not grouped by attendee) so every line keeps its own
+ * check-in button. */
 const buildAttendeeRows = (
   attendees: Attendee[],
   listings: ListingWithCount[],
@@ -193,14 +312,10 @@ const buildAttendeeRows = (
     map((e: ListingWithCount) => [e.id, e] as const)(listings),
   );
   return pipe(
-    map((a: Attendee): AttendeeTableRow => {
-      const listing = listingMap.get(a.listing_id)!;
-      return {
-        attendee: a,
-        listingId: listing.id,
-        listingName: listing.name,
-      };
-    }),
+    map(
+      (a: Attendee): AttendeeTableRow =>
+        attendeeLineRow(a, listingMap.get(a.listing_id)!),
+    ),
   )(attendees);
 };
 
@@ -212,6 +327,16 @@ const groupAggregateMismatchItems = (
   listings: ListingWithCount[],
   attendees: Attendee[],
 ): ExpectedActualItem[] => {
+  // tickets_count counts only real (quantity > 0) lines, so the expected side
+  // must too — otherwise a group holding any no-quantity sentinel row would
+  // report a bogus tickets_count drift. (booked_quantity/income sum quantity/
+  // price_paid, to which a ghost contributes 0, so those sides stay unfiltered.)
+  const realTicketCount = attendees.filter(hasTicketQuantity).length;
+  // Quantity integrity only: the trigger-maintained booked_quantity/tickets_count
+  // aggregates are cross-checked against the live attendee rows. Revenue is NOT
+  // compared here — it is the ledger's job (projected income counts bookings
+  // since deleted, which an attendee-sum can't), so a refund or a deletion would
+  // make an income comparison flag a non-issue.
   const checks: Array<ExpectedActualItem & { matches: boolean }> = [
     {
       actual: String(totalAttendeeCount(listings)),
@@ -221,15 +346,9 @@ const groupAggregateMismatchItems = (
     },
     {
       actual: String(totalTicketCount(listings)),
-      expected: String(attendees.length),
+      expected: String(realTicketCount),
       label: t("fields.listing.tickets_count"),
-      matches: totalTicketCount(listings) === attendees.length,
-    },
-    {
-      actual: formatCurrency(totalIncome(listings)),
-      expected: formatCurrency(calculateTotalRevenue(attendees)),
-      label: t("fields.listing.income"),
-      matches: totalIncome(listings) === calculateTotalRevenue(attendees),
+      matches: totalTicketCount(listings) === realTicketCount,
     },
   ];
   return checks.filter((item) => !item.matches);
@@ -243,21 +362,16 @@ const GroupAggregateMismatchRow = ({
   listings: ListingWithCount[];
 }): JSX.Element | null => {
   const items = groupAggregateMismatchItems(listings, attendees);
-  if (!hasExpectedActualMismatches(items)) return null;
-  return (
-    <tr>
-      <th>{t("groups.running_total_check")}</th>
-      <td>
-        <ExpectedActualNotice
-          actionHref="#listings"
-          actionLabel={t("groups.running_totals_error_action")}
-          explanation={t("groups.running_totals_error_explanation")}
-          items={items}
-          title={t("groups.running_totals_error_title")}
-        />
-      </td>
-    </tr>
-  );
+  return ExpectedActualTableRow({
+    header: t("groups.running_total_check"),
+    notice: {
+      actionHref: "#listings",
+      actionLabel: t("groups.running_totals_error_action"),
+      explanation: t("groups.running_totals_error_explanation"),
+      items,
+      title: t("groups.running_totals_error_title"),
+    },
+  });
 };
 
 /** Render the group-attendees row. The cap fragment is omitted when the
@@ -299,146 +413,134 @@ const GroupAttendeesRow = ({
 /**
  * Admin group detail page - shows group info, listings in group, and add-listings form
  */
-export const adminGroupDetailPage = (
-  group: Group,
-  listings: ListingWithCount[],
-  ungroupedListings: ListingWithCount[],
-  attendees: Attendee[],
-  session: AdminSession,
-  allowedDomain: string,
-  phonePrefix?: string,
-  successMessage?: string,
-  questionData?: TableQuestionData,
-  error?: string,
-): string => {
+/** The group's public-URL / QR / embed rows, or a "not bookable" note when its
+ * `/ticket/<group>` route would 404 (a package with an incomplete or sold-out
+ * bundle) — so the admin isn't handed dead share affordances. A non-package group
+ * always renders (its page shows sold-out members rather than 404ing). */
+const GroupShareRows = ({
+  group,
+  allowedDomain,
+  ticketUrl,
+  embedScriptCode,
+  embedIframeCode,
+  shareable,
+}: {
+  group: Group;
+  allowedDomain: string;
+  ticketUrl: string;
+  embedScriptCode: string;
+  embedIframeCode: string;
+  shareable: boolean;
+}): JSX.Element =>
+  shareable ? (
+    <>
+      <tr>
+        <th>{t("common.public_url")}</th>
+        <td>
+          <PublicTicketLink
+            href={ticketUrl}
+            label={`${allowedDomain}/ticket/${group.slug}`}
+            qrHref={`/ticket/${group.slug}/qr`}
+          />
+        </td>
+      </tr>
+      {CopyableInputRow({
+        id: `embed-script-${group.id}`,
+        label: t("common.embed_script"),
+        value: embedScriptCode,
+      })}
+      {CopyableInputRow({
+        id: `embed-iframe-${group.id}`,
+        label: t("common.embed_iframe"),
+        value: embedIframeCode,
+      })}
+    </>
+  ) : (
+    <UnavailablePublicUrlRow message={t("groups.detail.share_unavailable")} />
+  );
+
+/**
+ * The Overview tab of the group entity page: the group's detail table (share /
+ * QR / embed rows, hidden status, capacity, aggregate-integrity check, shared
+ * totals), the member-listings table, and the add-listings membership form.
+ * Staff-only and session-free — the entity page renders the title + flash.
+ */
+export const GroupOverviewPanel = ({
+  group,
+  listings,
+  ungroupedListings,
+  attendees,
+  allowedDomain,
+  hasPaidListing,
+  shareable,
+  questionData,
+}: {
+  group: Group;
+  listings: ListingWithCount[];
+  ungroupedListings: ListingWithCount[];
+  attendees: Attendee[];
+  allowedDomain: string;
+  hasPaidListing: boolean;
+  shareable: boolean;
+  questionData?: TableQuestionData;
+}): JSX.Element => {
   const { columnKeys, filters } = resolveColumnLayout(
     settings.listingColumnOrder,
     Object.keys(LISTING_TABLE_COLUMNS),
     LISTING_DEFAULT_ORDER,
   );
-  const listingRows =
-    listings.length > 0
-      ? pipe(
-          map((e: ListingWithCount) => ListingRow({ columnKeys, e, filters })),
-          joinStrings,
-        )(listings)
-      : `<tr><td colspan="${columnKeys.length}">${t(
-          "groups.detail.no_listings",
-        )}</td></tr>`;
+  const listingRows = renderListingRows({
+    columnKeys,
+    emptyText: t("groups.detail.no_listings"),
+    filters,
+    listings,
+  });
 
   const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
     buildEmbedSnippets(ticketUrl);
-  const hasPaidListing = listings.some(isPaidListing);
   const totalCount = totalAttendeeCount(listings);
-  const tableRows = buildAttendeeRows(attendees, listings);
   const sharedRows = buildSharedDetailRows({
     attendeeCount: totalCount,
     attendees,
     hasPaidListing,
     maxCapacity: 0,
-    questionData,
+    // Revenue comes from the ledger (the listings' projected income), not a sum
+    // over the loaded attendees: bookings since deleted still count, and a
+    // package's override revenue is captured the same way.
+    revenue: totalIncome(listings),
+    ...(questionData !== undefined ? { questionData } : {}),
     skipAttendees: true,
   });
 
-  return String(
-    <Layout title={group.name}>
-      <AdminNav active="/admin/groups" session={session} />
-      <Flash error={error} success={successMessage} />
-      <nav>
-        <ul>
-          {!isReadOnly() && (
-            <>
-              <li>
-                <a href={`/admin/groups/${group.id}/edit`}>
-                  {t("groups.detail.edit_group")}
-                </a>
-              </li>
-              <li>
-                <a href={`/admin/groups/${group.id}/bulk-actions`}>
-                  Bulk Actions
-                </a>
-              </li>
-            </>
-          )}
-          <li>
-            <a class="danger" href={`/admin/groups/${group.id}/delete`}>
-              {t("groups.detail.delete_group")}
-            </a>
-          </li>
-        </ul>
-      </nav>
-
+  return (
+    <>
       <article>
-        <div class="table-scroll">
-          <table class="listing-details-table">
-            <tbody>
-              <tr>
-                <th colspan="2">{group.name}</th>
-              </tr>
-              <tr>
-                <th>{t("common.public_url")}</th>
-                <td>
-                  <a href={ticketUrl}>
-                    {`${allowedDomain}/ticket/${group.slug}`}
-                  </a>
-                  <small>
-                    {" "}
-                    (
-                    <a href={`/ticket/${group.slug}/qr`}>
-                      {t("common.qr_code")}
-                    </a>
-                    )
-                  </small>
-                </td>
-              </tr>
-              <tr>
-                <th>
-                  <label for={`embed-script-${group.id}`}>
-                    {t("common.embed_script")}
-                  </label>
-                </th>
-                <td>
-                  <input
-                    data-select-on-click
-                    id={`embed-script-${group.id}`}
-                    readonly
-                    type="text"
-                    value={embedScriptCode}
-                  />
-                </td>
-              </tr>
-              <tr>
-                <th>
-                  <label for={`embed-iframe-${group.id}`}>
-                    {t("common.embed_iframe")}
-                  </label>
-                </th>
-                <td>
-                  <input
-                    data-select-on-click
-                    id={`embed-iframe-${group.id}`}
-                    readonly
-                    type="text"
-                    value={embedIframeCode}
-                  />
-                </td>
-              </tr>
-              {group.hidden && (
-                <tr>
-                  <th>{t("listings_table.hidden")}</th>
-                  <td>Yes &mdash; not shown in public listings list</td>
-                </tr>
-              )}
-              <GroupAttendeesRow attendeeCount={totalCount} group={group} />
-              <GroupAggregateMismatchRow
-                attendees={attendees}
-                listings={listings}
-              />
-              <Raw html={renderDetailRows(sharedRows)} />
-            </tbody>
-          </table>
-        </div>
+        <DetailTable>
+          <tr>
+            <th colspan="2">{group.name}</th>
+          </tr>
+          <GroupShareRows
+            allowedDomain={allowedDomain}
+            embedIframeCode={embedIframeCode}
+            embedScriptCode={embedScriptCode}
+            group={group}
+            shareable={shareable}
+            ticketUrl={ticketUrl}
+          />
+          {group.hidden && (
+            <tr>
+              <th>{t("listings_table.hidden")}</th>
+              <td>Yes &mdash; not shown in public listings list</td>
+            </tr>
+          )}
+          <GroupAttendeesRow attendeeCount={totalCount} group={group} />
+          <GroupAggregateMismatchRow
+            attendees={attendees}
+            listings={listings}
+          />
+          <Raw html={renderDetailRows(sharedRows)} />
+        </DetailTable>
       </article>
 
       <h2>{t("terms.listings")}</h2>
@@ -446,37 +548,18 @@ export const adminGroupDetailPage = (
         <Raw html={renderListingTable(columnKeys, listingRows)} />
       </div>
 
-      <article>
-        <h2 id="attendees">{t("terms.attendees")}</h2>
-        <div class="table-scroll">
-          <Raw
-            html={AttendeeTable({
-              allowedDomain,
-              phonePrefix,
-              questionData,
-              returnUrl: `/admin/groups/${group.id}#attendees`,
-              rows: tableRows,
-              showDate: listings.some((e) => e.listing_type === "daily"),
-              showListing: true,
-            })}
-          />
-        </div>
-      </article>
-
       {!isReadOnly() && ungroupedListings.length > 0 && (
         <>
           <h2>{t("groups.detail.add_listings")}</h2>
           <CsrfForm action={`/admin/groups/${group.id}/add-listings`}>
             <fieldset class="checkboxes">
               {ungroupedListings.map((e) => (
-                <label>
-                  <input
-                    name="listing_ids"
-                    type="checkbox"
-                    value={String(e.id)}
-                  />
-                  {` ${e.name}`}
-                </label>
+                <CheckboxLabel
+                  checked={undefined}
+                  label={` ${e.name}`}
+                  name="listing_ids"
+                  value={String(e.id)}
+                />
               ))}
             </fieldset>
             <SubmitButton icon="plus">
@@ -485,6 +568,42 @@ export const adminGroupDetailPage = (
           </CsrfForm>
         </>
       )}
-    </Layout>,
+    </>
   );
 };
+
+/**
+ * The Attendees tab of the group entity page: one attendee row per booking line
+ * across every listing in the group, each keeping its own check-in action.
+ * Staff-only and session-free.
+ */
+export const GroupAttendeesPanel = ({
+  group,
+  listings,
+  attendees,
+  allowedDomain,
+  phonePrefix,
+  questionData,
+}: {
+  group: Group;
+  listings: ListingWithCount[];
+  attendees: Attendee[];
+  allowedDomain: string;
+  phonePrefix?: string;
+  questionData?: TableQuestionData;
+}): JSX.Element => (
+  <article>
+    <h2 id="attendees">{t("terms.attendees")}</h2>
+    <AttendeeTableBlock
+      options={attendeeTableOptions({
+        allowedDomain,
+        phonePrefix,
+        questionData,
+        returnUrl: `/admin/groups/${group.id}/attendees`,
+        rows: buildAttendeeRows(attendees, listings),
+        showDate: listings.some((e) => e.listing_type === "daily"),
+        showListing: true,
+      })}
+    />
+  </article>
+);

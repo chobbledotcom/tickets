@@ -12,6 +12,7 @@ import {
   expectFlashRedirect,
   expectHtmlResponse,
   expectStatus,
+  getAllActivityLog,
   mockFormRequest,
   testCookie,
   testCsrfToken,
@@ -64,13 +65,13 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("shows empty questions list", async () => {
-      const { response } = await adminGet("/admin/questions");
+      const response = await adminGet("/admin/questions");
       await expectHtmlResponse(response, 200, "Questions");
     });
 
     test("shows questions when present", async () => {
       await createQuestion("Favorite color?");
-      const { response } = await adminGet("/admin/questions");
+      const response = await adminGet("/admin/questions");
       await expectHtmlResponse(response, 200, "Questions", "Favorite color?");
     });
 
@@ -80,7 +81,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { setQuestionListings } = await import("#shared/db/questions.ts");
       await setQuestionListings(qId, [listing.id]);
 
-      const { response } = await adminGet("/admin/questions");
+      const response = await adminGet("/admin/questions");
       const body = await response.text();
       expect(body).toContain('title="Gala Night"');
     });
@@ -118,12 +119,27 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         display_type: "radio" as const,
         text: "",
       });
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
+      // Invalid create bounces back to the questions list with the error flash;
+      // the redirect target must be the real path, not an empty string.
+      await expectFlashRedirect(
+        "/admin/questions",
         expect.stringContaining("Question text is required"),
         false,
-      );
+      )(response);
+    });
+
+    test("requires a display type", async () => {
+      // Omitting display_type entirely exercises the field's `required: true`:
+      // without it the field-level check is skipped and the picklist validator
+      // reports a different message.
+      const { response } = await adminFormPost("/admin/questions", {
+        text: "No display type?",
+      });
+      await expectFlashRedirect(
+        "/admin/questions",
+        expect.stringContaining("Display as is required"),
+        false,
+      )(response);
     });
 
     test("creates select questions", async () => {
@@ -171,6 +187,30 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         false,
       );
     });
+
+    test("rejects text longer than MAX_TEXTAREA_LENGTH server-side", async () => {
+      // The browser maxlength is only a UI hint; a direct POST must not be able
+      // to persist markdown beyond the cap (it would later be encrypted and
+      // rendered on public booking pages).
+      const { MAX_TEXTAREA_LENGTH } = await import("#shared/limits.ts");
+      const { response } = await adminFormPost("/admin/questions", {
+        display_type: "radio" as const,
+        text: "a".repeat(MAX_TEXTAREA_LENGTH + 1),
+      });
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining(
+          `Question text must be ${MAX_TEXTAREA_LENGTH} characters or fewer`,
+        ),
+        false,
+      );
+
+      const { getAllQuestionsWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
+      expect(await getAllQuestionsWithAnswers()).toHaveLength(0);
+    });
   });
 
   describe("GET /admin/questions/:id", () => {
@@ -181,13 +221,13 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent question", async () => {
-      const { response } = await adminGet("/admin/questions/999");
+      const response = await adminGet("/admin/questions/999");
       expectStatus(404)(response);
     });
 
     test("shows question detail page", async () => {
       const id = await createQuestion("What is your role?");
-      const { response } = await adminGet(`/admin/questions/${id}`);
+      const response = await adminGet(`/admin/questions/${id}`);
       await expectHtmlResponse(response, 200, "What is your role?");
     });
 
@@ -195,7 +235,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const id = await createQuestion("Pick a number");
       await addAnswer(id, "One");
       await addAnswer(id, "Two");
-      const { response } = await adminGet(`/admin/questions/${id}`);
+      const response = await adminGet(`/admin/questions/${id}`);
       await expectHtmlResponse(response, 200, "One", "Two");
     });
   });
@@ -468,7 +508,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       expect((await getQuestionWithAnswers(qId))!.assign_all).toBe(true);
 
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("assigned to all listings");
     });
@@ -480,17 +520,24 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         listing_ids: String(listing.id),
       });
 
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("assigned to 1 listing");
       expect(body).not.toContain("assigned to 1 listings");
+      // Exact message: the singular suffix is "" (not "s" and not anything
+      // else), so `toContain` alone can't catch a corrupted empty suffix.
+      const log = await getAllActivityLog(10);
+      const entry = log.find((e) => e.message.includes("assigned to"));
+      expect(entry?.message).toBe(
+        "Question 'Singular listings log' assigned to 1 listing",
+      );
     });
 
     test("logs plural when assigned to zero listings", async () => {
       const qId = await createQuestion("Plural listings log");
       await adminFormPost(`/admin/questions/${qId}/listings`, {});
 
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("assigned to 0 listings");
     });
@@ -504,13 +551,13 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent question", async () => {
-      const { response } = await adminGet("/admin/questions/999/delete");
+      const response = await adminGet("/admin/questions/999/delete");
       expectStatus(404)(response);
     });
 
     test("shows delete confirmation page", async () => {
       const id = await createQuestion("To be deleted");
-      const { response } = await adminGet(`/admin/questions/${id}/delete`);
+      const response = await adminGet(`/admin/questions/${id}/delete`);
       await expectHtmlResponse(
         response,
         200,
@@ -548,6 +595,25 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(found).toBeNull();
     });
 
+    test("deletes a multiline question via its flattened confirmation text", async () => {
+      // A question editor is a textarea, so the text can contain newlines. The
+      // confirmation page (and the single-line confirm input) shows the
+      // flattened "Line 1 / Line 2" form, so deletion must verify against that
+      // — not the raw newline text the operator cannot type.
+      const id = await createQuestion("Line 1\nLine 2");
+      const { response } = await adminFormPost(
+        `/admin/questions/${id}/delete`,
+        { confirm_identifier: "Line 1 / Line 2" },
+      );
+      await expectFlashRedirect(
+        "/admin/questions",
+        "Question deleted",
+      )(response);
+
+      const { questionsTable } = await import("#shared/db/questions.ts");
+      expect(await questionsTable.findById(id)).toBeNull();
+    });
+
     test("rejects deletion with wrong text", async () => {
       const id = await createQuestion("Right Text");
       const { response } = await adminFormPost(
@@ -555,9 +621,11 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         { confirm_identifier: "Wrong Text" },
       );
       expect(response.status).toBe(302);
+      // The mismatch prompt names the identifier's label ("Question text"), so
+      // an emptied label would leave a nameless " does not match" message.
       expectFlash(
         response,
-        expect.stringContaining("to confirm deletion"),
+        expect.stringContaining("Question text does not match"),
         false,
       );
 
@@ -610,15 +678,13 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent question", async () => {
-      const { response } = await adminGet(
-        "/admin/questions/999/answers/1/delete",
-      );
+      const response = await adminGet("/admin/questions/999/answers/1/delete");
       expectStatus(404)(response);
     });
 
     test("returns 404 for non-existent answer", async () => {
       const qId = await createQuestion("Answer 404");
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/questions/${qId}/answers/999/delete`,
       );
       expectStatus(404)(response);
@@ -627,7 +693,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("shows answer delete confirmation page", async () => {
       const qId = await createQuestion("Delete answer question");
       const aId = await addAnswer(qId, "Delete this answer");
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/questions/${qId}/answers/${aId}/delete`,
       );
       await expectHtmlResponse(
@@ -696,9 +762,11 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         { confirm_identifier: "Wrong Text" },
       );
       expect(response.status).toBe(302);
+      // The mismatch prompt names the identifier's label ("Answer text"), so an
+      // emptied label would leave a nameless " does not match" message.
       expectFlash(
         response,
-        expect.stringContaining("to confirm deletion"),
+        expect.stringContaining("Answer text does not match"),
         false,
       );
 
@@ -749,7 +817,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("returns 404 for a non-existent answer", async () => {
       const qId = await createQuestion("Edit missing answer");
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/questions/${qId}/answers/999/edit`,
       );
       expectStatus(404)(response);
@@ -760,7 +828,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const aId = await addAnswer(qId, "Editable");
       await createAnswerModifier("Surcharge tier");
 
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/questions/${qId}/answers/${aId}/edit`,
       );
       await expectHtmlResponse(
@@ -868,6 +936,26 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(await getAnswerModifierId(aId)).toBeNull();
     });
 
+    test("parses the modifier id as decimal, rejecting a hex-encoded id", async () => {
+      const qId = await createQuestion("Hex modifier question");
+      const aId = await addAnswer(qId, "Pick");
+      const modifierId = await createAnswerModifier("Hex surcharge");
+
+      // A forged POST sends the real modifier id hex-encoded. Decimal parsing
+      // (radix 10) reads "0x…" as 0 → no such modifier → rejected. A base-0
+      // parse would read the hex digits and wrongly accept it, silently linking
+      // the modifier, so the id must be parsed as decimal.
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId}/edit`,
+        { modifier_id: `0x${modifierId.toString(16)}`, text: "Pick" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Invalid modifier"), false);
+
+      const { getAnswerModifierId } = await import("#shared/db/questions.ts");
+      expect(await getAnswerModifierId(aId)).toBeNull();
+    });
+
     test("rejects linking a modifier that isn't answer-triggered", async () => {
       const qId = await createQuestion("Wrong trigger question");
       const aId = await addAnswer(qId, "Pick");
@@ -915,7 +1003,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         text: "Logged after",
       });
 
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("Logged after");
       expect(body).toContain("updated");
@@ -985,7 +1073,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("returns 404 for a non-existent answer", async () => {
       const qId = await createQuestion("Recalc missing");
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/questions/${qId}/answers/999/recalculate`,
       );
       expectStatus(404)(response);
@@ -1002,7 +1090,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       await updateAnswerAggregateValues(aId, { times_selected: 8 });
 
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/questions/${qId}/answers/${aId}/recalculate`,
       );
       const body = await response.text();
@@ -1047,6 +1135,14 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Selection total recalculated",
       )(response);
       expect((await getAnswerSelectionTotals(qId)).get(aId)).toBe(1);
+
+      const log = await getAllActivityLog(10);
+      const entry = log.find((e) =>
+        e.message.includes("selection total recalculated"),
+      );
+      expect(entry?.message).toBe(
+        `Answer 'Pick' selection total recalculated in question ${qId}`,
+      );
     });
   });
 
@@ -1058,15 +1154,13 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const { response } = await adminGet("/admin/listing/999/questions");
+      const response = await adminGet("/admin/listing/999/questions");
       expectStatus(404)(response);
     });
 
     test("shows empty state when no questions exist", async () => {
       const listing = await createTestListing({ name: "No Questions Listing" });
-      const { response } = await adminGet(
-        `/admin/listing/${listing.id}/questions`,
-      );
+      const response = await adminGet(`/admin/listing/${listing.id}/questions`);
       await expectHtmlResponse(
         response,
         200,
@@ -1081,9 +1175,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await addAnswer(qId, "Vegetarian");
       await addAnswer(qId, "Vegan");
 
-      const { response } = await adminGet(
-        `/admin/listing/${listing.id}/questions`,
-      );
+      const response = await adminGet(`/admin/listing/${listing.id}/questions`);
       await expectHtmlResponse(
         response,
         200,
@@ -1100,9 +1192,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { setListingQuestions } = await import("#shared/db/questions.ts");
       await setListingQuestions(listing.id, [qId]);
 
-      const { response } = await adminGet(
-        `/admin/listing/${listing.id}/questions`,
-      );
+      const response = await adminGet(`/admin/listing/${listing.id}/questions`);
       await expectHtmlResponse(
         response,
         200,
@@ -1150,7 +1240,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         ),
       );
       await expectFlashRedirect(
-        `/admin/listing/${listing.id}`,
+        `/admin/listing/${listing.id}/questions`,
         "Questions updated",
       )(response);
 
@@ -1168,7 +1258,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         {},
       );
       await expectFlashRedirect(
-        `/admin/listing/${listing.id}`,
+        `/admin/listing/${listing.id}/questions`,
         "Questions updated",
       )(response);
 
@@ -1225,7 +1315,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         ),
       );
 
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("1 question)");
     });
@@ -1240,7 +1330,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       expect(r.status).toBe(302);
 
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("0 questions)");
     });
@@ -1249,7 +1339,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   describe("activity logging", () => {
     test("logs question creation", async () => {
       await createQuestion("Logged Question");
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("Logged Question");
       expect(body).toContain("created");
@@ -1261,7 +1351,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         display_type: "radio" as const,
         text: "After Update Q",
       });
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("After Update Q");
       expect(body).toContain("updated");
@@ -1272,7 +1362,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await adminFormPost(`/admin/questions/${id}/delete`, {
         confirm_identifier: "Deleted Question",
       });
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("Deleted Question");
       expect(body).toContain("deleted");
@@ -1281,7 +1371,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("logs answer addition", async () => {
       const id = await createQuestion("Answer Log Q");
       await addAnswer(id, "Logged Answer");
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("Logged Answer");
       expect(body).toContain("added");
@@ -1293,7 +1383,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await adminFormPost(`/admin/questions/${qId}/answers/${aId}/delete`, {
         confirm_identifier: "Deleted Answer",
       });
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("Deleted Answer");
       expect(body).toContain("deleted");
@@ -1316,7 +1406,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
 
       // Verify order changed
-      const { response: getResp } = await adminGet(`/admin/questions/${qId}`);
+      const getResp = await adminGet(`/admin/questions/${qId}`);
       const body = await getResp.text();
       const firstIdx = body.indexOf("Second");
       const secondIdx = body.indexOf("First");
@@ -1337,7 +1427,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Answer moved",
       )(response);
 
-      const { response: getResp } = await adminGet(`/admin/questions/${qId}`);
+      const getResp = await adminGet(`/admin/questions/${qId}`);
       const body = await getResp.text();
       const betaIdx = body.indexOf("Beta");
       const alphaIdx = body.indexOf("Alpha");
@@ -1377,7 +1467,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await addAnswer(qId, "Yes");
       await addAnswer(qId, "No");
 
-      const { response } = await adminGet(`/admin/questions/${qId}`);
+      const response = await adminGet(`/admin/questions/${qId}`);
       const body = await response.text();
       // The answers table shows the stored selection total (0 with no bookings).
       expect(body).toContain('<th class="col-quantity">Times Selected</th>');

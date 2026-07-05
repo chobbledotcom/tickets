@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  getLogisticsAssignments,
-  setLogisticsAssignments,
-} from "#shared/db/logistics.ts";
+import { getLogisticsAssignments } from "#shared/db/logistics.ts";
 import {
   getAllLogisticsAgents,
   logisticsAgentsTable,
@@ -14,8 +11,9 @@ import { getAllUsers } from "#shared/db/users.ts";
 import {
   adminFormPost,
   adminGet,
-  createTestAttendee,
-  createTestListing,
+  createListingWithAttendeeAndLogistics,
+  createTestAgentSession,
+  createTestEditorSession,
   describeWithEnv,
   expectFlash,
   expectFlashRedirect,
@@ -31,25 +29,46 @@ const createAgent = async (name: string): Promise<number> => {
   return agents.find((a) => a.name === name)!.id;
 };
 
+/** Create a listing + attendee pair and assign logistics agents to the
+ *  booking line. Delegates to the shared `createListingWithAttendeeAndLogistics`
+ *  so both the runsheet and server-logistics tests build the same fixture. */
+const createBookingWithAgent = async (
+  agentId: number,
+): Promise<{ attendeeId: number; listingId: number }> =>
+  createListingWithAttendeeAndLogistics(
+    (id) =>
+      new Map([
+        [
+          id,
+          {
+            endAgentId: agentId,
+            endTime: "",
+            startAgentId: agentId,
+            startTime: "",
+          },
+        ],
+      ]),
+  );
+
 describeWithEnv("server (admin logistics)", { db: true }, () => {
   describe("GET /admin/logistics", () => {
     testRequiresAuth("/admin/logistics");
 
     test("shows the logistics toggle, hiding agents when disabled", async () => {
-      const { response } = await adminGet("/admin/logistics");
+      const response = await adminGet("/admin/logistics");
       await expectHtmlResponse(response, 200, "Logistics", "has_logistics");
-      const body = await (await adminGet("/admin/logistics")).response.text();
+      const body = await (await adminGet("/admin/logistics")).text();
       expect(body).not.toContain("Logistics Agents");
     });
 
     test("shows the agents section when logistics is enabled", async () => {
       settings.setForTest({ has_logistics: true });
-      const { response } = await adminGet("/admin/logistics");
+      const response = await adminGet("/admin/logistics");
       await expectHtmlResponse(response, 200, "Logistics Agents", "Add Agent");
     });
 
     test("nav shows a Logistics link for owners", async () => {
-      const body = await (await adminGet("/admin/logistics")).response.text();
+      const body = await (await adminGet("/admin/logistics")).text();
       expect(body).toContain('href="/admin/logistics"');
       expect(body).toContain(">Logistics<");
     });
@@ -72,7 +91,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
         "/admin/logistics",
         "Logistics enabled",
       )(response);
-      const body = await (await adminGet("/admin/logistics")).response.text();
+      const body = await (await adminGet("/admin/logistics")).text();
       expect(body).toContain("Logistics Agents");
     });
 
@@ -102,7 +121,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       )(response);
       const list = await adminGet("/admin/logistics");
       // The agent name links to its edit page; delete lives on that page now.
-      await expectHtmlResponse(list.response, 200, "Van 1", "/edit");
+      await expectHtmlResponse(list, 200, "Van 1", "/edit");
     });
 
     test("rejects an empty agent name", async () => {
@@ -114,7 +133,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     });
 
     test("GET /admin/logistics/new renders the standalone form", async () => {
-      const { response } = await adminGet("/admin/logistics/new");
+      const response = await adminGet("/admin/logistics/new");
       await expectHtmlResponse(
         response,
         200,
@@ -126,7 +145,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     test("edits an agent", async () => {
       const id = await createAgent("Van A");
       const editForm = await adminGet(`/admin/logistics/${id}/edit`);
-      const editHtml = await editForm.response.text();
+      const editHtml = await editForm.text();
       // The form must post to the real edit route (no stray /agents/ segment).
       expect(editHtml).toContain(`action="/admin/logistics/${id}/edit"`);
       expect(editHtml).toContain("Edit Logistics Agent");
@@ -162,7 +181,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       // The edit form pre-checks the assigned user.
       const editHtml = await (
         await adminGet(`/admin/logistics/${id}/edit`)
-      ).response.text();
+      ).text();
       expect(editHtml).toMatch(new RegExp(`checked[^>]*value="${userId}"`));
 
       // Submitting an unknown user id clears the links (it is dropped).
@@ -173,10 +192,35 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       expect(await getAgentUserIds(id)).toEqual([]);
     });
 
+    test("does not offer or accept editors as logistics drivers", async () => {
+      settings.setForTest({ has_logistics: true });
+      const id = await createAgent("No Editors Van");
+      const { userId: agentUserId } = await createTestAgentSession({
+        username: "drivableagent",
+      });
+      const { userId: editorUserId } = await createTestEditorSession({
+        username: "noteditordriver",
+      });
+
+      // The edit form offers the agent user but never the editor.
+      const editHtml = await (
+        await adminGet(`/admin/logistics/${id}/edit`)
+      ).text();
+      expect(editHtml).toContain(`value="${agentUserId}"`);
+      expect(editHtml).not.toContain(`value="${editorUserId}"`);
+
+      // A crafted submission with the editor's id is dropped server-side.
+      await adminFormPost(`/admin/logistics/${id}/edit`, {
+        name: "No Editors Van",
+        user_ids: String(editorUserId),
+      });
+      expect(await getAgentUserIds(id)).toEqual([]);
+    });
+
     test("shows a delete confirmation and deletes the agent", async () => {
       const id = await createAgent("Doomed Van");
       const confirm = await adminGet(`/admin/logistics/${id}/delete`);
-      const confirmHtml = await confirm.response.text();
+      const confirmHtml = await confirm.text();
       expect(confirmHtml).toContain(`action="/admin/logistics/${id}/delete"`);
       expect(confirmHtml).toContain("Delete Logistics Agent");
       expect(confirmHtml).toContain("Doomed Van");
@@ -195,30 +239,14 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
 
     test("deleting an agent clears its booking references", async () => {
       const id = await createAgent("Assigned Van");
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Cust",
-        "c@example.com",
-      );
-      await setLogisticsAssignments(
-        attendee.id,
-        false,
-        new Map([
-          [
-            listing.id,
-            { endAgentId: id, endTime: "", startAgentId: id, startTime: "" },
-          ],
-        ]),
-      );
+      const { attendeeId, listingId } = await createBookingWithAgent(id);
 
       await adminFormPost(`/admin/logistics/${id}/delete`, {
         confirm_identifier: "Assigned Van",
       });
 
-      const got = await getLogisticsAssignments(attendee.id);
-      expect(got.get(listing.id)).toEqual({
+      const got = await getLogisticsAssignments(attendeeId);
+      expect(got.get(listingId)).toEqual({
         endAgentId: null,
         endTime: "",
         startAgentId: null,
@@ -227,7 +255,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     });
 
     test("returns 404 editing a missing agent", async () => {
-      const { response } = await adminGet("/admin/logistics/999/edit");
+      const response = await adminGet("/admin/logistics/999/edit");
       expectStatus(404)(response);
     });
 

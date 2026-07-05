@@ -34,9 +34,9 @@ const getUpdatePageState = (): UpdatePageState => {
   return {
     buildCommit: (BUILD_COMMIT as string).slice(0, 12),
     buildDate: formatBuildDate(BUILD_TIMESTAMP),
-    bunnyConfigured: isBunnyCdnEnabled(),
     latestVersion,
     latestVersionName: settings.latestScriptVersionName,
+    providerConfigured: isBunnyCdnEnabled(),
     updateAvailable: latestVersion !== "" && isNewerVersion(latestVersion),
   };
 };

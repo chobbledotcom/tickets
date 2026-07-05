@@ -1,6 +1,6 @@
 {
   "builder.create_new_site": "Create New Site",
-  "builder.create_description": "This will create a new Tickets instance as a Bunny edge script, copy host configuration, and configure the database.",
+  "builder.create_description": "This will create a new Tickets instance on your chosen hosting provider, copy host configuration, and configure the database.",
   "builder.available_for_assignment": "Available for assignment",
   "builder.available_for_assignment_help": "Make this site available for automatic assignment when a ticket is purchased",
   "builder.build_site_button": "Build Site",

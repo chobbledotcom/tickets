@@ -7,6 +7,7 @@
  */
 
 import * as v from "valibot";
+import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
@@ -48,8 +49,35 @@ export type ModifierSpec = {
   quantity: number;
 };
 
-/** Compact booking item stored in session metadata (serialized/deserialized as JSON) */
-export type BookingItem = { e: number; q: number; p: number };
+/**
+ * Compact booking item stored in session metadata (serialized/deserialized as
+ * JSON): listing id (`e`), quantity (`q`), line total in minor units (`p`).
+ *
+ * A top-level line also carries its edge provenance so the webhook can
+ * reconstruct the line's canonical booking-tree `nodeKey` and re-check it still
+ * resolves: `k` is the edge kind (`"p"` package member, `"g"` group member — see
+ * signed-metadata.ts) and `r` the group id it hangs off. Both are absent on a
+ * standalone line.
+ */
+/** One signed booking line, schema-first: `e` listing id, `q` quantity, `p`
+ * signed unit price, and the optional edge tag (`k` code + `r` group id) the
+ * webhook's nodeKey revalidation reconstructs. The writer (signedEdgeFor) and
+ * every reader parse against THIS schema, so a drifted or tampered blob is a
+ * loud parse failure — never a silently-wrong nodeKey. */
+export const BookingItemSchema = v.object({
+  e: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  k: v.optional(v.union([v.literal("p"), v.literal("g")])),
+  p: v.pipe(v.number(), v.finite()),
+  q: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  r: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1))),
+});
+
+export const BookingItemsSchema = v.pipe(
+  v.array(BookingItemSchema),
+  v.minLength(1),
+);
+
+export type BookingItem = v.InferOutput<typeof BookingItemSchema>;
 
 /** Compact modifier reference stored in session metadata: the modifier id and
  * the quantity taken. The webhook re-fetches the modifier by id and re-derives
@@ -63,58 +91,71 @@ export type TextAnswerRef = { q: number; s: number };
  * booking and checkout intents. */
 export type ListingAnswerRefs = {
   /** Per-listing answer IDs: maps listingId → answerIds for that listing's questions */
-  listingAnswerIds?: Record<string, number[]>;
+  listingAnswerIds?: Record<string, number[]> | undefined;
   /** Per-listing free-text string refs: maps listingId → question/string ids. */
-  listingTextAnswerIds?: Record<string, TextAnswerRef[]>;
+  listingTextAnswerIds?: Record<string, TextAnswerRef[]> | undefined;
 };
 
-/** Processed booking intent extracted from payment session metadata */
-export type BookingIntent = ContactInfo &
-  ListingAnswerRefs & {
+/** Fields shared between BookingIntent and CheckoutIntent that carry
+ * deposit, redirect, and child-allocation metadata through the checkout. */
+type CheckoutMetaFields = {
+  /** When set, this session settles a reserved attendee's outstanding balance
+   * (rather than creating a new attendee). */
+  balanceAttendeeId?: number | undefined;
+  /** Reservation amount string (e.g. "10%") — present when the items are
+   * deposit-priced so the webhook can re-derive the deposit and the balance. */
+  reservationAmount?: string | undefined;
+  /** Explicit thank-you redirect carried through the paid round-trip, so a
+   * single parent's configured `thank_you_url` survives folding a child (which
+   * makes the booking multi-listing and would otherwise drop it). */
+  thankYouUrl?: string | undefined;
+  /** Per-(child, parent) allocation map from the fold, carried through the
+   * signed metadata so the webhook can expand child bookings into per-parent
+   * rows. Absent for legacy/no-parent orders. */
+  allocations?: ChildAllocation[] | undefined;
+  /** Set when the booking is for a package group: its id, carried through the
+   * signed metadata so the webhook re-derives each member's expected price from
+   * the group's current package overrides (the `group` dimension of
+   * listing_prices). Absent otherwise. */
+  packageGroupId?: number | undefined;
+};
+
+/** Fields shared by the booking and checkout intents: the contact, answer,
+ * and deposit/redirect metadata plus the booking date and shared day count. */
+type CheckoutIntentBase = ContactInfo &
+  ListingAnswerRefs &
+  CheckoutMetaFields & {
     date: string | null;
     /** Visitor-chosen day count for "customisable days" listings (shared across
      * the checkout). Absent when no selected listing is customisable. */
-    dayCount?: number;
-    items: BookingItem[];
-    /** Modifier references applied to this checkout, re-derived in the webhook.
-     * Always present (an empty array when none applied), parsed from metadata. */
-    modifiers: ModifierRef[];
-    /** HMAC index of the site renewal token. The plain token never reaches the
-     * payment provider, so a compromised provider cannot use it at /renew. */
-    siteTokenIndex?: string;
-    /** When set, this session settles a reserved attendee's outstanding balance
-     * (rather than creating a new attendee). */
-    balanceAttendeeId?: number;
-    /** Reservation amount snapshot — present when the items are deposit-priced,
-     * so the webhook can re-derive the deposit and the remaining balance. */
-    reservationAmount?: string;
+    dayCount?: number | undefined;
   };
 
+/** Processed booking intent extracted from payment session metadata */
+export type BookingIntent = CheckoutIntentBase & {
+  items: BookingItem[];
+  /** Modifier references applied to this checkout, re-derived in the webhook.
+   * Always present (an empty array when none applied), parsed from metadata. */
+  modifiers: ModifierRef[];
+  /** HMAC index of the site renewal token. The plain token never reaches the
+   * payment provider, so a compromised provider cannot use it at /renew. */
+  siteTokenIndex?: string | undefined;
+};
+
 /** Registration intent for checkout (one or more listings) */
-export type CheckoutIntent = ContactInfo &
-  ListingAnswerRefs & {
-    date: string | null;
-    /** Visitor-chosen day count for "customisable days" listings (shared across
-     * the checkout). Absent when no selected listing is customisable. */
-    dayCount?: number;
-    items: CheckoutItem[];
-    /** Modifiers (surcharges, add-ons, …) resolved for this checkout. Absent or
-     * empty when none apply. Applied to the price by the checkout-pricing layer. */
-    modifiers?: ModifierSpec[];
-    /** Plain site renewal token from /renew. Hashed before storage in provider
-     * metadata; never stored at the provider in plaintext. */
-    siteToken?: string;
-    /** Settle this attendee's outstanding balance instead of creating an attendee. */
-    balanceAttendeeId?: number;
-    /** Override the subtotal the booking fee is calculated on (defaults to the
-     * item subtotal). Used so a deposit charges the fee on the full order, and a
-     * balance payment charges no fee (the fee was collected up front). */
-    feeSubtotal?: number;
-    /** Reservation-amount mini-language string (e.g. "10%"). When set, each line
-     * is charged the per-unit deposit instead of its full price, while metadata
-     * still records the full price so the webhook can compute the balance owed. */
-    reservationAmount?: string;
-  };
+export type CheckoutIntent = CheckoutIntentBase & {
+  items: CheckoutItem[];
+  /** Modifiers (surcharges, add-ons, …) resolved for this checkout. Absent or
+   * empty when none apply. Applied to the price by the checkout-pricing layer. */
+  modifiers?: ModifierSpec[];
+  /** Plain site renewal token from /renew. Hashed before storage in provider
+   * metadata; never stored at the provider in plaintext. */
+  siteToken?: string;
+  /** Override the subtotal the booking fee is calculated on (defaults to the
+   * item subtotal). Used so a deposit charges the fee on the full order, and a
+   * balance payment charges no fee (the fee was collected up front). */
+  feeSubtotal?: number;
+};
 
 /** Result of creating a checkout session.
  * - Success: { sessionId, checkoutUrl }
@@ -165,6 +206,16 @@ export type SessionMetadata = {
   reservation_amount: string;
   /** JSON array of applied modifier references ("" when none applied). */
   modifiers: string;
+  /** Explicit thank-you redirect a parent booking carries so a folded child
+   * doesn't drop it ("" when the default single-listing derivation applies). */
+  thank_you_url: string;
+  /** JSON-encoded ChildAllocation[] from the fold, carried through the paid
+   * round-trip so the webhook can expand child bookings into per-parent rows.
+   * "" when no children were folded. */
+  allocations: string;
+  /** The package group's id when the booking is a package ("" otherwise), so the
+   * webhook re-prices members against the current package overrides. */
+  package_group_id: string;
   /** The agreed order total (minor units) the buyer was charged, packed with a
    * server HMAC over the price/booking fields as `total.sig` in a single key —
    * one entry rather than two, to stay within providers' metadata-entry caps
@@ -206,7 +257,7 @@ export type ValidatedPaymentSession = {
    * webhook, an old redirect, a stale retry — is still recognised on the day it
    * was paid, not the day we happened to process it.
    */
-  createdAt?: string;
+  createdAt?: string | undefined;
 };
 
 /** Result of webhook signature verification */

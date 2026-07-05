@@ -11,7 +11,12 @@ import {
   createAttendeeAtomic,
   LISTING_ATTENDEE_ROW_COLS,
 } from "#shared/db/attendees.ts";
-import { queryAll } from "#shared/db/client.ts";
+import { getDb, queryAll } from "#shared/db/client.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
   answersTable,
@@ -34,7 +39,12 @@ import type {
   AttendeeMergeDecisionInput,
   AttendeeMergeDiff,
 } from "#shared/merge/attendee-merge-types.ts";
-import { bookAttendee, createTestListing, describeWithEnv } from "#test-utils";
+import {
+  bookAttendee,
+  createTestGroup,
+  createTestListing,
+  describeWithEnv,
+} from "#test-utils";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 
 /** Create a test attendee directly via the DB */
@@ -45,7 +55,7 @@ const createAttendee = async (
   date?: string | null,
 ) => {
   const result = await createAttendeeAtomic({
-    bookings: [{ date, listingId }],
+    bookings: [{ ...(date !== undefined ? { date } : {}), listingId }],
     email: email ?? `${name.toLowerCase()}@test.com`,
     name,
   });
@@ -68,6 +78,9 @@ const getBookings = (attendeeId: number) =>
     price_paid: number;
     ledger_event_group: string;
     attachment_downloads: number;
+    order_token: string;
+    parent_listing_id: number;
+    package_group_id: number;
   }>(
     `SELECT ${LISTING_ATTENDEE_ROW_COLS}
      FROM listing_attendees
@@ -193,13 +206,93 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     );
   });
 
+  test("preserves package_group_id when moving a source package booking", async () => {
+    const group = await createTestGroup({ isPackage: true, name: "MergePkg" });
+    const targetListing = await createTestListing({ maxAttendees: 10 });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+    });
+    const target = await createAttendee(
+      targetListing.id,
+      "Alice",
+      "alice@test.com",
+    );
+    const sourceResult = await createAttendeeAtomic({
+      bookings: [{ listingId: member.id }],
+      email: "bob@test.com",
+      name: "Bob",
+      packageGroupId: group.id,
+    });
+    if (!sourceResult.success) throw new Error("source booking failed");
+    const source = sourceResult.attendees[0]!;
+
+    const sourcePii = {
+      address: "",
+      email: "bob@test.com",
+      name: "Bob",
+      phone: "",
+      special_instructions: "",
+    };
+    const targetPii = {
+      address: "",
+      email: "alice@test.com",
+      name: "Alice",
+      phone: "",
+      special_instructions: "",
+    };
+    const diff = await buildAttendeeMergeDiff(
+      {
+        sourceBookings: await getBookings(source.id),
+        sourceId: source.id,
+        sourcePii,
+        targetBookings: await getBookings(target.id),
+        targetId: target.id,
+        targetPii,
+      },
+      [],
+    );
+    const result = await applyAttendeeMerge({
+      decision: {
+        answers: {},
+        bookings: {},
+        money: {},
+        pii: {},
+        version: diff.version,
+      },
+      diff,
+      privateKey: await getTestPrivateKey(),
+      sourceId: source.id,
+      sourcePii,
+      targetId: target.id,
+      targetPii: {
+        ...targetPii,
+        payment_id: target.payment_id,
+        ticket_token: target.ticket_token,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    // The moved package booking keeps its group, so the merged attendee's
+    // ticket still renders/hides as the package rather than a bare listing.
+    const moved = (await getBookings(target.id)).find(
+      (b) => b.listing_id === member.id,
+    );
+    expect(moved?.package_group_id).toBe(group.id);
+  });
+
   describe("bookingKey", () => {
     test("formats key with start_at", () => {
-      expect(bookingKey(1, "2026-05-01")).toBe("1:2026-05-01");
+      expect(bookingKey(1, "2026-05-01", 0)).toBe("1:2026-05-01:0");
     });
 
     test("formats key with null start_at", () => {
-      expect(bookingKey(1, null)).toBe("1:null");
+      expect(bookingKey(1, null, 0)).toBe("1:null:0");
+    });
+
+    test("distinguishes rows by parent_listing_id", () => {
+      expect(bookingKey(5, null, 1)).toBe("5:null:1");
+      expect(bookingKey(5, null, 2)).toBe("5:null:2");
     });
   });
 
@@ -642,12 +735,16 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           {
             conflictClass: "conflicting_metadata",
             listingId: 5,
+            parentListingId: 0,
             sourceBooking: {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
               ledger_event_group: "",
               listing_id: 5,
+              order_token: "",
+              package_group_id: 0,
+              parent_listing_id: 0,
               price_paid: 0,
               quantity: 1,
               refunded: 0,
@@ -661,6 +758,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               end_at: null,
               ledger_event_group: "",
               listing_id: 5,
+              order_token: "",
+              package_group_id: 0,
+              parent_listing_id: 0,
               price_paid: 0,
               quantity: 2,
               refunded: 0,
@@ -695,12 +795,16 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           {
             conflictClass: "duplicate",
             listingId: 7,
+            parentListingId: 0,
             sourceBooking: {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
               ledger_event_group: "",
               listing_id: 7,
+              order_token: "",
+              package_group_id: 0,
+              parent_listing_id: 0,
               price_paid: 0,
               quantity: 1,
               refunded: 0,
@@ -714,6 +818,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               end_at: null,
               ledger_event_group: "",
               listing_id: 7,
+              order_token: "",
+              package_group_id: 0,
+              parent_listing_id: 0,
               price_paid: 0,
               quantity: 2,
               refunded: 0,
@@ -741,6 +848,165 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       }
     });
 
+    test("rejects copying a no-quantity source line that still carries a payment", () => {
+      // A quantity-0 line must have price_paid = 0; merging one that doesn't
+      // would strand the charge behind the quantity-0 refund guards.
+      const diff: AttendeeMergeDiff = {
+        answerItems: [],
+        bookingItems: [
+          {
+            conflictClass: "moveable",
+            listingId: 5,
+            parentListingId: 0,
+            sourceBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              ledger_event_group: "",
+              listing_id: 5,
+              order_token: "",
+              package_group_id: 0,
+              parent_listing_id: 0,
+              price_paid: 1500,
+              quantity: 0,
+              refunded: 0,
+              start_at: null,
+            },
+            sourceSaleAmount: 1500,
+            startAt: null,
+            targetBooking: null,
+            targetSaleAmount: 0,
+          },
+        ],
+        piiFields: [],
+        sourceId: 2,
+        targetId: 1,
+        version: "v1",
+      };
+      const decision: AttendeeMergeDecisionInput = {
+        answers: {},
+        bookings: {},
+        money: {},
+        pii: {},
+        version: "v1",
+      };
+      const result = validateAttendeeMergeDecision(diff, decision);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(
+          result.errors.some((e) => e.includes("strand a recorded payment")),
+        ).toBe(true);
+      }
+    });
+
+    test("rejects replacing an active paid target line with a no-quantity source", () => {
+      // take_source would delete the paid target and insert the quantity-0
+      // source, stranding the target's payment behind a ghost row.
+      const diff: AttendeeMergeDiff = {
+        answerItems: [],
+        bookingItems: [
+          {
+            conflictClass: "conflicting_metadata",
+            listingId: 5,
+            parentListingId: 0,
+            sourceBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              ledger_event_group: "",
+              listing_id: 5,
+              order_token: "",
+              package_group_id: 0,
+              parent_listing_id: 0,
+              price_paid: 0,
+              quantity: 0,
+              refunded: 0,
+              start_at: null,
+            },
+            sourceSaleAmount: 0,
+            startAt: null,
+            targetBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              ledger_event_group: "",
+              listing_id: 5,
+              order_token: "",
+              package_group_id: 0,
+              parent_listing_id: 0,
+              price_paid: 1500,
+              quantity: 2,
+              refunded: 0,
+              start_at: null,
+            },
+            targetSaleAmount: 1500,
+          },
+        ],
+        piiFields: [],
+        sourceId: 2,
+        targetId: 1,
+        version: "v1",
+      };
+      const decision: AttendeeMergeDecisionInput = {
+        answers: {},
+        bookings: { "5:null:0": "take_source" },
+        money: {},
+        pii: {},
+        version: "v1",
+      };
+      const result = validateAttendeeMergeDecision(diff, decision);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(
+          result.errors.some((e) => e.includes("strand a recorded payment")),
+        ).toBe(true);
+      }
+    });
+
+    test("allows moving a no-quantity source line that carries no payment", () => {
+      // A clean quantity-0 sentinel (no payment, no paid target) is moveable.
+      const diff: AttendeeMergeDiff = {
+        answerItems: [],
+        bookingItems: [
+          {
+            conflictClass: "moveable",
+            listingId: 5,
+            parentListingId: 0,
+            sourceBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              ledger_event_group: "",
+              listing_id: 5,
+              order_token: "",
+              package_group_id: 0,
+              parent_listing_id: 0,
+              price_paid: 0,
+              quantity: 0,
+              refunded: 0,
+              start_at: null,
+            },
+            sourceSaleAmount: 0,
+            startAt: null,
+            targetBooking: null,
+            targetSaleAmount: 0,
+          },
+        ],
+        piiFields: [],
+        sourceId: 2,
+        targetId: 1,
+        version: "v1",
+      };
+      const decision: AttendeeMergeDecisionInput = {
+        answers: {},
+        bookings: {},
+        money: {},
+        pii: {},
+        version: "v1",
+      };
+      expect(validateAttendeeMergeDecision(diff, decision).valid).toBe(true);
+    });
+
     test("accepts valid decisions", () => {
       const diff: AttendeeMergeDiff = {
         answerItems: [
@@ -758,12 +1024,16 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           {
             conflictClass: "duplicate",
             listingId: 5,
+            parentListingId: 0,
             sourceBooking: {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
               ledger_event_group: "",
               listing_id: 5,
+              order_token: "",
+              package_group_id: 0,
+              parent_listing_id: 0,
               price_paid: 0,
               quantity: 1,
               refunded: 0,
@@ -777,6 +1047,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               end_at: null,
               ledger_event_group: "",
               listing_id: 5,
+              order_token: "",
+              package_group_id: 0,
+              parent_listing_id: 0,
               price_paid: 0,
               quantity: 2,
               refunded: 0,
@@ -792,7 +1065,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       };
       const decision: AttendeeMergeDecisionInput = {
         answers: { "10": "source" },
-        bookings: { "5:null": "keep_target" },
+        bookings: { "5:null:0": "keep_target" },
         money: {},
         pii: { name: "target" },
         version: "v1",
@@ -810,6 +1083,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         end_at: null,
         ledger_event_group: "grp",
         listing_id: 5,
+        order_token: "",
+        package_group_id: 0,
+        parent_listing_id: 0,
         price_paid: 5000,
         quantity: 1,
         refunded: 0,
@@ -827,6 +1103,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         {
           conflictClass: "duplicate",
           listingId: 5,
+          parentListingId: 0,
           sourceBooking: bookingRow(),
           sourceSaleAmount,
           startAt: null,
@@ -845,7 +1122,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       booking: "keep_target" | "take_source" = "keep_target",
     ): AttendeeMergeDecisionInput => ({
       answers: {},
-      bookings: { "5:null": booking },
+      bookings: { "5:null:0": booking },
       money,
       pii: {},
       version: "v1",
@@ -867,7 +1144,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     test("accepts a discarded paid booking once a money choice is given", () => {
       const result = validateAttendeeMergeDecision(
         moneyConflictDiff(5000, 5000),
-        decisionWith({ "5:null": "credit" }),
+        decisionWith({ "5:null:0": "credit" }),
       );
       expect(result.valid).toBe(true);
     });
@@ -896,6 +1173,85 @@ describeWithEnv("attendee merge service", { db: true }, () => {
   });
 
   describe("applyAttendeeMerge", () => {
+    test("clears check-in when copying a no-quantity source line", async () => {
+      const listing1 = await createTestListing({
+        maxAttendees: 10,
+        name: "M1",
+      });
+      const listing2 = await createTestListing({
+        maxAttendees: 10,
+        name: "M2",
+      });
+      const target = await createAttendee(listing1.id, "Alice", "a@test.com");
+      const source = await createAttendee(listing2.id, "Bob", "b@test.com");
+      // Make source's line a checked-in quantity-0 sentinel (price 0).
+      await getDb().execute({
+        args: [source.id],
+        sql: "UPDATE listing_attendees SET quantity = 0, checked_in = 1 WHERE attendee_id = ?",
+      });
+
+      const diff = await buildAttendeeMergeDiff(
+        {
+          sourceBookings: await getBookings(source.id),
+          sourceId: source.id,
+          sourcePii: {
+            address: "",
+            email: "b@test.com",
+            name: "Bob",
+            phone: "",
+            special_instructions: "",
+          },
+          targetBookings: await getBookings(target.id),
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "a@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
+        },
+        [],
+      );
+      const result = await applyAttendeeMerge({
+        decision: {
+          answers: {},
+          bookings: {},
+          money: {},
+          pii: {},
+          version: diff.version,
+        },
+        diff,
+        privateKey: await getTestPrivateKey(),
+        sourceId: source.id,
+        sourcePii: {
+          address: "",
+          email: "b@test.com",
+          name: "Bob",
+          phone: "",
+          special_instructions: "",
+        },
+        targetId: target.id,
+        targetPii: {
+          address: "",
+          email: "a@test.com",
+          name: "Alice",
+          payment_id: target.payment_id,
+          phone: "",
+          special_instructions: "",
+          ticket_token: target.ticket_token,
+        },
+      });
+      expect(result.success).toBe(true);
+
+      const moved = (await getBookings(target.id)).find(
+        (b) => b.listing_id === listing2.id,
+      )!;
+      expect(moved.quantity).toBe(0);
+      // The ghost line arrives with its check-in cleared.
+      expect(moved.checked_in).toBe(0);
+    });
+
     test("applies PII and answer decisions correctly", async () => {
       const listing1 = await createTestListing({
         maxAttendees: 10,
@@ -1005,6 +1361,125 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       expect(listingLinks.map((r) => r.listing_id).sort()).toEqual(
         [listing1.id, listing2.id].sort(),
       );
+    });
+
+    test("merges many paid duplicate bookings in a bounded number of round-trips", async () => {
+      // Regression: each discarded paid booking posts a decision-17 reversal leg.
+      // Posting them one-leg-at-a-time inside an interactive transaction held the
+      // write lock open for several round-trips PER leg, so a big merge could blow
+      // the primary's transaction timeout. The whole merge must commit as one batch
+      // — O(1) round-trips regardless of how many bookings the person has.
+      const N = 12;
+      // Sequential: each createTestListing runs an authenticated request that
+      // mints a session, so building them concurrently would collide session
+      // tokens — the round-trip count we assert on is the merge, not the setup.
+      const listings: Awaited<ReturnType<typeof createTestListing>>[] = [];
+      for (let i = 0; i < N; i++) {
+        listings.push(await createTestListing({ maxAttendees: 10 }));
+      }
+      const at = "2026-06-21T00:00:00.000Z";
+      const piiOf = (name: string, email: string) => ({
+        address: "",
+        email,
+        name,
+        phone: "",
+        special_instructions: "",
+      });
+      const book = async (name: string, email: string) => {
+        const r = await createAttendeeAtomic({
+          bookings: listings.map((l) => ({ listingId: l.id })),
+          email,
+          name,
+        });
+        if (!r.success) throw new Error("setup failed");
+        return r.attendees[0]!;
+      };
+      const target = await book("Alice", "alice@test.com");
+      const source = await book("Bob", "bob@test.com");
+
+      // Give every source booking a paid sale leg, so each same-listing duplicate
+      // is a paid conflict that needs a money decision (a reversal leg on merge).
+      for (let i = 0; i < N; i++) {
+        await postTransfers([
+          {
+            amount: 5000,
+            destination: revenueAccount(listings[i]!.id),
+            eventGroup: `evt${i}`,
+            kind: "sale",
+            occurredAt: at,
+            reference: `sale${i}`,
+            source: attendeeAccount(source.id),
+          },
+          {
+            amount: 5000,
+            destination: attendeeAccount(source.id),
+            eventGroup: `evt${i}`,
+            kind: "payment",
+            occurredAt: at,
+            reference: `pay${i}`,
+            source: WORLD,
+          },
+        ]);
+        // Link the booking row to its ledger event so the merge sees it as paid.
+        await getDb().execute({
+          args: [`evt${i}`, source.id, listings[i]!.id],
+          sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
+        });
+      }
+
+      const diff = await buildAttendeeMergeDiff(
+        {
+          sourceBookings: await getBookings(source.id),
+          sourceId: source.id,
+          sourcePii: piiOf("Bob", "bob@test.com"),
+          targetBookings: await getBookings(target.id),
+          targetId: target.id,
+          targetPii: piiOf("Alice", "alice@test.com"),
+        },
+        [],
+      );
+
+      // Every listing is a duplicate conflict: keep the target row and write off
+      // the discarded source booking's cash.
+      const bookings: Record<string, "keep_target"> = {};
+      const money: Record<string, "writeoff"> = {};
+      for (const l of listings) {
+        bookings[`${l.id}:null`] = "keep_target";
+        money[`${l.id}:null`] = "writeoff";
+      }
+
+      const { result, roundTrips } = await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        const r = await applyAttendeeMerge({
+          decision: {
+            answers: {},
+            bookings,
+            money,
+            pii: {},
+            version: diff.version,
+          },
+          diff,
+          privateKey: await getTestPrivateKey(),
+          sourceId: source.id,
+          sourcePii: piiOf("Bob", "bob@test.com"),
+          targetId: target.id,
+          targetPii: {
+            ...piiOf("Alice", "alice@test.com"),
+            payment_id: target.payment_id,
+            ticket_token: target.ticket_token,
+          },
+        });
+        return {
+          result: r,
+          roundTrips: new Set(getQueryLog().map((q) => q.startedAtMs)).size,
+        };
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.summary.bookingsWrittenOff).toBe(N);
+      // The N reversal legs land in one batch, so the merge's round-trips don't
+      // scale with N (an interactive per-leg post would be ~3N and trip the guard).
+      expect(roundTrips).toBeLessThanOrEqual(10);
     });
 
     test("preserves the target's free-text answers through a merge", async () => {
@@ -1388,7 +1863,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       expect(diff.bookingItems[0]!.conflictClass).toBe("duplicate");
 
-      const key = bookingKey(listing.id, null);
+      const key = bookingKey(listing.id, null, 0);
       const result = await applyAttendeeMerge({
         decision: {
           answers: {},
@@ -1471,7 +1946,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       expect(diff.bookingItems[0]!.conflictClass).toBe("conflicting_metadata");
 
-      const key = bookingKey(listing.id, null);
+      const key = bookingKey(listing.id, null, 0);
       const result = await applyAttendeeMerge({
         decision: {
           answers: {},

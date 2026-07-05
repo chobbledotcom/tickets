@@ -56,7 +56,7 @@ type Registration = {
   invalidate: Invalidator;
   /** If set, an UPDATE only fires when it assigns at least one of these columns.
    * INSERT / DELETE / REPLACE always fire. */
-  whenColumns?: ReadonlySet<string>;
+  whenColumns?: ReadonlySet<string> | undefined;
 };
 
 const invalidatorsByTable = new Map<string, Set<Registration>>();
@@ -79,7 +79,7 @@ const setsIntersect = (
 export const registerTableInvalidation = (
   tables: readonly string[],
   invalidate: Invalidator,
-  opts?: { whenColumns?: readonly string[] },
+  opts?: { whenColumns?: readonly string[] | undefined },
 ): void => {
   const whenColumns = opts?.whenColumns ? new Set(opts.whenColumns) : undefined;
   const registration: Registration = { invalidate, whenColumns };

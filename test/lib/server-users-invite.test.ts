@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getAllUsers } from "#shared/db/users.ts";
 import {
   adminFormPost,
+  adminGet,
   awaitTestRequest,
   describeWithEnv,
   expectFlashRedirect,
@@ -20,9 +21,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     testRequiresAuth("/admin/users");
 
     test("shows users list when authenticated as owner", async () => {
-      const response = await awaitTestRequest("/admin/users", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/users");
       await expectHtmlResponse(response, 200, TEST_ADMIN_USERNAME, "owner");
     });
   });
@@ -65,9 +64,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     testRequiresAuth("/admin/user/new");
 
     test("renders invite user form when authenticated as owner", async () => {
-      const response = await awaitTestRequest("/admin/user/new", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/user/new");
       await expectHtmlResponse(
         response,
         200,

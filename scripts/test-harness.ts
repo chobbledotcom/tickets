@@ -10,8 +10,7 @@
  * generated assets are cleaned up afterwards rather than left in the tree.
  */
 
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import {
   buildStaticAssets,
   STATIC_ASSET_OUTFILES,
@@ -21,10 +20,10 @@ import {
   hasReporterArg,
   runCompactDenoTest,
 } from "./compact-test-reporter.ts";
+import { projectRoot } from "./project-root.ts";
 
 const STRIPE_MOCK_VERSION = "0.188.0";
 export const STRIPE_MOCK_PORT = 12111;
-export const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const BIN_DIR = join(projectRoot, ".bin");
 const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");
 const verboseHarness = Deno.env.get("TICKETS_TEST_HARNESS_VERBOSE") === "1";
@@ -161,6 +160,7 @@ const buildDenoTestArgs = (
   extraArgs: string[],
   useCoverage: boolean,
   reporter?: "tap",
+  junitPath?: string,
 ): string[] => {
   const args = [
     "test",
@@ -173,9 +173,17 @@ const buildDenoTestArgs = (
     "--allow-sys",
     "--allow-ffi",
     "--parallel",
+    // Expose `globalThis.gc` so the test DB layer can reclaim libsql's
+    // file-descriptor leak (a fresh client per test + every interactive
+    // transaction leaks an fd that close() never releases — only GC does). Under
+    // high --parallel worker counts these outrun GC and exhaust the process fd
+    // limit ("Too many open files"), which surfaces as flaky, moving failures.
+    // See maybeReclaimLeakedFds in test/test-utils/db.ts.
+    "--v8-flags=--expose-gc",
   ];
   if (reporter) args.push("--reporter", reporter);
   if (useCoverage) args.push("--coverage=coverage");
+  if (junitPath) args.push("--junit-path", junitPath);
   args.push(...extraArgs);
   return args;
 };
@@ -183,11 +191,14 @@ const buildDenoTestArgs = (
 /**
  * Run `deno test` with the standard permission flags. `extraArgs` are appended
  * verbatim — the full runner passes `["test/"]`, the focused runner passes the
- * requested files (and any flags such as `--filter`). Returns the exit code.
+ * requested files (and any flags such as `--filter`). `junitPath`, when set,
+ * makes `deno test` write a JUnit XML file the caller can parse for per-test
+ * timings. Returns the exit code.
  */
 export const runTests = async (
   extraArgs: string[],
   useCoverage: boolean,
+  junitPath?: string,
 ): Promise<number> => {
   const env = {
     ...Deno.env.toObject(),
@@ -198,19 +209,20 @@ export const runTests = async (
   };
 
   if (!hasReporterArg(extraArgs)) {
+    const estimatedTotal = await estimateTapEventCount(projectRoot, extraArgs);
     return await runCompactDenoTest(
-      buildDenoTestArgs(extraArgs, useCoverage, "tap"),
+      buildDenoTestArgs(extraArgs, useCoverage, "tap", junitPath),
       {
         cwd: projectRoot,
         env,
-        estimatedTotal: await estimateTapEventCount(projectRoot, extraArgs),
+        ...(estimatedTotal === undefined ? {} : { estimatedTotal }),
       },
     );
   }
 
   console.log("Running tests...");
   const testCmd = new Deno.Command(Deno.execPath(), {
-    args: buildDenoTestArgs(extraArgs, useCoverage),
+    args: buildDenoTestArgs(extraArgs, useCoverage, undefined, junitPath),
     cwd: projectRoot,
     env,
     stderr: "inherit",

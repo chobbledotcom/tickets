@@ -4,11 +4,18 @@ import { handleRequest } from "#routes";
 import { encryptBytes } from "#shared/crypto/encryption.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import {
+  getImagesForItem,
+  imagesTable,
+  setImagesForItem,
+} from "#shared/db/images.ts";
+import {
   getListing,
   getListingWithCount,
   listingsTable,
 } from "#shared/db/listings.ts";
+import { MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   cdnOkResponse,
   createTestListing,
@@ -19,11 +26,13 @@ import {
   flashCookieHeader,
   installUrlHandler,
   JPEG_HEADER,
+  makeTestPng,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
   PDF_BYTES,
   setupListingAndLogin,
+  TEST_STORAGE_ZONE,
   testCookie,
   testCsrfToken,
   updateTestListing,
@@ -68,48 +77,74 @@ const editFormData = async (
   };
 };
 
-/** Submit an edit-form multipart request with an image file attached */
-const submitEditImage = async (
+const submitEditFile =
+  (fieldName: string) =>
+  async (
+    listingId: number,
+    cookie: string,
+    csrfToken: string,
+    file: { name: string; data: Uint8Array; contentType: string },
+  ): Promise<Response> => {
+    const fields = await editFormData(listingId, csrfToken);
+    return handleRequest(
+      mockMultipartRequest(`/admin/listing/${listingId}/edit`, fields, cookie, {
+        fieldName,
+        ...file,
+      }),
+    );
+  };
+
+/** Submit an item Images-tab multipart request with an image file attached. */
+const submitListingImageUpload = (
   listingId: number,
   cookie: string,
   csrfToken: string,
   file: { name: string; data: Uint8Array; contentType: string },
-): Promise<Response> => {
-  const fields = await editFormData(listingId, csrfToken);
-  return handleRequest(
-    mockMultipartRequest(`/admin/listing/${listingId}/edit`, fields, cookie, {
-      fieldName: "image",
-      ...file,
-    }),
+): Promise<Response> =>
+  handleRequest(
+    mockMultipartRequest(
+      `/admin/listing/${listingId}/images/upload`,
+      {
+        alt_text: "",
+        csrf_token: csrfToken,
+        name: file.name,
+      },
+      cookie,
+      { fieldName: "image", ...file },
+    ),
   );
-};
 
-/** Submit a JPEG image via the edit form (most common upload case) */
-const submitEditJpeg = (
+/** Submit a real (decodable) image via the Images tab.
+ * Uploads are transcoded to WebP, so the source must be a genuine image — a
+ * real PNG, not a magic-byte stub. */
+const submitListingImagePng = async (
   listingId: number,
   cookie: string,
   csrfToken: string,
   filename: string,
 ): Promise<Response> =>
-  submitEditImage(listingId, cookie, csrfToken, {
-    contentType: "image/jpeg",
-    data: JPEG_HEADER,
+  submitListingImageUpload(listingId, cookie, csrfToken, {
+    contentType: "image/png",
+    data: await makeTestPng(80, 60),
     name: filename,
   });
 
-/** Submit a POST to /admin/listing/:id/image/delete */
-const submitImageDelete = (
+const linkStoredImage = async (
   listingId: number,
-  cookie: string,
-  csrfToken: string,
-): Promise<Response> =>
-  handleRequest(
-    mockFormRequest(
-      `/admin/listing/${listingId}/image/delete`,
-      { csrf_token: csrfToken },
-      cookie,
+  filename: string,
+  filenameThumb = `${filename}-thumb.webp`,
+) => {
+  const image = await imagesTable.insert({
+    filename: nonEmptyString(filename, "test image filename"),
+    filenameThumb: nonEmptyString(
+      filenameThumb,
+      "test image thumbnail filename",
     ),
-  );
+    name: filename,
+  });
+  await setImagesForItem("listing", listingId, [image.id]);
+  return image;
+};
 
 /** Assert a 302 redirect with a flash error cookie containing the given substring */
 const expectImageErrorRedirect = (
@@ -124,6 +159,27 @@ const expectImageErrorRedirect = (
   // Cookie is "flash_{id}={value}", extract value after first "="
   const decoded = decodeURIComponent(cookiePart.split("=").slice(1).join("="));
   expect(decoded).toContain(errorSubstring);
+};
+
+const expectEditJpegErrorRedirect = async (
+  listingId: number,
+  cookie: string,
+  csrfToken: string,
+  file: { data: Uint8Array; name: string },
+  expectedError: string,
+): Promise<void> => {
+  await withStorageMock(async () => {
+    const response = await submitListingImageUpload(
+      listingId,
+      cookie,
+      csrfToken,
+      {
+        contentType: "image/jpeg",
+        ...file,
+      },
+    );
+    await expectImageErrorRedirect(response, expectedError);
+  });
 };
 
 /** Shared form fields for creating a new listing via POST /admin/listing */
@@ -197,20 +253,18 @@ const submitListingDelete = (
   );
 
 /** Submit an edit form with an attachment file */
-const submitEditAttachment = async (
+const submitEditAttachment = submitEditFile("attachment");
+
+const submitEditGuidePdf = (
   listingId: number,
   cookie: string,
   csrfToken: string,
-  file: { name: string; data: Uint8Array; contentType: string },
-): Promise<Response> => {
-  const fields = await editFormData(listingId, csrfToken);
-  return handleRequest(
-    mockMultipartRequest(`/admin/listing/${listingId}/edit`, fields, cookie, {
-      fieldName: "attachment",
-      ...file,
-    }),
-  );
-};
+): Promise<Response> =>
+  submitEditAttachment(listingId, cookie, csrfToken, {
+    contentType: "application/pdf",
+    data: PDF_BYTES,
+    name: "guide.pdf",
+  });
 
 /** Request the image proxy route */
 const proxyRequest = (ext = "jpg"): Promise<Response> =>
@@ -226,23 +280,35 @@ describeWithEnv(
     },
   },
   () => {
-    describe("POST /admin/listing/:id/edit (image upload via edit form)", () => {
+    describe("POST /admin/listing/:id/images/upload", () => {
       describeWithEnv(
         "when storage is not configured",
         { env: { STORAGE_ZONE_KEY: undefined, STORAGE_ZONE_NAME: undefined } },
         () => {
-          test("ignores image", async () => {
+          test("rejects image upload", async () => {
             await withStorageDisabled(async () => {
               const { listing, cookie, csrfToken } =
                 await setupListingAndLogin();
 
-              const response = await submitEditJpeg(
+              const getResponse = await handleRequest(
+                mockRequest(`/admin/listing/${listing.id}/images`, {
+                  headers: { cookie },
+                }),
+              );
+              expect(getResponse.status).toBe(404);
+
+              const response = await submitListingImagePng(
                 listing.id,
                 cookie,
                 csrfToken,
                 "test.jpg",
               );
-              expect(response.status).toBe(302);
+              await expectFlashRedirect(
+                `/admin/listing/${listing.id}/edit`,
+                "File storage is not configured.",
+                false,
+                cookie,
+              )(response);
               const updated = await getListingWithCount(listing.id);
               expect(updated?.image_url).toBe("");
             });
@@ -262,7 +328,7 @@ describeWithEnv(
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
         await withStorageMock(async () => {
-          const response = await submitEditImage(
+          const response = await submitListingImageUpload(
             listing.id,
             cookie,
             csrfToken,
@@ -272,7 +338,7 @@ describeWithEnv(
               name: "test.pdf",
             },
           );
-          await expectImageErrorRedirect(response, "JPEG, PNG, GIF, or WebP");
+          await expectImageErrorRedirect(response, "JPEG, PNG, or WebP");
           const updated = await getListingWithCount(listing.id);
           expect(updated?.image_url).toBe("");
         });
@@ -281,71 +347,61 @@ describeWithEnv(
       test("redirects with image error for oversized image", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
-        const oversized = new Uint8Array(257 * 1024);
+        const oversized = new Uint8Array(MAX_IMAGE_SIZE + 1);
         oversized[0] = 0xff;
         oversized[1] = 0xd8;
         oversized[2] = 0xff;
 
-        await withStorageMock(async () => {
-          const response = await submitEditImage(
-            listing.id,
-            cookie,
-            csrfToken,
-            {
-              contentType: "image/jpeg",
-              data: oversized,
-              name: "big.jpg",
-            },
-          );
-          await expectImageErrorRedirect(response, "256KB");
-        });
+        await expectEditJpegErrorRedirect(
+          listing.id,
+          cookie,
+          csrfToken,
+          { data: oversized, name: "big.jpg" },
+          "32MB",
+        );
       });
 
       test("redirects with image error for mismatched magic bytes", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
-        await withStorageMock(async () => {
-          const response = await submitEditImage(
-            listing.id,
-            cookie,
-            csrfToken,
-            {
-              contentType: "image/jpeg",
-              data: new Uint8Array([0x00, 0x00, 0x00, 0x00]),
-              name: "fake.jpg",
-            },
-          );
-          await expectImageErrorRedirect(response, "valid image");
-        });
+        await expectEditJpegErrorRedirect(
+          listing.id,
+          cookie,
+          csrfToken,
+          { data: new Uint8Array([0x00, 0x00, 0x00, 0x00]), name: "fake.jpg" },
+          "valid image",
+        );
       });
 
-      test("uploads image and updates listing via edit form", async () => {
+      test("uploads image and links it to the listing", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
         await withStorageMock(async () => {
-          const response = await submitEditJpeg(
+          const response = await submitListingImagePng(
             listing.id,
             cookie,
             csrfToken,
             "photo.jpg",
           );
           await expectFlashRedirect(
-            `/admin/listing/${listing.id}`,
-            "Listing updated",
+            `/admin/listing/${listing.id}/images`,
+            "Image uploaded",
           )(response);
 
           const updated = await getListingWithCount(listing.id);
-          expect(updated?.image_url).not.toBe("");
-          expect(updated?.image_url).toMatch(/\.jpg$/);
+          // Source PNG is transcoded to a full WebP plus a WebP thumbnail.
+          expect(updated?.image_url).toMatch(/\.webp$/);
+          expect(updated?.image_thumb_url).toMatch(/\.webp$/);
+          expect(updated?.image_thumb_url).not.toBe(updated?.image_url);
         });
       });
 
-      test("deletes old image when uploading new one via edit form", async () => {
+      test("keeps existing reusable image files when uploading a new one", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await listingsTable.update(listing.id, { imageUrl: "old-image.jpg" });
+        await linkStoredImage(listing.id, "old-image.jpg", "old-thumb.webp");
 
         await withStorageMock(async (fetchCalls) => {
-          const response = await submitEditJpeg(
+          const response = await submitListingImagePng(
             listing.id,
             cookie,
             csrfToken,
@@ -353,16 +409,19 @@ describeWithEnv(
           );
           expect(response.status).toBe(302);
 
-          const deleteCall = fetchCalls.find((url) =>
-            url.includes("old-image.jpg"),
+          expect(fetchCalls.find((url) => url.includes("old-image.jpg"))).toBe(
+            undefined,
           );
-          expect(deleteCall).not.toBeUndefined();
+          expect(fetchCalls.find((url) => url.includes("old-thumb.webp"))).toBe(
+            undefined,
+          );
+          expect(await getImagesForItem("listing", listing.id)).toHaveLength(2);
         });
       });
 
-      test("succeeds even when old image delete throws", async () => {
+      test("succeeds when an existing image file would fail to delete", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await listingsTable.update(listing.id, { imageUrl: "old-failing.jpg" });
+        await linkStoredImage(listing.id, "old-failing.jpg");
 
         await withFetchMock(async (originalFetch) => {
           installUrlHandler(originalFetch, (url) => {
@@ -375,7 +434,7 @@ describeWithEnv(
             return null;
           });
 
-          const response = await submitEditJpeg(
+          const response = await submitListingImagePng(
             listing.id,
             cookie,
             csrfToken,
@@ -383,13 +442,14 @@ describeWithEnv(
           );
           expect(response.status).toBe(302);
           const updated = await getListingWithCount(listing.id);
-          expect(updated?.image_url).toMatch(/\.jpg$/);
+          expect(updated?.image_url).toBe("old-failing.jpg");
+          expect(await getImagesForItem("listing", listing.id)).toHaveLength(2);
         });
       });
     });
 
-    describe("POST /admin/listing (image upload via create form)", () => {
-      test("uploads image when creating a new listing", async () => {
+    describe("POST /admin/listing (stray image upload field)", () => {
+      test("ignores image when creating a new listing", async () => {
         const cookie = await testCookie();
         const csrfToken = await testCsrfToken();
 
@@ -398,7 +458,11 @@ describeWithEnv(
             cookie,
             csrfToken,
             "Image Test Listing",
-            { contentType: "image/jpeg", data: JPEG_HEADER, name: "photo.jpg" },
+            {
+              contentType: "image/png",
+              data: await makeTestPng(80, 60),
+              name: "photo.png",
+            },
           );
           expect(response.status).toBe(302);
 
@@ -406,11 +470,12 @@ describeWithEnv(
           const listings = await getAllListings();
           const created = listings.find((e) => e.name === "Image Test Listing");
           expect(created).not.toBeUndefined();
-          expect(created?.image_url).toMatch(/\.jpg$/);
+          expect(created?.image_url).toBe("");
+          expect(created?.image_thumb_url).toBe("");
         });
       });
 
-      test("redirects with image error when creating listing with invalid image", async () => {
+      test("does not validate ignored image field when creating listing", async () => {
         const cookie = await testCookie();
         const csrfToken = await testCsrfToken();
 
@@ -425,7 +490,7 @@ describeWithEnv(
               name: "test.pdf",
             },
           );
-          expectImageErrorRedirect(response, "JPEG, PNG, GIF, or WebP");
+          expect(response.status).toBe(302);
 
           const { getAllListings } = await import("#shared/db/listings.ts");
           const listings = await getAllListings();
@@ -484,71 +549,6 @@ describeWithEnv(
         );
         const html = await response.text();
         expect(html).not.toContain("image was not uploaded");
-      });
-    });
-
-    describe("POST /admin/listing/:id/image/delete", () => {
-      const expectImageDeleteRedirect = (
-        response: Response,
-        listingId: number,
-      ): Promise<Response> =>
-        expectFlashRedirect(
-          `/admin/listing/${listingId}`,
-          "Image removed",
-        )(response);
-
-      test("removes image from listing and storage", async () => {
-        const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await listingsTable.update(listing.id, { imageUrl: "to-delete.jpg" });
-
-        await withStorageMock(async () => {
-          const response = await submitImageDelete(
-            listing.id,
-            cookie,
-            csrfToken,
-          );
-          await expectImageDeleteRedirect(response, listing.id);
-
-          const updated = await getListingWithCount(listing.id);
-          expect(updated?.image_url).toBe("");
-        });
-      });
-
-      test("redirects when listing has no image", async () => {
-        const { listing, cookie, csrfToken } = await setupListingAndLogin();
-
-        const response = await submitImageDelete(listing.id, cookie, csrfToken);
-        await expectImageDeleteRedirect(response, listing.id);
-      });
-
-      test("returns 404 for non-existent listing", async () => {
-        const cookie = await testCookie();
-        const csrfToken = await testCsrfToken();
-
-        const response = await submitImageDelete(9999, cookie, csrfToken);
-        expect(response.status).toBe(404);
-      });
-
-      test("reports error when storage delete throws", async () => {
-        const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await listingsTable.update(listing.id, { imageUrl: "failing.jpg" });
-
-        await withFetchMock(async (originalFetch) => {
-          installUrlHandler(originalFetch, () =>
-            Promise.reject(new Error("CDN unreachable")),
-          );
-
-          const response = await submitImageDelete(
-            listing.id,
-            cookie,
-            csrfToken,
-          );
-          expectImageErrorRedirect(response, "removal failed");
-
-          // DB record should NOT be cleared when CDN delete fails
-          const updated = await getListingWithCount(listing.id);
-          expect(updated?.image_url).toBe("failing.jpg");
-        });
       });
     });
 
@@ -667,15 +667,10 @@ describeWithEnv(
               const { listing, cookie, csrfToken } =
                 await setupListingAndLogin();
 
-              const response = await submitEditAttachment(
+              const response = await submitEditGuidePdf(
                 listing.id,
                 cookie,
                 csrfToken,
-                {
-                  contentType: "application/pdf",
-                  data: PDF_BYTES,
-                  name: "guide.pdf",
-                },
               );
               expect(response.status).toBe(302);
               const updated = await getListingWithCount(listing.id);
@@ -689,15 +684,10 @@ describeWithEnv(
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
         await withStorageMock(async () => {
-          const response = await submitEditAttachment(
+          const response = await submitEditGuidePdf(
             listing.id,
             cookie,
             csrfToken,
-            {
-              contentType: "application/pdf",
-              data: PDF_BYTES,
-              name: "guide.pdf",
-            },
           );
           await expectFlashRedirect(
             `/admin/listing/${listing.id}`,
@@ -761,26 +751,19 @@ describeWithEnv(
       test("reports error when attachment upload fails", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
-        await runWithStorageConfig(
-          { zoneKey: "testkey", zoneName: "testzone" },
-          () =>
-            withFetchMock(async (originalFetch) => {
-              installUrlHandler(originalFetch, () =>
-                Promise.reject(new Error("CDN unreachable")),
-              );
+        await runWithStorageConfig(TEST_STORAGE_ZONE, () =>
+          withFetchMock(async (originalFetch) => {
+            installUrlHandler(originalFetch, () =>
+              Promise.reject(new Error("CDN unreachable")),
+            );
 
-              const response = await submitEditAttachment(
-                listing.id,
-                cookie,
-                csrfToken,
-                {
-                  contentType: "application/pdf",
-                  data: PDF_BYTES,
-                  name: "guide.pdf",
-                },
-              );
-              expectImageErrorRedirect(response, "upload failed");
-            }),
+            const response = await submitEditGuidePdf(
+              listing.id,
+              cookie,
+              csrfToken,
+            );
+            expectImageErrorRedirect(response, "upload failed");
+          }),
         );
       });
     });
@@ -854,6 +837,38 @@ describeWithEnv(
         )(response);
       });
 
+      test("keeps attachment linked when storage deletion fails", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
+        await listingsTable.update(listing.id, {
+          attachmentName: "guide.pdf",
+          attachmentUrl: "delete-fails.pdf",
+        });
+
+        await withExpectedError(async () => {
+          await withFetchMock(async (originalFetch) => {
+            installUrlHandler(originalFetch, (url) =>
+              url.includes("delete-fails.pdf")
+                ? Promise.reject(new Error("CDN delete failed"))
+                : null,
+            );
+            const response = await submitAttachmentDelete(
+              listing.id,
+              cookie,
+              csrfToken,
+            );
+            await expectFlashRedirect(
+              `/admin/listing/${listing.id}`,
+              "Attachment removal failed",
+              false,
+            )(response);
+          });
+        });
+
+        const updated = await getListingWithCount(listing.id);
+        expect(updated?.attachment_url).toBe("delete-fails.pdf");
+        expect(updated?.attachment_name).toBe("guide.pdf");
+      });
+
       test("returns 404 for non-existent listing", async () => {
         const cookie = await testCookie();
         const csrfToken = await testCsrfToken();
@@ -864,12 +879,16 @@ describeWithEnv(
     });
 
     describe("listing deletion cleans up storage files", () => {
-      test("deletes image from storage when listing is deleted", async () => {
-        const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await listingsTable.update(listing.id, {
-          imageUrl: "listing-image.jpg",
-        });
-
+      /** Delete the listing and return the storage-delete fetch calls made
+       *  during the request. Collapses the shared `withStorageMock` +
+       *  `submitListingDelete` + `expect(302)` + `fetchCalls.find` scaffold
+       *  every test in this block spells out. */
+      const deleteListingAndCaptureCalls = async (
+        listing: { id: number; name: string },
+        cookie: string,
+        csrfToken: string,
+      ): Promise<string[]> => {
+        const calls: string[] = [];
         await withStorageMock(async (fetchCalls) => {
           const response = await submitListingDelete(
             listing.id,
@@ -878,15 +897,26 @@ describeWithEnv(
             csrfToken,
           );
           expect(response.status).toBe(302);
-
-          const deleteCall = fetchCalls.find((url) =>
-            url.includes("listing-image.jpg"),
-          );
-          expect(deleteCall).not.toBeUndefined();
-
-          const deleted = await getListing(listing.id);
-          expect(deleted).toBeNull();
+          calls.push(...fetchCalls);
         });
+        return calls;
+      };
+
+      test("keeps linked reusable image files when listing is deleted", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
+        await linkStoredImage(listing.id, "listing-image.jpg");
+
+        const fetchCalls = await deleteListingAndCaptureCalls(
+          listing,
+          cookie,
+          csrfToken,
+        );
+        expect(
+          fetchCalls.find((url) => url.includes("listing-image.jpg")),
+        ).toBeUndefined();
+
+        const deleted = await getListing(listing.id);
+        expect(deleted).toBeNull();
       });
 
       test("deletes attachment from storage when listing is deleted", async () => {
@@ -896,55 +926,40 @@ describeWithEnv(
           attachmentUrl: "listing-attachment.pdf",
         });
 
-        await withStorageMock(async (fetchCalls) => {
-          const response = await submitListingDelete(
-            listing.id,
-            listing.name,
-            cookie,
-            csrfToken,
-          );
-          expect(response.status).toBe(302);
-
-          const deleteCall = fetchCalls.find((url) =>
-            url.includes("listing-attachment.pdf"),
-          );
-          expect(deleteCall).not.toBeUndefined();
-        });
+        const fetchCalls = await deleteListingAndCaptureCalls(
+          listing,
+          cookie,
+          csrfToken,
+        );
+        expect(
+          fetchCalls.find((url) => url.includes("listing-attachment.pdf")),
+        ).not.toBeUndefined();
       });
 
-      test("deletes both image and attachment from storage when listing is deleted", async () => {
+      test("deletes attachment but keeps image when listing is deleted", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
+        await linkStoredImage(listing.id, "both-image.jpg");
         await listingsTable.update(listing.id, {
           attachmentName: "both.pdf",
           attachmentUrl: "both-attachment.pdf",
-          imageUrl: "both-image.jpg",
         });
 
-        await withStorageMock(async (fetchCalls) => {
-          const response = await submitListingDelete(
-            listing.id,
-            listing.name,
-            cookie,
-            csrfToken,
-          );
-          expect(response.status).toBe(302);
-
-          const imageCall = fetchCalls.find((url) =>
-            url.includes("both-image.jpg"),
-          );
-          const attachmentCall = fetchCalls.find((url) =>
-            url.includes("both-attachment.pdf"),
-          );
-          expect(imageCall).not.toBeUndefined();
-          expect(attachmentCall).not.toBeUndefined();
-        });
+        const fetchCalls = await deleteListingAndCaptureCalls(
+          listing,
+          cookie,
+          csrfToken,
+        );
+        expect(
+          fetchCalls.find((url) => url.includes("both-image.jpg")),
+        ).toBeUndefined();
+        expect(
+          fetchCalls.find((url) => url.includes("both-attachment.pdf")),
+        ).not.toBeUndefined();
       });
 
-      test("succeeds even when storage delete fails during listing deletion", async () => {
+      test("succeeds when linked image storage deletion would fail during listing deletion", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await listingsTable.update(listing.id, {
-          imageUrl: "failing-image.jpg",
-        });
+        await linkStoredImage(listing.id, "failing-image.jpg");
 
         await withFetchMock(async (originalFetch) => {
           installUrlHandler(originalFetch, (url) => {

@@ -31,6 +31,22 @@ const fakeFetch =
     return Promise.resolve(res);
   };
 
+const recordingFetch = (
+  responseFor: (calls: Array<[string, RequestInit | undefined]>) => FetchResult,
+): {
+  calls: Array<[string, RequestInit | undefined]>;
+  fetchImpl: (url: string, init?: RequestInit) => Promise<FetchResult>;
+} => {
+  const calls: Array<[string, RequestInit | undefined]> = [];
+  return {
+    calls,
+    fetchImpl: (url, init) => {
+      calls.push([url, init]);
+      return Promise.resolve(responseFor(calls));
+    },
+  };
+};
+
 const config = {
   baseUrl: DEFAULT_SMS_BASE_URL,
   passphrase: PASS,
@@ -84,25 +100,18 @@ describe("sms gateway send", () => {
   });
 
   it("follows a safe redirect with each hop validated manually", async () => {
-    const calls: Array<[string, RequestInit | undefined]> = [];
-    const fetchImpl = (
-      url: string,
-      init?: RequestInit,
-    ): Promise<FetchResult> => {
-      calls.push([url, init]);
-      return Promise.resolve(
-        calls.length === 1
-          ? result({
-              headers: new Headers({
-                location: "https://sms.example.com/final",
-              }),
-              ok: false,
-              status: 307,
-              text: "",
-            })
-          : result(),
-      );
-    };
+    const { calls, fetchImpl } = recordingFetch((c) =>
+      c.length === 1
+        ? result({
+            headers: new Headers({
+              location: "https://sms.example.com/final",
+            }),
+            ok: false,
+            status: 307,
+            text: "",
+          })
+        : result(),
+    );
 
     const { providerId } = await sendEncryptedMessage(
       config,
@@ -119,21 +128,14 @@ describe("sms gateway send", () => {
   });
 
   it("refuses to follow an unsafe redirect target", async () => {
-    const calls: Array<[string, RequestInit | undefined]> = [];
-    const fetchImpl = (
-      url: string,
-      init?: RequestInit,
-    ): Promise<FetchResult> => {
-      calls.push([url, init]);
-      return Promise.resolve(
-        result({
-          headers: new Headers({ location: "https://127.0.0.1/final" }),
-          ok: false,
-          status: 307,
-          text: "",
-        }),
-      );
-    };
+    const { calls, fetchImpl } = recordingFetch(() =>
+      result({
+        headers: new Headers({ location: "https://127.0.0.1/final" }),
+        ok: false,
+        status: 307,
+        text: "",
+      }),
+    );
 
     await expect(
       sendEncryptedMessage(

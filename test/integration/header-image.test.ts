@@ -17,7 +17,7 @@ describeWithEnv("integration: header image in layout", { db: true }, () => {
   test("header image rendered in page when set via DB", async () => {
     await settings.update.headerImageUrl("my-header.jpg");
 
-    const { response } = await adminGet("/admin/settings");
+    const response = await adminGet("/admin/settings");
     await expectHtmlResponse(
       response,
       200,

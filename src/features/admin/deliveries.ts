@@ -11,7 +11,7 @@
 /* jscpd:ignore-start */
 import { unique } from "#fp";
 import { t } from "#i18n";
-import { ANY_USER_FORM, anyUserPage, withAuth } from "#routes/auth.ts";
+import { DELIVERY_FORM, deliveryPage, withAuth } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { addDays } from "#shared/dates.ts";
@@ -138,7 +138,7 @@ const loadLegLookups = async (
 
 /** Handle GET /admin/deliveries — render the run sheet. Agents are sent here as
  * their only page; staff (owner/manager) reach it from the Calendar submenu. */
-const handleDeliveriesGet = anyUserPage(async (session) => {
+const handleDeliveriesGet = deliveryPage(async (session) => {
   const flash = getFlash();
   const agentIds = await getUserAgentIds(session.userId);
   if (agentIds.length === 0) {
@@ -168,7 +168,7 @@ const handleDeliveriesGet = anyUserPage(async (session) => {
 /** Handle POST /admin/deliveries/mark — toggle a leg done, scoped to the
  * agent's own logistics agents. */
 const handleDeliveriesMark = (request: Request): Promise<Response> =>
-  withAuth(request, ANY_USER_FORM, async (session, form) => {
+  withAuth(request, DELIVERY_FORM, async (session, form) => {
     const attendeeId = form.getOptionalInt("attendee_id");
     const listingId = form.getOptionalInt("listing_id");
     const kind = form.getString("kind");

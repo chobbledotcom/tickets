@@ -439,8 +439,9 @@ export const skipComment = (content: string, i: number): number => {
     while (
       j < content.length &&
       !(content[j] === "*" && content[j + 1] === "/")
-    )
+    ) {
       j++;
+    }
     return j + 2;
   }
   return i;
@@ -624,4 +625,244 @@ export const findRedundantArg = (
     return `${name}() arg #${pos} is always ${first} across ${sites.length} calls (${where}${more}) — use a default parameter or constant`;
   }
   return null;
+};
+
+/* -------------------------------------------------------------------------- *
+ * No duplicate type shapes                                                   *
+ *                                                                            *
+ * Two differently-named object types with the same members are a standing    *
+ * invitation to one shared, reusable type. This scanner extracts every        *
+ * object-shaped `type X = { … }` alias and `interface X { … }`, normalizes    *
+ * the member list, and groups declarations by that shape so identical ones    *
+ * under different names surface. It reuses the string/comment-aware           *
+ * tokenizer above so braces, semicolons and commas inside strings or          *
+ * comments never confuse the body-matching or member-splitting.               *
+ * -------------------------------------------------------------------------- */
+
+/** A single named object type discovered in a source file. `members` are the
+ * normalized (whitespace-collapsed) top-level members, in source order. */
+export type NamedTypeShape = {
+  file: string;
+  name: string;
+  kind: "type" | "interface";
+  members: string[];
+};
+
+/** Below this many members a shared shape isn't worth extracting: single-field
+ * objects like `{ id: number }` collide coincidentally across unrelated route
+ * params and rows, and forcing them to share a type hurts readability. */
+export const MIN_TYPE_SHAPE_MEMBERS = 2;
+
+/**
+ * Return a length-preserving copy of `content` with every comment — and, when
+ * `blankStrings` is set, every string/template literal — replaced by spaces
+ * (newlines kept, so offsets and line anchoring are unchanged). The all-blanked
+ * form is used for structural decisions (finding declarations, matching braces,
+ * splitting members) so a `{`, `}`, `;` or `,` inside a string or comment never
+ * leaks into them; the comments-only form supplies the real member text (string
+ * literal members like `kind: "listing"` stay intact, so distinct discriminated
+ * unions are never mistaken for one shape).
+ */
+export const blankSpans = (content: string, blankStrings: boolean): string => {
+  const out = content.split("");
+  const blank = (from: number, to: number): void => {
+    for (let k = from; k < to; k++) if (out[k] !== "\n") out[k] = " ";
+  };
+  let i = 0;
+  while (i < content.length) {
+    const pastComment = skipComment(content, i);
+    if (pastComment !== i) {
+      blank(i, pastComment);
+      i = pastComment;
+      continue;
+    }
+    const c = content[i];
+    if (c === '"' || c === "'" || c === "`") {
+      const end = skipString(content, i);
+      if (blankStrings) blank(i, end);
+      i = end;
+      continue;
+    }
+    i++;
+  }
+  return out.join("");
+};
+
+/** Index of the `}` that closes the `{` at `open` in already-blanked `code`
+ * (no strings/comments to skip), or -1 if unbalanced. */
+const matchBrace = (code: string, open: number): number => {
+  let depth = 0;
+  for (let i = open; i < code.length; i++) {
+    if (code[i] === "{") depth++;
+    else if (code[i] === "}") {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+};
+
+/** The `{`/`}` offsets of an interface body starting after its name at `pos`,
+ * or null. Skips an optional `<…>` type-parameter/`extends` clause; a `=` or
+ * `;` before the body means this wasn't an interface declaration. */
+const parseInterfaceBody = (
+  code: string,
+  pos: number,
+): { open: number; close: number } | null => {
+  let depth = 0;
+  for (let i = pos; i < code.length; i++) {
+    const c = code[i];
+    if (c === "<") depth++;
+    else if (c === ">") {
+      if (code[i - 1] !== "=") depth--;
+    } else if (depth === 0 && c === "{") {
+      const close = matchBrace(code, i);
+      return close === -1 ? null : { close, open: i };
+    } else if (depth === 0 && (c === ";" || c === "=")) return null;
+  }
+  return null;
+};
+
+/** Advance past whitespace in `code` from `i`. */
+const skipSpace = (code: string, i: number): number => {
+  let j = i;
+  while (j < code.length && /\s/.test(code[j]!)) j++;
+  return j;
+};
+
+/**
+ * The `{`/`}` offsets of a `type X … = { … }` body starting after its name at
+ * `pos`, or null when the alias isn't a whole-object type (a union, a mapped
+ * type, `type X = Y`, etc.). Skips optional `<…>` type parameters, requires the
+ * `=`, and requires the object to be the entire right-hand side.
+ */
+const parseTypeAliasBody = (
+  code: string,
+  pos: number,
+): { open: number; close: number } | null => {
+  let i = skipSpace(code, pos);
+  if (code[i] === "<") {
+    let depth = 0;
+    for (; i < code.length; i++) {
+      if (code[i] === "<") depth++;
+      else if (code[i] === ">") {
+        depth--;
+        if (depth === 0) {
+          i++;
+          break;
+        }
+      }
+    }
+  }
+  i = skipSpace(code, i);
+  if (code[i] !== "=") return null;
+  i = skipSpace(code, i + 1);
+  if (code[i] !== "{") return null;
+  const close = matchBrace(code, i);
+  if (close === -1) return null;
+  let k = close + 1;
+  while (k < code.length && (code[k] === " " || code[k] === "\t")) k++;
+  const after = code[k];
+  if (after && after !== ";" && after !== "\n" && after !== "\r") return null;
+  return { close, open: i };
+};
+
+/**
+ * Split the interior of an object type into its normalized top-level members.
+ * `code` (fully blanked) drives the bracket-depth and delimiter detection;
+ * `text` (comments blanked, strings kept) supplies the member text. Angle
+ * brackets nest so a comma inside `Map<a, b>` doesn't split, while `=>` is not
+ * treated as a closing angle.
+ */
+export const splitTypeMembers = (
+  code: string,
+  text: string,
+  innerStart: number,
+  innerEnd: number,
+): string[] => {
+  const members: string[] = [];
+  let depth = 0;
+  let start = innerStart;
+  const push = (end: number): void => {
+    const raw = text.slice(start, end).replace(/\s+/g, " ").trim();
+    if (raw) members.push(raw);
+    start = end + 1;
+  };
+  for (let i = innerStart; i < innerEnd; i++) {
+    const c = code[i];
+    if (c === "{" || c === "(" || c === "[" || c === "<") depth++;
+    else if (c === "}" || c === ")" || c === "]") depth--;
+    else if (c === ">") {
+      if (code[i - 1] !== "=") depth--;
+    } else if (depth === 0 && (c === ";" || c === ",")) push(i);
+  }
+  push(innerEnd);
+  return members;
+};
+
+/** Every object-shaped `type`/`interface` declared in `content`, with its
+ * normalized member list. Non-object aliases (unions, `type X = Y`, mapped
+ * types) are skipped. */
+export const extractTypeShapes = (
+  content: string,
+): { name: string; kind: "type" | "interface"; members: string[] }[] => {
+  const code = blankSpans(content, true);
+  const text = blankSpans(content, false);
+  const shapes: {
+    name: string;
+    kind: "type" | "interface";
+    members: string[];
+  }[] = [];
+  const declaration =
+    /^[ \t]*(?:export[ \t]+)?(?:declare[ \t]+)?(type|interface)[ \t]+([A-Za-z_$][\w$]*)/gm;
+  for (const m of code.matchAll(declaration)) {
+    const kind = m[1] as "type" | "interface";
+    const nameEnd = m.index + m[0].length;
+    const body =
+      kind === "interface"
+        ? parseInterfaceBody(code, nameEnd)
+        : parseTypeAliasBody(code, nameEnd);
+    if (!body) continue;
+    const members = splitTypeMembers(code, text, body.open + 1, body.close);
+    shapes.push({ kind, members, name: m[2]!.trim() });
+  }
+  return shapes;
+};
+
+/** A stable signature for an object shape: its members, order-independent. */
+export const typeShapeSignature = (members: string[]): string =>
+  [...members].sort().join("; ");
+
+/**
+ * Group `defs` by shape and report each shape shared by two or more distinctly
+ * named types. Shapes with fewer than {@link MIN_TYPE_SHAPE_MEMBERS} members,
+ * and any signature on `allowedSignatures`, are ignored.
+ */
+export const findDuplicateTypeShapes = (
+  defs: NamedTypeShape[],
+  allowedSignatures: string[],
+): string[] => {
+  const groups = new Map<string, NamedTypeShape[]>();
+  for (const def of defs) {
+    if (def.members.length < MIN_TYPE_SHAPE_MEMBERS) continue;
+    const signature = typeShapeSignature(def.members);
+    if (allowedSignatures.includes(signature)) continue;
+    const group = groups.get(signature) ?? [];
+    group.push(def);
+    groups.set(signature, group);
+  }
+
+  const violations: string[] = [];
+  for (const [signature, group] of groups) {
+    const distinct = new Map<string, NamedTypeShape>();
+    for (const def of group) distinct.set(`${def.file}::${def.name}`, def);
+    if (distinct.size < 2) continue;
+    const where = [...distinct.values()]
+      .map((d) => `${d.kind} ${d.name} (${d.file})`)
+      .join(", ");
+    violations.push(
+      `duplicate type shape { ${signature} } — defined as ${where}; extract one shared type or add it to the allow-list`,
+    );
+  }
+  return violations.sort();
 };

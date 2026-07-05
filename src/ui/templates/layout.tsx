@@ -12,21 +12,17 @@ import { settings } from "#shared/db/settings.ts";
 import { DEMO_BANNER, isDemoMode } from "#shared/demo.ts";
 import { flashConsumed, getFlash } from "#shared/flash-context.ts";
 import { Flash } from "#shared/forms.tsx";
+import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import type { Theme } from "#shared/types.ts";
 import { renderAdminFooter } from "#templates/admin/footer.tsx";
 
-export const escapeHtml = (str: string): string =>
-  str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+export { escapeHtml };
 
 interface LayoutProps {
-  bodyClass?: string;
+  bodyClass?: string | undefined;
   children?: Child;
-  headExtra?: string;
+  headExtra?: string | undefined;
   theme?: Theme;
   title: string;
 }
@@ -60,6 +56,11 @@ export const Layout = ({
           />
           <title>{title}</title>
           <link href={CSS_PATH} rel="stylesheet" />
+          {/* Operator-supplied custom CSS, served from the cached /custom.css
+              route. Cache-busted by the settings version (bumped on every
+              settings write) so the immutable response refreshes after an edit
+              without reading the setting on every render. */}
+          <link href={`/custom.css?v=${settings.version}`} rel="stylesheet" />
           {headExtra && <Raw html={headExtra} />}
         </head>
         <body class={bodyClass || undefined}>

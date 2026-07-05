@@ -9,58 +9,220 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { parseEditableAggregateForm } from "#routes/admin/aggregate-recalculation.ts";
-import { AUTH_MULTIPART, requireSessionOr, withAuth } from "#routes/auth.ts";
-import { applyFlash, formDataToParams } from "#routes/csrf.ts";
+import {
+  type AuthSession,
+  adminLandingPath,
+  CONTENT_MULTIPART,
+  requireContentOr,
+  withAuth,
+} from "#routes/auth.ts";
+import { formDataToParams } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { listingReturnPath } from "#shared/admin-paths.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   checkGroupCapAfterDurationChange,
   recomputeListingBookingRanges,
 } from "#shared/db/attendees.ts";
-import { getAllGroups } from "#shared/db/groups.ts";
+import {
+  anyHiddenPackageGroup,
+  getAllGroups,
+  getGroupIdsByListingId,
+} from "#shared/db/groups.ts";
+import { getChildIds } from "#shared/db/listing-parents.ts";
 import {
   adjustListingIncome,
   getListingAggregateRecalculation,
   getListingWithCount,
+  getStoredListingWithCount,
   type ListingAggregateRecalculation,
   type ListingAggregateValues,
   updateListingAggregateValues,
 } from "#shared/db/listings.ts";
+import { settings } from "#shared/db/settings.ts";
 import { applyDemoOverrides, LISTING_DEMO_FIELDS } from "#shared/demo.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import {
+  dimensionsOf,
+  inferTemplate,
+  LISTING_TEMPLATES,
+  submissionRequiresDate,
+} from "#shared/listing-templates.ts";
 import type {
   AdminSession,
   Group,
   Listing,
   ListingWithCount,
 } from "#shared/types.ts";
+import { isListingType } from "#shared/types.ts";
 import {
   adminDuplicateListingPage,
-  adminListingEditPage,
   adminListingNewPage,
-} from "#templates/admin/listings.tsx";
+  adminListingPickerPage,
+} from "#templates/admin/listings/form-pages.tsx";
 import type { ListingAggregateFormValues } from "#templates/fields.ts";
 import { listingAggregateFields } from "#templates/fields.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
+import { listingPage } from "./listing-page.ts";
+import { loadListingEditPanel } from "./listing-page-data.ts";
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
   extractListingAggregateValues,
+  parseGroupIds,
 } from "./listings-form.ts";
+import { copyDuplicatedChildEdges } from "./listings-parents.ts";
 import { processUploadsAndRedirect } from "./listings-uploads.ts";
 import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 /* jscpd:ignore-end */
 
 /**
- * Handle GET /admin/listing/new (show create listing form)
+ * Handle GET /admin/listing/new (show picker or create form)
+ *
+ * No ?template param → show the type-picker card page.
+ * ?template=<known-id> → show the seeded, Customise-collapsed create form.
+ * ?template=custom or unknown value → show the full form with Customise open.
  */
 export const handleNewListingGet: TypedRouteHandler<
   "GET /admin/listing/new"
 > = (request) =>
-  requireSessionOr(request, async (session) => {
+  requireContentOr(request, async (session) => {
+    const templateParam = new URL(request.url).searchParams.get("template");
+    if (!templateParam) {
+      return htmlResponse(adminListingPickerPage(session));
+    }
+    const template =
+      LISTING_TEMPLATES.find((t) => t.id === templateParam) ?? null;
+    // Logistics-requiring templates are unavailable when the feature is disabled.
+    if (template?.requiresLogistics && !settings.hasLogistics) {
+      return htmlResponse(adminListingPickerPage(session));
+    }
     const groups = await getAllGroups();
-    return htmlResponse(adminListingNewPage(groups, session));
+    return htmlResponse(
+      adminListingNewPage(groups, session, {
+        templateId: template?.id ?? "custom",
+      }),
+    );
   });
+
+/** Build a DimensionSource from submitted form params. */
+const formToDimensionSource = (form: FormParams) => ({
+  date: form.getString("date_date") || "",
+  listing_type: isListingType(form.getString("listing_type"))
+    ? (form.getString("listing_type") as "standard" | "daily")
+    : ("standard" as const),
+  purchase_only: form.getString("purchase_only") === "1",
+  uses_logistics: form.getString("uses_logistics") === "1",
+});
+
+/**
+ * Resolve the effective template id for a POST error re-render.
+ *
+ * Uses the carried `template_id` hidden field when present; falls back to
+ * inferring a template from the submitted dimensions so a duplicate form
+ * (which has no template_id) re-renders with the right collapse state.
+ */
+const resolveErrorTemplateId = (form: FormParams): string | null => {
+  const carried = form.getString("template_id");
+  if (carried) return carried;
+  return inferTemplate(formToDimensionSource(form))?.id ?? null;
+};
+
+/**
+ * After creating a listing from the duplicate form, copy the source parent's
+ * required-child edges onto the new copy so a duplicated parent keeps its
+ * required-child gate (the children themselves are not duplicated — the copy
+ * references the same existing child listings). Reads the source id from the
+ * hidden `duplicated_from` field; a plain create (no source) is a no-op, as is a
+ * source with no children or the flag being off ({@link copyDuplicatedChildEdges}).
+ *
+ * Returns a **warning** message when the gate could NOT be copied (the edges
+ * failed re-validation on the copy — e.g. the child carries an opt-in add-on
+ * reachable only through the source parent, so it would dead-end from the new
+ * one). Surfacing this instead of swallowing it prevents a silent
+ * "success" that leaves the copy a gateless standalone bookable listing; the copy
+ * is kept but the operator is told its required children weren't carried over.
+ * Returns null when the edges copied cleanly (or there were none to copy).
+ */
+const copyEdgesFromDuplicateSource = async (
+  form: FormParams,
+  newId: number,
+): Promise<string | null> => {
+  const sourceId = form.getOptionalInt("duplicated_from");
+  if (sourceId === null) return null;
+  // The source's per-package price/quantity is copied onto the copy's membership
+  // rows atomically in the create write's afterWrite (see buildCreateListingResource);
+  // here we only carry the parent/child gate.
+  const childIds = await getChildIds(sourceId);
+  if (childIds.length === 0) return null;
+  // A HIDDEN package's member can't gate required children (its members are
+  // collapsed to the package name, so a child selector would leak them), so a
+  // copy that joined a hidden package group must not inherit the source's child
+  // edges — keep it a valid member and tell the operator the gate wasn't
+  // carried over, mirroring the children endpoint's package invariant that the
+  // create path would otherwise bypass. A visible package renders the member's
+  // child selector, so its copy keeps the gate.
+  if (await anyHiddenPackageGroup(await getGroupIdsByListingId(newId))) {
+    return t("listings_table.duplicate_children_dropped", {
+      reason: t("error.package_member_no_children"),
+    });
+  }
+  // The copy was just created in this request, so it always loads.
+  const newListing = (await getListingWithCount(newId))!;
+  const error = await copyDuplicatedChildEdges(newListing, childIds);
+  return error
+    ? t("listings_table.duplicate_children_dropped", { reason: error })
+    : null;
+};
+
+const renderCreateListingError = async (
+  session: AdminSession,
+  form: FormParams,
+  error: string,
+  templateId: string | null,
+): Promise<Response> => {
+  const groups = await getAllGroups();
+  return htmlResponse(
+    adminListingNewPage(groups, session, {
+      customiseOpen: form.getString("customise") === "1",
+      error,
+      // The group checkboxes the operator submitted, so a rejected create
+      // re-renders their selection rather than dropping every group.
+      selectedGroupIds: parseGroupIds(form),
+      templateId,
+      values: Object.fromEntries(form.entries()),
+    }),
+    400,
+  );
+};
+
+/**
+ * Parse a multipart listing submission into form params, apply demo overrides,
+ * and lock the editor-forbidden fields. Shared by create and edit.
+ *
+ * Editors must not set or change a listing's webhook URL: the registration
+ * webhook posts full attendee PII (name, email, phone, address, …) to that
+ * endpoint, so a crafted URL would exfiltrate exactly the data the keyless
+ * editor role can't otherwise read. They also must not toggle `use_defaults`,
+ * because inheriting (or dropping) an operator-set webhook default changes the
+ * same effective webhook behind their back. Both fields are forced to their
+ * existing values — empty / off on create — so any value an editor submits is
+ * ignored. (Both are also hidden from the editor form; this is the backstop.)
+ */
+const parseListingForm = (
+  session: AdminSession,
+  formData: FormData,
+  existing: { webhookUrl: string; useDefaults: boolean },
+): FormParams => {
+  const form = formDataToParams(formData);
+  applyDemoOverrides(form, LISTING_DEMO_FIELDS);
+  if (session.adminLevel === "editor") {
+    form.set("webhook_url", existing.webhookUrl);
+    form.set("use_defaults", existing.useDefaults ? "1" : "");
+  }
+  return form;
+};
 
 /**
  * Handle POST /admin/listing (create listing)
@@ -68,43 +230,90 @@ export const handleNewListingGet: TypedRouteHandler<
 export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
   request,
 ) =>
-  withAuth(request, AUTH_MULTIPART, async (session, formData) => {
-    const form = formDataToParams(formData);
-    applyDemoOverrides(form, LISTING_DEMO_FIELDS);
+  withAuth(request, CONTENT_MULTIPART, async (session, formData) => {
+    const form = parseListingForm(session, formData, {
+      useDefaults: false,
+      webhookUrl: "",
+    });
+
+    // Mirror the GET gate: reject logistics templates when the feature is off.
+    // Guards against a form opened while logistics was enabled, or a crafted POST.
+    const chosenTemplateId = form.getString("template_id") || null;
+    const chosenTemplate =
+      LISTING_TEMPLATES.find((t) => t.id === chosenTemplateId) ?? null;
+    if (chosenTemplate?.requiresLogistics && !settings.hasLogistics) {
+      return htmlResponse(adminListingPickerPage(session));
+    }
+
+    // Template-specific date validation: reject a blank date when the operator
+    // chose the one-off-event template and hasn't changed the non-date dims.
+    const submittedDims = dimensionsOf(formToDimensionSource(form));
+    if (
+      submissionRequiresDate(chosenTemplateId, submittedDims) &&
+      !form.getString("date_date")
+    ) {
+      return renderCreateListingError(
+        session,
+        form,
+        t("listings_table.date_required_for_one_off"),
+        chosenTemplateId,
+      );
+    }
+
     const result = await buildCreateListingResource(form).create(form);
     if (!result.ok) {
-      const groups = await getAllGroups();
-      return htmlResponse(
-        adminListingNewPage(groups, session, result.error),
-        400,
+      return renderCreateListingError(
+        session,
+        form,
+        result.error,
+        resolveErrorTemplateId(form),
       );
     }
     await logActivity(`Listing '${result.row.name}' created`, result.row);
+    const childWarning = await copyEdgesFromDuplicateSource(
+      form,
+      result.row.id,
+    );
+    // Staff land on the dashboard (which renders flashes); editors can't open
+    // it, so they go to the new listing's edit page — which renders Flash, so
+    // the success message and any upload caveats are surfaced, not swallowed.
+    const createdRedirect =
+      session.adminLevel === "editor"
+        ? listingReturnPath(session.adminLevel, result.row.id)
+        : adminLandingPath(session.adminLevel);
     return processUploadsAndRedirect(
       formData,
       result.row.id,
-      "/admin",
+      createdRedirect,
       t("success.listing_created"),
+      undefined,
+      childWarning,
     );
   });
 
 /** Listing + its groups + aggregate recalculation, loaded for the edit pages. */
-const getListingAndGroups = async (
+export const getListingAndGroups = async (
   listingId: number,
 ): Promise<{
   aggregateRecalculation: ListingAggregateRecalculation;
   groups: Group[];
   listing: ListingWithCount;
+  selectedGroupIds: number[];
 } | null> => {
-  const [listing, groups] = await Promise.all([
-    getListingWithCount(listingId),
+  const [listing, groups, selectedGroupIds] = await Promise.all([
+    // The edit form reads the listing's *stored* values, not the resolved view,
+    // so editing an inheriting listing can't bake the current defaults into its
+    // row (and the editor webhook lock below preserves the real stored URL).
+    getStoredListingWithCount(listingId),
     getAllGroups(),
+    getGroupIdsByListingId(listingId),
   ]);
   return listing
     ? {
         aggregateRecalculation: await getListingAggregateRecalculation(listing),
         groups,
         listing,
+        selectedGroupIds,
       }
     : null;
 };
@@ -126,7 +335,7 @@ const listingAndGroupsPage =
     ) => string,
   ): TypedRouteHandler<"GET /admin/listing/:id"> =>
   (request, params) =>
-    requireSessionOr(request, (session) =>
+    requireContentOr(request, (session) =>
       withEntityFromParam(params.id, getListingAndGroups, (ctx) =>
         htmlResponse(renderPage(ctx, session, request)),
       ),
@@ -135,28 +344,26 @@ const listingAndGroupsPage =
 /** Handle GET /admin/listing/:id/duplicate */
 export const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listing/:id/duplicate"> =
   listingAndGroupsPage((ctx, session) =>
-    adminDuplicateListingPage(ctx.listing, ctx.groups, session),
-  );
-
-/** Handle GET /admin/listing/:id/edit */
-export const handleAdminListingEditGet: TypedRouteHandler<"GET /admin/listing/:id/edit"> =
-  listingAndGroupsPage((ctx, session, request) => {
-    const flash = applyFlash(request);
-    return adminListingEditPage(
+    adminDuplicateListingPage(
       ctx.listing,
       ctx.groups,
       session,
-      flash.error,
-      ctx.aggregateRecalculation,
-      flash.success,
-    );
-  });
+      ctx.selectedGroupIds,
+    ),
+  );
 
-/**
- * If a daily listing's duration changed on edit, recompute booking ranges and
- * detect group-capacity overflow. Returns a string to append to the flash
- * message ("" when no reconciliation was needed or no overflow occurred).
- */
+/** The earliest over-capacity day across every group the listing belongs to
+ * after its booking ranges were recomputed, or null when all groups fit. */
+const firstGroupCapOverflow = async (
+  listingId: number,
+): Promise<string | null> => {
+  for (const groupId of await getGroupIdsByListingId(listingId)) {
+    const overDay = await checkGroupCapAfterDurationChange(listingId, groupId);
+    if (overDay) return overDay;
+  }
+  return null;
+};
+
 const reconcileDurationChange = async (
   row: {
     id: number;
@@ -164,7 +371,6 @@ const reconcileDurationChange = async (
     listing_type: string;
     customisable_days: boolean;
     duration_days: number;
-    group_id: number;
   },
   previousDurationDays: number,
 ): Promise<string> => {
@@ -180,7 +386,7 @@ const reconcileDurationChange = async (
     `Listing '${row.name}' duration changed to ${row.duration_days} day(s)`,
     row,
   );
-  const overDay = await checkGroupCapAfterDurationChange(row.id, row.group_id);
+  const overDay = await firstGroupCapOverflow(row.id);
   if (!overDay) return "";
   await logActivity(
     `Duration change caused group capacity overflow on ${overDay}`,
@@ -189,25 +395,24 @@ const reconcileDurationChange = async (
   return ` Warning: group capacity exceeded on ${overDay}`;
 };
 
-const renderListingEditError = async (
+/** Re-render the Edit tab in place at 400 with the submitted error and the
+ * operator's submitted group selection (not the saved set), so a rejected edit
+ * doesn't silently drop their group changes. Deterministic — no flash stash. */
+const renderListingEditError = (
   id: number,
-  session: AdminSession,
+  session: AuthSession,
   error: string,
-): Promise<Response> => {
-  const ctx = await getListingAndGroups(id);
-  return ctx
-    ? htmlResponse(
-        adminListingEditPage(
-          ctx.listing,
-          ctx.groups,
-          session,
-          error,
-          ctx.aggregateRecalculation,
-        ),
-        400,
-      )
-    : notFoundResponse();
-};
+  submittedGroupIds: number[],
+): Promise<Response> =>
+  listingPage.renderPage(session, id, "edit", {
+    sections: async (entity, ctx) => [
+      {
+        html: await loadListingEditPanel(entity, ctx, error, submittedGroupIds),
+        kind: "custom" as const,
+      },
+    ],
+    status: 400,
+  });
 
 const handleListingEditSuccess = async (
   row: Listing,
@@ -215,6 +420,7 @@ const handleListingEditSuccess = async (
   aggregateValues: ListingAggregateValues | null,
   formData: FormData,
   id: number,
+  session: AdminSession,
 ): Promise<Response> => {
   if (aggregateValues) {
     await updateListingAggregateValues(id, aggregateValues);
@@ -227,27 +433,55 @@ const handleListingEditSuccess = async (
   return processUploadsAndRedirect(
     formData,
     id,
-    `/admin/listing/${row.id}`,
+    listingReturnPath(session.adminLevel, row.id),
     `Listing updated${durationWarning}`,
-    existing.image_url,
     existing.attachment_url,
   );
 };
+
+/**
+ * Parse the editable trigger-maintained aggregates (booked_quantity,
+ * tickets_count, …) from an edit submission — but only for staff. Editors may
+ * not touch these owner-level figures, so any such hidden fields they craft are
+ * ignored rather than trusted: they always edit with a null aggregate input.
+ */
+const parseAggregatesForRole = (
+  session: AdminSession,
+  form: FormParams,
+):
+  | { ok: true; input: ListingAggregateValues | null }
+  | { ok: false; error: string } =>
+  session.adminLevel === "editor"
+    ? { input: null, ok: true }
+    : parseEditableAggregateForm<
+        ListingAggregateFormValues,
+        ListingAggregateValues
+      >(form, listingAggregateFields, extractListingAggregateValues);
 
 /** Handle POST /admin/listing/:id/edit */
 export const handleAdminListingEditPost: TypedRouteHandler<
   "POST /admin/listing/:id/edit"
 > = (request, { id }) =>
-  withAuth(request, AUTH_MULTIPART, (session, formData) =>
-    withEntityFromParam(id, getListingWithCount, async (existing) => {
-      const form = formDataToParams(formData);
-      applyDemoOverrides(form, LISTING_DEMO_FIELDS);
-      const aggregates = parseEditableAggregateForm<
-        ListingAggregateFormValues,
-        ListingAggregateValues
-      >(form, listingAggregateFields, extractListingAggregateValues);
+  withAuth(request, CONTENT_MULTIPART, (session, formData) =>
+    withEntityFromParam(id, getStoredListingWithCount, async (existing) => {
+      // `existing` holds the listing's *stored* values (defaults not overlaid):
+      // a save preserves the listing's own columns, and the editor field locks
+      // re-apply the real stored webhook URL and use_defaults flag.
+      const form = parseListingForm(session, formData, {
+        useDefaults: existing.use_defaults,
+        webhookUrl: existing.webhook_url,
+      });
+      // The group checkboxes the operator submitted, so a rejected edit
+      // re-renders their selection rather than the saved membership.
+      const submittedGroupIds = parseGroupIds(form);
+      const aggregates = parseAggregatesForRole(session, form);
       if (!aggregates.ok) {
-        return renderListingEditError(id, session, aggregates.error);
+        return renderListingEditError(
+          id,
+          session,
+          aggregates.error,
+          submittedGroupIds,
+        );
       }
 
       // Build a resource that includes the slug field; uniqueness is enforced
@@ -260,10 +494,16 @@ export const handleAdminListingEditPost: TypedRouteHandler<
           aggregates.input,
           formData,
           id,
+          session,
         );
       }
       if ("notFound" in result) return notFoundResponse();
-      return renderListingEditError(id, session, result.error);
+      return renderListingEditError(
+        id,
+        session,
+        result.error,
+        submittedGroupIds,
+      );
     }),
   );
 

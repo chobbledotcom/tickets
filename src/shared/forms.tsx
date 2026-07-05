@@ -13,15 +13,10 @@ import {
 } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { appendIframeParam } from "#shared/iframe.ts";
+import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { createRequestScoped } from "#shared/request-scoped.ts";
 import { Icon } from "#templates/components/actions.tsx";
-
-const escapeHtml = (str: string): string =>
-  str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 
 export type FieldType =
   | "text"
@@ -173,12 +168,26 @@ const getDatetimeValue = (form: FormParams, name: string): string | null => {
   return null;
 };
 
+/** Parse a checkbox-group field's values from a form: collect all checked
+ *  values via getAll(), trim, drop empties, join as comma-separated. */
+const parseCheckboxGroup = (form: FormParams, name: string): string =>
+  form
+    .getAll(name)
+    .map((v) => v.trim())
+    .filter((v) => v)
+    .join(",");
+
 /** Split a datetime value (YYYY-MM-DDTHH:MM) into date and time parts */
 const splitDatetime = (value: string): { date: string; time: string } => {
   if (!value) return { date: "", time: "" };
   const [date = "", time = ""] = value.split("T");
   return { date, time };
 };
+
+/** Render an arbitrary HTML string as a JSX element — the per-field renderers
+ *  that build raw HTML (selects, checkbox groups) wrap their output in this so
+ *  the `<Raw html={...}/>` shape lives in one place. */
+const rawField = (html: string): JSX.Element => <Raw html={html} />;
 
 /** Render the input element for a field based on its type */
 const renderFieldInput = (field: Field, value: string): JSX.Element => {
@@ -198,23 +207,19 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
     );
   }
   if (field.type === "select" && field.options) {
-    return (
-      <Raw
-        html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(
-          field.id ?? field.name,
-        )}">${renderSelectOptions(field.options, value)}</select>`}
-      />
+    return rawField(
+      `<select name="${escapeHtml(field.name)}" id="${escapeHtml(
+        field.id ?? field.name,
+      )}">${renderSelectOptions(field.options, value)}</select>`,
     );
   }
   if (field.type === "checkbox-group" && field.options) {
-    return (
-      <Raw
-        html={renderCheckboxGroup(
-          field.name,
-          field.options,
-          new Set(value ? value.split(",").map((v) => v.trim()) : []),
-        )}
-      />
+    return rawField(
+      renderCheckboxGroup(
+        field.name,
+        field.options,
+        new Set(value ? value.split(",").map((v) => v.trim()) : []),
+      ),
     );
   }
   if (field.type === "datetime") {
@@ -358,11 +363,7 @@ const collectFieldValue = (
     return result;
   }
   if (field.type === "checkbox-group") {
-    return form
-      .getAll(field.name)
-      .map((v) => v.trim())
-      .filter((v) => v)
-      .join(",");
+    return parseCheckboxGroup(form, field.name);
   }
   return form.getString(field.name);
 };
@@ -395,6 +396,16 @@ const validateSingleField = (
   if (field.validate && trimmed) {
     const error = field.validate(trimmed);
     if (error) return { error, valid: false };
+  }
+
+  // Enforce the field's maxlength server-side (the rendered input's maxlength is
+  // only a browser hint). Runs after any custom validator so a field with its
+  // own length rule keeps its domain-specific message.
+  if (field.maxlength && trimmed.length > field.maxlength) {
+    return {
+      error: `${field.label} must be ${field.maxlength} characters or fewer`,
+      valid: false,
+    };
   }
 
   return { valid: true, value: parseFieldValue(field, trimmed) };
@@ -502,9 +513,9 @@ export const Flash = ({
   success,
   info,
 }: {
-  error?: string;
-  success?: string;
-  info?: string;
+  error?: string | undefined;
+  success?: string | undefined;
+  info?: string | undefined;
 }): JSX.Element => {
   if (error || success || info) consumeFlash();
   return (
@@ -552,16 +563,22 @@ const SENSITIVE_FIELD_TYPES: ReadonlySet<FieldType> = new Set([
  * without any changes to individual form handlers or templates.
  * Only non-sensitive field types (not password/file) are restored.
  */
-const _savedFormData: { form: FormParams | null } = { form: null };
+const savedFormScope = createRequestScoped<{ form: FormParams | null }>(() => ({
+  form: null,
+}));
+
+/** Run a function within a saved-form-data scope (one container per request) */
+export const runWithSavedFormContext = <T,>(fn: () => T): T =>
+  savedFormScope.run(fn);
 
 /** Save form data for restoration after CSRF failure */
 export const setSavedFormData = (form: FormParams): void => {
-  _savedFormData.form = form;
+  savedFormScope.current().form = form;
 };
 
 /** Clear saved form data (called on successful CSRF validation) */
 export const clearSavedFormData = (): void => {
-  _savedFormData.form = null;
+  savedFormScope.current().form = null;
 };
 
 /**
@@ -569,7 +586,8 @@ export const clearSavedFormData = (): void => {
  * Used by `redirect()` to stash a failed submission for re-filling after the
  * follow-up GET.
  */
-export const getSavedFormData = (): FormParams | null => _savedFormData.form;
+export const getSavedFormData = (): FormParams | null =>
+  savedFormScope.current().form;
 
 /**
  * Read a raw saved form value by name, or "" when nothing was restored. Lets the
@@ -578,26 +596,19 @@ export const getSavedFormData = (): FormParams | null => _savedFormData.form;
  * after a failed booking redirect, alongside renderFields for the normal inputs.
  */
 export const savedFormValue = (name: string): string =>
-  _savedFormData.form?.getString(name) ?? "";
+  savedFormScope.current().form?.getString(name) ?? "";
 
 /** Get a saved value for a field, or empty string if not available */
 const getSavedValue = (field: Field): string => {
-  if (!_savedFormData.form || SENSITIVE_FIELD_TYPES.has(field.type)) return "";
+  const form = savedFormScope.current().form;
+  if (!form || SENSITIVE_FIELD_TYPES.has(field.type)) return "";
   if (field.type === "checkbox-group") {
-    return _savedFormData.form
-      .getAll(field.name)
-      .map((v) => v.trim())
-      .filter((v) => v)
-      .join(",");
+    return parseCheckboxGroup(form, field.name);
   }
   if (field.type === "datetime") {
-    const date = _savedFormData.form.getString(`${field.name}_date`);
-    const time = _savedFormData.form.getString(`${field.name}_time`);
-    if (date && time) return `${date}T${time}`;
-    if (date) return `${date}T00:00`;
-    return "";
+    return getDatetimeValue(form, field.name) ?? "";
   }
-  return _savedFormData.form.getString(field.name);
+  return form.getString(field.name);
 };
 
 /**
@@ -620,7 +631,7 @@ export const CsrfForm = ({
 }: {
   action: string;
   children?: Child;
-  id?: string;
+  id?: string | undefined;
   class?: string;
   enctype?: string;
 } & { [key: `data-${string}`]: string | boolean }): JSX.Element => (
@@ -681,7 +692,21 @@ export const MessageFields = ({
  *     <p><strong>Warning:</strong> This will permanently delete the listing.</p>
  *     <p>To delete this listing, type its name "{listing.name}" into the box below:</p>
  *   </ConfirmForm>
+ *
+ * Pass `confirmName={false}` for an are-you-sure page that does NOT require
+ * the operator to retype the entity's name (e.g. deleting a note whose body
+ * is shown inline on the confirmation page). The `name`/`label` props become
+ * optional in that mode; the type-the-name input is omitted entirely.
  */
+/** Render a `[name, value]` list as hidden `<input>`s — the shared shape used
+ *  by ConfirmForm's `hiddenFields` and the bulk-email recipient control. */
+export const hiddenInputs = (
+  entries: readonly (readonly [string, string])[],
+): JSX.Element[] =>
+  entries.map(([name, value]) => (
+    <input name={name} type="hidden" value={value} />
+  ));
+
 export const ConfirmForm = ({
   action,
   name,
@@ -691,35 +716,37 @@ export const ConfirmForm = ({
   returnUrl,
   id,
   hiddenFields,
+  confirmName = true,
   children,
 }: {
   action: string;
-  name: string;
-  label: string;
+  name?: string;
+  label?: string;
   buttonText: string;
   danger?: boolean;
-  returnUrl?: string;
+  returnUrl?: string | undefined;
   id?: string;
   hiddenFields?: Record<string, string>;
+  /** When false, omit the type-the-name input — a plain are-you-sure page. */
+  confirmName?: boolean;
   children?: Child;
 }): JSX.Element => (
   <CsrfForm action={action} id={id}>
     {children && <div class="prose">{children}</div>}
     {returnUrl && <input name="return_url" type="hidden" value={returnUrl} />}
-    {hiddenFields &&
-      Object.entries(hiddenFields).map(([fieldName, value]) => (
-        <input name={fieldName} type="hidden" value={value} />
-      ))}
-    <label>
-      {label}
-      <input
-        autocomplete="off"
-        name="confirm_identifier"
-        placeholder={name}
-        required
-        type="text"
-      />
-    </label>
+    {hiddenFields && hiddenInputs(Object.entries(hiddenFields))}
+    {confirmName && (
+      <label>
+        {label}
+        <input
+          autocomplete="off"
+          name="confirm_identifier"
+          placeholder={name}
+          required
+          type="text"
+        />
+      </label>
+    )}
     <button class={danger ? "danger" : undefined} type="submit">
       <Icon name={danger ? "trash-2" : "check"} />
       <span>{buttonText}</span>

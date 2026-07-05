@@ -4,6 +4,7 @@ import { unzipSync } from "fflate";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import {
+  adminGet,
   awaitTestRequest,
   createTestAttendeeWithToken,
   describeWithEnv,
@@ -15,7 +16,7 @@ import {
   testCsrfToken,
   testRequiresAuth,
 } from "#test-utils";
-import { generateTestCerts } from "#test-utils/crypto.ts";
+import { configureAppleWallet, generateTestCerts } from "#test-utils/crypto.ts";
 
 /** Reuse cached certs for all wallet configuration */
 const testCerts = generateTestCerts();
@@ -72,17 +73,6 @@ const fetchValidPkpassForNewAttendee = async () => {
     "application/vnd.apple.pkpass",
   );
   return { response, token };
-};
-
-/** Configure all Apple Wallet settings in the database */
-const configureAppleWallet = async () => {
-  await Promise.all([
-    settings.update.appleWallet.passTypeId("pass.com.test.tickets"),
-    settings.update.appleWallet.teamId("TESTTEAM01"),
-    settings.update.appleWallet.signingCert(testCerts.signingCert),
-    settings.update.appleWallet.signingKey(testCerts.signingKey),
-    settings.update.appleWallet.wwdrCert(testCerts.wwdrCert),
-  ]);
 };
 
 describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
@@ -398,9 +388,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
 
   test("shows Apple Wallet section with masked values when configured", async () => {
     await configureAppleWallet();
-    const response = await awaitTestRequest("/admin/settings-advanced", {
-      cookie: await testCookie(),
-    });
+    const response = await adminGet("/admin/settings-advanced");
     const body = await response.text();
     // Section exists
     expect(body).toContain("Apple Wallet");
@@ -516,9 +504,7 @@ describeWithEnv(
 
     test("settings page shows host Apple Wallet label when env vars configured", async () => {
       setWalletEnvVars();
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const body = await response.text();
       expect(body).toContain("Host env (pass.com.env.tickets)");
       expect(body).toContain("Currently using");
@@ -527,9 +513,7 @@ describeWithEnv(
     test("settings page shows overriding label when both DB and env configured", async () => {
       setWalletEnvVars();
       await configureAppleWallet();
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const body = await response.text();
       expect(body).toContain("Host env (pass.com.env.tickets)");
       expect(body).toContain("Overriding");

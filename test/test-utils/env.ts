@@ -61,6 +61,14 @@ Deno.env.delete = (key: string): void => {
   else _realDelete(key);
 };
 
+/**
+ * Read a key from the real process environment, bypassing the overlay.
+ * Test workers under `deno test --parallel` share one OS process, so the real
+ * env is visible to every concurrently-running test file — tests assert with
+ * this that their env changes stayed inside the worker-local overlay.
+ */
+export const getRealEnv = (key: string): string | undefined => _realGet(key);
+
 export const setTestEnv = (
   vars: Record<string, string | undefined>,
 ): (() => void) => {

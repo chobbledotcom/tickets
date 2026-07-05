@@ -3,9 +3,15 @@
  */
 
 import { compact, unique } from "#fp";
-import { csvResponse, loadAttendeeNames } from "#routes/admin/actions.ts";
+import { csvResponse, loadAttendeeLinkRefs } from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
-import { requireSessionOr, sessionPage, withSession } from "#routes/auth.ts";
+import {
+  adminLandingPath,
+  contentPage,
+  requireSessionOr,
+  sessionPage,
+  withSession,
+} from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
@@ -16,12 +22,15 @@ import {
   getAllActivityLog,
   logActivity,
 } from "#shared/db/activityLog.ts";
+import { getUpcomingServicingEvents } from "#shared/db/attendees/servicing.ts";
 import {
   decryptAttendees,
   getActiveListingStats,
   getNewestAttendeesRaw,
 } from "#shared/db/attendees.ts";
+import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
 import { getAllListings, getListingNamesByIds } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -31,6 +40,7 @@ import {
 } from "#shared/listing-filter.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { sortListings } from "#shared/sort-listings.ts";
+import { todayInTz } from "#shared/timezone.ts";
 /* jscpd:ignore-end */
 import {
   type ActivityLogRefs,
@@ -73,9 +83,11 @@ const handleAdminGet = (request: Request): Promise<Response> =>
   withSession(
     request,
     async (session) => {
-      // Delivery agents have no dashboard — send them to their run sheet.
-      if (session.adminLevel === "agent") {
-        return redirectResponse("/admin/deliveries");
+      // Delivery agents and editors have no dashboard — agents go to their run
+      // sheet; editors go to listings (the dashboard shows ledger/income figures
+      // they may not see, and would require a private key they don't hold).
+      if (session.adminLevel === "agent" || session.adminLevel === "editor") {
+        return redirectResponse(adminLandingPath(session.adminLevel));
       }
       const { error: imageError, success: successMessage } = getFlash();
       const [listings, holidays, newestRaw, privateKey] = await Promise.all([
@@ -88,6 +100,20 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       const sortedListings = sortListings(listings, holidays);
       const stats = await getActiveListingStats(sortedListings);
       const activeType = listingTypeFromRequest(request);
+      // Listings with no standalone public page are excluded from the
+      // multi-booking link builder: a booking can never start from a
+      // non-standalone child, and a hidden package's member 404s
+      // on its own `/ticket/<slug>` — so a `/ticket/<member+other>` URL the
+      // builder emits would be rejected by the server. A `bookable_alone` child
+      // has its own page, so it stays bookable here.
+      const listingIds = sortedListings.map((l) => l.id);
+      const [childIds, hiddenMemberIds, upcomingServicingEvents] =
+        await Promise.all([
+          getNonStandaloneChildIds(listingIds),
+          getHiddenPackageMemberIds(listingIds),
+          getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
+        ]);
+      const unbookableIds = new Set([...childIds, ...hiddenMemberIds]);
       return htmlResponse(
         adminDashboardPage(
           sortedListings,
@@ -99,15 +125,19 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           settings.listingColumnOrder,
           activeType,
           holidays,
+          unbookableIds,
+          upcomingServicingEvents,
         ),
       );
     },
     () => loginResponse(request),
   );
 
-/** Handle GET /admin/listings */
+/** Handle GET /admin/listings — the listings index. Editors land here, so it is
+ * gated to content roles (staff + editor); the template renders role-aware
+ * columns/links so editors see no financials or forbidden detail links. */
 const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
-  sessionPage(async (session) =>
+  contentPage(async (session) =>
     adminListingsPage(
       await loadSortedListings(),
       session,
@@ -149,7 +179,7 @@ const loadActivityLogRefs = async (
   const attendeeIds = unique(compact(entries.map((e) => e.attendee_id)));
   const listingIds = unique(compact(entries.map((e) => e.listing_id)));
   const [attendees, listings] = await Promise.all([
-    loadAttendeeNames(attendeeIds),
+    loadAttendeeLinkRefs(attendeeIds),
     getListingNamesByIds(listingIds),
   ]);
   return { attendees, listings };

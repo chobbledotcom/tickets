@@ -9,6 +9,7 @@ import type {
   ModifierScope,
   ModifierTrigger,
 } from "#shared/price-modifier.ts";
+import type { NonEmptyString } from "#shared/validation/string.ts";
 
 /** Type guard: a non-null, non-array object (a Record shape). */
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -100,9 +101,7 @@ export const isPaymentProvider = (s: string): s is PaymentProviderType =>
 /** Persisted payment-provider setting: an explicit provider, "none" (admin saved
  *  payments-disabled), or absent (never saved — drives the settings nag). */
 export const PaymentProviderSettingSchema = v.picklist([
-  "stripe",
-  "square",
-  "sumup",
+  ...PaymentProviderSchema.options,
   "none",
 ]);
 
@@ -125,6 +124,35 @@ export type ListingType = v.InferOutput<typeof ListingTypeSchema>;
 export const isListingType = (s: string): s is ListingType =>
   v.is(ListingTypeSchema, s);
 
+/** Schema for the persisted email template types: the attendee confirmation and
+ *  the admin notification. The single source of truth for the template
+ *  discriminator used by the renderer, settings store, and admin forms. */
+export const EmailTemplateTypeSchema = v.picklist(["confirmation", "admin"]);
+
+/** Persisted email template type */
+export type EmailTemplateType = v.InferOutput<typeof EmailTemplateTypeSchema>;
+
+/** Type guard: check if a string is a valid EmailTemplateType */
+export const isEmailTemplateType = (s: string): s is EmailTemplateType =>
+  v.is(EmailTemplateTypeSchema, s);
+
+/** Schema for the parts of an email template: the subject line, the html
+ *  body, and the plain-text body. */
+export const EmailTemplateFormatSchema = v.picklist([
+  "subject",
+  "html",
+  "text",
+]);
+
+/** A single part of an email template */
+export type EmailTemplateFormat = v.InferOutput<
+  typeof EmailTemplateFormatSchema
+>;
+
+/** Type guard: check if a string is a valid EmailTemplateFormat */
+export const isEmailTemplateFormat = (s: string): s is EmailTemplateFormat =>
+  v.is(EmailTemplateFormatSchema, s);
+
 /** Whether an listing can accept payments: a flat price, pay-what-you-want, or
  * a customisable-days listing with at least one non-zero day-count price. */
 export const isPaidListing = (
@@ -137,6 +165,14 @@ export const isPaidListing = (
   listing.can_pay_more ||
   (listing.customisable_days &&
     Object.values(listing.day_prices).some((price) => price > 0));
+
+/** True when an attendee/booking row is a real ticket (quantity ≥ 1) rather than
+ * the no-quantity sentinel (quantity 0). The shared "is this a real ticket, not a
+ * ghost" test for the readers, rosters, and exports that must skip sentinel rows —
+ * one home for the rule instead of a bare `quantity > 0` plus an explanatory
+ * comment at each call site. */
+export const hasTicketQuantity = (row: { quantity: number }): boolean =>
+  row.quantity > 0;
 
 /** Upper bound on multi-day booking duration. Each day in a booking range
  * adds a per-day clause to the atomic capacity SQL, so the cap keeps that
@@ -193,7 +229,7 @@ export const parseDayPrices = (raw: unknown): DayPrices => {
 };
 
 /** The subset of listing fields needed to reason about day-count pricing. */
-type DayPricedListing = Pick<
+export type DayPricedListing = Pick<
   Listing,
   "customisable_days" | "day_prices" | "duration_days"
 >;
@@ -227,7 +263,128 @@ export const dayPriceFor = (
   return listing.day_prices[days] ?? null;
 };
 
-export interface Listing {
+/**
+ * Units of a shared capped group consumed by one parent+child order: the parent
+ * line plus its single required child line each take one spot in the group they
+ * share (invariants I1, I7). Used to convert a shared group's remaining spots
+ * into how many whole parent+child orders still fit.
+ */
+export const PARENT_CHILD_GROUP_UNITS = 2;
+
+/**
+ * The capped groups a parent and one of its children BOTH belong to — the pool(s)
+ * the combined parent+child demand actually contends for. A capped
+ * group is one present in `byGroup` (uncapped groups are omitted from that map).
+ * Empty when they share no capped group.
+ */
+const sharedCappedGroupIds = (
+  parentGroupIds: readonly number[],
+  childGroupIds: readonly number[],
+  byGroup: ReadonlyMap<number, number>,
+): number[] =>
+  parentGroupIds.filter((g) => childGroupIds.includes(g) && byGroup.has(g));
+
+/**
+ * The remaining spots of the **capped group a parent and one of its children
+ * share**, or `undefined` when they don't share a capped group. A parent and its
+ * required child in the same capped group consume two group spots per order,
+ * so callers must reason about combined demand, not each row in
+ * isolation.
+ *
+ * `remainingByGroupId` is the PER-GROUP remaining (groupId → free spots; uncapped
+ * groups omitted), so the result is the tightest SHARED group's remaining — the
+ * group the parent and child actually contend over — NOT the child's tightest
+ * group overall. A child also in a tighter NON-shared group must not drag the
+ * shared-pool calc down to that unrelated cap.
+ *
+ * The single source of truth for both discovery (does the minimum order fit?) and
+ * the booking-page quantity ceiling (how many orders fit?), so the two surfaces
+ * can never disagree about a shared-group parent's availability.
+ */
+export const sharedGroupRemaining = (
+  parentGroupIds: readonly number[],
+  childGroupIds: readonly number[],
+  remainingByGroupId: ReadonlyMap<number, number>,
+): number | undefined => {
+  const shared = sharedCappedGroupIds(
+    parentGroupIds,
+    childGroupIds,
+    remainingByGroupId,
+  );
+  if (shared.length === 0) return undefined;
+  return Math.min(...shared.map((g) => remainingByGroupId.get(g)!));
+};
+
+/**
+ * The capacity a parent and one of its children share, as two orthogonal facts:
+ * - `staticCap` — the group's structural ceiling (`groups.max_attendees`),
+ *   date-INDEPENDENT. A share whose static cap is below
+ *   {@link PARENT_CHILD_GROUP_UNITS} can NEVER fit a parent+child order, on any
+ *   date — so date-less surfaces can mark it sold out without a date.
+ * - `remaining` — the group's currently-free spots in the caller's context
+ *   (date-less cumulative for standard listings; per-date when a date is known;
+ *   `undefined` when not computable, e.g. a daily child with no submitted date).
+ *
+ * Both are `undefined` when the parent and child do not share a capped group.
+ * This is the single capacity vocabulary the bookability evaluator reasons over,
+ * so every surface answers "does the combined demand fit?" the same way.
+ */
+export type SharedGroupCapacity = {
+  staticCap: number | undefined;
+  remaining: number | undefined;
+};
+
+/**
+ * Build the {@link SharedGroupCapacity} for a parent/child pair from the PER-GROUP
+ * capacity maps (groupId → spots; uncapped groups omitted). They are co-grouped
+ * when their group sets intersect in at least one CAPPED group; when they are not,
+ * there is no shared cap (both facts `undefined`).
+ *
+ * Both facts are the tightest value over the groups they SHARE — the pool(s) the
+ * combined demand actually contends for — NOT the child's tightest group overall.
+ * A child also in a tighter non-shared group must not pull the shared cap down to
+ * an unrelated group's value; the static cap and remaining are taken
+ * from the SAME shared groups so date-less surfaces reject a share too small to
+ * ever hold both even when a daily child's per-date remaining is unknown.
+ */
+export const sharedGroupCapacity = (
+  parentGroupIds: readonly number[],
+  childGroupIds: readonly number[],
+  staticCapByGroupId: ReadonlyMap<number, number>,
+  remainingByGroupId: ReadonlyMap<number, number>,
+): SharedGroupCapacity => {
+  const sharedForCap = sharedCappedGroupIds(
+    parentGroupIds,
+    childGroupIds,
+    staticCapByGroupId,
+  );
+  const sharedForRemaining = sharedCappedGroupIds(
+    parentGroupIds,
+    childGroupIds,
+    remainingByGroupId,
+  );
+  const minOver = (
+    ids: number[],
+    byGroup: ReadonlyMap<number, number>,
+  ): number | undefined =>
+    ids.length === 0 ? undefined : Math.min(...ids.map((g) => byGroup.get(g)!));
+  return {
+    remaining: minOver(sharedForRemaining, remainingByGroupId),
+    staticCap: minOver(sharedForCap, staticCapByGroupId),
+  };
+};
+
+export type ItemImageProjection = {
+  /** Projected from the first `image_uses` row for this item. Storage ownership
+   * lives in the first-class images tables. */
+  image_url: string;
+  /** Projected thumbnail filename for {@link image_url}. */
+  image_thumb_url: string;
+  /** Projected alt text for {@link image_url}. Empty means decorative. */
+  image_alt_text: string;
+};
+
+export interface Listing extends ItemImageProjection {
   active: boolean;
   assign_built_site: boolean;
   attachment_name: string;
@@ -242,10 +399,8 @@ export interface Listing {
   description: string;
   listing_type: ListingType;
   fields: ListingFields;
-  group_id: number;
   hidden: boolean;
   id: number;
-  image_url: string;
   location: string; // encrypted or empty string
   max_attendees: number;
   max_price: number;
@@ -266,6 +421,25 @@ export interface Listing {
   /** When true (and logistics is enabled) this listing is dropped off and
    * collected from the customer, so its attendees carry logistics agents. */
   uses_logistics: boolean;
+  /** When true, the fields covered by the operator's listing defaults are
+   * inherited live from settings rather than this row's own stored values
+   * (see {@link resolveListingDefaults}). A single per-listing flag, never a
+   * per-field one, so a stored `false` is never ambiguous. */
+  use_defaults: boolean;
+  /** When true, a listing that is also a child (offered under one or more
+   * parents) keeps its OWN standalone booking page, catalog entry and API
+   * eligibility, instead of existing only as a foldable add-on. Default false
+   * ⇒ being a child strips standalone existence, the historic behaviour. The
+   * hidden-package-member arm of the gate still outranks this flag. */
+  bookable_alone: boolean;
+}
+
+export interface Image {
+  alt_text: string;
+  filename: NonEmptyString;
+  filename_thumb: NonEmptyString;
+  id: number;
+  name: string;
 }
 
 /** A logistics agent (typically a van) used for drop-off and collection. */
@@ -288,6 +462,7 @@ export interface Attendee extends ContactInfo {
   checked_in: boolean;
   created: string;
   date: string | null;
+  kind: string;
   /** Exclusive end of the booked range (YYYY-MM-DD, the midnight after the last
    * booked day), derived from `listing_attendees.end_at`. Null for date-less
    * (standard) bookings. Lets render paths show each booking's true span — which
@@ -310,6 +485,10 @@ export interface Attendee extends ContactInfo {
   split_logistics_agents: boolean;
   ticket_token: string;
   ticket_token_index: string;
+  /** The package group this booking row belongs to (0 = not a package). Stamped
+   * on every row of a package order so tickets/emails group the order under the
+   * package by this persisted id. */
+  package_group_id: number;
 }
 
 /** Short keys used in the PII blob JSON to minimize encrypted payload size */
@@ -343,14 +522,62 @@ export interface Session {
  *   per-page; managers are denied a subset).
  * - `agent` is a restricted delivery-driver login that can only ever reach its
  *   own logistics run sheet (`/admin/deliveries`). Auth gates exclude agents
- *   from every staff page by default — see `sessionRoleAllowed` in auth.ts. */
-export const AdminLevelSchema = v.picklist(["owner", "manager", "agent"]);
+ *   from every staff page by default — see `sessionRoleAllowed` in auth.ts.
+ * - `editor` is a content-only collaborator: they can create/edit listings and
+ *   groups and edit the public-site content, but hold no DATA_KEY (so attendee
+ *   PII is undecryptable for them) and have no ledger/settings/API access. Like
+ *   `agent`, they are excluded from every staff page by default and opted in to
+ *   only the content routes (see `CONTENT_ADMIN_LEVELS`). */
+export const AdminLevelSchema = v.picklist([
+  "owner",
+  "manager",
+  "agent",
+  "editor",
+]);
 
 /** Admin role levels that are back-office staff (not delivery agents). */
 export const STAFF_ADMIN_LEVELS = ["owner", "manager"] as const;
 
+/** Admin role levels that may create/edit listings & groups: the back-office
+ * staff plus the content-only `editor`. Used to gate the listing/group content
+ * routes editors are explicitly opted into; deliberately excludes `agent`. */
+export const CONTENT_ADMIN_LEVELS = ["owner", "manager", "editor"] as const;
+
+/** Admin role levels that may edit the public-facing site content (homepage,
+ * contact, order intro). Site editing has always been owner-only; the `editor`
+ * role is added to it, but `manager` stays excluded — so this is owner+editor,
+ * NOT the broader {@link CONTENT_ADMIN_LEVELS}. */
+export const SITE_ADMIN_LEVELS = ["owner", "editor"] as const;
+
+/** Admin role levels that may reach the delivery run sheet
+ * (`/admin/deliveries`): staff plus delivery `agent`s. This is the audience the
+ * run sheet has always had; the content-only `editor` is excluded. */
+export const DELIVERY_ADMIN_LEVELS = ["owner", "manager", "agent"] as const;
+
+/** Every admin role level — used to gate actions every authenticated user must
+ *  reach (e.g. logout). Derived from {@link AdminLevelSchema} so adding a new
+ *  role propagates automatically instead of being hand-listed here. */
+export const ALL_ADMIN_LEVELS =
+  AdminLevelSchema.options as readonly AdminLevel[];
+
 /** Admin role levels */
 export type AdminLevel = v.InferOutput<typeof AdminLevelSchema>;
+
+/** Build a membership predicate over a role set. Typed at `AdminLevel` so the
+ * `as const` role-set constants pass without per-call-site casts. */
+const roleIn =
+  (levels: readonly AdminLevel[]) =>
+  (level: AdminLevel): boolean =>
+    levels.includes(level);
+
+/** True for back-office staff (owner/manager). */
+export const isStaffRole = roleIn(STAFF_ADMIN_LEVELS);
+
+/** True for roles that may reach the delivery run sheet (owner/manager/agent). */
+export const isDeliveryRole = roleIn(DELIVERY_ADMIN_LEVELS);
+
+/** True for roles that may create/edit listings & groups (owner/manager/editor). */
+export const isContentRole = roleIn(CONTENT_ADMIN_LEVELS);
 
 /** Type guard: check if a string is a valid AdminLevel */
 export const isAdminLevel = (s: string): s is AdminLevel =>
@@ -363,7 +590,7 @@ export type AdminSession = {
 };
 
 export interface User {
-  admin_level: string; // encrypted "owner", "manager" or "agent"
+  admin_level: string; // encrypted "owner", "manager", "agent" or "editor"
   id: number;
   invite_code_hash: string | null; // encrypted SHA-256 of invite token, null after password set
   invite_expiry: string | null; // encrypted ISO 8601, null after password set
@@ -399,12 +626,94 @@ export interface Holiday {
 export interface Group {
   description: string;
   hidden: boolean;
+  /** When true (and the group is a package) the package's member listings are
+   * hidden from buyers, tickets, and confirmation emails — only admins see the
+   * breakdown. */
+  hide_package_listings: boolean;
   id: number;
+  /** When true the group is a bookable "package": its member listings can carry
+   * per-listing price overrides (the `group` dimension of listing_prices) and
+   * fixed per-package quantities (group_listings.quantity). */
+  is_package: boolean;
   max_attendees: number;
   name: string;
   slug: string;
   slug_index: string;
   terms_and_conditions: string;
+}
+
+/** A membership of `listing_id` in `group_id`, hydrated for the package editor
+ * and booking flow. A listing may belong to several groups. `package_price`
+ * (minor units) is the per-listing override when the group is a package, read
+ * from the `group` dimension of `listing_prices` (not a column on the join
+ * table): `null` means no override (use the listing's own price), `0` means
+ * explicitly free in the package, and a positive value overrides the price.
+ * `quantity` (≥1, stored on the join row) is how many of this listing one unit of
+ * the package includes. Both are ignored for non-package groups. */
+export interface GroupListing {
+  group_id: number;
+  listing_id: number;
+  package_price: number | null;
+  quantity: number;
+}
+
+/** Schema for the kind of item an image can be attached to. */
+export const ImageUseItemTypeSchema = v.picklist(["listing", "group"]);
+
+export type ImageUseItemType = v.InferOutput<typeof ImageUseItemTypeSchema>;
+
+export const isImageUseItemType = (s: string): s is ImageUseItemType =>
+  v.is(ImageUseItemTypeSchema, s);
+
+export interface ImageUse {
+  image_id: number;
+  item_type: ImageUseItemType;
+  item_id: number;
+  sort_order: number;
+}
+
+/** Schema for the kind of thing a {@link SitePageItem} points at. */
+export const SitePageItemTypeSchema = v.picklist(["listing", "group", "page"]);
+
+/** The kind of thing a {@link SitePageItem} points at. Exhaustive union — a new
+ * member is a compile error at every `Record<SitePageItemType, …>` dispatch. */
+export type SitePageItemType = v.InferOutput<typeof SitePageItemTypeSchema>;
+
+/** Type guard: is this string a valid {@link SitePageItemType}? */
+export const isSitePageItemType = (s: string): s is SitePageItemType =>
+  v.is(SitePageItemTypeSchema, s);
+
+/** A user-created content page. All free-text columns are stored encrypted;
+ * `slug_index` is the plaintext HMAC blind index, `sort_order` positions the
+ * page among root-level pages. */
+export interface SitePage {
+  id: number;
+  slug: string;
+  slug_index: string;
+  name: string;
+  meta_title: string;
+  meta_description: string;
+  content: string;
+  sort_order: number;
+}
+
+/** The narrow projection used to build the public nav: enough to render a link
+ * and order it, without decrypting the large `content`/`meta_*` blobs on every
+ * public request (cold-start efficiency). */
+export interface SitePageNavRow {
+  id: number;
+  slug: string;
+  name: string;
+  sort_order: number;
+}
+
+/** One ordered membership edge: `item` (of `item_type`) sits inside `page_id`
+ * at `sort_order`. Keyed on the composite `(page_id, item_type, item_id)`. */
+export interface SitePageItem {
+  page_id: number;
+  item_type: SitePageItemType;
+  item_id: number;
+  sort_order: number;
 }
 
 /** An owner-defined price modifier (surcharge / discount / add-on). `calc_value`
@@ -442,8 +751,12 @@ export interface Modifier {
 
 export interface ListingWithCount extends Listing {
   attendee_count: number;
-  /** Trigger-maintained SUM(price_paid) over this listing's bookings, in minor units. */
+  /** Projected servicing costs posted against this listing, in minor units. */
+  cost: number;
+  /** Projected recognised income over this listing's ledger rows, in minor units. */
   income: number;
+  /** Projected recognised income minus servicing cost, in minor units. */
+  profit: number;
   /** Trigger-maintained COUNT of this listing's booking rows. */
   tickets_count: number;
 }
@@ -455,9 +768,19 @@ export interface ListingWithCount extends Listing {
  */
 export type AdminListing = Omit<ListingWithCount, "slug_index">;
 
-/** A single row in the attendee table (attendee + parent listing context) */
+/** One listing shown in an attendee row's Listings cell */
+export type AttendeeRowListing = {
+  id: number;
+  name: string;
+};
+
+/**
+ * A single row in the attendee table: an attendee plus the listings the row
+ * covers, in display order. Roster/check-in tables render one row per booking
+ * line (a one-listing array); the browsing tables (attendees list, dashboard)
+ * group an attendee's lines into one row carrying every listing.
+ */
 export type AttendeeTableRow = {
   attendee: Attendee;
-  listingId: number;
-  listingName: string;
+  listings: AttendeeRowListing[];
 };

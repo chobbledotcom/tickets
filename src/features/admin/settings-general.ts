@@ -5,7 +5,10 @@
  */
 
 import { t } from "#i18n";
-import { demoResetForm } from "#routes/admin/database-reset.ts";
+import {
+  deleteStorageAndResetDatabase,
+  demoResetForm,
+} from "#routes/admin/database-reset.ts";
 import {
   advancedSettingsRoute,
   settingsClearable,
@@ -17,24 +20,28 @@ import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
 import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAllListings } from "#shared/db/listings.ts";
-import { resetDatabase } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
 import { applyDemoOverrides, TERMS_DEMO_FIELDS } from "#shared/demo.ts";
 import { parseEmbedHosts, validateEmbedHosts } from "#shared/embed-hosts.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import type { PaymentProviderType } from "#shared/payments.ts";
 import { ok } from "#shared/response.ts";
 import {
-  deleteAllListingStorageFiles,
-  isStorageEnabled,
-} from "#shared/storage.ts";
-import type { Theme } from "#shared/types.ts";
+  SETTINGS_FORMS,
+  type SettingsFormDefinition,
+} from "#shared/settings/forms.ts";
+import {
+  isPaymentProvider,
+  type PaymentProviderType,
+  type Theme,
+} from "#shared/types.ts";
 import { isValidEmail, updateBusinessEmail } from "#shared/validation/email.ts";
 
-/** Type guard: check if a string is a valid payment provider */
-const isPaymentProvider = (s: string): s is PaymentProviderType =>
-  s === "stripe" || s === "square" || s === "sumup";
+const formRoute = (definition: SettingsFormDefinition) => ({
+  advanced: definition.page === "advanced",
+  field: definition.fieldName,
+  formId: definition.formId,
+  label: definition.routeLabel,
+});
 
 /**
  * Handle POST /admin/settings/payment-provider - owner only
@@ -61,9 +68,8 @@ export const handlePaymentProviderPost = settingsHandler({
  * Handle POST /admin/settings/embed-hosts - owner only
  */
 export const handleEmbedHostsPost = settingsHandler({
-  extract: (form) => form.getString("embed_hosts"),
-  formId: "settings-embed-hosts",
-  label: "Embed host restrictions",
+  ...formRoute(SETTINGS_FORMS.embedHosts),
+  extract: (form) => form.getString(SETTINGS_FORMS.embedHosts.fieldName),
   log: (v) =>
     v === ""
       ? t("success.embed_hosts_removed")
@@ -80,12 +86,11 @@ export const handleEmbedHostsPost = settingsHandler({
  * Handle POST /admin/settings/terms - owner only
  */
 export const handleTermsPost = settingsHandler({
+  ...formRoute(SETTINGS_FORMS.terms),
   extract: (form) => {
     applyDemoOverrides(form, TERMS_DEMO_FIELDS);
-    return form.getString("terms_and_conditions");
+    return form.getString(SETTINGS_FORMS.terms.fieldName);
   },
-  formId: "settings-terms",
-  label: "Terms and conditions",
   log: (v) =>
     v === "" ? t("success.terms_removed") : t("success.terms_updated"),
   save: (v) => settings.update.terms(v),
@@ -95,11 +100,24 @@ export const handleTermsPost = settingsHandler({
       : null,
 });
 
+/**
+ * Handle POST /admin/settings/custom-css - owner only.
+ * Stored verbatim and served as a public stylesheet from /custom.css.
+ */
+export const handleCustomCssPost = settingsHandler({
+  ...formRoute(SETTINGS_FORMS.customCss),
+  extract: (form) => form.getString(SETTINGS_FORMS.customCss.fieldName),
+  log: (v) => (v === "" ? "Custom CSS removed" : "Custom CSS updated"),
+  save: (v) => settings.update.customCss(v),
+  validate: (v) =>
+    v.length > MAX_TEXTAREA_LENGTH
+      ? `Custom CSS must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
+      : null,
+});
+
 /** Handle POST /admin/settings/business-email - owner only */
 export const handleBusinessEmailPost = settingsClearable({
-  field: "business_email",
-  formId: "settings-business-email",
-  label: "Business email",
+  ...formRoute(SETTINGS_FORMS.businessEmail),
   save: (v) => updateBusinessEmail(v),
   validate: (v) => (!isValidEmail(v) ? t("error.email_format") : null),
 });
@@ -125,19 +143,20 @@ export const handleThemePost = settingsHandler({
 
 /** Handle POST /admin/settings/show-public-site - owner only */
 export const handleShowPublicSitePost = settingsToggle({
-  field: "show_public_site",
-  formId: "settings-show-public-site",
-  label: "Public site",
+  ...formRoute(SETTINGS_FORMS.showPublicSite),
   save: (v) => settings.update.showPublicSite(v),
 });
 
 /** Handle POST /admin/settings/show-public-api - owner only */
 export const handleShowPublicApiPost = settingsToggle({
-  advanced: true,
-  field: "show_public_api",
-  formId: "settings-show-public-api",
-  label: "Public API",
+  ...formRoute(SETTINGS_FORMS.showPublicApi),
   save: (v) => settings.update.showPublicApi(v),
+});
+
+/** Handle POST /admin/settings/external-order - owner only */
+export const handleExternalOrderPost = settingsToggle({
+  ...formRoute(SETTINGS_FORMS.externalOrder),
+  save: (v) => settings.update.externalOrderEnabled(v),
 });
 
 /** Handle POST /admin/settings/calendar-feeds - owner only */
@@ -212,10 +231,7 @@ export const handleResetDatabasePost = advancedSettingsRoute(
     }
 
     await logActivity("Database reset initiated");
-    if (isStorageEnabled()) {
-      await deleteAllListingStorageFiles(await getAllListings());
-    }
-    await resetDatabase();
+    await deleteStorageAndResetDatabase();
 
     // Redirect to setup page since the database is now empty
     return ok("/setup/", t("success.database_reset"), {

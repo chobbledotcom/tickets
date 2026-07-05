@@ -3,13 +3,12 @@
  */
 
 import { t } from "#i18n";
+import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import type { SuperuserState } from "#shared/superuser.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
-import { BusinessEmailForm } from "#templates/admin/settings/business-email.tsx";
+import { themedAdminPage } from "#templates/admin/admin-page.tsx";
 import { CalendarFeedsForm } from "#templates/admin/settings/calendar-feeds.tsx";
 import { ChangePasswordForm } from "#templates/admin/settings/change-password.tsx";
-import { EmbedHostsForm } from "#templates/admin/settings/embed-hosts.tsx";
 import { HeaderImageForm } from "#templates/admin/settings/header-image.tsx";
 import {
   BookingFeeForm,
@@ -19,11 +18,9 @@ import {
   StripeForm,
   SumUpForm,
 } from "#templates/admin/settings/payment.tsx";
-import { PublicSiteForm } from "#templates/admin/settings/public-site.tsx";
+import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 import { SuperuserForm } from "#templates/admin/settings/superuser.tsx";
-import { TermsForm } from "#templates/admin/settings/terms.tsx";
 import { ThemeForm } from "#templates/admin/settings/theme.tsx";
-import { Layout } from "#templates/layout.tsx";
 
 export type SettingsPageState = {
   stripeKeyConfigured: boolean;
@@ -70,13 +67,12 @@ export const adminSettingsPage = (
   session: AdminSession,
   s: SettingsPageState,
 ): string =>
-  String(
-    <Layout theme={s.theme} title={t("settings.title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      {BusinessEmailForm(s)}
+  themedAdminPage(t("settings.title"))(session, s.theme)(
+    <>
+      {settingsForm(SETTINGS_FORMS.businessEmail, s)}
       {HeaderImageForm(s)}
       {ThemeForm(s)}
-      {PublicSiteForm(s)}
+      {settingsForm(SETTINGS_FORMS.showPublicSite, s)}
 
       {PaymentProviderForm(s)}
       {StripeForm(s)}
@@ -85,10 +81,10 @@ export const adminSettingsPage = (
       {SumUpForm(s)}
       {BookingFeeForm(s)}
 
-      {TermsForm(s)}
-      {EmbedHostsForm(s)}
+      {settingsForm(SETTINGS_FORMS.terms, s)}
+      {settingsForm(SETTINGS_FORMS.embedHosts, s)}
       <SuperuserForm superuser={s.superuser} />
       <ChangePasswordForm />
       {CalendarFeedsForm(s)}
-    </Layout>,
+    </>,
   );

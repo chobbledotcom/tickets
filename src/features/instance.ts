@@ -2,27 +2,44 @@
  * Inter-instance machine endpoint (builder / main instance only).
  *
  * `POST /instance/site-credentials` with `Authorization: Bearer <MAIN_INSTANCE_KEY>`
- * returns the read-only database credentials for every built site, so the
- * upgrade GitHub Action can back each site up (to the builder's own storage)
- * before deploying to it — without storing per-site script ids or DB tokens in
- * GitHub.
+ * returns the database credentials for every built site, so the upgrade GitHub
+ * Action can back each site up (to the builder's own storage) before deploying
+ * to it — without storing per-site script ids or DB tokens in GitHub.
+ *
+ * The caller passes the release tier it is publishing as `?tier=alpha|beta|release`
+ * (default `release`), and only the sites whose own channel accepts that tier are
+ * returned: a release deploy reaches every site, a beta deploy reaches beta +
+ * alpha sites, an alpha deploy only alpha sites. Defaulting to `release` keeps a
+ * caller that omits the tier (e.g. the single-site backup action) seeing the
+ * whole fleet, exactly as before. An unrecognised tier is a 400.
  *
  * Security posture:
- * - Disabled unless MAIN_INSTANCE_KEY is set (a plain instance never exposes it,
- *   and a disabled builder returns 404 rather than advertising the route).
+ * - Disabled unless MAIN_INSTANCE_KEY is set (a plain instance returns 404
+ *   rather than advertising the route); boot checks fail fast if a configured
+ *   key is blank or too short.
  * - The bearer key is compared in constant time.
- * - Only the per-site READ-ONLY db token is returned — no write access, and the
- *   per-site DB_ENCRYPTION_KEY is never stored here, so field-level PII stays
+ * - The returned per-site db token is the site's own FULL-ACCESS credential:
+ *   both database provisioners mint full-access tokens (see bunny-db.ts and
+ *   turso-api.ts), and the builder stores the same token it configures as the
+ *   site's DB_TOKEN. The callers only read (backups before an upgrade), but
+ *   treat the response as write-capable production secrets. The per-site
+ *   DB_ENCRYPTION_KEY is never stored here, so field-level PII stays
  *   unreadable to whoever holds the response.
  * - POST so the key and the response never land in access-log query strings;
- *   served over HTTPS at the edge.
+ *   served over HTTPS at the edge. The tier is a non-secret filter, so it rides
+ *   in the query string.
  */
 
 import { jsonResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { getMainInstanceKey, isInstanceApiEnabled } from "#shared/config.ts";
 import { constantTimeEqual } from "#shared/crypto/utils.ts";
-import { getAllBuiltSites } from "#shared/db/built-sites.ts";
+import {
+  DEFAULT_UPDATE_TIER,
+  getAllBuiltSites,
+  isUpdateTier,
+  siteAcceptsDeployTier,
+} from "#shared/db/built-sites.ts";
 
 /** Extract the bearer token from the Authorization header (empty if absent). */
 const bearerToken = (request: Request): string => {
@@ -47,17 +64,36 @@ const handleSiteCredentials = async (request: Request): Promise<Response> => {
     return jsonResponse({ error: "unauthorized" }, 401);
   }
 
+  // The deploy tier being published. Absent/empty ⇒ release (reaches every
+  // site, preserving the pre-tier "whole fleet" behaviour); a junk value is a
+  // 400 rather than a silent fall-through that would deploy to the wrong set.
+  const deployTier =
+    new URL(request.url).searchParams.get("tier") || DEFAULT_UPDATE_TIER;
+  if (!isUpdateTier(deployTier)) {
+    return jsonResponse({ error: "invalid_tier" }, 400);
+  }
+
   const sites = await getAllBuiltSites();
   const credentials: SiteCredentials[] = sites
-    .filter((site) => site.bunnyScriptId && site.dbUrl && site.dbToken)
+    .filter(
+      (site) =>
+        site.hostingId &&
+        site.hostingProvider === "bunny" &&
+        site.dbUrl &&
+        site.dbToken,
+    )
+    .filter((site) => siteAcceptsDeployTier(site.updates, deployTier))
     .map((site) => ({
       dbToken: site.dbToken,
       dbUrl: site.dbUrl,
       name: site.name,
-      scriptId: site.bunnyScriptId,
+      scriptId: site.hostingId,
     }));
 
-  return jsonResponse({ sites: credentials });
+  // Echo the applied tier so a caller can confirm the server actually filtered:
+  // a pre-tier build ignores ?tier= and omits this, letting the canary workflow
+  // fail closed rather than fan a non-release deploy out to the whole fleet.
+  return jsonResponse({ sites: credentials, tier: deployTier });
 };
 
 export const instanceRoutes = defineRoutes({

@@ -2,6 +2,7 @@
  * Attendee phone blind-index reads/writes (see #shared/sms/phone-index.ts).
  */
 
+import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 
 /**
@@ -25,7 +26,9 @@ export const findAttendeeIdByPhoneIndex = async (
 ): Promise<number | null> => {
   if (!phoneIndex) return null;
   const row = await queryOne<{ id: number }>(
-    "SELECT id FROM attendees WHERE phone_index = ? LIMIT 1",
+    `SELECT id FROM attendees
+     WHERE phone_index = ? AND kind = '${ATTENDEE_KIND}'
+     LIMIT 1`,
     [phoneIndex],
   );
   return row?.id ?? null;

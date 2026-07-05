@@ -14,9 +14,9 @@ const SESSION: AdminSession = {
 const baseState = (): UpdatePageState => ({
   buildCommit: "",
   buildDate: "Thu, 28 Mar 2026 14:30:22 UTC",
-  bunnyConfigured: false,
   latestVersion: "",
   latestVersionName: "",
+  providerConfigured: false,
   updateAvailable: false,
 });
 
@@ -36,9 +36,9 @@ describe("adminUpdatePage", () => {
   test("renders update available with Bunny configured", () => {
     const state = {
       ...baseState(),
-      bunnyConfigured: true,
       latestVersion: "v2099-01-01-120000",
       latestVersionName: "2099-01-01 - Update",
+      providerConfigured: true,
       updateAvailable: true,
     };
     const html = adminUpdatePage(SESSION, state);
@@ -49,9 +49,9 @@ describe("adminUpdatePage", () => {
   test("renders cannot update when Bunny not configured", () => {
     const state = {
       ...baseState(),
-      bunnyConfigured: false,
       latestVersion: "v2099-01-01-120000",
       latestVersionName: "2099-01-01 - Update",
+      providerConfigured: false,
       updateAvailable: true,
     };
     const html = adminUpdatePage(SESSION, state);

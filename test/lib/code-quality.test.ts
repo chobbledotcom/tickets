@@ -7,11 +7,14 @@ import {
   detectModuleLevelLet,
   detectThenUsage,
   extractCallSites,
+  extractTypeShapes,
+  findDuplicateTypeShapes,
   findInMemoryStateViolations,
   findRawDbViolation,
   findRedundantArg,
   findTestOnlyExportViolations,
   getAllFilesWithExt,
+  type NamedTypeShape,
   type Site,
 } from "./code-quality/detectors.ts";
 
@@ -83,7 +86,16 @@ const LIBRARY_PATHS = [
   "shared/checkout-ledger.ts",
   "shared/accounting/store.ts",
   "shared/accounting/queries.ts",
+  "shared/accounting/projection.ts",
   "shared/accounting/mappers.ts",
+  // The site-pages feature is being wired in incrementally,
+  // foundation-first: the pure core + DB layer landed before the admin CRUD /
+  // public route / recursive-nav slices that consume them, so — like the
+  // ledger modules above — their exports have no production caller yet. Each
+  // module loses its exemption as the slice that consumes it lands.
+  "shared/site-pages/core.ts",
+  "shared/db/site-pages.ts",
+  "shared/db/site-page-items.ts",
 ];
 
 /** Index modules that only re-export from sub-modules */
@@ -91,6 +103,57 @@ const AGGREGATION_MODULES = [
   "shared/db/index.ts",
   "shared/rest/index.ts",
   "templates/index.ts",
+];
+
+/**
+ * Object shapes that two or more differently-named types legitimately share.
+ * The duplicate-type-shape rule normally wants one reusable type instead of
+ * several identical ones (see the {@link findDuplicateTypeShapes} guard below),
+ * but these are *coincidental* structural matches across unrelated concepts —
+ * minimal `{ key, value }` / `{ label, value }` / `{ id, name }` pairs and
+ * role-specific context types that happen to carry the same fields. Unifying
+ * them would couple modules that have nothing to do with each other and hide
+ * their distinct intent, so each is allowed by its exact member signature (add
+ * or rename a field and it re-flags for review). Genuine duplicates — the
+ * `{ sql, args }` statement family, the twin `ChildCandidate`, the nav-row and
+ * question-data pairs — were unified instead of listed here.
+ */
+const ALLOWED_DUPLICATE_TYPE_SHAPES: { signature: string; reason: string }[] = [
+  {
+    reason:
+      "Distinct route params (attendee+listing vs listing+attendee) that coincide as two numeric ids.",
+    signature: "attendeeId: number; listingId: number",
+  },
+  {
+    reason:
+      "A generic {attendee, listing} pairing plus two role-named context types (payment refresh, ticket-token entry) that carry the same two fields for unrelated jobs.",
+    signature: "attendee: Attendee; listing: ListingWithCount",
+  },
+  {
+    reason:
+      "A server REST error result and a separate client-side QR-refresh wire type; two independent discriminated-union arms that share the failure shape.",
+    signature: "error: string; ok: false",
+  },
+  {
+    reason:
+      "The minimal {id, name} identity shape, shared coincidentally by a logistics agent, a listing row, and two unrelated select-option types.",
+    signature: "id: number; name: string",
+  },
+  {
+    reason:
+      "A stored settings key/value row and a rendered admin detail row; a DB shape and a presentation shape that happen to match.",
+    signature: "key: string; value: string",
+  },
+  {
+    reason:
+      "The generic {label, value} select-option shape, used independently by the date picker and the site-page picker.",
+    signature: "label: string; value: string",
+  },
+  {
+    reason:
+      "A selector's props and its edit-context, two local view-model types in one logistics component that currently carry the same two fields.",
+    signature: "selected: ReadonlySet<number>; users: AgentUserOption[]",
+  },
 ];
 
 /**
@@ -109,8 +172,13 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/crypto/keys.ts:setRsaKeySizeForTest",
   // Reset cached Stripe client between tests
   "shared/stripe.ts:resetStripeClient",
-  // TTL constant used by page-cache tests to verify caching behaviour
-  "shared/db/settings.ts:SETTINGS_CACHE_TTL_MS",
+  // Settings version bump: used in production by every settings write (same
+  // file, which the export scan doesn't credit) and by tests to simulate
+  // another isolate's write.
+  "shared/db/settings.ts:bumpSettingsVersion",
+  // Settings version probe: used in production within settings.ts (same file);
+  // exported so tests can assert its missing/unparseable/DB-error branches.
+  "shared/db/settings.ts:getCurrentSettingsVersion",
   // Dev/test-only switch for the settings read audit (no-op in production)
   "shared/db/settings-audit.ts:setSettingsAuditEnabled",
   // (settings.ts functions now accessed via settings namespace, not individual exports)
@@ -138,6 +206,9 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/square.ts:constructTestWebhookEvent",
   // Convenience wrapper for idempotency checks (production uses isSessionProcessed directly)
   "shared/db/processed-payments.ts:getProcessedAttendeeId",
+  // Test setup helper for creating finalized sessions; production now uses
+  // finalizeSessionStatement inside the attendee-creation transaction instead.
+  "shared/db/processed-payments.ts:finalizeSession",
   // Raw attendee fetch for testing encrypted data (production uses batched getListingWithAttendeesRaw)
   "shared/db/attendees/queries.ts:getAttendeesRaw",
   // Single attendee fetch for tests (production uses batched getListingWithAttendeeRaw)
@@ -159,6 +230,8 @@ const ALLOWED_TEST_HOOKS: string[] = [
   // Reset cached effective domain between tests
   "shared/config.ts:resetEffectiveDomain",
   "shared/config.ts:setEffectiveDomainForTest",
+  // Detach the global Sentry client between test files
+  "shared/sentry.ts:resetSentryForTest",
   // Reset cached demo mode between tests
   "shared/demo.ts:resetDemoMode",
   "shared/demo.ts:setDemoModeForTest",
@@ -175,10 +248,10 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/storage.ts:MAX_ATTACHMENT_SIZE",
   // AsyncLocalStorage-based storage config for concurrent test isolation
   "shared/storage.ts:runWithStorageConfig",
+  // Suite-level storage config setter for describeWithEnv's `storage` option
+  "shared/storage.ts:setStorageConfigForTest",
   // readLimit used in production (module-level constants) but test pattern doesn't detect same-file usage
   "shared/limits.ts:readLimit",
-  // Settings cache TTL constant used by tests to verify caching behavior
-  "shared/db/settings.ts:SETTINGS_CACHE_TTL_MS",
   // Set log suppression directly to avoid env var races between parallel tests
   "shared/logger.ts:setSuppressRequestLogs",
   "shared/logger.ts:setSuppressDebugLogs",
@@ -187,6 +260,9 @@ const ALLOWED_TEST_HOOKS: string[] = [
   // Override BUILD_TIMESTAMP / BUILD_COMMIT in tests (compile-time constants can't be changed otherwise)
   "shared/update.ts:setBuildTimestampForTest",
   "shared/update.ts:setBuildCommitForTest",
+  // Lower-level deploy primitive: exposed so unit tests can test asset-URL → deploy in isolation
+  // without going through the full fetchAndDownloadRelease path used by deployLatestReleaseToScript.
+  "shared/update.ts:deployRelease",
   // Route maps used by API documentation tests (production uses via dynamic import / createRouter)
   "features/api/index.ts:apiRoutes",
   "features/admin/api.ts:adminApiRoutes",
@@ -205,6 +281,10 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/cache-registry.ts:invalidateCachesForTable",
   // SET-clause column extractor: internal parser exposed for unit testing only
   "shared/db/client.ts:extractUpdateColumns",
+  // Image transcode entry point: production uses it via a dynamic import in
+  // storage.ts (uploadImageTargets) so the ~1MB codec wasm loads only on the
+  // first upload, never at cold boot — invisible to the static import scanner.
+  "shared/images/transcode.ts:transcodeToWebp",
 ];
 
 const getAllTsFiles = (dir: string): Promise<string[]> =>
@@ -423,6 +503,34 @@ describe("code quality", () => {
         if (violation) violations.push(violation);
       }
       violations.sort();
+      expect(violations).toEqual([]);
+    });
+  });
+
+  describe("no duplicate type shapes", () => {
+    /**
+     * Collect every object-shaped `type`/`interface` across production source
+     * (src + tsx), keyed by file. Prefer generic, reusable objects: two
+     * differently-named types with identical members should be one shared type.
+     * Coincidental cross-domain matches live in ALLOWED_DUPLICATE_TYPE_SHAPES.
+     */
+    const collectTypeShapes = (): NamedTypeShape[] => {
+      const defs: NamedTypeShape[] = [];
+      const record = (file: string, content: string): void => {
+        const relativePath = getRelativePath(file);
+        for (const shape of extractTypeShapes(content)) {
+          defs.push({ ...shape, file: relativePath });
+        }
+      };
+      for (const file of srcFiles) record(file, srcContents.get(file)!);
+      for (const file of tsxFiles) record(file, tsxContents.get(file)!);
+      return defs;
+    };
+
+    test("no two types should declare the same object shape", async () => {
+      await ensureLoaded();
+      const allowed = ALLOWED_DUPLICATE_TYPE_SHAPES.map((a) => a.signature);
+      const violations = findDuplicateTypeShapes(collectTypeShapes(), allowed);
       expect(violations).toEqual([]);
     });
   });

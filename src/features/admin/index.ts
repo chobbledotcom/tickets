@@ -9,6 +9,7 @@
 
 import { reduce } from "#fp";
 import { apiKeysRoutes } from "#routes/admin/api-keys.ts";
+import { attendeeNotesRoutes } from "#routes/admin/attendee-notes.ts";
 import { attendeeRefundRoutes } from "#routes/admin/attendee-refunds.ts";
 import { attendeesRoutes } from "#routes/admin/attendees.ts";
 import { authRoutes } from "#routes/admin/auth.ts";
@@ -18,6 +19,7 @@ import { builtSitesRoutes } from "#routes/admin/built-sites.ts";
 import { bulkActionsRoutes } from "#routes/admin/bulk-actions.ts";
 import { bulkEmailRoutes } from "#routes/admin/bulk-email.ts";
 import { calendarRoutes } from "#routes/admin/calendar.ts";
+import { catalogTransferRoutes } from "#routes/admin/catalog-transfer/routes.ts";
 import { contactHistoryRoutes } from "#routes/admin/contact-history.ts";
 import { dashboardRoutes } from "#routes/admin/dashboard.ts";
 import { debugRoutes } from "#routes/admin/debug.ts";
@@ -25,6 +27,7 @@ import { deliveriesRoutes } from "#routes/admin/deliveries.ts";
 import { groupsRoutes } from "#routes/admin/groups.ts";
 import { guideRoutes } from "#routes/admin/guide.ts";
 import { holidaysRoutes } from "#routes/admin/holidays.ts";
+import { imagesRoutes } from "#routes/admin/images.ts";
 import { ledgerRoutes } from "#routes/admin/ledger.ts";
 import { listingQrRoutes } from "#routes/admin/listing-qr.ts";
 import { listingsRoutes } from "#routes/admin/listings.ts";
@@ -34,11 +37,13 @@ import { privacyRoutes } from "#routes/admin/privacy.ts";
 import { questionsRoutes } from "#routes/admin/questions.ts";
 import { scannerRoutes } from "#routes/admin/scanner.ts";
 import { seedsRoutes } from "#routes/admin/seeds.ts";
+import { servicingRoutes } from "#routes/admin/servicing.tsx";
 import { sessionsRoutes } from "#routes/admin/sessions.ts";
 import { settingsRoutes } from "#routes/admin/settings.ts";
 import { logisticsRoutes } from "#routes/admin/settings-logistics.ts";
 import { attendeeStatusesRoutes } from "#routes/admin/settings-statuses.ts";
 import { siteRoutes } from "#routes/admin/site.ts";
+import { sitePagesRoutes } from "#routes/admin/site-pages.ts";
 import { smsRoutes } from "#routes/admin/sms.ts";
 import { supportRoutes } from "#routes/admin/support.ts";
 import { updateRoutes } from "#routes/admin/update.ts";
@@ -46,6 +51,7 @@ import { usersRoutes } from "#routes/admin/users.ts";
 import { getAuthenticatedSession } from "#routes/auth.ts";
 import { createRouter, type RouteHandlerFn } from "#routes/router.ts";
 import { enableFooterDebug } from "#shared/db/query-log.ts";
+import { isStaffRole } from "#shared/types.ts";
 
 /** Route maps merged in order (later keys override earlier on conflict) */
 const adminRouteModules: Record<string, RouteHandlerFn>[] = [
@@ -59,12 +65,15 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   privacyRoutes,
   debugRoutes,
   siteRoutes,
+  sitePagesRoutes,
   sessionsRoutes,
+  servicingRoutes,
   calendarRoutes,
   listingsRoutes,
   listingQrRoutes,
   markdownPreviewRoutes,
   attendeesRoutes,
+  attendeeNotesRoutes,
   contactHistoryRoutes,
   smsRoutes,
   attendeeRefundRoutes,
@@ -76,6 +85,7 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   bulkActionsRoutes,
   bulkEmailRoutes,
   holidaysRoutes,
+  imagesRoutes,
   questionsRoutes,
   scannerRoutes,
   seedsRoutes,
@@ -84,6 +94,7 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   updateRoutes,
   backupRoutes,
   supportRoutes,
+  catalogTransferRoutes,
 ];
 
 const adminRoutes = reduce(
@@ -103,10 +114,11 @@ type RouterFn = ReturnType<typeof createRouter>;
 export const routeAdmin: RouterFn = async (request, path, method, server) => {
   // Query recording is turned on earlier (prepareRequestEnvironment) for admin
   // GETs, so the route's settings load is captured. Here we only unlock the
-  // footer for staff — delivery agents never see the debug footer.
+  // footer for back-office staff — delivery agents and content editors (who are
+  // excluded from operational/debug access) never see the SQL/cache debug menu.
   const session = await getAuthenticatedSession(request);
 
-  if (method === "GET" && session && session.adminLevel !== "agent") {
+  if (method === "GET" && session && isStaffRole(session.adminLevel)) {
     enableFooterDebug();
   }
 

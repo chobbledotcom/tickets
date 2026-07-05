@@ -9,10 +9,12 @@
 import { t } from "#i18n";
 import {
   csvDateRange,
+  listingInfoColumns,
   standardAttendeeColumns,
 } from "#routes/admin/attendees-csv.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { type Column, CSV } from "#shared/csv/index.ts";
+import { isServicing } from "#shared/db/attendees/kind.ts";
 import {
   bookingAssignmentKey,
   type LogisticsAssignment,
@@ -65,32 +67,6 @@ export const toCalendarAttendees = <
   });
 };
 
-/** Optional Listing Date / Listing Location columns (per booking's listing).
- * The listing date is a UTC ISO datetime, shown as a date + time in `tz`. */
-const listingInfoColumns = (
-  tz: string,
-  showDate: boolean,
-  showLocation: boolean,
-): Column<CalendarAttendee>[] => [
-  ...(showDate
-    ? [
-        {
-          header: t("csv.col.listing_date"),
-          value: (a: CalendarAttendee) =>
-            a.listingDate ? formatDatetimeShortInTz(a.listingDate, tz) : "",
-        },
-      ]
-    : []),
-  ...(showLocation
-    ? [
-        {
-          header: t("csv.col.listing_location"),
-          value: (a: CalendarAttendee) => a.listingLocation,
-        },
-      ]
-    : []),
-];
-
 /** The six logistics columns; each is blank for non-logistics bookings. */
 const logisticsColumns = (
   logistics: CalendarLogisticsCsv,
@@ -130,7 +106,15 @@ const logisticsColumns = (
   ];
 };
 
-/** The ordered calendar columns: Listing name, optional listing date/location,
+/** The row's type label for the calendar CSV: "Service event" for a servicing
+ *  hold, "Attendee" for a real customer. Servicing rows carry blank contact
+ *  fields (and no followable ticket URL), so the Type column is what makes a
+ *  hold readable in the run sheet instead of looking like a customer with
+ *  missing data. */
+const typeLabel = (a: CalendarAttendee): string =>
+  isServicing(a.kind) ? "Service event" : "Attendee";
+
+/** The ordered calendar columns: Type, Listing name, optional listing date/location,
  * the booking Date, the standard attendee columns, then — when a run-sheet
  * context applies to any row — the logistics columns. Pure; built per call so
  * the active locale applies. */
@@ -143,17 +127,24 @@ const calendarColumns = ({
   attendees: CalendarAttendee[];
   domain: string;
   tz: string;
-  logistics?: CalendarLogisticsCsv;
+  logistics?: CalendarLogisticsCsv | undefined;
 }): Column<CalendarAttendee>[] => {
   const showLogistics = Boolean(
     logistics && attendees.some((a) => logistics.listingIds.has(a.listing_id)),
   );
   return [
     { header: t("terms.listing"), value: (a) => a.listingName },
-    ...listingInfoColumns(
-      tz,
-      attendees.some((a) => a.listingDate !== ""),
-      attendees.some((a) => a.listingLocation !== ""),
+    { header: "Type", value: typeLabel },
+    ...listingInfoColumns<CalendarAttendee>(
+      {
+        show: attendees.some((a) => a.listingDate !== ""),
+        value: (a) =>
+          a.listingDate ? formatDatetimeShortInTz(a.listingDate, tz) : "",
+      },
+      {
+        show: attendees.some((a) => a.listingLocation !== ""),
+        value: (a) => a.listingLocation,
+      },
     ),
     {
       header: t("common.date"),

@@ -12,6 +12,16 @@ import {
 
 const today = () => todayInTz("UTC");
 
+/** All orderings of `items` (deterministic, no randomness) */
+const permutations = <T>(items: T[]): T[][] =>
+  items.length <= 1
+    ? [items]
+    : items.flatMap((item, i) =>
+        permutations([...items.slice(0, i), ...items.slice(i + 1)]).map(
+          (rest) => [item, ...rest],
+        ),
+      );
+
 /** Create Bravo/Alpha pair, sort, and assert Alpha comes first */
 const expectAlphaBeforeBravo = (
   overrides: Partial<Parameters<typeof testListing>[0]>,
@@ -105,22 +115,24 @@ describeWithEnv("sortListings", { db: true }, () => {
   });
 
   test("sorts dated standard listings by date ascending", () => {
+    // Names deliberately contradict date order (Zulu is earlier, Alpha is
+    // later) so a comparator that fell back to name comparison would fail.
     const later = testListing({
       date: "2026-09-01T10:00:00.000Z",
       id: 1,
       listing_type: "standard",
-      name: "Later",
+      name: "Alpha Late",
     });
     const earlier = testListing({
       date: "2026-06-15T14:00:00.000Z",
       id: 2,
       listing_type: "standard",
-      name: "Earlier",
+      name: "Zulu Early",
     });
 
     const sorted = sortListings([later, earlier], []);
-    expect(sorted[0]!.name).toBe("Earlier");
-    expect(sorted[1]!.name).toBe("Later");
+    expect(sorted[0]!.name).toBe("Zulu Early");
+    expect(sorted[1]!.name).toBe("Alpha Late");
   });
 
   test("sorts dated standard listings by name when dates are equal", () => {
@@ -172,12 +184,15 @@ describeWithEnv("sortListings", { db: true }, () => {
   });
 
   test("places daily listings with no bookable dates after those with dates", () => {
+    // Names deliberately contradict the intended order (Zulu has a bookable
+    // date, Alpha doesn't) so a comparator that fell back to name comparison
+    // for a single-sided empty date would fail.
     const hasBookable = testListing({
       id: 1,
       listing_type: "daily",
       maximum_days_after: 30,
       minimum_days_before: 0,
-      name: "Has Dates",
+      name: "Zulu Has Dates",
     });
     const noBookable = testListing({
       bookable_days: [],
@@ -185,39 +200,69 @@ describeWithEnv("sortListings", { db: true }, () => {
       listing_type: "daily",
       maximum_days_after: 30,
       minimum_days_before: 0,
-      name: "No Dates",
+      name: "Alpha No Dates",
     });
 
     const sorted = sortListings([noBookable, hasBookable], []);
-    expect(sorted[0]!.name).toBe("Has Dates");
-    expect(sorted[1]!.name).toBe("No Dates");
+    expect(sorted[0]!.name).toBe("Zulu Has Dates");
+    expect(sorted[1]!.name).toBe("Alpha No Dates");
   });
 
   test("sorts daily listings with no bookable dates by name", () => {
     expectAlphaBeforeBravo({ bookable_days: [], listing_type: "daily" });
   });
 
-  test("places daily listing with bookable dates before one without regardless of input order", () => {
-    const withDates = testListing({
+  test("places every daily listing with bookable dates before every one without, regardless of input order", () => {
+    // A single fixed input ordering is unreliable here: Array.sort's exact
+    // comparator call pattern (which argument is "a" vs "b" for a given
+    // pair) depends on the engine's sort algorithm and the input's starting
+    // order, so a comparator bug in only one of the dateA/dateB branches can
+    // hide behind whichever call pattern one particular ordering happens to
+    // produce. Exhaustively trying every ordering of these four listings
+    // guarantees every pairwise argument order gets exercised at least once,
+    // and the name/date-contradicting names rule out a fallback-to-name
+    // escape hatch too.
+    const earlierHasDate = testListing({
       id: 1,
       listing_type: "daily",
       maximum_days_after: 30,
-      minimum_days_before: 0,
-      name: "With Dates",
+      minimum_days_before: 1,
+      name: "Delta Has",
     });
-    const withoutDates = testListing({
-      bookable_days: [],
+    const laterHasDate = testListing({
       id: 2,
       listing_type: "daily",
-      name: "Without Dates",
+      maximum_days_after: 30,
+      minimum_days_before: 5,
+      name: "Bravo Has",
+    });
+    const noDateC = testListing({
+      bookable_days: [],
+      id: 3,
+      listing_type: "daily",
+      name: "Charlie None",
+    });
+    const noDateA = testListing({
+      bookable_days: [],
+      id: 4,
+      listing_type: "daily",
+      name: "Alpha None",
     });
 
-    // Test both input orderings to exercise both dateA="" and dateB="" branches
-    const sorted1 = sortListings([withDates, withoutDates], []);
-    expect(sorted1[0]!.name).toBe("With Dates");
-
-    const sorted2 = sortListings([withoutDates, withDates], []);
-    expect(sorted2[0]!.name).toBe("With Dates");
+    for (const ordering of permutations([
+      earlierHasDate,
+      laterHasDate,
+      noDateC,
+      noDateA,
+    ])) {
+      const sorted = sortListings(ordering, []);
+      expect(sorted.map((l) => l.name)).toEqual([
+        "Delta Has",
+        "Bravo Has",
+        "Alpha None",
+        "Charlie None",
+      ]);
+    }
   });
 
   test("accounts for holidays when sorting daily listings", () => {

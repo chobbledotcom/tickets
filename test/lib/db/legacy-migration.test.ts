@@ -226,6 +226,23 @@ describe("db > listing_attendees migration from legacy schema", () => {
     return client;
   };
 
+  /** Create a legacy DB with FK enforcement on and one listing row — the
+   *  shared setup for the "adds display type" and "deletes under FK"
+   *  migration tests. */
+  const createLegacyDbWithListing = async () => {
+    const client = await createLegacyDb();
+    await client.execute("PRAGMA foreign_keys = ON");
+    await client.execute(
+      insert("listings", {
+        created: "2024-01-01T00:00:00Z",
+        id: 1,
+        max_attendees: 100,
+        name: "Test Listing",
+      }),
+    );
+    return client;
+  };
+
   const seedLegacySchemaMarkers = async (
     client: ReturnType<typeof createClient>,
   ) => {
@@ -269,6 +286,21 @@ describe("db > listing_attendees migration from legacy schema", () => {
       }
       return origExecute(stmt as Parameters<typeof origExecute>[0]);
     });
+  };
+
+  const expectAttendeeCols = async (
+    client: ReturnType<typeof createClient>,
+    absent: readonly string[],
+    present: readonly string[],
+  ): Promise<void> => {
+    const cols = await client.execute("PRAGMA table_info(attendees)");
+    const colNames = cols.rows.map((r) => r.name);
+    for (const col of absent) {
+      expect(colNames).not.toContain(col);
+    }
+    for (const col of present) {
+      expect(colNames).toContain(col);
+    }
   };
 
   test("migration backfills listing_attendees, listing duration, and processed_payments", async () => {
@@ -326,21 +358,23 @@ describe("db > listing_attendees migration from legacy schema", () => {
     expect(ea.rows[0]!.start_at).toBe("2024-06-15T00:00:00Z");
     expect(ea.rows[0]!.end_at).toBe("2024-06-16T00:00:00Z");
 
-    const cols = await client.execute("PRAGMA table_info(attendees)");
-    const colNames = cols.rows.map((r) => r.name);
-    expect(colNames).not.toContain("listing_id");
-    expect(colNames).not.toContain("date");
-    expect(colNames).not.toContain("quantity");
-    expect(colNames).not.toContain("name");
-    expect(colNames).not.toContain("email");
-    expect(colNames).not.toContain("phone");
-    expect(colNames).not.toContain("address");
-    expect(colNames).not.toContain("payment_id");
     // price_paid is dropped — amount paid is a per-row listing_attendees figure
     // (ledger-projected), never an attendees column.
-    expect(colNames).not.toContain("price_paid");
-    expect(colNames).toContain("id");
-    expect(colNames).toContain("pii_blob");
+    await expectAttendeeCols(
+      client,
+      [
+        "address",
+        "date",
+        "email",
+        "listing_id",
+        "name",
+        "payment_id",
+        "phone",
+        "price_paid",
+        "quantity",
+      ],
+      ["id", "pii_blob"],
+    );
 
     const payments = await client.execute("SELECT * FROM processed_payments");
     expect(payments.rows.length).toBe(1);
@@ -348,17 +382,7 @@ describe("db > listing_attendees migration from legacy schema", () => {
   });
 
   test("adds question display type when legacy question tables have foreign keys", async () => {
-    const client = await createLegacyDb();
-    await client.execute("PRAGMA foreign_keys = ON");
-
-    await client.execute(
-      insert("listings", {
-        created: "2024-01-01T00:00:00Z",
-        id: 1,
-        max_attendees: 100,
-        name: "Test Listing",
-      }),
-    );
+    const client = await createLegacyDbWithListing();
     await client.execute(
       insert("questions", {
         id: 1,
@@ -404,17 +428,7 @@ describe("db > listing_attendees migration from legacy schema", () => {
   });
 
   test("deletes a migrated listing and its question links under FK enforcement", async () => {
-    const client = await createLegacyDb();
-    await client.execute("PRAGMA foreign_keys = ON");
-
-    await client.execute(
-      insert("listings", {
-        created: "2024-01-01T00:00:00Z",
-        id: 1,
-        max_attendees: 100,
-        name: "Test Listing",
-      }),
-    );
+    const client = await createLegacyDbWithListing();
     await client.execute(insert("questions", { id: 1, text: "Encrypted" }));
     await client.execute(
       insert("listing_questions", { id: 1, listing_id: 1, question_id: 1 }),
@@ -480,15 +494,11 @@ describe("db > listing_attendees migration from legacy schema", () => {
 
     await initDb();
 
-    const cols = await client.execute("PRAGMA table_info(attendees)");
-    const colNames = cols.rows.map((r) => r.name);
-    expect(colNames).not.toContain("name");
-    expect(colNames).not.toContain("email");
-    expect(colNames).not.toContain("phone");
-    expect(colNames).not.toContain("address");
-    expect(colNames).not.toContain("payment_id");
-    expect(colNames).toContain("pii_blob");
-    expect(colNames).toContain("ticket_token_index");
+    await expectAttendeeCols(
+      client,
+      ["address", "email", "name", "payment_id", "phone"],
+      ["pii_blob", "ticket_token_index"],
+    );
 
     const rows = await client.execute("SELECT * FROM attendees WHERE id = 1");
     expect(rows.rows.length).toBe(1);

@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { isSafeUrl, renderMarkdown } from "#shared/markdown.ts";
+import {
+  isSafeUrl,
+  isSimpleMarkdown,
+  renderMarkdown,
+} from "#shared/markdown.ts";
 
 describe("markdown", () => {
   describe("renderMarkdown", () => {
@@ -105,6 +109,66 @@ describe("markdown", () => {
     test("rejects schemes hidden behind control characters and whitespace", () => {
       expect(isSafeUrl("java\tscript:alert(1)")).toBe(false);
       expect(isSafeUrl(" javascript:alert(1)")).toBe(false);
+    });
+  });
+
+  describe("isSimpleMarkdown", () => {
+    test("true for plain text", () => {
+      expect(isSimpleMarkdown("What is your T-shirt size?")).toBe(true);
+    });
+
+    test("true for plain text with a single line break", () => {
+      expect(isSimpleMarkdown("Line 1\nLine 2")).toBe(true);
+    });
+
+    test("true for plain text surrounded by whitespace", () => {
+      expect(isSimpleMarkdown("  hello  ")).toBe(true);
+    });
+
+    test("false for empty string", () => {
+      expect(isSimpleMarkdown("")).toBe(false);
+    });
+
+    test("false for bold", () => {
+      expect(isSimpleMarkdown("What is your **size**?")).toBe(false);
+    });
+
+    test("false for italic", () => {
+      expect(isSimpleMarkdown("What is your *size*?")).toBe(false);
+    });
+
+    test("false for a link", () => {
+      expect(isSimpleMarkdown("See [here](https://example.com)")).toBe(false);
+    });
+
+    test("false for inline code", () => {
+      expect(isSimpleMarkdown("Use `code` here")).toBe(false);
+    });
+
+    test("false for a heading", () => {
+      expect(isSimpleMarkdown("# Heading")).toBe(false);
+    });
+
+    test("false for a list", () => {
+      expect(isSimpleMarkdown("- item1\n- item2")).toBe(false);
+    });
+
+    test("false for multiple paragraphs", () => {
+      expect(isSimpleMarkdown("para1\n\npara2")).toBe(false);
+    });
+
+    test("false for a blockquote", () => {
+      expect(isSimpleMarkdown("> quoted text")).toBe(false);
+    });
+
+    test("false for a table", () => {
+      expect(
+        isSimpleMarkdown("| Col1 | Col2 |\n|------|------|\n| a    | b    |"),
+      ).toBe(false);
+    });
+
+    test("false for raw HTML", () => {
+      expect(isSimpleMarkdown("text <b>bold</b> more")).toBe(false);
     });
   });
 });

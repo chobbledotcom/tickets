@@ -45,13 +45,31 @@ import {
   buildCreateUserStatement,
   invalidateUsersCache,
 } from "#shared/db/users.ts";
-import { nowMs } from "#shared/now.ts";
+import {
+  type ListingDefaults,
+  parseListingDefaults,
+  serializeListingDefaults,
+} from "#shared/listing-defaults.ts";
 import {
   DEFAULT_ORPHAN_RETENTION,
   isOrphanRetentionValue,
 } from "#shared/orphan-retention.ts";
+import { requestCache } from "#shared/request-cache.ts";
+import {
+  type AccessorSpec,
+  CONFIG_KEYS,
+  EMAIL_BODY_KEYS,
+  ENCRYPTED_KEYS,
+  PLAINTEXT_KEYS,
+  PRUNE_KEYS,
+  STRING_ACCESSORS,
+  type StringAccessors,
+  type StringSettingKey,
+} from "#shared/settings/registry.ts";
 import { DEFAULT_TIMEZONE } from "#shared/timezone.ts";
 import type {
+  EmailTemplateFormat,
+  EmailTemplateType,
   PaymentProviderSetting,
   PaymentProviderType,
   Settings,
@@ -72,94 +90,12 @@ import {
   createGoogleWalletUpdateSettings,
 } from "#shared/wallets/google-wallet-settings.ts";
 import type { EncryptedUpdateFn } from "#shared/wallets/wallet-settings-types.ts";
+import type { EmailContent } from "#templates/email/shared.ts";
 
-// ---------------------------------------------------------------------------
-// Setting keys
-// ---------------------------------------------------------------------------
+export type { StringSettingKey };
+export { CONFIG_KEYS, EMAIL_BODY_KEYS, PRUNE_KEYS };
 
-export const CONFIG_KEYS = {
-  ACTIVITY_LOG_BACKFILL_DONE: "activity_log_backfill_done",
-  APPLE_WALLET_PASS_TYPE_ID: "apple_wallet_pass_type_id",
-  APPLE_WALLET_SIGNING_CERT: "apple_wallet_signing_cert",
-  APPLE_WALLET_SIGNING_KEY: "apple_wallet_signing_key",
-  APPLE_WALLET_TEAM_ID: "apple_wallet_team_id",
-  APPLE_WALLET_WWDR_CERT: "apple_wallet_wwdr_cert",
-  ATTENDEE_COLUMN_ORDER: "attendee_column_order",
-  AUTO_PURGE_ORPHANS: "auto_purge_orphans",
-  BOOKING_FEE: "booking_fee",
-  BULK_EMAIL_DRAFT: "bulk_email_draft",
-  BUNNY_SUBDOMAIN: "bunny_subdomain",
-  BUSINESS_EMAIL: "business_email",
-  CALENDAR_FEEDS_ENABLED: "calendar_feeds_enabled",
-  CALENDAR_FEEDS_GROUP_BY: "calendar_feeds_group_by",
-  CONTACT_FORM_ENABLED: "contact_form_enabled",
-  CONTACT_PAGE_TEXT: "contact_page_text",
-  COUNTRY: "country",
-  CURRENT_TASK: "current_task",
-  CUSTOM_DOMAIN: "custom_domain",
-  CUSTOM_DOMAIN_LAST_VALIDATED: "custom_domain_last_validated",
-  EMAIL_API_KEY: "email_api_key",
-  EMAIL_FROM_ADDRESS: "email_from_address",
-  EMAIL_PROVIDER: "email_provider",
-  EMAIL_TPL_ADMIN_HTML: "email_tpl_admin_html",
-  EMAIL_TPL_ADMIN_SUBJECT: "email_tpl_admin_subject",
-  EMAIL_TPL_ADMIN_TEXT: "email_tpl_admin_text",
-  EMAIL_TPL_CONFIRMATION_HTML: "email_tpl_confirmation_html",
-  EMAIL_TPL_CONFIRMATION_SUBJECT: "email_tpl_confirmation_subject",
-  EMAIL_TPL_CONFIRMATION_TEXT: "email_tpl_confirmation_text",
-  EMBED_HOSTS: "embed_hosts",
-  GOOGLE_WALLET_ISSUER_ID: "google_wallet_issuer_id",
-  GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: "google_wallet_service_account_email",
-  GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: "google_wallet_service_account_key",
-  HAS_LOGISTICS: "has_logistics",
-  HEADER_IMAGE_URL: "header_image_url",
-  HOMEPAGE_TEXT: "homepage_text",
-  LAST_ACTIVITY_LOG_BACKFILL: "last_activity_log_backfill",
-  LAST_PRUNED_CONTACTS: "last_pruned_contacts",
-  LAST_PRUNED_INVITES: "last_pruned_invites",
-  LAST_PRUNED_LOGINS: "last_pruned_logins",
-  LAST_PRUNED_ORPHANS: "last_pruned_orphans",
-  LAST_PRUNED_PAYMENTS: "last_pruned_payments",
-  LAST_PRUNED_SESSIONS: "last_pruned_sessions",
-  LAST_PRUNED_STRINGS: "last_pruned_strings",
-  LAST_PRUNED_SUMUP: "last_pruned_sumup",
-  LAST_PRUNED_TOKENS: "last_pruned_tokens",
-  LATEST_SCRIPT_VERSION: "latest_script_version",
-  LATEST_SCRIPT_VERSION_NAME: "latest_script_version_name",
-  LISTING_COLUMN_ORDER: "listing_column_order",
-  ORDER_ENABLED: "order_enabled",
-  ORDER_INTRO_TEXT: "order_intro_text",
-  ORPHAN_PURGE_RETENTION: "orphan_purge_retention",
-  PAYMENT_PROVIDER: "payment_provider",
-  PUBLIC_KEY: "public_key",
-  SETUP_COMPLETE: "setup_complete",
-  SHOW_PUBLIC_API: "show_public_api",
-  SHOW_PUBLIC_SITE: "show_public_site",
-  SMS_GATEWAY_BASE_URL: "sms_gateway_base_url",
-  SMS_GATEWAY_PASSPHRASE: "sms_gateway_passphrase",
-  SMS_GATEWAY_PASSWORD: "sms_gateway_password",
-  SMS_GATEWAY_USERNAME: "sms_gateway_username",
-  SMS_GATEWAY_WEBHOOK_SECRET: "sms_gateway_webhook_secret",
-  SQUARE_ACCESS_TOKEN: "square_access_token",
-  SQUARE_LOCATION_ID: "square_location_id",
-  SQUARE_SANDBOX: "square_sandbox",
-  SQUARE_WEBHOOK_SIGNATURE_KEY: "square_webhook_signature_key",
-  STRIPE_SECRET_KEY: "stripe_secret_key",
-  STRIPE_WEBHOOK_ENDPOINT_ID: "stripe_webhook_endpoint_id",
-  STRIPE_WEBHOOK_SECRET: "stripe_webhook_secret",
-  SUMUP_API_KEY: "sumup_api_key",
-  SUMUP_MERCHANT_CODE: "sumup_merchant_code",
-  SUPERUSER_CHOICE: "superuser_choice",
-  SUPPORT_FORM_LAST_SUBMITTED: "support_form_last_submitted",
-  TERMS_AND_CONDITIONS: "terms_and_conditions",
-  THEME: "theme",
-  UNDERLINE_LINKS: "underline_links",
-  WEBSITE_TITLE: "website_title",
-  WRAPPED_PRIVATE_KEY: "wrapped_private_key",
-} as const;
-
-export const MASK_SENTINEL =
-  "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
+export const MASK_SENTINEL = "••••••••••••";
 export const isMaskSentinel = (value: string): boolean =>
   value === MASK_SENTINEL;
 
@@ -173,39 +109,36 @@ const keyModeOf = (key: string): "test" | "live" | null =>
       : null;
 
 // ---------------------------------------------------------------------------
-// Raw cache — stores DB rows in memory (60 s TTL)
+// Raw cache — stores DB rows in memory, validated by a settings version stamp
 // ---------------------------------------------------------------------------
-
-export const SETTINGS_CACHE_TTL_MS = 60_000;
 
 /**
  * Raw-row cache. `values` holds the rows loaded so far (decrypted values still
  * live in the snapshot, not here). `loaded` records which keys have been
  * resolved — present *or* absent in the DB — so a partial `loadKeys` never
- * re-queries a key it has already fetched. `time` stamps the load for TTL
- * expiry; `0` means never loaded.
+ * re-queries a key it has already fetched. `version` is the `settings_version`
+ * counter the rows were loaded at; `-1` means never loaded.
+ *
+ * Freshness is decided by the version stamp, not a wall-clock TTL. Every
+ * settings write bumps the shared `settings_version` counter in the DB
+ * (`bumpSettingsVersion`), and each request probes that counter once
+ * (`prefetchVersion` / the version probe). When the probed counter differs from
+ * the cache's stamp, some isolate changed a setting and the cache reloads;
+ * otherwise it is served as-is. This makes a change saved on one (warm) edge
+ * isolate visible to every other isolate on its very next request — rather than
+ * lingering until a TTL lapsed or the isolate restarted — while still skipping
+ * the reload (and the decryption) entirely on the common no-change path.
  */
 type CacheState = {
   values: Map<string, string>;
   loaded: Set<string>;
-  time: number;
+  version: number;
 };
 const [getCacheState, setCacheState] = lazyRef<CacheState>(() => ({
   loaded: new Set(),
-  time: 0,
   values: new Map(),
+  version: -1,
 }));
-
-const isCacheFresh = (): boolean => {
-  const s = getCacheState();
-  return s.time > 0 && nowMs() - s.time < SETTINGS_CACHE_TTL_MS;
-};
-
-/** Whether a key's value is already resolved in the current fresh cache. */
-const isKeyLoaded = (key: string): boolean => {
-  if (!isCacheFresh()) return false;
-  return getCacheState().loaded.has(key);
-};
 
 registerCache(() => ({
   entries: getCacheState().values.size,
@@ -213,14 +146,60 @@ registerCache(() => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Snapshot — pre-resolved settings for sync access
+// Settings version stamp — cross-isolate cache invalidation signal
 // ---------------------------------------------------------------------------
 
-/** Valid email template types */
-export type EmailTemplateType = "confirmation" | "admin";
+/**
+ * Read the current `settings_version` counter straight from the DB (bypassing
+ * the snapshot and the read audit — it is cache machinery, not an app setting).
+ * The row is an integer once any write has created it; before the first write
+ * (a fresh database) it is absent, which reads as version 0.
+ */
+export const getCurrentSettingsVersion = async (): Promise<number> => {
+  const rows = await queryAll<Settings>(
+    "SELECT value FROM settings WHERE key = ?",
+    [CONFIG_KEYS.SETTINGS_VERSION],
+  );
+  return Number.parseInt(rows[0]?.value ?? "0", 10);
+};
 
-/** Valid email template formats */
-export type EmailTemplateFormat = "subject" | "html" | "text";
+/**
+ * Per-request memoised probe of the version counter. Inside a request the first
+ * read is shared by every later `loadKeys` (one tiny query per request); outside
+ * a request (tests, boot, CLI) each call probes fresh. Kicking it off early
+ * (`prefetchVersion`) lets it overlap the rest of request setup.
+ */
+const versionProbe = requestCache<number>(async () => [
+  await getCurrentSettingsVersion(),
+]);
+
+/** The settings version this request should be validated against. */
+const currentVersion = async (): Promise<number> =>
+  (await versionProbe.getAll())[0]!;
+
+/** Start fetching the settings version as early as possible in a request, so
+ *  the tiny query overlaps the rest of request setup; loadKeys awaits it. */
+const prefetchVersion = (): void => {
+  void versionProbe.getAll();
+};
+
+/**
+ * Atomically increment the shared `settings_version` counter. Every settings
+ * write calls this so other isolates notice the change on their next request.
+ * It bypasses cache invalidation (the writer maintains its cache in-place) and,
+ * crucially, does not recurse through `writeRaw`, so a bump never bumps again.
+ */
+export const bumpSettingsVersion = async (): Promise<void> => {
+  await executeWithoutCacheInvalidation(
+    "INSERT INTO settings (key, value) VALUES (?, '1') " +
+      "ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1",
+    [CONFIG_KEYS.SETTINGS_VERSION],
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Snapshot — pre-resolved settings for sync access
+// ---------------------------------------------------------------------------
 
 /** Template type:format → config key */
 type TemplateKeyMap = `${EmailTemplateType}:${EmailTemplateFormat}`;
@@ -232,85 +211,6 @@ const TEMPLATE_KEYS: Record<TemplateKeyMap, StringSettingKey> = {
   "confirmation:subject": "email_tpl_confirmation_subject",
   "confirmation:text": "email_tpl_confirmation_text",
 };
-
-// ---------------------------------------------------------------------------
-// String setting keys — plaintext and encrypted
-// ---------------------------------------------------------------------------
-
-/** Plaintext string config keys (stored unencrypted, default ""). */
-const PLAINTEXT_KEYS = [
-  CONFIG_KEYS.TERMS_AND_CONDITIONS,
-  CONFIG_KEYS.BULK_EMAIL_DRAFT,
-  CONFIG_KEYS.EMAIL_PROVIDER,
-  CONFIG_KEYS.CUSTOM_DOMAIN,
-  CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
-  CONFIG_KEYS.BUNNY_SUBDOMAIN,
-  CONFIG_KEYS.CURRENT_TASK,
-  CONFIG_KEYS.PUBLIC_KEY,
-  CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
-  CONFIG_KEYS.SQUARE_LOCATION_ID,
-  CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
-  CONFIG_KEYS.SUMUP_MERCHANT_CODE,
-  CONFIG_KEYS.LATEST_SCRIPT_VERSION,
-  CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
-  CONFIG_KEYS.SUPERUSER_CHOICE,
-  CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED,
-  CONFIG_KEYS.LISTING_COLUMN_ORDER,
-  CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
-  CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
-  CONFIG_KEYS.LAST_PRUNED_SESSIONS,
-  CONFIG_KEYS.LAST_PRUNED_STRINGS,
-  CONFIG_KEYS.LAST_PRUNED_SUMUP,
-  CONFIG_KEYS.LAST_PRUNED_LOGINS,
-  CONFIG_KEYS.LAST_PRUNED_TOKENS,
-  CONFIG_KEYS.LAST_PRUNED_CONTACTS,
-  CONFIG_KEYS.LAST_PRUNED_INVITES,
-  CONFIG_KEYS.LAST_PRUNED_ORPHANS,
-  CONFIG_KEYS.SMS_GATEWAY_BASE_URL,
-  CONFIG_KEYS.ACTIVITY_LOG_BACKFILL_DONE,
-  CONFIG_KEYS.LAST_ACTIVITY_LOG_BACKFILL,
-] as const;
-
-/** Encrypted string config keys (decrypted during loadKeys, default ""). */
-const ENCRYPTED_KEYS = [
-  CONFIG_KEYS.BUSINESS_EMAIL,
-  CONFIG_KEYS.HEADER_IMAGE_URL,
-  CONFIG_KEYS.WEBSITE_TITLE,
-  CONFIG_KEYS.HOMEPAGE_TEXT,
-  CONFIG_KEYS.CONTACT_PAGE_TEXT,
-  CONFIG_KEYS.ORDER_INTRO_TEXT,
-  CONFIG_KEYS.STRIPE_SECRET_KEY,
-  CONFIG_KEYS.STRIPE_WEBHOOK_SECRET,
-  CONFIG_KEYS.SQUARE_ACCESS_TOKEN,
-  CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY,
-  CONFIG_KEYS.SUMUP_API_KEY,
-  CONFIG_KEYS.EMBED_HOSTS,
-  CONFIG_KEYS.EMAIL_API_KEY,
-  CONFIG_KEYS.EMAIL_FROM_ADDRESS,
-  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
-  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
-  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT,
-  CONFIG_KEYS.EMAIL_TPL_ADMIN_SUBJECT,
-  CONFIG_KEYS.EMAIL_TPL_ADMIN_HTML,
-  CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT,
-  CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID,
-  CONFIG_KEYS.APPLE_WALLET_TEAM_ID,
-  CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT,
-  CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
-  CONFIG_KEYS.APPLE_WALLET_WWDR_CERT,
-  CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID,
-  CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
-  CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY,
-  CONFIG_KEYS.SMS_GATEWAY_PASSPHRASE,
-  CONFIG_KEYS.SMS_GATEWAY_USERNAME,
-  CONFIG_KEYS.SMS_GATEWAY_PASSWORD,
-  CONFIG_KEYS.SMS_GATEWAY_WEBHOOK_SECRET,
-] as const;
-
-/** Union of all string-setting snapshot keys. */
-export type StringSettingKey =
-  | (typeof PLAINTEXT_KEYS)[number]
-  | (typeof ENCRYPTED_KEYS)[number];
 
 /** All string setting fields: empty string means "no value". */
 type StringSettingFields = Record<StringSettingKey, string>;
@@ -331,6 +231,7 @@ type SpecificFields = {
   underline_links: boolean;
   show_public_site: boolean;
   show_public_api: boolean;
+  external_order_enabled: boolean;
   calendar_feeds_enabled: boolean;
   calendar_feeds_group_by: string;
   contact_form_enabled: boolean;
@@ -360,6 +261,7 @@ const data: SettingsData = {
   contact_form_enabled: false,
   country: DEFAULT_COUNTRY,
   currency: "GBP",
+  external_order_enabled: false,
   has_logistics: false,
   order_enabled: false,
   orphan_purge_retention: DEFAULT_ORPHAN_RETENTION,
@@ -427,10 +329,14 @@ const getRawCached = (key: string): string | null => {
   return getCacheState().values.get(key) ?? null;
 };
 
-/** Mutate the raw cache if it's currently fresh; no-op otherwise. */
-const syncCache = (mutate: (state: CacheState) => void): void => {
-  if (isCacheFresh()) mutate(getCacheState());
-};
+/**
+ * Mutate the in-memory raw cache in place. The version stamp (not this write)
+ * decides whether the cache is reused on the next load, so applying the value
+ * we just wrote is always safe — it keeps the rest of this request's reads
+ * consistent without forcing a reload.
+ */
+const syncCache = (mutate: (state: CacheState) => void): void =>
+  mutate(getCacheState());
 
 /** Upsert a single settings key/value (latest write wins). */
 const SETTINGS_UPSERT_SQL =
@@ -445,7 +351,8 @@ const settingUpsert = (
   sql: SETTINGS_UPSERT_SQL,
 });
 
-/** Write a setting to the DB and update the raw cache in-place. */
+/** Write a setting to the DB, update the raw cache in-place, and bump the
+ *  shared version so other isolates reload on their next request. */
 const writeRaw = async (key: string, value: string): Promise<void> => {
   await executeWithoutCacheInvalidation(SETTINGS_UPSERT_SQL, [key, value]);
   // A write makes the key's value known this request, so reading it back is
@@ -455,9 +362,11 @@ const writeRaw = async (key: string, value: string): Promise<void> => {
     s.values.set(key, value);
     s.loaded.add(key);
   });
+  await bumpSettingsVersion();
 };
 
-/** Delete a setting from the DB and remove it from the raw cache. */
+/** Delete a setting from the DB, drop it from the raw cache, and bump the
+ *  shared version so other isolates reload on their next request. */
 const deleteRaw = async (key: string): Promise<void> => {
   await executeWithoutCacheInvalidation("DELETE FROM settings WHERE key = ?", [
     key,
@@ -467,6 +376,7 @@ const deleteRaw = async (key: string): Promise<void> => {
     s.values.delete(key);
     s.loaded.add(key);
   });
+  await bumpSettingsVersion();
 };
 
 /** Write a setting or delete it if value is empty. */
@@ -500,64 +410,10 @@ const plaintextUpdate: EncryptedUpdateFn = stringUpdate(writeOrDelete);
 // ---------------------------------------------------------------------------
 // Generated string accessors
 //
-// One entry here creates both the sync getter (settings.<name>) and, unless
-// readOnly, the matching writer (settings.update.<name>). Whether the writer
-// encrypts is derived from ENCRYPTED_KEYS membership, so adding a simple
-// string setting means: a CONFIG_KEYS entry, a PLAINTEXT_KEYS/ENCRYPTED_KEYS
-// entry, and one line below.
+// One registry entry creates both the sync getter (settings.<name>) and,
+// unless readOnly, the matching writer (settings.update.<name>). Whether the
+// writer encrypts is derived from the same registry entry's storage mode.
 // ---------------------------------------------------------------------------
-
-type AccessorSpec = { key: StringSettingKey; readOnly?: true };
-
-const STRING_ACCESSORS = {
-  activityLogBackfillDone: { key: CONFIG_KEYS.ACTIVITY_LOG_BACKFILL_DONE },
-  attendeeColumnOrder: { key: CONFIG_KEYS.ATTENDEE_COLUMN_ORDER },
-  bulkEmailDraft: { key: CONFIG_KEYS.BULK_EMAIL_DRAFT },
-  bunnySubdomain: { key: CONFIG_KEYS.BUNNY_SUBDOMAIN },
-  businessEmail: { key: CONFIG_KEYS.BUSINESS_EMAIL },
-  contactPageText: { key: CONFIG_KEYS.CONTACT_PAGE_TEXT },
-  currentTask: { key: CONFIG_KEYS.CURRENT_TASK },
-  customDomain: { key: CONFIG_KEYS.CUSTOM_DOMAIN },
-  // readOnly: settings.update.customDomainLastValidated writes a timestamp
-  customDomainLastValidated: {
-    key: CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
-    readOnly: true,
-  },
-  embedHosts: { key: CONFIG_KEYS.EMBED_HOSTS },
-  headerImageUrl: { key: CONFIG_KEYS.HEADER_IMAGE_URL },
-  homepageText: { key: CONFIG_KEYS.HOMEPAGE_TEXT },
-  lastActivityLogBackfill: { key: CONFIG_KEYS.LAST_ACTIVITY_LOG_BACKFILL },
-  lastPrunedContacts: { key: CONFIG_KEYS.LAST_PRUNED_CONTACTS },
-  lastPrunedInvites: { key: CONFIG_KEYS.LAST_PRUNED_INVITES },
-  lastPrunedLogins: { key: CONFIG_KEYS.LAST_PRUNED_LOGINS },
-  lastPrunedOrphans: { key: CONFIG_KEYS.LAST_PRUNED_ORPHANS },
-  lastPrunedPayments: { key: CONFIG_KEYS.LAST_PRUNED_PAYMENTS },
-  lastPrunedSessions: { key: CONFIG_KEYS.LAST_PRUNED_SESSIONS },
-  lastPrunedStrings: { key: CONFIG_KEYS.LAST_PRUNED_STRINGS },
-  lastPrunedSumup: { key: CONFIG_KEYS.LAST_PRUNED_SUMUP },
-  lastPrunedTokens: { key: CONFIG_KEYS.LAST_PRUNED_TOKENS },
-  latestScriptVersion: { key: CONFIG_KEYS.LATEST_SCRIPT_VERSION },
-  latestScriptVersionName: { key: CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME },
-  listingColumnOrder: { key: CONFIG_KEYS.LISTING_COLUMN_ORDER },
-  orderIntroText: { key: CONFIG_KEYS.ORDER_INTRO_TEXT },
-  // readOnly: key material is only written by setup/password flows
-  publicKey: { key: CONFIG_KEYS.PUBLIC_KEY, readOnly: true },
-  smsGatewayBaseUrl: { key: CONFIG_KEYS.SMS_GATEWAY_BASE_URL },
-  smsGatewayPassphrase: { key: CONFIG_KEYS.SMS_GATEWAY_PASSPHRASE },
-  smsGatewayPassword: { key: CONFIG_KEYS.SMS_GATEWAY_PASSWORD },
-  smsGatewayUsername: { key: CONFIG_KEYS.SMS_GATEWAY_USERNAME },
-  smsGatewayWebhookSecret: { key: CONFIG_KEYS.SMS_GATEWAY_WEBHOOK_SECRET },
-  // readOnly: settings.update.supportFormLastSubmitted writes a timestamp
-  supportFormLastSubmitted: {
-    key: CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED,
-    readOnly: true,
-  },
-  terms: { key: CONFIG_KEYS.TERMS_AND_CONDITIONS },
-  websiteTitle: { key: CONFIG_KEYS.WEBSITE_TITLE },
-  wrappedPrivateKey: { key: CONFIG_KEYS.WRAPPED_PRIVATE_KEY, readOnly: true },
-} as const satisfies Record<string, AccessorSpec>;
-
-type StringAccessors = typeof STRING_ACCESSORS;
 
 /** Sync getter per accessor entry. */
 type GeneratedGetters = { readonly [K in keyof StringAccessors]: string };
@@ -588,7 +444,7 @@ const buildStringAccessors = (): {
       enumerable: true,
       get: () => snap(spec.key),
     });
-    if (spec.readOnly) continue;
+    if ("readOnly" in spec && spec.readOnly) continue;
     const update = ENCRYPTED_KEY_SET.has(spec.key)
       ? encryptedUpdate
       : plaintextUpdate;
@@ -635,6 +491,15 @@ type BoolSettingKey = {
   [K in keyof SettingsData]: SettingsData[K] extends boolean ? K : never;
 }[keyof SettingsData];
 
+/** Factory: write the current ISO timestamp to a config key and mirror into the snapshot. */
+const timestampUpdate =
+  <K extends keyof SettingsData>(configKey: string, field: K) =>
+  async (): Promise<void> => {
+    const ts = new Date().toISOString();
+    await writeRaw(configKey, ts);
+    setSnapshotField(field, ts as SettingsData[K]);
+  };
+
 // ---------------------------------------------------------------------------
 // Snapshot builder — called by loadKeys()
 // ---------------------------------------------------------------------------
@@ -669,6 +534,9 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
   },
   [CONFIG_KEYS.SHOW_PUBLIC_API]: (raw) => {
     data.show_public_api = raw === "true";
+  },
+  [CONFIG_KEYS.EXTERNAL_ORDER_ENABLED]: (raw) => {
+    data.external_order_enabled = raw === "true";
   },
   [CONFIG_KEYS.CALENDAR_FEEDS_ENABLED]: (raw) => {
     data.calendar_feeds_enabled = raw === "true";
@@ -762,24 +630,27 @@ const applyKeys = async (
 // loadKeys / invalidateCache
 // ---------------------------------------------------------------------------
 
-/** Reset the raw cache to a fresh, empty state stamped at the current time. */
-const resetCache = (): CacheState => {
+/** Reset the raw cache to a fresh, empty state stamped at `version`. */
+const resetCache = (version: number): CacheState => {
   setCacheState(null);
   const s = getCacheState();
-  s.time = nowMs();
+  s.version = version;
   return s;
 };
 
 /**
  * Load only the given config keys, fetching just the ones not already resolved
- * in the current fresh cache (one `WHERE key IN (...)` query) and decrypting
- * only those.
+ * at the current settings version (one `WHERE key IN (...)` query) and
+ * decrypting only those. When the shared version has moved since the cache was
+ * stamped, the whole cache is discarded and the requested keys are reloaded.
  */
 const loadKeys = async (keys: readonly string[]): Promise<void> => {
   // Record everything declared this request, regardless of cache state, so the
   // read audit compares against the full declared set (not just cache misses).
   recordSettingsLoaded(keys);
-  const s = isCacheFresh() ? getCacheState() : resetCache();
+  const version = await currentVersion();
+  const cached = getCacheState();
+  const s = cached.version === version ? cached : resetCache(version);
   const missing = unique([...keys]).filter((k) => !s.loaded.has(k));
   if (missing.length === 0) return;
   const rows = await queryAll<Settings>(
@@ -816,10 +687,9 @@ const isSetupComplete = async (): Promise<boolean> => {
   const confirmed = getSetupConfirmed();
   const cached = getSetupCompleteCache();
   if (confirmed && cached) return true;
-  // Need the raw cache for this check — fetch only the one key we read.
-  if (!isKeyLoaded(CONFIG_KEYS.SETUP_COMPLETE)) {
-    await loadKeys([CONFIG_KEYS.SETUP_COMPLETE]);
-  }
+  // Fetch only the one key we read; loadKeys serves it from the cache when the
+  // version is unchanged, so this is near-free on a warm isolate.
+  await loadKeys([CONFIG_KEYS.SETUP_COMPLETE]);
   const isComplete = getRawCached(CONFIG_KEYS.SETUP_COMPLETE) === "true";
   if (isComplete) {
     setSetupCompleteCache(true);
@@ -873,6 +743,9 @@ const completeSetup = async (
     settingUpsert(CONFIG_KEYS.COUNTRY, country),
     settingUpsert(CONFIG_KEYS.SETUP_COMPLETE, "true"),
   ]);
+  // Setup's config lands via a batch (not writeRaw), so bump the version by hand
+  // to keep the cross-isolate signal consistent.
+  await bumpSettingsVersion();
 
   // Setup flips the global routing gate. Drop any partially-loaded settings
   // snapshot from pre-setup requests so the next request cannot keep serving
@@ -1049,17 +922,16 @@ const settingsBase = {
     template(type: EmailTemplateType, format: EmailTemplateFormat): string {
       return snap(TEMPLATE_KEYS[`${type}:${format}`]);
     },
-    templateSet(type: EmailTemplateType): {
-      subject: string;
-      html: string;
-      text: string;
-    } {
+    templateSet(type: EmailTemplateType): EmailContent {
       return {
         html: this.template(type, "html"),
         subject: this.template(type, "subject"),
         text: this.template(type, "text"),
       };
     },
+  },
+  get externalOrderEnabled(): boolean {
+    return snap("external_order_enabled");
   },
   /** Read a raw (possibly encrypted) value from the cache. */
   getCachedRaw: getRawCached,
@@ -1071,6 +943,9 @@ const settingsBase = {
     return snap("has_logistics");
   },
   invalidateCache,
+  get listingDefaults(): ListingDefaults {
+    return parseListingDefaults(snap(CONFIG_KEYS.LISTING_DEFAULTS));
+  },
   // --- Core ---
   loadKeys,
   get orderEnabled(): boolean {
@@ -1088,6 +963,8 @@ const settingsBase = {
   get phonePrefix(): string {
     return snap("phone_prefix");
   },
+  /** Begin the per-request settings-version probe as early as possible. */
+  prefetchVersion,
 
   /** Set test overrides (survive invalidateCache, cleared by clearTestOverrides). */
   setForTest(overrides: Partial<SettingsData>): void {
@@ -1227,11 +1104,10 @@ const settingsBase = {
       CONFIG_KEYS.CONTACT_FORM_ENABLED,
       "contact_form_enabled",
     ),
-    customDomainLastValidated: async (): Promise<void> => {
-      const ts = new Date().toISOString();
-      await writeRaw(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED, ts);
-      data.custom_domain_last_validated = ts;
-    },
+    customDomainLastValidated: timestampUpdate(
+      CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
+      "custom_domain_last_validated",
+    ),
 
     // --- Email writes ---
     email: {
@@ -1248,9 +1124,18 @@ const settingsBase = {
         setSnapshotField(key, content);
       },
     },
+    externalOrderEnabled: boolUpdate(
+      CONFIG_KEYS.EXTERNAL_ORDER_ENABLED,
+      "external_order_enabled",
+    ),
     // --- Google Wallet writes ---
     googleWallet: createGoogleWalletUpdateSettings(encryptedUpdate),
     hasLogistics: boolUpdate(CONFIG_KEYS.HAS_LOGISTICS, "has_logistics"),
+    listingDefaults: async (v: ListingDefaults): Promise<void> => {
+      const json = serializeListingDefaults(v);
+      await writeEncrypted(CONFIG_KEYS.LISTING_DEFAULTS, json);
+      setSnapshotField(CONFIG_KEYS.LISTING_DEFAULTS, json);
+    },
     orderEnabled: boolUpdate(CONFIG_KEYS.ORDER_ENABLED, "order_enabled"),
     orphanPurgeRetention: rawUpdate(
       CONFIG_KEYS.ORPHAN_PURGE_RETENTION,
@@ -1311,15 +1196,25 @@ const settingsBase = {
     superuserChoice: plaintextUpdate(CONFIG_KEYS.SUPERUSER_CHOICE) as (
       v: SuperuserChoice,
     ) => Promise<void>,
-    supportFormLastSubmitted: async (): Promise<void> => {
-      const ts = new Date().toISOString();
-      await writeRaw(CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED, ts);
-      data.support_form_last_submitted = ts;
-    },
+    supportFormLastSubmitted: timestampUpdate(
+      CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED,
+      "support_form_last_submitted",
+    ),
     theme: rawUpdate(CONFIG_KEYS.THEME, "theme") as (v: Theme) => Promise<void>,
     underlineLinks: boolUpdate(CONFIG_KEYS.UNDERLINE_LINKS, "underline_links"),
   },
   updateUserPassword,
+  /**
+   * The settings version the loaded snapshot is stamped at (`-1` before any
+   * load). Synchronous — it reads the in-memory cache stamp, not the DB — so it
+   * is safe to call during a render. Used to cache-bust assets whose body is a
+   * setting (e.g. /custom.css): every settings write bumps this counter, so a
+   * URL keyed on it changes whenever any setting changes, letting the asset be
+   * served immutable while edits still appear on the next request.
+   */
+  get version(): number {
+    return getCacheState().version;
+  },
   withCurrentTask,
 };
 

@@ -11,11 +11,35 @@ import {
   API_SINGLE_EXAMPLE_JSON,
 } from "#shared/api-example.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import {
   custom,
   faq,
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
+
+/**
+ * A JSON example `<pre>` block followed by the shared "prices are in the
+ * smallest currency unit" note. `children` supplies the note's trailing,
+ * per-endpoint sentence. Shared with the webhooks answer in accounts.tsx.
+ */
+export const PricedJsonExample = ({
+  children,
+  json,
+}: {
+  children?: Child;
+  json: string;
+}): JSX.Element => (
+  <>
+    <pre>
+      <code>{json}</code>
+    </pre>
+    <p>
+      Prices are in the smallest currency unit (e.g. pence for GBP, cents for
+      USD). {children}
+    </p>
+  </>
+);
 
 export const integrationsSections = (): GuideSection[] => [
   {
@@ -166,16 +190,12 @@ export const integrationsSections = (): GuideSection[] => [
       ),
       custom(
         "list_listings_api",
-        <>
-          <pre>
-            <code>{`GET /api/listings\n\nResponse:\n${API_LIST_EXAMPLE_JSON}`}</code>
-          </pre>
-          <p>
-            Prices are in the smallest currency unit (e.g. pence for GBP, cents
-            for USD). <code>maxPurchasable</code> is 0 when the listing is sold
-            out or registration is closed.
-          </p>
-        </>,
+        <PricedJsonExample
+          json={`GET /api/listings\n\nResponse:\n${API_LIST_EXAMPLE_JSON}`}
+        >
+          <code>maxPurchasable</code> is 0 when the listing is sold out or
+          registration is closed.
+        </PricedJsonExample>,
       ),
       custom(
         "get_single_listing_api",

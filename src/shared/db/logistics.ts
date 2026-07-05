@@ -193,8 +193,13 @@ export const getAgentRunSheet = async (
             start_time, end_time, start_done, end_done,
             DATE(start_at) AS start_date, DATE(end_at, '-1 day') AS end_date
      FROM listing_attendees
-     WHERE (start_agent_id IN (${agentPlaceholders}) AND DATE(start_at) IN (${datePlaceholders}))
-        OR (end_agent_id IN (${agentPlaceholders}) AND DATE(end_at, '-1 day') IN (${datePlaceholders}))`,
+     -- quantity > 0 excludes no-quantity sentinel lines from run sheets. The
+     -- whole start/end OR is parenthesised so the predicate applies to BOTH arms
+     -- (AND binds tighter than OR — a bare trailing AND would gate the end arm
+     -- only, leaving ghost drop-offs on start-leg run sheets).
+     WHERE ((start_agent_id IN (${agentPlaceholders}) AND DATE(start_at) IN (${datePlaceholders}))
+        OR (end_agent_id IN (${agentPlaceholders}) AND DATE(end_at, '-1 day') IN (${datePlaceholders})))
+        AND quantity > 0`,
     [...agentIds, ...dates, ...agentIds, ...dates],
   );
   const agentSet = new Set(agentIds);
@@ -224,9 +229,12 @@ export const setLegDone = async (
   const doneColumn = kind === "start" ? "start_done" : "end_done";
   const agentColumn = kind === "start" ? "start_agent_id" : "end_agent_id";
   const result = await execute(
+    // quantity > 0: refuse to complete a leg on a no-quantity line, so a stale or
+    // crafted delivery form can't mark a hidden ghost's drop-off/collection done.
     `UPDATE listing_attendees SET ${doneColumn} = ?
           WHERE attendee_id = ? AND listing_id = ?
-            AND ${agentColumn} IN (${inPlaceholders(agentIds)})`,
+            AND ${agentColumn} IN (${inPlaceholders(agentIds)})
+            AND quantity > 0`,
     [done ? 1 : 0, attendeeId, listingId, ...agentIds],
   );
   return result.rowsAffected > 0;

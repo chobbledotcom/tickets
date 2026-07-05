@@ -2,19 +2,22 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { builderApi } from "#shared/builder.ts";
-import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { getAllBuiltSites } from "#shared/db/built-sites.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
+import {
+  MOCK_DB_RESULT,
+  stubBuildSiteApis,
+} from "#test-utils/builder-mocks.ts";
 
-const MOCK_DB_RESULT = {
-  dbId: "db_auto123",
-  dbToken: "auto-token",
-  dbUrl: "libsql://auto.lite.bunnydb.net",
-  ok: true as const,
-};
+/** Stub `testDbConnection` to resolve `ok: true`. */
+const stubDbOk = () =>
+  stub(builderApi, "testDbConnection", () =>
+    Promise.resolve({ ok: true as const }),
+  );
 
 import {
   adminFormPost,
+  adminGet,
   awaitTestRequest,
   describeWithEnv,
   expectFlash,
@@ -30,58 +33,35 @@ import {
 
 /** Stub all Bunny + GitHub APIs for a successful build */
 const stubSuccessfulBuild = () => ({
-  createDbStub: stub(builderApi, "createDatabase", () =>
-    Promise.resolve(MOCK_DB_RESULT),
-  ),
-  createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
-    Promise.resolve({
-      defaultHostname: "https://test-42.b-cdn.net",
-      ok: true as const,
-      pullZoneId: 99,
-      scriptId: 42,
-    }),
-  ),
-  dbTestStub: stub(builderApi, "testDbConnection", () =>
-    Promise.resolve({ ok: true as const }),
-  ),
-  encKeyStub: stub(builderApi, "generateEncryptionKey", () => "dGVzdGtleQ=="),
-  fetchStub: stub(globalThis, "fetch", (input: string | URL | Request) => {
-    const url = String(input);
-    if (url.includes("releases/latest")) {
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            assets: [
-              {
-                browser_download_url: "https://example.com/script.ts",
-                name: "bunny-script.ts",
-              },
-            ],
-            name: "Test Release",
-            published_at: "2026-01-01T00:00:00Z",
-            tag_name: "v2026-01-01-000000",
-          }),
-          { status: 200 },
-        ),
-      );
-    }
-    if (url.includes("example.com/script.ts")) {
-      return Promise.resolve(
-        new Response("console.log('code')", { status: 200 }),
-      );
-    }
-    return Promise.resolve(new Response("error", { status: 500 }));
-  }),
-  publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
-    Promise.resolve({ ok: true as const }),
-  ),
-  secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-    Promise.resolve({ ok: true as const }),
-  ),
-  updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
-    Promise.resolve({ ok: true as const }),
-  ),
+  ...stubBuildSiteApis(),
+  dbTestStub: stubDbOk(),
 });
+
+/** Stub `buildSite` to capture its input and return a success result. */
+const stubBuildAndCapture = () => {
+  const capture: {
+    input: Parameters<typeof builderApi.buildSite>[0] | null;
+    restore?: () => void;
+  } = { input: null };
+  return {
+    buildStub: stub(builderApi, "buildSite", (input) => {
+      capture.input = input;
+      return Promise.resolve({
+        dbProvider: "bunny" as const,
+        dbToken: "tok",
+        dbUrl: "libsql://test.io",
+        defaultHostname: "https://test-42.b-cdn.net",
+        hostingId: "42",
+        hostingProvider: "bunny" as const,
+        ok: true as const,
+      });
+    }),
+    capture,
+    dbTestStub: stub(builderApi, "testDbConnection", () =>
+      Promise.resolve({ ok: true as const }),
+    ),
+  };
+};
 
 describeWithEnv(
   "server (admin builder)",
@@ -93,6 +73,20 @@ describeWithEnv(
     afterEach(() => {
       settings.clearTestOverrides();
     });
+
+    /** POST a build request and assert it redirects to /admin/builder with
+     *  an error flash containing `message`. Collapses the shared
+     *  `adminFormPost` + `expectRedirect` + `expectFlash(false)` body used by
+     *  the build-fails, task-in-progress, and db-connection-fails tests. */
+    const expectBuildFlashError = async (message: string): Promise<void> => {
+      const { response } = await adminFormPost("/admin/builder", {
+        db_token: "token",
+        db_url: "libsql://test.turso.io",
+        site_name: "Test",
+      });
+      expectRedirect(response, "/admin/builder");
+      expectFlash(response, expect.stringContaining(message), false);
+    };
 
     test("GET /admin/builder returns 404 when CAN_BUILD_SITES is not set", async () => {
       const restore = setTestEnv({ CAN_BUILD_SITES: undefined });
@@ -108,9 +102,7 @@ describeWithEnv(
     testRequiresAuth("/admin/builder");
 
     test("GET /admin/builder shows builder page when authenticated", async () => {
-      const response = await awaitTestRequest("/admin/builder", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/builder");
       await expectHtmlResponse(
         response,
         200,
@@ -124,9 +116,7 @@ describeWithEnv(
     });
 
     test("GET /admin/builder shows empty sites message", async () => {
-      const response = await awaitTestRequest("/admin/builder", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/builder");
       const html = await response.text();
       expect(html).toContain("No sites have been built yet");
     });
@@ -165,6 +155,80 @@ describeWithEnv(
       expectFlash(
         response,
         expect.stringContaining("Site Name is required"),
+        false,
+      );
+    });
+
+    test("POST /admin/builder returns error when Deno Deploy is not configured", async () => {
+      const restoreEnv = setTestEnv({
+        DENO_DEPLOY_ORG_ID: undefined,
+        DENO_DEPLOY_TOKEN: undefined,
+      });
+      try {
+        const { response } = await adminFormPost("/admin/builder", {
+          hosting_provider: "deno",
+          site_name: "Deno Site",
+        });
+        expectRedirect(response, "/admin/builder");
+        expectFlash(
+          response,
+          expect.stringContaining("Deno Deploy is not configured"),
+          false,
+        );
+      } finally {
+        restoreEnv();
+      }
+    });
+
+    test("POST /admin/builder returns error when Bunny DB is not configured", async () => {
+      const restoreEnv = setTestEnv({ BUNNY_API_KEY: undefined });
+      try {
+        const { response } = await adminFormPost("/admin/builder", {
+          db_provider: "bunny",
+          site_name: "Bunny DB Site",
+        });
+        expectRedirect(response, "/admin/builder");
+        expectFlash(
+          response,
+          expect.stringContaining("Bunny database is not configured"),
+          false,
+        );
+      } finally {
+        restoreEnv();
+      }
+    });
+
+    test("POST /admin/builder returns error when Turso is not configured", async () => {
+      const restoreEnv = setTestEnv({
+        TURSO_API_TOKEN: undefined,
+        TURSO_GROUP: undefined,
+        TURSO_ORGANIZATION: undefined,
+      });
+      try {
+        const { response } = await adminFormPost("/admin/builder", {
+          db_provider: "turso",
+          site_name: "Turso Site",
+        });
+        expectRedirect(response, "/admin/builder");
+        expectFlash(
+          response,
+          expect.stringContaining("Turso is not configured"),
+          false,
+        );
+      } finally {
+        restoreEnv();
+      }
+    });
+
+    test("POST /admin/builder returns error when manual provider has no db_url", async () => {
+      const { response } = await adminFormPost("/admin/builder", {
+        db_provider: "manual",
+        site_name: "Manual Site",
+      });
+      expectRedirect(response, "/admin/builder");
+      expectFlash(
+        response,
+        expect.stringContaining("Database URL is required"),
         false,
       );
     });
@@ -227,10 +291,10 @@ describeWithEnv(
         const sites = await getAllBuiltSites();
         expect(sites).toHaveLength(1);
         expect(sites[0]!.name).toBe("My Test Site");
-        expect(sites[0]!.bunnyUrl).toBe("https://test-42.b-cdn.net");
+        expect(sites[0]!.siteUrl).toBe("https://test-42.b-cdn.net");
         expect(sites[0]!.dbUrl).toBe("libsql://test.turso.io");
         expect(sites[0]!.dbToken).toBe("token123");
-        expect(sites[0]!.bunnyScriptId).toBe("42");
+        expect(sites[0]!.hostingId).toBe("42");
         expect(sites[0]!.assignable).toBe(false);
       });
     });
@@ -278,22 +342,10 @@ describeWithEnv(
               ok: false as const,
             }),
           ),
-          dbTestStub: stub(builderApi, "testDbConnection", () =>
-            Promise.resolve({ ok: true as const }),
-          ),
+          dbTestStub: stubDbOk(),
         }),
         async () => {
-          const { response } = await adminFormPost("/admin/builder", {
-            db_token: "token",
-            db_url: "libsql://test.turso.io",
-            site_name: "Test",
-          });
-          expectRedirect(response, "/admin/builder");
-          expectFlash(
-            response,
-            expect.stringContaining("Create edge script failed"),
-            false,
-          );
+          await expectBuildFlashError("Create edge script failed");
         },
       );
     });
@@ -321,29 +373,19 @@ describeWithEnv(
         () => ({
           buildStub: stub(builderApi, "buildSite", () =>
             Promise.resolve({
+              dbProvider: "bunny" as const,
               dbToken: "tok",
               dbUrl: "libsql://test.io",
               defaultHostname: "https://test.b-cdn.net",
+              hostingId: "1",
+              hostingProvider: "bunny" as const,
               ok: true as const,
-              scriptId: 1,
             }),
           ),
-          dbTestStub: stub(builderApi, "testDbConnection", () =>
-            Promise.resolve({ ok: true as const }),
-          ),
+          dbTestStub: stubDbOk(),
         }),
         async () => {
-          const { response } = await adminFormPost("/admin/builder", {
-            db_token: "token",
-            db_url: "libsql://test.turso.io",
-            site_name: "Test",
-          });
-          expectRedirect(response, "/admin/builder");
-          expectFlash(
-            response,
-            expect.stringContaining("already in progress"),
-            false,
-          );
+          await expectBuildFlashError("already in progress");
         },
       );
 
@@ -360,12 +402,73 @@ describeWithEnv(
         });
       });
 
-      const response = await awaitTestRequest("/admin/builder", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/builder");
       const html = await response.text();
       expect(html).toContain("Table Test Site");
       expect(html).toContain("test-42.b-cdn.net");
+    });
+
+    test("POST /admin/builder passes deno hosting_provider to buildSite", async () => {
+      const restoreEnv = setTestEnv({
+        DENO_DEPLOY_ORG_ID: "test-org",
+        DENO_DEPLOY_TOKEN: "test-token",
+      });
+      try {
+        await withMocks(
+          () => stubBuildAndCapture(),
+          async ({ capture }) => {
+            const { response } = await adminFormPost("/admin/builder", {
+              db_token: "tok",
+              db_url: "libsql://test.io",
+              hosting_provider: "deno",
+              site_name: "Deno Site",
+            });
+            expectRedirect(response, "/admin/builder");
+            expect(capture.input?.hostingProvider).toBe("deno");
+          },
+        );
+      } finally {
+        restoreEnv();
+      }
+    });
+
+    test("POST /admin/builder passes turso db_provider to buildSite", async () => {
+      const restoreEnv = setTestEnv({
+        TURSO_API_TOKEN: "test-token",
+        TURSO_GROUP: "test-group",
+        TURSO_ORGANIZATION: "test-org",
+      });
+      try {
+        await withMocks(
+          () => stubBuildAndCapture(),
+          async ({ capture }) => {
+            const { response } = await adminFormPost("/admin/builder", {
+              db_provider: "turso",
+              db_token: "tok",
+              db_url: "libsql://test.turso.io",
+              site_name: "Turso Site",
+            });
+            expectRedirect(response, "/admin/builder");
+            expect(capture.input?.dbProvider).toBe("turso");
+          },
+        );
+      } finally {
+        restoreEnv();
+      }
+    });
+
+    test("POST /admin/builder passes undefined dbProvider when db_provider is manual", async () => {
+      await withMocks(
+        () => stubBuildAndCapture(),
+        async ({ capture }) => {
+          await adminFormPost("/admin/builder", {
+            db_provider: "manual",
+            db_url: "libsql://test.io",
+            site_name: "Manual DB Site",
+          });
+          expect(capture.input?.dbProvider).toBeUndefined();
+        },
+      );
     });
   },
 );

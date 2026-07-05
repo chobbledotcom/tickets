@@ -12,10 +12,22 @@
 
 import type { InValue } from "@libsql/client";
 import {
+  ATTENDEE,
+  COST,
+  EXTERNAL,
+  FEE_INCOME,
+  MODIFIER,
+  REVENUE,
+  WRITEOFF_TYPE,
+} from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
+import { MANUAL_LISTING_INCOME } from "#shared/accounting/manual-entries.ts";
+import {
   accountBalanceSubquery,
   attendeeOwedSubquery,
   creditsLessWriteoffDebits,
   LEG_COLUMNS,
+  signedSumCase,
 } from "#shared/accounting/projection-sql.ts";
 import {
   andPrefixed,
@@ -31,7 +43,9 @@ import {
 import {
   inPlaceholders,
   queryAll,
+  queryOne,
   resultRows,
+  rowExists,
   type TxScope,
 } from "#shared/db/client.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
@@ -55,6 +69,19 @@ export const transfersByEventGroup = (
   eventGroup: string,
 ): Promise<Transfer[]> => selectByEventGroup(fromDb, eventGroup);
 
+/**
+ * True when the ledger already holds at least one leg for this business event —
+ * the cheap existence probe a money move runs as a PREFLIGHT before acting. The
+ * transfers ledger is the durable record of what already happened (unlike the
+ * prunable processed_payments idempotency row), so booking a paid session,
+ * settling a balance, or refunding one all consult this first: an event the
+ * ledger already records is replayed, never double-posted or refunded again.
+ */
+export const eventGroupHasLegs = (eventGroup: string): Promise<boolean> =>
+  rowExists("SELECT 1 FROM transfers WHERE event_group = ? LIMIT 1", [
+    eventGroup,
+  ]);
+
 /** The whole ledger. For tests and small reports; scoped reads are preferred on
  *  hot paths. */
 export const allTransfers = (): Promise<Transfer[]> =>
@@ -69,32 +96,38 @@ export const recentTransfers = (limit: number): Promise<Transfer[]> =>
     limit,
   ]);
 
-/** Legs whose source AND destination are both internal — i.e. NOT the
- *  `external:world` cash account. The operator-facing ledger list hides cash
- *  plumbing ("Card / bank → <attendee>" and its refund mirror), so this is the
- *  base scope of every visible row. */
-const EXCLUDE_EXTERNAL =
-  "source_type != 'external' AND dest_type != 'external'";
+/** Legs shown on the operator-facing ledger list. Routine checkout cash
+ * plumbing ("Card / bank → <attendee>" and its refund mirror) stays hidden, but
+ * owner-entered manual rows and service cost legs remain visible even when they
+ * record an external cost. */
+const VISIBLE_TRANSFER_SCOPE =
+  `(source_type != '${EXTERNAL}' AND dest_type != '${EXTERNAL}'` +
+  ` OR kind LIKE 'manual\\_%' ESCAPE '\\' OR kind = '${KIND.serviceCost}')`;
 
-/** A revenue-account scope (the listing's own legs, as source or destination)
- *  for the by-listing filter, with its bound args. Empty for "all listings". */
+/** A listing-account scope (revenue OR cost legs touching this listing's
+ *  accounts) for the by-listing filter, with its bound args. Empty for "all
+ *  listings". Cost legs use source_type/dest_type='cost' rather than 'revenue',
+ *  so both types are included so service-cost legs appear in the listing view. */
 const revenueLegScope = (
   listingId: number | null,
 ): { clause: string; args: InValue[] } =>
   listingId === null
     ? { args: [], clause: "" }
     : {
-        args: [String(listingId), String(listingId)],
+        args: Array(4).fill(String(listingId)),
         clause:
-          " AND (dest_type = 'revenue' AND dest_id = ?" +
-          " OR source_type = 'revenue' AND source_id = ?)",
+          ` AND (dest_type = '${REVENUE}' AND dest_id = ?` +
+          ` OR source_type = '${REVENUE}' AND source_id = ?` +
+          ` OR source_type = '${COST}' AND source_id = ?` +
+          ` OR dest_type = '${COST}' AND dest_id = ?)`,
       };
 
 /**
  * The visible transfer list for the operator ledger: newest first, capped at
- * `limit`, hiding every `external:world` cash leg, bounded to `range`, and
- * optionally scoped to one listing's `revenue` account. Ordering + limit run in
- * SQL so the whole ledger is never loaded.
+ * `limit`, hiding routine `external:world` cash legs, bounded to `range`, and
+ * optionally scoped to one listing's `revenue` account. Owner-entered manual
+ * external rows stay visible. Ordering + limit run in SQL so the whole ledger is
+ * never loaded.
  */
 export const visibleTransfers = (
   range: LedgerRange,
@@ -105,7 +138,7 @@ export const visibleTransfers = (
   const listing = revenueLegScope(listingId);
   return selectTransfers(
     fromDb,
-    ` WHERE ${EXCLUDE_EXTERNAL}${andPrefixed(r.clause)}${listing.clause}` +
+    ` WHERE ${VISIBLE_TRANSFER_SCOPE}${andPrefixed(r.clause)}${listing.clause}` +
       " ORDER BY occurred_at DESC, id DESC LIMIT ?",
     [...r.args, ...listing.args, limit],
   );
@@ -117,15 +150,16 @@ export const transferActivityBounds = async (): Promise<{
   minMs: number;
   maxMs: number;
 } | null> => {
-  const rows = await queryAll<{
+  // An ungrouped aggregate always yields exactly one row; MIN and MAX are NULL
+  // together iff the table is empty.
+  const row = (await queryOne<{
     min_ms: number | bigint | null;
     max_ms: number | bigint | null;
   }>(
     "SELECT MIN(occurred_at) AS min_ms, MAX(occurred_at) AS max_ms FROM transfers",
     [],
-  );
-  const row = rows[0];
-  if (!row || row.min_ms === null || row.max_ms === null) return null;
+  ))!;
+  if (row.min_ms === null || row.max_ms === null) return null;
   return { maxMs: Number(row.max_ms), minMs: Number(row.min_ms) };
 };
 
@@ -151,9 +185,10 @@ type LedgerTotalsRow = {
 /**
  * The four headline ledger figures over `range`, in one grouped scan:
  *
- * - `income` — recognised revenue: `sale` credits to any `revenue` account, plus
- *   write-up `adjustment`s from `writeoff`, minus write-down `adjustment`s to
- *   `writeoff` (matching the per-listing {@link listingRevenueBreakdown}).
+ * - `income` — recognised revenue: `sale` and owner-entered external-income
+ *   credits to any `revenue` account, plus write-up `adjustment`s from
+ *   `writeoff`, minus write-down `adjustment`s to `writeoff` (matching the
+ *   per-listing {@link listingRevenueBreakdown}).
  * - `due` — net receivable: a leg *out of* an attendee (a sale/fee they owe) adds,
  *   a leg *into* an attendee (a payment) subtracts. Over "forever" this is exactly
  *   the current total outstanding.
@@ -164,26 +199,21 @@ export const ledgerTotals = async (
   range: LedgerRange,
 ): Promise<LedgerTotals> => {
   const r = occurredAtRange(range);
-  const rows = await queryAll<LedgerTotalsRow>(
+  // An ungrouped aggregate always yields exactly one row.
+  const row = (await queryOne<LedgerTotalsRow>(
     `SELECT
        COALESCE(SUM(CASE
-         WHEN kind = 'sale' AND dest_type = 'revenue' THEN amount
-         WHEN kind = 'adjustment' AND dest_type = 'revenue' AND source_type = 'writeoff' THEN amount
-         WHEN kind = 'adjustment' AND source_type = 'revenue' AND dest_type = 'writeoff' THEN -amount
+         WHEN kind = '${KIND.sale}' AND dest_type = '${REVENUE}' THEN amount
+         WHEN kind = '${MANUAL_LISTING_INCOME}' AND dest_type = '${REVENUE}' THEN amount
+         WHEN kind = '${KIND.adjustment}' AND dest_type = '${REVENUE}' AND source_type = '${WRITEOFF_TYPE}' THEN amount
+         WHEN kind = '${KIND.adjustment}' AND source_type = '${REVENUE}' AND dest_type = '${WRITEOFF_TYPE}' THEN -amount
          ELSE 0 END), 0) AS income,
-       COALESCE(SUM(CASE
-         WHEN source_type = 'attendee' THEN amount
-         WHEN dest_type = 'attendee' THEN -amount
-         ELSE 0 END), 0) AS due,
-       COALESCE(SUM(CASE WHEN kind = 'refund_cash' THEN amount ELSE 0 END), 0) AS refunded,
-       COALESCE(SUM(CASE
-         WHEN dest_type = 'fee_income' THEN amount
-         WHEN source_type = 'fee_income' THEN -amount
-         ELSE 0 END), 0) AS fees
+       ${signedSumCase(`source_type = '${ATTENDEE}'`, `dest_type = '${ATTENDEE}'`)} AS due,
+       COALESCE(SUM(CASE WHEN kind = '${KIND.refundCash}' THEN amount ELSE 0 END), 0) AS refunded,
+       ${signedSumCase(`dest_type = '${FEE_INCOME}'`, `source_type = '${FEE_INCOME}'`)} AS fees
      FROM transfers${wherePrefixed(r.clause)}`,
     r.args,
-  );
-  const row = rows[0]!;
+  ))!;
   return {
     due: Number(row.due),
     fees: Number(row.fees),
@@ -260,13 +290,12 @@ export const accountBalance = async (acct: AccountRef): Promise<number> => {
   // Each predicate binds (type, id) and appears four times — both CASE arms and
   // both WHERE arms — so the account's pair repeats four times, in that order.
   const pair: InValue[] = [acct.type, acct.id];
-  const rows = await queryAll<{ balance: number | bigint }>(
-    `SELECT COALESCE(SUM(CASE WHEN ${asDest} THEN amount` +
-      ` WHEN ${asSource} THEN -amount ELSE 0 END), 0) AS balance` +
+  const row = (await queryOne<{ balance: number | bigint }>(
+    `SELECT ${signedSumCase(asDest, asSource)} AS balance` +
       ` FROM transfers WHERE ${asDest} OR ${asSource}`,
     [...pair, ...pair, ...pair, ...pair],
-  );
-  return Number(rows[0]!.balance);
+  ))!;
+  return Number(row.balance);
 };
 
 /**
@@ -304,7 +333,7 @@ export const listingIncomeTx = (
 ): Promise<number> =>
   readProjectedFigureTx(
     tx,
-    creditsLessWriteoffDebits("revenue", String(listingId)),
+    creditsLessWriteoffDebits(REVENUE, String(listingId)),
   );
 
 /** A modifier's currently projected net revenue (balanceOf(modifier)) read
@@ -315,5 +344,5 @@ export const modifierRevenueTx = (
 ): Promise<number> =>
   readProjectedFigureTx(
     tx,
-    accountBalanceSubquery("modifier", String(modifierId)),
+    accountBalanceSubquery(MODIFIER, String(modifierId)),
   );

@@ -1,12 +1,19 @@
+import { expect } from "@std/expect";
+import { beforeEach } from "@std/testing/bdd";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { decryptAttendees, getAttendeesRaw } from "#shared/db/attendees.ts";
 import type { BuiltSiteFormInput } from "#shared/db/built-sites.ts";
 import type { GroupInput } from "#shared/db/groups.ts";
 import type { HolidayInput } from "#shared/db/holidays.ts";
 import { getListingWithCount, type ListingInput } from "#shared/db/listings.ts";
+import {
+  type LogisticsAssignment,
+  setLogisticsAssignments,
+} from "#shared/db/logistics.ts";
+import type { SitePageWriteInput } from "#shared/db/site-pages.ts";
 import type {
   Attendee,
   DayPrices,
@@ -14,8 +21,14 @@ import type {
   Holiday,
   Listing,
   ListingWithCount,
+  SitePage,
 } from "#shared/types.ts";
-import { testListingInput } from "#test-utils/factories.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import {
+  resolveTestGroupIds,
+  type TestListingOverrides,
+  testListingInput,
+} from "#test-utils/factories.ts";
 import type { BookAttendeeOpts } from "#test-utils/internal.ts";
 
 const bool = (v: unknown): string => (v ? "1" : "");
@@ -49,7 +62,7 @@ const splitClosesAt = (
 const pickField = <T>(update: T | undefined, existing: T): T =>
   update !== undefined ? update : existing;
 
-const buildCreateListingForm = (
+export const buildCreateListingForm = (
   input: Omit<ListingInput, "slug" | "slugIndex">,
 ): Record<string, string> => {
   const closesAtParts = splitClosesAt(input.closesAt, null);
@@ -59,6 +72,7 @@ const buildCreateListingForm = (
     : (input.initialSiteMonths ?? 0);
   return {
     assign_built_site: bool(input.assignBuiltSite),
+    bookable_alone: bool(input.bookableAlone),
     bookable_days: input.bookableDays
       ? formatBookableDaysForForm(input.bookableDays)
       : "",
@@ -73,7 +87,6 @@ const buildCreateListingForm = (
     uses_logistics: bool(input.usesLogistics),
     ...dayPriceFormFields(input.dayPrices),
     fields: input.fields ?? "email",
-    group_id: String(input.groupId ?? 0),
     hidden: bool(input.hidden),
     initial_site_months: String(initialSiteMonths),
     listing_type: input.listingType ?? "",
@@ -89,6 +102,7 @@ const buildCreateListingForm = (
     purchase_only: bool(input.purchaseOnly),
     thank_you_url: input.thankYouUrl ?? "",
     unit_price: optionalPrice(input.unitPrice),
+    use_defaults: bool(input.useDefaults),
     webhook_url: input.webhookUrl ?? "",
   };
 };
@@ -100,12 +114,16 @@ const buildUpdateBoolFields = (
   assign_built_site: bool(
     pickField(updates.assignBuiltSite, existing.assign_built_site),
   ),
+  bookable_alone: bool(
+    pickField(updates.bookableAlone, existing.bookable_alone),
+  ),
   can_pay_more: bool(pickField(updates.canPayMore, existing.can_pay_more)),
   hidden: bool(pickField(updates.hidden, existing.hidden)),
   non_transferable: bool(
     pickField(updates.nonTransferable, existing.non_transferable),
   ),
   purchase_only: bool(pickField(updates.purchaseOnly, existing.purchase_only)),
+  use_defaults: bool(pickField(updates.useDefaults, existing.use_defaults)),
   uses_logistics: bool(
     pickField(updates.usesLogistics, existing.uses_logistics),
   ),
@@ -126,7 +144,6 @@ const buildUpdateNumericFields = (
     duration_days: String(
       pickField(updates.durationDays, existing.duration_days),
     ),
-    group_id: String(pickField(updates.groupId, existing.group_id)),
     initial_site_months: String(initialSiteMonths),
     max_attendees: String(
       pickField(updates.maxAttendees, existing.max_attendees),
@@ -163,7 +180,7 @@ const buildUpdateStringFields = (
   webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
 });
 
-const buildUpdateListingForm = (
+export const buildUpdateListingForm = (
   updates: Partial<ListingInput>,
   existing: ListingWithCount,
 ): Record<string, string> => {
@@ -190,59 +207,93 @@ const formatOptional = (update: string | undefined, existing: string): string =>
 const formatPrice = (update: number | undefined, existing: number): string =>
   update !== undefined ? toMajorUnits(update) : toMajorUnits(existing);
 
-async function doAuthenticatedFormRequest<T>(
+async function doAuthenticatedRequest<T>(
   path: string,
   formData: Record<string, string>,
+  buildRequest: (
+    path: string,
+    data: Record<string, string>,
+    cookie: string,
+  ) => Request,
   onSuccess: () => Promise<T>,
   errorContext: string,
 ): Promise<T> {
   const { getTestSession } = await import("#test-utils/session.ts");
   const { handleRequest } = await import("#routes");
+  const session = await getTestSession();
+  const response = await handleRequest(
+    buildRequest(
+      path,
+      { ...formData, csrf_token: session.csrfToken },
+      session.cookie,
+    ),
+  );
+  if (response.status !== 302) {
+    throw new Error(`Failed to ${errorContext}: ${response.status}`);
+  }
+  return onSuccess();
+}
+
+const doAuthenticatedFormRequest = async <T>(
+  path: string,
+  formData: Record<string, string>,
+  onSuccess: () => Promise<T>,
+  errorContext: string,
+): Promise<T> => {
   const { mockFormRequest } = await import("#test-utils/mocks.ts");
-  const session = await getTestSession();
-  const response = await handleRequest(
-    mockFormRequest(
-      path,
-      { ...formData, csrf_token: session.csrfToken },
-      session.cookie,
-    ),
+  return doAuthenticatedRequest(
+    path,
+    formData,
+    mockFormRequest,
+    onSuccess,
+    errorContext,
   );
-  response.body?.cancel();
-  if (response.status !== 302) {
-    throw new Error(`Failed to ${errorContext}: ${response.status}`);
-  }
-  return onSuccess();
-}
+};
 
-async function doAuthenticatedMultipartFormRequest<T>(
+const doAuthenticatedMultipartFormRequest = async <T>(
   path: string,
   formData: Record<string, string>,
   onSuccess: () => Promise<T>,
   errorContext: string,
-): Promise<T> {
-  const { getTestSession } = await import("#test-utils/session.ts");
-  const { handleRequest } = await import("#routes");
+): Promise<T> => {
   const { mockMultipartRequest } = await import("#test-utils/mocks.ts");
-  const session = await getTestSession();
-  const response = await handleRequest(
-    mockMultipartRequest(
-      path,
-      { ...formData, csrf_token: session.csrfToken },
-      session.cookie,
-    ),
+  return doAuthenticatedRequest(
+    path,
+    formData,
+    mockMultipartRequest,
+    onSuccess,
+    errorContext,
   );
-  response.body?.cancel();
-  if (response.status !== 302) {
-    throw new Error(`Failed to ${errorContext}: ${response.status}`);
-  }
-  return onSuccess();
-}
+};
 
-export const createTestListing = (
-  overrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
+/** Write a test listing's group membership directly (the form helper is
+ * single-value, so membership is set via setListingGroups rather than the
+ * group_ids checkboxes). No-op for an empty list. */
+const applyTestListingGroups = async (
+  listingId: number,
+  groupIds: number[],
+): Promise<void> => {
+  if (groupIds.length === 0) return;
+  const { setListingGroups } = await import("#shared/db/groups.ts");
+  await setListingGroups(listingId, groupIds);
+};
+
+/** A minute-precision ISO timestamp one minute in the past — always already
+ * closed. The reference `closesAt` value for "registration closed" tests. */
+export const pastCloseTime = (): string =>
+  new Date(Date.now() - 60000).toISOString().slice(0, 16);
+
+/** A minute-precision ISO timestamp an hour in the future — always still
+ * open, so a test can fetch a CSRF token before closing the listing out from
+ * under it. */
+export const futureCloseTime = (): string =>
+  new Date(Date.now() + 3600000).toISOString().slice(0, 16);
+
+export const createTestListing = async (
+  overrides: TestListingOverrides = {},
 ): Promise<Listing> => {
   const input = testListingInput(overrides);
-  return doAuthenticatedMultipartFormRequest(
+  const listing = await doAuthenticatedMultipartFormRequest(
     "/admin/listing",
     buildCreateListingForm(input),
     async () => {
@@ -252,6 +303,33 @@ export const createTestListing = (
     },
     "create listing",
   );
+  await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));
+  return listing;
+};
+
+/**
+ * Duplicate a listing the way the admin duplicate form does: POST a valid create
+ * body to `/admin/listing` carrying the hidden `duplicated_from` field, then
+ * return the newly created copy. Mirrors the real flow (the create handler reads
+ * `duplicated_from` to copy the source parent's child edges).
+ */
+export const duplicateTestListing = async (
+  sourceId: number,
+  overrides: TestListingOverrides = {},
+): Promise<Listing> => {
+  const input = testListingInput(overrides);
+  const listing = await doAuthenticatedMultipartFormRequest(
+    "/admin/listing",
+    { ...buildCreateListingForm(input), duplicated_from: String(sourceId) },
+    async () => {
+      const { getAllListings } = await import("#shared/db/listings.ts");
+      const listings = await getAllListings();
+      return listings[0] as Listing;
+    },
+    "duplicate listing",
+  );
+  await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));
+  return listing;
 };
 
 const allDays: string[] = [
@@ -269,18 +347,39 @@ export const priceFormValue = (minorUnits: number): string =>
 
 export const updateTestListing = async (
   listingId: number,
-  updates: Partial<ListingInput>,
+  updates: Partial<Omit<ListingInput, "groupIds">> & {
+    groupId?: number;
+    groupIds?: number[];
+  },
 ): Promise<Listing> => {
   const existing = await getListingWithCount(listingId);
   if (!existing) {
     throw new Error(`Listing not found: ${listingId}`);
   }
-  return doAuthenticatedMultipartFormRequest(
+  const { getGroupIdsByListingId, setListingGroups } = await import(
+    "#shared/db/groups.ts"
+  );
+  // The real edit form carries membership as pre-checked group_ids checkboxes;
+  // the form helper omits them. Resolve the intended set (requested change, else
+  // current membership) and submit its first id so the handler preserves
+  // membership during the request (e.g. its group-cap overflow check sees the
+  // group). Re-apply the full set afterwards for multi-group cases.
+  const previousGroups = await getGroupIdsByListingId(listingId);
+  const groupIds =
+    updates.groupId !== undefined || updates.groupIds !== undefined
+      ? resolveTestGroupIds(updates)
+      : previousGroups;
+  const form = buildUpdateListingForm(updates, existing);
+  const formWithGroups =
+    groupIds.length > 0 ? { ...form, group_ids: String(groupIds[0]) } : form;
+  const result = await doAuthenticatedMultipartFormRequest(
     `/admin/listing/${listingId}/edit`,
-    buildUpdateListingForm(updates, existing),
+    formWithGroups,
     async () => (await getListingWithCount(listingId)) as ListingWithCount,
     "update listing",
   );
+  await setListingGroups(listingId, groupIds);
+  return result;
 };
 
 const changeListingStatus =
@@ -340,22 +439,92 @@ export const createTestAttendee = async (
     .getSetCookie()
     .find((c) => c.startsWith("flash_"));
   if (flashCookie) {
-    const cookiePart = flashCookie.split(";")[0] ?? "";
+    const cookiePart = flashCookie.split(";")[0]!;
     const value = cookiePart.split("=").slice(1).join("=");
     const parsed = parseFlashValue(value);
     if (parsed.error) {
-      response.body?.cancel();
       throw new Error(`Failed to create attendee: ${parsed.error}`);
     }
   }
-
-  response.body?.cancel();
 
   const afterAttendees = await getAttendeesRaw(listingId);
   return afterAttendees[0] as Attendee;
 };
 
 export { getAttendeesRaw };
+
+/** Create a listing (maxAttendees 100) + attendee ("Cust" / "c@example.com")
+ *  and assign logistics agents to its single booking line. The `assignments`
+ *  callback receives the listing ID so the caller can key the map correctly
+ *  without having to create the listing itself first. Shared by the
+ *  logistics-runsheet and server-logistics test suites. */
+export const createListingWithAttendeeAndLogistics = async (
+  assignments: (listingId: number) => Map<number, LogisticsAssignment>,
+): Promise<{ attendeeId: number; listingId: number }> => {
+  const listing = await createTestListing({ maxAttendees: 100 });
+  const attendee = await createTestAttendee(
+    listing.id,
+    listing.slug,
+    "Cust",
+    "c@example.com",
+  );
+  await setLogisticsAssignments(attendee.id, false, assignments(listing.id));
+  return { attendeeId: attendee.id, listingId: listing.id };
+};
+
+/** Register the standard processed-payments attenddee fixture: one listing +
+ *  one attendee ("Test User" / "test@example.com") created in `beforeEach`,
+ *  returning a holder whose `.attendeeId` is the current test's attendee id.
+ *  Used by the locking and staleness test suites that share this exact setup. */
+export const useProcessedPaymentsAttendee = (): { attendeeId: number } => {
+  const holder = { attendeeId: 0 as number };
+  beforeEach(async () => {
+    const listing = await createTestListing();
+    const attendee = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Test User",
+      "test@example.com",
+    );
+    holder.attendeeId = attendee.id;
+  });
+  return holder;
+};
+
+/** Insert an attendee with no listing booking (an orphan) created `daysAgo`
+ *  ago. Returns its numeric id. The `tokenPrefix` distinguishes orphans from
+ *  different test suites — `priv-orphan-…` for privacy, `sched-orphan-…` for
+ *  scheduled, `prune-orphan-…` for prune — so the ticket_token_index is
+ *  unique even when two suites insert orphans against the same test DB. */
+export const insertOrphanAttendee = async (
+  daysAgo: number,
+  tokenPrefix: string,
+): Promise<number> => {
+  const { getDb, insert } = await import("#shared/db/client.ts");
+  const { nowMs } = await import("#shared/now.ts");
+  const dayMs = 24 * 60 * 60 * 1000;
+  const created = new Date(nowMs() - daysAgo * dayMs).toISOString();
+  const result = await getDb().execute(
+    insert("attendees", {
+      created,
+      pii_blob: "",
+      ticket_token_index: `${tokenPrefix}-${crypto.randomUUID()}`,
+    }) as never,
+  );
+  return Number(result.lastInsertRowid);
+};
+
+/** Check whether an attendee row exists by id. Returns true when the row is
+ *  present, false when it has been purged. */
+export const attendeeExists = async (id: number): Promise<boolean> => {
+  const { queryOne } = await import("#shared/db/client.ts");
+  return (
+    (await queryOne<{ one: number }>(
+      "SELECT 1 AS one FROM attendees WHERE id = ?",
+      [id],
+    )) !== null
+  );
+};
 
 export const createTestAttendeeDirect = async (
   listingId: number,
@@ -381,9 +550,13 @@ export const createTestAttendeeDirect = async (
     throw new Error(`Failed to create attendee: ${result.reason}`);
   }
 
+  const attendee = result.attendees[0]!;
+  const { logActivity } = await import("#shared/db/activityLog.ts");
+  await logActivity(`Attendee '${name}' created`, listingId, attendee.id);
+
   return {
-    attendee: result.attendees[0]!,
-    token: result.attendees[0]!.ticket_token,
+    attendee,
+    token: attendee.ticket_token,
   };
 };
 
@@ -449,6 +622,29 @@ export const buildAttendeeEditForm = async (
   return form;
 };
 
+/** Create one attendee booked across several listings in a single order —
+ *  one booking line per listing, each with its own quantity (default 1).
+ *  Used by the grouped attendee-table suites. */
+export const createMultiBookingAttendee = async (
+  name: string,
+  email: string,
+  bookings: Array<{ listingId: number; quantity?: number }>,
+): Promise<Attendee> => {
+  const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+  const result = await createAttendeeAtomic({
+    bookings: bookings.map((booking) => ({
+      listingId: booking.listingId,
+      quantity: booking.quantity ?? 1,
+    })),
+    email,
+    name,
+  });
+  // Callers pass listings with capacity, so the booking always succeeds; cast
+  // the union rather than guard, mirroring createPaidAttendeeWithoutLedger (a
+  // never-taken failure branch would be an uncovered line).
+  return (result as { success: true; attendees: Attendee[] }).attendees[0]!;
+};
+
 export const createTestAttendeeWithToken = async (
   name: string,
   email: string,
@@ -470,9 +666,54 @@ export const createTestAttendeeWithToken = async (
   return { attendee, listing, token };
 };
 
-export const createDailyTestListing = (
-  overrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
-) =>
+/** Create a test attendee for "Alice" and fetch her ticket page body.
+ *  Returns both the token (for further URL assertions) and the HTML body. */
+export const fetchAliceTicketPageBody = async (): Promise<{
+  token: string;
+  body: string;
+}> => {
+  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
+  const { token } = await createTestAttendeeWithToken(
+    "Alice",
+    "alice@test.com",
+  );
+  const response = await awaitTestRequest(`/t/${token}`);
+  const body = await response.text();
+  return { body, token };
+};
+
+/** Assert that the admin password can be verified against the stored hash,
+ *  and that the hash uses the pbkdf2 scheme. Shared by the users-db and auth
+ *  tests which both verify this same invariant. */
+export const assertAdminPasswordVerifies = async (): Promise<void> => {
+  const { expect } = await import("@std/expect");
+  const { getUserByUsername, verifyUserPassword } = await import(
+    "#shared/db/users.ts"
+  );
+  const { TEST_ADMIN_PASSWORD, TEST_ADMIN_USERNAME } = await import(
+    "#test-utils/internal.ts"
+  );
+  const user = await getUserByUsername(TEST_ADMIN_USERNAME);
+  expect(user).not.toBeNull();
+  const result = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
+  expect(result).toBeTruthy();
+  expect(result).toContain("pbkdf2:");
+};
+
+/** Assert that verifyUserPassword returns null for an incorrect password. */
+export const assertAdminPasswordRejects = async (): Promise<void> => {
+  const { expect } = await import("@std/expect");
+  const { getUserByUsername, verifyUserPassword } = await import(
+    "#shared/db/users.ts"
+  );
+  const { TEST_ADMIN_USERNAME } = await import("#test-utils/internal.ts");
+  const user = await getUserByUsername(TEST_ADMIN_USERNAME);
+  expect(user).not.toBeNull();
+  const result = await verifyUserPassword(user!, "wrongpassword");
+  expect(result).toBeNull();
+};
+
+export const createDailyTestListing = (overrides: TestListingOverrides = {}) =>
   createTestListing({
     bookableDays: allDays,
     listingType: "daily",
@@ -597,6 +838,7 @@ export const createTestGroup = async (
   const input = {
     description: overrides.description ?? "",
     hidden: overrides.hidden ?? false,
+    isPackage: overrides.isPackage ?? false,
     maxAttendees: overrides.maxAttendees ?? 0,
     name: overrides.name ?? "Test Group",
     termsAndConditions: overrides.termsAndConditions ?? "",
@@ -610,6 +852,7 @@ export const createTestGroup = async (
       name: input.name,
       terms_and_conditions: input.termsAndConditions,
       ...(input.hidden ? { hidden: "1" } : {}),
+      ...(input.isPackage ? { is_package: "1" } : {}),
     },
     async () => {
       const { getAllGroups } = await import("#shared/db/groups.ts");
@@ -641,6 +884,7 @@ export const updateTestGroup = async (
   const existing = (await groupsTable.findById(groupId)) as Group;
 
   const hidden = updates.hidden ?? existing.hidden;
+  const isPackage = updates.isPackage ?? existing.is_package;
   return doAuthenticatedFormRequest(
     `/admin/groups/${groupId}/edit`,
     {
@@ -651,6 +895,7 @@ export const updateTestGroup = async (
       terms_and_conditions:
         updates.termsAndConditions ?? existing.terms_and_conditions,
       ...(hidden ? { hidden: "1" } : {}),
+      ...(isPackage ? { is_package: "1" } : {}),
     },
     async () => {
       const updated = await groupsTable.findById(groupId);
@@ -670,6 +915,17 @@ export const deleteTestGroup = async (groupId: number): Promise<void> => {
     async () => {},
     "delete group",
   );
+};
+
+/** A group's package price overrides as a listing-id → price map, keeping only
+ * the listings that carry an override (a non-null price, including a free 0). */
+export const getTestPackagePrices = async (
+  groupId: number,
+): Promise<Map<number, number>> => {
+  const { getGroupPackagePrices, packageMemberMaps } = await import(
+    "#shared/db/groups.ts"
+  );
+  return packageMemberMaps(await getGroupPackagePrices(groupId)).prices;
 };
 
 export const createTestHoliday = (
@@ -758,24 +1014,32 @@ export const provisionTestBuiltSite = async (
 export const createTestBuiltSite = (
   overrides: Partial<BuiltSiteFormInput> = {},
 ): Promise<import("#shared/db/built-sites.ts").BuiltSite> => {
+  const dbProvider = overrides.dbProvider ?? "bunny";
+  const hostingProvider = overrides.hostingProvider ?? "bunny";
   const input: BuiltSiteFormInput = {
     assignable: overrides.assignable ?? false,
-    bunnyScriptId: overrides.bunnyScriptId ?? "",
-    bunnyUrl: overrides.bunnyUrl ?? "https://test.b-cdn.net",
+    dbProvider,
     dbToken: overrides.dbToken ?? "",
     dbUrl: overrides.dbUrl ?? "",
+    hostingId: overrides.hostingId ?? "",
+    hostingProvider,
     name: overrides.name ?? "Test Site",
+    siteUrl: overrides.siteUrl ?? "https://test.b-cdn.net",
+    ...(overrides.updates ? { updates: overrides.updates } : {}),
   };
 
   return doAuthenticatedFormRequest(
     "/admin/built-sites",
     {
-      bunny_script_id: input.bunnyScriptId,
-      bunny_url: input.bunnyUrl,
+      db_provider: dbProvider,
       db_token: input.dbToken,
       db_url: input.dbUrl,
+      hosting_id: input.hostingId,
+      hosting_provider: hostingProvider,
       name: input.name,
+      site_url: input.siteUrl,
       ...(input.assignable ? { assignable: "1" } : {}),
+      ...(input.updates ? { updates: input.updates } : {}),
     },
     async () => {
       const { getAllBuiltSites } = await import("#shared/db/built-sites.ts");
@@ -801,11 +1065,12 @@ export const updateTestBuiltSite = async (
   return doAuthenticatedFormRequest(
     `/admin/built-sites/${siteId}/edit`,
     {
-      bunny_script_id: updates.bunnyScriptId ?? existing.bunnyScriptId,
-      bunny_url: updates.bunnyUrl ?? existing.bunnyUrl,
       db_token: updates.dbToken ?? existing.dbToken,
       db_url: updates.dbUrl ?? existing.dbUrl,
+      hosting_id: updates.hostingId ?? existing.hostingId,
       name: updates.name ?? existing.name,
+      site_url: updates.siteUrl ?? existing.siteUrl,
+      updates: updates.updates ?? existing.updates,
       ...(assignable ? { assignable: "1" } : {}),
     },
     async () => {
@@ -845,7 +1110,6 @@ export const createTestInvite = async (
       cookie,
     ),
   );
-  inviteResponse.body?.cancel();
   const location = inviteResponse.headers.get("location") ?? "";
   const url = new URL(location, "http://localhost");
   const inviteLink = url.searchParams.get("invite") ?? "";
@@ -866,4 +1130,31 @@ export const getEmbeddableTicketResponse = async (): Promise<Response> => {
     thankYouUrl: "https://example.com",
   });
   return handleRequest(mockRequest(`/ticket/${listing.slug}`));
+};
+
+export const decryptFirstAttendee = async (
+  listingId: number,
+): Promise<Attendee> => {
+  const privateKey = await getTestPrivateKey();
+  const raw = await getAttendeesRaw(listingId);
+  const attendees = await decryptAttendees(raw, privateKey);
+  expect(attendees.length).toBe(1);
+  return attendees[0]!;
+};
+
+/** Create a site page directly at the DB layer (the admin create flow has its
+ * own suite). The blind index is computed inside `createSitePage` from the
+ * slug, so tests never hand-roll it. */
+export const createTestSitePage = async (
+  slug: string,
+  extra: Partial<Omit<SitePageWriteInput, "slug">> = {},
+): Promise<SitePage> => {
+  const { createSitePage } = await import("#shared/db/site-pages.ts");
+  return createSitePage({
+    content: extra.content ?? "",
+    metaDescription: extra.metaDescription ?? "",
+    metaTitle: extra.metaTitle ?? "",
+    name: extra.name ?? `Page ${slug}`,
+    slug,
+  });
 };

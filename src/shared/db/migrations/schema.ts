@@ -1,5 +1,7 @@
 /** Declarative database schema and schema hash. */
 
+import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
+
 // ─── Types ──────────────────────────────────────────────────────
 
 export type Column = [name: string, type: string];
@@ -31,8 +33,7 @@ export type Trigger = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add contact_preferences table for marketing opt-outs, contact history, and visit counts; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal/min_visits columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; add an encrypted code column to modifiers for promo-code modifiers; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log); add processed_sms_inbound table for inbound SMS webhook replay protection; add phone_index to attendees so inbound SMS replies can be matched to an attendee; add a modifier_id column to answers linking an answer to the price modifier it triggers (with an 'answer' modifier trigger) so an answer applies a modifier through the shared engine, replacing the per-answer pricing columns; add display_type to questions so booking questions can render as radio buttons or a select box; add assign_all to questions so booking questions can apply to every listing; add a times_selected aggregate column to answers, maintained by triggers on attendee_answers, so the question and answer admin pages report selection counts without scanning attendee_answers; add a last_pruned column to built_sites so the scheduled-tasks endpoint can forward a prune to the least-recently-pruned built site and walk every site at a steady pace; add free-text custom questions backed by an owner-key encrypted strings repository with usage counts and creation timestamps; add an active flag to answers so a choice can be deactivated (hidden on the public booking form, still shown for attendees who already selected it) rather than deleted; add public_booking_count and admin_booking_count plaintext columns to contact_preferences so booking history is split by source (online checkout vs admin manual add) and the keyless public booking paths can increment their count without the owner private key; add kek_version and invite_wrapped_data_key to users so wrapped_data_key is bound to a password-derived KEK (and invited users self-activate at /join), making attendee PII undecryptable from a database dump plus DB_ENCRYPTION_KEY alone; add transfers table — an append-only double-entry ledger of positive amounts moving between (type, id) accounts, with a unique reference for idempotency, account/event/time indexes, and a unique reverses_id for one-void-per-original; balances are derived and the table is PII- and provider-id-free; store transfers.occurred_at and recorded_at as INTEGER epoch-millis (was TEXT ISO) so the time index sorts and ranges chronologically with integer comparisons at high transfer volumes; backfill the transfers ledger from every existing paid booking (one sale per listing plus a payment, and a full reversal for refunded bookings) so the ledger holds the complete money history before reads move off the price_paid/refunded columns; add a ledger_event_group column to listing_attendees, stamped at booking creation and by the backfill with the order's ledger event group, so a per-row amount-paid projection can find exactly that booking's sale leg before reads move off price_paid; remove the currency column from transfers — a site has a single currency, fixed at setup and never changed, so the ledger neither stores nor compares a per-transfer currency (the Phase-0 table is rebuilt from this schema by 2026-06-22_transfers_time_int); drop the price_paid column from listing_attendees — a booking row's amount paid is projected from the transfers ledger (its gross sale leg, within the row's ledger_event_group) at read time, after the backfill has reconstructed those legs from the column; drop the vestigial price_paid column from attendees — it was never written by the booking insert and never read (per-row amount paid lives on listing_attendees and now projects from the ledger), so the dead column is removed; drop the remaining_balance column from attendees — an attendee's outstanding balance projects from the transfers ledger as −balanceOf(attendee), every owed booking records its balance with its sale leg, and a settlement posts a ledger-guarded payment leg, so the stored column is removed; drop the total_revenue column from modifiers — a modifier's revenue projects from the transfers ledger as balanceOf(modifier:M) (the modifier account's net effect on revenue, read directly: surcharges in as the destination, discounts out as the source), so the trigger-maintained column is removed while total_uses and usage_count stay; no modifier was ever used in production, so the projection is 0 for every existing modifier";
+export const LATEST_UPDATE = "Create first-class images and image_uses tables.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -73,7 +74,6 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["webhook_url", "TEXT"],
         ["slug", "TEXT"],
         ["slug_index", "TEXT"],
-        ["group_id", "INTEGER NOT NULL DEFAULT 0"],
         ["active", "INTEGER NOT NULL DEFAULT 1"],
         ["fields", "TEXT NOT NULL DEFAULT 'email'"],
         ["closes_at", "TEXT"],
@@ -88,7 +88,6 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["maximum_days_after", "INTEGER NOT NULL DEFAULT 90"],
         ["date", "TEXT NOT NULL DEFAULT ''"],
         ["location", "TEXT NOT NULL DEFAULT ''"],
-        ["image_url", "TEXT NOT NULL DEFAULT ''"],
         ["attachment_url", "TEXT NOT NULL DEFAULT ''"],
         ["attachment_name", "TEXT NOT NULL DEFAULT ''"],
         ["non_transferable", "INTEGER NOT NULL DEFAULT 0"],
@@ -101,14 +100,21 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["initial_site_months", "INTEGER NOT NULL DEFAULT 0"],
         ["duration_days", "INTEGER NOT NULL DEFAULT 1"],
         ["customisable_days", "INTEGER NOT NULL DEFAULT 0"],
-        ["day_prices", "TEXT NOT NULL DEFAULT '{}'"],
+        // day_prices is no longer a column: per-day-count prices live in the
+        // listing_prices "day_count" dimension (migrated in and projected back on
+        // read via a json_group_object subquery). unit_price stays as the hot-path
+        // base price, mirrored by the listing_prices "base" row.
         ["uses_logistics", "INTEGER NOT NULL DEFAULT 0"],
+        ["use_defaults", "INTEGER NOT NULL DEFAULT 0"],
+        ["bookable_alone", "INTEGER NOT NULL DEFAULT 0"],
         // Precomputed counts over listing_attendees, maintained by the
         // LISTING_AGGREGATE_TRIGGERS so listing reads and the active-listing
         // stats never COUNT the listing_attendees table. booked_quantity is
-        // SUM(quantity) and tickets_count is COUNT(*), scoped to this listing.
-        // Income is no longer stored: it is projected from the transfers ledger
-        // (gross credits to revenue:<listingId>) at read time.
+        // SUM(quantity) and tickets_count counts only real-ticket rows
+        // (quantity > 0 — the no-quantity sentinel, quantity = 0, keeps its
+        // link but is not a ticket; see TICKET_COUNTS_PREDICATE), scoped to
+        // this listing. Income is no longer stored: it is projected from the
+        // transfers ledger (gross credits to revenue:<listingId>) at read time.
         ["booked_quantity", "INTEGER NOT NULL DEFAULT 0"],
         ["tickets_count", "INTEGER NOT NULL DEFAULT 0"],
       ],
@@ -117,6 +123,39 @@ export const SCHEMA: [name: string, table: Table][] = [
           columns: ["slug_index"],
           name: "idx_listings_slug_index",
           unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
+    // Generalised per-listing pricing, keyed by a pricing *dimension*: a
+    // `price_type` (e.g. "base", "day_count", "group", "group_day", and —
+    // reserved for later — "start_day") and a `price_id` selecting within it (""
+    // for base, the day count "2", a group id, "<groupId>/<n>", a weekday). One
+    // row per (listing, dimension, key) so future dimensions (weekday pricing)
+    // slot in with no schema change. "base" mirrors the surviving
+    // `listings.unit_price` column (the hot-path read); "day_count" (per-day-count
+    // price, migrated from `listings.day_prices`), "group" (flat package override,
+    // migrated from group_listings.package_price), and "group_day" (per-day
+    // package override) are the SOURCE of truth — their columns were dropped.
+    "listing_prices",
+    {
+      columns: [
+        ["listing_id", "INTEGER NOT NULL"],
+        ["price_type", "TEXT NOT NULL"],
+        ["price_id", "TEXT NOT NULL DEFAULT ''"],
+        ["unit_price", "INTEGER NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["listing_id", "price_type", "price_id"],
+          name: "idx_listing_prices_key",
+          unique: true,
+        },
+        {
+          columns: ["listing_id"],
+          name: "idx_listing_prices_listing",
         },
       ],
     },
@@ -175,6 +214,49 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["expires", "INTEGER NOT NULL"],
         ["wrapped_data_key", "TEXT"],
         ["user_id", "INTEGER"],
+      ],
+    },
+  ],
+
+  [
+    // First-class uploaded images. All string columns are encrypted with the
+    // same DB_ENCRYPTION_KEY-backed helpers as listings/groups; filenames are
+    // storage object keys, not public URLs.
+    "images",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["name", "TEXT NOT NULL DEFAULT ''"],
+        ["filename", "TEXT NOT NULL CHECK (filename <> '')"],
+        ["filename_thumb", "TEXT NOT NULL CHECK (filename_thumb <> '')"],
+        ["alt_text", "TEXT NOT NULL DEFAULT ''"],
+      ],
+    },
+  ],
+
+  [
+    // Ordered, reusable image attachments. A row links one image to one item
+    // (listing or group). No FKs (house style); delete paths prune these rows
+    // explicitly and the unique key prevents duplicate use of the same image on
+    // one item.
+    "image_uses",
+    {
+      columns: [
+        ["image_id", "INTEGER NOT NULL"],
+        ["item_type", "TEXT NOT NULL"],
+        ["item_id", "INTEGER NOT NULL"],
+        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [
+        {
+          columns: ["item_type", "item_id", "sort_order"],
+          name: "idx_image_uses_item_order",
+        },
+        {
+          columns: ["image_id", "item_type", "item_id"],
+          name: "idx_image_uses_unique",
+          unique: true,
+        },
       ],
     },
   ],
@@ -269,6 +351,10 @@ export const SCHEMA: [name: string, table: Table][] = [
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["created", "TEXT NOT NULL"],
+        [
+          "kind",
+          `TEXT NOT NULL DEFAULT '${ATTENDEE_KIND}' CHECK (kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}'))`,
+        ],
         ["checked_in", "TEXT NOT NULL DEFAULT ''"],
         ["ticket_token_index", "TEXT"],
         ["pii_blob", "TEXT NOT NULL DEFAULT ''"],
@@ -280,6 +366,10 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["phone_index", "TEXT NOT NULL DEFAULT ''"],
       ],
       indexes: [
+        {
+          columns: ["kind"],
+          name: "idx_attendees_kind",
+        },
         {
           columns: ["ticket_token_index"],
           name: "idx_attendees_ticket_token_index",
@@ -320,13 +410,36 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["end_time", "TEXT NOT NULL DEFAULT ''"],
         ["start_done", "INTEGER NOT NULL DEFAULT 0"],
         ["end_done", "INTEGER NOT NULL DEFAULT 0"],
+        // A per-booking token shared by every attendee row created in one
+        // checkout (a parent and its chosen children), so the admin can group an
+        // order's rows. Empty for legacy rows and bookings with no parent.
+        ["order_token", "TEXT NOT NULL DEFAULT ''"],
+        // For a folded child row, the parent listing the buyer chose it under
+        // (0 = not a folded child). A child summed across two parents records the
+        // first — the common case is one parent → one child.
+        ["parent_listing_id", "INTEGER NOT NULL DEFAULT 0"],
+        // The package group this order belongs to (0 = not a package), stamped on
+        // every booking row of one package checkout like order_token. Tickets and
+        // confirmation emails group the order's lines under the package by this
+        // persisted id, so a standalone order of the same listings is not
+        // mistaken for the package by membership equality.
+        ["package_group_id", "INTEGER NOT NULL DEFAULT 0"],
       ],
       // FKs omitted — libsql's FK enforcement causes issues during table
       // recreation migrations. Referential integrity is enforced by application
       // logic and the indexes below.
       indexes: [
         {
-          columns: ["listing_id", "attendee_id", "start_at"],
+          // Includes parent_listing_id so the SAME child chosen under two
+          // parents is two distinct booking rows (one per parent, faithful
+          // provenance) rather than colliding into one folded row. A non-child
+          // line has parent_listing_id 0, so its slot is unchanged.
+          columns: [
+            "listing_id",
+            "attendee_id",
+            "start_at",
+            "parent_listing_id",
+          ],
           name: "idx_listing_attendees_listing_attendee_start",
           unique: true,
         },
@@ -342,6 +455,14 @@ export const SCHEMA: [name: string, table: Table][] = [
         {
           columns: ["listing_id", "end_at", "start_at"],
           name: "idx_listing_attendees_listing_end_start",
+        },
+        // The ledger-replay owner lookup (attendeeIdByLedgerEventGroup) seeks a
+        // booking by its event group: WHERE ledger_event_group = ?. Without this
+        // it full-scans every row ever booked; the '' default rows (no ledger
+        // legs) collapse to one key, so a real group still seeks straight to it.
+        {
+          columns: ["ledger_event_group"],
+          name: "idx_listing_attendees_ledger_event_group",
         },
       ],
     },
@@ -434,6 +555,8 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["terms_and_conditions", "TEXT NOT NULL DEFAULT ''"],
         ["max_attendees", "INTEGER NOT NULL DEFAULT 0"],
         ["hidden", "INTEGER NOT NULL DEFAULT 0"],
+        ["is_package", "INTEGER NOT NULL DEFAULT 0"],
+        ["hide_package_listings", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         {
@@ -441,6 +564,34 @@ export const SCHEMA: [name: string, table: Table][] = [
           name: "idx_groups_slug_index",
           unique: true,
         },
+      ],
+    },
+  ],
+
+  [
+    // Many-to-many membership between groups and listings: one row means
+    // listing_id belongs to group_id. Replaces the old single listings.group_id
+    // FK so a listing can sit in several groups at once. No FKs (house style);
+    // the app keeps it consistent and the group/listing delete paths prune both
+    // sides. `quantity` is how many of this listing one unit of the package
+    // includes (≥1; default 1). The per-listing flat price override lives in
+    // `listing_prices` ("group" dimension), not here (the old `package_price`
+    // column was migrated in and dropped). The PK covers group→listings lookups;
+    // the extra index serves listing→groups.
+    "group_listings",
+    {
+      columns: [
+        ["group_id", "INTEGER NOT NULL"],
+        ["listing_id", "INTEGER NOT NULL"],
+        ["quantity", "INTEGER NOT NULL DEFAULT 1"],
+      ],
+      indexes: [
+        {
+          columns: ["group_id", "listing_id"],
+          name: "idx_group_listings_pair",
+          unique: true,
+        },
+        { columns: ["listing_id"], name: "idx_group_listings_listing" },
       ],
     },
   ],
@@ -492,6 +643,29 @@ export const SCHEMA: [name: string, table: Table][] = [
           unique: true,
         },
         { columns: ["listing_id"], name: "idx_modifier_listings_listing" },
+      ],
+    },
+  ],
+
+  [
+    // Child→parent edges between listings: a row means child_listing_id is a
+    // chooseable child of parent_listing_id. No FKs (house style); the app keeps
+    // it consistent and deleteListing prunes both sides. The unique pair index
+    // also serves the hot parent→children lookup (parent prefix); the extra
+    // single index serves the child→parents lookup.
+    "listing_parents",
+    {
+      columns: [
+        ["parent_listing_id", "INTEGER NOT NULL"],
+        ["child_listing_id", "INTEGER NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["parent_listing_id", "child_listing_id"],
+          name: "idx_listing_parents_pair",
+          unique: true,
+        },
+        { columns: ["child_listing_id"], name: "idx_listing_parents_child" },
       ],
     },
   ],
@@ -669,6 +843,16 @@ export const SCHEMA: [name: string, table: Table][] = [
         // round-robin order. Operational metadata, not PII, so it lives outside
         // the encrypted site_data blob.
         ["last_pruned", "TEXT NOT NULL DEFAULT ''"],
+        // Release channel this site opts into: 'alpha' takes every deploy,
+        // 'beta' takes beta + release, 'release' only stable releases. The
+        // upgrade workflow passes the tier it is publishing and the master
+        // returns only the sites at that tier or more eager (see UPDATE_TIERS
+        // in built-sites.ts). Operational metadata, not PII, so it lives outside
+        // the encrypted site_data blob and stays SQL-filterable.
+        [
+          "updates",
+          "TEXT NOT NULL DEFAULT 'release' CHECK (updates IN ('alpha', 'beta', 'release'))",
+        ],
       ],
       indexes: [
         {
@@ -708,6 +892,32 @@ export const SCHEMA: [name: string, table: Table][] = [
           name: "idx_attendee_string_answers_unique",
           unique: true,
         },
+      ],
+    },
+  ],
+
+  [
+    // Per-attendee notes the operator sees on the attendee record. `note` is
+    // always stored encrypted — a `system` note (auto-generated, e.g. the
+    // refunded-but-stored booking warning) with the symmetric DB_ENCRYPTION_KEY
+    // so a key-less system path can both write and read it back, an `owner` note
+    // (operator-authored) with the owner public key so only the owner can read
+    // it. System notes are kept PII-free by convention. No FKs — the attendee
+    // delete path prunes these rows explicitly.
+    "system_notes",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["attendee_id", "INTEGER NOT NULL"],
+        [
+          "type",
+          "TEXT NOT NULL DEFAULT 'system' CHECK (type IN ('system', 'owner'))",
+        ],
+        ["note", "TEXT NOT NULL"],
+        ["created", "TEXT NOT NULL"],
+      ],
+      indexes: [
+        { columns: ["attendee_id"], name: "idx_system_notes_attendee_id" },
       ],
     },
   ],
@@ -794,12 +1004,14 @@ export const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
-    // Append-only double-entry ledger: each row moves a positive `amount` from a
+    // Double-entry ledger: each row moves a positive `amount` from a
     // (source_type, source_id) account to a (dest_type, dest_id) account at
-    // occurred_at (business time). Balances are derived — nothing here is ever
-    // mutated. PII- and provider-id-free: `reference` is an opaque HMAC, and any
-    // memo that could carry PII is owner-key encrypted by the host before it
-    // reaches the column. No FKs, so erasing an attendee never cascades here.
+    // occurred_at (business time). Normal checkout/refund flows post immutable
+    // rows; owner-only maintenance can edit/delete rows explicitly. Balances are
+    // always derived. PII- and provider-id-free: `reference` is an opaque HMAC,
+    // and any memo that could carry PII is owner-key encrypted by the host
+    // before it reaches the column. No FKs, so erasing an attendee never
+    // cascades here.
     "transfers",
     {
       columns: [
@@ -846,6 +1058,95 @@ export const SCHEMA: [name: string, table: Table][] = [
       ],
     },
   ],
+
+  [
+    // First-class service-cost records: one row per `recordServiceCost` call,
+    // linking the cost's ledger leg to the servicing event that recorded it.
+    // The transfers ledger is append-only and carries no servicing-event id on
+    // its legs, so this table is what scopes `/admin/servicing/:id`'s cost list
+    // to one event. `transfer_id` is the original `service_cost` leg; edits post
+    // adjustment legs keyed to it by memo, and `getServicingCosts` derives each
+    // record's current amount from the leg + its adjustments.
+    "service_costs",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["servicing_attendee_id", "INTEGER NOT NULL"],
+        ["listing_id", "INTEGER NOT NULL"],
+        ["transfer_id", "INTEGER NOT NULL"],
+        ["occurred_at", "TEXT NOT NULL"],
+        ["memo", "TEXT NOT NULL DEFAULT ''"],
+        ["created", "TEXT NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["servicing_attendee_id"],
+          name: "idx_service_costs_servicing",
+        },
+        {
+          columns: ["transfer_id"],
+          name: "idx_service_costs_transfer",
+          unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
+    // User-created content pages. All free text is stored encrypted;
+    // slug_index is the plaintext HMAC blind index. sort_order positions the
+    // page among root-level pages.
+    "site_pages",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["slug", "TEXT NOT NULL"],
+        ["slug_index", "TEXT NOT NULL"],
+        ["name", "TEXT NOT NULL"],
+        ["meta_title", "TEXT NOT NULL DEFAULT ''"],
+        ["meta_description", "TEXT NOT NULL DEFAULT ''"],
+        ["content", "TEXT NOT NULL DEFAULT ''"],
+        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [
+        {
+          columns: ["slug_index"],
+          name: "idx_site_pages_slug_index",
+          unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
+    // Ordered membership edges: a listing/group/page sits inside a page. The
+    // single-parent invariant for `page` items is enforced in application code
+    // (the schema can't express a partial-unique index).
+    "site_page_items",
+    {
+      columns: [
+        ["page_id", "INTEGER NOT NULL"],
+        ["item_type", "TEXT NOT NULL"],
+        ["item_id", "INTEGER NOT NULL"],
+        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [
+        {
+          columns: ["page_id", "sort_order"],
+          name: "idx_site_page_items_page",
+        },
+        {
+          columns: ["page_id", "item_type", "item_id"],
+          name: "idx_site_page_items_key",
+          unique: true,
+        },
+        {
+          columns: ["item_type", "item_id"],
+          name: "idx_site_page_items_child_page",
+        },
+      ],
+    },
+  ],
 ];
 
 /**
@@ -861,11 +1162,64 @@ export const LISTING_AGGREGATE_WRITE_COLUMNS = [
 ] as const;
 
 /**
+ * The predicate deciding whether a listing_attendees row counts toward
+ * listings.tickets_count. A quantity = 0 line is the "no quantity" sentinel — it
+ * keeps the attendee↔listing link but is not a ticket — so tickets_count counts
+ * only rows where quantity > 0. booked_quantity (SUM(quantity)) already treats 0
+ * correctly and must NOT use this predicate.
+ *
+ * Every site that computes tickets_count references this one constant so the
+ * rule cannot silently diverge (mirrors LISTING_AGGREGATE_WRITE_COLUMNS): the
+ * three triggers below, the two queries in listings.ts (reset + recalculation),
+ * the schema-sync backfill, and the hold-delete restore in attendees/delete.ts.
+ * A guard test asserts the predicate appears at every one of those sites.
+ */
+export const TICKET_COUNTS_PREDICATE = `quantity > 0 AND kind = '${ATTENDEE_KIND}'`;
+
+/** Predicate wrapper for contexts that have a listing_attendees row but need
+ * the attendee kind. Missing attendee rows are treated as legacy attendee rows
+ * so raw trigger tests and old FK-less data keep their historical ticket count. */
+export const ticketCountPredicateFor = (
+  quantityExpr: string,
+  attendeeIdExpr: string,
+): string =>
+  `EXISTS (SELECT 1 FROM (SELECT ${quantityExpr} AS quantity, ` +
+  `CASE WHEN EXISTS (SELECT 1 FROM attendees AS attendee WHERE attendee.id = ${attendeeIdExpr}) ` +
+  `THEN (SELECT attendee.kind FROM attendees AS attendee WHERE attendee.id = ${attendeeIdExpr}) ` +
+  `ELSE '${ATTENDEE_KIND}' END AS kind) ` +
+  `WHERE ${TICKET_COUNTS_PREDICATE})`;
+
+/**
+ * tickets_count as a COALESCE(SUM(CASE …)) over {@link TICKET_COUNTS_PREDICATE},
+ * for the recalculation/restore SELECTs that compute it in one pass alongside
+ * SUM(quantity). COALESCE because SUM over zero rows is NULL (unlike COUNT(*)'s
+ * 0), so an empty listing would otherwise report bogus drift against a stored 0.
+ */
+export const ticketCountSumExpr = (): string =>
+  `COALESCE(SUM(CASE WHEN ${ticketCountPredicateFor(
+    "quantity",
+    "attendee_id",
+  )} THEN 1 ELSE 0 END), 0)`;
+
+/**
+ * The per-row delta a listing-aggregate trigger adds to / subtracts from
+ * tickets_count for a NEW/OLD row: +1 only when that row is a real ticket, so
+ * toggling a line 0↔n nets out correctly via the OLD/NEW deltas.
+ */
+const ticketCountTriggerDelta = (row: "NEW" | "OLD"): string =>
+  `CASE WHEN ${ticketCountPredicateFor(
+    `${row}.quantity`,
+    `${row}.attendee_id`,
+  )} THEN 1 ELSE 0 END`;
+
+/**
  * Triggers that keep the listing count aggregates (booked_quantity,
  * tickets_count) in lockstep with listing_attendees, so the hot listing reads
  * and the active-listing stats cost one row read instead of scanning every
- * attendee row. Income is no longer an aggregate column — it is projected from
- * the transfers ledger (gross credits to revenue:<listingId>) at read time.
+ * attendee row. tickets_count counts only quantity > 0 rows (see
+ * TICKET_COUNTS_PREDICATE); income is no longer an aggregate column — it is
+ * projected from the transfers ledger (gross credits to revenue:<listingId>) at
+ * read time.
  *
  * The UPDATE trigger is scoped to `OF quantity, listing_id` so the frequent
  * check-in / refund / attachment-download / price writes (which touch other
@@ -873,8 +1227,10 @@ export const LISTING_AGGREGATE_WRITE_COLUMNS = [
  * listing and adds the NEW row's to its new listing, so a row moving between
  * listings stays correct and a same-listing edit nets out to the delta.
  *
- * Semantics mirror the previous SUM(quantity) / COUNT(*) queries exactly:
- * refunded rows still count, matching the capacity and stats behaviour.
+ * booked_quantity mirrors the previous SUM(quantity) exactly (every row counts
+ * toward capacity, including the quantity = 0 no-quantity sentinel, which adds
+ * nothing); tickets_count counts only quantity > 0 rows, so the sentinel keeps
+ * its attendee↔listing link without inflating the ticket total.
  */
 const LISTING_AGGREGATE_TRIGGERS: Trigger[] = [
   {
@@ -885,7 +1241,7 @@ FOR EACH ROW
 BEGIN
   UPDATE listings SET
     booked_quantity = booked_quantity + NEW.quantity,
-    tickets_count = tickets_count + 1
+    tickets_count = tickets_count + ${ticketCountTriggerDelta("NEW")}
   WHERE id = NEW.listing_id;
 END`,
     table: "listing_attendees",
@@ -898,7 +1254,7 @@ FOR EACH ROW
 BEGIN
   UPDATE listings SET
     booked_quantity = booked_quantity - OLD.quantity,
-    tickets_count = tickets_count - 1
+    tickets_count = tickets_count - ${ticketCountTriggerDelta("OLD")}
   WHERE id = OLD.listing_id;
 END`,
     table: "listing_attendees",
@@ -906,16 +1262,18 @@ END`,
   {
     name: "trg_listing_attendees_aggregates_update",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_update
-AFTER UPDATE OF ${LISTING_AGGREGATE_WRITE_COLUMNS.join(", ")} ON listing_attendees
+AFTER UPDATE OF ${LISTING_AGGREGATE_WRITE_COLUMNS.join(
+      ", ",
+    )} ON listing_attendees
 FOR EACH ROW
 BEGIN
   UPDATE listings SET
     booked_quantity = booked_quantity - OLD.quantity,
-    tickets_count = tickets_count - 1
+    tickets_count = tickets_count - ${ticketCountTriggerDelta("OLD")}
   WHERE id = OLD.listing_id;
   UPDATE listings SET
     booked_quantity = booked_quantity + NEW.quantity,
-    tickets_count = tickets_count + 1
+    tickets_count = tickets_count + ${ticketCountTriggerDelta("NEW")}
   WHERE id = NEW.listing_id;
 END`,
     table: "listing_attendees",

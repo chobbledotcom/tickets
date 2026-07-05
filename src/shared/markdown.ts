@@ -7,7 +7,7 @@
  *     `javascript:`/`data:` URLs can't smuggle script execution past step 1.
  */
 
-import { Marked, type Token } from "marked";
+import { Lexer, Marked, type Token, type Tokens } from "marked";
 import { escapeHtml } from "#templates/layout.tsx";
 
 /** URL schemes permitted in links and images. */
@@ -47,3 +47,27 @@ const md = new Marked({
 /** Render markdown to HTML (block-level: paragraphs, lists, etc.). Raw HTML is escaped and unsafe URLs are stripped. */
 export const renderMarkdown = (text: string): string =>
   md.parse(text) as string;
+
+/** Inline token types that don't add any HTML structure beyond plain text
+ * inside a `<p>`. If a paragraph contains only these, the rendered markdown is
+ * just `<p>plain text</p>` — safe to embed inside a `<label>`. Anything else
+ * (strong, em, links, lists, headings, code, etc.) counts as "complex". */
+const PLAIN_INLINE_TYPES = ["text", "escape", "space", "br"] as const;
+
+/** True when `text` is markdown so simple it renders as nothing more than a
+ * single `<p>` of plain text — no bold, italic, links, lists, headings, code,
+ * blockquotes, tables, or multiple paragraphs. When this returns true the
+ * question can safely be used as the clickable label of its control; when
+ * false the question should be rendered as a prose block above the control. */
+export const isSimpleMarkdown = (text: string): boolean => {
+  const tokens = Lexer.lex(text);
+  // Filter out trivial space tokens so a blank line doesn't count as a block.
+  const meaningful = tokens.filter((tok) => tok.type !== "space");
+  if (meaningful.length !== 1) return false;
+  const para = meaningful[0];
+  if (para?.type !== "paragraph") return false;
+  const inline = (para as Tokens.Paragraph).tokens;
+  return inline.every((tok) =>
+    (PLAIN_INLINE_TYPES as readonly string[]).includes(tok.type),
+  );
+};

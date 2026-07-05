@@ -5,15 +5,61 @@
  * with the same data and validation as the web UI.
  */
 
-import { filter, pipe } from "#fp";
+import * as v from "valibot";
+import { compact, filter, pipe, sumOf } from "#fp";
+import {
+  type ApiChildSelection,
+  ChildrenSchema,
+  PackageChildrenSchema,
+} from "#routes/api/request-schemas.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
-import { parseCustomPrice } from "#routes/public/ticket-form.ts";
+import {
+  classifyForDiscovery,
+  dropHiddenPackageMembers,
+  loadPublicGroups,
+} from "#routes/public/discovery.ts";
+import { loadBookablePackageBySlug } from "#routes/public/groups.ts";
+import { listingsWithQuantity } from "#routes/public/ticket-form.ts";
+import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-listings.ts";
+import {
+  buildRegistrationItems,
+  checkAvailability,
+  createFreeReservation,
+  ctxToBuildTreeInput,
+  foldSelectedChildren,
+  getTicketContext,
+  keepParentDailyDatesChildrenCanServe,
+  parentRequiresChild,
+  resolveDayCount,
+} from "#routes/public/ticket-payment.ts";
+import type { TicketCtx } from "#routes/public/types.ts";
 import { jsonResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getBaseUrl, getClientIp } from "#routes/url.ts";
+import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import type { FoldChildrenResult } from "#shared/booking/fold-tree.ts";
+import { parseCustomPrice } from "#shared/booking/form.ts";
+import {
+  bookableChildIds,
+  buildTicketListing,
+  packageDayCountsChildrenSupport,
+  type TicketListing,
+} from "#shared/booking/model.ts";
+import {
+  packageBundleLimit,
+  packageLimitInfo,
+} from "#shared/booking/package-cap.ts";
+import { packageBundleTotal } from "#shared/booking/price-tree.ts";
+import {
+  type BookingTree,
+  fixedQuantitiesByListingId,
+} from "#shared/booking/tree.ts";
 import { processBooking } from "#shared/booking.ts";
-import { getAvailableDates } from "#shared/dates.ts";
+import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { isPaymentsEnabled } from "#shared/config.ts";
+import { getAvailableDates, getBookableStartDates } from "#shared/dates.ts";
 import {
   getGroupRemainingByListingId,
   getGroupRemainingForListing,
@@ -23,24 +69,44 @@ import {
   isBookingRateLimited,
   recordBookingAttempt,
 } from "#shared/db/booking-attempts.ts";
+import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import {
+  anyNonStandaloneChild,
+  getChildrenForParents,
+} from "#shared/db/listing-parents.ts";
 import {
   getAllListings,
   getListingWithCountBySlug,
 } from "#shared/db/listings.ts";
 import { FormParams } from "#shared/form-data.ts";
+import {
+  concealMemberNames,
+  memberStandInName,
+  namesConcealed,
+  type PackagePrivacy,
+  packagePrivacy,
+} from "#shared/package-privacy.ts";
+import {
+  type CheckoutIntent,
+  type CheckoutItem,
+  getActivePaymentProvider,
+} from "#shared/payments.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import {
   availableDayCounts,
+  type ContactInfo,
   dayPriceFor,
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
+import { parseNonNegativeInt } from "#shared/validation/number.ts";
+import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import {
-  parseNonNegativeInt,
-  parsePositiveInt,
-} from "#shared/validation/number.ts";
-import { extractContact, tryValidateTicketFields } from "#templates/fields.ts";
+  extractContact,
+  mergeListingFields,
+  tryValidateTicketFields,
+} from "#templates/fields.ts";
 
 // =============================================================================
 // CORS
@@ -76,7 +142,7 @@ export type PublicListing = {
   description: string;
   date: string | null;
   location: string | null;
-  imageUrl: string | null;
+  imageUrl: string;
   unitPrice: number;
   canPayMore: boolean;
   maxPrice: number;
@@ -94,32 +160,43 @@ export type PublicListing = {
   isClosed: boolean;
   maxPurchasable: number;
   availableDates?: string[];
+  /** The required children a buyer must choose from when booking this listing as
+   * a parent (per-unit; the chosen quantities total the parent quantity). Present
+   * only on the detail endpoint for a parent listing, so a client knows which
+   * child slugs, prices, and inputs are valid before calling the booking POST. */
+  children?: PublicListing[];
 };
 
 /** `groupRemaining`, when defined, clamps the displayed sold-out state to
- * the group's combined cap. */
+ * the group's combined cap. The sold-out/max-purchasable core is the shared
+ * {@link buildTicketListing} (the same availability projection the web cards and
+ * the parent-sold-out discovery path use), so the API and the web never compute
+ * "is this listing bookable, and how many?" differently. */
 export const toPublicListing = (
   listing: ListingWithCount,
   closed: boolean,
   availableDates: string[] | undefined,
   groupRemaining: number | undefined,
-): PublicListing => {
-  const listingRemaining = listing.max_attendees - listing.attendee_count;
-  const spotsRemaining =
-    groupRemaining === undefined
-      ? listingRemaining
-      : Math.min(listingRemaining, groupRemaining);
-  const isSoldOut = spotsRemaining <= 0;
-  const maxPurchasable =
-    isSoldOut || closed ? 0 : Math.min(listing.max_quantity, spotsRemaining);
+): PublicListing =>
+  resolvedToPublicListing(
+    { ...buildTicketListing(listing, closed, groupRemaining), listing },
+    availableDates,
+  );
 
+/** The public shape of an ALREADY availability-resolved {@link TicketListing}
+ * (the booking ctx hydrates members and their children once — no re-query). */
+export const resolvedToPublicListing = (
+  resolved: TicketListing,
+  availableDates: string[] | undefined,
+): PublicListing => {
+  const { isClosed: closed, isSoldOut, listing, maxPurchasable } = resolved;
   const result: PublicListing = {
     canPayMore: listing.can_pay_more,
     customisableDays: listing.customisable_days,
     date: listing.date || null,
     description: listing.description,
     fields: listing.fields,
-    imageUrl: listing.image_url || null,
+    imageUrl: listing.image_url,
     isClosed: closed,
     isSoldOut,
     listingType: listing.listing_type,
@@ -147,18 +224,80 @@ export const toPublicListing = (
   return result;
 };
 
+/** Resolve a listing row to its public shape, filling in the closed flag and the
+ * group-remaining clamp from the listing itself (the caller supplies only the
+ * availableDates, which differ per surface). The single place the API turns a row
+ * into a {@link PublicListing} with its live availability. */
+const toResolvedPublicListing = async (
+  listing: ListingWithCount,
+  availableDates: string[] | undefined,
+): Promise<PublicListing> =>
+  toPublicListing(
+    listing,
+    isRegistrationClosed(listing),
+    availableDates,
+    await getGroupRemainingForListing(listing),
+  );
+
+/** Map a parent's required children to a per-child result, or null when the
+ * listing is not a parent (no child edges) so the caller can omit the field. The
+ * one place the API loads a parent's children for a response, so the detail and
+ * availability surfaces never drift on which children they report. */
+const mapParentChildren = async <T>(
+  parent: ListingWithCount,
+  map: (child: ListingWithCount) => T | Promise<T>,
+): Promise<T[] | null> => {
+  const children =
+    (await getChildrenForParents([parent.id])).get(parent.id) ?? [];
+  return children.length === 0 ? null : Promise.all(children.map(map));
+};
+
+/** The public shape of each required child of a parent, for the detail endpoint.
+ * Children carry their own price/inputs/availability so a client can pick a valid
+ * one (and pay the right amount) before booking; a daily child reports its own
+ * bookable start dates. Empty array for a non-parent listing.
+ *
+ * An inactive (`active=0`) child is omitted: `toPublicListing` doesn't
+ * expose `active`, so an inactive child with spare capacity would otherwise read
+ * `isClosed:false` with a positive `maxPurchasable` while the booking fold
+ * rejects it (`childActive` in shared.tsx) — so the detail endpoint must not
+ * advertise a child the booking POST refuses, the same `active` predicate the
+ * availability endpoint (`buildChildAvailability`) already applies. */
+const buildChildPublicListings = async (
+  parent: ListingWithCount,
+): Promise<PublicListing[]> =>
+  compact(
+    (await mapParentChildren(parent, async (child) =>
+      child.active
+        ? toResolvedPublicListing(
+            child,
+            child.listing_type === "daily"
+              ? getAvailableDates(child, await getActiveHolidays())
+              : undefined,
+          )
+        : null,
+    )) ?? [],
+  );
+
 // =============================================================================
 // Helpers
 // =============================================================================
 
 const LISTING_NOT_FOUND = { error: "Listing not found" } as const;
 
-/** Look up an active listing by slug, returning a 404 response if missing/inactive */
+/** Look up an active listing by slug, returning a 404 response if
+ * missing/inactive, or if it is the member of a HIDDEN package — such a member is
+ * reachable only through its package, so the API must never expose or book it
+ * standalone (mirroring the `/ticket/<member>` 404 on the web). Guards the detail,
+ * availability, and book endpoints in one place. */
 const findActiveListing = async (
   slug: string,
 ): Promise<ListingWithCount | Response> => {
   const listing = await getListingWithCountBySlug(slug);
-  return listing?.active ? listing : apiResponse(LISTING_NOT_FOUND, 404);
+  if (!listing?.active) return apiResponse(LISTING_NOT_FOUND, 404);
+  return (await isHiddenPackageMember(listing.id))
+    ? apiResponse(LISTING_NOT_FOUND, 404)
+    : listing;
 };
 
 /** Parse a JSON request body, returning a 400 API response on failure */
@@ -193,6 +332,60 @@ const withActiveListing =
   };
 
 // =============================================================================
+// Parent/child discovery guard
+// =============================================================================
+
+/** How a single listing should read on the detail/availability surfaces under
+ * the parent/child feature: a child is not standalone-bookable (404, matching
+ * how the web booking page rejects a child slug), and a parent with no bookable
+ * child reads sold out / unavailable. */
+type ListingDiscoveryState = { isChild: boolean; isSoldOutParent: boolean };
+
+/** Classify one listing for the detail/availability endpoints, reusing the same
+ * discovery classification the web surfaces use (child suppression + parent
+ * sold-out). Flag-off (or a plain listing) yields the neutral state, so existing
+ * endpoints are unchanged until parents ship. */
+const listingDiscoveryState = async (
+  listing: ListingWithCount,
+): Promise<ListingDiscoveryState> => {
+  const { nonStandaloneChildIds, soldOutParentIds } =
+    await classifyForDiscovery([listing]);
+  return {
+    isChild: nonStandaloneChildIds.has(listing.id),
+    isSoldOutParent: soldOutParentIds.has(listing.id),
+  };
+};
+
+/** Guard the detail/availability endpoints against a child listing: returns a
+ * 404 response when the listing is a child (not standalone-bookable), or
+ * `{ isSoldOutParent }` to proceed. Shared by the detail and
+ * availability handlers so the child-rejection logic is never duplicated. */
+const guardChildListing = async (
+  listing: ListingWithCount,
+): Promise<{ isSoldOutParent: boolean } | Response> => {
+  const { isChild, isSoldOutParent } = await listingDiscoveryState(listing);
+  if (isChild) return apiResponse(LISTING_NOT_FOUND, 404);
+  return { isSoldOutParent };
+};
+
+/** Combines withActiveListing and guardChildListing: resolves the listing by
+ * slug, rejects child listings with a 404, then calls the
+ * handler with the listing and its isSoldOutParent flag. */
+const withGuardedListing = (
+  handler: (
+    request: Request,
+    listing: ListingWithCount,
+    isSoldOutParent: boolean,
+    server?: ServerContext,
+  ) => Promise<Response>,
+) =>
+  withActiveListing(async (request, listing, server) => {
+    const guard = await guardChildListing(listing);
+    if (guard instanceof Response) return guard;
+    return handler(request, listing, guard.isSoldOutParent, server);
+  });
+
+// =============================================================================
 // Handlers
 // =============================================================================
 
@@ -202,52 +395,165 @@ const handleListListings = async (): Promise<Response> => {
   const holidays = await getActiveHolidays();
   const visibleListings = pipe(
     filter((e: ListingWithCount) => e.active && !e.hidden),
-    (active: ListingWithCount[]) => sortListings(active, holidays),
+    (active) => sortListings(active, holidays),
   )(allListings);
-  const groupRemaining = await getGroupRemainingByListingId(visibleListings);
-  const listings = visibleListings.map((e) =>
-    toPublicListing(
+  // A child is never standalone-bookable, so omit children from
+  // the discovery list — a client must not find one here and then hit the
+  // booking 400. A parent with no
+  // bookable child is sold out: its OWN row capacity ignores its
+  // children, so the list must project it to sold-out / not-bookable to stay
+  // consistent with the detail/availability endpoints — otherwise a
+  // client lists it as bookable then hits the parent-sold-out outcome at detail.
+  const { nonStandaloneChildIds, soldOutParentIds } =
+    await classifyForDiscovery(visibleListings);
+  // Drop the members of a HIDDEN package too: they have no standalone page (their
+  // /ticket slug 404s), so the API must not list them as bookable either. A
+  // `bookable_alone` child is NOT dropped — it keeps its own catalog entry.
+  const bookableListings = await dropHiddenPackageMembers(
+    visibleListings.filter((e) => !nonStandaloneChildIds.has(e.id)),
+  );
+  const groupRemaining = await getGroupRemainingByListingId(bookableListings);
+  const listings = bookableListings.map((e) => {
+    const publicListing = toPublicListing(
       e,
       isRegistrationClosed(e),
       undefined,
       groupRemaining.get(e.id),
-    ),
-  );
-  return apiResponse({ listings });
+    );
+    return soldOutParentIds.has(e.id)
+      ? { ...publicListing, isSoldOut: true, maxPurchasable: 0 }
+      : publicListing;
+  });
+  // Packages are first-class products: a bookable package bundle is listed by
+  // name/slug (booked whole at /ticket/<group-slug>), so a hidden package stays
+  // discoverable even though its member listings are dropped above.
+  const packages = (await loadPublicGroups())
+    .filter((g) => g.is_package)
+    .map((g) => ({
+      description: g.description,
+      name: g.name,
+      slug: g.slug,
+      url: `/ticket/${g.slug}`,
+    }));
+  return apiResponse({ listings, packages });
 };
 
 /** GET /api/listings/:slug — single listing detail */
-const handleGetListing = withActiveListing(async (_request, listing) => {
-  const closed = isRegistrationClosed(listing);
-  let availableDates: string[] | undefined;
-  if (listing.listing_type === "daily") {
-    availableDates = getAvailableDates(listing, await getActiveHolidays());
-  }
-  return apiResponse({
-    listing: toPublicListing(
-      listing,
-      closed,
-      availableDates,
-      await getGroupRemainingForListing(listing),
-    ),
+const handleGetListing = withGuardedListing(
+  async (_request, listing, isSoldOutParent) => {
+    let availableDates: string[] | undefined;
+    if (listing.listing_type === "daily") {
+      const holidays = await getActiveHolidays();
+      // A daily parent's API dates must match what the web selector offers: a date
+      // no required child can serve (for the inherited span) is removed from the
+      // parent's own calendar, so the API never advertises a date the fold rejects
+      // For a non-parent daily listing this is a no-op.
+      availableDates = await keepParentDailyDatesChildrenCanServe(
+        listing,
+        getAvailableDates(listing, holidays),
+        holidays,
+      );
+    }
+    const [publicListing, children] = await Promise.all([
+      toResolvedPublicListing(listing, availableDates),
+      buildChildPublicListings(listing),
+    ]);
+    // A parent advertises its required children so a client can choose a valid one
+    // (slug, price, inputs, dates) before the booking POST.
+    const withChildren =
+      children.length > 0 ? { ...publicListing, children } : publicListing;
+    // A parent with no bookable child is sold out; the route
+    // listing's own capacity ignores its children, so project the discovery
+    // sold-out outcome onto the response rather than advertising it as bookable.
+    return apiResponse({
+      listing: isSoldOutParent
+        ? { ...withChildren, isSoldOut: true, maxPurchasable: 0 }
+        : withChildren,
+    });
+  },
+);
+
+/** Per-child availability for a parent's required children at a date/quantity, or
+ * null when the listing is not a parent. A daily child takes the parent's date;
+ * a standard child is date-less. An inactive (`active=0`) or registration-closed
+ * child reports `available: false` regardless of spare capacity: the
+ * booking fold rejects it (`childActive`/`childOpen` in shared.tsx), so reusing
+ * the same `active` + `isRegistrationClosed` predicates the fold uses keeps the
+ * availability endpoint from advertising a child the booking POST would refuse. */
+const buildChildAvailability = (
+  parent: ListingWithCount,
+  date: string | undefined,
+  quantity: number,
+): Promise<{ slug: string; available: boolean }[] | null> =>
+  mapParentChildren(parent, async (child) => {
+    let childDateAvail = true;
+    if (child.listing_type === "daily" && date) {
+      childDateAvail = getBookableStartDates(
+        child,
+        await getActiveHolidays(),
+      ).includes(date);
+    }
+    return {
+      available:
+        child.active &&
+        !isRegistrationClosed(child) &&
+        childDateAvail &&
+        (await hasAvailableSpots(
+          child.id,
+          quantity,
+          child.listing_type === "daily" ? (date ?? null) : null,
+          child.duration_days,
+        )),
+      slug: child.slug,
+    };
   });
-});
 
 /** GET /api/listings/:slug/availability — check if spots are available */
-const handleCheckAvailability = withActiveListing(async (request, listing) => {
-  const url = new URL(request.url);
-  const quantity =
-    parseNonNegativeInt(url.searchParams.get("quantity") ?? "1") ?? 1;
-  const date = url.searchParams.get("date") || undefined;
-  return apiResponse({
-    available: await hasAvailableSpots(
+const handleCheckAvailability = withGuardedListing(
+  async (request, listing, isSoldOutParent) => {
+    // A parent with no bookable child is sold out: its own capacity
+    // ignores its children, so report it unavailable rather than letting the
+    // route listing's standalone spots advertise it as bookable.
+    if (isSoldOutParent) return apiResponse({ available: false });
+    const url = new URL(request.url);
+    const quantity =
+      parseNonNegativeInt(url.searchParams.get("quantity") ?? "1") ?? 1;
+    const date = url.searchParams.get("date") || undefined;
+    // A daily parent is available only on dates its required children can serve.
+    // A daily listing with no children is returned unchanged by the helper.
+    if (listing.listing_type === "daily" && date) {
+      const holidays = await getActiveHolidays();
+      const childServableDates = await keepParentDailyDatesChildrenCanServe(
+        listing,
+        getAvailableDates(listing, holidays),
+        holidays,
+      );
+      if (!childServableDates.includes(date)) {
+        return apiResponse({ available: false });
+      }
+    }
+    const available = await hasAvailableSpots(
       listing.id,
       quantity,
       date,
       listing.duration_days,
-    ),
-  });
-});
+    );
+    // For a parent, also report each required child's availability for the chosen
+    // date/quantity (a daily child inherits the parent's date; a standard child is
+    // date-less), so a client can pick a child that can actually serve the booking
+    // rather than discovering it only when the booking POST rejects it.
+    const childAvailability = await buildChildAvailability(
+      listing,
+      date,
+      quantity,
+    );
+    return apiResponse(
+      childAvailability === null
+        ? { available }
+        : { available, children: childAvailability },
+    );
+  },
+);
 
 /** Convert JSON body fields to FormParams for validation compatibility */
 const toFormParams = (body: Record<string, unknown>): FormParams =>
@@ -326,14 +632,392 @@ const resolveBookingDate = async (
   return submittedDate;
 };
 
+/** Resolve a booking's quantity (clamped to the listing's per-order max) and its
+ * date (validated for daily listings), or a 400 response for an invalid date.
+ * Shared by the standalone and parent booking paths. */
+const resolveQuantityAndDate = async (
+  listing: ListingWithCount,
+  body: Record<string, unknown>,
+): Promise<{ quantity: number; date: string | null } | Response> => {
+  // A submitted quantity of exactly 0 must NOT become a one-ticket booking — a
+  // quantity-0 line is the admin-only no-quantity sentinel and is never created
+  // through the public API. Malformed/absent values keep the lenient default of 1;
+  // only an explicit 0 is rejected (parseNonNegativeInt accepts 0, where
+  // parsePositiveInt would mask it as null). Resolving it here applies the guard
+  // to both the standalone and parent/child booking paths.
+  const parsedQuantity = parseNonNegativeInt(String(body.quantity ?? "1"));
+  if (parsedQuantity === 0) {
+    return apiResponse({ error: "Quantity must be at least 1" }, 400);
+  }
+  const quantity = Math.min(parsedQuantity ?? 1, listing.max_quantity);
+  const date = await resolveBookingDate(listing, body);
+  return date instanceof Response ? date : { date, quantity };
+};
+
+/** Resolve a pay-more listing's submitted `customPrice` (from the JSON body's
+ * `customPrice` field): the validated price for a `can_pay_more` listing,
+ * `undefined` for a fixed-price one (nothing to parse), or a 400 response when
+ * the submitted price is out of range. Shared by the standalone booking path and
+ * the parent-booking path (which seeds the fold's customPrices with it) so
+ * the two never parse the pay-more price differently. */
+const resolveCustomPrice = (
+  listing: ListingWithCount,
+  form: FormParams,
+): number | undefined | Response => {
+  if (!listing.can_pay_more) return undefined;
+  const priceResult = parseCustomPrice(
+    form,
+    "customPrice",
+    listing.unit_price,
+    listing.max_price,
+  );
+  return priceResult.ok
+    ? priceResult.price
+    : apiResponse({ error: priceResult.error }, 400);
+};
+
+/** One child selection in a parent booking body: a child slug and how many of
+ * the parent's units take it (the chosen quantities total the parent quantity),
+ * with an optional pay-more price. A PACKAGE booking's entries also carry the
+ * member (`parent`) slug the child folds under, since a bundle can contain more
+ * than one parent member. */
+
+/** Parse the `children` array of a booking body against `schema`, or null (the
+ * caller's 400) when it is present but malformed. */
+const parseApiChildSelections = (
+  body: Record<string, unknown>,
+  schema: typeof ChildrenSchema | typeof PackageChildrenSchema = ChildrenSchema,
+): ApiChildSelection[] | null => {
+  const result = v.safeParse(schema, body.children);
+  return result.success ? result.output : null;
+};
+
+/** Translate one parent's resolved child selections into the `child_qty_*` /
+ * `child_price_*` fields the shared fold reads on `form`, resolving each
+ * submitted slug against the parent's actual children (repeated slugs sum).
+ * Returns a 400 response naming a slug that is not a child of this parent, or a
+ * 400 when repeated entries for one child disagree on the pay-more
+ * `customPrice`; null when the fields were applied cleanly. */
+const applyChildSelectionsToForm = (
+  form: FormParams,
+  parentId: number,
+  childBySlug: Map<string, TicketListing>,
+  selections: ApiChildSelection[],
+): Response | null => {
+  const qtyByChild = new Map<number, number>();
+  // The fold stores ONE `child_price_*` per child for its whole quantity, so two
+  // entries for the same child specifying different `customPrice` values (or one
+  // specifying a price and another leaving it default) can't both be honoured —
+  // a `form.set` would silently let the last entry's price win and book every
+  // unit at it. Track each child's submitted price and reject a conflict
+  // with a 400 rather than charging the wrong amount; a single aggregated entry
+  // (or repeats agreeing on the price) is accepted.
+  const priceByChild = new Map<number, number | undefined>();
+  for (const selection of selections) {
+    const child = childBySlug.get(selection.slug);
+    if (!child) {
+      return apiResponse(
+        { error: `'${selection.slug}' is not a child of this listing.` },
+        400,
+      );
+    }
+    const childId = child.listing.id;
+    if (
+      priceByChild.has(childId) &&
+      priceByChild.get(childId) !== selection.customPrice
+    ) {
+      return apiResponse(
+        {
+          error: `Conflicting prices for '${selection.slug}'. Send one entry per child with a single price.`,
+        },
+        400,
+      );
+    }
+    priceByChild.set(childId, selection.customPrice);
+    qtyByChild.set(
+      childId,
+      (qtyByChild.get(childId) ?? 0) + selection.quantity,
+    );
+    if (selection.customPrice !== undefined) {
+      form.set(
+        `child_price_${parentId}_${childId}`,
+        String(selection.customPrice),
+      );
+    }
+  }
+  for (const [childId, qty] of qtyByChild) {
+    form.set(`child_qty_${parentId}_${childId}`, String(qty));
+  }
+  return null;
+};
+
+/** The price (minor units) of a folded multi-item order. */
+const foldedOrderTotal = (items: CheckoutItem[]): number =>
+  sumOf((item: CheckoutItem) => item.unitPrice * item.quantity)(items);
+
+/** The checkout intent for a folded order ({@link completeFoldedBooking}). The
+ * chosen span rides only when a folded line is customisable, so the webhook
+ * reprices and dates the booking by day count rather than defaulting to 1 (Fix
+ * 3) — mirroring the web path's conditional `dayCount` on its intent. */
+const foldedIntent = (
+  contact: ContactInfo,
+  date: string | null,
+  fold: Extract<FoldChildrenResult, { ok: true }>,
+  items: CheckoutItem[],
+  opts: { parentThankYouUrl?: string; packageGroupId?: number },
+): CheckoutIntent => ({
+  ...contact,
+  // Carry the per-(child,parent) allocations so the paid session signs them and
+  // the webhook's edge-drift revalidation can detect a parent→child edge
+  // removed/re-parented mid-payment; buildMetadata omits an empty array.
+  allocations: fold.allocations,
+  date,
+  items,
+  ...(fold.hasCustomisable ? { dayCount: fold.dayCount } : {}),
+  // Carry the parent's thank-you URL only once a child was actually folded in
+  // (the order gained a listing): a multi-listing order can't recover it from
+  // the booked listing ids, while a degenerate single-listing fold still
+  // resolves the same URL by the success handler's default rule.
+  ...(opts.parentThankYouUrl && fold.listings.length > 1
+    ? { thankYouUrl: opts.parentThankYouUrl }
+    : {}),
+  ...(opts.packageGroupId ? { packageGroupId: opts.packageGroupId } : {}),
+});
+
+/** Charge or create a folded parent+children order. Paid (with a provider): a
+ * multi-item checkout session whose webhook creates and pairs the rows. Free (or
+ * provider-less paid): all rows created atomically — all-or-nothing — with the
+ * full value recorded as owed when no provider is configured.
+ *
+ * `parentThankYouUrl` is the single parent's configured redirect: folding a child
+ * makes the order multi-listing, so the success handler's single-listing-id
+ * derivation would otherwise drop it. We carry it on the paid intent so the
+ * success page honours it — mirroring the web folded-parent path
+ * (`ticket-submit.ts`), which sets `intent.thankYouUrl` only once a child was
+ * actually folded in.
+ *
+ * A PACKAGE order sets `packageGroupId` so the id is stamped onto every booking
+ * row and signed into the paid metadata (driving the webhook's package
+ * revalidation); the order's {@link PackagePrivacy} conceals a HIDDEN
+ * package's member names on the hosted checkout's line items so the provider
+ * page never reveals them. */
+const completeFoldedBooking = async (
+  request: Request,
+  contact: ContactInfo,
+  date: string | null,
+  fold: Extract<FoldChildrenResult, { ok: true }>,
+  opts: {
+    parentThankYouUrl?: string;
+    packageGroupId?: number;
+    privacy?: PackagePrivacy;
+  },
+): Promise<Response> => {
+  const items = concealMemberNames(
+    buildRegistrationItems(
+      fold.listings,
+      fold.quantities,
+      fold.customPrices,
+      fold.priceRuleByListingId,
+      fold.dayCount,
+    ),
+    opts.privacy ?? packagePrivacy(false, ""),
+  );
+  const total = foldedOrderTotal(items);
+  const intent = foldedIntent(contact, date, fold, items, opts);
+  if (isPaymentsEnabled() && total > 0) {
+    // Reject a folded order whose parent or any child has exhausted capacity
+    // before creating a checkout session: the web paid path runs the same
+    // `checkAvailability` preflight, so without it the API would hand back a
+    // checkout URL for a sold-out order the webhook then can't create.
+    const available = await checkAvailability(
+      fold.listings,
+      fold.quantities,
+      date,
+      fold.dayCount,
+    );
+    if (!available) {
+      return apiResponse({ error: "Sorry, not enough spots available" }, 409);
+    }
+    const provider = (await getActivePaymentProvider())!;
+    const baseUrl = getBaseUrl(request);
+    const result = await provider.createCheckoutSession(intent, baseUrl);
+    if (!result) {
+      return apiResponse({ error: "Failed to create payment session" }, 500);
+    }
+    return "error" in result
+      ? apiResponse({ error: result.error }, 400)
+      : apiResponse({ booking: { checkoutUrl: result.checkoutUrl } });
+  }
+  // Free, or provider-less paid (owes the full value). An owed order must record
+  // its gross sale legs in the ledger at creation — the outstanding balance
+  // projects from it — so build the zeroed-total owed order the web free path
+  // uses; a genuinely free order (payments enabled, total 0) owes nothing and
+  // posts no legs.
+  const remainingBalance = isPaymentsEnabled() ? 0 : total;
+  const reservation = await createFreeReservation({
+    allocations: fold.allocations,
+    contact,
+    date,
+    dayCount: fold.dayCount,
+    ledgerOrder:
+      remainingBalance > 0
+        ? owedOrderForLedger(priceCheckout({ ...intent, feeSubtotal: 0 }))
+        : null,
+    listings: fold.listings,
+    modifierUsages: [],
+    ...(opts.packageGroupId ? { packageGroupId: opts.packageGroupId } : {}),
+    quantities: fold.quantities,
+    remainingBalance,
+  });
+  if (!reservation.success) {
+    return apiResponse({ error: "Sorry, not enough spots available" }, 409);
+  }
+  // Notify only after stock is committed, exactly like the standalone API booking
+  // (`processBooking`) and the web free path (`handleFreePath`) do after
+  // `createFreeReservation`: without this the folded free/provider-less
+  // parent booking silently skips the confirmation email, registration webhook,
+  // and activity log every other booking path fires.
+  await logAndNotifyRegistration(reservation.entries);
+  const attendee = reservation.entries[0]!.attendee;
+  return apiResponse({
+    booking: {
+      amountOwed: attendee.remaining_balance,
+      ticketToken: attendee.ticket_token,
+      ticketUrl: `/t/${attendee.ticket_token}`,
+    },
+  });
+};
+
+/**
+ * Book a parent listing through the JSON API with its required children (per-unit
+ * selection, mirroring the web fold): resolve the chosen child slugs, fold them
+ * into a multi-item order, validate contact fields against the merged parent+child
+ * requirements (a paid child can add Square's email), then charge (multi-item
+ * checkout) or create all rows all-or-nothing (free). The parent/child pairing is
+ * recomputed at creation, so the parent and its children are stored linked.
+ */
+const processParentApiBooking = async (
+  request: Request,
+  listing: ListingWithCount,
+  body: Record<string, unknown>,
+  quantity: number,
+  date: string | null,
+): Promise<Response> => {
+  // The API has no day-count input, so a customisable parent (priced by a chosen
+  // span its children inherit) can't be booked here — like a customisable
+  // standalone listing.
+  if (listing.customisable_days) {
+    return apiResponse(
+      { error: "This listing must be booked through the website." },
+      400,
+    );
+  }
+  const selections = parseApiChildSelections(body);
+  if (selections === null) {
+    return apiResponse(
+      {
+        error:
+          "Provide a `children` array of { slug, quantity } totalling the booked quantity.",
+      },
+      400,
+    );
+  }
+
+  // Build the parent's ticket context (children + availability), then map the
+  // submitted child slugs onto the fold's per-child quantity form.
+  const [parentListing] = await buildTicketListingsWithGroupCapacity([listing]);
+  const sharedCtx = await getTicketContext([parentListing!]);
+  const ctx: TicketCtx = {
+    ...sharedCtx,
+    listings: [parentListing!],
+    slugs: [listing.slug],
+  };
+  // parentRequiresChild guaranteed ≥1 edge and listing deletes cascade their
+  // edges, so a parent here always has a children entry in the context.
+  const children = ctx.childrenByParentId.get(listing.id)!;
+  const childBySlug = new Map(children.map((c) => [c.listing.slug, c]));
+  const form = toFormParams(body);
+  const selectionError = applyChildSelectionsToForm(
+    form,
+    listing.id,
+    childBySlug,
+    selections,
+  );
+  if (selectionError) return selectionError;
+
+  // A pay-more PARENT carries its own custom price: without seeding it the
+  // fold prices the parent at its `unit_price` and undercharges. Resolve it the
+  // same way the standalone path does and seed the fold's customPrices map; a
+  // fixed-price parent contributes nothing here.
+  const parentCustomPrice = resolveCustomPrice(listing, form);
+  if (parentCustomPrice instanceof Response) return parentCustomPrice;
+  const customPrices = new Map<number, number>();
+  if (parentCustomPrice !== undefined) {
+    customPrices.set(listing.id, parentCustomPrice);
+  }
+
+  const fold = await foldSelectedChildren(ctx, form, {
+    customPrices,
+    date,
+    dayCount: 1,
+    hasCustomisable: false,
+    quantities: new Map([[listing.id, quantity]]),
+  });
+  if (!fold.ok) return apiResponse({ error: fold.error }, 400);
+
+  // Validate contact fields against the MERGED parent+child requirements and the
+  // folded paid-ness (a free parent with a paid child still needs Square's email).
+  const valResult = tryValidateTicketFields(
+    form,
+    mergeListingFields(fold.listings.map((e) => e.listing.fields)),
+    (msg) => apiResponse({ error: msg }, 400),
+    fold.listings.some((e) => isPaidListing(e.listing)),
+  );
+  if (valResult instanceof Response) return valResult;
+  return completeFoldedBooking(request, extractContact(valResult), date, fold, {
+    // The fold always starts from this single parent, so its configured
+    // thank-you URL is the one a folded order would otherwise drop.
+    parentThankYouUrl: listing.thank_you_url,
+  });
+};
+
 /** POST /api/listings/:slug/book — create a booking */
 const handleBook = withActiveListing(async (request, listing, server) => {
+  // A booking can never start from a non-standalone child: such a
+  // child is only bookable through one of its parents, so reject it as a direct
+  // API entry. A `bookable_alone` child has its own page/API eligibility, so it
+  // books directly here.
+  if (await anyNonStandaloneChild([listing.id])) {
+    return apiResponse(
+      { error: "This listing must be booked through its parent listing." },
+      400,
+    );
+  }
+
   const limited = await checkBookingRateLimit(request, server);
   if (limited) return limited;
 
   if (isRegistrationClosed(listing)) {
     return apiResponse({ error: "Registration is closed" }, 400);
   }
+
+  const bodyOrError = await parseApiJsonBody(request);
+  if (bodyOrError instanceof Response) return bodyOrError;
+  const body = bodyOrError;
+
+  // Resolve the booking quantity + date once, shared by the parent and standalone
+  // paths so neither re-derives it (and the JSON contract reads one way).
+  const qtyAndDate = await resolveQuantityAndDate(listing, body);
+  if (qtyAndDate instanceof Response) return qtyAndDate;
+  const { quantity, date } = qtyAndDate;
+
+  // A parent requires the buyer to choose its children: fold the
+  // submitted `children` into a multi-item order rather than booking the parent
+  // alone, which would bypass the gate.
+  if (await parentRequiresChild(listing.id)) {
+    return processParentApiBooking(request, listing, body, quantity, date);
+  }
+
   // Customisable-days listings are priced by a chosen day count, which this
   // endpoint doesn't accept — booking them here would charge the wrong amount,
   // so they must be booked through the website form.
@@ -344,9 +1028,6 @@ const handleBook = withActiveListing(async (request, listing, server) => {
     );
   }
 
-  const bodyOrError = await parseApiJsonBody(request);
-  if (bodyOrError instanceof Response) return bodyOrError;
-  const body = bodyOrError;
   const form = toFormParams(body);
 
   // Validate fields using the same form validation as the web
@@ -360,29 +1041,9 @@ const handleBook = withActiveListing(async (request, listing, server) => {
   if (valResult instanceof Response) return valResult;
   const values = valResult;
 
-  // Parse quantity
-  const rawQuantity = parsePositiveInt(String(body.quantity ?? "1"));
-  const quantity = Math.min(rawQuantity ?? 1, listing.max_quantity);
-
-  // Validate date for daily listings
-  const dateResult = await resolveBookingDate(listing, body);
-  if (dateResult instanceof Response) return dateResult;
-  const date = dateResult;
-
   // Parse custom price for pay-more listings
-  let customUnitPrice: number | undefined;
-  if (listing.can_pay_more) {
-    const priceResult = parseCustomPrice(
-      form,
-      "customPrice",
-      listing.unit_price,
-      listing.max_price,
-    );
-    if (!priceResult.ok) {
-      return apiResponse({ error: priceResult.error }, 400);
-    }
-    customUnitPrice = priceResult.price;
-  }
+  const customUnitPrice = resolveCustomPrice(listing, form);
+  if (customUnitPrice instanceof Response) return customUnitPrice;
 
   const contact = extractContact(values);
   return bookingResultToResponse(
@@ -398,6 +1059,290 @@ const handleBook = withActiveListing(async (request, listing, server) => {
 });
 
 // =============================================================================
+// Packages
+// =============================================================================
+
+/** Loads a package only when at least one whole package can still be booked. */
+const loadPackageContext = async (slug: string) => {
+  const loaded = await loadBookablePackageBySlug(slug);
+  if (!loaded) return null;
+  const ticketListings = await buildTicketListingsWithGroupCapacity(
+    loaded.listings,
+  );
+  const sharedCtx = await getTicketContext(ticketListings, loaded.group);
+  const ctx: TicketCtx = {
+    ...sharedCtx,
+    listings: ticketListings,
+    slugs: [slug],
+  };
+  const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
+  const limit = packageBundleLimit(
+    tree,
+    packageLimitInfo(
+      ticketListings,
+      ctx.childrenByParentId,
+      ctx.packageGroupRemainingByGroupId,
+      ctx.packageMemberGroupIds,
+    ),
+  );
+  return { ctx, group: loaded.group, limit, tree };
+};
+
+const PACKAGE_NOT_FOUND = { error: "Package not found" } as const;
+
+/** The contact-field requirement a package booking can validate against: the
+ * members' settings merged with their children's (a chosen add-on can add a
+ * field). Published as one package-level value, so an API client — which cannot
+ * see a hidden package's members through the listing API — knows what to submit
+ * before POSTing. */
+const packageMergedFields = (ctx: TicketCtx): string => {
+  const settings: string[] = [];
+  for (const e of ctx.listings) {
+    settings.push(e.listing.fields);
+    for (const child of ctx.childrenByParentId.get(e.listing.id) ?? []) {
+      settings.push(child.listing.fields);
+    }
+  }
+  return mergeListingFields(settings);
+};
+
+/** GET /api/packages/:slug — package bundle detail. A fixed-price bundle
+ * reports one `priceMinor`; a customisable one reports each offered day count
+ * with its whole-bundle total (only counts every member's required-child mix
+ * can serve — an empty list means no span is currently bookable). A HIDDEN
+ * package omits its members entirely. */
+const handleGetPackage = async (
+  _request: Request,
+  { slug }: { slug: string },
+): Promise<Response> => {
+  const pkg = await loadPackageContext(slug);
+  if (!pkg) return apiResponse(PACKAGE_NOT_FOUND, 404);
+  const { ctx, group, limit, tree } = pkg;
+  const customisable = ctx.listings.some((e) => e.listing.customisable_days);
+  const dayCounts = customisable
+    ? packageDayCountsChildrenSupport(ctx.listings, ctx.childrenByParentId)
+    : [];
+  // A hidden package never names its members (or their children) — buyers see
+  // only the bundle. `packageQuantities` covers every member by construction.
+  // Members and their children are already availability-resolved on the ctx
+  // (ONE hydration pass), so the response is built without re-querying edges,
+  // holidays, or group remaining per member.
+  const holidays = await getActiveHolidays();
+  const memberQuantities = fixedQuantitiesByListingId(tree);
+  const bookableChildren = bookableChildIds(ctx.childrenByParentId);
+  const members = namesConcealed(
+    packagePrivacy(group.hide_package_listings, group.name),
+  )
+    ? undefined
+    : ctx.listings.map((e) => {
+        const children = (ctx.childrenByParentId.get(e.listing.id) ?? [])
+          .filter((child) => child.listing.active)
+          .map((child) =>
+            resolvedToPublicListing(
+              child,
+              child.listing.listing_type === "daily"
+                ? getAvailableDates(child.listing, holidays)
+                : undefined,
+            ),
+          );
+        return {
+          name: e.listing.name,
+          quantity: memberQuantities.get(e.listing.id)!,
+          slug: e.listing.slug,
+          ...(children.length > 0 ? { children } : {}),
+        };
+      });
+  return apiResponse({
+    package: {
+      description: group.description,
+      fields: packageMergedFields(ctx),
+      maxPurchasable: limit,
+      name: group.name,
+      slug: group.slug,
+      ...(ctx.dates.length > 0 ? { availableDates: ctx.dates } : {}),
+      ...(customisable
+        ? {
+            dayCounts: dayCounts.map((days) => ({
+              days,
+              priceMinor: packageBundleTotal(tree, days, bookableChildren),
+            })),
+          }
+        : { priceMinor: packageBundleTotal(tree, 1, bookableChildren) }),
+      ...(members ? { members } : {}),
+    },
+  });
+};
+
+/** Apply a package booking's child selections (each tagged with its member's
+ * `parent` slug) onto the fold form, member by member. Returns a 400 response
+ * for an unknown member slug or a bad selection; null when applied cleanly. */
+const applyPackageChildSelections = (
+  form: FormParams,
+  ctx: TicketCtx,
+  selections: ApiChildSelection[],
+): Response | null => {
+  const byParent = new Map<string, ApiChildSelection[]>();
+  for (const selection of selections) {
+    const list = byParent.get(selection.parent!) ?? [];
+    list.push(selection);
+    byParent.set(selection.parent!, list);
+  }
+  for (const [parentSlug, perParent] of byParent) {
+    const member = ctx.listings.find((e) => e.listing.slug === parentSlug);
+    if (!member) {
+      return apiResponse(
+        { error: `'${parentSlug}' is not a member of this package.` },
+        400,
+      );
+    }
+    const children = ctx.childrenByParentId.get(member.listing.id) ?? [];
+    const childBySlug = new Map(children.map((c) => [c.listing.slug, c]));
+    const error = applyChildSelectionsToForm(
+      form,
+      member.listing.id,
+      childBySlug,
+      perParent,
+    );
+    if (error) return error;
+  }
+  return null;
+};
+
+/** Reads a package API booking body and builds the form the booking flow uses. */
+const resolvePackageOrder = async (
+  body: Record<string, unknown>,
+  ctx: TicketCtx,
+  tree: BookingTree,
+  limit: number,
+  hiddenName: string | undefined,
+): Promise<
+  | Response
+  | {
+      date: string | null;
+      dayCount: number;
+      form: FormParams;
+      quantities: Map<number, number>;
+    }
+> => {
+  const parsedQuantity = parseNonNegativeInt(String(body.quantity ?? "1"));
+  if (parsedQuantity === 0) {
+    return apiResponse({ error: "Quantity must be at least 1" }, 400);
+  }
+  const packageQty = Math.min(parsedQuantity ?? 1, limit);
+  const quantities = new Map(
+    [...fixedQuantitiesByListingId(tree)].map(([listingId, fixed]) => [
+      listingId,
+      fixed * packageQty,
+    ]),
+  );
+
+  let date: string | null = null;
+  if (ctx.dates.length > 0) {
+    const submitted = String(body.date ?? "");
+    if (!ctx.dates.includes(submitted)) {
+      return apiResponse({ error: "Please select a valid date" }, 400);
+    }
+    date = submitted;
+  }
+
+  const form = toFormParams(body);
+  if (body.dayCount !== undefined) {
+    form.set("day_count", String(body.dayCount));
+  }
+  const dayResult = await resolveDayCount(
+    listingsWithQuantity(ctx.listings, quantities),
+    form,
+    date,
+    hiddenName,
+  );
+  if ("error" in dayResult) {
+    return apiResponse({ error: dayResult.error }, 400);
+  }
+  return { date, dayCount: dayResult.dayCount, form, quantities };
+};
+
+/** POST /api/packages/:slug/book — book whole bundles. The body carries the
+ * contact fields plus `quantity` (package count, default 1), `date` for a dated
+ * package, `dayCount` for a customisable one, and `children` — entries of
+ * `{ parent, slug, quantity }` choosing each parent member's add-ons — all
+ * driving the SAME context, clamp, fold, and pricing walk the web package page
+ * submits through. */
+const handleBookPackage = async (
+  request: Request,
+  { slug }: { slug: string },
+  server?: ServerContext,
+): Promise<Response> => {
+  const limited = await checkBookingRateLimit(request, server);
+  if (limited) return limited;
+  const pkg = await loadPackageContext(slug);
+  if (!pkg) return apiResponse(PACKAGE_NOT_FOUND, 404);
+  const { ctx, group, limit, tree } = pkg;
+
+  const bodyOrError = await parseApiJsonBody(request);
+  if (bodyOrError instanceof Response) return bodyOrError;
+  const body = bodyOrError;
+
+  const privacy = packagePrivacy(group.hide_package_listings, group.name);
+  const order = await resolvePackageOrder(
+    body,
+    ctx,
+    tree,
+    limit,
+    memberStandInName(privacy),
+  );
+  if (order instanceof Response) return order;
+  const { date, dayCount, form, quantities } = order;
+
+  const selections = parseApiChildSelections(body, PackageChildrenSchema);
+  if (selections === null) {
+    return apiResponse(
+      {
+        error:
+          "Provide a `children` array of { parent, slug, quantity } choosing each member's add-ons.",
+      },
+      400,
+    );
+  }
+  const selectionError = applyPackageChildSelections(form, ctx, selections);
+  if (selectionError) return selectionError;
+
+  const fold = await foldSelectedChildren(
+    ctx,
+    form,
+    {
+      customPrices: new Map(),
+      date,
+      dayCount,
+      hasCustomisable: ctx.listings.some((e) => e.listing.customisable_days),
+      quantities,
+    },
+    tree,
+  );
+  if (!fold.ok) return apiResponse({ error: fold.error }, 400);
+
+  // Paid-ness must come from the tree's price rules, not `isPaidListing`: a
+  // package override can make a free member paid (and a paid member free).
+  const paid = buildRegistrationItems(
+    fold.listings,
+    fold.quantities,
+    fold.customPrices,
+    fold.priceRuleByListingId,
+    fold.dayCount,
+  ).some((item) => item.unitPrice > 0);
+  const valResult = tryValidateTicketFields(
+    form,
+    mergeListingFields(fold.listings.map((e) => e.listing.fields)),
+    (msg) => apiResponse({ error: msg }, 400),
+    paid,
+  );
+  if (valResult instanceof Response) return valResult;
+  return completeFoldedBooking(request, extractContact(valResult), date, fold, {
+    packageGroupId: group.id,
+    privacy,
+  });
+};
+
+// =============================================================================
 // Route definitions
 // =============================================================================
 
@@ -405,11 +1350,15 @@ export const apiRoutes = defineRoutes({
   "GET /api/listings": handleListListings,
   "GET /api/listings/:slug": handleGetListing,
   "GET /api/listings/:slug/availability": handleCheckAvailability,
+  "GET /api/packages/:slug": handleGetPackage,
   "OPTIONS /api/listings": handleOptions,
   "OPTIONS /api/listings/:slug": handleOptions,
   "OPTIONS /api/listings/:slug/availability": handleOptions,
   "OPTIONS /api/listings/:slug/book": handleOptions,
+  "OPTIONS /api/packages/:slug": handleOptions,
+  "OPTIONS /api/packages/:slug/book": handleOptions,
   "POST /api/listings/:slug/book": handleBook,
+  "POST /api/packages/:slug/book": handleBookPackage,
 });
 
 export const routeApi = createRouter(apiRoutes);

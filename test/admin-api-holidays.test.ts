@@ -4,10 +4,12 @@ import { handleRequest } from "#routes";
 import { getAllHolidays, holidaysTable } from "#shared/db/holidays.ts";
 import {
   apiRequest,
+  assertApiDeleteOk,
   assertJson,
   createTestHoliday,
   createTestManagerSession,
   describeWithEnv,
+  expectRejectsEmptyName,
   mockRequest,
   requestAsSession,
   testCookie,
@@ -213,17 +215,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
 
     test("rejects empty name", async () => {
       const holiday = await createTestHoliday();
-
-      await assertJson(
-        apiRequest(`/api/admin/holidays/${holiday.id}`, {
-          body: { name: "" },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("name cannot be empty");
-        },
-      );
+      await expectRejectsEmptyName(`/api/admin/holidays/${holiday.id}`);
     });
 
     test("validates date range on update", async () => {
@@ -251,16 +243,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
     test("deletes holiday with correct confirmation", async () => {
       const holiday = await createTestHoliday({ name: "To Delete" });
 
-      await assertJson(
-        apiRequest(`/api/admin/holidays/${holiday.id}`, {
-          body: { confirm_identifier: "To Delete" },
-          method: "DELETE",
-        }),
-        200,
-        (body) => {
-          expect(body.status).toBe("ok");
-        },
-      );
+      await assertApiDeleteOk(`/api/admin/holidays/${holiday.id}`, "To Delete");
 
       const all = await getAllHolidays();
       expect(all.find((h) => h.id === holiday.id)).toBeUndefined();

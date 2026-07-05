@@ -3,9 +3,9 @@
  */
 
 import { filter, map } from "#fp";
-import { capacityErrorFormatter } from "#routes/format.ts";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
-import { validatePrice } from "#shared/currency.ts";
+import type { TicketListing } from "#shared/booking/model.ts";
+import { quantityFieldName } from "#shared/booking/tree.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type {
   AttendeeAnswerSet,
@@ -18,7 +18,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import type { ListingFields } from "#shared/types.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { extractContact, mergeListingFields } from "#templates/fields.ts";
-import { type TicketListing, ticketPage } from "#templates/public.tsx";
+import { ticketPage } from "#templates/public.tsx";
 import type { ListingQty, TicketCtx } from "./types.ts";
 
 /** Parse and validate a quantity value from a raw string, capping at max */
@@ -31,22 +31,6 @@ export const parseQuantityValue = (
   if (quantity === null || quantity < minDefault) return minDefault;
   return Math.min(quantity, max);
 };
-
-/** Parse and validate a custom unit price from a form field.
- * Returns the price in minor units, or an error string if invalid. */
-export const parseCustomPrice = (
-  form: FormParams,
-  fieldName: string,
-  minPrice: number,
-  maxPrice: number,
-) => validatePrice(form.getString(fieldName), minPrice, maxPrice);
-
-/** Format error message for failed attendee creation */
-export const formatAtomicError = capacityErrorFormatter({
-  fallback: "Registration failed. Please try again.",
-  generic: "Sorry, not enough spots available",
-  withName: (name) => `Sorry, ${name} no longer has enough spots available`,
-});
 
 /** Resolve which listings a question applies to: its assigned listings, or
  * every selected listing when the question is assigned to none. */
@@ -166,7 +150,7 @@ export const validateSubmittedDate = (
 
 /** Render ticket HTML (CSRF token auto-embedded by CsrfForm) */
 export const renderTicketPage = (ctx: TicketCtx, error?: string) =>
-  ticketPage({ ...ctx, error });
+  ticketPage({ ...ctx, ...(error !== undefined ? { error } : {}) });
 
 /** Ticket response builder */
 export const ticketResponse =
@@ -193,7 +177,7 @@ export const parseQuantities = (
   for (const { listing, isSoldOut, isClosed, maxPurchasable } of listings) {
     if (isSoldOut || isClosed) continue;
 
-    const raw = form.get(`quantity_${listing.id}`) || "0";
+    const raw = form.get(quantityFieldName(listing.id)) || "0";
     const quantity = parseQuantityValue(raw, maxPurchasable, 0);
     if (quantity > 0) {
       quantities.set(listing.id, quantity);

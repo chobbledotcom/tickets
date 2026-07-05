@@ -1,8 +1,12 @@
 import { createClient, type InValue, type Row } from "@libsql/client";
-import { afterEach, beforeEach, describe } from "@std/testing/bdd";
+import { afterAll, afterEach, beforeEach, describe } from "@std/testing/bdd";
+import { once } from "#fp";
 import { resetEffectiveDomain } from "#shared/config.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
+import {
+  ensureDefaultAttendeeStatus,
+  invalidateAttendeeStatusesCache,
+} from "#shared/db/attendee-statuses.ts";
 import { getDb, insert, queryOne, setDb } from "#shared/db/client.ts";
 import { invalidateGroupsCache } from "#shared/db/groups.ts";
 import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
@@ -27,11 +31,13 @@ import {
   setHostEmailConfigForTest,
 } from "#shared/email.ts";
 import { getEnv } from "#shared/env.ts";
+import { setStorageConfigForTest } from "#shared/storage.ts";
 import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
   type DescribeEnvOptions,
   getCachedSetupSettings,
   getCachedSetupUsers,
+  getTestStoragePath,
   type RawListingRange,
   resetTestSession,
   resetTestSlugCounter,
@@ -39,9 +45,15 @@ import {
   setCachedSetupSettings,
   setCachedSetupUsers,
   setTestSession,
+  setTestStoragePath,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
+  TEST_STORAGE_ZONE,
 } from "#test-utils/internal.ts";
+import {
+  maybeReclaimLeakedFds,
+  reclaimLeakedFdsNow,
+} from "#test-utils/reclaim-fds.ts";
 
 type SchemaEntry = (typeof SCHEMA)[number];
 type SchemaIndex = NonNullable<SchemaEntry[1]["indexes"]>[number];
@@ -80,7 +92,29 @@ const TEST_SCHEMA_SQL = `${[
   ),
 ].join(";\n")};`;
 
+// Golden DB: schema + default attendee status built once per worker, then
+// copied per test instead of re-executing 100+ CREATE TABLE/INDEX/TRIGGER
+// statements on every beforeEach.
+const getOrCreateGoldenDb: () => Promise<string> = once(
+  async (): Promise<string> => {
+    const path = await Deno.makeTempFile({ suffix: "-golden.db" });
+    const client = createClient({ url: `file:${path}` });
+    setDb(client);
+    await client.executeMultiple(
+      "PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF;",
+    );
+    await client.executeMultiple(TEST_SCHEMA_SQL);
+    await ensureDefaultAttendeeStatus();
+    client.close();
+    setDb(null);
+    return path;
+  },
+);
+
 const prepareTestClient = async (triggers = false): Promise<void> => {
+  // Keep libsql's leaked file descriptors from exhausting the process limit
+  // under high `--parallel` worker counts (see reclaim-fds.ts).
+  maybeReclaimLeakedFds();
   setupTestEncryptionKey();
   settings.setup.clearCache();
   resetSessionCache();
@@ -89,24 +123,29 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
   invalidateHolidaysCache();
   invalidateGroupsCache();
   invalidateLogisticsAgentsCache();
+  invalidateAttendeeStatusesCache();
 
   // A temp file, not ":memory:": interactive transactions (withTransaction) open
   // a second connection, and each ":memory:" connection is its own *separate*
   // empty database — a transaction would see no schema. A file is shared across
   // connections. Durability is irrelevant in tests, so relax fsync to keep speed
   // close to in-memory.
+  //
+  // Copy the golden DB (schema + default status, built once per worker) rather
+  // than re-running the schema SQL on every test — a file copy is much cheaper
+  // than executing 100+ CREATE TABLE / INDEX / TRIGGER statements.
+  const goldenPath = await getOrCreateGoldenDb();
   const path = await Deno.makeTempFile({ suffix: ".db" });
+  await Deno.copyFile(goldenPath, path);
   setTestEnv({
     DB_URL: `file:${path}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: triggers ? undefined : "1",
   });
   const client = createClient({ url: `file:${path}` });
   setDb(client);
-  await client.executeMultiple(
-    "PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF;",
-  );
-  await client.executeMultiple(TEST_SCHEMA_SQL);
-  await ensureDefaultAttendeeStatus();
+  // journal_mode persists in the SQLite header from the golden; synchronous=OFF
+  // is per-connection only and must be re-applied.
+  await client.executeMultiple("PRAGMA synchronous=OFF;");
 };
 
 export const createTestDb = async (triggers = false): Promise<void> => {
@@ -125,15 +164,20 @@ export const createTestDb = async (triggers = false): Promise<void> => {
 export const setupTransactionalTestDb = async (): Promise<
   () => Promise<void>
 > => {
+  // Same libsql fd leak as prepareTestClient: this path also mints a fresh
+  // file-backed client per test and runs many `withTransaction` writes.
+  maybeReclaimLeakedFds();
   setupTestEncryptionKey();
+  const goldenPath = await getOrCreateGoldenDb();
   const path = await Deno.makeTempFile({ suffix: ".db" });
+  await Deno.copyFile(goldenPath, path);
   const restoreEnv = setTestEnv({
     DB_URL: `file:${path}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: "1",
   });
   const client = createClient({ url: `file:${path}` });
   setDb(client);
-  await client.executeMultiple(TEST_SCHEMA_SQL);
+  await client.executeMultiple("PRAGMA synchronous=OFF;");
   return async () => {
     setDb(null);
     client.close();
@@ -150,18 +194,14 @@ export const createTestDbWithSetup = async (
   resetTestSession();
 
   if (getCachedSetupSettings()) {
-    getDb().execute("DELETE FROM settings");
-    for (const row of getCachedSetupSettings()!) {
-      await getDb().execute(
-        insert("settings", {
-          key: row.key,
-          value: row.value,
-        }),
-      );
-    }
-    if (getCachedSetupUsers()) {
-      for (const row of getCachedSetupUsers()!) {
-        await getDb().execute(
+    // Restore settings and users in one batch rather than N sequential round-trips.
+    await getDb().batch(
+      [
+        { args: [], sql: "DELETE FROM settings" },
+        ...getCachedSetupSettings()!.map((row) =>
+          insert("settings", { key: row.key, value: row.value }),
+        ),
+        ...getCachedSetupUsers()!.map((row) =>
           insert("users", {
             admin_level: row.admin_level as InValue,
             id: row.id as InValue,
@@ -174,9 +214,10 @@ export const createTestDbWithSetup = async (
             username_index: row.username_index as InValue,
             wrapped_data_key: row.wrapped_data_key as InValue,
           }),
-        );
-      }
-    }
+        ),
+      ],
+      "write",
+    );
     settings.invalidateCache();
     await settings.loadKeys(ALL_SETTINGS_KEYS);
 
@@ -226,6 +267,8 @@ export const createTestDbWithSetup = async (
   setTestSession(session);
 };
 
+const ignoreCleanupError = (): void => {};
+
 const createDirectAdminSession = async (): Promise<{
   cookie: string;
   csrfToken: string;
@@ -243,13 +286,10 @@ const createDirectAdminSession = async (): Promise<{
   );
   const { nowMs } = await import("#shared/now.ts");
 
-  const user = await getUserByUsername(TEST_ADMIN_USERNAME);
-  if (!user?.wrapped_data_key) {
-    throw new Error("Admin user not found after setup");
-  }
+  const user = (await getUserByUsername(TEST_ADMIN_USERNAME))!;
   const ownerHash = (await verifyUserPassword(user, TEST_ADMIN_PASSWORD))!;
   const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash);
-  const dataKey = await unwrapKey(user.wrapped_data_key, kek);
+  const dataKey = await unwrapKey(user.wrapped_data_key!, kek);
 
   const token = generateSecureToken();
   const csrfToken = generateSecureToken();
@@ -271,6 +311,7 @@ const cleanupTestDbFile = (): void => {
     getDb().close();
   } catch {
     // client already closed or never opened
+    ignoreCleanupError();
   }
   try {
     Deno.removeSync(url.slice("file:".length));
@@ -289,6 +330,7 @@ export const resetDb = (): void => {
   invalidateHolidaysCache();
   invalidateGroupsCache();
   invalidateLogisticsAgentsCache();
+  invalidateAttendeeStatusesCache();
   resetSessionCache();
   setTestSession(null);
   setDemoModeForTest(false);
@@ -303,6 +345,44 @@ export const invalidateTestDbCache = (): void => {
   setCachedSetupSettings(null);
   setCachedSetupUsers(null);
   setCachedAdminSession(null);
+};
+
+/**
+ * Establish the requested `storage` backend for a test as a typed suite-level
+ * `StorageConfig` (read via `#shared/storage.ts`, layered under any per-test
+ * `runWithStorageConfig` scope and over env). Each backend fully specifies both
+ * dimensions so it resolves deterministically regardless of ambient env — no
+ * `STORAGE_ZONE_*` / `LOCAL_STORAGE_PATH` vars are touched:
+ * - `"cdn"`: the Bunny test zone, with `localPath: ""` so an ambient local path
+ *   can't route uploads to disk instead of the CDN.
+ * - `"local"`: a fresh temp dir (recorded for `getTestStoragePath`) with empty
+ *   zone creds, so ambient Bunny creds can't shadow the local backend.
+ */
+const applyStorageConfig = async (
+  storage: DescribeEnvOptions["storage"],
+): Promise<void> => {
+  if (storage === "cdn") {
+    setStorageConfigForTest({
+      localPath: "",
+      zoneKey: TEST_STORAGE_ZONE.zoneKey,
+      zoneName: TEST_STORAGE_ZONE.zoneName,
+    });
+    return;
+  }
+  if (storage === "local") {
+    const dir = await Deno.makeTempDir();
+    setTestStoragePath(dir);
+    setStorageConfigForTest({ localPath: dir, zoneKey: "", zoneName: "" });
+  }
+};
+
+/** Clear the suite-level storage config and remove any `"local"` temp dir. */
+const teardownStorageConfig = async (): Promise<void> => {
+  setStorageConfigForTest(null);
+  const dir = getTestStoragePath();
+  if (!dir) return;
+  setTestStoragePath(null);
+  await Deno.remove(dir, { recursive: true });
 };
 
 export const describeWithEnv = (
@@ -322,10 +402,18 @@ export const describeWithEnv = (
         await createTestDbWithSetup("GB", options.triggers ?? false);
       }
       if (options.env) restoreEnv = setTestEnv(options.env);
+      await applyStorageConfig(options.storage);
     });
-    afterEach(() => {
+    afterEach(async () => {
       if (options.db) resetDb();
       if (restoreEnv) restoreEnv();
+      restoreEnv = undefined;
+      await teardownStorageConfig();
+    });
+    // A small suite may never reach the amortised reclaim threshold, so hand
+    // back its leaked descriptors when it finishes (see reclaim-fds.ts).
+    afterAll(() => {
+      reclaimLeakedFdsNow();
     });
     fn();
   });

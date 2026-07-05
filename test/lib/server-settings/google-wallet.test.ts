@@ -7,7 +7,9 @@ import {
   createTestAttendeeWithToken,
   describeWithEnv,
   expectFlashRedirect,
+  expectHtml,
   expectRedirect,
+  fetchAliceTicketPageBody,
   loginAsAdmin,
   mockFormRequest,
   setTestEnv,
@@ -118,12 +120,7 @@ describeWithEnv("ticket view google wallet link", { db: true }, () => {
   });
 
   test("does not show google wallet link when not configured", async () => {
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
-    const response = await awaitTestRequest(`/t/${token}`);
-    const body = await response.text();
+    const { body } = await fetchAliceTicketPageBody();
     expect(body).not.toContain("Google Wallet");
   });
 
@@ -134,9 +131,9 @@ describeWithEnv("ticket view google wallet link", { db: true }, () => {
       "alice@test.com",
     );
     const response = await awaitTestRequest(`/t/${token}`);
-    const body = await response.text();
-    expect(body).toContain("Google Wallet");
-    expect(body).toContain(`/gwallet/${token}`);
+    await expectHtml(response, {
+      contains: ["Google Wallet", `/gwallet/${token}`],
+    });
   });
 });
 
@@ -418,8 +415,7 @@ describeWithEnv(
         "alice@test.com",
       );
       const response = await awaitTestRequest(`/t/${token}`);
-      const body = await response.text();
-      expect(body).toContain("Google Wallet");
+      await expectHtml(response, { contains: ["Google Wallet"] });
     });
 
     test("settings page shows host Google Wallet label when env vars configured", async () => {
@@ -428,9 +424,9 @@ describeWithEnv(
       const response = await awaitTestRequest("/admin/settings-advanced", {
         cookie,
       });
-      const body = await response.text();
-      expect(body).toContain("Host env (9876543210)");
-      expect(body).toContain("Currently using");
+      await expectHtml(response, {
+        contains: ["Host env (9876543210)", "Currently using"],
+      });
     });
 
     test("settings page shows overriding label when both DB and env configured", async () => {
@@ -440,9 +436,9 @@ describeWithEnv(
       const response = await awaitTestRequest("/admin/settings-advanced", {
         cookie,
       });
-      const body = await response.text();
-      expect(body).toContain("Host env (9876543210)");
-      expect(body).toContain("Overriding");
+      await expectHtml(response, {
+        contains: ["Host env (9876543210)", "Overriding"],
+      });
     });
   },
 );

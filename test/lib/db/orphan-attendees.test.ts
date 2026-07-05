@@ -107,6 +107,26 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
       expect(await attendeeExists(attendee.id)).toBe(true);
     });
 
+    test("removes service_costs rows whose servicing_attendee_id is an orphan", async () => {
+      const id = await insertOrphan(daysAgoIso(365));
+      await getDb().execute(
+        insert("service_costs", {
+          created: nowIso(),
+          listing_id: 1,
+          memo: "",
+          occurred_at: nowIso(),
+          servicing_attendee_id: id,
+          transfer_id: 0, // dummy; SQLite does not enforce FKs by default
+        }),
+      );
+      await purgeOrphanedAttendees(nowIso());
+      const remaining = await queryOne<{ c: number }>(
+        "SELECT COUNT(*) AS c FROM service_costs WHERE servicing_attendee_id = ?",
+        [id],
+      );
+      expect(remaining?.c).toBe(0);
+    });
+
     test("removes the orphan's dependent answer and payment rows", async () => {
       const id = await insertOrphan(daysAgoIso(365));
       await getDb().execute(

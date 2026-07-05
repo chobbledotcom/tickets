@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { encryptBytes } from "#shared/crypto/encryption.ts";
 import { settings } from "#shared/db/settings.ts";
+import { MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import {
   adminGet,
   assertAdminHtml,
@@ -12,6 +13,7 @@ import {
   expectHtmlResponse,
   expectRedirectWithFlash,
   JPEG_HEADER,
+  makeTestPng,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
@@ -49,14 +51,20 @@ const submitHeaderImage = async (
   );
 };
 
-/** Submit a valid JPEG to the header-image upload endpoint */
-const submitHeaderJpeg = (
+/** Submit a valid (real, decodable) image to the header-image upload endpoint.
+ * Uploads are transcoded to WebP, so the source must be a genuine image the
+ * pipeline can decode — a real PNG, not a magic-byte stub. */
+const submitHeaderJpeg = async (
   filename: string,
   cookie?: string,
   csrfToken?: string,
 ): Promise<Response> =>
   submitHeaderImage(
-    { contentType: "image/jpeg", data: JPEG_HEADER, name: filename },
+    {
+      contentType: "image/png",
+      data: await makeTestPng(64, 48),
+      name: filename,
+    },
     cookie,
     csrfToken,
   );
@@ -81,7 +89,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
   describe("GET /admin/settings (header image section)", () => {
     test("shows header image section when storage is enabled", async () => {
       await withStorageEnabled(async () => {
-        const { response } = await adminGet("/admin/settings");
+        const response = await adminGet("/admin/settings");
         await expectHtmlResponse(response, 200, "Header Image");
       });
     });
@@ -96,7 +104,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
     test("shows remove button and proxy URL when header image is set", async () => {
       await withStorageEnabled(async () => {
         await settings.update.headerImageUrl("existing.jpg");
-        const { response } = await adminGet("/admin/settings");
+        const response = await adminGet("/admin/settings");
         await expectHtmlResponse(
           response,
           200,
@@ -108,7 +116,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
 
     test("shows upload button when no header image exists", async () => {
       await withStorageEnabled(async () => {
-        const { response } = await adminGet("/admin/settings");
+        const response = await adminGet("/admin/settings");
         await expectHtmlResponse(response, 200, "Upload Image");
       });
     });
@@ -119,7 +127,8 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
       await withStorageMock(async () => {
         const response = await submitHeaderJpeg("logo.jpg");
         expectSettingsRedirect(response);
-        expect(settings.headerImageUrl).toMatch(/\.jpg$/);
+        // Every upload is transcoded to WebP regardless of source format.
+        expect(settings.headerImageUrl).toMatch(/\.webp$/);
       });
     });
 
@@ -132,14 +141,14 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
         });
         await expectFlashRedirect(
           HEADER_IMAGE_FORM_REDIRECT,
-          expect.stringContaining("JPEG, PNG, GIF, or WebP"),
+          expect.stringContaining("JPEG, PNG, or WebP"),
           false,
         )(response);
       });
     });
 
     test("rejects oversized image", async () => {
-      const oversized = new Uint8Array(257 * 1024);
+      const oversized = new Uint8Array(MAX_IMAGE_SIZE + 1);
       oversized.set(JPEG_HEADER);
 
       await withStorageMock(async () => {
@@ -150,7 +159,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
         });
         await expectFlashRedirect(
           HEADER_IMAGE_FORM_REDIRECT,
-          expect.stringContaining("256KB"),
+          expect.stringContaining("32MB"),
           false,
         )(response);
       });

@@ -2,30 +2,43 @@
  * Admin user management page template
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
-import { ConfirmForm, CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { CsrfForm, renderFields } from "#shared/forms.tsx";
 import type {
   AdminLevel,
   AdminSession,
   LogisticsAgent,
 } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import {
+  errorAdminPage,
+  flashAdminPage,
+} from "#templates/admin/admin-page.tsx";
+import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   ActionButton,
   DeleteSection,
   GuideLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import {
+  CheckboxFieldset,
+  CheckboxLabel,
+} from "#templates/components/aggregate-sections.tsx";
+import { DataTable } from "#templates/components/data-table.tsx";
+import { DetailTable } from "#templates/components/detail-table.tsx";
+import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { getInviteUserFields } from "#templates/fields.ts";
-import { Layout } from "#templates/layout.tsx";
+/* jscpd:ignore-end */
 
 /** Displayable user info (decrypted) */
 export interface DisplayUser {
+  /** True once the user has set a password via /join. For keyed roles this also
+   * means they hold a data key; the keyless editor activates without one. */
+  activated: boolean;
   adminLevel: AdminLevel;
   /** For agent users: the names of the logistics agents they're assigned to. */
-  agentNames?: string[];
-  hasDataKey: boolean;
+  agentNames?: string[] | undefined;
   id: number;
   inviteExpired: boolean;
   username: string;
@@ -33,37 +46,42 @@ export interface DisplayUser {
 
 /** Checkbox list for picking the logistics agents an agent user drives.
  * Submits the chosen ids under the repeated `agent_ids` field. */
+type AgentSelectorProps = {
+  agents: LogisticsAgent[];
+  selected: ReadonlySet<number>;
+};
+
 const AgentSelector = ({
   agents,
   selected,
-}: {
-  agents: LogisticsAgent[];
-  selected: ReadonlySet<number>;
-}): JSX.Element => (
-  <fieldset class="checkboxes">
-    <legend>{t("users.agents.legend")}</legend>
-    <p>
-      <small>{t("users.agents.hint")}</small>
-    </p>
+}: AgentSelectorProps): JSX.Element => (
+  <CheckboxFieldset
+    className="checkboxes"
+    hint={t("users.agents.hint")}
+    legend={t("users.agents.legend")}
+  >
     {agents.map((agent) => (
-      <label>
-        <input
-          checked={selected.has(agent.id) || undefined}
-          name="agent_ids"
-          type="checkbox"
-          value={String(agent.id)}
-        />
-        {` ${agent.name}`}
-      </label>
+      <CheckboxLabel
+        checked={selected.has(agent.id) || undefined}
+        label={` ${agent.name}`}
+        name="agent_ids"
+        value={String(agent.id)}
+      />
     ))}
-  </fieldset>
+  </CheckboxFieldset>
 );
+
+/** Comma-joined assigned agent names, or the "none assigned" fallback. */
+const agentNamesDisplay = (user: DisplayUser): string =>
+  user.agentNames && user.agentNames.length > 0
+    ? user.agentNames.join(", ")
+    : t("users.agents.none_assigned");
 
 /** Status label for a user */
 const userStatus = (user: DisplayUser): string => {
-  // A user with a data key has joined and self-activated; otherwise they are an
+  // An activated user has joined and set a password; otherwise they are an
   // outstanding invite, which is either still open or expired.
-  if (user.hasDataKey) return t("users.status.active");
+  if (user.activated) return t("users.status.active");
   if (user.inviteExpired) return t("users.status.expired");
   return t("users.status.invited");
 };
@@ -73,9 +91,9 @@ const userStatus = (user: DisplayUser): string => {
  */
 export interface UsersPageOpts {
   currentUserId: number;
-  error?: string;
+  error?: string | undefined;
   inviteLink: string;
-  success?: string;
+  success?: string | undefined;
 }
 
 export const adminUsersPage = (
@@ -83,15 +101,17 @@ export const adminUsersPage = (
   session: AdminSession,
   opts: UsersPageOpts,
 ): string =>
-  String(
-    <Layout title={t("terms.users")}>
-      <AdminNav active="/admin/users" session={session} />
+  flashAdminPage(t("terms.users"), "/admin/users")(
+    session,
+    opts.error,
+    opts.success,
+  )(
+    <>
       <p class="actions">
         <GuideLink href="/admin/guide#user-classes">
           {t("users.roles_link")}
         </GuideLink>
       </p>
-      <Flash error={opts.error} success={opts.success} />
 
       {opts.inviteLink && (
         <div class="success" role="alert">
@@ -109,41 +129,27 @@ export const adminUsersPage = (
         </ActionButton>
       </p>
 
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>{t("common.username")}</th>
-              <th>{t("users.col.role")}</th>
-              <th>{t("common.status")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
-              <tr>
-                <td>
-                  <a href={`/admin/users/${user.id}`}>{user.username}</a>
-                </td>
-                <td>
-                  {user.adminLevel}
-                  {user.adminLevel === "agent" && (
-                    <>
-                      <br />
-                      <small>
-                        {user.agentNames && user.agentNames.length > 0
-                          ? user.agentNames.join(", ")
-                          : t("users.agents.none_assigned")}
-                      </small>
-                    </>
-                  )}
-                </td>
-                <td>{userStatus(user)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Layout>,
+      <DataTable
+        columns={[
+          { header: t("common.username") },
+          { header: t("users.col.role") },
+          { header: t("common.status") },
+        ]}
+        rows={users.map((user) => [
+          <a href={`/admin/users/${user.id}`}>{user.username}</a>,
+          <>
+            {user.adminLevel}
+            {user.adminLevel === "agent" && (
+              <>
+                <br />
+                <small>{agentNamesDisplay(user)}</small>
+              </>
+            )}
+          </>,
+          userStatus(user),
+        ])}
+      />
+    </>,
   );
 
 /**
@@ -154,38 +160,36 @@ export const adminUsersPage = (
 export const adminUserManagePage = (
   user: DisplayUser,
   session: AdminSession,
-  opts: { currentUserId: number; error?: string; success?: string },
+  opts: {
+    currentUserId: number;
+    error?: string | undefined;
+    success?: string | undefined;
+  },
 ): string =>
-  String(
-    <Layout title={`${t("terms.users")}: ${user.username}`}>
-      <AdminNav active="/admin/users" session={session} />
+  flashAdminPage(`${t("terms.users")}: ${user.username}`, "/admin/users")(
+    session,
+    opts.error,
+    opts.success,
+  )(
+    <>
       <h1>{user.username}</h1>
-      <Flash error={opts.error} success={opts.success} />
 
-      <div class="table-scroll">
-        <table class="listing-details-table">
-          <tbody>
-            <tr>
-              <th>{t("users.col.role")}</th>
-              <td>{user.adminLevel}</td>
-            </tr>
-            <tr>
-              <th>{t("common.status")}</th>
-              <td>{userStatus(user)}</td>
-            </tr>
-            {user.adminLevel === "agent" && (
-              <tr>
-                <th>{t("users.agents.legend")}</th>
-                <td>
-                  {user.agentNames && user.agentNames.length > 0
-                    ? user.agentNames.join(", ")
-                    : t("users.agents.none_assigned")}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DetailTable>
+        <tr>
+          <th>{t("users.col.role")}</th>
+          <td>{user.adminLevel}</td>
+        </tr>
+        <tr>
+          <th>{t("common.status")}</th>
+          <td>{userStatus(user)}</td>
+        </tr>
+        {user.adminLevel === "agent" && (
+          <tr>
+            <th>{t("users.agents.legend")}</th>
+            <td>{agentNamesDisplay(user)}</td>
+          </tr>
+        )}
+      </DetailTable>
 
       <p class="actions">
         {user.adminLevel === "agent" && (
@@ -206,7 +210,7 @@ export const adminUserManagePage = (
           {t("users.delete_user.submit")}
         </DeleteSection>
       )}
-    </Layout>,
+    </>,
   );
 
 /**
@@ -217,18 +221,13 @@ export const adminUserDeletePage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  String(
-    <Layout title={`${t("users.delete_user.heading")}: ${user.username}`}>
-      <AdminNav active="/admin/users" session={session} />
-
-      <ConfirmForm
-        action={`/admin/users/${user.id}/delete`}
-        buttonText={t("users.delete_user.submit")}
-        label={t("common.username")}
-        name={user.username}
-      >
+  ConfirmPage({
+    action: `/admin/users/${user.id}/delete`,
+    active: "/admin/users",
+    buttonText: t("users.delete_user.submit"),
+    children: (
+      <>
         <h1>{t("users.delete_user.heading")}</h1>
-        <Flash error={error} />
         <p>
           {t("users.delete_user.warning", {
             level: user.adminLevel,
@@ -238,9 +237,14 @@ export const adminUserDeletePage = (
         <p>
           {t("users.delete_user.confirm_prompt", { username: user.username })}
         </p>
-      </ConfirmForm>
-    </Layout>,
-  );
+      </>
+    ),
+    error,
+    label: t("common.username"),
+    name: user.username,
+    session,
+    title: `${t("users.delete_user.heading")}: ${user.username}`,
+  });
 
 /**
  * Admin invite user page
@@ -250,20 +254,18 @@ export const adminUserNewPage = (
   agents: LogisticsAgent[],
   error?: string,
 ): string =>
-  String(
-    <Layout title={t("users.invite.title")}>
-      <AdminNav active="/admin/users" session={session} />
-
-      <CsrfForm action="/admin/users">
-        <h1>{t("users.invite.heading")}</h1>
-        <Flash error={error} />
-        <Raw html={renderFields(getInviteUserFields())} />
-        {agents.length > 0 && (
-          <AgentSelector agents={agents} selected={new Set()} />
-        )}
-        <SubmitButton icon="user-plus">{t("users.invite.submit")}</SubmitButton>
-      </CsrfForm>
-    </Layout>,
+  errorAdminPage(t("users.invite.title"), "/admin/users")(session, error)(
+    <NewResourceForm
+      action="/admin/users"
+      fieldsHtml={renderFields(getInviteUserFields())}
+      submitIcon="user-plus"
+      submitLabel={t("users.invite.submit")}
+      title={t("users.invite.heading")}
+    >
+      {agents.length > 0 && (
+        <AgentSelector agents={agents} selected={new Set()} />
+      )}
+    </NewResourceForm>,
   );
 
 /**
@@ -276,12 +278,15 @@ export const adminUserAgentsPage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  String(
-    <Layout title={`${t("users.agents.title")}: ${user.username}`}>
-      <AdminNav active="/admin/users" session={session} />
-
+  errorAdminPage(
+    `${t("users.agents.title")}: ${user.username}`,
+    "/admin/users",
+  )(
+    session,
+    error,
+  )(
+    <>
       <h1>{t("users.agents.heading", { username: user.username })}</h1>
-      <Flash error={error} />
       {agents.length === 0 ? (
         <p>
           <em>
@@ -295,5 +300,5 @@ export const adminUserAgentsPage = (
           <SubmitButton icon="save">{t("users.agents.save")}</SubmitButton>
         </CsrfForm>
       )}
-    </Layout>,
+    </>,
   );

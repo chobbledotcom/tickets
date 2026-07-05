@@ -62,16 +62,15 @@ describe("verifyAttachmentUrl", () => {
     fakeTime.restore();
   });
 
-  test("accepts a freshly signed URL's parameters", async () => {
+  const signAndVerify = async (midStep?: () => void): Promise<boolean> => {
     const url = await signAttachmentUrl(5, 10);
     const params = new URL(`http://x${url}`).searchParams;
-    const result = await verifyAttachmentUrl(
-      5,
-      10,
-      params.get("exp")!,
-      params.get("sig")!,
-    );
-    expect(result).toBe(true);
+    midStep?.();
+    return verifyAttachmentUrl(5, 10, params.get("exp")!, params.get("sig")!);
+  };
+
+  test("accepts a freshly signed URL's parameters", async () => {
+    expect(await signAndVerify()).toBe(true);
   });
 
   test("rejects tampered signature", async () => {
@@ -112,17 +111,7 @@ describe("verifyAttachmentUrl", () => {
   });
 
   test("rejects expired URL", async () => {
-    const url = await signAttachmentUrl(5, 10);
-    const params = new URL(`http://x${url}`).searchParams;
-    // Advance time past the expiry
-    fakeTime.tick(3601 * 1000);
-    const result = await verifyAttachmentUrl(
-      5,
-      10,
-      params.get("exp")!,
-      params.get("sig")!,
-    );
-    expect(result).toBe(false);
+    expect(await signAndVerify(() => fakeTime.tick(3601 * 1000))).toBe(false);
   });
 
   test("rejects non-numeric exp", async () => {

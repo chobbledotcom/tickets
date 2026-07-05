@@ -3,12 +3,11 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getAllUsers } from "#shared/db/users.ts";
 import {
   adminFormPost,
-  awaitTestRequest,
+  adminGet,
   describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
   TEST_ADMIN_USERNAME,
-  testCookie,
 } from "#test-utils";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
@@ -19,9 +18,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         username: "todelete",
       });
 
-      const response = await awaitTestRequest("/admin/users/2/delete", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/users/2/delete");
       await expectHtmlResponse(
         response,
         200,
@@ -32,16 +29,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("returns 404 for nonexistent user", async () => {
-      const response = await awaitTestRequest("/admin/users/999/delete", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/users/999/delete");
       expect(response.status).toBe(404);
     });
 
     test("rejects deleting self", async () => {
-      const response = await awaitTestRequest("/admin/users/1/delete", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/users/1/delete");
       await expectHtmlResponse(response, 400, "Cannot delete your own account");
     });
   });

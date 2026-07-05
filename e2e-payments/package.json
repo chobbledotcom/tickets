@@ -1,0 +1,15 @@
+{
+  "name": "tickets-e2e-payments",
+  "private": true,
+  "type": "module",
+  "description": "Browser-driven end-to-end payment tests against real provider sandboxes (Stripe/Square/SumUp). Isolated from the Deno app; not part of the normal test suite.",
+  "scripts": {
+    "e2e": "tsx src/main.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "playwright": "^1.49.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

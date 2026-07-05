@@ -14,7 +14,7 @@ import {
 } from "#shared/accounting/mappers.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv, rejectionMessage } from "#test-utils";
 
 // balanceOf ignores id, so a constant id keeps these as plain value assertions.
 const asTransfer = (t: TransferInput): Transfer => ({
@@ -34,35 +34,30 @@ const facts = (overrides: Partial<BookingFacts> = {}): BookingFacts => ({
   ...overrides,
 });
 
-/** Run a promise expected to reject and return the thrown message. */
-const rejectionMessage = async (promise: Promise<unknown>): Promise<string> => {
-  try {
-    await promise;
-  } catch (error) {
-    return (error as Error).message;
-  }
-  return "";
+/** The canonical "paid booking that nets to zero" fixture: 5000 + 3000 gross,
+ *  −500 discount + 200 surcharge + 150 booking fee, paid at 7850. Used by the
+ *  `mapBooking` net-zero test (booking legs) and `mapRefund` reversal test
+ *  (refund legs must zero every account back out), so both share the exact
+ *  same booking facts rather than re-spelling them. */
+const paidBookingNettingToZero: Partial<BookingFacts> = {
+  amountPaid: 7850,
+  bookingFee: 150,
+  lines: [
+    { gross: 5000, listingId: 1 },
+    { gross: 3000, listingId: 2 },
+  ],
+  modifiers: [
+    { delta: -500, modifierId: 10 }, // discount
+    { delta: 200, modifierId: 11 }, // surcharge
+  ],
 };
 
 describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
   describe("mapBooking", () => {
     test("books gross, modifiers, fee and payment; a paid booking nets to zero", async () => {
-      const legs = (
-        await mapBooking(
-          facts({
-            amountPaid: 7850,
-            bookingFee: 150,
-            lines: [
-              { gross: 5000, listingId: 1 },
-              { gross: 3000, listingId: 2 },
-            ],
-            modifiers: [
-              { delta: -500, modifierId: 10 }, // discount
-              { delta: 200, modifierId: 11 }, // surcharge
-            ],
-          }),
-        )
-      ).map(asTransfer);
+      const legs = (await mapBooking(facts(paidBookingNettingToZero))).map(
+        asTransfer,
+      );
 
       // 8000 gross + 200 surcharge + 150 fee − 500 discount − 7850 paid = 0
       expect(balanceOf(attendeeAccount(3))(legs)).toBe(0);
@@ -233,23 +228,38 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
         )
       ).map(asTransfer);
 
-    test("reverses every leg so revenue, the attendee and cash return to zero", async () => {
-      const order = await bookingOrder({
-        amountPaid: 7850,
-        bookingFee: 150,
-        lines: [
-          { gross: 5000, listingId: 1 },
-          { gross: 3000, listingId: 2 },
-        ],
-        modifiers: [
-          { delta: -500, modifierId: 10 },
-          { delta: 200, modifierId: 11 },
-        ],
-      });
+    const refundAndAll = async (
+      order: Transfer[],
+    ): Promise<{ refund: Transfer[]; all: Transfer[] }> => {
       const refund = (
         await mapRefund({ occurredAt: REFUND_AT, orderLegs: order })
       ).map(asTransfer);
-      const all = [...order, ...refund];
+      return { all: [...order, ...refund], refund };
+    };
+
+    test("stamps the caller's memo and actor on every refund leg", async () => {
+      // The memo (a PII-free reason code) and postedBy are the refund's audit
+      // trail; a leg that loses either loses the "why" of the reversal.
+      const order = await bookingOrder();
+      const refund = await mapRefund({
+        memo: "auto_refund:sold_out",
+        occurredAt: REFUND_AT,
+        orderLegs: order,
+        postedBy: "user:5",
+      });
+      expect(refund.length).toBeGreaterThan(0);
+      for (const leg of refund) {
+        expect(leg.memo).toBe("auto_refund:sold_out");
+        expect(leg.postedBy).toBe("user:5");
+      }
+      // A memo-less refund omits the field rather than stamping undefined.
+      const bare = await mapRefund({ occurredAt: REFUND_AT, orderLegs: order });
+      expect(bare.every((leg) => !("memo" in leg))).toBe(true);
+    });
+
+    test("reverses every leg so revenue, the attendee and cash return to zero", async () => {
+      const order = await bookingOrder(paidBookingNettingToZero);
+      const { all } = await refundAndAll(order);
       expect(balanceOf(revenueAccount(1))(all)).toBe(0);
       expect(balanceOf(revenueAccount(2))(all)).toBe(0);
       expect(balanceOf(modifierAccount(10))(all)).toBe(0);
@@ -264,10 +274,7 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
         amountPaid: 2000,
         lines: [{ gross: 10000, listingId: 1 }],
       });
-      const refund = (
-        await mapRefund({ occurredAt: REFUND_AT, orderLegs: order })
-      ).map(asTransfer);
-      const all = [...order, ...refund];
+      const { all, refund } = await refundAndAll(order);
       expect(balanceOf(revenueAccount(1))(all)).toBe(0);
       expect(balanceOf(attendeeAccount(3))(all)).toBe(0); // owes nothing now
       const cash = refund.filter((l) => l.kind === "refund_cash");
@@ -344,7 +351,7 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
         occurredAt: REFUND_AT,
         orderLegs: [
           { ...base, kind: "adjustment", reference: "a" },
-          { ...base, kind: undefined, reference: "b" },
+          { ...base, reference: "b" },
         ],
       });
       expect(refund.map((l) => l.kind)).toEqual([

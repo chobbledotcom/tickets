@@ -11,6 +11,7 @@
 import type { InValue } from "@libsql/client";
 import { compact, mapParallel, sumOf } from "#fp";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
 import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { guardedInsertStatement } from "#shared/accounting/rows.ts";
@@ -18,6 +19,7 @@ import { decrypt } from "#shared/crypto/encryption.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
+import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   pricePaidFromLedger,
   remainingBalanceFromLedger,
@@ -28,6 +30,15 @@ import {
   queryOne,
 } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
+
+/**
+ * The event group a balance settlement's payment leg posts under, keyed on the
+ * paying checkout's session id. The single place this key is built, so a ledger
+ * preflight can ask whether a balance session was already settled (its leg is
+ * stored) and replay rather than re-settle or refund an already-paid balance.
+ */
+export const balanceEventGroup = (sessionId: string): Promise<string> =>
+  eventGroup(["balance", sessionId]);
 
 /** Plaintext reservation state for an attendee. */
 export type AttendeeBalanceState = {
@@ -43,8 +54,8 @@ export const getAttendeeBalanceState = async (
     status_id: number | null;
     remaining_balance: number;
   }>(
-    `SELECT status_id, ${remainingBalanceFromLedger("attendees.id")} FROM attendees WHERE id = ?`,
-    [attendeeId],
+    `SELECT status_id, ${remainingBalanceFromLedger("attendees.id")} FROM attendees WHERE id = ? AND kind = ?`,
+    [attendeeId, ATTENDEE_KIND],
   );
   return row
     ? {
@@ -87,18 +98,22 @@ type OrderRow = {
 
 const getAttendeeOrderRows = (attendeeId: number): Promise<OrderRow[]> =>
   queryAll<OrderRow>(
+    // quantity > 0: a no-quantity sentinel line is not an order line — exclude it
+    // so the pay page shows (and checks out against) a real product, never a
+    // lower-id ghost.
     `SELECT listingAttendee.listing_id,
             listingAttendee.quantity,
             ${pricePaidFromLedger(
               "listingAttendee.attendee_id",
               "listingAttendee.listing_id",
               "listingAttendee.ledger_event_group",
+              "listingAttendee.id",
             )},
             listing.name AS listing_name,
             listing.unit_price AS listing_unit_price
        FROM listing_attendees AS listingAttendee
        LEFT JOIN listings AS listing ON listing.id = listingAttendee.listing_id
-      WHERE listingAttendee.attendee_id = ?
+      WHERE listingAttendee.attendee_id = ? AND listingAttendee.quantity > 0
       ORDER BY listingAttendee.id`,
     [attendeeId],
   );
@@ -200,10 +215,10 @@ export const settleAttendeeBalance = async (
       {
         amount: expectedAmount,
         destination: attendeeAccount(attendeeId),
-        eventGroup: await eventGroup(["balance", settle.id]),
-        kind: "payment",
+        eventGroup: await balanceEventGroup(settle.id),
+        kind: KIND.payment,
         occurredAt: settle.occurredAt,
-        reference: await legReference(["balance", settle.id, "payment"]),
+        reference: await legReference(["balance", settle.id, KIND.payment]),
         source: WORLD,
       },
       nowIso(),
@@ -217,8 +232,13 @@ export const settleAttendeeBalance = async (
   if (results[0]!.rowsAffected === 0)
     return { reason: "amount_mismatch", settled: false };
 
+  // The logged-activity / returned listing is the attendee's first real line.
+  // A settle implies an owed balance, which implies a sale leg, which can only
+  // sit on a quantity > 0 line (a paid line can't be marked no-quantity), so a
+  // real line normally exists; the lookup stays nullable for a purely
+  // ledger-owed attendee with no booking row.
   const firstListing = await queryOne<{ listing_id: number }>(
-    "SELECT listing_id FROM listing_attendees WHERE attendee_id = ? ORDER BY id LIMIT 1",
+    "SELECT listing_id FROM listing_attendees WHERE attendee_id = ? AND quantity > 0 ORDER BY id LIMIT 1",
     [attendeeId],
   );
   const listingId = firstListing ? firstListing.listing_id : null;

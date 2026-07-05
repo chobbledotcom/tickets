@@ -21,7 +21,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     testRequiresAuth("/admin/guide");
 
     test("renders guide page when authenticated", async () => {
-      const { response } = await adminGet("/admin/guide");
+      const response = await adminGet("/admin/guide");
       await expectHtmlResponse(response, 200, "Guide");
     });
 
@@ -198,7 +198,23 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains allow pay more info with max price", async () => {
-      await assertAdminHtml("/admin/guide", "Allow Pay More", "maximum", "£1");
+      await assertAdminHtml(
+        "/admin/guide",
+        "Allow Pay More",
+        "maximum",
+        // formatCurrency strips the trailing zeros from whole amounts: £1.
+        "at least £1 more than the ticket price",
+      );
+    });
+
+    test("anchors each linkable section", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        'id="text-formatting"',
+        'id="packages"',
+        'id="modifiers"',
+        'id="questions"',
+      );
     });
 
     test("contains purchase only info", async () => {
@@ -254,6 +270,16 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         'id="text-formatting"',
         "Markdown",
         "markdownguide.org/cheat-sheet",
+      );
+    });
+
+    test("explains the visual markdown editor", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "How does the visual editor work?",
+        "Edit markdown",
+        "Edit visually",
+        "stored as plain Markdown",
       );
     });
 
@@ -315,7 +341,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains Google Wallet section", async () => {
-      const { response } = await adminGet("/admin/guide");
+      const response = await adminGet("/admin/guide");
       const html = await response.text();
       expect(html).toContain("Google Wallet");
       expect(html).toContain("Add to Google Wallet");
@@ -325,7 +351,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("shows default Google Wallet setup when no host config", async () => {
-      const { response } = await adminGet("/admin/guide");
+      const response = await adminGet("/admin/guide");
       const html = await response.text();
       expect(html).toContain("You need three values from");
       expect(html).not.toContain(
@@ -340,7 +366,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         serviceAccountKey: "pem-key-data",
       });
       try {
-        const { response } = await adminGet("/admin/guide");
+        const response = await adminGet("/admin/guide");
         const html = await response.text();
         expect(html).toContain(
           "already configured by your server administrator",
@@ -353,7 +379,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("hides built sites section when builder is disabled", async () => {
-      const { response } = await adminGet("/admin/guide");
+      const response = await adminGet("/admin/guide");
       const html = await response.text();
       expect(html).not.toContain('id="built-sites"');
     });
@@ -489,14 +515,14 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
   describe("guide section structure", () => {
     const guideHtml = async (): Promise<string> => {
-      const { response } = await adminGet("/admin/guide");
+      const response = await adminGet("/admin/guide");
       return response.text();
     };
 
     // Modifiers renders as its own <h3> section immediately before Booking
     // Questions, so the slice between those two headings is exactly the
     // Modifiers section's body — every <summary> in it is a Modifiers FAQ.
-    test("Modifiers section contains exactly its own two FAQs", async () => {
+    test("Modifiers section contains exactly its own three FAQs", async () => {
       const html = await guideHtml();
       const start = html.indexOf(`>${t("guide.sections.modifiers")}</h3>`);
       const end = html.indexOf(
@@ -512,6 +538,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       expect(summaries).toEqual([
         t("guide.q.what_are_modifiers"),
         t("guide.q.how_modifier_values_work"),
+        t("guide.q.modifier_value_precision"),
       ]);
     });
 

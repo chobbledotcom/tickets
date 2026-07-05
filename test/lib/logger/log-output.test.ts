@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { type Spy, spy } from "@std/testing/mock";
+import { type Spy, spy, stub } from "@std/testing/mock";
 import {
   createRequestTimer,
   logDebug,
@@ -119,5 +119,19 @@ describe("createRequestTimer", () => {
     const first = getElapsed();
     const second = getElapsed();
     expect(second).toBeGreaterThanOrEqual(first);
+  });
+
+  test("reports elapsed as now minus start, not a ratio", () => {
+    // Drive performance.now() deterministically so the elapsed value is the
+    // exact difference (subtraction), not now/start (which would round to ~1).
+    let clock = 1000;
+    const perfStub = stub(performance, "now", () => clock);
+    try {
+      const getElapsed = createRequestTimer(); // start = 1000
+      clock = 1500;
+      expect(getElapsed()).toBe(500);
+    } finally {
+      perfStub.restore();
+    }
   });
 });

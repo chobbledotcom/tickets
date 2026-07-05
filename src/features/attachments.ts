@@ -13,7 +13,7 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { verifyAttachmentUrl } from "#shared/attachment-url.ts";
 import {
-  getAttendeeRaw,
+  hasActiveBookingLine,
   incrementAttachmentDownloads,
 } from "#shared/db/attendees.ts";
 import { getListing } from "#shared/db/listings.ts";
@@ -97,9 +97,10 @@ const handleAttachmentDownload: TypedRouteHandler<
   const listing = await getListing(id);
   if (!listing?.attachment_url) return notFoundResponse();
 
-  // Verify attendee exists and belongs to this listing
-  const attendee = await getAttendeeRaw(attendeeId);
-  if (!attendee || attendee.listing_id !== id) return forbiddenResponse();
+  // Authorize against the EXACT (attendee, listing) booking row with a real
+  // (quantity > 0) line — not a left-joined sibling row. A line later marked
+  // no-quantity stops authorizing the protected attachment.
+  if (!(await hasActiveBookingLine(attendeeId, id))) return forbiddenResponse();
 
   // Download and decrypt from CDN
   const data = await downloadImage(listing.attachment_url);

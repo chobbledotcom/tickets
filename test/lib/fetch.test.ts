@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { fetchText } from "#shared/fetch.ts";
+import { fetchText, parseApiError } from "#shared/fetch.ts";
 
 describe("fetchText", () => {
   let fetchStub: ReturnType<typeof stub<typeof globalThis, "fetch">>;
@@ -81,5 +81,59 @@ describe("fetchText", () => {
     await expect(fetchText("https://example.com/fail")).rejects.toThrow(
       "Network error",
     );
+  });
+});
+
+describe("parseApiError", () => {
+  test("extracts the 'message' field and reports ok:false", () => {
+    const result = parseApiError(
+      { status: 400, text: '{"message":"Bad input"}' },
+      "Turso",
+    );
+    expect(result).toEqual({
+      error: "Turso failed (400): Bad input",
+      ok: false,
+    });
+  });
+
+  test("falls back to the 'error' field when 'message' is absent", () => {
+    const result = parseApiError(
+      { status: 500, text: '{"error":"boom"}' },
+      "Deploy",
+    );
+    expect(result).toEqual({ error: "Deploy failed (500): boom", ok: false });
+  });
+
+  test("prefers 'message' over 'error' (first matching key wins)", () => {
+    const result = parseApiError(
+      { status: 422, text: '{"message":"primary","error":"secondary"}' },
+      "Bunny",
+    );
+    expect(result.error).toBe("Bunny failed (422): primary");
+  });
+
+  test("honours a custom key list", () => {
+    const result = parseApiError(
+      { status: 403, text: '{"detail":"nope","message":"ignored"}' },
+      "Custom",
+      ["detail"],
+    );
+    expect(result.error).toBe("Custom failed (403): nope");
+  });
+
+  test("uses the raw text when the body is not JSON", () => {
+    const result = parseApiError(
+      { status: 502, text: "Bad Gateway" },
+      "Upstream",
+    );
+    expect(result.error).toBe("Upstream failed (502): Bad Gateway");
+  });
+
+  test("uses the raw text when JSON has no matching key", () => {
+    const result = parseApiError(
+      { status: 400, text: '{"unexpected":"shape"}' },
+      "Api",
+    );
+    expect(result.error).toBe('Api failed (400): {"unexpected":"shape"}');
   });
 });

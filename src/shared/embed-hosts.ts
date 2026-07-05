@@ -38,7 +38,7 @@ export const validateHostPattern = (host: string): string | null => {
 export const parseEmbedHosts = (input: string): string[] =>
   pipe(
     map((s: string) => s.trim().toLowerCase()),
-    filter((s: string) => s !== ""),
+    filter((s) => s !== ""),
   )(input.split(","));
 
 /**

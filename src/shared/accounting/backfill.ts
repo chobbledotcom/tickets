@@ -33,12 +33,23 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { groupBy } from "#fp";
-import { mapBooking, mapRefund } from "#shared/accounting/mappers.ts";
+import { groupBy, sumOf } from "#fp";
+import { ATTENDEE } from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
+import {
+  asOrderLegs,
+  mapBooking,
+  mapRefund,
+} from "#shared/accounting/mappers.ts";
 import { accountBalancesForIds } from "#shared/accounting/queries.ts";
 import { insertStatement, orIgnore } from "#shared/accounting/rows.ts";
-import { executeBatch, inPlaceholders, queryAll } from "#shared/db/client.ts";
-import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
+import {
+  executeBatch,
+  inPlaceholders,
+  queryAll,
+  type SqlStatement,
+} from "#shared/db/client.ts";
+import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 import { toCanonicalIso } from "#shared/payment-helpers.ts";
 
@@ -52,10 +63,6 @@ type PaidRow = {
 };
 
 /** A leg INSERT or row-stamp UPDATE the backfill writes to the database. */
-type Statement = { sql: string; args: InValue[] };
-
-/** The `attendee` account type — what the receivable legs are keyed under. */
-const ATTENDEE = "attendee";
 
 /**
  * Attendees are paged so a large booking history never loads all at once, and
@@ -121,7 +128,7 @@ const attendeeLegs = async (
     );
   }
   const bookingLegs = await mapBooking({
-    amountPaid: rows.reduce((sum, row) => sum + Number(row.price_paid), 0),
+    amountPaid: sumOf((row: PaidRow) => Number(row.price_paid))(rows),
     attendeeId,
     bookingFee: 0,
     eventId: `backfill:att:${attendeeId}`,
@@ -138,14 +145,11 @@ const attendeeLegs = async (
   // may carry the flag on a single line. Treat any flagged line as a full-order
   // refund and reverse the whole booking rather than under-reversing it.
   if (!rows.some((row) => Number(row.refunded) !== 0)) return bookingLegs;
-  // mapRefund reads only money-identity fields (never id/recordedAt), so the
-  // freshly mapped booking legs stand in for the not-yet-stored ones.
-  const orderLegs: Transfer[] = bookingLegs.map((leg) => ({
-    ...leg,
-    id: 0,
-    recordedAt: occurredAt,
-  }));
-  return [...bookingLegs, ...(await mapRefund({ occurredAt, orderLegs }))];
+  const refundLegs = await mapRefund({
+    occurredAt,
+    orderLegs: asOrderLegs(bookingLegs, occurredAt),
+  });
+  return [...bookingLegs, ...refundLegs];
 };
 
 /** The UPDATE that links an attendee's booking rows to their order's ledger
@@ -167,8 +171,8 @@ const stampFromExistingStatement = (
   args: [String(attendeeId), attendeeId],
   sql:
     "UPDATE listing_attendees SET ledger_event_group = COALESCE(" +
-    "(SELECT event_group FROM transfers WHERE source_type = 'attendee'" +
-    " AND source_id = ? AND kind = 'sale' LIMIT 1), '') WHERE attendee_id = ?",
+    `(SELECT event_group FROM transfers WHERE source_type = '${ATTENDEE}'` +
+    ` AND source_id = ? AND kind = '${KIND.sale}' LIMIT 1), '') WHERE attendee_id = ?`,
 });
 
 /** The leg-INSERT and row-stamp statements for one not-yet-ledgered attendee.
@@ -180,7 +184,7 @@ const attendeeStatements = async (
   attendeeId: number,
   rows: PaidRow[],
   recordedAt: string,
-): Promise<Statement[]> => {
+): Promise<SqlStatement[]> => {
   const legs = await attendeeLegs(attendeeId, rows);
   return [
     ...legs.map((leg) => orIgnore(insertStatement(leg, recordedAt))),
@@ -207,7 +211,7 @@ export const backfillTransfers = async (
       Number(row.attendee_id),
     );
     const recordedAt = nowIso();
-    const statements: Statement[] = [];
+    const statements: SqlStatement[] = [];
     for (const [attendeeId, rows] of groups) {
       // Already ledgered by the live dual-write path: don't re-post, but still
       // stamp the row→event link from the existing booking's sale leg so the

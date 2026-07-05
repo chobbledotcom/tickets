@@ -43,6 +43,16 @@ export const cachedEntityTable = <Row, Input, Cached = Row>(
   return { cache, table };
 };
 
+/** Stored values of the trigger-maintained aggregate columns `F`, keyed by column. */
+export type AggregateValues<F extends string> = Record<F, number>;
+
+/** Per-column comparison of each aggregate `F`'s stored value against its
+ * rebuilt-from-source value — what the "recalculate aggregates" tools return. */
+export type AggregateRecalculation<F extends string> = Record<
+  F,
+  { current: number; recalculated: number }
+>;
+
 type EncryptFn = (v: string) => Promise<string>;
 type DecryptFn = (v: string) => Promise<string>;
 

@@ -71,11 +71,9 @@ export {
 export const dedupeEmails = (emails: string[]): string[] =>
   pipe(
     map((e: string) => e.trim()),
-    filter((e: string) => e !== ""),
-    uniqueBy((e: string) => e.toLowerCase()),
-    sort((a: string, b: string) =>
-      a.toLowerCase().localeCompare(b.toLowerCase()),
-    ),
+    filter((e) => e !== ""),
+    uniqueBy((e) => e.toLowerCase()),
+    sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())),
   )(emails);
 
 /**

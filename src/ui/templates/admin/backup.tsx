@@ -2,14 +2,18 @@
  * Admin backup/restore page template
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
-import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { flashAdminPage } from "#templates/admin/admin-page.tsx";
+import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
-import { colClass } from "#templates/components/table-columns.ts";
-import { Layout } from "#templates/layout.tsx";
+import { DataTable } from "#templates/components/data-table.tsx";
+import { ErrorAlert } from "#templates/components/error-alert.tsx";
+import { ProseHeading } from "#templates/components/prose-heading.tsx";
+/* jscpd:ignore-end */
 
 export type BackupEntry = {
   filename: string;
@@ -17,6 +21,9 @@ export type BackupEntry = {
   label: string;
   /** Human-readable file size, e.g. "1MB" */
   sizeLabel: string;
+  /** Raw UTC timestamp exactly as it appears in the backup's filename,
+   *  e.g. "2024-01-15T12-30-00-000Z" — the backup's unambiguous identifier. */
+  timestamp: string;
 };
 
 export type BackupPageState = {
@@ -58,18 +65,15 @@ export const adminBackupPage = (
   error?: string,
   success?: string,
 ): string =>
-  String(
-    <Layout title={t("backup.page_title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <div class="prose">
-        <h1>{t("backup.heading")}</h1>
+  flashAdminPage(t("backup.page_title"))(session, error, success)(
+    <>
+      <ProseHeading heading={t("backup.heading")}>
         <p class="actions">
           <GuideLink href="/admin/guide#backups">
             {t("backup.guide_link")}
           </GuideLink>
         </p>
-      </div>
-      <Flash error={error} success={success} />
+      </ProseHeading>
 
       {!state.isRemote && (
         <p>
@@ -123,32 +127,22 @@ export const adminBackupPage = (
                   backups={state.backups}
                   maxBackups={state.maxBackups}
                 />
-                <div class="table-scroll">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>{t("common.created")}</th>
-                        <th>{t("backup.table_size")}</th>
-                        <th class={colClass("actions")}>
-                          {t("common.actions")}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {state.backups.map((b) => (
-                        <tr>
-                          <td>{b.label}</td>
-                          <td>{b.sizeLabel}</td>
-                          <td class={colClass("actions")}>
-                            <a href={`/admin/backup/download/${b.filename}`}>
-                              {t("backup.download_link")}
-                            </a>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable
+                  columns={[
+                    { header: t("common.created") },
+                    { header: t("backup.table_timestamp") },
+                    { header: t("backup.table_size") },
+                    { class: "actions", header: t("common.actions") },
+                  ]}
+                  rows={state.backups.map((b) => [
+                    b.label,
+                    <code>{b.timestamp}</code>,
+                    b.sizeLabel,
+                    <a href={`/admin/backup/download/${b.filename}`}>
+                      {t("backup.download_link")}
+                    </a>,
+                  ])}
+                />
               </>
             )}
           </section>
@@ -176,7 +170,7 @@ export const adminBackupPage = (
           </section>
         </>
       )}
-    </Layout>,
+    </>,
   );
 
 export const RESTORE_CONFIRM_PHRASE =
@@ -189,24 +183,15 @@ export const adminRestoreConfirmPage = (
   error?: string,
   schemaMismatch?: boolean,
 ): string =>
-  String(
-    <Layout title={t("backup.confirm_restore_title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <ConfirmForm
-        action="/admin/backup/restore/confirm"
-        buttonText={t("backup.restore_button")}
-        hiddenFields={{ backup_filename: filename }}
-        id="backup-restore-confirm"
-        label={t("backup.confirmation_label")}
-        name={RESTORE_CONFIRM_PHRASE}
-      >
+  ConfirmPage({
+    action: "/admin/backup/restore/confirm",
+    active: "/admin/settings",
+    buttonText: t("backup.restore_button"),
+    children: (
+      <>
         <h1>{t("backup.confirm_restore_heading")}</h1>
-        <Flash error={error} />
-
         {schemaMismatch && (
-          <div class="error" role="alert">
-            <Raw html={t("backup.schema_mismatch_warning")} />
-          </div>
+          <ErrorAlert message={t("backup.schema_mismatch_warning")} />
         )}
         <p>
           <Raw html={t("backup.restore_confirmation_intro", { lineCount })} />
@@ -220,6 +205,13 @@ export const adminRestoreConfirmPage = (
           <Raw html={t("backup.restore_cannot_undo")} />{" "}
           <code>{RESTORE_CONFIRM_PHRASE}</code> {t("backup.restore_type_below")}
         </p>
-      </ConfirmForm>
-    </Layout>,
-  );
+      </>
+    ),
+    error,
+    hiddenFields: { backup_filename: filename },
+    id: "backup-restore-confirm",
+    label: t("backup.confirmation_label"),
+    name: RESTORE_CONFIRM_PHRASE,
+    session,
+    title: t("backup.confirm_restore_title"),
+  });

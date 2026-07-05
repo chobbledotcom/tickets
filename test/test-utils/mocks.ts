@@ -1,11 +1,16 @@
+import { expect } from "@std/expect";
 import { afterEach, beforeEach } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { type Stub, stub } from "@std/testing/mock";
 import { bracket } from "#fp";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
-import type { TestRequestOptions } from "#test-utils/internal.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import {
+  TEST_STORAGE_ZONE,
+  type TestRequestOptions,
+} from "#test-utils/internal.ts";
 
 export const mockRequestWithHost = (
   path: string,
@@ -38,6 +43,21 @@ export const mockFormRequest = (
     headers,
     method: "POST",
   });
+};
+
+/** Build a JSON API `Request` (no auth) for passing to `handleRequest`. */
+export const jsonRequest = (
+  path: string,
+  options: { method?: string; body?: Record<string, unknown> | undefined } = {},
+): Request => {
+  const { method = "GET", body } = options;
+  const headers: Record<string, string> = { host: "localhost" };
+  const init: RequestInit = { headers, method };
+  if (body) {
+    headers["content-type"] = "application/json";
+    init.body = JSON.stringify(body);
+  }
+  return new Request(`http://localhost${path}`, init);
 };
 
 export const mockAdminLoginRequest = async (
@@ -121,12 +141,10 @@ export const urlFromFetchInput = (input: string | URL | Request): string =>
       : input.url;
 
 export const withExpectedError = bracket(
-  () => {
-    Deno.env.set("TEST_EXPECT_ERROR", "1");
-  },
-  () => {
-    Deno.env.delete("TEST_EXPECT_ERROR");
-  },
+  // Overlay-scoped so the flag stays inside this worker: written to the real
+  // process env it would make every parallel test worker swallow its errors.
+  () => setTestEnv({ TEST_EXPECT_ERROR: "1" }),
+  (restore) => restore(),
 );
 
 export const withFetchMock = bracket(
@@ -193,6 +211,133 @@ export const installUrlHandler = (
   };
 };
 
+/** One recorded `fetch` call: the request URL and the parsed JSON body
+ *  (or `null` when the request had no string body). */
+export type RecordedFetchCall = {
+  url: string;
+  body: Record<string, unknown> | null;
+};
+
+/** Install a `fetch` stub that records every call's URL and parsed JSON body
+ *  and lets `respond` produce the Response. When `respond` returns `null` the
+ *  call falls through to the original `fetch`, so unrelated URLs keep working.
+ *  Returns the recorded calls plus an `emailCall` helper that finds the Resend
+ *  send-email request (the one assertion every email-sending test makes) and a
+ *  `restore` to put the original `fetch` back. */
+export const installRecordingFetch = (
+  respond: (
+    url: string,
+    init?: RequestInit,
+  ) => Response | Promise<Response> | null,
+): {
+  calls: RecordedFetchCall[];
+  emailCall: () => RecordedFetchCall | undefined;
+  restore: () => void;
+} => {
+  const original = globalThis.fetch;
+  const calls: RecordedFetchCall[] = [];
+  installUrlHandler(original, (url, init) => {
+    const raw = init?.body;
+    calls.push({ body: typeof raw === "string" ? JSON.parse(raw) : null, url });
+    const result = respond(url, init);
+    return result === null ? null : Promise.resolve(result);
+  });
+  return {
+    calls,
+    emailCall: () => calls.find((c) => c.url.includes("api.resend.com")),
+    restore: () => {
+      globalThis.fetch = original;
+    },
+  };
+};
+
+/** Stub `globalThis.fetch` to a 200-OK, run `body`, then assert on the
+ *  recorded calls (default: zero calls were made). Returns the stub's calls
+ *  for custom assertions. Unifies the "stub fetch then assert it wasn't
+ *  called" scaffold from the scheduled-tasks and migration-error tests. */
+export function okResponse(): Promise<Response> {
+  return Promise.resolve(new Response("ok"));
+}
+
+export const expectFetchSilent = async (
+  body: () => Promise<void>,
+  assert?: (calls: ReturnType<typeof stub>["calls"]) => void,
+): Promise<void> => {
+  const fetchStub = stub(globalThis, "fetch", okResponse);
+  try {
+    await body();
+    (
+      assert ??
+      ((calls) => {
+        expect(calls.length).toBe(0);
+      })
+    )(fetchStub.calls);
+  } finally {
+    fetchStub.restore();
+  }
+};
+
+/** Core of the storage-mock helpers: run `body` with a fetch mock whose URL
+ *  `handler` intercepts requests (non-matching URLs fall through to the real
+ *  fetch). When `withConfig` is true (default) the body also runs under the
+ *  standard Bunny test zone, so `isStorageEnabled()` is true and uploads target
+ *  the CDN; pass `false` to exercise the fetch mock with storage unconfigured. */
+const withStorageFetchMock = (
+  handler: (url: string, init?: RequestInit) => Promise<Response> | null,
+  body: () => Promise<void>,
+  withConfig = true,
+): Promise<void> => {
+  const run = (): Promise<void> =>
+    withFetchMock(async (originalFetch) => {
+      installUrlHandler(originalFetch, handler);
+      await body();
+    });
+  return withConfig ? runWithStorageConfig(TEST_STORAGE_ZONE, run) : run();
+};
+
+/** Run `body` under the standard test zone config with a fetch mock that
+ * answers every Bunny storage URL via `respond` (other URLs fall through). */
+export const withBunnyStorageStub = (
+  respond: (url: string, init?: RequestInit) => Promise<Response> | Response,
+  body: () => Promise<void>,
+): Promise<void> =>
+  withStorageFetchMock(
+    (url, init) =>
+      url.includes("storage.bunnycdn.com")
+        ? Promise.resolve(respond(url, init))
+        : null,
+    body,
+  );
+
+/** Run `body` with a fetch mock that records and 200s every Bunny
+ * storage-delete call, exposing the captured URLs. Wraps the standard test
+ * zone config unless `withConfig: false`; `extraHandler` can intercept a URL
+ * (e.g. to simulate a CDN failure) before the capture. */
+export const withBunnyDeleteCapture = (
+  body: (deletedUrls: string[]) => Promise<void>,
+  opts: {
+    withConfig?: boolean;
+    extraHandler?: (url: string) => Promise<Response> | null;
+  } = {},
+): Promise<void> => {
+  const deletedUrls: string[] = [];
+  return withStorageFetchMock(
+    (url) => {
+      const extra = opts.extraHandler?.(url);
+      if (extra) return extra;
+      if (url.includes("storage.bunnycdn.com")) {
+        deletedUrls.push(url);
+        return Promise.resolve(
+          new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
+        );
+      }
+      return null;
+    },
+    () => body(deletedUrls),
+    opts.withConfig !== false,
+  );
+};
+
 export const testRequest = (
   path: string,
   token?: string | null,
@@ -247,54 +392,44 @@ export const cdnOkResponse = (): Response =>
 
 export const withStorageMock = (
   fn: (fetchCalls: string[]) => Promise<void>,
+): Promise<void> => {
+  const fetchCalls: string[] = [];
+  return withStorageFetchMock(
+    (url) => {
+      fetchCalls.push(url);
+      if (url.includes("storage.bunnycdn.com") || url.includes("b-cdn.net")) {
+        return Promise.resolve(cdnOkResponse());
+      }
+      return null;
+    },
+    () => fn(fetchCalls),
+  );
+};
+
+const withCdnFetch = (
+  handle: (url: string) => Promise<Response> | null,
+  fn: () => Promise<void>,
 ): Promise<void> =>
-  runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, () =>
-    withFetchMock(async (originalFetch) => {
-      const fetchCalls: string[] = [];
-      installUrlHandler(originalFetch, (url) => {
-        fetchCalls.push(url);
-        if (url.includes("storage.bunnycdn.com") || url.includes("b-cdn.net")) {
-          return Promise.resolve(cdnOkResponse());
-        }
-        return null;
-      });
-      await fn(fetchCalls);
-    }),
+  withStorageFetchMock(
+    (url) => (url.includes("storage.bunnycdn.com") ? handle(url) : null),
+    fn,
   );
 
 export const withCdnProxy = (
   respond: () => Response,
   fn: () => Promise<void>,
-): Promise<void> =>
-  runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, () =>
-    withFetchMock(async (originalFetch) => {
-      installUrlHandler(originalFetch, (url) =>
-        url.includes("storage.bunnycdn.com")
-          ? Promise.resolve(respond())
-          : null,
-      );
-      await fn();
-    }),
-  );
+): Promise<void> => withCdnFetch(() => Promise.resolve(respond()), fn);
 
 export const withCdnRejecting = (
   error: Error,
   fn: () => Promise<void>,
-): Promise<void> =>
-  runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, () =>
-    withFetchMock(async (originalFetch) => {
-      installUrlHandler(originalFetch, (url) =>
-        url.includes("storage.bunnycdn.com") ? Promise.reject(error) : null,
-      );
-      await fn();
-    }),
-  );
+): Promise<void> => withCdnFetch(() => Promise.reject(error), fn);
 
 export const withStorageDisabled = <T>(fn: () => T): T =>
   runWithStorageConfig({ localPath: "", zoneKey: "", zoneName: "" }, fn);
 
 export const withStorageEnabled = <T>(fn: () => T): T =>
-  runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, fn);
+  runWithStorageConfig(TEST_STORAGE_ZONE, fn);
 
 export const withLocalStorageEnabled = async <T>(
   fn: (dir: string) => Promise<T>,
@@ -319,6 +454,39 @@ export const stubFetchJson = (body: unknown) =>
     Promise.resolve(new Response(JSON.stringify(body))),
   );
 
+/** Stub `fetch` to always resolve with a `Response` of the given status/body. */
+export const stubFetchStatus = (status: number, body: BodyInit | null = null) =>
+  stub(globalThis, "fetch", () =>
+    Promise.resolve(new Response(body, { status })),
+  );
+
+export const MOCK_RELEASE = {
+  assets: [
+    {
+      browser_download_url:
+        "https://github.com/chobbledotcom/tickets/releases/download/v2099-01-01-120000/bunny-script.ts",
+      name: "bunny-script.ts",
+    },
+  ],
+  name: "2099-01-01 - Big Update",
+  published_at: "2099-01-01T12:00:00Z",
+  tag_name: "v2099-01-01-120000",
+} as const;
+
+export const stubReleaseFetch = (
+  onDownload: () => Response = () =>
+    new Response("console.log('updated')", { status: 200 }),
+) =>
+  stub(globalThis, "fetch", (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("releases/latest")) {
+      return Promise.resolve(
+        new Response(JSON.stringify(MOCK_RELEASE), { status: 200 }),
+      );
+    }
+    return Promise.resolve(onDownload());
+  });
+
 export const stubFetchRecorder = (responseInit?: ResponseInit) => {
   const calls: import("#test-utils/internal.ts").FetchCall[] = [];
   const fetchStub = stub(
@@ -331,7 +499,11 @@ export const stubFetchRecorder = (responseInit?: ResponseInit) => {
       );
     },
   );
-  return { calls, restore: () => fetchStub.restore() };
+  return {
+    callCount: () => calls.length,
+    calls,
+    restore: () => fetchStub.restore(),
+  };
 };
 
 export const useFetchStub = () => {
@@ -410,4 +582,30 @@ export const randomString = (length: number): string => {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
+};
+
+const NTFY_TEST_TOPIC = "https://ntfy.sh/test-topic";
+
+export function okEmptyResponse(): Promise<Response> {
+  return Promise.resolve(new Response());
+}
+
+export const stubNtfyFetch = (
+  env: Record<string, string | undefined> = {},
+): { fetchStub: Stub; restore: () => void } => {
+  const restore = setTestEnv({ NTFY_URL: NTFY_TEST_TOPIC, ...env });
+  const fetchStub = stub(globalThis, "fetch", okEmptyResponse);
+  return { fetchStub, restore };
+};
+
+export const expectNtfyNotification = (
+  fetchStub: Stub,
+  expectedBody?: string,
+): ReturnType<typeof fetchStub.calls.find> => {
+  const ntfyCall = fetchStub.calls.find((c) => c.args[0] === NTFY_TEST_TOPIC);
+  expect(ntfyCall).toBeDefined();
+  if (expectedBody !== undefined) {
+    expect((ntfyCall!.args[1] as RequestInit).body).toBe(expectedBody);
+  }
+  return ntfyCall;
 };

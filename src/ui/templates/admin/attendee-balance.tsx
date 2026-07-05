@@ -1,22 +1,16 @@
 /**
  * Admin "reservation balance" panel for a single attendee: shows the deposit
  * /balance breakdown, the secure customer payment link, and the attendee's
- * payment history.
+ * payment history. Rendered as the attendee entity page's Balance tab.
  */
 
 import { t } from "#i18n";
-import { formatCurrency } from "#shared/currency.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { OrderSummary } from "#shared/db/attendees/balance.ts";
-import type { AdminSession } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
-import { BackButton } from "#templates/components/actions.tsx";
-import { Layout } from "#templates/layout.tsx";
+import { AmountLine } from "#templates/public/shared.tsx";
 
 export type AttendeeBalanceView = {
-  attendeeId: number;
-  session: AdminSession;
   status: AttendeeStatus | null;
   summary: OrderSummary;
   remainingBalance: number;
@@ -28,7 +22,9 @@ export type AttendeeBalanceView = {
   history: ActivityLogEntry[];
 };
 
-export const attendeeBalancePage = (view: AttendeeBalanceView): string => {
+export const AttendeeBalancePanel = (
+  view: AttendeeBalanceView,
+): JSX.Element => {
   const { status, summary, remainingBalance, deposit, link, history } = view;
   const outstanding = remainingBalance > 0;
   // The online /pay link only works for a reservation status with a provider
@@ -36,42 +32,34 @@ export const attendeeBalancePage = (view: AttendeeBalanceView): string => {
   // collection guidance instead.
   const showPayLink =
     outstanding && !!status?.is_reservation && view.paymentsEnabled;
-  return String(
-    <Layout title={t("attendee_balance.page_title")}>
-      <AdminNav active="/admin/attendees" session={view.session} />
-      <p>
-        <BackButton href={`/admin/attendees/${view.attendeeId}`}>
-          {t("attendee_balance.back_to_attendee")}
-        </BackButton>
-      </p>
+  return (
+    <>
       <div class="prose">
-        <h1>{t("attendee_balance.heading")}</h1>
+        <h3>{t("attendee_balance.heading")}</h3>
         <p>
           <strong>{t("attendee_balance.status_label")}</strong>{" "}
           {status ? status.name : "—"}
         </p>
-        <p>
-          <strong>{t("attendee_balance.full_order_price_label")}</strong>{" "}
-          {formatCurrency(summary.fullPrice)}
-        </p>
-        <p>
-          <strong>{t("attendee_balance.paid_so_far_label")}</strong>{" "}
-          {formatCurrency(summary.depositPaid)}
-        </p>
+        <AmountLine
+          amount={summary.fullPrice}
+          label={t("attendee_balance.full_order_price_label")}
+        />
+        <AmountLine
+          amount={summary.depositPaid}
+          label={t("attendee_balance.paid_so_far_label")}
+        />
         {status?.is_reservation && (
-          <p>
-            <strong>
-              {t("attendee_balance.reservation_deposit_label", {
-                amount: status.reservation_amount,
-              })}
-            </strong>{" "}
-            {formatCurrency(deposit)}
-          </p>
+          <AmountLine
+            amount={deposit}
+            label={t("attendee_balance.reservation_deposit_label", {
+              amount: status.reservation_amount,
+            })}
+          />
         )}
-        <p>
-          <strong>{t("attendee_balance.balance_outstanding_label")}</strong>{" "}
-          {formatCurrency(remainingBalance)}
-        </p>
+        <AmountLine
+          amount={remainingBalance}
+          label={t("attendee_balance.balance_outstanding_label")}
+        />
       </div>
 
       {!outstanding ? (
@@ -79,7 +67,7 @@ export const attendeeBalancePage = (view: AttendeeBalanceView): string => {
       ) : showPayLink ? (
         <article>
           <div class="prose">
-            <h2>{t("attendee_balance.payment_link_heading")}</h2>
+            <h3>{t("attendee_balance.payment_link_heading")}</h3>
             <p>{t("attendee_balance.payment_link_description")}</p>
             <p>
               <input class="copyable" readonly type="text" value={link} />
@@ -90,7 +78,7 @@ export const attendeeBalancePage = (view: AttendeeBalanceView): string => {
         <p>{t("attendee_balance.offline_balance_message")}</p>
       )}
 
-      <h2>{t("attendee_balance.history_heading")}</h2>
+      <h3>{t("attendee_balance.history_heading")}</h3>
       {history.length === 0 ? (
         <p>{t("attendee_balance.no_history_message")}</p>
       ) : (
@@ -102,6 +90,6 @@ export const attendeeBalancePage = (view: AttendeeBalanceView): string => {
           ))}
         </ul>
       )}
-    </Layout>,
+    </>
   );
 };

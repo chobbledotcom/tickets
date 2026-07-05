@@ -29,6 +29,10 @@ on:
         description: "Per-mutant timeout floor in ms (blank = tool default)"
         required: false
         default: ""
+      jobs:
+        description: "Concurrent test-file batches per mutant (blank = CPU-aware default)"
+        required: false
+        default: ""
 
 env:
   STRIPE_MOCK_VERSION: "0.188.0"
@@ -77,6 +81,7 @@ jobs:
           EXHAUSTIVE: ${{ inputs.exhaustive }}
           HARNESS: ${{ inputs.harness }}
           TIMEOUT: ${{ inputs.timeout }}
+          JOBS: ${{ inputs.jobs }}
           # The app/tests need a key present under --harness; this is the same
           # throwaway value the Test workflow uses, not a real secret.
           DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
@@ -85,5 +90,6 @@ jobs:
           if [ "$EXHAUSTIVE" = "true" ]; then args+=(--exhaustive); fi
           if [ "$HARNESS" = "true" ]; then args+=(--harness); fi
           if [ -n "$TIMEOUT" ]; then args+=(--timeout "$TIMEOUT"); fi
+          if [ -n "$JOBS" ]; then args+=(--jobs "$JOBS"); fi
           echo "::notice::deno task mutation ${args[*]}"
           deno task mutation "${args[@]}"

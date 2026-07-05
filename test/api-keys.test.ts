@@ -40,6 +40,29 @@ import {
 } from "#test-utils";
 
 describeWithEnv("API Keys", { db: true }, () => {
+  /** POST `fields` to an `/admin/api-keys…` path with a fresh CSRF token +
+   *  the owner test cookie, returning the response. Collapses the repeated
+   *  `URLSearchParams` + `mockRequest` + form-encoded-headers scaffold that
+   *  every admin POST test in this file spells out. When `fields` already
+   *  includes a `csrf_token` (e.g. extracted from a GET), it's kept as-is. */
+  const postApiKeyForm = async (
+    path: string,
+    fields: Record<string, string>,
+  ): Promise<Response> => {
+    const cookie = await testCookie();
+    const csrfToken = fields.csrf_token ?? (await testCsrfToken());
+    const body = new URLSearchParams({ ...fields, csrf_token: csrfToken });
+    return handleRequest(
+      mockRequest(path, {
+        body: body.toString(),
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          cookie,
+        },
+        method: "POST",
+      }),
+    );
+  };
   describe("database operations", () => {
     test("creates and retrieves an API key", async () => {
       const { apiKey, id } = await createTestApiKeyFull();
@@ -209,23 +232,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("POST /admin/api-keys rejects empty name", async () => {
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-
-      const body = new URLSearchParams({
-        csrf_token: csrfToken,
-        name: "",
-      });
-      const response = await handleRequest(
-        mockRequest("/admin/api-keys", {
-          body: body.toString(),
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            cookie,
-          },
-          method: "POST",
-        }),
-      );
+      const response = await postApiKeyForm("/admin/api-keys", { name: "" });
 
       // Should redirect with error
       expect(response.status).toBe(302);
@@ -233,68 +240,25 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("POST /admin/api-keys rejects missing name field", async () => {
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-
-      const body = new URLSearchParams({
-        csrf_token: csrfToken,
-      });
-      const response = await handleRequest(
-        mockRequest("/admin/api-keys", {
-          body: body.toString(),
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            cookie,
-          },
-          method: "POST",
-        }),
-      );
+      const response = await postApiKeyForm("/admin/api-keys", {});
 
       expect(response.status).toBe(302);
       expectFlash(response, "Name is required", false);
     });
 
     test("POST /admin/api-keys rejects name over 100 characters", async () => {
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-
-      const body = new URLSearchParams({
-        csrf_token: csrfToken,
+      const response = await postApiKeyForm("/admin/api-keys", {
         name: "x".repeat(101),
       });
-      const response = await handleRequest(
-        mockRequest("/admin/api-keys", {
-          body: body.toString(),
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            cookie,
-          },
-          method: "POST",
-        }),
-      );
 
       expect(response.status).toBe(302);
       expectFlash(response, "Name must be under 100 characters", false);
     });
 
     test("POST /admin/api-keys/:id/delete returns 404 for nonexistent key", async () => {
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-
-      const body = new URLSearchParams({
+      const response = await postApiKeyForm("/admin/api-keys/99999/delete", {
         confirm_identifier: "anything",
-        csrf_token: csrfToken,
       });
-      const response = await handleRequest(
-        mockRequest("/admin/api-keys/99999/delete", {
-          body: body.toString(),
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            cookie,
-          },
-          method: "POST",
-        }),
-      );
 
       expect(response.status).toBe(404);
     });
@@ -390,23 +354,9 @@ describeWithEnv("API Keys", { db: true }, () => {
     test("POST /admin/api-keys/:id/delete removes a key with name confirmation", async () => {
       const { id } = await createTestApiKeyFull("Doomed Key");
 
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-
-      const body = new URLSearchParams({
+      const response = await postApiKeyForm(`/admin/api-keys/${id}/delete`, {
         confirm_identifier: "Doomed Key",
-        csrf_token: csrfToken,
       });
-      const response = await handleRequest(
-        mockRequest(`/admin/api-keys/${id}/delete`, {
-          body: body.toString(),
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            cookie,
-          },
-          method: "POST",
-        }),
-      );
 
       expect(response.status).toBe(302);
       expect(await countApiKeysForUser(1)).toBe(0);
@@ -415,23 +365,9 @@ describeWithEnv("API Keys", { db: true }, () => {
     test("POST /admin/api-keys/:id/delete rejects wrong name", async () => {
       const { id } = await createTestApiKeyFull("My Key");
 
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-
-      const body = new URLSearchParams({
+      const response = await postApiKeyForm(`/admin/api-keys/${id}/delete`, {
         confirm_identifier: "Wrong Name",
-        csrf_token: csrfToken,
       });
-      const response = await handleRequest(
-        mockRequest(`/admin/api-keys/${id}/delete`, {
-          body: body.toString(),
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            cookie,
-          },
-          method: "POST",
-        }),
-      );
 
       // The delete-confirmation page has no error slot of its own; the Layout
       // backstop renders the mismatch error, so the operator actually sees it.

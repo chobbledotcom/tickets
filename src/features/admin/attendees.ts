@@ -3,23 +3,24 @@
  */
 
 import { t } from "#i18n";
-import { handleAttendeeBalanceGet } from "#routes/admin/attendee-balance.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse, redirect, redirectResponse } from "#routes/response.ts";
+import { redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   createAttendeeAtomic,
+  decryptAttendeeOrNull,
   deleteAttendee,
+  getAttendeePackageRowsRaw,
+  hasActiveBookingLine,
   updateCheckedIn,
 } from "#shared/db/attendees.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import { validateForm } from "#shared/forms.tsx";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
-  type AdminSession,
   availableDayCounts,
   isPaidListing,
   type ListingWithCount,
@@ -34,49 +35,34 @@ import {
   getAddAttendeeFields,
 } from "#templates/fields.ts";
 import {
-  handleAttendeeEditGet,
   handleAttendeeEditPost,
   handleAttendeeNewGet,
   handleAttendeeNewPost,
 } from "./attendee-form-routes.ts";
+import { attendeePage } from "./attendee-page.ts";
 import { handleRefreshPayment } from "./attendees-edit.ts";
 import {
   handleAttendeesCsvExport,
   handleAttendeesListGet,
 } from "./attendees-list.ts";
-import { handleMergeGet, handleMergePost } from "./attendees-merge.ts";
+import { handleMergePost } from "./attendees-merge.ts";
 import {
   type AttendeeWithListing,
+  attendeeActionPage,
   attendeeFormAction,
-  attendeeGetRoute,
-  getReturnUrl,
-  verifiedAttendeeForm,
+  verifiedAttendeeAction,
 } from "./attendees-route-helpers.ts";
 
-/** Signature shared by all attendee GET page renderers */
-type AttendeePageRenderer = (
-  data: AttendeeWithListing,
-  session: AdminSession,
-  returnUrl?: string,
-  error?: string,
-) => string;
+/** Handle GET /admin/attendees/:attendeeId/delete */
+const handleAdminAttendeeDeleteGet = attendeeActionPage(
+  adminDeleteAttendeePage,
+);
 
-/** Create a GET handler that renders an attendee page with flash error */
-const attendeePageRoute = (render: AttendeePageRenderer) =>
-  attendeeGetRoute((data, session, request) => {
-    const flash = applyFlash(request);
-    return htmlResponse(
-      render(data, session, getReturnUrl(request), flash.error),
-    );
-  });
-
-/** Handle GET /admin/listing/:listingId/attendee/:attendeeId/delete */
-const handleAdminAttendeeDeleteGet = attendeePageRoute(adminDeleteAttendeePage);
-
-/** Delete an attendee, log the activity, and redirect back to the listing. */
+/** Delete an attendee, log the activity, and redirect. */
 const deleteAttendeeAndRedirect = async (
   attendeeId: number,
   listingId: number,
+  redirectTo: string,
   activityMessage: string,
   flashMessage: string,
   opts?: Parameters<typeof redirect>[3],
@@ -84,17 +70,20 @@ const deleteAttendeeAndRedirect = async (
 ): Promise<Response> => {
   await deleteAttendee(attendeeId, { releaseBookings });
   await logActivity(activityMessage, listingId, attendeeId);
-  return redirect(`/admin/listing/${listingId}`, flashMessage, true, opts);
+  return redirect(redirectTo, flashMessage, true, opts);
 };
 
-/** Handle POST /admin/listing/:listingId/attendee/:attendeeId/delete */
-const handleAttendeeDelete = verifiedAttendeeForm(
+/** Handle POST /admin/attendees/:attendeeId/delete. The deleted attendee's
+ * pages are gone, so the fallback landing is the attendees roster (a
+ * submitted return_url still wins via the redirect's form option). */
+const handleAttendeeDelete = verifiedAttendeeAction(
   "delete",
   "deletion",
-  (data, form, listingId, attendeeId) =>
+  (data, form) =>
     deleteAttendeeAndRedirect(
-      attendeeId,
-      listingId,
+      data.attendee.id,
+      data.listing.id,
+      "/admin/attendees",
       `Attendee deleted from '${data.listing.name}'`,
       t("success.attendee_deleted"),
       { form },
@@ -108,7 +97,7 @@ const handleAttendeeDelete = verifiedAttendeeForm(
  * Verifies the attendee is actually incomplete before deleting.
  */
 const handleDeleteIncomplete = attendeeFormAction(
-  async (data, _session, _form, listingId, attendeeId) => {
+  (data, _session, _form, listingId, attendeeId) => {
     const hasPaidListing = isPaidListing(data.listing);
     // An "incomplete" registration is an abandoned paid checkout: a sale was
     // recognised (price_paid > 0) and fully covered (nothing still owed), yet no
@@ -122,9 +111,12 @@ const handleDeleteIncomplete = attendeeFormAction(
       Number.parseInt(data.attendee.price_paid, 10) > 0 &&
       data.attendee.remaining_balance <= 0;
 
+    // The failed-payments delete form lives on the Attendees tab, so both
+    // outcomes return there — keeping the operator on the table they are
+    // clearing rather than bouncing them to Overview.
     if (!isIncomplete) {
       return redirect(
-        `/admin/listing/${listingId}`,
+        `/admin/listing/${listingId}/attendees`,
         t("error.attendee_no_incomplete_payment"),
         false,
       );
@@ -133,15 +125,41 @@ const handleDeleteIncomplete = attendeeFormAction(
     return deleteAttendeeAndRedirect(
       attendeeId,
       listingId,
+      `/admin/listing/${listingId}/attendees`,
       `Incomplete attendee deleted from '${data.listing.name}'`,
       t("success.incomplete_removed"),
     );
   },
 );
 
+/** Return a redirect response when the attendee has no active booking line, or null otherwise. */
+const redirectIfNoActiveBookingLine = async (
+  attendeeId: number,
+  listingId: number,
+  url: string,
+  message: string,
+  opts?: Parameters<typeof redirect>[3],
+): Promise<Response | null> => {
+  if (!(await hasActiveBookingLine(attendeeId, listingId))) {
+    return redirect(url, message, false, opts);
+  }
+  return null;
+};
+
 /** Handle POST /admin/listing/:listingId/attendee/:attendeeId/checkin */
 const handleAttendeeCheckin = attendeeFormAction(
   async (data, _session, form, listingId, attendeeId) => {
+    // Refuse on a no-quantity ghost row (checked against the exact (attendee,
+    // listing) pair, since data.attendee is an arbitrary left-joined sibling) —
+    // updateCheckedIn would no-op anyway, but this keeps the message honest.
+    const noLineRedirect = await redirectIfNoActiveBookingLine(
+      attendeeId,
+      listingId,
+      form.getString("return_url") || `/admin/listing/${listingId}`,
+      "Cannot check in a no-quantity line",
+    );
+    if (noLineRedirect) return noLineRedirect;
+
     const wasCheckedIn = data.attendee.checked_in;
     const nowCheckedIn = !wasCheckedIn;
 
@@ -154,22 +172,19 @@ const handleAttendeeCheckin = attendeeFormAction(
       attendeeId,
     );
 
+    // The roster's check-in form threads its filtered-view URL through
+    // return_url; when absent (e.g. the scanner) fall back to the Attendees tab,
+    // preserving any check-in filter. Either way the confirmation shows as a
+    // flash on the landing tab — the old ?checkin_name= surface is gone.
     const returnUrl = form.getString("return_url");
-    if (returnUrl) {
-      return redirect(
-        returnUrl,
-        `Checked ${data.attendee.name} ${status}`,
-        true,
-      );
-    }
-
-    const name = encodeURIComponent(data.attendee.name);
     const filterValue = form.getString("return_filter");
-    const suffix =
-      filterValue === "in" ? "/in" : filterValue === "out" ? "/out" : "";
-    return redirectResponse(
-      `/admin/listing/${listingId}${suffix}?checkin_name=${name}&checkin_status=${status}#message`,
-    );
+    const filterQs =
+      filterValue === "in" || filterValue === "out"
+        ? `?filter=${filterValue}`
+        : "";
+    const target =
+      returnUrl || `/admin/listing/${listingId}/attendees${filterQs}`;
+    return redirect(target, `Checked ${data.attendee.name} ${status}`, true);
   },
 );
 
@@ -197,7 +212,7 @@ const buildCreateAttendeeInput = (
     bookings: [
       {
         date: isDaily ? date : null,
-        durationDays: isDaily ? durationDays : undefined,
+        ...(isDaily ? { durationDays } : {}),
         listingId: listing.id,
         quantity,
       },
@@ -226,7 +241,9 @@ const handleCreateAttendeeFailure = (
     result.reason === "capacity_exceeded"
       ? t("error.not_enough_spots")
       : t("error.encryption_error");
-  return redirect(`/admin/listing/${listingId}`, errorMsg, false);
+  // Back to the roster (Attendees tab), where the quick-add form is, so the
+  // operator can correct the submission in context.
+  return redirect(`/admin/listing/${listingId}/attendees`, errorMsg, false);
 };
 
 /** Handle POST /admin/listing/:listingId/attendee (add attendee manually) */
@@ -251,7 +268,7 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
     }),
     loadContext: ({ listingId }) => getListingWithCount(listingId),
     onInvalid: ({ error, params }) =>
-      redirect(`/admin/listing/${params.listingId}`, error, false),
+      redirect(`/admin/listing/${params.listingId}/attendees`, error, false),
     onValid: async ({ context: listing, params, values }) => {
       const createResult = await createAttendeeAtomic(
         buildCreateAttendeeInput(values, listing),
@@ -264,8 +281,10 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
         params.listingId,
         createResult.attendees[0]!.id,
       );
+      // Land on the roster (Attendees tab), where the new attendee and the
+      // quick-add form live, so the flash and the added row are both in view.
       return redirect(
-        `/admin/listing/${params.listingId}`,
+        `/admin/listing/${params.listingId}/attendees`,
         `Added ${values.name}`,
         true,
       );
@@ -273,34 +292,62 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
     preprocessForm: (form) => applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS),
   });
 
-/** Handle GET /admin/listing/:listingId/attendee/:attendeeId/resend-notification */
-const handleAdminResendNotificationGet = attendeePageRoute(
+/** Handle GET /admin/attendees/:attendeeId/resend-notification */
+const handleAdminResendNotificationGet = attendeeActionPage(
   adminResendNotificationPage,
 );
 
-/** Handle POST /admin/listing/:listingId/attendee/:attendeeId/resend-notification */
-const handleResendNotification = verifiedAttendeeForm(
+/** The entries a resend notifies. A standalone line notifies alone; a line
+ * belonging to a package rehydrates EVERY line of that attendee's package, so
+ * the confirmation doesn't treat a single member row as the whole package
+ * (collapsing a hidden package to one row's quantity/price, or heading a
+ * visible one with a lone member). */
+const resendEntries = async (
+  data: AttendeeWithListing,
+): Promise<{ attendee: typeof data.attendee; listing: ListingWithCount }[]> => {
+  const groupId = data.attendee.package_group_id;
+  if (groupId <= 0) return [{ attendee: data.attendee, listing: data.listing }];
+  const pk = await requireRequestPrivateKey();
+  const rows = await getAttendeePackageRowsRaw(data.attendee.id, groupId);
+  return Promise.all(
+    // The route already verified this attendee's active line, so its package
+    // rows exist, decrypt with the same key, and each names a live listing.
+    rows.map(async (row) => ({
+      attendee: (await decryptAttendeeOrNull(row, pk))!,
+      listing: (await getListingWithCount(row.listing_id))!,
+    })),
+  );
+};
+
+/** Handle POST /admin/attendees/:attendeeId/resend-notification */
+const handleResendNotification = verifiedAttendeeAction(
   "resend-notification",
   undefined,
-  async (data, form, listingId, _attendeeId) => {
+  async (data, form) => {
+    const attendeeId = data.attendee.id;
+    const actionsTab = `/admin/attendees/${attendeeId}/actions`;
+    // Refuse on a no-quantity ghost row: the customer email/webhook is built
+    // from the home listing, so it must not fire for a non-booking.
+    const noLineRedirect = await redirectIfNoActiveBookingLine(
+      attendeeId,
+      data.listing.id,
+      actionsTab,
+      "Cannot re-send a notification for a no-quantity line",
+      { form },
+    );
+    if (noLineRedirect) return noLineRedirect;
+
     await Promise.all([
-      logAndNotifyRegistration([
-        { attendee: data.attendee, listing: data.listing },
-      ]),
+      logAndNotifyRegistration(await resendEntries(data)),
       logActivity(
         `Notification re-sent for attendee '${data.attendee.name}'`,
-        listingId,
-        data.attendee.id,
+        data.listing.id,
+        attendeeId,
       ),
     ]);
-    return redirect(
-      `/admin/listing/${listingId}`,
-      t("success.notification_resent"),
-      true,
-      {
-        form,
-      },
-    );
+    return redirect(actionsTab, t("success.notification_resent"), true, {
+      form,
+    });
   },
 );
 
@@ -314,29 +361,27 @@ const handleResendNotification = verifiedAttendeeForm(
  * Refunds: attendee-refunds.ts
  */
 export const attendeesRoutes = defineRoutes({
-  "DELETE /admin/listing/:listingId/attendee/:attendeeId/delete":
-    handleAttendeeDelete,
+  "DELETE /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
   "GET /admin/attendees": handleAttendeesListGet,
-  "GET /admin/attendees/:attendeeId": handleAttendeeEditGet,
-  "GET /admin/attendees/:attendeeId/balance": handleAttendeeBalanceGet,
-  "GET /admin/attendees/:attendeeId/merge": handleMergeGet,
+  "GET /admin/attendees/:attendeeId": (request, { attendeeId }) =>
+    attendeePage.renderTab(request, attendeeId, ""),
+  "GET /admin/attendees/:attendeeId/:tab": (request, { attendeeId, tab }) =>
+    attendeePage.renderTab(request, attendeeId, tab),
+  "GET /admin/attendees/:attendeeId/delete": handleAdminAttendeeDeleteGet,
+  "GET /admin/attendees/:attendeeId/resend-notification":
+    handleAdminResendNotificationGet,
   "GET /admin/attendees/csv": handleAttendeesCsvExport,
   "GET /admin/attendees/new": handleAttendeeNewGet,
-  "GET /admin/listing/:listingId/attendee/:attendeeId/delete":
-    handleAdminAttendeeDeleteGet,
-  "GET /admin/listing/:listingId/attendee/:attendeeId/resend-notification":
-    handleAdminResendNotificationGet,
   "POST /admin/attendees/:attendeeId": handleAttendeeEditPost,
+  "POST /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
   "POST /admin/attendees/:attendeeId/merge": handleMergePost,
   "POST /admin/attendees/:attendeeId/refresh-payment": handleRefreshPayment,
+  "POST /admin/attendees/:attendeeId/resend-notification":
+    handleResendNotification,
   "POST /admin/attendees/new": handleAttendeeNewPost,
   "POST /admin/listing/:listingId/attendee": handleAddAttendee,
   "POST /admin/listing/:listingId/attendee/:attendeeId/checkin":
     handleAttendeeCheckin,
-  "POST /admin/listing/:listingId/attendee/:attendeeId/delete":
-    handleAttendeeDelete,
   "POST /admin/listing/:listingId/attendee/:attendeeId/delete-incomplete":
     handleDeleteIncomplete,
-  "POST /admin/listing/:listingId/attendee/:attendeeId/resend-notification":
-    handleResendNotification,
 });

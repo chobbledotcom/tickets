@@ -8,6 +8,7 @@ import {
   advancedSettingsRoute,
   processSecretField,
   type SecretFieldResult,
+  saveSecret,
   settingsHandler,
 } from "#routes/admin/settings-helpers.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -47,9 +48,7 @@ export const handleEmailPost = settingsHandler<EmailFormData>({
       return;
     }
     await settings.update.email.provider(provider);
-    if (apiKey.action === "provided") {
-      await settings.update.email.apiKey(apiKey.value);
-    }
+    await saveSecret(apiKey, settings.update.email.apiKey);
     if (fromAddress) await settings.update.email.fromAddress(fromAddress);
   },
   validate: ({ provider, fromAddress }) => {

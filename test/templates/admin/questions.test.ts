@@ -1,20 +1,31 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { buildAnswerSummaryRows } from "#templates/admin/listings/aggregates.tsx";
 import {
-  adminListingPage,
-  buildAnswerSummaryRows,
-} from "#templates/admin/listings.tsx";
+  ListingOverviewPanel,
+  overviewStatsFromAttendees,
+} from "#templates/admin/listings/overview.tsx";
 import {
   adminAnswerDeletePage,
   adminAnswerEditPage,
   adminAnswerRecalculatePage,
-  adminListingQuestionsPage,
   adminQuestionDeletePage,
   adminQuestionPage,
   adminQuestionsPage,
+  ListingQuestionsPanel,
+  questionTextFlat,
 } from "#templates/admin/questions.tsx";
-import { setupTestEncryptionKey, testListingWithCount } from "#test-utils";
+import {
+  setupTestEncryptionKey,
+  singleAnswerSizeQuestionData,
+  sizeQuestionAnswerData,
+  smallLargeAnswers,
+  testAnswer,
+  testListingWithCount,
+  testQuestion,
+  unselectedAnswerQuestionData,
+} from "#test-utils";
 
 const TEST_LISTINGS = [
   testListingWithCount({ id: 1, name: "Spring Gig" }),
@@ -23,21 +34,30 @@ const TEST_LISTINGS = [
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 
+/** The "T-shirt size?" question with Small/Large answers — the canonical radio
+ *  question reused by the question, answer-edit, and answer-delete page tests.
+ *  Built once so each describe shares the same fixture instead of re-spelling
+ *  the literal three times. */
+const tShirtQuestion = testQuestion({
+  answers: smallLargeAnswers,
+  id: 1,
+  text: "T-shirt size?",
+});
+
 beforeAll(async () => {
   setupTestEncryptionKey();
   await signCsrfToken();
 });
 
 describe("adminQuestionsPage", () => {
-  const colourQuestion = {
+  const colourQuestion = testQuestion({
     answers: [
-      { active: true, id: 10, question_id: 1, sort_order: 0, text: "Red" },
-      { active: true, id: 11, question_id: 1, sort_order: 1, text: "Blue" },
+      testAnswer({ id: 10, sort_order: 0, text: "Red" }),
+      testAnswer({ id: 11, sort_order: 1, text: "Blue" }),
     ],
-    display_type: "radio" as const,
     id: 1,
     text: "Favourite colour?",
-  };
+  });
 
   test("renders empty state when no questions", () => {
     const html = adminQuestionsPage([], TEST_SESSION);
@@ -83,22 +103,16 @@ describe("adminQuestionsPage", () => {
   test("renders reorder controls: down on the first, up on the last", () => {
     const html = adminQuestionsPage(
       [
-        {
-          answers: [
-            { active: true, id: 10, question_id: 1, sort_order: 0, text: "A" },
-          ],
-          display_type: "radio" as const,
+        testQuestion({
+          answers: [testAnswer({ id: 10, text: "A" })],
           id: 1,
           text: "First Q",
-        },
-        {
-          answers: [
-            { active: true, id: 20, question_id: 2, sort_order: 0, text: "B" },
-          ],
-          display_type: "radio" as const,
+        }),
+        testQuestion({
+          answers: [testAnswer({ id: 20, question_id: 2, text: "B" })],
           id: 2,
           text: "Second Q",
-        },
+        }),
       ],
       TEST_SESSION,
     );
@@ -117,15 +131,7 @@ describe("adminQuestionsPage", () => {
 });
 
 describe("adminQuestionPage", () => {
-  const question = {
-    answers: [
-      { active: true, id: 10, question_id: 1, sort_order: 0, text: "Small" },
-      { active: true, id: 11, question_id: 1, sort_order: 1, text: "Large" },
-    ],
-    display_type: "radio" as const,
-    id: 1,
-    text: "T-shirt size?",
-  };
+  const question = tShirtQuestion;
 
   test("renders question text and edit form", () => {
     const html = adminQuestionPage(question, TEST_SESSION);
@@ -158,7 +164,7 @@ describe("adminQuestionPage", () => {
 
   test("renders empty answers state", () => {
     const html = adminQuestionPage(
-      { answers: [], display_type: "radio" as const, id: 1, text: "Q?" },
+      testQuestion({ id: 1, text: "Q?" }),
       TEST_SESSION,
     );
     expect(html).toContain("No answers yet");
@@ -166,12 +172,11 @@ describe("adminQuestionPage", () => {
 
   test("locks the type on a free-text question's edit form", () => {
     const html = adminQuestionPage(
-      {
-        answers: [],
-        display_type: "free_text" as const,
+      testQuestion({
+        display_type: "free_text",
         id: 1,
         text: "Notes?",
-      },
+      }),
       TEST_SESSION,
     );
     // No selector — a hidden field keeps it free-text and the choice options
@@ -184,12 +189,11 @@ describe("adminQuestionPage", () => {
 
   test("hides answer management for a free-text question", () => {
     const html = adminQuestionPage(
-      {
-        answers: [],
-        display_type: "free_text" as const,
+      testQuestion({
+        display_type: "free_text",
         id: 1,
         text: "Notes?",
-      },
+      }),
       TEST_SESSION,
     );
     // No add-answer form or answer heading — just an explanatory note.
@@ -227,16 +231,15 @@ describe("adminQuestionPage", () => {
   });
 
   test("renders both move buttons for middle answer", () => {
-    const q = {
+    const q = testQuestion({
       answers: [
-        { active: true, id: 10, question_id: 1, sort_order: 0, text: "A" },
-        { active: true, id: 11, question_id: 1, sort_order: 1, text: "B" },
-        { active: true, id: 12, question_id: 1, sort_order: 2, text: "C" },
+        testAnswer({ id: 10, sort_order: 0, text: "A" }),
+        testAnswer({ id: 11, sort_order: 1, text: "B" }),
+        testAnswer({ id: 12, sort_order: 2, text: "C" }),
       ],
-      display_type: "radio" as const,
       id: 1,
       text: "Q?",
-    };
+    });
     const html = adminQuestionPage(q, TEST_SESSION);
     expect(html).toContain("/answers/11/move-up");
     expect(html).toContain("/answers/11/move-down");
@@ -283,14 +286,11 @@ describe("adminQuestionPage", () => {
 });
 
 describe("adminQuestionDeletePage", () => {
-  const question = {
-    answers: [
-      { active: true, id: 10, question_id: 1, sort_order: 0, text: "Small" },
-    ],
-    display_type: "radio" as const,
+  const question = testQuestion({
+    answers: [testAnswer({ id: 10, sort_order: 0, text: "Small" })],
     id: 1,
     text: "T-shirt size?",
-  };
+  });
 
   test("renders confirmation form with question text", () => {
     const html = adminQuestionDeletePage(question, TEST_SESSION);
@@ -317,15 +317,7 @@ describe("adminQuestionDeletePage", () => {
 });
 
 describe("adminAnswerEditPage", () => {
-  const question = {
-    answers: [
-      { active: true, id: 10, question_id: 1, sort_order: 0, text: "Small" },
-      { active: true, id: 11, question_id: 1, sort_order: 1, text: "Large" },
-    ],
-    display_type: "radio" as const,
-    id: 1,
-    text: "T-shirt size?",
-  };
+  const question = tShirtQuestion;
   const answer = question.answers[1]!;
   const modifiers = [
     { id: 5, name: "Large surcharge" },
@@ -353,7 +345,7 @@ describe("adminAnswerEditPage", () => {
   test("renders the active box unchecked for a deactivated answer", () => {
     const html = adminAnswerEditPage(
       question,
-      { active: false, id: 12, question_id: 1, sort_order: 2, text: "Retired" },
+      testAnswer({ active: false, id: 12, sort_order: 2, text: "Retired" }),
       TEST_SESSION,
       undefined,
       aligned,
@@ -491,14 +483,11 @@ describe("adminAnswerEditPage", () => {
 });
 
 describe("adminAnswerRecalculatePage", () => {
-  const question = {
-    answers: [
-      { active: true, id: 11, question_id: 1, sort_order: 1, text: "Large" },
-    ],
-    display_type: "radio" as const,
+  const question = testQuestion({
+    answers: [testAnswer({ id: 11, sort_order: 1, text: "Large" })],
     id: 1,
     text: "T-shirt size?",
-  };
+  });
   const answer = question.answers[0]!;
   const snapshot = { times_selected: { current: 7, recalculated: 5 } };
 
@@ -543,15 +532,7 @@ describe("adminAnswerRecalculatePage", () => {
 });
 
 describe("adminAnswerDeletePage", () => {
-  const question = {
-    answers: [
-      { active: true, id: 10, question_id: 1, sort_order: 0, text: "Small" },
-      { active: true, id: 11, question_id: 1, sort_order: 1, text: "Large" },
-    ],
-    display_type: "radio" as const,
-    id: 1,
-    text: "T-shirt size?",
-  };
+  const question = tShirtQuestion;
   const answer = question.answers[0]!;
 
   test("renders confirmation form with answer text", () => {
@@ -581,11 +562,12 @@ describe("adminAnswerDeletePage", () => {
 describe("adminListingQuestionsPage", () => {
   test("shows empty state when no questions exist", () => {
     const listing = testListingWithCount({ id: 1, name: "My Listing" });
-    const html = adminListingQuestionsPage(
-      listing,
-      [],
-      new Set(),
-      TEST_SESSION,
+    const html = String(
+      ListingQuestionsPanel({
+        allQuestions: [],
+        assignedIds: new Set(),
+        listing,
+      }),
     );
     expect(html).toContain("No questions created yet");
     expect(html).toContain('href="/admin/questions"');
@@ -595,20 +577,18 @@ describe("adminListingQuestionsPage", () => {
   test("shows singular option count for question with one answer", () => {
     const listing = testListingWithCount({ id: 1, name: "My Listing" });
     const questions = [
-      {
-        answers: [
-          { active: true, id: 10, question_id: 1, sort_order: 0, text: "Yes" },
-        ],
-        display_type: "radio" as const,
+      testQuestion({
+        answers: [testAnswer({ id: 10, text: "Yes" })],
         id: 1,
         text: "Yes or no?",
-      },
+      }),
     ];
-    const html = adminListingQuestionsPage(
-      listing,
-      questions,
-      new Set(),
-      TEST_SESSION,
+    const html = String(
+      ListingQuestionsPanel({
+        allQuestions: questions,
+        assignedIds: new Set(),
+        listing,
+      }),
     );
     expect(html).toContain("1 option: Yes)");
     expect(html).not.toContain("1 options");
@@ -617,21 +597,21 @@ describe("adminListingQuestionsPage", () => {
   test("shows Manage Questions link below form", () => {
     const listing = testListingWithCount({ id: 1, name: "My Listing" });
     const questions = [
-      {
+      testQuestion({
         answers: [
-          { active: true, id: 10, question_id: 1, sort_order: 0, text: "A" },
-          { active: true, id: 11, question_id: 1, sort_order: 1, text: "B" },
+          testAnswer({ id: 10, sort_order: 0, text: "A" }),
+          testAnswer({ id: 11, sort_order: 1, text: "B" }),
         ],
-        display_type: "radio" as const,
         id: 1,
         text: "Q?",
-      },
+      }),
     ];
-    const html = adminListingQuestionsPage(
-      listing,
-      questions,
-      new Set(),
-      TEST_SESSION,
+    const html = String(
+      ListingQuestionsPanel({
+        allQuestions: questions,
+        assignedIds: new Set(),
+        listing,
+      }),
     );
     expect(html).toContain('href="/admin/questions"');
     expect(html).toContain("Manage Questions");
@@ -640,22 +620,22 @@ describe("adminListingQuestionsPage", () => {
   test("lists option names in parentheses", () => {
     const listing = testListingWithCount({ id: 1, name: "My Listing" });
     const questions = [
-      {
+      testQuestion({
         answers: [
-          { active: true, id: 10, question_id: 1, sort_order: 0, text: "S" },
-          { active: true, id: 11, question_id: 1, sort_order: 1, text: "M" },
-          { active: true, id: 12, question_id: 1, sort_order: 2, text: "L" },
+          testAnswer({ id: 10, sort_order: 0, text: "S" }),
+          testAnswer({ id: 11, sort_order: 1, text: "M" }),
+          testAnswer({ id: 12, sort_order: 2, text: "L" }),
         ],
-        display_type: "radio" as const,
         id: 1,
         text: "Size?",
-      },
+      }),
     ];
-    const html = adminListingQuestionsPage(
-      listing,
-      questions,
-      new Set(),
-      TEST_SESSION,
+    const html = String(
+      ListingQuestionsPanel({
+        allQuestions: questions,
+        assignedIds: new Set(),
+        listing,
+      }),
     );
     expect(html).toContain("3 options: S, M, L)");
   });
@@ -673,87 +653,62 @@ describe("buildAnswerSummaryRows", () => {
   });
 
   test("renders question with answer counts", () => {
-    const html = buildAnswerSummaryRows({
-      attendeeAnswerMap: new Map([
-        [1, [10]],
-        [2, [10]],
-        [3, [11]],
-      ]),
-      questions: [
-        {
-          answers: [
-            {
-              active: true,
-              id: 10,
-              question_id: 1,
-              sort_order: 0,
-              text: "Small",
-            },
-            {
-              active: true,
-              id: 11,
-              question_id: 1,
-              sort_order: 1,
-              text: "Large",
-            },
-          ],
-          display_type: "radio" as const,
-          id: 1,
-          text: "Size?",
-        },
-      ],
-    });
+    const html = buildAnswerSummaryRows(sizeQuestionAnswerData());
     expect(html).toContain("<th>Size?</th>");
     expect(html).toContain("Small (2)");
     expect(html).toContain("Large (1)");
   });
 
   test("shows zero for answers with no selections", () => {
-    const html = buildAnswerSummaryRows({
-      attendeeAnswerMap: new Map(),
-      questions: [
-        {
-          answers: [
-            { active: true, id: 10, question_id: 1, sort_order: 0, text: "A" },
-          ],
-          display_type: "radio" as const,
-          id: 1,
-          text: "Q?",
-        },
-      ],
-    });
+    const html = buildAnswerSummaryRows(unselectedAnswerQuestionData());
     expect(html).toContain("A (0)");
   });
 });
 
 describe("adminListingPage with questionData", () => {
   test("renders answer summary rows in details table", () => {
-    const html = adminListingPage({
-      allowedDomain: "example.com",
-      attendees: [],
-      listing: testListingWithCount({ id: 1, name: "E" }),
-      questionData: {
-        attendeeAnswerMap: new Map(),
-        questions: [
-          {
-            answers: [
-              {
-                active: true,
-                id: 10,
-                question_id: 1,
-                sort_order: 0,
-                text: "S",
-              },
-            ],
-            display_type: "radio" as const,
-            id: 1,
-            text: "Size?",
-          },
-        ],
-      },
-      session: TEST_SESSION,
-    });
+    const listing = testListingWithCount({ id: 1, name: "E" });
+    const html = String(
+      ListingOverviewPanel({
+        allowedDomain: "example.com",
+        listing,
+        noteNames: new Map(),
+        questionData: singleAnswerSizeQuestionData(),
+        stats: overviewStatsFromAttendees(listing, []),
+      }),
+    );
     expect(html).toContain("<th>Size?</th>");
     expect(html).toContain("S (0)");
+  });
+});
+
+describe("questionTextFlat", () => {
+  test("returns plain text unchanged", () => {
+    expect(questionTextFlat("What is your T-shirt size?")).toBe(
+      "What is your T-shirt size?",
+    );
+  });
+
+  test("replaces a single newline with ' / '", () => {
+    expect(questionTextFlat("Line 1\nLine 2")).toBe("Line 1 / Line 2");
+  });
+
+  test("replaces multiple newlines with ' / '", () => {
+    expect(questionTextFlat("A\nB\nC")).toBe("A / B / C");
+  });
+
+  test("replaces Windows-style CRLF newlines", () => {
+    expect(questionTextFlat("A\r\nB")).toBe("A / B");
+  });
+
+  test("preserves markdown syntax (does not render it)", () => {
+    const result = questionTextFlat("**bold** and [link](https://x.com)");
+    expect(result).toBe("**bold** and [link](https://x.com)");
+  });
+
+  test("flattens multi-line markdown to a single line", () => {
+    const result = questionTextFlat("# Heading\n\nSome **bold** text");
+    expect(result).not.toContain("\n");
+    expect(result).toBe("# Heading /  / Some **bold** text");
   });
 });

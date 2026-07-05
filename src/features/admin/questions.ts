@@ -6,7 +6,7 @@ import { mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import {
   parseEditableAggregateForm,
-  selectedRecalculationFields,
+  runRecalculatePost,
 } from "#routes/admin/aggregate-recalculation.ts";
 import {
   createConfirmedHandlers,
@@ -38,12 +38,12 @@ import {
   assignNextQuestionSortOrder,
   deleteAnswer,
   deleteQuestion,
+  findAnswerById,
   getAllQuestionListingIds,
   getAllQuestionsWithAnswers,
   getAnswerAggregateRecalculation,
   getAnswerModifierId,
   getAnswerSelectionTotals,
-  getListingQuestionIds,
   getNextAnswerSortOrder,
   getQuestionListingIds,
   getQuestionWithAnswers,
@@ -63,20 +63,22 @@ import {
 } from "#shared/db/questions.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms.tsx";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
   type AnswerModifierOption,
   adminAnswerDeletePage,
   adminAnswerEditPage,
   adminAnswerRecalculatePage,
-  adminListingQuestionsPage,
   adminQuestionDeletePage,
   adminQuestionPage,
   adminQuestionsPage,
+  questionTextFlat,
 } from "#templates/admin/questions.tsx";
 import {
   type AnswerAggregateFormValues,
   answerAggregateFields,
+  formattingHint,
 } from "#templates/fields.ts";
 
 /* jscpd:ignore-end */
@@ -84,11 +86,14 @@ import {
 export const questionTextForm = defineForm({
   fields: [
     {
+      hintHtml: `Shown to attendees above the answer field. ${formattingHint()}`,
       label: "Question text",
+      markdown: true,
+      maxlength: MAX_TEXTAREA_LENGTH,
       name: "text",
       placeholder: "e.g. What is your T-shirt size?",
       required: true,
-      type: "text",
+      type: "textarea",
     },
     {
       label: "Display as",
@@ -273,7 +278,10 @@ const handleAddAnswer = createAuthedFormRoute<
 
 /** Confirmed-delete handlers for questions */
 const questionDelete = createConfirmedHandlers<QuestionWithAnswers>({
-  identifier: (q) => q.text,
+  // The confirmation page shows the flattened text (newlines → " / "), and a
+  // single-line input can't carry the raw newlines, so verify against the same
+  // flattened form the operator can actually type.
+  identifier: (q) => questionTextFlat(q.text),
   identifierLabel: "Question text",
   load: (id) => getQuestionWithAnswers(id),
   onConfirm: async (q) => {
@@ -296,7 +304,7 @@ const loadQuestionAndAnswer = async ({
 }: AnswerRouteParams): Promise<AnswerContext | null> => {
   const question = await getQuestionWithAnswers(id);
   if (!question) return null;
-  const answer = question.answers.find((a) => a.id === answerId);
+  const answer = findAnswerById(question, answerId);
   if (!answer) return null;
   return { answer, question };
 };
@@ -479,26 +487,25 @@ const handleAnswerRecalculateGet = answerRoute((question, answer, session) => {
 
 /** Handle POST /admin/questions/:id/answers/:answerId/recalculate */
 const handleAnswerRecalculatePost = answerActionHandler(
-  async ({ context: { answer, question }, form, params, session }) => {
-    const selected = selectedRecalculationFields(form, ANSWER_AGGREGATE_FIELDS);
-    if (selected.length === 0) {
-      return renderAnswerRecalculatePage(
-        question,
-        answer,
-        session,
-        t("questions.recalculate.choose"),
-      );
-    }
-    await resetAnswerAggregateFields(answer.id, selected);
-    await logActivity(
-      `Answer '${answer.text}' selection total recalculated in question ${question.id}`,
-    );
-    return redirect(
-      editAnswerPath(params),
-      t("questions.recalculate.success"),
-      true,
-    );
-  },
+  ({ context: { answer, question }, form, params, session }) =>
+    runRecalculatePost({
+      fields: ANSWER_AGGREGATE_FIELDS,
+      form,
+      log: () =>
+        logActivity(
+          `Answer '${answer.text}' selection total recalculated in question ${question.id}`,
+        ),
+      renderChoose: () =>
+        renderAnswerRecalculatePage(
+          question,
+          answer,
+          session,
+          t("questions.recalculate.choose"),
+        ),
+      reset: (selected) => resetAnswerAggregateFields(answer.id, selected),
+      successMessage: t("questions.recalculate.success"),
+      successPath: editAnswerPath(params),
+    }),
 );
 
 /** Factory for move-up/move-down handlers */
@@ -544,26 +551,8 @@ const handleMoveQuestionUp = moveQuestionHandler(-1);
 /** Handle POST /admin/questions/:id/move-down */
 const handleMoveQuestionDown = moveQuestionHandler(1);
 
-/** Handle GET /admin/listing/:id/questions */
-const handleListingQuestionsGet = ownerGetById(
-  getListingWithCount,
-  async (listing, session) => {
-    const [allQuestions, assignedIds] = await Promise.all([
-      getAllQuestionsWithAnswers(),
-      getListingQuestionIds(listing.id),
-    ]);
-    return htmlResponse(
-      adminListingQuestionsPage(
-        listing,
-        allQuestions,
-        new Set(assignedIds),
-        session,
-      ),
-    );
-  },
-);
-
-/** Handle POST /admin/listing/:id/questions */
+/** Handle POST /admin/listing/:id/questions — the listing entity page's
+ * Questions tab (GET) posts here, and the save returns to that tab. */
 const handleListingQuestionsPost = ownerFormById(async (id, _session, form) => {
   const listing = await getListingWithCount(id);
   if (!listing) return notFoundResponse();
@@ -575,14 +564,13 @@ const handleListingQuestionsPost = ownerFormById(async (id, _session, form) => {
     })`,
     listing,
   );
-  return redirect(`/admin/listing/${id}`, "Questions updated", true);
+  return redirect(`/admin/listing/${id}/questions`, "Questions updated", true);
 });
 
 /** Questions routes */
 export const questionsRoutes = {
   ...questionDelete.routes,
   ...defineRoutes({
-    "GET /admin/listing/:id/questions": handleListingQuestionsGet,
     "GET /admin/questions": handleQuestionsGet,
     "GET /admin/questions/:id": handleQuestionGet,
     "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,

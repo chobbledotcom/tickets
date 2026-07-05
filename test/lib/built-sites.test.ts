@@ -2,19 +2,28 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   assignBuiltSite,
-  buildSiteDataBlob,
   builtSitesCrudTable,
   claimNextBuiltSiteForPrune,
+  DEFAULT_UPDATE_TIER,
   getAllBuiltSites,
   getAssignableBuiltSites,
   getBuiltSiteByRenewalTokenIndex,
   insertBuiltSite,
+  isUpdateTier,
   parseSiteDataBlob,
-  SITE_DATA_BLOB_VERSION,
+  siteAcceptsDeployTier,
   siteBaseUrl,
+  UPDATE_TIERS,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
 import { describeWithEnv } from "#test-utils";
+
+const formBlob = async (
+  input: Parameters<typeof builtSitesCrudTable.toDbValues>[0],
+) => {
+  const values = await builtSitesCrudTable.toDbValues(input);
+  return parseSiteDataBlob(values.site_data as string);
+};
 
 describe("siteBaseUrl", () => {
   test("prepends https:// to a bare hostname", () => {
@@ -40,6 +49,41 @@ describe("siteBaseUrl", () => {
   });
 });
 
+describe("update tiers", () => {
+  test("UPDATE_TIERS is ordered most- to least-eager", () => {
+    expect(UPDATE_TIERS).toEqual(["alpha", "beta", "release"]);
+  });
+
+  test("DEFAULT_UPDATE_TIER is the most conservative channel", () => {
+    expect(DEFAULT_UPDATE_TIER).toBe("release");
+  });
+
+  test("isUpdateTier accepts known channels and rejects anything else", () => {
+    for (const tier of UPDATE_TIERS) expect(isUpdateTier(tier)).toBe(true);
+    for (const bad of ["", "ALPHA", "stable", "rel", "release "]) {
+      expect(isUpdateTier(bad)).toBe(false);
+    }
+  });
+
+  test("a release deploy reaches every channel", () => {
+    for (const siteTier of UPDATE_TIERS) {
+      expect(siteAcceptsDeployTier(siteTier, "release")).toBe(true);
+    }
+  });
+
+  test("a beta deploy reaches beta + alpha sites but not release-only", () => {
+    expect(siteAcceptsDeployTier("alpha", "beta")).toBe(true);
+    expect(siteAcceptsDeployTier("beta", "beta")).toBe(true);
+    expect(siteAcceptsDeployTier("release", "beta")).toBe(false);
+  });
+
+  test("an alpha deploy reaches only alpha sites", () => {
+    expect(siteAcceptsDeployTier("alpha", "alpha")).toBe(true);
+    expect(siteAcceptsDeployTier("beta", "alpha")).toBe(false);
+    expect(siteAcceptsDeployTier("release", "alpha")).toBe(false);
+  });
+});
+
 describeWithEnv("claimNextBuiltSiteForPrune", { db: true }, () => {
   test("returns null when there are no built sites", async () => {
     expect(await claimNextBuiltSiteForPrune()).toBe(null);
@@ -55,71 +99,75 @@ describeWithEnv("claimNextBuiltSiteForPrune", { db: true }, () => {
     const second = await claimNextBuiltSiteForPrune();
     const third = await claimNextBuiltSiteForPrune();
 
-    expect(first?.bunnyUrl).toBe("a.example.com");
-    expect(second?.bunnyUrl).toBe("b.example.com");
-    expect(third?.bunnyUrl).toBe("a.example.com");
+    expect(first?.siteUrl).toBe("a.example.com");
+    expect(second?.siteUrl).toBe("b.example.com");
+    expect(third?.siteUrl).toBe("a.example.com");
   });
 });
 
 describeWithEnv("built-sites", { db: true }, () => {
-  test("buildSiteDataBlob creates valid JSON", () => {
-    const blob = buildSiteDataBlob("Test Site", "test.b-cdn.net");
-    const parsed = JSON.parse(blob);
+  test("toDbValues creates valid site-data JSON", async () => {
+    const parsed = await formBlob({
+      name: "Test Site",
+      siteUrl: "test.b-cdn.net",
+    });
     expect(parsed.n).toBe("Test Site");
     expect(parsed.u).toBe("test.b-cdn.net");
-    expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
+    expect(parsed.v).toBe(1);
   });
 
-  test("buildSiteDataBlob includes db credentials when provided", () => {
-    const blob = buildSiteDataBlob(
-      "Test Site",
-      "test.b-cdn.net",
-      "libsql://db.turso.io",
-      "secret-token",
-    );
-    const parsed = JSON.parse(blob);
+  test("toDbValues includes db credentials when provided", async () => {
+    const parsed = await formBlob({
+      dbToken: "secret-token",
+      dbUrl: "libsql://db.turso.io",
+      name: "Test Site",
+      siteUrl: "test.b-cdn.net",
+    });
     expect(parsed.d).toBe("libsql://db.turso.io");
     expect(parsed.t).toBe("secret-token");
   });
 
-  test("buildSiteDataBlob omits db keys when empty", () => {
-    const blob = buildSiteDataBlob("Test Site", "test.b-cdn.net");
-    const parsed = JSON.parse(blob);
+  test("toDbValues omits db keys when empty", async () => {
+    const parsed = await formBlob({
+      name: "Test Site",
+      siteUrl: "test.b-cdn.net",
+    });
     expect(parsed.d).toBeUndefined();
     expect(parsed.t).toBeUndefined();
   });
 
-  test("buildSiteDataBlob includes bunny script id when provided", () => {
-    const blob = buildSiteDataBlob(
-      "Test Site",
-      "test.b-cdn.net",
-      "",
-      "",
-      "98765",
-    );
-    const parsed = JSON.parse(blob);
+  test("toDbValues includes bunny script id when provided", async () => {
+    const parsed = await formBlob({
+      hostingId: "98765",
+      name: "Test Site",
+      siteUrl: "test.b-cdn.net",
+    });
     expect(parsed.s).toBe("98765");
   });
 
-  test("buildSiteDataBlob omits bunny script id when empty", () => {
-    const blob = buildSiteDataBlob("Test Site", "test.b-cdn.net");
-    const parsed = JSON.parse(blob);
+  test("toDbValues omits bunny script id when empty", async () => {
+    const parsed = await formBlob({
+      name: "Test Site",
+      siteUrl: "test.b-cdn.net",
+    });
     expect(parsed.s).toBeUndefined();
   });
 
-  test("parseSiteDataBlob roundtrips with buildSiteDataBlob", () => {
-    const blob = buildSiteDataBlob("My Site", "my.b-cdn.net");
-    const parsed = parseSiteDataBlob(blob);
+  test("parseSiteDataBlob decodes stored site-data JSON", async () => {
+    const parsed = await formBlob({
+      name: "My Site",
+      siteUrl: "my.b-cdn.net",
+    });
     expect(parsed.n).toBe("My Site");
     expect(parsed.u).toBe("my.b-cdn.net");
-    expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
+    expect(parsed.v).toBe(1);
   });
 
   test("parseSiteDataBlob handles legacy blobs without db keys", () => {
     const legacyBlob = JSON.stringify({
       n: "Old Site",
       u: "old.b-cdn.net",
-      v: SITE_DATA_BLOB_VERSION,
+      v: 1,
     });
     const parsed = parseSiteDataBlob(legacyBlob);
     expect(parsed.d).toBeUndefined();
@@ -165,14 +213,14 @@ describeWithEnv("built-sites", { db: true }, () => {
     );
     const sites = await getAllBuiltSites();
     const site = sites.find((s) => s.name === "Script Site")!;
-    expect(site.bunnyScriptId).toBe("12345");
+    expect(site.hostingId).toBe("12345");
   });
 
   test("insertBuiltSite defaults bunny script id to empty string", async () => {
     await insertBuiltSite("No Script Site", "noscript.b-cdn.net");
     const sites = await getAllBuiltSites();
     const site = sites.find((s) => s.name === "No Script Site")!;
-    expect(site.bunnyScriptId).toBe("");
+    expect(site.hostingId).toBe("");
   });
 
   test("getAllBuiltSites returns decrypted sites sorted by name", async () => {
@@ -183,7 +231,7 @@ describeWithEnv("built-sites", { db: true }, () => {
     const sites = await getAllBuiltSites();
     expect(sites).toHaveLength(3);
     expect(sites[0]!.name).toBe("Alpha");
-    expect(sites[0]!.bunnyUrl).toBe("alpha.b-cdn.net");
+    expect(sites[0]!.siteUrl).toBe("alpha.b-cdn.net");
     expect(sites[1]!.name).toBe("Bravo");
     expect(sites[2]!.name).toBe("Charlie");
   });
@@ -194,6 +242,16 @@ describeWithEnv("built-sites", { db: true }, () => {
   });
 
   describe("builtSitesCrudTable", () => {
+    const insertOriginalSite = () =>
+      builtSitesCrudTable.insert({
+        assignable: false,
+        dbToken: "",
+        dbUrl: "",
+        hostingId: "",
+        name: "Original",
+        siteUrl: "original.bunny.run",
+      });
+
     test("findAll returns all built sites", async () => {
       await insertBuiltSite("Site A", "a.bunny.run");
       await insertBuiltSite("Site B", "b.bunny.run");
@@ -207,19 +265,36 @@ describeWithEnv("built-sites", { db: true }, () => {
         assignable: false,
         assignedAttendeeId: null,
         assignedListingId: null,
-        bunnyScriptId: "",
-        bunnyUrl: "test.bunny.run",
         created: "2026-01-01",
+        dbProvider: "bunny" as const,
         dbToken: "",
         dbUrl: "",
+        hostingId: "",
+        hostingProvider: "bunny" as const,
         id: 1,
         name: "Test",
         readOnlyFrom: "",
         renewalToken: null,
         renewalTokenIndex: null,
+        siteUrl: "test.bunny.run",
+        updates: "release" as const,
       };
       const result = await builtSitesCrudTable.fromDb(site);
       expect(result).toEqual(site);
+    });
+
+    test("inputKeyMap exposes form-facing fields", () => {
+      expect(builtSitesCrudTable.inputKeyMap).toEqual({
+        assignable: "assignable",
+        db_provider: "dbProvider",
+        db_token: "dbToken",
+        db_url: "dbUrl",
+        hosting_id: "hostingId",
+        hosting_provider: "hostingProvider",
+        name: "name",
+        site_url: "siteUrl",
+        updates: "updates",
+      });
     });
 
     test("rowToInput exposes form-input fields for reuse", () => {
@@ -227,35 +302,41 @@ describeWithEnv("built-sites", { db: true }, () => {
         assignable: true,
         assignedAttendeeId: null,
         assignedListingId: null,
-        bunnyScriptId: "script-123",
-        bunnyUrl: "example.bunny.run",
         created: "2026-01-01",
+        dbProvider: "bunny" as const,
         dbToken: "token",
         dbUrl: "libsql://db",
+        hostingId: "script-123",
+        hostingProvider: "bunny" as const,
         id: 42,
         name: "Mirror",
         readOnlyFrom: "",
         renewalToken: null,
         renewalTokenIndex: null,
+        siteUrl: "example.bunny.run",
+        updates: "beta" as const,
       };
       expect(builtSitesCrudTable.rowToInput(site)).toEqual({
         assignable: true,
-        bunnyScriptId: "script-123",
-        bunnyUrl: "example.bunny.run",
+        dbProvider: "bunny",
         dbToken: "token",
         dbUrl: "libsql://db",
+        hostingId: "script-123",
+        hostingProvider: "bunny",
         name: "Mirror",
+        siteUrl: "example.bunny.run",
+        updates: "beta",
       });
     });
 
     test("toDbValues builds encrypted blob from input", async () => {
       const values = await builtSitesCrudTable.toDbValues({
         assignable: false,
-        bunnyScriptId: "777",
-        bunnyUrl: "test.bunny.run",
         dbToken: "tok123",
         dbUrl: "libsql://test.turso.io",
+        hostingId: "777",
         name: "Test",
+        siteUrl: "test.bunny.run",
       });
       expect(values.site_data).toBeTruthy();
       const parsed = parseSiteDataBlob(values.site_data as string);
@@ -266,46 +347,32 @@ describeWithEnv("built-sites", { db: true }, () => {
       expect(parsed.s).toBe("777");
     });
 
-    test("update preserves existing name when only bunnyUrl provided", async () => {
-      const site = await builtSitesCrudTable.insert({
-        assignable: false,
-        bunnyScriptId: "",
-        bunnyUrl: "original.bunny.run",
-        dbToken: "",
-        dbUrl: "",
-        name: "Original",
-      });
+    test("update preserves existing name when only siteUrl provided", async () => {
+      const site = await insertOriginalSite();
       const updated = await builtSitesCrudTable.update(site.id, {
-        bunnyUrl: "new.bunny.run",
+        siteUrl: "new.bunny.run",
       });
       expect(updated!.name).toBe("Original");
-      expect(updated!.bunnyUrl).toBe("new.bunny.run");
+      expect(updated!.siteUrl).toBe("new.bunny.run");
     });
 
-    test("update preserves existing bunnyUrl when only name provided", async () => {
-      const site = await builtSitesCrudTable.insert({
-        assignable: false,
-        bunnyScriptId: "",
-        bunnyUrl: "original.bunny.run",
-        dbToken: "",
-        dbUrl: "",
-        name: "Original",
-      });
+    test("update preserves existing siteUrl when only name provided", async () => {
+      const site = await insertOriginalSite();
       const updated = await builtSitesCrudTable.update(site.id, {
         name: "Updated",
       });
       expect(updated!.name).toBe("Updated");
-      expect(updated!.bunnyUrl).toBe("original.bunny.run");
+      expect(updated!.siteUrl).toBe("original.bunny.run");
     });
 
     test("update preserves existing db credentials when not provided", async () => {
       const site = await builtSitesCrudTable.insert({
         assignable: false,
-        bunnyScriptId: "",
-        bunnyUrl: "original.bunny.run",
         dbToken: "tok123",
         dbUrl: "libsql://db.turso.io",
+        hostingId: "",
         name: "Original",
+        siteUrl: "original.bunny.run",
       });
       const updated = await builtSitesCrudTable.update(site.id, {
         name: "Updated",
@@ -317,31 +384,31 @@ describeWithEnv("built-sites", { db: true }, () => {
     test("update preserves existing bunny script id when not provided", async () => {
       const site = await builtSitesCrudTable.insert({
         assignable: false,
-        bunnyScriptId: "98765",
-        bunnyUrl: "original.bunny.run",
         dbToken: "",
         dbUrl: "",
+        hostingId: "98765",
         name: "Original",
+        siteUrl: "original.bunny.run",
       });
       const updated = await builtSitesCrudTable.update(site.id, {
         name: "Updated",
       });
-      expect(updated!.bunnyScriptId).toBe("98765");
+      expect(updated!.hostingId).toBe("98765");
     });
 
     test("update changes bunny script id when provided", async () => {
       const site = await builtSitesCrudTable.insert({
         assignable: false,
-        bunnyScriptId: "111",
-        bunnyUrl: "original.bunny.run",
         dbToken: "",
         dbUrl: "",
+        hostingId: "111",
         name: "Original",
+        siteUrl: "original.bunny.run",
       });
       const updated = await builtSitesCrudTable.update(site.id, {
-        bunnyScriptId: "222",
+        hostingId: "222",
       });
-      expect(updated!.bunnyScriptId).toBe("222");
+      expect(updated!.hostingId).toBe("222");
     });
 
     test("update returns null for non-existent id", async () => {
@@ -361,11 +428,11 @@ describeWithEnv("built-sites", { db: true }, () => {
     test("toDbValues sets assignable to 1 when true", async () => {
       const values = await builtSitesCrudTable.toDbValues({
         assignable: true,
-        bunnyScriptId: "",
-        bunnyUrl: "test.bunny.run",
         dbToken: "",
         dbUrl: "",
+        hostingId: "",
         name: "Test",
+        siteUrl: "test.bunny.run",
       });
       expect(values.assignable).toBe(1);
     });
@@ -474,28 +541,14 @@ describeWithEnv("built-sites", { db: true }, () => {
       expect(parsed.n).toBe("Old Site");
     });
 
-    test("blob with renewal token includes rt field", () => {
-      const blob = buildSiteDataBlob(
-        "New Site",
-        "new.b-cdn.net",
-        "",
-        "",
-        "",
-        "my-renewal-token",
-      );
-      const parsed = parseSiteDataBlob(blob);
-      expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
-      expect(parsed.rt).toBe("my-renewal-token");
-    });
-
     test("CRUD update preserves existing renewal token", async () => {
       const site = await builtSitesCrudTable.insert({
         assignable: false,
-        bunnyScriptId: "100",
-        bunnyUrl: "preserve.b-cdn.net",
         dbToken: "",
         dbUrl: "",
+        hostingId: "100",
         name: "Token Preserve",
+        siteUrl: "preserve.b-cdn.net",
       });
 
       await updateBuiltSiteRenewalState(site.id, {
@@ -534,7 +587,124 @@ describeWithEnv("built-sites", { db: true }, () => {
       const afterSecond = await getBuiltSiteByRenewalTokenIndex("idx-456");
       expect(afterSecond).not.toBeNull();
       expect(afterSecond!.renewalTokenIndex).toBe("idx-456");
+      expect(afterSecond!.renewalToken).toBe("tok-456");
       expect(afterSecond!.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
+    });
+  });
+
+  describe("update channel", () => {
+    const crudInput = (
+      overrides: Partial<Parameters<typeof builtSitesCrudTable.insert>[0]> = {},
+    ): Parameters<typeof builtSitesCrudTable.insert>[0] => ({
+      assignable: false,
+      dbToken: "",
+      dbUrl: "",
+      hostingId: "",
+      name: "Channel Site",
+      siteUrl: "chan.b-cdn.net",
+      ...overrides,
+    });
+
+    test("insertBuiltSite defaults the channel to release", async () => {
+      await insertBuiltSite("Defaulted", "defaulted.b-cdn.net");
+      const site = (await getAllBuiltSites()).find(
+        (s) => s.name === "Defaulted",
+      )!;
+      expect(site.updates).toBe("release");
+    });
+
+    test("insertBuiltSite stores an explicit channel that round-trips", async () => {
+      await insertBuiltSite(
+        "Alpha Chan",
+        "ac.b-cdn.net",
+        "",
+        "",
+        false,
+        "",
+        "alpha",
+      );
+      const site = (await getAllBuiltSites()).find(
+        (s) => s.name === "Alpha Chan",
+      )!;
+      expect(site.updates).toBe("alpha");
+    });
+
+    test("CRUD insert defaults the channel to release when omitted", async () => {
+      const site = await builtSitesCrudTable.insert(
+        crudInput({ name: "Crud Default" }),
+      );
+      expect(site.updates).toBe("release");
+    });
+
+    test("CRUD insert persists an explicit channel through the DB", async () => {
+      const site = await builtSitesCrudTable.insert(
+        crudInput({ name: "Crud Beta", updates: "beta" }),
+      );
+      expect(site.updates).toBe("beta");
+      const reloaded = (await getAllBuiltSites()).find(
+        (s) => s.id === site.id,
+      )!;
+      expect(reloaded.updates).toBe("beta");
+    });
+
+    test("CRUD update changes the channel", async () => {
+      const site = await builtSitesCrudTable.insert(
+        crudInput({ name: "Chan Change" }),
+      );
+      const updated = await builtSitesCrudTable.update(site.id, {
+        updates: "alpha",
+      });
+      expect(updated!.updates).toBe("alpha");
+    });
+
+    test("CRUD update preserves the channel when other fields change", async () => {
+      const site = await builtSitesCrudTable.insert(
+        crudInput({ name: "Keep Chan", updates: "beta" }),
+      );
+      const updated = await builtSitesCrudTable.update(site.id, {
+        name: "Keep Chan Renamed",
+      });
+      expect(updated!.name).toBe("Keep Chan Renamed");
+      expect(updated!.updates).toBe("beta");
+    });
+
+    test("assigning a site preserves its update channel", async () => {
+      await insertBuiltSite(
+        "Assign Chan",
+        "ach.b-cdn.net",
+        "",
+        "",
+        true,
+        "",
+        "beta",
+      );
+      const site = (await getAllBuiltSites()).find(
+        (s) => s.name === "Assign Chan",
+      )!;
+      const updated = await assignBuiltSite(site.id, 1, 2);
+      expect(updated!.updates).toBe("beta");
+    });
+
+    test("updating renewal state preserves the update channel", async () => {
+      await insertBuiltSite(
+        "Renew Chan",
+        "rch.b-cdn.net",
+        "",
+        "",
+        false,
+        "",
+        "alpha",
+      );
+      const site = (await getAllBuiltSites()).find(
+        (s) => s.name === "Renew Chan",
+      )!;
+      await updateBuiltSiteRenewalState(site.id, {
+        readOnlyFrom: "2027-01-01T00:00:00Z",
+      });
+      const reloaded = (await getAllBuiltSites()).find(
+        (s) => s.id === site.id,
+      )!;
+      expect(reloaded.updates).toBe("alpha");
     });
   });
 });

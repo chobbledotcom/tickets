@@ -59,23 +59,23 @@ async function getTicketCsp(setupEmbedHosts?: string): Promise<string> {
 describeWithEnv("server (embed hosts)", { db: true }, () => {
   describe("GET /admin/settings (embed hosts section)", () => {
     test("shows embed hosts section on settings page", async () => {
-      const { response } = await adminGet("/admin/settings");
+      const response = await adminGet("/admin/settings");
       await expectHtmlResponse(
         response,
         200,
-        "Only allow embedding on these hosts",
+        "External sites allowed to use embeds and order buttons",
         "embed_hosts",
       );
     });
 
     test("shows current embed hosts value when configured", async () => {
       await settings.update.embedHosts("example.com, *.mysite.org");
-      const { response } = await adminGet("/admin/settings");
+      const response = await adminGet("/admin/settings");
       await expectHtmlResponse(response, 200, "example.com, *.mysite.org");
     });
 
     test("shows empty field when no embed hosts configured", async () => {
-      const { response } = await adminGet("/admin/settings");
+      const response = await adminGet("/admin/settings");
       await expectHtmlResponse(response, 200, 'value=""');
     });
   });

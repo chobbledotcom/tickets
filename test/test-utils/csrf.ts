@@ -1,5 +1,7 @@
+import { expect } from "@std/expect";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { expectFlash } from "#test-utils/assertions.ts";
 
 export const extractCsrfToken = (html: string | null): string | null => {
   if (!html) return null;
@@ -56,21 +58,35 @@ export const requireJoinCsrfToken = (html: string | null): string => {
   return token;
 };
 
+export const csrfTokenOrSignedFallback = async (
+  html: string,
+): Promise<string> => extractCsrfToken(html) ?? (await signCsrfToken());
+
 export const getSetupCsrfToken = (html: string | null): string | null =>
   extractCsrfToken(html);
 
 export const getTicketCsrfToken = (html: string | null): string | null =>
   extractCsrfToken(html);
 
-export const getPageCsrfToken = async (path: string): Promise<string> => {
+/** GETs a page and returns its rendered HTML plus its signed CSRF token. This
+ *  is the shared first half of any test that must inspect the page —
+ *  checking rendered content, a sold-out label, an iframe flag — before
+ *  submitting a form, rather than going straight through
+ *  `submitMultiTicketForm`. */
+export const getPageWithCsrf = async (
+  path: string,
+): Promise<{ csrfToken: string; html: string }> => {
   const { handleRequest } = await import("#routes");
   const { mockRequest } = await import("#test-utils/mocks.ts");
   const response = await handleRequest(mockRequest(path));
   const html = await response.text();
-  const token = extractCsrfToken(html);
-  if (!token) throw new Error(`Failed to get CSRF token from ${path}`);
-  return token;
+  const csrfToken = extractCsrfToken(html);
+  if (!csrfToken) throw new Error(`Failed to get CSRF token from ${path}`);
+  return { csrfToken, html };
 };
+
+export const getPageCsrfToken = async (path: string): Promise<string> =>
+  (await getPageWithCsrf(path)).csrfToken;
 
 export const getCsrfTokenFromCookie = async (
   cookie: string,
@@ -113,9 +129,28 @@ export const submitTicketForm = async (
   );
   const getResponse = await handleRequest(mockRequest(`/ticket/${slug}`));
   const html = await getResponse.text();
-  const csrfToken = extractCsrfToken(html) ?? (await signCsrfToken());
+  const csrfToken = await csrfTokenOrSignedFallback(html);
   const normalizedData = normalizeSingleListingFields(data, html);
   return handleRequest(mockTicketFormRequest(slug, normalizedData, csrfToken));
+};
+
+/** POSTs a ticket form carrying no CSRF token at all and asserts the
+ *  standard "Invalid or expired form" rejection — the shared missing-CSRF
+ *  check behind single- and multi-listing ticket routes alike. */
+export const expectMissingCsrfRejected = async (
+  path: string,
+  data: Record<string, string>,
+): Promise<Response> => {
+  const { handleRequest } = await import("#routes");
+  const { mockFormRequest } = await import("#test-utils/mocks.ts");
+  const response = await handleRequest(mockFormRequest(path, data));
+  expect(response.status).toBe(302);
+  expectFlash(
+    response,
+    expect.stringContaining("Invalid or expired form"),
+    false,
+  );
+  return response;
 };
 
 export const submitMultiTicketForm = async (
@@ -123,11 +158,9 @@ export const submitMultiTicketForm = async (
   data: Record<string, string>,
 ): Promise<Response> => {
   const { handleRequest } = await import("#routes");
-  const { mockFormRequest, mockRequest } = await import("#test-utils/mocks.ts");
+  const { mockFormRequest } = await import("#test-utils/mocks.ts");
   const path = `/ticket/${slug}`;
-  const getResponse = await handleRequest(mockRequest(path));
-  const csrfToken = extractCsrfToken(await getResponse.text()) ?? "";
-  if (!csrfToken) throw new Error("No CSRF token found on ticket page");
+  const { csrfToken } = await getPageWithCsrf(path);
   return handleRequest(
     mockFormRequest(
       path,
@@ -137,12 +170,73 @@ export const submitMultiTicketForm = async (
   );
 };
 
+/** Submits the joint ticket form as "John Doe", booking `quantity1` of
+ *  listing1 and `quantity2` of listing2 — the generic two-listing booking
+ *  shape reused by almost every multi-listing test scenario that doesn't
+ *  care about the buyer's identity, only about what happens to the two
+ *  listings and their quantities. */
+export const bookTwoListings = (
+  slug: string,
+  listing1Id: number,
+  quantity1: string,
+  listing2Id: number,
+  quantity2: string,
+): Promise<Response> =>
+  submitMultiTicketForm(slug, {
+    email: "john@example.com",
+    name: "John Doe",
+    [`quantity_${listing1Id}`]: quantity1,
+    [`quantity_${listing2Id}`]: quantity2,
+  });
+
+/** `bookTwoListings` specialised to one of each — the most common case. */
+export const bookOneEachViaTicketForm = (
+  slug: string,
+  listing1Id: number,
+  listing2Id: number,
+): Promise<Response> => bookTwoListings(slug, listing1Id, "1", listing2Id, "1");
+
+/** Submits the joint ticket form as "Test User" <test@example.com>, booking
+ *  `quantity1` of listing1 and `quantity2` of listing2, with optional extra
+ *  form fields (e.g. a chosen `date`) merged in — the generic two-listing
+ *  "Test User" booking shape reused by several date/validation scenarios. */
+export const bookTwoListingsAsTestUser = (
+  slug: string,
+  listing1Id: number,
+  quantity1: string,
+  listing2Id: number,
+  quantity2: string,
+  extraFields: Record<string, string> = {},
+): Promise<Response> =>
+  submitMultiTicketForm(slug, {
+    ...extraFields,
+    email: "test@example.com",
+    name: "Test User",
+    [`quantity_${listing1Id}`]: quantity1,
+    [`quantity_${listing2Id}`]: quantity2,
+  });
+
+/** Books one of each of two listings and asserts the booking was turned away
+ *  with a 302 redirect and a flash error containing `flashSubstring` — the
+ *  shared "attempted booking, got rejected" assertion behind many capacity /
+ *  payment-provider / CSRF edge-case tests. */
+export const expectBookOneEachRejected = async (
+  slug: string,
+  listing1Id: number,
+  listing2Id: number,
+  flashSubstring: string,
+): Promise<void> => {
+  const response = await bookOneEachViaTicketForm(slug, listing1Id, listing2Id);
+  expect(response.status).toBe(302);
+  expectFlash(response, expect.stringContaining(flashSubstring), false);
+};
+
 const extractQuantityListingId = (html: string): string | null => {
   const match = html.match(/name="quantity_(\d+)"/);
   return match?.[1] ?? null;
 };
 
-const normalizeSingleListingFields = (
+export const normalizeSingleListingFields = (
   data: Record<string, string>,
   html: string,
 ): Record<string, string> => {

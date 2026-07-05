@@ -10,23 +10,28 @@ import builder from "./builder.json" with { type: "json" };
 import builtSites from "./built-sites.json" with { type: "json" };
 import bulkActions from "./bulk-actions.json" with { type: "json" };
 import bulkEmail from "./bulk-email.json" with { type: "json" };
+import catalogTransfer from "./catalog-transfer.json" with { type: "json" };
 import common from "./common.json" with { type: "json" };
 import csv from "./csv.json" with { type: "json" };
 import datePicker from "./date-picker.json" with { type: "json" };
 import debug from "./debug.json" with { type: "json" };
 import deliveries from "./deliveries.json" with { type: "json" };
 import detailRows from "./detail-rows.json" with { type: "json" };
+import entityPages from "./entity-pages.json" with { type: "json" };
 import errors from "./errors.json" with { type: "json" };
 import fields from "./fields.json" with { type: "json" };
 import groups from "./groups.json" with { type: "json" };
 import guide from "./guide.json" with { type: "json" };
 import holidays from "./holidays.json" with { type: "json" };
+import images from "./images.json" with { type: "json" };
+import listingDefaults from "./listing-defaults.json" with { type: "json" };
 import listingQr from "./listing-qr.json" with { type: "json" };
 import listingsTable from "./listings-table.json" with { type: "json" };
 import login from "./login.json" with { type: "json" };
 import logistics from "./logistics.json" with { type: "json" };
 import modifiers from "./modifiers.json" with { type: "json" };
 import nav from "./nav.json" with { type: "json" };
+import notes from "./notes.json" with { type: "json" };
 import payment from "./payment.json" with { type: "json" };
 import privacy from "./privacy.json" with { type: "json" };
 import publicMessages from "./public.json" with { type: "json" };
@@ -34,6 +39,7 @@ import questions from "./questions.json" with { type: "json" };
 import settings from "./settings.json" with { type: "json" };
 import setup from "./setup.json" with { type: "json" };
 import site from "./site.json" with { type: "json" };
+import sitePages from "./site-pages.json" with { type: "json" };
 import sms from "./sms.json" with { type: "json" };
 import statuses from "./statuses.json" with { type: "json" };
 import support from "./support.json" with { type: "json" };
@@ -51,23 +57,28 @@ const en: Record<string, string> = {
   ...builtSites,
   ...bulkActions,
   ...bulkEmail,
+  ...catalogTransfer,
   ...common,
   ...csv,
   ...datePicker,
   ...debug,
   ...deliveries,
   ...detailRows,
+  ...entityPages,
   ...errors,
   ...fields,
   ...groups,
   ...guide,
   ...holidays,
+  ...images,
+  ...listingDefaults,
   ...listingQr,
   ...listingsTable,
   ...login,
   ...logistics,
   ...modifiers,
   ...nav,
+  ...notes,
   ...payment,
   ...privacy,
   ...publicMessages,
@@ -75,6 +86,7 @@ const en: Record<string, string> = {
   ...settings,
   ...setup,
   ...site,
+  ...sitePages,
   ...sms,
   ...statuses,
   ...support,

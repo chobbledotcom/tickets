@@ -3,6 +3,7 @@
  * Owner-only access enforced via settingsRoute.
  */
 
+// jscpd:ignore-start
 import { t } from "#i18n";
 import { settingsRoute } from "#routes/admin/settings-helpers.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
@@ -16,6 +17,8 @@ import {
   type ChangePasswordFormValues,
   getChangePasswordFields,
 } from "#templates/fields.ts";
+
+// jscpd:ignore-end
 
 /**
  * Validate change password form data

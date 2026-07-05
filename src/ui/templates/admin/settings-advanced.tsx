@@ -3,9 +3,10 @@
  */
 
 import { t } from "#i18n";
+import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
+import { themedAdminPage } from "#templates/admin/admin-page.tsx";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
-import { AdminNav } from "#templates/admin/nav.tsx";
 import { AppleWalletForm } from "#templates/admin/settings/apple-wallet.tsx";
 import {
   AttendeeColumnOrderForm,
@@ -16,34 +17,28 @@ import { EmailNotificationsForm } from "#templates/admin/settings/email.tsx";
 import { AdminEmailTemplateForm } from "#templates/admin/settings/email-tpl-admin.tsx";
 import { ConfirmationEmailTemplateForm } from "#templates/admin/settings/email-tpl-confirmation.tsx";
 import { GoogleWalletForm } from "#templates/admin/settings/google-wallet.tsx";
-import { PublicApiForm } from "#templates/admin/settings/public-api.tsx";
+import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 import { SmsGatewayForm } from "#templates/admin/settings/sms-gateway.tsx";
 import { HostSubdomainForm } from "#templates/admin/settings/subdomain.tsx";
-import { Layout } from "#templates/layout.tsx";
+import type { EmailContent } from "#templates/email/shared.ts";
 
 export type AdvancedSettingsPageState = {
   showPublicApi: boolean;
+  externalOrderEnabled: boolean;
   emailProvider: string;
   emailApiKeyConfigured: boolean;
   emailFromAddress: string;
   hostEmailLabel: string;
   businessEmail: string;
-  confirmationTemplates: {
-    subject: string;
-    html: string;
-    text: string;
-  };
-  adminTemplates: {
-    subject: string;
-    html: string;
-    text: string;
-  };
+  confirmationTemplates: EmailContent;
+  adminTemplates: EmailContent;
   bunnyCdnEnabled: boolean;
   bunnyDnsEnabled: boolean;
   bunnySubdomain: string;
   bunnyDnsSubdomainSuffix: string;
   subdomainPreview: string;
   subdomainPreviewFullDomain: string;
+  customCss: string;
   customDomain: string;
   customDomainLastValidated: string;
   cdnHostname: string;
@@ -70,9 +65,8 @@ export const adminAdvancedSettingsPage = (
   session: AdminSession,
   s: AdvancedSettingsPageState,
 ): string =>
-  String(
-    <Layout theme={s.theme} title={t("settings.advanced.title")}>
-      <AdminNav active="/admin/settings" session={session} />
+  themedAdminPage(t("settings.advanced.title"))(session, s.theme)(
+    <>
       <article>
         <aside>
           <p>{t("settings.advanced.warning")}</p>
@@ -86,7 +80,9 @@ export const adminAdvancedSettingsPage = (
       {AdminEmailTemplateForm(s)}
       {ListingColumnOrderForm(s)}
       {AttendeeColumnOrderForm(s)}
-      {PublicApiForm(s)}
+      {settingsForm(SETTINGS_FORMS.customCss, s)}
+      {settingsForm(SETTINGS_FORMS.showPublicApi, s)}
+      {settingsForm(SETTINGS_FORMS.externalOrder, s)}
       {GoogleWalletForm(s)}
       {AppleWalletForm(s)}
       {SmsGatewayForm(s)}
@@ -95,5 +91,5 @@ export const adminAdvancedSettingsPage = (
         action="/admin/settings/reset-database"
         id="settings-reset-database"
       />
-    </Layout>,
+    </>,
   );

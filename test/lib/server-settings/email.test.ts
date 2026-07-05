@@ -4,11 +4,10 @@ import { stub } from "@std/testing/mock";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   adminFormPost,
-  awaitTestRequest,
+  adminGet,
   describeWithEnv,
   expectFlash,
   getAllActivityLog,
-  testCookie,
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
@@ -106,9 +105,7 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
     });
 
     test("advanced settings page displays email configuration section", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
       expect(html).toContain('id="settings-email"');
       expect(html).toContain("email_provider");
@@ -117,6 +114,22 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/email/test", () => {
+    /** Configure the email provider + business email so the test endpoint
+     *  actually sends. Shared by every test in this describe — only the
+     *  `withMocks` stub (and the expected flash) varies. */
+    const configureEmailForTest = async (): Promise<void> => {
+      const { settings } = await import("#shared/db/settings.ts");
+      const { updateBusinessEmail: setBizEmail } = await import(
+        "#shared/validation/email.ts"
+      );
+
+      await settings.update.email.provider("resend");
+      await settings.update.email.apiKey("re_test_key");
+      await settings.update.email.fromAddress("from@test.com");
+      await setBizEmail("admin@test.com");
+      settings.invalidateCache();
+    };
+
     test("shows error when email not configured", async () => {
       const { response } = await adminFormPost("/admin/settings/email/test");
 
@@ -146,16 +159,7 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
     });
 
     test("sends test email and redirects with success including status code", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      const { updateBusinessEmail: setBizEmail } = await import(
-        "#shared/validation/email.ts"
-      );
-
-      await settings.update.email.provider("resend");
-      await settings.update.email.apiKey("re_test_key");
-      await settings.update.email.fromAddress("from@test.com");
-      await setBizEmail("admin@test.com");
-      settings.invalidateCache();
+      await configureEmailForTest();
 
       await withMocks(
         () => stub(globalThis, "fetch", () => Promise.resolve(new Response())),
@@ -174,16 +178,7 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
     });
 
     test("shows error when email API returns non-2xx status", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      const { updateBusinessEmail: setBizEmail } = await import(
-        "#shared/validation/email.ts"
-      );
-
-      await settings.update.email.provider("resend");
-      await settings.update.email.apiKey("re_test_key");
-      await settings.update.email.fromAddress("from@test.com");
-      await setBizEmail("admin@test.com");
-      settings.invalidateCache();
+      await configureEmailForTest();
 
       await withMocks(
         () =>
@@ -206,16 +201,7 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
     });
 
     test("shows error when email send encounters network error", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      const { updateBusinessEmail: setBizEmail } = await import(
-        "#shared/validation/email.ts"
-      );
-
-      await settings.update.email.provider("resend");
-      await settings.update.email.apiKey("re_test_key");
-      await settings.update.email.fromAddress("from@test.com");
-      await setBizEmail("admin@test.com");
-      settings.invalidateCache();
+      await configureEmailForTest();
 
       await withMocks(
         () =>
@@ -245,9 +231,7 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
       await settings.update.email.provider("resend");
       await settings.update.email.fromAddress("from@test.com");
 
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
       expect(html).toContain('value="resend"');
       expect(html).toContain("Send Test Email");

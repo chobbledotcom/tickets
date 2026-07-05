@@ -54,7 +54,7 @@ const pokeNextBuiltSite = async (): Promise<PokeResult | null> => {
   const next = await claimNextBuiltSiteForPrune();
   if (!next) return null;
   try {
-    const url = `${siteBaseUrl(next.bunnyUrl)}${SCHEDULED_PATH}`;
+    const url = `${siteBaseUrl(next.siteUrl)}${SCHEDULED_PATH}`;
     const result = await fetchTextFollowingSafeRedirects(url, {
       method: "GET",
       signal: AbortSignal.timeout(POKE_TIMEOUT_MS),

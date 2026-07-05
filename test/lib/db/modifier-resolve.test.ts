@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
-import { getDb } from "#shared/db/client.ts";
 import {
   hashEmail,
   hashPhone,
@@ -10,15 +9,16 @@ import {
 } from "#shared/db/contact-preferences.ts";
 import {
   ADDON_MAX_QUANTITY,
+  type AddOnReachabilityCheck,
   answerModifierQuantities,
   buyerVisits,
+  childUnreachableAddOnError,
   getOptionalAddOns,
   hasPromoCodeModifiers,
   oversubscribedAnswerTiers,
   resolveModifiers,
   specsFromRefs,
 } from "#shared/db/modifier-resolve.ts";
-import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
 import {
   getModifierAnswerIds,
   setModifierAnswers,
@@ -27,6 +27,7 @@ import { answersTable, questionsTable } from "#shared/db/questions.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import {
   checkoutItem,
+  consumeModifierStock,
   createTestListing,
   describeWithEnv,
   insertModifier,
@@ -50,6 +51,56 @@ const createAnswers = async (count: number): Promise<number[]> => {
   }
   return ids;
 };
+
+describe("childUnreachableAddOnError", () => {
+  // scope [10] names the child (10) and reaches no parent page (20): a dead end.
+  const childOnly: AddOnReachabilityCheck = {
+    active: true,
+    name: "Child-only add-on",
+    scope: [10],
+    trigger: "optional",
+  };
+  const childIds = new Set([10]);
+  const parentPage = new Set([20]);
+
+  test("flags an active opt-in add-on reachable only through the child", () => {
+    expect(
+      childUnreachableAddOnError(childOnly, childIds, parentPage),
+    ).not.toBeNull();
+  });
+
+  test("a global (null-scope) add-on is never a child dead end", () => {
+    // A whole-order scope applies everywhere, so it always keeps a reachable
+    // page and adding a child can't orphan it.
+    expect(
+      childUnreachableAddOnError(
+        { ...childOnly, scope: null },
+        childIds,
+        parentPage,
+      ),
+    ).toBeNull();
+  });
+
+  test("only active, opt-in add-ons are gated", () => {
+    // An inactive add-on never loads on a page, and a non-opt-in (automatic)
+    // add-on isn't a buyer-chosen extra: neither can be orphaned by a new child,
+    // even with a scope that would otherwise dead-end.
+    expect(
+      childUnreachableAddOnError(
+        { ...childOnly, active: false },
+        childIds,
+        parentPage,
+      ),
+    ).toBeNull();
+    expect(
+      childUnreachableAddOnError(
+        { ...childOnly, trigger: "automatic" },
+        childIds,
+        parentPage,
+      ),
+    ).toBeNull();
+  });
+});
 
 describeWithEnv("db > modifier-resolve", { db: true }, () => {
   describe("resolveModifiers", () => {
@@ -240,12 +291,9 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
 
     test("applies a group-scoped modifier to the linked group's listings", async () => {
       const listing = await createTestListing({
+        groupId: 42,
         maxAttendees: 10,
         unitPrice: 1000,
-      });
-      await getDb().execute({
-        args: [42, listing.id],
-        sql: "UPDATE listings SET group_id = ? WHERE id = ?",
       });
       const m = await insertModifier({
         calcKind: "percent",

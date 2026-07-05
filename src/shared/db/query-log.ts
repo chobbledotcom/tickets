@@ -125,7 +125,7 @@ export const sqlWallClockMs = (entries: readonly QueryLogEntry[]): number => {
         e.startedAtMs + e.durationMs,
       ],
     ),
-    sort((a: Interval, b: Interval) => a[0] - b[0]),
+    sort((a, b) => a[0] - b[0]),
   )(entries as QueryLogEntry[]);
   const [firstStart, firstEnd] = intervals[0]!;
   const merged = reduce(
@@ -152,6 +152,22 @@ export const sqlWallClockMs = (entries: readonly QueryLogEntry[]): number => {
  * repeat in the suite; lower it to catch smaller N+1s.
  */
 export const N_PLUS_ONE_THRESHOLD = 25;
+
+/**
+ * Max statements one interactive write transaction may issue before the
+ * round-trip guard fires. Every statement inside a `withTransaction` holds the
+ * single primary write connection open for another edge→primary round-trip, so a
+ * chatty interactive transaction is what the primary aborts as "Transaction
+ * timed-out". A plain batch (`executeBatch`) is one round-trip regardless of how
+ * many statements it carries and is never counted — the whole point is to push
+ * chatty writes onto it. Set above the largest legitimate interactive
+ * transaction; anything that grows with input size (a big attendee merge, a
+ * per-leg ledger post) must prepare its reads outside the lock and apply its
+ * writes as one batch instead. The current high-water mark is recreateTable
+ * on attendee_answers: 8 DROP TRIGGER + 5 rebuild + 6 CREATE INDEX +
+ * 8 CREATE TRIGGER = 27 statements; the threshold sits above that.
+ */
+export const TRANSACTION_ROUNDTRIP_THRESHOLD = 30;
 
 /**
  * When true, an N+1 violation is reported via the error log instead of thrown.
@@ -199,17 +215,49 @@ export const logCompletedSql = async (sql: string): Promise<void> => {
  * count crosses the threshold. Writes and queries outside a request scope (the
  * fallback state, e.g. startup migrations) are never counted.
  */
-const enforceN1Guard = (state: QueryLogState, sql: string): void => {
-  if (!isReadSql(sql)) return;
-  const count = (state.readCounts.get(sql) ?? 0) + 1;
-  state.readCounts.set(sql, count);
-  if (count !== N_PLUS_ONE_THRESHOLD + 1) return;
-  const detail = `N+1 query detected: same read ran ${count} times (limit ${N_PLUS_ONE_THRESHOLD}) in one request: ${sql}`;
+/**
+ * Surface a guard violation: throw in dev/test (the offending request fails
+ * loudly) or report via the error log in production (see
+ * {@link setN1GuardNotifyOnly}, so production never kills a real request).
+ * Shared by the N+1 read guard and the interactive-transaction round-trip guard.
+ */
+const reportGuardViolation = (detail: string): void => {
   if (getN1NotifyOnly()) {
     void notifyN1Violation(detail);
   } else {
     throw new Error(detail);
   }
+};
+
+const enforceN1Guard = (state: QueryLogState, sql: string): void => {
+  if (!isReadSql(sql)) return;
+  const count = (state.readCounts.get(sql) ?? 0) + 1;
+  state.readCounts.set(sql, count);
+  if (count !== N_PLUS_ONE_THRESHOLD + 1) return;
+  reportGuardViolation(
+    `N+1 query detected: same read ran ${count} times (limit ${N_PLUS_ONE_THRESHOLD}) in one request: ${sql}`,
+  );
+};
+
+/**
+ * Count a statement within one interactive transaction and fire once, exactly
+ * when the running count crosses the threshold. Only enforced inside a request
+ * scope — startup migrations rebuild tables in one big transaction outside any
+ * request, so they are never counted. `count` is the running per-transaction
+ * statement count.
+ */
+export const enforceTransactionRoundTripGuard = (
+  count: number,
+  sql: string,
+): void => {
+  if (!asyncLocalStorage.getStore()) return;
+  if (count !== TRANSACTION_ROUNDTRIP_THRESHOLD + 1) return;
+  reportGuardViolation(
+    `Interactive transaction too chatty: ${count} statements ` +
+      `(limit ${TRANSACTION_ROUNDTRIP_THRESHOLD}) held the write lock open — ` +
+      "prepare reads outside the transaction and apply the writes as one batch. " +
+      `Last statement: ${sql}`,
+  );
 };
 
 /**

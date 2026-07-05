@@ -122,7 +122,7 @@ const scanPostWithHeaders = (
 
 /** Get scanner page body text for a given listing */
 const getScannerBody = async (listingId: number) => {
-  const { response } = await adminGet(`/admin/listing/${listingId}/scanner`);
+  const response = await adminGet(`/admin/listing/${listingId}/scanner`);
   return await response.text();
 };
 
@@ -258,9 +258,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
   describe("GET /admin/listing/:id/scanner", () => {
     test("renders scanner page when authenticated", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const { response } = await adminGet(
-        `/admin/listing/${listing.id}/scanner`,
-      );
+      const response = await adminGet(`/admin/listing/${listing.id}/scanner`);
 
       await expectHtmlResponse(
         response,
@@ -286,7 +284,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const { response } = await adminGet("/admin/listing/99999/scanner");
+      const response = await adminGet("/admin/listing/99999/scanner");
       expect(response.status).toBe(404);
     });
 
@@ -504,28 +502,24 @@ describeWithEnv("QR Scanner", { db: true }, () => {
         "Aged",
         "aged@test.com",
       );
-      const time = new FakeTime();
-      try {
-        const agedToken = await signCsrfToken();
-        // Jump halfway into the scanner window — comfortably past the 1-hour
-        // default that every other endpoint enforces.
-        time.tick(Math.floor(SCANNER_CSRF_MAX_AGE_S / 2) * 1000);
+      using time = new FakeTime();
+      const agedToken = await signCsrfToken();
+      // Jump halfway into the scanner window — comfortably past the 1-hour
+      // default that every other endpoint enforces.
+      time.tick(Math.floor(SCANNER_CSRF_MAX_AGE_S / 2) * 1000);
 
-        // The standard CSRF window would already reject this token...
-        expect(await verifySignedCsrfToken(agedToken)).toBe(false);
+      // The standard CSRF window would already reject this token...
+      expect(await verifySignedCsrfToken(agedToken)).toBe(false);
 
-        // ...but the scanner endpoint still accepts it.
-        const result = await scanAndGetJson(
-          listing.id,
-          { token },
-          session.cookie,
-          agedToken,
-        );
-        expect(result.status).toBe("checked_in");
-        expect(result.name).toBe("Aged");
-      } finally {
-        time.restore();
-      }
+      // ...but the scanner endpoint still accepts it.
+      const result = await scanAndGetJson(
+        listing.id,
+        { token },
+        session.cookie,
+        agedToken,
+      );
+      expect(result.status).toBe("checked_in");
+      expect(result.name).toBe("Aged");
     });
 
     test("returns 400 for missing token in body", async () => {
@@ -632,9 +626,9 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     test("logs activity when checking in via scanner", async () => {
       const { listing, session } = await setupAndScan("Eve", "eve@test.com");
 
-      // Check activity log
+      // Check activity log (now the listing entity page's Activity tab)
       const logResponse = await awaitTestRequest(
-        `/admin/listing/${listing.id}/log`,
+        `/admin/listing/${listing.id}/activity`,
         { cookie: session.cookie },
       );
       const logBody = await logResponse.text();
@@ -667,18 +661,41 @@ describeWithEnv("QR Scanner", { db: true }, () => {
   });
 
   describe("listing page scanner link", () => {
-    test("listing admin page has scanner link", async () => {
+    test("scanner is a top-level tab, not an Actions-tab link", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const { response } = await adminGet(`/admin/listing/${listing.id}`);
+      const scannerHref = `/admin/listing/${listing.id}/scanner`;
+
+      const overview = await adminGet(`/admin/listing/${listing.id}`);
+      const overviewBody = await overview.text();
+      expect(overviewBody).toContain(scannerHref);
+      expect(overviewBody).toContain("Scanner");
+
+      // The tab strip renders on every tab (so the actions page still carries
+      // ONE occurrence, the strip link) — but the Actions section's own
+      // action-row markup for it must be gone.
+      const actions = await adminGet(`/admin/listing/${listing.id}/actions`);
+      const actionsBody = await actions.text();
+      const occurrences = actionsBody.split(scannerHref).length - 1;
+      expect(occurrences).toBe(1);
+      expect(actionsBody).not.toContain(
+        `<div class="entity-action"><a class="btn secondary" href="${scannerHref}"`,
+      );
+    });
+
+    test("scanner tab is hidden for a purchase-only (no check-in) listing", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        purchaseOnly: true,
+      });
+      const response = await adminGet(`/admin/listing/${listing.id}`);
       const body = await response.text();
-      expect(body).toContain(`/admin/listing/${listing.id}/scanner`);
-      expect(body).toContain("Scanner");
+      expect(body).not.toContain(`/admin/listing/${listing.id}/scanner`);
     });
   });
 
   describe("GET /admin/guide", () => {
     test("renders guide page when authenticated", async () => {
-      const { response } = await adminGet("/admin/guide");
+      const response = await adminGet("/admin/guide");
       await expectHtmlResponse(
         response,
         200,
@@ -697,7 +714,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("documents modifiers and price values", async () => {
-      const { response } = await adminGet("/admin/guide");
+      const response = await adminGet("/admin/guide");
       const body = await response.text();
 
       expect(body).toContain('id="modifiers"');
@@ -708,7 +725,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("footer contains guide link", async () => {
-      const { response } = await adminGet("/admin/guide");
+      const response = await adminGet("/admin/guide");
       const body = await response.text();
       expect(body).toMatch(
         /<a[^>]*\bhref="\/admin\/guide"[^>]*>\s*Guide\s*<\/a>/,

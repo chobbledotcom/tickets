@@ -311,38 +311,40 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
   });
 
   describe("display: email template date_range_label", () => {
-    const labelFor = (
+    const labelFor = async (
       listing: Parameters<typeof makeTestEntry>[0],
       attendee: Parameters<typeof makeTestEntry>[1],
     ) =>
-      buildTemplateData(
-        [makeTestEntry(listing, attendee)],
-        "GBP",
-        "https://example.com/t/ABC",
+      (
+        await buildTemplateData(
+          [makeTestEntry(listing, attendee)],
+          "GBP",
+          "https://example.com/t/ABC",
+        )
       ).entries[0]!.attendee.date_range_label;
 
-    test("multi-day booking shows en-dash range", () => {
+    test("multi-day booking shows en-dash range", async () => {
       // The label reflects the booking's stored span (end_date exclusive), so a
       // 3-day booking from the 12th ends (exclusive) on the 15th.
       expect(
-        labelFor(
+        await labelFor(
           { duration_days: 3, listing_type: "daily" },
           { date: "2026-06-12", end_date: "2026-06-15" },
         ),
       ).toBe("12\u201314 June 2026");
     });
 
-    test("single-day booking shows full date", () => {
+    test("single-day booking shows full date", async () => {
       expect(
-        labelFor(
+        await labelFor(
           { duration_days: 1, listing_type: "daily" },
           { date: "2026-06-12" },
         ),
       ).toContain("12 June");
     });
 
-    test("no-date booking shows empty string", () => {
-      expect(labelFor({}, { date: null })).toBe("");
+    test("no-date booking shows empty string", async () => {
+      expect(await labelFor({}, { date: null })).toBe("");
     });
   });
 
@@ -698,9 +700,8 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
 
   describe("public ticket page", () => {
     test("shows booking duration hint for multi-day daily listings", async () => {
-      const { ticketPage, buildTicketListing } = await import(
-        "#templates/public.tsx"
-      );
+      const { buildTicketListing } = await import("#shared/booking/model.ts");
+      const { ticketPage } = await import("#templates/public.tsx");
       const listing = await createDailyTestListing({
         durationDays: 3,
         maxAttendees: 10,
@@ -715,9 +716,8 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
     });
 
     test("no duration hint for single-day daily listings", async () => {
-      const { ticketPage, buildTicketListing } = await import(
-        "#templates/public.tsx"
-      );
+      const { buildTicketListing } = await import("#shared/booking/model.ts");
+      const { ticketPage } = await import("#templates/public.tsx");
       const listing = await createDailyTestListing({ maxAttendees: 10 });
       const fresh = (await getListingWithCount(listing.id))!;
       const html = ticketPage({
@@ -790,7 +790,9 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       groupId = 0,
     ): Record<string, string> => ({
       duration_days: String(durationDays),
-      group_id: String(groupId),
+      // Membership is carried by the group_ids checkboxes; only send one when the
+      // listing is in a group (0 = ungrouped).
+      ...(groupId > 0 ? { group_ids: String(groupId) } : {}),
       listing_type: "daily",
       max_attendees: "100",
       max_quantity: "1",
@@ -1174,7 +1176,9 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/listing/${listing.id}/attendee/${result.attendees[0]!.id}/checkin`,
+          `/admin/listing/${listing.id}/attendee/${
+            result.attendees[0]!.id
+          }/checkin`,
           { csrf_token: csrfToken },
           cookie,
         ),

@@ -113,7 +113,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     testRequiresAuth("/admin/debug");
 
     test("renders debug page when authenticated", async () => {
-      const { response } = await adminGet("/admin/debug");
+      const response = await adminGet("/admin/debug");
       await expectHtmlResponse(response, 200, "Debug Info");
     });
 

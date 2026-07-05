@@ -141,12 +141,25 @@ const getFormat = (locale: string, key: string): IntlMessageFormat | null => {
   return fmt;
 };
 
-/** Translate a key with optional ICU MessageFormat parameters */
+/**
+ * Translate a key with optional ICU MessageFormat parameters.
+ *
+ * A key absent from both the active locale and the `en` fallback is a
+ * programming error — a typo or, more often, a dynamically built key
+ * (`listing_defaults.field.${field}.label`) whose translation was never added,
+ * which the static forward coverage scan can't catch. Rather than silently
+ * render the raw key (an ugly string that ships to production unnoticed), throw
+ * so a page render — in tests or in the browser — fails loudly and the missing
+ * translation is fixed at its source.
+ */
 export const t = (key: string, values?: Record<string, unknown>): string => {
   const locale = getLocale();
   const fmt = getFormat(locale, key);
-  // Missing translation falls back to the key itself.
-  if (!fmt) return key;
+  if (!fmt) {
+    throw new Error(
+      `Missing translation for key "${key}" (locale "${locale}")`,
+    );
+  }
   return String(fmt.format(values));
 };
 

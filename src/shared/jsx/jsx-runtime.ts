@@ -24,40 +24,43 @@ export type Child =
   | SafeHtml
   | Child[];
 
-/** HTML attribute types */
+/** HTML attribute types.
+ * Every optional attribute explicitly allows `undefined` so callers can pass a
+ * possibly-absent value (e.g. `id={field.id}`) under exactOptionalPropertyTypes
+ * — `renderAttr` already treats `undefined` as "omit this attribute". */
 interface HtmlAttributes {
-  action?: string;
-  alt?: string;
-  charset?: string;
-  checked?: boolean;
+  action?: string | undefined;
+  alt?: string | undefined;
+  charset?: string | undefined;
+  checked?: boolean | undefined;
   children?: Child;
-  class?: string;
-  cols?: string | number;
-  colspan?: string | number;
-  content?: string;
-  disabled?: boolean;
-  for?: string;
-  href?: string;
+  class?: string | undefined;
+  cols?: string | number | undefined;
+  colspan?: string | number | undefined;
+  content?: string | undefined;
+  disabled?: boolean | undefined;
+  for?: string | undefined;
+  href?: string | undefined;
   // Common HTML attributes
-  id?: string;
-  lang?: string;
-  max?: number | string;
-  method?: string;
-  min?: number | string;
-  name?: string;
-  pattern?: string;
-  placeholder?: string;
-  readonly?: boolean;
-  rel?: string;
-  required?: boolean;
-  rows?: string | number;
-  rowspan?: string | number;
-  src?: string;
-  style?: string;
-  target?: string;
-  title?: string;
-  type?: string;
-  value?: string | number;
+  id?: string | undefined;
+  lang?: string | undefined;
+  max?: number | string | undefined;
+  method?: string | undefined;
+  min?: number | string | undefined;
+  name?: string | undefined;
+  pattern?: string | undefined;
+  placeholder?: string | undefined;
+  readonly?: boolean | undefined;
+  rel?: string | undefined;
+  required?: boolean | undefined;
+  rows?: string | number | undefined;
+  rowspan?: string | number | undefined;
+  src?: string | undefined;
+  style?: string | undefined;
+  target?: string | undefined;
+  title?: string | undefined;
+  type?: string | undefined;
+  value?: string | number | undefined;
   // Allow any other attributes
   [key: string]: Child | string | number | boolean | null | undefined;
 }
@@ -82,8 +85,10 @@ export const escapeHtml = (str: string): string =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
-/** Void elements that should not have closing tags */
-const VOID_ELEMENTS: Record<string, true> = {
+/** Void elements that should not have closing tags.
+ * Frozen so the renderer's global void-element rules can't be mutated by an
+ * importer (the table is exported only so tests can enumerate it). */
+export const VOID_ELEMENTS: Readonly<Record<string, true>> = Object.freeze({
   area: true,
   base: true,
   br: true,
@@ -98,7 +103,7 @@ const VOID_ELEMENTS: Record<string, true> = {
   source: true,
   track: true,
   wbr: true,
-};
+});
 
 const isSafeHtml = (value: unknown): value is SafeHtml =>
   value instanceof SafeHtml;

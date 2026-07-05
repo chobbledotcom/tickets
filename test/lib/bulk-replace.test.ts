@@ -72,6 +72,16 @@ describe("bulk-replace", () => {
       expect(shiftUtcIsoByDays(iso, 0)).toBe(iso);
     });
 
+    test("returns the exact input string for zero-day offsets, not a reparsed equivalent", () => {
+      // A non-canonical-but-equivalent ISO string (no milliseconds) is
+      // Date-parseable, but `new Date(...).toISOString()` would normalize it
+      // to a *different* string (".000" appended) — so this only passes if
+      // the zero-day short-circuit actually returns the input untouched
+      // rather than recomputing through Date.parse/toISOString.
+      const iso = "2026-04-16T09:00:00Z";
+      expect(shiftUtcIsoByDays(iso, 0)).toBe(iso);
+    });
+
     test("returns empty string for empty input", () => {
       expect(shiftUtcIsoByDays("", 5)).toBe("");
     });

@@ -2,11 +2,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { bodyToCreateInput, bodyToUpdateInput } from "#routes/admin/api.ts";
+import { queryAll } from "#shared/db/client.ts";
+import { getGroupIdsByListingId } from "#shared/db/groups.ts";
 import {
   getListingWithCount,
   invalidateListingsCache,
   listingsTable,
 } from "#shared/db/listings.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   apiRequest,
   assertJson,
@@ -14,6 +17,7 @@ import {
   createTestGroup,
   createTestListing,
   describeWithEnv,
+  expectRejectsEmptyName,
   mockRequest,
   requestAsSession,
   testCookie,
@@ -206,6 +210,34 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       );
     });
 
+    test("syncs listing_prices on the transactional API create path", async () => {
+      // The API create goes through the crud-api sideEffect (child-edge) path,
+      // which uses insertStatement and so bypasses the listingsTable wrapper;
+      // the afterWrite hook must still reconcile listing_prices.
+      const response = await apiRequest("/api/admin/listings", {
+        body: {
+          customisable_days: true,
+          day_prices: { 1: 1000, 2: 1800 },
+          duration_days: 2,
+          max_attendees: 20,
+          name: "API Priced",
+          unit_price: 900,
+        },
+        method: "POST",
+      });
+      const { listing } = await response.json();
+      const rows = await queryAll(
+        `SELECT price_type, price_id, unit_price FROM listing_prices
+          WHERE listing_id = ? ORDER BY price_type, price_id`,
+        [listing.id],
+      );
+      expect(rows).toEqual([
+        { price_id: "", price_type: "base", unit_price: 900 },
+        { price_id: "1", price_type: "day_count", unit_price: 1000 },
+        { price_id: "2", price_type: "day_count", unit_price: 1800 },
+      ]);
+    });
+
     test("returns 400 when name is missing", async () => {
       await assertJson(
         apiRequest("/api/admin/listings", {
@@ -264,7 +296,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       await assertJson(
         apiRequest("/api/admin/listings", {
           body: {
-            group_id: 99999,
+            group_ids: [99999],
             max_attendees: 10,
             name: "Group Listing",
           },
@@ -326,17 +358,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
 
     test("returns 400 when name is empty string", async () => {
       const listing = await createTestListing({ name: "Will Empty" });
-
-      await assertJson(
-        apiRequest(`/api/admin/listings/${listing.id}`, {
-          body: { name: "" },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("name cannot be empty");
-        },
-      );
+      await expectRejectsEmptyName(`/api/admin/listings/${listing.id}`);
     });
 
     test("rejects duplicate slug", async () => {
@@ -592,7 +614,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
             date: "2026-12-25T18:00:00Z",
             description: "New desc",
             fields: "email,phone,address",
-            group_id: 0,
+            group_ids: [],
             hidden: true,
             listing_type: "daily",
             location: "New Location",
@@ -650,6 +672,29 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         (body) => {
           expect(body.listing.customisable_days).toBe(true);
           expect(body.listing.day_prices).toEqual({ 1: 500, 2: 900 });
+        },
+      );
+    });
+
+    test("a PUT that omits day_prices leaves the existing day_count rows intact", async () => {
+      const listing = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 400, 2: 700 },
+        durationDays: 3,
+        name: "Keep Days",
+      });
+
+      // A partial update touching only the name must not wipe the day prices —
+      // the JSON API defaults day_prices to the existing value and re-writes it.
+      await assertJson(
+        apiRequest(`/api/admin/listings/${listing.id}`, {
+          body: { name: "Kept Days" },
+          method: "PUT",
+        }),
+        200,
+        (body) => {
+          expect(body.listing.name).toBe("Kept Days");
+          expect(body.listing.day_prices).toEqual({ 1: 400, 2: 700 });
         },
       );
     });
@@ -740,12 +785,10 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
   });
 
   describe("DELETE /api/admin/listings/:listingId - with media", () => {
-    test("deletes listing with image_url and attachment_url", async () => {
+    test("deletes listing with attachment_url", async () => {
       const listing = await createTestListing({ name: "Media Listing" });
-      // Set image_url and attachment_url directly
       await listingsTable.update(listing.id, {
         attachmentUrl: "https://cdn.example.com/file.pdf",
-        imageUrl: "https://cdn.example.com/image.jpg",
       });
       invalidateListingsCache();
 
@@ -794,16 +837,58 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         expect(result.input.slug).toBeTruthy();
       }
     });
+
+    test("rejects a non-array group_ids", async () => {
+      const result = await bodyToCreateInput({
+        group_ids: "5",
+        max_attendees: 10,
+        name: "Bad Groups",
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toContain("must be an array");
+    });
+
+    test("rejects group_ids with non-positive-integer entries", async () => {
+      const result = await bodyToCreateInput({
+        group_ids: ["5"],
+        max_attendees: 10,
+        name: "Bad Entry",
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toContain("positive integer ids");
+      }
+    });
+
+    test("maps the use_defaults flag both ways and omits it when absent", async () => {
+      // true/false both round-trip (so the API can opt in *and* out), and an
+      // absent flag stays absent rather than defaulting to either value.
+      const cases: Array<[boolean | undefined, boolean | undefined]> = [
+        [true, true],
+        [false, false],
+        [undefined, undefined],
+      ];
+      for (const [sent, expected] of cases) {
+        const body: Record<string, unknown> = {
+          max_attendees: 10,
+          name: "Inheriting",
+        };
+        if (sent !== undefined) body.use_defaults = sent;
+        const result = await bodyToCreateInput(body);
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.input.useDefaults).toBe(expected);
+      }
+    });
   });
 
   describe("POST /api/admin/listings - group validation", () => {
     test("creates listing in a valid group", async () => {
       const group = await createTestGroup({ name: "Valid Group" });
 
-      await assertJson(
+      const body = await assertJson(
         apiRequest("/api/admin/listings", {
           body: {
-            group_id: group.id,
+            group_ids: [group.id],
             listing_type: "standard",
             max_attendees: 10,
             name: "Grouped Listing",
@@ -811,10 +896,121 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
           method: "POST",
         }),
         201,
-        (body) => {
-          expect(body.listing.group_id).toBe(group.id);
-        },
       );
+      expect(await getGroupIdsByListingId(body.listing.id)).toEqual([group.id]);
+    });
+
+    test("creates a default-standard listing in an existing group without listing_type", async () => {
+      const group = await createTestGroup({ name: "Standard Group" });
+      // Seed the group with one standard listing.
+      await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            group_ids: [group.id],
+            listing_type: "standard",
+            max_attendees: 10,
+            name: "First",
+          },
+          method: "POST",
+        }),
+        201,
+      );
+      // A second create omits listing_type (DB defaults to standard); it must
+      // not be read as a type mismatch against the standard group.
+      const body = await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            group_ids: [group.id],
+            max_attendees: 10,
+            name: "Second",
+          },
+          method: "POST",
+        }),
+        201,
+      );
+      expect(await getGroupIdsByListingId(body.listing.id)).toEqual([group.id]);
+    });
+
+    test("listing responses include group_ids so clients can round-trip them", async () => {
+      const group = await createTestGroup({ name: "Roundtrip Group" });
+      const created = await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            group_ids: [group.id],
+            max_attendees: 10,
+            name: "Roundtrip Listing",
+          },
+          method: "POST",
+        }),
+        201,
+      );
+      // Membership is readable from the create, get, and list responses.
+      expect(created.listing.group_ids).toEqual([group.id]);
+      const got = await assertJson(
+        apiRequest(`/api/admin/listings/${created.listing.id}`),
+        200,
+      );
+      expect(got.listing.group_ids).toEqual([group.id]);
+      const list = await assertJson(apiRequest("/api/admin/listings"), 200);
+      const inList = list.listings.find(
+        (l: { id: number }) => l.id === created.listing.id,
+      );
+      expect(inList.group_ids).toEqual([group.id]);
+    });
+
+    test("list batch-hydrates group_ids, including an empty array for ungrouped", async () => {
+      const group = await createTestGroup({ name: "Batch Group" });
+      const grouped = await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: { group_ids: [group.id], max_attendees: 10, name: "Grouped" },
+          method: "POST",
+        }),
+        201,
+      );
+      const ungrouped = await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: { max_attendees: 10, name: "Ungrouped" },
+          method: "POST",
+        }),
+        201,
+      );
+
+      const list = await assertJson(apiRequest("/api/admin/listings"), 200);
+      const byId = new Map<number, { group_ids: number[] }>(
+        list.listings.map((l: { id: number }) => [l.id, l]),
+      );
+      expect(byId.get(grouped.listing.id)?.group_ids).toEqual([group.id]);
+      // An ungrouped listing hydrates to an empty array, not a missing field.
+      expect(byId.get(ungrouped.listing.id)?.group_ids).toEqual([]);
+    });
+
+    test("PUT moves a listing from one group to another", async () => {
+      const groupA = await createTestGroup({ name: "From Group" });
+      const groupB = await createTestGroup({ name: "To Group" });
+      const created = await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: { group_ids: [groupA.id], max_attendees: 10, name: "Mover" },
+          method: "POST",
+        }),
+        201,
+      );
+      expect(await getGroupIdsByListingId(created.listing.id)).toEqual([
+        groupA.id,
+      ]);
+
+      // Re-grouping a listing that already belongs to a group diffs the current
+      // membership against the new set inside the write transaction.
+      const updated = await assertJson(
+        apiRequest(`/api/admin/listings/${created.listing.id}`, {
+          body: { group_ids: [groupB.id] },
+          method: "PUT",
+        }),
+        200,
+      );
+      expect(updated.listing.group_ids).toEqual([groupB.id]);
+      expect(await getGroupIdsByListingId(created.listing.id)).toEqual([
+        groupB.id,
+      ]);
     });
 
     test("rejects listing with mismatched type in group", async () => {
@@ -823,7 +1019,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       // Create a standard listing in the group
       await apiRequest("/api/admin/listings", {
         body: {
-          group_id: group.id,
+          group_ids: [group.id],
           listing_type: "standard",
           max_attendees: 10,
           name: "Standard In Group",
@@ -835,7 +1031,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       await assertJson(
         apiRequest("/api/admin/listings", {
           body: {
-            group_id: group.id,
+            group_ids: [group.id],
             listing_type: "daily",
             max_attendees: 10,
             name: "Daily In Group",
@@ -893,7 +1089,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/listings/${listing.id}`, {
-          body: { group_id: 99999 },
+          body: { group_ids: [99999] },
           method: "PUT",
         }),
         400,
@@ -909,7 +1105,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       // Create a standard listing in the group
       await apiRequest("/api/admin/listings", {
         body: {
-          group_id: group.id,
+          group_ids: [group.id],
           listing_type: "standard",
           max_attendees: 10,
           name: "Standard First",
@@ -922,7 +1118,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/listings/${listing.id}`, {
-          body: { group_id: group.id, listing_type: "daily" },
+          body: { group_ids: [group.id], listing_type: "daily" },
           method: "PUT",
         }),
         400,
@@ -934,6 +1130,19 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
   });
 
   describe("bodyToUpdateInput", () => {
+    test("rejects malformed group_ids instead of silently clearing membership", async () => {
+      const existing = testListingWithCount({
+        max_attendees: 10,
+        name: "Has Groups",
+        slug: "has-groups",
+      });
+      const result = await bodyToUpdateInput({ group_ids: ["5"] }, existing);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toContain("positive integer ids");
+      }
+    });
+
     test("preserves existing values when fields not provided", async () => {
       const existing = testListingWithCount({
         bookable_days: ["Monday"],
@@ -974,6 +1183,39 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         expect(result.input.hidden).toBe(false);
         expect(result.input.maxPrice).toBe(0);
       }
+    });
+
+    test("merges onto stored values, not inherited defaults", async () => {
+      // Set the default first so creating the listing invalidates the cache and
+      // the resolving lookup sees the default live.
+      await settings.update.listingDefaults({ hidden: true });
+      const listing = await createTestListing({
+        hidden: false,
+        useDefaults: true,
+      });
+      const resolved = (await getListingWithCount(listing.id))!;
+      // The lookup row inherits the default…
+      expect(resolved.hidden).toBe(true);
+      // …but an update that doesn't touch hidden keeps the listing's stored
+      // false, so clearing the default later still restores its own value.
+      const result = await bodyToUpdateInput({ name: "Renamed" }, resolved);
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.input.hidden).toBe(false);
+    });
+
+    test("preserves use_defaults when absent and toggles it when sent", async () => {
+      const existing = testListingWithCount({
+        max_attendees: 10,
+        name: "Inheriting",
+        slug: "inheriting",
+        use_defaults: true,
+      });
+      // Omitted → the flag is preserved (an unrelated PUT can't un-inherit it).
+      const kept = await bodyToUpdateInput({}, existing);
+      expect(kept.ok && kept.input.useDefaults).toBe(true);
+      // Explicit false → turned off.
+      const off = await bodyToUpdateInput({ use_defaults: false }, existing);
+      expect(off.ok && off.input.useDefaults).toBe(false);
     });
 
     test("preserves existing closes_at null as empty string", async () => {

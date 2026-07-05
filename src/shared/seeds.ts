@@ -11,6 +11,10 @@ import {
   encryptAttendeeFields,
 } from "#shared/db/attendees.ts";
 import { executeBatch, insert, queryAll, rawSql } from "#shared/db/client.ts";
+import {
+  dayCountPriceStatements,
+  syncListingPricesForIds,
+} from "#shared/db/listing-prices.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   DEMO_ADDRESSES,
@@ -51,12 +55,11 @@ const generateUniqueSlugs = async (count: number): Promise<SlugWithIndex[]> => {
 
 /** Demo day-count prices derived from a base (1-day) price, so the seeded
  * customisable listing shows realistic 1/2/3-day tiers. */
-const demoDayPrices = (unitPrice: number): string =>
-  JSON.stringify({
-    1: unitPrice,
-    2: Math.round(unitPrice * 1.8),
-    3: Math.round(unitPrice * 2.5),
-  });
+const demoDayPrices = (unitPrice: number): Record<number, number> => ({
+  1: unitPrice,
+  2: Math.round(unitPrice * 1.8),
+  3: Math.round(unitPrice * 2.5),
+});
 
 /** Prepare encrypted values for a single listing */
 const prepareListing = async (
@@ -89,10 +92,9 @@ const prepareListing = async (
     encThankYou,
     encWebhook,
     encClosesAt,
-    encImageUrl,
     encAttachmentUrl,
     encAttachmentName,
-  ] = await encryptBatch("", "", "", "", "", "", "");
+  ] = await encryptBatch("", "", "", "", "", "");
 
   return insert("listings", {
     active: 1,
@@ -111,11 +113,8 @@ const prepareListing = async (
     created,
     customisable_days: customisable ? 1 : 0,
     date: encDate,
-    day_prices: customisable ? demoDayPrices(unitPrice) : "{}",
     description: encDesc,
     fields: "email",
-    group_id: 0,
-    image_url: encImageUrl,
     listing_type: "standard",
     location: encLoc,
     max_attendees: maxAttendees,
@@ -186,6 +185,9 @@ export const createSeeds = async (
     );
     return {
       capacity: sum(quantities),
+      // Showcase the customisable-days feature on the first (always-priced) demo
+      // listing so it appears in any seeded dataset.
+      customisable: i === 0,
       index: i,
       quantities,
       slug: slugs[i]!,
@@ -202,9 +204,7 @@ export const createSeeds = async (
         d.unitPrice,
         d.slug.slug,
         d.slug.slugIndex,
-        // Showcase the customisable-days feature on the first (always-priced)
-        // demo listing so it appears in any seeded dataset.
-        d.index === 0,
+        d.customisable,
       ),
     )(listingData),
   );
@@ -216,6 +216,18 @@ export const createSeeds = async (
     [listingCount],
   );
   const listingIds = map((r: { id: number }) => r.id)(rows).reverse();
+
+  // The seed inserts listings via raw batch statements (not listingsTable), so
+  // populate their listing_prices rows the same way an admin write would: `base`
+  // from the unit_price column, and `day_count` rows from the demo day prices for
+  // the customisable listings (day prices are no longer a listings column).
+  await syncListingPricesForIds(listingIds);
+  const dayCountStatements = listingData
+    .filter((d) => d.customisable)
+    .flatMap((d) =>
+      dayCountPriceStatements(listingIds[d.index]!, demoDayPrices(d.unitPrice)),
+    );
+  if (dayCountStatements.length > 0) await executeBatch(dayCountStatements);
 
   // Prepare all attendee inserts in parallel, in chunks to avoid memory pressure
   const CHUNK_SIZE = 50;

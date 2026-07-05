@@ -5,60 +5,55 @@
  * top; when enabled, the page reveals logistics-agent management (a simple
  * id + name list with add / edit / remove). Logistics listings then surface
  * start and end agent selectors on their attendees.
+ *
+ * The main settings page is hand-rolled (its has-logistics toggle + inline
+ * agents list + add form don't fit the standard resource list shell), but the
+ * agent create/edit/delete pages go through {@link defineAdminResourcePages}.
+ * The edit page carries its assigned-users selector via the factory's typed
+ * `TEditCtx`.
  */
 
 import { t } from "#i18n";
 import { settings } from "#shared/db/settings.ts";
-import {
-  ConfirmForm,
-  CsrfForm,
-  entityToFieldValues,
-  Flash,
-  renderFields,
-} from "#shared/forms.tsx";
+import { CsrfForm, entityToFieldValues, renderFields } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type {
   AdminLevel,
   AdminSession,
   LogisticsAgent,
 } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { successAdminPage } from "#templates/admin/admin-page.tsx";
+import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
+import { booleanSettingsSection } from "#templates/admin/settings/boolean-settings-section.tsx";
+import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
 import {
-  DeleteSection,
-  GuideLink,
-  SubmitButton,
-} from "#templates/components/actions.tsx";
+  CheckboxFieldset,
+  CheckboxLabel,
+} from "#templates/components/aggregate-sections.tsx";
+import {
+  type DataColumn,
+  dataTable,
+} from "#templates/components/data-table.tsx";
 import { logisticsAgentFields } from "#templates/fields.ts";
-import { Layout } from "#templates/layout.tsx";
 
 /** The has-logistics enable/disable toggle. */
-const HasLogisticsForm = (hasLogistics: boolean): JSX.Element => (
-  <CsrfForm action="/admin/logistics/has-logistics">
-    <h2>{t("logistics.title")}</h2>
-    <p>{t("logistics.enable_hint")}</p>
-    <fieldset class="radios">
-      <label>
-        <input
-          checked={hasLogistics === true}
-          name="has_logistics"
-          type="radio"
-          value="true"
-        />
-        {t("common.yes")}
-      </label>
-      <label>
-        <input
-          checked={hasLogistics !== true}
-          name="has_logistics"
-          type="radio"
-          value="false"
-        />
-        {t("common.no")}
-      </label>
-    </fieldset>
-    <SubmitButton icon="save">{t("common.save")}</SubmitButton>
-  </CsrfForm>
-);
+const HasLogisticsForm = booleanSettingsSection<boolean>({
+  action: "/admin/logistics/has-logistics",
+  description: <p>{t("logistics.enable_hint")}</p>,
+  fieldName: "has_logistics",
+  title: t("logistics.title"),
+  value: (hasLogistics) => hasLogistics,
+});
+
+/** Single-column table of logistics agents (name linking to edit). */
+const agentColumns: DataColumn<LogisticsAgent>[] = [
+  {
+    cell: (agent) => (
+      <a href={`/admin/logistics/${agent.id}/edit`}>{agent.name}</a>
+    ),
+    header: t("common.name"),
+  },
+];
 
 /** The logistics-agents list with inline add form (shown when logistics is on). */
 const AgentsSection = (agents: LogisticsAgent[]): JSX.Element => (
@@ -68,24 +63,7 @@ const AgentsSection = (agents: LogisticsAgent[]): JSX.Element => (
     {agents.length === 0 ? (
       <p>{t("logistics.no_agents_yet")}</p>
     ) : (
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>{t("common.name")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {agents.map((agent) => (
-              <tr>
-                <td>
-                  <a href={`/admin/logistics/${agent.id}/edit`}>{agent.name}</a>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      dataTable(agentColumns)(agents)
     )}
     <CsrfForm action="/admin/logistics">
       <h3>{t("logistics.add_agent")}</h3>
@@ -104,10 +82,8 @@ export const adminLogisticsPage = (
   session: AdminSession,
   successMessage?: string,
 ): string =>
-  String(
-    <Layout title={t("logistics.title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <Flash success={successMessage} />
+  successAdminPage(t("logistics.title"))(session, successMessage)(
+    <>
       <p class="actions">
         <GuideLink href="/admin/guide#logistics">
           {t("logistics.guide_link")}
@@ -115,7 +91,7 @@ export const adminLogisticsPage = (
       </p>
       {HasLogisticsForm(settings.hasLogistics)}
       {settings.hasLogistics && AgentsSection(agents)}
-    </Layout>,
+    </>,
   );
 
 /** Logistics agent create/edit form values. */
@@ -123,23 +99,6 @@ export const logisticsAgentToFieldValues = (
   agent?: LogisticsAgent,
 ): Record<string, string | number | null> =>
   entityToFieldValues(agent, logisticsAgentFields, {});
-
-/** Admin logistics-agent create page (linked from the inline form fallback). */
-export const adminLogisticsAgentNewPage = (
-  session: AdminSession,
-  error?: string,
-): string =>
-  String(
-    <Layout title={t("logistics.add_logistics_agent")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <CsrfForm action="/admin/logistics">
-        <h1>{t("logistics.add_logistics_agent")}</h1>
-        <Flash error={error} />
-        <Raw html={renderFields(logisticsAgentFields)} />
-        <SubmitButton icon="plus">{t("logistics.create_agent")}</SubmitButton>
-      </CsrfForm>
-    </Layout>,
-  );
 
 /** A user that can be assigned to drive a logistics agent. */
 export interface AgentUserOption {
@@ -151,40 +110,99 @@ export interface AgentUserOption {
 /** Checkbox list for picking which users drive this logistics agent. Any user
  * class can be assigned; the chosen ids submit under the repeated `user_ids`
  * field. */
+type AgentUsersSelectorProps = {
+  users: AgentUserOption[];
+  selected: ReadonlySet<number>;
+};
+
 const AgentUsersSelector = ({
   users,
   selected,
-}: {
-  users: AgentUserOption[];
-  selected: ReadonlySet<number>;
-}): JSX.Element => (
-  <fieldset class="checkboxes listing-section">
-    <legend>{t("logistics.assigned_users")}</legend>
-    <p>
-      <small>{t("logistics.assigned_users_hint")}</small>
-    </p>
+}: AgentUsersSelectorProps): JSX.Element => (
+  <CheckboxFieldset
+    className="checkboxes listing-section"
+    hint={t("logistics.assigned_users_hint")}
+    legend={t("logistics.assigned_users")}
+  >
     {users.length === 0 ? (
       <p>
         <em>{t("logistics.no_users_to_assign")}</em>
       </p>
     ) : (
       users.map((user) => (
-        <label>
-          <input
-            checked={selected.has(user.id) || undefined}
-            name="user_ids"
-            type="checkbox"
-            value={String(user.id)}
-          />
-          {` ${user.username} (${user.adminLevel})`}
-        </label>
+        <CheckboxLabel
+          checked={selected.has(user.id) || undefined}
+          label={` ${user.username} (${user.adminLevel})`}
+          name="user_ids"
+          value={String(user.id)}
+        />
       ))
     )}
-  </fieldset>
+  </CheckboxFieldset>
 );
 
+/** Edit-page runtime context: the assignable users and the ids already
+ *  assigned to this agent. Forwarded to `renderEditExtra` by the factory. */
+type AgentEditCtx = {
+  users: AgentUserOption[];
+  selected: ReadonlySet<number>;
+};
+
+const { deletePage, editPage, newPage } = defineAdminResourcePages<
+  LogisticsAgent,
+  AgentEditCtx
+>({
+  active: "/admin/settings",
+  basePath: "/admin/logistics",
+  delete: {
+    confirm: (agent) => ({
+      args: { name: escapeHtml(agent.name) },
+      key: "logistics.delete_confirm",
+    }),
+    danger: false,
+    heading: t("logistics.delete_logistics_agent"),
+    label: t("logistics.agent_name"),
+    name: (agent) => agent.name,
+    prompt: (agent) => ({
+      args: { name: agent.name },
+      key: "logistics.type_name_to_confirm",
+    }),
+  },
+  labels: {
+    addHeading: t("logistics.add_logistics_agent"),
+    addSubmit: t("logistics.create_agent"),
+    addTitle: t("logistics.add_logistics_agent"),
+    deleteButton: t("logistics.delete_agent"),
+    deleteLabel: t("logistics.agent_name"),
+    deleteTitle: t("logistics.delete_logistics_agent"),
+    editHeading: t("logistics.edit_agent"),
+    editTitle: t("logistics.edit_agent"),
+    listTitle: t("logistics.title"),
+  },
+  renderEditExtra: (_agent, ctx) => (
+    <AgentUsersSelector selected={ctx.selected} users={ctx.users} />
+  ),
+  renderFields: (agent) =>
+    agent === undefined ? (
+      <Raw html={renderFields(logisticsAgentFields)} />
+    ) : (
+      <fieldset class="listing-section">
+        <legend>{t("logistics.agent_details")}</legend>
+        <Raw
+          html={renderFields(
+            logisticsAgentFields,
+            logisticsAgentToFieldValues(agent),
+          )}
+        />
+      </fieldset>
+    ),
+});
+
+/** Admin logistics-agent create page (linked from the inline form fallback). */
+export const adminLogisticsAgentNewPage = newPage;
+
 /** Admin logistics-agent edit page. Grouped into fieldsets: the agent's details
- * and the users assigned to drive it. */
+ *  and the users assigned to drive it. */
 export const adminLogisticsAgentEditPage = (
   agent: LogisticsAgent,
   users: AgentUserOption[],
@@ -192,59 +210,10 @@ export const adminLogisticsAgentEditPage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  String(
-    <Layout title={t("logistics.edit_agent")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <CsrfForm action={`/admin/logistics/${agent.id}/edit`}>
-        <h1>{t("logistics.edit_agent")}</h1>
-        <Flash error={error} />
-        <fieldset class="listing-section">
-          <legend>{t("logistics.agent_details")}</legend>
-          <Raw
-            html={renderFields(
-              logisticsAgentFields,
-              logisticsAgentToFieldValues(agent),
-            )}
-          />
-        </fieldset>
-        <AgentUsersSelector selected={selectedUserIds} users={users} />
-        <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
-      </CsrfForm>
-      <DeleteSection
-        heading={t("common.delete")}
-        href={`/admin/logistics/${agent.id}/delete`}
-      >
-        {t("logistics.delete_agent")}
-      </DeleteSection>
-    </Layout>,
-  );
+  editPage(agent, session, error, {
+    selected: selectedUserIds,
+    users,
+  });
 
 /** Admin logistics-agent delete confirmation page. */
-export const adminLogisticsAgentDeletePage = (
-  agent: LogisticsAgent,
-  session: AdminSession,
-  error?: string,
-): string =>
-  String(
-    <Layout title={t("logistics.delete_logistics_agent")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <ConfirmForm
-        action={`/admin/logistics/${agent.id}/delete`}
-        buttonText={t("logistics.delete_agent")}
-        danger={false}
-        label={t("logistics.agent_name")}
-        name={agent.name}
-      >
-        <h1>{t("logistics.delete_logistics_agent")}</h1>
-        <Flash error={error} />
-        <p>
-          <Raw
-            html={t("logistics.delete_confirm", {
-              name: escapeHtml(agent.name),
-            })}
-          />
-        </p>
-        <p>{t("logistics.type_name_to_confirm", { name: agent.name })}</p>
-      </ConfirmForm>
-    </Layout>,
-  );
+export const adminLogisticsAgentDeletePage = deletePage;

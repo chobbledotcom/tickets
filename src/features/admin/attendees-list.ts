@@ -4,7 +4,7 @@
  * listing detail and attendee edit pages.
  */
 
-import { map, unique } from "#fp";
+import { filter, map, unique } from "#fp";
 import { csvResponse } from "#routes/admin/actions.ts";
 import {
   generateCalendarCsv,
@@ -14,35 +14,43 @@ import { type AuthSession, requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { isAttendeeSort } from "#shared/db/attendees/queries.ts";
 import {
   type AttendeeSort,
   decryptAttendees,
   getAttendeesPage,
 } from "#shared/db/attendees.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
+import {
+  attendeeNameMap,
+  loadNotesForAttendees,
+} from "#shared/db/system-notes.ts";
 import {
   type ListingFilter,
   listingCategory,
   listingTypeFromRequest,
 } from "#shared/listing-filter.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type {
-  Attendee,
-  AttendeeTableRow,
-  ListingWithCount,
-} from "#shared/types.ts";
+import { sortListings } from "#shared/sort-listings.ts";
+import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import {
   parsePositiveInt,
   parsePositiveIntId,
 } from "#shared/validation/number.ts";
 import { adminAttendeesListPage } from "#templates/admin/attendees-list.tsx";
 
-/** Parse the ?sort= param, defaulting to newest-first */
-const parseSort = (request: Request): AttendeeSort =>
-  getSearchParam(request, "sort") === "oldest" ? "oldest" : "newest";
+/** Parse the ?sort= param, defaulting to newest-first. Validates against the
+ *  {@link AttendeeSort} picklist so the URL is the single source of valid sort
+ *  values — no second hand-listed `=== "oldest"` here. */
+const parseSort = (request: Request): AttendeeSort => {
+  const raw = getSearchParam(request, "sort");
+  return raw !== null && isAttendeeSort(raw) ? raw : "newest";
+};
 
 /** Parse the ?page= param into a zero-based, non-negative page index */
 const parsePage = (request: Request): number => {
@@ -78,20 +86,6 @@ const resolveListingIds = (
   return listings.filter((e) => listingCategory(e) === type).map((e) => e.id);
 };
 
-/** Join decrypted attendees with their listing context for the table */
-const buildRows = (
-  attendees: Attendee[],
-  listings: ListingWithCount[],
-): AttendeeTableRow[] => {
-  const listingById = new Map(listings.map((e) => [e.id, e] as const));
-  // Every row comes from an INNER JOIN on listing_attendees, so its listing_id
-  // always references a listing present in the (unfiltered) cache.
-  return map((attendee: Attendee): AttendeeTableRow => {
-    const listing = listingById.get(attendee.listing_id)!;
-    return { attendee, listingId: listing.id, listingName: listing.name };
-  })(attendees);
-};
-
 /** Auth, then load every listing and hand both to the handler. Shared by the
  * attendees page and its CSV export, which both start from the full set. */
 const withListings = (
@@ -121,14 +115,26 @@ export const handleAttendeesListGet: TypedRouteHandler<
     const page = parsePage(request);
     const listingIds = resolveListingIds(listingId, type, listings);
 
-    const privateKey = await requireRequestPrivateKey();
+    const [privateKey, holidays] = await Promise.all([
+      requireRequestPrivateKey(),
+      getActiveHolidays(),
+    ]);
     const { rows, hasNext } = await getAttendeesPage({
       listingIds,
       page,
       sort,
     });
     const decrypted = await decryptAttendees(rows, privateKey);
-    const built = buildRows(decrypted, listings);
+    // One row per attendee, its listings in the same display order as the
+    // listings page (sortListings decides that order for both).
+    const built = groupAttendeeRows(
+      decrypted,
+      sortListings(listings, holidays),
+    );
+    const attendeeIds = unique(decrypted.map((a) => a.id));
+    const systemNotes = await loadNotesForAttendees(attendeeIds, () =>
+      Promise.resolve(privateKey),
+    );
 
     return htmlResponse(
       adminAttendeesListPage({
@@ -138,19 +144,23 @@ export const handleAttendeesListGet: TypedRouteHandler<
         hasNext,
         listingId,
         listings,
+        names: attendeeNameMap(decrypted),
         page,
         phonePrefix: settings.phonePrefix,
         rows: built,
         session,
         sort,
+        systemNotes,
         type,
       }),
     );
   });
 
-/** Every attendee booking matching the filter, across all pages — the export
- * isn't paginated. Reuses the page query, so the all-listings case (null) stays
- * an unfiltered query rather than an enormous `IN (...)` clause. */
+/** Every booking row of every attendee matching the filter, across all pages —
+ * the export isn't paginated. Reuses the page query, so the all-listings case
+ * (null) stays an unfiltered query rather than an enormous `IN (...)` clause.
+ * Note the page query matches ATTENDEES: a filtered call also returns a matched
+ * attendee's bookings on other listings — the CSV handler re-narrows. */
 const allAttendeeBookings = async (
   listingIds: number[] | null,
 ): Promise<Attendee[]> => {
@@ -184,7 +194,14 @@ export const handleAttendeesCsvExport: TypedRouteHandler<
     );
     const privateKey = await requireRequestPrivateKey();
     const raw = await allAttendeeBookings(listingIds);
-    const attendees = await decryptAttendees(raw, privateKey);
+    // Keep one CSV row per booking on the FILTERED listings only: the page
+    // query returns a matched attendee's other listings too (for the grouped
+    // table), which the export must not include.
+    const inFilter = listingIds && new Set(listingIds);
+    const bookings = inFilter
+      ? filter((a: Attendee) => inFilter.has(a.listing_id))(raw)
+      : raw;
+    const attendees = await decryptAttendees(bookings, privateKey);
     const csv = generateCalendarCsv(
       toCalendarAttendees(attendees, listings),
       undefined,

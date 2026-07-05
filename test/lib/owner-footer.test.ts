@@ -65,7 +65,7 @@ describeWithEnv("admin debug footer injection", { db: true }, () => {
 
   test("is NOT injected into non-HTML responses (e.g. CSV export)", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
-    const { response } = await adminGet(`/admin/listing/${listing.id}/export`);
+    const response = await adminGet(`/admin/listing/${listing.id}/export`);
     expect(response.headers.get("content-type")).toContain("text/csv");
     const body = await response.text();
     expect(body).not.toContain(FOOTER_MARKER);

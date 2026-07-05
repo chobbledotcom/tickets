@@ -10,8 +10,7 @@
  *   {{price | currency}}              →  "£25.00"
  */
 
-import { Liquid } from "liquidjs";
-import { formatCurrency } from "#shared/currency.ts";
+import { createBaseLiquidEngine } from "#shared/currency.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,7 +28,7 @@ export type ColumnDef<TRow, TOpts = unknown> = {
   cell: (row: TRow, opts: TOpts) => string;
   /**
    * Return the raw Liquid-friendly value for this column (e.g. ISO date string).
-   * When present and the user applies a Liquid filter (e.g. `| date: "%B"`),
+   * When present and the user applies a Liquid filter (e.g. `| date: "%B"`),,
    * the filter is applied to this value instead of using `cell()`.
    */
   rawValue?: (row: TRow, opts: TOpts) => unknown;
@@ -51,11 +50,9 @@ export type ColumnGenerators<TRow, TOpts = unknown> = Record<
 // Liquid engine — single instance for rendering filtered values
 // ---------------------------------------------------------------------------
 
-const engine = new Liquid({ strictFilters: true, strictVariables: false });
-
 // `currency` is custom; `date` is a LiquidJS built-in (strftime on Date objects).
 // ISO string → Date conversion happens in renderFilteredValue before calling Liquid.
-engine.registerFilter("currency", (v: string | number) => formatCurrency(v));
+const engine = createBaseLiquidEngine();
 
 // ---------------------------------------------------------------------------
 // Template parsing — regex-based extraction + validation
@@ -159,6 +156,9 @@ export const resolveColumnLayout = (
     : { columnKeys: [...defaultOrder], filters: new Map() };
 };
 
+/** Matches only when `date` is the first filter applied to the raw value */
+const FIRST_FILTER_IS_DATE_RE = /^[^|]*\|\s*date\b/;
+
 /**
  * Render a single column value through a Liquid filter expression.
  *
@@ -172,9 +172,15 @@ export const renderFilteredValue = (
   key: string,
 ): string => {
   // For date filters, convert ISO strings to Date objects so LiquidJS's
-  // built-in strftime works correctly.
+  // built-in strftime works correctly. Only convert when `date` is the first
+  // filter in the chain — converting for a later `| date` (e.g. a filter
+  // that transforms the raw string before a date filter downstream) would
+  // feed that earlier filter a Date instead of the raw string.
   let contextValue = rawValue;
-  if (typeof rawValue === "string" && expression.includes("| date")) {
+  if (
+    typeof rawValue === "string" &&
+    FIRST_FILTER_IS_DATE_RE.test(expression)
+  ) {
     const d = new Date(rawValue);
     if (!Number.isNaN(d.getTime())) contextValue = d;
   }

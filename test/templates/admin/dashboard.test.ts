@@ -1,16 +1,28 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import {
+  NO_QUANTITY_PREFIX,
+  QTY_PREFIX,
+} from "#routes/admin/attendee-form-model.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { getDb } from "#shared/db/client.ts";
 import {
   activeListingStatsSection,
   adminDashboardPage,
   adminListingsPage,
 } from "#templates/admin/dashboard.tsx";
 import {
+  adminPost,
+  createDailyTestListing,
+  createServicingHold,
+  createTestListing,
+  createTestServicingEvent,
   describeWithEnv,
+  renderAdminPage,
   setupTestEncryptionKey,
   testAttendee,
   testListingWithCount,
+  updateServicingEvent,
 } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
@@ -102,6 +114,45 @@ describe("adminDashboardPage", () => {
     expect(html).toContain("2026-12-26");
   });
 
+  test("renders upcoming service events with listing details and edit links", () => {
+    const listings = [testListingWithCount({ id: 7, name: "Room A" })];
+    const html = adminDashboardPage(
+      listings,
+      TEST_SESSION,
+      undefined,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      "all",
+      [],
+      new Set<number>(),
+      [
+        {
+          bookings: [{ listingId: 7, quantity: 2 }],
+          date: "2099-07-01",
+          id: 42,
+          name: "Boiler Service",
+          totalQuantity: 2,
+        },
+        {
+          bookings: [{ listingId: 999, quantity: 1 }],
+          date: null,
+          id: 43,
+          name: "Unassigned Service",
+          totalQuantity: 1,
+        },
+      ],
+    );
+    expect(html).toContain("Upcoming service events</summary>");
+    expect(html).toContain('href="/admin/servicing/42"');
+    expect(html).toContain("Boiler Service");
+    expect(html).toContain("2099");
+    expect(html).toContain("1 listing · 2");
+    expect(html).toContain('href="/admin/servicing/43"');
+    expect(html).toContain("Unassigned Service");
+  });
+
   test("newest attendees shows singular for single attendee", () => {
     const listings = [testListingWithCount({ id: 1 })];
     const attendees = [testAttendee({ id: 1, listing_id: 1 })];
@@ -114,7 +165,7 @@ describe("adminDashboardPage", () => {
     expect(html).toContain("Newest 1 Attendee</summary>");
   });
 
-  test("newest attendees shows listing column", () => {
+  test("newest attendees shows the Listings column", () => {
     const listings = [testListingWithCount({ id: 1, name: "Workshop" })];
     const attendees = [testAttendee({ id: 1, listing_id: 1 })];
     const html = adminDashboardPage(
@@ -123,8 +174,33 @@ describe("adminDashboardPage", () => {
       undefined,
       attendees,
     );
-    expect(html).toContain("<th>Listing</th>");
+    expect(html).toContain("<th>Listings</th>");
     expect(html).toContain("Workshop");
+  });
+
+  test("newest attendees groups an attendee's bookings into one row, listings in display order", () => {
+    // `listings` arrives pre-sorted (Gala first); the attendee's lines arrive
+    // in the opposite order, so the cell order proves the display order wins.
+    const listings = [
+      testListingWithCount({ id: 1, name: "Gala" }),
+      testListingWithCount({ id: 2, name: "Workshop" }),
+    ];
+    const attendees = [
+      testAttendee({ id: 1, listing_id: 2, name: "Alice" }),
+      testAttendee({ id: 1, listing_id: 1, name: "Alice" }),
+    ];
+    const html = adminDashboardPage(
+      listings,
+      TEST_SESSION,
+      undefined,
+      attendees,
+    );
+    expect(html).toContain("Newest 1 Attendee</summary>");
+    expect(html).toContain(
+      '<span class="listings-cell" title="Gala, Workshop">' +
+        '<a href="/admin/listing/1">Gala</a>, ' +
+        '<a href="/admin/listing/2">Workshop</a></span>',
+    );
   });
 
   test("newest attendees not shown when all attendees have unknown listing_id", () => {
@@ -282,119 +358,167 @@ describe("adminDashboardPage active listing statistics", () => {
 });
 
 describe("adminDashboardPage multi-booking link", () => {
+  const renderDashboard = (
+    listings: ReturnType<typeof testListingWithCount>[],
+    ...expectations: string[]
+  ): string => {
+    const html = adminDashboardPage(listings, TEST_SESSION);
+    for (const expected of expectations) expect(html).toContain(expected);
+    return html;
+  };
+
+  const expectNoMultiBookingLink = (
+    listings: ReturnType<typeof testListingWithCount>[],
+  ) => {
+    expect(renderDashboard(listings)).not.toContain("Multi-booking link");
+  };
+
+  const twoListings = [
+    testListingWithCount({ id: 1, slug: "ab12c" }),
+    testListingWithCount({ id: 2, slug: "cd34e" }),
+  ];
+
+  const twoListingsWithFields = [
+    testListingWithCount({ fields: "email", id: 1, slug: "ab12c" }),
+    testListingWithCount({ fields: "email,phone", id: 2, slug: "cd34e" }),
+  ];
+
   test("does not show multi-booking section with zero listings", () => {
-    const html = adminDashboardPage([], TEST_SESSION);
-    expect(html).not.toContain("Multi-booking link");
+    expectNoMultiBookingLink([]);
   });
 
   test("does not show multi-booking section with one active listing", () => {
-    const listings = [testListingWithCount({ id: 1, slug: "ab12c" })];
-    const html = adminDashboardPage(listings, TEST_SESSION);
-    expect(html).not.toContain("Multi-booking link");
+    expectNoMultiBookingLink([testListingWithCount({ id: 1, slug: "ab12c" })]);
   });
 
   test("shows multi-booking section with two active listings", () => {
-    const listings = [
-      testListingWithCount({ id: 1, name: "Listing A", slug: "ab12c" }),
-      testListingWithCount({ id: 2, name: "Listing B", slug: "cd34e" }),
-    ];
-    const html = adminDashboardPage(listings, TEST_SESSION);
-    expect(html).toContain("Multi-booking link");
-    expect(html).toContain("Listing A");
-    expect(html).toContain("Listing B");
+    renderDashboard(
+      [
+        testListingWithCount({ id: 1, name: "Listing A", slug: "ab12c" }),
+        testListingWithCount({ id: 2, name: "Listing B", slug: "cd34e" }),
+      ],
+      "Multi-booking link",
+      "Listing A",
+      "Listing B",
+    );
   });
 
   test("does not count inactive listings toward threshold", () => {
-    const listings = [
+    expectNoMultiBookingLink([
       testListingWithCount({ active: true, id: 1, slug: "ab12c" }),
       testListingWithCount({ active: false, id: 2, slug: "cd34e" }),
-    ];
-    const html = adminDashboardPage(listings, TEST_SESSION);
-    expect(html).not.toContain("Multi-booking link");
+    ]);
   });
 
   test("excludes inactive listings from checkboxes", () => {
-    const listings = [
-      testListingWithCount({
-        active: true,
-        id: 1,
-        name: "Active One",
-        slug: "ab12c",
-      }),
-      testListingWithCount({
-        active: false,
-        id: 2,
-        name: "Inactive",
-        slug: "cd34e",
-      }),
-      testListingWithCount({
-        active: true,
-        id: 3,
-        name: "Active Two",
-        slug: "ef56g",
-      }),
-    ];
-    const html = adminDashboardPage(listings, TEST_SESSION);
-    expect(html).toContain("Active One");
-    expect(html).toContain("Active Two");
+    const html = renderDashboard(
+      [
+        testListingWithCount({
+          active: true,
+          id: 1,
+          name: "Active One",
+          slug: "ab12c",
+        }),
+        testListingWithCount({
+          active: false,
+          id: 2,
+          name: "Inactive",
+          slug: "cd34e",
+        }),
+        testListingWithCount({
+          active: true,
+          id: 3,
+          name: "Active Two",
+          slug: "ef56g",
+        }),
+      ],
+      "Active One",
+      "Active Two",
+    );
+    expect(html).not.toContain('data-multi-booking-slug="cd34e"');
+  });
+
+  test("excludes unbookable listings (children, hidden package members) from checkboxes", () => {
+    // A hidden package's member 404s on its own /ticket page, so the builder
+    // must not offer it — otherwise an operator could compose a multi-slug URL
+    // the server rejects.
+    const html = adminDashboardPage(
+      [
+        testListingWithCount({
+          active: true,
+          id: 1,
+          name: "Open",
+          slug: "ab12c",
+        }),
+        testListingWithCount({
+          active: true,
+          id: 2,
+          name: "Hidden Member",
+          slug: "cd34e",
+        }),
+        testListingWithCount({
+          active: true,
+          id: 3,
+          name: "Other",
+          slug: "ef56g",
+        }),
+      ],
+      TEST_SESSION,
+      undefined,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      "all",
+      [],
+      new Set<number>([2]),
+    );
+    expect(html).toContain('data-multi-booking-slug="ab12c"');
+    expect(html).toContain('data-multi-booking-slug="ef56g"');
     expect(html).not.toContain('data-multi-booking-slug="cd34e"');
   });
 
   test("renders checkboxes with slug data attributes", () => {
-    const listings = [
-      testListingWithCount({ id: 1, slug: "ab12c" }),
-      testListingWithCount({ id: 2, slug: "cd34e" }),
-    ];
-    const html = adminDashboardPage(listings, TEST_SESSION);
-    expect(html).toContain('data-multi-booking-slug="ab12c"');
-    expect(html).toContain('data-multi-booking-slug="cd34e"');
+    renderDashboard(
+      twoListings,
+      'data-multi-booking-slug="ab12c"',
+      'data-multi-booking-slug="cd34e"',
+    );
   });
 
   test("renders URL input with domain data attribute", () => {
-    const listings = [
-      testListingWithCount({ id: 1, slug: "ab12c" }),
-      testListingWithCount({ id: 2, slug: "cd34e" }),
-    ];
-    const html = adminDashboardPage(listings, TEST_SESSION);
-    expect(html).toContain('data-domain="localhost"');
-    expect(html).toContain("data-multi-booking-url");
-    expect(html).toContain("readonly");
-    expect(html).toContain('for="multi-booking-url"');
-    expect(html).toContain('id="multi-booking-url"');
+    renderDashboard(
+      twoListings,
+      'data-domain="localhost"',
+      "data-multi-booking-url",
+      "readonly",
+      'for="multi-booking-url"',
+      'id="multi-booking-url"',
+    );
   });
 
   test("is collapsed by default via details element", () => {
-    const listings = [
-      testListingWithCount({ id: 1, slug: "ab12c" }),
-      testListingWithCount({ id: 2, slug: "cd34e" }),
-    ];
-    const html = adminDashboardPage(listings, TEST_SESSION);
-    expect(html).toContain("<details>");
-    expect(html).toContain("<summary>");
+    renderDashboard(twoListings, "<details>", "<summary>");
   });
 
   test("renders embed code inputs", () => {
-    const listings = [
-      testListingWithCount({ fields: "email", id: 1, slug: "ab12c" }),
-      testListingWithCount({ fields: "email,phone", id: 2, slug: "cd34e" }),
-    ];
-    const html = adminDashboardPage(listings, TEST_SESSION);
-    expect(html).toContain("data-multi-booking-embed-script");
-    expect(html).toContain("data-multi-booking-embed-iframe");
-    expect(html).toContain('for="multi-booking-embed-script"');
-    expect(html).toContain('for="multi-booking-embed-iframe"');
-    expect(html).toContain('id="multi-booking-embed-script"');
-    expect(html).toContain('id="multi-booking-embed-iframe"');
+    renderDashboard(
+      twoListingsWithFields,
+      "data-multi-booking-embed-script",
+      "data-multi-booking-embed-iframe",
+      'for="multi-booking-embed-script"',
+      'for="multi-booking-embed-iframe"',
+      'id="multi-booking-embed-script"',
+      'id="multi-booking-embed-iframe"',
+    );
   });
 
   test("checkboxes include data-fields attribute for embed code generation", () => {
-    const listings = [
-      testListingWithCount({ fields: "email", id: 1, slug: "ab12c" }),
-      testListingWithCount({ fields: "email,phone", id: 2, slug: "cd34e" }),
-    ];
-    const html = adminDashboardPage(listings, TEST_SESSION);
-    expect(html).toContain('data-fields="email"');
-    expect(html).toContain('data-fields="email,phone"');
+    renderDashboard(
+      twoListingsWithFields,
+      'data-fields="email"',
+      'data-fields="email,phone"',
+    );
   });
 });
 
@@ -487,6 +611,137 @@ describe("adminDashboardPage type filter", () => {
   });
 });
 
+describeWithEnv("admin servicing routes", { db: true }, () => {
+  test("the servicing list route renders service-event row details", async () => {
+    const listing = await createDailyTestListing({
+      maxAttendees: 5,
+      name: "Route Room",
+    });
+    const event = await createTestServicingEvent({
+      bookings: [{ date: "2099-07-01", listingId: listing.id, quantity: 2 }],
+      name: "Route Service",
+    });
+    const deletedListing = await createTestListing({
+      maxAttendees: 5,
+      name: "Deleted Route Listing",
+    });
+    await createTestServicingEvent({
+      bookings: [{ listingId: deletedListing.id, quantity: 1 }],
+      name: "Undated Route Service",
+    });
+    await getDb().execute({
+      args: [deletedListing.id],
+      sql: "DELETE FROM listings WHERE id = ?",
+    });
+
+    const html = await renderAdminPage("/admin/servicing");
+
+    expect(html).toContain('class="servicing-event"');
+    expect(html).toContain(`/admin/servicing/${event.id}`);
+    expect(html).toContain("Route Service");
+    expect(html).toContain("Route Room");
+    expect(html).toContain("<td>2</td>");
+    expect(html).toContain("Undated Route Service");
+    expect(html).not.toContain("Deleted Route Listing");
+  });
+
+  test("the servicing update route updates name and default booking quantity", async () => {
+    const { id, listing } = await createServicingHold({
+      name: "Before Route Update",
+    });
+
+    const response = await adminPost(`/admin/servicing/${id}`, {
+      name: "After Route Update",
+      [`${QTY_PREFIX}${listing.id}`]: "1",
+    });
+
+    expect(response.headers.get("location")).toContain(
+      `/admin/servicing/${id}`,
+    );
+    const updated = await updateServicingEvent(id, {
+      bookings: [{ listingId: listing.id }],
+      name: "Default Quantity Update",
+    });
+    expect(updated.bookings[0]!.quantity).toBe(1);
+  });
+
+  test("the servicing update route records costs when amount is present", async () => {
+    const { id, listing } = await createServicingHold({
+      name: "Route Cost",
+    });
+
+    const response = await adminPost(`/admin/servicing/${id}`, {
+      amount: "12.34",
+      memo: "Route cost",
+      target_listing_id: String(listing.id),
+    });
+
+    expect(response.headers.get("location")).toContain(
+      `/admin/servicing/${id}`,
+    );
+  });
+
+  test("servicing mutation routes return not found for missing events", async () => {
+    const editResponse = await adminPost("/admin/servicing/999999", {
+      name: "Missing",
+      [`${QTY_PREFIX}1`]: "1",
+    });
+    expect(editResponse.status).toBe(404);
+
+    const costResponse = await adminPost("/admin/servicing/999999/cost/1", {
+      amount: "1.00",
+    });
+    expect(costResponse.status).toBe(404);
+  });
+
+  test("servicing create rejects retained zero-quantity and over-capacity holds", async () => {
+    const listing = await createDailyTestListing({
+      maxAttendees: 1,
+      name: "Validation Room",
+    });
+
+    // A no-quantity form submission: the route catches the validation error
+    // and redirects back to the create form (not a 500).
+    const noQtyResponse = await adminPost("/admin/servicing/new", {
+      name: "No Quantity Service",
+      [`${NO_QUANTITY_PREFIX}${listing.id}`]: "1",
+      [`${QTY_PREFIX}${listing.id}`]: "9",
+    });
+    expect(noQtyResponse.status).toBe(302);
+    expect(noQtyResponse.headers.get("location")).toContain(
+      "/admin/servicing/new",
+    );
+    noQtyResponse.body?.cancel();
+
+    await expect(
+      createTestServicingEvent({
+        bookings: [{ date: "2099-07-01", listingId: listing.id, quantity: 0 }],
+        name: "Zero Quantity Service",
+      }),
+    ).rejects.toThrow("capacity slot");
+
+    await expect(
+      createTestServicingEvent({
+        bookings: [],
+        name: "Empty Service",
+      }),
+    ).rejects.toThrow("capacity slot");
+
+    const defaultQuantity = await createTestServicingEvent({
+      bookings: [{ date: "2099-07-02", listingId: listing.id }],
+      name: "Default Quantity Service",
+    });
+    expect(defaultQuantity.bookings[0]!.quantity).toBe(1);
+
+    await expect(
+      createTestServicingEvent({
+        bookings: [{ date: "2099-07-01", listingId: listing.id, quantity: 2 }],
+        name: "Over Capacity Service",
+      }),
+    ).rejects.toThrow();
+  });
+});
+
 describeWithEnv(
   "listing images",
   { env: { STORAGE_ZONE_KEY: "testkey", STORAGE_ZONE_NAME: "testzone" } },
@@ -526,6 +781,8 @@ describe("adminListingsPage", () => {
     expect(html).toContain("Deactivated");
     expect(html).toContain("Old Show");
     expect(html.indexOf("Active Show")).toBeLessThan(html.indexOf("Old Show"));
+    // The actions bar offers the import-from-file entry point.
+    expect(html).toContain('href="/admin/catalog/import"');
   });
 
   test("omits the deactivated heading when every listing is active", () => {

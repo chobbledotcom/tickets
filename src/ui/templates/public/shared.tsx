@@ -1,48 +1,83 @@
 import { t } from "#i18n";
 import { isContactFormActive } from "#shared/contact-form.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { renderMarkdown } from "#shared/markdown.ts";
+import type { NavModel } from "#shared/site-pages/types.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
-import { escapeHtml } from "#templates/layout.tsx";
+import type { Group } from "#shared/types.ts";
+import {
+  type LeveledNavNode,
+  leveledNav,
+  nodeLis,
+} from "#templates/components/nav.tsx";
+import { escapeHtml, Layout } from "#templates/layout.tsx";
 
-/** Public site navigation - hides terms/contact/order links when off/empty */
-export const PublicNav = ({
-  hasTerms,
-  hasContact,
-  hasOrder,
-}: {
-  hasTerms?: boolean;
-  hasContact?: boolean;
-  hasOrder?: boolean;
-}): JSX.Element => (
-  <nav>
-    <ul>
-      <li>
-        <a href="/">{t("nav.public.home")}</a>
-      </li>
-      <li>
-        <a href="/listings">{t("terms.listings")}</a>
-      </li>
-      {hasOrder && (
+/** Everything {@link PublicNav} renders: the settings-driven page flags plus
+ * the site-pages tree (built per request by `publicNavProps`, site-nav.ts). */
+export type PublicNavProps = {
+  hasTerms: boolean;
+  hasContact: boolean;
+  hasOrder: boolean;
+  pages: NavModel;
+};
+
+/** The fixed root links, with the root page nodes spliced between Listings and
+ * the Order/Terms/Contact group ("between listings and contact"). Each page
+ * `<li>` may carry extra children (the desktop nesting), supplied per node. */
+const rootItems = (
+  { hasTerms, hasContact, hasOrder, pages }: PublicNavProps,
+  nested: (node: LeveledNavNode) => JSX.Element | null,
+): JSX.Element[] => [
+  <li>
+    <a href="/">{t("nav.public.home")}</a>
+  </li>,
+  <li>
+    <a href="/listings">{t("terms.listings")}</a>
+  </li>,
+  ...nodeLis(pages.rootPageNodes, nested),
+  ...(hasOrder
+    ? [
         <li>
           <a href="/order">{t("nav.public.order")}</a>
-        </li>
-      )}
-      {hasTerms && (
+        </li>,
+      ]
+    : []),
+  ...(hasTerms
+    ? [
         <li>
           <a href="/terms">
             <Raw html={t("nav.public.terms")} />
           </a>
-        </li>
-      )}
-      {hasContact && (
+        </li>,
+      ]
+    : []),
+  ...(hasContact
+    ? [
         <li>
           <a href="/contact">{t("nav.public.contact")}</a>
-        </li>
-      )}
-    </ul>
-  </nav>
-);
+        </li>,
+      ]
+    : []),
+];
+
+/**
+ * Public site navigation: the fixed links (Home, Listings, Order/Terms/Contact
+ * when enabled) with the operator's root pages spliced in between, plus the
+ * recursive contextual submenus along the active chain — rendered by the same
+ * shared `leveledNav` the admin nav uses. It must NOT carry the admin nav's
+ * `#main-nav` id: the stylesheet reads that id as "this is an admin page"
+ * (full-bleed main, admin textarea sizing), while a public page keeps the
+ * shared 800px reading width.
+ */
+export const PublicNav = (props: PublicNavProps): JSX.Element =>
+  leveledNav({
+    label: t("nav.public.main"),
+    levels: props.pages.submenuLevels,
+    rootLis: (nested) => rootItems(props, nested),
+  });
 
 /** Compute which public pages have content.
  * The Contact link also shows when the contact form is active, even if the
@@ -54,6 +89,28 @@ export const navFlags = () => ({
   hasTerms: !!settings.terms,
 });
 
+/** The footer every public page ends with: the one admin-login link. */
+export const LoginFooter = (): JSX.Element => (
+  <footer class="homepage-footer">
+    <p>
+      <a href="/admin/login">{t("common.login")}</a>
+    </p>
+  </footer>
+);
+
+/** Operator-authored markdown rendered into the shared `.prose` block —
+ * nothing at all when the markdown is empty. */
+export const MarkdownProse = ({
+  markdown,
+}: {
+  markdown: string;
+}): JSX.Element | null =>
+  markdown ? (
+    <div class="prose">
+      <Raw html={renderMarkdown(markdown)} />
+    </div>
+  ) : null;
+
 export const RSS_DISCOVERY_TAG =
   '<link rel="alternate" type="application/rss+xml" title="Listings" href="/feeds/listings.rss" />';
 
@@ -62,39 +119,115 @@ export const ICS_DISCOVERY_TAG =
 
 export const FEED_DISCOVERY_TAGS = `${RSS_DISCOVERY_TAG}\n${ICS_DISCOVERY_TAG}`;
 
-/** Render listing image HTML if image_url is set */
+export const compareGroupsByName = (a: Group, b: Group): number =>
+  a.name.localeCompare(b.name);
+
+/** A `<p><strong>{label}</strong> {formatCurrency(amount)}</p>` money line —
+ *  the order-total rows shared by the public balance page and the admin
+ *  attendee-balance panel. `label` carries its own trailing punctuation. */
+export const AmountLine = ({
+  label,
+  amount,
+}: {
+  label: Child;
+  amount: number;
+}): JSX.Element => (
+  <p>
+    <strong>{label}</strong> {formatCurrency(amount)}
+  </p>
+);
+
+/** The "Packages" heading that opens both the homepage listings and the order
+ *  gallery: shown only when the page has package groups, with the caller
+ *  supplying the package-card markup. */
+export const PackagesSection = ({
+  groups,
+  children,
+}: {
+  groups: Group[];
+  children: Child;
+}): JSX.Element | null =>
+  groups.length > 0 ? (
+    <>
+      <h2>{t("public.packages")}</h2>
+      {children}
+    </>
+  ) : null;
+
+/** Curried public-page helper. The homepage, order-gallery, and basic-pages
+ *  all open with
+ *    String(<Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
+ *      {websiteTitle && <h1>{websiteTitle}</h1>}<PublicNav {...nav} />
+ *      {body}{showLoginFooter && <LoginFooter />}</Layout>)
+ *  — this captures that so they only declare their differences (title, body).
+ *  The login link is a "you've found the site, here's the door to the admin"
+ *  affordance that belongs only on the true homepage — every other public
+ *  page (listings, order, terms, contact, ...) leaves it out. */
+export const publicPage =
+  (
+    title: string,
+    websiteTitle: string,
+    nav: PublicNavProps,
+    showLoginFooter = false,
+    headExtra: string = FEED_DISCOVERY_TAGS,
+  ) =>
+  (body: Child): string =>
+    String(
+      <Layout headExtra={headExtra} title={title}>
+        {websiteTitle && <h1>{websiteTitle}</h1>}
+        <PublicNav {...nav} />
+        {body}
+        {showLoginFooter && <LoginFooter />}
+      </Layout>,
+    );
+
+/** The `<Layout title><div class="prose"><h1>{heading}</h1>{prose}</div>
+ *  {afterProse}</Layout>` shell. {@link simplePublicPage} wraps its whole body
+ *  in the prose block; the balance page keeps its recap intro in prose but
+ *  renders its table/form as siblings after it. */
+export const prosePage =
+  (title: string, heading: string) =>
+  (prose: Child, afterProse?: Child): string =>
+    String(
+      <Layout title={title}>
+        <div class="prose">
+          <h1>{heading}</h1>
+          {prose}
+        </div>
+        {afterProse}
+      </Layout>,
+    );
+
+/** Curried simple public page: <Layout title={title}><div class="prose">
+ *  <h1>{heading}</h1>{body}</div></Layout>. No nav, no footer — used by the
+ *  simple status pages (balance errors, rate-limited, check-in, renewal).
+ *  Takes the page title and heading text, returns a body receiver. */
+export const simplePublicPage =
+  (title: string, heading: string) =>
+  (body: Child): string =>
+    prosePage(title, heading)(body);
+
+/** Render listing image HTML if an image is set.
+ *
+ * In `thumb` contexts (list rows, gallery cards) the linked thumbnail is used
+ * when one is stored, falling back to the full image for records without a
+ * thumbnail filename. */
 export const renderListingImage = (
-  listing: { image_url: string },
+  listing: {
+    image_alt_text?: string | undefined;
+    image_url: string;
+    image_thumb_url: string;
+  },
   className = "listing-image",
-): string =>
-  listing.image_url
-    ? `<img src="${escapeHtml(
-        getImageProxyUrl(listing.image_url),
-      )}" alt="" class="${className}" />`
+  options: { thumb?: boolean } = {},
+): string => {
+  const src =
+    options.thumb && listing.image_thumb_url
+      ? listing.image_thumb_url
+      : listing.image_url;
+  return src
+    ? `<img src="${escapeHtml(getImageProxyUrl(src))}" alt="${escapeHtml(
+        listing.image_alt_text ?? "",
+      )}" class="${className}" />`
     : "";
-
-/** Listing info for ticket display */
-export type TicketListing = {
-  listing: import("#shared/types.ts").ListingWithCount;
-  isSoldOut: boolean;
-  isClosed: boolean;
-  maxPurchasable: number;
-};
-
-/** `groupRemaining`, when defined, clamps the displayed sold-out state and
- * `maxPurchasable` to the group's combined cap. */
-export const buildTicketListing = (
-  listing: import("#shared/types.ts").ListingWithCount,
-  closed: boolean,
-  groupRemaining: number | undefined,
-): TicketListing => {
-  const listingRemaining = listing.max_attendees - listing.attendee_count;
-  const spotsRemaining =
-    groupRemaining === undefined
-      ? listingRemaining
-      : Math.min(listingRemaining, groupRemaining);
-  const isSoldOut = spotsRemaining <= 0;
-  const maxPurchasable =
-    isSoldOut || closed ? 0 : Math.min(listing.max_quantity, spotsRemaining);
-  return { isClosed: closed, isSoldOut, listing, maxPurchasable };
 };

@@ -11,6 +11,17 @@ import { setupTestEncryptionKey } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 
+/** Factory for a {@link DisplayUser} with the common defaults. Only `id`,
+ *  `adminLevel`, `username`, and `inviteExpired` vary between tests. */
+const displayUser = (overrides: Partial<DisplayUser> = {}): DisplayUser => ({
+  activated: true,
+  adminLevel: "owner",
+  id: 1,
+  inviteExpired: false,
+  username: "owner",
+  ...overrides,
+});
+
 beforeAll(async () => {
   setupTestEncryptionKey();
   await signCsrfToken();
@@ -19,27 +30,19 @@ beforeAll(async () => {
 describe("adminUsersPage", () => {
   test("renders statuses and links each username to its manage page", () => {
     const users: DisplayUser[] = [
-      {
-        adminLevel: "owner",
-        hasDataKey: true,
-        id: 1,
-        inviteExpired: false,
-        username: "owner",
-      },
-      {
+      displayUser(),
+      displayUser({
+        activated: false,
         adminLevel: "manager",
-        hasDataKey: false,
         id: 2,
-        inviteExpired: false,
         username: "pending",
-      },
-      {
+      }),
+      displayUser({
+        activated: false,
         adminLevel: "manager",
-        hasDataKey: false,
         id: 3,
-        inviteExpired: false,
         username: "invited",
-      },
+      }),
     ];
     const html = adminUsersPage(users, TEST_SESSION, {
       currentUserId: 1,
@@ -60,20 +63,14 @@ describe("adminUsersPage", () => {
 
   test("renders Invite Expired status for expired invite", () => {
     const users: DisplayUser[] = [
-      {
-        adminLevel: "owner",
-        hasDataKey: true,
-        id: 1,
-        inviteExpired: false,
-        username: "owner",
-      },
-      {
+      displayUser(),
+      displayUser({
+        activated: false,
         adminLevel: "manager",
-        hasDataKey: false,
         id: 2,
         inviteExpired: true,
         username: "expired-user",
-      },
+      }),
     ];
     const html = adminUsersPage(users, TEST_SESSION, {
       currentUserId: 1,
@@ -87,8 +84,8 @@ describe("adminUsersPage", () => {
   test("renders invite, success, and error messages when provided", () => {
     const users: DisplayUser[] = [
       {
+        activated: true,
         adminLevel: "owner",
-        hasDataKey: true,
         id: 1,
         inviteExpired: false,
         username: "owner",
@@ -109,8 +106,8 @@ describe("adminUsersPage", () => {
 
 describe("adminUserManagePage", () => {
   const manager: DisplayUser = {
+    activated: false,
     adminLevel: "manager",
-    hasDataKey: false,
     id: 2,
     inviteExpired: false,
     username: "pending",
@@ -132,9 +129,9 @@ describe("adminUserManagePage", () => {
 
   test("shows edit-agents link and assigned agent names for an agent user", () => {
     const agent: DisplayUser = {
+      activated: true,
       adminLevel: "agent",
       agentNames: ["Van 1"],
-      hasDataKey: true,
       id: 4,
       inviteExpired: false,
       username: "driver",
@@ -146,9 +143,9 @@ describe("adminUserManagePage", () => {
 
   test("shows a placeholder when an agent user has no assigned agents", () => {
     const agent: DisplayUser = {
+      activated: true,
       adminLevel: "agent",
       agentNames: [],
-      hasDataKey: true,
       id: 4,
       inviteExpired: false,
       username: "driver",
@@ -161,8 +158,8 @@ describe("adminUserManagePage", () => {
 describe("adminUserDeletePage", () => {
   test("renders delete confirmation form with username", () => {
     const user: DisplayUser = {
+      activated: true,
       adminLevel: "manager",
-      hasDataKey: true,
       id: 5,
       inviteExpired: false,
       username: "targetuser",
@@ -177,8 +174,8 @@ describe("adminUserDeletePage", () => {
 
   test("renders error message when provided", () => {
     const user: DisplayUser = {
+      activated: true,
       adminLevel: "owner",
-      hasDataKey: true,
       id: 5,
       inviteExpired: false,
       username: "targetuser",

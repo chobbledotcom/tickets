@@ -6,50 +6,24 @@ import {
 } from "#shared/accounting/accounts.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
-import { getDb } from "#shared/db/client.ts";
 import backfillTransfersMigration from "#shared/db/migrations/2026-06-22_backfill_transfers.ts";
 import {
   applySchemaChanges,
   syncIndexes,
 } from "#shared/db/migrations/schema-sync.ts";
-import type {
-  AdditiveMigration,
-  Migration,
-  MigrationContext,
-  SchemaRequirement,
-} from "#shared/db/migrations/types.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import {
+  buildMigrationContext,
+  createTestListing,
+  describeWithEnv,
+} from "#test-utils";
 import {
   seedPreDropLedgerColumns,
   stampHistoricalPricePaid,
 } from "../migration-test-helpers.ts";
 
-// Promise<never> so one stub satisfies both the void- and boolean-returning
-// context members; the backfill up() touches none of them.
-const unused = async (): Promise<never> => {
-  throw new Error("unused migration context member called");
-};
-
-const context: MigrationContext = {
-  additive: (migration: AdditiveMigration): Migration => ({
-    ...migration,
-    verify: async () => {},
-  }),
-  applySchemaChanges,
-  backfillAnswerAggregates: unused,
-  backfillListingAggregates: unused,
-  backfillModifierAggregates: unused,
-  ensureDefaultAttendeeStatus: unused,
-  getDb,
-  recreateTable: unused,
-  renameEventsToListings: unused,
-  syncCurrentSchema: unused,
-  syncIndexes,
-  syncTriggers: unused,
-  tableExists: unused,
-  verifyCurrentAppSchema: unused,
-  verifyRequirement: (_req: SchemaRequirement) => async () => {},
-};
+// The backfill up() touches none of the schema-sync members; only the schema
+// bookkeeping it can reach via `applySchemaChanges`/`syncIndexes` is live.
+const context = buildMigrationContext({ applySchemaChanges, syncIndexes });
 
 const runMigration = () => backfillTransfersMigration(context).up();
 

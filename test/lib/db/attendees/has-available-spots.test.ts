@@ -15,6 +15,42 @@ import {
   describeWithEnv,
 } from "#test-utils";
 
+const createCappedListingWithJohn = async () => {
+  const listing = await createTestListing({ maxAttendees: 2 });
+  await createTestAttendee(
+    listing.id,
+    listing.slug,
+    "John",
+    "john@example.com",
+  );
+  return listing;
+};
+
+const expectHasAvailableSpots = async (id: number, expected: boolean) => {
+  expect(await hasAvailableSpots(id)).toBe(expected);
+};
+
+const setupGroupCappedSibling = async (
+  groupMax: number,
+  listingDurationDays: number,
+  listingMaxAttendees: number,
+  bookingDate: string,
+  bookingQuantity: number,
+) => {
+  const group = await createTestGroup({ maxAttendees: groupMax });
+  const listing = await createDailyTestListing({
+    durationDays: listingDurationDays,
+    groupId: group.id,
+    maxAttendees: listingMaxAttendees,
+  });
+  const sibling = await createDailyTestListing({
+    groupId: group.id,
+    maxAttendees: 100,
+  });
+  await bookAttendee(sibling, { date: bookingDate, quantity: bookingQuantity });
+  return { group, listing, sibling };
+};
+
 describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
   test("returns false for non-existent listing", async () => {
     const result = await hasAvailableSpots(999);
@@ -27,31 +63,19 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
   });
 
   test("returns true when some spots taken", async () => {
-    const listing = await createTestListing({ maxAttendees: 2 });
-    await createTestAttendee(
-      listing.id,
-      listing.slug,
-      "John",
-      "john@example.com",
-    );
-    expect(await hasAvailableSpots(listing.id)).toBe(true);
+    const listing = await createCappedListingWithJohn();
+    await expectHasAvailableSpots(listing.id, true);
   });
 
   test("returns false when listing is full", async () => {
-    const listing = await createTestListing({ maxAttendees: 2 });
-    await createTestAttendee(
-      listing.id,
-      listing.slug,
-      "John",
-      "john@example.com",
-    );
+    const listing = await createCappedListingWithJohn();
     await createTestAttendee(
       listing.id,
       listing.slug,
       "Jane",
       "jane@example.com",
     );
-    expect(await hasAvailableSpots(listing.id)).toBe(false);
+    await expectHasAvailableSpots(listing.id, false);
   });
 
   test("checks per-date capacity for daily listings", async () => {
@@ -76,32 +100,24 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
   });
 
   test("multi-day range: every day must have room (group cap)", async () => {
-    const group = await createTestGroup({ maxAttendees: 2 });
-    const listing = await createDailyTestListing({
-      durationDays: 2,
-      groupId: group.id,
-      maxAttendees: 100,
-    });
-    const sibling = await createDailyTestListing({
-      groupId: group.id,
-      maxAttendees: 100,
-    });
-    await bookAttendee(sibling, { date: "2026-05-02", quantity: 2 });
+    const { listing } = await setupGroupCappedSibling(
+      2,
+      2,
+      100,
+      "2026-05-02",
+      2,
+    );
     expect(await hasAvailableSpots(listing.id, 1, "2026-05-01", 2)).toBe(false);
   });
 
   test("multi-day range: an uncapped group never limits availability", async () => {
-    const group = await createTestGroup({ maxAttendees: 0 });
-    const listing = await createDailyTestListing({
-      durationDays: 3,
-      groupId: group.id,
-      maxAttendees: 5,
-    });
-    const sibling = await createDailyTestListing({
-      groupId: group.id,
-      maxAttendees: 100,
-    });
-    await bookAttendee(sibling, { date: "2026-05-02", quantity: 50 });
+    const { listing } = await setupGroupCappedSibling(
+      0,
+      3,
+      5,
+      "2026-05-02",
+      50,
+    );
     expect(await hasAvailableSpots(listing.id, 1, "2026-05-01", 3)).toBe(true);
   });
 
@@ -109,17 +125,13 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
     // Groups normally hold one listing type, but an listing can be flipped
     // after booking — its rows must then count on every day of the range
     // (the `listing_type != 'daily'` arm of the group predicate).
-    const group = await createTestGroup({ maxAttendees: 5 });
-    const listing = await createDailyTestListing({
-      durationDays: 2,
-      groupId: group.id,
-      maxAttendees: 100,
-    });
-    const sibling = await createDailyTestListing({
-      groupId: group.id,
-      maxAttendees: 100,
-    });
-    await bookAttendee(sibling, { date: "2026-09-01", quantity: 3 });
+    const { listing, sibling } = await setupGroupCappedSibling(
+      5,
+      2,
+      100,
+      "2026-09-01",
+      3,
+    );
     const { getDb } = await import("#shared/db/client.ts");
     await getDb().execute({
       args: [sibling.id],

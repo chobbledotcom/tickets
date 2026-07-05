@@ -4,13 +4,13 @@ import { getSessionCookieName } from "#shared/cookies.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { createApiKey } from "#shared/db/api-keys.ts";
-import type { ListingInput } from "#shared/db/listings.ts";
 import { getSession } from "#shared/db/sessions.ts";
 import {
   runWithSessionContext,
   setCachedSession,
 } from "#shared/session-context.ts";
 import type { Listing } from "#shared/types.ts";
+import type { TestListingOverrides } from "#test-utils/factories.ts";
 import type { AdminTestContext } from "#test-utils/internal.ts";
 import {
   getCachedAdminSession,
@@ -44,7 +44,6 @@ export const loginAsAdmin = async (
   const loginResponse = await handleRequest(
     await mockAdminLoginRequest({ password, username }, loginCsrfToken),
   );
-  loginResponse.body?.cancel();
   const cookie = loginResponse.headers
     .getSetCookie()
     .find((c) => c.startsWith(`${getSessionCookieName()}=`));
@@ -281,6 +280,45 @@ export const createTestAgentSession = async (
   return { cookie: `${getSessionCookieName()}=${token}`, userId };
 };
 
+/**
+ * Create an activated **editor** user plus a live session for it. Editors hold
+ * no DATA_KEY, so — unlike every other role helper — both the user row's
+ * `wrapped_data_key` and the session's wrapped key are null. The user has a
+ * password set (so it counts as activated) but it protects no key. Mirrors the
+ * real keyless editor a /join activation produces.
+ */
+export const createTestEditorSession = async (
+  opts: { token?: string; username?: string; password?: string } = {},
+): Promise<{ cookie: string; userId: number }> => {
+  const token = opts.token ?? "editor-session";
+  // Production stores usernames lower-cased (buildUserInsert), so the login
+  // blind-index lookup is case-insensitive; mirror that here.
+  const username = (opts.username ?? "testeditor").toLowerCase();
+  const password = opts.password ?? "editorpass123";
+  const { encrypt: enc } = await import("#shared/crypto/encryption.ts");
+  const { hashPassword, hmacHash } = await import("#shared/crypto/hashing.ts");
+  const { getDb, insert } = await import("#shared/db/client.ts");
+  const { createSession } = await import("#shared/db/sessions.ts");
+  const { getUserByUsername, invalidateUsersCache: invalidateUsers } =
+    await import("#shared/db/users.ts");
+
+  await getDb().execute(
+    insert("users", {
+      admin_level: await enc("editor"),
+      kek_version: 2,
+      password_hash: await enc(await hashPassword(password)),
+      username_hash: await enc(username),
+      username_index: await hmacHash(username),
+      wrapped_data_key: null,
+    }),
+  );
+  invalidateUsers();
+  const userId = (await getUserByUsername(username))!.id;
+
+  await createSession(token, "editor-csrf", Date.now() + 60_000, null, userId);
+  return { cookie: `${getSessionCookieName()}=${token}`, userId };
+};
+
 export const createTestApiKeyToken = async (): Promise<string> => {
   const dataKey = await getTestDataKeyForApiKey();
   const { apiKey } = await createApiKey(
@@ -306,14 +344,8 @@ export const createTestApiKeyFull = async (
 };
 
 export const getTestDataKeyForApiKey = async (): Promise<CryptoKey> => {
-  const { unwrapKeyWithToken } = await import("#shared/crypto/keys.ts");
-  const cookie = await testCookie();
-  const sessionMatch = cookie.match(
-    new RegExp(`${getSessionCookieName()}=([^;]+)`),
-  );
-  const token = sessionMatch![1]!;
-  const session = await getSession(token);
-  return unwrapKeyWithToken(session!.wrapped_data_key!, token);
+  const { getTestDataKey } = await import("#test-utils/crypto.ts");
+  return getTestDataKey();
 };
 
 export const requestAsApiKey = (
@@ -353,7 +385,7 @@ export const apiRequest = async (
   const headers: HeadersInit =
     method !== "GET" ? { "content-type": "application/json" } : {};
   const init: RequestInit = {
-    body: method !== "GET" ? JSON.stringify(options.body ?? {}) : undefined,
+    ...(method !== "GET" ? { body: JSON.stringify(options.body ?? {}) } : {}),
     headers,
     method,
   };
@@ -361,7 +393,7 @@ export const apiRequest = async (
 };
 
 export const setupListingAndLogin = async (
-  overrides?: Partial<Omit<ListingInput, "slug" | "slugIndex">>,
+  overrides?: TestListingOverrides,
 ): Promise<{
   listing: Listing;
   cookie: string;
@@ -386,17 +418,54 @@ export const adminFormPost = async (
   return { cookie, csrfToken, response };
 };
 
-export const adminGet = async (
+export const adminMultipartPost = async (
   path: string,
+  data: Record<string, string> = {},
+  file?: {
+    name: string;
+    fieldName: string;
+    data: Uint8Array;
+    contentType: string;
+  },
 ): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
   const { cookie, csrfToken } = await getTestSession();
-  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
-  const response = await awaitTestRequest(path, { cookie });
+  const { handleRequest } = await import("#routes");
+  const { mockMultipartRequest } = await import("#test-utils/mocks.ts");
+  const response = await handleRequest(
+    mockMultipartRequest(
+      path,
+      { csrf_token: csrfToken, ...data },
+      cookie,
+      file,
+    ),
+  );
   return { cookie, csrfToken, response };
 };
 
+export const adminGet = async (path: string): Promise<Response> => {
+  const { cookie } = await getTestSession();
+  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
+  return awaitTestRequest(path, { cookie });
+};
+
+/** Curried helper for bulk-action GET pages: returns a function that fetches
+ *  `/admin/groups/:id/bulk-actions/<action>`, asserts 200, and returns the
+ *  HTML body. The two concrete actions (duplicate, deactivate) share this
+ *  structure — curry with the action name to create each specialisation. */
+export const getBulkActionForm =
+  (action: string) =>
+  async (groupId: number): Promise<string> => {
+    const { expect } = await import("@std/expect");
+    const response = await adminGet(
+      `/admin/groups/${groupId}/bulk-actions/${action}`,
+    );
+    const html = await response.text();
+    expect(response.status).toBe(200);
+    return html;
+  };
+
 export const setupAdminTest = async (
-  listingOverrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
+  listingOverrides: TestListingOverrides = {},
 ): Promise<AdminTestContext> => {
   const { createTestListing } = await import("#test-utils/db-helpers.ts");
   const { createTestAttendee } = await import("#test-utils/db-helpers.ts");
@@ -416,17 +485,21 @@ export const setupAdminTest = async (
 };
 
 export const adminAttendeeAction =
-  (action: string) =>
+  (action: string, scope: "listing" | "attendee" = "attendee") =>
   (formData: Record<string, string> = {}) =>
   async (
-    listingOverrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
+    listingOverrides: TestListingOverrides = {},
   ): Promise<AdminTestContext & { response: Response }> => {
     const ctx = await setupAdminTest(listingOverrides);
     const { handleRequest } = await import("#routes");
     const { mockFormRequest } = await import("#test-utils/mocks.ts");
+    const url =
+      scope === "listing"
+        ? `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`
+        : `/admin/attendees/${ctx.attendee.id}/${action}`;
     const response = await handleRequest(
       mockFormRequest(
-        `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`,
+        url,
         { csrf_token: ctx.csrfToken, ...formData },
         ctx.cookie,
       ),
@@ -437,7 +510,7 @@ export const adminAttendeeAction =
 export const adminListingPage =
   (pathFn: (ctx: AdminTestContext) => string) =>
   async (
-    listingOverrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
+    listingOverrides: TestListingOverrides = {},
   ): Promise<AdminTestContext & { response: Response }> => {
     const ctx = await setupAdminTest(listingOverrides);
     const { awaitTestRequest } = await import("#test-utils/mocks.ts");

@@ -5,9 +5,9 @@
 import { SCAN_API_PATTERN } from "#routes/admin/scanner.ts";
 import { encodeBody } from "#routes/response.ts";
 import {
-  getEffectiveDomain,
   getEmbedHosts,
   isBotpoisonEnabled,
+  isSecureMode,
 } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildFrameAncestors } from "#shared/embed-hosts.ts";
@@ -25,7 +25,7 @@ const BASE_SECURITY_HEADERS: Record<string, string> = {
 /** Payment config for CSP header construction */
 export type PaymentCspConfig = {
   provider: PaymentProviderType | null;
-  sandbox?: boolean;
+  sandbox?: boolean | undefined;
 };
 
 /**
@@ -34,8 +34,9 @@ export type PaymentCspConfig = {
  * Embeddable pages omit frame-ancestors here; it's added by applySecurityHeaders
  * if embed host restrictions are configured.
  * Payment-specific directives are included only when a provider is configured.
- * Both Stripe and Square use server-side redirect flows (not embedded SDKs),
- * so only form-action needs provider-specific domains.
+ * Stripe, Square and SumUp all use server-side redirect flows (not embedded
+ * SDKs), so only form-action needs provider-specific domains — without the
+ * provider's checkout host the browser blocks the redirect to it.
  * When Botpoison is enabled, connect-src allows the contact form's browser
  * widget to reach the Botpoison challenge API.
  */
@@ -63,6 +64,12 @@ export const buildCspHeader = (
     );
   } else if (payment?.provider === "stripe") {
     directives.push("form-action 'self' https://checkout.stripe.com");
+  } else if (payment?.provider === "sumup") {
+    // SumUp hosted checkout redirects the booking form to its hosted page.
+    // Docs return checkout.sumup.com; pay.sumup.com is also used, so allow both.
+    directives.push(
+      "form-action 'self' https://checkout.sumup.com https://pay.sumup.com",
+    );
   } else {
     directives.push("form-action 'self'");
   }
@@ -82,7 +89,7 @@ export const getSecurityHeaders = (
   ...BASE_SECURITY_HEADERS,
   ...(!embeddable && { "x-frame-options": "DENY" }),
   ...(embeddable && { "x-robots-tag": "index, follow" }),
-  ...(getEffectiveDomain() !== "localhost" && {
+  ...(isSecureMode() && {
     "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
   }),
   "content-security-policy": buildCspHeader(embeddable),

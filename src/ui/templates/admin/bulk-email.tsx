@@ -10,19 +10,59 @@ import {
   MAX_BULK_EMAIL_SUBJECT_LENGTH,
   targetQuery,
 } from "#shared/bulk-email.ts";
-import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { CsrfForm, hiddenInputs } from "#shared/forms.tsx";
+import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
-import { Layout } from "#templates/layout.tsx";
+import { ProseHeading } from "#templates/components/prose-heading.tsx";
+import { ProsePanel } from "#templates/components/prose-panel.tsx";
+import { rawParagraph } from "#templates/components/raw-paragraph.tsx";
+import { SelectField } from "#templates/components/select-field.tsx";
 
 const NAV_ACTIVE = "/admin/settings";
 
 /** Deep link to the Email Notifications form on the advanced settings page. */
 const EMAIL_SETTINGS_LINK = "/admin/settings-advanced#settings-email";
+
+/** Wrap a bulk-email page body in the standard
+ *  `<AdminPage active=NAV_ACTIVE title>{<div class="prose"><h1>{title}</h1></div> + body}</AdminPage>`
+ *  scaffolding shared by the compose and preview pages. */
+const bulkEmailPage = (
+  session: AdminSession,
+  title: string,
+  body: Child,
+): string =>
+  String(
+    <AdminPage active={NAV_ACTIVE} session={session} title={title}>
+      <ProseHeading heading={title} />
+      {body}
+    </AdminPage>,
+  );
+
+/** "Email provider setup" deep link paragraph: appeared duplicated inside
+ *  the compose and preview unavailability notices. */
+const SetupEmailProviderLink = (): JSX.Element => (
+  <p class="small">
+    <a href={EMAIL_SETTINGS_LINK}>{t("bulk_email.setup_email_provider")}</a>
+  </p>
+);
+
+/** "Provider sending is unavailable on the preview page" notice — the
+ *  `sending_disabled` heading + reason + setup link. Used only on the
+ *  preview page (the compose page's notice carries different copy). */
+const ProviderUnavailableNotice = ({
+  reason,
+}: {
+  reason: string;
+}): JSX.Element => (
+  <ProsePanel label={`${t("bulk_email.sending_disabled")}.`} value={reason}>
+    <SetupEmailProviderLink />
+  </ProsePanel>
+);
 
 export type BulkEmailComposeState = {
   /** How to render the recipient control (spec-driven: selector or fixed). */
@@ -64,24 +104,20 @@ const TargetField = ({
     return (
       <label>
         {control.label}
-        <select name={control.name}>
-          {control.options.map((option) => (
-            <option
-              selected={option.value === control.selected}
-              value={option.value}
-            >
-              {option.label}
-            </option>
-          ))}
-        </select>
+        <SelectField
+          name={control.name}
+          options={control.options.map((option) => ({
+            label: option.label,
+            value: option.value,
+          }))}
+          value={control.selected}
+        />
       </label>
     );
   }
   return (
     <>
-      {control.fields.map(([name, value]) => (
-        <input name={name} type="hidden" value={value} />
-      ))}
+      {hiddenInputs(control.fields)}
       <p>
         <strong>
           {state.single
@@ -104,11 +140,11 @@ export const bulkEmailComposePage = (
   state: BulkEmailComposeState,
 ): string => {
   const { copy, draft, single, templateLinkBase } = state;
-  return String(
-    <Layout title={copy.heading}>
-      <AdminNav active={NAV_ACTIVE} session={session} />
+  return bulkEmailPage(
+    session,
+    copy.heading,
+    <>
       <div class="prose">
-        <h1>{copy.heading}</h1>
         <p>{copy.intro}</p>
       </div>
 
@@ -118,11 +154,7 @@ export const bulkEmailComposePage = (
             <strong>{t("bulk_email.heads_up")}:</strong> {state.disabledReason}{" "}
             {t("bulk_email.compose_preview_fallback")}
           </p>
-          <p class="small">
-            <a href={EMAIL_SETTINGS_LINK}>
-              {t("bulk_email.setup_email_provider")}
-            </a>
-          </p>
+          <SetupEmailProviderLink />
         </div>
       )}
 
@@ -220,16 +252,14 @@ export const bulkEmailComposePage = (
           <div class="template-update-fields">
             <label>
               {t("bulk_email.template_to_update_label")}
-              <select name="template_id">
-                {state.templates.map((tpl) => (
-                  <option
-                    selected={tpl.id === state.selectedTemplateId}
-                    value={String(tpl.id)}
-                  >
-                    {tpl.subject}
-                  </option>
-                ))}
-              </select>
+              <SelectField
+                name="template_id"
+                options={state.templates.map((tpl) => ({
+                  label: tpl.subject,
+                  value: String(tpl.id),
+                }))}
+                value={String(state.selectedTemplateId)}
+              />
             </label>
           </div>
         )}
@@ -243,7 +273,7 @@ export const bulkEmailComposePage = (
           </span>
         </button>
       </CsrfForm>
-    </Layout>,
+    </>,
   );
 };
 
@@ -257,32 +287,33 @@ export const bulkEmailTemplateDeletePage = (
   template: { id: number; subject: string },
   error?: string,
 ): string =>
-  String(
-    <Layout title={t("bulk_email.delete_template_heading")}>
-      <AdminNav active={NAV_ACTIVE} session={session} />
-      <ConfirmForm
-        action={`/admin/emails/templates/${template.id}/delete`}
-        buttonText={t("bulk_email.delete_template_submit")}
-        label={t("bulk_email.subject_label")}
-        name={template.subject}
-      >
-        <h1>{t("bulk_email.delete_template_heading")}</h1>
-        <Flash error={error} />
+  ConfirmPage({
+    action: `/admin/emails/templates/${template.id}/delete`,
+    active: NAV_ACTIVE,
+    buttonText: t("bulk_email.delete_template_submit"),
+    children: (
+      <>
         <p>
           {t("bulk_email.delete_template_intro")}{" "}
           <strong>{template.subject}</strong>
         </p>
         <p>{t("bulk_email.delete_template_prompt")}</p>
-      </ConfirmForm>
-    </Layout>,
-  );
+      </>
+    ),
+    error,
+    heading: t("bulk_email.delete_template_heading"),
+    label: t("bulk_email.subject_label"),
+    name: template.subject,
+    session,
+    title: t("bulk_email.delete_template_heading"),
+  });
 
 export type BulkEmailPreviewState = {
   draft: BulkEmailDraft;
   /** Human label for the target: audience label or listing name. */
   targetLabel: string;
   /** Audience description (omitted for single-listing sends). */
-  audienceDescription?: string;
+  audienceDescription?: string | undefined;
   recipientCount: number;
   skippedCount: number;
   sendableCount: number;
@@ -299,15 +330,9 @@ export type BulkEmailPreviewState = {
 
 /** Plain-language explanation of marketing vs transactional. */
 const TypeExplainer = ({ marketing }: { marketing: boolean }): JSX.Element =>
-  marketing ? (
-    <p>
-      <Raw html={t("bulk_email.marketing_email_explainer")} />
-    </p>
-  ) : (
-    <p>
-      <Raw html={t("bulk_email.transactional_email_explainer")} />
-    </p>
-  );
+  marketing
+    ? rawParagraph("bulk_email.marketing_email_explainer")
+    : rawParagraph("bulk_email.transactional_email_explainer");
 
 /**
  * Bulk email preview page — renders the message and reiterates the facts, with
@@ -321,12 +346,10 @@ export const bulkEmailPreviewPage = (
   const { draft } = state;
   const single = state.sendableCount === 1;
   const recipients = `${state.sendableCount} recipient${single ? "" : "s"}`;
-  return String(
-    <Layout title={t("bulk_email.preview_page_title")}>
-      <AdminNav active={NAV_ACTIVE} session={session} />
-      <div class="prose">
-        <h1>{t("bulk_email.preview_page_title")}</h1>
-      </div>
+  return bulkEmailPage(
+    session,
+    t("bulk_email.preview_page_title"),
+    <>
       <p>
         <ActionButton
           href={`/admin/emails${targetQuery(draft.target)}`}
@@ -387,17 +410,7 @@ export const bulkEmailPreviewPage = (
         </CsrfForm>
       ) : (
         <>
-          <div class="prose">
-            <p>
-              <strong>{t("bulk_email.sending_disabled")}.</strong>{" "}
-              {state.disabledReason}
-            </p>
-            <p class="small">
-              <a href={EMAIL_SETTINGS_LINK}>
-                {t("bulk_email.setup_email_provider")}
-              </a>
-            </p>
-          </div>
+          <ProviderUnavailableNotice reason={state.disabledReason} />
           <span class="btn btn--disabled">
             {t("bulk_email.send_button_disabled", { recipients })}
           </span>
@@ -436,6 +449,6 @@ export const bulkEmailPreviewPage = (
           </label>
         </>
       )}
-    </Layout>,
+    </>,
   );
 };

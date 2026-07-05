@@ -6,11 +6,12 @@ import { setDemoModeForTest } from "#shared/demo.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import {
   adminFormPost,
+  adminGet,
   assertJson,
-  awaitTestRequest,
   describeWithEnv,
   expectFlash,
-  testCookie,
+  getAllActivityLog,
+  redirectFormId,
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
@@ -79,6 +80,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("SumUp credentials"));
+      // Flash anchors back to the SumUp form — the exact form id.
+      expect(redirectFormId(response)).toBe("settings-sumup");
       expect(settings.paymentProvider).toBe("sumup");
       expect(settings.sumup.merchantCode).toBe("MC_new");
     });
@@ -98,9 +101,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   describe("settings page (SumUp form)", () => {
     test("shows the not-configured message and hides the test button", async () => {
       await settings.update.paymentProvider("sumup");
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       const html = await response.text();
       expect(html).toContain("No SumUp API key is configured");
       expect(html).not.toContain("sumup-test-btn");
@@ -108,9 +109,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("disables browser autocomplete on the SumUp credential fields", async () => {
       await settings.update.paymentProvider("sumup");
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       const html = await response.text();
       const inputTag = (name: string): string =>
         html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0] ?? "";
@@ -123,9 +122,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         sumup_api_key: "sk_test_configured",
         sumup_merchant_code: "MC_configured",
       });
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       const html = await response.text();
       expect(html).toContain("A SumUp API key is currently configured");
       expect(html).toContain("sumup-test-btn");
@@ -161,5 +158,17 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         },
       );
     });
+  });
+
+  test("logs activity when SumUp credentials are configured", async () => {
+    await adminFormPost("/admin/settings/sumup", {
+      sumup_api_key: "sk_test_log",
+      sumup_merchant_code: "MC_log",
+    });
+
+    const logs = await getAllActivityLog();
+    expect(
+      logs.some((l) => l.message.includes("SumUp credentials updated")),
+    ).toBe(true);
   });
 });

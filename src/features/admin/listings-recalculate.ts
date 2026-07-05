@@ -9,11 +9,9 @@
 import { t } from "#i18n";
 import {
   createRecalculatePageRenderer,
-  selectedRecalculationFields,
+  runRecalculatePost,
 } from "#routes/admin/aggregate-recalculation.ts";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
@@ -23,7 +21,7 @@ import {
   resetListingAggregateFields,
 } from "#shared/db/listings.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import { adminListingRecalculatePage } from "#templates/admin/listings.tsx";
+import { adminListingRecalculatePage } from "#templates/admin/listings/aggregates.tsx";
 import { withEntityFromParam } from "./entity-handlers.ts";
 
 /* jscpd:ignore-end */
@@ -38,7 +36,6 @@ export const handleListingRecalculateGet: TypedRouteHandler<
 > = (request, { listingId }) =>
   requireSessionOr(request, (session) =>
     withEntityFromParam(listingId, getListingWithCount, (listing) => {
-      applyFlash(request);
       const flash = getFlash();
       return renderListingRecalculatePage(
         listing,
@@ -53,27 +50,21 @@ export const handleListingRecalculatePost: TypedRouteHandler<
   "POST /admin/listings/recalculate/:listingId"
 > = (request, { listingId }) =>
   withAuth(request, AUTH_FORM, (session, form) =>
-    withEntityFromParam(listingId, getListingWithCount, async (listing) => {
-      const selected = selectedRecalculationFields(
+    withEntityFromParam(listingId, getListingWithCount, (listing) =>
+      runRecalculatePost({
+        fields: LISTING_AGGREGATE_FIELDS,
         form,
-        LISTING_AGGREGATE_FIELDS,
-      );
-      if (selected.length === 0) {
-        return renderListingRecalculatePage(
-          listing,
-          session,
-          t("listings_table.recalculate_choose"),
-        );
-      }
-      await resetListingAggregateFields(listing.id, selected);
-      await logActivity(
-        `Listing '${listing.name}' totals recalculated`,
-        listing,
-      );
-      return redirect(
-        `/admin/listing/${listing.id}/edit`,
-        t("listings_table.recalculate_success"),
-        true,
-      );
-    }),
+        log: () =>
+          logActivity(`Listing '${listing.name}' totals recalculated`, listing),
+        renderChoose: () =>
+          renderListingRecalculatePage(
+            listing,
+            session,
+            t("listings_table.recalculate_choose"),
+          ),
+        reset: (selected) => resetListingAggregateFields(listing.id, selected),
+        successMessage: t("listings_table.recalculate_success"),
+        successPath: `/admin/listing/${listing.id}/edit`,
+      }),
+    ),
   );

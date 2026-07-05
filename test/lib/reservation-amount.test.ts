@@ -51,6 +51,20 @@ describe("reservation-amount", () => {
       });
     });
 
+    test("parse stays currency-tolerant so legacy stored values still compute", () => {
+      // Precision is enforced on save (validateReservationAmount), NOT here on
+      // the calc path — a value stored before the rule must still parse and
+      // compute a deposit rather than silently falling to zero.
+      expect(parseReservationAmount("10.005")).toEqual({
+        kind: "flat",
+        value: 10.005,
+      });
+      expect(parseReservationAmount("10.005x")).toEqual({
+        kind: "perItem",
+        value: 10.005,
+      });
+    });
+
     test("rejects malformed input", () => {
       const malformed = [
         "",
@@ -80,6 +94,30 @@ describe("reservation-amount", () => {
       expect(validateReservationAmount("")).toBe(RESERVATION_AMOUNT_HINT);
       expect(validateReservationAmount("nope")).toBe(RESERVATION_AMOUNT_HINT);
     });
+
+    testWithSetting(
+      "rejects a flat/perItem amount more precise than the currency on save, but keeps percentages and in-currency amounts",
+      { currency: "GBP" },
+      () => {
+        expect(validateReservationAmount("10.005")).toBe(
+          RESERVATION_AMOUNT_HINT,
+        );
+        expect(validateReservationAmount("10.005x")).toBe(
+          RESERVATION_AMOUNT_HINT,
+        );
+        // A percentage keeps its precision, and an in-currency amount is fine.
+        expect(validateReservationAmount("33.335%")).toBeNull();
+        expect(validateReservationAmount("10.50")).toBeNull();
+      },
+    );
+
+    testWithSetting(
+      "accepts a 3-decimal flat amount in a 3-decimal currency (KWD)",
+      { currency: "KWD" },
+      () => {
+        expect(validateReservationAmount("10.005")).toBeNull();
+      },
+    );
   });
 
   describe("computeReservationDeposit", () => {

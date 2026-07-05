@@ -20,6 +20,8 @@ import {
   resetAggregates,
 } from "#shared/db/client.ts";
 import {
+  type AggregateRecalculation,
+  type AggregateValues,
   defineIdTable,
   encryptedNameSchema,
 } from "#shared/db/common-schema.ts";
@@ -141,12 +143,10 @@ export const MODIFIER_AGGREGATE_FIELDS = ["total_uses", "usage_count"] as const;
 
 export type ModifierAggregateField = (typeof MODIFIER_AGGREGATE_FIELDS)[number];
 
-export type ModifierAggregateValues = Record<ModifierAggregateField, number>;
+export type ModifierAggregateValues = AggregateValues<ModifierAggregateField>;
 
-export type ModifierAggregateRecalculation = Record<
-  ModifierAggregateField,
-  { current: number; recalculated: number }
->;
+export type ModifierAggregateRecalculation =
+  AggregateRecalculation<ModifierAggregateField>;
 
 /** The modifier count aggregates as they would be if rebuilt from usage rows.
  * Takes the stored {@link ModifierRow} — total_revenue is no longer a
@@ -256,9 +256,9 @@ export const getModifierListingIdsByModifierId = modifierScopeListingIdsLookup(
 export const getModifierGroupListingIdsByModifierId =
   modifierScopeListingIdsLookup(
     (placeholders) =>
-      `SELECT modifierGroup.modifier_id, listing.id AS listing_id
+      `SELECT modifierGroup.modifier_id, groupListing.listing_id AS listing_id
        FROM modifier_groups AS modifierGroup
-         JOIN listings AS listing ON listing.group_id = modifierGroup.group_id
+         JOIN group_listings AS groupListing ON groupListing.group_id = modifierGroup.group_id
        WHERE modifierGroup.modifier_id IN (${placeholders})`,
   );
 
@@ -268,6 +268,16 @@ export const getModifierGroupIds = (modifierId: number): Promise<number[]> =>
     "SELECT group_id AS id FROM modifier_groups WHERE modifier_id = ?",
     [modifierId],
   );
+
+/** Group ids linked to each group-scoped modifier id (batched), so a caller can
+ * resolve a modifier's group scope against *in-memory* listings (e.g. a listing
+ * save's would-be `group_id`) instead of the live join. Seeds an entry for every
+ * id it was given. */
+export const getModifierGroupIdsByModifierId = modifierScopeListingIdsLookup(
+  (placeholders) =>
+    `SELECT modifier_id, group_id AS listing_id FROM modifier_groups
+     WHERE modifier_id IN (${placeholders})`,
+);
 
 /** Answer ids an "answer"-triggered modifier is linked to (for the admin
  * editor) — i.e. the answers whose modifier_id points at this modifier. */

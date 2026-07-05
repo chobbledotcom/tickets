@@ -2,13 +2,25 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { attendeeAccount } from "#shared/accounting/accounts.ts";
+import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { execute } from "#shared/db/client.ts";
+import { groupsTable, setGroupPackageMembers } from "#shared/db/groups.ts";
+import { setChildIds } from "#shared/db/listing-parents.ts";
+import { deleteListing, listingsTable } from "#shared/db/listings.ts";
+import { modifiersTable } from "#shared/db/modifiers.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
+import { prunePayments } from "#shared/db/prune.ts";
+import { getNoteRows, getNotesForAttendee } from "#shared/db/system-notes.ts";
+import { balanceOf } from "#shared/ledger/project.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
   assertJson,
+  createTestGroup,
   createTestListing,
   describeWithEnv,
+  getTestPrivateKey,
   mockRequest,
   mockWebhookRequest,
   setupStripe,
@@ -24,14 +36,16 @@ import {
  * session classifies as exactly one of:
  *
  *  - trusted  (valid proof, charge == signed total): processed.
- *  - mismatch (valid proof, charge != signed total): refunded.
+ *  - mismatch (valid proof, charge != signed total): a payment we signed, so it
+ *             is never dropped — the booking is KEPT as a quantity-0 placeholder,
+ *             refunded, and flagged with a system note.
  *  - ignore   (no valid proof — absent, malformed, tampered, or foreign):
  *             acknowledged without processing or refunding (we can't prove it is
  *             ours, and refunding an unverifiable session could refund another
  *             instance's payment).
  *
  * These tests drive every verdict through the real webhook/redirect entrypoints,
- * plus the two retry behaviours a failed refund depends on.
+ * plus the failed-refund behaviour a stored booking depends on.
  */
 
 /** Build signed metadata for a single-line ticket checkout. */
@@ -108,6 +122,114 @@ const stubRefundOk = () =>
     >),
   );
 
+/** setupStripe + a 50-seat listing priced at 1000. */
+const setupWithListing = async () => {
+  await setupStripe();
+  return createTestListing({ maxAttendees: 50, unitPrice: 1000 });
+};
+
+/** Drive a completed (paid) session through the webhook with a refund stub
+ *  installed; `body` receives the refund spy. All stubs are restored after. */
+const runWebhook = async (
+  session: {
+    id: string;
+    metadata: Record<string, string>;
+    amount_total?: number;
+  },
+  body: (refund: ReturnType<typeof stubRefundOk>) => Promise<void>,
+): Promise<void> => {
+  const refund = stubRefundOk();
+  const mockVerify = await stubCompletedSession({
+    amount_total: session.amount_total ?? 1000,
+    id: session.id,
+    metadata: session.metadata,
+  });
+  try {
+    await body(refund);
+  } finally {
+    mockVerify.restore();
+    refund.restore();
+  }
+};
+
+/** Drive a mismatch (charged 1200, signed 1000) whose refund returns null, with
+ *  the payment intent's refunded state stubbed; `body` receives the refund spy. */
+const runFailedRefund = async (
+  id: string,
+  intentRefunded: boolean,
+  listingId: number,
+  body: (refund: ReturnType<typeof stubRefundOk>) => Promise<void>,
+): Promise<void> => {
+  const refund = stub(stripeApi, "refundPayment", () => Promise.resolve(null));
+  const intent = stub(stripeApi, "retrievePaymentIntent", () =>
+    Promise.resolve({
+      latest_charge: { refunded: intentRefunded },
+    } as unknown as Awaited<
+      ReturnType<typeof stripeApi.retrievePaymentIntent>
+    >),
+  );
+  const mockVerify = await stubCompletedSession({
+    amount_total: 1200,
+    id,
+    metadata: signedMeta(1000, { items: singleItem(listingId, 1, 1000) }),
+  });
+  try {
+    await body(refund);
+  } finally {
+    mockVerify.restore();
+    intent.restore();
+    refund.restore();
+  }
+};
+
+/** Assert the webhook kept the booking as a quantity-0 placeholder (with a system
+ *  note) and refused with the generic "saved your details" message. */
+const expectStoredRefundRecord = async (listingId: number): Promise<void> => {
+  const [attendee] = await getAttendeesRaw(listingId);
+  expect(attendee?.quantity).toBe(0);
+  expect(await getNoteRows([attendee!.id])).toHaveLength(1);
+};
+
+const expectStoredRefund = async (listingId: number): Promise<void> => {
+  await assertJson(webhookRequest(), 200, (json) => {
+    expect(json.processed).toBe(false);
+    expect(json.error).toContain("saved your details");
+  });
+  await expectStoredRefundRecord(listingId);
+};
+
+/** Assert the webhook acknowledges (200) and silently ignores the session. */
+const expectAcknowledgedIgnore = () =>
+  assertJson(webhookRequest(), 200, (json) => {
+    expect(json.received).toBe(true);
+    expect(json.processed).toBeUndefined();
+  });
+
+/** Assert no attendee rows were created for the listing. */
+const expectNoAttendees = async (listingId: number): Promise<void> => {
+  expect((await getAttendeesRaw(listingId)).length).toBe(0);
+};
+
+/** Assert the webhook processed the session and created exactly one attendee. */
+const expectProcessed = async (listingId: number): Promise<void> => {
+  await assertJson(webhookRequest(), 200, (json) => {
+    expect(json.processed).toBe(true);
+  });
+  expect((await getAttendeesRaw(listingId)).length).toBe(1);
+};
+
+const expectReplayOutcome = async (
+  session: Parameters<typeof runWebhook>[0],
+  { processed, refundCalls }: { processed: boolean; refundCalls: number },
+): Promise<void> => {
+  await runWebhook(session, async (refund) => {
+    await assertJson(webhookRequest(), 200, (json) => {
+      expect(json.processed).toBe(processed);
+    });
+    expect(refund.calls.length).toBe(refundCalls);
+  });
+};
+
 describeWithEnv("webhook signed price oracle", { db: true }, () => {
   afterEach(() => {
     resetStripeClient();
@@ -116,204 +238,448 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
   // ---- trusted: process -----------------------------------------------------
 
   test("a faithfully signed session is processed and creates the attendee", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 1000,
-    });
-    const mockVerify = await stubCompletedSession({
-      amount_total: 1000,
-      id: "cs_signed_ok",
-      metadata: signedMeta(1000, { items: singleItem(listing.id, 1, 1000) }),
-    });
-    try {
-      await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.processed).toBe(true);
-      });
-      expect((await getAttendeesRaw(listing.id)).length).toBe(1);
-    } finally {
-      mockVerify.restore();
-    }
+    const listing = await setupWithListing();
+    await runWebhook(
+      {
+        id: "cs_signed_ok",
+        metadata: signedMeta(1000, { items: singleItem(listing.id, 1, 1000) }),
+      },
+      () => expectProcessed(listing.id),
+    );
   });
 
   test("a signed session whose _origin was stripped is still processed", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 1000,
-    });
+    const listing = await setupWithListing();
     // _origin is unsigned, so stripping it after signing leaves a valid proof.
     // The proof alone proves the session is ours, regardless of the origin.
     const metadata = {
       ...signedMeta(1000, { items: singleItem(listing.id, 1, 1000) }),
       _origin: "",
     };
-    const mockVerify = await stubCompletedSession({
-      amount_total: 1000,
-      id: "cs_origin_stripped",
-      metadata,
-    });
-    try {
-      await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.processed).toBe(true);
-      });
-      expect((await getAttendeesRaw(listing.id)).length).toBe(1);
-    } finally {
-      mockVerify.restore();
-    }
+    await runWebhook({ id: "cs_origin_stripped", metadata }, () =>
+      expectProcessed(listing.id),
+    );
   });
 
-  // ---- mismatch: refund -----------------------------------------------------
-
-  test("a charge that differs from the signed total is refunded", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 1000,
-    });
-    // Signed at 1000 but the provider reports a 1200 charge — a mismatch.
-    const refund = stubRefundOk();
-    const mockVerify = await stubCompletedSession({
-      amount_total: 1200,
-      id: "cs_signed_mismatch",
+  test("a replay whose idempotency row was pruned recovers the booking instead of refunding the live ticket", async () => {
+    const listing = await setupWithListing();
+    const session = {
+      id: "cs_replay_after_prune",
       metadata: signedMeta(1000, { items: singleItem(listing.id, 1, 1000) }),
+    };
+
+    // First delivery: a clean processed booking with its sale/payment legs.
+    await runWebhook(session, async (refund) => {
+      await expectProcessed(listing.id);
+      expect(refund.calls.length).toBe(0);
     });
-    try {
-      await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.processed).toBe(false);
-        expect(json.error).toContain("price");
-      });
-      expect(refund.calls.length).toBe(1);
-      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
-    } finally {
-      mockVerify.restore();
-      refund.restore();
-    }
+    const [original] = await getAttendeesRaw(listing.id);
+    const legsBefore = await transfersByAccount(attendeeAccount(original!.id));
+
+    // The ledger legs are permanent, but the processed_payments idempotency row
+    // is reaped once past the retention window (prunePayments removes resolved
+    // rows — see prune.ts). Back-date the row so the real pruner deletes it,
+    // reproducing the reachable "legs exist, no idempotency row" replay state.
+    await execute(
+      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
+      ["2000-01-01T00:00:00.000Z", session.id],
+    );
+    await prunePayments();
+    expect(await isSessionProcessed(session.id)).toBe(null);
+
+    // Second delivery (the replay): the booking + ticket still exist, and there
+    // are still 49 free seats, so capacity is not the blocker — only the existing
+    // ledger legs are. It must recover the booking, never refund the live ticket
+    // nor keep a quantity-0 ghost.
+    await expectReplayOutcome(session, { processed: true, refundCalls: 0 });
+
+    // The original booking is intact: one attendee at full quantity, no new or
+    // reversing ledger legs, and the idempotency row re-finalized back to it.
+    const attendees = await getAttendeesRaw(listing.id);
+    expect(attendees.length).toBe(1);
+    expect(attendees[0]!.id).toBe(original!.id);
+    expect(attendees[0]!.quantity).toBe(1);
+    const legsAfter = await transfersByAccount(attendeeAccount(original!.id));
+    expect(legsAfter.length).toBe(legsBefore.length);
+    expect(legsAfter.some((leg) => leg.kind === "refund_cash")).toBe(false);
+    expect((await isSessionProcessed(session.id))!.attendee_id).toBe(
+      original!.id,
+    );
   });
 
-  // ---- trusted, but refunded by the downstream pricing checks ---------------
+  test("a pruned replay whose listing price changed is recovered, not refunded", async () => {
+    const listing = await setupWithListing();
+    const session = {
+      id: "cs_replay_price_changed",
+      metadata: signedMeta(1000, { items: singleItem(listing.id, 1, 1000) }),
+    };
+    await runWebhook(session, () => expectProcessed(listing.id));
+    const [original] = await getAttendeesRaw(listing.id);
 
-  test("a re-derivation that diverges from the signed total is refunded", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 1000,
-    });
-    // Signed and charged at 999, but the item re-prices to 1000 — a re-derivation
-    // divergence, which refunds (the proof pins the inputs, so this reflects a
-    // price edit between checkout and webhook, not a code bug).
-    const refund = stubRefundOk();
-    const mockVerify = await stubCompletedSession({
-      amount_total: 999,
-      id: "cs_signed_diverge",
-      metadata: signedMeta(999, { items: singleItem(listing.id, 1, 1000) }),
-    });
-    try {
-      await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.processed).toBe(false);
-        expect(json.error).toContain("price");
-      });
-      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
-    } finally {
-      mockVerify.restore();
-      refund.restore();
-    }
+    // Prune the idempotency row; the permanent ledger legs remain.
+    await execute(
+      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
+      ["2000-01-01T00:00:00.000Z", session.id],
+    );
+    await prunePayments();
+    // The listing price is edited after the booking — exactly the mid-checkout
+    // change that makes a late replay re-price differently. Without the ledger
+    // preflight this hit paidPricingRefund and refunded the live ticket (P1).
+    await listingsTable.update(listing.id, { unitPrice: 1500 });
+
+    await expectReplayOutcome(session, { processed: true, refundCalls: 0 });
+    // The original booking is recovered — no refund, no duplicate.
+    expect((await getAttendeesRaw(listing.id)).map((a) => a.id)).toEqual([
+      original!.id,
+    ]);
   });
 
-  test("a divergence from a dropped modifier ref is refunded", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 1000,
+  test("a pruned replay whose listing was deleted is acknowledged, not refunded", async () => {
+    const listing = await setupWithListing();
+    const session = {
+      id: "cs_replay_listing_deleted",
+      metadata: signedMeta(1000, { items: singleItem(listing.id, 1, 1000) }),
+    };
+    await runWebhook(session, () => expectProcessed(listing.id));
+
+    await execute(
+      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
+      ["2000-01-01T00:00:00.000Z", session.id],
+    );
+    await prunePayments();
+    // Deleting the listing removes the booking's listing_attendees row (and its
+    // ledger_event_group stamp) but leaves the transfers: the event group is now
+    // orphaned. Without the preflight this 404'd into a placeholder refund (P1);
+    // now the ledger is recognised as already accounting for the money, so we
+    // acknowledge without refunding or recreating a ghost.
+    await deleteListing(listing.id);
+
+    await runWebhook(session, async (refund) => {
+      await assertJson(webhookRequest(), 200, (json) => {
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("already been processed");
+      });
+      expect(refund.calls.length).toBe(0);
     });
+    // No placeholder ghost was created for the orphaned replay.
+    expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+  });
+
+  // ---- mismatch / divergence: store a quantity-0 placeholder, refund, flag ---
+
+  test("a charge that differs from the signed total is stored and refunded", async () => {
+    const listing = await setupWithListing();
+    // Signed at 1000 but the provider reports a 1200 charge — a mismatch. The
+    // payment is ours (signed), so the booking is kept (not dropped into limbo).
+    await expectReplayOutcome(
+      {
+        amount_total: 1200,
+        id: "cs_signed_mismatch",
+        metadata: signedMeta(1000, { items: singleItem(listing.id, 1, 1000) }),
+      },
+      { processed: false, refundCalls: 1 },
+    );
+    await expectStoredRefundRecord(listing.id);
+  });
+
+  test("a re-derivation that diverges from the signed total is stored and refunded", async () => {
+    const listing = await setupWithListing();
+    // Signed and charged at 999, but the item re-prices to 1000 — a price edit
+    // between checkout and webhook. The booking is kept, refunded, and flagged.
+    await expectReplayOutcome(
+      {
+        amount_total: 999,
+        id: "cs_signed_diverge",
+        metadata: signedMeta(999, { items: singleItem(listing.id, 1, 1000) }),
+      },
+      { processed: false, refundCalls: 1 },
+    );
+    await expectStoredRefundRecord(listing.id);
+  });
+
+  test("a divergence from a dropped modifier ref is stored and refunded", async () => {
+    const listing = await setupWithListing();
     // Signed at 1100 as if a +100 modifier applied, but the referenced modifier
-    // no longer resolves, so re-derivation lands at 1000 — refunds.
+    // no longer resolves, so re-derivation lands at 1000 — stored and refunded.
     const metadata = signedMeta(1100, {
       items: singleItem(listing.id, 1, 1000),
       modifiers: JSON.stringify([{ i: 999999, q: 1 }]),
     });
-    const refund = stubRefundOk();
-    const mockVerify = await stubCompletedSession({
-      amount_total: 1100,
-      id: "cs_signed_dropped",
-      metadata,
+    await runWebhook(
+      { amount_total: 1100, id: "cs_signed_dropped", metadata },
+      async (refund) => {
+        await expectStoredRefund(listing.id);
+        expect(refund.calls.length).toBe(1);
+      },
+    );
+  });
+
+  // ---- signed-edge revalidation ---------------------------------------------
+
+  /** A signed session booking `child` under `parent`: the parent line, the folded
+   * child line, and the allocation that maps the child under the parent. */
+  const signedParentChild = (
+    parentId: number,
+    childId: number,
+  ): Record<string, string> =>
+    signMeta(
+      webhookMeta({
+        allocations: JSON.stringify([{ childId, parentId, qty: 1 }]),
+        email: "buyer@example.com",
+        items: JSON.stringify([
+          { e: parentId, p: 1000, q: 1 },
+          { e: childId, p: 0, q: 1 },
+        ]),
+        name: "Buyer",
+      }),
+      1000,
+    );
+
+  test("a booking whose signed child edge was re-parented mid-checkout is stored and refunded", async () => {
+    // The child is booked under parentA while also a child of parentB, then
+    // re-parented so only parentB keeps it: the child stays reachable (so the
+    // per-item add-on check passes) but its signed parentA→child edge is gone,
+    // which only the nodeKey walk can catch.
+    await setupStripe();
+    const parentA = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
     });
+    const parentB = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    const child = await createTestListing({ maxAttendees: 50, unitPrice: 0 });
+    await setChildIds(parentA.id, [child.id]);
+    await setChildIds(parentB.id, [child.id]);
+    const metadata = signedParentChild(parentA.id, child.id);
+    await setChildIds(parentA.id, []);
+    await runWebhook({ id: "cs_edge_swap", metadata }, () =>
+      expectStoredRefund(parentA.id),
+    );
+  });
+
+  test("a parent+child booking with intact edges processes (the edge walk finds no drift)", async () => {
+    await setupStripe();
+    const parent = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    const child = await createTestListing({ maxAttendees: 50, unitPrice: 0 });
+    await setChildIds(parent.id, [child.id]);
+    const metadata = signedParentChild(parent.id, child.id);
+    await runWebhook({ id: "cs_edge_intact", metadata }, () =>
+      expectProcessed(parent.id),
+    );
+  });
+
+  test("a package booking with a matching bundle processes (the edge walk finds no drift)", async () => {
+    const { group, listing } = await setupPackage();
+    // A package line carries its edge (k:"p", r=group id); the walk rebuilds the
+    // package tree, finds the member's nodeKey resolves, and books it.
+    const metadata = signMeta(
+      webhookMeta({
+        email: "buyer@example.com",
+        items: JSON.stringify([
+          { e: listing.id, k: "p", p: 1500, q: 1, r: group.id },
+        ]),
+        name: "Buyer",
+        package_group_id: String(group.id),
+      }),
+      1500,
+    );
+    await runWebhook(
+      { amount_total: 1500, id: "cs_pkg_edge_ok", metadata },
+      () => expectProcessed(listing.id),
+    );
+  });
+
+  test("stores the booking, reverses the ledger with the reason code, and flags it", async () => {
+    const listing = await setupWithListing();
+    // Signed and charged at 999, but the live price is 1000 — a mid-checkout edit.
+    await expectReplayOutcome(
+      {
+        amount_total: 999,
+        id: "cs_ledger_reversal",
+        metadata: signedMeta(999, { items: singleItem(listing.id, 1, 1000) }),
+      },
+      { processed: false, refundCalls: 1 },
+    );
+    const [attendee] = await getAttendeesRaw(listing.id);
+    expect(attendee).toBeDefined();
+    // Stored as a quantity-0 placeholder: it consumes no capacity and is not
+    // a ticket, just a kept record of a refunded booking.
+    expect(attendee!.quantity).toBe(0);
+
+    // The ledger holds ONLY the cash round-trip — a `payment` we received and
+    // a `refund_cash` returning it, stamped with the PII-free reason code — so
+    // the attendee nets back to zero. Crucially there is NO `sale` leg: the
+    // booking was never honoured, so no revenue is recognised and the
+    // quantity-0 line's projected price_paid stays 0 (the no-quantity invariant).
+    const account = attendeeAccount(attendee!.id);
+    const legs = await transfersByAccount(account);
+    const refundCash = legs.find((leg) => leg.kind === "refund_cash");
+    expect(refundCash?.memo).toBe("price_changed");
+    expect(balanceOf(account)(legs)).toBe(0);
+    expect(legs.some((leg) => leg.kind === "payment")).toBe(true);
+    expect(legs.some((leg) => leg.kind === "sale")).toBe(false);
+
+    // The system note names the reason (PII-free) and links to the ledger.
+    const notes = await getNotesForAttendee(
+      attendee!.id,
+      await getTestPrivateKey(),
+    );
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.note).toContain("price changed");
+    expect(notes[0]!.note).toContain(`/admin/ledger/attendee/${attendee!.id}`);
+  });
+
+  // ---- session-state invariants (regression: the finalize/store-refund seam) -
+  // The store-refund path hinges on a subtle transaction invariant: the attendee
+  // is created, but the payment session is deliberately NOT finalized, so the
+  // refund is recorded as the session's terminal outcome (and a replay shows the
+  // refund message) rather than a finalized success that would replay a ticket.
+  // This seam has been re-fought (e.g. the atomic-finalize change), and a green
+  // typecheck does NOT catch a regression here — only these assertions do.
+
+  test("a stored-refunded booking leaves the session unfinalized with a terminal refund", async () => {
+    const listing = await setupWithListing();
+    await expectReplayOutcome(
+      {
+        amount_total: 999,
+        id: "cs_unfinalized",
+        metadata: signedMeta(999, { items: singleItem(listing.id, 1, 1000) }),
+      },
+      { processed: false, refundCalls: 1 },
+    );
+    // The booking exists in the diary…
+    expect((await getAttendeesRaw(listing.id)).length).toBe(1);
+    // …but the session is NOT finalized: attendee_id stays null and the refund
+    // is the terminal outcome. If a change finalizes it, a replay would wrongly
+    // hand the customer a ticket — so pin both fields.
+    const record = await isSessionProcessed("cs_unfinalized");
+    expect(record?.attendee_id).toBeNull();
+    expect(record?.failure_data).not.toBe("");
+  });
+
+  test("a redelivery of a stored-refunded booking replays the refund — no re-create, no re-refund, no ticket", async () => {
+    const listing = await setupWithListing();
+    await runWebhook(
+      {
+        amount_total: 999,
+        id: "cs_replay_refund",
+        metadata: signedMeta(999, { items: singleItem(listing.id, 1, 1000) }),
+      },
+      async (refund) => {
+        await assertJson(webhookRequest(), 200, (json) => {
+          expect(json.processed).toBe(false);
+        });
+        // The redelivery must replay the SAME refund outcome (processed:false), not
+        // a finalized success (processed:true / a ticket) — and must not duplicate
+        // the booking or re-refund. This is the exact failure an over-eager finalize
+        // would cause, which the type system can't see.
+        await assertJson(webhookRequest(), 200, (json) => {
+          expect(json.processed).toBe(false);
+        });
+        expect((await getAttendeesRaw(listing.id)).length).toBe(1);
+        expect(refund.calls.length).toBe(1);
+      },
+    );
+  });
+
+  test("a successful booking DOES finalize the session atomically (the contrast)", async () => {
+    const listing = await setupWithListing();
+    await runWebhook(
+      {
+        id: "cs_finalized",
+        metadata: signedMeta(1000, { items: singleItem(listing.id, 1, 1000) }),
+      },
+      async () => {
+        await assertJson(webhookRequest(), 200, (json) => {
+          expect(json.processed).toBe(true);
+        });
+        const [attendee] = await getAttendeesRaw(listing.id);
+        // A success finalizes (attendee_id set in the same transaction as the
+        // attendee insert), so its replay returns the ticket. The store-refund path
+        // is the deliberate exception above; keep the two from drifting together.
+        const record = await isSessionProcessed("cs_finalized");
+        expect(record?.attendee_id).toBe(attendee!.id);
+      },
+    );
+  });
+
+  test("an unexpected error after the charge keeps the booking at quantity 0 and refunds", async () => {
+    const listing = await setupWithListing();
+    // Make the real-quantity happy-path create (the batch booking write) throw,
+    // while the quantity-0 placeholder store (createAttendeeAtomic) keeps working
+    // — so a signed payment that hits an unexpected error after the charge is kept
+    // at quantity 0 and refunded, not crash-looped over money already taken.
+    const { attendeesApi } = await import("#shared/db/attendees.ts");
+    const boom = stub(attendeesApi, "createBookingAtomic", () =>
+      Promise.reject(new Error("synthetic create failure")),
+    );
     try {
-      await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.processed).toBe(false);
-        expect(json.error).toContain("price");
-      });
-      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+      await runWebhook(
+        {
+          id: "cs_crash_store",
+          metadata: signedMeta(1000, {
+            items: singleItem(listing.id, 1, 1000),
+          }),
+        },
+        async (refund) => {
+          await expectStoredRefund(listing.id);
+          expect(refund.calls.length).toBe(1);
+          const record = await isSessionProcessed("cs_crash_store");
+          expect(record?.attendee_id).toBeNull();
+          expect(record?.failure_data).not.toBe("");
+        },
+      );
     } finally {
-      mockVerify.restore();
-      refund.restore();
+      boom.restore();
     }
   });
 
-  test("a signed session for a since-deleted listing is refunded, not stranded", async () => {
+  test("a signed session for a since-deleted listing is kept as a ghost and refunded", async () => {
     await setupStripe();
     // No listing with this id exists (as if deleted between checkout and the
-    // webhook). The proof still proves the session is ours, so the 404 must
-    // refund rather than take the foreign-session no-refund path.
-    const refund = stubRefundOk();
-    const mockVerify = await stubCompletedSession({
-      amount_total: 1000,
-      id: "cs_missing_listing",
-      metadata: signedMeta(1000, { items: singleItem(999999, 1, 1000) }),
-    });
-    try {
-      await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.processed).toBe(false);
-        expect(json.error).toContain("price");
-      });
-    } finally {
-      mockVerify.restore();
-      refund.restore();
-    }
+    // webhook). The proof still proves the session is ours, so rather than drop a
+    // paid customer we keep a quantity-0 ghost against the dead listing id (there
+    // is no FK to listings), refund, and flag it — never the foreign-session
+    // no-refund path.
+    await runWebhook(
+      {
+        id: "cs_missing_listing",
+        metadata: signedMeta(1000, { items: singleItem(999999, 1, 1000) }),
+      },
+      async (refund) => {
+        await expectStoredRefund(999999);
+        expect(refund.calls.length).toBe(1);
+        // Recorded as the session's terminal outcome (not finalized → no ticket).
+        const record = await isSessionProcessed("cs_missing_listing");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
+      },
+    );
   });
 
   // ---- ignore: acknowledge, never refund ------------------------------------
 
   test("a tampered proof is ignored without refunding", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 1000,
-    });
+    const listing = await setupWithListing();
     // A valid-looking total but a wrong digest — the proof no longer verifies.
     const metadata = {
       ...signedMeta(1000, { items: singleItem(listing.id, 1, 1000) }),
       price_proof: `1000.${"A".repeat(44)}`,
     };
-    const refund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_never" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
-    );
-    const mockVerify = await stubCompletedSession({
-      amount_total: 1000,
-      id: "cs_tampered",
-      metadata,
-    });
-    try {
-      await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.received).toBe(true);
-        expect(json.processed).toBeUndefined();
-      });
+    await runWebhook({ id: "cs_tampered", metadata }, async (refund) => {
+      await expectAcknowledgedIgnore();
       expect(refund.calls.length).toBe(0);
-      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
-    } finally {
-      mockVerify.restore();
-      refund.restore();
-    }
+      await expectNoAttendees(listing.id);
+    });
   });
 
   test("a malformed price proof is ignored without refunding", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 1000,
-    });
+    const listing = await setupWithListing();
     const metadata = {
       ...webhookMeta({
         email: "badtotal@example.com",
@@ -322,133 +688,65 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       }),
       price_proof: "not-a-number",
     };
-    const refund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_never" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
-    );
-    const mockVerify = await stubCompletedSession({
-      amount_total: 1000,
-      id: "cs_bad_total",
-      metadata,
-    });
-    try {
-      await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.received).toBe(true);
-        expect(json.processed).toBeUndefined();
-      });
+    await runWebhook({ id: "cs_bad_total", metadata }, async (refund) => {
+      await expectAcknowledgedIgnore();
       expect(refund.calls.length).toBe(0);
-      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
-    } finally {
-      mockVerify.restore();
-      refund.restore();
-    }
+      await expectNoAttendees(listing.id);
+    });
   });
 
   test("an unsigned session is ignored without refunding", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 1000,
-    });
+    const listing = await setupWithListing();
     // Plain webhookMeta carries no proof — there is no longer a re-derived
     // fallback, so without a proof we cannot prove the session is ours.
-    const refund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_never" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
-    );
-    const mockVerify = await stubCompletedSession({
-      amount_total: 1000,
-      id: "cs_unsigned",
-      metadata: webhookMeta({
-        email: "legacy@example.com",
-        items: singleItem(listing.id, 1, 1000),
-        name: "Legacy Buyer",
-      }),
+    const metadata = webhookMeta({
+      email: "legacy@example.com",
+      items: singleItem(listing.id, 1, 1000),
+      name: "Legacy Buyer",
     });
-    try {
-      await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.received).toBe(true);
-        expect(json.processed).toBeUndefined();
-      });
+    await runWebhook({ id: "cs_unsigned", metadata }, async (refund) => {
+      await expectAcknowledgedIgnore();
       expect(refund.calls.length).toBe(0);
-      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
-    } finally {
-      mockVerify.restore();
-      refund.restore();
-    }
+      await expectNoAttendees(listing.id);
+    });
   });
 
   test("a session with corrupt items is ignored without parsing or refunding", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 1000,
-    });
+    const listing = await setupWithListing();
     // Signed, then items replaced with junk: the proof no longer verifies, so the
     // session is ignored before the items are ever parsed (no throw, no refund).
     const metadata = {
       ...signedMeta(1000, { items: singleItem(listing.id, 1, 1000) }),
       items: "not-json",
     };
-    const refund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_never" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
-    );
-    const mockVerify = await stubCompletedSession({
-      amount_total: 1000,
-      id: "cs_corrupt_items",
-      metadata,
-    });
-    try {
-      await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.received).toBe(true);
-        expect(json.processed).toBeUndefined();
-      });
+    await runWebhook({ id: "cs_corrupt_items", metadata }, async (refund) => {
+      await expectAcknowledgedIgnore();
       expect(refund.calls.length).toBe(0);
-      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
-    } finally {
-      mockVerify.restore();
-      refund.restore();
-    }
+      await expectNoAttendees(listing.id);
+    });
   });
 
   test("an unsigned foreign-origin webhook is ignored without refunding", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 1000,
-    });
+    const listing = await setupWithListing();
     // No proof and a foreign _origin: a different instance sharing the provider.
-    const refund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_never" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
-    );
-    const mockVerify = await stubCompletedSession({
-      amount_total: 1000,
-      id: "cs_foreign_unsigned",
-      metadata: {
-        ...webhookMeta({
-          email: "foreign@example.com",
-          items: singleItem(listing.id, 1, 1000),
-          name: "Foreign Unsigned",
-        }),
-        _origin: "other-instance.example.test",
+    const metadata = {
+      ...webhookMeta({
+        email: "foreign@example.com",
+        items: singleItem(listing.id, 1, 1000),
+        name: "Foreign Unsigned",
+      }),
+      _origin: "other-instance.example.test",
+    };
+    await runWebhook(
+      { id: "cs_foreign_unsigned", metadata },
+      async (refund) => {
+        await assertJson(webhookRequest(), 200, (json) => {
+          expect(json.received).toBe(true);
+        });
+        expect(refund.calls.length).toBe(0);
+        await expectNoAttendees(listing.id);
       },
-    });
-    try {
-      await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.received).toBe(true);
-      });
-      expect(refund.calls.length).toBe(0);
-      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
-    } finally {
-      mockVerify.restore();
-      refund.restore();
-    }
+    );
   });
 
   test("an unverifiable session on the redirect path is not recognized and not refunded", async () => {
@@ -461,11 +759,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       _origin: "other-instance.example.test",
       price_proof: `1000.${"A".repeat(44)}`,
     };
-    const refund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_never" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
-    );
+    const refund = stubRefundOk();
     const retrieve = stubRetrievedSession({
       amount_total: 1000,
       id: "cs_foreign_redirect",
@@ -481,84 +775,491 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     }
   });
 
-  // ---- failed-refund retry behaviour (the two review points) ----------------
+  // ---- failed-refund behaviour for a stored booking -------------------------
 
-  test("a mismatch whose refund fails returns 503 and the next delivery re-attempts it", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 1000,
-    });
+  test("a stored booking whose refund fails is kept, flagged, and recorded as terminal", async () => {
+    const listing = await setupWithListing();
     // The provider refund keeps failing and the payment is not yet refunded. The
-    // first delivery returns 503 AND releases the reservation, so the next
-    // delivery re-claims and re-attempts the refund instead of colliding with the
-    // lock and returning 409 until the row goes stale.
-    const refund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve(null),
+    // booking is already stored (signed by us → never dropped), so a retry must
+    // NOT re-create it: the outcome is recorded as terminal and the system note
+    // tells the operator to refund it manually, rather than looping a 503 retry
+    // that would duplicate the booking.
+    await runFailedRefund(
+      "cs_refund_retry",
+      false,
+      listing.id,
+      async (refund) => {
+        await assertJson(webhookRequest(), 200, (json) => {
+          expect(json.processed).toBe(false);
+        });
+        // A second delivery replays the recorded outcome — it does not re-create the
+        // attendee or re-attempt the (now operator-owned) refund.
+        await assertJson(webhookRequest(), 200, (json) => {
+          expect(json.processed).toBe(false);
+        });
+        expect(refund.calls.length).toBe(1);
+        const [attendee] = await getAttendeesRaw(listing.id);
+        expect(attendee?.quantity).toBe(0);
+        expect(await getNoteRows([attendee!.id])).toHaveLength(1);
+        const record = await isSessionProcessed("cs_refund_retry");
+        expect(record?.failure_data).not.toBe("");
+      },
     );
-    const intent = stub(stripeApi, "retrievePaymentIntent", () =>
-      Promise.resolve({
-        latest_charge: { refunded: false },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrievePaymentIntent>
-      >),
-    );
-    const mockVerify = await stubCompletedSession({
-      amount_total: 1200,
-      id: "cs_refund_retry",
-      metadata: signedMeta(1000, { items: singleItem(listing.id, 1, 1000) }),
-    });
-    try {
-      expect((await webhookRequest()).status).toBe(503);
-      expect((await webhookRequest()).status).toBe(503);
-      // Both deliveries re-attempted the refund — proof the reservation was
-      // released rather than held until stale.
-      expect(refund.calls.length).toBe(2);
-      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
-    } finally {
-      mockVerify.restore();
-      intent.restore();
-      refund.restore();
-    }
   });
 
   test("a mismatch whose refund reports failure but already settled is acknowledged", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 1000,
-    });
+    const listing = await setupWithListing();
     // The refund call returns null (e.g. the provider rejected a second full
     // refund), but the payment IS already fully refunded. That is success, not a
     // 503 retry loop: acknowledge and record the terminal outcome.
-    const refund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve(null),
+    await runFailedRefund(
+      "cs_already_refunded",
+      true,
+      listing.id,
+      async (refund) => {
+        await assertJson(webhookRequest(), 200, (json) => {
+          expect(json.processed).toBe(false);
+        });
+        expect(refund.calls.length).toBe(1);
+        // Recorded as a terminal failure (refund settled), so a later delivery
+        // replays it instead of retrying.
+        const record = await isSessionProcessed("cs_already_refunded");
+        expect(record?.failure_data).not.toBe("");
+      },
     );
-    const intent = stub(stripeApi, "retrievePaymentIntent", () =>
-      Promise.resolve({
-        latest_charge: { refunded: true },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrievePaymentIntent>
-      >),
-    );
-    const mockVerify = await stubCompletedSession({
-      amount_total: 1200,
-      id: "cs_already_refunded",
-      metadata: signedMeta(1000, { items: singleItem(listing.id, 1, 1000) }),
+  });
+
+  // ---- package pricing revalidation -----------------------------------------
+
+  /** A package group whose single member has a base price of 5000 but a package
+   * override of 1500. Returns the group and member. */
+  const setupPackage = async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Pkg",
+      slug: "pkg",
     });
-    try {
-      await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.processed).toBe(false);
-      });
+    const listing = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 50,
+      unitPrice: 5000,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 1500 },
+    ]);
+    return { group, listing };
+  };
+
+  /** Signed metadata for a one-line package booking at `price` (the override).
+   * The line carries its package edge (k:"p", r=group id), as the checkout emits. */
+  const packageMetadata = (groupId: number, listingId: number, price: number) =>
+    signMeta(
+      webhookMeta({
+        email: "buyer@example.com",
+        items: JSON.stringify([
+          { e: listingId, k: "p", p: price, q: 1, r: groupId },
+        ]),
+        name: "Buyer",
+        package_group_id: String(groupId),
+      }),
+      price,
+    );
+
+  /** Drive a 1500 package session through the webhook and assert it was kept as
+   * a refunded placeholder (the post-checkout change invalidated the price). */
+  const expectPackageRefund = (
+    id: string,
+    listingId: number,
+    metadata: Record<string, string>,
+  ): Promise<void> =>
+    runWebhook({ amount_total: 1500, id, metadata }, async (refund) => {
+      await expectStoredRefund(listingId);
       expect(refund.calls.length).toBe(1);
-      // Recorded as a terminal failure (refund settled), so a later delivery
-      // replays it instead of retrying.
-      const record = await isSessionProcessed("cs_already_refunded");
-      expect(record?.failure_data).not.toBe("");
-    } finally {
-      mockVerify.restore();
-      intent.restore();
-      refund.restore();
-    }
+    });
+
+  test("a package booking is priced against the override, not the base price", async () => {
+    const { group, listing } = await setupPackage();
+    // Signed at the override (1500), not the 5000 base — only the package path
+    // makes this validate; the base-price check would refund it.
+    await runWebhook(
+      {
+        amount_total: 1500,
+        id: "cs_pkg_ok",
+        metadata: packageMetadata(group.id, listing.id, 1500),
+      },
+      () => expectProcessed(listing.id),
+    );
+  });
+
+  test("an explicit-free package member (override 0) completes at £0", async () => {
+    const { group, listing } = await setupPackage();
+    // Override the member to free (0) — distinct from "no override", which would
+    // re-price at the 5000 base and refund a £0 booking. The signed £0 line must
+    // be honoured.
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 0 },
+    ]);
+    await runWebhook(
+      {
+        amount_total: 0,
+        id: "cs_pkg_free_ov",
+        metadata: packageMetadata(group.id, listing.id, 0),
+      },
+      () => expectProcessed(listing.id),
+    );
+  });
+
+  test("a no-override package member refunds a £0 booking (charges its base)", async () => {
+    const { group, listing } = await setupPackage();
+    // No override (null) → the member keeps its 5000 base, so a signed £0 line
+    // no longer matches and must take the price_changed refund path.
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: null },
+    ]);
+    await expectPackageRefund(
+      "cs_pkg_no_ov",
+      listing.id,
+      packageMetadata(group.id, listing.id, 0),
+    );
+  });
+
+  test("a package booking refunds when the override changed after checkout", async () => {
+    const { group, listing } = await setupPackage();
+    const metadata = packageMetadata(group.id, listing.id, 1500);
+    // Operator raises the override after the buyer signed at 1500.
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 2000 },
+    ]);
+    await expectPackageRefund("cs_pkg_changed", listing.id, metadata);
+  });
+
+  /** A customisable one-member package: the member's own day prices are
+   * 1:700/2:1200 with a per-day PACKAGE override of 1000 for the 2-day span. */
+  const setupCustomisablePackage = async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Flex Pkg",
+      slug: "flex-pkg",
+    });
+    const listing = await createTestListing({
+      customisableDays: true,
+      dayPrices: { 1: 700, 2: 1200 },
+      durationDays: 2,
+      groupId: group.id,
+      listingType: "daily",
+      maxAttendees: 50,
+      minimumDaysBefore: 0,
+      unitPrice: 700,
+    });
+    await setGroupPackageMembers(group.id, [
+      { dayPrices: { 2: 1000 }, listingId: listing.id, price: null },
+    ]);
+    return { group, listing };
+  };
+
+  /** Signed metadata for a 2-day customisable package line at `price`. */
+  const customisableMetadata = async (
+    groupId: number,
+    listingId: number,
+    price: number,
+  ) => {
+    const { addDays } = await import("#shared/dates.ts");
+    const { todayInTz } = await import("#shared/timezone.ts");
+    return signMeta(
+      webhookMeta({
+        date: addDays(todayInTz("UTC"), 2),
+        day_count: "2",
+        email: "buyer@example.com",
+        items: JSON.stringify([
+          { e: listingId, k: "p", p: price, q: 1, r: groupId },
+        ]),
+        name: "Buyer",
+        package_group_id: String(groupId),
+      }),
+      price,
+    );
+  };
+
+  test("a customisable package's webhook accepts the signed per-day override price", async () => {
+    // The webhook is the authoritative money path (the buyer may never hit the
+    // redirect), so day-count revalidation must run here too: the 2-day span is
+    // package-overridden to 1000, and a session signed at 1000 books.
+    const { group, listing } = await setupCustomisablePackage();
+    await runWebhook(
+      {
+        amount_total: 1000,
+        id: "cs_pkg_flex_wh_ok",
+        metadata: await customisableMetadata(group.id, listing.id, 1000),
+      },
+      () => expectProcessed(listing.id),
+    );
+  });
+
+  test("a customisable package's webhook refunds when the per-day override changed after checkout", async () => {
+    const { group, listing } = await setupCustomisablePackage();
+    const metadata = await customisableMetadata(group.id, listing.id, 1000);
+    // Operator reprices the 2-day span after the buyer signed at 1000.
+    await setGroupPackageMembers(group.id, [
+      { dayPrices: { 2: 1600 }, listingId: listing.id, price: null },
+    ]);
+    await runWebhook(
+      { amount_total: 1000, id: "cs_pkg_flex_wh_drift", metadata },
+      async (refund) => {
+        await expectStoredRefund(listing.id);
+        expect(refund.calls.length).toBe(1);
+      },
+    );
+  });
+
+  test("a package booking refunds when the group is no longer a package", async () => {
+    const { group, listing } = await setupPackage();
+    const metadata = packageMetadata(group.id, listing.id, 1500);
+    // The package flag is cleared, so the member revalidates at its 5000 base
+    // price and the 1500 the buyer signed no longer matches.
+    await groupsTable.update(group.id, { isPackage: false });
+    await expectPackageRefund("cs_pkg_unflagged", listing.id, metadata);
+  });
+
+  test("a package booking refunds when a member was added after checkout", async () => {
+    const { group, listing } = await setupPackage();
+    const metadata = packageMetadata(group.id, listing.id, 1500);
+    // A second member joins the bundle after the buyer signed a one-line order,
+    // so the signed lines no longer represent the whole package.
+    const added = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 1500 },
+      { listingId: added.id, price: 1000 },
+    ]);
+    await expectPackageRefund("cs_pkg_member_added", listing.id, metadata);
+  });
+
+  test("a package booking refunds when a free member's override turns paid mid-payment", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "FreePkg",
+      slug: "free-pkg",
+    });
+    const listing = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 50,
+      unitPrice: 0,
+    });
+    // The member is free at checkout (override 0), so its signed line price is 0.
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 0 },
+    ]);
+    // An opt-in add-on keeps the order PAID even though every package line is
+    // free — this is the case the old `hasPaidItems` guard skipped.
+    const addOn = await modifiersTable.insert({
+      calcKind: "fixed",
+      calcValue: 500,
+      direction: "charge",
+      name: "Add-on",
+    });
+    await execute("UPDATE modifiers SET trigger = ? WHERE id = ?", [
+      "optional",
+      addOn.id,
+    ]);
+    const metadata = signMeta(
+      webhookMeta({
+        email: "buyer@example.com",
+        items: singleItem(listing.id, 1, 0),
+        modifiers: JSON.stringify([{ i: addOn.id, q: 1 }]),
+        name: "Buyer",
+        package_group_id: String(group.id),
+      }),
+      500,
+    );
+    // Operator raises the override from 0 to a positive value while the payment
+    // is in flight; the signed zero line must no longer be honoured.
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 1500 },
+    ]);
+    await runWebhook(
+      { amount_total: 500, id: "cs_pkg_free_drift", metadata },
+      async (refund) => {
+        await expectStoredRefund(listing.id);
+        expect(refund.calls.length).toBe(1);
+      },
+    );
+  });
+
+  test("a hidden package booking completes (member name never leaks in the flow)", async () => {
+    const { group, listing } = await setupPackage();
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    // A normal hidden-package session: it processes, exercising the path that
+    // suppresses member names in any failure message for hidden packages.
+    await runWebhook(
+      {
+        amount_total: 1500,
+        id: "cs_pkg_hidden_ok",
+        metadata: packageMetadata(group.id, listing.id, 1500),
+      },
+      () => expectProcessed(listing.id),
+    );
+  });
+
+  test("a standalone session for a now-hidden package member is refunded, not booked", async () => {
+    const { group, listing } = await setupPackage();
+    // The buyer started a STANDALONE (non-package) checkout at the base price;
+    // the operator then hid the package. Completing it would book a leaking
+    // standalone ticket whose /ticket/<slug> 404s, so it must refund instead.
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    await runWebhook(
+      {
+        amount_total: 5000,
+        id: "cs_stale_hidden_member",
+        metadata: signedMeta(5000, { items: singleItem(listing.id, 1, 5000) }),
+      },
+      async (refund) => {
+        await expectStoredRefund(listing.id);
+        expect(refund.calls.length).toBe(1);
+      },
+    );
+  });
+
+  test("a standalone session for a child whose bookable_alone was cleared is refunded, not booked", async () => {
+    await setupStripe();
+    // The child was `bookable_alone` when the buyer opened a STANDALONE checkout
+    // for it; the operator then cleared the flag. The parent/child EDGE is
+    // unchanged (so orderEdgeDrifted still passes), but the child now has no
+    // standalone page — completing it would book a leaking ticket whose
+    // /ticket/<slug> 404s. The stale-non-standalone-child guard must fail it
+    // closed to a stored refund. Isolates that guard from orderEdgeDrifted.
+    const parent = await createTestListing({ name: "Picker" });
+    const child = await createTestListing({
+      bookableAlone: true,
+      maxAttendees: 50,
+      name: "Solo Widget",
+      unitPrice: 1000,
+    });
+    await setChildIds(parent.id, [child.id]);
+    await listingsTable.update(child.id, { bookableAlone: false });
+    await runWebhook(
+      {
+        amount_total: 1000,
+        id: "cs_stale_bookable_alone",
+        metadata: signedMeta(1000, { items: singleItem(child.id, 1, 1000) }),
+      },
+      async (refund) => {
+        await expectStoredRefund(child.id);
+        expect(refund.calls.length).toBe(1);
+      },
+    );
+  });
+
+  test("a standalone session for a still-bookable_alone child completes normally", async () => {
+    await setupStripe();
+    // The contrast: the flag is STILL set, so the standalone child books
+    // normally — the guard must not fire on a flag that never changed.
+    const parent = await createTestListing({ name: "Picker" });
+    const child = await createTestListing({
+      bookableAlone: true,
+      maxAttendees: 50,
+      name: "Solo Widget",
+      unitPrice: 1000,
+    });
+    await setChildIds(parent.id, [child.id]);
+    await runWebhook(
+      {
+        amount_total: 1000,
+        id: "cs_live_bookable_alone",
+        metadata: signedMeta(1000, { items: singleItem(child.id, 1, 1000) }),
+      },
+      async (refund) => {
+        await expectProcessed(child.id);
+        expect(refund.calls.length).toBe(0);
+      },
+    );
+  });
+
+  test("a mixed folded+standalone child order refunds once the flag clears", async () => {
+    await setupStripe();
+    // The child was bookable-on-its-own: the buyer booked two units under
+    // /ticket/<parent+child> — one folded under the parent (an allocation) and one
+    // standalone (the remainder). Clearing the flag strips the standalone unit's
+    // page, so the whole order refunds even though a parent is present and the
+    // folded unit alone would be fine.
+    const parent = await createTestListing({
+      maxAttendees: 50,
+      name: "Picker",
+      unitPrice: 1000,
+    });
+    const child = await createTestListing({
+      bookableAlone: true,
+      maxAttendees: 50,
+      name: "Solo Widget",
+      unitPrice: 0,
+    });
+    await setChildIds(parent.id, [child.id]);
+    await listingsTable.update(child.id, { bookableAlone: false });
+    const metadata = signMeta(
+      webhookMeta({
+        allocations: JSON.stringify([
+          { childId: child.id, parentId: parent.id, qty: 1 },
+        ]),
+        email: "buyer@example.com",
+        items: JSON.stringify([
+          { e: parent.id, p: 1000, q: 1 },
+          { e: child.id, p: 0, q: 2 },
+        ]),
+        name: "Buyer",
+      }),
+      1000,
+    );
+    await runWebhook(
+      { amount_total: 1000, id: "cs_stale_remainder", metadata },
+      async (refund) => {
+        await expectStoredRefund(parent.id);
+        expect(refund.calls.length).toBe(1);
+      },
+    );
+  });
+
+  test("a fully-folded child order still completes after the flag clears", async () => {
+    await setupStripe();
+    // Every child unit is allocated under the parent (no standalone remainder), so
+    // clearing the flag leaves nothing standalone to leak — the order completes.
+    const parent = await createTestListing({
+      maxAttendees: 50,
+      name: "Picker",
+      unitPrice: 1000,
+    });
+    const child = await createTestListing({
+      bookableAlone: true,
+      maxAttendees: 50,
+      name: "Solo Widget",
+      unitPrice: 0,
+    });
+    await setChildIds(parent.id, [child.id]);
+    await listingsTable.update(child.id, { bookableAlone: false });
+    const metadata = signMeta(
+      webhookMeta({
+        allocations: JSON.stringify([
+          { childId: child.id, parentId: parent.id, qty: 1 },
+        ]),
+        email: "buyer@example.com",
+        items: JSON.stringify([
+          { e: parent.id, p: 1000, q: 1 },
+          { e: child.id, p: 0, q: 1 },
+        ]),
+        name: "Buyer",
+      }),
+      1000,
+    );
+    await runWebhook(
+      { amount_total: 1000, id: "cs_folded_after_clear", metadata },
+      async (refund) => {
+        await expectProcessed(parent.id);
+        expect(refund.calls.length).toBe(0);
+      },
+    );
   });
 });

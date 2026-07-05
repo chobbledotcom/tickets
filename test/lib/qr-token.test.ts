@@ -54,6 +54,26 @@ describe("qr-token", () => {
       expect(payload.q).toBe(3);
       expect(payload.d).toBe("2026-05-01");
     });
+
+    test("keeps an explicit zero price instead of the not-provided sentinel", () => {
+      // A free QR booking passes value 0; the ?? default must not treat that
+      // falsy-but-provided price as "not supplied" and overwrite it with -1.
+      expect(buildQrBookPayload({ value: 0 }).v).toBe(0);
+    });
+
+    test("keeps an explicit zero quantity instead of defaulting to 1", () => {
+      // Quantity 0 is falsy but supplied; it must survive rather than snap to 1.
+      expect(buildQrBookPayload({ quantity: 0 }).q).toBe(0);
+    });
+
+    test("honours an explicit zero max age when computing the expiry", () => {
+      // maxAgeSeconds 0 is falsy but supplied, so the expiry is exactly now —
+      // it must not fall back to the 300s default.
+      const nowS = Math.floor(Date.now() / 1000);
+      const payload = buildQrBookPayload({ maxAgeSeconds: 0 });
+      expect(payload.e).toBeGreaterThanOrEqual(nowS - 2);
+      expect(payload.e).toBeLessThanOrEqual(nowS + 2);
+    });
   });
 
   describe("signQrBookToken", () => {
@@ -151,34 +171,26 @@ describe("qr-token", () => {
     });
 
     test("rejects an expired token", async () => {
-      const time = new FakeTime(1_700_000_000_000);
-      try {
-        const token = await signQrBookToken(
-          "listing",
-          buildQrBookPayload({ name: "Ada", value: 100 }),
-        );
-        // Advance past the max-age window
-        time.tick((QR_TOKEN_MAX_AGE_S + 10) * 1000);
-        expect(await verifyQrBookToken("listing", token)).toBe(null);
-      } finally {
-        time.restore();
-      }
+      using time = new FakeTime(1_700_000_000_000);
+      const token = await signQrBookToken(
+        "listing",
+        buildQrBookPayload({ name: "Ada", value: 100 }),
+      );
+      // Advance past the max-age window
+      time.tick((QR_TOKEN_MAX_AGE_S + 10) * 1000);
+      expect(await verifyQrBookToken("listing", token)).toBe(null);
     });
 
     test("accepts a token still within its validity window", async () => {
-      const time = new FakeTime(1_700_000_000_000);
-      try {
-        const token = await signQrBookToken(
-          "listing",
-          buildQrBookPayload({ name: "Ada", value: 100 }),
-        );
-        // Advance by just under the max-age window
-        time.tick((QR_TOKEN_MAX_AGE_S - 10) * 1000);
-        const result = await verifyQrBookToken("listing", token);
-        expect(result?.n).toBe("Ada");
-      } finally {
-        time.restore();
-      }
+      using time = new FakeTime(1_700_000_000_000);
+      const token = await signQrBookToken(
+        "listing",
+        buildQrBookPayload({ name: "Ada", value: 100 }),
+      );
+      // Advance by just under the max-age window
+      time.tick((QR_TOKEN_MAX_AGE_S - 10) * 1000);
+      const result = await verifyQrBookToken("listing", token);
+      expect(result?.n).toBe("Ada");
     });
 
     test("rejects a token with an unreasonably far-future expiry", async () => {
@@ -215,6 +227,70 @@ describe("qr-token", () => {
       expect(await verifyQrBookToken("listing", `qr1.${encoded}.${hmac}`)).toBe(
         null,
       );
+    });
+
+    // Forge a correctly-signed "qr1." token wrapping an arbitrary payload, so
+    // the shape guard runs with a signature that already passes. Each field is
+    // validated independently: a token valid in every field but one must still
+    // be rejected, so no single field's type check can be dropped.
+    const forgeQrToken = async (
+      slug: string,
+      payload: unknown,
+    ): Promise<string> => {
+      const encoded = base64ToBase64Url(
+        toBase64(new TextEncoder().encode(JSON.stringify(payload))),
+      );
+      const hmac = base64ToBase64Url(
+        await hmacHash(`qr-book:${slug}:${encoded}`),
+      );
+      return `qr1.${encoded}.${hmac}`;
+    };
+
+    const validExpiry = (): number =>
+      Math.floor(Date.now() / 1000) + QR_TOKEN_MAX_AGE_S - 10;
+
+    test("rejects a signed payload whose name is not a string", async () => {
+      const token = await forgeQrToken("listing", {
+        d: "",
+        e: validExpiry(),
+        n: 1,
+        q: 1,
+        v: 1,
+      });
+      expect(await verifyQrBookToken("listing", token)).toBeNull();
+    });
+
+    test("rejects a signed payload whose value is not a number", async () => {
+      const token = await forgeQrToken("listing", {
+        d: "",
+        e: validExpiry(),
+        n: "",
+        q: 1,
+        v: "1",
+      });
+      expect(await verifyQrBookToken("listing", token)).toBeNull();
+    });
+
+    test("rejects a signed payload whose quantity is not a number", async () => {
+      const token = await forgeQrToken("listing", {
+        d: "",
+        e: validExpiry(),
+        n: "",
+        q: "1",
+        v: 1,
+      });
+      expect(await verifyQrBookToken("listing", token)).toBeNull();
+    });
+
+    test("rejects a signed payload whose date is not a string", async () => {
+      const token = await forgeQrToken("listing", {
+        d: 5,
+        e: validExpiry(),
+        n: "",
+        q: 1,
+        v: 1,
+      });
+      expect(await verifyQrBookToken("listing", token)).toBeNull();
     });
   });
 });

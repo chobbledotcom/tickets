@@ -32,6 +32,13 @@ const radio = (id: number): QuestionWithAnswers => ({
 });
 
 describe("parseQuestionAnswers free-text handling", () => {
+  const expectOptionalFreeTextEmpty = (form: URLSearchParams) => {
+    const result = parseQuestionAnswers({ optional: true })(form, [
+      freeText(1),
+    ]);
+    expect(result).toEqual({ answerIds: [], ok: true, textAnswers: [] });
+  };
+
   test("collects a trimmed free-text answer", () => {
     const form = new URLSearchParams({ question_1: "  Front row  " });
 
@@ -57,13 +64,7 @@ describe("parseQuestionAnswers free-text handling", () => {
   });
 
   test("allows a blank optional free-text answer", () => {
-    const form = new URLSearchParams();
-
-    const result = parseQuestionAnswers({ optional: true })(form, [
-      freeText(1),
-    ]);
-
-    expect(result).toEqual({ answerIds: [], ok: true, textAnswers: [] });
+    expectOptionalFreeTextEmpty(new URLSearchParams());
   });
 
   test("rejects an over-length required free-text answer", () => {
@@ -79,15 +80,11 @@ describe("parseQuestionAnswers free-text handling", () => {
   });
 
   test("skips an over-length optional free-text answer", () => {
-    const form = new URLSearchParams({
-      question_1: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
-    });
-
-    const result = parseQuestionAnswers({ optional: true })(form, [
-      freeText(1),
-    ]);
-
-    expect(result).toEqual({ answerIds: [], ok: true, textAnswers: [] });
+    expectOptionalFreeTextEmpty(
+      new URLSearchParams({
+        question_1: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+      }),
+    );
   });
 
   test("parses choice and free-text questions side by side", () => {

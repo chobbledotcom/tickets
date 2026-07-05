@@ -26,11 +26,19 @@ export const getBookingFee = (): number =>
   Number.parseFloat(settings.bookingFee) || 0;
 
 /**
+ * The domain used before any request has resolved a real one — and the single
+ * place the "localhost" fallback lives. The effective domain is seeded to this
+ * at module load and reset to it between tests, so it is always a real string.
+ */
+const DEFAULT_DOMAIN = "localhost";
+
+/**
  * Effective domain: custom_domain (from DB) if set, otherwise the request's
  * own hostname. Loaded once per request via loadEffectiveDomain(), then read
- * synchronously via getEffectiveDomain().
+ * synchronously via getEffectiveDomain(). Never null — it starts at
+ * DEFAULT_DOMAIN and is refined as each request resolves its real host.
  */
-const effectiveDomainState = { domain: null as string | null };
+const effectiveDomainState = { domain: DEFAULT_DOMAIN };
 
 /** Load the effective domain from DB, falling back to the request URL hostname. */
 export const loadEffectiveDomain = (requestUrl: string): string => {
@@ -41,7 +49,7 @@ export const loadEffectiveDomain = (requestUrl: string): string => {
   } else if (settings.bunnySubdomain) {
     effectiveDomainState.domain = settings.bunnySubdomain;
   } else {
-    effectiveDomainState.domain = new URL(requestUrl).hostname;
+    seedEffectiveDomainHost(requestUrl);
   }
   return effectiveDomainState.domain;
 };
@@ -60,13 +68,20 @@ export const seedEffectiveDomainHost = (requestUrl: string): void => {
   effectiveDomainState.domain = new URL(requestUrl).hostname;
 };
 
-/** Get the effective domain synchronously (must call loadEffectiveDomain first). */
-export const getEffectiveDomain = (): string =>
-  effectiveDomainState.domain ?? "localhost";
+/** Get the effective domain synchronously; DEFAULT_DOMAIN until a request resolves a real one. */
+export const getEffectiveDomain = (): string => effectiveDomainState.domain;
 
-/** Reset effective domain cache (for testing). */
+/**
+ * Whether we are serving a real, resolved host rather than the default. Gates
+ * HTTPS-only behaviour — Secure/`__Host-` cookies and the HSTS header — which
+ * must stay off for local development on DEFAULT_DOMAIN.
+ */
+export const isSecureMode = (): boolean =>
+  effectiveDomainState.domain !== DEFAULT_DOMAIN;
+
+/** Reset effective domain cache back to the default (for testing). */
 export const resetEffectiveDomain = (): void => {
-  effectiveDomainState.domain = null;
+  effectiveDomainState.domain = DEFAULT_DOMAIN;
 };
 
 /** Set effective domain directly (for testing). */
@@ -103,6 +118,9 @@ export const getBunnyApiKey = (): string => requireEnv("BUNNY_API_KEY");
  */
 export const isBunnyDnsEnabled = (): boolean =>
   !!getEnv("BUNNY_API_KEY") && !!getEnv("BUNNY_DNS_ZONE_ID");
+
+/** Check if the Bunny hosted database provider is enabled (requires BUNNY_API_KEY). */
+export const isBunnyDbEnabled = (): boolean => !!getEnv("BUNNY_API_KEY");
 
 /** Get the Bunny DNS zone ID from environment */
 export const getBunnyDnsZoneId = (): string => requireEnv("BUNNY_DNS_ZONE_ID");
@@ -157,3 +175,47 @@ export const isInstanceApiEnabled = (): boolean =>
 
 /** The shared secret authorizing the inter-instance site-credentials endpoint. */
 export const getMainInstanceKey = (): string => requireEnv("MAIN_INSTANCE_KEY");
+
+/** Check if Deno Deploy hosting is enabled (requires DENO_DEPLOY_TOKEN and DENO_DEPLOY_ORG_ID). */
+export const isDenoDeployEnabled = (): boolean =>
+  !!getEnv("DENO_DEPLOY_TOKEN") && !!getEnv("DENO_DEPLOY_ORG_ID");
+
+/** Get the Deno Deploy API token from environment. */
+export const getDenoDeployToken = (): string => requireEnv("DENO_DEPLOY_TOKEN");
+
+/** Get the Deno Deploy organization ID from environment. */
+export const getDenoDeployOrgId = (): string =>
+  requireEnv("DENO_DEPLOY_ORG_ID");
+
+/** Get the default database provider from DEFAULT_DB_HOST env var. Returns "turso" when set to "turso", "bunny" otherwise. */
+export const getDefaultDbProvider = (): "bunny" | "turso" =>
+  getEnv("DEFAULT_DB_HOST") === "turso" ? "turso" : "bunny";
+
+/** Check if Turso hosted database provider is enabled (requires TURSO_API_TOKEN, TURSO_ORGANIZATION, TURSO_GROUP). */
+export const isTursoEnabled = (): boolean =>
+  !!getEnv("TURSO_API_TOKEN") &&
+  !!getEnv("TURSO_ORGANIZATION") &&
+  !!getEnv("TURSO_GROUP");
+
+/** Get the Turso API token from environment. */
+export const getTursoApiToken = (): string => requireEnv("TURSO_API_TOKEN");
+
+/** Get the Turso organization name from environment. */
+export const getTursoOrganization = (): string =>
+  requireEnv("TURSO_ORGANIZATION");
+
+/** Get the Turso database group from environment. */
+export const getTursoGroup = (): string => requireEnv("TURSO_GROUP");
+
+/**
+ * Sanitize a site name into a valid provider resource slug.
+ * Lowercase letters, numbers, hyphens only; no leading/trailing hyphens.
+ */
+export const slugifyForProvider = (name: string, maxLength: number): string =>
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, maxLength)
+    .replace(/-+$/, "");

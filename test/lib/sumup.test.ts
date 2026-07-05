@@ -288,6 +288,21 @@ describe("sumup", () => {
   });
 
   describe("testSumupConnection", () => {
+    const expectMerchantLookupFails = async (
+      errorMessage: string,
+      assertError: (error: string | undefined) => void,
+    ): Promise<void> => {
+      const client = makeClient({
+        merchantGet: () => Promise.reject(new Error(errorMessage)),
+      });
+      await withClient(client, async () => {
+        const result = await testSumupConnection();
+        expect(result.ok).toBe(false);
+        expect(result.apiKey.valid).toBe(false);
+        assertError(result.apiKey.error);
+      });
+    };
+
     test("reports a missing API key", async () => {
       settings.setForTest({ sumup_api_key: "" });
       const result = await testSumupConnection();
@@ -302,9 +317,13 @@ describe("sumup", () => {
       expect(result.merchant.error).toBe("No merchant code configured");
     });
 
-    test("reports success with key mode, merchant, and currency", async () => {
+    const withMerchantClient = (fn: () => Promise<void>): Promise<void> => {
       const client = makeClient({ merchantGet: () => Promise.resolve({}) });
-      await withClient(client, async () => {
+      return withClient(client, fn);
+    };
+
+    test("reports success with key mode, merchant, and currency", () =>
+      withMerchantClient(async () => {
         const result = await testSumupConnection();
         expect(result.ok).toBe(true);
         expect(result.apiKey).toEqual({ mode: "test", valid: true });
@@ -313,13 +332,11 @@ describe("sumup", () => {
           merchantCode: "MC123",
         });
         expect(result.currency).toEqual({ code: "GBP", supported: true });
-      });
-    });
+      }));
 
     test("fails overall when the site currency is unsupported", async () => {
       settings.setForTest({ currency: "AUD" });
-      const client = makeClient({ merchantGet: () => Promise.resolve({}) });
-      await withClient(client, async () => {
+      await withMerchantClient(async () => {
         const result = await testSumupConnection();
         expect(result.ok).toBe(false);
         expect(result.apiKey.valid).toBe(true);
@@ -329,41 +346,30 @@ describe("sumup", () => {
 
     test("reports the key mode as unknown for an unrecognized key prefix", async () => {
       settings.setForTest({ sumup_api_key: "plainkey" });
-      const client = makeClient({ merchantGet: () => Promise.resolve({}) });
-      await withClient(client, async () => {
+      await withMerchantClient(async () => {
         const result = await testSumupConnection();
         expect(result.apiKey.mode).toBe("unknown");
       });
     });
 
     test("turns a 401 from the merchant lookup into actionable guidance", async () => {
-      const client = makeClient({
-        merchantGet: () =>
-          Promise.reject(new Error('401: {"detail":"Unauthorized."}')),
-      });
-      await withClient(client, async () => {
-        const result = await testSumupConnection();
-        expect(result.ok).toBe(false);
-        expect(result.apiKey.valid).toBe(false);
-        expect(result.apiKey.error).toContain("401");
-        // The opaque SumUp body is replaced with a hint about the likely causes:
-        // the public-vs-secret key mix-up first, then the cross-account mismatch.
-        expect(result.apiKey.error).toContain("Public API key");
-        expect(result.apiKey.error).toContain("secret API key");
-        expect(result.apiKey.error).toContain("same SumUp account");
-        expect(result.apiKey.error).not.toContain("detail");
-      });
+      await expectMerchantLookupFails(
+        '401: {"detail":"Unauthorized."}',
+        (err) => {
+          // The opaque SumUp body is replaced with a hint about the likely causes:
+          // the public-vs-secret key mix-up first, then the cross-account mismatch.
+          expect(err).toContain("401");
+          expect(err).toContain("Public API key");
+          expect(err).toContain("secret API key");
+          expect(err).toContain("same SumUp account");
+          expect(err).not.toContain("detail");
+        },
+      );
     });
 
     test("passes non-401 merchant lookup errors through unchanged", async () => {
-      const client = makeClient({
-        merchantGet: () => Promise.reject(new Error("503 Service Unavailable")),
-      });
-      await withClient(client, async () => {
-        const result = await testSumupConnection();
-        expect(result.ok).toBe(false);
-        expect(result.apiKey.valid).toBe(false);
-        expect(result.apiKey.error).toBe("503 Service Unavailable");
+      await expectMerchantLookupFails("503 Service Unavailable", (err) => {
+        expect(err).toBe("503 Service Unavailable");
       });
     });
   });

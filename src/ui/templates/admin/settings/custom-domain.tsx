@@ -2,11 +2,14 @@
  * Custom Domain form for advanced settings
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms.tsx";
 import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { TextField } from "#templates/components/text-field.tsx";
+/* jscpd:ignore-end */
 
 export const CustomDomainForm = (
   s: AdvancedSettingsPageState,
@@ -26,16 +29,13 @@ export const CustomDomainForm = (
               " Your host subdomain can be active at the same time as a custom domain."}
           </p>
         </div>
-        <label>
-          {t("settings.advanced.domain_label")}
-          <input
-            autocomplete="off"
-            name="custom_domain"
-            placeholder="tickets.yourdomain.com"
-            type="text"
-            value={s.customDomain}
-          />
-        </label>
+        <TextField
+          label={t("settings.advanced.domain_label")}
+          name="custom_domain"
+          placeholder="tickets.yourdomain.com"
+          type="text"
+          value={s.customDomain}
+        />
         <SubmitButton icon="save">
           {t("settings.advanced.save_custom_domain")}
         </SubmitButton>

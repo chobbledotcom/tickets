@@ -12,11 +12,12 @@ import {
   attendeeAccount,
   revenueAccount,
 } from "#shared/accounting/accounts.ts";
-import { ledgerTx } from "#shared/accounting/ledger-tx.ts";
+import { writeoffAdjustmentInserts } from "#shared/accounting/adjustments.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
 import { transfersByEventGroup } from "#shared/accounting/queries.ts";
 import { repointAttendeeStatements } from "#shared/accounting/repoint.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
-import { insert, withTransaction } from "#shared/db/client.ts";
+import { executeBatch, insert } from "#shared/db/client.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
   getAttendeeAnswersByQuestion,
@@ -38,6 +39,7 @@ import type {
   BuildAttendeeMergeDiffInput,
   MergeBookingChoice,
 } from "#shared/merge/attendee-merge-types.ts";
+import { nowIso } from "#shared/now.ts";
 
 // ---------------------------------------------------------------------------
 // PII field definitions
@@ -66,13 +68,16 @@ const PII_FIELDS: {
 /** Attendee answer map: questionId -> { answerId, answerText } */
 type AnswerMap = Map<number, { answerId: number; answerText: string }>;
 
-/** Unique key for a booking: "listingId:startAt" */
-export const bookingKey = (listingId: number, startAt: string | null): string =>
-  `${listingId}:${startAt ?? "null"}`;
+/** Unique key for a booking: "listingId:startAt:parentListingId" */
+export const bookingKey = (
+  listingId: number,
+  startAt: string | null,
+  parentListingId: number,
+): string => `${listingId}:${startAt ?? "null"}:${parentListingId}`;
 
 /** Booking key for a diff item */
 const itemBookingKey = (item: AttendeeMergeDiffBookingItem): string =>
-  bookingKey(item.listingId, item.startAt);
+  bookingKey(item.listingId, item.startAt, item.parentListingId);
 
 /** The NON-moveable conflict booking items paired with their decision key
  *  ("listingId:startAt") — the rows the operator must decide on. The single place
@@ -121,7 +126,7 @@ const joinAnswerEntries = joinMapped(
 );
 
 const joinBookingKeys = joinMapped((b: ListingAttendeeRow) =>
-  bookingKey(b.listing_id, b.start_at),
+  bookingKey(b.listing_id, b.start_at, b.parent_listing_id),
 );
 
 /** Compute a simple version string from diff inputs for stale-preview detection */
@@ -262,7 +267,7 @@ const bookingSaleAmount = async (
   return legs
     .filter(
       (leg) =>
-        leg.kind === "sale" &&
+        leg.kind === KIND.sale &&
         leg.source.type === account.type &&
         leg.source.id === account.id &&
         leg.destination.type === revenue.type &&
@@ -304,14 +309,16 @@ const buildBookingDiffItems = (
   const targetByKey = new Map(
     map(
       (b: ListingAttendeeRow) =>
-        [bookingKey(b.listing_id, b.start_at), b] as const,
+        [bookingKey(b.listing_id, b.start_at, b.parent_listing_id), b] as const,
     )(targetBookings),
   );
 
   return mapParallel(
     async (sb: ListingAttendeeRow): Promise<AttendeeMergeDiffBookingItem> => {
       const tb =
-        targetByKey.get(bookingKey(sb.listing_id, sb.start_at)) ?? null;
+        targetByKey.get(
+          bookingKey(sb.listing_id, sb.start_at, sb.parent_listing_id),
+        ) ?? null;
       const conflictClass = classifyBooking(sb, tb);
       // A moveable booking moves with its own money (no decision, no
       // double-count); only a conflict needs the amounts at stake.
@@ -334,6 +341,7 @@ const buildBookingDiffItems = (
       return {
         conflictClass,
         listingId: sb.listing_id,
+        parentListingId: sb.parent_listing_id,
         sourceBooking: sb,
         sourceSaleAmount,
         startAt: sb.start_at,
@@ -392,6 +400,8 @@ export const validateAttendeeMergeDecision = (
     }
   }
 
+  errors.push(...strandedPaymentErrors(diff, decision));
+
   return errors.length > 0 ? { errors, valid: false } : { valid: true };
 };
 
@@ -405,6 +415,48 @@ const discardedSaleAmount = (
   if (bookingChoice === "take_source") return item.targetSaleAmount;
   return item.sourceSaleAmount;
 };
+
+/** Whether a merge decision results in the source booking being copied to the
+ * target — every moveable line, plus a conflicting line the admin chose to
+ * take from source. */
+const copiesSourceBooking = (
+  item: AttendeeMergeDiffBookingItem,
+  decision: AttendeeMergeDecisionInput,
+): boolean =>
+  item.conflictClass === "moveable" ||
+  decision.bookings[itemBookingKey(item)] === "take_source";
+
+/** True when a copied booking would end up as a quantity-0 line that strands a
+ * recorded payment — either a SOURCE ghost still carrying a payment, or a
+ * `take_source` that replaces a paid TARGET line with the ghost (the latter
+ * deletes the paid target and inserts the quantity-0 source, leaving the
+ * target's payment behind a row the refund/payment flows ignore). */
+const strandsPayment = (
+  item: AttendeeMergeDiffBookingItem,
+  decision: AttendeeMergeDecisionInput,
+): boolean => {
+  if (!copiesSourceBooking(item, decision)) return false;
+  if (item.sourceBooking.quantity !== 0) return false;
+  const target = item.targetBooking;
+  return (
+    item.sourceBooking.price_paid > 0 ||
+    (target !== null && target.price_paid > 0)
+  );
+};
+
+/** Errors for any merge item that would strand a payment behind a quantity-0
+ * line (§1 invariant: a quantity-0 line must have price_paid = 0). Refund or
+ * retarget the charge first. */
+const strandedPaymentErrors = (
+  diff: AttendeeMergeDiff,
+  decision: AttendeeMergeDecisionInput,
+): string[] =>
+  diff.bookingItems
+    .filter((item) => strandsPayment(item, decision))
+    .map(
+      (item) =>
+        `Listing #${item.listingId}: a no-quantity line would strand a recorded payment — refund or retarget it before merging.`,
+    );
 
 // ---------------------------------------------------------------------------
 // applyAttendeeMerge
@@ -517,10 +569,19 @@ const bookingInsertStatement = (
   insert("listing_attendees", {
     attachment_downloads: booking.attachment_downloads,
     attendee_id: targetId,
-    checked_in: booking.checked_in,
+    // A no-quantity sentinel line (quantity 0) carries no check-in: clear it on
+    // copy so a ghost can't arrive checked-in (the roster/stats read check-in
+    // off this flag with no quantity predicate). Real lines keep their flag.
+    checked_in: booking.quantity > 0 ? booking.checked_in : 0,
     end_at: booking.end_at,
     ledger_event_group: booking.ledger_event_group,
     listing_id: booking.listing_id,
+    order_token: booking.order_token,
+    // Carry the package group so a moved package booking keeps its package
+    // display/privacy on the merged attendee's tickets/emails (without it the
+    // column defaults to 0 and the booking stops being treated as a package).
+    package_group_id: booking.package_group_id,
+    parent_listing_id: booking.parent_listing_id,
     quantity: booking.quantity,
     start_at: booking.start_at,
   }) as BatchStatement;
@@ -555,10 +616,17 @@ const applyBookingDecisions = (
     } else if (choice === "take_source" && item.targetBooking) {
       // Replace target booking with source booking
       deleteTargetBookingStatements.push({
-        args: [targetId, item.listingId, item.startAt, item.startAt],
+        args: [
+          targetId,
+          item.listingId,
+          item.startAt,
+          item.startAt,
+          item.parentListingId,
+        ],
         sql: `DELETE FROM listing_attendees
               WHERE attendee_id = ? AND listing_id = ?
-              AND (start_at IS ? OR start_at = ?)`,
+              AND (start_at IS ? OR start_at = ?)
+              AND parent_listing_id = ?`,
       });
       insertStatements.push(
         bookingInsertStatement(targetId, item.sourceBooking),
@@ -690,9 +758,12 @@ export const applyAttendeeMerge = async (
   } = moneyReversalLegs(targetId, diff, decision);
 
   // --- 5. Execute all DB changes atomically ---
-  // One interactive write transaction so the row changes, the ledger repoint, and
-  // the decision-17 reversal legs commit or roll back together — a half-merge
-  // would strand money or leave income double-counted.
+  // One ACID batch so the row changes, the ledger repoint, and the decision-17
+  // reversal legs commit or roll back together — a half-merge would strand money
+  // or leave income double-counted. Building the whole merge as a single batch
+  // (rather than an interactive transaction that posted each reversal leg with its
+  // own read-then-write) keeps the write lock held for one round-trip regardless
+  // of how many bookings the merged person has.
   const rowStatements: { args: InValue[]; sql: string }[] = [
     // Delete target bookings that are being replaced
     ...deleteTargetBookingStatements,
@@ -717,14 +788,14 @@ export const applyAttendeeMerge = async (
     // rather than stranding on the deleted source (plan §5.17).
     ...repointAttendeeStatements(sourceId, targetId),
   ];
-  await withTransaction(async (tx) => {
-    for (const statement of rowStatements) await tx.execute(statement);
-    // After the repoint (the discarded booking's legs now sit on the target),
-    // post the reversal legs that un-bill it and credit / write off its cash.
-    for (const leg of moneyLegs) {
-      await ledgerTx.adjust(tx, leg.account, leg.delta, leg.keyParts);
-    }
-  });
+  // The reversal legs un-bill each discarded booking and credit / write off its
+  // cash; built as INSERT OR IGNORE statements so they ride the same batch as the
+  // repoint that just moved those legs onto the target.
+  const adjustmentInserts = await writeoffAdjustmentInserts(
+    moneyLegs,
+    nowIso(),
+  );
+  await executeBatch([...rowStatements, ...adjustmentInserts]);
 
   // Save merged answers for target. The choice decisions reduce to one answer
   // per question; re-supplying the merged free-text plaintext lets

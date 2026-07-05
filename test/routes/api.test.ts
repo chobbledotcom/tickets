@@ -3,39 +3,25 @@ import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { handleRequest } from "#routes";
+import { addDays } from "#shared/dates.ts";
+import { groupsTable } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
+import { todayInTz } from "#shared/timezone.ts";
 import {
   assertJson,
+  bookAttendee,
   createDailyTestListing,
   createTestAttendeeDirect,
   createTestGroup,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
+  jsonRequest,
+  makeParent,
   PublicListingSchema,
   setupStripe,
 } from "#test-utils";
-
-/** Create a JSON API request */
-const apiRequest = (
-  path: string,
-  options: {
-    method?: string;
-    body?: Record<string, unknown>;
-  } = {},
-): Request => {
-  const { method = "GET", body } = options;
-  const headers: Record<string, string> = { host: "localhost" };
-  const init: RequestInit = { headers, method };
-
-  if (body) {
-    headers["content-type"] = "application/json";
-    init.body = JSON.stringify(body);
-  }
-
-  return new Request(`http://localhost${path}`, init);
-};
 
 /** Parse JSON response */
 const jsonBody = (response: Response): Promise<Record<string, unknown>> =>
@@ -67,7 +53,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
     response: Response;
     listings: Record<string, unknown>[];
   }> => {
-    const response = await handleRequest(apiRequest("/api/listings"));
+    const response = await handleRequest(jsonRequest("/api/listings"));
     const body = await jsonBody(response);
     return { listings: body.listings as Record<string, unknown>[], response };
   };
@@ -76,9 +62,17 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
   const fetchListingBySlug = async (
     slug: string,
   ): Promise<{ response: Response; body: Record<string, unknown> }> => {
-    const response = await handleRequest(apiRequest(`/api/listings/${slug}`));
+    const response = await handleRequest(jsonRequest(`/api/listings/${slug}`));
     const body = await jsonBody(response);
     return { body, response };
+  };
+
+  /** Fetch a listing by slug, assert 200, and return the response + parsed
+   * public listing. */
+  const fetchPublicListing = async (slug: string) => {
+    const { response, body } = await fetchListingBySlug(slug);
+    expect(response.status).toBe(200);
+    return { apiListing: v.parse(PublicListingSchema, body.listing), response };
   };
 
   /** Book an listing by slug with given body fields */
@@ -90,13 +84,32 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
     },
   ): Promise<{ response: Response; body: BookResponseBody }> => {
     const response = await handleRequest(
-      apiRequest(`/api/listings/${slug}/book`, {
+      jsonRequest(`/api/listings/${slug}/book`, {
         body: bookingBody,
         method: "POST",
       }),
     );
     const body = (await jsonBody(response)) as BookResponseBody;
     return { body, response };
+  };
+
+  /** Book a listing by slug, assert 200 with a ticket token issued, and return
+   * the booking body for further assertions. */
+  const bookForToken = async (slug: string): Promise<BookResponseBody> => {
+    const { response, body } = await bookListing(slug);
+    expect(response.status).toBe(200);
+    expect(body.booking?.ticketToken).toBeDefined();
+    return body;
+  };
+
+  /** Assert exactly one attendee landed on `targetId` and none on `otherId`. */
+  const expectBookedTo = async (
+    targetId: number,
+    otherId: number,
+  ): Promise<void> => {
+    const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+    expect((await getAttendeesRaw(targetId)).length).toBe(1);
+    expect((await getAttendeesRaw(otherId)).length).toBe(0);
   };
 
   /** Fetch availability for an listing by slug, with optional query string */
@@ -106,7 +119,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
   ): Promise<{ response: Response; body: Record<string, unknown> }> => {
     const qs = query ? `?${query}` : "";
     const response = await handleRequest(
-      apiRequest(`/api/listings/${slug}/availability${qs}`),
+      jsonRequest(`/api/listings/${slug}/availability${qs}`),
     );
     const body = await jsonBody(response);
     return { body, response };
@@ -199,6 +212,23 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(listings[0]!.maxPurchasable).toBe(0);
     });
 
+    test("a daily listing full on one date is not sold out date-lessly", async () => {
+      // #51: cumulative bookings span every date, so without a date the API
+      // makes no capacity claim for a daily listing — the date-aware
+      // availability endpoint answers for a specific date.
+      const listing = await createDailyTestListing({
+        maxAttendees: 1,
+        maxQuantity: 4,
+      });
+      await bookAttendee(listing, {
+        date: addDays(todayInTz("UTC"), 2),
+        quantity: 1,
+      });
+      const { listings } = await fetchListingsList();
+      expect(listings[0]!.isSoldOut).toBe(false);
+      expect(listings[0]!.maxPurchasable).toBe(4);
+    });
+
     test("sets isSoldOut when sibling listing has filled the group cap", async () => {
       const group = await createTestGroup({
         maxAttendees: 2,
@@ -261,9 +291,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
         description: "Hello",
         name: "My Listing",
       });
-      const { response, body } = await fetchListingBySlug(listing.slug);
-      expect(response.status).toBe(200);
-      const apiListing = v.parse(PublicListingSchema, body.listing);
+      const { apiListing, response } = await fetchPublicListing(listing.slug);
       expect(apiListing.name).toBe("My Listing");
       expect(apiListing.description).toBe("Hello");
       expectCorsHeaders(response);
@@ -307,9 +335,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
         hidden: true,
         name: "Hidden Listing",
       });
-      const { response, body } = await fetchListingBySlug(listing.slug);
-      expect(response.status).toBe(200);
-      const apiListing = v.parse(PublicListingSchema, body.listing);
+      const { apiListing } = await fetchPublicListing(listing.slug);
       expect(apiListing.name).toBe("Hidden Listing");
     });
 
@@ -344,6 +370,19 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       await createTestAttendeeDirect(listing.id, "Alice", "a@test.com");
       const { body } = await fetchAvailability(listing.slug);
       expect(body.available).toBe(false);
+    });
+
+    test("a daily listing answers per date, not by the cumulative aggregate", async () => {
+      const listing = await createDailyTestListing({ maxAttendees: 1 });
+      const date = addDays(todayInTz("UTC"), 2);
+      await bookAttendee(listing, { date, quantity: 1 });
+      const full = await fetchAvailability(listing.slug, `date=${date}`);
+      expect(full.body.available).toBe(false);
+      const free = await fetchAvailability(
+        listing.slug,
+        `date=${addDays(date, 1)}`,
+      );
+      expect(free.body.available).toBe(true);
     });
 
     test("respects quantity parameter", async () => {
@@ -425,6 +464,21 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
     test("returns 404 for non-existent listing", async () => {
       const { response } = await bookListing("nonexistent");
       expect(response.status).toBe(404);
+    });
+
+    test("rejects an explicit quantity of 0 instead of booking one ticket", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const { response, body } = await bookListing(listing.slug, {
+        email: "zero@test.com",
+        name: "Zero",
+        quantity: 0,
+      });
+      // A quantity-0 line is admin-only — the public API must never coerce 0 to a
+      // one-ticket booking.
+      expect(response.status).toBe(400);
+      expect(body.error).toMatch(/quantity/i);
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
 
     test("rejects customisable-days listings (must book via the website)", async () => {
@@ -572,10 +626,8 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
         maxAttendees: 10,
         unitPrice: 1000,
       });
-      const { response, body } = await bookListing(listing.slug);
-      expect(response.status).toBe(200);
+      const body = await bookForToken(listing.slug);
       const token = body.booking?.ticketToken;
-      expect(token).toBeDefined();
       // The response surfaces the owed amount so integrations can collect it.
       expect(body.booking?.amountOwed).toBe(1000);
 
@@ -602,10 +654,8 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
         maxAttendees: 10,
         unitPrice: 0,
       });
-      const { response, body } = await bookListing(listing.slug);
-      expect(response.status).toBe(200);
+      const body = await bookForToken(listing.slug);
       const token = body.booking?.ticketToken;
-      expect(token).toBeDefined();
       expect(body.booking?.checkoutUrl).toBeUndefined();
 
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
@@ -820,12 +870,315 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
         mockCreate.restore();
       }
     });
+
+    /** A free parent with a paid child and its sole-child selection. */
+    const parentWithPaidChild = async (): Promise<{ slug: string }> => {
+      const { parent } = await makeParent({
+        children: [{ maxAttendees: 10, unitPrice: 1500 }],
+        parent: { maxAttendees: 10, unitPrice: 0 },
+      });
+      return { slug: parent.slug };
+    };
+
+    test("returns a checkout URL for a parent whose child is paid", async () => {
+      await setupStripe();
+      const parent = await parentWithPaidChild();
+      const { response, body } = await bookListing(parent.slug);
+      expect(response.status).toBe(200);
+      expect(body.booking?.checkoutUrl).toBeDefined();
+    });
+
+    test("returns 400 when the parent checkout session errors", async () => {
+      await setupStripe();
+      const parent = await parentWithPaidChild();
+      await withCheckoutStub({ error: "Provider rejected" }, async () => {
+        const { response, body } = await bookListing(parent.slug);
+        expect(response.status).toBe(400);
+        expect(body.error).toBe("Provider rejected");
+      });
+    });
+
+    test("returns 500 when the parent checkout session can't be created", async () => {
+      await setupStripe();
+      const parent = await parentWithPaidChild();
+      await withCheckoutStub(null, async () => {
+        const { response, body } = await bookListing(parent.slug);
+        expect(response.status).toBe(500);
+        expect(body.error).toMatch(/payment session/i);
+      });
+    });
+
+    test("books a paid-child parent owing the full value with no provider", async () => {
+      // No setupStripe: payments disabled, so the parent+child booking is taken
+      // without checkout and the child's value is recorded as owed.
+      const parent = await parentWithPaidChild();
+      const { response, body } = await bookListing(parent.slug);
+      expect(response.status).toBe(200);
+      expect(body.booking?.ticketToken).toBeDefined();
+      expect(body.booking?.amountOwed).toBe(1500);
+    });
+
+    test("books a free parent+child owing nothing when a provider is configured", async () => {
+      // Payments enabled but the whole order is free, so it takes the no-charge
+      // path and owes nothing (the provider is never invoked).
+      await setupStripe();
+      const { parent } = await makeParent({
+        children: [{ maxAttendees: 10, unitPrice: 0 }],
+        parent: { maxAttendees: 10, unitPrice: 0 },
+      });
+      const { response, body } = await bookListing(parent.slug);
+      expect(response.status).toBe(200);
+      expect(body.booking?.ticketToken).toBeDefined();
+      expect(body.booking?.checkoutUrl).toBeUndefined();
+      expect(body.booking?.amountOwed).toBe(0);
+    });
+
+    test("a free parent+child booking records the child under its parent", async () => {
+      // The free path threads the fold's allocations into createFreeReservation,
+      // so the auto-folded child is stored as its own row under the parent.
+      const { parent, child } = await makeParent({
+        children: [{ maxAttendees: 10, unitPrice: 0 }],
+        parent: { maxAttendees: 10, unitPrice: 0 },
+      });
+      const { body } = await bookListing(parent.slug);
+      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const [attendee] = await getAttendeesByTokens([
+        body.booking!.ticketToken!,
+      ]);
+      const childRow = attendee!.bookings.find(
+        (b) => b.listing_id === child.id,
+      );
+      expect(childRow?.parent_listing_id).toBe(parent.id);
+    });
+
+    test("carries the fold's child allocations on the paid intent for webhook edge revalidation", async () => {
+      await setupStripe();
+      const { parent, child } = await makeParent({
+        children: [{ maxAttendees: 10, unitPrice: 500 }],
+        parent: { maxAttendees: 10, unitPrice: 1000 },
+      });
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      let capturedAllocations: unknown;
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        (intent) => {
+          capturedAllocations = intent.allocations;
+          return Promise.resolve({
+            checkoutUrl: "https://checkout.test/session",
+            sessionId: "sess_test",
+          });
+        },
+      );
+      try {
+        const { response } = await bookListing(parent.slug);
+        expect(response.status).toBe(200);
+      } finally {
+        mockCreate.restore();
+      }
+      expect(capturedAllocations).toEqual([
+        { childId: child.id, parentId: parent.id, qty: 1 },
+      ]);
+    });
+
+    test("accepts a pay-more child's custom price in a parent booking", async () => {
+      const { parent, child } = await makeParent({
+        children: [
+          {
+            canPayMore: true,
+            maxAttendees: 10,
+            maxPrice: 5000,
+            unitPrice: 1000,
+          },
+        ],
+        parent: { maxAttendees: 10, unitPrice: 0 },
+      });
+      // No provider configured, so the chosen £30 child price is recorded as owed.
+      const { response, body } = await bookListing(parent.slug, {
+        children: [{ customPrice: 30, quantity: 1, slug: child.slug }],
+        email: "alice@test.com",
+        name: "Alice",
+      });
+      expect(response.status).toBe(200);
+      expect(body.booking?.amountOwed).toBe(3000);
+    });
+
+    /** A parent (2 units) + one pay-more child (2 units) — the shape where two
+     * duplicate child entries (qty 1 each) sum to the parent quantity, so the
+     * fold accepts the count and the only thing left to decide is the price. This
+     * is the exact condition Finding 4 describes: without the conflict guard the
+     * order books at whichever price was written last, not a count rejection. */
+    const parentWithTwoUnitPayMoreChild = () =>
+      makeParent({
+        children: [
+          {
+            canPayMore: true,
+            maxAttendees: 10,
+            maxPrice: 5000,
+            maxQuantity: 2,
+            unitPrice: 1000,
+          },
+        ],
+        parent: { maxAttendees: 10, maxQuantity: 2, unitPrice: 0 },
+      });
+
+    test("rejects duplicate pay-more child entries with conflicting prices", async () => {
+      // Two entries for the same pay-more child (qty 1 each, totalling the
+      // parent's 2 units) name two different prices. A single stored
+      // `child_price_*` can't honour both, so rather than letting the last
+      // entry's price silently win and book both units at £20, reject.
+      const { parent, child } = await parentWithTwoUnitPayMoreChild();
+      const { response, body } = await bookListing(parent.slug, {
+        children: [
+          { customPrice: 30, quantity: 1, slug: child.slug },
+          { customPrice: 20, quantity: 1, slug: child.slug },
+        ],
+        email: "alice@test.com",
+        name: "Alice",
+        quantity: 2,
+      });
+      expect(response.status).toBe(400);
+      expect(body.error).toMatch(/conflicting prices/i);
+    });
+
+    test("books no attendees when conflicting child prices are rejected", async () => {
+      const { parent, child } = await parentWithTwoUnitPayMoreChild();
+      await bookListing(parent.slug, {
+        children: [
+          { customPrice: 30, quantity: 1, slug: child.slug },
+          { customPrice: 20, quantity: 1, slug: child.slug },
+        ],
+        email: "alice@test.com",
+        name: "Alice",
+        quantity: 2,
+      });
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      expect((await getAttendeesRaw(child.id)).length).toBe(0);
+      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+    });
+
+    test("accepts repeated child entries that agree on the price", async () => {
+      // Duplicate entries for the same child are fine when they agree on the
+      // price: the quantities sum and the single agreed price applies.
+      const { parent, child } = await makeParent({
+        // maxQuantity 2 on the child so it can take both summed units.
+        children: [
+          {
+            canPayMore: true,
+            maxAttendees: 10,
+            maxPrice: 5000,
+            maxQuantity: 2,
+            unitPrice: 1000,
+          },
+        ],
+        // maxQuantity 2 so the parent can take 2 units (the summed child total).
+        parent: { maxAttendees: 10, maxQuantity: 2, unitPrice: 0 },
+      });
+      const { response, body } = await bookListing(parent.slug, {
+        children: [
+          { customPrice: 20, quantity: 1, slug: child.slug },
+          { customPrice: 20, quantity: 1, slug: child.slug },
+        ],
+        email: "alice@test.com",
+        name: "Alice",
+        quantity: 2,
+      });
+      expect(response.status).toBe(200);
+      // 2 units of the child at the agreed £20 each = £40 owed (no provider).
+      expect(body.booking?.amountOwed).toBe(4000);
+    });
+
+    test("notifies registration for a free folded parent booking", async () => {
+      // A free parent+child booking takes the no-provider create path; it must
+      // still log/notify the registration, exactly like the standalone API
+      // booking and the web free path. The activity log is the observable proof
+      // the notifier ran (it also fires the email/webhook).
+      const { parent, child } = await makeParent({
+        children: [{ maxAttendees: 10, unitPrice: 0 }],
+        parent: { maxAttendees: 10, unitPrice: 0 },
+      });
+      const { response } = await bookListing(parent.slug);
+      expect(response.status).toBe(200);
+
+      const { getListingActivityLog } = await import("#test-utils");
+      const parentLog = await getListingActivityLog(parent.id);
+      const childLog = await getListingActivityLog(child.id);
+      expect(parentLog.some((e) => /registered/i.test(e.message))).toBe(true);
+      expect(childLog.some((e) => /registered/i.test(e.message))).toBe(true);
+    });
+
+    test("carries the parent's thank-you URL on a folded paid checkout intent", async () => {
+      // A single parent with a configured thank-you URL, folding in a paid child.
+      // The order becomes multi-listing, so the success handler can't recover the
+      // URL from the booked listing ids — the API must set it on the intent.
+      await setupStripe();
+      const { parent } = await makeParent({
+        children: [{ maxAttendees: 10, unitPrice: 1500 }],
+        parent: {
+          maxAttendees: 10,
+          thankYouUrl: "https://example.com/thanks",
+          unitPrice: 0,
+        },
+      });
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      let capturedThankYou: string | undefined;
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        (intent) => {
+          capturedThankYou = intent.thankYouUrl;
+          return Promise.resolve({
+            checkoutUrl: "https://checkout.test/session",
+            sessionId: "sess_test",
+          });
+        },
+      );
+      try {
+        const { response } = await bookListing(parent.slug);
+        expect(response.status).toBe(200);
+      } finally {
+        mockCreate.restore();
+      }
+      expect(capturedThankYou).toBe("https://example.com/thanks");
+    });
+
+    test("omits the thank-you URL when the parent has none", async () => {
+      // A parent without a configured URL must not set one on the intent; the
+      // success handler's default single-listing rule still applies otherwise.
+      await setupStripe();
+      const parent = await parentWithPaidChild();
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      let capturedThankYou: string | undefined = "sentinel";
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        (intent) => {
+          capturedThankYou = intent.thankYouUrl;
+          return Promise.resolve({
+            checkoutUrl: "https://checkout.test/session",
+            sessionId: "sess_test",
+          });
+        },
+      );
+      try {
+        await bookListing(parent.slug);
+      } finally {
+        mockCreate.restore();
+      }
+      expect(capturedThankYou).toBeUndefined();
+    });
   });
 
   describe("OPTIONS /api/*", () => {
     test("returns 204 with CORS headers for listings", async () => {
       const response = await handleRequest(
-        apiRequest("/api/listings", { method: "OPTIONS" }),
+        jsonRequest("/api/listings", { method: "OPTIONS" }),
       );
       expect(response.status).toBe(204);
       expectCorsHeaders(response);
@@ -839,7 +1192,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
 
     test("returns 204 for listing slug path", async () => {
       const response = await handleRequest(
-        apiRequest("/api/listings/test-slug", { method: "OPTIONS" }),
+        jsonRequest("/api/listings/test-slug", { method: "OPTIONS" }),
       );
       expect(response.status).toBe(204);
       expectCorsHeaders(response);
@@ -847,7 +1200,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
 
     test("returns 204 for availability path", async () => {
       const response = await handleRequest(
-        apiRequest("/api/listings/test-slug/availability", {
+        jsonRequest("/api/listings/test-slug/availability", {
           method: "OPTIONS",
         }),
       );
@@ -857,7 +1210,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
 
     test("returns 204 for book path", async () => {
       const response = await handleRequest(
-        apiRequest("/api/listings/test-slug/book", { method: "OPTIONS" }),
+        jsonRequest("/api/listings/test-slug/book", { method: "OPTIONS" }),
       );
       expect(response.status).toBe(204);
       expectCorsHeaders(response);
@@ -867,7 +1220,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
   describe("API disabled", () => {
     test("returns 404 when public API setting is disabled", async () => {
       await settings.update.showPublicApi(false);
-      const response = await handleRequest(apiRequest("/api/listings"));
+      const response = await handleRequest(jsonRequest("/api/listings"));
       expect(response.status).toBe(404);
     });
   });
@@ -885,11 +1238,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(response.status).toBe(200);
 
       // Verify booking went to target (URL slug), not other (injected id)
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const targetAttendees = await getAttendeesRaw(target.id);
-      const otherAttendees = await getAttendeesRaw(other.id);
-      expect(targetAttendees.length).toBe(1);
-      expect(otherAttendees.length).toBe(0);
+      await expectBookedTo(target.id, other.id);
     });
 
     test("returns 404 for non-existent slug even with valid listing_id in body", async () => {
@@ -920,11 +1269,52 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(response.status).toBe(200);
 
       // Booking goes to URL slug, body slug is ignored
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const targetAttendees = await getAttendeesRaw(target.id);
-      const otherAttendees = await getAttendeesRaw(other.id);
-      expect(targetAttendees.length).toBe(1);
-      expect(otherAttendees.length).toBe(0);
+      await expectBookedTo(target.id, other.id);
+    });
+  });
+
+  describe("hidden package members are never exposed by the API", () => {
+    /** A hidden package with one member listing, returning the member. */
+    const hiddenPackageMember = async () => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Hidden Bundle",
+      });
+      await groupsTable.update(group.id, { hidePackageListings: true });
+      return createTestListing({ groupId: group.id, name: "Secret Member" });
+    };
+
+    test("lists the bundle, not the member, on GET /api/listings", async () => {
+      await hiddenPackageMember();
+      const { listings } = await fetchListingsList();
+      expect(listings).toEqual([]);
+      // The package itself is a first-class product: discoverable by
+      // name/slug with its /ticket booking URL, members withheld.
+      const raw = await (
+        await handleRequest(jsonRequest("/api/listings"))
+      ).json();
+      expect(raw.packages).toHaveLength(1);
+      expect(raw.packages[0].name).toBe("Hidden Bundle");
+      expect(raw.packages[0].url).toBe(`/ticket/${raw.packages[0].slug}`);
+    });
+
+    test("404s the member's detail, availability and book endpoints", async () => {
+      const member = await hiddenPackageMember();
+      expect((await fetchListingBySlug(member.slug)).response.status).toBe(404);
+      expect((await fetchAvailability(member.slug)).response.status).toBe(404);
+      expect((await bookListing(member.slug)).response.status).toBe(404);
+    });
+
+    test("a VISIBLE package member stays listable and bookable", async () => {
+      const group = await createTestGroup({ isPackage: true, name: "Open" });
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Open Member",
+      });
+      const { listings } = await fetchListingsList();
+      expect(listings.map((l) => l.slug)).toContain(member.slug);
+      expect((await fetchListingBySlug(member.slug)).response.status).toBe(200);
     });
   });
 });

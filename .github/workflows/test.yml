@@ -38,15 +38,25 @@ jobs:
       - name: Install dependencies
         run: deno install --allow-scripts
 
-      # Runs the same battery as a local `deno task precommit` (lint, typecheck,
-      # cpd, build:edge, test:coverage) so CI and precommit can never drift.
-      # precommit always runs the read-only `lint:ci`, so the lint step is just
-      # as strict here as it is locally. The --ci flag only suppresses the
-      # interactive push prompt and the progress spinner.
-      - name: Run precommit checks
+      # Run each precommit check as a separate step so failures are attributed
+      # individually in the Actions UI. The set of steps mirrors `getSteps()` in
+      # scripts/precommit/steps.ts exactly — if you add a step there, add it here.
+      - name: Lint
+        run: deno task lint:ci
+
+      - name: Typecheck
+        run: deno task typecheck
+
+      - name: Check for code duplication (CPD)
+        run: deno task cpd
+
+      - name: Build edge bundle
+        run: deno task build:edge
+
+      - name: Test with coverage
         env:
           DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
-        run: deno task precommit --ci
+        run: deno task test:coverage
 
       - name: Generate HTML coverage report
         if: always()

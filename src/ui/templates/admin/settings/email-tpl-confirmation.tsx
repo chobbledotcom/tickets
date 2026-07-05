@@ -2,10 +2,13 @@
  * Confirmation Email Template form for advanced settings
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
+import { emailTemplateFields } from "#templates/components/email-template-fields.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
+/* jscpd:ignore-end */
 
 export const ConfirmationEmailTemplateForm = (
   s: AdvancedSettingsPageState,
@@ -117,46 +120,9 @@ export const ConfirmationEmailTemplateForm = (
         </table>
       </div>
     </details>
-    <label>
-      {t("settings.advanced.subject")}
-      <input
-        autocomplete="off"
-        name="subject"
-        placeholder={DEFAULT_TEMPLATES.confirmation.subject}
-        type="text"
-        value={s.confirmationTemplates.subject}
-      />
-    </label>
-    <label>
-      {t("settings.advanced.html_body")}
-      <textarea
-        data-default-tpl={DEFAULT_TEMPLATES.confirmation.html}
-        id="confirmation_html"
-        name="html"
-        placeholder={t("settings.advanced.leave_blank_default")}
-        rows="8"
-      >
-        {s.confirmationTemplates.html}
-      </textarea>
-    </label>
-    <a data-fill-default="confirmation_html" href="#">
-      <small>{t("settings.advanced.edit_default_template")}</small>
-    </a>
-    <label>
-      {t("settings.advanced.plain_text_body")}
-      <textarea
-        data-default-tpl={DEFAULT_TEMPLATES.confirmation.text}
-        id="confirmation_text"
-        name="text"
-        placeholder={t("settings.advanced.leave_blank_default")}
-        rows="6"
-      >
-        {s.confirmationTemplates.text}
-      </textarea>
-    </label>
-    <a data-fill-default="confirmation_text" href="#">
-      <small>{t("settings.advanced.edit_default_template")}</small>
-    </a>
-    <br />
+    {emailTemplateFields("confirmation")(
+      s.confirmationTemplates,
+      DEFAULT_TEMPLATES.confirmation,
+    )}
   </SettingsSection>
 );

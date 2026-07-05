@@ -3,6 +3,8 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { bookingLegBatchInsert } from "#shared/accounting/rows.ts";
+import { assertPostable } from "#shared/accounting/store.ts";
 import { addDays } from "#shared/dates.ts";
 import type {
   AttendeeInput,
@@ -13,13 +15,17 @@ import type {
 import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
 import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
+import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
+import { annotateOrderParents } from "#shared/db/attendees/order-parents.ts";
 import {
   contactFields,
   encryptAttendeeFields,
 } from "#shared/db/attendees/pii.ts";
 import {
   executeBatchWithResults,
+  inPlaceholders,
   insert,
+  type SqlStatement,
   type TxScope,
   withTransaction,
 } from "#shared/db/client.ts";
@@ -32,7 +38,16 @@ import {
   unrecordBooking,
   unrecordVisit,
 } from "#shared/db/contact-preferences.ts";
+import {
+  allModifiersInStockCondition,
+  anyModifierSoldOut,
+  type ModifierUsage,
+  usageInsert,
+} from "#shared/db/modifier-usage.ts";
+import { batchFinalizeStatement } from "#shared/db/processed-payments.ts";
+import type { TransferInput } from "#shared/ledger/types.ts";
 import { bestEffort } from "#shared/logger.ts";
+import { nowIso } from "#shared/now.ts";
 import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
 
 /**
@@ -75,6 +90,7 @@ export const ensureAllBookings = async (
 
 /** Order-level fields shared by every booking in one atomic create. */
 type AttendeeOrderFields = {
+  kind?: string | undefined;
   statusId: number | null;
   remainingBalance: number;
 };
@@ -89,6 +105,7 @@ export const buildAttendeeInsert = (
 ) =>
   insert("attendees", {
     created: enc.created,
+    kind: order.kind ?? ATTENDEE_KIND,
     pii_blob: enc.encryptedPiiBlob,
     status_id: order.statusId,
     ticket_token_index: enc.ticketTokenIndex,
@@ -108,6 +125,8 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   end_date: input.date
     ? addDays(input.date, normalizeDurationDays(input.durationDays ?? 1))
     : null,
+  kind: input.kind,
+  package_group_id: input.packageGroupId,
   payment_id: input.paymentId,
   pii_blob: "",
   price_paid: String(input.pricePaid),
@@ -159,8 +178,6 @@ export const reverseOrderActivity = applyOrderActivity(
   unrecordBooking,
 );
 
-type Statement = { sql: string; args: InValue[] };
-
 /** Per-booking success flags and the new attendee row id (always set in
  *  practice — an INSERT returns its rowid). */
 type WriteOutcome = { flags: boolean[]; insertId: number | bigint | undefined };
@@ -176,7 +193,7 @@ class NoBookingsCreated extends Error {}
 
 /** Remove the just-inserted attendee when none of its capacity-checked booking
  *  inserts landed a row (the batch path's all-failed cleanup). */
-const cleanupDeleteStatement = (ticketTokenIndex: InValue): Statement => ({
+const cleanupDeleteStatement = (ticketTokenIndex: InValue): SqlStatement => ({
   args: [ticketTokenIndex, ticketTokenIndex],
   sql: `DELETE FROM attendees WHERE id = (
           SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
@@ -187,19 +204,20 @@ const cleanupDeleteStatement = (ticketTokenIndex: InValue): Statement => ({
         )`,
 });
 
-/** The fast path: one ACID batch (attendee, bookings, all-failed cleanup).
- *  Returns null when no booking landed (the attendee was cleaned up). */
-const writeAsBatch = async (
-  attendeeInsert: Statement,
-  bookingStatements: Statement[],
-  ticketTokenIndex: InValue,
+/**
+ * Run one ACID batch whose statements are, in order: the attendee INSERT, the
+ * `bookingCount` capacity-checked booking INSERTs, then any number of follow-up
+ * statements (cleanup, and — for the ledger batch — modifier/leg/finalize). The
+ * per-booking landed flags come from results 1..bookingCount; null is returned
+ * when none landed (the attendee was cleaned up). The single place the attendee/
+ * booking batch result decoding lives, shared by the plain and ledger batches. */
+const runAttendeeBatch = async (
+  statements: SqlStatement[],
+  bookingCount: number,
 ): Promise<WriteOutcome | null> => {
-  const batchResults = await executeBatchWithResults([
-    attendeeInsert,
-    ...bookingStatements,
-    cleanupDeleteStatement(ticketTokenIndex),
-  ]);
-  const flags = bookingStatements.map(
+  const batchResults = await executeBatchWithResults(statements);
+  const flags = Array.from(
+    { length: bookingCount },
     (_, i) => batchResults[i + 1]!.rowsAffected > 0,
   );
   return flags.some(Boolean)
@@ -207,14 +225,30 @@ const writeAsBatch = async (
     : null;
 };
 
+/** The fast path: one ACID batch (attendee, bookings, all-failed cleanup).
+ *  Returns null when no booking landed (the attendee was cleaned up). */
+const writeAsBatch = (
+  attendeeInsert: SqlStatement,
+  bookingStatements: SqlStatement[],
+  ticketTokenIndex: InValue,
+): Promise<WriteOutcome | null> =>
+  runAttendeeBatch(
+    [
+      attendeeInsert,
+      ...bookingStatements,
+      cleanupDeleteStatement(ticketTokenIndex),
+    ],
+    bookingStatements.length,
+  );
+
 /** The ledger path: an interactive transaction so the ledger legs commit
  *  atomically with the attendee and bookings. This path is all-or-nothing —
  *  the legs describe the whole order, so if any booking fails its capacity check
  *  the transaction rolls back and null is returned (the caller refunds), rather
  *  than posting legs for listings that were not booked. */
 const writeWithLedger = (
-  attendeeInsert: Statement,
-  bookingStatements: Statement[],
+  attendeeInsert: SqlStatement,
+  bookingStatements: SqlStatement[],
   postLedger: LedgerPoster,
 ): Promise<WriteOutcome | null> =>
   withTransaction<WriteOutcome>(async (tx) => {
@@ -232,97 +266,172 @@ const writeWithLedger = (
   });
 
 /**
- * Atomically create an attendee linked to one or more listings.
- *   1. INSERT attendee (unconditional)
- *   2..N+1. For each booking: INSERT listing_attendees with capacity check
- *   3. Clean up / roll back the attendee if ALL capacity checks failed
- * Returns one Attendee per successful booking. When `postLedger` is given, the
- * write runs in one interactive transaction and the ledger legs are posted in
- * it, so the booking and its legs are all-or-nothing.
- */
-export const createAttendeeAtomicImpl = async (
+ * The attendee-id subquery used everywhere a freshly-inserted attendee's id must
+ * be referenced later in the SAME batch (its booking links, its ledger legs, the
+ * finalize). last_insert_rowid() can't be used — it shifts after each INSERT in
+ * the batch — and ticket_token_index is unique, so MAX(id) for that token is
+ * this attendee. The single `?` binds the token index. */
+export const ATTENDEE_BY_TOKEN_SQL =
+  "(SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?)";
+
+/** SQL gate that holds only once every one of the order's `expectedCount`
+ *  bookings has landed, so the ledger legs / finalize apply on full success and
+ *  are skipped on a partial booking (cleaned up afterwards). */
+const allBookingsLandedGuard = (
+  ticketTokenIndex: InValue,
+  expectedCount: number,
+): SqlStatement => ({
+  args: [ticketTokenIndex, expectedCount],
+  sql: `(SELECT COUNT(*) FROM listing_attendees WHERE attendee_id = ${ATTENDEE_BY_TOKEN_SQL}) = ?`,
+});
+
+/** What a prepared write needs in hand before touching the database. */
+type PreparedWrite = {
+  enc: EncryptedAttendeeData;
+  attendeeInsert: SqlStatement;
+  bookingStatements: SqlStatement[];
+};
+
+const andConditions = (conditions: SqlStatement[]): SqlStatement => ({
+  args: conditions.flatMap((condition) => condition.args),
+  sql: conditions.map((condition) => `(${condition.sql})`).join(" AND "),
+});
+
+const noExistingLedgerCondition = (legs: TransferInput[]): SqlStatement => {
+  if (legs.length === 0) return { args: [], sql: "1 = 1" };
+  const eventGroup = legs[0]!.eventGroup;
+  const references = legs.map((leg) => leg.reference);
+  return {
+    args: [eventGroup, ...references],
+    sql: `NOT EXISTS (SELECT 1 FROM transfers WHERE event_group = ?)
+          AND NOT EXISTS (SELECT 1 FROM transfers WHERE reference IN (${inPlaceholders(
+            references,
+          )}))`,
+  };
+};
+
+/**
+ * Validate the order and encrypt the attendee, returning the attendee INSERT and
+ * the capacity-checked booking INSERTs — or a failure reason. `extraCondition` is
+ * AND-ed into every booking's WHERE (the batch booking path folds in the
+ * all-modifiers-in-stock guard so a sold-out add-on stops the booking landing).
+ * Shared by every create strategy so validation/encryption lives in one place. */
+const prepareAttendeeWrite = async (
   input: AttendeeInput,
-  postLedger?: LedgerPoster,
-): Promise<CreateAttendeeResult> => {
+  extraCondition?: SqlStatement,
+): Promise<
+  | { ok: true; prepared: PreparedWrite }
+  | { ok: false; failure: Extract<CreateAttendeeResult, { success: false }> }
+> => {
   const {
-    name,
-    email,
+    bookings: rawBookings,
     paymentId = "",
-    phone = "",
-    address = "",
-    special_instructions = "",
-    bookings,
     statusId = null,
     remainingBalance = 0,
     allowOverbook = false,
-    source = "public",
   } = input;
-  const order = { remainingBalance, statusId };
-  if (bookings.length === 0) {
-    return { reason: "capacity_exceeded", success: false };
-  }
-  // Reject negative quantities outright — the atomic insert would happily
-  // store a negative row and skew future capacity sums.
-  if (bookings.some((b) => (b.quantity ?? 1) < 0)) {
-    return { reason: "capacity_exceeded", success: false };
-  }
-  // Reject duplicate (listing_id, date) pairs in a single cart. The
-  // listing_attendees unique index is on (listing_id, attendee_id, start_at),
-  // so two rows with the same tuple would violate it — silently dropping
-  // one insert and delivering a half-fulfilled booking.
-  if (hasDuplicateBookingSlot(bookings)) {
-    return { reason: "capacity_exceeded", success: false };
+  // Reject empty orders, negative quantities (a negative row skews capacity
+  // sums), and duplicate (listing_id, date, parentListingId) slots (the unique
+  // index would drop one insert and half-fulfil the cart).
+  if (
+    rawBookings.length === 0 ||
+    rawBookings.some((b) => (b.quantity ?? 1) < 0) ||
+    hasDuplicateBookingSlot(rawBookings)
+  ) {
+    return {
+      failure: { reason: "capacity_exceeded", success: false },
+      ok: false,
+    };
   }
 
-  const contactInfo = { address, email, name, phone, special_instructions };
+  // Tag the order's rows with a shared token and each chosen child's parent,
+  // recomputed from the persisted parent/child edges (additive metadata only —
+  // pricing, capacity and availability are untouched). One choke point for every
+  // create caller (public free/paid webhook, admin manual add), so the free and
+  // paid paths persist the pairing identically without a round-trip change.
+  const annotated = await annotateOrderParents(rawBookings);
+  // Stamp the order-level package group id (0 = not a package) onto every row,
+  // so the ticket view / confirmation email group the order's lines under the
+  // package by this persisted id rather than by membership equality.
+  const bookings =
+    input.packageGroupId && input.packageGroupId > 0
+      ? annotated.map((booking) => ({
+          ...booking,
+          packageGroupId: input.packageGroupId,
+        }))
+      : annotated;
+
   // Use first booking's pricePaid for encryption (PII blob is shared)
   const enc = await encryptAttendeeFields({
-    ...contactInfo,
+    address: input.address ?? "",
+    email: input.email,
+    name: input.name,
     paymentId,
+    phone: input.phone ?? "",
     pricePaid: bookings[0]!.pricePaid ?? 0,
+    special_instructions: input.special_instructions ?? "",
   });
   if (!enc) {
-    return { reason: "encryption_error", success: false };
+    return {
+      failure: { reason: "encryption_error", success: false },
+      ok: false,
+    };
   }
 
-  // Use a subquery to look up the attendee ID instead of last_insert_rowid().
-  // last_insert_rowid() updates after each INSERT in a batch, so the 2nd+
-  // booking would get the listing_attendees row ID instead of the attendee ID.
-  const attendeeIdExpr =
-    "(SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?)";
   const bookingStatements = bookings.map((booking) => {
     const insert = buildCapacityCheckedInsert(
       booking,
-      attendeeIdExpr,
+      ATTENDEE_BY_TOKEN_SQL,
       undefined,
       allowOverbook,
     );
-    // Splice ticketTokenIndex after the first arg (listingId) to bind
-    // the ? in the attendeeIdExpr subquery
+    // Splice ticketTokenIndex after listingId to bind the ? in the subquery,
+    // then AND in the extra condition (its args trail the capacity args).
     const combined: InValue[] = [
       insert.args[0]!,
       enc.ticketTokenIndex,
       ...insert.args.slice(1),
+      ...(extraCondition && !allowOverbook ? extraCondition.args : []),
     ];
-    return { args: combined, sql: insert.sql };
+    const sql =
+      extraCondition && !allowOverbook
+        ? `${insert.sql} AND (${extraCondition.sql})`
+        : insert.sql;
+    return { args: combined, sql };
   });
 
-  // Attendee first, then capacity-checked listing links — atomically. The
-  // ledger path runs an interactive transaction so it can also post the legs;
-  // the plain path uses one batch with an all-failed cleanup DELETE.
-  const attendeeInsert = buildAttendeeInsert(enc, order);
-  const written = postLedger
-    ? await writeWithLedger(attendeeInsert, bookingStatements, postLedger)
-    : await writeAsBatch(
-        attendeeInsert,
-        bookingStatements,
-        enc.ticketTokenIndex,
-      );
+  return {
+    ok: true,
+    prepared: {
+      attendeeInsert: buildAttendeeInsert(enc, {
+        kind: input.kind,
+        remainingBalance,
+        statusId,
+      }),
+      bookingStatements,
+      enc,
+    },
+  };
+};
 
-  if (!written) {
-    return { reason: "capacity_exceeded", success: false };
-  }
-
+/**
+ * Turn a successful write into the per-booking Attendee results and record the
+ * order's contact activity (one visit + booking per identity). A no-quantity-only
+ * order is not a real visit/booking, so the activity is gated on a real line.
+ * Shared by every create strategy. */
+const finishAttendeeWrite = async (
+  written: WriteOutcome,
+  input: AttendeeInput,
+  enc: EncryptedAttendeeData,
+): Promise<CreateAttendeeResult> => {
+  const { bookings, source = "public" } = input;
+  const contactInfo = {
+    address: input.address ?? "",
+    email: input.email,
+    name: input.name,
+    phone: input.phone ?? "",
+    special_instructions: input.special_instructions ?? "",
+  };
   const successfulBookings: Attendee[] = bookings.flatMap((booking, i) =>
     written.flags[i]
       ? [
@@ -332,23 +441,188 @@ export const createAttendeeAtomicImpl = async (
             ...contactInfo,
             created: enc.created,
             date: booking.date ?? null,
-            durationDays: booking.durationDays,
-            paymentId,
+            ...(booking.durationDays !== undefined
+              ? { durationDays: booking.durationDays }
+              : {}),
+            kind: input.kind ?? ATTENDEE_KIND,
+            packageGroupId: input.packageGroupId ?? 0,
+            paymentId: input.paymentId ?? "",
             pricePaid: booking.pricePaid ?? 0,
             quantity: booking.quantity ?? 1,
-            remainingBalance,
-            statusId,
+            remainingBalance: input.remainingBalance ?? 0,
+            statusId: input.statusId ?? null,
             ticketToken: enc.ticketToken,
             ticketTokenIndex: enc.ticketTokenIndex,
           }),
         ]
       : [],
   );
-
-  // Record one order-level visit and one source-tagged booking per contact
-  // identity. Multi-listing carts still count as one customer visit/booking,
-  // while email and phone can both recognize the customer on future checkouts.
-  await recordOrderActivity(email, phone, source);
-
+  if (successfulBookings.some((b) => b.quantity > 0)) {
+    await recordOrderActivity(contactInfo.email, contactInfo.phone, source);
+  }
   return { attendees: successfulBookings, success: true };
 };
+
+/** What one create strategy supplies to {@link createWith}: the extra booking
+ *  WHERE condition (the batch path's modifier-stock guard), the write strategy
+ *  (interactive transaction or batch), and what "no booking landed" means for
+ *  that path (plain capacity failure, or — for the batch — possibly sold-out). */
+type CreateStrategy<R extends CreateAttendeeResult | "sold-out"> = {
+  condition?: SqlStatement;
+  write: (prepared: PreparedWrite) => Promise<WriteOutcome | null>;
+  noBooking: () => R | Promise<R>;
+};
+
+/**
+ * The one create pipeline, curried over the per-strategy parts: prepare
+ * (validate + encrypt + build the attendee/booking inserts) → run the write →
+ * on success finish (build results + record contact activity); a prepare failure
+ * or a no-booking write returns the strategy's failure. Both public creators are
+ * thin specialisations, so the prepare/finish glue lives in exactly one place. */
+const createWith =
+  <R extends CreateAttendeeResult | "sold-out">(strategy: CreateStrategy<R>) =>
+  async (input: AttendeeInput): Promise<CreateAttendeeResult | R> => {
+    const prep = await prepareAttendeeWrite(input, strategy.condition);
+    if (!prep.ok) return prep.failure;
+    const written = await strategy.write(prep.prepared);
+    return written
+      ? finishAttendeeWrite(written, input, prep.prepared.enc)
+      : strategy.noBooking();
+  };
+
+/**
+ * Atomically create an attendee linked to one or more listings.
+ *   1. INSERT attendee (unconditional)
+ *   2..N+1. For each booking: INSERT listing_attendees with capacity check
+ *   3. Clean up / roll back the attendee if ALL capacity checks failed
+ * Returns one Attendee per successful booking. When `postLedger` is given, the
+ * write runs in one interactive transaction and the ledger legs are posted in
+ * it, so the booking and its legs are all-or-nothing.
+ */
+export const createAttendeeAtomicImpl = (
+  input: AttendeeInput,
+  postLedger?: LedgerPoster,
+): Promise<CreateAttendeeResult> =>
+  createWith<CreateAttendeeResult>({
+    noBooking: () => ({ reason: "capacity_exceeded", success: false }),
+    // Ledger path: an interactive transaction so the legs commit with the
+    // attendee/bookings (all-or-nothing). Plain path: one batch with an
+    // all-failed cleanup DELETE.
+    write: ({ attendeeInsert, bookingStatements, enc }) =>
+      postLedger
+        ? writeWithLedger(attendeeInsert, bookingStatements, postLedger)
+        : writeAsBatch(attendeeInsert, bookingStatements, enc.ticketTokenIndex),
+  })(input);
+
+/**
+ * The ledger work to commit atomically with a booking, as DATA rather than a
+ * transaction callback — so the whole booking can be one libsql batch instead of
+ * a chatty interactive transaction. `legs` are the booking's ledger legs (built
+ * by mapBooking with a placeholder attendee id; their references/event group are
+ * attendee-id-independent, and the real id is spliced in by subquery at write
+ * time). `finalizeSessionId`, when set, finalizes that payment session in the
+ * same batch as the attendee INSERT. */
+export type BookingBatchPlan = {
+  usages: ModifierUsage[];
+  legs: TransferInput[];
+  finalizeSessionId?: string;
+};
+
+/**
+ * Assemble and run the single batch for a booking that posts ledger legs:
+ * attendee INSERT, capacity- AND modifier-stock-guarded booking INSERTs, then —
+ * each gated on every booking having landed — the modifier-usage consumes, the
+ * `INSERT OR IGNORE` legs, the ledger_event_group stamp, the optional finalize,
+ * and finally the all-failed cleanup DELETE. One round-trip, one transaction:
+ * commits the whole booking or, when a booking can't land, leaves nothing the
+ * caller's all-or-nothing check won't clean up. Returns the flags + new id, or
+ * null when no booking landed. */
+const writeAsLedgerBatch = async (
+  prepared: PreparedWrite,
+  plan: BookingBatchPlan,
+  expectedCount: number,
+): Promise<WriteOutcome | null> => {
+  const { attendeeInsert, bookingStatements, enc } = prepared;
+  const tokenIndex = enc.ticketTokenIndex;
+  const guard = allBookingsLandedGuard(tokenIndex, expectedCount);
+
+  assertPostable(plan.legs);
+  const recordedAt = nowIso();
+  const usageStatements = plan.usages.map((usage) =>
+    usageInsert(usage, ATTENDEE_BY_TOKEN_SQL, [tokenIndex], guard),
+  );
+  const legStatements = plan.legs.map((leg) =>
+    bookingLegBatchInsert(leg, recordedAt, ATTENDEE_BY_TOKEN_SQL, tokenIndex, {
+      args: guard.args,
+      sql: guard.sql,
+    }),
+  );
+  // Stamp the order's event group onto the booking rows so each row's amount-paid
+  // projection resolves exactly this booking's legs — only once all bookings landed.
+  const eventGroupUpdate: SqlStatement[] =
+    plan.legs.length > 0
+      ? [
+          {
+            args: [plan.legs[0]!.eventGroup, tokenIndex, ...guard.args],
+            sql: `UPDATE listing_attendees SET ledger_event_group = ?
+                  WHERE attendee_id = ${ATTENDEE_BY_TOKEN_SQL} AND ${guard.sql}`,
+          },
+        ]
+      : [];
+  const finalizeStatements: SqlStatement[] = plan.finalizeSessionId
+    ? [
+        batchFinalizeStatement(
+          plan.finalizeSessionId,
+          ATTENDEE_BY_TOKEN_SQL,
+          tokenIndex,
+          guard,
+        ),
+      ]
+    : [];
+
+  return runAttendeeBatch(
+    [
+      attendeeInsert,
+      ...bookingStatements,
+      ...usageStatements,
+      ...legStatements,
+      ...eventGroupUpdate,
+      ...finalizeStatements,
+      cleanupDeleteStatement(tokenIndex),
+    ],
+    bookingStatements.length,
+  );
+};
+
+/**
+ * Create a booking and post its ledger legs as ONE libsql batch — the fast path
+ * that replaces the interactive transaction for the paid/free checkout. The
+ * booking, its modifier-stock consumes, its sale/payment legs, the booking-row
+ * event-group stamp, and (when finalizing a paid session) the session finalize
+ * all commit or roll back together, in a single round-trip that never holds an
+ * interactive write transaction open against the primary.
+ *
+ * Returns `"sold-out"` when a chosen modifier had no stock left (the
+ * stock-guarded booking insert lands no row), so the caller keeps a placeholder
+ * and refunds; otherwise the usual create result (a partial cart is the caller's
+ * all-or-nothing concern, via ensureAllBookings). */
+export const createBookingAtomic = (
+  input: AttendeeInput,
+  plan: BookingBatchPlan,
+): Promise<CreateAttendeeResult | "sold-out"> =>
+  createWith<CreateAttendeeResult | "sold-out">({
+    condition: andConditions([
+      allModifiersInStockCondition(plan.usages),
+      noExistingLedgerCondition(plan.legs),
+    ]),
+    // No booking landed: tell capacity-full from a sold-out modifier so the
+    // caller shows the right reason (and keeps the right placeholder).
+    noBooking: async () =>
+      (await anyModifierSoldOut(plan.usages))
+        ? "sold-out"
+        : { reason: "capacity_exceeded", success: false },
+    // expectedCount === one booking statement per booking, so it equals the
+    // prepared booking-statement count.
+    write: (prepared) =>
+      writeAsLedgerBatch(prepared, plan, prepared.bookingStatements.length),
+  })(input);

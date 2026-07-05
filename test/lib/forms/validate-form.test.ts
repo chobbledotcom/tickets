@@ -72,6 +72,26 @@ describe("validateForm", () => {
     if (!result.valid) expect(result.error).toBe("Code must be 3 characters");
   });
 
+  test("rejects a value longer than the field's maxlength", () => {
+    const fields: Field[] = [
+      field({ label: "Bio", maxlength: 5, name: "bio" }),
+    ];
+    const result = validateForm(new FormParams({ bio: "abcdef" }), fields);
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.error).toBe("Bio must be 5 characters or fewer");
+    }
+  });
+
+  test("accepts a value exactly at the field's maxlength", () => {
+    const fields: Field[] = [
+      field({ label: "Bio", maxlength: 5, name: "bio" }),
+    ];
+    const result = validateForm(new FormParams({ bio: "abcde" }), fields);
+    expect(result.valid).toBe(true);
+    if (result.valid) expect(result.values.bio).toBe("abcde");
+  });
+
   test("skips custom validate for empty optional field", () => {
     const fields: Field[] = [
       field({

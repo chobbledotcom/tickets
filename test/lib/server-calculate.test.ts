@@ -2,7 +2,11 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { invalidateAttendeeStatusesCache } from "#shared/db/attendee-statuses.ts";
+import { getDb } from "#shared/db/client.ts";
+import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import { modifiersTable, setModifierAnswers } from "#shared/db/modifiers.ts";
 import {
   answersTable,
@@ -10,6 +14,7 @@ import {
   setListingQuestions,
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
+import { normalizeCode } from "#shared/price-modifier.ts";
 import {
   createTestGroup,
   createTestListing,
@@ -53,6 +58,202 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     expect(html).toContain(formatCurrency(1500));
     expect(html).toContain("order-summary-total");
     expect(html).toContain("Total");
+  });
+
+  test("a hidden package's quote fragment names the package, never a member", async () => {
+    // /calculate shares prepareOrder with the submit path, so the quote's line
+    // rows must carry the SAME masking a hidden package's checkout applies — a
+    // refactor that scoped hidePackageMemberNames to the submit branch alone
+    // would leak the concealed member here.
+    await setupStripe();
+    const group = await createTestGroup({
+      hidden: false,
+      isPackage: true,
+      name: "Mystery Box",
+      slug: "mystery-box",
+    });
+    const { groupsTable } = await import("#shared/db/groups.ts");
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    const member = await createTestListing({
+      groupId: group.id,
+      name: "Secret Contents",
+      unitPrice: 1200,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: null },
+    ]);
+
+    const response = await calculate(group.slug, group.slug, {
+      package_quantity: "1",
+    });
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Mystery Box");
+    expect(html).toContain(formatCurrency(1200));
+    expect(html).not.toContain("Secret Contents");
+  });
+
+  test("quotes a package member at its override price, not its base price", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Day Pass",
+      slug: "day-pass",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxQuantity: 5,
+      name: "Pass Member",
+      unitPrice: 5000,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: 1500 },
+    ]);
+
+    // A package is booked by package count, not per-member quantities.
+    const html = await (
+      await calculate(group.slug, group.slug, { package_quantity: "1" })
+    ).text();
+    // The package override (1500) prices the line — not the 5000 base.
+    expect(html).toContain(formatCurrency(1500));
+    expect(html).not.toContain(formatCurrency(5000));
+  });
+
+  test("quotes an explicit-free package member at zero, not its base price", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Free Pass",
+      slug: "free-pass",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxQuantity: 5,
+      name: "Free Member",
+      unitPrice: 5000,
+    });
+    // An explicit free override (0), distinct from "no override" which would
+    // charge the 5000 base.
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: 0 },
+    ]);
+
+    const html = await (
+      await calculate(group.slug, group.slug, { package_quantity: "1" })
+    ).text();
+    expect(html).toContain(formatCurrency(0));
+    expect(html).not.toContain(formatCurrency(5000));
+  });
+
+  test("an absent or invalid package quantity quotes nothing", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Zero Pkg",
+      slug: "zero-pkg",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      name: "Z",
+      unitPrice: 5000,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: 1000 },
+    ]);
+
+    // "abc" → 0 packages → empty order.
+    const response = await calculate(group.slug, group.slug, {
+      package_quantity: "abc",
+    });
+    expect(await response.text()).toContain("select at least one");
+  });
+
+  test("multiplies a package member's line by its quantity and the package count", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Bundle",
+      slug: "bundle-qty",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxQuantity: 50,
+      name: "Bundled",
+      unitPrice: 5000,
+    });
+    // 3 of this listing per package, overridden to 1000 each.
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: 1000, quantity: 3 },
+    ]);
+
+    // 2 packages → 6 units × 1000 = 6000.
+    const html = await (
+      await calculate(group.slug, group.slug, { package_quantity: "2" })
+    ).text();
+    expect(html).toContain(formatCurrency(6000));
+  });
+
+  test("clamps the package count to the tightest member's capacity", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Capped",
+      slug: "capped-pkg",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 100,
+      maxQuantity: 2,
+      name: "Limited",
+      unitPrice: 4000,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: 1000 },
+    ]);
+
+    // The member caps the package at 2 (max_quantity); a crafted count of 5
+    // clamps to 2 → 2 × 1000 = 2000, never 5 × 1000.
+    const html = await (
+      await calculate(group.slug, group.slug, { package_quantity: "5" })
+    ).text();
+    expect(html).toContain(formatCurrency(2000));
+    expect(html).not.toContain(formatCurrency(5000));
+  });
+
+  test("caps the package count by the group's shared pool across members", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      maxAttendees: 2,
+      name: "Shared Pool",
+      slug: "shared-pool",
+    });
+    const a = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 100,
+      maxQuantity: 10,
+      name: "Pool A",
+      unitPrice: 0,
+    });
+    const b = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 100,
+      maxQuantity: 10,
+      name: "Pool B",
+      unitPrice: 0,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: a.id, price: 1000 },
+      { listingId: b.id, price: 1000 },
+    ]);
+
+    // The group holds 2; one package consumes 1 A + 1 B = 2 spots, so only one
+    // package fits. Posting 2 clamps to 1 → 1×1000 + 1×1000 = 2000, not 4000.
+    const html = await (
+      await calculate(group.slug, group.slug, { package_quantity: "2" })
+    ).text();
+    expect(html).toContain(formatCurrency(2000));
+    expect(html).not.toContain(formatCurrency(4000));
   });
 
   test("prices a multi-unit line with a booking-fee extra line", async () => {
@@ -248,5 +449,138 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       mockFormRequest("/calculate/missing-a+missing-b", {}),
     );
     expect(response.status).toBe(404);
+  });
+
+  /** Set up a listing at £10.00 with a 10%-off promo code modifier ("SAVE10").
+   * Returns the listing so tests can build their /calculate POST body. */
+  const setupPromoListing = async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxQuantity: 5,
+      name: "Workshop",
+      unitPrice: 1000,
+    });
+    await modifiersTable.insert({
+      calcKind: "percent",
+      calcValue: 10,
+      codeIndex: await hmacHash(normalizeCode("SAVE10")),
+      direction: "discount",
+      name: "10% off",
+      trigger: "code",
+    });
+    return listing;
+  };
+
+  const quoteSave10Promo = async (): Promise<string> => {
+    const listing = await setupPromoListing();
+    return (
+      await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        promo_code: "SAVE10",
+      })
+    ).text();
+  };
+
+  test("applies a promo code discount when the correct code is submitted", async () => {
+    const html = await quoteSave10Promo();
+
+    // Discount line shown with modifier name and negative amount.
+    expect(html).toContain("10% off");
+    expect(html).toContain(formatCurrency(-100));
+    // Total reflects the discounted price (10% off £10.00 = £9.00).
+    expect(html).toContain(formatCurrency(900));
+    expect(html).toContain("order-summary-total");
+  });
+
+  test("shows the listing price before modifiers, not the discounted line price", async () => {
+    const html = await quoteSave10Promo();
+
+    // The ticket line is the full £10.00 list price, so the discount isn't
+    // baked into it — the modifier is itemised separately on its own row...
+    expect(html).toContain(formatCurrency(1000));
+    expect(html).toContain("10% off");
+    expect(html).toContain(formatCurrency(-100));
+    // ...and only the total carries the £9.00 discounted figure.
+    expect(html).toContain(formatCurrency(900));
+  });
+
+  test("does not apply a promo code discount when no code is submitted", async () => {
+    const listing = await setupPromoListing();
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+      })
+    ).text();
+
+    // Full price — no promo code entered, no discount line.
+    expect(html).toContain(formatCurrency(1000));
+    expect(html).not.toContain(formatCurrency(900));
+    expect(html).not.toContain("10% off");
+  });
+
+  test("does not apply a promo code discount when a wrong code is submitted", async () => {
+    const listing = await setupPromoListing();
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        promo_code: "WRONGCODE",
+      })
+    ).text();
+
+    // Full price — wrong promo code, no discount line.
+    expect(html).toContain(formatCurrency(1000));
+    expect(html).not.toContain(formatCurrency(900));
+    expect(html).not.toContain("10% off");
+  });
+
+  /** Turn the seeded public-default status into a reservation charging `amount`,
+   * so the quote prices each line as a deposit rather than the full price. */
+  const setPublicReservation = async (amount: string): Promise<void> => {
+    await getDb().execute({
+      args: [amount],
+      sql: "UPDATE attendee_statuses SET is_reservation = 1, reservation_amount = ? WHERE is_public_default = 1",
+    });
+    invalidateAttendeeStatusesCache();
+  };
+
+  test("shows the deposit charged now for a reservation, not the full list price", async () => {
+    await setupStripe();
+    await setPublicReservation("10%");
+    const listing = await createTestListing({
+      maxQuantity: 5,
+      name: "Weekend Pass",
+      unitPrice: 2000,
+    });
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+      })
+    ).text();
+
+    // A deposit summary shows what's due now (10% of £20.00 = £2.00), not the
+    // full £20.00 list price — the deposit already reflects the reservation.
+    expect(html).toContain("Weekend Pass");
+    expect(html).toContain(formatCurrency(200));
+    expect(html).not.toContain(formatCurrency(2000));
+    expect(html).toContain("order-summary-total");
+  });
+
+  test("applies a promo code discount case-insensitively", async () => {
+    const listing = await setupPromoListing();
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        promo_code: "save10",
+      })
+    ).text();
+
+    // Lowercase variant of the code should still match.
+    expect(html).toContain("10% off");
+    expect(html).toContain(formatCurrency(-100));
+    expect(html).toContain(formatCurrency(900));
   });
 });

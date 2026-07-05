@@ -78,4 +78,36 @@ describe("isoToTag / parseReleaseTag roundtrip", () => {
       setBuildTimestampForTest(null);
     }
   });
+
+  test("isNewerVersion treats an earlier tag as not newer", () => {
+    setBuildTimestampForTest("2026-03-01T00:00:00.000Z");
+    try {
+      const olderTag = isoToTag("2026-01-01T00:00:00.000Z");
+      expect(isNewerVersion(olderTag)).toBe(false);
+    } finally {
+      setBuildTimestampForTest(null);
+    }
+  });
+
+  test("isNewerVersion returns false (never throws) for an unparseable tag", () => {
+    // Guard must short-circuit before dereferencing the null parsed date, even
+    // when a real build timestamp is present.
+    setBuildTimestampForTest("2026-01-01T00:00:00.000Z");
+    try {
+      expect(isNewerVersion("not-a-release-tag")).toBe(false);
+    } finally {
+      setBuildTimestampForTest(null);
+    }
+  });
+
+  test("isNewerVersion returns false when the build timestamp is empty", () => {
+    // Development/source builds carry no timestamp; nothing is ever "newer".
+    setBuildTimestampForTest("");
+    try {
+      const tag = isoToTag("2026-02-01T00:00:00.000Z");
+      expect(isNewerVersion(tag)).toBe(false);
+    } finally {
+      setBuildTimestampForTest(null);
+    }
+  });
 });

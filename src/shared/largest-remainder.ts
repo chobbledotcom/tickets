@@ -1,6 +1,6 @@
 type LargestRemainderOptions = {
-  canReceive?: (index: number) => boolean;
-  tieBreaker?: (index: number) => number;
+  canReceive?: ((index: number) => boolean) | undefined;
+  tieBreaker?: ((index: number) => number) | undefined;
 };
 
 type LargestRemainderAllocationOptions = {

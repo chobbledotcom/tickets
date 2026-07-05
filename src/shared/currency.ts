@@ -5,6 +5,7 @@
  * and currency symbols. Reads the currency code directly from settings.
  */
 
+import { Liquid } from "liquidjs";
 import { settings } from "#shared/db/settings.ts";
 
 /** Get the number of decimal places for a currency code */
@@ -47,39 +48,9 @@ export const toMajorUnits = (minorUnits: number): string => {
   return (minorUnits / 10 ** places).toFixed(places);
 };
 
-/** Result type for price validation */
-export type PriceResult =
-  | { ok: true; price: number }
-  | { ok: false; error: string };
-
-/**
- * Validate and convert a raw price string to minor units.
- * Returns ok with 0 if raw is empty and minPrice is 0 (pay-what-you-want with no input).
- * Returns error if raw is empty and minPrice > 0, or if parsed value is out of range.
- */
-export const validatePrice = (
-  raw: string,
-  minPrice: number,
-  maxPrice: number,
-): PriceResult => {
-  if (!raw) {
-    return minPrice === 0
-      ? { ok: true, price: 0 }
-      : { error: "Please enter a price", ok: false };
-  }
-  const parsed = Number.parseFloat(raw);
-  if (Number.isNaN(parsed) || parsed < 0) {
-    return { error: "Please enter a valid price", ok: false };
-  }
-  const priceMinor = toMinorUnits(parsed);
-  if (priceMinor < minPrice) {
-    return {
-      error: "Price must be at least the minimum ticket price",
-      ok: false,
-    };
-  }
-  if (priceMinor > maxPrice) {
-    return { error: "Price exceeds the maximum allowed", ok: false };
-  }
-  return { ok: true, price: priceMinor };
+/** Create a Liquid engine pre-configured with strict mode and the currency filter */
+export const createBaseLiquidEngine = (): Liquid => {
+  const engine = new Liquid({ strictFilters: true, strictVariables: false });
+  engine.registerFilter("currency", (v: string | number) => formatCurrency(v));
+  return engine;
 };

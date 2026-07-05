@@ -5,6 +5,7 @@
  * contact's aggregated history directly — the hidden DB row made malleable.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import type { ContactRecord } from "#shared/db/contact-preferences.ts";
@@ -13,17 +14,17 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
-import { FORMATTING_HINT } from "#templates/fields.ts";
-import { Layout } from "#templates/layout.tsx";
+import { AttendeesPageLayout } from "#templates/admin/attendee-form.tsx";
+import { formattingHint } from "#templates/fields.ts";
+/* jscpd:ignore-end */
 
 export type ContactHistoryPageData = {
   /** The contact's HMAC blind index (contact_hash), also the route param. */
   hmac: string;
   record: ContactRecord;
   session: AdminSession;
-  flashError?: string;
-  flashSuccess?: string;
+  flashError?: string | undefined;
+  flashSuccess?: string | undefined;
   /** Inline validation error from a rejected save (re-rendered in place). */
   formError?: string | null;
 };
@@ -53,17 +54,18 @@ export const contactHistoryPage = ({
   formError,
 }: ContactHistoryPageData): string =>
   String(
-    <Layout title={t("contact_history.title")}>
-      <AdminNav active="/admin/attendees" session={session} />
-
-      <div class="prose">
-        <h1>{t("contact_history.title")}</h1>
-        <p>{t("contact_history.description")}</p>
-        <p class="muted small">
-          {t("contact_history.hash_label")}: <code>{hmac}</code>
-        </p>
-      </div>
-
+    <AttendeesPageLayout
+      prose={
+        <>
+          <p>{t("contact_history.description")}</p>
+          <p class="muted small">
+            {t("contact_history.hash_label")}: <code>{hmac}</code>
+          </p>
+        </>
+      }
+      session={session}
+      title={t("contact_history.title")}
+    >
       <CsrfForm action={`/admin/history/${hmac}`} id="contact-history-form">
         <Flash error={flashError} success={flashSuccess} />
         {formError && (
@@ -101,7 +103,7 @@ export const contactHistoryPage = ({
         <Raw
           html={renderField(
             {
-              hintHtml: FORMATTING_HINT,
+              hintHtml: formattingHint(),
               label: t("contact_history.notes_label"),
               markdown: true,
               maxlength: MAX_TEXTAREA_LENGTH,
@@ -134,5 +136,5 @@ export const contactHistoryPage = ({
           </button>
         </p>
       </CsrfForm>
-    </Layout>,
+    </AttendeesPageLayout>,
   );

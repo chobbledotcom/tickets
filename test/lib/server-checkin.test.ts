@@ -7,6 +7,7 @@ import {
   awaitTestRequest,
   bookAttendee,
   createDailyTestAttendee,
+  createMultiBookingAttendee,
   createTestAttendeeWithToken,
   createTestListing,
   describeWithEnv,
@@ -87,6 +88,36 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       expect(body).not.toContain('class="success"');
     });
 
+    test("keeps one row per booking line, each with its own listing's check-in button", async () => {
+      const first = await createTestListing({
+        maxAttendees: 10,
+        name: "First Listing",
+      });
+      const second = await createTestListing({
+        maxAttendees: 10,
+        name: "Second Listing",
+      });
+      const attendee = await createMultiBookingAttendee(
+        "Multi",
+        "multi@test.com",
+        [{ listingId: first.id }, { listingId: second.id }],
+      );
+      const cookie = await testCookie();
+
+      const response = await awaitTestRequest(
+        `/checkin/${attendee.ticket_token}`,
+        { cookie },
+      );
+      const body = await response.text();
+      // The bookings stay separate rows so each listing checks in on its own.
+      expect(body).toContain(
+        `/admin/listing/${first.id}/attendee/${attendee.id}/checkin`,
+      );
+      expect(body).toContain(
+        `/admin/listing/${second.id}/attendee/${attendee.id}/checkin`,
+      );
+    });
+
     test("shows attendee contact details in admin view", async () => {
       const { token, session } = await setupCheckinTest(
         "Bob",
@@ -110,9 +141,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       const { listing: listingB, token: tokenB } =
         await createTestAttendeeWithToken("Carol", "carol@test.com");
 
-      const response = await awaitTestRequest(`/checkin/${tokenA}+${tokenB}`, {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet(`/checkin/${tokenA}+${tokenB}`);
       expect(response.status).toBe(200);
 
       const body = await response.text();
@@ -121,7 +150,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
     });
 
     test("returns 404 for invalid tokens when authenticated", async () => {
-      const { response } = await adminGet("/checkin/bad-token");
+      const response = await adminGet("/checkin/bad-token");
       expect(response.status).toBe(404);
     });
 
@@ -135,7 +164,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
         args: [listing.id],
         sql: "DELETE FROM listing_attendees WHERE listing_id = ?",
       });
-      const { response } = await adminGet(`/checkin/${token}`);
+      const response = await adminGet(`/checkin/${token}`);
       expect(response.status).toBe(404);
     });
 
@@ -185,9 +214,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
         date,
       );
 
-      const response = await awaitTestRequest(`/checkin/${token}`, {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet(`/checkin/${token}`);
       expect(response.status).toBe(200);
 
       const body = await response.text();
@@ -207,9 +234,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
         "alice@test.com",
       );
 
-      const response = await awaitTestRequest(`/checkin/${tokenA}+${tokenB}`, {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet(`/checkin/${tokenA}+${tokenB}`);
       const body = await response.text();
       expect(body).toContain("<th>Date</th>");
       expect(body).toContain(formatDateLabel(date));
@@ -225,7 +250,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       });
       if (!result.success) throw new Error("Failed to create attendee");
 
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/checkin/${result.attendees[0]!.ticket_token}`,
       );
       const body = await response.text();
@@ -348,7 +373,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       const response = await postCheckin(token, session, "true");
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
-        `/checkin/${token}?message=Cannot%20check%20in%20refunded%20tickets`,
+        `/checkin/${token}?message=No%20tickets%20on%20this%20token%20can%20be%20checked%20in`,
       );
     });
 
@@ -369,8 +394,49 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       const response = await postCheckin(token, session, "false");
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
-        `/checkin/${token}?message=Cannot%20check%20in%20refunded%20tickets`,
+        `/checkin/${token}?message=No%20tickets%20on%20this%20token%20can%20be%20checked%20in`,
       );
+    });
+
+    test("a shared token checks in the normal row but never a purchase-only one", async () => {
+      // A package/order can mix a checkable member with a No Check-In
+      // (purchase_only) one on the same token; the token check-in must update
+      // only the checkable row.
+      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+      const { queryAll } = await import("#shared/db/client.ts");
+      const normal = await createTestListing({ name: "Entry Pass" });
+      const merch = await createTestListing({
+        name: "Merch Add-on",
+        purchaseOnly: true,
+      });
+      const result = await createAttendeeAtomic({
+        bookings: [
+          { listingId: normal.id, quantity: 1 },
+          { listingId: merch.id, quantity: 1 },
+        ],
+        email: "mixed@test.com",
+        name: "Mixed Buyer",
+      });
+      if (!result.success) throw new Error("booking failed");
+      const token = result.attendees[0]!.ticket_token;
+      const session = {
+        cookie: await testCookie(),
+        csrfToken: await testCsrfToken(),
+      };
+
+      const response = await postCheckin(token, session, "true");
+      expect(response.status).toBe(302);
+      // Only the checkable ticket is counted and updated.
+      expect(response.headers.get("location")).toBe(
+        `/checkin/${token}?message=Checked%20in%201%20ticket`,
+      );
+      const rows = await queryAll<{ listing_id: number; checked_in: number }>(
+        "SELECT listing_id, checked_in FROM listing_attendees WHERE attendee_id = ?",
+        [result.attendees[0]!.id],
+      );
+      const byListing = new Map(rows.map((r) => [r.listing_id, r.checked_in]));
+      expect(byListing.get(normal.id)).toBe(1);
+      expect(byListing.get(merch.id)).toBe(0);
     });
 
     test("redirects to admin for unauthenticated POST", async () => {

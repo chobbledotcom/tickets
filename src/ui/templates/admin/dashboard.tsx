@@ -2,22 +2,28 @@
  * Admin dashboard page template
  */
 
-import { filter, joinStrings, map, pipe, reduce, unique } from "#fp";
+import { filter, joinStrings, map, pipe, unique } from "#fp";
 import { t } from "#i18n";
+import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
 import {
+  type ColumnGenerators,
   getHeaderText,
   renderCells,
   resolveColumnLayout,
 } from "#shared/column-order.ts";
 import {
+  EDITOR_LISTING_DEFAULT_ORDER,
+  EDITOR_LISTING_TABLE_COLUMNS,
   LISTING_DEFAULT_ORDER,
   LISTING_TABLE_COLUMNS,
 } from "#shared/columns/listing-columns.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { formatDateLabel } from "#shared/dates.ts";
+import type { ServicingEventSummary } from "#shared/db/attendees/servicing.ts";
 import type { ActiveListingStats } from "#shared/db/attendees.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { Flash } from "#shared/forms.tsx";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   filterListingsByType,
@@ -28,31 +34,55 @@ import {
 import type {
   AdminSession,
   Attendee,
-  AttendeeTableRow,
   Holiday,
   ListingWithCount,
 } from "#shared/types.ts";
+import { AdminPage, flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { HolidayTable } from "#templates/admin/holidays.tsx";
-import { AdminNav } from "#templates/admin/nav.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
-import { ActionButton } from "#templates/components/actions.tsx";
-import { escapeHtml, Layout } from "#templates/layout.tsx";
+import {
+  ActionButton,
+  ImportCatalogButton,
+} from "#templates/components/actions.tsx";
+import { escapeHtml } from "#templates/layout.tsx";
 
-/** Render a single listing table row using ordered column keys */
+/** The "Add listing" action button — shared by the editor and staff dashboards.
+ *  Optional `children` render as extra buttons inside the same actions row
+ *  (the listings page also offers a catalog import). */
+const AddListingButton = ({
+  children,
+}: {
+  children?: Child;
+} = {}): JSX.Element => (
+  <p class="actions">
+    <ActionButton href="/admin/listing/new" icon="plus">
+      {t("admin.dashboard.add_listing")}
+    </ActionButton>
+    {children}
+  </p>
+);
+
+/** The ordered column layout a listings table (or single row) renders from. */
+type ListingColumnArgs = {
+  columnKeys: string[];
+  filters: Map<string, string>;
+  columns?: ColumnGenerators<ListingWithCount>;
+};
+
+/** Render a single listing table row using ordered column keys. `columns`
+ * defaults to the full staff column set; the editor variant passes its
+ * money-free, edit-linked set. */
 export const ListingRow = ({
   e,
   columnKeys,
   filters,
-}: {
-  e: ListingWithCount;
-  columnKeys: string[];
-  filters: Map<string, string>;
-}): string => {
+  columns = LISTING_TABLE_COLUMNS,
+}: ListingColumnArgs & { e: ListingWithCount }): string => {
   const isInactive = !e.active;
   const cells = renderCells(
     e,
     columnKeys,
-    LISTING_TABLE_COLUMNS,
+    columns,
     undefined,
     filters,
     escapeHtml,
@@ -75,12 +105,18 @@ const MultiBookingCheckbox = ({ e }: { e: ListingWithCount }): string =>
     </li>,
   );
 
-/** Multi-booking link builder section (only rendered when 2+ active listings) */
-const multiBookingSection = (activeListings: ListingWithCount[]): string => {
+/** Multi-booking link builder section (only rendered when 2+ selectable
+ * listings). The caller has already excluded every listing with no standalone
+ * public page — a child and a hidden package's member both 404
+ * on their own `/ticket/<slug>` — so an operator can't build a
+ * `/ticket/<…+unbookable+…>` URL the server then rejects. */
+const multiBookingSection = (
+  selectableListings: ListingWithCount[],
+): string => {
   const checkboxes = pipe(
     map((e: ListingWithCount) => MultiBookingCheckbox({ e })),
     joinStrings,
-  )(activeListings);
+  )(selectableListings);
 
   return String(
     <details>
@@ -141,23 +177,14 @@ export const activeListingStatsSection = (stats: ActiveListingStats): string =>
     </details>,
   );
 
-/** Build the newest attendees section with a details/summary wrapper */
+/** Build the newest attendees section with a details/summary wrapper.
+ * One row per attendee: `listings` arrives in display order, so each grouped
+ * row's Listings cell follows the listings page ordering. */
 const newestAttendeesSection = (
   attendees: Attendee[],
   listings: ListingWithCount[],
 ): string => {
-  const listingMap = new Map(listings.map((e) => [e.id, e]));
-  const tableRows = reduce((acc: AttendeeTableRow[], a: Attendee) => {
-    const listing = listingMap.get(a.listing_id);
-    if (listing) {
-      acc.push({
-        attendee: a,
-        listingId: listing.id,
-        listingName: listing.name,
-      });
-    }
-    return acc;
-  }, [] as AttendeeTableRow[])(attendees);
+  const tableRows = groupAttendeeRows(attendees, listings);
 
   if (tableRows.length === 0) return "";
 
@@ -187,42 +214,103 @@ const upcomingHolidaysSection = (holidays: Holiday[]): string =>
   String(
     <details open>
       <summary>{t("holidays.upcoming_heading")}</summary>
-      <div class="table-scroll dashboard-holidays-scroll">
-        <Raw html={HolidayTable({ holidays })} />
-      </div>
+      <Raw
+        html={HolidayTable({
+          holidays,
+          scrollClass: "dashboard-holidays-scroll",
+        })}
+      />
     </details>,
   );
 
-/** Render the listing table with dynamic column keys */
+const upcomingServicingRow = (event: ServicingEventSummary) => {
+  // One `<li>` per service event (not per booking line), so a multi-listing hold
+  // appears once. The compact details carry the listing count rather than every
+  // name — the listing names are listed in the `/admin/servicing` table. The
+  // date uses the app's deterministic formatter, not the runtime's locale.
+  const listingCount = event.bookings.length;
+  const details = [
+    event.date ? formatDateLabel(event.date) : "",
+    `${listingCount} listing${listingCount === 1 ? "" : "s"}`,
+    `${event.totalQuantity}`,
+  ].filter(Boolean);
+  return (
+    <li>
+      <a href={`/admin/servicing/${event.id}`}>{event.name}</a>{" "}
+      <span class="muted">{details.join(" · ")}</span>
+    </li>
+  );
+};
+
+const upcomingServicingSection = (events: ServicingEventSummary[]): string =>
+  String(
+    <details open>
+      <summary>{t("admin.dashboard.upcoming_service_events")}</summary>
+      <ul>{events.map(upcomingServicingRow)}</ul>
+    </details>,
+  );
+
+/** The subset of `columnKeys` that the given column set actually defines. */
+export const validListingColumnKeys = (
+  columnKeys: string[],
+  columns: ColumnGenerators<ListingWithCount>,
+): string[] => columnKeys.filter((key) => columns[key]);
+
+/** Render the listing rows (or the single empty-state row) for a listings
+ *  table body. Shared by the dashboard listings section and the group detail
+ *  page; `emptyText` is the message shown when there are no listings. */
+/** The listing collection + column layout every listings table renders from. */
+type ListingTableArgs = ListingColumnArgs & {
+  listings: ListingWithCount[];
+};
+
+export const renderListingRows = ({
+  listings,
+  columnKeys,
+  filters,
+  emptyText,
+  columns = LISTING_TABLE_COLUMNS,
+}: ListingTableArgs & { emptyText: string }): string =>
+  listings.length > 0
+    ? pipe(
+        map((e: ListingWithCount) =>
+          ListingRow({ columnKeys, columns, e, filters }),
+        ),
+        joinStrings,
+      )(listings)
+    : `<tr><td colspan="${columnKeys.length}">${emptyText}</td></tr>`;
+
+/** Render the listing table with dynamic column keys. `columns` defaults to the
+ * staff column set; the editor variant passes its money-free set. */
 export const renderListingTable = (
   columnKeys: string[],
   rows: string,
+  columns: ColumnGenerators<ListingWithCount> = LISTING_TABLE_COLUMNS,
 ): string => {
   const headers = pipe(
-    map(
-      (key: string) => `<th>${getHeaderText(LISTING_TABLE_COLUMNS[key]!)}</th>`,
-    ),
+    map((key: string) => `<th>${getHeaderText(columns[key]!)}</th>`),
     joinStrings,
-  )(columnKeys);
+  )(validListingColumnKeys(columnKeys, columns));
   return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
 };
 
-const renderListingsTableSection = (
+export const renderListingsTableSection = (
   listings: ListingWithCount[],
   columnKeys: string[],
   filters: Map<string, string>,
+  columns: ColumnGenerators<ListingWithCount> = LISTING_TABLE_COLUMNS,
 ): string => {
-  const listingRows =
-    listings.length > 0
-      ? pipe(
-          map((e: ListingWithCount) => ListingRow({ columnKeys, e, filters })),
-          joinStrings,
-        )(listings)
-      : `<tr><td colspan="${columnKeys.length}">${t("admin.dashboard.no_listings")}</td></tr>`;
+  const listingRows = renderListingRows({
+    columnKeys: validListingColumnKeys(columnKeys, columns),
+    columns,
+    emptyText: t("admin.dashboard.no_listings"),
+    filters,
+    listings,
+  });
 
   return String(
     <div class="table-scroll">
-      <Raw html={renderListingTable(columnKeys, listingRows)} />
+      <Raw html={renderListingTable(columnKeys, listingRows, columns)} />
     </div>,
   );
 };
@@ -237,16 +325,16 @@ const ListingsTableBlock = ({
   filters,
   csvExport = false,
   headerHtml = "",
-}: {
-  listings: ListingWithCount[];
-  columnKeys: string[];
-  filters: Map<string, string>;
+  columns = LISTING_TABLE_COLUMNS,
+}: ListingTableArgs & {
   csvExport?: boolean;
   headerHtml?: string;
 }): JSX.Element => (
   <div class="table-block">
     <Raw html={headerHtml} />
-    <Raw html={renderListingsTableSection(listings, columnKeys, filters)} />
+    <Raw
+      html={renderListingsTableSection(listings, columnKeys, filters, columns)}
+    />
     {csvExport && (
       <div class="table-actions">
         <a href="/admin/listings/csv">{t("listings_table.export_csv")}</a>
@@ -268,6 +356,8 @@ export const adminDashboardPage = (
   listingColumnTemplate?: string,
   activeType: ListingFilter = "all",
   upcomingHolidays: Holiday[] = [],
+  unbookableIds: ReadonlySet<number> = new Set(),
+  upcomingServicingEvents: ServicingEventSummary[] = [],
 ): string => {
   const { columnKeys, filters } = resolveColumnLayout(
     listingColumnTemplate ?? "",
@@ -280,6 +370,13 @@ export const adminDashboardPage = (
   // (same control as the public/attendee filters) only when more than one
   // listing type is present.
   const activeListings = filter((e: ListingWithCount) => e.active)(listings);
+  // The multi-booking builder offers only standalone-bookable listings; a child
+  // is never an entry point (I3) and a hidden package's member 404s on its own
+  // page, so both are excluded from the selectable set and the "2+ listings"
+  // gate that decides whether to show the builder at all.
+  const multiBookingListings = filter(
+    (e: ListingWithCount) => !unbookableIds.has(e.id),
+  )(activeListings);
   const categories = unique(listings.map(listingCategory));
   const shownListings = filterListingsByType(activeType)(activeListings);
   const typeFilterHtml =
@@ -289,19 +386,13 @@ export const adminDashboardPage = (
         )
       : "";
 
-  return String(
-    <Layout title={t("terms.listings")}>
-      <AdminNav active="/admin/" session={session} />
-
-      <Flash error={imageError} success={successMessage} />
-
-      {!isReadOnly() && (
-        <p class="actions">
-          <ActionButton href="/admin/listing/new" icon="plus">
-            {t("admin.dashboard.add_listing")}
-          </ActionButton>
-        </p>
-      )}
+  return flashAdminPage(t("terms.listings"), "/admin/")(
+    session,
+    imageError,
+    successMessage,
+  )(
+    <>
+      {!isReadOnly() && <AddListingButton />}
 
       <ListingsTableBlock
         columnKeys={columnKeys}
@@ -316,14 +407,18 @@ export const adminDashboardPage = (
         <Raw html={upcomingHolidaysSection(upcomingHolidays)} />
       )}
 
-      {activeListings.length >= 2 && (
-        <Raw html={multiBookingSection(activeListings)} />
+      {upcomingServicingEvents.length > 0 && (
+        <Raw html={upcomingServicingSection(upcomingServicingEvents)} />
+      )}
+
+      {multiBookingListings.length >= 2 && (
+        <Raw html={multiBookingSection(multiBookingListings)} />
       )}
 
       {newestAttendees.length > 0 && (
         <Raw html={newestAttendeesSection(newestAttendees, listings)} />
       )}
-    </Layout>,
+    </>,
   );
 };
 
@@ -333,10 +428,17 @@ export const adminListingsPage = (
   session: AdminSession,
   listingColumnTemplate?: string,
 ): string => {
+  // Editors see a money-free, edit-linked table on a fixed order (their saved
+  // column template is irrelevant and never references the omitted columns), and
+  // no CSV export (that route stays staff-only and exports ledger revenue).
+  const isEditor = session.adminLevel === "editor";
+  const columns = isEditor
+    ? EDITOR_LISTING_TABLE_COLUMNS
+    : LISTING_TABLE_COLUMNS;
   const { columnKeys, filters } = resolveColumnLayout(
-    listingColumnTemplate ?? "",
-    Object.keys(LISTING_TABLE_COLUMNS),
-    LISTING_DEFAULT_ORDER,
+    isEditor ? "" : (listingColumnTemplate ?? ""),
+    Object.keys(columns),
+    isEditor ? EDITOR_LISTING_DEFAULT_ORDER : LISTING_DEFAULT_ORDER,
   );
   const activeListings = filter((e: ListingWithCount) => e.active)(listings);
   const deactivatedListings = filter((e: ListingWithCount) => !e.active)(
@@ -344,20 +446,21 @@ export const adminListingsPage = (
   );
 
   return String(
-    <Layout title={t("terms.listings")}>
-      <AdminNav active="/admin/listings" session={session} />
-
+    <AdminPage
+      active="/admin/listings"
+      session={session}
+      title={t("terms.listings")}
+    >
       {!isReadOnly() && (
-        <p class="actions">
-          <ActionButton href="/admin/listing/new" icon="plus">
-            {t("admin.dashboard.add_listing")}
-          </ActionButton>
-        </p>
+        <AddListingButton>
+          <ImportCatalogButton />
+        </AddListingButton>
       )}
 
       <ListingsTableBlock
         columnKeys={columnKeys}
-        csvExport
+        columns={columns}
+        csvExport={!isEditor}
         filters={filters}
         listings={activeListings}
       />
@@ -370,10 +473,11 @@ export const adminListingsPage = (
               deactivatedListings,
               columnKeys,
               filters,
+              columns,
             )}
           />
         </>
       )}
-    </Layout>,
+    </AdminPage>,
   );
 };

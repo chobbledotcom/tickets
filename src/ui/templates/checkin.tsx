@@ -7,6 +7,7 @@
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
+import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
@@ -14,6 +15,8 @@ import {
   type AttendeeTableRow,
 } from "#templates/attendee-table.tsx";
 import { Layout } from "#templates/layout.tsx";
+import { simplePublicPage } from "./public/shared.tsx";
+import { SubmitWithHidden } from "./public/unsubscribe.tsx";
 
 /** Alias export used by check-in templates */
 export type { TokenEntry as CheckinEntry };
@@ -31,11 +34,8 @@ export const checkinAdminPage = (
   const showDate = entries.some((e) => e.attendee.date !== null);
   const tableRows: AttendeeTableRow[] = pipe(
     map(
-      (e: TokenEntry): AttendeeTableRow => ({
-        attendee: e.attendee,
-        listingId: e.listing.id,
-        listingName: e.listing.name,
-      }),
+      (e: TokenEntry): AttendeeTableRow =>
+        attendeeLineRow(e.attendee, e.listing),
     ),
   )(entries);
 
@@ -51,10 +51,12 @@ export const checkinAdminPage = (
       <CsrfForm action={checkinPath}>
         <h1>{t("admin.checkin.heading")}</h1>
         <Flash success={message} />
-        <input name="check_in" type="hidden" value={nextValue} />
-        <button class={buttonClass} type="submit">
-          {buttonLabel}
-        </button>
+        <SubmitWithHidden
+          buttonClass={buttonClass}
+          label={buttonLabel}
+          name="check_in"
+          value={nextValue}
+        />
       </CsrfForm>
       <div class="table-scroll">
         <Raw
@@ -76,11 +78,7 @@ export const checkinAdminPage = (
  * Non-admin check-in page - simple message telling the user to show this to an admin
  */
 export const checkinPublicPage = (): string =>
-  String(
-    <Layout title={t("admin.checkin.public_title")}>
-      <div class="prose">
-        <h1>{t("admin.checkin.public_heading")}</h1>
-        <p>{t("admin.checkin.public_instructions")}</p>
-      </div>
-    </Layout>,
-  );
+  simplePublicPage(
+    t("admin.checkin.public_title"),
+    t("admin.checkin.public_heading"),
+  )(<p>{t("admin.checkin.public_instructions")}</p>);

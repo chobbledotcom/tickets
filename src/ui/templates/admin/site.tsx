@@ -2,18 +2,19 @@
  * Admin site page editor templates
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   siteContactForm,
   siteHomeForm,
   siteOrderForm,
 } from "#routes/admin/site.ts";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
-import { Layout } from "#templates/layout.tsx";
+import { flashAdminPage } from "#templates/admin/admin-page.tsx";
+import { SaveButton } from "#templates/components/actions.tsx";
+/* jscpd:ignore-end */
 
 /**
  * Homepage editor - website title + homepage text
@@ -25,11 +26,8 @@ export const adminSiteHomePage = (
   error?: string,
   success?: string,
 ): string =>
-  String(
-    <Layout title={t("site.home_title")}>
-      <AdminNav active="/admin/site" session={session} />
-      <Flash error={error} success={success} />
-
+  flashAdminPage(t("site.home_title"), "/admin/site")(session, error, success)(
+    <>
       <h2>{t("site.home.heading")}</h2>
 
       <CsrfForm action="/admin/site">
@@ -39,9 +37,9 @@ export const adminSiteHomePage = (
             website_title: websiteTitle,
           })}
         />
-        <SubmitButton icon="save">{t("common.save")}</SubmitButton>
+        {SaveButton()}
       </CsrfForm>
-    </Layout>,
+    </>,
   );
 
 /** State of the optional public contact form feature */
@@ -104,7 +102,7 @@ const ContactFormToggle = ({
       />{" "}
       Enable contact form
     </label>
-    <SubmitButton icon="save">{t("common.save")}</SubmitButton>
+    {SaveButton()}
   </CsrfForm>
 );
 
@@ -118,11 +116,12 @@ export const adminSiteContactPage = (
   error?: string,
   success?: string,
 ): string =>
-  String(
-    <Layout title={t("site.contact_title")}>
-      <AdminNav active="/admin/site" session={session} />
-      <Flash error={error} success={success} />
-
+  flashAdminPage(t("site.contact_title"), "/admin/site")(
+    session,
+    error,
+    success,
+  )(
+    <>
       <h2>{t("site.contact.heading")}</h2>
 
       <CsrfForm action="/admin/site/contact">
@@ -131,7 +130,7 @@ export const adminSiteContactPage = (
             contact_page_text: contactPageText,
           })}
         />
-        <SubmitButton icon="save">{t("common.save")}</SubmitButton>
+        {SaveButton()}
       </CsrfForm>
 
       <ContactFormToggle
@@ -139,7 +138,7 @@ export const adminSiteContactPage = (
         enabled={contactForm.enabled}
         hasBusinessEmail={contactForm.hasBusinessEmail}
       />
-    </Layout>,
+    </>,
   );
 
 /** State of the optional public order page feature */
@@ -182,11 +181,8 @@ export const adminSiteOrderPage = (
   error?: string,
   success?: string,
 ): string =>
-  String(
-    <Layout title={t("site.order_title")}>
-      <AdminNav active="/admin/site" session={session} />
-      <Flash error={error} success={success} />
-
+  flashAdminPage(t("site.order_title"), "/admin/site")(session, error, success)(
+    <>
       <div class="prose">
         <h2>{t("site.order_page_heading")}</h2>
         <p>
@@ -207,12 +203,12 @@ export const adminSiteOrderPage = (
           />{" "}
           Enable order page
         </label>
-        <SubmitButton icon="save">{t("common.save")}</SubmitButton>
+        {SaveButton()}
       </CsrfForm>
 
       <CsrfForm action="/admin/site/order">
         <Raw html={siteOrderForm.render({ order_intro_text: introText })} />
-        <SubmitButton icon="save">{t("common.save")}</SubmitButton>
+        {SaveButton()}
       </CsrfForm>
-    </Layout>,
+    </>,
   );

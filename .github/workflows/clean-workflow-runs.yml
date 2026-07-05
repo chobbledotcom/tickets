@@ -1,0 +1,17 @@
+name: Clean Workflow Runs
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: igorjs/gh-actions-clean-workflow@v7
+        with:
+          runs_older_than: 7

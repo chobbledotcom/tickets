@@ -11,6 +11,7 @@
   "backup.create_button": "Create Backup Now",
   "backup.existing_backups_heading": "Existing Backups",
   "backup.no_backups_found": "No backups found.",
+  "backup.table_timestamp": "Timestamp",
   "backup.table_size": "Size",
   "backup.download_link": "Download",
   "backup.restore_heading": "Restore from Backup",

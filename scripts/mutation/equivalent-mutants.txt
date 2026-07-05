@@ -12,39 +12,520 @@
 #
 # Format — copy a survivor line from the report and add a reason:
 #   <path>:<line>:<col>  <from> → <to>   # why it is equivalent
+#
+# Do NOT list a mutant whose output the linter rejects (e.g. `=== → ==` or
+# `!== → !=`, forbidden by Biome's noDoubleEquals): the runner lints each mutant
+# and counts a lint failure as killed, so those never survive to be recorded.
 
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
 # cases where x can't be such a value, or F equals the only one it can be.
-src/shared/checkout-pricing.ts:84:35  ?? → ||    # Map<number,number> sum: 0 ?? 0 === 0 || 0
-src/shared/checkout-pricing.ts:332:41  ?? → ||   # intent.modifiers: an array is always truthy
+src/shared/checkout-pricing.ts:85:35  ?? → ||    # Map<number,number> sum: 0 ?? 0 === 0 || 0
+src/shared/checkout-pricing.ts:334:41  ?? → ||   # intent.modifiers: an array is always truthy
 src/shared/logistics-filter.ts:22:35  ?? → ||    # raw: string|null, only falsy string "" === fallback ""
+src/shared/qr-token.ts:60:18  ?? → ||    # input.date?: string, only falsy string "" === fallback ""
+src/shared/qr-token.ts:62:18  ?? → ||    # input.name?: string, only falsy string "" === fallback ""
 src/shared/site-assignment.ts:192:57  ?? → ||    # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
 src/shared/site-assignment.ts:370:34  ?? → ||    # available[idx]: object|undefined, never falsy non-null
 src/shared/site-assignment.ts:392:34  ?? → ||    # getEmailConfig(): EmailConfig|null
 src/shared/site-assignment.ts:416:53  ?? → ||    # parseEmail(): ValidEmail|null, always truthy or null
-src/shared/ledger/project.ts:18:41  ?? → ||    # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
-src/shared/ledger/project.ts:36:49  ?? → ||    # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
-src/shared/ledger/reconcile.ts:70:29  ?? → ||    # IDENTITY_FIELDS kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
-src/shared/ledger/reconcile.ts:112:56  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
-src/shared/ledger/reconcile.ts:115:35  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
-src/shared/ledger/reconcile.ts:136:46  ?? → ||   # observed.get(): LegFingerprint[]|undefined — an array is always truthy
-src/shared/ledger/reconcile.ts:143:44  ?? → ||   # expected.get(): LegFingerprint[]|undefined — an array is always truthy
-src/shared/ledger/reconcile.ts:144:43  ?? → ||   # observed.get(): LegFingerprint[]|undefined — an array is always truthy
+src/shared/ledger/project.ts:19:41  ?? → ||    # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
+src/shared/ledger/project.ts:37:49  ?? → ||    # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
+src/shared/ledger/reconcile.ts:71:29  ?? → ||    # IDENTITY_FIELDS kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/ledger/reconcile.ts:113:56  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
+src/shared/ledger/reconcile.ts:116:35  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
+src/shared/ledger/reconcile.ts:144:44  ?? → ||   # expected.get(): LegFingerprint[]|undefined — an array is always truthy
+src/shared/ledger/reconcile.ts:145:43  ?? → ||   # observed.get(): LegFingerprint[]|undefined — an array is always truthy
 src/shared/ledger/reverse.ts:51:18  ?? → ||    # reverseOf memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
-src/shared/accounting/mappers.ts:44:20  ?? → ||    # REFUND_KIND[kind]: every value is non-empty and a miss is undefined — never "", so ?? and || coincide
-src/shared/accounting/mappers.ts:115:44  ?? → ||   # grossByListing: Map<number,number>.get; 0 ?? 0 === 0 || 0
-src/shared/accounting/mappers.ts:249:32  ?? → ||   # refundKind(leg.kind ?? ""): string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
-src/shared/accounting/store.ts:219:60  ?? → ||    # planGroup existingByGroup.get(): Transfer[]|undefined — an array is always truthy
-src/shared/accounting/store.ts:242:42  ?? → ||    # planGroup originalsById.get(): Transfer|undefined — a Transfer object is always truthy
-src/shared/accounting/store.ts:240:23  || → &&    # planGroup: for id in {undefined,null} both ternary branches yield null (Map<number,_>.get(undefined|null) === undefined, then ?? null === null), so || and && coincide
-src/shared/accounting/queries.ts:98:67  ?? → ||    # accountBalance: Map<string,number>.get; 0 ?? 0 === 0 || 0
-src/shared/accounting/rows.ts:74:17  ?? → ||    # insertStatement kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
-src/shared/accounting/rows.ts:75:17  ?? → ||    # insertStatement memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
-src/shared/accounting/rows.ts:181:58  ?? → ||   # selectById (await …)[0]: Transfer|undefined — a Transfer object is always truthy
+src/shared/accounting/mappers.ts:55:20  ?? → ||    # REFUND_KIND[kind]: every value is non-empty and a miss is undefined — never "", so ?? and || coincide
+src/shared/accounting/mappers.ts:270:32  ?? → ||   # refundKind(leg.kind ?? ""): string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/store.ts:200:60  ?? → ||    # planGroup existingByGroup.get(): Transfer[]|undefined — an array is always truthy
+src/shared/accounting/store.ts:223:42  ?? → ||    # planGroup originalsById.get(): Transfer|undefined — a Transfer object is always truthy
+src/shared/accounting/store.ts:221:23  || → &&    # planGroup: for id in {undefined,null} both ternary branches yield null (Map<number,_>.get(undefined|null) === undefined, then ?? null === null), so || and && coincide
+src/shared/accounting/rows.ts:113:21  ?? → ||    # insertStatement kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/rows.ts:114:21  ?? → ||    # insertStatement memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/rows.ts:262:58  ?? → ||   # selectById (await …)[0]: Transfer|undefined — a Transfer object is always truthy
+src/shared/accounting/rows.ts:133:72  ?? → ||   # renderInsert guard?.args: InValue[]|undefined — an array is always truthy
+src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
+src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
+src/shared/accounting/queries.ts:162:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
+
+# Parent/child fold moved to fold-tree.ts in Phase 2a (see the fold-tree.ts
+# entries below); the ticket-payment.ts fold-internal equivalents went with it.
+# What stays here are `?? F` vs `|| F` sites whose left operand can never be a
+# falsy-but-non-null value (a Map/object/array is always truthy, and the only
+# falsy number is 0 with 0??0===0||0), so the two operators always agree.
+src/features/public/ticket-payment.ts:382:43  ?? → ||   # base.quantities.get(): Map<number,number>|undefined; the only falsy number is 0, 0??0===0||0
+src/features/public/ticket-payment.ts:483:35  ?? → ||   # packageGroupId ?? 0: number|null; the only falsy number is 0, 0??0===0||0, and null→0 either way
+src/features/public/ticket-payment.ts:494:37  ?? → ||   # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
+src/features/public/ticket-payment.ts:683:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
+src/features/public/ticket-payment.ts:872:39  ?? → ||   # packageMaps?.prices: ReadonlyMap|undefined — a Map is always truthy, undefined→null either way
+src/features/public/ticket-payment.ts:873:47  ?? → ||   # packageMaps?.quantities: ReadonlyMap|undefined — a Map is always truthy, undefined→null either way
+
+# Parent/child curried atoms (shared.tsx).
+src/ui/templates/public/shared.tsx:318:41  ?? → ||   # span: null or a duration ≥1, never falsy-non-null; null??1===null||1
+
+# Parent/child per-unit render (reservations.tsx).
+src/ui/templates/public/reservations.tsx:1546:50  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
+
+# Parent/child relationship DB (listing-parents.ts).
+src/shared/db/listing-parents.ts:156:21  ?? → ||   # result.get(key): ListingWithCount[]|undefined, arrays always truthy; ?? and || agree
+src/shared/db/listing-parents.ts:213:44  ?? → ||   # childrenByParent.get(id): ListingWithCount[]|undefined — an array is always truthy
+src/shared/db/listing-parents.ts:214:43  ?? → ||   # parentsByChild.get(id): ListingWithCount[]|undefined — an array is always truthy
 
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is
 # always already ascending — and `sort((a,b) => a/b)` is identity on an
 # already-ascending array, so swapping the comparator changes nothing.
-src/shared/checkout-pricing.ts:176:16  - → /     # toUnits gives ascending lineIdx; a/b is identity on sorted input
+src/shared/checkout-pricing.ts:177:16  - → /     # toUnits gives ascending lineIdx; a/b is identity on sorted input
 
+
+# attendee-form-model: `?? → ||` where the left operand can never be a
+# falsy-but-non-null value, so the two operators always agree.
+src/features/admin/attendee-form-model.ts:320:53  ?? → ||   # existingByKey.get(key): ListingAttendeeRow|undefined — an object is always truthy
+src/features/admin/attendee-form-model.ts:321:36  ?? → ||   # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
+src/features/admin/attendee-form-model.ts:373:66  ?? → ||   # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
+src/features/tickets/token-utils.ts:222:44  ?? → ||   # (attendees[i]?.bookings ?? []): ListingAttendeeRow[]|undefined — an array is always truthy, undefined→[] either way
+
+# Ticket form parsing (ticket-form.ts): `?? → ||` where the operand is an array,
+# an object, a Map.get number (only falsy-non-null is 0, 0??0===0||0), or a
+# string that is never the empty string — so the two operators always agree.
+src/features/public/ticket-form.ts:57:50  ?? → ||   # questionListingMap.get(): number[]|undefined — arrays always truthy
+src/features/public/ticket-form.ts:128:14  ?? → ||   # (existing ?? []).map: TextAnswer[]|undefined — arrays always truthy
+src/features/public/ticket-form.ts:142:44  ?? → ||   # listingAnswerIds[key]: number[]|undefined — arrays always truthy
+src/features/public/ticket-form.ts:143:48  ?? → ||   # listingTextAnswers[key]: TextAnswer[]|undefined — arrays always truthy
+src/features/public/ticket-form.ts:145:56  ?? → ||   # answersByAttendee.get(): AttendeeAnswerSet|undefined — objects always truthy
+src/features/public/ticket-form.ts:182:28  ?? → ||   # ctx.actionUrl: string|undefined, only ever a real URL or undefined (never ""), so ?? and || agree
+src/features/public/ticket-form.ts:213:36  ?? → ||   # quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
+
+# largest-remainder: option hooks are functions when present, so they are
+# truthy; undefined falls through to the same default under `??` and `||`.
+src/shared/largest-remainder.ts:19:40  ?? → ||   # canReceive?: function|undefined — functions are truthy, undefined→default
+src/shared/largest-remainder.ts:20:40  ?? → ||   # tieBreaker?: function|undefined — functions are truthy, undefined→default
+
+# crypto/utils: Uint8Array indexing yields number|undefined; fallback is 0, and
+# the only falsy non-null byte is 0, so `byte ?? 0` and `byte || 0` agree.
+src/shared/crypto/utils.ts:18:23  ?? → ||   # bufA[i]: number|undefined, 0 ?? 0 === 0 || 0
+src/shared/crypto/utils.ts:18:40  ?? → ||   # bufB[i]: number|undefined, 0 ?? 0 === 0 || 0
+
+# request-scoped ambient fallback: store.getStore() is T|undefined where T is
+# always a truthy container object (never a falsy-non-null value), so
+# `?? fallback` and `|| fallback` always agree.
+src/shared/request-scoped.ts:41:36  ?? → ||   # getStore(): T|undefined — a container object is always truthy
+
+# savedFormValue: form?.getString(name) is string|undefined; the only falsy
+# non-null string is "" which equals the "" fallback, so ?? and || agree.
+src/shared/forms.tsx:599:49  ?? → ||   # getString(): string|undefined, "" ?? "" === "" || ""
+
+# test-utils/csrf: regex `match` results are either null/undefined or truthy
+# values; the quantity capture is `\d+`, so it can never be an empty string.
+test/test-utils/csrf.ts:13:46  ?? → ||   # input tag match: RegExpMatchArray|null; a non-null array is truthy
+test/test-utils/csrf.ts:30:46  ?? → ||   # input tag match: RegExpMatchArray|null; a non-null array is truthy
+test/test-utils/csrf.ts:41:47  ?? → ||   # option tag match: RegExpMatchArray|null; a non-null array is truthy
+test/test-utils/csrf.ts:146:20  ?? → ||  # quantity id capture: string|undefined, but `\d+` makes every present value truthy
+
+# test-utils/test-browser: remaining nullish fallbacks either receive truthy
+# objects/non-empty regex matches, or fall back to the same empty string for the
+# only falsy non-null string value.
+test/test-utils/test-browser.ts:79:73  ?? → ||   # find(): LinkMatch|undefined; a found object is truthy
+test/test-utils/test-browser.ts:99:26  ?? → ||   # missing input type defaults to text; empty/invalid type follows the same successful-input path as text
+test/test-utils/test-browser.ts:121:56  ?? → ||  # textarea open-tag match is a non-empty string when present, otherwise undefined
+test/test-utils/test-browser.ts:125:65  ?? → ||  # textarea content fallback is "", so empty content and missing content both agree
+test/test-utils/test-browser.ts:135:73  ?? → ||  # option text fallback is "", so empty text and missing text both agree
+test/test-utils/test-browser.ts:140:54  ?? → ||  # select open-tag match is a non-empty string when present, otherwise undefined
+test/test-utils/test-browser.ts:150:19  ?? → ||  # submitted option tags are non-empty strings when present, otherwise undefined
+test/test-utils/test-browser.ts:249:27  ?? → ||  # button attribute capture falls back to "", so empty attrs and absent attrs agree
+test/test-utils/test-browser.ts:256:49  ?? → ||  # button value fallback is "", so empty value and absent value agree
+test/test-utils/test-browser.ts:351:58  ?? → ||  # RequestInit.method is omitted or a non-empty method string in every caller
+test/test-utils/test-browser.ts:414:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined
+src/ui/templates/admin/listing-defaults.tsx:90:19  ?? → ||  # UrlControl value: string|undefined; the only falsy-non-null string is "" which equals the "" fallback, so ?? and || coincide
+src/ui/templates/admin/listing-defaults.tsx:119:42  ?? → ||  # value?.includes(day): boolean|undefined; for boolean b, b ?? false === b || false, and undefined ?? false === undefined || false
+src/shared/booking/build-tree.ts:132:48  ?? → ||    # childrenByParentId.get(): readonly TicketListing[]|undefined — an array is always truthy
+src/shared/booking/build-tree.ts:172:62  ?? → ||    # packageQuantities.get(): a member's fixed per-package quantity is ≥1 (group_listings.quantity DEFAULT 1), never 0, so ?? and || coincide
+src/shared/booking/build-tree.ts:205:38  ?? → ||    # input.root: RootRef-minus-listing|undefined — an object literal is always truthy, so ?? and || coincide
+src/shared/booking/fold-tree.ts:157:4  ?? → ||    # childQtyField: parseNonNegativeInt returns a non-negative int or null; its only falsy result (0) already maps to 0, so ?? and || coincide
+src/shared/booking/fold-tree.ts:280:48  ?? → ||    # foldChild summed: state.quantities.get(childId) is undefined (first fold) or a positive running total, never 0, so ?? and || coincide
+src/shared/booking/fold-tree.ts:424:58  ?? → ||    # foldBookingTree parentQty: base.quantities.get() is undefined or ≥0, and a 0 takes the same `<= 0` skip, so ?? and || coincide
+src/shared/booking/fold-tree.ts:444:41  ?? → ||    # dayCount: customisableDuration is a positive day count or null, never 0, so ?? base.dayCount and || base.dayCount coincide
+src/shared/booking/capacity-tree.ts:45:66  ?? → ||    # groupIdsByListingId.get(): number[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/booking/capacity-tree.ts:47:61  ?? → ||    # demandByGroup.get(): undefined (first member) or a running per-package demand ≥1, never 0, so ?? and || coincide
+
+# v2 signed metadata (Phase 2d).
+src/shared/payment-helpers.ts:159:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+
+# Settings registry: readOnly is optional but can only be true when present, so
+# `"readOnly" in accessor && accessor.readOnly` and `... || accessor.readOnly`
+# make the same if-condition decision for every valid accessor.
+src/shared/settings/registry.ts:345:40  && → ||   # readOnly?: true; absent is falsy either way, present is true either way
+
+# --- External order widget (src/ui/client/order.ts) ----------------------------
+# This is browser DOM-construction code; many operator swaps are provably
+# equivalent. Each `= → +=` below targets a property whose value before the
+# assignment is fixed, so `x = v` and `x += v` produce the same result:
+#  * a freshly created element's `.className`/`.textContent` is always "" (DOM
+#    spec), so `"" + literal === literal`;
+#  * the boolean flags (`memoryOnly`, `dropped`, `hasVariable`) are `false`
+#    before the swapped assignment and are only ever read for truthiness, so
+#    `false + true === 1` is truthy just like `true`.
+src/ui/client/order.ts:97:28  ?? → ||    # catalogEntry(): CatalogEntry|undefined; an object is truthy, undefined and "" never occur
+src/ui/client/order.ts:136:22  = → +=    # memoryOnly: false → 1, only read for truthiness
+src/ui/client/order.ts:152:24  = → +=    # memoryOnly: false → 1, only read for truthiness
+src/ui/client/order.ts:163:22  = → +=    # memoryOnly: false → 1, only read for truthiness
+src/ui/client/order.ts:177:16  = → +=    # dropped: false → 1, only read for truthiness
+src/ui/client/order.ts:180:51  ?? → ||   # merged.get(): merged values are summed positive quantities (>0), never 0
+src/ui/client/order.ts:183:18  = → +=    # this.notice was "" before this assignment
+src/ui/client/order.ts:261:24  = → +=    # heading.textContent: fresh element, "" before
+src/ui/client/order.ts:266:18  = → +=    # p.className: fresh element, "" before
+src/ui/client/order.ts:267:20  = → +=    # p.textContent: fresh element, "" before
+src/ui/client/order.ts:276:43  = → +=    # hasVariable: false → 1, only read for truthiness
+src/ui/client/order.ts:283:22  = → +=    # total.className: fresh element, "" before
+src/ui/client/order.ts:284:24  = → +=    # total.textContent: fresh element, "" before
+src/ui/client/order.ts:289:23  = → +=    # caveat.className: fresh element, "" before
+src/ui/client/order.ts:290:25  = → +=    # caveat.textContent: fresh element, "" before
+src/ui/client/order.ts:296:24  = → +=    # empty.textContent: fresh element, "" before
+src/ui/client/order.ts:305:18  = → +=    # row.className: fresh element, "" before
+src/ui/client/order.ts:307:19  = → +=    # name.className: fresh element, "" before
+src/ui/client/order.ts:308:21  = → +=    # name.textContent: fresh element, "" before
+src/ui/client/order.ts:312:20  = → +=    # price.className: fresh element, "" before
+src/ui/client/order.ts:313:22  = → +=    # price.textContent: fresh element, "" before
+src/ui/client/order.ts:328:21  = → +=    # continue button.className: fresh element, "" before
+src/ui/client/order.ts:329:23  = → +=    # continue button.textContent: fresh element, "" before
+src/ui/client/order.ts:346:19  = → +=    # cart button.className: fresh element, "" before
+src/ui/client/order.ts:347:16  = → +=    # button.hidden: false → 1 (truthy), and render() overwrites it with count===0 immediately
+src/ui/client/order.ts:347:19  true → false  # button.hidden is overwritten by render()'s `count === 0` on the next line of the constructor
+src/ui/client/order.ts:349:18  = → +=    # count span.className: fresh element, "" before
+src/ui/client/order.ts:350:20  = → +=    # count span.textContent: fresh element, "" before
+src/ui/client/order.ts:352:20  = → +=    # label.textContent: fresh element, "" before
+src/ui/client/order.ts:361:19  = → +=    # close button.className: fresh element, "" before
+src/ui/client/order.ts:362:21  = → +=    # close button.textContent: fresh element, "" before
+src/ui/client/order.ts:372:17  = → +=    # stepper wrap.className: fresh element, "" before
+src/ui/client/order.ts:375:18  = → +=    # dec.textContent: fresh element, "" before
+src/ui/client/order.ts:379:20  = → +=    # value span.textContent: fresh element, "" before
+src/ui/client/order.ts:382:18  = → +=    # inc.textContent: fresh element, "" before
+src/ui/client/order.ts:387:21  = → +=    # remove.textContent: fresh element, "" before
+src/ui/client/order.ts:395:20  = → +=    # style.textContent: fresh element, "" before
+src/ui/client/order.ts:429:27  = → +=    # registry[origin]: undefined → a truthy string; only read for the dedup truthiness check, the live controller is the local var
+src/ui/client/order.ts:433:48  ?? → ||   # link.dataset.addListing: string|undefined; the only falsy-non-null value "" equals the "" fallback
+src/ui/client/order.ts:443:59  ?? → ||   # link.dataset.addListing: string|undefined; the only falsy-non-null value "" equals the "" fallback
+src/features/public/site-nav.ts:105:54  ?? → ||    # membersByGroup.get(): ListingWithCount[]|undefined — an array is always truthy
+src/shared/site-pages/core.ts:145:50  ?? → ||    # descendantsOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
+src/shared/site-pages/core.ts:322:43  ?? → ||    # levelOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
+
+# listing_prices sync (listing-prices.ts): `?? → ||` where the operand's only
+# falsy-non-null value equals the fallback.
+src/shared/db/listing-prices.ts:197:19  ?? → ||    # sourceRowStatements row.unit_price: number|null; the only falsy-non-null value is 0 and 0 ?? 0 === 0 || 0
+src/shared/db/listing-prices.ts:83:54  ?? → ||    # groupDayPriceStatements member.dayPrices: DayPrices|undefined — an object is always truthy, undefined→{} either way
+src/shared/db/listing-prices.ts:109:45  ?? → ||    # foldGroupDayRows result.get(): Map|undefined — a Map is always truthy
+
+# attendee entity page: `?? → ||` where the operand's only falsy-non-null
+# value equals the "" fallback.
+src/features/admin/attendee-page.ts:266:60  ?? → ||    # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
+src/features/admin/entity-pages.ts:230:28  ?? → ||    # opts.baseUrl: string|undefined; the only falsy-non-null value "" equals the "" fallback
+src/shared/db/name-registry.ts:85:51  ?? → ||    # matchName index.get(): number[]|undefined — an array is always truthy
+src/shared/db/name-registry.ts:105:20  ?? → ||    # isNameTakenAnywhere index.get(): number[]|undefined — an array is always truthy
+src/features/admin/catalog-transfer/import.ts:114:27  ?? → ||    # membershipSpec quantity: from the PositiveInt schema (≥1) or undefined — never 0, so ?? and || coincide
+src/features/admin/catalog-transfer/import.ts:161:39  ?? → ||    # validateParentEdges input.groupIds: number[]|undefined — an array is always truthy
+src/features/admin/catalog-transfer/schema.ts:158:18  ?? → ||    # formatTransferIssues flat.root: string[]|undefined — an array is always truthy
+src/features/admin/catalog-transfer/schema.ts:159:34  ?? → ||    # formatTransferIssues flat.nested: object|undefined — an object is always truthy
+
+# Listing business logic (listings-actions.ts) — optional-field defaults where the
+# fallback equals the only falsy-non-null value, or the operand is always truthy.
+src/shared/listings-actions.ts:57:36  ?? → ||    # validateMaxPrice unitPrice: number|undefined, 0 ?? 0 === 0 || 0
+src/shared/listings-actions.ts:107:46  ?? → ||   # canPayMore: boolean|undefined, only falsy-non-null is false === fallback
+src/shared/listings-actions.ts:108:39  ?? → ||   # groupIds: number[]|undefined — an array is always truthy
+src/shared/listings-actions.ts:118:24  ?? → ||   # listingType: "standard"|"daily"|undefined — never "", so ?? and || coincide
+src/shared/listings-actions.ts:119:29  ?? → ||   # customisableDays: boolean|undefined, only falsy-non-null is false === fallback
+src/shared/listings-actions.ts:144:55  ?? → ||   # durationDays ?? 1 then normalizeDurationDays: normalize(0)===normalize(1)===1
+src/shared/listings-actions.ts:145:45  ?? → ||   # dayPrices: DayPrices|undefined — an object is always truthy
+src/shared/listings-actions.ts:155:27  ?? → ||   # monthsPerUnit: number|undefined, 0 ?? 0 === 0 || 0
+src/shared/listings-actions.ts:158:56  ?? → ||   # initialSiteMonths: number|undefined, 0 ?? 0 === 0 || 0
+src/shared/listings-actions.ts:171:44  ?? → ||   # listingInputToEdge customisableDays: only falsy-non-null false === fallback
+src/shared/listings-actions.ts:172:30  ?? → ||   # listingInputToEdge dayPrices: object always truthy
+src/shared/listings-actions.ts:173:58  ?? → ||   # listingInputToEdge durationDays ?? 1 then normalize: normalize(0)===normalize(1)===1
+src/shared/listings-actions.ts:175:34  ?? → ||   # listingInputToEdge listingType: never "", so ?? and || coincide
+src/shared/listings-actions.ts:176:39  ?? → ||   # listingInputToEdge monthsPerUnit: 0 ?? 0 === 0 || 0
+src/shared/listings-actions.ts:287:19  ?? → ||   # orphanedAddOnAfterChange groupIds: number[]|undefined — an array is always truthy
+
+# Admin group routes (features/admin/groups.ts) — object/Map/0-fallback nullish
+# coalescing where ?? and || always agree.
+src/features/admin/groups.ts:242:47  ?? → ||   # parseMemberDayPrices byListing.get(): DayPrices|undefined — an object is always truthy
+src/features/admin/groups.ts:261:51  ?? → ||   # parsePackageMembers dayPricesByListing.get(): DayPrices|undefined — an object is always truthy
+src/features/admin/groups.ts:278:37  ?? → ||   # sharedGroupFields max_attendees: number|undefined, 0 ?? 0 === 0 || 0
+src/features/admin/groups.ts:432:55  ?? → ||   # handleGroupEditGet dayPrices.get(): Map|undefined — a Map is always truthy
+src/shared/listings-actions.ts:120:17  ?? → ||   # validateListingGroup existingId ?? 0: a listing id is ≥1 or undefined, never 0, so ?? and || coincide
+
+# attendee merge/refund route: mutants with no observable effect.
+src/features/admin/attendee-refunds.ts:172:24  ?? → ||    # flash.error: string|undefined from applyFlash; a refund error flash is always a non-empty message, so the only falsy-non-null value "" never occurs and ?? / || agree
+
+# attendee columns Listings/answers rework
+src/shared/columns/attendee-columns.ts:133:67  ?? → ||    # getAnswerDisplay attendeeAnswerMap.get(): number[]|undefined — an array is always truthy, so ?? and || coincide
+src/shared/columns/attendee-columns.ts:63:39  || → ??    # date column row.attendee.date: string|null; null gives "" under both operators, and "" is the only falsy-non-null string, which also gives "" under both
+src/shared/columns/attendee-columns.ts:75:36  || → ??    # email column row.attendee.email: string (never null/undefined); "" is the only falsy value and is also the fallback, so || and ?? agree for every possible value
+src/ui/templates/attendee-table.tsx:146:39  ?? → ||    # compareAttendeeRows listingA = a.listings[0]?.name ?? "": string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/ui/templates/attendee-table.tsx:147:39  ?? → ||    # compareAttendeeRows listingB = b.listings[0]?.name ?? "": string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+
+# --- Rich markdown editor (src/ui/client/admin/markdown-editor*.ts) ------------
+# Browser DOM-construction code, same class of equivalents as order.ts above:
+# `= → +=` on a freshly created element's property whose value before the
+# assignment is "" (className, src), or a boolean IDL attribute whose setter
+# coerces the truthy `false + true === 1` to the same true.
+src/ui/client/admin/markdown-editor-loader.ts:24:13  = → +=    # script.src: fresh element, "" before, "" + url === url
+src/ui/client/admin/markdown-editor-loader.ts:25:68  ?? → ||    # adminSrc?.slice(): string|undefined; the only falsy-non-null value "" equals the "" fallback
+src/ui/client/admin/markdown-editor-loader.ts:26:15  = → +=    # script.defer: false + true === 1, boolean IDL setter coerces truthy → true
+src/ui/client/admin/markdown-editor.ts:49:18  = → +=    # mount.className: fresh element, "" before
+src/ui/client/admin/markdown-editor.ts:94:19  = → +=    # toggle.className: fresh element, "" before
+src/ui/client/admin/markdown-editor-toolbar.ts:164:16  = → +=    # dom.className: fresh element, "" before
+src/ui/client/admin/markdown-editor-toolbar.ts:168:21  = → +=    # button.className: fresh element, "" before
+src/ui/client/admin/markdown-editor-toolbar.ts:169:23  = → +=    # button.textContent: fresh element, "" before
+src/ui/client/admin/markdown-editor-toolbar.ts:170:17  = → +=    # button.title: fresh element, "" before
+# The ordered-list input rule's `match[1]` vs `match[0]`: the regex is
+# /^(\d+)\.\s$/ so match[0] is always "N. " and Number("N. ") === Number("N")
+# (Number trims whitespace and "N." is the same decimal) — no typed input can
+# tell them apart.
+src/ui/client/admin/markdown-editor-setup.ts:107:25  1 → 0    # Number("N. ") === Number("N") for every ordered-list match
+
+# resize.ts writes each output pixel's channels exactly once into a freshly
+# zeroed Uint8ClampedArray, so `out[o] = x` and `out[o] += x` are identical
+# (0 + x === x). No input can revisit an index, so no test can distinguish them.
+src/shared/images/resize.ts:74:15  = → +=    # out[o] = R into fresh-zeroed array; written once
+src/shared/images/resize.ts:75:19  = → +=    # out[o+1] = G into fresh-zeroed array; written once
+src/shared/images/resize.ts:76:19  = → +=    # out[o+2] = B into fresh-zeroed array; written once
+src/shared/images/resize.ts:78:17  = → +=    # out[o+3] = A into fresh-zeroed array; written once
+
+# codecs.ts explicit codec init is EDGE-critical but unobservable in the Deno
+# mutation runtime: jSquash's decode/encode/init self-initialize via their own
+# fetch/fs wasm loader here, so removing our inlined-wasm init still yields
+# working codecs and no test can tell the difference. On the Bunny edge bundle
+# (no fetch/fs) that same removal breaks all image transcoding — so these are
+# not dead code, only untestable in-process. See src/shared/images/codecs.ts.
+src/shared/images/codecs.ts:52:3  await Promise.all([ pngInit(pngMod), jp… → (removed)   # edge-only codec init; jSquash self-inits in Deno
+src/shared/images/codecs.ts:75:3  await ensureCodecs(); → (removed)   # decodeImage edge-only init; jSquash self-inits in Deno
+src/shared/images/codecs.ts:84:3  await ensureCodecs(); → (removed)   # encodeWebp edge-only init; jSquash self-inits in Deno
+
+# modifiers.ts — several returns feed truthiness checks or the router's
+# `?? notFoundResponse()` fallthrough, so null/undefined and a 404-vs-undefined
+# return are indistinguishable through every reachable caller.
+src/features/admin/modifiers.ts:207:69  return null → return undefined    # childAddOnInputError "no error"; caller uses truthiness, so null and undefined agree
+src/features/admin/modifiers.ts:287:14  name → ""    # modifiersResource.nameField; the CRUD delete verifies the name via cfg.getName (owner-crud.ts), never resource.verifyName, so nameField is unobservable
+src/features/admin/modifiers.ts:324:13  groups → ""    # ScopeLinksForm only compares links.kind === "listings"; "groups" and "" both take the else branch
+src/features/admin/modifiers.ts:329:10  return null → return undefined    # scopeLinksFor "no links"; edit template renders via `links && …` truthiness, so null and undefined agree
+src/features/admin/modifiers.ts:338:45  return null → return undefined    # answerLinksFor "no links"; rendered via truthiness, so null and undefined agree
+src/features/admin/modifiers.ts:357:46  return Promise.resolve(undefined) → return undefined    # non-owner ledger; awaited in Promise.all where undefined and Promise.resolve(undefined) both resolve to undefined
+src/features/admin/modifiers.ts:395:27  return notFoundResponse() → return undefined    # a handler returning undefined hits routeMainApp's `?? notFoundResponse()` → the same 404
+src/features/admin/modifiers.ts:411:38  return notFoundResponse() → return undefined    # same as 395: undefined → routeMainApp `?? notFoundResponse()` → 404
+src/features/admin/modifiers.ts:521:10  return Promise.resolve() → return undefined    # whole-order modifier writes no links; awaited by caller, so undefined and Promise.resolve() agree
+
+# group-page-data: groupHasPaidListing's result is consumed only in boolean
+# context (decryptAttendees's paidListing flag and the revenue-row gate), so a
+# false vs undefined early-return is indistinguishable; the two `?? →  ||` are
+# over operands whose only falsy-non-null value coincides with the fallback.
+src/features/admin/group-page-data.ts:56:33  return false → return undefined   # hasPaidListing used only as a boolean; undefined and false coincide
+src/features/admin/group-page-data.ts:61:44  ?? → ||    # (row.package_price ?? 0): number|null, only falsy-non-null is 0 and 0 ?? 0 === 0 || 0
+src/features/admin/group-page-data.ts:182:49  ?? → ||   # dayPrices.get(): DayPrices (a Map) | undefined — a Map is always truthy
+
+# questions.ts — notFoundResponse() returns hit routeMainApp's
+# `?? notFoundResponse()` fallthrough (undefined → the same 404); the two form
+# `id`s feed only CSRF/flash-form coordination (never the rendered CsrfForm id,
+# which is "new-question").
+src/features/admin/questions.ts:114:7  questionText → ""    # defineForm config.id: only feeds CSRF/flash-form coordination; the page's CsrfForm uses id="new-question", so this value is never rendered observably
+src/features/admin/questions.ts:129:7  answerText → ""    # answerTextForm config.id: same as questionText — unobservable form-coordination id
+src/features/admin/questions.ts:219:27  return notFoundResponse() → return undefined    # undefined hits routeMainApp's `?? notFoundResponse()` → the same 404
+src/features/admin/questions.ts:238:25  return notFoundResponse() → return undefined    # same: undefined → routeMainApp `?? notFoundResponse()` → 404
+src/features/admin/questions.ts:263:27  return notFoundResponse() → return undefined    # same: undefined → routeMainApp `?? notFoundResponse()` → 404
+src/features/admin/questions.ts:324:27  return notFoundResponse() → return undefined    # same: undefined → routeMainApp `?? notFoundResponse()` → 404
+src/features/admin/questions.ts:559:24  return notFoundResponse() → return undefined    # same: undefined → routeMainApp `?? notFoundResponse()` → 404
+
+# buildAssetPathsModule embed-script gate `pathConst === "EMBED_JS_PATH"`:
+# pathConst is the string 4th element of an AssetDef tuple compared against a
+# string literal, so === and == never disagree — no null/undefined/number
+# operand exists to coerce.
+scripts/edge-bundle-modules.ts:40:36  === → ==
+
+# sort-listings.ts's tier constants (0/1/2 for no-date-standard/dated-
+# standard/daily) and the "date === ''" empty-date sentinel: Array.sort only
+# ever branches on tierA-tierB's SIGN (never its magnitude), so shifting the
+# daily tier's value, or shifting a misclassified tier by a constant offset,
+# preserves the same relative ordering. Separately, misclassifying a no-date
+# listing as tier 1 (or -1) is unobservable because whichever comparator path
+# it then takes still produces the same result: compareDatedStandard's
+# `"".localeCompare(realDate)` is always negative (empty sorts first, same as
+# the intended tier-0-before-tier-1 rule), and two misclassified no-date
+# items tie on date and fall through to the same name comparison the real
+# tier-0 branch would have used; a same-tier compare that lands in
+# compareDaily instead (via a tier value matching neither 0 nor 1) hits its
+# own non-daily fallback-to-name-comparison, again the same result. Several
+# entries below only exist as mutants under --exhaustive (extra number-literal
+# offsets, and the ternary's "consequent/alternate only" variants); the
+# ignore-list checker cross-checks staleness against the full --exhaustive
+# mutant set regardless of which mode a given run used, so they stay valid
+# (not "stale") even under the default-mode precommit gate.
+src/shared/sort-listings.ts:18:48  2 → 3    # daily tier constant; only used via tierA-tierB's sign, never compared for equality
+src/shared/sort-listings.ts:19:10  ?: → alternate only   # listingTier always-1: masked by compareDatedStandard's ""-sorts-first + same-tier name fallback, see block comment above
+src/shared/sort-listings.ts:19:27   → "mutated"   # same effect as "always 1" above, for any date value that isn't literally the string "mutated"
+src/shared/sort-listings.ts:19:32  0 → 1    # same effect as "always 1" above
+src/shared/sort-listings.ts:19:32  0 → -1   # tier -1 preserves sign vs 1/2, and same-tier dispatch falls through to compareDaily's non-daily name fallback — same result
+src/shared/sort-listings.ts:59:19  0 → -1   # tierA===-1 never matches a real tier; tier-0 same-tier compares fall through to compareDaily's non-daily fallback, which returns the same name comparison
+
+# sort-listings.ts's compareDaily: nextDates.get() is typed string|null (never
+# undefined in practice — every daily listing gets an explicit entry — and
+# getNextBookableDate never returns ""), so `?? null` and `|| null` agree,
+# and every `=== null` check has no undefined operand to disagree with `==`
+# (the `=== → ==` entries below are --exhaustive-only mutants; see note above).
+src/shared/sort-listings.ts:42:36  ?? → ||   # nextDates.get(a.id): string|null, never a falsy-non-null string
+src/shared/sort-listings.ts:43:36  ?? → ||   # nextDates.get(b.id): string|null, never a falsy-non-null string
+src/shared/sort-listings.ts:44:12  === → ==   # dateA is string|null (no undefined), so === and == agree on null
+src/shared/sort-listings.ts:44:30  === → ==   # dateB is string|null (no undefined), so === and == agree on null
+src/shared/sort-listings.ts:45:12  === → ==   # dateA is string|null (no undefined), so === and == agree on null
+src/shared/sort-listings.ts:46:12  === → ==   # dateB is string|null (no undefined), so === and == agree on null
+
+# sort-listings.ts's compareDaily return values on the dateA===null branch:
+# confirmed by direct experiment that Array.sort's swap decision only checks
+# whether a comparator result is strictly negative — 0, a positive number, or
+# NaN (from `return undefined`) are all treated identically ("don't swap").
+# Since the mirrored `dateB === null` branch independently and correctly
+# returns -1 for the reverse pairing, no input can ever make this branch's
+# non-negative return value observably differ from the intended `1` (the
+# magnitude-only `1 → 2` entries below are --exhaustive-only; see note above).
+src/shared/sort-listings.ts:45:30  return 1 → return undefined   # non-negative result; see block comment above
+src/shared/sort-listings.ts:45:30  1 → 0   # non-negative result; see block comment above
+src/shared/sort-listings.ts:45:30  1 → 2   # sign-preserving magnitude change; see block comment above
+src/shared/sort-listings.ts:46:31  1 → 2   # sign-preserving magnitude change on `return -1`; only the sign is ever observed
+
+# session-ledger.ts's bookingLedgerDisposition: ownerAttendeeId is number|null
+# at every call site (a literal null, or attendeeIdByLedgerEventGroup's typed
+# Promise<number|null> return) — no undefined case exists, so === and == agree.
+src/shared/session-ledger.ts:48:22  === → ==   # ownerAttendeeId is number|null (no undefined), so === and == agree on null
+
+# orphan-retention.ts's Number.parseInt(safeValue, 10) radix: safeValue is
+# gated by isOrphanRetentionValue to always be one of ORPHAN_RETENTION_OPTIONS'
+# values or the DEFAULT_ORPHAN_RETENTION fallback — a closed set of plain
+# decimal digit strings ("0","182","365",...) that never start with "0x"/"0o"/
+# "0b". Radix 0 (auto-detect) and radix 10 agree on every value in that set
+# (confirmed directly), so no input safeValue can ever take distinguishes them.
+src/shared/orphan-retention.ts:61:43  10 → 0   # safeValue is a closed set of plain decimal strings; radix 0 and 10 agree on all of them
+
+# listing-templates.ts's matchesSignature is a private helper consumed only as
+# an Array.prototype.find() predicate, which coerces its result with
+# ToBoolean rather than comparing strictly to `true`/`false` — so an early
+# `return false` becoming `return undefined` is unobservable through
+# inferTemplate (the only caller) for any input, even though the exhaustive
+# 16-combo dimension table already covers every reachable production case.
+src/shared/listing-templates.ts:114:12  return false → return undefined   # find()'s predicate only checks truthiness; undefined and false agree
+src/shared/listing-templates.ts:121:12  return false → return undefined   # find()'s predicate only checks truthiness; undefined and false agree
+src/shared/listing-templates.ts:122:60  return false → return undefined   # find()'s predicate only checks truthiness; undefined and false agree
+src/shared/listing-templates.ts:123:54  return false → return undefined   # find()'s predicate only checks truthiness; undefined and false agree
+src/shared/listing-templates.ts:132:4  ?? → ||   # LISTING_TEMPLATES.find(): ListingTemplate|undefined — an object is always truthy, so ?? and || agree
+
+# bulk-replace.ts's formatIsoForPreview 24:00→00:00 fix-up: this guards against
+# an ICU/V8 midnight-formatting quirk (`toLocaleString` with hour12:false
+# rendering exact local midnight as "24:00" instead of rolling to the next
+# day's "00:00") that may occur on the Bunny edge runtime's ICU build. Swept
+# many timezone/date combinations (including a DST transition) against this
+# Deno runtime's ICU and never observed "24:" in the output — the regex this
+# replacement string feeds never matches here, so the replacement's own
+# content is unobservable in this test environment. Same class as
+# src/shared/images/codecs.ts's edge-only codec init below.
+src/shared/bulk-replace.ts:103:56  $1 00: → ""   # this runtime's ICU never renders local midnight as "24:00", so the regex this feeds never matches
+src/shared/bulk-replace.ts:103:56  $1 00: → "$1 00: mutated"   # same as above
+
+# booking/model.ts's childHasStartForDays predicate: `parentDates === null`
+# is checked on a `ReadonlySet<string> | null` (no undefined case), so ===
+# and == agree on null. (The neighboring `||` is NOT equivalent to `??` —
+# its left operand can be the boolean `false`, a defined-but-falsy value,
+# which `??` would return as-is instead of evaluating `.has(date)`; a test
+# covers that case directly.)
+src/shared/booking/model.ts:53:19  === → ==   # parentDates is ReadonlySet<string>|null (no undefined), so === and == agree on null
+
+# childHasDateOrStockForDays' `days ?? 1` fallback: normalizeDurationDays
+# (called downstream in isBookingRangeValid) clamps any non-finite or
+# sub-1 value up to 1, so `1`, `0`, and `-1` all normalize identically —
+# and `days || 1` reaches the same clamp for every falsy `days` (null, 0,
+# NaN), agreeing with `days ?? 1` for every value the type permits.
+src/shared/booking/model.ts:66:41  ?? → ||   # every falsy days (null/0/NaN) clamps to 1 downstream either way
+src/shared/booking/model.ts:66:45  1 → 0   # normalizeDurationDays clamps 0 up to 1 anyway
+src/shared/booking/model.ts:66:45  1 → -1   # normalizeDurationDays clamps negatives up to 1 anyway
+
+# childHasPriceForDays: dayPriceFor returns number|null (no undefined), so
+# !== and != agree on null.
+src/shared/booking/model.ts:74:37  !== → !=   # dayPriceFor(...): number|null (no undefined), so !== and != agree on null
+
+# bookableChildIds: `childrenByParentId?.values()` is either undefined or a
+# live MapIterator, and iterator objects are always truthy — never a
+# falsy-but-defined value — so ?? and || agree.
+src/shared/booking/model.ts:125:38  ?? → ||   # Map#values() is undefined or a truthy iterator object, never falsy-but-defined
+
+# dayCountsEveryListingSupports' final `.sort((a, b) => a - b)`: the array it
+# sorts is built by spreading `first` (a Set built from availableDayCounts,
+# which already returns its own ascending sort) and then `.filter(...)`ing
+# it — filtering a sorted array preserves order, so the input to this sort
+# is provably always already ascending. Confirmed empirically that engines
+# leave an already-sorted array untouched regardless of comparator sign
+# (`[2,3].sort((a,b)=>a+b)` stays `[2, 3]`), so no comparator mutation here
+# is observable for any reachable input.
+src/shared/booking/model.ts:226:22  - → +   # input is always pre-sorted ascending by construction; comparator is never exercised on unsorted data
+src/shared/booking/model.ts:226:22  - → *   # same as above
+src/shared/booking/model.ts:226:22  - → /   # same as above
+
+# keepDayCountsChildrenSupport: `dayCountsChildSupports(child) ?? current`
+# — dayCountsChildSupports returns number[]|null, and arrays are always
+# truthy in JS even when empty, so ?? and || agree for every possible
+# return value.
+src/shared/booking/model.ts:255:49  ?? → ||   # dayCountsChildSupports(): number[]|null, and an array is truthy even when empty
+
+# package-cap.ts's groupIdsFor: `ctx.groupIdsByListingId.get(...) ?? []` — a
+# Map#get() on a ReadonlyMap<number, number[]> is either undefined or a
+# truthy array (even an empty array is truthy), so ?? and || agree.
+src/shared/booking/package-cap.ts:60:63  ?? → ||   # groupIdsByListingId.get(): number[]|undefined, and an array is truthy even when empty
+
+# smallestLimitedGroupFor: `limitedGroupsFor(...).toSorted(...)[0] ?? null`
+# — array-index access yields the element (an object, always truthy) or
+# undefined for an empty array, so ?? and || agree.
+src/shared/booking/package-cap.ts:150:7  ?? → ||   # array[0]: object|undefined — an object is always truthy, never falsy-but-defined
+
+# childLimitPart: `limitedGroup === null` — smallestLimitedGroupFor returns
+# `{groupId,remaining} | null` (no undefined case), so === and == agree.
+src/shared/booking/package-cap.ts:163:22  === → ==   # limitedGroup: {groupId,remaining}|null (no undefined), so === and == agree on null
+
+# parentGroupChildLimit: `shared.length === 0`, mutated to `=== -1` — array
+# length is never negative, so this condition is always false either way;
+# the fallback computation (Math.min() over an empty spread is +Infinity,
+# ticketsThatFitInPool(Infinity,2) is Infinity, sumOf of [] is 0, and
+# Math.min(Infinity,0) is 0) coincidentally reproduces the same `0` the
+# early return gives for a genuinely empty `shared`, so no input can ever
+# distinguish the two paths' output.
+src/shared/booking/package-cap.ts:170:25  0 → -1   # shared.length is never negative; the empty-array fallback path already returns 0 too
+
+# cache-registry.ts's setsIntersect is private and only ever consumed
+# negated (`!setsIntersect(...)`) inside invalidateCachesForWrite — `!false`
+# and `!undefined` both coerce to `true`, so no caller (internal or through
+# the public API) can ever observe the difference between the two return
+# values.
+src/shared/cache-registry.ts:69:10  return false → return undefined   # only ever consumed via `!setsIntersect(...)`; !false and !undefined agree
+
+# registerTableInvalidation: `invalidatorsByTable.get(table) ?? new Set()`
+# — Map#get() is undefined or a Set object, and a Set is always truthy
+# (even when empty), so ?? and || agree.
+src/shared/cache-registry.ts:87:47  ?? → ||   # invalidatorsByTable.get(): Set<Registration>|undefined — a Set is always truthy, even when empty
+
+# invalidateCachesForTable passes a literal `verb: "insert"` through to
+# invalidateCachesForWrite, whose only branch on verb is `=== "update"`.
+# Any string that isn't literally "update" takes the same (ungated) path,
+# and the verb is never otherwise observable (invalidators are called with
+# no arguments), so mutating this literal to any other non-"update" string
+# is unobservable.
+src/shared/cache-registry.ts:115:63  insert → ""   # invalidateCachesForWrite only branches on === "update"; any other literal behaves identically and is never otherwise observable
+src/shared/cache-registry.ts:115:63  insert → "insert mutated"   # same as above
+
+# durationsCompatible: `dayPriceFor(child, ...) !== null` — dayPriceFor
+# returns number|null (no undefined case), so !== and != agree on null.
+src/shared/listing-parents-rules.ts:62:59  !== → !=   # dayPriceFor(): number|null (no undefined), so !== and != agree on null
+
+# band-name-generator.ts's fixArticles: the "An <consonant> → A <consonant>"
+# correction has no template or pool word that ever produces a literal "An"
+# token to correct — confirmed empirically over 20,000 generated descriptions
+# with zero matches for /\bAn [^aeiouAEIOU]/ — so this replacement's argument
+# is unobservable via any input the public API can produce. (The mirrored
+# "A <vowel> → An <vowel>" correction on the next line IS exercised — several
+# BUILDING_STATES/BAND_ADJECTIVES entries start with a vowel — and is covered
+# by dedicated tests instead of being listed here.)
+src/shared/band-name-generator.ts:107:39  A $1 → ""   # no template/pool ever produces a literal "An" token for this correction to act on
+src/shared/band-name-generator.ts:107:39  A $1 → "A $1 mutated"   # same as above

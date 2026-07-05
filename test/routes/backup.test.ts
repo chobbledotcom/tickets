@@ -12,6 +12,7 @@ import {
   describeWithEnv,
   installUrlHandler,
   mockRequest,
+  TEST_STORAGE_ZONE,
   testCookie,
   withFetchMock,
   withLocalStorageEnabled,
@@ -56,26 +57,24 @@ describeWithEnv("backup routes", { db: true }, () => {
     test("loads backup page when stale cleanup listing fails", async () => {
       const cookie = await testCookie();
 
-      await runWithStorageConfig(
-        { zoneKey: "testkey", zoneName: "testzone" },
-        () =>
-          withFetchMock(async (originalFetch) => {
-            let calls = 0;
-            installUrlHandler(originalFetch, (url) => {
-              if (!url.includes("storage.bunnycdn.com")) return null;
-              calls += 1;
-              return calls === 1
-                ? Promise.reject(new Error("list failed"))
-                : Promise.resolve(Response.json([]));
-            });
+      await runWithStorageConfig(TEST_STORAGE_ZONE, () =>
+        withFetchMock(async (originalFetch) => {
+          let calls = 0;
+          installUrlHandler(originalFetch, (url) => {
+            if (!url.includes("storage.bunnycdn.com")) return null;
+            calls += 1;
+            return calls === 1
+              ? Promise.reject(new Error("list failed"))
+              : Promise.resolve(Response.json([]));
+          });
 
-            const response = await handleRequest(
-              mockRequest("/admin/backup", { headers: { cookie } }),
-            );
+          const response = await handleRequest(
+            mockRequest("/admin/backup", { headers: { cookie } }),
+          );
 
-            expect(response.status).toBe(200);
-            expect(await response.text()).toContain("Backup");
-          }),
+          expect(response.status).toBe(200);
+          expect(await response.text()).toContain("Backup");
+        }),
       );
     });
   });

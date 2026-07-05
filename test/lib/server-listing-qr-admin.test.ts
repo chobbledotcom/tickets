@@ -29,6 +29,37 @@ const extractToken = (html: string): string | null => {
   return match ? decodeURIComponent(match[1]!) : null;
 };
 
+const extractAndVerifyToken = async (html: string, slug: string) => {
+  const token = extractToken(html);
+  expect(token).not.toBeNull();
+  const payload = await verifyQrBookToken(slug, token!);
+  return { payload, token };
+};
+
+/** Parent with a Monday-only child: computes bookable start dates for each.
+ * Shared by two tests that exercise the child-date-constrained QR flow. */
+const setupParentWithMondayChild = async () => {
+  const { setChildIds } = await import("#shared/db/listing-parents.ts");
+  const { getBookableStartDates } = await import("#shared/dates.ts");
+  const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+  const { getListingWithCount } = await import("#shared/db/listings.ts");
+  const parent = await createDailyTestListing({ unitPrice: 500 });
+  const child = await createDailyTestListing({
+    bookableDays: ["Monday"],
+    unitPrice: 500,
+  });
+  await setChildIds(parent.id, [child.id]);
+  const holidays = await getActiveHolidays();
+  const parentDates = getBookableStartDates(
+    (await getListingWithCount(parent.id))!,
+    holidays,
+  );
+  const childDates = new Set(
+    getBookableStartDates((await getListingWithCount(child.id))!, holidays),
+  );
+  return { child, childDates, parent, parentDates };
+};
+
 describeWithEnv("admin listing-qr route", { db: true }, () => {
   describe("GET /admin/listing/:id/qr", () => {
     testRequiresAuth("/admin/listing/1/qr", {
@@ -38,7 +69,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
     });
 
     test("returns 404 when the listing does not exist", async () => {
-      const { response } = await adminGet("/admin/listing/99999/qr");
+      const response = await adminGet("/admin/listing/99999/qr");
       expect(response.status).toBe(404);
       response.body?.cancel();
     });
@@ -48,7 +79,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
         maxAttendees: 10,
         unitPrice: 500,
       });
-      const { response } = await adminGet(`/admin/listing/${listing.id}/qr`);
+      const response = await adminGet(`/admin/listing/${listing.id}/qr`);
       expect(response.status).toBe(200);
       const body = await response.text();
       expect(body).toContain('name="customer_name"');
@@ -68,19 +99,15 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
         maxAttendees: 10,
         unitPrice: 500,
       });
-      const { response: r1 } = await adminGet(
-        `/admin/listing/${noFields.id}/qr`,
-      );
-      const { response: r2 } = await adminGet(
-        `/admin/listing/${withFields.id}/qr`,
-      );
+      const r1 = await adminGet(`/admin/listing/${noFields.id}/qr`);
+      const r2 = await adminGet(`/admin/listing/${withFields.id}/qr`);
       expect(await r1.text()).toContain('class="success-text"');
       expect(await r2.text()).toContain('class="danger-text"');
     });
 
     test("shows a date selector for daily listings", async () => {
       const listing = await createDailyTestListing({ unitPrice: 500 });
-      const { response } = await adminGet(`/admin/listing/${listing.id}/qr`);
+      const response = await adminGet(`/admin/listing/${listing.id}/qr`);
       const body = await response.text();
       expect(body).toContain('name="date"');
     });
@@ -93,7 +120,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
         maximumDaysAfter: 60,
         minimumDaysBefore: 0,
       });
-      const { response } = await adminGet(`/admin/listing/${listing.id}/qr`);
+      const response = await adminGet(`/admin/listing/${listing.id}/qr`);
       const body = await response.text();
       expect(body).toContain('name="date"');
       // A date one day before the window edge supports a single day even though
@@ -101,12 +128,28 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
       expect(body).toContain(addDays(todayInTz("UTC"), 60));
     });
 
+    test("offers only child-servable dates for a daily parent", async () => {
+      // The parent is bookable every weekday, but its only (daily) child is
+      // bookable only on Mondays. The QR form's date choices must be constrained
+      // to dates a required child can serve, so an admin can't mint a QR for a
+      // date the (child-constrained) scanned booking form would reject.
+      const { parent, parentDates, childDates } =
+        await setupParentWithMondayChild();
+      const servable = parentDates.find((d) => childDates.has(d))!;
+      const unservable = parentDates.find((d) => !childDates.has(d))!;
+
+      const response = await adminGet(`/admin/listing/${parent.id}/qr`);
+      const body = await response.text();
+      expect(body).toContain(`value="${servable}"`);
+      expect(body).not.toContain(`value="${unservable}"`);
+    });
+
     test("omits the date selector for standard listings", async () => {
       const listing = await createTestListing({
         maxAttendees: 10,
         unitPrice: 500,
       });
-      const { response } = await adminGet(`/admin/listing/${listing.id}/qr`);
+      const response = await adminGet(`/admin/listing/${listing.id}/qr`);
       const body = await response.text();
       expect(body).not.toContain('name="date"');
     });
@@ -175,6 +218,49 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
       expect(body).toContain("Date is required");
     });
 
+    test("returns 404 when the listing does not exist", async () => {
+      const { response } = await adminFormPost("/admin/listing/99999/qr", {
+        quantity: "1",
+      });
+      expect(response.status).toBe(404);
+      response.body?.cancel();
+    });
+
+    test("accepts a valid daily date and signs a token", async () => {
+      // A daily listing's submitted date must be one of its bookable dates; a
+      // valid one passes and a token is generated (covers the date-allowed path).
+      const listing = await createDailyTestListing({ unitPrice: 500 });
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const date = getBookableStartDates(
+        (await getListingWithCount(listing.id))!,
+        await getActiveHolidays(),
+      )[0]!;
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/qr`,
+        { customer_name: "Ada", date, quantity: "1", value: "5.00" },
+      );
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      expect(body).toContain("/qr-book?t=");
+    });
+
+    test("rejects a daily date no required child can serve", async () => {
+      // Posting a raw date the dropdown wouldn't offer (a date no required child
+      // can serve) is rejected by the validator, not just hidden from the form.
+      const { parent, parentDates, childDates } =
+        await setupParentWithMondayChild();
+      const unservable = parentDates.find((d) => !childDates.has(d))!;
+      const { response } = await adminFormPost(
+        `/admin/listing/${parent.id}/qr`,
+        { customer_name: "Ada", date: unservable, quantity: "1" },
+      );
+      const body = await response.text();
+      expect(body).toContain("Please select a valid date");
+      expect(body).not.toContain("/qr-book?t=");
+    });
+
     test("renders a validation error for pay-more price below minimum", async () => {
       const listing = await createTestListing({
         canPayMore: true,
@@ -228,9 +314,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
         },
       );
       const body = await response.text();
-      const token = extractToken(body);
-      expect(token).not.toBeNull();
-      const payload = await verifyQrBookToken(listing.slug, token!);
+      const { payload } = await extractAndVerifyToken(body, listing.slug);
       expect(payload).not.toBeNull();
       expect(payload!.n).toBe("Ada Lovelace");
       expect(payload!.v).toBe(1250);
@@ -250,9 +334,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
       );
       expect(response.status).toBe(200);
       const body = await response.text();
-      const token = extractToken(body);
-      expect(token).not.toBeNull();
-      const payload = await verifyQrBookToken(listing.slug, token!);
+      const { payload } = await extractAndVerifyToken(body, listing.slug);
       expect(payload!.n).toBe("");
       expect(payload!.q).toBe(1);
       expect(payload!.v).toBe(-1);
@@ -280,7 +362,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
     });
 
     test("returns 404 when the listing does not exist", async () => {
-      const { response } = await adminGet(
+      const response = await adminGet(
         "/admin/listing/99999/qr.json?quantity=1",
       );
       expect(response.status).toBe(404);
@@ -293,7 +375,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
         maxQuantity: 5,
         unitPrice: 500,
       });
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/listing/${listing.id}/qr.json?customer_name=Ada&value=7.50&quantity=2`,
       );
       expect(response.status).toBe(200);
@@ -322,7 +404,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
         maxQuantity: 2,
         unitPrice: 500,
       });
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/listing/${listing.id}/qr.json?quantity=99`,
       );
       expect(response.status).toBe(400);
@@ -346,8 +428,8 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
       const second = await adminGet(
         `/admin/listing/${listing.id}/qr.json?customer_name=Ada&value=5.00&quantity=1`,
       );
-      const a = (await first.response.json()) as { url: string };
-      const b = (await second.response.json()) as { url: string };
+      const a = (await first.json()) as { url: string };
+      const b = (await second.json()) as { url: string };
       expect(a.url).not.toBe(b.url);
     });
   });

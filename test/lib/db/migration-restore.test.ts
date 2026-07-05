@@ -16,7 +16,7 @@ import {
   SCHEMA_HASH,
   type SchemaRequirement,
 } from "#shared/db/migrations.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv, indexExists } from "#test-utils";
 import {
   downgradeListingDomainToLegacyNames,
   seedPreDropLedgerColumns,
@@ -42,20 +42,35 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
     return new Set(result.rows.map((row) => String(row.name)));
   };
 
-  const indexExists = async (name: string): Promise<boolean> => {
-    const result = await getDb().execute({
-      args: [name],
-      sql: "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?",
-    });
-    return result.rows.length > 0;
-  };
-
   const triggerExists = async (name: string): Promise<boolean> => {
     const result = await getDb().execute({
       args: [name],
       sql: "SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?",
     });
     return result.rows.length > 0;
+  };
+
+  // Explicitly-created indexes (sql IS NOT NULL excludes the auto-indexes backing
+  // UNIQUE/PK constraints) on `table` that include `column` — possibly declared
+  // by a LATER migration than the one that added the column. SQLite refuses
+  // DROP COLUMN while any index references it, so the restore drops these first.
+  const indexesReferencingColumn = async (
+    table: string,
+    column: string,
+  ): Promise<string[]> => {
+    const indexes = await getDb().execute({
+      args: [table],
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL",
+    });
+    const names: string[] = [];
+    for (const row of indexes.rows) {
+      const name = String(row.name);
+      const cols = await getDb().execute(
+        `SELECT name FROM pragma_index_info('${name}')`,
+      );
+      if (cols.rows.some((c) => String(c.name) === column)) names.push(name);
+    }
+    return names;
   };
 
   // Drop a migration's owned objects in an order SQLite accepts: triggers and
@@ -71,6 +86,12 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
     }
     for (const [table, cols] of Object.entries(req.columns ?? {})) {
       for (const col of cols) {
+        // A later migration may index this column (e.g.
+        // idx_listing_attendees_ledger_event_group on ledger_event_group); drop
+        // any such index before the column, or SQLite refuses the DROP COLUMN.
+        for (const index of await indexesReferencingColumn(table, col)) {
+          await getDb().execute(`DROP INDEX IF EXISTS ${index}`);
+        }
         await getDb().execute(`ALTER TABLE ${table} DROP COLUMN ${col}`);
       }
     }
@@ -98,8 +119,8 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
       [
         `INSERT INTO groups (id, slug, slug_index, name, description, max_attendees)
          VALUES (901, 'migration-group', 'group-index', 'Migration Group', 'historic group', 50)`,
-        `INSERT INTO listings (id, created, max_attendees, name, slug, slug_index, group_id, unit_price, max_quantity, listing_type, date, location, customisable_days, uses_logistics)
-         VALUES (902, '2024-01-01T00:00:00Z', 25, 'migration-listing', 'migration-listing', 'listing-index', 901, 1200, 4, 'standard', '2024-02-01', 'Town Hall', 1, 1)`,
+        `INSERT INTO listings (id, created, max_attendees, name, slug, slug_index, unit_price, max_quantity, listing_type, date, location, customisable_days, uses_logistics)
+         VALUES (902, '2024-01-01T00:00:00Z', 25, 'migration-listing', 'migration-listing', 'listing-index', 1200, 4, 'standard', '2024-02-01', 'Town Hall', 1, 1)`,
         `INSERT INTO attendees (id, created, checked_in, ticket_token_index, pii_blob, status_id, split_logistics_agents, phone_index)
          VALUES (903, '2024-01-02T00:00:00Z', '', 'ticket-index', '{"name":"Migration Guest"}', 1, 1, 'phone-index')`,
         `INSERT INTO listing_attendees (id, listing_id, attendee_id, start_at, end_at, quantity, checked_in, start_agent_id, end_agent_id, start_time, end_time, start_done, end_done)
@@ -237,21 +258,24 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
       0,
       MIGRATIONS.findIndex((migration) => migration.id === lastAppliedId) + 1,
     );
-    await getDb().execute("DELETE FROM schema_migrations");
-    for (const migration of applied) {
-      await getDb().execute({
-        args: [migration.id, migration.description],
-        sql: "INSERT INTO schema_migrations (id, description, applied_at) VALUES (?, ?, '2026-01-01T00:00:00.000Z')",
-      });
-    }
-    await getDb().execute({
-      args: [LATEST_UPDATE],
-      sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
-    });
-    await getDb().execute({
-      args: [SCHEMA_HASH],
-      sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-    });
+    await getDb().batch(
+      [
+        { args: [], sql: "DELETE FROM schema_migrations" },
+        ...applied.map((migration) => ({
+          args: [migration.id, migration.description],
+          sql: "INSERT INTO schema_migrations (id, description, applied_at) VALUES (?, ?, '2026-01-01T00:00:00.000Z')",
+        })),
+        {
+          args: [LATEST_UPDATE],
+          sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
+        },
+        {
+          args: [SCHEMA_HASH],
+          sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+        },
+      ],
+      "write",
+    );
     invalidateInitDbCache();
   };
 
@@ -288,11 +312,21 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
     // Guards against a future migration slipping through with no restore test.
     // The non-additive migrations excluded here are: the baseline reconcile, the
     // events→listings rename, the transfers time-int rebuild, the transfers
-    // backfill (data-only), and the seven column-drop migrations (drop_transfers_
+    // backfill (data-only), the nine column-drop migrations (drop_transfers_
     // currency, drop_listing_income, drop_listing_attendee_refunded,
     // drop_listing_attendee_price_paid, drop_attendees_price_paid,
-    // drop_attendees_remaining_balance and drop_modifiers_total_revenue).
-    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 11);
+    // drop_attendees_remaining_balance, drop_modifiers_total_revenue,
+    // group_flat_prices — which backfills group_listings.package_price into
+    // listing_prices then drops the column — and drop_listings_day_prices — which
+    // rebuilds the day_count rows from listings.day_prices then drops that
+    // column), the ticket-count-no-quantity trigger rewrite (it drops and
+    // re-syncs the aggregate triggers from SCHEMA, owning no additive objects to
+    // rebuild), the attendees.kind NOT NULL tightening (an empty-`requires`
+    // constraint rebuild owning no additive objects to drop/restore), and the
+    // attendee-listings-tag settings rewrite (data-only; covered by its own
+    // data test), and listing_image_thumb (historically added a column that
+    // first_class_images now drops).
+    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 17);
   });
 
   for (const migration of additiveMigrations) {

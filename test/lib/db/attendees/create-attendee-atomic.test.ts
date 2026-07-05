@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import {
   createAttendeeAtomic,
   decryptAttendees,
+  getAttendeeRaw,
   getAttendeesRaw,
 } from "#shared/db/attendees.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
@@ -29,6 +30,28 @@ const getRange = async (
   return res.rows[0] as unknown as { start_at: string; end_at: string };
 };
 
+/** Assert the cart succeeded with one attendee per `[listingId, quantity]` pair,
+ * each listing's first row holding that quantity. */
+const expectCartRows = async (
+  result: Awaited<ReturnType<typeof createAttendeeAtomic>>,
+  rows: [number, number][],
+): Promise<void> => {
+  expect(result.success).toBe(true);
+  if (result.success) expect(result.attendees.length).toBe(rows.length);
+  for (const [listingId, quantity] of rows) {
+    expect((await getAttendeesRaw(listingId))[0]!.quantity).toBe(quantity);
+  }
+};
+
+const setupBookedOutListing = async () => {
+  const listing = await createTestListing({ maxAttendees: 1 });
+  await updateListingAggregateValues(listing.id, {
+    booked_quantity: 1,
+    tickets_count: 0,
+  });
+  return listing;
+};
+
 describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
   test("succeeds when capacity available", async () => {
     const listing = await createTestListing({
@@ -47,6 +70,63 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       expect(result.attendees.length).toBe(1);
       expect(result.attendees[0]!.name).toBe("John");
     }
+  });
+
+  test("a package booking's package_group_id survives the attendee join selects", async () => {
+    // The booking-row loader carries package_group_id, but the attendee join
+    // selects must hydrate it too — otherwise a re-sent notification for a
+    // hidden package booking treats the row as a standalone member and can leak
+    // the hidden listing or its base price.
+    const group = await createTestGroup({ isPackage: true, name: "Pkg" });
+    const listing = await createTestListing({ groupId: group.id });
+    const result = await createAttendeeAtomic({
+      bookings: [{ listingId: listing.id, quantity: 1 }],
+      email: "buyer@example.com",
+      name: "Buyer",
+      packageGroupId: group.id,
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    // INNER join select (getAttendeesRaw) and LEFT join select (getAttendeeRaw).
+    expect((await getAttendeesRaw(listing.id))[0]!.package_group_id).toBe(
+      group.id,
+    );
+    const byId = await getAttendeeRaw(result.attendees[0]!.id);
+    expect(byId!.package_group_id).toBe(group.id);
+  });
+
+  test("records a contact visit for a real booking", async () => {
+    const { getVisits, hashEmail } = await import(
+      "#shared/db/contact-preferences.ts"
+    );
+    const listing = await createTestListing({ maxAttendees: 5 });
+    const result = await createAttendeeAtomic({
+      bookings: [{ listingId: listing.id, quantity: 1 }],
+      email: "visitor@example.com",
+      name: "Visitor",
+    });
+    expect(result.success).toBe(true);
+    expect(await getVisits(await hashEmail("visitor@example.com"))).toBe(1);
+  });
+
+  test("records NO visit for a no-quantity-only attendee", async () => {
+    // A placeholder/cancelled (quantity-0-only) order is not a real visit —
+    // counting it would let a ghost-only contact qualify as returning via the
+    // min_visits modifier gating.
+    const { getVisits, hashEmail } = await import(
+      "#shared/db/contact-preferences.ts"
+    );
+    const listing = await createTestListing({ maxAttendees: 5 });
+    const result = await createAttendeeAtomic({
+      allowOverbook: true,
+      bookings: [{ listingId: listing.id, quantity: 0 }],
+      email: "ghostonly@example.com",
+      name: "Ghost Only",
+      source: "admin",
+    });
+    expect(result.success).toBe(true);
+    expect(await getVisits(await hashEmail("ghostonly@example.com"))).toBe(0);
   });
 
   test("links single attendee record to multiple listings for group purchase", async () => {
@@ -277,11 +357,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
   });
 
   test("atomic SQL uses editable booked quantity for date-less capacity", async () => {
-    const listing = await createTestListing({ maxAttendees: 1 });
-    await updateListingAggregateValues(listing.id, {
-      booked_quantity: 1,
-      tickets_count: 0,
-    });
+    const listing = await setupBookedOutListing();
     const result = await createAttendeeAtomic({
       bookings: [{ listingId: listing.id, quantity: 1 }],
       email: "manual-full@example.com",
@@ -291,11 +367,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
   });
 
   test("atomic SQL uses editable booked quantity for dated standard listings", async () => {
-    const listing = await createTestListing({ maxAttendees: 1 });
-    await updateListingAggregateValues(listing.id, {
-      booked_quantity: 1,
-      tickets_count: 0,
-    });
+    const listing = await setupBookedOutListing();
     const result = await createAttendeeAtomic({
       bookings: [{ date: "2026-05-01", listingId: listing.id, quantity: 1 }],
       email: "dated-standard-full@example.com",
@@ -318,6 +390,74 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
         name: "B",
       }),
     ]);
+    expect([a.success, b.success].filter(Boolean).length).toBe(1);
+  });
+
+  /** Create a 2-member package (`groupMax` shared cap, 0 = uncapped; members
+   * capped at `memberMax`) and race two whole-bundle inserts against it. */
+  const racePackage = async (
+    name: string,
+    groupMax: number,
+    memberMax: number,
+  ) => {
+    const { createTestGroup } = await import("#test-utils");
+    const group = await createTestGroup({
+      isPackage: true,
+      maxAttendees: groupMax,
+      name,
+    });
+    const memberA = await createTestListing({
+      groupId: group.id,
+      maxAttendees: memberMax,
+      name: `${name} A`,
+    });
+    const memberB = await createTestListing({
+      groupId: group.id,
+      maxAttendees: memberMax,
+      name: `${name} B`,
+    });
+    const bundle = (email: string) =>
+      createAttendeeAtomic({
+        bookings: [
+          { listingId: memberA.id, packageGroupId: group.id, quantity: 1 },
+          { listingId: memberB.id, packageGroupId: group.id, quantity: 1 },
+        ],
+        email,
+        name: "Racer",
+      });
+    const [a, b] = await Promise.all([
+      bundle("race-a@example.com"),
+      bundle("race-b@example.com"),
+    ]);
+    return { a, b, memberA, memberB };
+  };
+
+  test("concurrent last-bundle package inserts: one whole bundle wins, the loser writes NOTHING", async () => {
+    // A package booking is one atomic multi-row insert (a row per member) gated
+    // by the capacity predicate. Racing the last bundle must never half-book:
+    // the loser must leave ZERO rows on BOTH members — a booked member A with a
+    // full member B would strand the buyer with a partial bundle.
+    const { a, b, memberA, memberB } = await racePackage("Race Kit", 0, 1);
+
+    expect([a.success, b.success].filter(Boolean).length).toBe(1);
+    // Exactly one bundle's rows exist — one row per member, never a stray
+    // half-bundle row from the loser.
+    const { queryAll } = await import("#shared/db/client.ts");
+    for (const member of [memberA, memberB]) {
+      const rows = await queryAll<{ quantity: number }>(
+        "SELECT quantity FROM listing_attendees WHERE listing_id = ?",
+        [member.id],
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.quantity).toBe(1);
+    }
+  });
+
+  test("concurrent last-spot package inserts against the GROUP pool: only one bundle fits", async () => {
+    // The group's shared cap (2) fits exactly one 2-member bundle; two racing
+    // bundles must not overfill the pool.
+    const { a, b } = await racePackage("Pool Race", 2, 10);
+
     expect([a.success, b.success].filter(Boolean).length).toBe(1);
   });
 
@@ -358,6 +498,27 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       name: "Ok",
     });
     expect(ok.success).toBe(true);
+    // Same (listing, date) but different parentListingId — two child rows for
+    // the same child under two parents — are distinct slots and are accepted.
+    const same = await createAttendeeAtomic({
+      bookings: [
+        {
+          date: "2026-05-01",
+          listingId: listing.id,
+          parentListingId: 10,
+          quantity: 1,
+        },
+        {
+          date: "2026-05-01",
+          listingId: listing.id,
+          parentListingId: 20,
+          quantity: 1,
+        },
+      ],
+      email: "same@example.com",
+      name: "Same",
+    });
+    expect(same.success).toBe(true);
   });
 
   test("intra-cart group cap: a sibling insert earlier in the same batch counts (no oversell)", async () => {
@@ -420,10 +581,10 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       email: "fill@example.com",
       name: "Fill",
     });
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.attendees.length).toBe(2);
-    expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(1);
-    expect((await getAttendeesRaw(e2.id))[0]!.quantity).toBe(2);
+    await expectCartRows(result, [
+      [e1.id, 1],
+      [e2.id, 2],
+    ]);
   });
 
   test("intra-cart group cap is per-date for daily listings booked on the same day", async () => {
@@ -482,10 +643,10 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       email: "spread@example.com",
       name: "Spread",
     });
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.attendees.length).toBe(2);
-    expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(3);
-    expect((await getAttendeesRaw(e2.id))[0]!.quantity).toBe(3);
+    await expectCartRows(result, [
+      [e1.id, 3],
+      [e2.id, 3],
+    ]);
   });
 
   test("dateToRange produces half-open [start, end) with 1-day default", () => {

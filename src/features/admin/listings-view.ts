@@ -6,53 +6,20 @@
  * export mirrors the on-screen attendee table.
  */
 
-/* jscpd:ignore-start */
 import { compact, filter, map, pipe, sort, unique } from "#fp";
-import {
-  getDateFilter,
-  listingAttendeesLoader,
-} from "#routes/admin/actions.ts";
+import { getDateFilter } from "#routes/admin/actions.ts";
 import type { AuthSession } from "#routes/auth.ts";
-import { htmlResponse } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import { getEffectiveDomain } from "#shared/config.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity.ts";
-import { groupsTable } from "#shared/db/groups.ts";
-import {
-  getListingAggregateRecalculation,
-  listingRevenueBreakdown,
-} from "#shared/db/listings.ts";
-import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
+import { getGroupIdsByListingId, groupsTable } from "#shared/db/groups.ts";
 import {
   type AttendeeQuestionData,
   getAttendeeAnswersBatch,
   getQuestionsForListing,
 } from "#shared/db/questions.ts";
-import { settings } from "#shared/db/settings.ts";
-import { getFlash } from "#shared/flash-context.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
-import {
-  type AttendeeFilter,
-  adminListingPage,
-  type GroupContext,
-} from "#templates/admin/listings.tsx";
-
-/* jscpd:ignore-end */
-
-/** Extract check-in message params from request URL */
-const getCheckinMessage = (
-  request: Request,
-): { name: string; status: string } | null => {
-  const url = new URL(request.url);
-  const name = url.searchParams.get("checkin_name");
-  const status = url.searchParams.get("checkin_status");
-  if (name && (status === "in" || status === "out")) {
-    return { name, status };
-  }
-  return null;
-};
+import type { GroupContext } from "#templates/admin/listings/types.ts";
 
 /** Filter attendees by date for daily listings */
 const filterByDate = (
@@ -66,10 +33,10 @@ const getUniqueDates: (
   attendees: Attendee[],
 ) => { value: string; label: string }[] = pipe(
   map((a: Attendee) => a.date),
-  (dates: (string | null)[]) => compact(dates),
-  (dates: string[]) => unique(dates),
-  sort((a: string, b: string) => a.localeCompare(b)),
-  map((d: string) => ({ label: formatDateLabel(d), value: d })),
+  (dates) => compact(dates),
+  (dates) => unique(dates),
+  sort((a, b) => a.localeCompare(b)),
+  map((d) => ({ label: formatDateLabel(d), value: d })),
 );
 
 /** Get date filter and filtered attendees for daily listings */
@@ -148,103 +115,29 @@ export const loadListingQuestionData = async (
 
 /** Fetch group + current usage when the listing sits in a capped group, so the
  * detail page can render a row for the shared cap. Returns undefined for
- * ungrouped or uncapped groups. */
-const loadGroupContext = async (
+ * ungrouped or uncapped groups. A listing can belong to several capped groups;
+ * the one with the FEWEST remaining spots is the binding constraint (a booking
+ * is blocked by the tightest group — see capacity.ts), so surface that one. */
+export const loadGroupContext = async (
   listing: ListingWithCount,
   dateFilter: string | null,
 ): Promise<GroupContext | undefined> => {
-  if (listing.group_id === 0) return undefined;
-  const group = await groupsTable.findById(listing.group_id);
-  if (!group || group.max_attendees <= 0) return undefined;
-  const remainingMap = await getGroupRemainingByGroupId([group.id], dateFilter);
-  // group.max_attendees > 0 guarantees the helper returns an entry for it.
-  const remaining = remainingMap.get(group.id) as number;
-  return { attendeeCount: group.max_attendees - remaining, group };
+  let tightest: { ctx: GroupContext; remaining: number } | undefined;
+  for (const groupId of await getGroupIdsByListingId(listing.id)) {
+    const group = await groupsTable.findById(groupId);
+    if (!group || group.max_attendees <= 0) continue;
+    const remainingMap = await getGroupRemainingByGroupId(
+      [group.id],
+      dateFilter,
+    );
+    // group.max_attendees > 0 guarantees the helper returns an entry for it.
+    const remaining = remainingMap.get(group.id) as number;
+    if (tightest === undefined || remaining < tightest.remaining) {
+      tightest = {
+        ctx: { attendeeCount: group.max_attendees - remaining, group },
+        remaining,
+      };
+    }
+  }
+  return tightest?.ctx;
 };
-
-/** Render listing page with attendee list and optional filter */
-const renderListingPage = async (
-  request: Request,
-  { id }: { id: number },
-  activeFilter: AttendeeFilter = "all",
-) => {
-  // Run stale reservation cleanup concurrently with listing data loading.
-  // These are independent: cleanup targets processed_payments with NULL attendee_id,
-  // which doesn't affect the attendees query. Saves 1 HTTP round-trip.
-  const [, response] = await Promise.all([
-    deleteAllStaleReservations(),
-    listingAttendeesLoader(
-      request,
-      id,
-    )(
-      filteredAttendeesHandler(
-        request,
-        async ({
-          listing,
-          session,
-          attendees,
-          dateFilter,
-          availableDates,
-          filteredByDate,
-        }) => {
-          const attendeeIds = filteredByDate.map((a) => a.id);
-          const [
-            flash,
-            phonePrefix,
-            questionData,
-            groupContext,
-            recalc,
-            revenueBreakdown,
-          ] = await Promise.all([
-            Promise.resolve(getFlash()),
-            Promise.resolve(settings.phonePrefix),
-            loadListingQuestionData(listing.id, attendeeIds),
-            loadGroupContext(listing, dateFilter),
-            getListingAggregateRecalculation(listing),
-            listingRevenueBreakdown(listing.id),
-          ]);
-          return htmlResponse(
-            adminListingPage({
-              activeFilter,
-              aggregateRecalculation: recalc,
-              allowedDomain: getEffectiveDomain(),
-              attendees: filteredByDate,
-              availableDates,
-              checkinMessage: getCheckinMessage(request),
-              dateFilter,
-              errorMessage: flash.error,
-              groupContext,
-              // Emailing a listing targets every attendee across all dates, so
-              // gate the action on the full set, not the date-filtered view.
-              hasEmailableAttendees: attendees.some((a) => a.email !== ""),
-              listing,
-              phonePrefix,
-              questionData,
-              revenueBreakdown,
-              session,
-              successMessage: flash.success,
-            }),
-          );
-        },
-      ),
-    ),
-  ]);
-  return response;
-};
-
-/** Create a handler that renders the listing page with a specific attendee filter */
-const listingPageHandler =
-  (
-    activeFilter?: AttendeeFilter,
-  ): TypedRouteHandler<"GET /admin/listing/:id"> =>
-  (request, params) =>
-    renderListingPage(request, params, activeFilter);
-
-/** Handle GET /admin/listing/:id */
-export const handleAdminListingGet = listingPageHandler();
-
-/** Handle GET /admin/listing/:id/in (checked-in filter) */
-export const handleAdminListingGetIn = listingPageHandler("in");
-
-/** Handle GET /admin/listing/:id/out (not-checked-in filter) */
-export const handleAdminListingGetOut = listingPageHandler("out");

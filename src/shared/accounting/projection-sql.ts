@@ -6,9 +6,20 @@
  * `dest_type` / the `CAST(… AS TEXT)` can't silently skew a single read.
  *
  * They build raw SQL by interpolating caller-supplied column *expressions*
- * (e.g. `ea.attendee_id`), not bound values — for binding a known account use
+ * (e.g. `listingAttendee.attendee_id`), not bound values — for binding a known account use
  * the parameterised `transfersByAccount` in `./queries.ts` instead.
  */
+
+import {
+  ATTENDEE,
+  REVENUE,
+  WRITEOFF_TYPE,
+} from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
+import {
+  MANUAL_LISTING_COST,
+  MANUAL_LISTING_INCOME,
+} from "#shared/accounting/manual-entries.ts";
 
 /** Account type/id columns for one leg side of a `transfers` row — the single
  *  home for these names, so every projection (the interpolated subqueries here
@@ -35,13 +46,22 @@ export const accountPredicate = (
 };
 
 /**
- * Wrap a `transfers` WHERE clause as a scalar gross-sum subquery aliased
- * `alias` — the shape every "sum of amounts over the filtered legs" projection
- * shares. `where` is the predicate body (no leading `WHERE`). A site has one
- * currency, so amounts sum directly.
+ * Predicate matching a booking row's gross `sale` leg: `kind='sale'`, billed from
+ * the attendee to the listing's revenue account, scoped to the row's
+ * `ledger_event_group`. The single home for "this row's sale leg" — shared by the
+ * per-row amount-paid projection (`pricePaidFromLedger`) and the paid-line
+ * existence check, so the two can't drift. All three args are SQL column
+ * expressions in the surrounding query (no leading `WHERE`).
  */
-export const sumAmountFromTransfers = (where: string, alias: string): string =>
-  `(SELECT COALESCE(SUM(amount), 0) FROM transfers WHERE ${where}) AS ${alias}`;
+export const saleLegPredicate = (
+  attendeeIdExpr: string,
+  listingIdExpr: string,
+  eventGroupExpr: string,
+): string =>
+  `kind = '${KIND.sale}'` +
+  ` AND ${accountPredicate("source", ATTENDEE, attendeeIdExpr)}` +
+  ` AND ${accountPredicate("dest", REVENUE, listingIdExpr)}` +
+  ` AND event_group = ${eventGroupExpr}`;
 
 /**
  * A *bare* scalar subquery (no alias — the caller names it, like
@@ -60,7 +80,7 @@ export const creditsLessWriteoffDebits = (
   idExpr: string,
 ): string => {
   const credited = accountPredicate("dest", type, idExpr);
-  const writtenOff = `${accountPredicate("source", type, idExpr)} AND dest_type = 'writeoff'`;
+  const writtenOff = `${accountPredicate("source", type, idExpr)} AND dest_type = '${WRITEOFF_TYPE}'`;
   return (
     "(SELECT COALESCE(SUM(" +
     `CASE WHEN ${credited} THEN amount WHEN ${writtenOff} THEN -amount ELSE 0 END` +
@@ -69,10 +89,23 @@ export const creditsLessWriteoffDebits = (
 };
 
 /**
+ * The bare signed-sum aggregate every net-balance read shares:
+ * amounts matching `plus` add, amounts matching `minus` subtract, zero when no
+ * leg matches either. The single home for the ledger's sign convention in SQL —
+ * {@link accountBalanceSubquery}, the parameterised `accountBalance`, and the
+ * `ledgerTotals` due/fees columns all render from it, so no two balance reads
+ * can disagree on which side credits. Predicates are SQL fragment bodies and may
+ * carry `?` placeholders bound by the caller.
+ */
+export const signedSumCase = (plus: string, minus: string): string =>
+  `COALESCE(SUM(CASE WHEN ${plus} THEN amount` +
+  ` WHEN ${minus} THEN -amount ELSE 0 END), 0)`;
+
+/**
  * A `SUM(...) FILTER`-style conditional sum aliased `alias`: total `amount` over
- * the rows matching `where`, zero when none. Unlike {@link sumAmountFromTransfers}
- * this is a *bare* aggregate expression (no `SELECT … FROM transfers`), so several
- * can share one scan of the account's own legs in a single grouped query.
+ * the rows matching `where`, zero when none. A *bare* aggregate expression (no
+ * `SELECT … FROM transfers`), so several can share one scan of the account's own
+ * legs in a single grouped query.
  */
 const conditionalSumColumn = (where: string, alias: string): string =>
   `COALESCE(SUM(CASE WHEN ${where} THEN amount ELSE 0 END), 0) AS ${alias}`;
@@ -84,30 +117,47 @@ const conditionalSumColumn = (where: string, alias: string): string =>
  * minor units, signed by the caller:
  *
  * - `gross_sales` — Σ `sale` legs credited to the account (dest = revenue:id).
+ * - `external_income` — Σ owner-entered income received outside checkout.
  * - `write_ups` — Σ `adjustment` legs the `writeoff` account funded INTO revenue
  *   (`writeoff → revenue:id`, a manual write-UP credit).
  * - `write_downs` — Σ `adjustment` legs revenue paid OUT to `writeoff`
  *   (`revenue:id → writeoff`, a manual write-DOWN debit).
  * - `refunds` — Σ `refund_sale` legs debited from the account (source = revenue:id).
+ * - `external_costs` — Σ owner-entered listing costs paid outside checkout.
  *
- * Recognised income is `gross_sales + write_ups − write_downs` (matching
- * {@link creditsLessWriteoffDebits}); the net ledger balance is that minus
- * `refunds`. `idExpr` is the SQL for the listing id in the surrounding query.
+ * Recognised income is `gross_sales + external_income + write_ups −
+ * write_downs` (matching {@link creditsLessWriteoffDebits}); the net ledger
+ * balance is that minus `refunds` and `external_costs`. `idExpr` is the SQL for
+ * the listing id in the surrounding query.
  */
 export const revenueBreakdownColumns = (idExpr: string): string => {
-  const credited = accountPredicate("dest", "revenue", idExpr);
-  const debited = accountPredicate("source", "revenue", idExpr);
+  const credited = accountPredicate("dest", REVENUE, idExpr);
+  const debited = accountPredicate("source", REVENUE, idExpr);
   return [
-    conditionalSumColumn(`kind = 'sale' AND ${credited}`, "gross_sales"),
     conditionalSumColumn(
-      `kind = 'adjustment' AND ${credited} AND source_type = 'writeoff'`,
+      `kind = '${KIND.sale}' AND ${credited}`,
+      "gross_sales",
+    ),
+    conditionalSumColumn(
+      `kind = '${MANUAL_LISTING_INCOME}' AND ${credited}`,
+      "external_income",
+    ),
+    conditionalSumColumn(
+      `kind = '${KIND.adjustment}' AND ${credited} AND source_type = '${WRITEOFF_TYPE}'`,
       "write_ups",
     ),
     conditionalSumColumn(
-      `kind = 'adjustment' AND ${debited} AND dest_type = 'writeoff'`,
+      `kind = '${KIND.adjustment}' AND ${debited} AND dest_type = '${WRITEOFF_TYPE}'`,
       "write_downs",
     ),
-    conditionalSumColumn(`kind = 'refund_sale' AND ${debited}`, "refunds"),
+    conditionalSumColumn(
+      `kind = '${KIND.refundSale}' AND ${debited}`,
+      "refunds",
+    ),
+    conditionalSumColumn(
+      `kind = '${MANUAL_LISTING_COST}' AND ${debited}`,
+      "external_costs",
+    ),
   ].join(", ");
 };
 
@@ -135,11 +185,7 @@ export const accountBalanceSubquery = (
 ): string => {
   const asDest = accountPredicate("dest", type, idExpr);
   const asSource = accountPredicate("source", type, idExpr);
-  return (
-    "(SELECT COALESCE(SUM(" +
-    `CASE WHEN ${asDest} THEN amount WHEN ${asSource} THEN -amount ELSE 0 END` +
-    `), 0) FROM transfers WHERE ${asDest} OR ${asSource})`
-  );
+  return `(SELECT ${signedSumCase(asDest, asSource)} FROM transfers WHERE ${asDest} OR ${asSource})`;
 };
 
 /**
@@ -150,4 +196,4 @@ export const accountBalanceSubquery = (
  * (`… AS remaining_balance`) or compare it in a guard (`… = ?`).
  */
 export const attendeeOwedSubquery = (idExpr: string): string =>
-  `-${accountBalanceSubquery("attendee", idExpr)}`;
+  `-${accountBalanceSubquery(ATTENDEE, idExpr)}`;

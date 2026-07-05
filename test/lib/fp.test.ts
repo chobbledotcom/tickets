@@ -4,9 +4,15 @@ import {
   asString,
   bracket,
   collectionCache,
+  filter,
   firstMatch,
+  flatMap,
   lazyRef,
+  map,
   once,
+  partition,
+  pipe,
+  sumByKey,
   ttlCache,
 } from "#fp";
 
@@ -23,6 +29,7 @@ const logBracket = (asPromise = false) => {
     () => {
       log.push("release");
       if (asPromise) return Promise.resolve();
+      return undefined;
     },
   );
   return { log, withResource };
@@ -266,6 +273,93 @@ describe("fp", () => {
     });
   });
 
+  describe("partition", () => {
+    test("splits into [matching, rest], keeping order", () => {
+      const [evens, odds] = partition((n: number) => n % 2 === 0)([
+        1, 2, 3, 4, 5,
+      ]);
+      expect(evens).toEqual([2, 4]);
+      expect(odds).toEqual([1, 3, 5]);
+    });
+
+    test("all-match and none-match land everything on one side", () => {
+      expect(partition((n: number) => n > 0)([1, 2])).toEqual([[1, 2], []]);
+      expect(partition((n: number) => n > 9)([1, 2])).toEqual([[], [1, 2]]);
+    });
+  });
+
+  describe("pipe", () => {
+    type Item = { id: number; active: boolean };
+
+    test("threads intermediate callback types across 2-4 stages", () => {
+      const items: Item[] = [
+        { active: true, id: 1 },
+        { active: false, id: 2 },
+        { active: true, id: 3 },
+      ];
+
+      // 2-stage: map's callback infers Item from filter's output.
+      const ids = pipe(
+        filter((x: Item) => x.active),
+        map((x) => x.id),
+      )(items);
+      const idsTypeCheck: number[] = ids;
+
+      // 3-stage: second filter infers number from map's output.
+      const bigIds = pipe(
+        filter((x: Item) => x.active),
+        map((x) => x.id),
+        filter((x) => x > 0),
+      )(items);
+      const bigIdsTypeCheck: number[] = bigIds;
+
+      // 4-stage: final map infers number -> string.
+      const labels = pipe(
+        filter((x: Item) => x.active),
+        map((x) => x.id),
+        filter((x) => x > 0),
+        map((x) => `id-${x}`),
+      )(items);
+      const labelsTypeCheck: string[] = labels;
+
+      expect(ids).toEqual([1, 3]);
+      expect(bigIds).toEqual([1, 3]);
+      expect(labels).toEqual(["id-1", "id-3"]);
+      void idsTypeCheck;
+      void bigIdsTypeCheck;
+      void labelsTypeCheck;
+    });
+
+    test("flatMap callback infers its parameter mid-pipe", () => {
+      const items: Item[] = [{ active: true, id: 1 }];
+      const expanded = pipe(
+        filter((x: Item) => x.active),
+        flatMap((x) => [x.id, x.id + 1]),
+      )(items);
+      const typeCheck: number[] = expanded;
+      expect(expanded).toEqual([1, 2]);
+      void typeCheck;
+    });
+
+    test("identity overload returns input unchanged", () => {
+      const id = pipe<number>();
+      const out: number = id(42);
+      expect(out).toBe(42);
+    });
+
+    test("rejects a mismatched chain at compile time", () => {
+      // Produces number[] then feeds a stage expecting string -> no overload
+      // matches, so the whole call fails to compile.
+      const make = () =>
+        pipe(
+          // @ts-expect-error number[] (from x.length) is not assignable to string[]
+          map((x: string) => x.length),
+          map((x: string) => x.toUpperCase()),
+        );
+      void make;
+    });
+  });
+
   describe("collectionCache", () => {
     test("fetches on first call and caches within TTL", async () => {
       const { cache, calls, setTime } = trackedCollection();
@@ -337,6 +431,43 @@ describe("fp", () => {
       expect(freshResult).toEqual([1, 2, 3]);
       // Now the cache IS populated with fresh data
       expect(cache.size()).toBe(3);
+    });
+  });
+
+  describe("sumByKey", () => {
+    test("accumulates amounts into a map keyed by keyOf, summing repeats", () => {
+      const items = [
+        { id: 1, n: 10 },
+        { id: 2, n: 5 },
+        { id: 1, n: 3 }, // same key → adds to the existing 10
+      ];
+      const totals = sumByKey(
+        (x: { id: number; n: number }) => x.id,
+        (x) => x.n,
+      )(items);
+      expect(totals).toEqual(
+        new Map([
+          [1, 13],
+          [2, 5],
+        ]),
+      );
+    });
+
+    test("sums signed amounts and returns an empty map for no items", () => {
+      const signed = sumByKey(
+        (x: { k: string; v: number }) => x.k,
+        (x) => x.v,
+      )([
+        { k: "a", v: 4 },
+        { k: "a", v: -6 },
+      ]);
+      expect(signed.get("a")).toBe(-2);
+      expect(
+        sumByKey(
+          (x: { k: string }) => x.k,
+          () => 1,
+        )([]),
+      ).toEqual(new Map());
     });
   });
 });

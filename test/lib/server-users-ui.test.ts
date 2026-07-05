@@ -5,20 +5,18 @@ import { getDb } from "#shared/db/client.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
 import {
   adminFormPost,
+  adminGet,
   assertPublicHtml,
   awaitTestRequest,
   createTestManagerSession,
   describeWithEnv,
   getAllActivityLog,
-  testCookie,
 } from "#test-utils";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("navigation", () => {
     test("owner sees all nav links", async () => {
-      const response = await awaitTestRequest("/admin/", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/");
       const html = await response.text();
       expect(html).toContain("Settings");
       expect(html).toContain("Users");
@@ -67,9 +65,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         username: "invited-only",
       });
 
-      const response = await awaitTestRequest("/admin/users", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/users");
       const html = await response.text();
       expect(html).toContain("Invited");
     });
@@ -89,9 +85,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       });
       invalidateUsersCache();
 
-      const response = await awaitTestRequest("/admin/users", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/users");
       const html = await response.text();
       expect(html).toContain("Invite Expired");
     });

@@ -5,7 +5,8 @@
 import { joinStrings, map, reduce, sumOf } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
-import type { Attendee } from "#shared/types.ts";
+import { type Attendee, hasTicketQuantity } from "#shared/types.ts";
+import { questionTextFlat } from "#templates/admin/questions.tsx";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
 /** A key/value row for the listing-details-table */
@@ -45,8 +46,11 @@ export const calculateTotalRevenue = (attendees: Attendee[]): number =>
 // Checked-in stats
 // ---------------------------------------------------------------------------
 
-/** Computed checked-in statistics for an attendee list */
-type CheckedInStats = {
+/** Computed checked-in statistics for an attendee list. Exported so a caller
+ *  that computes these figures in SQL (the Overview tab, which never loads the
+ *  attendee rows) can feed {@link buildStatDetailRows} the same shape the
+ *  in-memory {@link getCheckedInStats} produces. */
+export type CheckedInStats = {
   ticketsCheckedIn: number;
   ticketsTotal: number;
   rowsCheckedIn: number;
@@ -54,8 +58,13 @@ type CheckedInStats = {
   hasMultiQuantity: boolean;
 };
 
-/** Compute checked-in stats from an attendee list */
-const getCheckedInStats = (attendees: Attendee[]): CheckedInStats => {
+/** Compute checked-in stats from an attendee list. Only real (quantity > 0)
+ * lines count: a no-quantity sentinel row isn't a ticket, so it must not inflate
+ * rowsTotal/remaining or force a spurious multi-quantity split (one real + one
+ * ghost would otherwise read as 1 ticket across 2 rows). The ghost still shows
+ * in the unfiltered admin roster. */
+export const getCheckedInStats = (allAttendees: Attendee[]): CheckedInStats => {
+  const attendees = allAttendees.filter(hasTicketQuantity);
   const ticketsTotal = sumQuantity(attendees);
   return {
     hasMultiQuantity: ticketsTotal !== attendees.length,
@@ -70,6 +79,17 @@ const getCheckedInStats = (attendees: Attendee[]): CheckedInStats => {
 const formatProgress = (done: number, total: number): string =>
   `${done} / ${total} ${t("detail_rows.mdash")} ${total - done} ${t("detail_rows.remain")}`;
 
+/** A progress DetailRow: `${t(labelKey)}${suffix}` keyed to "done / total …". */
+const progressRow = (
+  labelKey: string,
+  suffix: string,
+  done: number,
+  total: number,
+): DetailRow => ({
+  key: `${t(labelKey)}${suffix}`,
+  value: formatProgress(done, total),
+});
+
 /** Build the checked-in detail row(s) — splits into two when multi-quantity */
 const buildCheckedInRows = (
   stats: CheckedInStats,
@@ -77,20 +97,26 @@ const buildCheckedInRows = (
 ): DetailRow[] =>
   stats.hasMultiQuantity
     ? [
-        {
-          key: `${t("detail_rows.tickets_checked_in")}${suffix}`,
-          value: formatProgress(stats.rowsCheckedIn, stats.rowsTotal),
-        },
-        {
-          key: `${t("detail_rows.attendees_checked_in")}${suffix}`,
-          value: formatProgress(stats.ticketsCheckedIn, stats.ticketsTotal),
-        },
+        progressRow(
+          "detail_rows.tickets_checked_in",
+          suffix,
+          stats.rowsCheckedIn,
+          stats.rowsTotal,
+        ),
+        progressRow(
+          "detail_rows.attendees_checked_in",
+          suffix,
+          stats.ticketsCheckedIn,
+          stats.ticketsTotal,
+        ),
       ]
     : [
-        {
-          key: `${t("common.checked_in")}${suffix}`,
-          value: formatProgress(stats.ticketsCheckedIn, stats.ticketsTotal),
-        },
+        progressRow(
+          "common.checked_in",
+          suffix,
+          stats.ticketsCheckedIn,
+          stats.ticketsTotal,
+        ),
       ];
 
 // ---------------------------------------------------------------------------
@@ -124,7 +150,7 @@ export const buildAnswerSummaryRows = (
   const counts = countAnswers(questionData.attendeeAnswerMap);
   return map(
     (q: { text: string; answers: QuestionAnswer[] }): DetailRow => ({
-      key: q.text,
+      key: questionTextFlat(q.text),
       value: formatAnswerSummary(q.answers, counts),
     }),
   )(questionData.questions);
@@ -140,10 +166,15 @@ export type SharedDetailInput = {
   attendeeCount: number;
   maxCapacity: number;
   hasPaidListing: boolean;
-  questionData?: TableQuestionData;
+  questionData?: TableQuestionData | undefined;
   labelSuffix?: string;
   /** Skip the attendees row (when the caller renders its own complex version) */
   skipAttendees?: boolean;
+  /** Total revenue (minor units) to show, when the caller has an authoritative
+   * figure that doesn't depend on the loaded attendee rows — the group page
+   * passes the ledger-projected income, which still counts revenue from bookings
+   * since deleted (an attendee-sum would silently lose it). */
+  revenue?: number;
 };
 
 /** Whether a count is at or above 90% of capacity */
@@ -170,11 +201,39 @@ const buildAttendeeRow = (
   };
 };
 
-/** Build a revenue detail row */
-const buildRevenueRow = (attendees: Attendee[]): DetailRow => ({
+/** Build a revenue detail row from a minor-units total */
+const buildRevenueRow = (revenue: number): DetailRow => ({
   key: t("detail_rows.total_revenue"),
-  value: formatCurrency(calculateTotalRevenue(attendees)),
+  value: formatCurrency(revenue),
 });
+
+/** The stat rows shared by the attendee-derived and SQL-derived detail tables:
+ *  check-in progress, the (paid-only) revenue total, and the answer summary. The
+ *  attendee-count row is prepended separately by {@link buildSharedDetailRows},
+ *  since a stat-only caller renders its own count. */
+export type StatDetailInput = {
+  checkedInStats: CheckedInStats;
+  hasPaidListing: boolean;
+  /** Received revenue in minor units — only rendered for a paid listing. */
+  revenue: number;
+  questionData?: TableQuestionData | undefined;
+  labelSuffix?: string;
+};
+
+/** Build the check-in / revenue / answer-summary rows from precomputed stats.
+ *  Shared so the Overview tab (SQL aggregates) and the roster/group/calendar
+ *  pages (in-memory attendee lists) render byte-identical rows. */
+export const buildStatDetailRows = ({
+  checkedInStats,
+  hasPaidListing,
+  revenue,
+  questionData,
+  labelSuffix = "",
+}: StatDetailInput): DetailRow[] => [
+  ...buildCheckedInRows(checkedInStats, labelSuffix),
+  ...(hasPaidListing ? [buildRevenueRow(revenue)] : []),
+  ...buildAnswerSummaryRows(questionData),
+];
 
 /** Build the shared detail rows: attendees, checked-in, revenue, question summary */
 export const buildSharedDetailRows = ({
@@ -185,11 +244,18 @@ export const buildSharedDetailRows = ({
   questionData,
   labelSuffix = "",
   skipAttendees = false,
+  revenue,
 }: SharedDetailInput): DetailRow[] => [
   ...(skipAttendees
     ? []
     : [buildAttendeeRow(attendeeCount, maxCapacity, labelSuffix)]),
-  ...buildCheckedInRows(getCheckedInStats(attendees), labelSuffix),
-  ...(hasPaidListing ? [buildRevenueRow(attendees)] : []),
-  ...buildAnswerSummaryRows(questionData),
+  ...buildStatDetailRows({
+    checkedInStats: getCheckedInStats(attendees),
+    hasPaidListing,
+    // Compute the attendee-summed revenue only for a paid listing (it is the
+    // only case the row renders), matching the prior lazy `??` evaluation.
+    revenue: hasPaidListing ? (revenue ?? calculateTotalRevenue(attendees)) : 0,
+    ...(questionData !== undefined ? { questionData } : {}),
+    labelSuffix,
+  }),
 ];

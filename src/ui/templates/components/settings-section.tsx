@@ -48,7 +48,7 @@ export const SettingsSection = ({
 }): JSX.Element => (
   <CsrfForm
     action={action}
-    enctype={enctype}
+    {...(enctype !== undefined ? { enctype } : {})}
     id={id ?? formIdFromAction(action)}
   >
     <div class="prose">

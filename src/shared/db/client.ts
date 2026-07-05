@@ -21,6 +21,7 @@ import {
 } from "#shared/cache-registry.ts";
 import {
   addQueryLogEntry,
+  enforceTransactionRoundTripGuard,
   isQueryLogEnabled,
   logCompletedSql,
   trackQuery,
@@ -115,10 +116,14 @@ const createDbClient = (): Client => {
   if (!url) {
     throw new Error("DB_URL environment variable is required");
   }
+  // libsql's Config types authToken as `authToken?: string`, which under
+  // exactOptionalPropertyTypes rejects an explicit `undefined`. A no-token
+  // client is valid at runtime, so assert the type rather than branch on it
+  // (a branch here would leave one side uncovered).
   return createClient({
     authToken: getEnv("DB_TOKEN"),
     url,
-  });
+  } as Parameters<typeof createClient>[0]);
 };
 
 const [dbGetter, dbSetter] = lazyRef(createDbClient);
@@ -209,13 +214,35 @@ export const executeWithoutCacheInvalidation = async (
   args?: InValue[],
 ): Promise<ResultSet> => executeTrackedStatement(sql, args);
 
+/** The first row of a result set, or null when it returned none. */
+const firstRowOrNull = <T>(result: ResultSet): T | null => {
+  const rows = resultRows<T>(result);
+  return rows.length === 0 ? null : rows[0]!;
+};
+
 /** Query single row, returning null if not found */
 export const queryOne = async <T>(
   sql: string,
+  args?: InValue[],
+): Promise<T | null> => {
+  return firstRowOrNull<T>(await execute(sql, args));
+};
+
+/**
+ * Query a single row on the primary (read-your-writes), returning null if not
+ * found. Use this to read a row back immediately after committing its own write:
+ * a plain {@link queryOne} runs in "read" mode, which Turso can route to a
+ * replica lagging the just-committed write and so miss the row (returning null);
+ * routing through {@link queryBatchPrimary} ("write" mode) always hits the
+ * primary. Mirrors the same guard on {@link syncListingPrices}. `args` is
+ * required — every read-back keys on the written row's id.
+ */
+export const queryOnePrimary = async <T>(
+  sql: string,
   args: InValue[],
 ): Promise<T | null> => {
-  const rows = resultRows<T>(await execute(sql, args));
-  return rows.length === 0 ? null : rows[0]!;
+  const [result] = await queryBatchPrimary([{ args, sql }]);
+  return firstRowOrNull<T>(result!);
 };
 
 /** Query all rows, returning a typed array */
@@ -223,6 +250,17 @@ export const queryAll = async <T>(
   sql: string,
   args?: InValue[],
 ): Promise<T[]> => resultRows<T>(await execute(sql, args));
+
+/**
+ * True when the query returns at least one row. `sql` should be an existence
+ * probe (e.g. `SELECT 1 ... LIMIT 1`); the selected columns are ignored. Shared
+ * by the per-(attendee, listing) and built-site assignment checks so the
+ * row-presence boilerplate lives in one place.
+ */
+export const rowExists = async (
+  sql: string,
+  args: InValue[],
+): Promise<boolean> => (await queryOne<unknown>(sql, args)) !== null;
 
 /** Run a query whose single selected column is aliased `id` and return the ids. */
 export const queryIdColumn = async (
@@ -281,13 +319,21 @@ export const resetAggregates = async <T extends string>(
 };
 
 /**
+ * A single SQL statement plus its bound arguments — the object form libsql's
+ * batch API accepts. This is the one shared shape for a `{ sql, args }` pair;
+ * callers that build statements to hand to {@link executeBatch} and friends
+ * import this rather than re-declaring the same object type locally.
+ */
+export type SqlStatement = { sql: string; args: InValue[] };
+
+/**
  * Execute a batch with optional query logging, then invalidate caches for every
  * table the batch mutated. Invalidation runs once the transaction has
  * committed; if the batch throws (rollback) it is skipped, so a cache is never
  * cleared for a write that did not land.
  */
 const trackedBatch = async (
-  statements: Array<{ sql: string; args: InValue[] }>,
+  statements: SqlStatement[],
   mode: TransactionMode,
 ): Promise<ResultSet[]> => {
   const start = performance.now();
@@ -313,7 +359,7 @@ const trackedBatch = async (
 /** Create a batch executor for a given transaction mode */
 const batchFor =
   (mode: TransactionMode) =>
-  (statements: Array<{ sql: string; args: InValue[] }>): Promise<ResultSet[]> =>
+  (statements: SqlStatement[]): Promise<ResultSet[]> =>
     trackedBatch(statements, mode);
 
 /** Execute multiple read queries in a single round-trip using Turso batch API. */
@@ -339,7 +385,7 @@ export const executeBatchWithResults = batchFor("write");
 
 /** Execute multiple write statements, discarding results. */
 export const executeBatch = async (
-  statements: Array<{ sql: string; args: InValue[] }>,
+  statements: SqlStatement[],
 ): Promise<void> => {
   await executeBatchWithResults(statements);
 };
@@ -366,10 +412,16 @@ const runWriteTransactionOnce = async <T>(
 ): Promise<T> => {
   const tx = await getDb().transaction("write");
   const writtenSql: string[] = [];
+  let statementCount = 0;
   const scope: TxScope = {
     execute: (stmt) => {
       const sql = typeof stmt === "string" ? stmt : stmt.sql;
       writtenSql.push(sql);
+      // Guard against a transaction that holds the write lock open for too many
+      // sequential round-trips (the "Transaction timed-out" shape); chatty writes
+      // belong in a batch, not an interactive transaction.
+      statementCount += 1;
+      enforceTransactionRoundTripGuard(statementCount, sql);
       // Track transactional statements too, so reads inside the callback still
       // show in the debug footer and count toward the N+1 guard.
       return trackQuery(sql, () => tx.execute(stmt));
@@ -429,6 +481,25 @@ export const withTransaction = <T>(work: TransactionWork<T>): Promise<T> => {
   writeQueue.tail = run;
   return run;
 };
+
+/**
+ * Write one row `statement` in a fresh write transaction and run `persist` (the
+ * coupled join-table writes) on the same `tx`, so the row and its side writes
+ * commit or roll back together. Returns the row id — `existingId` on update, or
+ * the INSERT's `lastInsertRowid` on create (`existingId` null). Shared by the
+ * REST resource (HTML forms) and CRUD API write paths.
+ */
+export const writeRowInTransaction = (
+  statement: InStatement,
+  existingId: number | null,
+  persist: (tx: TxScope, id: number) => Promise<void>,
+): Promise<number> =>
+  withTransaction(async (tx) => {
+    const res = await tx.execute(statement);
+    const id = existingId ?? Number(res.lastInsertRowid);
+    await persist(tx, id);
+    return id;
+  });
 
 /** Build SQL placeholders for an IN clause, e.g. "?, ?, ?" */
 export const inPlaceholders = (values: readonly unknown[]): string =>

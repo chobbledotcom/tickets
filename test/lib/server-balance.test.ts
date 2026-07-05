@@ -16,12 +16,11 @@ import {
   getAttendeeBalanceState,
   settleAttendeeBalance,
 } from "#shared/db/attendees/balance.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
-import { getDb } from "#shared/db/client.ts";
+import { execute, getDb } from "#shared/db/client.ts";
+import { prunePayments } from "#shared/db/prune.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
-  createTestListing,
   describeWithEnv,
   mockFormRequest,
   mockRequest,
@@ -30,6 +29,7 @@ import {
   testCsrfToken,
   webhookMeta,
 } from "#test-utils";
+import { createReservedAttendee } from "#test-utils/balance.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 /** A settle identity (session id + business time) for settleAttendeeBalance. */
@@ -73,35 +73,78 @@ const insertBareAttendee = async (
 };
 
 /** Create a reserved attendee with an outstanding balance and a paid listing. */
-const createReserved = async (remainingBalance: number) => {
-  const listing = await createTestListing({
-    maxAttendees: 10,
-    name: "Workshop Ticket",
-    thankYouUrl: "https://example.com",
-  });
-  const reservation = await attendeeStatusesTable.insert({
-    isReservation: true,
-    name: "Reserved",
-    reservationAmount: "10%",
-  });
-  const result = await createAttendeeAtomic({
-    bookings: [{ listingId: listing.id, pricePaid: 100, quantity: 2 }],
-    email: "guest@example.com",
-    name: "Guest",
-    remainingBalance,
-    statusId: reservation.id,
-  });
-  if (!result.success) throw new Error("setup failed");
-  const attendeeId = result.attendees[0]!.id;
-  // Owe `remainingBalance` in the ledger: gross sale (deposit + remaining) plus
-  // the £1 deposit payment, so balanceOf nets to −remainingBalance.
-  await postListingSale({
-    amountPaid: 100,
-    attendeeId,
-    gross: 100 + remainingBalance,
-    listingId: listing.id,
-  });
-  return attendeeId;
+const createReserved = async (remainingBalance: number): Promise<number> =>
+  (
+    await createReservedAttendee(remainingBalance, {
+      listingName: "Workshop Ticket",
+      quantity: 2,
+    })
+  ).attendeeId;
+
+/**
+ * A signed Stripe balance-payment checkout session for `attendeeId`.
+ * `signedAmount` is the proof/items total; `chargedAmount` (defaults to it) is
+ * what the provider reports in `amount_total`. `over` merges into the session and
+ * `meta` into its metadata (e.g. a tampered price_proof); payment_intent mirrors
+ * the id with cs_→pi_.
+ */
+const balanceSession = (
+  attendeeId: number,
+  signedAmount: number,
+  id: string,
+  {
+    chargedAmount = signedAmount,
+    eventId = 1,
+    over = {},
+    meta = {},
+  }: {
+    chargedAmount?: number;
+    eventId?: number;
+    over?: Record<string, unknown>;
+    meta?: Record<string, unknown>;
+  } = {},
+) =>
+  ({
+    amount_total: chargedAmount,
+    id,
+    metadata: {
+      ...signMeta(
+        webhookMeta({
+          balance_attendee_id: String(attendeeId),
+          items: JSON.stringify([{ e: eventId, p: signedAmount, q: 1 }]),
+          name: "Balance payment",
+        }),
+        signedAmount,
+      ),
+      ...meta,
+    },
+    payment_intent: id.replace(/^cs_/, "pi_"),
+    payment_status: "paid",
+    ...over,
+  }) as unknown as Awaited<
+    ReturnType<typeof stripeApi.retrieveCheckoutSession>
+  >;
+
+/** Stub retrieveCheckoutSession to return a {@link balanceSession}. */
+const stubBalanceSession = (...args: Parameters<typeof balanceSession>) =>
+  stub(stripeApi, "retrieveCheckoutSession", () =>
+    Promise.resolve(balanceSession(...args)),
+  );
+
+/** Drive the success webhook for `sessionId` and assert it cleared the balance
+ * and flipped the attendee onto the paid default status. */
+const expectSettled = async (
+  sessionId: string,
+  attendeeId: number,
+): Promise<void> => {
+  const paid = await getPaidDefaultStatus();
+  const response = await handleRequest(
+    mockRequest(`/payment/success?session_id=${sessionId}`),
+  );
+  expect(response.status).toBe(200);
+  const state = await getAttendeeBalanceState(attendeeId);
+  expect(state?.remainingBalance).toBe(0);
+  expect(state?.statusId).toBe(paid!.id);
 };
 
 describeWithEnv("server (public balance page)", { db: true }, () => {
@@ -152,18 +195,32 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     expect(await response.text()).toContain("Nothing to pay");
   });
 
-  test("POST handles a reservation with no booking lines", async () => {
+  test("GET refuses a reserved balance whose only line is no-quantity", async () => {
+    const attendeeId = await createReserved(1500);
+    // Turn the only line into a no-quantity sentinel: nothing real to pay into.
+    await getDb().execute({
+      args: [attendeeId],
+      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
+    });
+    const token = await signBalanceToken(attendeeId);
+    const response = await handleRequest(mockRequest(`/pay/${token}`));
+    expect(await response.text()).toContain("not valid");
+  });
+
+  test("POST refuses a reservation with no real booking line", async () => {
     await setupStripe();
     const reservation = await attendeeStatusesTable.insert({
       isReservation: true,
       name: "Reserved",
       reservationAmount: "10%",
     });
+    // No quantity > 0 line means nothing real to pay into, so the balance is not
+    // publicly payable — checkout must not start against a phantom listing.
     const attendeeId = await insertBareAttendee(reservation.id, 1500);
     const token = await signBalanceToken(attendeeId);
     const response = await postPay(token);
-    // Checkout still starts (the line falls back to listing id 0).
-    expect([302, 303]).toContain(response.status);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("not valid");
   });
 
   test("POST rejects an invalid csrf token", async () => {
@@ -271,35 +328,54 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
   test("the webhook settles a signed balance checkout", async () => {
     await setupStripe();
     const attendeeId = await createReserved(1500);
-    const paid = await getPaidDefaultStatus();
-    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1500,
-        id: "cs_balance_signed",
-        metadata: signMeta(
-          webhookMeta({
-            balance_attendee_id: String(attendeeId),
-            items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
-            name: "Balance payment",
-          }),
-          1500,
-        ),
-        payment_intent: "pi_balance_signed",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
-    );
+    const session = stubBalanceSession(attendeeId, 1500, "cs_balance_signed");
     try {
-      const response = await handleRequest(
-        mockRequest("/payment/success?session_id=cs_balance_signed"),
-      );
-      expect(response.status).toBe(200);
-      const state = await getAttendeeBalanceState(attendeeId);
-      expect(state?.remainingBalance).toBe(0);
-      expect(state?.statusId).toBe(paid!.id);
+      await expectSettled("cs_balance_signed", attendeeId);
     } finally {
       session.restore();
+    }
+  });
+
+  test("a pruned balance replay is recovered, not refunded", async () => {
+    await setupStripe();
+    const attendeeId = await createReserved(1500);
+    // First delivery settles the balance and posts its payment leg.
+    const first = stubBalanceSession(attendeeId, 1500, "cs_balance_replay");
+    try {
+      await expectSettled("cs_balance_replay", attendeeId);
+    } finally {
+      first.restore();
+    }
+
+    // Prune the idempotency row; the balance payment leg stays in the ledger.
+    await execute(
+      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
+      ["2000-01-01T00:00:00.000Z", "cs_balance_replay"],
+    );
+    await prunePayments();
+
+    // The replay: the balance is already paid (owed 0), so without the ledger
+    // preflight settleAttendeeBalance reports nothing_owed and refunds the
+    // already-paid customer. The preflight replays success instead.
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_x" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const second = stubBalanceSession(attendeeId, 1500, "cs_balance_replay");
+    try {
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_balance_replay"),
+      );
+      expect(response.status).toBe(200);
+      expect(refund.calls.length).toBe(0);
+      // Balance stays cleared; nothing re-settled or refunded.
+      expect(
+        (await getAttendeeBalanceState(attendeeId))?.remainingBalance,
+      ).toBe(0);
+    } finally {
+      second.restore();
+      refund.restore();
     }
   });
 
@@ -312,25 +388,9 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     // Stripe stamps `created` (Unix seconds) when the checkout is made; the
     // balance-payment leg should be dated from it, not from processing time.
     const created = Math.floor(Date.parse("2026-06-20T09:00:00.000Z") / 1000);
-    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1500,
-        created,
-        id: "cs_balance_ledger",
-        metadata: signMeta(
-          webhookMeta({
-            balance_attendee_id: String(attendeeId),
-            items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
-            name: "Balance payment",
-          }),
-          1500,
-        ),
-        payment_intent: "pi_balance_ledger",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
-    );
+    const session = stubBalanceSession(attendeeId, 1500, "cs_balance_ledger", {
+      over: { created },
+    });
     try {
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_balance_ledger"),
@@ -362,28 +422,15 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
         ReturnType<typeof stripeApi.refundPayment>
       >),
     );
-    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1500,
-        id: "cs_balance_tampered",
-        metadata: {
-          ...signMeta(
-            webhookMeta({
-              balance_attendee_id: String(attendeeId),
-              items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
-              name: "Balance payment",
-            }),
-            1500,
-          ),
-          // Valid total, wrong digest — an invalid proof, so the session is
-          // ignored: not settled, and not refunded (we can't prove it is ours).
-          price_proof: `1500.${"A".repeat(44)}`,
-        },
-        payment_intent: "pi_balance_tampered",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
+    // Valid total, wrong digest — an invalid proof, so the session is ignored:
+    // not settled, and not refunded (we can't prove it is ours).
+    const session = stubBalanceSession(
+      attendeeId,
+      1500,
+      "cs_balance_tampered",
+      {
+        meta: { price_proof: `1500.${"A".repeat(44)}` },
+      },
     );
     try {
       await handleRequest(
@@ -402,36 +449,14 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
   test("settles the balance even when the booking's listing has since been deleted", async () => {
     await setupStripe();
     const attendeeId = await createReserved(1500);
-    const paid = await getPaidDefaultStatus();
-    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1500,
-        id: "cs_bal_nolisting",
-        metadata: signMeta(
-          webhookMeta({
-            balance_attendee_id: String(attendeeId),
-            items: JSON.stringify([{ e: 98765, p: 1500, q: 1 }]),
-            name: "Balance payment",
-          }),
-          1500,
-        ),
-        payment_intent: "pi_bal_nolisting",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
-    );
+    const session = stubBalanceSession(attendeeId, 1500, "cs_bal_nolisting", {
+      eventId: 98765,
+    });
     try {
       // The balance settlement is the operation that matters; a missing listing
       // only means no thank-you URL, so the session still finalizes (no stuck
       // unfinalized reservation after the customer has paid).
-      const response = await handleRequest(
-        mockRequest("/payment/success?session_id=cs_bal_nolisting"),
-      );
-      expect(response.status).toBe(200);
-      const state = await getAttendeeBalanceState(attendeeId);
-      expect(state?.remainingBalance).toBe(0);
-      expect(state?.statusId).toBe(paid!.id);
+      await expectSettled("cs_bal_nolisting", attendeeId);
     } finally {
       session.restore();
     }
@@ -448,24 +473,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
         ReturnType<typeof stripeApi.refundPayment>
       >),
     );
-    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1500,
-        id: "cs_bal_stale",
-        metadata: signMeta(
-          webhookMeta({
-            balance_attendee_id: String(attendeeId),
-            items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
-            name: "Balance payment",
-          }),
-          1500,
-        ),
-        payment_intent: "pi_bal_stale",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
-    );
+    const session = stubBalanceSession(attendeeId, 1500, "cs_bal_stale");
     try {
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_bal_stale"),
@@ -493,24 +501,9 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
         ReturnType<typeof stripeApi.refundPayment>
       >),
     );
-    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1000,
-        id: "cs_bal_amt",
-        metadata: signMeta(
-          webhookMeta({
-            balance_attendee_id: String(attendeeId),
-            items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
-            name: "Balance payment",
-          }),
-          1500,
-        ),
-        payment_intent: "pi_bal_amt",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
-    );
+    const session = stubBalanceSession(attendeeId, 1500, "cs_bal_amt", {
+      chargedAmount: 1000,
+    });
     try {
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_bal_amt"),

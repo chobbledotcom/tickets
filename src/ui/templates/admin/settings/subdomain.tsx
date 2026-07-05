@@ -2,12 +2,16 @@
  * Host Subdomain form for advanced settings
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw, type SafeHtml } from "#jsx/jsx-runtime";
 import { CsrfForm } from "#shared/forms.tsx";
 import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { SUBDOMAIN_INPUT_PATTERN } from "#templates/fields.ts";
+
+/* jscpd:ignore-end */
 
 const SubdomainIntroProse = (): SafeHtml => (
   <div class="prose">
@@ -70,7 +74,7 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
         <input
           autocomplete="off"
           name="subdomain"
-          pattern="[a-z0-9]([a-z0-9-]{'{'}0,61{'}'}[a-z0-9])?"
+          pattern={SUBDOMAIN_INPUT_PATTERN}
           placeholder={t("settings.subdomain.subdomain_placeholder")}
           type="text"
         />

@@ -4,15 +4,18 @@
 
 import * as v from "valibot";
 import { t } from "#i18n";
-import { formatCurrency } from "#shared/currency.ts";
+import { formatCurrency, getDecimalPlaces } from "#shared/currency.ts";
 import { DAY_NAMES } from "#shared/dates.ts";
+import { isUpdateTier } from "#shared/db/built-sites.ts";
+import type { ListingAggregateValues } from "#shared/db/listings.ts";
+import type { ModifierAggregateValues } from "#shared/db/modifiers.ts";
+import type { AnswerAggregateValues } from "#shared/db/questions.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { type Field, validateForm } from "#shared/forms.tsx";
 import {
   formatBytes,
   MAX_ATTACHMENT_SIZE,
-  MAX_IMAGE_SIZE,
   MAX_TEXTAREA_LENGTH,
 } from "#shared/limits.ts";
 import {
@@ -20,7 +23,11 @@ import {
   parseListingFields,
   withRequiredEmail,
 } from "#shared/listing-fields.ts";
-import { normalizeSlug, validateSlug } from "#shared/slug.ts";
+import {
+  firstIssueMessage,
+  normalizeSlug,
+  validateSlug,
+} from "#shared/slug.ts";
 import { isValidDatetime } from "#shared/timezone.ts";
 import {
   type AdminLevel,
@@ -35,6 +42,11 @@ import {
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import { EmailFormatSchema } from "#shared/validation/email.ts";
+import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
+import { formattingHint } from "#templates/components/formatting-hint.ts";
+import { moneyPattern } from "#templates/components/price-input.tsx";
+
+export { formattingHint };
 
 // ---------------------------------------------------------------------------
 // Typed form value interfaces
@@ -81,10 +93,7 @@ export type ListingEditFormValues = ListingFormValues & {
   slug: string;
 };
 
-export type ListingAggregateFormValues = {
-  booked_quantity: number;
-  tickets_count: number;
-};
+export type ListingAggregateFormValues = ListingAggregateValues;
 
 /** Typed values from group create form validation (no slug - auto-generated) */
 export type GroupCreateFormValues = {
@@ -93,6 +102,8 @@ export type GroupCreateFormValues = {
   terms_and_conditions: string;
   max_attendees: number | null;
   hidden: string;
+  is_package: string;
+  hide_package_listings: string;
 };
 
 /** Typed values from group edit form validation (includes slug) */
@@ -171,15 +182,15 @@ const validateHttpsDomainUrl = (value: string): string | null =>
   validateSafeServerFetchUrl(value, t("fields.validation.url_https"));
 
 /**
- * Validate price is non-negative
+ * Validate a required non-negative price. Currency-aware: rejects a blank, a
+ * negative, a non-numeric value, AND an amount carrying more decimal places than
+ * the active currency allows (so `1.005` in GBP is a validation error rather
+ * than a value that later rounds to 101 pence).
  */
-const validateNonNegativePrice = (value: string): string | null => {
-  const num = Number.parseFloat(value);
-  if (Number.isNaN(num) || num < 0) {
-    return t("fields.validation.price_min");
-  }
-  return null;
-};
+const validateNonNegativePrice = (value: string): string | null =>
+  parseOptionalMinorUnits(value) === null
+    ? t("fields.validation.price_min")
+    : null;
 
 const validateNonNegativeInteger =
   (label: string) =>
@@ -222,10 +233,8 @@ const UsernameSchema = v.pipe(
   ),
 );
 
-export const validateUsername = (value: string): string | null => {
-  const result = v.safeParse(UsernameSchema, value, { abortPipeEarly: true });
-  return result.success ? null : result.issues[0].message;
-};
+export const validateUsername = (value: string): string | null =>
+  firstIssueMessage(UsernameSchema, value);
 
 /** Base username field shared across login and invite forms */
 const getUsernameFieldBase = (): Field => ({
@@ -233,7 +242,7 @@ const getUsernameFieldBase = (): Field => ({
   maxlength: 32,
   minlength: 2,
   name: "username",
-  pattern: "[a-zA-Z0-9_-]+",
+  pattern: "[a-zA-Z0-9_\\-]+",
   required: true,
   title: t("fields.login.username_title"),
   type: "text",
@@ -260,6 +269,10 @@ const validateListingType = (value: string): string | null => {
   }
   return null;
 };
+
+/** Validate a built site's update channel (alpha/beta/release) */
+const validateUpdateTier = (value: string): string | null =>
+  isUpdateTier(value) ? null : t("fields.validation.update_tier");
 
 /** Valid day names for bookable_days (Monday-first for display) */
 export const VALID_DAY_NAMES = [...DAY_NAMES.slice(1), DAY_NAMES[0]!];
@@ -290,16 +303,24 @@ export const validateBookableDays = (value: string): string | null => {
   return null;
 };
 
-/** Shared formatting hint linking to the admin guide */
-export const FORMATTING_HINT =
-  '<a href="/admin/guide#text-formatting" target="_blank" rel="noopener">Formatting help</a>';
-
 /** Validate description length */
 const DescriptionSchema = v.pipe(v.string(), v.maxLength(MAX_TEXTAREA_LENGTH));
 const validateDescription = (value: string): string | null =>
   v.safeParse(DescriptionSchema, value).success
     ? null
     : t("fields.validation.description_max", { max: MAX_TEXTAREA_LENGTH });
+
+const buildDescriptionField = (hint: string, hintHtml?: string): Field => ({
+  hint,
+  ...(hintHtml !== undefined && { hintHtml }),
+  label: t("fields.listing.description"),
+  markdown: true,
+  maxlength: MAX_TEXTAREA_LENGTH,
+  name: "description",
+  placeholder: t("fields.listing.description_placeholder"),
+  type: "textarea",
+  validate: validateDescription,
+});
 
 /** Validate a datetime value is parseable */
 const validateDatetime = (value: string): string | null =>
@@ -357,17 +378,10 @@ export const getListingFields = (): Field[] => [
     type: "select",
     validate: validateListingType,
   },
-  {
-    hint: t("fields.listing.description_hint_field"),
-    hintHtml: FORMATTING_HINT,
-    label: t("fields.listing.description"),
-    markdown: true,
-    maxlength: MAX_TEXTAREA_LENGTH,
-    name: "description",
-    placeholder: t("fields.listing.description_placeholder"),
-    type: "textarea",
-    validate: validateDescription,
-  },
+  buildDescriptionField(
+    t("fields.listing.description_hint_field"),
+    formattingHint(),
+  ),
   {
     hint: t("fields.listing.date_hint"),
     label: t("fields.listing.date"),
@@ -471,7 +485,7 @@ export const getListingFields = (): Field[] => [
     inputmode: "decimal",
     label: t("fields.listing.price"),
     name: "unit_price",
-    pattern: "\\d+(\\.\\d{1,2})?",
+    pattern: moneyPattern(),
     placeholder: t("fields.listing.price_placeholder"),
     title: t("fields.listing.price_title"),
     type: "text",
@@ -485,12 +499,14 @@ export const getListingFields = (): Field[] => [
     type: "checkbox-group",
   },
   {
-    defaultValue: "100.00",
+    // 100 currency units, formatted to the currency's decimals so the default
+    // is valid for a zero-decimal currency (JPY "100") as well as GBP "100.00".
+    defaultValue: (100).toFixed(getDecimalPlaces(settings.currency)),
     hint: t("fields.listing.max_price_hint", { amount: formatCurrency(100) }),
     inputmode: "decimal",
     label: t("fields.listing.max_price"),
     name: "max_price",
-    pattern: "\\d+(\\.\\d{1,2})?",
+    pattern: moneyPattern(),
     placeholder: t("fields.listing.max_price_placeholder"),
     title: t("fields.listing.max_price_title"),
     type: "text",
@@ -535,6 +551,13 @@ export const getListingFields = (): Field[] => [
     label: t("fields.listing.purchase_only"),
     name: "purchase_only",
     options: [{ label: t("fields.listing.purchase_only_label"), value: "1" }],
+    type: "checkbox-group",
+  },
+  {
+    hint: t("fields.listing.bookable_alone_hint"),
+    label: t("fields.listing.bookable_alone"),
+    name: "bookable_alone",
+    options: [{ label: t("fields.listing.bookable_alone_label"), value: "1" }],
     type: "checkbox-group",
   },
 ];
@@ -627,9 +650,9 @@ export const getBuiltSiteFields = (): Field[] => [
     type: "text",
   },
   {
-    label: t("fields.built_site.bunny_url"),
-    name: "bunny_url",
-    placeholder: t("fields.built_site.bunny_url_placeholder"),
+    label: t("fields.built_site.site_url"),
+    name: "site_url",
+    placeholder: t("fields.built_site.site_url_placeholder"),
     required: true,
     type: "url",
     validate: validateHttpsDomainUrl,
@@ -647,10 +670,28 @@ export const getBuiltSiteFields = (): Field[] => [
     type: "password",
   },
   {
-    label: t("fields.built_site.bunny_script_id"),
-    name: "bunny_script_id",
-    placeholder: t("fields.built_site.bunny_script_id_placeholder"),
+    label: t("fields.built_site.hosting_id"),
+    name: "hosting_id",
+    placeholder: t("fields.built_site.hosting_id_placeholder"),
     type: "text",
+  },
+  {
+    label: t("fields.built_site.hosting_provider"),
+    name: "hosting_provider",
+    options: [
+      { label: "Bunny", value: "bunny" },
+      { label: "Deno Deploy", value: "deno" },
+    ],
+    type: "select",
+  },
+  {
+    label: t("fields.built_site.db_provider"),
+    name: "db_provider",
+    options: [
+      { label: "Bunny DB", value: "bunny" },
+      { label: "Turso", value: "turso" },
+    ],
+    type: "select",
   },
   {
     hint: t("fields.built_site.assignable_hint"),
@@ -658,6 +699,23 @@ export const getBuiltSiteFields = (): Field[] => [
     name: "assignable",
     options: [{ label: t("fields.built_site.assignable_label"), value: "1" }],
     type: "checkbox-group",
+  },
+  {
+    hint: t("fields.built_site.updates_hint"),
+    label: t("fields.built_site.updates"),
+    name: "updates",
+    // Ordered safest-first so release heads the dropdown (the create form
+    // pre-selects it and the table layer defaults to it). No `defaultValue`: it
+    // would make validation fill an OMITTED field with the default, which on an
+    // edit silently overwrites an existing channel — the route only carries a
+    // recognised value so an absent field preserves the stored channel instead.
+    options: [
+      { label: t("fields.built_site.updates_release"), value: "release" },
+      { label: t("fields.built_site.updates_beta"), value: "beta" },
+      { label: t("fields.built_site.updates_alpha"), value: "alpha" },
+    ],
+    type: "select",
+    validate: validateUpdateTier,
   },
 ];
 
@@ -668,14 +726,6 @@ export const getAssignBuiltSiteField = (): Field => ({
   name: "assign_built_site",
   options: [{ label: t("fields.listing.assign_built_site_label"), value: "1" }],
   type: "checkbox-group",
-});
-
-/** Image upload field for listing forms (appended when storage is enabled) */
-export const getImageField = (): Field => ({
-  accept: "image/jpeg,image/png,image/gif,image/webp",
-  label: t("fields.listing.image", { size: formatBytes(MAX_IMAGE_SIZE) }),
-  name: "image",
-  type: "file",
 });
 
 /** Attachment upload field for listing forms (appended when storage is enabled) */
@@ -692,18 +742,11 @@ export const getSlugField = (): Field => ({
   hint: t("fields.listing.slug_hint_field"),
   label: t("common.slug"),
   name: "slug",
-  pattern: "[a-z0-9_-]+",
+  pattern: "[a-z0-9_\\-]+",
   required: true,
   title: t("fields.listing.slug_title"),
   type: "text",
   validate: (value: string) => validateSlug(normalizeSlug(value)),
-});
-
-/** Group selection field (validated even when rendered manually) */
-export const getGroupIdField = (): Field => ({
-  label: t("terms.group"),
-  name: "group_id",
-  type: "text",
 });
 
 /** Max attendees field for group forms */
@@ -715,16 +758,29 @@ const getGroupMaxAttendeesField = (): Field => ({
 });
 
 /** Group description field */
-const getGroupDescriptionField = (): Field => ({
-  hint: t("fields.group.description_hint"),
-  hintHtml: FORMATTING_HINT,
-  label: t("fields.listing.description"),
-  markdown: true,
-  maxlength: MAX_TEXTAREA_LENGTH,
-  name: "description",
-  placeholder: t("fields.listing.description_placeholder"),
-  type: "textarea",
-  validate: validateDescription,
+const getGroupDescriptionField = (): Field =>
+  buildDescriptionField(t("fields.group.description_hint"), formattingHint());
+
+/** "Is a package" checkbox for group forms. Toggling it reveals the per-listing
+ * price override table on the edit page via the CSS sibling trick. */
+const getIsPackageField = (): Field => ({
+  hint: t("fields.group.is_package_hint"),
+  label: t("fields.group.is_package"),
+  name: "is_package",
+  options: [{ label: t("fields.group.is_package_label"), value: "1" }],
+  type: "checkbox-group",
+});
+
+/** "Hide listings within package" checkbox. Only meaningful for packages, so the
+ * edit page reveals it via the same CSS trick as the price table. */
+const getHidePackageListingsField = (): Field => ({
+  hint: t("fields.group.hide_package_listings_hint"),
+  label: t("fields.group.hide_package_listings"),
+  name: "hide_package_listings",
+  options: [
+    { label: t("fields.group.hide_package_listings_label"), value: "1" },
+  ],
+  type: "checkbox-group",
 });
 
 /** Group form fields for creation (no slug - auto-generated) */
@@ -742,7 +798,7 @@ export const getGroupCreateFields = (): Field[] => {
     getGroupMaxAttendeesField(),
     {
       hint: t("fields.group.terms_hint"),
-      hintHtml: FORMATTING_HINT,
+      hintHtml: formattingHint(),
       label: t("fields.group.terms"),
       markdown: true,
       maxlength: MAX_TEXTAREA_LENGTH,
@@ -754,6 +810,8 @@ export const getGroupCreateFields = (): Field[] => {
           : null,
     },
     groupHiddenField,
+    getIsPackageField(),
+    getHidePackageListingsField(),
   ];
 };
 
@@ -767,6 +825,8 @@ export const getGroupFields = (): Field[] => {
     creates[2]!,
     creates[3]!,
     buildHiddenField("Group"),
+    getIsPackageField(),
+    getHidePackageListingsField(),
   ];
 };
 
@@ -785,10 +845,7 @@ export type ModifierFormValues = {
   active: string;
 };
 
-export type ModifierAggregateFormValues = {
-  total_uses: number;
-  usage_count: number;
-};
+export type ModifierAggregateFormValues = ModifierAggregateValues;
 
 const aggregateIntegerField = (name: string, label: string): Field => ({
   label,
@@ -810,9 +867,7 @@ export const modifierAggregateFields: Field[] = [
   aggregateIntegerField("usage_count", t("fields.modifier.usage_count")),
 ];
 
-export type AnswerAggregateFormValues = {
-  times_selected: number;
-};
+export type AnswerAggregateFormValues = AnswerAggregateValues;
 
 export const answerAggregateFields: Field[] = [
   aggregateIntegerField("times_selected", t("fields.answer.times_selected")),
@@ -898,17 +953,17 @@ export const modifierFields: Field[] = [
     inputmode: "decimal",
     label: "Minimum order (optional)",
     name: "min_subtotal",
-    // Optional: blank means no minimum (0). A provided value must be a
-    // non-negative number; `validateSingleField` only runs `validate` when the
-    // field is non-empty, and `parse` maps blank to 0.
+    // Optional: blank means no minimum (0). `parse` maps blank to 0;
+    // `validateSingleField` only runs `validate` on a non-empty value.
     parse: (value: string) => (value ? Number.parseFloat(value) : 0),
     type: "text",
-    validate: (value: string) => {
-      const n = Number.parseFloat(value);
-      return Number.isFinite(n) && n >= 0
-        ? null
-        : "Minimum order must be a positive number";
-    },
+    // A present value is a currency amount, so reject a negative, a non-number,
+    // or one with more decimals than the currency allows (which `toMinorUnits`
+    // would otherwise round at save) rather than silently coercing it.
+    validate: (value: string) =>
+      parseOptionalMinorUnits(value) === null
+        ? "Minimum order must be a valid amount for your currency"
+        : null,
   },
   {
     hint: "Only apply to a returning customer with at least this many previous bookings. 0 (or blank) applies to everyone; 1 means seen at least once before.",
@@ -952,12 +1007,26 @@ const emailField: Field = {
   validate: validateEmail,
 };
 
+/**
+ * HTML `pattern` attribute for the phone input. Browsers compile `pattern` with
+ * the RegExp `v` flag, under which an unescaped `(` `)` inside a character class
+ * is a syntax error — so the parens are escaped. Shared between the ticket
+ * phone field and the admin attendee form so the two can't drift.
+ */
+export const PHONE_INPUT_PATTERN = "[+\\d][\\d\\s\\-\\(\\)]{5,}";
+
+/**
+ * HTML `pattern` attribute for the subdomain input (a DNS label). Escaped for
+ * the same `v`-flag reason (a literal `-` in a character class must be escaped).
+ */
+export const SUBDOMAIN_INPUT_PATTERN = "[a-z0-9]([a-z0-9\\-]{0,61}[a-z0-9])?";
+
 /** Phone field for ticket forms */
 const phoneField: Field = {
   autocomplete: "tel",
   label: "Your Phone Number",
   name: "phone",
-  pattern: "[+\\d][\\d\\s\\-()]{5,}",
+  pattern: PHONE_INPUT_PATTERN,
   required: true,
   title:
     "Phone number (digits, spaces, hyphens, parentheses, optional leading +)",
@@ -1274,6 +1343,7 @@ export const getInviteUserFields = (): Field[] => [
       { label: t("fields.user.manager"), value: "manager" },
       { label: t("fields.user.owner"), value: "owner" },
       { label: t("fields.user.agent"), value: "agent" },
+      { label: t("fields.user.editor"), value: "editor" },
     ],
     required: true,
     type: "select",

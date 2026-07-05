@@ -11,7 +11,8 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { type Column, CSV } from "#shared/csv/index.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
-import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import { isServicing } from "#shared/db/attendees/kind.ts";
+import type { AttendeeQuestionData } from "#shared/db/questions.ts";
 import { DEFAULT_TIMEZONE, formatDatetimeShortInTz } from "#shared/timezone.ts";
 import type { Attendee } from "#shared/types.ts";
 
@@ -19,15 +20,6 @@ import type { Attendee } from "#shared/types.ts";
 export type CsvListingInfo = {
   listingDate: string;
   listingLocation: string;
-};
-
-/** Custom-question data optionally appended to an attendee export. */
-export type CsvQuestionData = {
-  questions: QuestionWithAnswers[];
-  attendeeAnswerMap: Map<number, number[]>;
-  /** attendeeId → (questionId → decrypted free-text answer), for free_text
-   * question columns. Absent when text answers were not loaded. */
-  textAnswerMap?: Map<number, Map<number, string>>;
 };
 
 /** Price in minor units as a decimal string in the configured currency. */
@@ -75,37 +67,37 @@ export const standardAttendeeColumns = (domain: string): Column<Attendee>[] => [
   { header: t("csv.col.ticket_token"), value: (a) => a.ticket_token },
   {
     header: t("csv.col.ticket_url"),
-    value: (a) => `https://${domain}/t/${a.ticket_token}`,
+    // Blank for a no-quantity sentinel row: its /t URL renders the attendee's
+    // other real bookings (or 404s), so it isn't this row's customer ticket.
+    // Also blank for a servicing hold: its token route `/t/:token` 404s (kind
+    // filter), so the URL would be a dead link an operator can't follow.
+    value: (a) =>
+      a.quantity === 0 || isServicing(a.kind)
+        ? ""
+        : `https://${domain}/t/${a.ticket_token}`,
   },
 ];
 
-/** Optional Listing Date / Listing Location columns (fixed for every row). The
- * listing date is a UTC ISO datetime, shown as a date + time in `tz`. */
-const listingInfoColumns = (
-  tz: string,
-  info?: CsvListingInfo,
-): Column<Attendee>[] => [
-  ...(info?.listingDate
-    ? [
-        {
-          header: t("csv.col.listing_date"),
-          value: () => formatDatetimeShortInTz(info.listingDate, tz),
-        },
-      ]
+/** Optional Listing Date / Listing Location columns, shared by the attendee and
+ * calendar exports. Each column is emitted only when its `show` flag is set; its
+ * `value` reads the cell from the row (a per-row listing for the calendar, a
+ * fixed listing for a single-listing attendee export). The listing date is a UTC
+ * ISO datetime, which the supplied `value` is expected to render in the site tz. */
+export const listingInfoColumns = <T>(
+  date: { show: boolean; value: Column<T>["value"] },
+  location: { show: boolean; value: Column<T>["value"] },
+): Column<T>[] => [
+  ...(date.show
+    ? [{ header: t("csv.col.listing_date"), value: date.value }]
     : []),
-  ...(info?.listingLocation
-    ? [
-        {
-          header: t("csv.col.listing_location"),
-          value: () => info.listingLocation,
-        },
-      ]
+  ...(location.show
+    ? [{ header: t("csv.col.listing_location"), value: location.value }]
     : []),
 ];
 
 /** One column per custom question, each cell the attendee's chosen answer (for
  * choice questions) or their decrypted free-text answer (for free_text). */
-const questionColumns = (data?: CsvQuestionData): Column<Attendee>[] => {
+const questionColumns = (data?: AttendeeQuestionData): Column<Attendee>[] => {
   const questions = data?.questions ?? [];
   const answerMap = data?.attendeeAnswerMap ?? new Map<number, number[]>();
   const textMap = data?.textAnswerMap;
@@ -135,9 +127,9 @@ type AttendeeCsvOptions = {
   /** Site timezone, for the optional Listing Date column. */
   tz: string;
   /** Prepend fixed Listing Date / Listing Location columns. */
-  listingInfo?: CsvListingInfo;
+  listingInfo?: CsvListingInfo | undefined;
   /** Append one column per custom question. */
-  questionData?: CsvQuestionData;
+  questionData?: AttendeeQuestionData | undefined;
 };
 
 /** The ordered attendee columns for an export: an optional booking Date, then
@@ -158,7 +150,16 @@ const attendeeColumns = ({
         },
       ]
     : []),
-  ...listingInfoColumns(tz, listingInfo),
+  ...listingInfoColumns<Attendee>(
+    {
+      show: Boolean(listingInfo?.listingDate),
+      value: () => formatDatetimeShortInTz(listingInfo!.listingDate, tz),
+    },
+    {
+      show: Boolean(listingInfo?.listingLocation),
+      value: () => listingInfo!.listingLocation,
+    },
+  ),
   ...standardAttendeeColumns(domain),
   ...questionColumns(questionData),
 ];
@@ -173,7 +174,7 @@ export const generateAttendeesCsv = (
   attendees: Attendee[],
   includeDate = false,
   listingInfo?: CsvListingInfo,
-  questionData?: CsvQuestionData,
+  questionData?: AttendeeQuestionData,
   tz: string = DEFAULT_TIMEZONE,
 ): string =>
   CSV.generate(

@@ -11,6 +11,61 @@ export const expectStatus =
     return response;
   };
 
+export const expectDatabaseResetRedirect = (response: Response): Response => {
+  expectRedirectWithFlash("/setup/", "Database reset")(response);
+  const sessionCookie = response.headers
+    .getSetCookie()
+    .find((c) => c.startsWith(`${getSessionCookieName()}=`));
+  expect(sessionCookie).toContain("Max-Age=0");
+  return response;
+};
+
+export const expectAdminLoginSuccess = async (
+  response: Response,
+): Promise<void> => {
+  await expectFlashRedirect("/admin", "Logged in")(response);
+  const sessionCookie = response.headers
+    .getSetCookie()
+    .find((c) => c.startsWith(`${getSessionCookieName()}=`));
+  expect(sessionCookie).toBeDefined();
+};
+
+export const expectActivityLogShows = async (
+  name: string,
+  verb: string,
+): Promise<void> => {
+  const { adminGet } = await import("#test-utils/session.ts");
+  const response = await adminGet("/admin/log");
+  const body = await response.text();
+  expect(body).toContain(name);
+  expect(body).toContain(verb);
+};
+
+export const expectTestAttendeeCsvColumns = (
+  row: string | undefined,
+  quantity = 1,
+): void => {
+  expect(row).toContain("John Doe");
+  expect(row).toContain("john@example.com");
+  expect(row).toContain(`,${quantity},`);
+};
+
+/** Asserts a response is a 200 CSV download with the standard
+ *  Content-Disposition: attachment header, whose filename contains
+ *  `filenameFragment` — the shared header contract behind every CSV export
+ *  route (listing exports, calendar exports, etc). */
+export const expectCsvDownloadHeaders = (
+  response: Response,
+  filenameFragment: string,
+): void => {
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toBe("text/csv; charset=utf-8");
+  expect(response.headers.get("content-disposition")).toContain("attachment");
+  expect(response.headers.get("content-disposition")).toContain(
+    filenameFragment,
+  );
+};
+
 export const expectJsonResponse =
   // deno-lint-ignore no-explicit-any
     <T = any>(status: number, assertions?: (body: T) => void) =>
@@ -29,6 +84,41 @@ export const assertJson = async <T = any>(
 ): Promise<T> => {
   const response = await request;
   return expectJsonResponse<T>(status, assertions)(response);
+};
+
+/** PUT `{ name: "" }` to a JSON API entity endpoint and assert the standard
+ *  400 "name cannot be empty" rejection. The PUT-name-empty validation is
+ *  shared by every writable-named admin entity (holidays, groups, listings),
+ *  so hoisting the assertion here keeps each api test focused on the
+ *  behaviour specific to that resource. */
+export const expectRejectsEmptyName = async (path: string): Promise<void> => {
+  const { apiRequest } = await import("#test-utils/session.ts");
+  await assertJson(
+    apiRequest(path, { body: { name: "" }, method: "PUT" }),
+    400,
+    (body) => {
+      expect(body.error).toBe("name cannot be empty");
+    },
+  );
+};
+
+/** DELETE a named resource via the admin JSON API with a confirmation and
+ *  assert the standard `{ status: "ok" }` 200 response. */
+export const assertApiDeleteOk = async (
+  url: string,
+  confirmationName: string,
+): Promise<void> => {
+  const { apiRequest } = await import("#test-utils/session.ts");
+  await assertJson(
+    apiRequest(url, {
+      body: { confirm_identifier: confirmationName },
+      method: "DELETE",
+    }),
+    200,
+    (body) => {
+      expect(body.status).toBe("ok");
+    },
+  );
 };
 
 export const assertFormRedirect = async (
@@ -50,10 +140,8 @@ export const assertAdminHtml = async (
   ...substrings: string[]
 ): Promise<string> => {
   const { adminGet } = await import("#test-utils/session.ts");
-  const { response } = await adminGet(path);
-  const html = await response.text();
-  for (const s of substrings) expect(html).toContain(s);
-  return html;
+  const response = await adminGet(path);
+  return expectHtml(response, { contains: substrings, status: 200 });
 };
 
 export const assertAdminHtmlWithCookie = async (
@@ -80,12 +168,24 @@ export const expectHtmlResponse = async (
   response: Response,
   status: number,
   ...substrings: string[]
+): Promise<string> => expectHtml(response, { contains: substrings, status });
+
+/** Assert an HTTP response's body HTML. Works with any request method —
+ *  `adminGet`, `handleRequest(mockRequest(...))`, direct handler calls —
+ *  because it takes the `Response` itself. Supports optional status check,
+ *  positive (`contains`) and negative (`notContains`) substring assertions. */
+export const expectHtml = async (
+  response: Response,
+  opts: {
+    status?: number | undefined;
+    contains?: string[] | undefined;
+    notContains?: string[] | undefined;
+  } = {},
 ): Promise<string> => {
-  expect(response.status).toBe(status);
+  if (opts.status !== undefined) expect(response.status).toBe(opts.status);
   const html = await response.text();
-  for (const s of substrings) {
-    expect(html).toContain(s);
-  }
+  for (const s of opts.contains ?? []) expect(html).toContain(s);
+  for (const s of opts.notContains ?? []) expect(html).not.toContain(s);
   return html;
 };
 
@@ -124,8 +224,38 @@ export const expectRedirect = (
 export const expectAdminRedirect = (response: Response): string =>
   expectRedirect(response, "/admin");
 
+/** A successful public booking redirects to the reserved/thank-you page
+ *  carrying one or more attendee tokens in the query string. */
+export const expectReservedRedirectWithTokens = (response: Response): void => {
+  expectRedirect(response, /^\/ticket\/reserved\?tokens=.+$/);
+};
+
+/** Asserts each listing in `expectations` ended up with exactly `count` raw
+ *  attendee rows, and (when given) that the single resulting attendee's
+ *  `quantity` matches. This is the "who got booked, and for how many" check
+ *  repeated after almost every multi-listing booking POST. */
+export const expectAttendeeCounts = async (
+  expectations: { count: number; listingId: number; quantity?: number }[],
+): Promise<void> => {
+  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  for (const { count, listingId, quantity } of expectations) {
+    const attendees = await getAttendeesRaw(listingId);
+    expect(attendees.length).toBe(count);
+    if (quantity !== undefined) expect(attendees[0]?.quantity).toBe(quantity);
+  }
+};
+
+/** The exact `form` search param of a redirect's Location (the flash anchor
+ * targeting a specific CsrfForm), or null when absent. Parsed rather than
+ * substring-matched so a wrong-but-prefixed form id (settings-square vs
+ * settings-square-webhook) can't pass. */
+export const redirectFormId = (response: Response): string | null =>
+  new URL(getHeader(response, "location"), "http://localhost").searchParams.get(
+    "form",
+  );
+
 /** Parse the `flash_*` cookie off a redirect response into its message fields. */
-const parseFlashCookie = (
+export const parseFlashCookie = (
   response: Response,
 ): ReturnType<typeof parseFlashValue> => {
   const cookies = response.headers.getSetCookie();
@@ -145,6 +275,12 @@ export const expectFlash = (
   const actual = succeeded ? parsed.success : parsed.error;
   if (message !== undefined) expect(actual).toEqual(message);
   return response;
+};
+
+/** Assert a 302 redirect carrying an error flash whose message contains `text`. */
+export const expectErrorFlash = (response: Response, text: string): void => {
+  expect(response.status).toBe(302);
+  expectFlash(response, expect.stringContaining(text), false);
 };
 
 export const expectRedirectWithFlash =
@@ -299,12 +435,64 @@ export const expectResultNotFound = <
 export const getHeader = (response: Response, name: string): string =>
   response.headers.get(name)!;
 
+/** Assert `fn` throws an error of `errorClass` and (optionally) whose message
+ *  matches `pattern`. Runs `fn` twice — once per assertion — so only use for
+ *  idempotent predicates (validators, pure checks), not stateful operations. */
+// deno-lint-ignore no-explicit-any
+export const expectThrows = (
+  fn: () => unknown,
+  errorClass: any,
+  pattern?: RegExp,
+): void => {
+  expect(fn).toThrow(errorClass);
+  if (pattern !== undefined) expect(fn).toThrow(pattern);
+};
+
+/** Await `promise` expecting it to reject, and return the thrown error's
+ *  message string. Useful when you need to assert on a substring of the
+ *  message (Deno's `rejects.toThrow` doesn't return the message). */
+export const rejectionMessage = async (
+  promise: Promise<unknown>,
+): Promise<string> => {
+  try {
+    await promise;
+  } catch (error) {
+    return (error as Error).message;
+  }
+  return "";
+};
+
+/** Assert that HTML content is properly escaped — `<script>` shows as
+ *  `&lt;script&gt;`. */
+export const expectHtmlEscaped = (html: string): void => {
+  expect(html).not.toContain("<script>");
+  expect(html).toContain("&lt;script&gt;");
+};
+
 export const matchGroup = (
   text: string,
   pattern: RegExp,
   group = 1,
 ): string => {
   return text.match(pattern)![group]!;
+};
+
+/** Visible text labels of every `<option>` inside the `<select
+ *  aria-label="…">` dropdown, in document order. Includes disabled and prompt
+ *  options, so callers see exactly what the user sees — e.g. the "Select a
+ *  date" clear option the date picker splices in between past and future
+ *  dates. */
+export const selectOptionLabels = (
+  html: string,
+  ariaLabel: string,
+): (string | undefined)[] => {
+  const escaped = ariaLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const inner = html.match(
+    new RegExp(
+      `<select[^>]*aria-label="${escaped}"[^>]*>([\\s\\S]*?)<\\/select>`,
+    ),
+  )![1]!;
+  return [...inner.matchAll(/<option[^>]*>([^<]+)</g)].map((m) => m[1]);
 };
 
 interface TestRequiresAuthOptions {

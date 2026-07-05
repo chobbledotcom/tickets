@@ -5,6 +5,7 @@ import {
   addQueryLogEntry,
   enableFooterDebug,
   enableQueryLog,
+  enforceTransactionRoundTripGuard,
   getQueryLog,
   getQueryLogStartTime,
   isFooterDebugEnabled,
@@ -13,6 +14,7 @@ import {
   runWithQueryLogContext,
   setN1GuardNotifyOnly,
   sqlWallClockMs,
+  TRANSACTION_ROUNDTRIP_THRESHOLD,
   trackQuery,
 } from "#shared/db/query-log.ts";
 // Importing logger eagerly also preloads it, so the dynamic
@@ -277,13 +279,17 @@ describe("query-log", () => {
     // Reset to the default (throw) after any test that switches modes.
     afterEach(() => setN1GuardNotifyOnly(null));
 
+    const readSelectOne = async (count: number): Promise<unknown> => {
+      let last: unknown;
+      for (let i = 0; i < count; i++) {
+        last = await trackQuery("SELECT 1", () => Promise.resolve("ok"));
+      }
+      return last;
+    };
+
     test("allows a read to repeat up to the threshold", async () => {
       await runWithQueryLogContext(async () => {
-        let last: unknown;
-        for (let i = 0; i < N_PLUS_ONE_THRESHOLD; i++) {
-          last = await trackQuery("SELECT 1", () => Promise.resolve("ok"));
-        }
-        expect(last).toBe("ok");
+        expect(await readSelectOne(N_PLUS_ONE_THRESHOLD)).toBe("ok");
       });
     });
 
@@ -322,11 +328,7 @@ describe("query-log", () => {
     });
 
     test("does not enforce outside a request scope", async () => {
-      let last: unknown;
-      for (let i = 0; i <= N_PLUS_ONE_THRESHOLD; i++) {
-        last = await trackQuery("SELECT 1", () => Promise.resolve("ok"));
-      }
-      expect(last).toBe("ok");
+      expect(await readSelectOne(N_PLUS_ONE_THRESHOLD + 1)).toBe("ok");
     });
 
     test("notify mode reports the violation instead of throwing", async () => {
@@ -334,11 +336,7 @@ describe("query-log", () => {
       setN1GuardNotifyOnly(true);
       try {
         await runWithQueryLogContext(async () => {
-          let last: unknown;
-          for (let i = 0; i <= N_PLUS_ONE_THRESHOLD; i++) {
-            last = await trackQuery("SELECT 1", () => Promise.resolve("ok"));
-          }
-          expect(last).toBe("ok");
+          expect(await readSelectOne(N_PLUS_ONE_THRESHOLD + 1)).toBe("ok");
         });
         // Let the fire-and-forget dynamic import + logError settle.
         await new Promise((resolve) => setTimeout(resolve, 0));
@@ -347,6 +345,72 @@ describe("query-log", () => {
       }
       const reported = errorSpy.calls.some((call) =>
         call.args.some((arg) => String(arg).includes("N+1 query detected")),
+      );
+      expect(reported).toBe(true);
+    });
+  });
+
+  describe("transaction round-trip guard", () => {
+    afterEach(() => setN1GuardNotifyOnly(null));
+
+    test("allows up to the threshold of statements in a transaction", () => {
+      runWithQueryLogContext(() => {
+        for (let i = 1; i <= TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
+          enforceTransactionRoundTripGuard(i, "INSERT INTO t VALUES (1)");
+        }
+      });
+    });
+
+    test("throws when a transaction crosses the threshold", () => {
+      runWithQueryLogContext(() => {
+        expect(() =>
+          enforceTransactionRoundTripGuard(
+            TRANSACTION_ROUNDTRIP_THRESHOLD + 1,
+            "INSERT INTO t VALUES (1)",
+          ),
+        ).toThrow(/Interactive transaction too chatty/);
+      });
+    });
+
+    test("fires once: counts past the crossing point are a no-op", () => {
+      runWithQueryLogContext(() => {
+        expect(() =>
+          enforceTransactionRoundTripGuard(
+            TRANSACTION_ROUNDTRIP_THRESHOLD + 2,
+            "INSERT INTO t VALUES (1)",
+          ),
+        ).not.toThrow();
+      });
+    });
+
+    test("does not enforce outside a request scope (migrations exempt)", () => {
+      // No runWithQueryLogContext: a startup migration rebuilding a table in one
+      // big transaction must not trip the guard.
+      enforceTransactionRoundTripGuard(
+        TRANSACTION_ROUNDTRIP_THRESHOLD + 1,
+        "CREATE TABLE t (x)",
+      );
+    });
+
+    test("notify mode reports the violation instead of throwing", async () => {
+      const errorSpy = stub(console, "error");
+      setN1GuardNotifyOnly(true);
+      try {
+        await runWithQueryLogContext(async () => {
+          enforceTransactionRoundTripGuard(
+            TRANSACTION_ROUNDTRIP_THRESHOLD + 1,
+            "INSERT INTO t VALUES (1)",
+          );
+          // Let the fire-and-forget dynamic import + logError settle.
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+      } finally {
+        errorSpy.restore();
+      }
+      const reported = errorSpy.calls.some((call) =>
+        call.args.some((arg) =>
+          String(arg).includes("Interactive transaction too chatty"),
+        ),
       );
       expect(reported).toBe(true);
     });

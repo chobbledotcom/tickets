@@ -14,13 +14,21 @@ import {
 } from "#shared/accounting/queries.ts";
 import { legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
+import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import {
   recordAttendeeRefund,
   recordAttendeeRefundsBatch,
+  recordPlaceholderRefund,
   soleBookingOrder,
 } from "#shared/refund-ledger.ts";
 import { describeWithEnv } from "#test-utils";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 const ATTENDEE = 3;
 const BOOKING_AT = "2026-06-21T00:00:00.000Z";
@@ -44,6 +52,15 @@ const postBooking = async (
 
 const refundLegsOf = (legs: Transfer[]): Transfer[] =>
   legs.filter((leg) => (leg.kind ?? "").startsWith("refund_"));
+
+const expectSingleRefundCash = async (amount: number): Promise<Transfer> => {
+  const cash = refundLegsOf(
+    await transfersByAccount(attendeeAccount(ATTENDEE)),
+  ).filter((leg) => leg.kind === "refund_cash");
+  expect(cash.length).toBe(1);
+  expect(cash[0]!.amount).toBe(amount);
+  return cash[0]!;
+};
 
 // -- soleBookingOrder (pure) --------------------------------------------- //
 
@@ -111,6 +128,8 @@ describe("refund-ledger > soleBookingOrder", () => {
 // -- recordAttendeeRefund (integration) ---------------------------------- //
 
 describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
+  const errors = setupErrorSpy();
+
   test("reverses the booking so revenue and the attendee return to zero", async () => {
     await postBooking({
       amountPaid: 5000,
@@ -120,12 +139,33 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
 
     expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
     expect(await accountBalance(revenueAccount(1))).toBe(0);
-    const cash = refundLegsOf(
-      await transfersByAccount(attendeeAccount(ATTENDEE)),
-    ).filter((l) => l.kind === "refund_cash");
-    expect(cash.length).toBe(1);
-    expect(cash[0]!.amount).toBe(5000);
-    expect(cash[0]!.destination).toEqual(WORLD);
+    const cash = await expectSingleRefundCash(5000);
+    expect(cash.destination).toEqual(WORLD);
+  });
+
+  test("reverses a many-listing booking in a bounded number of round-trips", async () => {
+    // Regression: a booking spanning many listings has one sale leg per listing,
+    // so reversing it once issued a read-per-leg interactive transaction that held
+    // the write lock open long enough for the primary to abort it
+    // ("Transaction timed-out"). The reversal must cost O(1) round-trips — prepared
+    // reads then one batch — not O(legs).
+    const listingCount = 25;
+    const lines = Array.from({ length: listingCount }, (_, i) => ({
+      gross: 200,
+      listingId: i + 1,
+    }));
+    await postBooking({ amountPaid: listingCount * 200, lines });
+
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      const result = await recordAttendeeRefund(ATTENDEE);
+      expect(result).toEqual({ posted: true });
+      // Distinct round-trip start times: a prepared batch shares one window, while
+      // a per-leg interactive transaction would show ~legs distinct round-trips
+      // (and trip the transaction guard well before reaching them).
+      const roundTrips = new Set(getQueryLog().map((q) => q.startedAtMs)).size;
+      expect(roundTrips).toBeLessThanOrEqual(6);
+    });
   });
 
   test("reverses a sale-less paid order (surcharge with no sale leg)", async () => {
@@ -138,11 +178,7 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
 
     expect(await accountBalance(modifierAccount(7))).toBe(0);
     expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
-    const cash = refundLegsOf(
-      await transfersByAccount(attendeeAccount(ATTENDEE)),
-    ).filter((l) => l.kind === "refund_cash");
-    expect(cash.length).toBe(1);
-    expect(cash[0]!.amount).toBe(500);
+    await expectSingleRefundCash(500);
   });
 
   test("skips a balance-settled reservation (booking plus a balance payment)", async () => {
@@ -238,6 +274,9 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     expect(
       refundLegsOf(await transfersByAccount(attendeeAccount(ATTENDEE))).length,
     ).toBe(0);
+    // "Logs" is part of the contract: the operator's only breadcrumb for a
+    // stranded refund is the classified error.
+    expect(errors.lastMessage()).toContain("E_LEDGER_POST");
   });
 });
 
@@ -247,6 +286,8 @@ describeWithEnv(
   "refund-ledger > recordAttendeeRefundsBatch",
   { db: true },
   () => {
+    const errors = setupErrorSpy();
+
     test("posts every clean reversal in one batch and reports each posted", async () => {
       await postBooking({ attendeeId: 11, eventId: "sess-11" });
       await postBooking({ attendeeId: 12, eventId: "sess-12" });
@@ -381,6 +422,13 @@ describeWithEnv(
       expect(
         refundLegsOf(await transfersByAccount(attendeeAccount(18))).length,
       ).toBe(0);
+      // Both the batch fallback and 18's per-attendee failure must log the
+      // classified error — the operator's only breadcrumb.
+      const logged = errors.calls.map((call) => String(call.args[0]));
+      expect(
+        logged.some((message) => message.includes("bulk refund batch failed")),
+      ).toBe(true);
+      expect(errors.lastMessage()).toContain("E_LEDGER_POST");
     });
 
     test("treats an empty attendee list as a no-op", async () => {
@@ -388,3 +436,67 @@ describeWithEnv(
     });
   },
 );
+
+// -- recordPlaceholderRefund (cash round-trip, no sale leg) -------------- //
+
+describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
+  const errors = setupErrorSpy();
+  const PH = {
+    amount: 5000,
+    attendeeId: 7,
+    eventId: "ph-sess-1",
+    listingId: 1,
+    occurredAt: BOOKING_AT,
+  };
+
+  test("records the cash round-trip with no sale leg, netting to zero", async () => {
+    expect(await recordPlaceholderRefund(PH, "price_changed", true)).toEqual({
+      posted: true,
+    });
+    const legs = await transfersByAccount(attendeeAccount(7));
+    // No revenue recognised — just the payment we received and the refund_cash
+    // returning it (stamped with the reason), so the line's price_paid stays 0.
+    expect(legs.some((l) => l.kind === "sale")).toBe(false);
+    expect(legs.some((l) => l.kind === "payment")).toBe(true);
+    const cash = legs.filter((l) => l.kind === "refund_cash");
+    expect(cash.length).toBe(1);
+    expect(cash[0]!.amount).toBe(5000);
+    expect(cash[0]!.memo).toBe("price_changed");
+    expect(balanceOf(attendeeAccount(7))(legs)).toBe(0);
+  });
+
+  test("posts only the payment when the refund failed (we still hold the money)", async () => {
+    expect(await recordPlaceholderRefund(PH, "charge_mismatch", false)).toEqual(
+      {
+        posted: false,
+      },
+    );
+    const legs = await transfersByAccount(attendeeAccount(7));
+    expect(legs.some((l) => l.kind === "payment")).toBe(true);
+    expect(legs.some((l) => l.kind === "refund_cash")).toBe(false);
+    // The ledger shows we hold their cash until a manual refund reverses it.
+    expect(balanceOf(attendeeAccount(7))(legs)).toBe(5000);
+  });
+
+  test("logs and does not throw when the ledger post conflicts", async () => {
+    // Pre-claim the payment leg's reference under a different event so the cash-in
+    // post hits a reference collision and the catch path runs.
+    const collidingRef = await legReference(["booking", PH.eventId, "payment"]);
+    await postTransfers([
+      {
+        amount: 100,
+        destination: attendeeAccount(99),
+        eventGroup: "blocker",
+        kind: "payment",
+        occurredAt: BOOKING_AT,
+        reference: collidingRef,
+        source: WORLD,
+      },
+    ]);
+    expect(await recordPlaceholderRefund(PH, "sold_out", true)).toEqual({
+      posted: false,
+    });
+    // The classified error is the operator's only breadcrumb for the miss.
+    expect(errors.lastMessage()).toContain("E_LEDGER_POST");
+  });
+});

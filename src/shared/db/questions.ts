@@ -6,6 +6,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import * as v from "valibot";
 import { filter, map, reduce } from "#fp";
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
@@ -14,6 +15,7 @@ import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
 } from "#shared/crypto/keys.ts";
+import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   execute,
   executeBatch,
@@ -26,6 +28,10 @@ import {
   resultRows,
 } from "#shared/db/client.ts";
 /* jscpd:ignore-end */
+import type {
+  AggregateRecalculation,
+  AggregateValues,
+} from "#shared/db/common-schema.ts";
 import { columnMapByIds, swapSortOrder } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
@@ -38,12 +44,14 @@ import { nowIso } from "#shared/now.ts";
 
 /** A custom multiple-choice question */
 export const QUESTION_DISPLAY_TYPES = ["radio", "select", "free_text"] as const;
-export type QuestionDisplayType = (typeof QUESTION_DISPLAY_TYPES)[number];
+export const QuestionDisplayTypeSchema = v.picklist(QUESTION_DISPLAY_TYPES);
+export type QuestionDisplayType = v.InferOutput<
+  typeof QuestionDisplayTypeSchema
+>;
 
 export const isQuestionDisplayType = (
   value: string,
-): value is QuestionDisplayType =>
-  QUESTION_DISPLAY_TYPES.includes(value as QuestionDisplayType);
+): value is QuestionDisplayType => v.is(QuestionDisplayTypeSchema, value);
 
 export const questionDisplayTypeError =
   "Display as must be radio buttons, a select box, or free text";
@@ -174,10 +182,11 @@ type JoinedRow = {
 };
 
 /** Shared SELECT columns and JOIN for question + answers */
-const QA_COLS = `q.id AS q_id, q.assign_all AS q_assign_all, q.display_type AS q_display_type, q.text AS q_text,
-       a.id AS a_id, a.text AS a_text,
-       a.question_id AS a_question_id, a.sort_order AS a_sort_order, a.active AS a_active`;
-const QA_JOIN = "questions q LEFT JOIN answers a ON a.question_id = q.id";
+const QA_COLS = `question.id AS q_id, question.assign_all AS q_assign_all, question.display_type AS q_display_type, question.text AS q_text,
+       answer.id AS a_id, answer.text AS a_text,
+       answer.question_id AS a_question_id, answer.sort_order AS a_sort_order, answer.active AS a_active`;
+const QA_JOIN =
+  "questions AS question LEFT JOIN answers AS answer ON answer.question_id = question.id";
 
 /** Group flat joined rows into QuestionWithAnswers[], preserving row order.
  * Decrypts question and answer text in parallel. */
@@ -249,10 +258,10 @@ const decryptQuestion = async (
   return { ...question, answers };
 };
 
-/** Fetch questions with answers by a WHERE clause on q.id */
+/** Fetch questions with answers by a WHERE clause on question.id */
 const fetchQuestions = (where: string, args: InValue[]) =>
   queryAll<JoinedRow>(
-    `SELECT ${QA_COLS} FROM ${QA_JOIN} ${where} ORDER BY a.sort_order`,
+    `SELECT ${QA_COLS} FROM ${QA_JOIN} ${where} ORDER BY answer.sort_order`,
     args,
   );
 
@@ -262,7 +271,7 @@ export const getAllQuestionsWithAnswers = async (): Promise<
 > =>
   groupJoinedRows(
     await queryAll<JoinedRow>(
-      `SELECT ${QA_COLS} FROM ${QA_JOIN} ORDER BY q.sort_order, q.id, a.sort_order`,
+      `SELECT ${QA_COLS} FROM ${QA_JOIN} ORDER BY question.sort_order, question.id, answer.sort_order`,
     ),
   );
 
@@ -275,11 +284,11 @@ export const getQuestionsForListing = async (
     await groupJoinedRows(
       await queryAll<JoinedRow>(
         `SELECT ${QA_COLS}
-       FROM questions q
-       LEFT JOIN listing_questions eq ON q.id = eq.question_id AND eq.listing_id = ?
-       LEFT JOIN answers a ON a.question_id = q.id
-       WHERE q.assign_all = 1 OR eq.listing_id IS NOT NULL
-       ORDER BY q.sort_order, q.id, a.sort_order`,
+       FROM questions AS question
+       LEFT JOIN listing_questions AS listingQuestion ON question.id = listingQuestion.question_id AND listingQuestion.listing_id = ?
+       LEFT JOIN answers AS answer ON answer.question_id = question.id
+       WHERE question.assign_all = 1 OR listingQuestion.listing_id IS NOT NULL
+       ORDER BY question.sort_order, question.id, answer.sort_order`,
         [listingId],
       ),
     ),
@@ -291,11 +300,11 @@ export const getListingQuestionIds = async (
 ): Promise<number[]> =>
   map((r: { question_id: number }) => r.question_id)(
     await queryAll<{ question_id: number }>(
-      `SELECT q.id AS question_id
-       FROM questions q
-       LEFT JOIN listing_questions eq ON q.id = eq.question_id AND eq.listing_id = ?
-       WHERE q.assign_all = 1 OR eq.listing_id IS NOT NULL
-       ORDER BY q.sort_order, q.id`,
+      `SELECT question.id AS question_id
+       FROM questions AS question
+       LEFT JOIN listing_questions AS listingQuestion ON question.id = listingQuestion.question_id AND listingQuestion.listing_id = ?
+       WHERE question.assign_all = 1 OR listingQuestion.listing_id IS NOT NULL
+       ORDER BY question.sort_order, question.id`,
       [listingId],
     ),
   );
@@ -383,13 +392,13 @@ export const getQuestionsWithListingIds = async (
   const ph = inPlaceholders(listingIds);
   const rows = await queryAll<JoinedRowWithListings>(
     `SELECT ${QA_COLS},
-            CASE WHEN q.assign_all = 1 THEN NULL ELSE
-              (SELECT GROUP_CONCAT(eq.listing_id) FROM listing_questions eq
-               WHERE eq.question_id = q.id AND eq.listing_id IN (${ph}))
+            CASE WHEN question.assign_all = 1 THEN NULL ELSE
+              (SELECT GROUP_CONCAT(listingQuestion.listing_id) FROM listing_questions AS listingQuestion
+               WHERE listingQuestion.question_id = question.id AND listingQuestion.listing_id IN (${ph}))
             END AS listing_ids
      FROM ${QA_JOIN}
-     WHERE q.assign_all = 1 OR q.id IN (SELECT question_id FROM listing_questions WHERE listing_id IN (${ph}))
-     ORDER BY q.sort_order, q.id, a.sort_order`,
+     WHERE question.assign_all = 1 OR question.id IN (SELECT question_id FROM listing_questions WHERE listing_id IN (${ph}))
+     ORDER BY question.sort_order, question.id, answer.sort_order`,
     [...listingIds, ...listingIds],
   );
 
@@ -429,6 +438,11 @@ export const setListingQuestions = async (
   await executeBatch(statements);
 };
 
+export const findAnswerById = (
+  question: QuestionWithAnswers,
+  answerId: number,
+): Answer | undefined => question.answers.find((a) => a.id === answerId);
+
 /** Read and validate one question's submitted answer from form data.
  * `"missing"` = no value; `"invalid"` = the value isn't one of the question's
  * options (or, when `activeOnly`, is a deactivated option); otherwise the
@@ -445,7 +459,7 @@ export const readQuestionAnswer = (
   const raw = form.get(`question_${question.id}`);
   if (!raw) return { status: "missing" };
   const answerId = Number.parseInt(raw, 10);
-  const answer = question.answers.find((a) => a.id === answerId);
+  const answer = findAnswerById(question, answerId);
   if (!answer || (activeOnly && !answer.active)) {
     return { status: "invalid" };
   }
@@ -788,7 +802,7 @@ export const saveAttendeeAnswers = async (
     ]).filter((answer) => liveTextQuestionIds.has(answer.questionId));
     if (resolvedTextAnswerIds.length > 0) {
       const placeholders = resolvedTextAnswerIds
-        .map(() => "(?, ?, ?)")
+        .map(() => "(?, ?,?)")
         .join(", ");
       statements.push({
         args: resolvedTextAnswerIds.flatMap((answer) => [
@@ -833,16 +847,11 @@ export const groupListingAnswers = (
   return answersByAttendee;
 };
 
-const choiceAnswerIdsBatch = async (
-  attendeeIds: number[],
-): Promise<Map<number, number[]>> => {
-  if (attendeeIds.length === 0) return new Map();
-  const rows = await queryAll<{ attendee_id: number; answer_id: number }>(
-    `SELECT attendee_id, answer_id FROM attendee_answers
-     WHERE answer_id IS NOT NULL AND attendee_id IN (${inPlaceholders(attendeeIds)})`,
-    attendeeIds,
-  );
-  return reduce(
+/** Group `(attendee_id, answer_id)` rows into an attendee → answer-ids map. */
+const choiceAnswerMapFromRows = (
+  rows: { attendee_id: number; answer_id: number }[],
+): Map<number, number[]> =>
+  reduce(
     (
       acc: Map<number, number[]>,
       { attendee_id, answer_id }: { attendee_id: number; answer_id: number },
@@ -854,6 +863,41 @@ const choiceAnswerIdsBatch = async (
     },
     new Map(),
   )(rows);
+
+const choiceAnswerIdsBatch = async (
+  attendeeIds: number[],
+): Promise<Map<number, number[]>> => {
+  if (attendeeIds.length === 0) return new Map();
+  const rows = await queryAll<{ attendee_id: number; answer_id: number }>(
+    `SELECT attendee_id, answer_id FROM attendee_answers
+     WHERE answer_id IS NOT NULL AND attendee_id IN (${inPlaceholders(attendeeIds)})`,
+    attendeeIds,
+  );
+  return choiceAnswerMapFromRows(rows);
+};
+
+/**
+ * Attendee → chosen-answer-ids map for every real (`kind = 'attendee'`)
+ * attendee booked onto one listing, scoped in SQL rather than by a per-attendee
+ * id list. Choice ids are plaintext, so this needs no key material — the
+ * Overview's answer summary counts them without decrypting any free text.
+ */
+export const getListingChoiceAnswerMap = async (
+  listingId: number,
+): Promise<Map<number, number[]>> => {
+  const rows = await queryAll<{ attendee_id: number; answer_id: number }>(
+    `SELECT attendee_answer.attendee_id, attendee_answer.answer_id
+       FROM attendee_answers AS attendee_answer
+      WHERE attendee_answer.answer_id IS NOT NULL
+        AND attendee_answer.attendee_id IN (
+          SELECT listingAttendee.attendee_id
+            FROM listing_attendees AS listingAttendee
+            JOIN attendees AS attendee
+              ON attendee.id = listingAttendee.attendee_id
+           WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}')`,
+    [listingId],
+  );
+  return choiceAnswerMapFromRows(rows);
 };
 
 /** Decrypted free-text answers for several attendees: attendeeId → (questionId
@@ -987,10 +1031,10 @@ export const getAttendeeAnswersByQuestion = async (
     answer_id: number;
     answer_text: string;
   }>(
-    `SELECT a.question_id, aa.answer_id, a.text AS answer_text
-     FROM attendee_answers aa
-     JOIN answers a ON a.id = aa.answer_id
-     WHERE aa.answer_id IS NOT NULL AND aa.attendee_id = ?`,
+    `SELECT answer.question_id, attendeeAnswer.answer_id, answer.text AS answer_text
+     FROM attendee_answers AS attendeeAnswer
+     JOIN answers AS answer ON answer.id = attendeeAnswer.answer_id
+     WHERE attendeeAnswer.answer_id IS NOT NULL AND attendeeAnswer.attendee_id = ?`,
     [attendeeId],
   );
 
@@ -1046,7 +1090,7 @@ export const deleteAnswer = async (answerId: number): Promise<void> => {
 export const getQuestionWithAnswers = async (
   id: number,
 ): Promise<QuestionWithAnswers | null> => {
-  const rows = await fetchQuestions("WHERE q.id = ?", [id]);
+  const rows = await fetchQuestions("WHERE question.id = ?", [id]);
   if (rows.length === 0) return null;
   // rows is non-empty so groupJoinedRows always returns at least one entry
   return (await groupJoinedRows(rows))[0]!;
@@ -1061,12 +1105,10 @@ export const ANSWER_AGGREGATE_FIELDS = ["times_selected"] as const;
 
 export type AnswerAggregateField = (typeof ANSWER_AGGREGATE_FIELDS)[number];
 
-export type AnswerAggregateValues = Record<AnswerAggregateField, number>;
+export type AnswerAggregateValues = AggregateValues<AnswerAggregateField>;
 
-export type AnswerAggregateRecalculation = Record<
-  AnswerAggregateField,
-  { current: number; recalculated: number }
->;
+export type AnswerAggregateRecalculation =
+  AggregateRecalculation<AnswerAggregateField>;
 
 /** The stored selection total (times_selected) for every answer of a question,
  * keyed by answer id. Reads the trigger-maintained column directly rather than

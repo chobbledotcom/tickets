@@ -6,6 +6,7 @@ import type { InValue, ResultSet } from "@libsql/client";
 import { mapParallel, reduce, sort, unique } from "#fp";
 import { inOwnTx, ledgerTx } from "#shared/accounting/ledger-tx.ts";
 import {
+  accountBalanceSubquery,
   creditsLessWriteoffDebits,
   revenueBreakdownColumns,
   revenueBreakdownScope,
@@ -19,10 +20,11 @@ import {
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { addDays } from "#shared/dates.ts";
+import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import {
   ATTENDEE_JOIN_SELECT,
   ATTENDEE_LEFT_JOIN_SELECT,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/queries.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
 import {
   execute,
@@ -31,18 +33,41 @@ import {
   queryAll,
   queryBatch,
   queryOne,
+  queryOnePrimary,
   resetAggregates,
   resultRows,
 } from "#shared/db/client.ts";
 import {
+  type AggregateRecalculation,
+  type AggregateValues,
   cachedEntityTable,
   defineIdTable,
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
-import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#shared/db/migrations/schema.ts";
-import { nameMapByIds } from "#shared/db/query.ts";
+import {
+  clearImageUsesForItemStatement,
+  getImageFilenamesForItem,
+  imageFilenameSubqueries,
+} from "#shared/db/images.ts";
+import {
+  dayCountPriceStatements,
+  getListingDayPrices,
+  syncListingPrices,
+} from "#shared/db/listing-prices.ts";
+import {
+  LISTING_AGGREGATE_WRITE_COLUMNS,
+  TICKET_COUNTS_PREDICATE,
+  ticketCountPredicateFor,
+  ticketCountSumExpr,
+} from "#shared/db/migrations/schema.ts";
+import { allNamesById, nameMapByIds } from "#shared/db/query.ts";
+import { settings } from "#shared/db/settings.ts";
+import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
+import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
+import type { CatalogSourceListing } from "#shared/external-order.ts";
+import { resolveListingDefaults } from "#shared/listing-defaults.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import {
@@ -68,20 +93,22 @@ export type ListingInput = {
   location?: string;
   slug: string;
   slugIndex: string;
-  groupId?: number;
+  /** Ids of the groups this listing belongs to. Transient — membership lives in
+   * the group_listings join table (written via setListingGroups), not a column,
+   * so the listings table ignores this field. */
+  groupIds?: number[];
   maxAttendees: number;
-  thankYouUrl?: string;
-  unitPrice?: number;
+  thankYouUrl?: string | undefined;
+  unitPrice?: number | undefined;
   maxQuantity?: number;
   webhookUrl?: string;
   active?: boolean;
   fields?: ListingFields;
-  closesAt?: string;
+  closesAt?: string | undefined;
   listingType?: ListingType;
-  bookableDays?: string[];
+  bookableDays?: string[] | undefined;
   minimumDaysBefore?: number;
   maximumDaysAfter?: number;
-  imageUrl?: string;
   attachmentUrl?: string;
   attachmentName?: string;
   nonTransferable?: boolean;
@@ -96,6 +123,8 @@ export type ListingInput = {
   customisableDays?: boolean;
   dayPrices?: DayPrices;
   usesLogistics?: boolean;
+  useDefaults?: boolean;
+  bookableAlone?: boolean;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -167,6 +196,7 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   assign_built_site: col.boolean(false),
   attachment_name: col.encryptedText(encrypt, decrypt),
   attachment_url: col.encryptedText(encrypt, decrypt),
+  bookable_alone: col.boolean(false),
   bookable_days: col.converted<string[]>({
     default: () => [...DEFAULT_BOOKABLE_DAYS],
     read: (v) => {
@@ -180,17 +210,29 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   created: col.withDefault(() => nowIso()),
   customisable_days: col.boolean(false),
   date: { default: () => "", read: decryptDatetime, write: writeListingDate },
-  day_prices: col.converted<DayPrices>({
-    default: () => ({}),
-    read: (v) => parseDayPrices(JSON.parse(v as string)),
-    write: (v) => JSON.stringify(parseDayPrices(v)),
-  }),
+  // Not a physical column: `day_prices` is projected from the `day_count` rows
+  // of listing_prices (see listingDayPricesSubquery) and read back here. The
+  // write paths persist it as day_count rows from input; `col.projected` keeps it
+  // out of INSERT/UPDATE, rowToInput, and the insert/update return row. The read
+  // tolerates a missing projection (a stray SELECT that forgot it) → {}.
+  day_prices: col.projected<DayPrices>((v) =>
+    parseDayPrices(JSON.parse((v as string) ?? "{}")),
+  ),
   description: col.encryptedText(encrypt, decrypt),
   duration_days: { default: () => 1, write: normalizeDurationDays },
   fields: col.withDefault<ListingFields>(() => "email"),
-  group_id: col.withDefault(() => 0),
   hidden: col.boolean(false),
-  image_url: col.encryptedText(encrypt, decrypt),
+  // Projected from the first linked first-class image; an unlinked listing is
+  // projected as the encrypted-text empty string convention (`''`).
+  image_alt_text: col.projected<string>((v) =>
+    v === "" || v === undefined ? "" : decrypt(v as string),
+  ),
+  image_thumb_url: col.projected<string>((v) =>
+    v === "" || v === undefined ? "" : decrypt(v as string),
+  ),
+  image_url: col.projected<string>((v) =>
+    v === "" || v === undefined ? "" : decrypt(v as string),
+  ),
   initial_site_months: col.withDefault(() => 0),
   listing_type: col.withDefault<ListingType>(() => "standard"),
   location: col.encryptedText(encrypt, decrypt),
@@ -204,6 +246,7 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   purchase_only: col.boolean(false),
   thank_you_url: col.encryptedText(encrypt, decrypt),
   unit_price: col.withDefault(() => 0),
+  use_defaults: col.boolean(false),
   uses_logistics: col.boolean(false),
   webhook_url: col.encryptedText(encrypt, decrypt),
 });
@@ -225,22 +268,59 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
 export const listingIncomeSubquery = (idExpr: string): string =>
   `${creditsLessWriteoffDebits("revenue", idExpr)} AS income`;
 
+const listingCostSubquery = (idExpr: string): string =>
+  `-${accountBalanceSubquery("cost", idExpr)} AS cost`;
+
+const listingProfitSubquery = (idExpr: string): string =>
+  `(${creditsLessWriteoffDebits("revenue", idExpr)} + ${accountBalanceSubquery(
+    "cost",
+    idExpr,
+  )}) AS profit`;
+
+const listingMoneySubqueries = (idExpr: string): string =>
+  [
+    listingIncomeSubquery(idExpr),
+    listingCostSubquery(idExpr),
+    listingProfitSubquery(idExpr),
+  ].join(", ");
+
+/**
+ * Project a listing's per-day-count prices as a JSON object from its `day_count`
+ * rows in `listing_prices` — the `day_prices` value the entity carries now that
+ * the `listings.day_prices` column is retired. `json_group_object` builds
+ * `{"1":400,"3":1000}` from the (price_id, unit_price) rows; COALESCE to `'{}'`
+ * so a listing with no day prices reads an empty object (the `col.projected`
+ * read then parses it back to `{}`). Index-backed by `idx_listing_prices_listing`.
+ * Every SELECT that decrypts a listing row must include this, alongside
+ * {@link listingMoneySubqueries}. `idExpr` is the listing id in the surrounding
+ * query (e.g. `listing.id` or `listings.id`).
+ */
+export const listingDayPricesSubquery = (idExpr: string): string =>
+  `COALESCE((SELECT json_group_object(price_id, unit_price) FROM listing_prices
+      WHERE listing_id = ${idExpr} AND price_type = 'day_count'), '{}') AS day_prices`;
+
+const listingImageSubqueries = (idExpr: string): string =>
+  imageFilenameSubqueries("listing", idExpr);
+
 /**
  * A transparent breakdown of a listing's `revenue:<id>` account, deriving BOTH
  * the reported figure and the live ledger balance from the same running totals so
  * the two never appear to disagree without the reconciliation being visible:
  *
  * - `grossSales` — Σ `sale` credits to the account (gross ticket sales).
+ * - `externalIncome` — Σ owner-entered listing income received outside checkout.
  * - `manualAdjustments` — signed Σ of `adjustment` legs vs `writeoff`:
  *   `(writeoff → revenue write-ups) − (revenue → writeoff write-downs)`. Positive
  *   is a net write-up, negative a net write-down (decision 14).
- * - `recognisedIncome` = `grossSales + manualAdjustments` — the refund-agnostic
- *   figure shown as the listing's income and used in exports. Equals the existing
- *   {@link listingIncomeSubquery} / `creditsLessWriteoffDebits` projection.
+ * - `recognisedIncome` = `grossSales + externalIncome + manualAdjustments` — the
+ *   refund-agnostic figure shown as the listing's income and used in exports.
+ *   Equals the existing {@link listingIncomeSubquery} /
+ *   `creditsLessWriteoffDebits` projection.
  * - `refunds` — Σ `refund_sale` debits from the account, as a positive magnitude
  *   that is then subtracted.
- * - `netBalance` = `recognisedIncome − refunds` — the raw signed account balance
- *   a refund also reduces (can go negative). Equals
+ * - `externalCosts` — Σ owner-entered costs paid outside checkout.
+ * - `netBalance` = `recognisedIncome − refunds − externalCosts` — the raw signed
+ *   account balance a refund or manual cost also reduces (can go negative). Equals
  *   `accountBalance(revenueAccount(id))`.
  *
  * One grouped query of conditional SUMs over only this account's own legs (the
@@ -249,17 +329,21 @@ export const listingIncomeSubquery = (idExpr: string): string =>
  */
 export type ListingRevenueBreakdown = {
   grossSales: number;
+  externalIncome: number;
   manualAdjustments: number;
   recognisedIncome: number;
   refunds: number;
+  externalCosts: number;
   netBalance: number;
 };
 
 type RevenueBreakdownRow = {
   gross_sales: number | bigint;
+  external_income: number | bigint;
   write_ups: number | bigint;
   write_downs: number | bigint;
   refunds: number | bigint;
+  external_costs: number | bigint;
 };
 
 export const listingRevenueBreakdown = async (
@@ -269,24 +353,30 @@ export const listingRevenueBreakdown = async (
   // Ledger account ids are stored as TEXT; the builders compare against
   // `CAST(<idExpr> AS TEXT)`. The id is bound as a STRING (not the number — a
   // numeric bind would cast to "1.0" and match nothing) once per predicate the
-  // builders emit: four in the column list, two in the own-legs scope. The
+  // builders emit: six in the column list, two in the own-legs scope. The
   // optional `range` appends its own `occurred_at` bounds (and their args) so a
   // date-filtered ledger view reads the same breakdown over just that window.
   const r = occurredAtRange(range);
-  const args: InValue[] = [...Array(6).fill(String(listingId)), ...r.args];
+  const args: InValue[] = [...Array(8).fill(String(listingId)), ...r.args];
   const row = (await queryOne<RevenueBreakdownRow>(
     `SELECT ${revenueBreakdownColumns("?")}
-       FROM transfers WHERE (${revenueBreakdownScope("?")})${andPrefixed(r.clause)}`,
+       FROM transfers WHERE (${revenueBreakdownScope("?")})${andPrefixed(
+         r.clause,
+       )}`,
     args,
   ))!;
   const grossSales = Number(row.gross_sales);
+  const externalIncome = Number(row.external_income);
   const manualAdjustments = Number(row.write_ups) - Number(row.write_downs);
   const refunds = Number(row.refunds);
-  const recognisedIncome = grossSales + manualAdjustments;
+  const externalCosts = Number(row.external_costs);
+  const recognisedIncome = grossSales + externalIncome + manualAdjustments;
   return {
+    externalCosts,
+    externalIncome,
     grossSales,
     manualAdjustments,
-    netBalance: recognisedIncome - refunds,
+    netBalance: recognisedIncome - refunds - externalCosts,
     recognisedIncome,
     refunds,
   };
@@ -299,7 +389,9 @@ export const listingRevenueBreakdown = async (
  * `booked_quantity` column (maintained by triggers on listing_attendees), so
  * this no longer joins or scans the attendee rows. */
 export const LISTING_COUNT_SELECT = `SELECT listing.*, listing.booked_quantity AS attendee_count,
-       ${listingIncomeSubquery("listing.id")}
+       ${listingMoneySubqueries("listing.id")},
+       ${listingDayPricesSubquery("listing.id")},
+       ${listingImageSubqueries("listing.id")}
      FROM listings AS listing`;
 
 /** GROUP BY clause that pairs with {@link LISTING_COUNT_SELECT}. Empty now that
@@ -316,16 +408,50 @@ export const LISTING_COUNT_GROUP_BY = "";
  * directly as an Array.map / mapParallel callback — a second positional
  * parameter would capture the map index.
  */
-export const decryptListingWithCount = async (
+const decryptStoredListingWithCount = async (
   row: ListingWithCount,
 ): Promise<ListingWithCount> => {
   const listing = await rawListingsTable.fromDb(row);
   return {
     ...listing,
     attendee_count: row.attendee_count,
+    cost: Number(row.cost),
     income: Number(row.income),
+    profit: Number(row.profit),
     tickets_count: Number(row.tickets_count),
   };
+};
+
+export const decryptListingWithCount = async (
+  row: ListingWithCount,
+): Promise<ListingWithCount> =>
+  // Overlay the operator's listing defaults when this listing inherits them, so
+  // every consumer (public pages, booking, webhooks, exports) sees the effective
+  // value live rather than this row's own stored value. The edit form and its
+  // save deliberately bypass this (see getStoredListingWithCount) so a save
+  // never materialises an inherited default over the listing's own column.
+  resolveListingDefaults(
+    await decryptStoredListingWithCount(row),
+    settings.listingDefaults,
+    settings.hasLogistics,
+  );
+
+/**
+ * Single listing with count, decrypted to its own *stored* values with no
+ * defaults overlaid. Uncached and used only by the edit form and its save,
+ * which must read and preserve the listing's own columns — otherwise saving an
+ * inheriting listing would bake the current defaults into its row, losing the
+ * stored values for good. Every other read resolves via the cache.
+ */
+export const getStoredListingWithCount = async (
+  id: number,
+): Promise<ListingWithCount | null> => {
+  const rows = await queryAll<ListingWithCount>(
+    `${LISTING_COUNT_SELECT} WHERE listing.id = ? ${LISTING_COUNT_GROUP_BY}`,
+    [id],
+  );
+  const row = rows[0];
+  return row ? decryptStoredListingWithCount(row) : null;
 };
 
 /**
@@ -351,6 +477,17 @@ const queryOneListingWithCount = async (
   args: InValue[],
 ): Promise<ListingWithCount | null> =>
   (await queryListingsWithCounts(`WHERE ${where}`, args))[0] ?? null;
+
+/** The given listings with counts — bounded: one `IN` query, only these rows
+ * decrypted (never the whole cache). Empty `ids` ⇒ empty list, no query. */
+export const getListingsWithCountsByIds = (
+  ids: readonly number[],
+): Promise<ListingWithCount[]> =>
+  ids.length === 0
+    ? Promise.resolve([])
+    : queryListingsWithCounts(`WHERE listing.id IN (${inPlaceholders(ids)})`, [
+        ...ids,
+      ]);
 
 /**
  * Listings cache: single-record reads (by id / slug) load and decrypt only the
@@ -391,12 +528,75 @@ const listingsEntity = cachedEntityTable<
     // Income is projected from the ledger, so a transfer write — a new booking's
     // revenue leg, or a refund reversal — must refresh the cached listing income.
     { table: "transfers" },
+    // day_prices is projected from the listing_prices `day_count` rows, so a
+    // write there must refresh the cache. This also covers a day-price-only
+    // update via listingsTable.update: with no physical listings column to write,
+    // rawTable.update touches nothing and can't invalidate on its own, so the
+    // day_count write here is what keeps a warmed getListingWithCount current.
+    { table: "listing_prices" },
+    // First-class image filenames are projected through image_uses/images.
+    { table: "image_uses" },
+    { table: "images" },
   ],
 );
 const listingsCache = listingsEntity.cache;
 
-/** Listings table with CRUD operations — writes auto-invalidate the cache */
-export const listingsTable = listingsEntity.table;
+/**
+ * Listings table with CRUD operations — writes auto-invalidate the cache and, on
+ * top of the raw table, keep the listing's `listing_prices` rows in step. The
+ * `base` row mirrors the surviving `unit_price` column, re-synced from it by
+ * {@link syncListingPrices} after every write. The `day_count` rows are the
+ * source of truth (no column), so they are written from the input's `dayPrices`:
+ * an insert always replaces them; an update replaces them only when `dayPrices`
+ * is provided, leaving them untouched on a partial update that never mentions
+ * prices. `day_prices` isn't a physical column, so it's absent from the raw
+ * insert/update return — overlay it (from input, else re-read) to keep the
+ * returned entity honest. `update` no-ops when the row is missing (returns null).
+ */
+const rawTable = listingsEntity.table;
+type ListingImageProjection = Pick<
+  Listing,
+  "image_alt_text" | "image_thumb_url" | "image_url"
+>;
+const EMPTY_LISTING_IMAGE: ListingImageProjection = {
+  image_alt_text: "",
+  image_thumb_url: "",
+  image_url: "",
+};
+
+const withDayPrices = async (
+  row: Listing,
+  provided: DayPrices | undefined,
+  projectedImage?: ListingImageProjection,
+): Promise<Listing> => {
+  const [day_prices, imageFilenames] = await Promise.all([
+    provided ?? getListingDayPrices(row.id),
+    projectedImage ?? getImageFilenamesForItem("listing", row.id),
+  ]);
+  return {
+    ...row,
+    ...imageFilenames,
+    day_prices,
+  };
+};
+export const listingsTable: typeof rawTable = {
+  ...rawTable,
+  insert: async (input) => {
+    const row = await rawTable.insert(input);
+    await syncListingPrices(row.id);
+    await executeBatch(dayCountPriceStatements(row.id, input.dayPrices));
+    return withDayPrices(row, input.dayPrices, EMPTY_LISTING_IMAGE);
+  },
+  update: async (id, input) => {
+    const row = await rawTable.update(id, input);
+    if (!row) return null;
+    await syncListingPrices(row.id);
+    if (input.dayPrices !== undefined) {
+      await executeBatch(dayCountPriceStatements(row.id, input.dayPrices));
+    }
+    return withDayPrices(row, input.dayPrices);
+  },
+};
 
 /**
  * Get a single listing by ID (from cache; fetches just this listing on a miss).
@@ -408,27 +608,22 @@ export const getListing = (id: number): Promise<Listing | null> =>
  * Check if a slug is already in use (optionally excluding a specific listing ID)
  * Uses slug_index for lookup (blind index)
  */
-export const isSlugTaken = async (
+export const isSlugTaken = (
   slug: string,
   excludeListingId?: number,
-): Promise<boolean> => {
-  const slugIndex = await computeSlugIndex(slug);
-  const sql = excludeListingId
-    ? "SELECT 1 WHERE EXISTS (SELECT 1 FROM listings WHERE slug_index = ? AND id != ?) OR EXISTS (SELECT 1 FROM groups WHERE slug_index = ?)"
-    : "SELECT 1 WHERE EXISTS (SELECT 1 FROM listings WHERE slug_index = ?) OR EXISTS (SELECT 1 FROM groups WHERE slug_index = ?)";
-  const args = excludeListingId
-    ? [slugIndex, excludeListingId, slugIndex]
-    : [slugIndex, slugIndex];
-  const result = await execute(sql, args);
-  return result.rows.length > 0;
-};
+): Promise<boolean> =>
+  isSlugTakenAnywhere(
+    slug,
+    excludeListingId ? { id: excludeListingId, table: "listings" } : undefined,
+  );
 
 /**
  * Delete a listing and its own bookings in a single database round-trip.
  *
  * Only the deleted listing's rows are touched: its `listing_attendees` links,
- * its `listing_questions` assignments, its `activity_log` entries, and the
- * listing itself. Attendees are deliberately left alone — an attendee booked
+ * its `listing_questions` assignments, its `listing_parents` edges (on either
+ * side), its `activity_log` entries, and the listing itself. Attendees are
+ * deliberately left alone — an attendee booked
  * onto another listing keeps that booking (and all of its answers/payments)
  * completely untouched, and an attendee left with no bookings is simply
  * orphaned rather than purged. This scoping guarantees that deleting one
@@ -452,18 +647,40 @@ export const deleteListing = async (listingId: number): Promise<void> => {
       args: [listingId],
       sql: "DELETE FROM listing_questions WHERE listing_id = ?",
     },
+    {
+      // Remove this listing from both sides of every parent/child edge.
+      args: [listingId, listingId],
+      sql: "DELETE FROM listing_parents WHERE parent_listing_id = ? OR child_listing_id = ?",
+    },
+    {
+      // Remove the listing from every group it belonged to (no FK cascade).
+      args: [listingId],
+      sql: "DELETE FROM group_listings WHERE listing_id = ?",
+    },
+    // Drop any site-page membership edges so no page is left with a dangling
+    // "(missing)" row pointing at this deleted listing.
+    clearItemEdgesStatement("listing", listingId),
+    clearImageUsesForItemStatement("listing", listingId),
     { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
+    // The generalised price rows have no cascading FK, so drop them with the
+    // listing rather than leaving orphaned base/day_count rows behind.
+    {
+      args: [listingId],
+      sql: "DELETE FROM listing_prices WHERE listing_id = ?",
+    },
     { args: [listingId], sql: "DELETE FROM listings WHERE id = ?" },
   ]);
 };
 
 /** The aggregate columns a listing-load row carries: `booked_quantity` and
- *  `tickets_count` are trigger-maintained columns on `listings`; `income` is
- *  projected from the ledger by {@link listingIncomeSubquery}, which every loader
- *  must select alongside `listings.*` (the column itself is gone). */
+ *  `tickets_count` are trigger-maintained columns on `listings`; money fields are
+ *  projected from the ledger by {@link listingMoneySubqueries}, which every
+ *  loader must select alongside `listings.*` (the columns themselves are gone). */
 type ListingAggregateColumns = {
   booked_quantity: number;
+  cost: number;
   income: number;
+  profit: number;
   tickets_count: number;
 };
 
@@ -504,6 +721,15 @@ export const invalidateListingsCache = (): void => {
 export const getAllListings = (): Promise<ListingWithCount[]> =>
   listingsCache.getAll();
 
+/** All listings keyed by id (built from the cached `getAllListings`). */
+export const getListingsById = async (): Promise<
+  Map<number, ListingWithCount>
+> => new Map((await getAllListings()).map((l) => [l.id, l]));
+
+/** All listing names keyed by id: selects and decrypts only the name column. */
+export const getAllListingNames = (): Promise<Map<number, string>> =>
+  allNamesById("listings", "listing", "name", (raw: string) => decrypt(raw));
+
 /** Bounded id → name lookup for the given listings: selects and decrypts only
  * their names, rather than loading the whole listings cache like getAllListings.
  * Empty ids ⇒ empty map (no query). Used for link labels in the activity log. */
@@ -514,12 +740,165 @@ export const getListingNamesByIds = (
     decrypt(raw),
   );
 
+/** The flag columns that decide whether a listing may be offered on a site
+ * page: active status plus the renewal-tier predicate shape. */
+export type ListingOfferFlags = {
+  active: boolean;
+  hidden: boolean;
+  months_per_unit: number;
+  purchase_only: boolean;
+};
+
+/** A listing's picker-relevant fields: the offer flags plus its name. */
+export type ListingPickerRow = ListingOfferFlags & { name: string };
+
+/** The raw integer-flag row shape the two projections below select. */
+type RawOfferFlagRow = {
+  active: number;
+  hidden: number;
+  months_per_unit: number;
+  purchase_only: number;
+};
+
+const OFFER_FLAG_COLUMNS =
+  "listing.active, listing.hidden, listing.months_per_unit, listing.purchase_only";
+
+const offerFlagsOf = (r: RawOfferFlagRow): ListingOfferFlags => ({
+  active: r.active !== 0,
+  hidden: r.hidden !== 0,
+  months_per_unit: r.months_per_unit,
+  purchase_only: r.purchase_only !== 0,
+});
+
+/** The offer flags of ONE listing — the add-item revalidation's single-row
+ * read (no decryption, never the whole catalog). Undefined when absent. */
+export const getListingOfferFlags = async (
+  id: number,
+): Promise<ListingOfferFlags | undefined> => {
+  const row = await queryOne<RawOfferFlagRow>(
+    `SELECT ${OFFER_FLAG_COLUMNS} FROM listings AS listing WHERE listing.id = ? LIMIT 1`,
+    [id],
+  );
+  return row ? offerFlagsOf(row) : undefined;
+};
+
+/** Narrow id → picker-flags map for every listing (only the name is decrypted)
+ * — the admin picker projection: options come from the offerable subset (the
+ * plan's "all active listings" contract, minus renewal tiers), while labels
+ * read the whole map so an already-added, now-inactive item still names
+ * itself. */
+export const getListingPickerNames = async (): Promise<
+  Map<number, ListingPickerRow>
+> => {
+  const rows = await queryAll<RawOfferFlagRow & { id: number; name: string }>(
+    `SELECT listing.id, listing.name, ${OFFER_FLAG_COLUMNS} FROM listings AS listing ORDER BY listing.id ASC`,
+  );
+  const entries = await Promise.all(
+    rows.map(
+      async (r) =>
+        [r.id, { ...offerFlagsOf(r), name: await decrypt(r.name) }] as const,
+    ),
+  );
+  return new Map(entries);
+};
+
+/**
+ * SQL predicate (over the `listing` alias) selecting listings that are
+ * *effectively* visible — i.e. honouring an inherited Hidden default the same
+ * way {@link resolveListingDefaults} does, so the catalog can't publish a
+ * default-hidden listing or drop a default-unhidden one. A renewal tier
+ * (`months_per_unit > 0`) never inherits hidden, so it's excluded from the
+ * inheriting set. `hiddenDefault` is the configured default, or undefined when
+ * none is set (then only the stored value matters).
+ */
+export const catalogVisibleSql = (
+  hiddenDefault: boolean | undefined,
+): string => {
+  const inheriting =
+    "(listing.use_defaults = 1 AND listing.months_per_unit = 0)";
+  if (hiddenDefault === undefined) return "listing.hidden = 0";
+  return hiddenDefault
+    ? `listing.hidden = 0 AND NOT ${inheriting}`
+    : `(${inheriting} OR listing.hidden = 0)`;
+};
+
+/** Narrow catalog query for the public `/order.js` route. Filters to active,
+ * effectively-visible listings in SQL *before* decryption and selects only the
+ * columns the external-order widget serializes, so an unauthenticated module
+ * request never decrypts hidden/inactive listings' descriptions, locations, or
+ * dates — unlike loading the whole listings cache via getAllListings(). The
+ * hidden filter honours an inherited Hidden default (see {@link catalogVisibleSql}).
+ * Non-standalone required children are excluded: they're only bookable through
+ * their parent (the public `/order` flow drops them and `/ticket/<child>` 404s),
+ * so an order.js add-to-cart link to one would dead-end — and an inherited
+ * Hidden=No default must not surface a stored-hidden child. A `bookable_alone`
+ * child keeps its own page, so it stays in the catalog. */
+export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
+  // Raw row: like the source listing but with the encrypted slug/name still
+  // encrypted and the booleans as SQLite 0/1 integers.
+  type CatalogRow = Omit<
+    CatalogSourceListing,
+    "active" | "hidden" | "customisable_days" | "can_pay_more"
+  > & { customisable_days: number; can_pay_more: number };
+  const rows = await queryAll<CatalogRow>(
+    `SELECT listing.id, listing.slug, listing.name, listing.unit_price,
+            listing.listing_type, listing.customisable_days, listing.can_pay_more
+     FROM listings AS listing
+     WHERE listing.active = 1
+       AND ${catalogVisibleSql(settings.listingDefaults.hidden)}
+       AND (listing.bookable_alone = 1
+            OR listing.id NOT IN (SELECT child_listing_id FROM listing_parents))
+       AND listing.id NOT IN (
+         SELECT groupListing.listing_id
+           FROM group_listings AS groupListing
+           JOIN groups AS groupRow ON groupRow.id = groupListing.group_id
+          WHERE groupRow.is_package = 1
+            AND groupRow.hide_package_listings = 1
+       )`,
+  );
+  return Promise.all(
+    rows.map(async (row) => ({
+      active: true,
+      can_pay_more: row.can_pay_more === 1,
+      customisable_days: row.customisable_days === 1,
+      hidden: false,
+      id: row.id,
+      listing_type: row.listing_type,
+      name: await decrypt(row.name),
+      slug: await decrypt(row.slug),
+      unit_price: row.unit_price,
+    })),
+  );
+};
+
 /**
  * Get listing with attendee count (from cache)
  */
 export const getListingWithCount = (
   id: number,
 ): Promise<ListingWithCount | null> => listingsCache.getById(id);
+
+/**
+ * Read one listing with its counts pinned to the primary (read-your-writes).
+ *
+ * Use only to read a listing back immediately after committing its own write:
+ * the cache-backed {@link getListingWithCount} fetches on a miss with a plain
+ * "read"-mode query, which Turso may serve from a replica that lags the just-
+ * committed write and so returns null — which the JSON API create/update path
+ * would then dereference (`row.id`) and crash on. This bypasses the cache and
+ * reads on the primary, decrypting/overlaying defaults the same way.
+ */
+export const getListingWithCountPrimary = async (
+  id: number,
+): Promise<ListingWithCount> => {
+  const row = await queryOnePrimary<ListingWithCount>(
+    `${LISTING_COUNT_SELECT} WHERE listing.id = ? ${LISTING_COUNT_GROUP_BY}`,
+    [id],
+  );
+  // The caller reads back a row it just committed, and this reads on the primary
+  // (read-your-writes), so the row is always present — no missing-row branch.
+  return decryptListingWithCount(row!);
+};
 
 /**
  * Get listing with attendee count by slug (from cache)
@@ -536,23 +915,30 @@ export const LISTING_AGGREGATE_FIELDS = [
 
 export type ListingAggregateField = (typeof LISTING_AGGREGATE_FIELDS)[number];
 
-export type ListingAggregateValues = Record<ListingAggregateField, number>;
+export type ListingAggregateValues = AggregateValues<ListingAggregateField>;
 
-export type ListingAggregateRecalculation = Record<
-  ListingAggregateField,
-  { current: number; recalculated: number }
->;
+export type ListingAggregateRecalculation =
+  AggregateRecalculation<ListingAggregateField>;
+
+/**
+ * Recalculate every listing aggregate in one pass. tickets_count counts only
+ * quantity > 0 rows (see {@link TICKET_COUNTS_PREDICATE}), while booked_quantity
+ * sums over ALL rows (the no-quantity sentinel adds 0 to capacity). Income is no
+ * longer an aggregate column — it is projected from the transfers ledger at read
+ * time, not recomputed here. Exported for the shared-predicate guard test.
+ */
+export const LISTING_AGGREGATE_RECALC_SQL = `SELECT
+       COALESCE(SUM(quantity), 0) AS booked_quantity,
+       ${ticketCountSumExpr()} AS tickets_count
+     FROM listing_attendees
+     WHERE listing_id = ?`;
 
 /** The listing aggregate columns as they would be if rebuilt from attendee rows. */
 export const getListingAggregateRecalculation = async (
   listing: ListingWithCount,
 ): Promise<ListingAggregateRecalculation> => {
   const row = (await queryOne<ListingAggregateValues>(
-    `SELECT
-       COALESCE(SUM(quantity), 0) AS booked_quantity,
-       COUNT(*) AS tickets_count
-     FROM listing_attendees
-     WHERE listing_id = ?`,
+    LISTING_AGGREGATE_RECALC_SQL,
     [listing.id],
   ))!;
   return {
@@ -589,11 +975,20 @@ export const updateListingAggregateValues = async (
  */
 export const adjustListingIncome = inOwnTx(ledgerTx.correct.income);
 
-const aggregateResetSql: Record<ListingAggregateField, string> = {
+/**
+ * Per-field "rebuild this aggregate from attendee rows" fragments. Each is an
+ * independent subquery, so tickets_count adds the {@link TICKET_COUNTS_PREDICATE}
+ * to ITS OWN WHERE (excluding quantity-0 lines) without touching the
+ * booked_quantity sum. Income is not here — it projects from the transfers
+ * ledger (see {@link adjustListingIncome}). Exported for the predicate guard test.
+ */
+export const aggregateResetSql: Record<ListingAggregateField, string> = {
   booked_quantity:
     "booked_quantity = COALESCE((SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = ?), 0)",
-  tickets_count:
-    "tickets_count = (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = ?)",
+  tickets_count: `tickets_count = (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = ? AND ${ticketCountPredicateFor(
+    "quantity",
+    "attendee_id",
+  )})`,
 };
 
 /** Reset selected listing aggregate columns from actual attendee rows. */
@@ -622,15 +1017,17 @@ export const getListingWithAttendeesRaw = async (
   const [listingResult, attendeesResult] = await queryBatch([
     {
       args: [id],
-      sql: `SELECT listings.*, ${listingIncomeSubquery("listings.id")} FROM listings WHERE id = ?`,
+      sql: `SELECT listings.*, ${listingMoneySubqueries("listings.id")}, ${listingDayPricesSubquery(
+        "listings.id",
+      )}, ${listingImageSubqueries("listings.id")} FROM listings WHERE id = ?`,
     },
     {
       args: [id],
       sql: `SELECT ${ATTENDEE_JOIN_SELECT}
-            FROM attendees a
-            JOIN listing_attendees ea ON ea.attendee_id = a.id
-            WHERE ea.listing_id = ?
-            ORDER BY a.created DESC`,
+            FROM attendees AS attendee
+            JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+            WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}'
+            ORDER BY attendee.created DESC`,
     },
   ]);
 
@@ -649,10 +1046,13 @@ export const getDailyListingAttendeeDates = async (): Promise<string[]> => {
   // start_at and end_at are always written together (see dateToStartEnd), so
   // filtering on both being non-null lets the row type stay honestly non-null.
   const rows = await queryAll<{ start_at: string; end_at: string }>(
-    `SELECT DISTINCT ea.start_at, ea.end_at FROM listing_attendees ea
-     INNER JOIN listings AS listing ON ea.listing_id = listing.id
+    // quantity > 0: a no-quantity sentinel line is not an operational booking, so
+    // it must not mark a calendar date as occupied.
+    `SELECT DISTINCT listingAttendee.start_at, listingAttendee.end_at FROM listing_attendees AS listingAttendee
+     INNER JOIN listings AS listing ON listingAttendee.listing_id = listing.id
      WHERE listing.listing_type = 'daily'
-       AND ea.start_at IS NOT NULL AND ea.end_at IS NOT NULL`,
+       AND listingAttendee.start_at IS NOT NULL AND listingAttendee.end_at IS NOT NULL
+       AND listingAttendee.quantity > 0`,
   );
   // Expand each booking's [start_at, end_at) span into every calendar date it
   // covers, so multi-day bookings mark every day they occupy as selectable.
@@ -680,12 +1080,14 @@ export const getDailyListingAttendeesByDate = (
 ): Promise<Attendee[]> => {
   const { startAt, endAt } = dateToRange(date);
   return queryAll<Attendee>(
+    // quantity > 0: exclude no-quantity sentinel lines from the daily calendar.
     `SELECT ${ATTENDEE_JOIN_SELECT}
-     FROM attendees a
-     JOIN listing_attendees ea ON ea.attendee_id = a.id
-     JOIN listings AS listing ON ea.listing_id = listing.id
-     WHERE listing.listing_type = 'daily' AND ea.start_at < ? AND ea.end_at > ?
-     ORDER BY a.created DESC`,
+     FROM attendees AS attendee
+     JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+     JOIN listings AS listing ON listingAttendee.listing_id = listing.id
+     WHERE listing.listing_type = 'daily' AND listingAttendee.start_at < ? AND listingAttendee.end_at > ?
+       AND listingAttendee.quantity > 0
+     ORDER BY attendee.created DESC`,
     [endAt, startAt],
   );
 };
@@ -694,18 +1096,53 @@ export const getDailyListingAttendeesByDate = (
  * Get raw attendees for a set of listing IDs.
  * Used by the calendar to load attendees for standard listings whose
  * decrypted date matches the selected calendar date.
+ *
+ * `activeOnly` is an opt-in `quantity > 0` filter: the operational callers (the
+ * ICS feed and the admin calendar's standard-listing rows + CSV) pass `true` to
+ * drop no-quantity sentinel lines, while the admin group-detail roster passes
+ * `false` (the default) so it keeps showing ghost rows. The filter is opt-in —
+ * never applied unconditionally to this shared helper — so a record/detail
+ * caller can't accidentally lose its ghost rows.
  */
+type ListingAttendeeKindScope = "attendees" | "attendees-and-servicing";
+
+type ListingAttendeeFilter = {
+  activeOnly?: boolean;
+  kindScope?: ListingAttendeeKindScope;
+};
+
+const listingAttendeeFilter = (
+  filter: boolean | ListingAttendeeFilter = false,
+): Required<ListingAttendeeFilter> =>
+  typeof filter === "boolean"
+    ? { activeOnly: filter, kindScope: "attendees" }
+    : {
+        activeOnly: filter.activeOnly ?? false,
+        kindScope: filter.kindScope ?? "attendees",
+      };
+
+const attendeeKindClause = (kindScope: ListingAttendeeKindScope): string =>
+  kindScope === "attendees-and-servicing"
+    ? `attendee.kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}')`
+    : `attendee.kind = '${ATTENDEE_KIND}'`;
+
 export const getAttendeesByListingIds = (
   listingIds: number[],
-): Promise<Attendee[]> =>
-  queryAll<Attendee>(
+  filter: boolean | ListingAttendeeFilter = false,
+): Promise<Attendee[]> => {
+  if (listingIds.length === 0) return Promise.resolve([]);
+  const { activeOnly, kindScope } = listingAttendeeFilter(filter);
+  return queryAll<Attendee>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
-     FROM attendees a
-     JOIN listing_attendees ea ON ea.attendee_id = a.id
-     WHERE ea.listing_id IN (${inPlaceholders(listingIds)})
-     ORDER BY a.created DESC`,
+     FROM attendees AS attendee
+     JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+     WHERE listingAttendee.listing_id IN (${inPlaceholders(listingIds)})
+       AND ${attendeeKindClause(kindScope)}
+       ${activeOnly ? "AND listingAttendee.quantity > 0" : ""}
+     ORDER BY attendee.created DESC`,
     listingIds,
   );
+};
 
 /** Result type for listing + single attendee query */
 export type ListingWithAttendeeRaw = {
@@ -725,14 +1162,16 @@ export const getListingWithAttendeeRaw = async (
   const [listingResult, attendeeResult] = await queryBatch([
     {
       args: [listingId],
-      sql: `SELECT listings.*, ${listingIncomeSubquery("listings.id")} FROM listings WHERE id = ?`,
+      sql: `SELECT listings.*, ${listingMoneySubqueries("listings.id")}, ${listingDayPricesSubquery(
+        "listings.id",
+      )}, ${listingImageSubqueries("listings.id")} FROM listings WHERE id = ?`,
     },
     {
       args: [attendeeId],
       sql: `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
-            FROM attendees a
-            LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-            WHERE a.id = ?`,
+            FROM attendees AS attendee
+            LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
+            WHERE attendee.id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,
     },
   ]);
 

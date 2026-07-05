@@ -3,15 +3,57 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
 import {
   clearSavedFormData,
+  entityToFieldValues,
   type Field,
   getSavedFormData,
   renderFields,
+  runWithSavedFormContext,
   setSavedFormData,
 } from "#shared/forms.tsx";
 
 const field = (
   overrides: Partial<Field> & { name: string; label: string },
 ): Field => ({ type: "text", ...overrides });
+
+describe("entityToFieldValues", () => {
+  const fields = [
+    field({ label: "A", name: "a" }),
+    field({ label: "B", name: "b" }),
+  ];
+
+  test("derives field values from the entity", () => {
+    const values = entityToFieldValues({ a: "1", b: "2" }, fields, {});
+    expect(values).toEqual({ a: "1", b: "2" });
+  });
+
+  test("applies a formatter when one is supplied for the field", () => {
+    const values = entityToFieldValues({ a: "1", b: "2" }, fields, {
+      a: (e) => `formatted-${e.a}`,
+    });
+    expect(values.a).toBe("formatted-1");
+    expect(values.b).toBe("2");
+  });
+
+  test("yields empty strings when there is no entity", () => {
+    const values = entityToFieldValues(undefined, fields, {});
+    expect(values).toEqual({ a: "", b: "" });
+  });
+
+  test("merges extra values over the entity-derived fields", () => {
+    const values = entityToFieldValues(
+      { a: "1", b: "2" },
+      fields,
+      {},
+      {
+        b: "override",
+        c: "extra",
+      },
+    );
+    expect(values.a).toBe("1");
+    expect(values.b).toBe("override");
+    expect(values.c).toBe("extra");
+  });
+});
 
 describe("saved form data", () => {
   afterEach(() => clearSavedFormData());
@@ -102,6 +144,16 @@ describe("saved form data", () => {
     expect(html).not.toContain('value="');
   });
 
+  test("does not restore a partial datetime saved with time but no date", () => {
+    // A time without a date is an incomplete datetime, so the re-fill stash
+    // yields no value rather than a lone time.
+    setSavedFormData(new FormParams("start_time=14%3A30"));
+    const html = renderFields([
+      field({ label: "Start", name: "start", type: "datetime" }),
+    ]);
+    expect(html).not.toContain('value="');
+  });
+
   test("clearSavedFormData stops restoration", () => {
     setSavedFormData(new FormParams("name=Alice"));
     clearSavedFormData();
@@ -153,5 +205,28 @@ describe("saved form data", () => {
     setSavedFormData(new FormParams("name=Alice"));
     clearSavedFormData();
     expect(getSavedFormData()).toBeNull();
+  });
+
+  test("saved data set inside a scope stays within that scope", () => {
+    const scopedForm = new FormParams("name=Scoped");
+    const inside = runWithSavedFormContext(() => {
+      setSavedFormData(scopedForm);
+      return getSavedFormData();
+    });
+    expect(inside).toBe(scopedForm);
+    expect(getSavedFormData()).toBeNull(); // ambient container untouched
+  });
+
+  test("concurrent request scopes do not leak saved form data", async () => {
+    const request = (name: string) =>
+      runWithSavedFormContext(async () => {
+        const form = new FormParams(`name=${name}`);
+        setSavedFormData(form);
+        await new Promise((r) => setTimeout(r, 20));
+        return getSavedFormData()?.getString("name");
+      });
+    const [a, b] = await Promise.all([request("Alice"), request("Bob")]);
+    expect(a).toBe("Alice");
+    expect(b).toBe("Bob");
   });
 });

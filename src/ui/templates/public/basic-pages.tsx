@@ -3,8 +3,12 @@ import { CONTACT_JS_PATH } from "#shared/asset-paths.ts";
 import { CsrfForm, Flash, MessageFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
-import { Layout } from "#templates/layout.tsx";
-import { FEED_DISCOVERY_TAGS, navFlags, PublicNav } from "./shared.tsx";
+import {
+  FEED_DISCOVERY_TAGS,
+  MarkdownProse,
+  type PublicNavProps,
+  publicPage,
+} from "./shared.tsx";
 
 /** Public site page type */
 export type PublicPageType = "home" | "terms" | "contact";
@@ -14,7 +18,8 @@ export type PublicPageType = "home" | "terms" | "contact";
  */
 export const publicSitePage = (
   pageType: PublicPageType,
-  websiteTitle?: string | null,
+  nav: PublicNavProps,
+  websiteTitle: string,
   content?: string | null,
 ): string => {
   const titles: Record<PublicPageType, string> = {
@@ -26,25 +31,21 @@ export const publicSitePage = (
     ? `${titles[pageType]} - ${websiteTitle}`
     : titles[pageType];
 
-  return String(
-    <Layout headExtra={FEED_DISCOVERY_TAGS} title={pageTitle}>
-      {websiteTitle && <h1>{websiteTitle}</h1>}
-      <PublicNav {...navFlags()} />
-      <div class="prose">
-        {content ? (
-          <Raw html={renderMarkdown(content)} />
-        ) : (
-          <p>
-            <em>{t("public.no_content")}</em>
-          </p>
-        )}
-      </div>
-      <footer class="homepage-footer">
+  return publicPage(
+    pageTitle,
+    websiteTitle,
+    nav,
+    pageType === "home",
+  )(
+    <div class="prose">
+      {content ? (
+        <Raw html={renderMarkdown(content)} />
+      ) : (
         <p>
-          <a href="/admin/login">{t("common.login")}</a>
+          <em>{t("public.no_content")}</em>
         </p>
-      </footer>
-    </Layout>,
+      )}
+    </div>,
   );
 };
 
@@ -75,10 +76,11 @@ const ContactForm = ({
  * public key is configured (progressive enhancement).
  */
 export const contactPage = (options: {
-  websiteTitle?: string | null;
+  websiteTitle: string;
   content?: string | null;
   formActive: boolean;
   botpoisonPublicKey: string;
+  nav: PublicNavProps;
   success?: string;
   error?: string;
 }): string => {
@@ -92,22 +94,17 @@ export const contactPage = (options: {
     ? `${FEED_DISCOVERY_TAGS}\n<script defer src="${CONTACT_JS_PATH}"></script>`
     : FEED_DISCOVERY_TAGS;
 
-  return String(
-    <Layout headExtra={headExtra} title={pageTitle}>
-      {websiteTitle && <h1>{websiteTitle}</h1>}
-      <PublicNav {...navFlags()} />
+  return publicPage(
+    pageTitle,
+    websiteTitle,
+    options.nav,
+    false,
+    headExtra,
+  )(
+    <>
       <Flash error={options.error} success={options.success} />
-      {content && (
-        <div class="prose">
-          <Raw html={renderMarkdown(content)} />
-        </div>
-      )}
+      <MarkdownProse markdown={content ?? ""} />
       {formActive && <ContactForm botpoisonPublicKey={botpoisonPublicKey} />}
-      <footer class="homepage-footer">
-        <p>
-          <a href="/admin/login">{t("common.login")}</a>
-        </p>
-      </footer>
-    </Layout>,
+    </>,
   );
 };

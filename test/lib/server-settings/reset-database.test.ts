@@ -1,26 +1,26 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { getSessionCookieName } from "#shared/cookies.ts";
+import { imagesTable } from "#shared/db/images.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
-import { runWithStorageConfig } from "#shared/storage.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   adminFormPost,
+  adminGet,
   assertFormRedirect,
-  awaitTestRequest,
   createTestListing,
   describeWithEnv,
+  expectDatabaseResetRedirect,
   expectFlash,
   expectHtmlResponse,
-  expectRedirectWithFlash,
-  installUrlHandler,
   invalidateTestDbCache,
   mockFormRequest,
+  mockRequest,
   setupListingAndLogin,
   testCookie,
   testRequiresAuth,
-  withFetchMock,
+  withBunnyDeleteCapture,
 } from "#test-utils";
 
 describeWithEnv("server (admin settings)", { db: true }, () => {
@@ -58,43 +58,33 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       await listingsTable.update(listing.id, {
         attachmentName: "doc.pdf",
         attachmentUrl: "admin-reset-attachment.pdf",
-        imageUrl: "admin-reset-image.jpg",
+      });
+      await imagesTable.insert({
+        filename: nonEmptyString("admin-reset-image.jpg"),
+        filenameThumb: nonEmptyString("admin-reset-image-thumb.jpg"),
+        name: "Admin reset image",
       });
 
-      await runWithStorageConfig(
-        { zoneKey: "testkey", zoneName: "testzone" },
-        () =>
-          withFetchMock(async (originalFetch) => {
-            const deletedUrls: string[] = [];
-            installUrlHandler(originalFetch, (url) => {
-              if (url.includes("storage.bunnycdn.com")) {
-                deletedUrls.push(url);
-                return Promise.resolve(
-                  new Response(JSON.stringify({ HttpCode: 200 }), {
-                    status: 200,
-                  }),
-                );
-              }
-              return null;
-            });
-
-            await assertFormRedirect(
-              "/admin/settings/reset-database",
-              {
-                confirm_phrase:
-                  "The site will be fully reset and all data will be lost.",
-              },
-              "/setup/",
-              "Database reset",
-            );
-            expect(
-              deletedUrls.some((u) => u.includes("admin-reset-image.jpg")),
-            ).toBe(true);
-            expect(
-              deletedUrls.some((u) => u.includes("admin-reset-attachment.pdf")),
-            ).toBe(true);
-          }),
-      );
+      await withBunnyDeleteCapture(async (deletedUrls) => {
+        await assertFormRedirect(
+          "/admin/settings/reset-database",
+          {
+            confirm_phrase:
+              "The site will be fully reset and all data will be lost.",
+          },
+          "/setup/",
+          "Database reset",
+        );
+        expect(
+          deletedUrls.some((u) => u.includes("admin-reset-image.jpg")),
+        ).toBe(true);
+        expect(
+          deletedUrls.some((u) => u.includes("admin-reset-image-thumb.jpg")),
+        ).toBe(true);
+        expect(
+          deletedUrls.some((u) => u.includes("admin-reset-attachment.pdf")),
+        ).toBe(true);
+      });
 
       invalidateTestDbCache();
     });
@@ -156,17 +146,46 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       // Should redirect to setup page with session cleared
-      expectRedirectWithFlash("/setup/", "Database reset")(response);
-      const sessionCookie = response.headers
-        .getSetCookie()
-        .find((c) => c.startsWith(`${getSessionCookieName()}=`));
-      expect(sessionCookie).toContain("Max-Age=0");
+      expectDatabaseResetRedirect(response);
+    });
+
+    test("GET / after database reset returns 503 not-activated without auto-refresh (regression: boot loop)", async () => {
+      // Reproduce the production bug: after a DB reset the isolate retains
+      // module-level caches (initDb ready-client, settings snapshot,
+      // setup-complete gate). Without clearing them, the next request bypasses
+      // initDb's MissingSettingsTableError catch and reaches handleRoutingError,
+      // which returns a 503 *with* auto-refresh — creating a boot loop.
+      const { cookie, csrfToken } = await setupListingAndLogin({
+        maxAttendees: 10,
+        name: "Pre-reset Listing",
+        thankYouUrl: "https://example.com/thanks",
+      });
+
+      await handleRequest(
+        mockFormRequest(
+          "/admin/settings/reset-database",
+          {
+            confirm_phrase:
+              "The site will be fully reset and all data will be lost.",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      invalidateTestDbCache();
+
+      // The next request must get the "not activated" page (503, no
+      // auto-refresh), not a boot-loop temporary error response.
+      const homeResponse = await handleRequest(mockRequest("/"));
+      const html = await homeResponse.text();
+      expect(homeResponse.status).toBe(503);
+      expect(html).toContain("Not Activated");
+      expect(html).not.toContain("refresh");
     });
 
     test("advanced settings page shows reset database section", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const html = await expectHtmlResponse(response, 200, "Reset Database");
       expect(html).toContain(
         "The site will be fully reset and all data will be lost.",

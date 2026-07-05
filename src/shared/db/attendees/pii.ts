@@ -14,8 +14,10 @@ import {
 } from "#shared/crypto/keys.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
 import type {
+  AttendeePii,
   EncryptedAttendeeData,
   EncryptInput,
+  UpdateAttendeePIIInput,
 } from "#shared/db/attendee-types.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";
@@ -25,9 +27,7 @@ import type { Attendee, ContactInfo, PiiBlob } from "#shared/types.ts";
 export const PII_BLOB_VERSION = 1;
 
 /** Build a PII blob JSON from contact fields */
-export const buildPiiBlob = (
-  info: ContactInfo & { payment_id: string; ticket_token: string },
-): string =>
+export const buildPiiBlob = (info: AttendeePii): string =>
   JSON.stringify({
     a: info.address,
     e: info.email,
@@ -57,15 +57,7 @@ export const decryptPiiBlob = async (
   encrypted: string,
   privateKey: CryptoKey,
   paidListing: boolean,
-): Promise<{
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-  special_instructions: string;
-  payment_id: string;
-  ticket_token: string;
-}> => {
+): Promise<UpdateAttendeePIIInput> => {
   const json = await decryptWithOwnerKey(encrypted, privateKey);
   const blob = parsePiiBlob(json);
   return {

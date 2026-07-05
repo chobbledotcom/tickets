@@ -41,12 +41,8 @@ describe("timezone", () => {
       // Temporal.Now bypasses FakeTime; todayInTz must derive "today" from
       // Date.now() so date-dependent code stays deterministic in frozen-time
       // tests (booking windows, holiday cutoffs, calendar/delivery pages).
-      const time = new FakeTime(new Date("2030-01-15T12:00:00Z"));
-      try {
-        expect(todayInTz("Europe/London")).toBe("2030-01-15");
-      } finally {
-        time.restore();
-      }
+      using _time = new FakeTime(new Date("2030-01-15T12:00:00Z"));
+      expect(todayInTz("Europe/London")).toBe("2030-01-15");
     });
   });
 

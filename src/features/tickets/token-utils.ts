@@ -6,6 +6,7 @@ import { compact, unique } from "#fp";
 import { notFoundResponse, rateLimitedResponse } from "#routes/response.ts";
 import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
 import { getClientIp } from "#routes/url.ts";
+import type { WalletPassData } from "#shared/apple-wallet.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
   type AttendeeWithBookings,
@@ -13,6 +14,10 @@ import {
   getAttendeesByTokens,
   type ListingAttendeeRow,
 } from "#shared/db/attendees.ts";
+import {
+  getPackageDisplaysByIds,
+  type PackageDisplay,
+} from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -22,26 +27,18 @@ import {
 } from "#shared/db/token-attempts.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
-import type { Attendee, ListingWithCount } from "#shared/types.ts";
+import {
+  type Attendee,
+  hasTicketQuantity,
+  type ListingWithCount,
+} from "#shared/types.ts";
+
+export type { WalletPassData };
 
 /** Attendee paired with its listing */
 export type TokenEntry = {
   attendee: Attendee;
   listing: ListingWithCount;
-};
-
-/** Shared wallet pass data common to both Apple and Google Wallet */
-export type WalletPassData = {
-  serialNumber: string;
-  organizationName: string;
-  listingName: string;
-  listingDate: string;
-  listingLocation: string;
-  attendeeDate: string | null;
-  quantity: number;
-  pricePaid: number;
-  currencyCode: string;
-  checkinUrl: string;
 };
 
 /** Cache wallet responses for 1 hour on CDN, 5 minutes in browser */
@@ -89,6 +86,18 @@ export const lookupSingleTokenPassData = async (
   const entries = await resolveEntries(result.attendees);
   const entry = entries[0];
   if (!entry) return { ok: false, response: notFoundResponse() };
+  // A wallet pass is built from a single member listing, so for a package
+  // booking it would misrepresent the bundle as one member — and for a HIDDEN
+  // package it would leak that member's name/location to anyone with the token.
+  // The ticket page already omits wallet links for package cards; 404 the direct
+  // pass endpoints to match. Check EVERY booking under the token, not just the
+  // first: a merge can leave one token with both a standalone and a package row,
+  // and the pass QR's /checkin covers them all — so a single-listing pass is
+  // wrong whenever ANY row is a package member, even when it doesn't sort first.
+  const packageDisplays = await packageDisplaysForEntries(entries);
+  if (packageDisplays.size > 0) {
+    return { ok: false, response: notFoundResponse() };
+  }
   return { ok: true, passData: buildWalletPassData(entry, token) };
 };
 
@@ -131,8 +140,10 @@ const buildAttendeeView = (
   email: "",
   end_date: booking.end_at ? booking.end_at.slice(0, 10) : null,
   id: base.id,
+  kind: base.kind,
   listing_id: booking.listing_id,
   name: "",
+  package_group_id: booking.package_group_id,
   payment_id: "",
   phone: "",
   pii_blob: base.pii_blob,
@@ -146,6 +157,15 @@ const buildAttendeeView = (
   ticket_token: base.ticket_token,
   ticket_token_index: base.ticket_token_index,
 });
+
+/** The package displays for a set of token entries, keyed by package id (only
+ * ids naming a live package appear). The shared input both the ticket view (to
+ * collapse package cards / hide members) and the wallet lookup (to 404 a token
+ * carrying any package row) derive from each entry's `package_group_id`. */
+export const packageDisplaysForEntries = (
+  entries: TokenEntry[],
+): Promise<Map<number, PackageDisplay>> =>
+  getPackageDisplaysByIds(entries.map((e) => e.attendee.package_group_id));
 
 /**
  * Resolve attendees with bookings to token entries.
@@ -167,12 +187,15 @@ export const resolveEntries = async (
     }),
   );
 
-  // Expand each attendee × booking into a TokenEntry
+  // Expand each attendee × booking into a TokenEntry, dropping no-quantity
+  // sentinel lines (quantity 0) — they must not render, produce a wallet pass, or
+  // be checkable. Filtering here (not in the shared getAttendeesByTokens, which
+  // the webhook/merge flows also use) keeps entries[0] a real line, never a ghost.
   const entries: TokenEntry[] = [];
   for (const awb of attendeesWithBookings) {
     for (const booking of awb.bookings) {
       const listing = listings.get(booking.listing_id);
-      if (listing) {
+      if (listing && hasTicketQuantity(booking)) {
         entries.push({
           attendee: buildAttendeeView(awb, booking),
           listing,
@@ -199,6 +222,30 @@ export const decryptTokenEntries = async (
 export type TokenLookupResult =
   | { ok: true; attendees: AttendeeWithBookings[] }
   | { ok: false; response: Response };
+
+/**
+ * Keep only the tokens whose attendee has at least one real (quantity > 0) line,
+ * plus those lines' listing IDs (input order). A token resolving solely to
+ * no-quantity sentinel lines is dropped, so the success pages never build a `/t`
+ * CTA that would 404, and a ghost line never inflates the single-listing check.
+ */
+export const verifyTokensWithRealLine = async (
+  tokens: string[],
+): Promise<{ verifiedTokens: string[]; listingIds: number[] }> => {
+  const attendees = tokens.length > 0 ? await getAttendeesByTokens(tokens) : [];
+  const verified = tokens
+    .map((token, i) => ({
+      realBookings: (attendees[i]?.bookings ?? []).filter(hasTicketQuantity),
+      token,
+    }))
+    .filter((entry) => entry.realBookings.length > 0);
+  return {
+    listingIds: verified.flatMap((e) =>
+      e.realBookings.map((b) => b.listing_id),
+    ),
+    verifiedTokens: verified.map((e) => e.token),
+  };
+};
 
 /** Look up attendees by tokens, returning 404 if none found */
 export const lookupAttendees = async (

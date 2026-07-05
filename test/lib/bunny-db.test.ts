@@ -2,13 +2,25 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
-  bunnyDbApi,
+  bunnyDbProvider as bunnyDbApi,
   EUROPEAN_REGIONS,
   STORAGE_REGION,
 } from "#shared/bunny-db.ts";
 import { describeWithEnv, withMocks } from "#test-utils";
+import { testCreateDatabaseReturnsErrorOn403 } from "#test-utils/builder-mocks.ts";
 
 describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
+  const dbCreateFetch = (dbId: string, fallback: (url: string) => Response) =>
+    stub(globalThis, "fetch", (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/v2/databases")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ db_id: dbId }), { status: 200 }),
+        );
+      }
+      return Promise.resolve(fallback(url));
+    });
+
   test("createDatabase calls create, get, and token endpoints", async () => {
     const fetchCalls: string[] = [];
 
@@ -181,39 +193,19 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
   });
 
   test("createDatabase returns error when create endpoint fails", async () => {
-    await withMocks(
-      () =>
-        stub(globalThis, "fetch", () =>
-          Promise.resolve(new Response("Forbidden", { status: 403 })),
-        ),
-      async () => {
-        const result = await bunnyDbApi.createDatabase("Bad");
-        expect(result.ok).toBe(false);
-        if (!result.ok) {
-          expect(result.error).toContain("Create database failed (403)");
-        }
-      },
-    );
+    await testCreateDatabaseReturnsErrorOn403(bunnyDbApi);
   });
 
   test("createDatabase returns error when get database endpoint fails with JSON Message", async () => {
     await withMocks(
       () =>
-        stub(globalThis, "fetch", (input: string | URL | Request) => {
-          const url = String(input);
-          if (url.endsWith("/v2/databases")) {
-            return Promise.resolve(
-              new Response(JSON.stringify({ db_id: "db_err" }), {
-                status: 200,
-              }),
-            );
-          }
-          return Promise.resolve(
+        dbCreateFetch(
+          "db_err",
+          () =>
             new Response(JSON.stringify({ Message: "Database not found" }), {
               status: 404,
             }),
-          );
-        }),
+        ),
       async () => {
         const result = await bunnyDbApi.createDatabase("Err");
         expect(result.ok).toBe(false);
@@ -228,28 +220,16 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
   test("createDatabase returns error when token generation fails with JSON body", async () => {
     await withMocks(
       () =>
-        stub(globalThis, "fetch", (input: string | URL | Request) => {
-          const url = String(input);
-          if (url.endsWith("/v2/databases")) {
-            return Promise.resolve(
-              new Response(JSON.stringify({ db_id: "db_tok" }), {
-                status: 200,
-              }),
-            );
-          }
+        dbCreateFetch("db_tok", (url) => {
           if (url.includes("/v2/databases/db_tok") && !url.includes("/auth")) {
-            return Promise.resolve(
-              new Response(
-                JSON.stringify({
-                  db: { db_id: "db_tok", name: "T", url: "libsql://t.net" },
-                }),
-                { status: 200 },
-              ),
+            return new Response(
+              JSON.stringify({
+                db: { db_id: "db_tok", name: "T", url: "libsql://t.net" },
+              }),
+              { status: 200 },
             );
           }
-          return Promise.resolve(
-            new Response(JSON.stringify({ code: 401 }), { status: 401 }),
-          );
+          return new Response(JSON.stringify({ code: 401 }), { status: 401 });
         }),
       async () => {
         const result = await bunnyDbApi.createDatabase("T");

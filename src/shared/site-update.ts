@@ -2,9 +2,9 @@
  * Built-site update support: read a site's recorded version through its
  * read-only database keys and decide whether it is behind the latest release.
  *
- * The deploy itself reuses the exact self-update path (`deployLatestReleaseToScript`
- * in #shared/update.ts) against the site's own Bunny script; this module only
- * gathers the comparison state shown next to the Update button.
+ * The deploy itself reuses the exact self-update path against the site's own
+ * hosting script/app; this module only gathers the comparison state shown next
+ * to the Update button.
  */
 
 import type { BuiltSite } from "#shared/db/built-sites.ts";
@@ -23,10 +23,10 @@ import {
 
 /** State for the built-site update panel. */
 export type BuiltSiteUpdateState = {
-  /** Host has BUNNY_API_KEY set (required to deploy at all). */
-  bunnyConfigured: boolean;
-  /** Site has a Bunny script id to deploy to. */
-  hasScriptId: boolean;
+  /** Host has the provider API key configured (required to deploy at all). */
+  providerConfigured: boolean;
+  /** Site has a hosting ID to deploy to. */
+  hasHostingId: boolean;
   /** Human-readable version the site reported, or null when unknown. */
   siteVersionLabel: string | null;
   /** Error reading the site's database, if we tried and failed. */
@@ -72,11 +72,16 @@ export const loadBuiltSiteUpdateState = async (
     isNewerVersion(latestVersion, siteVersion!);
   const upToDate = Boolean(siteVersion) && haveLatest && !updateAvailable;
 
+  const providerConfigured =
+    site.hostingProvider === "deno"
+      ? Boolean(getEnv("DENO_DEPLOY_TOKEN"))
+      : Boolean(getEnv("BUNNY_API_KEY"));
+
   return {
-    bunnyConfigured: Boolean(getEnv("BUNNY_API_KEY")),
-    hasScriptId: Boolean(site.bunnyScriptId),
+    hasHostingId: Boolean(site.hostingId),
     latestVersion,
     latestVersionName,
+    providerConfigured,
     siteVersionError,
     siteVersionLabel: siteVersion ? formatBuildDate(siteVersion) : null,
     updateAvailable,

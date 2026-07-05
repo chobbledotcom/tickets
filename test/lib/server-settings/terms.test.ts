@@ -1,13 +1,13 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   adminFormPost,
-  awaitTestRequest,
-  describeWithEnv,
+  adminGet,
+  describeAdminSettings,
   expectFlash,
   expectHtmlResponse,
   getAllActivityLog,
@@ -16,11 +16,9 @@ import {
   testRequiresAuth,
 } from "#test-utils";
 
-describeWithEnv("server (admin settings)", { db: true }, () => {
-  afterEach(() => {
-    setDemoModeForTest(false);
-  });
+// jscpd:ignore-end
 
+describeAdminSettings(() => {
   describe("POST /admin/settings/terms", () => {
     testRequiresAuth("/admin/settings/terms", {
       body: {
@@ -109,9 +107,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("settings page shows terms and conditions section", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       await expectHtmlResponse(
         response,
         200,
@@ -123,9 +119,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("settings page shows current terms when configured", async () => {
       await settings.update.terms("You must be 18 or older.");
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       await expectHtmlResponse(response, 200, "You must be 18 or older.");
     });
   });

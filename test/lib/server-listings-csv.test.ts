@@ -20,7 +20,7 @@ describeWithEnv("server (admin listings CSV)", { db: true }, () => {
 
     test("exports every listing as a CSV download", async () => {
       await createTestListing({ name: "Gala Night" });
-      const { response } = await adminGet("/admin/listings/csv");
+      const response = await adminGet("/admin/listings/csv");
       expect(response.headers.get("content-type")).toContain("text/csv");
       expect(response.headers.get("content-disposition")).toContain(
         'filename="listings.csv"',
@@ -33,7 +33,7 @@ describeWithEnv("server (admin listings CSV)", { db: true }, () => {
     test("filters the export to one type and names the file by type", async () => {
       await createTestListing({ name: "Standard One" });
       await createTestListing({ name: "Daily One", ...DAILY });
-      const { response } = await adminGet("/admin/listings/csv?type=daily");
+      const response = await adminGet("/admin/listings/csv?type=daily");
       expect(response.headers.get("content-disposition")).toContain(
         'filename="listings_daily.csv"',
       );

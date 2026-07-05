@@ -14,7 +14,8 @@
  */
 
 import { sum, sumOf } from "#fp";
-import { toMinorUnits } from "#shared/currency.ts";
+import { getDecimalPlaces, toMinorUnits } from "#shared/currency.ts";
+import { settings } from "#shared/db/settings.ts";
 import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
 
 /** A parsed reservation amount. `value` is the bare number (not minor units). */
@@ -29,9 +30,20 @@ const RESERVATION_AMOUNT_RE = /^(\d+(?:\.\d+)?)(%|x)?$/;
 export const RESERVATION_AMOUNT_HINT =
   "Enter an amount like 10 (currency units), 10% (of the total) or 10x (per item)";
 
+/** Digits after the decimal point in a numeric string (0 when there is none). */
+const decimalPlaces = (numStr: string): number => {
+  const dot = numStr.indexOf(".");
+  return dot === -1 ? 0 : numStr.length - dot - 1;
+};
+
 /**
  * Parse a reservation-amount string into its kind and numeric value, or null
- * when the string is malformed.
+ * when the string is malformed. Deliberately currency-tolerant: this is on the
+ * checkout deposit-calculation path ({@link computeReservationDeposit}), which
+ * must keep computing a deposit for values stored before the save-time
+ * precision rule below — so an over-precise `flat`/`perItem` amount still parses
+ * here (and `toMinorUnits` rounds it) rather than silently collecting no
+ * deposit. Precision is enforced on save by {@link validateReservationAmount}.
  */
 export const parseReservationAmount = (
   raw: string,
@@ -48,10 +60,23 @@ export const parseReservationAmount = (
 /**
  * Validate a reservation-amount string for form input. Returns an error
  * message, or null when valid. Empty input is rejected — the field must be
- * filled in (use "0" for no deposit).
+ * filled in (use "0" for no deposit). A `flat`/`perItem` amount is a currency
+ * value, so it's rejected here (on save) when it carries more decimal places
+ * than the active currency represents (e.g. `"10.005"` in GBP); a `percent`
+ * keeps its precision (`"33.33%"`). The calc path stays tolerant of any value
+ * already stored.
  */
-export const validateReservationAmount = (raw: string): string | null =>
-  parseReservationAmount(raw) === null ? RESERVATION_AMOUNT_HINT : null;
+export const validateReservationAmount = (raw: string): string | null => {
+  const parsed = parseReservationAmount(raw);
+  if (parsed === null) return RESERVATION_AMOUNT_HINT;
+  if (parsed.kind === "percent") return null;
+  // The numeric part is match[1]; strip the trailing % / x suffix to count its
+  // decimal places against the currency.
+  const numStr = raw.trim().replace(/[%x]$/, "");
+  return decimalPlaces(numStr) > getDecimalPlaces(settings.currency)
+    ? RESERVATION_AMOUNT_HINT
+    : null;
+};
 
 /**
  * Parse `raw`, turn the parsed amount into a deposit via `fromParsed`, and

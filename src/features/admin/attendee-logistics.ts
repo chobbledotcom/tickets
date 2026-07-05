@@ -8,7 +8,10 @@
  */
 
 import type { AttendeeFormLine } from "#routes/admin/attendee-form-model.ts";
-import { isBookedLine } from "#routes/admin/attendee-form-model.ts";
+import {
+  isBookedLine,
+  isNoQuantityLine,
+} from "#routes/admin/attendee-form-model.ts";
 import {
   getLogisticsAssignments,
   type LogisticsAssignment,
@@ -62,10 +65,15 @@ export type AttendeeLogisticsData = {
   lines: LogisticsLine[];
 };
 
-/** The logistics listings an attendee actually books (booked lines only). */
+/** The logistics listings an attendee actually books (booked lines only). A
+ * no-quantity line is never a delivery drop-off/collection, so it's excluded
+ * even when it has an existing booking row — the atomic edit clears its agents,
+ * times and done flags, and this stops the form re-rendering or re-persisting
+ * any assignment for it. */
 const deliveredBookedLines = (lines: AttendeeFormLine[]): AttendeeFormLine[] =>
   lines.filter(
     (line) =>
+      !isNoQuantityLine(line) &&
       (isBookedLine(line) || Boolean(line.existingBooking)) &&
       Boolean(line.listing?.uses_logistics),
   );

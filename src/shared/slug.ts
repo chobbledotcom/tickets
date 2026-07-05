@@ -56,11 +56,18 @@ const SlugSchema = v.pipe(
   ),
 );
 
-/** Validate a normalized slug. Returns error message or null. */
-export const validateSlug = (slug: string): string | null => {
-  const result = v.safeParse(SlugSchema, slug, { abortPipeEarly: true });
+/** Run a valibot schema with abortPipeEarly and return the first error message or null. */
+export const firstIssueMessage = <T>(
+  schema: v.BaseSchema<unknown, T, v.BaseIssue<unknown>>,
+  value: unknown,
+): string | null => {
+  const result = v.safeParse(schema, value, { abortPipeEarly: true });
   return result.success ? null : result.issues[0].message;
 };
+
+/** Validate a normalized slug. Returns error message or null. */
+export const validateSlug = (slug: string): string | null =>
+  firstIssueMessage(SlugSchema, slug);
 
 /** Slug-with-index pair */
 export type SlugWithIndex = { slug: string; slugIndex: string };

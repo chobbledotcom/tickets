@@ -4,6 +4,7 @@ import { spy } from "@std/testing/mock";
 import {
   BULK_UNSUBSCRIBE_PLACEHOLDER,
   type BulkEmailPayload,
+  type BulkSendResult,
   type EmailConfig,
   sendBulkEmails,
 } from "#shared/email.ts";
@@ -28,8 +29,32 @@ const payload = (n: number): BulkEmailPayload => ({
 /** The stub fetch returns an empty 200, so each batch records this response. */
 const okBatch = { body: "", ok: true, status: 200 };
 
+/** Two-recipient payload with the bulk unsubscribe placeholder — used by the
+ *  SendGrid and Mailgun personalization tests to check per-recipient
+ *  substitution. Both build the same fixture, so it's shared here. */
+const twoRecipientUnsubPayload = (): BulkEmailPayload => ({
+  html: `<p>Hi</p>${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
+  recipients: [
+    { to: validEmail("a@example.com"), unsubscribeUrl: "https://x/u/a" },
+    { to: validEmail("b@example.com"), unsubscribeUrl: "https://x/u/b" },
+  ],
+  subject: "Promo",
+  text: "Hi",
+});
+
 describe("sendBulkEmails", () => {
   const fetch = useFetchStub();
+
+  const expectPostedBatch = (result: BulkSendResult, expectedUrl: string) => {
+    expect(result).toEqual({
+      attempted: 2,
+      batches: 1,
+      failed: 0,
+      responses: [okBatch],
+    });
+    const [url] = fetch.getFetchArgs();
+    expect(url).toBe(expectedUrl);
+  };
 
   test("Resend posts one batch request with all recipients", async () => {
     const result = await sendBulkEmails(config, payload(3));
@@ -89,14 +114,7 @@ describe("sendBulkEmails", () => {
       payload(2),
     );
 
-    expect(result).toEqual({
-      attempted: 2,
-      batches: 1,
-      failed: 0,
-      responses: [okBatch],
-    });
-    const [url] = fetch.getFetchArgs();
-    expect(url).toBe("https://api.postmarkapp.com/email/batch");
+    expectPostedBatch(result, "https://api.postmarkapp.com/email/batch");
     expect(fetch.getFetchHeaders()["X-Postmark-Server-Token"]).toBe("re_key");
     const body = fetch.getFetchJsonBody();
     expect(body[0]).toEqual({
@@ -111,15 +129,7 @@ describe("sendBulkEmails", () => {
   test("SendGrid posts one request with a personalization per recipient", async () => {
     await sendBulkEmails(
       { ...config, provider: "sendgrid" },
-      {
-        html: `<p>Hi</p>${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
-        recipients: [
-          { to: validEmail("a@example.com"), unsubscribeUrl: "https://x/u/a" },
-          { to: validEmail("b@example.com"), unsubscribeUrl: "https://x/u/b" },
-        ],
-        subject: "Promo",
-        text: "Hi",
-      },
+      twoRecipientUnsubPayload(),
     );
 
     const [url] = fetch.getFetchArgs();
@@ -156,25 +166,13 @@ describe("sendBulkEmails", () => {
         fromAddress: validEmail("tickets@mg.example.com"),
         provider: "mailgun-us",
       },
-      {
-        html: `<p>Hi</p>${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
-        recipients: [
-          { to: validEmail("a@example.com"), unsubscribeUrl: "https://x/u/a" },
-          { to: validEmail("b@example.com"), unsubscribeUrl: "https://x/u/b" },
-        ],
-        subject: "Promo",
-        text: "Hi",
-      },
+      twoRecipientUnsubPayload(),
     );
 
-    expect(result).toEqual({
-      attempted: 2,
-      batches: 1,
-      failed: 0,
-      responses: [okBatch],
-    });
-    const [url] = fetch.getFetchArgs();
-    expect(url).toBe("https://api.mailgun.net/v3/mg.example.com/messages");
+    expectPostedBatch(
+      result,
+      "https://api.mailgun.net/v3/mg.example.com/messages",
+    );
     expect(fetch.getFetchHeaders().Authorization).toBe(
       `Basic ${btoa("api:re_key")}`,
     );

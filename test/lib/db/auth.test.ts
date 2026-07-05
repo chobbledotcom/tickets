@@ -17,6 +17,8 @@ import { createSession, getSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
 import {
+  assertAdminPasswordRejects,
+  assertAdminPasswordVerifies,
   bookAttendee,
   createTestListing,
   describeWithEnv,
@@ -26,20 +28,11 @@ import {
 
 describeWithEnv("db > auth", { db: true }, () => {
   describe("admin password", () => {
-    test("verifyUserPassword returns hash for correct password", async () => {
-      const user = await getUserByUsername(TEST_ADMIN_USERNAME);
-      expect(user).not.toBeNull();
-      const result = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
-      expect(result).toBeTruthy();
-      expect(result).toContain("pbkdf2:");
-    });
+    test("verifyUserPassword returns hash for correct password", () =>
+      assertAdminPasswordVerifies());
 
-    test("verifyUserPassword returns null for wrong password", async () => {
-      const user = await getUserByUsername(TEST_ADMIN_USERNAME);
-      expect(user).not.toBeNull();
-      const result = await verifyUserPassword(user!, "wrong");
-      expect(result).toBeNull();
-    });
+    test("verifyUserPassword returns null for wrong password", () =>
+      assertAdminPasswordRejects());
 
     test("updateUserPassword re-wraps DATA_KEY with new KEK", async () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);

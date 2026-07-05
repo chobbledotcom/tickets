@@ -21,7 +21,9 @@ import {
   handleBookingFeePost,
   handleBusinessEmailPost,
   handleCalendarFeedsPost,
+  handleCustomCssPost,
   handleEmbedHostsPost,
+  handleExternalOrderPost,
   handleListingColumnOrderPost,
   handlePaymentProviderPost,
   handleResetDatabasePost,
@@ -34,6 +36,10 @@ import {
   handleHeaderImageDeletePost,
   handleHeaderImagePost,
 } from "#routes/admin/settings-header-image.ts";
+import {
+  handleListingDefaultsGet,
+  handleListingDefaultsPost,
+} from "#routes/admin/settings-listing-defaults.ts";
 import {
   handleAdminSettingsAdvancedGet,
   handleAdminSettingsGet,
@@ -62,14 +68,17 @@ import { defineRoutes } from "#routes/router.ts";
 
 /** Settings routes */
 export const settingsRoutes = defineRoutes({
+  "GET /admin/listing-defaults": handleListingDefaultsGet,
   "GET /admin/settings": handleAdminSettingsGet,
   "GET /admin/settings-advanced": handleAdminSettingsAdvancedGet,
+  "POST /admin/listing-defaults": handleListingDefaultsPost,
   "POST /admin/settings": handleAdminSettingsPost,
   "POST /admin/settings/apple-wallet": handleAppleWalletPost,
   "POST /admin/settings/attendee-column-order": handleAttendeeColumnOrderPost,
   "POST /admin/settings/booking-fee": handleBookingFeePost,
   "POST /admin/settings/business-email": handleBusinessEmailPost,
   "POST /admin/settings/calendar-feeds": handleCalendarFeedsPost,
+  "POST /admin/settings/custom-css": handleCustomCssPost,
   "POST /admin/settings/custom-domain": handleCustomDomainPost,
   "POST /admin/settings/custom-domain/validate": handleCustomDomainValidatePost,
   "POST /admin/settings/email": handleEmailPost,
@@ -81,6 +90,7 @@ export const settingsRoutes = defineRoutes({
     handleEmailTemplatePreviewPost,
   "POST /admin/settings/email/test": handleEmailTestPost,
   "POST /admin/settings/embed-hosts": handleEmbedHostsPost,
+  "POST /admin/settings/external-order": handleExternalOrderPost,
   "POST /admin/settings/google-wallet": handleGoogleWalletPost,
   "POST /admin/settings/header-image": handleHeaderImagePost,
   "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,

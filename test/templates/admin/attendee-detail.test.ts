@@ -10,11 +10,10 @@ import { statementFor } from "#shared/ledger/project.ts";
 import {
   AttendeeAnswersTable,
   AttendeeBookingsTable,
-  AttendeeDetail,
-  AttendeeLedgerSection,
-  AttendeeLogSection,
   BookingStatusBadges,
 } from "#templates/admin/attendee-detail.tsx";
+import { attendeeSummaryRows } from "#templates/admin/attendee-page.tsx";
+import { renderSection } from "#templates/admin/entity-pages.tsx";
 import { emptyLedgerNames } from "#templates/admin/ledger.tsx";
 import {
   expectListingRowQuantity,
@@ -30,6 +29,7 @@ const booking = (
   listingActive: true,
   listingId: 1,
   listingName: "Test Listing",
+  parentListingId: 0,
   quantity: 1,
   refunded: false,
   startAt: null,
@@ -41,16 +41,28 @@ const renderBookings = (bookings: AttendeeBooking[]): string =>
 
 const ALLOWED_DOMAIN = "tickets.example.com";
 
-const renderDetail = (attendee = testAttendee(), phonePrefix = "44"): string =>
+const renderDetail = (
+  attendee = testAttendee(),
+  phonePrefix = "44",
+  hasRealLine = true,
+): string =>
   String(
-    AttendeeDetail({ allowedDomain: ALLOWED_DOMAIN, attendee, phonePrefix }),
+    renderSection({
+      kind: "summary",
+      rows: attendeeSummaryRows({
+        allowedDomain: ALLOWED_DOMAIN,
+        attendee,
+        hasRealLine,
+        phonePrefix,
+      }),
+    }),
   );
 
 beforeAll(() => {
   setupTestEncryptionKey();
 });
 
-describe("AttendeeDetail", () => {
+describe("attendee summary section", () => {
   test("always shows name, ticket link and registered", () => {
     const html = renderDetail(
       testAttendee({ name: "Jane Doe", ticket_token: "tok-123" }),
@@ -59,6 +71,18 @@ describe("AttendeeDetail", () => {
     expect(html).toContain("Jane Doe");
     expect(html).toContain(`https://${ALLOWED_DOMAIN}/t/tok-123`);
     expect(html).toContain("Registered");
+  });
+
+  test("shows the no-quantity indicator instead of a dead ticket link for a ghost-only attendee", () => {
+    // A no-quantity-only attendee's /t page 404s, so we must not render a link
+    // that fails on click — show the same "No quantity" indicator as the table.
+    const html = renderDetail(
+      testAttendee({ ticket_token: "tok-ghost" }),
+      "44",
+      false,
+    );
+    expect(html).not.toContain("/t/tok-ghost");
+    expect(html).toContain("No quantity");
   });
 
   test("renders email as a mailto link when present", () => {
@@ -191,6 +215,50 @@ describe("AttendeeBookingsTable", () => {
     );
   });
 
+  test("annotates a folded child row with the parent it was chosen under", () => {
+    // The child's parentListingId points at the parent, which is booked in the
+    // same order — so its name resolves from the sibling row.
+    const html = renderBookings([
+      booking({ listingId: 7, listingName: "Base unit" }),
+      booking({
+        listingId: 8,
+        listingName: "Add-on",
+        parentListingId: 7,
+      }),
+    ]);
+    expect(html).toContain("Add-on chosen under Base unit");
+  });
+
+  test("a plain booking shows no add-on annotation", () => {
+    const html = renderBookings([
+      booking({ listingId: 7, listingName: "Base unit" }),
+    ]);
+    expect(html).not.toContain("Add-on chosen under");
+    expect(html).not.toContain("Includes add-on");
+  });
+
+  test("annotates a parent row with the add-on children folded under it (#5)", () => {
+    // The reverse of "chosen under": the parent row lists every child booked
+    // against it in this order, so the relationship reads both ways.
+    const html = renderBookings([
+      booking({ listingId: 7, listingName: "Base unit" }),
+      booking({ listingId: 8, listingName: "Paddle", parentListingId: 7 }),
+      booking({ listingId: 9, listingName: "Helmet", parentListingId: 7 }),
+    ]);
+    expect(html).toContain("Includes add-on: Paddle, Helmet");
+    // The children still show their own "chosen under" annotation.
+    expect(html).toContain("Add-on chosen under Base unit");
+  });
+
+  test("falls back to the parent id when its row is absent from the order", () => {
+    // Defensive: a child whose parent row is not in this attendee's set still
+    // labels the pairing rather than dropping it silently.
+    const html = renderBookings([
+      booking({ listingId: 8, listingName: "Add-on", parentListingId: 7 }),
+    ]);
+    expect(html).toContain("Add-on chosen under #7");
+  });
+
   test("falls back to an em dash when a booking has no status", () => {
     // Dated so the only em dash can come from the empty status cell.
     const html = renderBookings([
@@ -248,7 +316,7 @@ describe("AttendeeAnswersTable", () => {
   });
 });
 
-describe("AttendeeLogSection", () => {
+describe("attendee activity section", () => {
   const entries: ActivityLogEntry[] = [
     {
       attendee_id: 7,
@@ -259,68 +327,103 @@ describe("AttendeeLogSection", () => {
     },
   ];
 
-  test("renders a collapsed details disclosure with the log table", () => {
-    const html = String(AttendeeLogSection({ entries }));
-    expect(html).toContain("<details>");
-    // Collapsed by default — no open attribute.
-    expect(html).not.toContain("<details open");
-    expect(html).toContain("<summary>Activity Log</summary>");
+  test("renders the log table with the same Time/Activity columns as /admin/log", () => {
+    const html = String(
+      renderSection({ entries, kind: "activity", viewAllHref: null }),
+    );
     expect(html).toContain("Attendee 'Jane Doe' updated");
-    // Same Time/Activity columns as /admin/log.
     expect(html).toContain("<th>Time</th>");
     expect(html).toContain("<th>Activity</th>");
+    // The full tab has no preview link.
+    expect(html).not.toContain("View all activity");
+  });
+
+  test("a preview links through to the full Activity tab", () => {
+    const html = String(
+      renderSection({
+        entries,
+        kind: "activity",
+        viewAllHref: "/admin/attendees/7/activity",
+      }),
+    );
+    expect(html).toContain('href="/admin/attendees/7/activity"');
+    expect(html).toContain("View all activity");
   });
 
   test("shows the empty state when the attendee has no log entries", () => {
-    const html = String(AttendeeLogSection({ entries: [] }));
+    const html = String(
+      renderSection({ entries: [], kind: "activity", viewAllHref: null }),
+    );
     expect(html).toContain("No activity recorded yet");
   });
 });
 
-describe("AttendeeLedgerSection", () => {
+describe("attendee ledger section", () => {
   const acct = account("attendee", 7);
+  const LEDGER_TAB = "/admin/attendees/7/ledger";
+  const renderLedger = (ledger: {
+    account: typeof acct;
+    lines: ReturnType<ReturnType<typeof statementFor>>;
+    names: ReturnType<typeof emptyLedgerNames>;
+  }): string =>
+    String(renderSection({ kind: "ledger", ledger, returnUrl: LEDGER_TAB }));
 
-  test("embeds the shared statement in a collapsed Ledger disclosure with the balance and a full-ledger action", () => {
-    // A single payment credits the attendee account, so its balance is +5000.
+  test("embeds the shared statement with the balance and a full-ledger action", () => {
+    // A single sale debits the attendee account, so the ledger holds -5000; the
+    // attendee view flips it to show the +5000 they owe as the balance.
     const lines = statementFor(acct)([
       {
         amount: 5000,
-        destination: acct,
+        destination: account("revenue", 1),
         eventGroup: "evt",
         id: 1,
-        kind: "payment",
+        kind: "sale",
         occurredAt: "2026-06-21T10:00:00.000Z",
         recordedAt: "2026-06-21T10:00:00.000Z",
-        reference: "pay-1",
-        source: account("external", "world"),
+        reference: "sale-1",
+        source: acct,
       },
     ]);
-    const html = String(
-      AttendeeLedgerSection({
-        ledger: { account: acct, lines, names: emptyLedgerNames() },
-      }),
-    );
-    // Collapsed in a details/summary like the activity log — no fieldset/legend.
-    expect(html).toContain("<details>");
-    expect(html).toContain("<summary>Ledger</summary>");
-    expect(html).not.toContain("<legend>Ledger</legend>");
-    // The action row reuses .table-header-actions and links to the full ledger.
-    expect(html).toContain('class="table-header-actions"');
+    const html = renderLedger({
+      account: acct,
+      lines,
+      names: emptyLedgerNames(),
+    });
+    // The statement controls group the balance, action row, and ledger table.
+    expect(html).toContain('class="table-controls"');
+    expect(html).toContain('class="table-action-btns"');
     expect(html).toContain('href="/admin/ledger/attendee/7"');
     expect(html).toContain("View full ledger");
-    // The counterparty singleton and the running balance both render.
-    expect(html).toContain("Card / bank");
+    // The counterparty (the listing, unnamed here) and the running balance both
+    // render; the reversed balance is the +5000 the attendee owes.
+    expect(html).toContain("Listing #1");
     expect(html).toContain(`Balance: ${formatCurrency(5000)}`);
+    expect(html).not.toContain(`Balance: -${formatCurrency(5000)}`);
     expect(html).toContain('<th class="col-amount">Balance</th>');
   });
 
   test("shows the empty state for an attendee with no transfers", () => {
-    const html = String(
-      AttendeeLedgerSection({
-        ledger: { account: acct, lines: [], names: emptyLedgerNames() },
-      }),
-    );
+    const html = renderLedger({
+      account: acct,
+      lines: [],
+      names: emptyLedgerNames(),
+    });
     expect(html).toContain("No transfers recorded yet");
     expect(html).toContain(`Balance: ${formatCurrency(0)}`);
+  });
+
+  test("shows an add-entry action returning to the Ledger tab", () => {
+    const html = renderLedger({
+      account: acct,
+      lines: [],
+      names: {
+        ...emptyLedgerNames(),
+        attendees: new Map([[7, "Ada Lovelace"]]),
+      },
+    });
+    expect(html).toContain("Add entry");
+    expect(html).toContain(
+      'href="/admin/ledger/attendee/7/add?return_url=%2Fadmin%2Fattendees%2F7%2Fledger"',
+    );
   });
 });

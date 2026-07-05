@@ -5,6 +5,7 @@
  * to the store.
  */
 
+import { sumByKey } from "#fp";
 import {
   attendeeAccount,
   BOOKING_FEE_INCOME,
@@ -12,6 +13,7 @@ import {
   revenueAccount,
   WORLD,
 } from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
 import {
   eventGroup,
   legReference,
@@ -27,6 +29,15 @@ const BOOKING = "booking";
 const REFUND = "refund";
 
 /**
+ * The shared event group for a booking's legs, derived from its stable event id
+ * (the payment session id on the paid path, the attendee id on the free/owed
+ * path). The single place the booking event key is built, so a ledger preflight
+ * resolves exactly the group {@link mapBooking} posts under.
+ */
+export const bookingEventGroup = (eventId: string): Promise<string> =>
+  eventGroup([BOOKING, eventId]);
+
+/**
  * The refund-side `kind` for each reversible booking leg. The cash leg is
  * relabelled `refund_cash` so reports can sum refunded cash (decision 8) without
  * double-counting the reversed sale/fee/modifier legs; the rest carry a
@@ -34,10 +45,10 @@ const REFUND = "refund";
  * the booking's.
  */
 const REFUND_KIND: Readonly<Record<string, string>> = {
-  fee: "refund_fee",
-  modifier: "refund_modifier",
-  payment: "refund_cash",
-  sale: "refund_sale",
+  [KIND.fee]: KIND.refundFee,
+  [KIND.modifier]: KIND.refundModifier,
+  [KIND.payment]: KIND.refundCash,
+  [KIND.sale]: KIND.refundSale,
 };
 
 const refundKind = (kind: string): string =>
@@ -87,14 +98,14 @@ const modifierLeg = (
     ? {
         amount: modifier.delta,
         destination: modAccount,
-        kind: "modifier",
+        kind: KIND.modifier,
         refParts,
         source: attendee,
       }
     : {
         amount: -modifier.delta,
         destination: attendee,
-        kind: "modifier",
+        kind: KIND.modifier,
         refParts,
         source: modAccount,
       };
@@ -107,20 +118,15 @@ const bookingLegSpecs = (
   // Aggregate to one sale leg per listing: discount splits produce several
   // lines for the same listing, which must not share a `["sale", listingId]`
   // reference (the store would treat the second as a conflicting duplicate).
-  const grossByListing = new Map<number, number>();
-  for (const line of facts.lines) {
-    if (line.gross > 0) {
-      grossByListing.set(
-        line.listingId,
-        (grossByListing.get(line.listingId) ?? 0) + line.gross,
-      );
-    }
-  }
+  const grossByListing = sumByKey(
+    (line: BookingFacts["lines"][number]) => line.listingId,
+    (line) => line.gross,
+  )(facts.lines.filter((line) => line.gross > 0));
   const sales: LegSpec[] = [...grossByListing].map(([listingId, gross]) => ({
     amount: gross,
     destination: revenueAccount(listingId),
-    kind: "sale",
-    refParts: ["sale", listingId],
+    kind: KIND.sale,
+    refParts: [KIND.sale, listingId],
     source: attendee,
   }));
   const modifiers = facts.modifiers
@@ -128,14 +134,14 @@ const bookingLegSpecs = (
     .map((modifier) => modifierLeg(attendee, modifier));
   const fee = optionalLeg(facts.bookingFee, {
     destination: BOOKING_FEE_INCOME,
-    kind: "fee",
-    refParts: ["fee"],
+    kind: KIND.fee,
+    refParts: [KIND.fee],
     source: attendee,
   });
   const payment = optionalLeg(facts.amountPaid, {
     destination: attendee,
-    kind: "payment",
-    refParts: ["payment"],
+    kind: KIND.payment,
+    refParts: [KIND.payment],
     source: WORLD,
   });
   return [...sales, ...modifiers, ...fee, ...payment];
@@ -192,7 +198,7 @@ export const mapBooking = async (
   facts: BookingFacts,
 ): Promise<TransferInput[]> => {
   assertValidFacts(facts);
-  const group = await eventGroup([BOOKING, facts.eventId]);
+  const group = await bookingEventGroup(facts.eventId);
   const attendee = attendeeAccount(facts.attendeeId);
   return Promise.all(
     bookingLegSpecs(facts, attendee).map(async (spec) => ({
@@ -216,7 +222,22 @@ export type RefundFacts = {
   readonly orderLegs: ReadonlyArray<Transfer>;
   readonly occurredAt: string;
   readonly postedBy?: string;
+  /** Optional PII-free reason code stamped on every refund leg (e.g. why an
+   * automatic refund happened). Kept free of names/emails by convention. */
+  readonly memo?: string | undefined;
 };
+
+/**
+ * Stand freshly-built (not yet stored) booking inputs in for the stored legs
+ * {@link mapRefund} normally reads back from the ledger. `mapRefund` reads only
+ * money-identity fields — never `id`/`recordedAt` — so a placeholder id and the
+ * booking time suffice. For paths that map a reversal in the same breath as the
+ * booking: the historical backfill, and test seeding that mirrors it.
+ */
+export const asOrderLegs = (
+  inputs: TransferInput[],
+  recordedAt: string,
+): Transfer[] => inputs.map((leg) => ({ ...leg, id: 0, recordedAt }));
 
 /**
  * Map a full refund of one booking order to its ledger legs: the inverse of each
@@ -247,6 +268,7 @@ export const mapRefund = async (
       destination: leg.source,
       eventGroup: group,
       kind: refundKind(leg.kind ?? ""),
+      ...(facts.memo !== undefined ? { memo: facts.memo } : {}),
       occurredAt: facts.occurredAt,
       postedBy: facts.postedBy ?? "system",
       reference: await legReference([REFUND, bookingGroup, leg.reference]),

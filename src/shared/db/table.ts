@@ -16,7 +16,12 @@ import {
   registerCache,
   registerDependencies,
 } from "#shared/cache-registry.ts";
-import { execute, queryAll, queryOne } from "#shared/db/client.ts";
+import {
+  execute,
+  queryAll,
+  queryOne,
+  queryOnePrimary,
+} from "#shared/db/client.ts";
 import { requestCache } from "#shared/request-cache.ts";
 
 /**
@@ -24,13 +29,13 @@ import { requestCache } from "#shared/request-cache.ts";
  */
 export type ColumnDef<T = unknown> = {
   /** Whether this column is auto-generated (like id) */
-  generated?: boolean;
+  generated?: boolean | undefined;
   /** Default value generator (for created timestamps etc) */
-  default?: () => T;
+  default?: (() => T) | undefined;
   /** Transform value before writing to DB (e.g., encrypt) */
-  write?: (v: T) => Promise<T> | T;
+  write?: ((v: T) => Promise<T> | T) | undefined;
   /** Transform value after reading from DB (e.g., decrypt) */
-  read?: (v: T) => Promise<T> | T;
+  read?: ((v: T) => Promise<T> | T) | undefined;
 };
 
 /**
@@ -39,66 +44,6 @@ export type ColumnDef<T = unknown> = {
  */
 export type TableSchema<Row> = {
   [K in keyof Row]: ColumnDef<Row[K]>;
-};
-
-/** Derive column metadata: whether it's an input column and whether it has a default */
-type ColumnMeta<K, Row, Schema extends TableSchema<Row>> = K extends keyof Row
-  ? {
-      isInput: Schema[K]["generated"] extends true ? false : true;
-      hasDefault: Schema[K]["default"] extends () => Row[K] ? true : false;
-    }
-  : { isInput: false; hasDefault: false };
-
-/** Check if column is input-eligible (not generated) */
-type IsInputColumn<K, Row, Schema extends TableSchema<Row>> = ColumnMeta<
-  K,
-  Row,
-  Schema
->["isInput"];
-
-/** Check if column has a default value */
-type ColumnHasDefault<K, Row, Schema extends TableSchema<Row>> = ColumnMeta<
-  K,
-  Row,
-  Schema
->["hasDefault"];
-
-/** Extract input keys based on whether they have defaults */
-type InputKeysWith<
-  Row,
-  Schema extends TableSchema<Row>,
-  WithDefault extends boolean,
-> = {
-  [K in keyof Row]: IsInputColumn<K, Row, Schema> extends true
-    ? ColumnHasDefault<K, Row, Schema> extends WithDefault
-      ? K
-      : never
-    : never;
-}[keyof Row];
-
-/** Required input keys (non-generated, no default) */
-type RequiredInputKeys<Row, Schema extends TableSchema<Row>> = InputKeysWith<
-  Row,
-  Schema,
-  false
->;
-
-/** Optional input keys (has default) */
-type OptionalInputKeys<Row, Schema extends TableSchema<Row>> = InputKeysWith<
-  Row,
-  Schema,
-  true
->;
-
-/**
- * Derive Input type from Row type and Schema
- * - Excludes generated columns
- * - Makes columns with defaults optional
- */
-export type InputFor<Row, Schema extends TableSchema<Row>> = {
-  [K in RequiredInputKeys<Row, Schema>]: Row[K];
-} & {
-  [K in OptionalInputKeys<Row, Schema>]?: Row[K];
 };
 
 // Case conversion is delegated to valibot's `toCamelCase`/`toSnakeCase` actions
@@ -144,12 +89,28 @@ export interface Table<Row, Input> {
   /** Find a row by primary key */
   findById: (id: InValue) => Promise<Row | null>;
 
+  /**
+   * Find a row by primary key, pinned to the primary (read-your-writes). Use
+   * when reading a row back immediately after committing its own write: a plain
+   * {@link findById} runs in "read" mode, which Turso may serve from a replica
+   * that lags behind the just-committed write and so miss the row (returning
+   * null). This reads on the primary, which always reflects the write.
+   *
+   * Optional, like {@link insertStatement}/{@link updateStatement}: only the
+   * transactional CRUD-side-effect write path reads a row back this way, so a
+   * façade table that never takes that path may omit it.
+   */
+  findByIdPrimary?: (id: InValue) => Promise<Row | null>;
+
   /** Transform a row from DB (apply read transforms) */
   fromDb: (row: Row) => Promise<Row>;
   inputKeyMap: Record<string, string>;
 
   /** Insert a new row, returns the created row */
   insert: (input: Input) => Promise<Row>;
+  /** Build the INSERT statement without executing it (for transactional callers).
+   * Optional: only resources with a CRUD side effect need it; façade tables omit it. */
+  insertStatement?: (input: Input) => Promise<{ sql: string; args: InValue[] }>;
   name: string;
   primaryKey: keyof Row & string;
 
@@ -169,6 +130,12 @@ export interface Table<Row, Input> {
 
   /** Update a row by primary key, returns updated row or null if not found */
   update: (id: InValue, input: Partial<Input>) => Promise<Row | null>;
+  /** Build the UPDATE statement without executing it (input must provide ≥1
+   * column). Optional: see {@link insertStatement}. */
+  updateStatement?: (
+    id: InValue,
+    input: Partial<Input>,
+  ) => Promise<{ sql: string; args: InValue[] }>;
 }
 
 /** Get value for a column with default applied */
@@ -280,14 +247,35 @@ export const defineTable = <Row, Input = Row>(config: {
     return null;
   };
 
-  // Insert implementation
-  const insert = async (input: Input): Promise<Row> => {
+  // Get columns that were provided in input
+  const getProvidedColumns = (input: Partial<Input>): string[] =>
+    filter((col: string) => (inputKeyMap[col] as string) in (input as object))(
+      inputColumns,
+    );
+
+  /** Build the INSERT statement plus the resolved db values. Shared by
+   * {@link insert} and {@link insertStatement} so the column/arg derivation
+   * lives in one place. */
+  const buildInsert = async (
+    input: Input,
+  ): Promise<{
+    args: InValue[];
+    dbValues: Record<string, InValue>;
+    sql: string;
+  }> => {
     const dbValues = await toDbValues(input);
     const columns = Object.keys(dbValues);
-    // Safe: columns are Object.keys(dbValues), so all values exist
-    const args: InValue[] = columns.map((col) => dbValues[col] as InValue);
+    return {
+      args: columns.map((col) => dbValues[col] as InValue),
+      dbValues,
+      sql: buildInsertSql(name, columns),
+    };
+  };
 
-    const result = await execute(buildInsertSql(name, columns), args);
+  // Insert implementation
+  const insert = async (input: Input): Promise<Row> => {
+    const { args, dbValues, sql } = await buildInsert(input);
+    const result = await execute(sql, args);
 
     const initialRow = schema[primaryKey].generated
       ? { [primaryKey]: Number(result.lastInsertRowid) }
@@ -299,46 +287,60 @@ export const defineTable = <Row, Input = Row>(config: {
     }, initialRow)(inputColumns) as Row;
   };
 
-  // Get columns that were provided in input
-  const getProvidedColumns = (input: Partial<Input>): string[] =>
-    filter((col: string) => (inputKeyMap[col] as string) in (input as object))(
-      inputColumns,
-    );
+  /** Build the INSERT statement without executing it — for callers that run the
+   * write inside their own transaction (e.g. the CRUD side-effect path, which
+   * inserts the row and its relationship edges atomically). */
+  const insertStatement = async (
+    input: Input,
+  ): Promise<{ sql: string; args: InValue[] }> => {
+    const { args, sql } = await buildInsert(input);
+    return { args, sql };
+  };
+
+  /** Build the UPDATE statement for `input` (which must provide ≥1 column — the
+   * CRUD side-effect path passes a fully-merged input). For transactional callers
+   * and reused by {@link update}. */
+  const updateStatement = async (
+    id: InValue,
+    input: Partial<Input>,
+  ): Promise<{ sql: string; args: InValue[] }> => {
+    const dbValues = await toDbValues(input);
+    const providedColumns = getProvidedColumns(input);
+    return {
+      args: [...providedColumns.map((col) => dbValues[col] as InValue), id],
+      sql: buildUpdateSql(name, providedColumns, primaryKey),
+    };
+  };
 
   // Update implementation - uses RETURNING * to avoid a second round trip
   const update = async (
     id: InValue,
     input: Partial<Input>,
   ): Promise<Row | null> => {
-    const dbValues = await toDbValues(input);
-    const providedColumns = getProvidedColumns(input);
+    if (getProvidedColumns(input).length === 0) return findById(id);
+    const { args, sql } = await updateStatement(id, input);
+    const row = await queryOne<Row>(sql, args);
+    return row ? fromDb(row) : null;
+  };
 
-    if (providedColumns.length === 0) {
-      return findById(id);
-    }
-
-    // Safe: providedColumns only includes columns from toDbValues result
-    const args: InValue[] = [
-      ...providedColumns.map((col) => dbValues[col] as InValue),
+  // Find by ID via the given single-row query — a plain "read" (findById) or the
+  // primary read-your-writes read (findByIdPrimary), for reading a row back right
+  // after its own write (see Table.findByIdPrimary).
+  const findByIdVia = async (
+    query: (sql: string, args: InValue[]) => Promise<Row | null>,
+    id: InValue,
+  ): Promise<Row | null> => {
+    const row = await query(`SELECT * FROM ${name} WHERE ${primaryKey} = ?`, [
       id,
-    ];
-
-    const row = await queryOne<Row>(
-      buildUpdateSql(name, providedColumns, primaryKey),
-      args,
-    );
-
+    ]);
     return row ? fromDb(row) : null;
   };
 
-  // Find by ID implementation
-  const findById = async (id: InValue): Promise<Row | null> => {
-    const row = await queryOne<Row>(
-      `SELECT * FROM ${name} WHERE ${primaryKey} = ?`,
-      [id],
-    );
-    return row ? fromDb(row) : null;
-  };
+  const findById = (id: InValue): Promise<Row | null> =>
+    findByIdVia(queryOne, id);
+
+  const findByIdPrimary = (id: InValue): Promise<Row | null> =>
+    findByIdVia(queryOnePrimary, id);
 
   // Delete by ID implementation
   const deleteById = async (id: InValue): Promise<void> => {
@@ -374,15 +376,18 @@ export const defineTable = <Row, Input = Row>(config: {
     deleteById,
     findAll,
     findById,
+    findByIdPrimary,
     fromDb,
     inputKeyMap,
     insert,
+    insertStatement,
     name,
     primaryKey,
     rowToInput,
     schema,
     toDbValues,
     update,
+    updateStatement,
   };
 };
 
@@ -475,6 +480,20 @@ export const col = {
   }),
   /** Auto-generated column (like id) */
   generated: <T>(): ColumnDef<T> => ({ generated: true }),
+
+  /** A read-only column that is NOT a physical column on the table: it is
+   * projected into the row by the caller's SELECT (a subquery `AS <col>`), read
+   * back through `read`, and never written (generated ⇒ excluded from INSERT/
+   * UPDATE, `rowToInput`, and the insert/update return row). Use for a value that
+   * lives elsewhere but rides the entity's shape — e.g. `day_prices`, projected
+   * from the `day_count` rows of `listing_prices`. `read` must tolerate a missing
+   * projection (undefined) so a stray un-projected SELECT degrades gracefully. */
+  projected: <App>(
+    read: (raw: InValue | undefined) => Promise<App> | App,
+  ): ColumnDef<App> => ({
+    generated: true,
+    read: read as (v: App) => App,
+  }),
 
   /** Simple column with no special handling */
   simple: <T>(): ColumnDef<T> => ({}),

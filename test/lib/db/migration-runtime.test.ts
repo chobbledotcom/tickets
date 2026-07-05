@@ -1,15 +1,21 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import {
+  fullSchemaCreateStatements,
+  verifyCurrentAppSchema,
+} from "#shared/db/migrations/schema-sync.ts";
+import {
+  applyMigrationWithRetry,
   initDb,
   invalidateInitDbCache,
   MIGRATION_LOCK_TTL_MS,
   type Migration,
   MigrationInProgressError,
+  rebuildWipedSchema,
   resetDatabase,
   SCHEMA_HASH,
+  SCHEMA_TABLE_NAMES,
   VERIFY_RETRY_BACKOFF_MS,
   verifyMigrationWithRetry,
 } from "#shared/db/migrations.ts";
@@ -18,13 +24,31 @@ import { settings } from "#shared/db/settings.ts";
 import {
   createTestListing,
   describeWithEnv,
+  expectNtfyNotification,
   invalidateTestDbCache,
+  resetTestSession,
   setTestEnv,
+  stubNtfyFetch,
   TEST_ADMIN_PASSWORD,
 } from "#test-utils";
 import { markCurrentSchemaMigrationPending } from "./migration-test-helpers.ts";
 
 describeWithEnv("db > migration runtime", { db: true }, () => {
+  const TEST_DB_URL = "libsql://abc-tickets-spencer.lite.bunnydb.net";
+
+  const restoreLockTest = async (
+    fetchStub: ReturnType<typeof stubNtfyFetch>["fetchStub"],
+    restore: ReturnType<typeof stubNtfyFetch>["restore"],
+  ) => {
+    fetchStub.restore();
+    restore();
+    await getDb().execute("DELETE FROM settings WHERE key = 'migration_lock'");
+    await getDb().execute({
+      args: [SCHEMA_HASH],
+      sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+    });
+  };
+
   describe("migration behaviour", () => {
     test("migrates an existing database without taking an inline backup", async () => {
       const tmpDir = Deno.makeTempDirSync();
@@ -54,13 +78,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     });
 
     test("sends ntfy notification with DB_URL when migration lock is held", async () => {
-      const restoreNtfy = setTestEnv({
-        DB_URL: "libsql://abc-tickets-spencer.lite.bunnydb.net",
-        NTFY_URL: "https://ntfy.sh/test-topic",
-      });
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
-      );
+      const { fetchStub, restore } = stubNtfyFetch({ DB_URL: TEST_DB_URL });
       try {
         await getDb().execute(
           "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
@@ -73,23 +91,9 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
         await expect(initDb()).rejects.toThrow("migration_lock held");
 
-        const ntfyCall = fetchStub.calls.find(
-          (c) => c.args[0] === "https://ntfy.sh/test-topic",
-        );
-        expect(ntfyCall).toBeDefined();
-        expect((ntfyCall!.args[1] as RequestInit).body).toBe(
-          "E_DB_MIGRATION_LOCK libsql://abc-tickets-spencer.lite.bunnydb.net",
-        );
+        expectNtfyNotification(fetchStub, `E_DB_MIGRATION_LOCK ${TEST_DB_URL}`);
       } finally {
-        fetchStub.restore();
-        restoreNtfy();
-        await getDb().execute(
-          "DELETE FROM settings WHERE key = 'migration_lock'",
-        );
-        await getDb().execute({
-          args: [SCHEMA_HASH],
-          sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-        });
+        await restoreLockTest(fetchStub, restore);
       }
     });
   });
@@ -102,10 +106,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       });
 
     test("fails fast when a concurrent migration holds the lock", async () => {
-      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
-      );
+      const { fetchStub, restore } = stubNtfyFetch();
       try {
         await getDb().execute(
           "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
@@ -117,20 +118,9 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
         invalidateInitDbCache();
         await expect(initDb()).rejects.toThrow("migration_lock held");
 
-        const ntfyCall = fetchStub.calls.find(
-          (c) => c.args[0] === "https://ntfy.sh/test-topic",
-        );
-        expect(ntfyCall).toBeDefined();
+        expectNtfyNotification(fetchStub);
       } finally {
-        fetchStub.restore();
-        restore();
-        await getDb().execute(
-          "DELETE FROM settings WHERE key = 'migration_lock'",
-        );
-        await getDb().execute({
-          args: [SCHEMA_HASH],
-          sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-        });
+        await restoreLockTest(fetchStub, restore);
       }
     });
 
@@ -221,6 +211,99 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     });
   });
 
+  describe("apply re-runs up() when verify keeps failing", () => {
+    const fakeMigration = (overrides: Partial<Migration>): Migration => ({
+      description: "fake migration for apply-retry tests",
+      id: "fake-apply-retry",
+      up: () => Promise.resolve(),
+      verify: () => Promise.resolve(),
+      ...overrides,
+    });
+
+    test("resolves a transient verify-lag without re-running up()", async () => {
+      // Pure verify-lag: up() did its work, only verify()'s snapshot lagged.
+      // up() must NOT be re-run (it may recopy large tables), so the cheap verify
+      // retry alone resolves it.
+      let upCalls = 0;
+      let attempts = 0;
+      await applyMigrationWithRetry(
+        fakeMigration({
+          up: () => {
+            upCalls++;
+            return Promise.resolve();
+          },
+          verify: () => {
+            attempts++;
+            return attempts < 3
+              ? Promise.reject(
+                  new Error("Migration verification failed: missing column(s)"),
+                )
+              : Promise.resolve();
+          },
+        }),
+      );
+      expect(attempts).toBe(3);
+      expect(upCalls).toBe(1);
+    });
+
+    test("re-runs up() once when verify keeps failing, so a skipped index recovers", async () => {
+      // Reproduces the production failure: up()'s syncIndexes ran against a
+      // primary snapshot that lagged the table it had just created in the same
+      // up(), so it silently skipped the index. Retrying verify() ALONE would
+      // fail on every attempt because the index was never created; only re-running
+      // up() (which now sees the table) creates it — which is why the failure
+      // cleared on the next request. up() is re-run only after a full round of
+      // verify retries has failed.
+      let upCalls = 0;
+      let indexCreated = false;
+      await applyMigrationWithRetry(
+        fakeMigration({
+          up: () => {
+            upCalls++;
+            // First up() skips the index (lagging snapshot); the second sees the
+            // table and creates it.
+            if (upCalls >= 2) indexCreated = true;
+            return Promise.resolve();
+          },
+          verify: () =>
+            indexCreated
+              ? Promise.resolve()
+              : Promise.reject(
+                  new Error(
+                    "Migration verification failed: missing index idx_system_notes_attendee_id",
+                  ),
+                ),
+        }),
+      );
+      // up() ran exactly twice — once initially, once to repair — never per retry.
+      expect(upCalls).toBe(2);
+      expect(indexCreated).toBe(true);
+    });
+
+    test("rethrows the original error after re-running up() once and still failing", async () => {
+      let upCalls = 0;
+      let verifyAttempts = 0;
+      await expect(
+        applyMigrationWithRetry(
+          fakeMigration({
+            up: () => {
+              upCalls++;
+              return Promise.resolve();
+            },
+            verify: () => {
+              verifyAttempts++;
+              return Promise.reject(new Error("genuine schema defect"));
+            },
+          }),
+        ),
+      ).rejects.toThrow("genuine schema defect");
+      // A genuine defect re-runs up() exactly once (the bounded repair), not once
+      // per retry, and verifies across two full retry rounds.
+      expect(upCalls).toBe(2);
+      expect(verifyAttempts).toBe(2 * (VERIFY_RETRY_BACKOFF_MS.length + 1));
+    });
+  });
+
   describe("resetDatabase", () => {
     test("drops all tables", async () => {
       await createTestListing({
@@ -255,6 +338,10 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     test("can reinitialize database after reset", async () => {
       await resetDatabase();
       invalidateTestDbCache();
+      // resetDatabase() now clears the session cache, so the pre-reset session
+      // cookie is no longer valid. Clear the test session so getTestSession()
+      // falls through to a fresh login after setup completes.
+      resetTestSession();
       await initDb({ allowMissingSettings: true });
 
       await settings.setup.complete("testadmin", TEST_ADMIN_PASSWORD, "USD");
@@ -266,6 +353,48 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
       expect(listing.id).toBe(1);
       expect(listing.name).toBe("New Listing");
+    });
+
+    test("rebuildWipedSchema rebuilds a wiped database directly", async () => {
+      // The restore path calls this straight after resetDatabase() — with no
+      // initDb state check or schema snapshot in between — so it must produce
+      // a complete, bootable schema purely from the declarative SCHEMA.
+      await resetDatabase();
+      invalidateTestDbCache();
+      resetTestSession();
+
+      await rebuildWipedSchema();
+
+      // Every app-schema table, index, and trigger is present...
+      await verifyCurrentAppSchema();
+      // ...and the schema markers were written, so a normal boot treats the
+      // database as fully migrated rather than throwing MissingSettingsTable.
+      await initDb();
+
+      await settings.setup.complete("testadmin", TEST_ADMIN_PASSWORD, "USD");
+      const listing = await createTestListing({ name: "Fresh Schema Listing" });
+      expect(listing.name).toBe("Fresh Schema Listing");
+    });
+
+    test("fullSchemaCreateStatements builds every table and index from the declaration alone", () => {
+      const statements = fullSchemaCreateStatements();
+
+      // One CREATE TABLE per schema table, in SCHEMA (FK-dependency) order.
+      const createdTables = statements
+        .map((sql) => sql.match(/^CREATE TABLE IF NOT EXISTS (\w+) /)?.[1])
+        .filter((name) => name !== undefined);
+      expect(createdTables).toEqual(SCHEMA_TABLE_NAMES);
+
+      // Declared indexes ride along (spot-check a known one), and every
+      // statement is IF NOT EXISTS so a replay can never fail.
+      expect(
+        statements.some((sql) =>
+          sql.includes("CREATE INDEX IF NOT EXISTS idx_attendees_kind"),
+        ),
+      ).toBe(true);
+      for (const sql of statements) {
+        expect(sql).toContain("IF NOT EXISTS");
+      }
     });
   });
 });

@@ -51,8 +51,6 @@ export type UserDisplayFields = Pick<
 const USER_DISPLAY_SELECT =
   "SELECT id, username_hash, admin_level FROM users ORDER BY id ASC";
 
-const USER_ID_SELECT = "SELECT id FROM users ORDER BY id ASC";
-
 const USER_AUTH_SELECT =
   "SELECT id, admin_level FROM users WHERE id = ? LIMIT 1";
 
@@ -290,10 +288,6 @@ export const getAllUsers = (): Promise<User[]> => loadAllUsers();
 export const getUserDisplayFields = (): Promise<UserDisplayFields[]> =>
   queryAll<UserDisplayFields>(USER_DISPLAY_SELECT);
 
-/** Get all user ids, ordered by id, for validating submitted user links. */
-export const getAllUserIds = async (): Promise<number[]> =>
-  (await queryAll<{ id: number }>(USER_ID_SELECT)).map((row) => row.id);
-
 /**
  * Verify a user's password (decrypt stored hash, then verify)
  * Returns the decrypted password hash if valid (needed for KEK derivation)
@@ -340,18 +334,33 @@ export const decryptUsername = (
  * affects a row — the rest no-op and return false rather than overwriting the
  * password/key that the first accept already set.
  */
+/** Hash a new password and pre-encrypt the values both activation paths write:
+ * the encrypted hash and an encrypted empty string (used to clear invite
+ * fields). Shared by {@link acceptInvite} and {@link activateKeylessUser}. */
+const buildActivationSecrets = async (
+  password: string,
+): Promise<{
+  passwordHash: string;
+  encryptedHash: string;
+  encryptedEmpty: string;
+}> => {
+  const passwordHash = await hashPassword(password);
+  const [encryptedHash, encryptedEmpty] = await Promise.all([
+    encrypt(passwordHash),
+    encrypt(""),
+  ]);
+  return { encryptedEmpty, encryptedHash, passwordHash };
+};
+
 export const acceptInvite = async (
   userId: number,
   inviteWrappedDataKey: string,
   inviteCode: string,
   password: string,
 ): Promise<boolean> => {
-  const passwordHash = await hashPassword(password);
-  const [encryptedHash, encryptedEmpty, dataKey] = await Promise.all([
-    encrypt(passwordHash),
-    encrypt(""),
-    unwrapKeyWithToken(inviteWrappedDataKey, inviteCode),
-  ]);
+  const { passwordHash, encryptedHash, encryptedEmpty } =
+    await buildActivationSecrets(password);
+  const dataKey = await unwrapKeyWithToken(inviteWrappedDataKey, inviteCode);
   const wrappedDataKey = await wrapDataKeyForPassword(
     dataKey,
     password,
@@ -360,6 +369,32 @@ export const acceptInvite = async (
   const result = await execute(
     "UPDATE users SET password_hash = ?, wrapped_data_key = ?, kek_version = 2, invite_wrapped_data_key = NULL, invite_code_hash = ?, invite_expiry = ? WHERE id = ? AND invite_wrapped_data_key IS NOT NULL",
     [encryptedHash, wrappedDataKey, encryptedEmpty, encryptedEmpty, userId],
+  );
+  return result.rowsAffected > 0;
+};
+
+/**
+ * Complete a **keyless** invite (the editor role): set the password and clear
+ * the invite, leaving `wrapped_data_key` NULL. An editor holds no DATA_KEY, so
+ * unlike {@link acceptInvite} there is no handoff to unwrap or re-wrap — the
+ * password only authenticates; it protects no key. The user's role is fixed at
+ * invite time and is not changed here.
+ *
+ * Single-use: the UPDATE is guarded on `password_hash = ''` (the unactivated
+ * marker — buildUserInsert stores a literal empty string until a password is
+ * set, and pruneExpiredInvites uses the same marker). So a replay or a race only
+ * affects the row on the first submit; later submits no-op and return false
+ * rather than overwriting the password the first submit set.
+ */
+export const activateKeylessUser = async (
+  userId: number,
+  password: string,
+): Promise<boolean> => {
+  const { encryptedHash, encryptedEmpty } =
+    await buildActivationSecrets(password);
+  const result = await execute(
+    "UPDATE users SET password_hash = ?, kek_version = 2, invite_code_hash = ?, invite_expiry = ? WHERE id = ? AND password_hash = ''",
+    [encryptedHash, encryptedEmpty, encryptedEmpty, userId],
   );
   return result.rowsAffected > 0;
 };
@@ -488,12 +523,12 @@ export const pruneExpiredInvites = async (): Promise<number> => {
  */
 export const usersApi = {
   acceptInvite,
+  activateKeylessUser,
   createInvitedUser,
   createUser,
   decryptAdminLevel,
   decryptUsername,
   deleteUser,
-  getAllUserIds,
   getAllUsers,
   getUserById,
   getUserByInviteCode,

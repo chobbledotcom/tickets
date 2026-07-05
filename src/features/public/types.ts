@@ -2,42 +2,24 @@
  * Shared types, constants, and tiny utilities for public ticket routes
  */
 
+import type {
+  ChildDatesByDayCount,
+  TicketListing,
+} from "#shared/booking/model.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type {
   QuestionListingMap,
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
-import type { ListingWithCount } from "#shared/types.ts";
-import type { BookingPrefill, TicketListing } from "#templates/public.tsx";
+import type { ItemImageProjection, ListingWithCount } from "#shared/types.ts";
+import type { BookingPrefill } from "#templates/public.tsx";
 
-/** Shared rendering context for ticket pages */
-export type TicketCtx = {
-  slugs: string[];
-  listings: TicketListing[];
-  dates: string[];
-  terms: string;
-  questions: QuestionWithAnswers[];
-  questionListingMap: QuestionListingMap;
-  baseUrl?: string;
-  groupName?: string;
-  groupDescription?: string;
-  prefill?: BookingPrefill;
-  /** Override the form action and error redirect URL (e.g. `/renew/?t=...`).
-   * Defaults to `/ticket/<slugs>` when unset. */
-  actionUrl?: string;
-  /** When set, threaded into paid/free registration completion so renewals can
-   * bump a built site's READ_ONLY_FROM after successful reservation. */
-  siteToken?: string;
-  /** Whether a promo-code field should be offered (any active code modifier). */
-  promoCodesEnabled?: boolean;
-  /** Opt-in add-ons offered for the page's listings (empty when none apply). */
-  addOns: AddOnOption[];
-};
-
-/** Possibly-async response handler */
-export type AsyncHandler<T extends unknown[]> = (
-  ...args: T
-) => Response | Promise<Response>;
+/** Parent listing id → its bookable-child candidates, each hydrated to a
+ * {@link TicketListing} so availability (isSoldOut/isClosed/maxPurchasable) is
+ * resolved for the gate/render. Empty when the parents flag is off or the page
+ * has no parents; children are never added to `ctx.listings` (they are not URL
+ * slugs). */
+export type ChildrenByParentId = Map<number, TicketListing[]>;
 
 /** Ticket shared context shape */
 export type TicketSharedContext = {
@@ -45,14 +27,77 @@ export type TicketSharedContext = {
   terms: string;
   questions: QuestionWithAnswers[];
   questionListingMap: QuestionListingMap;
+  /** Parent→children relationship for the page's listings (see
+   * {@link ChildrenByParentId}); empty map when the flag is off or none apply. */
+  childrenByParentId: ChildrenByParentId;
+  /** Each DAILY child's holiday-aware serveable start dates, keyed by the
+   * (parent, child) PAIR (`childDateKey`) so a child required by two parents
+   * carries each parent's own dates; emitted as `data-child-dates` for
+   * the client compatibility script; empty map when the page has no
+   * daily children. Per selectable parent span ({@link ChildDatesByDayCount}). */
+  childDatesById: Map<string, ChildDatesByDayCount>;
   groupName?: string;
   groupDescription?: string;
+  groupImage?: ItemImageProjection;
+  /** Set when the booking page is a package group: the group's id (for signed
+   * metadata) and listing-id → override price map (only members with a flat
+   * `group` override in listing_prices). `null`/absent for non-package pages. */
+  packageGroupId?: number | null;
+  packagePrices?: ReadonlyMap<number, number> | null;
+  /** Set on a package page: each customisable member's per-day overrides
+   * (listing id → day count → per-unit minor price), consulted by the price
+   * walk before the listing's own day price. `null`/absent otherwise. */
+  packageDayPrices?: ReadonlyMap<number, ReadonlyMap<number, number>> | null;
+  /** Set on a package page: listing-id → how many of that listing one package
+   * unit includes (every member, default 1). The buyer chooses a single package
+   * quantity and each member's booked quantity is `fixedQty × packageQty`.
+   * `null`/absent for non-package pages. */
+  packageQuantities?: ReadonlyMap<number, number> | null;
+  /** Set on a package page: whether the member listings are hidden from buyers,
+   * tickets, and confirmation emails. */
+  hidePackageListings?: boolean;
+  /** Set on a package page: every CAPPED group the members OR their required
+   * children belong to → its remaining spots, and each of those listings → its
+   * group ids. One package consumes the SUM of its members' fixed quantities
+   * (plus one child unit per booked parent unit) from each such group, so the
+   * package count is bounded by `floor(remaining / demand)` per group — the
+   * package's own group AND any other capped pool members or children share.
+   * Empty for non-package pages or when nothing is capped. Carried on the
+   * SHARED context so the page render, the submit clamp, and the API all use
+   * ONE ceiling ({@link packageBundleLimit}). Always set by
+   * {@link getTicketContext} (empty Maps for a non-package page), so callers
+   * read them without a fallback. */
+  packageGroupRemainingByGroupId: ReadonlyMap<number, number>;
+  packageMemberGroupIds: ReadonlyMap<number, number[]>;
   actionUrl?: string;
   siteToken?: string;
   promoCodesEnabled?: boolean;
   /** Opt-in add-ons offered for the page's listings (empty when none apply). */
   addOns: AddOnOption[];
 };
+
+/** Shared rendering context for ticket pages */
+export type TicketCtx = TicketSharedContext & {
+  slugs: string[];
+  listings: TicketListing[];
+  /** Each GROUP id → its remaining spots (uncapped groups omitted), set on the
+   * render path so a parent sharing a capped group with its child clamps its
+   * quantity by the combined parent+child demand against the SPECIFIC shared
+   * group. Omitted on submit/quote (the fold's
+   * authoritative date-specific check runs there instead). */
+  groupRemainingByGroupId?: ReadonlyMap<number, number>;
+  /** Each listing id → the ids of the groups it belongs to, set on the render
+   * path alongside groupRemainingByGroupId so the shared-group quantity clamps
+   * resolve the group a parent and child actually share. Omitted on submit/quote. */
+  groupIdsByListingId?: ReadonlyMap<number, number[]>;
+  baseUrl?: string;
+  prefill?: BookingPrefill | undefined;
+};
+
+/** Possibly-async response handler */
+export type AsyncHandler<T extends unknown[]> = (
+  ...args: T
+) => Response | Promise<Response>;
 
 /** Shared context provider for ticket pages */
 export type TicketContextProvider = (

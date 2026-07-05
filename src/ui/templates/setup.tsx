@@ -6,7 +6,7 @@ import { t } from "#i18n";
 import { COUNTRIES, DEFAULT_COUNTRY } from "#shared/countries.ts";
 import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { ActionButton } from "#templates/components/actions.tsx";
+import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";
 import { getSetupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -98,16 +98,9 @@ export const setupPage = (error?: string): string =>
  * Setup complete page
  */
 export const setupCompletePage = (): string =>
-  String(
-    <Layout title={t("setup.complete.title")}>
-      <h1>{t("setup.complete.heading")}</h1>
-      <div class="success" role="alert">
-        <p>{t("setup.complete.message")}</p>
-      </div>
-      <p class="actions">
-        <ActionButton href="/admin/" icon="arrow-right">
-          {t("setup.complete.dashboard_link")}
-        </ActionButton>
-      </p>
-    </Layout>,
-  );
+  SuccessCompletePage({
+    heading: t("setup.complete.heading"),
+    loginLink: t("setup.complete.login_link"),
+    messages: [t("setup.complete.message")],
+    title: t("setup.complete.title"),
+  });

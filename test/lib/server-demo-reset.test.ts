@@ -1,19 +1,21 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { getSessionCookieName } from "#shared/cookies.ts";
+import { imagesTable } from "#shared/db/images.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   RESET_DATABASE_PHRASE,
   RESET_PHRASE_MISMATCH_ERROR,
 } from "#templates/admin/database-reset.tsx";
 import {
+  adminGet,
   assertPublicHtml,
-  awaitTestRequest,
   createTestListing,
   describeWithEnv,
+  expectDatabaseResetRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
@@ -22,6 +24,7 @@ import {
   invalidateTestDbCache,
   mockFormRequest,
   mockRequest,
+  TEST_STORAGE_ZONE,
   testCookie,
   testCsrfToken,
   withFetchMock,
@@ -43,9 +46,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
     });
 
     test("returns 404 when demo mode is off even for authenticated admin", async () => {
-      const response = await awaitTestRequest("/demo/reset", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/demo/reset");
       expect(response.status).toBe(404);
     });
 
@@ -162,11 +163,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
         confirm_phrase: RESET_DATABASE_PHRASE,
       });
 
-      expectRedirectWithFlash("/setup/", "Database reset")(response);
-      const sessionCookie = response.headers
-        .getSetCookie()
-        .find((c) => c.startsWith(`${getSessionCookieName()}=`));
-      expect(sessionCookie).toContain("Max-Age=0");
+      expectDatabaseResetRedirect(response);
       invalidateTestDbCache();
     });
 
@@ -177,38 +174,43 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
       await listingsTable.update(listing.id, {
         attachmentName: "doc.pdf",
         attachmentUrl: "reset-attachment.pdf",
-        imageUrl: "reset-image.jpg",
+      });
+      await imagesTable.insert({
+        filename: nonEmptyString("reset-image.jpg"),
+        filenameThumb: nonEmptyString("reset-image-thumb.jpg"),
+        name: "Reset image",
       });
 
-      await runWithStorageConfig(
-        { zoneKey: "testkey", zoneName: "testzone" },
-        () =>
-          withFetchMock(async (originalFetch) => {
-            const deletedUrls: string[] = [];
-            installUrlHandler(originalFetch, (url) => {
-              if (url.includes("storage.bunnycdn.com")) {
-                deletedUrls.push(url);
-                return Promise.resolve(
-                  new Response(JSON.stringify({ HttpCode: 200 }), {
-                    status: 200,
-                  }),
-                );
-              }
-              return null;
-            });
+      await runWithStorageConfig(TEST_STORAGE_ZONE, () =>
+        withFetchMock(async (originalFetch) => {
+          const deletedUrls: string[] = [];
+          installUrlHandler(originalFetch, (url) => {
+            if (url.includes("storage.bunnycdn.com")) {
+              deletedUrls.push(url);
+              return Promise.resolve(
+                new Response(JSON.stringify({ HttpCode: 200 }), {
+                  status: 200,
+                }),
+              );
+            }
+            return null;
+          });
 
-            const response = await submitDemoResetForm({
-              confirm_phrase: RESET_DATABASE_PHRASE,
-            });
+          const response = await submitDemoResetForm({
+            confirm_phrase: RESET_DATABASE_PHRASE,
+          });
 
-            expectRedirectWithFlash("/setup/", "Database reset")(response);
-            expect(deletedUrls.some((u) => u.includes("reset-image.jpg"))).toBe(
-              true,
-            );
-            expect(
-              deletedUrls.some((u) => u.includes("reset-attachment.pdf")),
-            ).toBe(true);
-          }),
+          expectRedirectWithFlash("/setup/", "Database reset")(response);
+          expect(deletedUrls.some((u) => u.includes("reset-image.jpg"))).toBe(
+            true,
+          );
+          expect(
+            deletedUrls.some((u) => u.includes("reset-image-thumb.jpg")),
+          ).toBe(true);
+          expect(
+            deletedUrls.some((u) => u.includes("reset-attachment.pdf")),
+          ).toBe(true);
+        }),
       );
 
       invalidateTestDbCache();
@@ -233,9 +235,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
 
   describe("shared form component", () => {
     test("admin settings page uses shared reset form", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const html = await expectHtmlResponse(response, 200, "Reset Database");
       expect(html).toContain(RESET_DATABASE_PHRASE);
       expect(html).toContain("confirm_phrase");

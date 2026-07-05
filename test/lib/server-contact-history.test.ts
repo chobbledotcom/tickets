@@ -10,11 +10,11 @@ import {
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   adminFormPost,
-  awaitTestRequest,
+  adminGet,
   describeWithEnv,
+  expectHtml,
   expectRedirect,
   getTestPrivateKey,
-  testCookie,
   testRequiresAuth,
 } from "#test-utils";
 
@@ -49,32 +49,22 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       );
 
       const param = toContactHashParam(hash);
-      const response = await awaitTestRequest(`/admin/history/${param}`, {
-        cookie: await testCookie(),
+      const html = await expectHtml(await adminGet(`/admin/history/${param}`), {
+        contains: ["Contact record", "<strong>VIP</strong> note", param],
+        notContains: ["Never"],
+        status: 200,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Contact record");
-      // The plaintext counters are pre-filled into their number inputs.
       expect(html).toMatch(/name="public_booking_count"[^>]*value="5"/);
       expect(html).toMatch(/name="admin_booking_count"[^>]*value="2"/);
       expect(html).toMatch(/name="visits"[^>]*value="9"/);
-      // A known last-contacted time is rendered (not the "Never" placeholder).
-      expect(html).not.toContain("Never");
-      // The private note is shown rendered as markdown (bold), not raw.
-      expect(html).toContain("<strong>VIP</strong> note");
-      // The URL-safe HMAC keying the record is shown to the operator.
-      expect(html).toContain(param);
     });
 
     test("renders the private note in the shared markdown editor box, label without '(markdown)'", async () => {
       const param = toContactHashParam(await hashEmail("mdbox@example.com"));
-      const response = await awaitTestRequest(`/admin/history/${param}`, {
-        cookie: await testCookie(),
+      const html = await expectHtml(await adminGet(`/admin/history/${param}`), {
+        contains: ["Private notes"],
+        notContains: ["Private notes (markdown)"],
       });
-      const html = await response.text();
-      // The note textarea opts into the shared markdown editor: data-markdown-preview
-      // drives the Preview link, maxlength drives the character counter.
       expect(html).toMatch(
         /<textarea[^>]*\bdata-markdown-preview\b[^>]*\bname="admin_notes"/,
       );
@@ -83,24 +73,17 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
           `<textarea[^>]*\\bmaxlength="${MAX_TEXTAREA_LENGTH}"[^>]*\\bname="admin_notes"`,
         ),
       );
-      // The "(markdown)" qualifier is dropped from the visible label.
-      expect(html).toContain("Private notes");
-      expect(html).not.toContain("Private notes (markdown)");
     });
 
     test("renders an empty record with a 'Never' placeholder and no note preview", async () => {
       // An unseen hash has no row at all, so every field is zero/empty.
       const param = toContactHashParam(await hashEmail("unseen@example.com"));
-      const response = await awaitTestRequest(`/admin/history/${param}`, {
-        cookie: await testCookie(),
+      const html = await expectHtml(await adminGet(`/admin/history/${param}`), {
+        contains: ["Contact record", "Never"],
+        notContains: ["Note preview"],
+        status: 200,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Contact record");
       expect(html).toMatch(/name="visits"[^>]*value="0"/);
-      // No note → no markdown preview section, and last-contacted reads "Never".
-      expect(html).toContain("Never");
-      expect(html).not.toContain("Note preview");
     });
   });
 
@@ -197,11 +180,9 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       // The editor still renders (not a 500), and crucially pre-fills every
       // surviving plaintext count — a fallback that blanked them would let a
       // blind save zero a contact's real booking history.
-      const getResponse = await awaitTestRequest(`/admin/history/${param}`, {
-        cookie: await testCookie(),
+      const html = await expectHtml(await adminGet(`/admin/history/${param}`), {
+        status: 200,
       });
-      expect(getResponse.status).toBe(200);
-      const html = await getResponse.text();
       expect(html).toMatch(/name="visits"[^>]*value="9"/);
       expect(html).toMatch(/name="public_booking_count"[^>]*value="5"/);
       expect(html).toMatch(/name="admin_booking_count"[^>]*value="2"/);

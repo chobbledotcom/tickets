@@ -1,0 +1,549 @@
+import { expect } from "@std/expect";
+import { it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
+import {
+  getAllGroups,
+  getGroupPackagePrices,
+  getListingsByGroupId,
+  setGroupPackageMembers,
+} from "#shared/db/groups.ts";
+import { getChildIds } from "#shared/db/listing-parents.ts";
+import {
+  adminFormPost,
+  baseListingForm,
+  createTestGroup,
+  createTestListing,
+  describeWithEnv,
+  duplicateTestListing,
+  expectFlashRedirect,
+  getTestSession,
+  insertModifier,
+  linkModifierListing,
+  makeParent,
+  mockMultipartRequest,
+  patchModifier,
+} from "#test-utils";
+
+/** A group member child wired as a child of an outside (non-member) parent.
+ * The group name varies between tests; everything else is identical. */
+const makeExternalBundle = async (groupName: string) => {
+  const group = await createTestGroup({ name: groupName });
+  const outsideParent = await createTestListing({ name: "External base" });
+  const child = await createTestListing({
+    groupId: group.id,
+    name: "Bundled add-on",
+  });
+  const { setChildIds } = await import("#shared/db/listing-parents.ts");
+  await setChildIds(outsideParent.id, [child.id]);
+  return { child, group, outsideParent };
+};
+
+/** Set a parent's required children directly (mirrors the admin children form). */
+const setChildren = async (
+  parentId: number,
+  childIds: number[],
+): Promise<void> => {
+  const { setChildIds } = await import("#shared/db/listing-parents.ts");
+  await setChildIds(parentId, childIds);
+};
+
+/** Duplicate a single listing via the real admin create flow, returning the raw
+ * redirect Response (so its flash can be asserted) and the new copy. Mirrors
+ * `duplicateTestListing` but keeps the response instead of swallowing it. */
+const duplicateListingResponse = async (
+  sourceId: number,
+  name: string,
+  groupId?: number,
+): Promise<{ response: Response; copy: { id: number } }> => {
+  const { csrfToken, cookie } = await getTestSession();
+  const { handleRequest } = await import("#routes");
+  const response = await handleRequest(
+    mockMultipartRequest(
+      "/admin/listing",
+      {
+        ...baseListingForm,
+        csrf_token: csrfToken,
+        duplicated_from: String(sourceId),
+        ...(groupId !== undefined ? { group_ids: String(groupId) } : {}),
+        name,
+      },
+      cookie,
+    ),
+  );
+  const { getAllListings } = await import("#shared/db/listings.ts");
+  const copy = (await getAllListings()).find((l) => l.name === name)!;
+  return { copy, response };
+};
+
+/** An active opt-in add-on scoped to exactly the given listings. */
+const optInAddOnScopedTo = async (
+  name: string,
+  listingIds: number[],
+): Promise<void> => {
+  const modifier = await insertModifier({ name });
+  await patchModifier(modifier.id, {
+    active: 1,
+    scope: "listings",
+    trigger: "optional",
+  });
+  for (const id of listingIds) await linkModifierListing(modifier.id, id);
+};
+
+/** Duplicate a whole group and return the cloned group's listings. A name
+ *  find/replace is required so the clones don't reuse the source names (which
+ *  the cross-entity uniqueness rule forbids). */
+const duplicateGroup = async (
+  groupId: number,
+  newName: string,
+  nameFind: string,
+  nameReplace: string,
+): Promise<Awaited<ReturnType<typeof getListingsByGroupId>>> => {
+  await adminFormPost(`/admin/groups/${groupId}/bulk-actions/duplicate`, {
+    date_find: "",
+    date_replace: "",
+    name_find: nameFind,
+    name_replace: nameReplace,
+    new_name: newName,
+  });
+  const newGroup = (await getAllGroups()).find((g) => g.name === newName);
+  return getListingsByGroupId(newGroup!.id);
+};
+
+/** Duplicate a whole group, returning the raw redirect Response (without
+ *  following it) so callers can assert a warning flash. The body is cancelled
+ *  because the warning-tests never render the redirect target — they only
+ *  inspect the flash cookie. A name find/replace keeps clone names unique. */
+const duplicateGroupResponse = async (
+  groupId: number,
+  newName: string,
+  nameFind: string,
+  nameReplace: string,
+): Promise<Response> => {
+  const { response } = await adminFormPost(
+    `/admin/groups/${groupId}/bulk-actions/duplicate`,
+    {
+      date_find: "",
+      date_replace: "",
+      name_find: nameFind,
+      name_replace: nameReplace,
+      new_name: newName,
+    },
+  );
+  response.body?.cancel();
+  return response;
+};
+
+describeWithEnv(
+  "server > duplication copies parent/child edges",
+  { db: true },
+  () => {
+    test("duplicating a parent copies its child edges onto the copy", async () => {
+      const { parent, child } = await makeParent({
+        children: [{ name: "Add-on" }],
+        parent: { name: "Base unit" },
+      });
+
+      const copy = await duplicateTestListing(parent.id, { name: "Base copy" });
+
+      expect(copy.id).not.toBe(parent.id);
+      expect(await getChildIds(copy.id)).toEqual([child.id]);
+      // The original is untouched.
+      expect(await getChildIds(parent.id)).toEqual([child.id]);
+    });
+
+    test("duplicating a parent whose child became a parent skips the invalid edge", async () => {
+      // A nested state the editor forbids but `setChildIds` can force: the child
+      // C is both a child of P and a parent of D. Re-validating the copy's edge
+      // P'->C fails (a child can't be a parent), so the copy gets no gate rather
+      // than an invalid one.
+      const parent = await createTestListing({ name: "Nested base" });
+      const child = await createTestListing({ name: "Nested middle" });
+      const grandchild = await createTestListing({ name: "Nested leaf" });
+      await setChildren(parent.id, [child.id]);
+      await setChildren(child.id, [grandchild.id]);
+
+      const copy = await duplicateTestListing(parent.id, {
+        name: "Nested base copy",
+      });
+
+      expect(await getChildIds(copy.id)).toEqual([]);
+    });
+
+    test("duplicating a parent whose child carries a {parent,child}-scoped opt-in add-on warns and does not silently copy a gateless standalone", async () => {
+      // The child has an active opt-in add-on scoped to {originalParent, child}
+      // (valid originally — reachable from the original parent's page). On the
+      // COPY the add-on is reachable only through the original parent and the
+      // (suppressed) child — a dead end from the new parent — so re-validation
+      // fails. The fix surfaces a WARNING flash and does NOT write the edge,
+      // instead of silently reporting success while leaving a gateless bookable
+      // copy.
+      const { parent, child } = await makeParent({
+        children: [{ name: "Add-on" }],
+        parent: { name: "Base unit" },
+      });
+      await optInAddOnScopedTo("Reachable extra", [parent.id, child.id]);
+
+      const { response, copy } = await duplicateListingResponse(
+        parent.id,
+        "Base copy with stranded addon",
+      );
+
+      // The copy's required-child gate was NOT silently created (would-be
+      // gateless standalone is instead flagged, not hidden).
+      expect(await getChildIds(copy.id)).toEqual([]);
+      // The operator is warned (a non-success flash), not told "created":
+      // the create success prefix is suffixed with the dropped-children caveat.
+      const reason = t("listings_table.children_err_child_addon", {
+        addon: "Reachable extra",
+        name: "Add-on",
+      });
+      const warning = t("listings_table.duplicate_children_dropped", {
+        reason,
+      });
+      const expectedMessage = `${t("success.listing_created")} but: ${warning}`;
+      await expectFlashRedirect("/admin", expectedMessage, false)(response);
+    });
+
+    test("duplicating a non-parent listing adds no edges", async () => {
+      const standalone = await createTestListing({ name: "Standalone" });
+
+      const copy = await duplicateTestListing(standalone.id, {
+        name: "Standalone copy",
+      });
+
+      expect(await getChildIds(copy.id)).toEqual([]);
+    });
+
+    test("duplicating a child yields a standalone copy with no edges", async () => {
+      const { parent, child } = await makeParent({
+        children: [{ name: "Child" }],
+        parent: { name: "Parent" },
+      });
+
+      const copy = await duplicateTestListing(child.id, { name: "Child copy" });
+
+      // The copied child is not auto-attached under the original's parents,
+      // and is not itself a parent.
+      expect(await getChildIds(copy.id)).toEqual([]);
+      expect(await getChildIds(parent.id)).toEqual([child.id]);
+    });
+
+    test("group duplicate remaps an intra-group parent/child edge to the clones", async () => {
+      const { child, group } = await makeParent({
+        children: [{ name: "Group child" }],
+        group: { name: "Bundle" },
+        parent: { name: "Group parent" },
+      });
+
+      const copies = await duplicateGroup(
+        group!.id,
+        "Bundle copy",
+        "Group",
+        "Cloned",
+      );
+
+      const parentCopy = copies.find((l) => l.name === "Cloned parent")!;
+      const childCopy = copies.find((l) => l.name === "Cloned child")!;
+      // The cloned parent requires the cloned child, not the original.
+      expect(await getChildIds(parentCopy.id)).toEqual([childCopy.id]);
+      expect(childCopy.id).not.toBe(child.id);
+    });
+
+    test("group duplicate keeps an edge to a child outside the group", async () => {
+      const group = await createTestGroup({ name: "External" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        name: "Inside parent",
+      });
+      const outsideChild = await createTestListing({ name: "Outside child" });
+      await setChildren(parent.id, [outsideChild.id]);
+
+      const copies = await duplicateGroup(
+        group.id,
+        "External copy",
+        "Inside",
+        "Cloned",
+      );
+
+      const parentCopy = copies.find((l) => l.name === "Cloned parent")!;
+      // The external child is referenced by its original id (not cloned).
+      expect(await getChildIds(parentCopy.id)).toEqual([outsideChild.id]);
+    });
+
+    test("group duplicate remaps an incoming edge from a parent outside the group", async () => {
+      // When a cloned member is a CHILD whose parent lives OUTSIDE the
+      // group, the incoming `outsideParent -> clonedChild` edge must be
+      // recreated, so the clone stays a child (never standalone-bookable) — the
+      // one-cloned-endpoint rule keeps the original opposite endpoint.
+      const group = await createTestGroup({ name: "Child only" });
+      const outsideParent = await createTestListing({ name: "Outside parent" });
+      const child = await createTestListing({
+        groupId: group.id,
+        name: "Inside child",
+      });
+      await setChildren(outsideParent.id, [child.id]);
+
+      const copies = await duplicateGroup(
+        group.id,
+        "Child only copy",
+        "Inside",
+        "Cloned",
+      );
+
+      const childCopy = copies.find((l) => l.name === "Cloned child")!;
+      // The outside parent now gates BOTH the original child and its clone.
+      expect((await getChildIds(outsideParent.id)).sort()).toEqual(
+        [child.id, childCopy.id].sort(),
+      );
+      // The clone is itself a child (in getChildListingIds), so its standalone
+      // /ticket page 404s rather than booking standalone.
+      const { getChildListingIds } = await import(
+        "#shared/db/listing-parents.ts"
+      );
+      expect((await getChildListingIds([childCopy.id])).has(childCopy.id)).toBe(
+        true,
+      );
+      // The clone is not itself a parent (no children of its own).
+      expect(await getChildIds(childCopy.id)).toEqual([]);
+    });
+
+    test("group duplicate whose cloned parent's edge copy fails surfaces a warning and leaves no gateless clone", async () => {
+      // `remapDuplicatedGroupEdges` used to discard `copyDuplicatedChildEdges`'s
+      // return, so a cloned parent could be left gateless while the bulk
+      // duplicate reported success. Scenario: a group parent P requires an
+      // EXTERNAL child C; an opt-in add-on is scoped to {P, C}, so on the COPY
+      // (cloned parent P', external child C kept) the add-on is reachable only
+      // through the suppressed child C — a dead end from P' — so re-validating
+      // P'->C fails. The fix collects that error, surfaces a WARNING flash, and
+      // does NOT write the gateless P'->C edge.
+      const group = await createTestGroup({ name: "Stranded bundle" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        name: "Bundle parent",
+      });
+      const externalChild = await createTestListing({
+        name: "External add-on",
+      });
+      await setChildren(parent.id, [externalChild.id]);
+      await optInAddOnScopedTo("Reachable extra", [
+        parent.id,
+        externalChild.id,
+      ]);
+
+      const response = await duplicateGroupResponse(
+        group.id,
+        "Stranded bundle copy",
+        "Bundle parent",
+        "Cloned parent",
+      );
+
+      const newGroup = (await getAllGroups()).find(
+        (g) => g.name === "Stranded bundle copy",
+      )!;
+      const copies = await getListingsByGroupId(newGroup.id);
+      const parentCopy = copies.find((l) => l.name === "Cloned parent")!;
+      // The cloned parent has NO gate (the invalid edge was not written) rather
+      // than a silently-gateless standalone reported as success.
+      expect(await getChildIds(parentCopy.id)).toEqual([]);
+      // A warning flash (not a success) carries the dropped-children reason.
+      expect(response.status).toBe(302);
+      const reason = t("listings_table.children_err_child_addon", {
+        addon: "Reachable extra",
+        name: "External add-on",
+      });
+      const expected = t("listings_table.group_duplicate_children_dropped", {
+        reason,
+        success: `Duplicated 'Stranded bundle' to 'Stranded bundle copy' (1 listing(s))`,
+      });
+      await expectFlashRedirect(
+        `/admin/groups/${newGroup.id}`,
+        expected,
+        false,
+      )(response);
+    });
+
+    test("group duplicate surfaces a warning when an incoming external-parent edge fails re-validation", async () => {
+      // Exercises the Direction-2 (incoming) edge-copy of a group duplicate: a
+      // group member C is a CHILD of an EXTERNAL parent P. C carries an opt-in
+      // add-on reachable only through C itself (scoped to {C}), so the P->C edge
+      // is a latent dead end (force-set, bypassing the editor). Duplicating the
+      // group recreates `P -> C'` and re-validates P's full child set, which now
+      // dead-ends on the add-on. The error must be collected and surfaced as a
+      // warning rather than silently leaving a broken edge.
+      const { child, group, outsideParent } =
+        await makeExternalBundle("Incoming bundle");
+      // Add-on reachable only through the suppressed child — a dead end from the
+      // external parent's page.
+      await optInAddOnScopedTo("Child-only extra", [child.id]);
+
+      const response = await duplicateGroupResponse(
+        group.id,
+        "Incoming bundle copy",
+        "Bundled",
+        "Cloned",
+      );
+
+      const newGroup = (await getAllGroups()).find(
+        (g) => g.name === "Incoming bundle copy",
+      )!;
+      const childCopy = (await getListingsByGroupId(newGroup.id)).find(
+        (l) => l.name === "Cloned add-on",
+      )!;
+      // The incoming edge `outsideParent -> childCopy` was NOT written (the full
+      // set re-validation failed), so the external parent keeps only its
+      // original child.
+      expect(await getChildIds(outsideParent.id)).toEqual([child.id]);
+      expect((await getChildIds(outsideParent.id)).includes(childCopy.id)).toBe(
+        false,
+      );
+      // A warning flash carries the reason.
+      const reason = t("listings_table.children_err_child_addon", {
+        addon: "Child-only extra",
+        name: "Bundled add-on",
+      });
+      const expected = t("listings_table.group_duplicate_children_dropped", {
+        reason,
+        success: `Duplicated 'Incoming bundle' to 'Incoming bundle copy' (1 listing(s))`,
+      });
+      await expectFlashRedirect(
+        `/admin/groups/${newGroup.id}`,
+        expected,
+        false,
+      )(response);
+    });
+
+    test("a member-only-child group's cloned child 404s on its own ticket page", async () => {
+      // End-to-end consequence: the cloned child is a child, so its
+      // standalone /ticket/<clonedChild> page must 404 (a booking can never start
+      // from a child) instead of letting it be booked standalone.
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicSite(true);
+      const { group } = await makeExternalBundle("Outside-parent bundle");
+
+      const copies = await duplicateGroup(
+        group.id,
+        "Outside-parent bundle 2",
+        "Bundled",
+        "Cloned",
+      );
+      const childCopy = copies.find((l) => l.name === "Cloned add-on")!;
+
+      const { handleRequest } = await import("#routes");
+      const { mockRequest } = await import("#test-utils");
+      const response = await handleRequest(
+        mockRequest(`/ticket/${childCopy.slug}`),
+      );
+      response.body?.cancel();
+      expect(response.status).toBe(404);
+    });
+
+    test("duplicating a package member copies its price, quantity, and per-day overrides", async () => {
+      const { getGroupDayPrices } = await import(
+        "#shared/db/listing-prices.ts"
+      );
+      const group = await createTestGroup({ isPackage: true, name: "Bundle" });
+      const source = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Member",
+      });
+      // The duplicate form clones a standard listing (a customisable source
+      // would trip the homogeneity invariant against the standard clone), so
+      // the per-day row is seeded directly — the copy mechanics are group_day
+      // rows riding the same duplicate, whatever the member's type.
+      await setGroupPackageMembers(group.id, [
+        {
+          dayPrices: { 2: 1600 },
+          listingId: source.id,
+          price: 1500,
+          quantity: 2,
+        },
+      ]);
+
+      const { copy } = await duplicateListingResponse(
+        source.id,
+        "Member copy",
+        group.id,
+      );
+
+      // The copy joins at the source's override, not its base price/quantity 1.
+      const row = (await getGroupPackagePrices(group.id)).find(
+        (r) => r.listing_id === copy.id,
+      );
+      expect(row?.package_price).toBe(1500);
+      expect(row?.quantity).toBe(2);
+      // The per-day override rides the same copy (same group, so the same
+      // "<groupId>/<n>" price_id applies to the clone verbatim).
+      expect((await getGroupDayPrices(group.id)).get(copy.id)?.get(2)).toBe(
+        1600,
+      );
+    });
+
+    test("does not copy a package override for a group the duplicate did not join", async () => {
+      const { queryAll } = await import("#shared/db/client.ts");
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Bundle2",
+      });
+      const source = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Member2",
+      });
+      await setGroupPackageMembers(group.id, [
+        { dayPrices: { 2: 1600 }, listingId: source.id, price: 1500 },
+      ]);
+
+      // Duplicate WITHOUT joining the package (group_ids omitted). The clone is
+      // in no package group, so its source's group/group_day overrides must NOT
+      // be copied — an orphaned override would resurrect if it later joined.
+      const { copy } = await duplicateListingResponse(source.id, "Loner copy");
+      expect(
+        await queryAll(
+          "SELECT price_type FROM listing_prices WHERE listing_id = ? AND price_type IN ('group', 'group_day')",
+          [copy.id],
+        ),
+      ).toEqual([]);
+    });
+
+    test("duplicating a parent into a package keeps children when visible, drops them when hidden", async () => {
+      const { groupsTable } = await import("#shared/db/groups.ts");
+      const child = await createTestListing({ name: "Child" });
+      const parent = await createTestListing({
+        maxAttendees: 10,
+        name: "Parent",
+      });
+      await setChildren(parent.id, [child.id]);
+
+      // A VISIBLE package renders the member's child selector, so the copy
+      // keeps the inherited gate.
+      const visible = await createTestGroup({ isPackage: true, name: "Pkg" });
+      const { copy } = await duplicateListingResponse(
+        parent.id,
+        "Parent copy",
+        visible.id,
+      );
+      expect(
+        (await getGroupPackagePrices(visible.id)).some(
+          (r) => r.listing_id === copy.id,
+        ),
+      ).toBe(true);
+      expect(await getChildIds(copy.id)).toEqual([child.id]);
+
+      // A HIDDEN package collapses members to the package name, so its copy
+      // must NOT inherit the child edges — the member stays valid and the
+      // operator is told the gate wasn't carried over.
+      const hidden = await createTestGroup({
+        isPackage: true,
+        name: "Hidden Pkg",
+      });
+      await groupsTable.update(hidden.id, { hidePackageListings: true });
+      const { copy: hiddenCopy } = await duplicateListingResponse(
+        parent.id,
+        "Parent hidden copy",
+        hidden.id,
+      );
+      expect(await getChildIds(hiddenCopy.id)).toEqual([]);
+    });
+  },
+);

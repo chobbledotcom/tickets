@@ -23,7 +23,11 @@ import type {
 } from "#shared/db/attendee-types.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
-import { type ListingWithCount, normalizeDurationDays } from "#shared/types.ts";
+import {
+  type ContactInfo,
+  type ListingWithCount,
+  normalizeDurationDays,
+} from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import {
   parseNonNegativeInt,
@@ -44,6 +48,11 @@ import {
 export const DAY_COUNT_FIELD = "day_count";
 /** Per-listing quantity field: `qty_<listingId>`. */
 export const QTY_PREFIX = "qty_";
+/** Per-listing "no quantity" checkbox: `noqty_<listingId>`. When ticked the line
+ * is kept as a quantity-0 sentinel (counts toward no capacity/tickets/income and
+ * is hidden from operational/public surfaces) instead of being booked or removed.
+ * Owners never see a literal 0 — the checkbox is the proxy for `quantity == 0`. */
+export const NO_QUANTITY_PREFIX = "noqty_";
 /** Per-listing hidden field carrying the existing booking's line key, so an
  * edit can move/keep the right `listing_attendees` row: `line_key_<listingId>`. */
 export const LINE_KEY_PREFIX = "line_key_";
@@ -53,6 +62,7 @@ export const LINE_KEY_PREFIX = "line_key_";
 export const SHOW_ALL_FIELD = "show_all";
 export const STATUS_FIELD = "status_id";
 export const REMAINING_BALANCE_FIELD = "remaining_balance";
+export { START_DATE_FIELD };
 
 /** DOM id of the add/edit form, also the post-save scroll anchor. */
 export const ATTENDEE_FORM_ID = "attendee-form";
@@ -67,6 +77,10 @@ export type AttendeeFormLine = {
   listingId: number;
   /** Booked quantity; null/0 means the listing is not booked. */
   quantity: number | null;
+  /** True when the "no quantity" box is ticked: keep this line as a quantity-0
+   * sentinel rather than booking (quantity ≥ 1) or removing it (quantity 0,
+   * box unticked). */
+  noQuantity: boolean;
   /** Resolved listing reference (null when the id is unknown). */
   listing: ListingWithCount | null;
   /** Existing booking row, when the attendee already books this listing. */
@@ -92,15 +106,13 @@ export type AttendeeBooking = {
   endAt: string | null;
   checkedIn: boolean;
   refunded: boolean;
+  /** The parent listing this booking was chosen under as an add-on (a folded
+   * child), or 0 when it is an ordinary standalone booking. */
+  parentListingId: number;
 };
 
 /** The full parsed form — attendee fields, the shared range, and line items. */
-export type ParsedAttendeeForm = {
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-  special_instructions: string;
+export type ParsedAttendeeForm = ContactInfo & {
   /** Selected attendee status id, or null for "no status". */
   statusId: number | null;
   /** Outstanding balance in minor units (order-level, plaintext). */
@@ -115,7 +127,7 @@ export type ParsedAttendeeForm = {
 
 /** Attendee-level validation error. */
 export type AttendeeFieldError = {
-  field: "name" | "email" | "phone" | "address" | "special_instructions";
+  field: keyof ContactInfo;
   message: string;
 };
 
@@ -126,6 +138,9 @@ export type ValidationResult =
       valid: false;
       attendeeError: AttendeeFieldError | null;
       dateError: string | null;
+      /** Form-wide error surfaced at the top of the page (e.g. a paid line was
+       * marked no-quantity), as opposed to a per-line error shown in the table. */
+      formError: string | null;
       lineErrors: Map<number, string>;
       values: ParsedAttendeeForm;
     };
@@ -145,9 +160,37 @@ type SharedDates = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** True when the line should become a booking. */
+/** True when the line should become a booking (quantity ≥ 1). Governs capacity,
+ * validation, warnings, and logistics — everything the quantity-0 sentinel is
+ * deliberately absent from. */
 export const isBookedLine = (line: AttendeeFormLine): boolean =>
   line.quantity !== null && line.quantity >= 1 && line.listing !== null;
+
+/** True when the "no quantity" box is ticked for a resolvable listing: a
+ * deliberate quantity-0 sentinel line to keep, not a real booking. */
+export const isNoQuantityLine = (line: AttendeeFormLine): boolean =>
+  line.noQuantity && line.listing !== null;
+
+/** True when a line carries a captured payment (price_paid > 0 on its existing
+ * booking). Such a line can't be marked no-quantity until the charge is
+ * refunded — silently clearing price_paid would drop listing income and strand
+ * the charge behind the quantity-0 refund guards — so the editor disables its
+ * "no quantity" box ({@link PAID_NO_QUANTITY_MESSAGE} as the tooltip) and the
+ * validator rejects a hand-crafted tick. */
+export const isPaymentLockedLine = (line: AttendeeFormLine): boolean =>
+  (line.existingBooking?.price_paid ?? 0) > 0;
+
+/** Why a paid line can't be marked no-quantity: shown at the top of the page on
+ * a (hand-crafted) submission and as the disabled box's hover tooltip. */
+export const PAID_NO_QUANTITY_MESSAGE = (): string =>
+  t("attendee_form.paid_no_quantity_line");
+
+/** True when the line should be persisted at all: a real booking OR a deliberate
+ * no-quantity line. The persistence + no-lines paths use THIS (so a checked
+ * quantity-0 line is kept and a no-quantity-only save isn't rejected as "book at
+ * least one listing"), while capacity/validation keep {@link isBookedLine}. */
+export const isRetainedLine = (line: AttendeeFormLine): boolean =>
+  isBookedLine(line) || isNoQuantityLine(line);
 
 /** Whole-day span of a stored booking row, or null when it has no range. */
 export const bookingDurationDays = (
@@ -179,6 +222,7 @@ export const attendeeBookingsFromLines = (
       listingActive: listing.active,
       listingId: line.listingId,
       listingName: listing.name,
+      parentListingId: booking.parent_listing_id,
       quantity: booking.quantity,
       refunded: Boolean(booking.refunded),
       startAt: booking.start_at,
@@ -252,7 +296,9 @@ const parseQuantity = (raw: string): number | null => {
 };
 
 /** One editor line per `qty_<id>` field in the form, in document order and
- * de-duplicated, with the listing + existing booking resolved. */
+ * de-duplicated, with the listing + existing booking resolved. A ticked
+ * `noqty_<id>` box forces quantity to 0 and marks the line no-quantity (its
+ * quantity input is CSS-hidden, so its submitted value is ignored). */
 const parseLines = (
   form: FormParams,
   resolve: (
@@ -268,11 +314,13 @@ const parseLines = (
     if (id === null || seen.has(id)) continue;
     seen.add(id);
     const key = form.getString(`${LINE_KEY_PREFIX}${id}`);
+    const noQuantity = form.getString(`${NO_QUANTITY_PREFIX}${id}`) !== "";
     lines.push({
       error: null,
       key,
       listingId: id,
-      quantity: parseQuantity(raw),
+      noQuantity,
+      quantity: noQuantity ? 0 : parseQuantity(raw),
       ...resolve(id, key),
     });
   }
@@ -307,7 +355,7 @@ export const parseAttendeeForm = (
 // Validation
 // ---------------------------------------------------------------------------
 
-const validateAttendeeBlock = (
+export const validateAttendeeBlock = (
   parsed: ParsedAttendeeForm,
 ): AttendeeFieldError | null => {
   if (!parsed.name.trim()) {
@@ -336,17 +384,28 @@ const validateAttendeeBlock = (
 const isBookedDaily = (line: AttendeeFormLine): boolean =>
   isBookedLine(line) && line.listing!.listing_type === "daily";
 
-/** Validate one booked line's quantity. Date/duration/overbooking concerns are
- * surfaced as non-blocking warnings elsewhere, not as errors. */
+/** Validate one line. Date/duration/overbooking concerns are surfaced as
+ * non-blocking warnings elsewhere, not as errors. The paid-line no-quantity rule
+ * is enforced form-wide ({@link validatePaidNoQuantity}) so its message lands at
+ * the top of the page, not buried in the quantity table. */
 const validateLine = (line: AttendeeFormLine): string | null => {
   // isBookedLine already guarantees an integer quantity ≥ 1; the only quantity
   // error left is exceeding the listing's per-booking maximum.
   if (!isBookedLine(line)) return null;
   if (line.quantity! > line.listing!.max_quantity) {
-    return `Quantity must be at most ${line.listing!.max_quantity}`;
+    return t("attendee_form.qty_max", { max: line.listing!.max_quantity });
   }
   return null;
 };
+
+/** Form-wide guard: forbid marking a PAID line no-quantity — the charge must be
+ * refunded or retargeted to a real line first (enforces the §1 invariant). The
+ * editor already disables the box for these lines, so this only fires on a
+ * hand-crafted submission; its message is shown at the top of the page. */
+const validatePaidNoQuantity = (parsed: ParsedAttendeeForm): string | null =>
+  parsed.lines.some((l) => isNoQuantityLine(l) && isPaymentLockedLine(l))
+    ? PAID_NO_QUANTITY_MESSAGE()
+    : null;
 
 /**
  * Validate the attendee block, the shared date, and each booked line. A daily
@@ -360,8 +419,9 @@ export const validateParsedForm = (
   const hasDailyBooking = parsed.lines.some(isBookedDaily);
   const dateError =
     hasDailyBooking && !isIsoDate(parsed.startDate)
-      ? "A start date is required for the booked daily listings"
+      ? t("attendee_form.date_required")
       : null;
+  const formError = validatePaidNoQuantity(parsed);
 
   const lineErrors = new Map<number, string>();
   for (let i = 0; i < parsed.lines.length; i++) {
@@ -370,10 +430,11 @@ export const validateParsedForm = (
     if (error) lineErrors.set(i, error);
   }
 
-  if (attendeeError || dateError || lineErrors.size > 0) {
+  if (attendeeError || dateError || formError || lineErrors.size > 0) {
     return {
       attendeeError,
       dateError,
+      formError,
       lineErrors,
       valid: false,
       values: parsed,
@@ -395,23 +456,22 @@ const lineDate = (line: AttendeeFormLine, parsed: ParsedAttendeeForm) =>
 
 export const toCreateInput = (
   parsed: ParsedAttendeeForm,
-): {
-  address: string;
+): ContactInfo & {
   bookings: ListingBooking[];
-  email: string;
-  name: string;
-  phone: string;
   remainingBalance: number;
-  special_instructions: string;
   statusId: number | null;
 } => ({
   address: parsed.address,
-  bookings: parsed.lines.filter(isBookedLine).map((line): ListingBooking => {
+  // Retained lines, not just booked lines: a no-quantity line is persisted as a
+  // quantity-0 sentinel (price_paid defaults to 0, satisfying the §1 invariant).
+  bookings: parsed.lines.filter(isRetainedLine).map((line): ListingBooking => {
     const { date, durationDays } = lineDate(line, parsed);
     return {
       date,
-      durationDays: date ? durationDays : undefined,
+      ...(date && durationDays !== undefined ? { durationDays } : {}),
       listingId: line.listingId,
+      // A retained line always has a non-null quantity: isBookedLine guarantees
+      // ≥ 1, and a no-quantity line is parsed/built with quantity 0.
       quantity: line.quantity!,
     };
   }),
@@ -467,7 +527,9 @@ export const toLedgerOrder = (parsed: ParsedAttendeeForm): PricedOrder => {
 export const toDesiredLines = (
   parsed: ParsedAttendeeForm,
 ): DesiredListingLine[] =>
-  parsed.lines.filter(isBookedLine).map((line): DesiredListingLine => {
+  // Retained lines, not just booked lines: a checked quantity-0 line must
+  // persist (become/stay a quantity-0 row) rather than fall out and be deleted.
+  parsed.lines.filter(isRetainedLine).map((line): DesiredListingLine => {
     const { date, durationDays } = lineDate(line, parsed);
     return {
       date,
@@ -475,6 +537,8 @@ export const toDesiredLines = (
       exists: Boolean(line.existingBooking),
       key: line.key,
       listingId: line.listingId,
+      // A retained line always has a non-null quantity: isBookedLine guarantees
+      // ≥ 1, and a no-quantity line is parsed/built with quantity 0.
       quantity: line.quantity!,
     };
   });
@@ -499,9 +563,9 @@ export const attendeeBalanceNotice = (
   if (status.is_paid_default) {
     return remainingBalance > 0
       ? {
-          message: `This attendee is in a paid status but still owes ${formatCurrency(
-            remainingBalance,
-          )}.`,
+          message: t("attendee_form.balance_paid_but_owes", {
+            amount: formatCurrency(remainingBalance),
+          }),
           tone: "warning",
         }
       : null;
@@ -510,16 +574,15 @@ export const attendeeBalanceNotice = (
     const owed = Math.max(fullPrice, listedFullPrice) - amountPaid;
     if (owed > 0) {
       return {
-        message: `This reservation has no balance recorded, but ${formatCurrency(
-          owed,
-        )} of the order is still unpaid.`,
+        message: t("attendee_form.balance_reservation_unpaid", {
+          amount: formatCurrency(owed),
+        }),
         tone: "warning",
       };
     }
     if (fullPrice > 0) {
       return {
-        message:
-          "This reservation is fully paid — consider moving it to a paid status.",
+        message: t("attendee_form.balance_reservation_paid"),
         tone: "info",
       };
     }

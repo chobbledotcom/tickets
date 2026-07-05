@@ -1,0 +1,15 @@
+{
+  "entity.tabs_label": "Item sections",
+  "entity.tab.overview": "Overview",
+  "entity.tab.edit": "Edit",
+  "entity.tab.images": "Images",
+  "entity.tab.ledger": "Ledger",
+  "entity.tab.balance": "Balance",
+  "entity.tab.attendees": "Attendees",
+  "entity.tab.questions": "Questions",
+  "entity.tab.qr": "Booking QR",
+  "entity.tab.activity": "Activity",
+  "entity.tab.actions": "Actions",
+  "entity.view_all_activity": "View all activity",
+  "entity.danger_zone": "Danger zone"
+}

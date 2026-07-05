@@ -28,6 +28,7 @@ import {
   errorMessage,
   PaymentUserError,
   packMetadata,
+  parseWebhookPayload,
   SQUARE_METADATA_MAX_ENTRIES,
   SQUARE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
@@ -47,9 +48,9 @@ import { normalizePhone } from "#shared/phone.ts";
 
 /** Raw tender from Square REST API (snake_case) or camelCase from our client */
 type SquareRawTender = {
-  id?: string;
-  payment_id?: string;
-  paymentId?: string;
+  id?: string | undefined;
+  payment_id?: string | undefined;
+  paymentId?: string | undefined;
 };
 
 /** Extract tender id and paymentId from raw tender data (handles both snake_case and camelCase) */
@@ -405,31 +406,34 @@ const getPaymentLinkConfig = (): PaymentLinkConfig | null => {
 
 /** Square order response shape (subset we use) */
 type SquareOrder = {
-  id?: string;
-  metadata?: Record<string, string>;
-  tenders?: Array<{
-    id?: string;
-    paymentId?: string;
-  }>;
-  state?: string;
+  id?: string | undefined;
+  metadata?: Record<string, string> | undefined;
+  tenders?:
+    | Array<{
+        id?: string | undefined;
+        paymentId?: string | undefined;
+      }>
+    | undefined;
+  state?: string | undefined;
   totalMoney: { amount: bigint; currency: string };
   /** Order creation time (RFC 3339 / ISO 8601), from the Square API. */
-  createdAt?: string;
+  createdAt?: string | undefined;
+};
+
+/** A Square Money object with both fields optional, as returned on a payment's
+ * `amountMoney` / `refundedMoney`. */
+type SquareMoney = {
+  amount?: bigint | undefined;
+  currency?: string | undefined;
 };
 
 /** Square payment response shape (subset we use) */
 type SquarePayment = {
-  id?: string;
-  status?: string;
-  orderId?: string;
-  amountMoney?: {
-    amount?: bigint;
-    currency?: string;
-  };
-  refundedMoney?: {
-    amount?: bigint;
-    currency?: string;
-  };
+  id?: string | undefined;
+  status?: string | undefined;
+  orderId?: string | undefined;
+  amountMoney?: SquareMoney | undefined;
+  refundedMoney?: SquareMoney | undefined;
 };
 
 /** Result of creating a payment link */
@@ -446,7 +450,7 @@ type PaymentLinkParams = {
   metadata: Record<string, string>;
   baseUrl: string;
   email: string;
-  phone?: string;
+  phone?: string | undefined;
   label: string;
 };
 
@@ -577,7 +581,14 @@ export const squareApi: {
     const order = priceCheckout(intent);
 
     const prep = await preparePaymentLink(
-      packMetadata(await buildItemsMetadata(intent, order.total)),
+      packMetadata(
+        await buildItemsMetadata(
+          intent,
+          order.total,
+          SQUARE_METADATA_MAX_VALUE_LENGTH,
+          SQUARE_METADATA_MAX_ENTRIES,
+        ),
+      ),
       `payment link for ${intent.items.length} listing(s)`,
     );
     if (!prep) return null;
@@ -772,10 +783,10 @@ export type SquareConnectionTestResult = {
   accessToken: { valid: boolean; error?: string; mode?: string };
   location: {
     configured: boolean;
-    locationId?: string;
-    name?: string;
-    status?: string;
-    error?: string;
+    locationId?: string | undefined;
+    name?: string | undefined;
+    status?: string | undefined;
+    error?: string | undefined;
   };
   webhook: { configured: boolean; error?: string };
 };
@@ -851,13 +862,7 @@ export const verifyWebhookSignature = async (
     return { error: "Signature verification failed", valid: false };
   }
 
-  try {
-    const listing = JSON.parse(payload) as WebhookEvent;
-    return { listing, valid: true };
-  } catch {
-    logError({ code: ErrorCode.SQUARE_SIGNATURE, detail: "invalid JSON" });
-    return { error: "Invalid JSON payload", valid: false };
-  }
+  return parseWebhookPayload(payload, ErrorCode.SQUARE_SIGNATURE);
 };
 
 /**

@@ -22,6 +22,7 @@ import {
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 /* jscpd:ignore-end */
+import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { clearLogisticsAgentReferences } from "#shared/db/logistics.ts";
 import {
   getAllLogisticsAgents,
@@ -37,11 +38,11 @@ import {
 import {
   decryptAdminLevel,
   decryptUsername,
-  getAllUserIds,
   getUserDisplayFields,
 } from "#shared/db/users.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
+import { isDeliveryRole } from "#shared/types.ts";
 import {
   type AgentUserOption,
   adminLogisticsAgentDeletePage,
@@ -51,12 +52,32 @@ import {
 } from "#templates/admin/logistics.tsx";
 import { logisticsAgentFields } from "#templates/fields.ts";
 
+/**
+ * Disabling logistics also clears any saved logistics default, so a later
+ * re-enable can't resurrect it onto Use-defaults listings — and listings created
+ * while logistics is off are never opted into an inert logistics default.
+ */
+const clearLogisticsDefaultWhenDisabled = async (
+  enabled: boolean,
+): Promise<void> => {
+  if (enabled) return;
+  const defaults = settings.listingDefaults;
+  if (defaults.usesLogistics === undefined) return;
+  const next = { ...defaults };
+  delete next.usesLogistics;
+  await settings.update.listingDefaults(next);
+  invalidateListingsCache();
+};
+
 /** Handle POST /admin/logistics/has-logistics — owner only. */
 export const handleHasLogisticsPost = settingsToggle({
   field: "has_logistics",
   label: "Logistics",
   redirectTo: "/admin/logistics",
-  save: (v) => settings.update.hasLogistics(v),
+  save: async (v) => {
+    await settings.update.hasLogistics(v);
+    await clearLogisticsDefaultWhenDisabled(v);
+  },
 });
 
 /** Extract logistics agent input from validated form values. The `name` field
@@ -92,23 +113,27 @@ const crud = createOwnerCrudHandlers({
   singular: "Logistics agent",
 });
 
-/** Every user, decrypted, as an assignable option for a logistics agent. Any
- * user class can drive an agent — agents only ever see the deliveries page,
- * while owners and managers reach it from the Calendar menu. */
+/** The users that may drive a logistics agent, decrypted, as assignable options.
+ * Only delivery-eligible roles (owner/manager/agent) are offered — agents see
+ * the deliveries page as their only page, owners/managers reach it from the
+ * Calendar menu. Editors are excluded: they 403 on the run sheet and can't mark
+ * deliveries, so offering them would create an unusable assignment. */
 const loadAgentUserOptions = async (): Promise<AgentUserOption[]> => {
   const users = await getUserDisplayFields();
-  return Promise.all(
+  const options = await Promise.all(
     users.map(async (user) => ({
       adminLevel: await decryptAdminLevel(user),
       id: user.id,
       username: await decryptUsername(user),
     })),
   );
+  return options.filter((option) => isDeliveryRole(option.adminLevel));
 };
 
-/** The chosen `user_ids` reduced to ids that are real users. */
+/** The chosen `user_ids` reduced to ids that are real delivery-eligible users,
+ * so a crafted form can't link an editor (or unknown id) as a driver. */
 const parseAssignedUserIds = async (form: FormParams): Promise<number[]> => {
-  const valid = new Set(await getAllUserIds());
+  const valid = new Set((await loadAgentUserOptions()).map((o) => o.id));
   return form.getNumberArray("user_ids").filter((id) => valid.has(id));
 };
 

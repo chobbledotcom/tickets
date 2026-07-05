@@ -6,12 +6,16 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { escapeIcs, escapeXml } from "#routes/feeds.ts";
+import { groupsTable } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  createTestGroup,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
+  expectHtml,
   mockRequest,
+  pastCloseTime,
 } from "#test-utils";
 
 /** Fetch a feed URL and return the body text */
@@ -39,15 +43,91 @@ const expectExcludesClosedRegistration = async (
   absentTag: string,
 ) => {
   await settings.update.showPublicSite(true);
-  const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
   await createTestListing({
-    closesAt: pastDate,
+    closesAt: pastCloseTime(),
     maxAttendees: 100,
     name: "Closed Listing",
   });
   const body = await fetchFeedBody(feedPath);
   expect(body).not.toContain("Closed Listing");
   expect(body).not.toContain(absentTag);
+};
+
+const feedExclusionTests = (feedPath: string, emptyMarker: string) => {
+  test("excludes hidden listings", async () => {
+    await settings.update.showPublicSite(true);
+    await createTestListing({
+      hidden: true,
+      maxAttendees: 100,
+      name: "Secret Listing",
+    });
+    await expectHtml(await handleRequest(mockRequest(feedPath)), {
+      notContains: ["Secret Listing", emptyMarker],
+    });
+  });
+
+  test("excludes purchase_only listings", async () => {
+    await settings.update.showPublicSite(true);
+    await createTestListing({
+      maxAttendees: 100,
+      name: "Raffle Tickets",
+      purchaseOnly: true,
+    });
+    await expectHtml(await handleRequest(mockRequest(feedPath)), {
+      notContains: ["Raffle Tickets", emptyMarker],
+    });
+  });
+
+  test("syndicates a hidden package's bundle, never its members", async () => {
+    await settings.update.showPublicSite(true);
+    const group = await createTestGroup({ isPackage: true, name: "Bundle" });
+    await groupsTable.update(group.id, { hidePackageListings: true });
+    await createTestListing({
+      groupId: group.id,
+      maxAttendees: 100,
+      name: "Hidden Member",
+    });
+    // The package is the public product: the bundle itself rides the feed
+    // (linking /ticket/<group-slug>) while its concealed member stays out.
+    await expectHtml(await handleRequest(mockRequest(feedPath)), {
+      contains: ["Bundle", `/ticket/${group.slug}`],
+      notContains: ["Hidden Member"],
+    });
+  });
+
+  test("omits an unbookable package from the feed", async () => {
+    await settings.update.showPublicSite(true);
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Gone Bundle",
+    });
+    const only = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 100,
+      name: "Last One",
+    });
+    await deactivateTestListing(only.id);
+    // The bundle can't sell (its sole member is inactive), so neither the
+    // package nor the member appears — the feed is empty.
+    await expectHtml(await handleRequest(mockRequest(feedPath)), {
+      notContains: ["Gone Bundle", "Last One", emptyMarker],
+    });
+  });
+};
+
+const expectCalendarFeed = async (
+  request: Request,
+  opts: { contains?: string[]; notContains?: string[] } = {},
+): Promise<void> => {
+  const response = await handleRequest(request);
+  expect(response.headers.get("content-type")).toBe(
+    "text/calendar; charset=utf-8",
+  );
+  await expectHtml(response, {
+    contains: opts.contains,
+    notContains: opts.notContains,
+    status: 200,
+  });
 };
 
 describeWithEnv("feeds", { db: true }, () => {
@@ -115,7 +195,7 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      expect(body).toContain(`UID:${listing.id}@`);
+      expect(body).toContain(`UID:listing-${listing.id}@`);
       expect(body).toContain("DTSTAMP:");
     });
 
@@ -166,31 +246,7 @@ describeWithEnv("feeds", { db: true }, () => {
       );
     });
 
-    test("excludes hidden listings", async () => {
-      await settings.update.showPublicSite(true);
-      await createTestListing({
-        hidden: true,
-        maxAttendees: 100,
-        name: "Secret Listing",
-      });
-      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
-      const body = await response.text();
-      expect(body).not.toContain("Secret Listing");
-      expect(body).not.toContain("BEGIN:VLISTING");
-    });
-
-    test("excludes purchase_only listings", async () => {
-      await settings.update.showPublicSite(true);
-      await createTestListing({
-        maxAttendees: 100,
-        name: "Raffle Tickets",
-        purchaseOnly: true,
-      });
-      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
-      const body = await response.text();
-      expect(body).not.toContain("Raffle Tickets");
-      expect(body).not.toContain("BEGIN:VLISTING");
-    });
+    feedExclusionTests("/feeds/listings.ics", "BEGIN:VLISTING");
 
     test("escapes special characters in listing fields", async () => {
       await settings.update.showPublicSite(true);
@@ -342,31 +398,7 @@ describeWithEnv("feeds", { db: true }, () => {
       await expectExcludesClosedRegistration("/feeds/listings.rss", "<item>");
     });
 
-    test("excludes hidden listings", async () => {
-      await settings.update.showPublicSite(true);
-      await createTestListing({
-        hidden: true,
-        maxAttendees: 100,
-        name: "Secret Listing",
-      });
-      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
-      const body = await response.text();
-      expect(body).not.toContain("Secret Listing");
-      expect(body).not.toContain("<item>");
-    });
-
-    test("excludes purchase_only listings", async () => {
-      await settings.update.showPublicSite(true);
-      await createTestListing({
-        maxAttendees: 100,
-        name: "Raffle Tickets",
-        purchaseOnly: true,
-      });
-      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
-      const body = await response.text();
-      expect(body).not.toContain("Raffle Tickets");
-      expect(body).not.toContain("<item>");
-    });
+    feedExclusionTests("/feeds/listings.rss", "<item>");
 
     test("XML-escapes special characters", async () => {
       await settings.update.showPublicSite(true);
@@ -456,16 +488,10 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
     // cannot attach an x-csrf-token header, so this safe GET must not demand
     // one — otherwise the feed is unusable from a browser/calendar session.
     const { cookie } = await getTestSession();
-    const response = await handleRequest(
+    await expectCalendarFeed(
       mockRequest("/caldav/events.ics", { headers: { cookie } }),
+      { contains: ["SUMMARY:Cookie Person"] },
     );
-    const body = await response.text();
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toBe(
-      "text/calendar; charset=utf-8",
-    );
-    expect(body).toContain("SUMMARY:Cookie Person");
   });
 
   test("returns attendee-grouped events for API keys", async () => {
@@ -489,21 +515,16 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
       "a@test.com",
     );
 
-    const response = await handleRequest(
-      requestAsApiKey("/caldav/events.ics", apiKey),
-    );
-    const body = await response.text();
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toBe(
-      "text/calendar; charset=utf-8",
-    );
-    expect(body).toContain("BEGIN:VEVENT");
-    expect(body).toContain("SUMMARY:Alice Example");
-    expect(body).toContain("DESCRIPTION:Summer Show");
-    expect(body).toContain("DTSTART:20260801T093000Z");
-    expect(body).toContain("LOCATION:Main Hall");
-    expect(body).toContain("/admin/attendees/");
+    await expectCalendarFeed(requestAsApiKey("/caldav/events.ics", apiKey), {
+      contains: [
+        "BEGIN:VEVENT",
+        "SUMMARY:Alice Example",
+        "DESCRIPTION:Summer Show",
+        "DTSTART:20260801T093000Z",
+        "LOCATION:Main Hall",
+        "/admin/attendees/",
+      ],
+    });
   });
 
   test("returns listing-grouped events for API keys", async () => {
@@ -526,14 +547,9 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
       "b@test.com",
     );
 
-    const response = await handleRequest(
-      requestAsApiKey("/caldav/events.ics", apiKey),
-    );
-    const body = await response.text();
-
-    expect(response.status).toBe(200);
-    expect(body).toContain("SUMMARY:Autumn Show");
-    expect(body).toContain("DESCRIPTION:Bob Example");
+    await expectCalendarFeed(requestAsApiKey("/caldav/events.ics", apiKey), {
+      contains: ["SUMMARY:Autumn Show", "DESCRIPTION:Bob Example"],
+    });
   });
 
   test("omits dateless bookings and falls back to attendee id for blank names", async () => {
@@ -554,21 +570,13 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
       maxAttendees: 10,
       name: "Dateless",
     });
-    const attendee = await createTestAttendeeDirect(
-      dated.id,
-      "",
-      "blank@test.com",
-    );
+    await createTestAttendeeDirect(dated.id, "", "blank@test.com");
     await createTestAttendeeDirect(dateless.id, "No Date", "nodate@test.com");
 
-    const response = await handleRequest(
-      requestAsApiKey("/caldav/events.ics", apiKey),
-    );
-    const body = await response.text();
-
-    expect(response.status).toBe(200);
-    expect(body).toContain("SUMMARY:Attendee 1");
-    expect(body).not.toContain("No Date");
+    await expectCalendarFeed(requestAsApiKey("/caldav/events.ics", apiKey), {
+      contains: ["SUMMARY:Attendee 1"],
+      notContains: ["No Date"],
+    });
   });
 
   test("forbids API keys when the private key cannot be derived", async () => {
@@ -646,13 +654,9 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
       "h@test.com",
     );
 
-    const response = await handleRequest(
-      requestAsApiKey("/caldav/events.ics", apiKey),
-    );
-    const body = await response.text();
-
-    expect(response.status).toBe(200);
-    expect(body).toContain("Visible Person");
-    expect(body).not.toContain("Hidden Person");
+    await expectCalendarFeed(requestAsApiKey("/caldav/events.ics", apiKey), {
+      contains: ["Visible Person"],
+      notContains: ["Hidden Person"],
+    });
   });
 });

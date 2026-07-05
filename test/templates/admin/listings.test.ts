@@ -1,23 +1,37 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { attendeeNameMap } from "#shared/db/system-notes.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
+import { account } from "#shared/ledger/account.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
+import { emptyLedgerNames } from "#templates/admin/ledger.tsx";
 import {
-  adminDuplicateListingPage,
-  adminListingEditPage,
-  adminListingNewPage,
-  adminListingPage,
   adminListingRecalculatePage,
+  nearCapacity,
+} from "#templates/admin/listings/aggregates.tsx";
+import {
   completePaymentAttendees,
   isIncompletePayment,
-  nearCapacity,
-} from "#templates/admin/listings.tsx";
+} from "#templates/admin/listings/attendees.tsx";
+import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
+import {
+  adminDuplicateListingPage,
+  adminListingNewPage,
+} from "#templates/admin/listings/form-pages.tsx";
+import {
+  ListingDeactivatedBanner,
+  ListingOverviewPanel,
+  overviewStatsFromAttendees,
+  overviewStatsFromDbStats,
+} from "#templates/admin/listings/overview.tsx";
+import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
 import { getListingFields } from "#templates/fields.ts";
 import {
   describeWithEnv,
-  hasSelectedOption,
+  setTestEnv,
   setupTestEncryptionKey,
+  TEST_STORAGE_ZONE,
   testAttendee,
   testGroup,
   testListingWithCount,
@@ -25,6 +39,48 @@ import {
 } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
+
+/** Run fn with CAN_BUILD_SITES pinned to `value` in this worker's env overlay
+ *  — never the real process env, which every parallel test worker shares. */
+const withBuilderEnv =
+  (value: string | undefined) =>
+  (fn: () => void): void => {
+    const restore = setTestEnv({ CAN_BUILD_SITES: value });
+    try {
+      fn();
+    } finally {
+      restore();
+    }
+  };
+const withBuilder = withBuilderEnv("true");
+const withoutBuilder = withBuilderEnv(undefined);
+
+/** Render the listing detail view the way the entity page composes it: the
+ *  Overview panel (details table, income/ledger) plus the Roster panel (attendee
+ *  table, filters, failed payments, add-attendee). The legacy `adminListingPage`
+ *  composer was removed, so these tests assert against the live panels. */
+const renderListingDetail = (
+  opts: Parameters<typeof ListingRosterPanel>[0],
+): string =>
+  String(
+    ListingOverviewPanel({
+      aggregateRecalculation: opts.aggregateRecalculation,
+      allowedDomain: opts.allowedDomain,
+      groupContext: opts.groupContext,
+      isChild: opts.isChild,
+      isHiddenPackageMember: opts.isHiddenPackageMember,
+      ledger: opts.ledger,
+      listing: opts.listing,
+      // The Overview now takes precomputed stats + note-author names instead of
+      // the raw attendee list; derive them from the fixture's attendees so these
+      // tests exercise the same rendered output the SQL path produces.
+      noteNames: attendeeNameMap(opts.attendees),
+      questionData: opts.questionData,
+      revenueBreakdown: opts.revenueBreakdown,
+      stats: overviewStatsFromAttendees(opts.listing, opts.attendees),
+      systemNotes: opts.systemNotes,
+    }),
+  ) + String(ListingRosterPanel(opts));
 
 beforeAll(async () => {
   setupTestEncryptionKey();
@@ -36,13 +92,30 @@ afterEach(() => {
 });
 
 describe("adminListingEditPage group select", () => {
-  test("preselects the listing group_id when groups exist", () => {
+  test("checks the listing's groups when groups exist", () => {
     const groups = [testGroup({ id: 2, name: "Group Two" })];
-    const listing = testListingWithCount({ group_id: 2 });
-    const html = adminListingEditPage(listing, groups, TEST_SESSION);
-    expect(html).toContain('name="group_id"');
-    expect(hasSelectedOption(html, "2")).toBe(true);
-    expect(hasSelectedOption(html, "0")).toBe(false);
+    const listing = testListingWithCount({});
+    const html = String(
+      ListingEditPanel({
+        groups,
+        listing,
+        selectedGroupIds: [2],
+        session: TEST_SESSION,
+      }),
+    );
+    expect(html).toContain('name="group_ids"');
+    expect(html).toContain('value="2"');
+    expect(html).toContain("checked");
+  });
+
+  test("does not link to the JSON export (that now lives on the Actions tab)", () => {
+    const listing = testListingWithCount({ id: 9 });
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
+    // The Actions tab is now editor-visible too, so the export link lives
+    // only there — the Edit panel no longer duplicates it.
+    expect(html).not.toContain(`/admin/listing/${listing.id}/export.json`);
   });
 });
 
@@ -52,7 +125,9 @@ describe("adminListingEditPage duration warning", () => {
       duration_days: 3,
       listing_type: "daily",
     });
-    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
     expect(html).toContain(
       "Changing booking duration will update existing bookings",
     );
@@ -71,7 +146,9 @@ describe("adminListingEditPage day prices", () => {
       day_prices: { 1: 1000, 2: 1800 },
       duration_days: 2,
     });
-    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
     // One input per day up to the maximum duration, pre-filled from day_prices.
     expect(html).toContain('name="day_price_1"');
     expect(html).toContain('value="10.00"');
@@ -93,7 +170,9 @@ describe("adminListingEditPage day prices", () => {
 describe("adminListingEditPage form sections", () => {
   test("groups fields under section legends and an Advanced disclosure", () => {
     const listing = testListingWithCount();
-    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
     expect(html).toContain("<legend>Basics</legend>");
     expect(html).toContain("<legend>Tickets &amp; Pricing</legend>");
     expect(html).toContain("<legend>Daily Scheduling</legend>");
@@ -110,7 +189,9 @@ describe("adminListingEditPage form sections", () => {
       day_prices: { 1: 1000 },
       duration_days: 1,
     });
-    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
     const customisableIdx = html.indexOf('name="customisable_days"');
     const dayPriceIdx = html.indexOf('name="day_price_1"');
     const contactFieldsIdx = html.indexOf('name="fields"');
@@ -123,7 +204,9 @@ describe("adminListingEditPage form sections", () => {
 
   test("places the technical fields inside the Advanced disclosure", () => {
     const listing = testListingWithCount();
-    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
     const advancedIdx = html.indexOf("<summary>Advanced settings</summary>");
     expect(advancedIdx).toBeGreaterThan(-1);
     expect(advancedIdx).toBeLessThan(html.indexOf('name="webhook_url"'));
@@ -136,7 +219,9 @@ describe("adminListingEditPage form sections", () => {
       attendee_count: 7,
       tickets_count: 3,
     });
-    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
     expect(html).toContain("<legend>Running totals</legend>");
     expect(html).toContain("Accuracy is not guaranteed");
     expect(html).toContain('name="booked_quantity"');
@@ -155,7 +240,9 @@ describe("adminListingEditPage form sections", () => {
 
   test("renders the separate income-correction form (decision 14)", () => {
     const listing = testListingWithCount();
-    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
     // Income correction is restored as a dedicated warned form that posts a
     // writeoff adjustment to the money ledger, kept apart from the counts override.
     expect(html).toContain("<h2>Adjust income</h2>");
@@ -166,7 +253,9 @@ describe("adminListingEditPage form sections", () => {
 
   test("links from the income form to the detail page's income & ledger breakdown", () => {
     const listing = testListingWithCount({ id: 4 });
-    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
     // A compact pointer beside the adjust-income form to the full reconciliation
     // section on the detail page, so the two figures are explained in one place.
     expect(html).toContain('href="/admin/listing/4#income-ledger"');
@@ -178,10 +267,17 @@ describe("adminListingEditPage form sections", () => {
       attendee_count: 7,
       tickets_count: 3,
     });
-    const html = adminListingEditPage(listing, [], TEST_SESSION, undefined, {
-      booked_quantity: { current: 7, recalculated: 4 },
-      tickets_count: { current: 3, recalculated: 3 },
-    });
+    const html = String(
+      ListingEditPanel({
+        aggregateRecalculation: {
+          booked_quantity: { current: 7, recalculated: 4 },
+          tickets_count: { current: 3, recalculated: 3 },
+        },
+        groups: [],
+        listing,
+        session: TEST_SESSION,
+      }),
+    );
     expect(html).toContain("Mismatch");
     expect(html).toContain("expected <strong>4</strong>, got");
     expect(html).toContain(`/admin/listings/recalculate/${listing.id}`);
@@ -218,7 +314,9 @@ describe("adminListingEditPage Advanced section auto-open", () => {
       thank_you_url: "",
       webhook_url: "",
     });
-    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
     expect(html).toContain('<details class="listing-advanced">');
     expect(html).not.toContain('<details class="listing-advanced" open>');
   });
@@ -228,7 +326,9 @@ describe("adminListingEditPage Advanced section auto-open", () => {
       thank_you_url: "https://example.com/thanks",
       webhook_url: "",
     });
-    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
     expect(html).toContain('<details class="listing-advanced" open>');
   });
 
@@ -237,7 +337,9 @@ describe("adminListingEditPage Advanced section auto-open", () => {
       thank_you_url: "",
       webhook_url: "https://hooks.example.com/notify",
     });
-    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
     expect(html).toContain('<details class="listing-advanced" open>');
   });
 
@@ -246,7 +348,14 @@ describe("adminListingEditPage Advanced section auto-open", () => {
       thank_you_url: "",
       webhook_url: "",
     });
-    const html = adminListingEditPage(listing, [], TEST_SESSION, "Bad input");
+    const html = String(
+      ListingEditPanel({
+        error: "Bad input",
+        groups: [],
+        listing,
+        session: TEST_SESSION,
+      }),
+    );
     expect(html).toContain('<details class="listing-advanced" open>');
   });
 });
@@ -259,21 +368,14 @@ describe("adminListingNewPage Advanced section", () => {
   });
 
   test("opens when re-rendered with an error", () => {
-    const html = adminListingNewPage([], TEST_SESSION, "Something went wrong");
+    const html = adminListingNewPage([], TEST_SESSION, {
+      error: "Something went wrong",
+    });
     expect(html).toContain('<details class="listing-advanced" open>');
   });
 });
 
 describe("adminListingEditPage Advanced section auto-open (builder fields)", () => {
-  const withBuilder = (fn: () => void): void => {
-    Deno.env.set("CAN_BUILD_SITES", "true");
-    try {
-      fn();
-    } finally {
-      Deno.env.delete("CAN_BUILD_SITES");
-    }
-  };
-
   test("opens when a renewal tier (months per unit) is set", () => {
     withBuilder(() => {
       const listing = testListingWithCount({
@@ -281,7 +383,9 @@ describe("adminListingEditPage Advanced section auto-open (builder fields)", () 
         thank_you_url: "",
         webhook_url: "",
       });
-      const html = adminListingEditPage(listing, [], TEST_SESSION);
+      const html = String(
+        ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+      );
       expect(html).toContain('<details class="listing-advanced" open>');
     });
   });
@@ -294,7 +398,9 @@ describe("adminListingEditPage Advanced section auto-open (builder fields)", () 
         thank_you_url: "",
         webhook_url: "",
       });
-      const html = adminListingEditPage(listing, [], TEST_SESSION);
+      const html = String(
+        ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+      );
       expect(html).toContain('<details class="listing-advanced" open>');
     });
   });
@@ -308,7 +414,9 @@ describe("adminListingEditPage Advanced section auto-open (builder fields)", () 
         thank_you_url: "",
         webhook_url: "",
       });
-      const html = adminListingEditPage(listing, [], TEST_SESSION);
+      const html = String(
+        ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+      );
       expect(html).toContain('<details class="listing-advanced" open>');
     });
   });
@@ -322,7 +430,9 @@ describe("adminListingEditPage Advanced section auto-open (builder fields)", () 
         thank_you_url: "",
         webhook_url: "",
       });
-      const html = adminListingEditPage(listing, [], TEST_SESSION);
+      const html = String(
+        ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+      );
       expect(html).toContain('<details class="listing-advanced">');
       expect(html).not.toContain('<details class="listing-advanced" open>');
     });
@@ -336,11 +446,10 @@ describe("adminListingPage duration display", () => {
       duration_days: 3,
       listing_type: "daily",
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Booking Duration");
     expect(html).toContain("3 day(s)");
@@ -352,11 +461,10 @@ describe("adminListingPage duration display", () => {
       duration_days: 1,
       listing_type: "standard",
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).not.toContain("Booking Duration");
   });
@@ -368,11 +476,10 @@ describe("adminListingPage duration display", () => {
       day_prices: { 1: 1000, 2: 1800 },
       duration_days: 2,
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Customisable Days");
     expect(html).toContain("1 day:");
@@ -387,11 +494,10 @@ describe("adminListingPage duration display", () => {
       duration_days: 2,
       listing_type: "daily",
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain('name="day_count"');
     expect(html).toContain("Number of days");
@@ -404,11 +510,10 @@ describe("adminListingPage duration display", () => {
       day_prices: {},
       duration_days: 3,
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("No day prices set");
   });
@@ -418,11 +523,10 @@ describe("adminListingPage duration display", () => {
       attendee_count: 0,
       customisable_days: false,
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).not.toContain("Customisable Days");
   });
@@ -432,22 +536,20 @@ describe("adminListingPage", () => {
   const listing = testListingWithCount({ attendee_count: 2 });
 
   test("renders listing name", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Test Listing");
   });
 
   test("shows the listing ticket price in the details table", () => {
     const paidListing = testListingWithCount({ unit_price: 1250 });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing: paidListing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Ticket Price");
     expect(html).toContain("£12.50");
@@ -459,11 +561,10 @@ describe("adminListingPage", () => {
       max_price: 2500,
       unit_price: 1000,
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing: payMoreListing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Ticket Price");
     expect(html).toContain("£10");
@@ -476,11 +577,10 @@ describe("adminListingPage", () => {
       max_price: 0,
       unit_price: 0,
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing: payMoreListing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Ticket Price");
     expect(html).toContain("Free");
@@ -489,22 +589,20 @@ describe("adminListingPage", () => {
 
   test("shows free when the listing has no ticket price", () => {
     const freeListing = testListingWithCount({ unit_price: 0 });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing: freeListing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Ticket Price");
     expect(html).toContain("Free");
   });
 
   test("shows attendees row with count and remaining", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Listing Attendees");
     expect(html).toContain("2 / 100");
@@ -512,7 +610,7 @@ describe("adminListingPage", () => {
   });
 
   test("shows a running-total mismatch in the details table", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       aggregateRecalculation: {
         booked_quantity: { current: 2, recalculated: 1 },
         tickets_count: { current: 0, recalculated: 0 },
@@ -520,7 +618,6 @@ describe("adminListingPage", () => {
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Running total check");
     expect(html).toContain("expected <strong>1</strong>, got");
@@ -529,11 +626,10 @@ describe("adminListingPage", () => {
   });
 
   test("renders no Group Attendees row when groupContext is omitted", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).not.toContain("Group Attendees");
   });
@@ -544,12 +640,11 @@ describe("adminListingPage", () => {
       max_attendees: 50,
       name: "Summer Festival",
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       groupContext: { attendeeCount: 30, group },
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Group Attendees");
     expect(html).toContain("30 / 50");
@@ -561,12 +656,11 @@ describe("adminListingPage", () => {
 
   test("Group Attendees row gets danger-text when at or near cap", () => {
     const group = testGroup({ id: 8, max_attendees: 10 });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       groupContext: { attendeeCount: 10, group },
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("danger-text");
     expect(html).toContain("10 / 10");
@@ -574,11 +668,10 @@ describe("adminListingPage", () => {
   });
 
   test("shows checked in row with 0 of 0 when no attendees", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Checked In");
     expect(html).toContain("0 / 0");
@@ -591,15 +684,27 @@ describe("adminListingPage", () => {
       testAttendee({ checked_in: false, id: 2 }),
       testAttendee({ checked_in: false, id: 3 }),
     ];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Checked In");
     expect(html).toContain("1 / 3");
     expect(html).toContain("2 remain");
+  });
+
+  test("roster keeps one row per booking line, with no Listings column", () => {
+    const attendees = [testAttendee({ id: 8, listing_id: listing.id })];
+    const html = renderListingDetail({
+      allowedDomain: "localhost",
+      attendees,
+      listing,
+    });
+    // The roster is scoped to one listing, so the Listings column stays off
+    // and each line keeps its own per-listing check-in action.
+    expect(html).not.toContain("<th>Listings</th>");
+    expect(html).toContain(`/admin/listing/${listing.id}/attendee/8/checkin`);
   });
 
   test("shows dual checked-in rows when attendees have multi-quantity", () => {
@@ -607,11 +712,10 @@ describe("adminListingPage", () => {
       testAttendee({ checked_in: true, id: 1, quantity: 2 }),
       testAttendee({ checked_in: false, id: 2, quantity: 3 }),
     ];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     // Tickets Checked In: 1 row / 2 rows, 1 remain
     expect(html).toContain("Tickets Checked In");
@@ -632,12 +736,11 @@ describe("adminListingPage", () => {
       testAttendee({ checked_in: true, id: 1, quantity: 2 }),
       testAttendee({ checked_in: false, id: 2, quantity: 3 }),
     ];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       dateFilter: "2026-03-15",
       listing: dailyListing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Attendees Checked In (Sunday 15 March 2026)");
     expect(html).toContain("Tickets Checked In (Sunday 15 March 2026)");
@@ -652,22 +755,20 @@ describe("adminListingPage", () => {
       testAttendee({ checked_in: true, id: 1, quantity: 2 }),
       testAttendee({ checked_in: false, id: 2, quantity: 3 }),
     ];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing: dailyListing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Attendees Checked In (total)");
     expect(html).toContain("Tickets Checked In (total)");
   });
 
   test("shows thank you URL in copyable input", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Thank You URL");
     expect(html).toContain('value="https://example.com/thanks"');
@@ -676,11 +777,10 @@ describe("adminListingPage", () => {
   });
 
   test("shows public URL with allowed domain", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "example.com",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Public URL");
     expect(html).toContain('href="https://example.com/ticket/ab12c"');
@@ -688,11 +788,10 @@ describe("adminListingPage", () => {
   });
 
   test("shows collapsed embed codes with allowed domain and iframe param", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "example.com",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain('for="embed-toggle-1"');
     expect(html).toContain('class="embed-toggle-badge"');
@@ -709,32 +808,29 @@ describe("adminListingPage", () => {
   });
 
   test("iframe embed is a plain iframe without resizer scripts", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "example.com",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).not.toContain("iframeResize");
   });
 
   test("renders empty attendees state", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("No attendees yet");
   });
 
   test("renders attendees table", () => {
     const attendees = [testAttendee()];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("John Doe");
     expect(html).toContain("john@example.com");
@@ -742,32 +838,29 @@ describe("adminListingPage", () => {
 
   test("escapes attendee data", () => {
     const attendees = [testAttendee({ name: "<script>evil()</script>" })];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("&lt;script&gt;");
   });
 
   test("includes back link", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("/admin/");
   });
 
   test("shows phone column when attendee has phone", () => {
     const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("<th>Phone</th>");
     expect(html).toContain("+1 555 123 4567");
@@ -775,22 +868,20 @@ describe("adminListingPage", () => {
 
   test("hides phone column when no attendees have phone", () => {
     const attendees = [testAttendee({ phone: "" })];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).not.toContain("<th>Phone</th>");
   });
 
   test("hides email column when no attendees have email", () => {
     const attendees = [testAttendee({ email: "" })];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("John Doe");
     expect(html).not.toContain("<th>Email</th>");
@@ -801,67 +892,52 @@ describe("adminListingPage", () => {
       attendee_count: 91,
       max_attendees: 100,
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing: nearFullListing,
-      session: TEST_SESSION,
     });
     expect(html).toContain('class="danger-text"');
     expect(html).toContain("9 remain");
   });
 
   test("does not show danger-text class when not near capacity", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).not.toContain('class="danger-text"');
   });
 
   test("shows deactivated alert for inactive listings", () => {
-    const inactive = testListingWithCount({ active: false, attendee_count: 0 });
-    const html = adminListingPage({
-      allowedDomain: "localhost",
-      attendees: [],
-      listing: inactive,
-      session: TEST_SESSION,
-    });
+    const html = String(ListingDeactivatedBanner({ active: false }));
     expect(html).toContain('class="error"');
     expect(html).toContain("This listing is deactivated and cannot be booked");
   });
 
   test("does not show deactivated alert for active listings", () => {
-    const html = adminListingPage({
-      allowedDomain: "localhost",
-      attendees: [],
-      listing,
-      session: TEST_SESSION,
-    });
+    const html = String(ListingDeactivatedBanner({ active: true }));
     expect(html).not.toContain(
       "This listing is deactivated and cannot be booked",
     );
   });
 
   test("shows ticket column header", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("<th>Ticket</th>");
   });
 
   test("shows ticket token as link to public ticket URL", () => {
     const attendees = [testAttendee({ ticket_token: "abc123" })];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "mysite.com",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain('href="https://mysite.com/t/abc123"');
     expect(html).toContain("abc123");
@@ -873,11 +949,10 @@ describe("adminListingPage", () => {
       listing_type: "daily",
     });
     const attendees = [testAttendee({ date: null })];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing: dailyListing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("<th>Date</th>");
   });
@@ -887,11 +962,10 @@ describe("adminListingPage", () => {
       listing_type: "daily",
       maximum_days_after: 0,
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing: dailyListing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("unlimited");
   });
@@ -901,11 +975,10 @@ describe("adminListingPage", () => {
       listing_type: "daily",
       maximum_days_after: 30,
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing: dailyListing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("to 30 days");
     expect(html).not.toContain("unlimited");
@@ -918,12 +991,11 @@ describe("adminListingPage", () => {
       max_attendees: 2,
     });
     const attendees = [testAttendee(), testAttendee({ id: 2, name: "Jane" })];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       dateFilter: "2026-03-15",
       listing: dailyListing,
-      session: TEST_SESSION,
     });
     expect(html).toContain('class="danger-text"');
     expect(html).toContain("0 remain");
@@ -947,41 +1019,125 @@ describe("adminListingNewPage", () => {
     expect(html).toContain("Listings");
   });
 
-  test("renders group select when groups exist", () => {
+  test("renders group checkboxes when groups exist", () => {
     const groups = [testGroup({ id: 2, name: "My Group" })];
     const html = adminListingNewPage(groups, TEST_SESSION);
-    expect(html).toContain('name="group_id"');
-    expect(hasSelectedOption(html, "0")).toBe(true);
+    expect(html).toContain('name="group_ids"');
     expect(html).toContain('value="2"');
     expect(html).toContain("My Group");
   });
 
   test("renders error when provided", () => {
-    const html = adminListingNewPage([], TEST_SESSION, "Something went wrong");
+    const html = adminListingNewPage([], TEST_SESSION, {
+      error: "Something went wrong",
+    });
     expect(html).toContain("Something went wrong");
+  });
+
+  test("applies listing-form--hide-type class for templates with a fixed listing_type", () => {
+    const html = adminListingNewPage([], TEST_SESSION, {
+      templateId: "weekly-event",
+    });
+    expect(html).toContain("listing-form--hide-type");
+  });
+
+  test("does not apply listing-form--hide-type for templates with no fixed listing_type", () => {
+    const html = adminListingNewPage([], TEST_SESSION, {
+      templateId: "hireable-item",
+    });
+    expect(html).not.toContain("listing-form--hide-type");
+    expect(html).toContain("listing-form--templated");
+  });
+
+  test("seeds the hireable-item contact fields with phone for delivery contact", () => {
+    const html = adminListingNewPage([], TEST_SESSION, {
+      templateId: "hireable-item",
+    });
+    expect(html).toContain('name="fields" value="email" checked');
+    expect(html).toContain('name="fields" value="phone" checked');
+    expect(html).toContain('name="fields" value="address" checked');
+  });
+
+  test("seeds every weekday into the hireable-item bookable_days", () => {
+    const html = adminListingNewPage([], TEST_SESSION, {
+      templateId: "hireable-item",
+    });
+    for (const day of [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ]) {
+      expect(html).toContain(`name="bookable_days" value="${day}" checked`);
+    }
+  });
+
+  test("applies listing-form--no-daily class for non-daily templates", () => {
+    const html = adminListingNewPage([], TEST_SESSION, {
+      templateId: "one-off-event",
+    });
+    expect(html).toContain("listing-form--no-daily");
+  });
+
+  test("does not apply listing-form--no-daily for templates without a fixed non-daily type", () => {
+    const html = adminListingNewPage([], TEST_SESSION, {
+      templateId: "hireable-item",
+    });
+    expect(html).not.toContain("listing-form--no-daily");
+  });
+
+  test("preserves selected groups on error re-render", () => {
+    const groups = [testGroup({ id: 3, name: "Group Three" })];
+    const html = adminListingNewPage(groups, TEST_SESSION, {
+      selectedGroupIds: [3],
+    });
+    expect(html).toContain('value="3"');
+    expect(html).toContain("checked");
+  });
+
+  test("carries custom sentinel through as template_id hidden input", () => {
+    const html = adminListingNewPage([], TEST_SESSION, {
+      templateId: "custom",
+    });
+    expect(html).toContain('name="template_id"');
+    expect(html).toContain('value="custom"');
+  });
+
+  test("carries duplicated_from hidden input when present in submitted values", () => {
+    const html = adminListingNewPage([], TEST_SESSION, {
+      values: { duplicated_from: "42" },
+    });
+    expect(html).toContain('name="duplicated_from"');
+    expect(html).toContain('value="42"');
+  });
+
+  test("does not render duplicated_from input when not in submitted values", () => {
+    const html = adminListingNewPage([], TEST_SESSION, { values: {} });
+    expect(html).not.toContain('name="duplicated_from"');
   });
 });
 
 describe("adminListingPage export button", () => {
   test("renders export CSV button", () => {
     const listing = testListingWithCount({ attendee_count: 2 });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("/admin/listing/1/export");
     expect(html).toContain("Export CSV");
   });
 
   test("the export link carries the active check-in filter", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       activeFilter: "in",
       allowedDomain: "localhost",
       attendees: [testAttendee({ checked_in: true })],
       listing: testListingWithCount({ attendee_count: 1 }),
-      session: TEST_SESSION,
     });
     expect(html).toContain("/admin/listing/1/export?checkin=in");
   });
@@ -991,11 +1147,10 @@ describe("adminListingPage filter links", () => {
   test("renders All / Checked In / Checked Out links", () => {
     const listing = testListingWithCount({ attendee_count: 1 });
     const attendees = [testAttendee()];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("All");
     expect(html).toContain("Checked In");
@@ -1005,40 +1160,41 @@ describe("adminListingPage filter links", () => {
   test("bolds All when no filter is active", () => {
     const listing = testListingWithCount({ attendee_count: 1 });
     const attendees = [testAttendee()];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("<strong>All</strong>");
-    expect(html).toContain(`href="/admin/listing/${listing.id}/in#attendees"`);
-    expect(html).toContain(`href="/admin/listing/${listing.id}/out#attendees"`);
+    expect(html).toContain(
+      `href="/admin/listing/${listing.id}/attendees?filter=in"`,
+    );
+    expect(html).toContain(
+      `href="/admin/listing/${listing.id}/attendees?filter=out"`,
+    );
   });
 
   test("bolds Checked In when filter is in", () => {
     const listing = testListingWithCount({ attendee_count: 1 });
     const attendees = [testAttendee()];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       activeFilter: "in",
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("<strong>Checked In</strong>");
-    expect(html).toContain(`href="/admin/listing/${listing.id}#attendees"`);
+    expect(html).toContain(`href="/admin/listing/${listing.id}/attendees"`);
   });
 
   test("bolds Checked Out when filter is out", () => {
     const listing = testListingWithCount({ attendee_count: 1 });
     const attendees = [testAttendee()];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       activeFilter: "out",
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("<strong>Checked Out</strong>");
   });
@@ -1049,12 +1205,11 @@ describe("adminListingPage filter links", () => {
       testAttendee({ checked_in: true, id: 1, name: "Checked In User" }),
       testAttendee({ checked_in: false, id: 2, name: "Not Checked In User" }),
     ];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       activeFilter: "in",
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Checked In User");
     expect(html).not.toContain("Not Checked In User");
@@ -1066,12 +1221,11 @@ describe("adminListingPage filter links", () => {
       testAttendee({ checked_in: true, id: 1, name: "Alice InPerson" }),
       testAttendee({ checked_in: false, id: 2, name: "Bob Remote" }),
     ];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       activeFilter: "out",
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).not.toContain("Alice InPerson");
     expect(html).toContain("Bob Remote");
@@ -1083,12 +1237,11 @@ describe("adminListingPage filter links", () => {
       testAttendee({ checked_in: true, id: 1, name: "Checked In User" }),
       testAttendee({ checked_in: false, id: 2, name: "Not Checked In User" }),
     ];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       activeFilter: "all",
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Checked In User");
     expect(html).toContain("Not Checked In User");
@@ -1097,12 +1250,11 @@ describe("adminListingPage filter links", () => {
   test("includes return_filter hidden field in checkin form", () => {
     const listing = testListingWithCount({ attendee_count: 1 });
     const attendees = [testAttendee({ checked_in: true })];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       activeFilter: "in",
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain('name="return_filter"');
     expect(html).toContain('value="in"');
@@ -1119,11 +1271,10 @@ describe("adminListingPage total revenue", () => {
       testAttendee({ payment_id: "pi_test_1", price_paid: "1000" }),
       testAttendee({ id: 2, payment_id: "pi_test_2", price_paid: "2000" }),
     ];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Total Revenue");
     expect(html).toContain("£30");
@@ -1132,11 +1283,10 @@ describe("adminListingPage total revenue", () => {
   test("does not show total revenue for free listings", () => {
     const listing = testListingWithCount({ attendee_count: 1, unit_price: 0 });
     const attendees = [testAttendee()];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).not.toContain("Total Revenue");
   });
@@ -1146,11 +1296,10 @@ describe("adminListingPage total revenue", () => {
       attendee_count: 0,
       unit_price: 1000,
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Total Revenue");
     expect(html).toContain("£0");
@@ -1161,28 +1310,28 @@ describe("adminListingPage income & ledger breakdown", () => {
   const listing = testListingWithCount({ id: 7 });
 
   test("omits the section entirely when no breakdown is supplied", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).not.toContain("Income &amp; ledger");
   });
 
   test("renders the five figures, the explanatory line and the ledger link", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
       revenueBreakdown: {
+        externalCosts: 0,
+        externalIncome: 0,
         grossSales: 10000,
         manualAdjustments: -1000,
         netBalance: 7000,
         recognisedIncome: 9000,
         refunds: 2000,
       },
-      session: TEST_SESSION,
     });
     expect(html).toContain("Income &amp; ledger");
     // Gross sales credited (+), manual write-down (−), then the two subtotals.
@@ -1207,18 +1356,19 @@ describe("adminListingPage income & ledger breakdown", () => {
   test("makes a refund-driven divergence between income and net balance visible", () => {
     // Recognised income (£90) and the net ledger balance (£70) legitimately
     // differ after a refund; both must render so the reconciliation is shown.
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
       revenueBreakdown: {
+        externalCosts: 0,
+        externalIncome: 0,
         grossSales: 9000,
         manualAdjustments: 0,
         netBalance: 7000,
         recognisedIncome: 9000,
         refunds: 2000,
       },
-      session: TEST_SESSION,
     });
     const recognisedIdx = html.indexOf("Recognised income");
     const netIdx = html.indexOf("Net balance in ledger");
@@ -1231,18 +1381,19 @@ describe("adminListingPage income & ledger breakdown", () => {
   });
 
   test("omits the manual-adjustments row when there are none", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
       revenueBreakdown: {
+        externalCosts: 0,
+        externalIncome: 0,
         grossSales: 5000,
         manualAdjustments: 0,
         netBalance: 5000,
         recognisedIncome: 5000,
         refunds: 0,
       },
-      session: TEST_SESSION,
     });
     expect(html).toContain("Income &amp; ledger");
     expect(html).not.toContain("Manual adjustments");
@@ -1253,47 +1404,77 @@ describe("adminListingPage income & ledger breakdown", () => {
   });
 
   test("shows a signed positive manual write-up", () => {
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
       revenueBreakdown: {
+        externalCosts: 0,
+        externalIncome: 0,
         grossSales: 4000,
         manualAdjustments: 1500,
         netBalance: 5500,
         recognisedIncome: 5500,
         refunds: 0,
       },
-      session: TEST_SESSION,
     });
     expect(html).toContain("Manual adjustments");
     expect(html).toContain("+£15");
   });
-});
 
-describe("adminListingPage optional fields", () => {
-  test("shows reactivate link for inactive listings", () => {
-    const listing = testListingWithCount({ active: false, attendee_count: 0 });
-    const html = adminListingPage({
+  test("shows outside income and listing-specific costs when present", () => {
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
+      revenueBreakdown: {
+        externalCosts: 300,
+        externalIncome: 1200,
+        grossSales: 4000,
+        manualAdjustments: 0,
+        netBalance: 4900,
+        recognisedIncome: 5200,
+        refunds: 0,
+      },
     });
-    expect(html).toContain("/reactivate");
-    expect(html).toContain("Reactivate");
+    expect(html).toContain("Income received outside checkout");
+    expect(html).toContain("+£12");
+    expect(html).toContain("Costs paid outside checkout");
+    expect(html).toContain("−£3");
   });
 
+  test("shows a listing ledger add-entry action when the account exists", () => {
+    const html = renderListingDetail({
+      allowedDomain: "localhost",
+      attendees: [],
+      ledger: {
+        account: account("revenue", 7),
+        lines: [],
+        names: {
+          ...emptyLedgerNames(),
+          listings: new Map([[7, listing.name]]),
+        },
+      },
+      listing,
+    });
+    expect(html).toContain('<section id="ledger">');
+    expect(html).toContain("Add entry");
+    expect(html).toContain(
+      'href="/admin/ledger/revenue/7/add?return_url=%2Fadmin%2Flisting%2F7"',
+    );
+  });
+});
+
+describe("adminListingPage optional fields", () => {
   test("hides thank you URL row when no thank_you_url", () => {
     const listing = testListingWithCount({
       attendee_count: 0,
       thank_you_url: "",
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).not.toContain("Thank You URL");
   });
@@ -1303,11 +1484,10 @@ describe("adminListingPage optional fields", () => {
       attendee_count: 0,
       webhook_url: "https://hooks.example.com/notify",
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Webhook URL");
     expect(html).toContain('value="https://hooks.example.com/notify"');
@@ -1346,6 +1526,39 @@ describe("nearCapacity", () => {
       max_attendees: 100,
     });
     expect(nearCapacity(listing)).toBe(true);
+  });
+});
+
+describe("overviewStatsFromDbStats", () => {
+  const dbStats = {
+    completeQuantitySum: 5,
+    incompleteQuantity: 2,
+    incompleteSales: 300,
+    rowsCheckedIn: 1,
+    rowsTotal: 3,
+    ticketsCheckedIn: 2,
+    ticketsTotal: 4,
+  };
+
+  test("subtracts incomplete count and unpaid sales for a paid listing", () => {
+    const view = overviewStatsFromDbStats(dbStats, 7, 2100, true);
+    expect(view.adjustedCount).toBe(5); // 7 booked − 2 incomplete
+    expect(view.completeQuantitySum).toBe(5);
+    expect(view.completeRevenue).toBe(1800); // 2100 gross − 300 unpaid
+    expect(view.checkedInStats).toEqual({
+      hasMultiQuantity: true, // ticketsTotal 4 ≠ rowsTotal 3
+      rowsCheckedIn: 1,
+      rowsTotal: 3,
+      ticketsCheckedIn: 2,
+      ticketsTotal: 4,
+    });
+  });
+
+  test("reports zero revenue for a free listing and flat multi-quantity", () => {
+    const flat = { ...dbStats, rowsTotal: 4, ticketsTotal: 4 };
+    const view = overviewStatsFromDbStats(flat, 6, 999, false);
+    expect(view.completeRevenue).toBe(0);
+    expect(view.checkedInStats.hasMultiQuantity).toBe(false);
   });
 });
 
@@ -1404,11 +1617,10 @@ describe("adminListingPage failed payments", () => {
       testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
       testAttendee({ id: 2, payment_id: "", price_paid: "1000" }),
     ];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Failed Payments");
     expect(html).toContain("1 attendee(s) with unresolved payments");
@@ -1423,11 +1635,10 @@ describe("adminListingPage failed payments", () => {
     const attendees = [
       testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
     ];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).not.toContain("Failed Payments");
   });
@@ -1435,11 +1646,10 @@ describe("adminListingPage failed payments", () => {
   test("hides Failed Payments section for free listings", () => {
     const listing = testListingWithCount({ attendee_count: 1, unit_price: 0 });
     const attendees = [testAttendee({ id: 1, price_paid: "0" })];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).not.toContain("Failed Payments");
   });
@@ -1454,11 +1664,10 @@ describe("adminListingPage failed payments", () => {
       testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
       testAttendee({ id: 2, payment_id: "", price_paid: "1000" }),
     ];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     // adjusted count: 3 - 1 (incomplete qty) = 2
     expect(html).toContain("2 / 100");
@@ -1483,11 +1692,10 @@ describe("adminListingPage failed payments", () => {
         price_paid: "1000",
       }),
     ];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     // Only complete attendees count: 1 checked in / 1 total
     expect(html).toContain("1 / 1");
@@ -1502,11 +1710,10 @@ describe("adminListingPage failed payments", () => {
       testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
       testAttendee({ id: 2, payment_id: "", price_paid: "2000" }),
     ];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("£10");
     expect(html).not.toContain("£30");
@@ -1525,11 +1732,10 @@ describe("adminListingPage failed payments", () => {
         price_paid: "1000",
       }),
     ];
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees,
       listing,
-      session: TEST_SESSION,
     });
     const failedSection =
       html.split("Failed Payments")[1]?.split("Add Attendee")[0] ?? "";
@@ -1549,11 +1755,10 @@ describe("adminListingPage listing date and location", () => {
       attendee_count: 0,
       date: "2026-06-15T14:00:00.000Z",
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Listing Date");
     expect(html).toContain("Monday 15 June 2026 at 15:00 GMT+1");
@@ -1561,11 +1766,10 @@ describe("adminListingPage listing date and location", () => {
 
   test("does not show Listing Date row when date is empty", () => {
     const listing = testListingWithCount({ attendee_count: 0, date: "" });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).not.toContain("Listing Date");
   });
@@ -1575,11 +1779,10 @@ describe("adminListingPage listing date and location", () => {
       attendee_count: 0,
       location: "Village Hall",
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("<th>Location</th>");
     expect(html).toContain("Village Hall");
@@ -1587,11 +1790,10 @@ describe("adminListingPage listing date and location", () => {
 
   test("does not show Location row when location is empty", () => {
     const listing = testListingWithCount({ attendee_count: 0, location: "" });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).not.toContain("<th>Location</th>");
   });
@@ -1602,11 +1804,10 @@ describe("adminListingPage listing date and location", () => {
       date: "2026-06-15T14:00:00.000Z",
       location: "Town Centre",
     });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Listing Date");
     expect(html).toContain("Town Centre");
@@ -1616,7 +1817,9 @@ describe("adminListingPage listing date and location", () => {
 describe("adminListingPage edit form pre-fills date and location", () => {
   test("empty date shows no pre-filled value in edit form", () => {
     const listing = testListingWithCount({ attendee_count: 0, date: "" });
-    const html = adminListingEditPage(listing, [], TEST_SESSION, undefined);
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
     // The date field should render split date and time inputs
     expect(html).toContain('name="date_date"');
     expect(html).toContain('name="date_time"');
@@ -1627,7 +1830,9 @@ describe("adminListingPage edit form pre-fills date and location", () => {
       attendee_count: 0,
       date: "2026-06-15T14:00:00.000Z",
     });
-    const html = adminListingEditPage(listing, [], TEST_SESSION, undefined);
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
     // Should contain split date and time values converted to Europe/London (BST = UTC+1)
     expect(html).toContain('value="2026-06-15"');
     expect(html).toContain('value="15:00"');
@@ -1638,7 +1843,9 @@ describe("adminListingPage edit form pre-fills date and location", () => {
       attendee_count: 0,
       location: "Village Hall",
     });
-    const html = adminListingEditPage(listing, [], TEST_SESSION, undefined);
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
     expect(html).toContain('value="Village Hall"');
   });
 });
@@ -1650,7 +1857,9 @@ describe("adminListingEditPage max_price field", () => {
       can_pay_more: true,
       max_price: 50000,
     });
-    const html = adminListingEditPage(listing, [], TEST_SESSION, undefined);
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
     expect(html).toContain('name="max_price"');
     expect(html).toContain('value="500.00"');
   });
@@ -1661,7 +1870,9 @@ describe("adminListingEditPage max_price field", () => {
       can_pay_more: true,
       max_price: 0,
     });
-    const html = adminListingEditPage(listing, [], TEST_SESSION, undefined);
+    const html = String(
+      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    );
     expect(html).toContain('name="max_price"');
     expect(html).toContain('value="0.00"');
   });
@@ -1688,200 +1899,147 @@ describeWithEnv(
     describe("adminListingPage image section", () => {
       test("does not show image upload on detail page", () => {
         const listing = testListingWithCount({ image_url: "" });
-        const html = adminListingPage({
+        const html = renderListingDetail({
           allowedDomain: "localhost",
           attendees: [],
           listing,
-          session: TEST_SESSION,
         });
         expect(html).not.toContain('type="file"');
         expect(html).not.toContain('name="image"');
       });
     });
 
-    describe("adminListingEditPage image section", () => {
-      test("shows image upload field when storage enabled", () => {
-        const listing = testListingWithCount({ image_url: "" });
-        const html = adminListingEditPage(listing, [], TEST_SESSION);
-        expect(html).toContain('type="file"');
-        expect(html).toContain('name="image"');
-        expect(html).toContain("multipart/form-data");
-      });
-
-      test("shows current image and remove button when image is set", () => {
-        runWithStorageConfig(
-          { zoneKey: "testkey", zoneName: "testzone" },
-          () => {
-            const listing = testListingWithCount({ image_url: "current.jpg" });
-            const html = adminListingEditPage(listing, [], TEST_SESSION);
-            expect(html).toContain("/image/current.jpg");
-            expect(html).toContain("Remove Image");
-            expect(html).toContain("/image/delete");
-          },
-        );
-      });
-
-      test("does not show image field when storage is not enabled", () => {
-        withStorageDisabled(() => {
-          const listing = testListingWithCount({ image_url: "" });
-          const html = adminListingEditPage(listing, [], TEST_SESSION);
-          expect(html).not.toContain('type="file"');
+    describe("listing form image ownership", () => {
+      test("does not show image controls on the edit form", () => {
+        runWithStorageConfig(TEST_STORAGE_ZONE, () => {
+          const listing = testListingWithCount({ image_url: "current.jpg" });
+          const html = String(
+            ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+          );
           expect(html).not.toContain('name="image"');
+          expect(html).not.toContain("Remove Image");
+          expect(html).not.toContain("/image/delete");
+          expect(html).not.toContain("listing-image-full");
         });
       });
 
-      test("shows full-width image preview when listing has image", () => {
-        runWithStorageConfig(
-          { zoneKey: "testkey", zoneName: "testzone" },
-          () => {
-            const listing = testListingWithCount({ image_url: "preview.jpg" });
-            const html = adminListingEditPage(listing, [], TEST_SESSION);
-            expect(html).toContain("listing-image-full");
-            expect(html).toContain("/image/preview.jpg");
-          },
-        );
-      });
-    });
-
-    describe("adminDuplicateListingPage image section", () => {
-      test("shows image upload field when storage enabled", () => {
-        runWithStorageConfig(
-          { zoneKey: "testkey", zoneName: "testzone" },
-          () => {
-            const listing = testListingWithCount({ image_url: "" });
-            const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
-            expect(html).toContain('type="file"');
-            expect(html).toContain('name="image"');
-            expect(html).toContain("multipart/form-data");
-          },
-        );
-      });
-
-      test("does not show image field when storage is not enabled", () => {
-        withStorageDisabled(() => {
-          const listing = testListingWithCount({ image_url: "" });
-          const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
-          expect(html).not.toContain('type="file"');
-          expect(html).not.toContain('name="image"');
+      test("does not show image controls on duplicate or create forms", () => {
+        runWithStorageConfig(TEST_STORAGE_ZONE, () => {
+          const listing = testListingWithCount({ image_url: "current.jpg" });
+          expect(
+            adminDuplicateListingPage(listing, [], TEST_SESSION),
+          ).not.toContain('name="image"');
+          expect(adminListingNewPage([], TEST_SESSION)).not.toContain(
+            'name="image"',
+          );
         });
       });
-    });
 
-    describe("adminListingNewPage image section", () => {
-      test("shows image upload field on create form when storage enabled", () => {
-        runWithStorageConfig(
-          { zoneKey: "testkey", zoneName: "testzone" },
-          () => {
-            const html = adminListingNewPage([], TEST_SESSION);
-            expect(html).toContain('type="file"');
-            expect(html).toContain('name="image"');
-            expect(html).toContain("multipart/form-data");
-          },
-        );
-      });
-
-      test("does not show image field on create form when storage is not enabled", () => {
+      test("keeps image controls absent when storage is disabled", () => {
         withStorageDisabled(() => {
-          const html = adminListingNewPage([], TEST_SESSION);
-          expect(html).not.toContain('type="file"');
+          const listing = testListingWithCount({ image_url: "current.jpg" });
+          expect(
+            String(
+              ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+            ),
+          ).not.toContain('name="image"');
+          expect(
+            adminDuplicateListingPage(listing, [], TEST_SESSION),
+          ).not.toContain('name="image"');
+          expect(adminListingNewPage([], TEST_SESSION)).not.toContain(
+            'name="image"',
+          );
         });
       });
     });
 
     describe("assign_built_site field", () => {
       test("shows assign built site field when CAN_BUILD_SITES is true", () => {
-        Deno.env.set("CAN_BUILD_SITES", "true");
-        try {
+        withBuilder(() => {
           const html = adminListingNewPage([], TEST_SESSION);
           expect(html).toContain("assign_built_site");
           expect(html).toContain("Assign a site on booking");
-        } finally {
-          Deno.env.delete("CAN_BUILD_SITES");
-        }
+        });
       });
 
       test("hides assign built site field when CAN_BUILD_SITES is not set", () => {
-        Deno.env.delete("CAN_BUILD_SITES");
-        const html = adminListingNewPage([], TEST_SESSION);
-        expect(html).not.toContain("assign_built_site");
+        withoutBuilder(() => {
+          const html = adminListingNewPage([], TEST_SESSION);
+          expect(html).not.toContain("assign_built_site");
+        });
       });
 
       test("shows on edit page when CAN_BUILD_SITES is true", () => {
-        Deno.env.set("CAN_BUILD_SITES", "true");
-        try {
+        withBuilder(() => {
           const listing = testListingWithCount({ assign_built_site: true });
-          const html = adminListingEditPage(listing, [], TEST_SESSION);
+          const html = String(
+            ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+          );
           expect(html).toContain("assign_built_site");
           expect(html).toContain("checked");
-        } finally {
-          Deno.env.delete("CAN_BUILD_SITES");
-        }
+        });
       });
 
       test("shows on duplicate page when CAN_BUILD_SITES is true", () => {
-        Deno.env.set("CAN_BUILD_SITES", "true");
-        try {
+        withBuilder(() => {
           const listing = testListingWithCount({ assign_built_site: true });
           const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
           expect(html).toContain("assign_built_site");
-        } finally {
-          Deno.env.delete("CAN_BUILD_SITES");
-        }
+        });
       });
     });
 
     describe("months_per_unit and initial_site_months fields", () => {
       test("shows months_per_unit and initial_site_months when CAN_BUILD_SITES is true", () => {
-        Deno.env.set("CAN_BUILD_SITES", "true");
-        try {
+        withBuilder(() => {
           const html = adminListingNewPage([], TEST_SESSION);
           expect(html).toContain("months_per_unit");
           expect(html).toContain("Months Per Unit");
           expect(html).toContain("initial_site_months");
           expect(html).toContain("Initial Site Months");
-        } finally {
-          Deno.env.delete("CAN_BUILD_SITES");
-        }
+        });
       });
 
       test("hides months_per_unit and initial_site_months when CAN_BUILD_SITES is not set", () => {
-        Deno.env.delete("CAN_BUILD_SITES");
-        const html = adminListingNewPage([], TEST_SESSION);
-        expect(html).not.toContain("months_per_unit");
-        expect(html).not.toContain("Months Per Unit");
-        expect(html).not.toContain("initial_site_months");
-        expect(html).not.toContain("Initial Site Months");
+        withoutBuilder(() => {
+          const html = adminListingNewPage([], TEST_SESSION);
+          expect(html).not.toContain("months_per_unit");
+          expect(html).not.toContain("Months Per Unit");
+          expect(html).not.toContain("initial_site_months");
+          expect(html).not.toContain("Initial Site Months");
+        });
       });
 
       test("shows on edit page when CAN_BUILD_SITES is true", () => {
-        Deno.env.set("CAN_BUILD_SITES", "true");
-        try {
+        withBuilder(() => {
           const listing = testListingWithCount({
             initial_site_months: 6,
             months_per_unit: 3,
           });
-          const html = adminListingEditPage(listing, [], TEST_SESSION);
+          const html = String(
+            ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+          );
           expect(html).toContain("months_per_unit");
           expect(html).toContain("initial_site_months");
-        } finally {
-          Deno.env.delete("CAN_BUILD_SITES");
-        }
+        });
       });
 
       test("hides on edit page when CAN_BUILD_SITES is not set", () => {
-        Deno.env.delete("CAN_BUILD_SITES");
-        const listing = testListingWithCount({
-          initial_site_months: 6,
-          months_per_unit: 3,
+        withoutBuilder(() => {
+          const listing = testListingWithCount({
+            initial_site_months: 6,
+            months_per_unit: 3,
+          });
+          const html = String(
+            ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+          );
+          expect(html).not.toContain("months_per_unit");
+          expect(html).not.toContain("initial_site_months");
         });
-        const html = adminListingEditPage(listing, [], TEST_SESSION);
-        expect(html).not.toContain("months_per_unit");
-        expect(html).not.toContain("initial_site_months");
       });
 
       test("shows on duplicate page when CAN_BUILD_SITES is true", () => {
-        Deno.env.set("CAN_BUILD_SITES", "true");
-        try {
+        withBuilder(() => {
           const listing = testListingWithCount({
             initial_site_months: 6,
             months_per_unit: 3,
@@ -1889,20 +2047,19 @@ describeWithEnv(
           const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
           expect(html).toContain("months_per_unit");
           expect(html).toContain("initial_site_months");
-        } finally {
-          Deno.env.delete("CAN_BUILD_SITES");
-        }
+        });
       });
 
       test("hides on duplicate page when CAN_BUILD_SITES is not set", () => {
-        Deno.env.delete("CAN_BUILD_SITES");
-        const listing = testListingWithCount({
-          initial_site_months: 6,
-          months_per_unit: 3,
+        withoutBuilder(() => {
+          const listing = testListingWithCount({
+            initial_site_months: 6,
+            months_per_unit: 3,
+          });
+          const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
+          expect(html).not.toContain("months_per_unit");
+          expect(html).not.toContain("initial_site_months");
         });
-        const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
-        expect(html).not.toContain("months_per_unit");
-        expect(html).not.toContain("initial_site_months");
       });
     });
   },
@@ -1911,22 +2068,20 @@ describeWithEnv(
 describe("adminListingPage Renewal tag", () => {
   test("renders Renewal tag for tier listings with months_per_unit > 0", () => {
     const listing = testListingWithCount({ months_per_unit: 3 });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).toContain("Renewal");
   });
 
   test("does not render Renewal tag for listings with months_per_unit = 0", () => {
     const listing = testListingWithCount({ months_per_unit: 0 });
-    const html = adminListingPage({
+    const html = renderListingDetail({
       allowedDomain: "",
       attendees: [],
       listing,
-      session: TEST_SESSION,
     });
     expect(html).not.toContain("Renewal");
   });

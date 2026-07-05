@@ -12,6 +12,7 @@ import {
   columnNames,
   downgradeListingDomainToLegacyNames,
   markMigrationsForRerun,
+  rerunMigrationsAndExpectListingDomainRestored,
   schemaHashMarker,
   seedListingDomainRows,
   tableExists,
@@ -88,27 +89,7 @@ describeWithEnv(
         expect(await tableRowCount("event_attendees")).toBe(1);
         expect(await tableRowCount("event_questions")).toBe(1);
 
-        await markMigrationsForRerun();
-        await initDb();
-
-        expect(await tableExists("events")).toBe(false);
-        expect(await tableExists("event_attendees")).toBe(false);
-        expect(await tableExists("event_questions")).toBe(false);
-        expect(await tableExists("listings")).toBe(true);
-        expect(await tableExists("listing_attendees")).toBe(true);
-        expect(await tableExists("listing_questions")).toBe(true);
-        expect(await tableRowCount("listings")).toBe(1);
-        expect(await tableRowCount("listing_attendees")).toBe(1);
-        expect(await tableRowCount("listing_questions")).toBe(1);
-
-        const activity = await getDb().execute(
-          "SELECT listing_id FROM activity_log WHERE message = 'legacy listing activity'",
-        );
-        expect(activity.rows[0]?.listing_id).toBe(listingId);
-        const builtSite = await getDb().execute(
-          "SELECT assigned_listing_id FROM built_sites WHERE site_data = '{}'",
-        );
-        expect(builtSite.rows[0]?.assigned_listing_id).toBe(listingId);
+        await rerunMigrationsAndExpectListingDomainRestored(listingId);
 
         expect(await schemaHashMarker()).toBe(SCHEMA_HASH);
         await initDb();
@@ -137,25 +118,9 @@ describeWithEnv(
         expect(await tableRowCount("listing_attendees")).toBe(0);
         expect(await tableRowCount("listing_questions")).toBe(0);
 
-        await markMigrationsForRerun();
-        await initDb();
+        await rerunMigrationsAndExpectListingDomainRestored(listingId);
 
-        expect(await tableExists("events")).toBe(false);
-        expect(await tableExists("event_attendees")).toBe(false);
-        expect(await tableExists("event_questions")).toBe(false);
-        expect(await tableRowCount("listings")).toBe(1);
-        expect(await tableRowCount("listing_attendees")).toBe(1);
-        expect(await tableRowCount("listing_questions")).toBe(1);
-
-        const activity = await getDb().execute(
-          "SELECT listing_id FROM activity_log WHERE message = 'legacy listing activity'",
-        );
-        expect(activity.rows[0]?.listing_id).toBe(listingId);
         expect(await columnNames("activity_log")).not.toContain("event_id");
-        const builtSite = await getDb().execute(
-          "SELECT assigned_listing_id FROM built_sites WHERE site_data = '{}'",
-        );
-        expect(builtSite.rows[0]?.assigned_listing_id).toBe(listingId);
         expect(await columnNames("built_sites")).not.toContain(
           "assigned_event_id",
         );

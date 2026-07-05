@@ -81,6 +81,19 @@ describe("defineForm", () => {
     if (result.valid) expect(result.values.qty).toBe(5);
   });
 
+  test("optional number field preserves a zero value (not coerced to null)", () => {
+    const form = defineForm({
+      fields: [{ label: "Qty", name: "qty", type: "number" }] as const,
+      id: "test",
+    });
+
+    const result = form.validate(new FormParams({ qty: "0" }));
+    expect(result.valid).toBe(true);
+    // 0 is a real value: it must survive the `?? null` normalisation rather
+    // than being treated as "missing" (which `|| null` would do).
+    if (result.valid) expect(result.values.qty).toBe(0);
+  });
+
   test("runs custom validate when provided", () => {
     const form = defineForm({
       fields: [

@@ -9,6 +9,7 @@
 import {
   processSecretField,
   type SecretFieldResult,
+  saveSecret,
   settingsHandler,
 } from "#routes/admin/settings-helpers.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -21,15 +22,6 @@ type SmsGatewayFormData = {
   password: SecretFieldResult;
   passphrase: SecretFieldResult;
   webhookSecret: SecretFieldResult;
-};
-
-/** Apply a masked-secret field: provided → set, cleared → empty, unchanged → skip. */
-const saveSecret = async (
-  field: SecretFieldResult,
-  update: (value: string) => Promise<void>,
-): Promise<void> => {
-  if (field.action === "provided") return update(field.value);
-  if (field.action === "cleared") return update("");
 };
 
 export const handleSmsGatewayPost = settingsHandler<SmsGatewayFormData>({
@@ -46,9 +38,18 @@ export const handleSmsGatewayPost = settingsHandler<SmsGatewayFormData>({
   save: async ({ username, baseUrl, password, passphrase, webhookSecret }) => {
     await settings.update.smsGatewayUsername(username);
     await settings.update.smsGatewayBaseUrl(baseUrl);
-    await saveSecret(password, settings.update.smsGatewayPassword);
-    await saveSecret(passphrase, settings.update.smsGatewayPassphrase);
-    await saveSecret(webhookSecret, settings.update.smsGatewayWebhookSecret);
+    const clearable = { clearable: true };
+    await saveSecret(password, settings.update.smsGatewayPassword, clearable);
+    await saveSecret(
+      passphrase,
+      settings.update.smsGatewayPassphrase,
+      clearable,
+    );
+    await saveSecret(
+      webhookSecret,
+      settings.update.smsGatewayWebhookSecret,
+      clearable,
+    );
   },
   validate: ({ baseUrl, passphrase }) => {
     const baseUrlError = validateSafeServerFetchUrl(

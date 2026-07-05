@@ -9,6 +9,7 @@ import { createSession } from "#shared/db/sessions.ts";
 import { getUserByUsername, invalidateUsersCache } from "#shared/db/users.ts";
 import {
   adminFormPost,
+  adminGet,
   assertAdminHtmlWithCookie,
   awaitTestRequest,
   createTestManagerSession,
@@ -19,7 +20,6 @@ import {
   mockRequest,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
-  testCookie,
 } from "#test-utils";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
@@ -64,23 +64,17 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("owner user can access settings page", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       expect(response.status).toBe(200);
     });
 
     test("owner user can access sessions page", async () => {
-      const response = await awaitTestRequest("/admin/sessions", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/sessions");
       expect(response.status).toBe(200);
     });
 
     test("owner user can access users page", async () => {
-      const response = await awaitTestRequest("/admin/users", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/users");
       await expectHtmlResponse(response, 200, "Users", TEST_ADMIN_USERNAME);
     });
 

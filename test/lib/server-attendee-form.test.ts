@@ -24,6 +24,7 @@ import {
 } from "#shared/db/questions.ts";
 import {
   adminFormPost,
+  adminGet,
   awaitTestRequest,
   bookAttendee,
   buildAttendeeEditForm,
@@ -55,9 +56,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         maxAttendees: 100,
         name: "Pick Me",
       });
-      const response = await awaitTestRequest("/admin/attendees/new", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/attendees/new");
       const html = await expectHtmlResponse(
         response,
         200,
@@ -75,9 +74,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // The shared date range only affects daily listings, so a site with only
       // standard (fixed-date) listings never sees the Dates section.
       await createTestListing({ maxAttendees: 100, name: "Standard Only" });
-      const response = await awaitTestRequest("/admin/attendees/new", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/attendees/new");
       const html = await expectHtmlResponse(response, 200);
       expect(html).not.toContain('name="start_date"');
       expect(html).not.toContain('id="day_count"');
@@ -86,9 +83,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
     test("shows the optional date fields when a daily listing exists", async () => {
       await createDailyTestListing({ name: "Daily One" });
-      const response = await awaitTestRequest("/admin/attendees/new", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/attendees/new");
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain('name="start_date"');
       expect(html).toContain('id="day_count"');
@@ -99,18 +94,14 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     test("omits the 'Back without saving' link", async () => {
       // The browser back button is enough; the explicit link was removed.
       await createTestListing({ maxAttendees: 100, name: "Pick Me" });
-      const response = await awaitTestRequest("/admin/attendees/new", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/attendees/new");
       const html = await expectHtmlResponse(response, 200);
       expect(html).not.toContain("Back without saving");
     });
 
     test("shows the availability notice on a dateless create form", async () => {
       await createDailyTestListing({ name: "L" });
-      const response = await awaitTestRequest("/admin/attendees/new", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/attendees/new");
       const html = await expectHtmlResponse(
         response,
         200,
@@ -122,9 +113,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
     test("hides the availability notice when a date is pre-filled", async () => {
       const listing = await createDailyTestListing({ name: "D" });
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/attendees/new?select_${listing.id}=1&start_date=2026-07-01`,
-        { cookie: await testCookie() },
       );
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain("data-availability-notice hidden>");
@@ -133,9 +123,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     test("pre-fills listings selected from the calendar checker", async () => {
       const a = await createTestListing({ maxAttendees: 100, name: "Kayak" });
       const b = await createTestListing({ maxAttendees: 100, name: "Canoe" });
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/attendees/new?select_${a.id}=1&select_${b.id}=1`,
-        { cookie: await testCookie() },
       );
       const html = await expectHtmlResponse(response, 200);
       // Both chosen listings start at quantity 1.
@@ -147,9 +136,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // Nothing is booked yet, so an un-ticked toggle would hide every row.
       // Instead the form drops the toggle and shows every listing.
       await createTestListing({ maxAttendees: 100, name: "Pick Me" });
-      const response = await awaitTestRequest("/admin/attendees/new", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/attendees/new");
       const html = await expectHtmlResponse(response, 200);
       expect(html).not.toContain("Show all listings");
       expect(html).not.toContain('name="show_all"');
@@ -166,9 +153,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         name: "Kayak",
       });
       await createTestListing({ maxAttendees: 100, name: "Canoe" });
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/attendees/new?select_${picked.id}=1`,
-        { cookie: await testCookie() },
       );
       const html = await expectHtmlResponse(response, 200, "Show all listings");
       expect(html).toContain('name="show_all"');
@@ -179,9 +165,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
     test("pre-fills the shared start date from the deep link", async () => {
       const listing = await createDailyTestListing({ name: "Daily Pick" });
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/attendees/new?select_${listing.id}=1&start_date=2026-07-01`,
-        { cookie: await testCookie() },
       );
       const html = await expectHtmlResponse(response, 200);
       expect(html).toMatch(
@@ -192,9 +177,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
     test("leaves the start date blank when the deep link omits it", async () => {
       const listing = await createDailyTestListing({ name: "No Date Daily" });
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/attendees/new?select_${listing.id}=1`,
-        { cookie: await testCookie() },
       );
       const html = await expectHtmlResponse(response, 200);
       expect(html).toMatch(
@@ -205,10 +189,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
     test("falls back to all-zero quantities when no selection resolves", async () => {
       const listing = await createTestListing({ maxAttendees: 100, name: "Z" });
-      const response = await awaitTestRequest(
-        "/admin/attendees/new?select_999999=1",
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet("/admin/attendees/new?select_999999=1");
       const html = await expectHtmlResponse(response, 200);
       expect(html).toMatch(
         new RegExp(`name="qty_${listing.id}"[^>]*value="0"`),
@@ -229,10 +210,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
       const attendeeId = result.success ? result.attendees[0]!.id : 0;
 
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendeeId}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
       const html = await response.text();
       // The shared day-count select preselects the booking's current 2-day span.
       expect(html).toContain('id="day_count"');
@@ -248,10 +226,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
       const result = await bookAttendee(listing);
       const attendeeId = result.success ? result.attendees[0]!.id : 0;
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendeeId}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
       const html = await expectHtmlResponse(response, 200, "Show all listings");
       expect(html).toContain('name="show_all"');
       expect(html).not.toContain("listing-editor show-all-listings");
@@ -260,9 +235,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     test("preserves return_url as a hidden field when provided", async () => {
       await createTestListing({ maxAttendees: 100 });
       const returnUrl = "/admin/calendar";
-      const response = await awaitTestRequest(
+      const response = await adminGet(
         `/admin/attendees/new?return_url=${encodeURIComponent(returnUrl)}`,
-        { cookie: await testCookie() },
       );
       await expectHtmlResponse(response, 200, 'name="return_url"', returnUrl);
     });
@@ -313,6 +287,39 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
       expect(attendees[0]!.quantity).toBe(2);
+    });
+
+    test("a no-quantity-only create persists the line and clears any balance", async () => {
+      const { listing: event } = await setupListingAndLogin({
+        maxAttendees: 100,
+      });
+      const { cookie, csrfToken } = await (
+        await import("#test-utils")
+      ).getTestSession();
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/attendees/new",
+          {
+            csrf_token: csrfToken,
+            name: "Ghost Only",
+            [`noqty_${event.id}`]: "1",
+            [`qty_${event.id}`]: "1",
+            remaining_balance: "20",
+          },
+          cookie,
+        ),
+      );
+      expectRedirect(response, "/admin/attendees/");
+      const attendees = await getAttendeesRaw(event.id);
+      expect(attendees.length).toBe(1);
+      expect(attendees[0]!.quantity).toBe(0);
+      // No real line ⇒ the unpayable balance is not stored.
+      const { getAttendeeBalanceState } = await import(
+        "#shared/db/attendees/balance.ts"
+      );
+      expect(
+        (await getAttendeeBalanceState(attendees[0]!.id))!.remainingBalance,
+      ).toBe(0);
     });
 
     test("creates an attendee with multiple listing lines in one submission", async () => {
@@ -490,6 +497,218 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
   });
 
+  describe("no-quantity checkbox round-trip", () => {
+    // price_paid is projected from the ledger now, so read the line through
+    // loadExistingLines (the same projection the edit form uses) rather than a
+    // raw column select.
+    const readLine = async (attendeeId: number, listingId: number) => {
+      const { loadExistingLines } = await import("#shared/db/attendees.ts");
+      const entry = (await loadExistingLines(attendeeId)).find(
+        (e) => e.booking.listing_id === listingId,
+      );
+      return entry?.booking ?? null;
+    };
+
+    const markNoQuantity = async (
+      attendeeId: number,
+      listingId: number,
+      name: string,
+    ): Promise<Response> => {
+      const { loadExistingLines } = await import("#shared/db/attendees.ts");
+      const key = (await loadExistingLines(attendeeId)).find(
+        (e) => e.booking.listing_id === listingId,
+      )!.key;
+      const form = await buildAttendeeEditForm(attendeeId, {
+        extra: { [`noqty_${listingId}`]: "1" },
+        lines: [{ eventId: listingId, key, quantity: 1 }],
+        name,
+      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendeeId}`,
+        form,
+      );
+      return response;
+    };
+
+    test("marking a line no-quantity keeps it as a quantity-0 row, not deleted", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ghost",
+        "ghost@example.com",
+      );
+
+      const response = await markNoQuantity(attendee.id, listing.id, "Ghost");
+
+      expect(response.status).toBe(302);
+      // The line survives (not removed) as a quantity-0, price_paid-0 sentinel.
+      expect(await readLine(attendee.id, listing.id)).toMatchObject({
+        price_paid: 0,
+        quantity: 0,
+      });
+    });
+
+    test("a stored quantity-0 line renders with the no-quantity box ticked", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ghost",
+        "ghost@example.com",
+      );
+      await markNoQuantity(attendee.id, listing.id, "Ghost");
+
+      const html = await (
+        await adminGet(`/admin/attendees/${attendee.id}/edit`)
+      ).text();
+      // Alphabetical attribute order puts `checked` first when ticked.
+      expect(html).toContain(
+        `checked class="no-quantity-toggle" name="noqty_${listing.id}"`,
+      );
+    });
+
+    test("marking a checked-in line no-quantity clears its check-in", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "WasIn",
+        "wasin@example.com",
+      );
+      await getDb().execute({
+        args: [attendee.id, listing.id],
+        sql: "UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ? AND listing_id = ?",
+      });
+
+      await markNoQuantity(attendee.id, listing.id, "WasIn");
+
+      expect(await readLine(attendee.id, listing.id)).toMatchObject({
+        checked_in: 0,
+        quantity: 0,
+      });
+    });
+
+    test("blocks marking a paid line no-quantity (line unchanged)", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const created = await createAttendeeAtomic({
+        bookings: [{ listingId: listing.id, quantity: 2 }],
+        email: "paid@example.com",
+        name: "Paid",
+        paymentId: "pay_block",
+      });
+      if (!created.success) throw new Error("setup");
+      const attendeeId = created.attendees[0]!.id;
+      // Recognise the payment in the ledger: hasPaidLine (the DB guard) keys on a
+      // gross sale leg now, not a price_paid column.
+      await postListingSale({ attendeeId, gross: 1500, listingId: listing.id });
+
+      const response = await markNoQuantity(attendeeId, listing.id, "Paid");
+
+      // Re-renders the form in place (200) with the line untouched.
+      const html = await expectHtmlResponse(response, 200);
+      // The block is surfaced as a top-of-page error, not buried in the table.
+      expect(html).toContain(
+        `<output class="error" role="alert">Refund this line's payment before marking it no quantity.</output>`,
+      );
+      // The paid line's "no quantity" box is disabled with an explaining tooltip
+      // so it can't be ticked in the first place.
+      expect(html).toContain(
+        `class="no-quantity-toggle" disabled name="noqty_${listing.id}" title="Refund this line's payment before marking it no quantity."`,
+      );
+      expect(await readLine(attendeeId, listing.id)).toMatchObject({
+        price_paid: 1500,
+        quantity: 2,
+      });
+    });
+
+    test("a no-quantity-only attendee saves instead of being rejected as no lines", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "OnlyGhost",
+        "onlyghost@example.com",
+      );
+
+      const response = await markNoQuantity(
+        attendee.id,
+        listing.id,
+        "OnlyGhost",
+      );
+
+      expect(response.status).toBe(302);
+      expect(await readLine(attendee.id, listing.id)).toMatchObject({
+        quantity: 0,
+      });
+    });
+
+    // (No "clears an unpayable balance" test: an outstanding balance now projects
+    // from a ledger sale leg, and a line with a sale leg can't be marked
+    // no-quantity — hasPaidLine blocks it — so a real line's balance can never be
+    // stranded by the no-quantity transition in the first place.)
+
+    test("blocks marking an assigned built-site line no-quantity", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Sited",
+        "sited@example.com",
+      );
+      // Assign a site to this booking. Deliberately leave the listing's
+      // assign_built_site flag OFF: the block keys off the actual assignment row,
+      // not the listing's current flag (which an owner may have turned off).
+      await getDb().execute({
+        args: [attendee.id, listing.id],
+        sql: "INSERT INTO built_sites (site_data, assignable, assigned_attendee_id, assigned_listing_id, created) VALUES ('{}', 0, ?, ?, '2026-01-01T00:00:00Z')",
+      });
+
+      const response = await markNoQuantity(attendee.id, listing.id, "Sited");
+
+      // Re-renders in place with the block message; the line stays a real booking.
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain("Unassign the built site");
+      const row = await getDb().execute({
+        args: [attendee.id, listing.id],
+        sql: "SELECT quantity FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
+      });
+      expect(Number(row.rows[0]!.quantity)).toBe(1);
+    });
+
+    test("blocks no-quantity on a paid line even with a stale (missing) line key", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const created = await createAttendeeAtomic({
+        bookings: [{ listingId: listing.id, quantity: 1 }],
+        email: "stale@example.com",
+        name: "Stale",
+        paymentId: "pay_stale",
+      });
+      if (!created.success) throw new Error("setup");
+      const attendeeId = created.attendees[0]!.id;
+      await postListingSale({ attendeeId, gross: 1500, listingId: listing.id });
+      // Submit with an empty line key so the form's existingBooking is null and
+      // the per-line model guard can't fire — the DB-based guard must still block.
+      const form = await buildAttendeeEditForm(attendeeId, {
+        extra: { [`noqty_${listing.id}`]: "1" },
+        lines: [{ eventId: listing.id, key: "", quantity: 1 }],
+        name: "Stale",
+      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendeeId}`,
+        form,
+      );
+
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain("Refund this booking's payment");
+      // The paid line is untouched (not dropped/replaced by a ghost).
+      expect(await readLine(attendeeId, listing.id)).toMatchObject({
+        price_paid: 1500,
+        quantity: 1,
+      });
+    });
+  });
+
   describe("bookings summary on the edit page", () => {
     test("lists each booked listing with its quantity and a total", async () => {
       const kayak = await createTestListing({
@@ -513,10 +732,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       if (!created.success) throw new Error("setup");
       const attendeeId = created.attendees[0]!.id;
 
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendeeId}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendeeId}`);
       const html = await expectHtmlResponse(
         response,
         200,
@@ -546,10 +762,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const { updateCheckedIn } = await import("#shared/db/attendees.ts");
       await updateCheckedIn(attendee.id, listing.id, true);
 
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}`);
       const html = await expectHtmlResponse(response, 200, "Bookings");
       // Assert the rendered badge markup, not just the words "Checked in",
       // so a mutant that drops the badge styling/element is still caught.
@@ -557,11 +770,11 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
   });
 
-  describe("ledger panel on the edit page", () => {
-    /** Seed an attendee with a fully-paid sale (so the embedded statement has a
-     * sale leg whose counterparty is the listing and a payment leg whose
-     * counterparty is the card/bank singleton), then GET its edit page. */
-    const seedAndGetEdit = async (cookie: string): Promise<string> => {
+  describe("ledger tab on the attendee page", () => {
+    /** Seed an attendee with a fully-paid sale (so the statement has a sale
+     * leg whose counterparty is the listing and a payment leg whose
+     * counterparty is the card/bank singleton). */
+    const seedLedgerAttendee = async (): Promise<number> => {
       const listing = await createTestListing({
         maxAttendees: 50,
         name: "Pottery Class",
@@ -577,30 +790,36 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         gross: 2500,
         listingId: listing.id,
       });
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
-        { cookie },
-      );
-      return expectHtmlResponse(response, 200);
+      return attendee.id;
     };
 
     test("an owner sees the attendee's running-balance statement with counterparties", async () => {
-      const html = await seedAndGetEdit(await testCookie());
-      // The shared statement renders inside a collapsed Ledger disclosure.
-      expect(html).toContain("<summary>Ledger</summary>");
+      const id = await seedLedgerAttendee();
+      const response = await awaitTestRequest(`/admin/attendees/${id}/ledger`, {
+        cookie: await testCookie(),
+      });
+      const html = await expectHtmlResponse(response, 200);
       expect(html).toContain("<th>Counterparty</th>");
       // The sale's counterparty links to the listing; the payment's is card/bank.
       expect(html).toContain("Pottery Class");
       expect(html).toContain("Card / bank");
     });
 
-    test("a manager does NOT see the ledger panel (owner-only money movements)", async () => {
-      // The panel exposes payment/refund/writeoff legs, so it is owner-only —
-      // matching the standalone /admin/ledger* routes. A manager session loads
-      // the same edit page but the panel is omitted entirely.
+    test("a manager's Ledger tab 404s and is absent from the strip (owner-only money movements)", async () => {
+      // The tab exposes payment/refund/writeoff legs, so it is owner-only —
+      // matching the standalone /admin/ledger* routes. Naming the URL directly
+      // 404s (visibility IS authorization), and the strip never links it.
+      const id = await seedLedgerAttendee();
       const managerCookie = await createTestManagerSession();
-      const html = await seedAndGetEdit(managerCookie);
-      expect(html).not.toContain("<legend>Ledger</legend>");
+      const direct = await awaitTestRequest(`/admin/attendees/${id}/ledger`, {
+        cookie: managerCookie,
+      });
+      expect(direct.status).toBe(404);
+      const overview = await awaitTestRequest(`/admin/attendees/${id}`, {
+        cookie: managerCookie,
+      });
+      const html = await expectHtmlResponse(overview, 200);
+      expect(html).not.toContain(`/admin/attendees/${id}/ledger`);
       expect(html).not.toContain("<th>Counterparty</th>");
     });
   });
@@ -635,10 +854,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       if (!result.success) throw new Error("setup");
       const attendee = result.attendees[0]!;
 
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       const html = await response.text();
       expect(html).toContain("different start dates or lengths");
     });
@@ -668,10 +884,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       if (!result.success) throw new Error("setup");
       const attendee = result.attendees[0]!;
 
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       const html = await response.text();
       expect(html).not.toContain("different start dates or lengths");
     });
@@ -696,10 +909,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         name: "Over",
       });
       const attendeeId = result.success ? result.attendees[0]!.id : 0;
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendeeId}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
       const html = await expectHtmlResponse(response, 200);
       // Per-listing warnings (singular + plural) and a top-of-page summary.
       expect(html).toContain(
@@ -721,10 +931,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         durationDays: 3,
       });
       const attendeeId = result.success ? result.attendees[0]!.id : 0;
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendeeId}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
       const html = await expectHtmlResponse(response, 200);
       expect(html).not.toContain("Please double-check");
     });
@@ -827,10 +1034,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       // The booking fills the listing, but it is the attendee's own row — the
       // self-excluding check means no overbooking warning.
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       const html = await expectHtmlResponse(response, 200);
       expect(html).not.toContain("is overbooked");
     });
@@ -1082,6 +1286,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         () =>
           stub(attendeesApi, "applyAttendeeAtomicEdit", () =>
             Promise.resolve({
+              listingIds: [event.id],
               reason: "capacity_exceeded" as const,
               success: false,
             }),
@@ -1117,10 +1322,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       await db.execute("DELETE FROM listing_attendees WHERE attendee_id = ?", [
         attendee.id,
       ]);
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}`);
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Attendee: Orphan");
@@ -1359,9 +1561,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
 
     const getEdit = async (id: number): Promise<string> => {
-      const response = await awaitTestRequest(`/admin/attendees/${id}`, {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet(`/admin/attendees/${id}/edit`);
       return expectHtmlResponse(response, 200, "Status &amp; Balance");
     };
 
@@ -1622,15 +1822,54 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
               ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob', last_activity = excluded.last_activity`,
       });
 
-      const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
-        { cookie: await testCookie() },
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}`);
       // The page renders AND keeps the /admin/history repair link for the bad
       // row — dropping the channel would hide the only way to fix it.
       expect(response.status).toBe(200);
       expect(await response.text()).toContain(
         `/admin/history/${toContactHashParam(hash)}`,
+      );
+    });
+  });
+
+  describe("attendee page tabs", () => {
+    test("an unknown tab slug 404s", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Tabbed",
+        "tabbed@example.com",
+      );
+      const response = await adminGet(
+        `/admin/attendees/${attendee.id}/nonsense`,
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("an unknown attendee id 404s on every tab", async () => {
+      await createTestListing({ maxAttendees: 10 });
+      expect((await adminGet("/admin/attendees/999999")).status).toBe(404);
+      expect((await adminGet("/admin/attendees/999999/edit")).status).toBe(404);
+    });
+
+    test("the banner notes are visible on non-overview tabs too", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Noted",
+        "noted@example.com",
+      );
+      const { createOwnerNote } = await import("#shared/db/system-notes.ts");
+      await createOwnerNote(attendee.id, "Allergic to peanuts");
+      const html = await (
+        await adminGet(`/admin/attendees/${attendee.id}/activity`)
+      ).text();
+      expect(html).toContain("Allergic to peanuts");
+      // The strip marks the active tab for the viewer.
+      expect(html).toContain(
+        `aria-current="page" class="active" href="/admin/attendees/${attendee.id}/activity"`,
       );
     });
   });

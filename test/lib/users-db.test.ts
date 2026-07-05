@@ -15,8 +15,9 @@ import {
   verifyUserPassword,
 } from "#shared/db/users.ts";
 import {
+  assertAdminPasswordRejects,
+  assertAdminPasswordVerifies,
   describeWithEnv,
-  TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils";
 
@@ -35,20 +36,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       expect(username).toBe(TEST_ADMIN_USERNAME);
     });
 
-    test("verifyUserPassword returns hash for correct password", async () => {
-      const user = await getUserByUsername(TEST_ADMIN_USERNAME);
-      expect(user).not.toBeNull();
-      const hash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
-      expect(hash).toBeTruthy();
-      expect(hash).toContain("pbkdf2:");
-    });
+    test("verifyUserPassword returns hash for correct password", () =>
+      assertAdminPasswordVerifies());
 
-    test("verifyUserPassword returns null for wrong password", async () => {
-      const user = await getUserByUsername(TEST_ADMIN_USERNAME);
-      expect(user).not.toBeNull();
-      const result = await verifyUserPassword(user!, "wrongpassword");
-      expect(result).toBeNull();
-    });
+    test("verifyUserPassword returns null for wrong password", () =>
+      assertAdminPasswordRejects());
 
     test("getUserByUsername returns null for nonexistent user", async () => {
       const user = await getUserByUsername("nonexistent");

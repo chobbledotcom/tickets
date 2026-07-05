@@ -44,11 +44,6 @@ export type ListingValidation =
   | { ok: true; listing: ListingWithCount }
   | { ok: false; error: string; status?: number };
 
-/** Validate listing and compute expected price for post-payment attendee creation */
-export type ListingPriceValidation =
-  | { ok: true; listing: ListingWithCount; expectedPrice: number }
-  | { ok: false; error: string; status?: number };
-
 /** Successful payment result with created attendee details.
  * Carries the listing id rather than the loaded listing — the redirect resolves
  * it lazily only when it needs a thank-you URL, and the listing may since have
@@ -65,10 +60,10 @@ type PaymentSuccess = {
 type PaymentFailure = {
   success: false;
   error: string;
-  status?: number;
-  refunded?: boolean;
+  status?: number | undefined;
+  refunded?: boolean | undefined;
   /** Internal diagnostic detail (not shown to users) */
-  detail?: string;
+  detail?: string | undefined;
 };
 
 /** Result of processing a payment session */

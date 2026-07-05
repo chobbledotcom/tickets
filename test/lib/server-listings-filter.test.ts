@@ -24,7 +24,7 @@ describeWithEnv("listings type filter", { db: true }, () => {
     test("shows the type filter when more than one type is present", async () => {
       await createTestListing({ name: "Standard One" });
       await createTestListing({ name: "Daily One", ...DAILY });
-      const { response } = await adminGet("/admin");
+      const response = await adminGet("/admin");
       const html = await response.text();
       expect(html).toContain("Showing:");
       expect(html).toContain("Standard");
@@ -35,7 +35,7 @@ describeWithEnv("listings type filter", { db: true }, () => {
     test("hides the type filter when only one type is present", async () => {
       await createTestListing({ name: "Standard One" });
       await createTestListing({ name: "Standard Two" });
-      const { response } = await adminGet("/admin");
+      const response = await adminGet("/admin");
       const html = await response.text();
       expect(html).not.toContain("Showing:");
     });
@@ -46,7 +46,7 @@ describeWithEnv("listings type filter", { db: true }, () => {
     test("filters the listing table to standard listings", async () => {
       const standard = await createTestListing({ name: "Standard One" });
       const daily = await createTestListing({ name: "Daily One", ...DAILY });
-      const { response } = await adminGet("/admin?type=standard");
+      const response = await adminGet("/admin?type=standard");
       const html = await response.text();
       expect(html).toContain(`href="/admin/listing/${standard.id}"`);
       expect(html).not.toContain(`href="/admin/listing/${daily.id}"`);
@@ -58,7 +58,7 @@ describeWithEnv("listings type filter", { db: true }, () => {
     test("filters the listing table to daily listings", async () => {
       const standard = await createTestListing({ name: "Standard One" });
       const daily = await createTestListing({ name: "Daily One", ...DAILY });
-      const { response } = await adminGet("/admin?type=daily");
+      const response = await adminGet("/admin?type=daily");
       const html = await response.text();
       expect(html).toContain(`href="/admin/listing/${daily.id}"`);
       expect(html).not.toContain(`href="/admin/listing/${standard.id}"`);
@@ -71,7 +71,7 @@ describeWithEnv("listings type filter", { db: true }, () => {
         name: "Merch",
         purchaseOnly: true,
       });
-      const { response } = await adminGet("/admin?type=purchase-only");
+      const response = await adminGet("/admin?type=purchase-only");
       const html = await response.text();
       expect(html).toContain(`href="/admin/listing/${merch.id}"`);
       expect(html).not.toContain(`href="/admin/listing/${standard.id}"`);
@@ -81,7 +81,7 @@ describeWithEnv("listings type filter", { db: true }, () => {
     test("treats an unknown type as 'all'", async () => {
       const standard = await createTestListing({ name: "Standard One" });
       const daily = await createTestListing({ name: "Daily One", ...DAILY });
-      const { response } = await adminGet("/admin?type=bogus");
+      const response = await adminGet("/admin?type=bogus");
       const html = await response.text();
       expect(html).toContain(`href="/admin/listing/${standard.id}"`);
       expect(html).toContain(`href="/admin/listing/${daily.id}"`);

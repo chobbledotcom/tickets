@@ -4,31 +4,34 @@
 
 import { t } from "#i18n";
 import type { Group } from "#shared/types.ts";
+import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 
 interface ListingGroupSelectProps {
   groups: Group[];
-  selectedGroupId: number;
+  selectedGroupIds: number[];
 }
 
+/** Group membership editor on the listing form: a checkbox per group, so a
+ * listing can belong to several groups at once (the listing-side mirror of the
+ * group form's listing checkboxes). Membership is written to group_listings. */
 export const ListingGroupSelect = ({
   groups,
-  selectedGroupId,
+  selectedGroupIds,
 }: ListingGroupSelectProps): JSX.Element | null => {
   if (groups.length === 0) return null;
+  const selected = new Set(selectedGroupIds);
 
   return (
-    <label>
-      {t("terms.group")}
-      <select id="group_id" name="group_id">
-        <option selected={selectedGroupId === 0} value="0">
-          {t("groups.select.none")}
-        </option>
-        {groups.map((g) => (
-          <option selected={g.id === selectedGroupId} value={String(g.id)}>
-            {g.name}
-          </option>
-        ))}
-      </select>
-    </label>
+    <fieldset class="checkboxes">
+      <legend>{t("terms.group")}</legend>
+      {groups.map((g) => (
+        <CheckboxLabel
+          checked={selected.has(g.id) || undefined}
+          label={` ${g.name}`}
+          name="group_ids"
+          value={String(g.id)}
+        />
+      ))}
+    </fieldset>
   );
 };
