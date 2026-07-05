@@ -1044,8 +1044,11 @@ Target algorithm — a **pure preflight** that accumulates the full report, then
 
 1. Parse the CSV into indexed rows (engine + the schema's parser config).
 2. Validate required columns and row shape per the schema; record any problems.
-3. Load context once, read-only: existing `booking_imports`, listings, statuses,
-   and free-text questions.
+3. Load context once, read-only: listings, statuses, and free-text questions, plus
+   the import-map rows **only for the candidate ids** — `SELECT … FROM
+   booking_imports WHERE schema = ? AND old_id IN (…)` over the CSV's `old_id`s, not
+   the whole table (a site with years of imports would otherwise scan/decrypt all
+   prior history just to skip the few ids in this file).
 4. Classify against the import map (scoped to the active schema): **skip** rows
    whose `(schema, old_id)` is already mapped.
 5. Among the **remaining** (unskipped) candidates, record duplicate `old_id`s as
@@ -1217,18 +1220,29 @@ Implementation notes:
     new_id IN (newly-orphaned ids)`) rather than waiting for orphan auto-purge,
     which may be disabled or age-gated: until it runs, the attendee holds no
     capacity yet its `old_id` would still block a clean re-import.
-  - **Money-bearing imports: ledger legs outlive the mapping.** Freeing the mapping
-    does **not** remove the append-only `transfers` legs already posted for
-    `(schema, old_id)` — and the ledger `eventId`/`reference`s are derived from that
-    same key while the legs reference the now-deleted `attendee:<id>` account. A
-    later re-upload would post legs with the **same references but a new attendee
-    account**, which `postTransfersTx`'s conflict check rejects as a mismatched
-    replay — so the recreated attendee never regains its imported balance. So for a
-    **confirmed (money-bearing)** import, cleanup must either **reverse the import
-    legs** (a compensating `imported ↔ attendee` reversal under a derived cleanup
-    event group) as it frees the mapping, or **keep the mapping as a tombstone** (as
-    the aggregate-held standard case does) so the `old_id` is never freed while live
-    legs remain. A quantity-0/cancelled import posts no legs and is unaffected.
+  - **Money-bearing imports: ledger legs outlive the mapping → permanent tombstone.**
+    Freeing the mapping does **not** remove the append-only `transfers` legs already
+    posted for `(schema, old_id)`: the ledger `eventId`/`reference`s are derived from
+    that same key, while the stored legs reference the now-deleted `attendee:<id>`
+    account. **Reversing the legs does not fix this** — the ledger is append-only, so
+    a reversal only adds compensating legs under a *different* event group and leaves
+    the **original** legs in place under `(schema, old_id)`. A later re-upload
+    re-derives that same event group and posts legs with the **same references but a
+    new attendee account**; `postTransfersTx` → `assertEventMatches` matches by
+    reference and then rejects on `legIdentityDiff` (the source/dest account
+    differs), so it **hard-errors** (`LedgerConflictError`) instead of recreating the
+    balance. The deterministic references can't be re-keyed without breaking
+    same-CSV idempotency, so a **confirmed (money-bearing)** import must **keep its
+    mapping as a permanent tombstone** — the `old_id` is never freed while its import
+    legs exist, so it is **not** cleanly re-importable after deletion (accepted:
+    re-importing deleted paid history would need a manual ledger reversal + re-key
+    anyway). A quantity-0/cancelled import posts no legs and stays freely
+    re-importable. **This overrides the daily free/remap rule above:** a
+    money-bearing *daily* import also tombstones — the capacity reason for
+    free/remap is moot once its dated rows are gone, but its ledger legs still block
+    a clean re-import. So the mapping-cleanup rule is two-axis: **free** the `old_id`
+    only when the import is both zero-money **and** capacity-released; **tombstone**
+    whenever import legs exist.
   - **Multi-line imports: a per-booking mapping can't represent partial deletes.**
     Idempotency is keyed on `(schema, old_id)` for the **whole** booking, but a
     source booking can map to several `listing_attendees` lines. Deleting **one**

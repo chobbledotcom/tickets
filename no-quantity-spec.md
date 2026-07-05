@@ -12,8 +12,9 @@
 > `quantity > 0 AND kind = 'attendee'` (it also excludes servicing rows), shared as
 > the `TICKET_COUNTS_PREDICATE` constant.
 >
-> _(Originally a standalone spec, independent of the CSV importer and PR #1335 —
-> both of which have also since merged.)_
+> _(Originally a standalone spec, independent of the CSV importer and PR #1335.
+> #1335 has since merged; the CSV importer itself is **not** merged — it is the
+> unbuilt work planned in `plan.md`.)_
 
 ## 1. Concept
 
