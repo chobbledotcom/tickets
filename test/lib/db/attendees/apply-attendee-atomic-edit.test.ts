@@ -72,13 +72,22 @@ const addLine = (listingId: number, opts: LineOpts = {}): DesiredLine => ({
   quantity: opts.quantity ?? 1,
 });
 
-/** Assert an edit was rejected up front with `reason`, leaving the DB untouched. */
+/** Assert an edit was rejected up front with `reason`, leaving the DB
+ * untouched. When `listingIds` is given for a "capacity_exceeded" rejection,
+ * also asserts it names exactly those listings as the ones that didn't fit
+ * (order-independent) — the specific-listing detail the operator-facing
+ * message is built from. */
 const expectRejected = (
   update: Awaited<ReturnType<typeof applyAttendeeAtomicEdit>>,
   reason: string,
+  listingIds?: number[],
 ): void => {
   expect(update.success).toBe(false);
-  if (!update.success) expect(update.reason).toBe(reason);
+  if (update.success) return;
+  expect(update.reason).toBe(reason);
+  if (listingIds !== undefined && update.reason === "capacity_exceeded") {
+    expect(update.listingIds.toSorted()).toEqual(listingIds.toSorted());
+  }
 };
 
 /** Assert each listing currently has the expected number of attendee rows. */
@@ -254,7 +263,8 @@ describeWithEnv(
         addLine(listing.id, { quantity: 1 }),
         addLine(listing.id, { quantity: 1 }),
       ]);
-      expectRejected(update, "capacity_exceeded");
+      // A duplicate slot isn't a capacity shortfall, so no listing is named.
+      expectRejected(update, "capacity_exceeded", []);
     });
 
     test("rejects an update that exceeds listing capacity", async () => {
@@ -265,7 +275,7 @@ describeWithEnv(
       const update = await applyAttendeeAtomicEdit(attendee.id, blob, [
         keepLine(listing.id, existing[0]!.key, { quantity: 5 }),
       ]);
-      expectRejected(update, "capacity_exceeded");
+      expectRejected(update, "capacity_exceeded", [listing.id]);
     });
 
     test("updates date on a daily line", async () => {
@@ -301,7 +311,9 @@ describeWithEnv(
       const update = await applyAttendeeAtomicEdit(attendee.id, blob, [
         keepLine(listing2.id, keyFor(existing, listing2.id), { quantity: 5 }),
       ]);
-      expectRejected(update, "capacity_exceeded");
+      // Only listing2 (the one pushed over cap) is named — listing1 was merely
+      // omitted (a removal), not itself over capacity.
+      expectRejected(update, "capacity_exceeded", [listing2.id]);
 
       // Nothing committed: listing1 line still present, listing2 still qty 2, and
       // the PII (name/email) is unchanged.

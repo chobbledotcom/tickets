@@ -52,13 +52,11 @@ const rawSitePagesTable = defineIdTable<SitePage, SitePageInput>("site_pages", {
   sort_order: col.simple<number>(),
 });
 
-/** Raw narrow projection row before decryption. */
-type RawNavRow = { id: number; name: string; slug: string; sort_order: number };
-
 /** Load the nav projection: only id/slug/name/sort_order, decrypting just slug
- * and name (never content/meta). Ordered by (sort_order, id). */
+ * and name (never content/meta). Ordered by (sort_order, id). The raw row (name
+ * and slug still encrypted) shares {@link SitePageNavRow}'s shape. */
 const fetchNavRows = async (): Promise<SitePageNavRow[]> => {
-  const rows = await queryAll<RawNavRow>(
+  const rows = await queryAll<SitePageNavRow>(
     "SELECT id, slug, name, sort_order FROM site_pages ORDER BY sort_order ASC, id ASC",
   );
   return Promise.all(

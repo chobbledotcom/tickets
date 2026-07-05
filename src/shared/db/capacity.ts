@@ -13,9 +13,9 @@
 
 import type { InValue } from "@libsql/client";
 import { addDays } from "#shared/dates.ts";
+import type { SqlStatement } from "#shared/db/client.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
 
-export type SqlFragment = { sql: string; args: InValue[] };
 type DayRange = { startAt: string; endAt: string };
 
 /** Convert a date string ("YYYY-MM-DD") to a half-open [start, end) pair.
@@ -48,7 +48,7 @@ const buildDailyListingCountSql = (
   listingId: number,
   dayRange: DayRange,
   excludeAttendeeId?: number,
-): SqlFragment => ({
+): SqlStatement => ({
   args: [
     listingId,
     ...attendeeExclusionArgs(excludeAttendeeId),
@@ -74,7 +74,7 @@ const buildDailyListingCountSql = (
 const buildUndatedListingCountSql = (
   listingId: number,
   excludeAttendeeId?: number,
-): SqlFragment => {
+): SqlStatement => {
   if (excludeAttendeeId) {
     return {
       args: [listingId, listingId, excludeAttendeeId],
@@ -101,7 +101,7 @@ export const buildListingCountSql = (
   listingId: number,
   dayRange: DayRange | null,
   excludeAttendeeId?: number,
-): SqlFragment => {
+): SqlStatement => {
   if (dayRange) {
     return buildDailyListingCountSql(listingId, dayRange, excludeAttendeeId);
   }
@@ -155,7 +155,7 @@ const buildDailyGroupCountSql = (
   dayRange: DayRange,
   excludeAttendeeId?: number,
   groupRef = "groupRow.id",
-): SqlFragment => ({
+): SqlStatement => ({
   args: [
     ...attendeeExclusionArgs(excludeAttendeeId),
     ...attendeeExclusionArgs(excludeAttendeeId),
@@ -190,7 +190,7 @@ const buildDailyGroupCountSql = (
 const buildUndatedGroupCountSql = (
   excludeAttendeeId?: number,
   groupRef = "groupRow.id",
-): SqlFragment => ({
+): SqlStatement => ({
   args: attendeeExclusionArgs(excludeAttendeeId),
   sql: `(COALESCE((
           SELECT SUM(memberListing.booked_quantity)
@@ -206,7 +206,7 @@ const buildGroupCountSql = (
   dayRange: DayRange | null,
   excludeAttendeeId?: number,
   groupRef = "groupRow.id",
-): SqlFragment => {
+): SqlStatement => {
   if (dayRange) {
     return buildDailyGroupCountSql(dayRange, excludeAttendeeId, groupRef);
   }
@@ -224,7 +224,7 @@ const buildDayCapacitySql = (
   qty: number,
   dayRange: DayRange | null,
   excludeAttendeeId?: number,
-): SqlFragment => {
+): SqlStatement => {
   const listingCount = buildListingCountSql(
     listingId,
     dayRange,
@@ -275,7 +275,7 @@ export const buildCapacityCondition = (
   date: string | null,
   excludeAttendeeId?: number,
   durationDays = 1,
-): SqlFragment => {
+): SqlStatement => {
   if (!date) {
     return buildDayCapacitySql(listingId, qty, null, excludeAttendeeId);
   }
@@ -307,7 +307,7 @@ const listingCapClause = (
   listingId: number,
   dayRange: DayRange | null,
   demand: number,
-): SqlFragment => {
+): SqlStatement => {
   const count = buildListingCountSql(listingId, dayRange);
   return {
     args: count.args,
@@ -322,7 +322,7 @@ const groupCapClause = (
   groupId: number,
   dayRange: DayRange | null,
   demand: number,
-): SqlFragment => {
+): SqlStatement => {
   const count = buildGroupCountSql(dayRange, undefined, String(groupId));
   const cap = `(SELECT max_attendees FROM groups WHERE id = ${groupId})`;
   return {
@@ -338,8 +338,8 @@ const groupCapClause = (
 const bucketClauses = (
   bucket: CapacityBucket,
   extra: number,
-  clauseFor: (dayRange: DayRange | null, demand: number) => SqlFragment,
-): SqlFragment[] => {
+  clauseFor: (dayRange: DayRange | null, demand: number) => SqlStatement,
+): SqlStatement[] => {
   if (bucket.perDay.size > 0) {
     return [...bucket.perDay].map(([day, qty]) =>
       clauseFor(dateToRange(day), qty + extra),
@@ -358,8 +358,8 @@ const bucketClauses = (
 export const buildBatchCapacitySql = (
   listingDemand: Map<number, CapacityBucket>,
   groupDemand: Map<number, CapacityBucket>,
-): SqlFragment => {
-  const clauses: SqlFragment[] = [];
+): SqlStatement => {
+  const clauses: SqlStatement[] = [];
   for (const [listingId, bucket] of listingDemand) {
     clauses.push(
       ...bucketClauses(bucket, 0, (dayRange, demand) =>

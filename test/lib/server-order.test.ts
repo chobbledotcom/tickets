@@ -51,10 +51,14 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         'class="order-gallery"',
         'method="get"',
         'class="order-cart"',
+        'class="order-continue"',
         "View order",
+        "Continue",
       );
       expect(html).toContain(`name="select_${standard.id}"`);
       expect(html).toContain(`name="select_${daily.id}"`);
+      // The login footer is a homepage-only affordance (#69).
+      expect(html).not.toContain('href="/admin/login"');
     });
 
     test("renders the intro text as markdown", async () => {
@@ -70,6 +74,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         "No items are available to order",
       );
       expect(html).not.toContain('class="order-cart"');
+      expect(html).not.toContain('class="order-continue"');
     });
 
     test("excludes hidden and inactive listings", async () => {

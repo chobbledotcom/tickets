@@ -245,6 +245,9 @@ export const orderGalleryPage = (
               <Raw html={cards} />
             </fieldset>
           )}
+          <button class="order-continue" type="submit">
+            {t("public.order.continue")}
+          </button>
           <button class="order-cart" type="submit">
             <OrderCartButtonBody
               icon="shopping-cart"

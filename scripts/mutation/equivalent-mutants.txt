@@ -518,3 +518,23 @@ src/shared/cache-registry.ts:115:63  insert → "insert mutated"   # same as abo
 # durationsCompatible: `dayPriceFor(child, ...) !== null` — dayPriceFor
 # returns number|null (no undefined case), so !== and != agree on null.
 src/shared/listing-parents-rules.ts:62:59  !== → !=   # dayPriceFor(): number|null (no undefined), so !== and != agree on null
+
+# band-name-generator.ts's fixArticles: the "An <consonant> → A <consonant>"
+# correction has no template or pool word that ever produces a literal "An"
+# token to correct — confirmed empirically over 20,000 generated descriptions
+# with zero matches for /\bAn [^aeiouAEIOU]/ — so this replacement's argument
+# is unobservable via any input the public API can produce. (The mirrored
+# "A <vowel> → An <vowel>" correction on the next line IS exercised — several
+# BUILDING_STATES/BAND_ADJECTIVES entries start with a vowel — and is covered
+# by dedicated tests instead of being listed here.)
+src/shared/band-name-generator.ts:107:39  A $1 → ""   # no template/pool ever produces a literal "An" token for this correction to act on
+src/shared/band-name-generator.ts:107:39  A $1 → "A $1 mutated"   # same as above
+
+# logistics-filter.ts's parseAgentFilter/assignmentMatchesAgentFilter: a
+# non-numeric fallback string is unobservable through parsePositiveIntId's
+# strict decimal-digit schema, and the null-checks below have no undefined
+# case to disagree on.
+src/shared/logistics-filter.ts:22:39   → "mutated"   # parsePositiveIntId's schema rejects any non-digit string identically; the "" fallback and any mutated string both parse to null
+src/shared/logistics-filter.ts:23:11  !== → !=   # n: number|null (no undefined), so !== and != agree on null
+src/shared/logistics-filter.ts:41:45  === → ==   # startAgentId: number|null at every call site (no undefined), so === and == agree on null
+src/shared/logistics-filter.ts:41:68  === → ==   # endAgentId: number|null at every call site (no undefined), so === and == agree on null

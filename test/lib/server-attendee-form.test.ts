@@ -1286,6 +1286,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         () =>
           stub(attendeesApi, "applyAttendeeAtomicEdit", () =>
             Promise.resolve({
+              listingIds: [event.id],
               reason: "capacity_exceeded" as const,
               success: false,
             }),

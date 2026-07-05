@@ -2950,6 +2950,18 @@ a.cal-day-selected:active {
   display: none;
 }
 
+/* Underneath the item grid — a second, non-floating submit for the same
+   form, for visitors who'd rather keep scrolling than reach for the fixed
+   cart button. Hidden until at least one product is selected, like the cart. */
+.order-continue {
+  display: block;
+  margin: var(--space-m) 0 0;
+}
+
+.order-gallery:not(:has(.order-select:checked)) .order-continue {
+  display: none;
+}
+
 /* Calendar availability checker — reuses the order page's hidden-checkbox
    selection and floating cart button, but lays the listings out as a table. */
 .availability-checker {
@@ -3154,7 +3166,7 @@ label:hover .embed-toggle-badge,
   a {
     border-bottom: 3px solid transparent;
     display: inline-block;
-    padding: var(--space-s) var(--space-m);
+    padding: 0 var(--space-s);
     text-decoration: none;
   }
 

@@ -18,7 +18,12 @@
 import type { InValue } from "@libsql/client";
 import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { execute, insert, queryOne } from "#shared/db/client.ts";
+import {
+  execute,
+  insert,
+  queryOne,
+  type SqlStatement,
+} from "#shared/db/client.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 
@@ -269,9 +274,6 @@ export const parseSessionFailure = async (
     return CORRUPT_FAILURE;
   }
 };
-
-/** A built SQL statement: the text and its positional bind args. */
-type SqlStatement = { sql: string; args: InValue[] };
 
 /** Shared UPDATE shape for the finalize statement builders. */
 const buildFinalizeStatement = (

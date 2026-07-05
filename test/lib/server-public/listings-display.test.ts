@@ -57,11 +57,10 @@ describeWithEnv(
 
       test("shows no listings message when enabled but no listings exist", async () => {
         await settings.update.showPublicSite(true);
-        await assertPublicHtml(
-          "/listings",
-          "No listings listed.",
-          "/admin/login",
-        );
+        const html = await assertPublicHtml("/listings", "No listings listed.");
+        // The login footer is a homepage-only affordance (#69) — /listings
+        // never shows it.
+        expect(html).not.toContain('href="/admin/login"');
       });
 
       test("shows website title with no listings message", async () => {

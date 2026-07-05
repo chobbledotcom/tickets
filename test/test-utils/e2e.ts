@@ -122,7 +122,11 @@ export const addAttendee = async (
 export const openAttendeeEditor = async (
   browser: TestBrowser,
 ): Promise<void> => {
-  const link = browser.links.find((l) => l.href.includes("/admin/attendees/"));
+  // A numeric id specifically — the admin nav's own "Add Attendee" link
+  // (/admin/attendees/new) also matches a bare "/admin/attendees/" substring.
+  const link = browser.links.find((l) =>
+    /\/admin\/attendees\/\d+/.test(l.href),
+  );
   if (!link) throw new Error("no attendee edit link on the current page");
   await browser.visit(link.href);
   // The form lives on the Edit tab of the attendee entity page; the strip
