@@ -2,9 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import { packageQuantityCap } from "#shared/booking/capacity-tree.ts";
+import {
+  buildTicketListing,
+  type TicketListing,
+} from "#shared/booking/model.ts";
 import type { BookingNode, BookingTree } from "#shared/booking/tree.ts";
-import type { TicketListing } from "#templates/public.tsx";
-import { buildTicketListing } from "#templates/public.tsx";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** A resolved package-member line for buildBookingTree inputs. */

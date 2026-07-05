@@ -12,6 +12,12 @@ import {
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import { parseCustomPrice } from "#shared/booking/form.ts";
+import type { TicketListing } from "#shared/booking/model.ts";
+import {
+  packageBundleCap,
+  packageCapContext,
+} from "#shared/booking/package-cap.ts";
 import {
   customPriceFieldName,
   fixedQuantitiesByListingId,
@@ -75,8 +81,6 @@ import {
   type BookingPrefill,
   orderSummary,
   orderSummaryMessage,
-  packageBundleCap,
-  type TicketListing,
   type TicketPrefill,
 } from "#templates/public.tsx";
 import {
@@ -91,7 +95,6 @@ import {
   groupListingAnswerSets,
   listingsWithQuantity,
   parseAddOnSelections,
-  parseCustomPrice,
   parseQuantities,
   ticketFormErrorResponse,
   ticketResponse,
@@ -597,10 +600,12 @@ const resolvePageQuantities = (
   const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
   const cap = packageBundleCap(
     tree,
-    ctx.listings,
-    ctx.childrenByParentId,
-    ctx.packageGroupRemainingByGroupId,
-    ctx.packageMemberGroupIds,
+    packageCapContext(
+      ctx.listings,
+      ctx.childrenByParentId,
+      ctx.packageGroupRemainingByGroupId,
+      ctx.packageMemberGroupIds,
+    ),
   );
   const packageQty = Math.max(0, Math.min(parsePackageCount(form), cap));
   return new Map(

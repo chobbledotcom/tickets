@@ -22,11 +22,12 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
+import type { TicketListing } from "#shared/booking/model.ts";
 import { settings } from "#shared/db/settings.ts";
 import { SELECT_PREFIX } from "#shared/order-select.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { orderGalleryPage, type TicketListing } from "#templates/public.tsx";
+import { orderGalleryPage } from "#templates/public.tsx";
 /* jscpd:ignore-start */
 import {
   applyParentSoldOut,

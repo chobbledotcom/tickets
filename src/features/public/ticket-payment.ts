@@ -20,6 +20,15 @@ import {
   foldBookingTree,
   resolvedByNodeKey,
 } from "#shared/booking/fold-tree.ts";
+import { formatAtomicError } from "#shared/booking/form.ts";
+import {
+  type ChildSpanDates,
+  childDateKey,
+  constrainOptionsByChildUnion,
+  fixedParentSpan,
+  foldMembersWithChildren,
+  type TicketListing,
+} from "#shared/booking/model.ts";
 import { effectivePrice } from "#shared/booking/price-tree.ts";
 import type { BookingTree, PriceRule } from "#shared/booking/tree.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
@@ -79,14 +88,7 @@ import {
   normalizeDurationDays,
 } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
-import {
-  type ChildSpanDates,
-  childDateKey,
-  constrainOptionsByChildUnion,
-  fixedParentSpan,
-  type TicketListing,
-} from "#templates/public.tsx";
-import { formatAtomicError, listingsWithQuantity } from "./ticket-form.ts";
+import { listingsWithQuantity } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import type {
   AsyncHandler,
@@ -644,7 +646,7 @@ const childDateContribution = (
  */
 const constrainDatesByChildUnion = (
   parentDates: string[],
-  children: TicketListing[],
+  children: readonly TicketListing[],
   fixedSpan: number | null,
   holidays: Holiday[],
 ): string[] =>
@@ -689,17 +691,20 @@ const constrainPackageDatesByChildren = (
   dates: string[],
   holidays: Holiday[],
 ): string[] =>
-  members.reduce((acc, member) => {
-    if (member.listing.listing_type !== "daily") return acc;
-    const children = childrenByParentId.get(member.listing.id);
-    if (!children || children.length === 0) return acc;
-    return constrainDatesByChildUnion(
-      acc,
-      children,
-      fixedParentSpan(member.listing),
-      holidays,
-    );
-  }, dates);
+  foldMembersWithChildren(
+    members,
+    childrenByParentId,
+    dates,
+    (acc, member, children) =>
+      member.listing.listing_type !== "daily"
+        ? acc
+        : constrainDatesByChildUnion(
+            acc,
+            children,
+            fixedParentSpan(member.listing),
+            holidays,
+          ),
+  );
 
 /**
  * The parent→children relationship for the page's listings, each child hydrated to

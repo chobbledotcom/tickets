@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import { buildTicketListing } from "#shared/booking/model.ts";
 import {
   edgeDrifted,
   lineNodeKey,
@@ -10,7 +11,6 @@ import {
 import type { BookingTree } from "#shared/booking/tree.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import type { BookingItem } from "#shared/payments.ts";
-import { buildTicketListing } from "#templates/public.tsx";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 const resolved = (id: number) =>

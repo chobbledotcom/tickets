@@ -1,9 +1,15 @@
 import { compact } from "#fp";
 import { t } from "#i18n";
+import { formatAtomicError, parseCustomPrice } from "#shared/booking/form.ts";
 import {
-  formatAtomicError,
-  parseCustomPrice,
-} from "#routes/public/ticket-form.ts";
+  childDateOk,
+  childDurationMatches,
+  childPricedForSpan,
+  childSelectableIgnoringSpan,
+  resolveInheritedDuration,
+  selectableChild,
+  type TicketListing,
+} from "#shared/booking/model.ts";
 import { priceRuleByListingId } from "#shared/booking/price-tree.ts";
 import type {
   BookingNode,
@@ -18,15 +24,6 @@ import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Holiday } from "#shared/types.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
-import {
-  childDateOk,
-  childDurationMatches,
-  childPricedForSpan,
-  childSelectableIgnoringSpan,
-  resolveInheritedDuration,
-  selectableChild,
-  type TicketListing,
-} from "#templates/public.tsx";
 
 /**
  * The **unified fold** — one recursive walk over the {@link BookingTree} that

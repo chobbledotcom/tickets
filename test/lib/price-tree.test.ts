@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import { buildTicketListing } from "#shared/booking/model.ts";
 import {
   effectivePrice,
   priceRuleByListingId,
 } from "#shared/booking/price-tree.ts";
 import type { PriceRule } from "#shared/booking/tree.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { buildTicketListing } from "#templates/public.tsx";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** A raw listing (id 7 by default) for direct effectivePrice calls. */

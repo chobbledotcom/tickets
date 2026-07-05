@@ -1,12 +1,13 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { CSS_PATH, JS_PATH } from "#shared/asset-paths.ts";
+import { buildTicketListing } from "#shared/booking/model.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { settings } from "#shared/db/settings.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
-import { buildTicketListing, ticketPage } from "#templates/public.tsx";
+import { ticketPage } from "#templates/public.tsx";
 import {
   describeWithEnv,
   setupTestEncryptionKey,

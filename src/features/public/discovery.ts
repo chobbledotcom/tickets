@@ -21,6 +21,19 @@
 import { mapNotNullish, mapParallel, unique } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import {
+  buildTicketListing,
+  childActive,
+  childCalendarOrInStockForSpan,
+  childOpen,
+  combinedGroupDemandFits,
+  fixedParentSpan,
+  type TicketListing,
+} from "#shared/booking/model.ts";
+import {
+  packageBundleCap,
+  packageCapContext,
+} from "#shared/booking/package-cap.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import {
   getGroupRemainingByListingId,
@@ -50,16 +63,6 @@ import {
   type ListingWithCount,
   sharedGroupCapacity,
 } from "#shared/types.ts";
-import {
-  buildTicketListing,
-  childActive,
-  childCalendarOrInStockForSpan,
-  childOpen,
-  combinedGroupDemandFits,
-  fixedParentSpan,
-  packageBundleCap,
-  type TicketListing,
-} from "#templates/public.tsx";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import {
   loadChildrenByParentId,
@@ -453,10 +456,12 @@ export const packageGroupBookable = async (
   return (
     packageBundleCap(
       tree,
-      ticketListings,
-      childrenByParentId,
-      remaining,
-      groupIdsByListingId,
+      packageCapContext(
+        ticketListings,
+        childrenByParentId,
+        remaining,
+        groupIdsByListingId,
+      ),
     ) >= 1
   );
 };

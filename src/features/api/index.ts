@@ -19,10 +19,7 @@ import {
   loadPublicGroups,
 } from "#routes/public/discovery.ts";
 import { loadBookablePackageBySlug } from "#routes/public/groups.ts";
-import {
-  listingsWithQuantity,
-  parseCustomPrice,
-} from "#routes/public/ticket-form.ts";
+import { listingsWithQuantity } from "#routes/public/ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-listings.ts";
 import {
   buildRegistrationItems,
@@ -42,6 +39,17 @@ import type { ServerContext } from "#routes/types.ts";
 import { getBaseUrl, getClientIp } from "#routes/url.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import type { FoldChildrenResult } from "#shared/booking/fold-tree.ts";
+import { parseCustomPrice } from "#shared/booking/form.ts";
+import {
+  bookableChildIds,
+  buildTicketListing,
+  packageSharedDayCounts,
+  type TicketListing,
+} from "#shared/booking/model.ts";
+import {
+  packageBundleCap,
+  packageCapContext,
+} from "#shared/booking/package-cap.ts";
 import { packageBundleTotal } from "#shared/booking/price-tree.ts";
 import {
   type BookingTree,
@@ -99,13 +107,6 @@ import {
   mergeListingFields,
   tryValidateTicketFields,
 } from "#templates/fields.ts";
-import {
-  bookableChildIds,
-  buildTicketListing,
-  packageBundleCap,
-  packageSharedDayCounts,
-  type TicketListing,
-} from "#templates/public.tsx";
 
 // =============================================================================
 // CORS
@@ -1084,10 +1085,12 @@ const loadPackageContext = async (slug: string) => {
   const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
   const cap = packageBundleCap(
     tree,
-    ticketListings,
-    ctx.childrenByParentId,
-    ctx.packageGroupRemainingByGroupId,
-    ctx.packageMemberGroupIds,
+    packageCapContext(
+      ticketListings,
+      ctx.childrenByParentId,
+      ctx.packageGroupRemainingByGroupId,
+      ctx.packageMemberGroupIds,
+    ),
   );
   return { cap, ctx, group: loaded.group, tree };
 };

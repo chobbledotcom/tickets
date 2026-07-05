@@ -1,12 +1,9 @@
+import { groupPoolUnits, type TicketListing } from "#shared/booking/model.ts";
 import {
   type BookingNode,
   type BookingTree,
   nodeFixedQuantity,
 } from "#shared/booking/tree.ts";
-import {
-  groupPoolUnits,
-  type TicketListing,
-} from "#templates/public/shared.tsx";
 
 /**
  * Tree-driven booking capacity (Phase 2c). The authoritative overbooking guard is

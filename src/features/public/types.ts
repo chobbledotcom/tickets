@@ -2,17 +2,14 @@
  * Shared types, constants, and tiny utilities for public ticket routes
  */
 
+import type { ChildSpanDates, TicketListing } from "#shared/booking/model.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type {
   QuestionListingMap,
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import type {
-  BookingPrefill,
-  ChildSpanDates,
-  TicketListing,
-} from "#templates/public.tsx";
+import type { BookingPrefill } from "#templates/public.tsx";
 
 /** Parent listing id → its bookable-child candidates, each hydrated to a
  * {@link TicketListing} so availability (isSoldOut/isClosed/maxPurchasable) is
