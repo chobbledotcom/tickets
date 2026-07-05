@@ -348,11 +348,7 @@ const legDescription = (
   lead?: string,
 ): JSX.Element => (
   <>
-    {lead !== undefined && (
-      <>
-        {t(lead)}{" "}
-      </>
-    )}
+    {lead !== undefined && <>{t(lead)} </>}
     {accountCell(transfer.source, names)} {t(between)}{" "}
     {accountCell(transfer.destination, names)}
   </>
@@ -369,10 +365,7 @@ const fallbackHumanDescription = (
     "admin.ledger.human.transfer_from",
   );
 
-const saleDescription = (
-  transfer: Transfer,
-  names: LedgerNames,
-): JSX.Element =>
+const saleDescription = (transfer: Transfer, names: LedgerNames): JSX.Element =>
   legDescription(transfer, names, "admin.ledger.human.booked");
 
 const adjustmentDescription = (
@@ -576,6 +569,12 @@ export type AccountLedgerData = {
   names: LedgerNames;
 };
 
+/** The `table-action-btns` paragraph that wraps a table's inline controls — the
+ *  statement's add/return buttons, the ledger filters, and the view toggle. */
+const TableActionBar = ({ children }: { children: Child }): JSX.Element => (
+  <p class="table-action-btns">{children}</p>
+);
+
 const AccountStatementActions = ({
   account,
   names,
@@ -590,7 +589,7 @@ const AccountStatementActions = ({
   const showAdd = canAddLedgerEntry(account, names);
   if (!showAdd && !fullLedgerHref) return null;
   return (
-    <p class="table-action-btns">
+    <TableActionBar>
       {showAdd && (
         <ActionButton href={ledgerEntryAddHref(account, returnUrl)} icon="plus">
           {t("admin.ledger.add.link")}
@@ -601,7 +600,7 @@ const AccountStatementActions = ({
           {t("attendee_detail.view_full_ledger")}
         </ActionButton>
       )}
-    </p>
+    </TableActionBar>
   );
 };
 
@@ -781,7 +780,7 @@ const RangeField = ({
 /** The by-listing filter: a nav-select preselected to the current scope ("All
  *  listings" or one listing), each option navigating to the scoped ledger. */
 const ListingFilter = ({ data }: { data: LedgerPageData }): SafeHtml => (
-  <p class="table-action-btns">
+  <TableActionBar>
     {t("admin.ledger.filter.listing")}:
     <select aria-label={t("admin.ledger.filter.listing")} data-nav-select>
       <option
@@ -801,13 +800,13 @@ const ListingFilter = ({ data }: { data: LedgerPageData }): SafeHtml => (
         ),
       )(data.listings)}
     </select>
-  </p>
+  </TableActionBar>
 );
 
 /** The view toggle renders every mode from the picklist: the active one as
  *  plain bold text (never a dead link to itself), the rest as links. */
 const LedgerViewToggle = ({ data }: { data: LedgerPageData }): SafeHtml => (
-  <p class="table-action-btns">
+  <TableActionBar>
     {LedgerViewModeSchema.options.map((mode) => {
       const label = t(`admin.ledger.view.${mode}`);
       return data.filters.view === mode ? (
@@ -816,7 +815,7 @@ const LedgerViewToggle = ({ data }: { data: LedgerPageData }): SafeHtml => (
         <a href={ledgerHref(data.filters, { view: mode })}>{label}</a>
       );
     })}
-  </p>
+  </TableActionBar>
 );
 
 /** The range-scoped stats table: a heading naming the scope ("All listings" or
@@ -933,6 +932,27 @@ const LedgerEntryFields = ({
   </>
 );
 
+/** The fields both ledger-entry form pages share: the name lookup, the
+ *  amount/date form values, the operator's return URL, session, and any flash
+ *  error. Each page adds only the record it edits (an account, or a transfer). */
+type LedgerEntryPageBase = {
+  names: LedgerNames;
+  values: LedgerEntryFormValues;
+  returnUrl: string;
+  session: AdminSession;
+  error?: string | undefined;
+};
+
+/** The secondary "cancel" button that returns the operator to where they came
+ *  from, shown at the foot of both ledger-entry form pages. */
+const CancelActionRow = ({ returnUrl }: { returnUrl: string }): JSX.Element => (
+  <p>
+    <ActionButton href={returnUrl} variant="secondary">
+      {t("common.cancel")}
+    </ActionButton>
+  </p>
+);
+
 export const adminLedgerEntryAddPage = ({
   account,
   names,
@@ -941,14 +961,9 @@ export const adminLedgerEntryAddPage = ({
   returnUrl,
   session,
   error,
-}: {
+}: LedgerEntryPageBase & {
   account: AccountRef;
-  names: LedgerNames;
   options: LedgerEntryAddOption[];
-  values: LedgerEntryFormValues;
-  returnUrl: string;
-  session: AdminSession;
-  error?: string | undefined;
 }): string =>
   errorAdminPage(t("admin.ledger.add.heading"), "/admin/ledger")(
     session,
@@ -983,11 +998,7 @@ export const adminLedgerEntryAddPage = ({
       </ul>
       <LedgerEntryFields values={values} />
       <SubmitButton icon="plus">{t("admin.ledger.add.submit")}</SubmitButton>
-      <p>
-        <ActionButton href={returnUrl} variant="secondary">
-          {t("common.cancel")}
-        </ActionButton>
-      </p>
+      <CancelActionRow returnUrl={returnUrl} />
     </CsrfForm>,
   );
 
@@ -998,13 +1009,8 @@ export const adminLedgerEntryEditPage = ({
   returnUrl,
   session,
   error,
-}: {
+}: LedgerEntryPageBase & {
   transfer: Transfer;
-  names: LedgerNames;
-  values: LedgerEntryFormValues;
-  returnUrl: string;
-  session: AdminSession;
-  error?: string | undefined;
 }): string =>
   errorAdminPage(t("admin.ledger.edit.heading"), "/admin/ledger")(
     session,
@@ -1033,10 +1039,6 @@ export const adminLedgerEntryEditPage = ({
           })}
         </p>
       </ConfirmForm>
-      <p>
-        <ActionButton href={returnUrl} variant="secondary">
-          {t("common.cancel")}
-        </ActionButton>
-      </p>
+      <CancelActionRow returnUrl={returnUrl} />
     </>,
   );

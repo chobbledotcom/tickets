@@ -47,7 +47,6 @@ import {
   getVisibleGroupMembers,
   groupBookable,
 } from "#routes/public/discovery.ts";
-import { foldedChildIdSet } from "#shared/payment-helpers.ts";
 import {
   bookingDateFields,
   lacksStandalonePublicPage,
@@ -124,6 +123,7 @@ import {
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { resolveNamesConcealed } from "#shared/package-privacy.ts";
+import { foldedChildIdSet } from "#shared/payment-helpers.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import {
   type BookingItem,

@@ -1,10 +1,6 @@
 import { t } from "#i18n";
 import { type BuiltSite, DEFAULT_UPDATE_TIER } from "#shared/db/built-sites.ts";
-import {
-  booleanToCheckbox,
-  CsrfForm,
-  renderFields,
-} from "#shared/forms.tsx";
+import { booleanToCheckbox, CsrfForm, renderFields } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { SiteSecretsView } from "#shared/site-secrets.ts";
 import type { BuiltSiteUpdateState } from "#shared/site-update.ts";

@@ -14,9 +14,7 @@ import {
   booleanToCheckbox,
   CsrfForm,
   entityToFieldValues,
-  renderFields,
 } from "#shared/forms.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Modifier } from "#shared/types.ts";
 import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
@@ -315,7 +313,7 @@ export const adminModifierNewPage = (
   )(
     <CsrfForm action="/admin/modifiers">
       {modifierFormHeader(t("modifiers.add.heading"))}
-      <Raw html={renderFields(modifierFields, modifierToFieldValues())} />
+      <FlashFields fields={modifierFields} values={modifierToFieldValues()} />
       <SubmitButton icon="plus">{t("modifiers.add.submit")}</SubmitButton>
     </CsrfForm>,
   );

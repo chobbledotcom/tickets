@@ -107,15 +107,15 @@ const loadFeedData = async (): Promise<FeedData> => {
     await classifyForDiscovery(listings);
   const packages = (await bookablePackageGroups()).map(
     (g: Group): FeedItem => ({
-        created: null,
-        date: null,
-        description: g.description,
-        location: "",
-        name: g.name,
-        slug: g.slug,
-        uid: `package-${g.id}`,
-      }),
-    );
+      created: null,
+      date: null,
+      description: g.description,
+      location: "",
+      name: g.name,
+      slug: g.slug,
+      uid: `package-${g.id}`,
+    }),
+  );
   return {
     domain: getEffectiveDomain(),
     items: [

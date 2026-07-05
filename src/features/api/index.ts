@@ -14,9 +14,9 @@ import {
 } from "#routes/api/request-schemas.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
+  bookablePackageGroups,
   classifyForDiscovery,
   dropHiddenPackageMembers,
-  loadPublicGroups,
 } from "#routes/public/discovery.ts";
 import { loadBookablePackageBySlug } from "#routes/public/groups.ts";
 import { listingsWithQuantity } from "#routes/public/ticket-form.ts";
@@ -321,21 +321,36 @@ type SlugRouteHandler = (
   server?: ServerContext,
 ) => Promise<Response>;
 
-/** Wrap a handler that needs an active listing — handles slug lookup + 404 */
-const withActiveListing =
+/** Build a slug route from a `resolve` step that turns the slug into either a
+ * value to hand the handler or a Response to short-circuit with (a 404, a 429,
+ * …). The one place the "resolve by slug, else bail" wiring lives, so every
+ * wrapper that fronts a slug route reuses it. */
+const withResolvedBySlug =
+  <T>(
+    resolve: (
+      request: Request,
+      slug: string,
+      server?: ServerContext,
+    ) => Promise<T | Response>,
+  ) =>
   (
     handler: (
       request: Request,
-      listing: ListingWithCount,
+      value: T,
       server?: ServerContext,
     ) => Promise<Response>,
   ): SlugRouteHandler =>
   async (request, { slug }, server) => {
-    const result = await findActiveListing(slug);
-    return result instanceof Response
-      ? result
-      : handler(request, result, server);
+    const resolved = await resolve(request, slug, server);
+    return resolved instanceof Response
+      ? resolved
+      : handler(request, resolved, server);
   };
+
+/** Wrap a handler that needs an active listing — handles slug lookup + 404 */
+const withActiveListing = withResolvedBySlug<ListingWithCount>(
+  (_request, slug) => findActiveListing(slug),
+);
 
 // =============================================================================
 // Parent/child discovery guard
@@ -433,14 +448,12 @@ const handleListListings = async (): Promise<Response> => {
   // Packages are first-class products: a bookable package bundle is listed by
   // name/slug (booked whole at /ticket/<group-slug>), so a hidden package stays
   // discoverable even though its member listings are dropped above.
-  const packages = (await loadPublicGroups())
-    .filter((g) => g.is_package)
-    .map((g) => ({
-      description: g.description,
-      name: g.name,
-      slug: g.slug,
-      url: `/ticket/${g.slug}`,
-    }));
+  const packages = (await bookablePackageGroups()).map((g) => ({
+    description: g.description,
+    name: g.name,
+    slug: g.slug,
+    url: `/ticket/${g.slug}`,
+  }));
   return apiResponse({ listings, packages });
 };
 
@@ -1100,7 +1113,11 @@ const handleBook = withActiveListing(async (request, listing, server) => {
   const form = toFormParams(body);
 
   // Validate fields using the same form validation as the web
-  const valResult = validateFields(form, listing.fields, isPaidListing(listing));
+  const valResult = validateFields(
+    form,
+    listing.fields,
+    isPaidListing(listing),
+  );
   if (valResult instanceof Response) return valResult;
   const values = valResult;
 
@@ -1163,24 +1180,23 @@ type PackageContext = NonNullable<
  * fully booked) and hand the loaded context to the handler. `rateLimit` throttles
  * by client IP first (before the load), for the booking endpoint. Shared by the
  * package detail and package booking routes so neither repeats the load + 404. */
-const withPackageContext =
-  (
-    opts: { rateLimit?: boolean },
-    handler: (
-      request: Request,
-      pkg: PackageContext,
-      server?: ServerContext,
-    ) => Promise<Response>,
-  ): SlugRouteHandler =>
-  async (request, { slug }, server) => {
+const withPackageContext = (
+  opts: { rateLimit?: boolean },
+  handler: (
+    request: Request,
+    pkg: PackageContext,
+    server?: ServerContext,
+  ) => Promise<Response>,
+): SlugRouteHandler =>
+  withResolvedBySlug<PackageContext>(async (request, slug, server) => {
     if (opts.rateLimit) {
       const limited = await checkBookingRateLimit(request, server);
       if (limited) return limited;
     }
-    const pkg = await loadPackageContext(slug);
-    if (!pkg) return apiResponse(PACKAGE_NOT_FOUND, 404);
-    return handler(request, pkg, server);
-  };
+    return (
+      (await loadPackageContext(slug)) ?? apiResponse(PACKAGE_NOT_FOUND, 404)
+    );
+  })(handler);
 
 /** The contact-field requirement a package booking can validate against: the
  * members' settings merged with their children's (a chosen add-on can add a
@@ -1207,58 +1223,58 @@ const handleGetPackage = withPackageContext(
   {},
   async (_request, { ctx, group, limit, tree }) => {
     const customisable = ctx.listings.some((e) => e.listing.customisable_days);
-  const dayCounts = customisable
-    ? packageDayCountsChildrenSupport(ctx.listings, ctx.childrenByParentId)
-    : [];
-  // A hidden package never names its members (or their children) — buyers see
-  // only the bundle. `packageQuantities` covers every member by construction.
-  // Members and their children are already availability-resolved on the ctx
-  // (ONE hydration pass), so the response is built without re-querying edges,
-  // holidays, or group remaining per member.
-  const holidays = await getActiveHolidays();
-  const memberQuantities = fixedQuantitiesByListingId(tree);
-  const bookableChildren = bookableChildIds(ctx.childrenByParentId);
-  const members = namesConcealed(
-    packagePrivacy(group.hide_package_listings, group.name),
-  )
-    ? undefined
-    : ctx.listings.map((e) => {
-        const children = (ctx.childrenByParentId.get(e.listing.id) ?? [])
-          .filter((child) => child.listing.active)
-          .map((child) =>
-            resolvedToPublicListing(
-              child,
-              child.listing.listing_type === "daily"
-                ? getAvailableDates(child.listing, holidays)
-                : undefined,
-            ),
-          );
-        return {
-          name: e.listing.name,
-          quantity: memberQuantities.get(e.listing.id)!,
-          slug: e.listing.slug,
-          ...(children.length > 0 ? { children } : {}),
-        };
-      });
-  return apiResponse({
-    package: {
-      description: group.description,
-      fields: packageMergedFields(ctx),
-      maxPurchasable: limit,
-      name: group.name,
-      slug: group.slug,
-      ...(ctx.dates.length > 0 ? { availableDates: ctx.dates } : {}),
-      ...(customisable
-        ? {
-            dayCounts: dayCounts.map((days) => ({
-              days,
-              priceMinor: packageBundleTotal(tree, days, bookableChildren),
-            })),
-          }
-        : { priceMinor: packageBundleTotal(tree, 1, bookableChildren) }),
-      ...(members ? { members } : {}),
-    },
-  });
+    const dayCounts = customisable
+      ? packageDayCountsChildrenSupport(ctx.listings, ctx.childrenByParentId)
+      : [];
+    // A hidden package never names its members (or their children) — buyers see
+    // only the bundle. `packageQuantities` covers every member by construction.
+    // Members and their children are already availability-resolved on the ctx
+    // (ONE hydration pass), so the response is built without re-querying edges,
+    // holidays, or group remaining per member.
+    const holidays = await getActiveHolidays();
+    const memberQuantities = fixedQuantitiesByListingId(tree);
+    const bookableChildren = bookableChildIds(ctx.childrenByParentId);
+    const members = namesConcealed(
+      packagePrivacy(group.hide_package_listings, group.name),
+    )
+      ? undefined
+      : ctx.listings.map((e) => {
+          const children = (ctx.childrenByParentId.get(e.listing.id) ?? [])
+            .filter((child) => child.listing.active)
+            .map((child) =>
+              resolvedToPublicListing(
+                child,
+                child.listing.listing_type === "daily"
+                  ? getAvailableDates(child.listing, holidays)
+                  : undefined,
+              ),
+            );
+          return {
+            name: e.listing.name,
+            quantity: memberQuantities.get(e.listing.id)!,
+            slug: e.listing.slug,
+            ...(children.length > 0 ? { children } : {}),
+          };
+        });
+    return apiResponse({
+      package: {
+        description: group.description,
+        fields: packageMergedFields(ctx),
+        maxPurchasable: limit,
+        name: group.name,
+        slug: group.slug,
+        ...(ctx.dates.length > 0 ? { availableDates: ctx.dates } : {}),
+        ...(customisable
+          ? {
+              dayCounts: dayCounts.map((days) => ({
+                days,
+                priceMinor: packageBundleTotal(tree, days, bookableChildren),
+              })),
+            }
+          : { priceMinor: packageBundleTotal(tree, 1, bookableChildren) }),
+        ...(members ? { members } : {}),
+      },
+    });
   },
 );
 

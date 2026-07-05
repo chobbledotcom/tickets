@@ -347,19 +347,22 @@ export const classifyForDiscovery = async (
   // reads the parent sold out, leaving the note a dead end (e.g. a child whose only
   // parent shares a 1-spot capped group with it: one parent+child order needs two
   // spots). Reuse the same combined-demand check both surfaces use.
-  const addOnChildIds = childIdsWhereParents(parentsByChild, (childId, parents) => {
-    // A `bookable_alone` child gets its own Book CTA rather than the add-on note,
-    // so it never enters this set — otherwise `childCardState` would short-circuit
-    // to "addon" before it could read as a normal standalone card.
-    if (!nonStandaloneChildIds.has(childId)) return false;
-    // childId comes from the displayed `ids`, so it is always present in `byId`.
-    const child = byId.get(childId)!;
-    return parents.some(
-      (p) =>
-        parentBookable(p, parentGroupRemaining.get(p.id)) &&
-        childCanBeBookedForParent(p, child, caps, holidays),
-    );
-  });
+  const addOnChildIds = childIdsWhereParents(
+    parentsByChild,
+    (childId, parents) => {
+      // A `bookable_alone` child gets its own Book CTA rather than the add-on note,
+      // so it never enters this set — otherwise `childCardState` would short-circuit
+      // to "addon" before it could read as a normal standalone card.
+      if (!nonStandaloneChildIds.has(childId)) return false;
+      // childId comes from the displayed `ids`, so it is always present in `byId`.
+      const child = byId.get(childId)!;
+      return parents.some(
+        (p) =>
+          parentBookable(p, parentGroupRemaining.get(p.id)) &&
+          childCanBeBookedForParent(p, child, caps, holidays),
+      );
+    },
+  );
   const soldOutParentIds = new Set<number>();
   for (const [parentId, children] of childrenByParent) {
     const parent = byId.get(parentId);

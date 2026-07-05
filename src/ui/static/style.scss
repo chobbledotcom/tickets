@@ -106,6 +106,32 @@
   @return 'select[name="#{$name}"] option[value="#{$value}"]:checked';
 }
 
+// A section-heading rule: a hairline underline with spacing above the content.
+@mixin heading-underline {
+  margin-bottom: var(--space-m);
+  padding-bottom: var(--space-s);
+  border-bottom: 1px solid var(--color-bg-secondary);
+}
+
+// Hide $targets inside a templated listing form until its Customise box is
+// ticked. $modifier narrows to the templates that pin a particular field.
+@mixin hide-until-customise($modifier, $targets) {
+  form.listing-form--templated#{$modifier}:not(:has(#customise-listing:checked)) {
+    #{$targets} {
+      display: none;
+    }
+  }
+}
+
+// The admin content column (everything in <main> that isn't the sidebar nav).
+$admin-content-col: "body:has(.admin-nav-group) main > :not(.admin-nav-group)";
+
+// The bulk-email form while its "update existing template" box is ticked.
+$bulk-email-updating: '#bulk-email:has(input[name="update_existing"]:checked)';
+
+// An order/selection container with nothing currently ticked.
+$no-selection: ":not(:has(.order-select:checked))";
+
 // Status/alert panels shared by the manual check-in and camera scanner
 // overlays — identical fills, so grouped rather than repeated.
 %status-panel-success {
@@ -565,17 +591,14 @@ nav ul li {
   }
 
   /* Everything that isn't the sidebar flows down column 2... */
-  body:has(.admin-nav-group) main > :not(.admin-nav-group) {
+  #{$admin-content-col} {
     grid-column: 2;
     min-width: 0;
   }
 
   /* ...with margins re-creating the inter-block gap, since a real row-gap would
      be multiplied across the 9999 spanned (empty) rows. */
-  body:has(.admin-nav-group)
-    main
-    > :not(.admin-nav-group)
-    ~ :not(.admin-nav-group) {
+  #{$admin-content-col} ~ :not(.admin-nav-group) {
     margin-top: var(--space-xl);
   }
 
@@ -612,9 +635,7 @@ nav ul li {
 /* Typography */
 code,
 samp {
-  background-color: var(--color-accent);
-  border-radius: var(--border-radius);
-  color: var(--color-text);
+  @include chip(var(--color-accent), var(--color-text));
   display: inline-block;
   margin: 0 0.1rem;
   padding: 0 0.5rem;
@@ -677,9 +698,7 @@ small,
 }
 
 sup {
-  background-color: var(--color-secondary);
-  border-radius: var(--border-radius);
-  color: var(--color-bg);
+  @include chip(var(--color-secondary), var(--color-bg));
   font-size: xx-small;
   font-weight: bold;
   margin: 0.2rem;
@@ -812,10 +831,7 @@ input[type="submit"],
 
 /* Horizontal toolbar for page-level actions + guide links */
 .actions {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-m);
+  @include flex-row-wrap(var(--space-m));
 }
 
 article aside a {
@@ -839,8 +855,7 @@ figure figcaption {
 /* Forms */
 button:disabled,
 input:disabled {
-  background: var(--color-bg-secondary);
-  border-color: var(--color-bg-secondary);
+  @include muted-fill;
   color: var(--color-text-secondary);
   cursor: not-allowed;
 }
@@ -860,8 +875,7 @@ input[type="submit"][disabled]:hover {
 }
 
 .btn.btn--disabled {
-  background-color: var(--color-bg-secondary);
-  border-color: var(--color-bg-secondary);
+  @include muted-fill;
 }
 
 form {
@@ -869,8 +883,8 @@ form {
   @include stack(var(--space-m));
   max-width: var(--width-card-wide);
   min-width: var(--width-card);
-  padding: var(--space-m);
   text-align: var(--justify-normal);
+  padding: var(--space-m);
 }
 
 form.one-button {
@@ -906,8 +920,8 @@ input,
 select,
 textarea {
   display: block;
-  font-size: inherit;
   max-width: var(--width-card-wide);
+  font-size: inherit;
 }
 
 input[type="checkbox"],
@@ -1060,7 +1074,7 @@ textarea[readonly] {
   flex-wrap: wrap;
   gap: var(--space-s);
   padding: var(--space-s);
-  border-radius: var(--border-radius) var(--border-radius) 0 0;
+  @include rounded-top;
   border-bottom: 1px solid var(--color-bg-secondary);
   background: var(--color-bg-secondary);
 }
@@ -1080,8 +1094,7 @@ textarea[readonly] {
   border-color: var(--color-link);
 }
 .md-toolbar-button-active {
-  background: var(--color-link);
-  color: var(--color-bg);
+  @include link-fill;
   border-color: var(--color-link);
 }
 .md-toolbar-bold {
@@ -1123,9 +1136,7 @@ textarea[readonly] {
   background: rgba(0, 0, 0, 0.5);
 }
 .md-preview-close {
-  position: absolute;
-  top: var(--space-s);
-  right: var(--space-s);
+  @include pin-top-right;
   z-index: 1;
   display: flex;
   width: auto;
@@ -1836,9 +1847,7 @@ label.terms-agree {
   display: block;
   width: 100%;
   margin-top: var(--space-lg);
-  margin-bottom: var(--space-m);
-  padding-bottom: var(--space-s);
-  border-bottom: 1px solid var(--color-bg-secondary);
+  @include heading-underline;
   font-weight: bold;
   font-size: 1.05rem;
 }
@@ -1849,9 +1858,7 @@ label.terms-agree {
 
 /* When expanded, the summary reads as a section heading like the legends. */
 .listing-advanced[open] > summary {
-  margin-bottom: var(--space-m);
-  padding-bottom: var(--space-s);
-  border-bottom: 1px solid var(--color-bg-secondary);
+  @include heading-underline;
 }
 
 // ---------------------------------------------------------------------------
@@ -1884,7 +1891,7 @@ label.terms-agree {
 // Reveal $target only while the <select> named $name has $value chosen.
 @mixin reveal-when-selected($name, $value, $target) {
   @include hidden-in-form(
-    ':not(:has(select[name="#{$name}"] option[value="#{$value}"]:checked))',
+    ':not(:has(#{select-on-value($name, $value)}))',
     $target,
   );
 }
@@ -1892,7 +1899,7 @@ label.terms-agree {
 // Hide $target while the <select> named $name has $value chosen.
 @mixin hidden-when-selected($name, $value, $target) {
   @include hidden-in-form(
-    ':has(select[name="#{$name}"] option[value="#{$value}"]:checked)',
+    ':has(#{select-on-value($name, $value)})',
     $target,
   );
 }
@@ -1942,37 +1949,22 @@ label.terms-agree {
 // is active; .listing-form--hide-type is added when the template pins listing_type.
 // ---------------------------------------------------------------------------
 
-form.listing-form--templated:not(:has(#customise-listing:checked)) {
-  label:has(input[name="purchase_only"]),
-  label:has(input[name="uses_logistics"]) {
-    display: none;
-  }
-}
-
-form.listing-form--templated.listing-form--hide-type:not(
-  :has(#customise-listing:checked)
-) {
-  label:has(select[name="listing_type"]) {
-    display: none;
-  }
-}
-
-form.listing-form--templated.listing-form--hide-date:not(
-  :has(#customise-listing:checked)
-) {
-  label:has([name="date_date"]) {
-    display: none;
-  }
-}
-
-form.listing-form--templated.listing-form--no-daily:not(
-  :has(#customise-listing:checked)
-) {
-  label:has([name="customisable_days"]),
-  #day-prices {
-    display: none;
-  }
-}
+@include hide-until-customise(
+  "",
+  'label:has(input[name="purchase_only"]), label:has(input[name="uses_logistics"])'
+);
+@include hide-until-customise(
+  ".listing-form--hide-type",
+  'label:has(select[name="listing_type"])'
+);
+@include hide-until-customise(
+  ".listing-form--hide-date",
+  'label:has([name="date_date"])'
+);
+@include hide-until-customise(
+  ".listing-form--no-daily",
+  'label:has([name="customisable_days"]), #day-prices'
+);
 
 // ---------------------------------------------------------------------------
 // Listing defaults: while "Use defaults" is on, hide each field the operator
@@ -2090,9 +2082,7 @@ form.listing-form--templated.listing-form--no-daily:not(
 
 /* Listing type picker */
 .listing-type-picker {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--space-m);
+  @include card-grid;
   margin-block: var(--space-m);
 }
 
@@ -2116,14 +2106,12 @@ form.listing-form--templated.listing-form--no-daily:not(
 
 /* Customise toggle in listing forms */
 .listing-customise-toggle {
-  display: block;
-  margin-block: var(--space-m);
+  @extend %toggle-block;
 }
 
 /* "Use defaults" toggle in listing forms */
 .listing-use-defaults-toggle {
-  display: block;
-  margin-block: var(--space-m);
+  @extend %toggle-block;
 }
 
 /* Header image */
@@ -2191,7 +2179,7 @@ button.secondary:hover,
 .ticket-card-image {
   max-width: calc(100% + 1rem);
   margin: -0.5rem -0.5rem 0.5rem;
-  border-radius: var(--border-radius) var(--border-radius) 0 0;
+  @include rounded-top;
   display: block;
 }
 
@@ -2378,11 +2366,7 @@ button.secondary:hover,
 
 /* Scanner confirm overlay - centered on video like scanner-status */
 #scanner-confirm {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  @extend %overlay-fill;
   z-index: 20;
   display: flex;
   align-items: center;
@@ -2394,11 +2378,7 @@ button.secondary:hover,
 }
 
 #scanner-confirm-backdrop {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  @extend %overlay-fill;
   background: rgba(0, 0, 0, 0.5);
   border-radius: 4px;
 }
@@ -2593,10 +2573,10 @@ button.secondary:hover,
 #bulk-email .save-update {
   display: none;
 }
-#bulk-email:has(input[name="update_existing"]:checked) .save-as-new {
+#{$bulk-email-updating} .save-as-new {
   display: none;
 }
-#bulk-email:has(input[name="update_existing"]:checked) .save-update {
+#{$bulk-email-updating} .save-update {
   display: inline;
 }
 #bulk-email:not(:has(input[name="update_existing"]:checked))
@@ -2688,11 +2668,8 @@ button.secondary:hover,
 }
 
 .calendar-nav {
-  display: flex;
-  align-items: center;
+  @include flex-row-gap-below;
   justify-content: space-between;
-  gap: var(--space-s);
-  margin-bottom: var(--space-s);
   font-weight: bold;
 }
 
@@ -2773,8 +2750,7 @@ span.cal-day {
 .cal-day-selected,
 a.cal-day-selected:hover,
 a.cal-day-selected:active {
-  background: var(--color-link);
-  color: var(--color-bg);
+  @include link-fill;
 }
 
 /* Guide page */
@@ -2821,10 +2797,7 @@ a.cal-day-selected:active {
 /* Link/button rows attached to a table.
    No margin or padding; the surrounding flex container supplies vertical gap. */
 .table-action-btns {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-s);
+  @include flex-row-wrap(var(--space-s));
   margin: 0;
   padding: 0;
 }
@@ -2875,9 +2848,7 @@ a.cal-day-selected:active {
   border: 0;
   margin: 0;
   padding: 0;
-  display: grid;
-  gap: var(--space-m);
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  @include card-grid;
 }
 
 .order-card {
@@ -2933,9 +2904,7 @@ a.cal-day-selected:active {
 
 /* Tick badge — revealed only when the card's checkbox is checked */
 .order-card-tick {
-  position: absolute;
-  top: var(--space-s);
-  right: var(--space-s);
+  @include pin-top-right;
   display: none;
   align-items: center;
   justify-content: center;
@@ -2947,9 +2916,7 @@ a.cal-day-selected:active {
 }
 
 .order-card-tick::after {
-  content: "\2713";
-  font-size: 0.9rem;
-  line-height: 1;
+  @extend %tick-mark;
 }
 
 .order-select:checked ~ .order-card-tick {
@@ -2963,8 +2930,7 @@ a.cal-day-selected:active {
 
 .order-select:focus-visible ~ .order-card-tick,
 .order-card:has(.order-select:focus-visible) {
-  outline: 2px solid var(--color-secondary);
-  outline-offset: 2px;
+  @extend %focus-outline-secondary;
 }
 
 /* Each checked product increments the cart counter read by .order-cart-count */
@@ -3005,7 +2971,7 @@ a.cal-day-selected:active {
   font-weight: bold;
 }
 
-.order-gallery:not(:has(.order-select:checked)) .order-cart {
+.order-gallery#{$no-selection} .order-cart {
   display: none;
 }
 
@@ -3030,7 +2996,7 @@ a.cal-day-selected:active {
   counter-reset: cart;
 }
 
-.selectable-form:not(:has(.order-select:checked)) .order-cart {
+.selectable-form#{$no-selection} .order-cart {
   display: none;
 }
 
@@ -3075,14 +3041,11 @@ a.cal-day-selected:active {
 }
 
 .order-select:checked + .row-select-tick::after {
-  content: "\2713";
-  font-size: 0.9rem;
-  line-height: 1;
+  @extend %tick-mark;
 }
 
 .order-select:focus-visible + .row-select-tick {
-  outline: 2px solid var(--color-secondary);
-  outline-offset: 2px;
+  @extend %focus-outline-secondary;
 }
 
 .availability-table tr:has(.order-select:checked) {
@@ -3121,11 +3084,8 @@ a.cal-day-selected:active {
 /* Each leg is one row: a label, the time, then the agent (capped at 20rem),
    wrapping onto the next line when there isn't room. */
 .logistics-leg {
-  display: flex;
+  @include flex-row-gap-below($align: baseline);
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-s);
-  margin-bottom: var(--space-s);
 }
 
 .logistics-leg-label {
@@ -3208,10 +3168,7 @@ label:hover .embed-toggle-badge,
 }
 
 .entity-action {
-  align-items: center;
-  display: flex;
-  gap: var(--space-s);
-  margin-bottom: var(--space-s);
+  @include flex-row-gap-below;
 }
 
 .entity-danger-zone {
