@@ -1,9 +1,11 @@
 name: Back up one built site
 description: >-
-  Fetch a single built site's read-only DB credentials from the main instance
-  (matched by Bunny script id) and dump its database to our storage before it is
-  upgraded. Fails unless exactly one site matches the script id. Requires Deno on
-  PATH and dependencies installed — run the build-bunny-script action first.
+  Fetch a single built site's DB credentials from the main instance (matched by
+  Bunny script id) and dump its database to our storage before it is upgraded.
+  The returned token is the site's own full-access credential — this action only
+  reads, but handle it as a write-capable production secret. Fails unless
+  exactly one site matches the script id. Requires Deno on PATH and dependencies
+  installed — run the build-bunny-script action first.
 inputs:
   main_instance:
     description: Main instance base URL (serves POST /instance/site-credentials).
