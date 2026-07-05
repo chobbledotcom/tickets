@@ -8,6 +8,7 @@ import {
   createDailyTestListing,
   createTestListing,
   describeWithEnv,
+  expectCsvDownloadHeaders,
   expectHtmlResponse,
   expectRedirectWithFlash,
   submitTicketForm,
@@ -385,16 +386,7 @@ describeWithEnv(
         const response = await fetchCalendarResponse(
           `/admin/calendar/export?date=${date}`,
         );
-        expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toBe(
-          "text/csv; charset=utf-8",
-        );
-        expect(response.headers.get("content-disposition")).toContain(
-          "attachment",
-        );
-        expect(response.headers.get("content-disposition")).toContain(
-          `calendar_${date}_attendees.csv`,
-        );
+        expectCsvDownloadHeaders(response, `calendar_${date}_attendees.csv`);
       });
 
       test("includes Listing and Date columns in CSV", async () => {

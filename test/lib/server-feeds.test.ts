@@ -15,6 +15,7 @@ import {
   describeWithEnv,
   expectHtml,
   mockRequest,
+  pastCloseTime,
 } from "#test-utils";
 
 /** Fetch a feed URL and return the body text */
@@ -42,9 +43,8 @@ const expectExcludesClosedRegistration = async (
   absentTag: string,
 ) => {
   await settings.update.showPublicSite(true);
-  const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
   await createTestListing({
-    closesAt: pastDate,
+    closesAt: pastCloseTime(),
     maxAttendees: 100,
     name: "Closed Listing",
   });

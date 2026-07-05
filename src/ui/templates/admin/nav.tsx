@@ -19,6 +19,7 @@ import {
   isReadOnlyWarning,
 } from "#shared/env.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { isStorageEnabled } from "#shared/storage.ts";
 import { isSupportEnabled } from "#shared/support.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { markAdminFooter } from "#templates/admin/footer.tsx";
@@ -35,6 +36,10 @@ interface NavItem {
   href: string;
   label: string;
 }
+
+const navItem = (href: string, label: string): NavItem => ({ href, label });
+const imagesItem = (): NavItem => navItem("/admin/images", t("terms.images"));
+const siteItem = (): NavItem => navItem("/admin/site", t("nav.site"));
 
 /** The resolved menu for the active section: which top-level link to highlight,
  * an accessible name for its sub-nav, and its items. */
@@ -59,7 +64,9 @@ const renderReadOnlyBanner = (
       : "";
     return (
       <Raw
-        html={`<div class="read-only-banner">${t("nav.readonly.banner")}${link}</div>`}
+        html={`<div class="read-only-banner">${t(
+          "nav.readonly.banner",
+        )}${link}</div>`}
       />
     );
   }
@@ -120,7 +127,8 @@ const groupsNavItems = (): NavItem[] =>
 const editorTopLevelItems = (): NavItem[] => [
   ...listingsNavItems(),
   ...groupsNavItems(),
-  { href: "/admin/site", label: t("nav.site") },
+  ...(isStorageEnabled() ? [imagesItem()] : []),
+  siteItem(),
 ];
 
 /** Top-level admin links, in order. Users and Settings are owner-only. `active`
@@ -156,6 +164,7 @@ const topLevelItems = (session: AdminSession, active: string): NavItem[] =>
             )
           : []),
         ...groupsNavItems(),
+        isStorageEnabled() ? imagesItem() : null,
         ...sectionWithAdd(
           "/admin/modifiers",
           t("terms.modifiers"),
@@ -171,7 +180,7 @@ const topLevelItems = (session: AdminSession, active: string): NavItem[] =>
         // have it top-level; managers/agents never edit the site.)
         session.adminLevel === "owner" &&
         (settings.showPublicSite || active === "/admin/site")
-          ? { href: "/admin/site", label: t("nav.site") }
+          ? siteItem()
           : null,
         session.adminLevel === "owner"
           ? { href: "/admin/settings", label: t("nav.settings") }

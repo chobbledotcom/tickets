@@ -21,6 +21,9 @@ export type BackupEntry = {
   label: string;
   /** Human-readable file size, e.g. "1MB" */
   sizeLabel: string;
+  /** Raw UTC timestamp exactly as it appears in the backup's filename,
+   *  e.g. "2024-01-15T12-30-00-000Z" — the backup's unambiguous identifier. */
+  timestamp: string;
 };
 
 export type BackupPageState = {
@@ -127,11 +130,13 @@ export const adminBackupPage = (
                 <DataTable
                   columns={[
                     { header: t("common.created") },
+                    { header: t("backup.table_timestamp") },
                     { header: t("backup.table_size") },
                     { class: "actions", header: t("common.actions") },
                   ]}
                   rows={state.backups.map((b) => [
                     b.label,
+                    <code>{b.timestamp}</code>,
                     b.sizeLabel,
                     <a href={`/admin/backup/download/${b.filename}`}>
                       {t("backup.download_link")}

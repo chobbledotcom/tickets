@@ -40,7 +40,7 @@ import {
 import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { generateUniqueSlug } from "#shared/slug.ts";
-import { deleteListingStorageFiles } from "#shared/storage.ts";
+import { deleteListingAttachmentFile } from "#shared/storage.ts";
 import {
   type Group,
   type Listing,
@@ -444,13 +444,13 @@ export const deleteOrphanedAddOnError = (
   deactivationOrphanedAddOnError(new Set([listingId]));
 
 /**
- * Delete an listing: clean up images/attachments, remove from DB, log activity.
+ * Delete a listing: clean up its attachment, remove DB links, log activity.
  * Returns the listing that was deleted (for response formatting).
  */
 export const performListingDelete = async (
   listing: ListingWithCount,
 ): Promise<void> => {
-  await deleteListingStorageFiles(listing, "listing deletion");
+  await deleteListingAttachmentFile(listing, "listing deletion");
   await deleteListing(listing.id);
   await logActivity(
     `Listing '${listing.name}' deleted (${listing.attendee_count} attendee(s) removed)`,
@@ -462,8 +462,8 @@ export const performListingDelete = async (
  *
  * Uses the table's `rowToInput` to carry every column across — no manual
  * snake_case→camelCase translation. A fresh unique slug is generated so
- * the returned input is safe to insert. Image and attachment URLs are
- * cleared because they reference files owned by the source listing.
+ * the returned input is safe to insert. Attachment URLs are cleared because
+ * they reference files owned by the source listing.
  * Callers can override any field (e.g. `name`, `date`, `groupId`) via
  * `overrides`.
  */
@@ -480,7 +480,6 @@ export const buildDuplicateListingInput = async (
   ...(await generateUniqueListingSlug()),
   attachmentName: "",
   attachmentUrl: "",
-  imageUrl: "",
   ...overrides,
 });
 

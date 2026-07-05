@@ -15,12 +15,13 @@ import { chunk, compact } from "#fp";
 import { executeBatch, queryAll } from "#shared/db/client.ts";
 import {
   clearAllCaches,
-  initDb,
   LATEST_UPDATE,
+  rebuildWipedSchema,
   resetDatabase,
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
 } from "#shared/db/migrations.ts";
+import { legacyColumnRestores } from "#shared/db/restore-legacy-columns.ts";
 import { requireEnv } from "#shared/env.ts";
 import { MAX_BACKUPS, readLimit } from "#shared/limits.ts";
 import {
@@ -406,18 +407,33 @@ export const restoreFromSql = async (sql: string): Promise<void> => {
   let postResetErr: string | undefined;
   try {
     await resetDatabase();
-    await initDb({ allowMissingSettings: true });
+    // The database was just wiped, so rebuild the schema with unconditional
+    // IF NOT EXISTS creates. Never consult the database here — neither
+    // initDb's state check nor a live-schema snapshot: right after the drops,
+    // a replica and even the primary can briefly serve the pre-wipe schema
+    // (read-your-writes lag), and a stale answer either routed boot into
+    // schema verification against the wiped primary ("missing table
+    // settings") or skipped the CREATEs and died at the import ("no such
+    // table: settings").
+    await rebuildWipedSchema();
 
     // Roll the seed-data deletes into the same executeBatch transaction as the
     // import so that a failed import rolls the deletes back too, leaving the DB
     // in the clean post-initDb state rather than a mix of empty seed tables and
-    // partially applied backup rows.
-    await executeBatch([
-      { args: [], sql: "DELETE FROM settings" },
-      { args: [], sql: "DELETE FROM schema_migrations" },
-      { args: [], sql: "DELETE FROM attendee_statuses" },
-      ...splitStatements(sql).map((s) => ({ args: [], sql: s })),
-    ]);
+    // partially applied backup rows. Columns the dump writes that a migration
+    // the backup predates has since dropped are re-added first, so the replayed
+    // rows land intact for that pending migration to reshape on the next boot
+    // (see restore-legacy-columns.ts).
+    const statements = splitStatements(sql);
+    await executeBatch(
+      [
+        "DELETE FROM settings",
+        "DELETE FROM schema_migrations",
+        "DELETE FROM attendee_statuses",
+        ...legacyColumnRestores(statements),
+        ...statements,
+      ].map((s) => ({ args: [], sql: s })),
+    );
 
     // Clear all module-level caches — the backup may carry different data for
     // every table, so any warm cache is now stale. clearAllCaches() covers the

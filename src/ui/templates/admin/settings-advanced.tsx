@@ -3,6 +3,7 @@
  */
 
 import { t } from "#i18n";
+import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { themedAdminPage } from "#templates/admin/admin-page.tsx";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
@@ -11,14 +12,12 @@ import {
   AttendeeColumnOrderForm,
   ListingColumnOrderForm,
 } from "#templates/admin/settings/column-order.tsx";
-import { CustomCssForm } from "#templates/admin/settings/custom-css.tsx";
 import { CustomDomainForm } from "#templates/admin/settings/custom-domain.tsx";
 import { EmailNotificationsForm } from "#templates/admin/settings/email.tsx";
 import { AdminEmailTemplateForm } from "#templates/admin/settings/email-tpl-admin.tsx";
 import { ConfirmationEmailTemplateForm } from "#templates/admin/settings/email-tpl-confirmation.tsx";
-import { ExternalOrderForm } from "#templates/admin/settings/external-order.tsx";
 import { GoogleWalletForm } from "#templates/admin/settings/google-wallet.tsx";
-import { PublicApiForm } from "#templates/admin/settings/public-api.tsx";
+import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 import { SmsGatewayForm } from "#templates/admin/settings/sms-gateway.tsx";
 import { HostSubdomainForm } from "#templates/admin/settings/subdomain.tsx";
 import type { EmailContent } from "#templates/email/shared.ts";
@@ -81,9 +80,9 @@ export const adminAdvancedSettingsPage = (
       {AdminEmailTemplateForm(s)}
       {ListingColumnOrderForm(s)}
       {AttendeeColumnOrderForm(s)}
-      {CustomCssForm(s)}
-      {PublicApiForm(s)}
-      {ExternalOrderForm(s)}
+      {settingsForm(SETTINGS_FORMS.customCss, s)}
+      {settingsForm(SETTINGS_FORMS.showPublicApi, s)}
+      {settingsForm(SETTINGS_FORMS.externalOrder, s)}
       {GoogleWalletForm(s)}
       {AppleWalletForm(s)}
       {SmsGatewayForm(s)}

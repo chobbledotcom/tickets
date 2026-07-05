@@ -346,16 +346,18 @@ describeWithEnv("performListingDelete", { db: true }, () => {
   test("removes the row, deletes its storage files, and logs it", async () => {
     await withLocalStorageEnabled(async () => {
       const listing = await createTestListing({ name: "Delete Me" });
-      await uploadRaw(new Uint8Array([1, 2, 3]), "delete-me.png");
-      await listingsTable.update(listing.id, { imageUrl: "delete-me.png" });
-      expect(await downloadRaw("delete-me.png")).not.toBeNull();
+      await uploadRaw(new Uint8Array([1, 2, 3]), "delete-me.pdf");
+      await listingsTable.update(listing.id, {
+        attachmentName: "delete-me.pdf",
+        attachmentUrl: "delete-me.pdf",
+      });
+      expect(await downloadRaw("delete-me.pdf")).not.toBeNull();
 
       const withCount = (await getListingWithCount(listing.id))!;
       await performListingDelete(withCount);
 
       expect(await getListing(listing.id)).toBeNull();
-      // The listing's stored image is cleaned up on delete.
-      expect(await downloadRaw("delete-me.png")).toBeNull();
+      expect(await downloadRaw("delete-me.pdf")).toBeNull();
       const log = await getAllActivityLog();
       expect(log.some((e) => e.message.includes("Delete Me"))).toBe(true);
     });

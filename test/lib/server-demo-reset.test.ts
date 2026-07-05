@@ -1,9 +1,11 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { imagesTable } from "#shared/db/images.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   RESET_DATABASE_PHRASE,
   RESET_PHRASE_MISMATCH_ERROR,
@@ -172,7 +174,11 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
       await listingsTable.update(listing.id, {
         attachmentName: "doc.pdf",
         attachmentUrl: "reset-attachment.pdf",
-        imageUrl: "reset-image.jpg",
+      });
+      await imagesTable.insert({
+        filename: nonEmptyString("reset-image.jpg"),
+        filenameThumb: nonEmptyString("reset-image-thumb.jpg"),
+        name: "Reset image",
       });
 
       await runWithStorageConfig(TEST_STORAGE_ZONE, () =>
@@ -198,6 +204,9 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
           expect(deletedUrls.some((u) => u.includes("reset-image.jpg"))).toBe(
             true,
           );
+          expect(
+            deletedUrls.some((u) => u.includes("reset-image-thumb.jpg")),
+          ).toBe(true);
           expect(
             deletedUrls.some((u) => u.includes("reset-attachment.pdf")),
           ).toBe(true);

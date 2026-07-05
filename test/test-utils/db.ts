@@ -1,5 +1,5 @@
 import { createClient, type InValue, type Row } from "@libsql/client";
-import { afterEach, beforeEach, describe } from "@std/testing/bdd";
+import { afterAll, afterEach, beforeEach, describe } from "@std/testing/bdd";
 import { once } from "#fp";
 import { resetEffectiveDomain } from "#shared/config.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -50,7 +50,10 @@ import {
   TEST_ADMIN_USERNAME,
   TEST_STORAGE_ZONE,
 } from "#test-utils/internal.ts";
-import { maybeReclaimLeakedFds } from "#test-utils/reclaim-fds.ts";
+import {
+  maybeReclaimLeakedFds,
+  reclaimLeakedFdsNow,
+} from "#test-utils/reclaim-fds.ts";
 
 type SchemaEntry = (typeof SCHEMA)[number];
 type SchemaIndex = NonNullable<SchemaEntry[1]["indexes"]>[number];
@@ -406,6 +409,11 @@ export const describeWithEnv = (
       if (restoreEnv) restoreEnv();
       restoreEnv = undefined;
       await teardownStorageConfig();
+    });
+    // A small suite may never reach the amortised reclaim threshold, so hand
+    // back its leaked descriptors when it finishes (see reclaim-fds.ts).
+    afterAll(() => {
+      reclaimLeakedFdsNow();
     });
     fn();
   });

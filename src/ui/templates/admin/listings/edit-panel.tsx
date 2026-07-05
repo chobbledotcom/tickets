@@ -16,7 +16,6 @@ import {
   StackDetails,
 } from "#templates/components/aggregate-sections.tsx";
 import { listingAggregateFields } from "#templates/fields.ts";
-import { renderListingImage } from "#templates/public.tsx";
 import {
   ListingAggregateMismatchNotice,
   listingAggregateToFieldValues,
@@ -185,10 +184,6 @@ export const ListingEditPanel = ({
       : null;
   const storageEnabled = isStorageEnabled();
   const builderEnabled = isBuilderEnabled();
-  const imagePreview =
-    storageEnabled && listing.image_url
-      ? renderListingImage(listing, "listing-image-full")
-      : "";
   const durationWarning = String(<DurationWarning listing={listing} />);
   const template = inferTemplate(listing);
   const showFinancials = session.adminLevel !== "editor";
@@ -223,7 +218,6 @@ export const ListingEditPanel = ({
           customiseOpen: !!error,
           dayPricesListing: listing,
           durationWarning,
-          imagePreview,
           useDefaultsChecked: listing.use_defaults,
           values: listingToFieldValues(listing),
         })}
@@ -237,12 +231,6 @@ export const ListingEditPanel = ({
         </SubmitButton>
       </CsrfForm>
       <ListingIncomeAdjustSection listing={listing} show={showFinancials} />
-      {storageEnabled && listing.image_url && (
-        <ListingAssetDeleteForm
-          action={`/admin/listing/${listing.id}/image/delete`}
-          label={t("listings_table.remove_image")}
-        />
-      )}
       {storageEnabled && listing.attachment_name && (
         <div class="attachment-info">
           <p>

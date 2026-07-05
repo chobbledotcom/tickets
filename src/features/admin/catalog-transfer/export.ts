@@ -60,14 +60,12 @@ const parseExport = <TSchema extends v.GenericSchema>(
 };
 
 /** Listing columns that never travel: the id/slug/timestamp columns (an import
- * mints fresh ones) and the image/attachment columns (deliberately out of
- * scope). Named in snake_case for {@link listingsTable.rowToInput}. */
+ * mints fresh ones) and attachment columns (deliberately out of scope). Named
+ * in snake_case for {@link listingsTable.rowToInput}. */
 const LISTING_EXPORT_EXCLUDED = [
   "created",
   "slug",
   "slug_index",
-  "image_url",
-  "image_thumb_url",
   "attachment_url",
   "attachment_name",
 ] as const;

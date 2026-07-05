@@ -324,8 +324,9 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
     // rebuild), the attendees.kind NOT NULL tightening (an empty-`requires`
     // constraint rebuild owning no additive objects to drop/restore), and the
     // attendee-listings-tag settings rewrite (data-only; covered by its own
-    // data test).
-    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 16);
+    // data test), and listing_image_thumb (historically added a column that
+    // first_class_images now drops).
+    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 17);
   });
 
   for (const migration of additiveMigrations) {

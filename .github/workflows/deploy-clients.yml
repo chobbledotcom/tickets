@@ -2,7 +2,9 @@ name: Deploy to Clients
 
 # Backs up and upgrades the built client sites that accept the chosen tier.
 #
-# The main instance holds each site's read-only DB credentials, so this workflow
+# The main instance holds each site's DB credentials — each site's own
+# full-access token, so although this workflow only reads (to take backups),
+# treat them as write-capable production secrets. This workflow therefore
 # no longer needs BUNNY_SCRIPT_DATA: it asks the main instance for the sites on
 # the published tier (a `tier` run input — alpha by default, or beta/release; the
 # master returns only the sites at that channel or more eager), backs each one up

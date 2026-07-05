@@ -2,14 +2,20 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import {
+  fullSchemaCreateStatements,
+  verifyCurrentAppSchema,
+} from "#shared/db/migrations/schema-sync.ts";
+import {
   applyMigrationWithRetry,
   initDb,
   invalidateInitDbCache,
   MIGRATION_LOCK_TTL_MS,
   type Migration,
   MigrationInProgressError,
+  rebuildWipedSchema,
   resetDatabase,
   SCHEMA_HASH,
+  SCHEMA_TABLE_NAMES,
   VERIFY_RETRY_BACKOFF_MS,
   verifyMigrationWithRetry,
 } from "#shared/db/migrations.ts";
@@ -347,6 +353,48 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
       expect(listing.id).toBe(1);
       expect(listing.name).toBe("New Listing");
+    });
+
+    test("rebuildWipedSchema rebuilds a wiped database directly", async () => {
+      // The restore path calls this straight after resetDatabase() — with no
+      // initDb state check or schema snapshot in between — so it must produce
+      // a complete, bootable schema purely from the declarative SCHEMA.
+      await resetDatabase();
+      invalidateTestDbCache();
+      resetTestSession();
+
+      await rebuildWipedSchema();
+
+      // Every app-schema table, index, and trigger is present...
+      await verifyCurrentAppSchema();
+      // ...and the schema markers were written, so a normal boot treats the
+      // database as fully migrated rather than throwing MissingSettingsTable.
+      await initDb();
+
+      await settings.setup.complete("testadmin", TEST_ADMIN_PASSWORD, "USD");
+      const listing = await createTestListing({ name: "Fresh Schema Listing" });
+      expect(listing.name).toBe("Fresh Schema Listing");
+    });
+
+    test("fullSchemaCreateStatements builds every table and index from the declaration alone", () => {
+      const statements = fullSchemaCreateStatements();
+
+      // One CREATE TABLE per schema table, in SCHEMA (FK-dependency) order.
+      const createdTables = statements
+        .map((sql) => sql.match(/^CREATE TABLE IF NOT EXISTS (\w+) /)?.[1])
+        .filter((name) => name !== undefined);
+      expect(createdTables).toEqual(SCHEMA_TABLE_NAMES);
+
+      // Declared indexes ride along (spot-check a known one), and every
+      // statement is IF NOT EXISTS so a replay can never fail.
+      expect(
+        statements.some((sql) =>
+          sql.includes("CREATE INDEX IF NOT EXISTS idx_attendees_kind"),
+        ),
+      ).toBe(true);
+      for (const sql of statements) {
+        expect(sql).toContain("IF NOT EXISTS");
+      }
     });
   });
 });

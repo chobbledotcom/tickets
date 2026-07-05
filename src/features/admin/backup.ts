@@ -19,6 +19,7 @@ import { getEncryptionKeyString } from "#shared/crypto/encryption.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
 import {
   backupDir,
+  backupTimestamp,
   countZipStatements,
   createAndUploadBackup,
   isBackupLeaf,
@@ -70,16 +71,20 @@ const isSafeBackupFilename = (filename: string): boolean =>
   !filename.includes("\\") &&
   !filename.includes("..");
 
-/** Parse a backup file into display info (friendly date + human size). The
- *  download link uses the bare leaf; filenames are server-generated, so
- *  parseBackupTime always succeeds. */
-const parseBackupEntry = (file: StorageFileMeta): BackupEntry => ({
-  filename: getBasename(file.name),
-  label: formatDatetimeLabel(
-    new Date(parseBackupTime(file.name)!).toISOString(),
-  ),
-  sizeLabel: formatBytes(file.size),
-});
+/** Parse a backup file into display info (friendly date, raw timestamp, and
+ *  human size). The download link uses the bare leaf; filenames are
+ *  server-generated, so parseBackupTime always succeeds. The raw timestamp
+ *  round-trips through the same codec that named the file, so the column
+ *  always matches the filename exactly. */
+const parseBackupEntry = (file: StorageFileMeta): BackupEntry => {
+  const takenAt = new Date(parseBackupTime(file.name)!);
+  return {
+    filename: getBasename(file.name),
+    label: formatDatetimeLabel(takenAt.toISOString()),
+    sizeLabel: formatBytes(file.size),
+    timestamp: backupTimestamp(takenAt),
+  };
+};
 
 /** Pick out the backups from a folder listing, newest first. Filenames embed
  *  ISO timestamps, so name order is chronological. */
