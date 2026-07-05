@@ -42,6 +42,12 @@ describe("package privacy (pure)", () => {
     });
   });
 
+  test("does not report hidden when hidePackageListings is true but there is no group name", () => {
+    expect(packagePrivacyOfCtx({ hidePackageListings: true })).toEqual({
+      kind: "visible",
+    });
+  });
+
   test("concealMemberNames renames every line, keeping ids and prices", () => {
     const items = [
       { listingId: 1, name: "Secret A", unitPrice: 500 },

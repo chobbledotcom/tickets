@@ -554,3 +554,14 @@ src/shared/renewal-helpers.ts:10:25  !== → !=   # renewalTokenIndex: string|nu
 src/shared/renewal-helpers.ts:20:13  < → <=   # diffMs here is always <= -43_200_000 or >= 43_200_000 (see block comment above); < and <= agree everywhere in that range
 src/shared/renewal-helpers.ts:20:16  0 → 1   # same reachability guarantee; diffMs is never in [0, 1)
 src/shared/renewal-helpers.ts:20:16  0 → -1   # same reachability guarantee; diffMs is never in [-1, 0)
+
+# package-privacy.ts's packagePrivacyOfDisplay: display is typed
+# PackageDisplay|null (no undefined case), so === and == agree on null.
+src/shared/package-privacy.ts:44:10  === → ==   # display: PackageDisplay|null (no undefined), so === and == agree on null
+
+# package-privacy.ts's memberStandInName: forcing the ternary to always take
+# the "hidden" branch (`privacy.packageName`) is unobservable for a visible
+# privacy value, because {kind:"visible"} has no packageName property —
+# `privacy.packageName` reads as plain undefined in JS regardless of the
+# discriminant, exactly matching the alternate branch it would otherwise take.
+src/shared/package-privacy.ts:67:3  ?: → consequent only   # {kind:"visible"} has no packageName field, so forcing the "hidden" branch still yields undefined
