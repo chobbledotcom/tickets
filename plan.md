@@ -745,14 +745,21 @@ real-cash reports. Instead:
   - **paid:** `imported:default → attendee` for **`Received`** — the historically
     paid amount, offsetting what they owe.
   - Net `balanceOf(attendee) = Received − Total`, so the projected owed balance is
-    `−balanceOf(attendee) = Total − Received = Balance` (via
-    `attendeeOwedSubquery`), with **no `remaining_balance` column** to set. Public
-    payability is gated as it is for any booking — by the resolved status's
-    `is_reservation` flag at the pay page — so a reservation import is payable for
-    exactly its outstanding `Balance`, while a non-reservation status with a
-    residual `Balance` still records the owed amount faithfully in the ledger (for
-    the admin record) but isn't offered publicly. Drop a leg whose amount is 0 (a
-    fully-paid import posts no owed remainder; a £0 booking posts nothing).
+    `−balanceOf(attendee) = Total − Received` (via `attendeeOwedSubquery`), with
+    **no `remaining_balance` column** to set. **Preflight consistency check:** the
+    projected owed is `Total − Received`, which need **not** equal the source
+    `Balance` column — a legacy export can carry refunds, adjustments, or rounding
+    that make `Balance ≠ Total − Received`. `Total`/`Received` are **authoritative**
+    (they are what gets posted); if `Total − Received ≠ Balance` the row is a
+    **preflight consistency error** (reported with all three figures) so the operator
+    reconciles the source, rather than the importer silently posting an outstanding
+    amount that differs from the CSV's `Balance`. Public payability is then gated as
+    for any booking — by the resolved status's `is_reservation` flag at the pay page
+    — so a reservation import is payable for exactly its outstanding balance, while a
+    non-reservation status with a residual balance still records the owed amount
+    faithfully in the ledger (for the admin record) but isn't offered publicly. Drop
+    a leg whose amount is 0 (a fully-paid import posts no owed remainder; a £0
+    booking posts nothing).
 - **No `revenue:<listing>`, `fee`, or `external:world` legs.** Imports recognise
   zero listing revenue and zero booking-fee income and touch no real cash — which
   sidesteps the per-line revenue split entirely (every listing costs zero) and
@@ -772,12 +779,17 @@ real-cash reports. Instead:
   main added) with the booking's event group, tying each line to its booking's
   legs; per-listing amount-paid then projects to £0, which is the intended
   "listings cost zero".
-- **Post inside the all-or-nothing import transaction.** Build one transfer group
-  per booking and post via the ledger's batch primitive **`postTransferGroups`**
-  (documented as "the reusable primitive for … an import" — a read-only prepare +
-  write-only apply), or `postTransfersTx` within the importer's transaction, so a
-  rollback unwinds the legs too. Deterministic references make `INSERT OR IGNORE`
-  absorb any concurrent race.
+- **Post inside the all-or-nothing import transaction via `postTransfersTx`.** Build
+  one transfer group per booking and post it with **`postTransfersTx(tx, legs)`** —
+  the tx-scoped primitive that executes its inserts **through the importer's own
+  transaction** — so a later answer/audit/import-map failure rolls the legs back
+  too. Do **not** use `postTransferGroups`/`postTransfers` here: they run their own
+  read-only prepare + a **self-committing `executeBatch`** apply (no caller-tx
+  parameter), so their legs would commit independently and **survive** the
+  importer's rollback, breaking all-or-nothing for money (`postTransferGroups`'s own
+  doc points nested callers at `postTransfersTx`). `postTransfersTx`'s conflict check
+  reads the ledger *through* the transaction, so a concurrent re-post of the same
+  event replays as a no-op without needing `INSERT OR IGNORE`.
 - **Later settlement stays real and ledger-native:** when the customer pays the
   outstanding balance, `settleAttendeeBalance` posts a real `external:world →
   attendee` `payment` leg guarded by the projected owed amount — so the *actual*
@@ -1101,8 +1113,10 @@ bookings imports the rest and reports the skip.
       with ≥1 real (`quantity > 0`) line. Build one transfer group per booking
       (`attendee → imported:default` for `Total`, `imported:default → attendee` for
       `Received`, zero-amount legs dropped, `eventId` derived from `(schema,
-      old_id)`, dated to `Date Booked`) and post it via `postTransferGroups` /
-      `postTransfersTx` **inside this transaction**, so a rollback unwinds the legs.
+      old_id)`, dated to `Date Booked`) and post it via **`postTransfersTx(tx,
+      legs)`** — the tx-scoped primitive — **inside this transaction**, so a rollback
+      unwinds the legs. (Not `postTransferGroups`, which self-commits its own batch
+      and would survive the rollback — see Financial Mapping.)
       Stamp each inserted line's `ledger_event_group` with the booking's event
       group. Post **no** `revenue:<listing>`/`fee`/`external:world` legs (see
       [Financial Mapping](#financial-mapping)); a quantity-0-only candidate posts
@@ -1203,6 +1217,29 @@ Implementation notes:
     new_id IN (newly-orphaned ids)`) rather than waiting for orphan auto-purge,
     which may be disabled or age-gated: until it runs, the attendee holds no
     capacity yet its `old_id` would still block a clean re-import.
+  - **Money-bearing imports: ledger legs outlive the mapping.** Freeing the mapping
+    does **not** remove the append-only `transfers` legs already posted for
+    `(schema, old_id)` — and the ledger `eventId`/`reference`s are derived from that
+    same key while the legs reference the now-deleted `attendee:<id>` account. A
+    later re-upload would post legs with the **same references but a new attendee
+    account**, which `postTransfersTx`'s conflict check rejects as a mismatched
+    replay — so the recreated attendee never regains its imported balance. So for a
+    **confirmed (money-bearing)** import, cleanup must either **reverse the import
+    legs** (a compensating `imported ↔ attendee` reversal under a derived cleanup
+    event group) as it frees the mapping, or **keep the mapping as a tombstone** (as
+    the aggregate-held standard case does) so the `old_id` is never freed while live
+    legs remain. A quantity-0/cancelled import posts no legs and is unaffected.
+  - **Multi-line imports: a per-booking mapping can't represent partial deletes.**
+    Idempotency is keyed on `(schema, old_id)` for the **whole** booking, but a
+    source booking can map to several `listing_attendees` lines. Deleting **one**
+    matched listing frees that product's line while the attendee keeps others, so the
+    `old_id` stays mapped and a re-upload skips the **whole** booking instead of
+    restoring the missing product — yet freeing the `old_id` would **duplicate** the
+    surviving lines. So free the `old_id` only when the delete removes the attendee's
+    **last** import line; partial line deletion of a multi-line import needs an
+    explicit strategy — line-level import state (`(schema, old_id, listing)`), or
+    **block** deleting individual lines of a multi-line import (whole booking or
+    nothing).
   (Quantity-0 lines were still chosen over a `booking_imports`-aware exclusion in
   `ORPHAN_IDS` because they also keep the products structured and matched while
   the attendee is live.)
@@ -1653,13 +1690,19 @@ are already in main; only the importer-specific additions in item 6 remain.
   indicator, per-row actions guarded). The full surface-by-surface audit belongs to
   the no-quantity feature — [`no-quantity-spec.md`](./no-quantity-spec.md) §6 — and
   is not duplicated here.
-- The writer records visit counts for confirmed (real-quantity) imported bookings
-  only, since it bypasses `createAttendeeAtomic` and would otherwise leave
-  imported customers looking like first-time visitors for visit-gated modifiers.
-  It must **not** use `recordOrderActivity`/`recordVisit` (they stamp
-  `last_activity = nowMs()`); increment `visits` with the source `Date Booked` and
-  `last_activity = MAX(existing.last_activity, source)` so old imports don't look
-  freshly active to pruning (see the writer step).
+- The writer records **both** the visit count **and** the source booking count for
+  confirmed (real-quantity) imported bookings only, since it bypasses
+  `createAttendeeAtomic`/`recordOrderActivity`. `recordOrderActivity` bumps `visits`
+  **and** the per-source booking count (`recordBooking` →
+  `admin_booking_count`/`public_booking_count`), so incrementing only `visits` would
+  leave imported customers looking like first-time visitors for visit-gated
+  modifiers **and** leave `/admin/history/:hmac` booking counts omitting imported
+  bookings. The importer must bump the **`admin_booking_count`** column too (imports
+  are admin-initiated), not just `visits`. It must **not** reuse
+  `recordOrderActivity`/`recordVisit`/`recordBooking` as-is (they stamp
+  `last_activity = nowMs()`); increment both counters with the source `Date Booked`
+  and `last_activity = MAX(existing.last_activity, source)` so old imports don't look
+  freshly active to pruning, all within the rollback boundary.
 - The importer fires **no registration side-effects**: it never calls
   `logAndNotifyRegistration`, so a bulk historical upload sends no customer
   emails, no registration webhooks, and triggers no built-site
@@ -1721,6 +1764,18 @@ are already in main; only the importer-specific additions in item 6 remain.
   (see `no-quantity-spec.md` §4). Only a line with no money recognised against it
   (e.g. an imported cancelled/quoted ghost line, which posts no legs) may become
   no-quantity.
+  - **Imported-money caveat (importer-specific guard extension).** The shipped
+    paid-line guard measures amount-paid via `pricePaidFromLedger`, which sums only
+    **`sale` legs** — it is **blind** to the importer's `import_owed`/`import_paid`
+    legs (posted to `imported:default`, not `revenue`). So a **fully-paid** imported
+    booking (`Total = Received` → projected owed £0 **and** projected per-listing
+    paid £0) is invisible to both the paid-line guard and the no-real-line
+    owed-reversal, so the checkbox/merge path could ghost its last real line and
+    strand the `import_owed`/`import_paid` legs on an all-ghost attendee. Before the
+    importer is enabled, extend the no-quantity ghosting guard (and the merge
+    whole-result reversal — `no-quantity-spec.md` §9 G4) to also detect a line whose
+    `ledger_event_group` carries **import** legs and block/reverse them, not just
+    `sale` legs.
 - The importer **only imports products that match `daily`-type listings**; a
   product matching a `standard`-type listing is a blocking setup error. An
   *empty, ungrouped* standard listing can be converted to daily in place, but
