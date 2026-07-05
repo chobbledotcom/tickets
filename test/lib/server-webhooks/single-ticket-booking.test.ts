@@ -6,11 +6,9 @@ import {
   createTestListing,
   describeWithEnv,
   expectWebhookProcessed,
-  postWebhookAndAssert,
   setupStripe,
   signedMeta,
   singleItem,
-  stubWebhookVerify,
 } from "#test-utils";
 
 describeWithEnv("server webhooks > single-ticket booking", { db: true }, () => {
@@ -26,7 +24,7 @@ describeWithEnv("server webhooks > single-ticket booking", { db: true }, () => {
       unitPrice: 1000,
     });
 
-    const mockVerify = await stubWebhookVerify(
+    await expectWebhookProcessed(
       checkoutSessionEvent({
         amountTotal: 1000,
         eventId: "evt_test",
@@ -41,17 +39,6 @@ describeWithEnv("server webhooks > single-ticket booking", { db: true }, () => {
         paymentIntent: "pi_webhook_test",
         sessionId: "cs_webhook_test",
       }),
-    );
-
-    await postWebhookAndAssert(
-      () => {
-        mockVerify.restore();
-      },
-      200,
-      (json) => {
-        expect(json.received).toBe(true);
-        expect(json.processed).toBe(true);
-      },
     );
 
     // Verify attendee was created with encrypted PII blob

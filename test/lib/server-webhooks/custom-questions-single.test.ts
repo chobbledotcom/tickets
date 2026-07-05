@@ -15,12 +15,11 @@ import {
   checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
+  expectWebhookProcessed,
   getAllActivityLog,
-  postWebhookAndAssert,
   setupStripe,
   signedMeta,
   singleItem,
-  stubWebhookVerify,
 } from "#test-utils";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 
@@ -52,7 +51,7 @@ describeWithEnv(
       });
       await setListingQuestions(listing.id, [q.id]);
 
-      const mockVerify = await stubWebhookVerify(
+      await expectWebhookProcessed(
         checkoutSessionEvent({
           amountTotal: 1000,
           eventId: "evt_single_q",
@@ -70,17 +69,6 @@ describeWithEnv(
           paymentIntent: "pi_single_q",
           sessionId: "cs_single_q",
         }),
-      );
-
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-          expect(json.processed).toBe(true);
-        },
       );
 
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
@@ -152,7 +140,7 @@ describeWithEnv(
 
       // Serialize those exact refs into webhook metadata the way production does
       // and confirm the submitted text survives the full round-trip.
-      const mockVerify = await stubWebhookVerify(
+      await expectWebhookProcessed(
         checkoutSessionEvent({
           amountTotal: 1000,
           eventId: "evt_round_trip",
@@ -170,17 +158,6 @@ describeWithEnv(
           paymentIntent: "pi_round_trip",
           sessionId: "cs_round_trip",
         }),
-      );
-
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-          expect(json.processed).toBe(true);
-        },
       );
 
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
@@ -215,7 +192,9 @@ describeWithEnv(
 
       // lostQ's ref carries no `s` — the corrupt shape a pre-fix checkout wrote
       // when the string-id read raced replication and JSON.stringify dropped it.
-      const mockVerify = await stubWebhookVerify(
+      // The payment is already captured, so the booking must finalize (200,
+      // processed) rather than crash-loop on the unsupported undefined bind.
+      await expectWebhookProcessed(
         checkoutSessionEvent({
           amountTotal: 1000,
           eventId: "evt_corrupt_ref",
@@ -236,19 +215,6 @@ describeWithEnv(
           paymentIntent: "pi_corrupt_ref",
           sessionId: "cs_corrupt_ref",
         }),
-      );
-
-      // The payment is already captured, so the booking must finalize (200,
-      // processed) rather than crash-loop on the unsupported undefined bind.
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-          expect(json.processed).toBe(true);
-        },
       );
 
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");

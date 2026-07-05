@@ -15,8 +15,8 @@ import {
   checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
+  expectWebhookProcessed,
   mockWebhookRequest,
-  postWebhookAndAssert,
   setupStripe,
   signedMeta,
   stubWebhookVerify,
@@ -192,7 +192,7 @@ describeWithEnv(
 
       // Now simulate the webhook callback from the payment provider.
       // The metadata includes answer_ids serialized during checkout.
-      const mockVerify = await stubWebhookVerify(
+      await expectWebhookProcessed(
         checkoutSessionEvent({
           amountTotal: 1000,
           eventId: "evt_multi_q",
@@ -213,17 +213,6 @@ describeWithEnv(
           paymentIntent: "pi_multi_q",
           sessionId: "cs_multi_q",
         }),
-      );
-
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-          expect(json.processed).toBe(true);
-        },
       );
 
       // With multi-listing attendees, one attendee is linked to both listings.
@@ -283,7 +272,7 @@ describeWithEnv(
         "Vegan",
       ]);
 
-      const mockVerify = await stubWebhookVerify(
+      await expectWebhookProcessed(
         checkoutSessionEvent({
           amountTotal: 1000,
           eventId: "evt_text_q",
@@ -309,17 +298,6 @@ describeWithEnv(
           paymentIntent: "pi_text_q",
           sessionId: "cs_text_q",
         }),
-      );
-
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-          expect(json.processed).toBe(true);
-        },
       );
 
       // The same attendee is linked to both listings, so both free-text

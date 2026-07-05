@@ -106,6 +106,7 @@ export const expectWebhookProcessed = async (
   event: Parameters<typeof stubWebhookVerify>[0],
 ): Promise<void> => {
   await stubAndPostWebhook(event, (json) => {
+    expect(json.received).toBe(true);
     expect(json.processed).toBe(true);
   });
 };
