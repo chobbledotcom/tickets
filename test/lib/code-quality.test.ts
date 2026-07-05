@@ -7,11 +7,14 @@ import {
   detectModuleLevelLet,
   detectThenUsage,
   extractCallSites,
+  extractTypeShapes,
+  findDuplicateTypeShapes,
   findInMemoryStateViolations,
   findRawDbViolation,
   findRedundantArg,
   findTestOnlyExportViolations,
   getAllFilesWithExt,
+  type NamedTypeShape,
   type Site,
 } from "./code-quality/detectors.ts";
 
@@ -100,6 +103,57 @@ const AGGREGATION_MODULES = [
   "shared/db/index.ts",
   "shared/rest/index.ts",
   "templates/index.ts",
+];
+
+/**
+ * Object shapes that two or more differently-named types legitimately share.
+ * The duplicate-type-shape rule normally wants one reusable type instead of
+ * several identical ones (see the {@link findDuplicateTypeShapes} guard below),
+ * but these are *coincidental* structural matches across unrelated concepts —
+ * minimal `{ key, value }` / `{ label, value }` / `{ id, name }` pairs and
+ * role-specific context types that happen to carry the same fields. Unifying
+ * them would couple modules that have nothing to do with each other and hide
+ * their distinct intent, so each is allowed by its exact member signature (add
+ * or rename a field and it re-flags for review). Genuine duplicates — the
+ * `{ sql, args }` statement family, the twin `ChildCandidate`, the nav-row and
+ * question-data pairs — were unified instead of listed here.
+ */
+const ALLOWED_DUPLICATE_TYPE_SHAPES: { signature: string; reason: string }[] = [
+  {
+    reason:
+      "Distinct route params (attendee+listing vs listing+attendee) that coincide as two numeric ids.",
+    signature: "attendeeId: number; listingId: number",
+  },
+  {
+    reason:
+      "A generic {attendee, listing} pairing plus two role-named context types (payment refresh, ticket-token entry) that carry the same two fields for unrelated jobs.",
+    signature: "attendee: Attendee; listing: ListingWithCount",
+  },
+  {
+    reason:
+      "A server REST error result and a separate client-side QR-refresh wire type; two independent discriminated-union arms that share the failure shape.",
+    signature: "error: string; ok: false",
+  },
+  {
+    reason:
+      "The minimal {id, name} identity shape, shared coincidentally by a logistics agent, a listing row, and two unrelated select-option types.",
+    signature: "id: number; name: string",
+  },
+  {
+    reason:
+      "A stored settings key/value row and a rendered admin detail row; a DB shape and a presentation shape that happen to match.",
+    signature: "key: string; value: string",
+  },
+  {
+    reason:
+      "The generic {label, value} select-option shape, used independently by the date picker and the site-page picker.",
+    signature: "label: string; value: string",
+  },
+  {
+    reason:
+      "A selector's props and its edit-context, two local view-model types in one logistics component that currently carry the same two fields.",
+    signature: "selected: ReadonlySet<number>; users: AgentUserOption[]",
+  },
 ];
 
 /**
@@ -449,6 +503,34 @@ describe("code quality", () => {
         if (violation) violations.push(violation);
       }
       violations.sort();
+      expect(violations).toEqual([]);
+    });
+  });
+
+  describe("no duplicate type shapes", () => {
+    /**
+     * Collect every object-shaped `type`/`interface` across production source
+     * (src + tsx), keyed by file. Prefer generic, reusable objects: two
+     * differently-named types with identical members should be one shared type.
+     * Coincidental cross-domain matches live in ALLOWED_DUPLICATE_TYPE_SHAPES.
+     */
+    const collectTypeShapes = (): NamedTypeShape[] => {
+      const defs: NamedTypeShape[] = [];
+      const record = (file: string, content: string): void => {
+        const relativePath = getRelativePath(file);
+        for (const shape of extractTypeShapes(content)) {
+          defs.push({ ...shape, file: relativePath });
+        }
+      };
+      for (const file of srcFiles) record(file, srcContents.get(file)!);
+      for (const file of tsxFiles) record(file, tsxContents.get(file)!);
+      return defs;
+    };
+
+    test("no two types should declare the same object shape", async () => {
+      await ensureLoaded();
+      const allowed = ALLOWED_DUPLICATE_TYPE_SHAPES.map((a) => a.signature);
+      const violations = findDuplicateTypeShapes(collectTypeShapes(), allowed);
       expect(violations).toEqual([]);
     });
   });

@@ -319,13 +319,21 @@ export const resetAggregates = async <T extends string>(
 };
 
 /**
+ * A single SQL statement plus its bound arguments — the object form libsql's
+ * batch API accepts. This is the one shared shape for a `{ sql, args }` pair;
+ * callers that build statements to hand to {@link executeBatch} and friends
+ * import this rather than re-declaring the same object type locally.
+ */
+export type SqlStatement = { sql: string; args: InValue[] };
+
+/**
  * Execute a batch with optional query logging, then invalidate caches for every
  * table the batch mutated. Invalidation runs once the transaction has
  * committed; if the batch throws (rollback) it is skipped, so a cache is never
  * cleared for a write that did not land.
  */
 const trackedBatch = async (
-  statements: Array<{ sql: string; args: InValue[] }>,
+  statements: SqlStatement[],
   mode: TransactionMode,
 ): Promise<ResultSet[]> => {
   const start = performance.now();
@@ -351,7 +359,7 @@ const trackedBatch = async (
 /** Create a batch executor for a given transaction mode */
 const batchFor =
   (mode: TransactionMode) =>
-  (statements: Array<{ sql: string; args: InValue[] }>): Promise<ResultSet[]> =>
+  (statements: SqlStatement[]): Promise<ResultSet[]> =>
     trackedBatch(statements, mode);
 
 /** Execute multiple read queries in a single round-trip using Turso batch API. */
@@ -377,7 +385,7 @@ export const executeBatchWithResults = batchFor("write");
 
 /** Execute multiple write statements, discarding results. */
 export const executeBatch = async (
-  statements: Array<{ sql: string; args: InValue[] }>,
+  statements: SqlStatement[],
 ): Promise<void> => {
   await executeBatchWithResults(statements);
 };

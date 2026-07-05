@@ -43,7 +43,12 @@ import {
 } from "#shared/accounting/mappers.ts";
 import { accountBalancesForIds } from "#shared/accounting/queries.ts";
 import { insertStatement, orIgnore } from "#shared/accounting/rows.ts";
-import { executeBatch, inPlaceholders, queryAll } from "#shared/db/client.ts";
+import {
+  executeBatch,
+  inPlaceholders,
+  queryAll,
+  type SqlStatement,
+} from "#shared/db/client.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 import { toCanonicalIso } from "#shared/payment-helpers.ts";
@@ -58,7 +63,6 @@ type PaidRow = {
 };
 
 /** A leg INSERT or row-stamp UPDATE the backfill writes to the database. */
-type Statement = { sql: string; args: InValue[] };
 
 /**
  * Attendees are paged so a large booking history never loads all at once, and
@@ -180,7 +184,7 @@ const attendeeStatements = async (
   attendeeId: number,
   rows: PaidRow[],
   recordedAt: string,
-): Promise<Statement[]> => {
+): Promise<SqlStatement[]> => {
   const legs = await attendeeLegs(attendeeId, rows);
   return [
     ...legs.map((leg) => orIgnore(insertStatement(leg, recordedAt))),
@@ -207,7 +211,7 @@ export const backfillTransfers = async (
       Number(row.attendee_id),
     );
     const recordedAt = nowIso();
-    const statements: Statement[] = [];
+    const statements: SqlStatement[] = [];
     for (const [attendeeId, rows] of groups) {
       // Already ledgered by the live dual-write path: don't re-post, but still
       // stamp the row→event link from the existing booking's sale leg so the

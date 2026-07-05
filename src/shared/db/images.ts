@@ -2,10 +2,13 @@
  * First-class uploaded images and their ordered item links.
  */
 
-import type { InValue } from "@libsql/client";
 import { mapParallel } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { executeBatch, queryAll } from "#shared/db/client.ts";
+import {
+  executeBatch,
+  queryAll,
+  type SqlStatement,
+} from "#shared/db/client.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { type ColumnDef, col } from "#shared/db/table.ts";
 import type {
@@ -161,8 +164,6 @@ export const getImageUsesForImage = (imageId: number): Promise<ImageUse[]> =>
     [imageId],
   );
 
-type ImageUseStatement = { sql: string; args: InValue[] };
-
 const itemTable: Record<ImageUseItemType, string> = {
   group: "groups",
   listing: "listings",
@@ -173,7 +174,7 @@ const imageUseInsertStatement = (
   itemType: ImageUseItemType,
   itemId: number,
   sortOrder: number,
-): ImageUseStatement => ({
+): SqlStatement => ({
   args: [imageId, itemType, itemId, sortOrder, imageId],
   sql: `INSERT OR IGNORE INTO image_uses (image_id, item_type, item_id, sort_order)
         SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM images WHERE id = ?)`,
@@ -199,7 +200,7 @@ export const setImagesForItem = (
 const attachImageToExistingItemStatement = (
   imageId: number,
   target: ImageUseTarget,
-): ImageUseStatement => {
+): SqlStatement => {
   const table = itemTable[target.itemType];
   return {
     args: [
@@ -229,7 +230,7 @@ export const appendImageToItem = (
 const clearStaleImageUseTargetsStatement = (
   imageId: number,
   targets: readonly ImageUseTarget[],
-): ImageUseStatement => {
+): SqlStatement => {
   const targetPredicates = targets.map(() => "(item_type = ? AND item_id = ?)");
   return {
     args: [
@@ -264,7 +265,7 @@ export const setItemsForImage = (
 export const clearImageUsesForItemStatement = (
   itemType: ImageUseItemType,
   itemId: number,
-): ImageUseStatement => ({
+): SqlStatement => ({
   args: [itemType, itemId],
   sql: "DELETE FROM image_uses WHERE item_type = ? AND item_id = ?",
 });

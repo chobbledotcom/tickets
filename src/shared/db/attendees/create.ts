@@ -25,6 +25,7 @@ import {
   executeBatchWithResults,
   inPlaceholders,
   insert,
+  type SqlStatement,
   type TxScope,
   withTransaction,
 } from "#shared/db/client.ts";
@@ -177,8 +178,6 @@ export const reverseOrderActivity = applyOrderActivity(
   unrecordBooking,
 );
 
-type Statement = { sql: string; args: InValue[] };
-
 /** Per-booking success flags and the new attendee row id (always set in
  *  practice — an INSERT returns its rowid). */
 type WriteOutcome = { flags: boolean[]; insertId: number | bigint | undefined };
@@ -194,7 +193,7 @@ class NoBookingsCreated extends Error {}
 
 /** Remove the just-inserted attendee when none of its capacity-checked booking
  *  inserts landed a row (the batch path's all-failed cleanup). */
-const cleanupDeleteStatement = (ticketTokenIndex: InValue): Statement => ({
+const cleanupDeleteStatement = (ticketTokenIndex: InValue): SqlStatement => ({
   args: [ticketTokenIndex, ticketTokenIndex],
   sql: `DELETE FROM attendees WHERE id = (
           SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
@@ -213,7 +212,7 @@ const cleanupDeleteStatement = (ticketTokenIndex: InValue): Statement => ({
  * when none landed (the attendee was cleaned up). The single place the attendee/
  * booking batch result decoding lives, shared by the plain and ledger batches. */
 const runAttendeeBatch = async (
-  statements: Statement[],
+  statements: SqlStatement[],
   bookingCount: number,
 ): Promise<WriteOutcome | null> => {
   const batchResults = await executeBatchWithResults(statements);
@@ -229,8 +228,8 @@ const runAttendeeBatch = async (
 /** The fast path: one ACID batch (attendee, bookings, all-failed cleanup).
  *  Returns null when no booking landed (the attendee was cleaned up). */
 const writeAsBatch = (
-  attendeeInsert: Statement,
-  bookingStatements: Statement[],
+  attendeeInsert: SqlStatement,
+  bookingStatements: SqlStatement[],
   ticketTokenIndex: InValue,
 ): Promise<WriteOutcome | null> =>
   runAttendeeBatch(
@@ -248,8 +247,8 @@ const writeAsBatch = (
  *  the transaction rolls back and null is returned (the caller refunds), rather
  *  than posting legs for listings that were not booked. */
 const writeWithLedger = (
-  attendeeInsert: Statement,
-  bookingStatements: Statement[],
+  attendeeInsert: SqlStatement,
+  bookingStatements: SqlStatement[],
   postLedger: LedgerPoster,
 ): Promise<WriteOutcome | null> =>
   withTransaction<WriteOutcome>(async (tx) => {
@@ -281,7 +280,7 @@ export const ATTENDEE_BY_TOKEN_SQL =
 const allBookingsLandedGuard = (
   ticketTokenIndex: InValue,
   expectedCount: number,
-): Statement => ({
+): SqlStatement => ({
   args: [ticketTokenIndex, expectedCount],
   sql: `(SELECT COUNT(*) FROM listing_attendees WHERE attendee_id = ${ATTENDEE_BY_TOKEN_SQL}) = ?`,
 });
@@ -289,16 +288,16 @@ const allBookingsLandedGuard = (
 /** What a prepared write needs in hand before touching the database. */
 type PreparedWrite = {
   enc: EncryptedAttendeeData;
-  attendeeInsert: Statement;
-  bookingStatements: Statement[];
+  attendeeInsert: SqlStatement;
+  bookingStatements: SqlStatement[];
 };
 
-const andConditions = (conditions: Statement[]): Statement => ({
+const andConditions = (conditions: SqlStatement[]): SqlStatement => ({
   args: conditions.flatMap((condition) => condition.args),
   sql: conditions.map((condition) => `(${condition.sql})`).join(" AND "),
 });
 
-const noExistingLedgerCondition = (legs: TransferInput[]): Statement => {
+const noExistingLedgerCondition = (legs: TransferInput[]): SqlStatement => {
   if (legs.length === 0) return { args: [], sql: "1 = 1" };
   const eventGroup = legs[0]!.eventGroup;
   const references = legs.map((leg) => leg.reference);
@@ -319,7 +318,7 @@ const noExistingLedgerCondition = (legs: TransferInput[]): Statement => {
  * Shared by every create strategy so validation/encryption lives in one place. */
 const prepareAttendeeWrite = async (
   input: AttendeeInput,
-  extraCondition?: Statement,
+  extraCondition?: SqlStatement,
 ): Promise<
   | { ok: true; prepared: PreparedWrite }
   | { ok: false; failure: Extract<CreateAttendeeResult, { success: false }> }
@@ -469,7 +468,7 @@ const finishAttendeeWrite = async (
  *  (interactive transaction or batch), and what "no booking landed" means for
  *  that path (plain capacity failure, or — for the batch — possibly sold-out). */
 type CreateStrategy<R extends CreateAttendeeResult | "sold-out"> = {
-  condition?: Statement;
+  condition?: SqlStatement;
   write: (prepared: PreparedWrite) => Promise<WriteOutcome | null>;
   noBooking: () => R | Promise<R>;
 };
@@ -560,7 +559,7 @@ const writeAsLedgerBatch = async (
   );
   // Stamp the order's event group onto the booking rows so each row's amount-paid
   // projection resolves exactly this booking's legs — only once all bookings landed.
-  const eventGroupUpdate: Statement[] =
+  const eventGroupUpdate: SqlStatement[] =
     plan.legs.length > 0
       ? [
           {
@@ -570,7 +569,7 @@ const writeAsLedgerBatch = async (
           },
         ]
       : [];
-  const finalizeStatements: Statement[] = plan.finalizeSessionId
+  const finalizeStatements: SqlStatement[] = plan.finalizeSessionId
     ? [
         batchFinalizeStatement(
           plan.finalizeSessionId,

@@ -35,14 +35,12 @@ import {
 import {
   executeBatch,
   inPlaceholders,
+  type SqlStatement,
   type TxScope,
 } from "#shared/db/client.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { assertValidTransfer } from "#shared/ledger/validate.ts";
 import { nowIso } from "#shared/now.ts";
-
-/** A built INSERT statement ready for the batch writer. */
-type Statement = { sql: string; args: InValue[] };
 
 /** Outcome of {@link postTransfers}: rows newly written vs idempotent replays. */
 export type PostResult = {
@@ -194,8 +192,8 @@ const planGroup = (
   inputs: TransferInput[],
   snapshot: BatchSnapshot,
   recordedAt: string,
-  render: (statement: Statement) => Statement = (statement) => statement,
-): { inserts: Statement[]; result: PostResult } => {
+  render: (statement: SqlStatement) => SqlStatement = (statement) => statement,
+): { inserts: SqlStatement[]; result: PostResult } => {
   const eventGroup = inputs[0]!.eventGroup;
   const existing = snapshot.existingByGroup.get(eventGroup) ?? [];
   if (existing.length > 0) {
@@ -204,7 +202,7 @@ const planGroup = (
     assertEventMatches(eventGroup, existing, inputs);
     return { inserts: [], result: { inserted: 0, skipped: inputs.length } };
   }
-  const inserts: Statement[] = [];
+  const inserts: SqlStatement[] = [];
   for (const input of inputs) {
     // A stored leg holding our reference but belonging to a different event owns
     // that reference already — reject before inserting (naming the reference).
@@ -276,7 +274,7 @@ export const postTransferGroups = async (
   }
   const snapshot = await loadBatchSnapshot(nonEmpty, fromDb);
   const recordedAt = nowIso();
-  const inserts: Statement[] = [];
+  const inserts: SqlStatement[] = [];
   const planned = nonEmpty.map((inputs) => {
     // INSERT OR IGNORE so a leg a concurrent poster committed between the
     // snapshot read and this write is skipped rather than violating the unique

@@ -12,7 +12,7 @@ import { type Column, CSV } from "#shared/csv/index.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
 import { isServicing } from "#shared/db/attendees/kind.ts";
-import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import type { AttendeeQuestionData } from "#shared/db/questions.ts";
 import { DEFAULT_TIMEZONE, formatDatetimeShortInTz } from "#shared/timezone.ts";
 import type { Attendee } from "#shared/types.ts";
 
@@ -20,15 +20,6 @@ import type { Attendee } from "#shared/types.ts";
 export type CsvListingInfo = {
   listingDate: string;
   listingLocation: string;
-};
-
-/** Custom-question data optionally appended to an attendee export. */
-export type CsvQuestionData = {
-  questions: QuestionWithAnswers[];
-  attendeeAnswerMap: Map<number, number[]>;
-  /** attendeeId → (questionId → decrypted free-text answer), for free_text
-   * question columns. Absent when text answers were not loaded. */
-  textAnswerMap?: Map<number, Map<number, string>>;
 };
 
 /** Price in minor units as a decimal string in the configured currency. */
@@ -106,7 +97,7 @@ export const listingInfoColumns = <T>(
 
 /** One column per custom question, each cell the attendee's chosen answer (for
  * choice questions) or their decrypted free-text answer (for free_text). */
-const questionColumns = (data?: CsvQuestionData): Column<Attendee>[] => {
+const questionColumns = (data?: AttendeeQuestionData): Column<Attendee>[] => {
   const questions = data?.questions ?? [];
   const answerMap = data?.attendeeAnswerMap ?? new Map<number, number[]>();
   const textMap = data?.textAnswerMap;
@@ -138,7 +129,7 @@ type AttendeeCsvOptions = {
   /** Prepend fixed Listing Date / Listing Location columns. */
   listingInfo?: CsvListingInfo | undefined;
   /** Append one column per custom question. */
-  questionData?: CsvQuestionData | undefined;
+  questionData?: AttendeeQuestionData | undefined;
 };
 
 /** The ordered attendee columns for an export: an optional booking Date, then
@@ -183,7 +174,7 @@ export const generateAttendeesCsv = (
   attendees: Attendee[],
   includeDate = false,
   listingInfo?: CsvListingInfo,
-  questionData?: CsvQuestionData,
+  questionData?: AttendeeQuestionData,
   tz: string = DEFAULT_TIMEZONE,
 ): string =>
   CSV.generate(
