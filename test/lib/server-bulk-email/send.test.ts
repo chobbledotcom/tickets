@@ -12,10 +12,8 @@ import {
   getListingActivityLog,
   useFetchStub,
 } from "#test-utils";
-import {
-  createTestAttendeeDirect,
-  createTestListing,
-} from "#test-utils/db-helpers.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   seedDraft,
   seedListingWithAttendees,

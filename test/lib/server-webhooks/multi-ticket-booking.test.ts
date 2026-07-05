@@ -5,7 +5,6 @@ import { spy } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
-  bookAttendee,
   checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
@@ -15,6 +14,7 @@ import {
   expectWebhookIgnored,
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
+  fillSoleCapacityListing,
   makeParent,
   setupStripe,
   signedMeta,
@@ -115,17 +115,7 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
   test("webhook handles sold-out listing and returns error in JSON", async () => {
     await setupStripe();
 
-    const listing = await createTestListing({
-      maxAttendees: 1,
-      unitPrice: 1000,
-    });
-
-    // Fill the listing
-    await bookAttendee(listing, {
-      email: "first@example.com",
-      name: "First",
-      paymentId: "pi_first",
-    });
+    const listing = await fillSoleCapacityListing();
 
     const { mockRefund } = await expectWebhookKeptAndRefunded(
       checkoutSessionEvent({

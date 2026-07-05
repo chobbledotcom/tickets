@@ -27,10 +27,8 @@ import {
 } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv, getTestPrivateKey } from "#test-utils";
-import {
-  createTestAttendeeDirect,
-  createTestListing,
-} from "#test-utils/db-helpers.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const rowFor = (
   hash: string,
