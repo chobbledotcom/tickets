@@ -5,7 +5,7 @@
  */
 
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { execute } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
