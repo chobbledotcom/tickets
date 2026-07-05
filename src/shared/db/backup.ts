@@ -21,6 +21,7 @@ import {
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
 } from "#shared/db/migrations.ts";
+import { legacyColumnRestores } from "#shared/db/restore-legacy-columns.ts";
 import { requireEnv } from "#shared/env.ts";
 import { MAX_BACKUPS, readLimit } from "#shared/limits.ts";
 import {
@@ -419,13 +420,20 @@ export const restoreFromSql = async (sql: string): Promise<void> => {
     // Roll the seed-data deletes into the same executeBatch transaction as the
     // import so that a failed import rolls the deletes back too, leaving the DB
     // in the clean post-initDb state rather than a mix of empty seed tables and
-    // partially applied backup rows.
-    await executeBatch([
-      { args: [], sql: "DELETE FROM settings" },
-      { args: [], sql: "DELETE FROM schema_migrations" },
-      { args: [], sql: "DELETE FROM attendee_statuses" },
-      ...splitStatements(sql).map((s) => ({ args: [], sql: s })),
-    ]);
+    // partially applied backup rows. Columns the dump writes that a migration
+    // the backup predates has since dropped are re-added first, so the replayed
+    // rows land intact for that pending migration to reshape on the next boot
+    // (see restore-legacy-columns.ts).
+    const statements = splitStatements(sql);
+    await executeBatch(
+      [
+        "DELETE FROM settings",
+        "DELETE FROM schema_migrations",
+        "DELETE FROM attendee_statuses",
+        ...legacyColumnRestores(statements),
+        ...statements,
+      ].map((s) => ({ args: [], sql: s })),
+    );
 
     // Clear all module-level caches — the backup may carry different data for
     // every table, so any warm cache is now stale. clearAllCaches() covers the
