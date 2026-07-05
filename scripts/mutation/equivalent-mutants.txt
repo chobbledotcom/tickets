@@ -387,3 +387,35 @@ src/shared/sort-listings.ts:46:31  1 → 2   # sign-preserving magnitude change 
 # at every call site (a literal null, or attendeeIdByLedgerEventGroup's typed
 # Promise<number|null> return) — no undefined case exists, so === and == agree.
 src/shared/session-ledger.ts:48:22  === → ==   # ownerAttendeeId is number|null (no undefined), so === and == agree on null
+
+# orphan-retention.ts's Number.parseInt(safeValue, 10) radix: safeValue is
+# gated by isOrphanRetentionValue to always be one of ORPHAN_RETENTION_OPTIONS'
+# values or the DEFAULT_ORPHAN_RETENTION fallback — a closed set of plain
+# decimal digit strings ("0","182","365",...) that never start with "0x"/"0o"/
+# "0b". Radix 0 (auto-detect) and radix 10 agree on every value in that set
+# (confirmed directly), so no input safeValue can ever take distinguishes them.
+src/shared/orphan-retention.ts:61:43  10 → 0   # safeValue is a closed set of plain decimal strings; radix 0 and 10 agree on all of them
+
+# listing-templates.ts's matchesSignature is a private helper consumed only as
+# an Array.prototype.find() predicate, which coerces its result with
+# ToBoolean rather than comparing strictly to `true`/`false` — so an early
+# `return false` becoming `return undefined` is unobservable through
+# inferTemplate (the only caller) for any input, even though the exhaustive
+# 16-combo dimension table already covers every reachable production case.
+src/shared/listing-templates.ts:114:12  return false → return undefined   # find()'s predicate only checks truthiness; undefined and false agree
+src/shared/listing-templates.ts:121:12  return false → return undefined   # find()'s predicate only checks truthiness; undefined and false agree
+src/shared/listing-templates.ts:122:60  return false → return undefined   # find()'s predicate only checks truthiness; undefined and false agree
+src/shared/listing-templates.ts:123:54  return false → return undefined   # find()'s predicate only checks truthiness; undefined and false agree
+src/shared/listing-templates.ts:132:4  ?? → ||   # LISTING_TEMPLATES.find(): ListingTemplate|undefined — an object is always truthy, so ?? and || agree
+
+# bulk-replace.ts's formatIsoForPreview 24:00→00:00 fix-up: this guards against
+# an ICU/V8 midnight-formatting quirk (`toLocaleString` with hour12:false
+# rendering exact local midnight as "24:00" instead of rolling to the next
+# day's "00:00") that may occur on the Bunny edge runtime's ICU build. Swept
+# many timezone/date combinations (including a DST transition) against this
+# Deno runtime's ICU and never observed "24:" in the output — the regex this
+# replacement string feeds never matches here, so the replacement's own
+# content is unobservable in this test environment. Same class as
+# src/shared/images/codecs.ts's edge-only codec init below.
+src/shared/bulk-replace.ts:103:56  $1 00: → ""   # this runtime's ICU never renders local midnight as "24:00", so the regex this feeds never matches
+src/shared/bulk-replace.ts:103:56  $1 00: → "$1 00: mutated"   # same as above

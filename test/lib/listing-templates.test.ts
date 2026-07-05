@@ -195,6 +195,43 @@ describe("inferTemplate — template flags", () => {
       expect(tmpl.description).toMatch(/^listings_table\./);
     }
   });
+
+  // Pins the exact key per template — the prefix check above would still
+  // pass on a typo'd or truncated key (e.g. an appended suffix). i18n's t()
+  // throws on an unknown key rather than degrading silently, but that only
+  // protects a key that actually gets rendered in some test; hireable-item
+  // is gated behind requiresLogistics and isn't exercised by the default
+  // settings fixture in server-listings.test.ts, so this is the only test
+  // that would catch a typo in its label/description key.
+  const EXPECTED_KEYS: Record<
+    TemplateId,
+    { label: string; description: string }
+  > = {
+    "hireable-item": {
+      description: "listings_table.template_hireable_item_description",
+      label: "listings_table.template_hireable_item",
+    },
+    "one-off-event": {
+      description: "listings_table.template_one_off_event_description",
+      label: "listings_table.template_one_off_event",
+    },
+    "online-digital": {
+      description: "listings_table.template_online_digital_description",
+      label: "listings_table.template_online_digital",
+    },
+    "weekly-event": {
+      description: "listings_table.template_weekly_event_description",
+      label: "listings_table.template_weekly_event",
+    },
+  };
+
+  for (const tmpl of LISTING_TEMPLATES) {
+    test(`${tmpl.id} has its exact label and description i18n key`, () => {
+      expect({ description: tmpl.description, label: tmpl.label }).toEqual(
+        EXPECTED_KEYS[tmpl.id],
+      );
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
