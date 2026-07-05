@@ -1,6 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createBackupZip, restoreFromZip } from "#shared/db/backup.ts";
+import {
+  createBackupZip,
+  exportTable,
+  PostResetError,
+  restoreFromSql,
+  restoreFromZip,
+} from "#shared/db/backup.ts";
 import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
 import { initDb } from "#shared/db/migrations.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
@@ -16,6 +22,9 @@ import { createTestListing, describeWithEnv } from "#test-utils";
  * replay it exactly as a live upgrade would.
  */
 describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
+  const listingCount = async (): Promise<number> =>
+    (await queryOne<{ n: number }>("SELECT COUNT(*) AS n FROM listings"))!.n;
+
   const listingColumnNames = async (): Promise<string[]> => {
     const rows = await queryAll<{ name: string }>(
       "SELECT name FROM pragma_table_info('listings')",
@@ -78,6 +87,56 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
       );
       expect(use?.item_type).toBe("listing");
       expect(await listingColumnNames()).not.toContain("image_url");
+    });
+  });
+
+  describe("backups this build cannot replay", () => {
+    test("a backup from a newer build is refused before anything is wiped", async () => {
+      await createTestListing({ name: "Still Here" });
+      const recorded = await exportTable("schema_migrations");
+      const dump =
+        `${recorded.sql}\n` +
+        `INSERT INTO "schema_migrations" ("id", "description", "applied_at") ` +
+        `VALUES ('2099-01-01_from_the_future', 'Future change', '2099-01-01T00:00:00.000Z');\n`;
+
+      await expect(restoreFromSql(dump)).rejects.toThrow(
+        "2099-01-01_from_the_future",
+      );
+
+      // Refused up front: the database was never reset, so the data survives.
+      expect(await listingCount()).toBe(1);
+    });
+
+    test("an orphaned marker from a historically renamed migration is not refused", async () => {
+      // Real databases carry schema_migrations rows whose migration was later
+      // renamed (e.g. 2026-06-18_answer_price_modifiers); the old marker is
+      // never cleaned up, so its unrecognised id must not read as "newer".
+      await createTestListing({ name: "Orphan Marker Survivor" });
+      const recorded = await exportTable("schema_migrations");
+      const dump =
+        `${recorded.sql}\n` +
+        `INSERT INTO "schema_migrations" ("id", "description", "applied_at") ` +
+        `VALUES ('2026-06-18_answer_price_modifiers', 'Renamed since', '2026-06-18T00:00:00.000Z');\n` +
+        `${(await exportTable("listings")).sql}\n`;
+
+      await restoreFromSql(dump);
+
+      expect(await listingCount()).toBe(1);
+    });
+
+    test("an unknown column with no pending migration fails instead of being re-added", async () => {
+      // The dump records every known migration, so nothing pending could
+      // consume a stray column — it is corruption, and the INSERT must fail.
+      const recorded = await exportTable("schema_migrations");
+      const dump =
+        `${recorded.sql}\n` +
+        `INSERT INTO "holidays" ("id", "date", "stray_col") VALUES (1, '2026-01-01', 'x');\n`;
+
+      await expect(restoreFromSql(dump)).rejects.toThrow(PostResetError);
+      const holidayColumns = await queryAll<{ name: string }>(
+        "SELECT name FROM pragma_table_info('holidays')",
+      );
+      expect(holidayColumns.map((c) => c.name)).not.toContain("stray_col");
     });
   });
 });
