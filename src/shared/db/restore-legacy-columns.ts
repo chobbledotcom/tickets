@@ -79,8 +79,9 @@ const migrationDate = (id: string): string => id.slice(0, 10);
 
 /** How the dump's recorded schema_migrations relate to this build's. */
 export type DumpMigrationState = {
-  /** Recorded ids dated after this build's newest migration — the dump can
-   *  only have come from a newer build and must not be replayed here.
+  /** Recorded ids that can only have come from a newer build — dated after
+   *  this build's newest migration, or dated the same but with nothing
+   *  pending (see dumpMigrationState). The dump must not be replayed here.
    *  Unrecognised ids dated within this build's history are tolerated: real
    *  databases carry orphaned markers from historically renamed migrations
    *  (e.g. 2026-06-18_answer_price_modifiers), which nothing cleans up. */
@@ -95,8 +96,12 @@ export type DumpMigrationState = {
  * relate them to this build's known ids. Ids are date-prefixed and a new
  * migration is always dated on or after the newest one already shipped, so a
  * recorded id with a later date than any known id can only come from a newer
- * build. A dump with no schema_migrations statements (partial fixtures,
- * plain SQL) reads as fully pending.
+ * build. An unrecognised id sharing the newest date is ambiguous — a same-day
+ * migration from a newer build, or an orphaned marker from a same-day rename
+ * — so it fails closed as "newer" unless the dump is missing one of this
+ * build's migrations, which proves the dump predates it. A dump with no
+ * schema_migrations statements (partial fixtures, plain SQL) reads as fully
+ * pending.
  */
 export const dumpMigrationState = (
   statements: string[],
@@ -114,11 +119,15 @@ export const dumpMigrationState = (
     (newest, id) => (migrationDate(id) > newest ? migrationDate(id) : newest),
     "",
   );
+  const hasPending = knownIds.some((id) => !recorded.has(id));
+  const isFromNewerBuild = (id: string): boolean => {
+    if (known.has(id)) return false;
+    const date = migrationDate(id);
+    return date > newestKnownDate || (date === newestKnownDate && !hasPending);
+  };
   return {
-    fromNewerBuild: [...recorded].filter(
-      (id) => !known.has(id) && migrationDate(id) > newestKnownDate,
-    ),
-    hasPending: knownIds.some((id) => !recorded.has(id)),
+    fromNewerBuild: [...recorded].filter(isFromNewerBuild),
+    hasPending,
   };
 };
 
