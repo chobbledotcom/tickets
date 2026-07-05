@@ -328,10 +328,10 @@ Add admin routes (**schema-scoped**, so future formats reuse them unchanged):
   - Authenticated multipart upload. Parses, runs the **pure preflight** (resolve +
     validate + plan, no writes), and runs the write transaction **only if there
     are no blocking errors**. Redirects to the preflight error report on blocking
-    errors; otherwise to success — stashing a **success report** (created count
-    *plus the skipped/non-creatable rows with their row details*, not just counts)
-    so the redirect shows the operator exactly what was skipped, nothing silently
-    dropped.
+    errors; otherwise to the **success report** (`GET .../success?stash=<token>`,
+    defined below) — stashing the report (created count *plus the
+    skipped/non-creatable rows with their row details*, not just counts) so the
+    redirect shows the operator exactly what was skipped, nothing silently dropped.
 - `GET /admin/imports/:schema/errors?stash=<token>` — the **preflight error
   report**: the single "here's everything to fix" page. Missing setup is one
   section of it; see [Preflight & Error Reporting](#preflight--error-reporting).
@@ -351,6 +351,13 @@ Add admin routes (**schema-scoped**, so future formats reuse them unchanged):
     question with the exact text; prefill via `?import_text=Surface` if cheap). It
     also renders the non-setup problems — ambiguous matches, source-data errors,
     non-creatable and unrepresentable rows — see the report section.
+- `GET /admin/imports/:schema/success?stash=<token>` — the **success report** a
+  completed import redirects to. Reads the same kind of durable, TTL'd libsql stash
+  as the error report (written by the POST, addressed by `?stash=<token>` — **not**
+  process-local memory, for the same cross-isolate reason), and shows the created
+  count plus every skipped / already-imported / non-creatable row with its details.
+  A missing/expired stash renders a minimal "import complete" fallback rather than a
+  404. (Both reports share one small stash table + cleanup pass.)
 
 Extend listing creation:
 
@@ -606,7 +613,7 @@ Suggested field mapping:
 | `Mobile`, `Telephone` | attendee `phone` | Prefer mobile; append alternate phone to a free-text answer / notes if both exist. |
 | delivery address fields | attendee `address` | More useful for hire/logistics than contact address. |
 | contact address fields | free-text answer / notes | No second structured address field exists. |
-| `Customer Notes`, `Operator Notes` | free-text answers (preferred) and/or per-contact notes | See [Where Legacy Metadata Goes](#where-legacy-metadata-goes). |
+| `Customer Notes`, `Operator Notes` | free-text answers (preferred) and/or the per-attendee `system_notes` **owner** note | Booking-specific, so **not** the per-contact history note (two bookings sharing an email/phone would merge). See [Where Legacy Metadata Goes](#where-legacy-metadata-goes). |
 | `Delivery Date`, `Collection Date` | booking `date`, `durationDays` (line `start_at`/`end_at`) | Every imported line is on a **daily** listing (gated at resolution — see Dates below), so it is naturally dated; this range drives run sheets and the day-calendar. |
 | `Drop Off`, `Collection` | `listing_attendees.start_time`, `end_time` | Requires importer-specific write/update; current create helper does not accept these. |
 | `Total`, `Received`, `Balance` | ledger transfers (attendee ↔ `imported`) | Posted to the `transfers` ledger, **not** stored as columns (`price_paid`/`remaining_balance` are gone). Owed balance projects as `−balanceOf(attendee)`. See [Financial Mapping](#financial-mapping). |
@@ -1074,9 +1081,13 @@ Target algorithm — a **pure preflight** that accumulates the full report, then
 11. Check representability: a same-listing repeat across **non-identical** date
     ranges (anything but the exact same range) can't fit one `(attendee, listing)`
     line and is recorded as unrepresentable (see Quantity).
-12. **Build the import plan** for every still-creatable candidate — encrypted PII
-    blobs, lines (real / quantity-0), text-answer sets, balances, dates/times,
-    audit fields, idempotency rows. Pure data, no writes.
+12. **Build the import plan** for every still-creatable candidate — **raw**
+    (unencrypted) contact/PII payloads, lines (real / quantity-0), text-answer sets,
+    owed/paid figures, dates/times, audit fields, idempotency keys. **Pure data, no
+    writes and no crypto:** PII encryption needs the owner public key and fresh
+    randomness (nondeterministic), so it belongs in the effectful write phase, not
+    the pure planner — the writer encrypts the raw payloads via `buildPiiBlob` as it
+    inserts. Keeping the plan raw also keeps it deterministic and unit-testable.
 
 **Decision.** If the report has any **blocking error**, stash the whole report
 server-side and redirect to the error report with only a `?stash=` token (see
@@ -1498,10 +1509,13 @@ Semantic-correctness tests (verified against live behaviour):
   (`getAgentRunSheet`) — the importer populates the dates/times but not the agent.
   Confirms the daily-only gate makes per-booking dates work without new
   standard-listing line-date paths.
-- **A later-orphaned import frees its `old_id`:** deleting an imported booking's
-  last listing, then running the orphan auto-purge, removes the attendee *and* its
-  `booking_imports` row, so re-uploading the same CSV re-creates the booking
-  rather than skipping it as already-imported.
+- **A later-orphaned *zero-money* import frees its `old_id`:** deleting a
+  cancelled/quoted (no-ledger-legs) import's last listing, then running the orphan
+  auto-purge, removes the attendee *and* its `booking_imports` row, so re-uploading
+  the same CSV re-creates the booking rather than skipping it. **A money-bearing
+  import instead keeps its mapping as a tombstone** (its append-only import legs make
+  the `(schema, old_id)` event un-replayable — see the cleanup section), so its
+  `old_id` stays mapped and a re-upload skips it; assert both.
 - **Merging an imported source keeps the import map consistent:**
   `applyAttendeeMerge` on an imported source **remaps** its `booking_imports` row
   to the surviving target — even when the target is itself an import, since
