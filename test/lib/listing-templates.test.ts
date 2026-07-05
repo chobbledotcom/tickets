@@ -201,7 +201,7 @@ describe("inferTemplate — template flags", () => {
   // throws on an unknown key rather than degrading silently, but that only
   // protects a key that actually gets rendered in some test; hireable-item
   // is gated behind requiresLogistics and isn't exercised by the default
-  // settings fixture in server-listings.test.ts, so this is the only test
+  // settings fixture in server-listings/create.test.ts, so this is the only test
   // that would catch a typo in its label/description key.
   const EXPECTED_KEYS: Record<
     TemplateId,

@@ -50,6 +50,22 @@ export const expectTestAttendeeCsvColumns = (
   expect(row).toContain(`,${quantity},`);
 };
 
+/** Asserts a response is a 200 CSV download with the standard
+ *  Content-Disposition: attachment header, whose filename contains
+ *  `filenameFragment` — the shared header contract behind every CSV export
+ *  route (listing exports, calendar exports, etc). */
+export const expectCsvDownloadHeaders = (
+  response: Response,
+  filenameFragment: string,
+): void => {
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toBe("text/csv; charset=utf-8");
+  expect(response.headers.get("content-disposition")).toContain("attachment");
+  expect(response.headers.get("content-disposition")).toContain(
+    filenameFragment,
+  );
+};
+
 export const expectJsonResponse =
   // deno-lint-ignore no-explicit-any
     <T = any>(status: number, assertions?: (body: T) => void) =>
@@ -207,6 +223,27 @@ export const expectRedirect = (
 
 export const expectAdminRedirect = (response: Response): string =>
   expectRedirect(response, "/admin");
+
+/** A successful public booking redirects to the reserved/thank-you page
+ *  carrying one or more attendee tokens in the query string. */
+export const expectReservedRedirectWithTokens = (response: Response): void => {
+  expectRedirect(response, /^\/ticket\/reserved\?tokens=.+$/);
+};
+
+/** Asserts each listing in `expectations` ended up with exactly `count` raw
+ *  attendee rows, and (when given) that the single resulting attendee's
+ *  `quantity` matches. This is the "who got booked, and for how many" check
+ *  repeated after almost every multi-listing booking POST. */
+export const expectAttendeeCounts = async (
+  expectations: { count: number; listingId: number; quantity?: number }[],
+): Promise<void> => {
+  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  for (const { count, listingId, quantity } of expectations) {
+    const attendees = await getAttendeesRaw(listingId);
+    expect(attendees.length).toBe(count);
+    if (quantity !== undefined) expect(attendees[0]?.quantity).toBe(quantity);
+  }
+};
 
 /** The exact `form` search param of a redirect's Location (the flash anchor
  * targeting a specific CsrfForm), or null when absent. Parsed rather than
