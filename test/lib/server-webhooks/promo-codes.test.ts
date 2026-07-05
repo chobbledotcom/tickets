@@ -14,6 +14,20 @@ import {
   singleItem,
 } from "#test-utils";
 
+/** A £1 fixed code-triggered modifier — every promo-code test below books the
+ *  same £10 listing against one of these, varying only the direction/name. */
+const createFixedPromoModifier = (
+  direction: "charge" | "discount",
+  name: string,
+) =>
+  modifiersTable.insert({
+    calcKind: "fixed",
+    calcValue: 1,
+    direction,
+    name,
+    trigger: "code",
+  });
+
 describeWithEnv("server webhooks > promo codes", { db: true }, () => {
   afterEach(() => {
     resetStripeClient();
@@ -25,13 +39,7 @@ describeWithEnv("server webhooks > promo codes", { db: true }, () => {
       maxAttendees: 50,
       unitPrice: 1000,
     });
-    const modifier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 1,
-      direction: "discount",
-      name: "EARLYBIRD",
-      trigger: "code",
-    });
+    const modifier = await createFixedPromoModifier("discount", "EARLYBIRD");
 
     await expectWebhookProcessed(
       checkoutSessionEvent({
@@ -71,13 +79,7 @@ describeWithEnv("server webhooks > promo codes", { db: true }, () => {
       maxAttendees: 50,
       unitPrice: 1000,
     });
-    const modifier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 1,
-      direction: "charge",
-      name: "PREMIUM",
-      trigger: "code",
-    });
+    const modifier = await createFixedPromoModifier("charge", "PREMIUM");
 
     await expectWebhookProcessed(
       checkoutSessionEvent({

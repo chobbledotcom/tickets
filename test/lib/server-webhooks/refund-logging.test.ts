@@ -16,6 +16,20 @@ import {
   stubWebhookVerify,
 } from "#test-utils";
 
+/** Find the "Automatic refund" activity log entry for `listingId` and assert
+ *  it's tagged to that listing — the shared lookup both refund-logging tests
+ *  end with, before checking their own message substring. */
+const findRefundActivityEntry = async (listingId: number) => {
+  const { getListingActivityLog } = await import("#test-utils");
+  const entries = await getListingActivityLog(listingId);
+  const refundEntry = entries.find((e) =>
+    e.message.includes("Automatic refund"),
+  );
+  expect(refundEntry).toBeDefined();
+  expect(refundEntry!.listing_id).toBe(listingId);
+  return refundEntry!;
+};
+
 describeWithEnv("server webhooks > refund logging", { db: true }, () => {
   afterEach(() => {
     resetStripeClient();
@@ -72,14 +86,8 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
       expect(refundLog).toBeDefined();
 
       // Verify refund was logged to activity log tagged to listing
-      const { getListingActivityLog } = await import("#test-utils");
-      const entries = await getListingActivityLog(listing.id);
-      const refundEntry = entries.find((e) =>
-        e.message.includes("Automatic refund"),
-      );
-      expect(refundEntry).toBeDefined();
-      expect(refundEntry!.listing_id).toBe(listing.id);
-      expect(refundEntry!.message).toContain(
+      const refundEntry = await findRefundActivityEntry(listing.id);
+      expect(refundEntry.message).toContain(
         "no longer accepting registrations",
       );
     } finally {
@@ -127,14 +135,8 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
       );
       expect(response.status).toBe(200);
 
-      const { getListingActivityLog } = await import("#test-utils");
-      const entries = await getListingActivityLog(listing.id);
-      const refundEntry = entries.find((e) =>
-        e.message.includes("Automatic refund"),
-      );
-      expect(refundEntry).toBeDefined();
-      expect(refundEntry!.listing_id).toBe(listing.id);
-      expect(refundEntry!.message).toContain("price");
+      const refundEntry = await findRefundActivityEntry(listing.id);
+      expect(refundEntry.message).toContain("price");
     } finally {
       mockVerify.restore();
       mockRefund.restore();

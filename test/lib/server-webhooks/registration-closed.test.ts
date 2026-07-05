@@ -18,6 +18,13 @@ import {
   webhookMeta,
 } from "#test-utils";
 
+/** A listing whose registration closed a minute ago — every closes_at test
+ *  below books against one of these, varying only the price. */
+const createClosedListing = (unitPrice: number) => {
+  const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
+  return createTestListing({ closesAt: pastDate, maxAttendees: 50, unitPrice });
+};
+
 describeWithEnv(
   "server webhooks > registration closed (closes_at)",
   { db: true },
@@ -29,12 +36,7 @@ describeWithEnv(
     test("refunds and shows error when listing registration has closed (single ticket)", async () => {
       await setupStripe();
 
-      const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
-      const listing = await createTestListing({
-        closesAt: pastDate,
-        maxAttendees: 50,
-        unitPrice: 1000,
-      });
+      const listing = await createClosedListing(1000);
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
@@ -80,12 +82,7 @@ describeWithEnv(
     test("webhook refunds when listing registration has closed (single ticket)", async () => {
       await setupStripe();
 
-      const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
-      const listing = await createTestListing({
-        closesAt: pastDate,
-        maxAttendees: 50,
-        unitPrice: 1000,
-      });
+      const listing = await createClosedListing(1000);
 
       await expectWebhookKeptAndRefunded(
         checkoutSessionEvent({
@@ -111,17 +108,12 @@ describeWithEnv(
     test("webhook refunds when multi-ticket listing registration has closed", async () => {
       await setupStripe();
 
-      const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
       const listing1 = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
       // listing2 is closed
-      const listing2 = await createTestListing({
-        closesAt: pastDate,
-        maxAttendees: 50,
-        unitPrice: 500,
-      });
+      const listing2 = await createClosedListing(500);
 
       await expectWebhookKeptAndRefunded(
         checkoutSessionEvent({

@@ -66,6 +66,20 @@ const followPaymentRedirectAndGetAttendees = async (
   }
 };
 
+/** Assert the sole attendee's recorded quantity/price_paid — the tail check
+ *  every pricePaid test in this file ends with. */
+const expectPricePaid = (
+  attendees: Awaited<ReturnType<typeof followPaymentRedirectAndGetAttendees>>,
+  quantity: number,
+  pricePaid: number,
+): void => {
+  expect(attendees.length).toBe(1);
+  expect(attendees[0]?.quantity).toBe(quantity);
+  expect((attendees[0] as unknown as Record<string, unknown>).price_paid).toBe(
+    pricePaid,
+  );
+};
+
 describeWithEnv("server webhooks > pricePaid calculation", { db: true }, () => {
   afterEach(() => {
     resetStripeClient();
@@ -91,11 +105,7 @@ describeWithEnv("server webhooks > pricePaid calculation", { db: true }, () => {
       },
       listing.id,
     );
-    expect(attendees.length).toBe(1);
-    expect(attendees[0]?.quantity).toBe(3);
-    expect(
-      (attendees[0] as unknown as Record<string, unknown>).price_paid,
-    ).toBe(1500);
+    expectPricePaid(attendees, 3, 1500);
   });
 
   test("single-ticket pricePaid calculation uses unit_price * quantity", async () => {
@@ -118,10 +128,7 @@ describeWithEnv("server webhooks > pricePaid calculation", { db: true }, () => {
       },
       listing.id,
     );
-    expect(attendees.length).toBe(1);
-    expect(
-      (attendees[0] as unknown as Record<string, unknown>).price_paid,
-    ).toBe(2000);
+    expectPricePaid(attendees, 2, 2000);
   });
 
   test("multi-ticket pricePaid records zero when listing has no unit_price", async () => {
@@ -143,11 +150,7 @@ describeWithEnv("server webhooks > pricePaid calculation", { db: true }, () => {
       },
       listing.id,
     );
-    expect(attendees.length).toBe(1);
-    expect(attendees[0]?.quantity).toBe(2);
-    expect(
-      (attendees[0] as unknown as Record<string, unknown>).price_paid,
-    ).toBe(0);
+    expectPricePaid(attendees, 2, 0);
   });
 
   test("single-ticket pricePaid records zero when listing has no unit_price", async () => {
@@ -169,10 +172,6 @@ describeWithEnv("server webhooks > pricePaid calculation", { db: true }, () => {
       },
       listing.id,
     );
-    expect(attendees.length).toBe(1);
-    expect(attendees[0]?.quantity).toBe(2);
-    expect(
-      (attendees[0] as unknown as Record<string, unknown>).price_paid,
-    ).toBe(0);
+    expectPricePaid(attendees, 2, 0);
   });
 });
