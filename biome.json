@@ -173,7 +173,6 @@
         "test/lib/server-parents-gate.test.ts",
         "test/lib/server-payments.test.ts",
         "test/lib/server-questions.test.ts",
-        "test/lib/server-reservation.test.ts",
         "test/lib/square.test.ts",
         "test/lib/stripe.test.ts",
         "test/lib/test-utils.test.ts",
