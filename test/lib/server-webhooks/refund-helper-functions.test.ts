@@ -1,0 +1,279 @@
+import { expect } from "@std/expect";
+import { afterEach, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { handleRequest } from "#routes";
+import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import {
+  assertJson,
+  createTestListing,
+  deactivateTestListing,
+  describeWithEnv,
+  expectHtmlResponse,
+  mockRequest,
+  mockWebhookRequest,
+  setupStripe,
+  signedMeta,
+  signMeta,
+  singleItem,
+  webhookMeta,
+} from "#test-utils";
+
+describeWithEnv(
+  "server webhooks > refund helper functions",
+  { db: true },
+  () => {
+    afterEach(() => {
+      resetStripeClient();
+    });
+
+    test("tryRefund returns false when paymentReference is empty", async () => {
+      await setupStripe();
+
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      await deactivateTestListing(listing.id);
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 1000,
+          id: "cs_null_ref",
+          metadata: signMeta(
+            webhookMeta({
+              email: "john@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "John",
+            }),
+            1000,
+          ),
+          payment_intent: null, // No payment reference
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_null_ref"),
+        );
+        const html = await expectHtmlResponse(
+          response,
+          410,
+          "no longer accepting registrations",
+        );
+        // Should show "contact support" since refund failed (no payment reference)
+        expect(html).toContain("contact support");
+      } finally {
+        mockRetrieve.restore();
+      }
+    });
+
+    test("webhook extracts payment_intent as paymentReference", async () => {
+      await setupStripe();
+
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            listing: {
+              data: {
+                object: {
+                  amount_total: 1000,
+                  id: "cs_pi_extract",
+                  metadata: signedMeta(
+                    {
+                      email: "pi@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      name: "PI User",
+                    },
+                    1000,
+                  ),
+                  payment_intent: "pi_extracted_ref",
+                  payment_status: "paid",
+                },
+              },
+              id: "evt_pi_extract",
+              type: "checkout.session.completed",
+            },
+            valid: true,
+          }),
+      );
+
+      try {
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.processed).toBe(true);
+          },
+        );
+
+        // Verify attendee was created with encrypted PII blob
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]?.pii_blob).not.toBe("");
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
+    test("formatPaymentError returns plain error when refunded is undefined", async () => {
+      await setupStripe();
+
+      // This tests the case where result.refunded is undefined
+      // This happens when validatePaidSession fails (no refund attempt)
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_plain_error",
+          metadata: {
+            email: "john@example.com",
+            items: singleItem(1, 1, 0),
+            name: "John",
+          },
+          payment_intent: "pi_test",
+          payment_status: "unpaid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_plain_error"),
+        );
+        const html = await expectHtmlResponse(
+          response,
+          400,
+          "Payment verification failed",
+        );
+        // Should NOT contain refund-related text
+        expect(html).not.toContain("refunded");
+        expect(html).not.toContain("contact support for a refund");
+      } finally {
+        mockRetrieve.restore();
+      }
+    });
+
+    test("webhook cancel page returns error when no provider", async () => {
+      // Don't set up any payment provider
+      const response = await handleRequest(
+        mockRequest("/payment/cancel?session_id=cs_cancel_no_prov"),
+      );
+      await expectHtmlResponse(
+        response,
+        400,
+        "Payment provider not configured",
+      );
+    });
+
+    test("a real create error propagates instead of refunding", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        name: "Create Boom",
+        unitPrice: 500,
+      });
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 500,
+          id: "cs_create_boom",
+          metadata: signMeta(
+            webhookMeta({
+              email: "boom@example.com",
+              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+              name: "Boom",
+            }),
+            500,
+          ),
+          payment_intent: "pi_create_boom",
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_test" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >),
+      );
+      const { attendeesApi } = await import("#shared/db/attendees.ts");
+      // The booking honour path uses createBookingAtomic; the quantity-0
+      // placeholder fallback uses createAttendeeAtomic. A genuinely broken
+      // create breaks both, so the error escapes instead of becoming a refund.
+      const mockBooking = stub(attendeesApi, "createBookingAtomic", () =>
+        Promise.reject(new Error("synthetic create failure")),
+      );
+      const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
+        Promise.reject(new Error("synthetic create failure")),
+      );
+      const hadExpectError = Deno.env.get("TEST_EXPECT_ERROR");
+      Deno.env.delete("TEST_EXPECT_ERROR");
+      try {
+        // A non-sold-out error is not swallowed as a refund: it propagates.
+        await expect(
+          handleRequest(
+            mockRequest("/payment/success?session_id=cs_create_boom"),
+          ),
+        ).rejects.toThrow("synthetic create failure");
+        expect(mockRefund.calls.length).toBe(0);
+      } finally {
+        mockRetrieve.restore();
+        mockRefund.restore();
+        mockBooking.restore();
+        mockAtomic.restore();
+        if (hadExpectError) Deno.env.set("TEST_EXPECT_ERROR", hadExpectError);
+      }
+    });
+
+    test("multi-ticket no firstAttendee returns refund error", async () => {
+      await setupStripe();
+
+      // Mock empty items list (edge case where items parsed but empty after filtering)
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_multi_empty_items",
+          metadata: {
+            email: "empty@example.com",
+            items: "[]", // Empty array
+            name: "Empty Items",
+          },
+          payment_intent: "pi_multi_empty",
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_test" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >),
+      );
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_multi_empty_items"),
+        );
+        // Empty items list returns "Invalid cart session data"
+        expect(response.status).toBe(400);
+      } finally {
+        mockRetrieve.restore();
+        mockRefund.restore();
+      }
+    });
+  },
+);

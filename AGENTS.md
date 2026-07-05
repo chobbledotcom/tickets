@@ -477,7 +477,7 @@ Arguments are forwarded verbatim to `deno test`, so multiple files, directories,
 
 ```bash
 deno task test:files test/lib/dates.test.ts --filter "formats date"
-deno task test:files test/lib/server-balance.test.ts test/lib/server-webhooks.test.ts
+deno task test:files test/lib/server-balance.test.ts test/lib/server-webhooks/*.test.ts
 ```
 
 #### Lower-level alternative

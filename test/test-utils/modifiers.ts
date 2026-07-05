@@ -4,7 +4,11 @@ import {
   modifierStockCondition,
   usageInsert,
 } from "#shared/db/modifier-usage.ts";
-import { type ModifierInput, modifiersTable } from "#shared/db/modifiers.ts";
+import {
+  getAllModifiers,
+  type ModifierInput,
+  modifiersTable,
+} from "#shared/db/modifiers.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 
 /** A checkout line item with sensible defaults for pricing/modifier tests. */
@@ -104,3 +108,35 @@ export const insertModifierUsage = (
     args: [modifierId, attendeeId, quantity, amountApplied, "2026-06-17"],
     sql: "INSERT INTO modifier_usages (modifier_id, attendee_id, quantity, amount_applied, created) VALUES (?, ?, ?, ?, ?)",
   });
+
+/** Sum of `amount_applied` recorded against a modifier by a webhook/checkout. */
+export const modifierUsageAmount = async (
+  modifierId: number,
+): Promise<number> => {
+  const result = await getDb().execute({
+    args: [modifierId],
+    sql: "SELECT amount_applied FROM modifier_usages WHERE modifier_id = ?",
+  });
+  return Number(result.rows[0]!.amount_applied);
+};
+
+/**
+ * total_revenue is projected from the transfers ledger as balanceOf(modifier)
+ * (read directly: a surcharge nets positive, a discount negative), so read it
+ * through getAllModifiers — the loader that selects the projection — rather
+ * than off the dropped column. The counts stay trigger-maintained.
+ */
+export const modifierAggregates = async (
+  modifierId: number,
+): Promise<{
+  totalRevenue: number;
+  totalUses: number;
+  usageCount: number;
+}> => {
+  const row = (await getAllModifiers()).find((m) => m.id === modifierId)!;
+  return {
+    totalRevenue: row.total_revenue,
+    totalUses: row.total_uses,
+    usageCount: row.usage_count,
+  };
+};
