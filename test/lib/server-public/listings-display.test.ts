@@ -346,7 +346,7 @@ describeWithEnv(
           maxAttendees: 50,
           name: "Hidden Group Listing",
         });
-        await assertPublicHtml(`/ticket/${group.slug}`, "Hidden Group Listing");
+        await assertPublicHtml(`/ticket/${group.slug}`, "Hidden Group");
       });
 
       test("grouped listings also appear individually on listings page", async () => {

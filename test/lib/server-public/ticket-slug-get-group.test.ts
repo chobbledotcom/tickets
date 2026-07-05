@@ -2,7 +2,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { imagesTable, setItemsForImage } from "#shared/db/images.ts";
 import { settings } from "#shared/db/settings.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   assertPublicHtml,
   createTestGroup,
@@ -69,6 +71,33 @@ describeWithEnv(
           `/ticket/${group.slug}`,
           "Festival Group",
           "A wonderful festival with multiple listings",
+        );
+      });
+
+      test("shows the linked group image on the group ticket page", async () => {
+        const group = await createTestGroup({
+          name: "Poster Group",
+          slug: "poster-group",
+        });
+        await createTestListing({
+          groupId: group.id,
+          maxAttendees: 50,
+          name: "Poster Group Listing",
+        });
+        const image = await imagesTable.insert({
+          altText: "Poster group hero",
+          filename: nonEmptyString("poster-group.webp"),
+          filenameThumb: nonEmptyString("poster-group-thumb.webp"),
+          name: "Poster group image",
+        });
+        await setItemsForImage(image.id, [
+          { itemId: group.id, itemType: "group" },
+        ]);
+
+        await assertPublicHtml(
+          `/ticket/${group.slug}`,
+          "/image/poster-group.webp",
+          'alt="Poster group hero"',
         );
       });
 
