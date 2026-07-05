@@ -4,11 +4,16 @@
  * Both `/admin/attendees/new` (create) and `/admin/attendees/:id` (edit) render
  * the same fields and run the same validation. An attendee has ONE shared date
  * range — a `start_date` plus a day count — that applies to every daily listing
- * they book; standard (fixed-date) listings ignore it. The listing editor is a
- * fixed table with one row per bookable listing (plus any inactive listing the
- * attendee already booked), each carrying a quantity box: quantity ≥ 1 books the
- * listing, 0 leaves it out. There are no add/remove-line buttons, so the form
- * needs no server round-trips to edit the line set.
+ * they book; standard (fixed-date) listings ignore it.
+ *
+ * The listing editor is a fixed table with ONE ROW PER BOOKING PATH — every
+ * stored `listing_attendees` row (a listing may hold several: its own
+ * standalone row beside package rows, or a child folded under a parent), plus
+ * a blank standalone line per not-yet-booked listing and a blank line per
+ * (package, member) path so the operator can book any combination a public
+ * buyer could. Quantity ≥ 1 books a line, 0 leaves it out. There are no
+ * add/remove-line buttons, so the form needs no server round-trips (the blank
+ * lines hide behind pure-CSS toggles).
  */
 
 import { mapNotNullish } from "#fp";
@@ -46,20 +51,31 @@ import {
 
 /** Shared day count (range length) for every daily listing. */
 export const DAY_COUNT_FIELD = "day_count";
-/** Per-listing quantity field: `qty_<listingId>`. */
+/** Per-line hidden field carrying the line's listing id: `line_listing_<i>`.
+ * The presence of this field is what defines a line; `<i>` is the line's
+ * position in the rendered editor, shared by every other per-line field. */
+export const LINE_LISTING_PREFIX = "line_listing_";
+/** Per-line quantity field: `qty_<i>`. */
 export const QTY_PREFIX = "qty_";
-/** Per-listing "no quantity" checkbox: `noqty_<listingId>`. When ticked the line
- * is kept as a quantity-0 sentinel (counts toward no capacity/tickets/income and
- * is hidden from operational/public surfaces) instead of being booked or removed.
+/** Per-line "no quantity" checkbox: `noqty_<i>`. When ticked the line is kept
+ * as a quantity-0 sentinel (counts toward no capacity/tickets/income and is
+ * hidden from operational/public surfaces) instead of being booked or removed.
  * Owners never see a literal 0 — the checkbox is the proxy for `quantity == 0`. */
 export const NO_QUANTITY_PREFIX = "noqty_";
-/** Per-listing hidden field carrying the existing booking's line key, so an
- * edit can move/keep the right `listing_attendees` row: `line_key_<listingId>`. */
+/** Per-line hidden field carrying the existing booking row's key, so an edit
+ * moves/keeps exactly that row: `line_key_<i>`. Empty on a blank line. */
 export const LINE_KEY_PREFIX = "line_key_";
+/** Per-line hidden field carrying the package path a BLANK line books through
+ * when given a quantity: `line_package_<i>` (0 = the listing's own standalone
+ * row). An existing row's path comes from the row itself, never this field. */
+export const LINE_PACKAGE_PREFIX = "line_package_";
 /** Checkbox that reveals the not-booked listing rows when at least one line is
  * already booked (pure-CSS, never parsed; omitted on a bare create form, which
  * shows every listing). */
 export const SHOW_ALL_FIELD = "show_all";
+/** Checkbox that reveals the blank package-path lines (pure CSS, never
+ * parsed) — one line per (package, member) path the attendee could book. */
+export const SHOW_PACKAGE_PATHS_FIELD = "show_package_paths";
 export const STATUS_FIELD = "status_id";
 export const REMAINING_BALANCE_FIELD = "remaining_balance";
 export { START_DATE_FIELD };
@@ -71,10 +87,18 @@ export const ATTENDEE_FORM_ID = "attendee-form";
 // Domain types
 // ---------------------------------------------------------------------------
 
-/** One row of the listing editor — a bookable listing and its quantity. */
+/** One row of the listing editor — one booking PATH of a listing (its own
+ * standalone row, one package's row, or an existing folded-child row) and its
+ * quantity. */
 export type AttendeeFormLine = {
   /** Listing id this row books. */
   listingId: number;
+  /** The package this line books through (0 = the listing's own row). An
+   * existing row's stored value; a blank line's chosen path. */
+  packageGroupId: number;
+  /** The parent an EXISTING row was folded under as an add-on (0 = none).
+   * Display + slot identity only — the form never creates folded rows. */
+  parentListingId: number;
   /** Booked quantity; null/0 means the listing is not booked. */
   quantity: number | null;
   /** True when the "no quantity" box is ticked: keep this line as a quantity-0
@@ -295,9 +319,28 @@ const parseQuantity = (raw: string): number | null => {
   return parseNonNegativeInt(raw);
 };
 
-/** One editor line per `qty_<id>` field in the form, in document order and
- * de-duplicated, with the listing + existing booking resolved. A ticked
- * `noqty_<id>` box forces quantity to 0 and marks the line no-quantity (its
+/** The package a BLANK line books through: its submitted `line_package_<i>`,
+ * accepted only when it names a real package containing this listing (the
+ * caller's membership map). Anything else — including a package deleted while
+ * the form was open — books the listing's own standalone row instead of
+ * minting a row tagged with a package that does not exist. */
+const resolveNewLinePackage = (
+  raw: string,
+  listingId: number,
+  packagesByListingId: ReadonlyMap<number, ReadonlySet<number>>,
+): number => {
+  const groupId = parsePositiveIntId(raw);
+  return groupId !== null &&
+    packagesByListingId.get(listingId)?.has(groupId) === true
+    ? groupId
+    : 0;
+};
+
+/** One editor line per `line_listing_<i>` field in the form, in document order
+ * and de-duplicated by index, with the listing + existing booking resolved. An
+ * existing row's path (package, folded parent) comes from the row; a blank
+ * line's package path from its validated `line_package_<i>`. A ticked
+ * `noqty_<i>` box forces quantity to 0 and marks the line no-quantity (its
  * quantity input is CSS-hidden, so its submitted value is ignored). */
 const parseLines = (
   form: FormParams,
@@ -305,23 +348,38 @@ const parseLines = (
     id: number,
     key: string,
   ) => Pick<AttendeeFormLine, "listing" | "existingBooking">,
+  packagesByListingId: ReadonlyMap<number, ReadonlySet<number>>,
 ): AttendeeFormLine[] => {
   const lines: AttendeeFormLine[] = [];
   const seen = new Set<number>();
   for (const [field, raw] of form.entries()) {
-    if (!field.startsWith(QTY_PREFIX)) continue;
-    const id = parsePositiveIntId(field.slice(QTY_PREFIX.length));
-    if (id === null || seen.has(id)) continue;
-    seen.add(id);
-    const key = form.getString(`${LINE_KEY_PREFIX}${id}`);
-    const noQuantity = form.getString(`${NO_QUANTITY_PREFIX}${id}`) !== "";
+    if (!field.startsWith(LINE_LISTING_PREFIX)) continue;
+    // Line indexes start at 0, so this must accept zero (unlike listing ids).
+    const index = parseNonNegativeInt(field.slice(LINE_LISTING_PREFIX.length));
+    if (index === null || seen.has(index)) continue;
+    seen.add(index);
+    const id = parsePositiveIntId(raw);
+    if (id === null) continue;
+    const key = form.getString(`${LINE_KEY_PREFIX}${index}`);
+    const resolved = resolve(id, key);
+    const noQuantity = form.getString(`${NO_QUANTITY_PREFIX}${index}`) !== "";
     lines.push({
       error: null,
       key,
       listingId: id,
       noQuantity,
-      quantity: noQuantity ? 0 : parseQuantity(raw),
-      ...resolve(id, key),
+      packageGroupId:
+        resolved.existingBooking?.package_group_id ??
+        resolveNewLinePackage(
+          form.getString(`${LINE_PACKAGE_PREFIX}${index}`),
+          id,
+          packagesByListingId,
+        ),
+      parentListingId: resolved.existingBooking?.parent_listing_id ?? 0,
+      quantity: noQuantity
+        ? 0
+        : parseQuantity(form.getString(`${QTY_PREFIX}${index}`)),
+      ...resolved,
     });
   }
   return lines;
@@ -331,16 +389,21 @@ export const parseAttendeeForm = (
   form: FormParams,
   listingsById: Map<number, ListingWithCount>,
   existingByKey: Map<string, ListingAttendeeRow> = new Map(),
+  packagesByListingId: ReadonlyMap<number, ReadonlySet<number>> = new Map(),
 ): ParsedAttendeeForm => {
   const statusIdRaw = form.getOptionalInt(STATUS_FIELD);
   return {
     address: form.getString("address"),
     dayCount: clampDayCount(form.getOptionalInt(DAY_COUNT_FIELD)),
     email: form.getString("email"),
-    lines: parseLines(form, (id, key) => ({
-      existingBooking: key ? (existingByKey.get(key) ?? null) : null,
-      listing: listingsById.get(id) ?? null,
-    })),
+    lines: parseLines(
+      form,
+      (id, key) => ({
+        existingBooking: key ? (existingByKey.get(key) ?? null) : null,
+        listing: listingsById.get(id) ?? null,
+      }),
+      packagesByListingId,
+    ),
     name: form.getString("name"),
     phone: form.getString("phone"),
     remainingBalance: parseMoneyMinor(form.getString(REMAINING_BALANCE_FIELD)),
@@ -470,6 +533,9 @@ export const toCreateInput = (
       date,
       ...(date && durationDays !== undefined ? { durationDays } : {}),
       listingId: line.listingId,
+      // Each line books its own path, so two lines for one listing (its own
+      // row beside a package's row) persist as two rows on distinct slots.
+      packageGroupId: line.packageGroupId,
       // A retained line always has a non-null quantity: isBookedLine guarantees
       // ≥ 1, and a no-quantity line is parsed/built with quantity 0.
       quantity: line.quantity!,
@@ -519,78 +585,38 @@ export const toLedgerOrder = (parsed: ParsedAttendeeForm): PricedOrder => {
 };
 
 /**
- * Desired final-state lines for the atomic edit. A line that already has a
- * booking keeps its original key (with the old start_at) and `exists: true`, so
- * a moved shared date becomes an in-place UPDATE rather than a drop-and-recreate;
- * not-booked listings are simply absent, so the diff deletes any old row.
- *
- * The editor shows ONE line per listing, but an attendee may hold several rows
- * for one listing (a package path beside a standalone path, or two overlapping
- * packages). A row the submitted form COULD NOT represent — its listing has a
- * line, but that line's key names a sibling row — is carried over exactly as
- * stored (quantity, dates, package path), so saving an unrelated field never
- * silently deletes the other paths. A listing with no line at all keeps the
- * old contract: absent means delete. Editing or removing a carried row needs
- * a row-per-path editor (see TODO.md); until then the form edits only the row
- * its line key names.
+ * Desired final-state lines for the atomic edit — one per retained editor
+ * line. The editor renders one line per booking PATH (every stored row plus
+ * the blank standalone/package lines), so the retained set IS the complete
+ * desired state: a line that already has a row keeps that row's key (an
+ * in-place UPDATE, even across a date move), a blank line given a quantity
+ * INSERTs on its chosen path, and any stored row whose line was zeroed or
+ * omitted falls out and is deleted.
  */
 export const toDesiredLines = (
   parsed: ParsedAttendeeForm,
-  existingByKey: ReadonlyMap<string, ListingAttendeeRow> = new Map(),
-): DesiredListingLine[] => {
+): DesiredListingLine[] =>
   // Retained lines, not just booked lines: a checked quantity-0 line must
-  // persist (become/stay a quantity-0 row) rather than fall out and be deleted.
-  const represented = parsed.lines
-    .filter(isRetainedLine)
-    .map((line): DesiredListingLine => {
-      const { date, durationDays } = lineDate(line, parsed);
-      return {
-        date,
-        durationDays,
-        exists: Boolean(line.existingBooking),
-        key: line.key,
-        listingId: line.listingId,
-        // Keep the row on its package path so the edit updates the right row
-        // when the same listing was booked through two packages; a new line is
-        // an ordinary non-package row.
-        packageGroupId: line.existingBooking?.package_group_id ?? 0,
-        // A retained line always has a non-null quantity: isBookedLine
-        // guarantees ≥ 1, and a no-quantity line is parsed/built with
-        // quantity 0.
-        quantity: line.quantity!,
-      };
-    });
-  // A row is carried ONLY when the form's line for its listing names a real
-  // DIFFERENT sibling row — the one shape the one-line-per-listing editor
-  // cannot express. Everything else keeps the pre-carry contract: a zeroed
-  // line deletes the row its key names, an omitted listing deletes its rows,
-  // and a line with a blank/unknown key (a stale form) represents no stored
-  // row at all, so nothing hides behind it.
-  const seenKeys = new Set(parsed.lines.map((line) => line.key));
-  const carried = [...existingByKey]
-    .filter(
-      ([key, row]) =>
-        !seenKeys.has(key) &&
-        parsed.lines.some(
-          (line) =>
-            line.listingId === row.listing_id &&
-            line.key !== key &&
-            existingByKey.has(line.key),
-        ),
-    )
-    .map(
-      ([key, row]): DesiredListingLine => ({
-        date: row.start_at ? row.start_at.slice(0, 10) : null,
-        durationDays: bookingDurationDays(row) ?? 1,
-        exists: true,
-        key,
-        listingId: row.listing_id,
-        packageGroupId: row.package_group_id,
-        quantity: row.quantity,
-      }),
-    );
-  return [...represented, ...carried];
-};
+  // persist (become/stay a quantity-0 row) rather than fall out and be
+  // deleted.
+  parsed.lines.filter(isRetainedLine).map((line): DesiredListingLine => {
+    const { date, durationDays } = lineDate(line, parsed);
+    return {
+      date,
+      durationDays,
+      exists: Boolean(line.existingBooking),
+      key: line.key,
+      listingId: line.listingId,
+      // The line's own path — an existing row's stored values, a blank
+      // line's chosen package — so the edit always targets exactly one slot.
+      packageGroupId: line.packageGroupId,
+      parentListingId: line.parentListingId,
+      // A retained line always has a non-null quantity: isBookedLine
+      // guarantees ≥ 1, and a no-quantity line is parsed/built with
+      // quantity 0.
+      quantity: line.quantity!,
+    };
+  });
 
 /** A status/balance mismatch surfaced on the attendee form. */
 export type BalanceNotice = { tone: "warning" | "info"; message: string };

@@ -1556,8 +1556,10 @@ describe("test-utils", () => {
       const form = await buildAttendeeEditForm(attendee.id);
 
       expect(form.name).toBe("");
-      expect(form[`qty_${listing.id}`]).toBe("2");
-      expect(form[`line_key_${listing.id}`]).not.toBe("");
+      // One indexed line per existing booking row.
+      expect(form.line_listing_0).toBe(String(listing.id));
+      expect(form.qty_0).toBe("2");
+      expect(form.line_key_0).not.toBe("");
     });
 
     test("buildAttendeeEditForm defaults new override lines to one ticket with no key", async () => {
@@ -1577,8 +1579,9 @@ describe("test-utils", () => {
         lines: [{ eventId: listing.id }],
       });
 
-      expect(form[`qty_${listing.id}`]).toBe("1");
-      expect(form[`line_key_${listing.id}`]).toBe("");
+      expect(form.line_listing_0).toBe(String(listing.id));
+      expect(form.qty_0).toBe("1");
+      expect(form.line_key_0).toBe("");
     });
 
     test("updateTestBuiltSite handles assignable and validation failure paths", async () => {

@@ -9,6 +9,7 @@
 import {
   DAY_COUNT_FIELD,
   isBookedLine,
+  LINE_LISTING_PREFIX,
   type ParsedAttendeeForm,
   parseAttendeeForm,
   QTY_PREFIX,
@@ -59,22 +60,26 @@ export const buildServicingFieldSchema = (): Field[] => [
 
 /**
  * The servicing form renders its per-listing quantity inputs with public-style
- * `quantity_<id>` names (not the admin attendee parser's `qty_<id>`) on purpose:
- * the shared client guard `initTicketQuantityRequired` binds to
+ * `quantity_<id>` names (not the admin attendee parser's per-line fields) on
+ * purpose: the shared client guard `initTicketQuantityRequired` binds to
  * `[name^="quantity_"]` and blocks a submit with no quantity picked, so naming
  * the inputs `quantity_<id>` gives the servicing form that "pick at least one"
  * enforcement for free. This shim bridges the two schemes for the server — it
- * copies each `quantity_<id>` value into the `qty_<id>` field the shared
- * attendee parser reads — so one parser handles both forms. Drop it only if the
- * form is renamed to emit `qty_<id>` directly (which loses the client guard).
+ * turns each `quantity_<id>` into one indexed editor line
+ * (`line_listing_<i>` + `qty_<i>`) the shared attendee parser reads — so one
+ * parser handles both forms. A servicing line is always the listing's own
+ * standalone row (no package paths). Drop it only if the form is renamed to
+ * emit the per-line fields directly (which loses the client guard).
  */
 const withQuantityAliases = (form: FormParams): FormParams => {
   const normalized = new FormParams(form.toString());
+  let index = 0;
   for (const [field, value] of form.entries()) {
     if (!field.startsWith(QUANTITY_ALIAS_PREFIX)) continue;
     const id = field.slice(QUANTITY_ALIAS_PREFIX.length);
-    const qtyField = `${QTY_PREFIX}${id}`;
-    if (!normalized.has(qtyField)) normalized.append(qtyField, value);
+    normalized.append(`${LINE_LISTING_PREFIX}${index}`, id);
+    normalized.append(`${QTY_PREFIX}${index}`, value);
+    index++;
   }
   return normalized;
 };

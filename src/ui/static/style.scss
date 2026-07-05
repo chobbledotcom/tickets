@@ -3063,6 +3063,13 @@ a.cal-day-selected:active {
   display: none;
 }
 
+/* Blank package-path lines (book a listing through a package) stay tucked
+   behind their own toggle — same trick as the not-booked rows above. */
+.listing-editor:not(:has(.package-paths-toggle:checked))
+  .attendee-line-package-blank {
+  display: none;
+}
+
 /* Attendee form: logistics agent selectors. The "different agents per item"
    toggle switches (pure CSS) between one shared pair and a pair per listing. */
 .logistics-agents .split-agents {

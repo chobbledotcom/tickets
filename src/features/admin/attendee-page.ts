@@ -26,6 +26,7 @@ import {
   loadAttendeeActivityPreview,
   loadAttendeeForEdit,
   loadContactRecords,
+  loadPackagePaths,
   loadQuestionsForExisting,
 } from "#routes/admin/attendee-page-data.ts";
 import { loadMergePanel } from "#routes/admin/attendees-merge.ts";
@@ -111,6 +112,7 @@ const loadEditPanel = async (
     attendee,
     existing,
     renderListings,
+    await loadPackagePaths(),
   );
   const questionData = await loadQuestionsForExisting(attendee.id, existing);
   const data = await buildTemplateData("edit", parsed, attendee, {
@@ -141,10 +143,12 @@ const overviewTab: TabDef<LoadedAttendee> = {
       kind: "custom",
       load: async ({ attendee, existing }) => {
         const renderListings = await getRenderListings(existing);
+        // The read-only bookings table needs no blank path lines.
         const { parsed } = buildEditFormFromAttendee(
           attendee,
           existing,
           renderListings,
+          [],
         );
         return AttendeeBookingsTable({
           bookings: attendeeBookingsFromLines(parsed.lines),

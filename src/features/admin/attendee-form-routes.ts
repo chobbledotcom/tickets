@@ -42,7 +42,9 @@ import {
   getRenderListings,
   listingsByIdMap,
   loadAttendeeForEdit,
+  loadPackagePaths,
   loadQuestionsForExisting,
+  packagesByListingIdFrom,
 } from "#routes/admin/attendee-page-data.ts";
 import {
   AUTH_FORM,
@@ -109,6 +111,7 @@ export const handleAttendeeNewGet: TypedRouteHandler<
     const params = new URL(request.url).searchParams;
     const parsed = buildCreateForm(
       renderListings,
+      await loadPackagePaths(),
       selectedListingQuantities(params),
       selectedStartDate(params),
     );
@@ -211,7 +214,12 @@ const handleSubmitInner = async (
   // Coerce a missing/blank status back to the public default (the form offers
   // no "no status" choice) — the same resolver the template pre-selects with.
   const statuses = await getAllAttendeeStatuses();
-  const rawParsed = parseAttendeeForm(form, listingsById, existingByKey);
+  const rawParsed = parseAttendeeForm(
+    form,
+    listingsById,
+    existingByKey,
+    packagesByListingIdFrom(await loadPackagePaths()),
+  );
   const parsed: ParsedAttendeeForm = {
     ...rawParsed,
     statusId: resolveStatusId(rawParsed.statusId, statuses),
@@ -255,7 +263,6 @@ const handleSubmitInner = async (
           attendeeId!,
           parsed,
           attendee!,
-          existingByKey,
           questions,
           parseQuestionAnswers({ optional: true })(form, questions),
           logisticsPlan,
@@ -394,7 +401,6 @@ const applyEdit = async (
   attendeeId: number,
   parsed: ParsedAttendeeForm,
   attendee: Attendee,
-  existingByKey: Map<string, ListingAttendeeRow>,
   questions: QuestionWithAnswers[],
   answers: import("#shared/db/questions.ts").AttendeeAnswerSet,
   logisticsPlan: LogisticsPlan,
@@ -431,7 +437,7 @@ const applyEdit = async (
     settings.publicKey,
   ))!;
 
-  const desired = toDesiredLines(parsed, existingByKey);
+  const desired = toDesiredLines(parsed);
   // Admin manual edit may deliberately overbook (warned, not blocked).
   const editResult = await applyAttendeeAtomicEdit(
     attendeeId,
@@ -449,9 +455,10 @@ const applyEdit = async (
   // When the save leaves no real line the public pay gate refuses payment, so
   // reconcile the ledger balance to 0 rather than strand an unpayable receivable
   // on a ghost; otherwise reconcile to the entered balance. The reconcile posts a
-  // writeoff leg, which is itself the audit record of the clear. Same predicate as
-  // applyCreate — only booked lines survive into `desired` with quantity > 0.
-  const hasRealLine = parsed.lines.some(isBookedLine);
+  // writeoff leg, which is itself the audit record of the clear. Judged on the
+  // rows actually being SAVED, so it can never write off the balance while a
+  // real booking row survives.
+  const hasRealLine = desired.some((line) => line.quantity > 0);
   await updateAttendeeOrder(
     attendeeId,
     parsed.statusId,

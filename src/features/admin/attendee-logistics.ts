@@ -7,6 +7,7 @@
  * template needs to render the selectors (pre-filled from saved assignments).
  */
 
+import { uniqueBy } from "#fp";
 import type { AttendeeFormLine } from "#routes/admin/attendee-form-model.ts";
 import {
   isBookedLine,
@@ -71,11 +72,13 @@ export type AttendeeLogisticsData = {
  * times and done flags, and this stops the form re-rendering or re-persisting
  * any assignment for it. */
 const deliveredBookedLines = (lines: AttendeeFormLine[]): AttendeeFormLine[] =>
-  lines.filter(
-    (line) =>
-      !isNoQuantityLine(line) &&
-      (isBookedLine(line) || Boolean(line.existingBooking)) &&
-      Boolean(line.listing?.uses_logistics),
+  uniqueBy((line: AttendeeFormLine) => line.listingId)(
+    lines.filter(
+      (line) =>
+        !isNoQuantityLine(line) &&
+        (isBookedLine(line) || Boolean(line.existingBooking)) &&
+        Boolean(line.listing?.uses_logistics),
+    ),
   );
 
 /** The submitted logistics plan: split flag plus a per-listing assignment for

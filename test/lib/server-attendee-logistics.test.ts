@@ -18,6 +18,7 @@ import { settings } from "#shared/db/settings.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
   adminGet,
+  attendeeLineFields,
   awaitTestRequest,
   createTestListing,
   describeWithEnv,
@@ -39,6 +40,8 @@ const bookedLine = (
   listing: testListingWithCount({ id, uses_logistics: delivered }),
   listingId: id,
   noQuantity: false,
+  packageGroupId: 0,
+  parentListingId: 0,
   quantity,
 });
 
@@ -212,7 +215,7 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
       [startAgentField()]: String(drop.id),
       [startTimeField()]: "08:30",
       name: "Jane",
-      [`qty_${listing.id}`]: "1",
+      ...attendeeLineFields([{ eventId: listing.id, quantity: 1 }]),
     });
     expect(assignment).toEqual({
       endAgentId: coll.id,
@@ -227,7 +230,7 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
     const listing = await createTestListing({ maxAttendees: 100 });
     const assignment = await submitNewAttendeeLogistics(listing.id, {
       name: "NoLogistics",
-      [`qty_${listing.id}`]: "1",
+      ...attendeeLineFields([{ eventId: listing.id, quantity: 1 }]),
     });
     expect(assignment).toEqual({
       endAgentId: null,
@@ -247,7 +250,7 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
           csrf_token: csrfToken,
           [startAgentField()]: String(drop.id),
           name: "Jane",
-          [`qty_${listing.id}`]: "1",
+          ...attendeeLineFields([{ eventId: listing.id, quantity: 1 }]),
         },
         cookie,
       ),
@@ -262,7 +265,7 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
           csrf_token: csrfToken,
           [startAgentField(listing.id)]: String(coll.id),
           name: "Jane",
-          [`qty_${listing.id}`]: "1",
+          ...attendeeLineFields([{ eventId: listing.id, quantity: 1 }]),
           [SPLIT_AGENTS_FIELD]: "1",
         },
         cookie,
@@ -290,7 +293,7 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
           [endAgentField()]: String(coll.id),
           [startAgentField()]: String(drop.id),
           name: "Jane",
-          [`qty_${listing.id}`]: "1",
+          ...attendeeLineFields([{ eventId: listing.id, quantity: 1 }]),
         },
         cookie,
       ),

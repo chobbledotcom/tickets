@@ -25,12 +25,15 @@ import {
   isPaymentLockedLine,
   isRetainedLine,
   LINE_KEY_PREFIX,
+  LINE_LISTING_PREFIX,
+  LINE_PACKAGE_PREFIX,
   NO_QUANTITY_PREFIX,
   type ParsedAttendeeForm,
   QTY_PREFIX,
   REMAINING_BALANCE_FIELD,
   resolveStatusId,
   SHOW_ALL_FIELD,
+  SHOW_PACKAGE_PATHS_FIELD,
   STATUS_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
 import {
@@ -112,30 +115,74 @@ export type AttendeeFormTemplateData = {
   returnUrl?: string | undefined;
   /** Overbooking / over-duration warnings per listing id (booked lines only). */
   lineWarnings: Map<number, string[]>;
+  /** Live package names by group id, for each line's "via <package>" label. */
+  packageNamesById: Map<number, string>;
+  /** Parent listing names, for a folded row's "add-on under <parent>" label. */
+  parentNamesById: Map<number, string>;
   /** All warnings flattened, for the top-of-form summary. */
   topWarnings: string[];
   /** Logistics selectors data, or undefined when logistics doesn't apply. */
   logistics?: AttendeeLogisticsData | undefined;
 };
 
-/** One row of the listing editor — a listing and its quantity box. */
+/** The line's booking-path label: "via <package>" for a package path (its id
+ * when the package no longer exists), "add-on under <parent>" for a folded
+ * child row, nothing for the listing's own row. */
+const pathLabel = (
+  line: AttendeeFormLine,
+  data: AttendeeFormTemplateData,
+): string | null => {
+  if (line.packageGroupId > 0) {
+    const name = data.packageNamesById.get(line.packageGroupId);
+    return name === undefined
+      ? t("attendee_form.path_missing_package", { id: line.packageGroupId })
+      : t("attendee_form.path_via_package", { name });
+  }
+  if (line.parentListingId > 0) {
+    return t("attendee_form.path_addon_under", {
+      name:
+        data.parentNamesById.get(line.parentListingId) ??
+        String(line.parentListingId),
+    });
+  }
+  return null;
+};
+
+/** Which CSS bucket a line renders in: a row with a booking (or a submitted
+ * quantity) always shows; a blank package-path line hides behind the "show
+ * package options" toggle; a blank standalone line behind "show all
+ * listings". */
+const lineRowClass = (line: AttendeeFormLine, booked: boolean): string => {
+  if (booked) return "attendee-line";
+  return line.packageGroupId > 0
+    ? "attendee-line attendee-line-package-blank"
+    : "attendee-line attendee-line-empty";
+};
+
+/** One row of the listing editor — one booking path and its quantity box. */
 const ListingRow = ({
   line,
+  index,
   warnings,
+  data,
 }: {
   line: AttendeeFormLine;
+  index: number;
   warnings: string[];
+  data: AttendeeFormTemplateData;
 }): JSX.Element => {
   const listing = line.listing!;
   const booked = isRetainedLine(line) || Boolean(line.existingBooking);
   const isDaily = listing.listing_type === "daily";
+  const label = pathLabel(line, data);
   // A paid line can't be marked no-quantity until its charge is refunded, so the
   // box is disabled with an explaining tooltip rather than left to fail on save.
   const paymentLocked = isPaymentLockedLine(line);
   return (
-    <tr class={booked ? "attendee-line" : "attendee-line attendee-line-empty"}>
+    <tr class={lineRowClass(line, booked)}>
       <td>
         <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
+        {label ? <span class="muted small booking-path"> {label}</span> : null}
         <InactiveNote active={listing.active} />
         {BookingStatusBadges({
           checkedIn: Boolean(line.existingBooking?.checked_in),
@@ -155,7 +202,7 @@ const ListingRow = ({
           class="line-qty"
           max={listing.max_quantity}
           min="0"
-          name={`${QTY_PREFIX}${listing.id}`}
+          name={`${QTY_PREFIX}${index}`}
           style="width:5em"
           type="number"
           value={line.quantity === null ? "0" : String(line.quantity)}
@@ -165,7 +212,7 @@ const ListingRow = ({
             checked={line.noQuantity}
             class="no-quantity-toggle"
             disabled={paymentLocked}
-            name={`${NO_QUANTITY_PREFIX}${listing.id}`}
+            name={`${NO_QUANTITY_PREFIX}${index}`}
             title={
               paymentLocked
                 ? t("attendee_form.paid_no_quantity_line")
@@ -177,10 +224,22 @@ const ListingRow = ({
           {t("attendee_form.no_quantity")}
         </label>
         <input
-          name={`${LINE_KEY_PREFIX}${listing.id}`}
+          name={`${LINE_LISTING_PREFIX}${index}`}
+          type="hidden"
+          value={String(line.listingId)}
+        />
+        <input
+          name={`${LINE_KEY_PREFIX}${index}`}
           type="hidden"
           value={line.key}
         />
+        {line.packageGroupId > 0 ? (
+          <input
+            name={`${LINE_PACKAGE_PREFIX}${index}`}
+            type="hidden"
+            value={String(line.packageGroupId)}
+          />
+        ) : null}
       </td>
       <td>
         {line.existingBooking?.start_at ? (
@@ -220,6 +279,9 @@ const ListingEditor = ({
   const hasBookedLines = data.parsed.lines.some(
     (line) => isRetainedLine(line) || Boolean(line.existingBooking),
   );
+  const hasPackagePathLines = data.parsed.lines.some(
+    (line) => !line.existingBooking && line.packageGroupId > 0,
+  );
   return (
     <div
       class={
@@ -236,6 +298,16 @@ const ListingEditor = ({
           {t("attendee_form.show_all_listings")}
         </label>
       )}
+      {hasPackagePathLines && (
+        <label class="show-all">
+          <input
+            class="package-paths-toggle"
+            name={SHOW_PACKAGE_PATHS_FIELD}
+            type="checkbox"
+          />
+          {t("attendee_form.show_package_paths")}
+        </label>
+      )}
       <div class="table-scroll">
         <table class="line-editor">
           <thead>
@@ -247,8 +319,10 @@ const ListingEditor = ({
             </tr>
           </thead>
           <tbody>
-            {data.parsed.lines.map((line) => (
+            {data.parsed.lines.map((line, index) => (
               <ListingRow
+                data={data}
+                index={index}
                 line={line}
                 warnings={data.lineWarnings.get(line.listingId) ?? []}
               />

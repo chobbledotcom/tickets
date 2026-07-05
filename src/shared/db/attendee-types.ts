@@ -196,4 +196,10 @@ export type DesiredListingLine = {
    * row's slot identity, so an edit targets the right row when the same
    * listing was booked through two packages. */
   packageGroupId?: number;
+  /** The parent this row was folded under as an add-on (0/absent = none) —
+   * the last slot-identity dimension, so a child booked under a parent and
+   * the same listing's own standalone row never read as one duplicate slot.
+   * Only an EXISTING row carries a parent; the admin form never creates
+   * folded-child rows. */
+  parentListingId?: number;
 };

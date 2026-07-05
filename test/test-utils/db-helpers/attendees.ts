@@ -133,12 +133,46 @@ export const createTestAttendeeDirect = async (
  * Build form data for the unified attendee edit form (`POST /admin/attendees/:id`).
  *
  * Emits the shared `start_date` + `day_count` (seeded from the attendee's
- * existing bookings) and one `qty_<listingId>` / `line_key_<listingId>` pair per
- * existing booking, so a bare call preserves the attendee unchanged. Pass
- * `overrides.lines` to set the full booked set (each `{ eventId, quantity, key }`
- * — quantity 0 or an omitted listing un-books it), or `startDate` / `dayCount`
- * to move the shared range.
+ * existing bookings) and one indexed editor line (`line_listing_<i>` +
+ * `qty_<i>` + `line_key_<i>`) per existing booking ROW — every path the
+ * attendee books through — so a bare call preserves the attendee unchanged.
+ * Pass `overrides.lines` to set the full line set (each
+ * `{ eventId, quantity, key, packageGroupId }` — quantity 0 or an omitted row
+ * un-books it; `packageGroupId` books a NEW line through that package), or
+ * `startDate` / `dayCount` to move the shared range.
  */
+/** One editor line for {@link attendeeLineFields}. */
+export type AttendeeLineInput = {
+  eventId: number;
+  quantity?: number;
+  /** Omit to book as a new line; pass the existing key to keep/move it. */
+  key?: string;
+  /** The package path a NEW line books through (existing rows carry
+   * their own). */
+  packageGroupId?: number;
+  /** Tick the line's "no quantity" box. */
+  noQuantity?: boolean;
+};
+
+/** The indexed editor-line fields (`line_listing_<i>` + `qty_<i>` + …) for a
+ * set of lines — the admin attendee form's wire shape. Spread into a POST
+ * body: `{ name: "X", ...attendeeLineFields([{ eventId: 5, quantity: 1 }]) }`. */
+export const attendeeLineFields = (
+  lines: AttendeeLineInput[],
+): Record<string, string> => {
+  const fields: Record<string, string> = {};
+  for (const [index, line] of lines.entries()) {
+    fields[`line_listing_${index}`] = String(line.eventId);
+    fields[`qty_${index}`] = String(line.quantity ?? 1);
+    fields[`line_key_${index}`] = line.key ?? "";
+    if (line.noQuantity) fields[`noqty_${index}`] = "1";
+    if ((line.packageGroupId ?? 0) > 0 && !line.key) {
+      fields[`line_package_${index}`] = String(line.packageGroupId);
+    }
+  }
+  return fields;
+};
+
 export const buildAttendeeEditForm = async (
   attendeeId: number,
   overrides: {
@@ -150,12 +184,7 @@ export const buildAttendeeEditForm = async (
     returnUrl?: string;
     startDate?: string;
     dayCount?: number;
-    lines?: Array<{
-      eventId: number;
-      quantity?: number;
-      /** Omit to book as a new line; pass the existing key to keep/move it. */
-      key?: string;
-    }>;
+    lines?: AttendeeLineInput[];
     /** Extra fields to merge in (e.g. `question_<id>`). */
     extra?: Record<string, string>;
   } = {},
@@ -171,6 +200,7 @@ export const buildAttendeeEditForm = async (
     existing.map(({ key, booking }) => ({
       eventId: booking.listing_id,
       key,
+      packageGroupId: 0,
       quantity: booking.quantity,
     }));
   const form: Record<string, string> = {
@@ -183,10 +213,7 @@ export const buildAttendeeEditForm = async (
     start_date: overrides.startDate ?? shared.startDate,
   };
   if (overrides.returnUrl) form.return_url = overrides.returnUrl;
-  for (const line of lines) {
-    form[`qty_${line.eventId}`] = String(line.quantity ?? 1);
-    form[`line_key_${line.eventId}`] = line.key ?? "";
-  }
+  Object.assign(form, attendeeLineFields(lines));
   if (overrides.extra) Object.assign(form, overrides.extra);
   return form;
 };

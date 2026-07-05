@@ -25,6 +25,8 @@ import {
 import {
   adminFormPost,
   adminGet,
+  attendeeLineFields,
+  attendeeLineIndex,
   awaitTestRequest,
   bookAttendee,
   buildAttendeeEditForm,
@@ -66,7 +68,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         "Pick Me",
       );
       // A quantity box per listing, and no add-line button (fixed table).
-      expect(html).toContain(`name="qty_${listing.id}"`);
+      expect(attendeeLineIndex(html, listing.id)).not.toBeNull();
       expect(html).not.toContain("Add Listing Line");
     });
 
@@ -128,8 +130,12 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       const html = await expectHtmlResponse(response, 200);
       // Both chosen listings start at quantity 1.
-      expect(html).toMatch(new RegExp(`name="qty_${a.id}"[^>]*value="1"`));
-      expect(html).toMatch(new RegExp(`name="qty_${b.id}"[^>]*value="1"`));
+      expect(html).toMatch(
+        new RegExp(`name="qty_${attendeeLineIndex(html, a.id)}"[^>]*value="1"`),
+      );
+      expect(html).toMatch(
+        new RegExp(`name="qty_${attendeeLineIndex(html, b.id)}"[^>]*value="1"`),
+      );
     });
 
     test("omits the 'Show all listings' toggle on a bare create form", async () => {
@@ -170,7 +176,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       const html = await expectHtmlResponse(response, 200);
       expect(html).toMatch(
-        new RegExp(`name="qty_${listing.id}"[^>]*value="1"`),
+        new RegExp(
+          `name="qty_${attendeeLineIndex(html, listing.id)}"[^>]*value="1"`,
+        ),
       );
       expect(html).toContain('value="2026-07-01"');
     });
@@ -182,7 +190,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       const html = await expectHtmlResponse(response, 200);
       expect(html).toMatch(
-        new RegExp(`name="qty_${listing.id}"[^>]*value="1"`),
+        new RegExp(
+          `name="qty_${attendeeLineIndex(html, listing.id)}"[^>]*value="1"`,
+        ),
       );
       expect(html).toMatch(/name="start_date"[^>]*value=""/);
     });
@@ -192,7 +202,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const response = await adminGet("/admin/attendees/new?select_999999=1");
       const html = await expectHtmlResponse(response, 200);
       expect(html).toMatch(
-        new RegExp(`name="qty_${listing.id}"[^>]*value="0"`),
+        new RegExp(
+          `name="qty_${attendeeLineIndex(html, listing.id)}"[^>]*value="0"`,
+        ),
       );
     });
 
@@ -278,7 +290,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
             csrf_token: csrfToken,
             email: "jane@example.com",
             name: "Jane Doe",
-            [`qty_${event.id}`]: "2",
+            ...attendeeLineFields([
+              { eventId: event.id, quantity: Number("2") },
+            ]),
           },
           cookie,
         ),
@@ -302,8 +316,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
           {
             csrf_token: csrfToken,
             name: "Ghost Only",
-            [`noqty_${event.id}`]: "1",
-            [`qty_${event.id}`]: "1",
+            ...attendeeLineFields([
+              { eventId: event.id, noQuantity: true, quantity: 1 },
+            ]),
             remaining_balance: "20",
           },
           cookie,
@@ -343,8 +358,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
             csrf_token: csrfToken,
             email: "multi@example.com",
             name: "Multi",
-            [`qty_${event1.id}`]: "1",
-            [`qty_${event2.id}`]: "3",
+            ...attendeeLineFields([
+              { eventId: event1.id, quantity: 1 },
+              { eventId: event2.id, quantity: 3 },
+            ]),
           },
           cookie,
         ),
@@ -371,7 +388,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
             csrf_token: csrfToken,
             email: "preserve@example.com",
             name: "",
-            [`qty_${event.id}`]: "1",
+            ...attendeeLineFields([
+              { eventId: event.id, quantity: Number("1") },
+            ]),
           },
           cookie,
         ),
@@ -395,8 +414,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       const { response } = await adminFormPost("/admin/attendees/new", {
         name: "Multi",
-        [`qty_${open.id}`]: "1",
-        [`qty_${full.id}`]: "1",
+        ...attendeeLineFields([
+          { eventId: open.id, quantity: 1 },
+          { eventId: full.id, quantity: 1 },
+        ]),
       });
       // Admin manual add is allowed to overbook, so both bookings are created.
       expect(response.status).toBe(302);
@@ -519,8 +540,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         (e) => e.booking.listing_id === listingId,
       )!.key;
       const form = await buildAttendeeEditForm(attendeeId, {
-        extra: { [`noqty_${listingId}`]: "1" },
-        lines: [{ eventId: listingId, key, quantity: 1 }],
+        lines: [{ eventId: listingId, key, noQuantity: true, quantity: 1 }],
         name,
       });
       const { response } = await adminFormPost(
@@ -564,7 +584,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       ).text();
       // Alphabetical attribute order puts `checked` first when ticked.
       expect(html).toContain(
-        `checked class="no-quantity-toggle" name="noqty_${listing.id}"`,
+        `checked class="no-quantity-toggle" name="noqty_${attendeeLineIndex(
+          html,
+          listing.id,
+        )}"`,
       );
     });
 
@@ -614,7 +637,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // The paid line's "no quantity" box is disabled with an explaining tooltip
       // so it can't be ticked in the first place.
       expect(html).toContain(
-        `class="no-quantity-toggle" disabled name="noqty_${listing.id}" title="Refund this line's payment before marking it no quantity."`,
+        `class="no-quantity-toggle" disabled name="noqty_${attendeeLineIndex(
+          html,
+          listing.id,
+        )}" title="Refund this line's payment before marking it no quantity."`,
       );
       expect(await readLine(attendeeId, listing.id)).toMatchObject({
         price_paid: 1500,
@@ -690,8 +716,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // Submit with an empty line key so the form's existingBooking is null and
       // the per-line model guard can't fire — the DB-based guard must still block.
       const form = await buildAttendeeEditForm(attendeeId, {
-        extra: { [`noqty_${listing.id}`]: "1" },
-        lines: [{ eventId: listing.id, key: "", quantity: 1 }],
+        lines: [
+          { eventId: listing.id, key: "", noQuantity: true, quantity: 1 },
+        ],
         name: "Stale",
       });
       const { response } = await adminFormPost(
@@ -947,7 +974,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // Capacity is 1 and already full; the admin adds a second anyway.
       const { response } = await adminFormPost("/admin/attendees/new", {
         name: "Second",
-        [`qty_${listing.id}`]: "1",
+        ...attendeeLineFields([{ eventId: listing.id, quantity: Number("1") }]),
       });
       expect(response.status).toBe(302);
       expect((await getAttendeesRaw(listing.id)).length).toBe(2);
@@ -1015,7 +1042,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // Blank name forces an in-place re-render that surfaces the warning.
       const { response } = await adminFormPost("/admin/attendees/new", {
         name: "",
-        [`qty_${listing.id}`]: "1",
+        ...attendeeLineFields([{ eventId: listing.id, quantity: Number("1") }]),
       });
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain("Solo is overbooked");
@@ -1080,8 +1107,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
             email: "mix@example.com",
             name: "Mix",
             start_date: tomorrow,
-            [`qty_${standard.id}`]: "1",
-            [`qty_${daily.id}`]: "2",
+            ...attendeeLineFields([
+              { eventId: standard.id, quantity: 1 },
+              { eventId: daily.id, quantity: 2 },
+            ]),
           },
           cookie,
         ),
@@ -1182,7 +1211,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         async () => {
           const { response } = await adminFormPost("/admin/attendees/new", {
             name: "Cap",
-            [`qty_${event.id}`]: "1",
+            ...attendeeLineFields([
+              { eventId: event.id, quantity: Number("1") },
+            ]),
           });
           expect(response.status).toBe(200);
           expect(await response.text()).toContain("spots");
@@ -1197,7 +1228,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
       const { response } = await adminFormPost("/admin/attendees/new", {
         name: "Valid",
-        [`qty_${event.id}`]: "abc",
+        ...attendeeLineFields([{ eventId: event.id, quantity: Number("abc") }]),
       });
       // "abc" parses to no quantity, so nothing is booked.
       expect(response.status).toBe(200);
@@ -1212,7 +1243,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
       const { response } = await adminFormPost("/admin/attendees/new", {
         name: "Valid Name",
-        [`qty_${event.id}`]: "5",
+        ...attendeeLineFields([{ eventId: event.id, quantity: Number("5") }]),
       });
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -1228,7 +1259,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/attendees/new", {
         email: "not-an-email",
         name: "Valid Name",
-        [`qty_${event.id}`]: "1",
+        ...attendeeLineFields([{ eventId: event.id, quantity: Number("1") }]),
       });
       // Re-renders in place (200) with the field error; the browser's
       // type=email guard is bypassed by a no-JS / crafted POST, so the server
@@ -1244,7 +1275,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const daily = await createDailyTestListing({ name: "Daily Needs Date" });
       const { response } = await adminFormPost("/admin/attendees/new", {
         name: "Dateless",
-        [`qty_${daily.id}`]: "1",
+        ...attendeeLineFields([{ eventId: daily.id, quantity: Number("1") }]),
       });
       // The shared start date is missing, so the daily booking can't be saved.
       expect(response.status).toBe(200);
@@ -1265,7 +1296,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         `/admin/attendees/${attendee.id}`,
         {
           name: attendee.name,
-          [`qty_${event.id}`]: "0",
+          ...attendeeLineFields([{ eventId: event.id, quantity: Number("0") }]),
         },
       );
       expect(response.status).toBe(200);
@@ -1729,7 +1760,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/attendees/new", {
         email: "newbuyer@example.com",
         name: "New Buyer",
-        [`qty_${listing.id}`]: "1",
+        ...attendeeLineFields([{ eventId: listing.id, quantity: Number("1") }]),
       });
       expect(response.status).toBe(302);
       const record = await getContactRecord(
@@ -1754,7 +1785,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/attendees/new", {
         email: "repeat@example.com",
         name: "Repeat Customer",
-        [`qty_${listing.id}`]: "1",
+        ...attendeeLineFields([{ eventId: listing.id, quantity: Number("1") }]),
       });
       expect(response.status).toBe(302);
 

@@ -1443,11 +1443,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("editing an unrelated field keeps every path of a dual-path booking", async () => {
-      // The attendee books the listing through package 7 AND its own row.
-      // The edit form renders one line per LISTING, so its fields can only
-      // name one of the two rows — saving a rename must carry the other row
-      // over untouched, never silently delete it.
-      const listing = await createTestListing({ maxAttendees: 10 });
+      // The attendee books the listing through a package AND its own row.
+      // The editor renders one line per ROW, so a rename must round-trip
+      // both lines and keep each path's quantity untouched.
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 5,
+      });
       const { createTestGroup } = await import("#test-utils");
       const group = await createTestGroup({ isPackage: true, name: "EditKit" });
       const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");

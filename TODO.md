@@ -58,7 +58,11 @@ generalized passes: render, fold, price, capacity, revalidate.
   (`2026-07-05_package_slot_identity` migration, `bookingKey`,
   `bookingSlotKey`). `PagePackage` + `buildBookingTree` build one node per
   path, and `/order` sells packages alongside listings via the pure
-  `#shared/order` evaluator (`options.ts`/`evaluate.ts`).
+  `#shared/order` evaluator (`options.ts`/`evaluate.ts`). The admin attendee
+  editor matches: one editable line per stored booking row (labelled with its
+  path), plus blank per-(package, member) lines behind a pure-CSS toggle, so
+  an operator can view, edit, and create every path combination a public
+  buyer could — JS-free (`attendee-form-model.ts`, `attendee-page-data.ts`).
 
 **Remaining:**
 

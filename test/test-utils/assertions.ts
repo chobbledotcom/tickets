@@ -521,3 +521,27 @@ export const testRequiresAuth = (
     expectAdminRedirect(response);
   });
 };
+
+/** The rendered attendee-editor line index for a listing's row (its FIRST
+ * line, or the line on `packageGroupId`'s path), scraped from the form's
+ * hidden `line_listing_<i>` / `line_package_<i>` inputs. Null when the
+ * listing has no rendered line on that path. */
+export const attendeeLineIndex = (
+  html: string,
+  listingId: number,
+  packageGroupId = 0,
+): string | null => {
+  const listingFields = html.matchAll(
+    /name="line_listing_(\d+)"[^>]*value="(\d+)"/g,
+  );
+  for (const match of listingFields) {
+    if (Number(match[2]) !== listingId) continue;
+    const index = match[1]!;
+    const packageField = new RegExp(
+      `name="line_package_${index}"[^>]*value="(\\d+)"`,
+    ).exec(html);
+    const lineGroup = packageField ? Number(packageField[1]) : 0;
+    if (lineGroup === packageGroupId) return index;
+  }
+  return null;
+};
