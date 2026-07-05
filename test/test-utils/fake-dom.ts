@@ -30,7 +30,6 @@ export type FakeElement = {
   textContent: string;
   dataset: Record<string, string>;
   children: FakeElement[];
-  appendChild: (child: FakeElement) => FakeElement;
   replaceChildren: (...next: FakeElement[]) => void;
   getAttribute: (name: string) => string | null;
   /** Add (force=true) or remove (force=false) a boolean-ish attribute, mirroring
@@ -148,10 +147,6 @@ const makeElement = (spec: ElementSpec): FakeElement => {
       const list = listeners.get(event) ?? [];
       list.push(listener);
       listeners.set(event, list);
-    },
-    appendChild: (child) => {
-      children.push(child);
-      return child;
     },
     attrs,
     checked: spec.checked ?? false,

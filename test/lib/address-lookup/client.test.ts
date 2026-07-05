@@ -262,6 +262,27 @@ describe("address lookup client", () => {
     await searchExpectingStatus("Lookup failed");
   });
 
+  test("a panel missing a copy attribute falls back to empty text", async () => {
+    // The server always renders every data-* string; if one is missing the
+    // status simply stays blank instead of showing "undefined".
+    stubFetch(() => Promise.resolve(jsonResponse({ addresses: [] })));
+    const bare = panelSpec("editable");
+    bare.data = { addressLookup: "editable" };
+    const [form] = installFakeDom([
+      { children: [bare, { name: "address", tag: "textarea" }], tag: "form" },
+    ]);
+    initAddressLookup();
+    const searchInput = form!.querySelector("[data-address-search]")!;
+    searchInput.value = "SW1A 2AA";
+
+    form!.querySelector("[data-address-find]")!.dispatch("click");
+    await flush();
+
+    const status = form!.querySelector("[data-address-status]")!;
+    expect(status.textContent).toBe("");
+    expect(status.hidden).toBe(true);
+  });
+
   test("choosing an address copies it into the textarea", () => {
     const { select, textarea } = setup("editable");
     select.value = "10 Downing Street, LONDON";

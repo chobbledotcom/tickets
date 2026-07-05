@@ -67,6 +67,16 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
     });
   });
 
+  test("400s when the search parameter is missing entirely", async () => {
+    await enableEasypostcodes();
+    stubFetch(() => Promise.reject(new Error("should not be called")));
+
+    const { handleRequest } = await import("#routes");
+    const response = await handleRequest(mockRequest("/address-lookup"));
+
+    expect(response.status).toBe(400);
+  });
+
   test("429s while the client IP is locked out", async () => {
     await enableEasypostcodes();
     stubFetch(() => Promise.resolve(new Response(PROVIDER_BODY)));

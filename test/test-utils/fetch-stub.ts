@@ -19,7 +19,8 @@ export const setupFetchStub = (): {
     fetchStub = undefined;
   });
   return {
-    callCount: () => fetchStub?.calls.length ?? 0,
+    // Callers always install a stub before reading the count.
+    callCount: () => fetchStub!.calls.length,
     stubFetch: (impl) => {
       fetchStub = stub(
         globalThis,

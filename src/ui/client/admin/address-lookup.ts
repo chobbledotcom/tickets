@@ -35,6 +35,10 @@ const setStatus = (status: HTMLElement, message: string): void => {
   status.hidden = message === "";
 };
 
+/** Read one of the panel's server-rendered copy strings. */
+const panelText = (panel: HTMLElement, key: string): string =>
+  panel.dataset[key] ?? "";
+
 /** Build one <option> (textContent assignment keeps the line inert). */
 const addressOption = (line: string): HTMLOptionElement => {
   const option = document.createElement("option") as HTMLOptionElement;
@@ -45,7 +49,7 @@ const addressOption = (line: string): HTMLOptionElement => {
 
 /** The disabled "Select an address…" placeholder heading the options. */
 const placeholderOption = (panel: HTMLElement): HTMLOptionElement => {
-  const option = addressOption(panel.dataset.placeholder ?? "");
+  const option = addressOption(panelText(panel, "placeholder"));
   option.value = "";
   return option;
 };
@@ -55,7 +59,7 @@ const placeholderOption = (panel: HTMLElement): HTMLOptionElement => {
 const showResults = (parts: PanelParts, addresses: string[]): void => {
   const { panel, resultsLabel, select, status } = parts;
   if (addresses.length === 0) {
-    setStatus(status, panel.dataset.noResults ?? "");
+    setStatus(status, panelText(panel, "noResults"));
     return;
   }
   select.replaceChildren(
@@ -72,7 +76,7 @@ const search = async (parts: PanelParts): Promise<void> => {
   const query = searchInput.value.trim();
   if (!query) return;
   resultsLabel.hidden = true;
-  setStatus(status, panel.dataset.searching ?? "");
+  setStatus(status, panelText(panel, "searching"));
   try {
     const response = await fetch(
       `${ENDPOINT}?search=${encodeURIComponent(query)}`,
@@ -80,12 +84,12 @@ const search = async (parts: PanelParts): Promise<void> => {
     );
     const data = (await response.json()) as LookupResponse;
     if (!response.ok || !data.addresses) {
-      setStatus(status, data.error || (panel.dataset.error ?? ""));
+      setStatus(status, data.error || panelText(panel, "error"));
       return;
     }
     showResults(parts, data.addresses);
   } catch {
-    setStatus(status, panel.dataset.error ?? "");
+    setStatus(status, panelText(panel, "error"));
   }
 };
 
