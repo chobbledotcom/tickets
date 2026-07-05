@@ -463,3 +463,26 @@ src/shared/booking/model.ts:226:22  - → /   # same as above
 # truthy in JS even when empty, so ?? and || agree for every possible
 # return value.
 src/shared/booking/model.ts:255:49  ?? → ||   # dayCountsChildSupports(): number[]|null, and an array is truthy even when empty
+
+# package-cap.ts's groupIdsFor: `ctx.groupIdsByListingId.get(...) ?? []` — a
+# Map#get() on a ReadonlyMap<number, number[]> is either undefined or a
+# truthy array (even an empty array is truthy), so ?? and || agree.
+src/shared/booking/package-cap.ts:60:63  ?? → ||   # groupIdsByListingId.get(): number[]|undefined, and an array is truthy even when empty
+
+# smallestLimitedGroupFor: `limitedGroupsFor(...).toSorted(...)[0] ?? null`
+# — array-index access yields the element (an object, always truthy) or
+# undefined for an empty array, so ?? and || agree.
+src/shared/booking/package-cap.ts:150:7  ?? → ||   # array[0]: object|undefined — an object is always truthy, never falsy-but-defined
+
+# childLimitPart: `limitedGroup === null` — smallestLimitedGroupFor returns
+# `{groupId,remaining} | null` (no undefined case), so === and == agree.
+src/shared/booking/package-cap.ts:163:22  === → ==   # limitedGroup: {groupId,remaining}|null (no undefined), so === and == agree on null
+
+# parentGroupChildLimit: `shared.length === 0`, mutated to `=== -1` — array
+# length is never negative, so this condition is always false either way;
+# the fallback computation (Math.min() over an empty spread is +Infinity,
+# ticketsThatFitInPool(Infinity,2) is Infinity, sumOf of [] is 0, and
+# Math.min(Infinity,0) is 0) coincidentally reproduces the same `0` the
+# early return gives for a genuinely empty `shared`, so no input can ever
+# distinguish the two paths' output.
+src/shared/booking/package-cap.ts:170:25  0 → -1   # shared.length is never negative; the empty-array fallback path already returns 0 too
