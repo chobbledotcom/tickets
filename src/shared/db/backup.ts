@@ -15,8 +15,8 @@ import { chunk, compact } from "#fp";
 import { executeBatch, queryAll } from "#shared/db/client.ts";
 import {
   clearAllCaches,
-  initializeFreshSchema,
   LATEST_UPDATE,
+  rebuildWipedSchema,
   resetDatabase,
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
@@ -406,12 +406,15 @@ export const restoreFromSql = async (sql: string): Promise<void> => {
   let postResetErr: string | undefined;
   try {
     await resetDatabase();
-    // The database was just wiped, so rebuild the schema directly. Never go
-    // through initDb here: its state check reads the settings markers, and a
-    // lagging read replica can still serve the pre-wipe rows — a stale "up to
-    // date" answer routes boot into schema verification against the wiped
-    // primary and fails the restore with "missing table settings".
-    await initializeFreshSchema();
+    // The database was just wiped, so rebuild the schema with unconditional
+    // IF NOT EXISTS creates. Never consult the database here — neither
+    // initDb's state check nor a live-schema snapshot: right after the drops,
+    // a replica and even the primary can briefly serve the pre-wipe schema
+    // (read-your-writes lag), and a stale answer either routed boot into
+    // schema verification against the wiped primary ("missing table
+    // settings") or skipped the CREATEs and died at the import ("no such
+    // table: settings").
+    await rebuildWipedSchema();
 
     // Roll the seed-data deletes into the same executeBatch transaction as the
     // import so that a failed import rolls the deletes back too, leaving the DB

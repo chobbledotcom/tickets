@@ -19,7 +19,7 @@ export const GITHUB_REPO = "chobbledotcom/tickets";
 /**
  * Plaintext settings key under which the running build records its own version
  * (the build timestamp). Stored unencrypted on purpose: a parent host reads it
- * from a built site's database using only the site's read-only keys, so it can
+ * from a built site's database using the site's stored credentials, so it can
  * tell which release the site is on. Mirrors the raw schema markers written by
  * the migrator (db_schema_hash / latest_db_update), not a snapshot setting.
  */
@@ -154,7 +154,7 @@ const syncCommitMarker = async (
 
 /**
  * Record the running build's version *and* commit into this database's
- * `settings` table so a parent host can read them back (read-only) — both which
+ * `settings` table so a parent host can read them back — both which
  * release we are on and which commit it was built from. The commit is what a
  * backup carries so a restore can redeploy that exact point in time.
  * Best-effort: any failure is logged and swallowed so it can never block boot,

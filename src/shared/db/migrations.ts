@@ -14,7 +14,7 @@
 import type { Client } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import { getDb } from "#shared/db/client.ts";
+import { executeBatch, getDb } from "#shared/db/client.ts";
 import { invalidateGroupsCache } from "#shared/db/groups.ts";
 import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
@@ -100,6 +100,7 @@ import {
   SCHEMA,
   SCHEMA_HASH,
   SCHEMA_MIGRATIONS_TABLE,
+  TRIGGERS,
 } from "./migrations/schema.ts";
 import {
   applySchemaChanges,
@@ -107,6 +108,7 @@ import {
   backfillListingAggregates,
   backfillModifierAggregates,
   createTableSql,
+  fullSchemaCreateStatements,
   recreateTable,
   runMigration,
   syncCurrentSchema as syncCurrentSchemaBase,
@@ -308,6 +310,16 @@ export const MIGRATION_IDS: string[] = MIGRATIONS.map(
   (migration) => migration.id,
 );
 
+/** Seed and stamp a freshly created schema: the default attendee status, the
+ *  schema markers, and every migration recorded as applied — so the next boot
+ *  treats the database as fully migrated. Shared by the fresh-install path and
+ *  the restore rebuild. */
+const sealFreshSchema = async (): Promise<void> => {
+  await ensureDefaultAttendeeStatus();
+  await writeSchemaMarkers();
+  await markMigrationsApplied(MIGRATIONS);
+};
+
 /**
  * Initialize a brand-new database directly from the current declarative schema.
  *
@@ -315,23 +327,44 @@ export const MIGRATION_IDS: string[] = MIGRATIONS.map(
  * there is no legacy data to backfill or reshape. Creating the latest schema in
  * one pass keeps first boot fast while still recording every migration marker so
  * future boots use the normal up-to-date path.
- *
- * Exported for the restore path: after resetDatabase() wipes every table,
- * restoreFromSql rebuilds the schema by calling this directly instead of going
- * through initDb. initDb's state check reads the settings markers, and a
- * lagging read replica can still serve the pre-wipe rows — a stale "up to
- * date" answer routes boot into schema verification against the wiped primary
- * and fails the whole restore with "missing table settings". Here we already
- * know the database was just wiped, so there is no state to check.
  */
-export const initializeFreshSchema = async (): Promise<void> => {
+const initializeFreshSchema = async (): Promise<void> => {
   logDebug("Migration", "Initializing fresh database from current schema");
   await applySchemaChanges();
   await syncIndexes();
-  await ensureDefaultAttendeeStatus();
   await syncTriggers();
-  await writeSchemaMarkers();
-  await markMigrationsApplied(MIGRATIONS);
+  await sealFreshSchema();
+};
+
+/**
+ * Rebuild the full schema on a database that resetDatabase() just wiped,
+ * without reading the database to decide what to create.
+ *
+ * The restore path cannot trust any schema or state read taken here: right
+ * after the drops, a replica AND even a freshly-routed primary connection can
+ * briefly serve the pre-wipe schema (read-your-writes propagation lag — the
+ * same effect VERIFY_RETRY_BACKOFF_MS documents). A lagged answer either
+ * routed boot into schema verification against the wiped primary ("missing
+ * table settings", via initDb's state check) or made the rebuild skip its
+ * CREATEs and die at the next write ("no such table: settings"), leaving the
+ * operator's database empty. So every statement here is unconditional and
+ * idempotent (IF NOT EXISTS), and nothing is consulted first. A just-wiped
+ * database has no legacy tables by definition, so the additive column
+ * reconciliation initializeFreshSchema performs (via applySchemaChanges) is
+ * not needed here.
+ */
+export const rebuildWipedSchema = async (): Promise<void> => {
+  logDebug("Migration", "Rebuilding wiped database from current schema");
+  await executeBatch(
+    fullSchemaCreateStatements().map((sql) => ({ args: [], sql })),
+  );
+  // A compound CREATE TRIGGER … BEGIN … END body carries internal semicolons
+  // that batch transports mis-split, so triggers run one by one, exactly as
+  // syncTriggers sends them.
+  for (const trigger of TRIGGERS) {
+    await runMigration(trigger.sql);
+  }
+  await sealFreshSchema();
 };
 
 const ensureMigrationTrackingTable = async (): Promise<void> => {
