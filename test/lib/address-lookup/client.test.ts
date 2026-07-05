@@ -146,8 +146,7 @@ describe("address lookup client", () => {
   ]) {
     test(`leaves a panel missing its ${missing} control hidden`, () => {
       const hasControl = (spec: ElementSpec): boolean =>
-        missing in (spec.data ?? {}) ||
-        (spec.children ?? []).some(hasControl);
+        missing in (spec.data ?? {}) || (spec.children ?? []).some(hasControl);
       const partial = panelSpec("locked");
       partial.children = partial.children!.filter((c) => !hasControl(c));
       const [form] = installFakeDom([
