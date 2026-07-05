@@ -292,6 +292,18 @@ describeWithEnv("admin email templates", { db: true }, () => {
       );
     });
 
+    test("returns error for invalid template format", async () => {
+      await assertJsonError(
+        postPreviewForm({
+          format: "markdown",
+          template: "test",
+          type: "confirmation",
+        }),
+        400,
+        "Invalid template format",
+      );
+    });
+
     test("defaults missing preview fields to empty and rejects invalid type", async () => {
       await assertJsonError(postPreviewForm({}), 400, "Invalid template type");
     });

@@ -14,16 +14,14 @@ import {
   getPackageDisplayForBookings,
   type PackageDisplay,
 } from "#shared/db/groups.ts";
-import type {
-  EmailTemplateFormat,
-  EmailTemplateType,
-} from "#shared/db/settings.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { packagePrivacyOfDisplay } from "#shared/package-privacy.ts";
 import {
   type ContactInfo,
+  type EmailTemplateFormat,
+  type EmailTemplateType,
   isPaidListing,
   normalizeDurationDays,
 } from "#shared/types.ts";

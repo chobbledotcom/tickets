@@ -11,6 +11,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+/* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
   decryptWithOwnerKey,
@@ -25,6 +26,7 @@ import {
 } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";
+/* jscpd:ignore-end */
 
 export type SystemNoteType = "system" | "owner";
 

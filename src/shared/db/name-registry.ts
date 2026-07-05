@@ -20,9 +20,13 @@
 
 import { getAllGroups } from "#shared/db/groups.ts";
 import { getAllListings } from "#shared/db/listings.ts";
+import type { SitePageItemType } from "#shared/types.ts";
 
-/** The two entity kinds that share the catalog name namespace. */
-export type NamedEntityKind = "listing" | "group";
+/** The two entity kinds that share the catalog name namespace. Derived from
+ *  {@link SitePageItemType} (the slug-owning union) by excluding `"page"` —
+ *  pages never participate in name uniqueness — so adding a new slug-owning
+ *  entity here is a compile error against the canonical type. */
+export type NamedEntityKind = Exclude<SitePageItemType, "page">;
 
 /** One entity that owns a name — used to exclude the row being edited from its
  * own uniqueness check. */

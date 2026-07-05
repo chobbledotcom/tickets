@@ -13,7 +13,11 @@ import { errorRedirect, infoRedirect, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { contactHash, forgetContact } from "#shared/db/contact-preferences.ts";
+import {
+  contactHash,
+  forgetContact,
+  isContactChannel,
+} from "#shared/db/contact-preferences.ts";
 import {
   countOrphanedAttendees,
   purgeOrphanedAttendees,
@@ -85,7 +89,7 @@ const handleErasePost = createAuthedHandler({
     if (!identifier) {
       return errorRedirect(PRIVACY_PATH, t("privacy.erase.error_identifier"));
     }
-    if (channel !== "email" && channel !== "sms") {
+    if (!isContactChannel(channel)) {
       return errorRedirect(PRIVACY_PATH, t("privacy.erase.error_type"));
     }
     const deleted = await forgetContact(await contactHash(channel, identifier));
