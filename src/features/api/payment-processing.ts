@@ -210,7 +210,9 @@ export const cancelPageResponse = async (
   }
   // A package checkout retries against the bundle's own page, not a member's
   // standalone page (which may hide members or use override prices/quantities).
-  const retryHref = await retryHrefFor(intent, listing);
+  // A null intent reads listing id 0, which never resolves — so reaching here
+  // proves the intent parsed.
+  const retryHref = await retryHrefFor(intent!, listing);
   return htmlResponse(paymentCancelPage(listing, retryHref));
 };
 
@@ -229,14 +231,14 @@ export const cancelPageResponse = async (
  * still serves (its page re-offers that part of the order), falling back like
  * the single-package case. */
 const retryHrefFor = async (
-  intent: BookingIntent | null,
+  intent: BookingIntent,
   listing: { id: number; slug: string },
 ): Promise<string | null> => {
   const standaloneHref = async () =>
     (await lacksStandalonePublicPage(listing.id))
       ? null
       : `/ticket/${listing.slug}`;
-  const groupIds = lineGroupIds(intent?.items ?? []);
+  const groupIds = lineGroupIds(intent.items);
   for (const groupId of groupIds) {
     const group = await groupsTable.findById(groupId);
     const bundleServes =

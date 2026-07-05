@@ -5,6 +5,7 @@ import {
   bookingDateFields,
   computeSharedDates,
   createFreeReservation,
+  ctxStandInNames,
   foldSelectedChildren,
   getTicketContext,
   loadChildrenByParentId,
@@ -119,6 +120,57 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
 
     test("uses the minimum default when zero is below the field minimum", () => {
       expect(parseQuantityValue("0", 5)).toBe(1);
+    });
+  });
+
+  describe("ctxStandInNames", () => {
+    test("conceals a hidden package's members and their children", () => {
+      const standIns = ctxStandInNames({
+        childrenByParentId: new Map([
+          [
+            1,
+            [
+              buildTicketListing(
+                testListingWithCount({ id: 9 }),
+                false,
+                undefined,
+              ),
+            ],
+          ],
+        ]),
+        packages: [
+          {
+            ...treePackage(7, [1, 2]),
+            description: "",
+            hideListings: true,
+            name: "Mystery Box",
+            slug: "myst1",
+            terms: "",
+          },
+        ],
+      });
+      // Member 1's child 9 is concealed too; member 2 has no children entry.
+      expect([...standIns]).toEqual([
+        [1, "Mystery Box"],
+        [9, "Mystery Box"],
+        [2, "Mystery Box"],
+      ]);
+    });
+
+    test("names nothing for a package that shows its listings", () => {
+      const standIns = ctxStandInNames({
+        childrenByParentId: new Map(),
+        packages: [
+          {
+            ...treePackage(7, [1]),
+            description: "",
+            name: "Open Box",
+            slug: "open1",
+            terms: "",
+          },
+        ],
+      });
+      expect(standIns.size).toBe(0);
     });
   });
 

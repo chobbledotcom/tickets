@@ -77,6 +77,17 @@ describeWithEnv(
         expectStatus(200)(response);
       });
 
+      test("drops a crafted package id that names no bookable package", async () => {
+        const solo = await createTestListing({ name: "Lantern" });
+        const location = expectRedirect(
+          await handleRequest(
+            mockRequest(`/order?select_${solo.id}=1&select_package_99999=1`),
+          ),
+        );
+        // The bogus bundle contributes no slug; the real pick still books.
+        expect(location).toBe(`/ticket/${solo.slug}?q_${solo.id}=1`);
+      });
+
       test("redirects a package pick to its booking page without a pre-fill", async () => {
         const group = await createTestGroup({
           isPackage: true,

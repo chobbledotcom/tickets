@@ -2868,7 +2868,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
       // Booking conflict: same listing, same start_at (null) — choose keep_target
-      const bookingKey = `${listing.id}:null:0`;
+      const bookingKey = `${listing.id}:null:0:0`;
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
@@ -3209,7 +3209,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const html = await previewPage.text();
       const mergeVersion = extractInputValue(html, "merge_version")!;
 
-      const bookingKey = `${listing.id}:null:0`;
+      const bookingKey = `${listing.id}:null:0:0`;
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
@@ -3483,15 +3483,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "Jane Doe",
         "jane@example.com",
       );
+      // The source booked 3 — taking it must carry that quantity across.
       const { token: sourceToken } = await createTestAttendeeDirect(
         listing.id,
         "John Smith",
         "john@example.com",
+        3,
       );
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
 
-      const bookingKey = `${listing.id}:null:0`;
+      const bookingKey = `${listing.id}:null:0:0`;
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
@@ -3502,6 +3504,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Merged"), true);
+
+      const { queryAll } = await import("#shared/db/client.ts");
+      const rows = await queryAll<{ quantity: number }>(
+        "SELECT quantity FROM listing_attendees WHERE attendee_id = ?",
+        [target.id],
+      );
+      expect(rows.map((row) => row.quantity)).toEqual([3]);
     });
   });
 });

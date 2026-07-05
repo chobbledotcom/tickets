@@ -135,11 +135,13 @@ const loadOrderCatalog = async (): Promise<OrderCatalog> => {
     await buildTicketListingsWithGroupCapacity(offered),
     classification,
   );
+  // Both maps carry every bookable package: the members map seeds an entry
+  // per requested group, and a bookable bundle always has membership rows.
   const packages = packageGroups.map(
     (group): OrderPackage => ({
       group,
-      members: membersByGroupId.get(group.id) ?? [],
-      quantities: packageMemberMaps(priceRowsByGroupId.get(group.id) ?? [])
+      members: membersByGroupId.get(group.id)!,
+      quantities: packageMemberMaps(priceRowsByGroupId.get(group.id)!)
         .quantities,
     }),
   );
@@ -328,10 +330,8 @@ const handleOrder = withEvaluatedOrder(async (catalog, evaluation) => {
       catalog.packages,
       {
         anyNeedsDate: catalog.options.some((option) => option.needsDate),
-        labelFor: (key) => {
-          const state = evaluation.states.get(key);
-          return state === undefined ? "" : stateLabel(state);
-        },
+        // The evaluator judges every option, and cards render only options.
+        labelFor: (key) => stateLabel(evaluation.states.get(key)!),
       },
       await publicNavProps(null),
       settings.websiteTitle,

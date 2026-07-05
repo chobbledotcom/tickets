@@ -98,6 +98,14 @@ describe("aggregateNodeQuantities", () => {
     );
     expect([...totals]).toEqual([[2, 3]]);
   });
+
+  test("a node missing from the quantities map counts as zero", () => {
+    const totals = aggregateNodeQuantities(
+      dualPathTree(),
+      new Map([["listing:2", 3]]),
+    );
+    expect([...totals]).toEqual([[2, 3]]);
+  });
 });
 
 describe("buildOrderLines", () => {
@@ -147,17 +155,17 @@ describe("buildOrderLines", () => {
     expect(Object.hasOwn(lines[2]!, "packageGroupId")).toBe(false);
   });
 
-  test("skips paths booked zero times", () => {
+  test("skips paths booked zero times or missing from the map entirely", () => {
     const tree = dualPathTree();
-    const nodeQuantities = nodeQuantitiesFor(
-      tree,
-      new Map([[1, 1]]),
-      new Map(),
-    );
+    // The member path is explicitly zero and listing:2 is absent — only the
+    // standalone path of listing 1 books.
     const lines = buildOrderLines(
       tree,
-      nodeQuantities,
-      aggregateNodeQuantities(tree, nodeQuantities),
+      new Map([
+        ["listing:1", 1],
+        ["package:7/member:1", 0],
+      ]),
+      new Map(),
       new Map(),
       1,
     );

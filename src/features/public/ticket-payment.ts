@@ -434,13 +434,15 @@ export const createFreeReservation = async ({
     listings.map((info) => [info.listing.id, info.listing]),
   );
   // One row per checkout line: a listing booked through two paths keeps one
-  // row per path, each carrying its own package and its own charged amount.
+  // row per path, each carrying its own package and its own charged amount. A
+  // provided paidByItem is built from the same item objects, so it prices
+  // every line.
   const bookings: ListingBooking[] = items.map((item) => ({
     listingId: item.listingId,
     packageGroupId: item.packageGroupId ?? 0,
     quantity: item.quantity,
     ...bookingDateFields(listingById.get(item.listingId)!, date, dayCount),
-    ...(paidByItem ? { pricePaid: paidByItem.get(item) ?? 0 } : {}),
+    ...(paidByItem ? { pricePaid: paidByItem.get(item)! } : {}),
   }));
   // Expand summed child bookings into per-parent rows when allocations are
   // provided (free-path provenance): each allocation becomes its own

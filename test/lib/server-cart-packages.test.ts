@@ -163,6 +163,71 @@ describeWithEnv(
       expect(html).not.toContain(`name="quantity_${member.id}"`);
     });
 
+    test("drops a non-package group's slug like any unknown slug", async () => {
+      const { group } = await freePackage("Camp Kit", "camp-kit", "Kit Tent");
+      const regular = await createTestGroup({
+        name: "Plain Crowd",
+        slug: "plain-crowd",
+      });
+      await createTestListing({ groupId: regular.id, name: "Crowd Item" });
+
+      const html = await pageHtml(`${regular.slug}+${group.slug}`);
+      // The package still sells; the regular group's slug names no cart item.
+      expect(html).toContain(`name="package_quantity_${group.id}"`);
+      expect(html).not.toContain("Crowd Item");
+    });
+
+    test("drops an incomplete package (a member deactivated) from the cart", async () => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Broken Kit",
+        slug: "broken-kit",
+      });
+      const kept = await createTestListing({
+        groupId: group.id,
+        name: "Kept Part",
+        unitPrice: 0,
+      });
+      const dropped = await createTestListing({
+        groupId: group.id,
+        name: "Gone Part",
+        unitPrice: 0,
+      });
+      await setGroupPackageMembers(group.id, [
+        { listingId: kept.id, price: 0 },
+        { listingId: dropped.id, price: 0 },
+      ]);
+      const { deactivateTestListing } = await import("#test-utils");
+      await deactivateTestListing(dropped.id);
+      const whole = await freePackage("Camp Kit", "camp-kit", "Kit Tent");
+
+      // The incomplete bundle must never sell partially: its slug drops while
+      // the intact package books on.
+      const html = await pageHtml(`${group.slug}+${whole.group.slug}`);
+      expect(html).not.toContain(`name="package_quantity_${group.id}"`);
+      expect(html).not.toContain("Kept Part");
+      expect(html).toContain(`name="package_quantity_${whole.group.id}"`);
+    });
+
+    test("404s a cart whose every listing is another listing's child", async () => {
+      // The package's lone member is itself a required child, so the child drop
+      // empties the cart — nothing is sellable at top level.
+      const { group, member } = await freePackage(
+        "Addon Kit",
+        "addon-kit",
+        "Addon Widget",
+      );
+      const parent = await createTestListing({ name: "Big Parent" });
+      const { setChildIds } = await import("#shared/db/listing-parents.ts");
+      await setChildIds(parent.id, [member.id]);
+
+      const response = await handleRequest(
+        mockRequest(`/ticket/${group.slug}+zzzzz`),
+      );
+      await response.body?.cancel();
+      expect(response.status).toBe(404);
+    });
+
     test("a cart with no package at all falls through to the plain multi-listing page", async () => {
       const a = await createTestListing({ name: "Alpha" });
       const b = await createTestListing({ name: "Bravo" });

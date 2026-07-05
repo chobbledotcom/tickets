@@ -1473,10 +1473,11 @@ const buildPageListingRows = (opts: {
   };
   if (opts.singlePackagePage) {
     const pkg = opts.packages[0]!;
+    // packageLimits carries every page package by construction.
     return renderPackageControls(
       pkg,
       membersOf(pkg),
-      opts.packageLimits.get(pkg.groupId) ?? 0,
+      opts.packageLimits.get(pkg.groupId)!,
       opts.childCtx,
     );
   }
@@ -1485,7 +1486,7 @@ const buildPageListingRows = (opts: {
       renderPackageSection(
         pkg,
         membersOf(pkg),
-        opts.packageLimits.get(pkg.groupId) ?? 0,
+        opts.packageLimits.get(pkg.groupId)!,
         opts.childCtx,
       ),
     )

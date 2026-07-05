@@ -22,6 +22,7 @@ import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { Holiday, ListingWithCount } from "#shared/types.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { treePackage } from "./package-cap-fixtures.ts";
 
 /** A cart line resolved against availability (the shape the fold reads). */
 const tl = (
@@ -149,6 +150,31 @@ describe("foldBookingTree — walking the tree", () => {
     expect(fold.quantities.get(9)).toBe(2);
     expect(fold.selectedListingIds.has(9)).toBe(true);
     expect(fold.listings.map((l) => l.listing.id)).toContain(9);
+  });
+
+  test("a parent booked through two paths folds its children exactly once", () => {
+    // Listing 1 books through package 3 AND its own standalone row — two
+    // nodes with identical child edges. The child mix is chosen once against
+    // the parent's TOTAL quantity, never once per path.
+    const fold = foldOf(
+      {
+        childrenByParentId: new Map([[1, [tl(9, { max_quantity: 9 })]]]),
+        listings: [tl(1)],
+        packages: [treePackage(3, [1])],
+        slugs: ["pkg3s", "p1"],
+        standaloneListingIds: new Set([1]),
+      },
+      formFrom({ child_qty_1_9: "3" }),
+      baseOrder(new Map([[1, 3]])),
+    );
+    expect(fold.ok).toBe(true);
+    if (!fold.ok) return;
+    // One allocation against the total, never one per path — and the parent
+    // lists once in the folded cart despite its two nodes.
+    expect(fold.allocations).toEqual([{ childId: 9, parentId: 1, qty: 3 }]);
+    expect(fold.listings.filter((info) => info.listing.id === 1)).toHaveLength(
+      1,
+    );
   });
 
   test("auto-fills a sole bookable child to the whole parent quantity", () => {
