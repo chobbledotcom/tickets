@@ -16,6 +16,7 @@ import {
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   ActionButton,
+  type IconName,
   SaveChangesButton,
   SubmitButton,
 } from "#templates/components/actions.tsx";
@@ -117,39 +118,58 @@ const imageColumns: readonly DataColumn<Image>[] = [
 
 const imageTable = dataTable(imageColumns);
 
+const storageDisabledNotice = (): JSX.Element => (
+  <p class="notice">{t("images.storage_off")}</p>
+);
+
+const imageUploadForm = (
+  action: string,
+  icon: IconName,
+  label: string,
+): JSX.Element => (
+  <CsrfForm action={action} enctype="multipart/form-data">
+    <Raw
+      html={renderFields([...imageFields(), imageUploadField()], imageValue())}
+    />
+    <SubmitButton icon={icon}>{label}</SubmitButton>
+  </CsrfForm>
+);
+
 export const adminImagesPage = (
   images: Image[],
   session: AdminSession,
   successMessage?: string,
-): string =>
-  successAdminPage(t("terms.images"), "/admin/images")(session, successMessage)(
-    <>
-      {!isStorageEnabled() && <p class="notice">{t("images.storage_off")}</p>}
-      {!isReadOnly() && (
-        <p class="actions">
-          <ActionButton href="/admin/images/new" icon="plus">
-            {t("images.add")}
-          </ActionButton>
-        </p>
-      )}
-      {images.length === 0 ? <p>{t("images.empty")}</p> : imageTable(images)}
-    </>,
+): string => {
+  const storageEnabled = isStorageEnabled();
+  return successAdminPage(t("terms.images"), "/admin/images")(
+    session,
+    successMessage,
+  )(
+    storageEnabled ? (
+      <>
+        {!isReadOnly() && (
+          <p class="actions">
+            <ActionButton href="/admin/images/new" icon="plus">
+              {t("images.add")}
+            </ActionButton>
+          </p>
+        )}
+        {images.length === 0 ? <p>{t("images.empty")}</p> : imageTable(images)}
+      </>
+    ) : (
+      storageDisabledNotice()
+    ),
   );
+};
 
 export const adminImageNewPage = (
   session: AdminSession,
   error?: string,
 ): string =>
   errorAdminPage(t("images.new.heading"), "/admin/images")(session, error)(
-    <CsrfForm action="/admin/images" enctype="multipart/form-data">
-      <Raw
-        html={renderFields(
-          [...imageFields(), imageUploadField()],
-          imageValue(),
-        )}
-      />
-      <SubmitButton icon="save">{t("images.new.submit")}</SubmitButton>
-    </CsrfForm>,
+    isStorageEnabled()
+      ? imageUploadForm("/admin/images", "save", t("images.new.submit"))
+      : storageDisabledNotice(),
   );
 
 export const adminImageEditPage = ({
@@ -245,6 +265,14 @@ export const ItemImagesPanel = ({
   allImages,
   error,
 }: ItemImagePanelProps): JSX.Element => {
+  if (!isStorageEnabled()) {
+    return (
+      <>
+        <Flash error={error} />
+        {storageDisabledNotice()}
+      </>
+    );
+  }
   const selectedIds = new Set(linkedImages.map((image) => image.id));
   return (
     <>
@@ -265,21 +293,7 @@ export const ItemImagesPanel = ({
         {SaveChangesButton()}
       </CsrfForm>
       <h2>{t("images.item.upload_new")}</h2>
-      {!isStorageEnabled() ? (
-        <p class="notice">{t("images.storage_off")}</p>
-      ) : (
-        <CsrfForm action={uploadAction} enctype="multipart/form-data">
-          <Raw
-            html={renderFields(
-              [...imageFields(), imageUploadField()],
-              imageValue(),
-            )}
-          />
-          <SubmitButton icon="plus">
-            {t("images.item.upload_submit")}
-          </SubmitButton>
-        </CsrfForm>
-      )}
+      {imageUploadForm(uploadAction, "plus", t("images.item.upload_submit"))}
     </>
   );
 };

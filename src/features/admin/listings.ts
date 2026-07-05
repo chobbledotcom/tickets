@@ -35,6 +35,7 @@ import {
 import { handleAttachmentDelete } from "./listings-uploads.ts";
 
 const listingImageHandlers = createItemImageHandlers({
+  disabledPath: (id) => `/admin/listing/${id}/edit`,
   itemType: "listing",
   load: getListingWithCount,
   nameOf: (listing) => listing.name,

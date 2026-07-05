@@ -13,12 +13,14 @@ import {
   setImagesForItem,
 } from "#shared/db/images.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { isStorageEnabled } from "#shared/storage.ts";
 import type { ImageUseItemType } from "#shared/types.ts";
 import { ItemImagesPanel } from "#templates/admin/images.tsx";
 import { withEntityFromParam } from "./entity-handlers.ts";
 import { createImageFromUpload } from "./image-upload.ts";
 
 type ItemImageConfig<T> = {
+  disabledPath: (id: number) => string;
   itemType: ImageUseItemType;
   load: (id: number) => Promise<T | null>;
   nameOf: (item: T) => string;
@@ -56,6 +58,24 @@ const appendImage = async (
   await setImagesForItem(itemType, itemId, [...currentIds, imageId]);
 };
 
+const storageDisabledResponse = <T>(
+  config: ItemImageConfig<T>,
+  itemId: number,
+): Response =>
+  redirect(config.disabledPath(itemId), t("images.storage_off"), false);
+
+const withStorageBackedItem = <T>(
+  id: string | number | undefined,
+  config: ItemImageConfig<T>,
+  action: (item: T, itemId: number) => Promise<Response>,
+): Promise<Response> =>
+  withEntityFromParam(Number(id), config.load, (item) => {
+    const itemId = Number(id);
+    return isStorageEnabled()
+      ? action(item, itemId)
+      : storageDisabledResponse(config, itemId);
+  });
+
 export const createItemImageHandlers = <T>(
   config: ItemImageConfig<T>,
 ): {
@@ -64,36 +84,28 @@ export const createItemImageHandlers = <T>(
 } => ({
   set: (request, { id }) =>
     withAuth(request, CONTENT_FORM, (_session, form) =>
-      withEntityFromParam(Number(id), config.load, async (item) => {
-        await setImagesForItem(
-          config.itemType,
-          Number(id),
-          selectedImageIds(form),
-        );
+      withStorageBackedItem(id, config, async (item, itemId) => {
+        await setImagesForItem(config.itemType, itemId, selectedImageIds(form));
         await logActivity(
           `Images updated for ${config.itemType} '${config.nameOf(item)}'`,
         );
-        return redirect(config.path(Number(id)), t("images.item.saved"), true);
+        return redirect(config.path(itemId), t("images.item.saved"), true);
       }),
     ),
   upload: (request, { id }) =>
     withAuth(request, CONTENT_MULTIPART, async (_session, formData) =>
-      withEntityFromParam(Number(id), config.load, async (item) => {
+      withStorageBackedItem(id, config, async (item, itemId) => {
         const result = await createImageFromUpload(formData);
         if (!result.ok) {
-          return redirect(config.path(Number(id)), result.error, false);
+          return redirect(config.path(itemId), result.error, false);
         }
-        await appendImage(config.itemType, Number(id), result.value.id);
+        await appendImage(config.itemType, itemId, result.value.id);
         await logActivity(
           `Image '${result.value.name}' uploaded for ${config.itemType} '${config.nameOf(
             item,
           )}'`,
         );
-        return redirect(
-          config.path(Number(id)),
-          t("images.item.uploaded"),
-          true,
-        );
+        return redirect(config.path(itemId), t("images.item.uploaded"), true);
       }),
     ),
 });

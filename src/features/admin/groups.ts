@@ -442,6 +442,7 @@ const handleAddListingsToGroup = groupFormPost(async (group, form) => {
 });
 
 const groupImageHandlers = createItemImageHandlers({
+  disabledPath: (id) => `/admin/groups/${id}/edit`,
   itemType: "group",
   load: groupsTable.findById,
   nameOf: (group) => group.name,

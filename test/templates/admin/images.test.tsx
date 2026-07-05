@@ -36,28 +36,54 @@ describe("admin image templates", () => {
   test("renders the library table and hides edit actions in read-only mode", () => {
     const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     try {
-      const html = adminImagesPage([image(7, "Hero")], SESSION);
-      expect(html).toContain("Hero");
-      expect(html).toContain("/image/hero-thumb.webp");
-      expect(html).not.toContain('href="/admin/images/7/edit"');
-      expect(html).not.toContain('href="/admin/images/new"');
+      withStorageEnabled(() => {
+        const html = adminImagesPage([image(7, "Hero")], SESSION);
+        expect(html).toContain("Hero");
+        expect(html).toContain("/image/hero-thumb.webp");
+        expect(html).not.toContain('href="/admin/images/7/edit"');
+        expect(html).not.toContain('href="/admin/images/new"');
+      });
     } finally {
       restore();
     }
   });
 
   test("renders the thumbnail from the image thumbnail filename", () => {
-    const html = adminImagesPage([image(8, "Poster")], SESSION);
-    expect(html).toContain("/image/poster-thumb.webp");
-    expect(html).not.toContain("/image/poster.webp");
+    withStorageEnabled(() => {
+      const html = adminImagesPage([image(8, "Poster")], SESSION);
+      expect(html).toContain("/image/poster-thumb.webp");
+      expect(html).not.toContain("/image/poster.webp");
+    });
+  });
+
+  test("hides the image library table and actions when storage is disabled", () => {
+    withStorageDisabled(() => {
+      const html = adminImagesPage([image(8, "Poster")], SESSION);
+      expect(html).toContain("File storage is not configured.");
+      expect(html).not.toContain('href="/admin/images/new"');
+      expect(html).not.toContain("/image/poster-thumb.webp");
+      expect(html).not.toContain("Poster");
+    });
   });
 
   test("renders the new image upload form", () => {
-    const html = adminImageNewPage(SESSION, "Upload failed");
-    expect(html).toContain("Upload failed");
-    expect(html).toContain('action="/admin/images"');
-    expect(html).toContain('enctype="multipart/form-data"');
-    expect(html).toContain('name="image"');
+    withStorageEnabled(() => {
+      const html = adminImageNewPage(SESSION, "Upload failed");
+      expect(html).toContain("Upload failed");
+      expect(html).toContain('action="/admin/images"');
+      expect(html).toContain('enctype="multipart/form-data"');
+      expect(html).toContain('name="image"');
+    });
+  });
+
+  test("renders the new image disabled state when storage is disabled", () => {
+    withStorageDisabled(() => {
+      const html = adminImageNewPage(SESSION, "Upload failed");
+      expect(html).toContain("Upload failed");
+      expect(html).toContain("File storage is not configured.");
+      expect(html).not.toContain('enctype="multipart/form-data"');
+      expect(html).not.toContain('name="image"');
+    });
   });
 
   test("renders edit fields, linked item checkboxes, and delete action", () => {
@@ -98,7 +124,7 @@ describe("admin image templates", () => {
     expect(html).toContain("Type the image name to confirm");
   });
 
-  test("renders item image selection and storage-disabled upload state", () =>
+  test("renders item image storage-disabled state", () =>
     withStorageDisabled(() => {
       const html = String(
         ItemImagesPanel({
@@ -109,13 +135,10 @@ describe("admin image templates", () => {
         }),
       );
 
-      expect(html).toContain("Current images");
-      expect(html).toContain('action="/admin/listing/1/images"');
-      expect(html).toContain(
-        'checked name="image_ids" type="checkbox" value="1"',
-      );
-      expect(html).toContain('value="2"');
       expect(html).toContain("File storage is not configured.");
+      expect(html).not.toContain("Current images");
+      expect(html).not.toContain('action="/admin/listing/1/images"');
+      expect(html).not.toContain('name="image_ids"');
       expect(html).not.toContain('type="file"');
     }));
 

@@ -11,9 +11,12 @@ import {
   describeWithEnv,
   setupTestEncryptionKey,
   testListingWithCount,
+  withStorageDisabled,
+  withStorageEnabled,
 } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
+const EDITOR_SESSION = { adminLevel: "editor" as const };
 
 /** Set `RENEWAL_URL`, render `AdminNav`, assert the renewal link is present,
  *  and clean up the env var. Both the read-only and warning-banner describe
@@ -82,6 +85,26 @@ describe("adminLoginPage", () => {
   test("escapes error message", () => {
     const html = adminLoginPage("<script>evil()</script>");
     expect(html).toContain("&lt;script&gt;");
+  });
+});
+
+describe("AdminNav image storage gating", () => {
+  test("shows Images only when file storage is enabled", () => {
+    const hasImagesLink = (
+      session: typeof TEST_SESSION | typeof EDITOR_SESSION,
+    ): boolean =>
+      String(AdminNav({ active: "/admin/", session })).includes(
+        'href="/admin/images"',
+      );
+
+    withStorageEnabled(() => {
+      expect(hasImagesLink(TEST_SESSION)).toBe(true);
+      expect(hasImagesLink(EDITOR_SESSION)).toBe(true);
+    });
+    withStorageDisabled(() => {
+      expect(hasImagesLink(TEST_SESSION)).toBe(false);
+      expect(hasImagesLink(EDITOR_SESSION)).toBe(false);
+    });
   });
 });
 

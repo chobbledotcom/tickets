@@ -19,6 +19,7 @@ import {
   isReadOnlyWarning,
 } from "#shared/env.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { isStorageEnabled } from "#shared/storage.ts";
 import { isSupportEnabled } from "#shared/support.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { markAdminFooter } from "#templates/admin/footer.tsx";
@@ -89,12 +90,13 @@ const renderReadOnlyBanner = (
  * site editor. Everything else is gated away, so their nav lists exactly those
  * (no dead/forbidden links). The Site editor is surfaced top-level here because
  * the owner-only Settings parent it normally nests under is hidden from them. */
-const editorTopLevelItems = (): NavItem[] => [
-  listingsItem(),
-  groupsItem(),
-  imagesItem(),
-  siteItem(),
-];
+const editorTopLevelItems = (): NavItem[] =>
+  compact([
+    listingsItem(),
+    groupsItem(),
+    isStorageEnabled() ? imagesItem() : null,
+    siteItem(),
+  ]);
 
 /** Top-level admin links, in order. Users and Settings are owner-only. `active`
  * is the highlighted section route — passed so the Site parent stays present
@@ -114,7 +116,7 @@ const topLevelItems = (session: AdminSession, active: string): NavItem[] =>
           ? { href: "/admin/users", label: t("terms.users") }
           : null,
         groupsItem(),
-        imagesItem(),
+        isStorageEnabled() ? imagesItem() : null,
         { href: "/admin/modifiers", label: t("terms.modifiers") },
         session.adminLevel === "owner"
           ? { href: "/admin/ledger", label: t("nav.ledger") }

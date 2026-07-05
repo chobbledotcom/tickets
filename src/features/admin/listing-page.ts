@@ -25,6 +25,7 @@ import {
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 import { targetQuery } from "#shared/bulk-email-targets.ts";
 import { isReadOnly } from "#shared/env.ts";
+import { isStorageEnabled } from "#shared/storage.ts";
 import { isPaidListing, isStaffRole } from "#shared/types.ts";
 import { ListingDeactivatedBanner } from "#templates/admin/listings.tsx";
 import {
@@ -168,7 +169,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       labelKey: "entity.tab.images",
       sections: [{ kind: "custom", load: loadListingImagesPanel }],
       slug: "images",
-      visible: () => !isReadOnly(),
+      visible: () => !isReadOnly() && isStorageEnabled(),
     },
     {
       labelKey: "entity.tab.questions",

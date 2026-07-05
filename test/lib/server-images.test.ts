@@ -290,17 +290,25 @@ describeWithEnv(
               const { listing, cookie, csrfToken } =
                 await setupListingAndLogin();
 
+              const getResponse = await handleRequest(
+                mockRequest(`/admin/listing/${listing.id}/images`, {
+                  headers: { cookie },
+                }),
+              );
+              expect(getResponse.status).toBe(404);
+
               const response = await submitListingImagePng(
                 listing.id,
                 cookie,
                 csrfToken,
                 "test.jpg",
               );
-              expect(response.status).toBe(302);
-              expectImageErrorRedirect(
-                response,
-                "File storage is not configured",
-              );
+              await expectFlashRedirect(
+                `/admin/listing/${listing.id}/edit`,
+                "File storage is not configured.",
+                false,
+                cookie,
+              )(response);
               const updated = await getListingWithCount(listing.id);
               expect(updated?.image_url).toBe("");
             });

@@ -11,6 +11,7 @@ import {
   THUMB_IMAGE_TARGET,
 } from "#shared/images/targets.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
   IMAGE_ERROR_MESSAGES,
   isStorageEnabled,
@@ -29,36 +30,34 @@ type ImageMetadata = {
   altText: string;
 };
 
-type FormResult<T> = { ok: true; value: T } | { ok: false; error: string };
-
 export const imageMetadataFromForm = (
   form: FormParams,
-): FormResult<ImageMetadata> => {
+): Result<ImageMetadata> => {
   const name = form.getString("name");
   return name === ""
-    ? { error: t("images.error.name_required"), ok: false }
-    : { ok: true, value: { altText: form.getString("alt_text"), name } };
+    ? errorResult(t("images.error.name_required"))
+    : okResult({ altText: form.getString("alt_text"), name });
 };
 
-const imageFileFromForm = (formData: FormData): FormResult<File> => {
+const imageFileFromForm = (formData: FormData): Result<File> => {
   const entry = formData.get("image");
   return entry instanceof File && entry.size > 0
-    ? { ok: true, value: entry }
-    : { error: t("images.error.file_required"), ok: false };
+    ? okResult(entry)
+    : errorResult(t("images.error.file_required"));
 };
 
 const uploadedFilenames = async (
   file: File,
 ): Promise<
-  FormResult<{ filename: NonEmptyString; filenameThumb: NonEmptyString }>
+  Result<{ filename: NonEmptyString; filenameThumb: NonEmptyString }>
 > => {
   if (!isStorageEnabled()) {
-    return { error: t("images.storage_off"), ok: false };
+    return errorResult(t("images.storage_off"));
   }
   const data = new Uint8Array(await file.arrayBuffer());
   const validation = validateImage(data, file.type);
   if (!validation.valid) {
-    return { error: IMAGE_ERROR_MESSAGES[validation.error], ok: false };
+    return errorResult(IMAGE_ERROR_MESSAGES[validation.error]);
   }
   try {
     const [filename, filenameThumb] = await uploadImageTargets(
@@ -66,26 +65,23 @@ const uploadedFilenames = async (
       validation.detectedType,
       [FULL_IMAGE_TARGET, THUMB_IMAGE_TARGET],
     );
-    return {
-      ok: true,
-      value: {
-        filename: nonEmptyString(filename as string, "image filename"),
-        filenameThumb: nonEmptyString(
-          filenameThumb as string,
-          "image thumbnail filename",
-        ),
-      },
-    };
+    return okResult({
+      filename: nonEmptyString(filename as string, "image filename"),
+      filenameThumb: nonEmptyString(
+        filenameThumb as string,
+        "image thumbnail filename",
+      ),
+    });
   } catch (err) {
     const detail = `Image upload failed: ${String(err)}`;
     logError({ code: ErrorCode.STORAGE_UPLOAD, detail });
-    return { error: detail, ok: false };
+    return errorResult(detail);
   }
 };
 
 export const createImageFromUpload = async (
   formData: FormData,
-): Promise<FormResult<Image>> => {
+): Promise<Result<Image>> => {
   const metadata = imageMetadataFromForm(formDataToParams(formData));
   if (!metadata.ok) return metadata;
   const file = imageFileFromForm(formData);
@@ -97,7 +93,7 @@ export const createImageFromUpload = async (
       ...metadata.value,
       ...filenames.value,
     });
-    return { ok: true, value: image };
+    return okResult(image);
   } catch (err) {
     await tryDeleteFile(
       filenames.value.filename,

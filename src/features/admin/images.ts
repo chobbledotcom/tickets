@@ -44,11 +44,18 @@ import {
 // jscpd:ignore-end
 
 const imagePath = (id: number): string => `/admin/images/${id}/edit`;
+const storageDisabledRedirect = (): Response =>
+  redirect("/admin/images", t("images.storage_off"), false);
+const withStorageEnabled = (
+  action: () => Response | Promise<Response>,
+): Response | Promise<Response> =>
+  isStorageEnabled() ? action() : storageDisabledRedirect();
 
 const handleImagesListGet: TypedRouteHandler<"GET /admin/images"> = (request) =>
   requireContentOr(request, async (session) => {
     applyFlash(request);
-    return htmlResponse(adminImagesPage(await getAllImages(), session));
+    const images = isStorageEnabled() ? await getAllImages() : [];
+    return htmlResponse(adminImagesPage(images, session));
   });
 
 const handleImageNewGet: TypedRouteHandler<"GET /admin/images/new"> = (
@@ -56,18 +63,20 @@ const handleImageNewGet: TypedRouteHandler<"GET /admin/images/new"> = (
 ) =>
   requireContentOr(request, (session) => {
     applyFlash(request);
-    return htmlResponse(adminImageNewPage(session));
+    return withStorageEnabled(() => htmlResponse(adminImageNewPage(session)));
   });
 
 const handleImageCreatePost: TypedRouteHandler<"POST /admin/images"> = (
   request,
 ) =>
-  withAuth(request, CONTENT_MULTIPART, async (_session, formData) => {
-    const result = await createImageFromUpload(formData);
-    if (!result.ok) return redirect("/admin/images/new", result.error, false);
-    await logActivity(`Image '${result.value.name}' uploaded`);
-    return redirect(imagePath(result.value.id), t("images.created"), true);
-  });
+  withAuth(request, CONTENT_MULTIPART, (_session, formData) =>
+    withStorageEnabled(async () => {
+      const result = await createImageFromUpload(formData);
+      if (!result.ok) return redirect("/admin/images/new", result.error, false);
+      await logActivity(`Image '${result.value.name}' uploaded`);
+      return redirect(imagePath(result.value.id), t("images.created"), true);
+    }),
+  );
 
 const listingImageItemOptions = async (): Promise<ImageItemOption[]> =>
   (await getAllListings()).map((listing) => ({
@@ -102,13 +111,15 @@ const handleImageEditGet: TypedRouteHandler<"GET /admin/images/:id/edit"> = (
   requireContentOr(request, (session) =>
     withEntityFromParam(id, getImageById, async (image) => {
       applyFlash(request);
-      const [options, selected] = await Promise.all([
-        imageItemOptions(),
-        selectedUses(image.id),
-      ]);
-      return htmlResponse(
-        adminImageEditPage({ image, options, selected, session }),
-      );
+      return withStorageEnabled(async () => {
+        const [options, selected] = await Promise.all([
+          imageItemOptions(),
+          selectedUses(image.id),
+        ]);
+        return htmlResponse(
+          adminImageEditPage({ image, options, selected, session }),
+        );
+      });
     }),
   );
 
@@ -124,20 +135,22 @@ const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
     })
     .filter((target): target is ImageUseTarget => target !== null);
 
-const withImageForm = (
+const withStorageImageForm = (
   request: Request,
   id: number,
-  action: (image: Image, form: FormParams) => Promise<Response>,
+  action: (image: Image, form: FormParams) => Response | Promise<Response>,
 ): Promise<Response> =>
   withAuth(request, CONTENT_FORM, (_session, form) =>
-    withEntityFromParam(id, getImageById, (image) => action(image, form)),
+    withEntityFromParam(id, getImageById, (image) =>
+      withStorageEnabled(() => action(image, form)),
+    ),
   );
 
 const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> = (
   request,
   { id },
 ) =>
-  withImageForm(request, id, async (image, form) => {
+  withStorageImageForm(request, id, async (image, form) => {
     const metadata = imageMetadataFromForm(form);
     if (!metadata.ok) {
       return redirect(imagePath(image.id), metadata.error, false);
@@ -154,7 +167,9 @@ const handleImageDeleteGet: TypedRouteHandler<
   requireContentOr(request, (session) =>
     withEntityFromParam(id, getImageById, (image) => {
       applyFlash(request);
-      return htmlResponse(adminImageDeletePage(image, session));
+      return withStorageEnabled(() =>
+        htmlResponse(adminImageDeletePage(image, session)),
+      );
     }),
   );
 
@@ -166,15 +181,13 @@ const confirmDelete = (form: FormParams, image: Image): string | null =>
 const handleImageDeletePost: TypedRouteHandler<
   "POST /admin/images/:id/delete"
 > = (request, { id }) =>
-  withImageForm(request, id, async (image, form) => {
+  withStorageImageForm(request, id, async (image, form) => {
     const mismatch = confirmDelete(form, image);
     if (mismatch) {
       return redirect(`/admin/images/${image.id}/delete`, mismatch, false);
     }
-    if (isStorageEnabled()) {
-      await deleteImageStorageFiles(image, "image deletion");
-    }
     await deleteImageRecord(image.id);
+    await deleteImageStorageFiles(image, "image deletion");
     await logActivity(`Image '${image.name}' deleted`);
     return redirect("/admin/images", t("images.deleted"), true);
   });
