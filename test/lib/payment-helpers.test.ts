@@ -114,42 +114,19 @@ describe("payment-helpers", () => {
       ).toEqual(allocations);
     });
 
-    test("buildMetadata writes no package_group_id — the id rides per line", () => {
-      // New sessions carry the package id per signed line (`k:"p"`/`r:<id>`),
-      // never as an order-level package_group_id metadata key.
+    test("buildMetadata carries the package id per signed line only", () => {
+      // The package id rides each member line (`k:"p"`/`r:<id>`); there is no
+      // order-level package key in the metadata at all.
       const metadata = buildMetadata({
         date: null,
         email: "a@example.com",
         items: [{ e: 2, k: "p", p: 1500, q: 1, r: 7 }],
         name: "Alice",
       });
-      expect(metadata.package_group_id).toBeUndefined();
+      expect("package_group_id" in metadata).toBe(false);
       expect(JSON.parse(metadata.items!)).toEqual([
         { e: 2, k: "p", p: 1500, q: 1, r: 7 },
       ]);
-      // LEGACY sessions (created before per-line tags) still pack and parse the
-      // order-level key on read.
-      const packed = packMetadata({ ...metadata, package_group_id: "7" });
-      expect(packed.package_group_id).toBeUndefined();
-      expect(JSON.parse(packed.b!).package_group_id).toBe("7");
-      expect(
-        extractSessionMetadata(packed as unknown as SessionMetadata)
-          .package_group_id,
-      ).toBe("7");
-    });
-
-    test("buildMetadata omits package_group_id for a non-package booking", () => {
-      const metadata = buildMetadata({
-        date: null,
-        email: "a@example.com",
-        items: [{ e: 2, p: 1000, q: 1 }],
-        name: "Alice",
-      });
-      expect(metadata.package_group_id).toBeUndefined();
-      expect(
-        extractSessionMetadata(metadata as unknown as SessionMetadata)
-          .package_group_id,
-      ).toBe("");
     });
   });
 

@@ -752,9 +752,10 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
               id: "cs_pkg_cancel",
               metadata: {
                 email: "john@example.com",
-                items: singleItem(member.id, 1, 1000),
+                items: JSON.stringify([
+                  { e: member.id, k: "p", p: 1000, q: 1, r: group.id },
+                ]),
                 name: "John",
-                package_group_id: String(group.id),
               },
               payment_status: "unpaid",
             } as unknown as Awaited<
@@ -808,9 +809,10 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
               id: "cs_pkg_cancel_dead",
               metadata: {
                 email: "john@example.com",
-                items: singleItem(member.id, 1, 1000),
+                items: JSON.stringify([
+                  { e: member.id, k: "p", p: 1000, q: 1, r: group.id },
+                ]),
                 name: "John",
-                package_group_id: String(group.id),
               },
               payment_status: "unpaid",
             } as unknown as Awaited<
@@ -846,9 +848,10 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
               id: "cs_pkg_cancel_gone",
               metadata: {
                 email: "john@example.com",
-                items: singleItem(member.id, 1, 1000),
+                items: JSON.stringify([
+                  { e: member.id, k: "p", p: 1000, q: 1, r: 99999 },
+                ]),
                 name: "John",
-                package_group_id: "99999",
               },
               payment_status: "unpaid",
             } as unknown as Awaited<

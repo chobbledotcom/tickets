@@ -69,7 +69,6 @@ import {
   packageMemberPriceRule,
 } from "#shared/booking/price-tree.ts";
 import {
-  applyLegacyPackageTag,
   edgeDrifted,
   lineGroupId,
   lineGroupIds,
@@ -591,13 +590,7 @@ export const extractIntent = (
     date: metadata.date || null,
     dayCount,
     email: metadata.email,
-    // Normalise a pre-cutover session's one order-wide package id onto the
-    // per-line edge tags, so every reader below sees one shape.
-    items: applyLegacyPackageTag(
-      items,
-      allocations ?? [],
-      metadata.package_group_id ? Number(metadata.package_group_id) : undefined,
-    ),
+    items,
     listingAnswerIds,
     listingTextAnswerIds,
     modifiers: parseModifierRefs(metadata.modifiers),

@@ -214,11 +214,6 @@ export type SessionMetadata = {
    * round-trip so the webhook can expand child bookings into per-parent rows.
    * "" when no children were folded. */
   allocations: string;
-  /** LEGACY read-only field: sessions created before packages became per-line
-   * carried one order-wide package group id here ("" otherwise). New sessions
-   * tag each member line instead (`k`/`r` on the signed items); this stays so
-   * an in-flight pre-cutover session still completes as a package order. */
-  package_group_id: string;
   /** The agreed order total (minor units) the buyer was charged, packed with a
    * server HMAC over the price/booking fields as `total.sig` in a single key —
    * one entry rather than two, to stay within providers' metadata-entry caps

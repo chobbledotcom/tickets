@@ -52,25 +52,6 @@ export const lineGroupIds = (items: readonly BookingItem[]): Set<number> => {
   return groupIds;
 };
 
-/** Normalise a pre-cutover session's lines to the per-line edge-tag shape:
- * sessions from before per-line tags carried ONE order-wide id in the legacy
- * `package_group_id` metadata field, meaning every non-folded line was that
- * package's member — tag them so every downstream reader sees one shape. A
- * session with any tagged line (or no legacy id) is returned unchanged. */
-export const applyLegacyPackageTag = (
-  items: BookingItem[],
-  allocations: readonly ChildAllocation[],
-  legacyGroupId: number | undefined,
-): BookingItem[] => {
-  if (legacyGroupId === undefined || lineGroupIds(items).size > 0) {
-    return items;
-  }
-  const foldedChildIds = new Set(allocations.map((a) => a.childId));
-  return items.map((item) =>
-    foldedChildIds.has(item.e) ? item : { ...item, k: "p", r: legacyGroupId },
-  );
-};
-
 /** Reconstruct a top-level line's canonical `nodeKey` from its compact edge tag.
  * A package/group member needs its group id (`r`); a line missing that ref (or
  * untagged) is a standalone `listing:<id>`. */
