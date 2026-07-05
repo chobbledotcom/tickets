@@ -79,16 +79,23 @@ const renderReadOnlyBanner = (
 /** A section's index link paired with its "Add X" sibling — the repeated
  * two-item shape every top-level section with its own create page uses
  * (Listings, Groups, Attendees, Modifiers, Servicing, Users), so the pair is
- * built once instead of hand-typed at every call site. */
+ * built once instead of hand-typed at every call site. The "Add X" sibling
+ * drops out in read-only mode, matching every other create affordance's own
+ * page (the dashboard's Add Listing button, the Modifiers page's Add
+ * Modifier button, …) — a nav link must not offer a create flow the site
+ * itself won't allow right now. */
 const sectionWithAdd = (
   href: string,
   label: string,
   addHref: string,
   addLabel: string,
-): NavItem[] => [
-  { href, label },
-  { href: addHref, label: addLabel },
-];
+): NavItem[] =>
+  isReadOnly()
+    ? [{ href, label }]
+    : [
+        { href, label },
+        { href: addHref, label: addLabel },
+      ];
 
 const listingsNavItems = (): NavItem[] =>
   sectionWithAdd(
