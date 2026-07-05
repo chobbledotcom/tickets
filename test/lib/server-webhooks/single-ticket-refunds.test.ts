@@ -8,7 +8,7 @@ import {
   createTestListing,
   describeWithEnv,
   expectHtmlResponse,
-  expectSessionFailed,
+  expectKeptAsQuantityZeroAndRefunded,
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
   mockRequest,
@@ -58,16 +58,13 @@ describeWithEnv(
 
       // Signed by us, so the booking is kept as a quantity-0 placeholder (not
       // dropped) and refunded once, with a system note recording the reason.
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-      expect(attendees[0]!.quantity).toBe(0);
-      const { getNoteRows } = await import("#shared/db/system-notes.ts");
-      expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
-      await expectSessionFailed("cs_mismatch");
+      await expectKeptAsQuantityZeroAndRefunded(
+        listing.id,
+        "cs_mismatch",
+        mockRefund,
+      );
 
       // Verify refund was attempted exactly once
-      expect(mockRefund.calls.length).toBe(1);
       expect(mockRefund.calls[0]!.args).toEqual(["pi_mismatch"]);
     });
 
@@ -118,16 +115,13 @@ describeWithEnv(
 
         // Signed by us, so the booking is kept as a quantity-0 placeholder (not
         // dropped) and refunded once, with a system note recording the reason.
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees.length).toBe(1);
-        expect(attendees[0]!.quantity).toBe(0);
-        const { getNoteRows } = await import("#shared/db/system-notes.ts");
-        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
-        await expectSessionFailed("cs_redirect_mismatch");
+        await expectKeptAsQuantityZeroAndRefunded(
+          listing.id,
+          "cs_redirect_mismatch",
+          mockRefund,
+        );
 
         // Verify refund was attempted exactly once
-        expect(mockRefund.calls.length).toBe(1);
         expect(mockRefund.calls[0]!.args).toEqual(["pi_redirect_mismatch"]);
       } finally {
         mockRetrieve.restore();
