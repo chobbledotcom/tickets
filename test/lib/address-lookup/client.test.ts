@@ -233,40 +233,33 @@ describe("address lookup client", () => {
     expect(resultsLabel.hidden).toBe(true);
   });
 
+  /** Run a search with the current fetch stub and assert the shown status. */
+  const searchExpectingStatus = async (expected: string): Promise<void> => {
+    const { findButton, searchInput, status } = setup("editable");
+    searchInput.value = "SW1A 2AA";
+
+    findButton.dispatch("click");
+    await flush();
+
+    expect(status.textContent).toBe(expected);
+    expect(status.hidden).toBe(false);
+  };
+
   test("a server error shows the server's message", async () => {
     stubFetch(() =>
       Promise.resolve(jsonResponse({ error: "Not a valid postcode" }, 400)),
     );
-    const { findButton, searchInput, status } = setup("editable");
-    searchInput.value = "nope";
-
-    findButton.dispatch("click");
-    await flush();
-
-    expect(status.textContent).toBe("Not a valid postcode");
-    expect(status.hidden).toBe(false);
+    await searchExpectingStatus("Not a valid postcode");
   });
 
   test("a 200 with no address list falls back to the panel's error copy", async () => {
     stubFetch(() => Promise.resolve(jsonResponse({})));
-    const { findButton, searchInput, status } = setup("editable");
-    searchInput.value = "SW1A 2AA";
-
-    findButton.dispatch("click");
-    await flush();
-
-    expect(status.textContent).toBe("Lookup failed");
+    await searchExpectingStatus("Lookup failed");
   });
 
   test("a network failure falls back to the panel's error copy", async () => {
     stubFetch(() => Promise.reject(new Error("offline")));
-    const { findButton, searchInput, status } = setup("editable");
-    searchInput.value = "SW1A 2AA";
-
-    findButton.dispatch("click");
-    await flush();
-
-    expect(status.textContent).toBe("Lookup failed");
+    await searchExpectingStatus("Lookup failed");
   });
 
   test("choosing an address copies it into the textarea", () => {
