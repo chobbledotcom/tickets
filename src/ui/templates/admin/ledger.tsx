@@ -37,7 +37,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { ConfirmForm, CsrfForm } from "#shared/forms.tsx";
-import type { SafeHtml } from "#shared/jsx/jsx-runtime.ts";
+import type { Child, SafeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { sameAccount } from "#shared/ledger/account.ts";
 import type { StatementLine } from "#shared/ledger/project.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";

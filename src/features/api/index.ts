@@ -54,6 +54,7 @@ import { packageBundleTotal } from "#shared/booking/price-tree.ts";
 import {
   type BookingTree,
   fixedQuantitiesByListingId,
+  scaleFixedQuantities,
 } from "#shared/booking/tree.ts";
 import { processBooking } from "#shared/booking.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
