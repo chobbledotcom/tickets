@@ -50,6 +50,22 @@ export const expectTestAttendeeCsvColumns = (
   expect(row).toContain(`,${quantity},`);
 };
 
+/** Asserts a response is a 200 CSV download with the standard
+ *  Content-Disposition: attachment header, whose filename contains
+ *  `filenameFragment` — the shared header contract behind every CSV export
+ *  route (listing exports, calendar exports, etc). */
+export const expectCsvDownloadHeaders = (
+  response: Response,
+  filenameFragment: string,
+): void => {
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toBe("text/csv; charset=utf-8");
+  expect(response.headers.get("content-disposition")).toContain("attachment");
+  expect(response.headers.get("content-disposition")).toContain(
+    filenameFragment,
+  );
+};
+
 export const expectJsonResponse =
   // deno-lint-ignore no-explicit-any
     <T = any>(status: number, assertions?: (body: T) => void) =>

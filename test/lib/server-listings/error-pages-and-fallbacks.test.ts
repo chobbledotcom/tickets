@@ -23,6 +23,26 @@ describeWithEnv(
   "server listings > error pages and fallbacks",
   { db: true },
   () => {
+    /** Posts an edit with an empty name to a fresh listing and expects the
+     *  validation error page — the shared behavior both the "edit validation
+     *  error" and "listing error page" coverage below assert. */
+    const expectEmptyNameEditError = async (name: string): Promise<void> => {
+      const { listing } = await setupListingAndLogin({
+        maxAttendees: 50,
+        name,
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/edit`,
+        {
+          max_attendees: "50",
+          max_quantity: "1",
+          name: "",
+        },
+      );
+      await expectHtmlResponse(response, 400, "Listing Name is required");
+    };
+
     describe("admin/listings.ts (listingErrorPage with deleted listing)", () => {
       test("edit validation returns 400 with error when listing exists", async () => {
         await setupListingAndLogin({
@@ -107,38 +127,12 @@ describeWithEnv(
       });
 
       test("shows edit page with error when name is empty", async () => {
-        const { listing: listing1 } = await setupListingAndLogin({
-          maxAttendees: 50,
-          name: "Edit Orig",
-        });
-
-        const { response } = await adminFormPost(
-          `/admin/listing/${listing1.id}/edit`,
-          {
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "",
-          },
-        );
-        await expectHtmlResponse(response, 400, "Listing Name is required");
+        await expectEmptyNameEditError("Edit Orig");
       });
     });
     describe("routes/admin/listings.ts (listing error page)", () => {
       test("shows edit error page for existing listing with validation error", async () => {
-        const { listing: listing1 } = await setupListingAndLogin({
-          maxAttendees: 50,
-          name: "Listing Err 1",
-        });
-
-        const { response } = await adminFormPost(
-          `/admin/listing/${listing1.id}/edit`,
-          {
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "",
-          },
-        );
-        await expectHtmlResponse(response, 400, "Listing Name is required");
+        await expectEmptyNameEditError("Listing Err 1");
       });
 
       test("unlinks the listing's attendees when deleted with verification skipped", async () => {

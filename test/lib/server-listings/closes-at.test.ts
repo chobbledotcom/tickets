@@ -91,33 +91,37 @@ describeWithEnv("server listings > closes_at field", { db: true }, () => {
       await assertAdminHtml(`/admin/listing/${listing.id}`, "(closed)");
     });
 
-    test("admin listing detail page shows days-only countdown", async () => {
-      const future = new Date(
-        Date.now() + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 1000,
-      );
+    /** Creates a listing that closes `offsetMs` from now and expects its
+     *  admin detail page's countdown to contain `expectedText` — shared by
+     *  the days/hours/minutes-only countdown checks below. */
+    const expectCountdownText = async (
+      offsetMs: number,
+      expectedText: string,
+    ): Promise<void> => {
+      const future = new Date(Date.now() + offsetMs);
       const closesAt = future.toISOString().slice(0, 16);
       const listing = await createTestListing({ closesAt });
 
       const response = await adminGet(`/admin/listing/${listing.id}`);
-      await expectHtmlResponse(response, 200, "days from now");
+      await expectHtmlResponse(response, 200, expectedText);
+    };
+
+    test("admin listing detail page shows days-only countdown", async () => {
+      await expectCountdownText(
+        3 * 24 * 60 * 60 * 1000 + 5 * 60 * 1000,
+        "days from now",
+      );
     });
 
     test("admin listing detail page shows hours-only countdown", async () => {
-      const future = new Date(Date.now() + 5 * 60 * 60 * 1000 + 10 * 60 * 1000);
-      const closesAt = future.toISOString().slice(0, 16);
-      const listing = await createTestListing({ closesAt });
-
-      const response = await adminGet(`/admin/listing/${listing.id}`);
-      await expectHtmlResponse(response, 200, "hours from now");
+      await expectCountdownText(
+        5 * 60 * 60 * 1000 + 10 * 60 * 1000,
+        "hours from now",
+      );
     });
 
     test("admin listing detail page shows minutes-only countdown", async () => {
-      const future = new Date(Date.now() + 30 * 60 * 1000);
-      const closesAt = future.toISOString().slice(0, 16);
-      const listing = await createTestListing({ closesAt });
-
-      const response = await adminGet(`/admin/listing/${listing.id}`);
-      await expectHtmlResponse(response, 200, "minute");
+      await expectCountdownText(30 * 60 * 1000, "minute");
     });
 
     test("formatCountdown shows days and hours", () => {

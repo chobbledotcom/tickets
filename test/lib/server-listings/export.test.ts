@@ -14,6 +14,7 @@ import {
   createTestAttendee,
   createTestListing,
   describeWithEnv,
+  expectCsvDownloadHeaders,
   setupListingAndLogin,
   testRequiresAuth,
 } from "#test-utils";
@@ -45,14 +46,7 @@ describeWithEnv("server listings > export", { db: true }, () => {
       const response = await awaitTestRequest("/admin/listing/1/export", {
         cookie: cookie,
       });
-      expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toBe(
-        "text/csv; charset=utf-8",
-      );
-      expect(response.headers.get("content-disposition")).toContain(
-        "attachment",
-      );
-      expect(response.headers.get("content-disposition")).toContain(".csv");
+      expectCsvDownloadHeaders(response, ".csv");
     });
 
     test("returns CSV with attendee data", async () => {

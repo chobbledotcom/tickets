@@ -87,7 +87,8 @@ describeWithEnv("server listings > check-in filter", { db: true }, () => {
     });
 
     test("shows only checked-out attendees", async () => {
-      const { listing, cookie } = await setupListingWithCheckedInAndOutAttendees();
+      const { listing, cookie } =
+        await setupListingWithCheckedInAndOutAttendees();
 
       const response = await awaitTestRequest(
         `/admin/listing/${listing.id}/attendees?filter=out`,

@@ -29,6 +29,33 @@ describeWithEnv(
   { db: true },
   () => {
     describe("GET /admin/listing/:id", () => {
+      /** Books an attendee onto `listing` and gives them a single "Size:
+       *  Small" answer — the shared fixture behind the roster and Overview
+       *  answer-rendering checks below. */
+      const createAttendeeWithSizeAnswer = async (listing: {
+        id: number;
+        slug: string;
+      }) => {
+        const attendee = await createTestAttendee(
+          listing.id,
+          listing.slug,
+          "Ada Lovelace",
+          "ada@example.com",
+        );
+        const q = await questionsTable.insert({
+          displayType: "radio",
+          text: "Size",
+        });
+        const small = await answersTable.insert({
+          questionId: q.id,
+          sortOrder: 0,
+          text: "Small",
+        });
+        await setListingQuestions(listing.id, [q.id]);
+        await saveAttendeeAnswers(new Map([[attendee.id, [small.id]]]));
+        return attendee;
+      };
+
       test("shows Group Attendees row when listing is in a capped group", async () => {
         const { listing, cookie } = await setupListingAndLogin({
           maxAttendees: 100,
@@ -141,23 +168,7 @@ describeWithEnv(
         });
         // Create the attendee before assigning the question so the public form
         // doesn't require an answer, then record the answer directly.
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "Ada Lovelace",
-          "ada@example.com",
-        );
-        const q = await questionsTable.insert({
-          displayType: "radio",
-          text: "Size",
-        });
-        const small = await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 0,
-          text: "Small",
-        });
-        await setListingQuestions(listing.id, [q.id]);
-        await saveAttendeeAnswers(new Map([[attendee.id, [small.id]]]));
+        await createAttendeeWithSizeAnswer(listing);
 
         // The question answers now surface per-attendee in the Attendees tab's
         // roster (an "Answers" column) rather than an aggregate detail row.
@@ -175,23 +186,7 @@ describeWithEnv(
           maxAttendees: 100,
           name: "Overview Answers Listing",
         });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "Ada Lovelace",
-          "ada@example.com",
-        );
-        const q = await questionsTable.insert({
-          displayType: "radio",
-          text: "Size",
-        });
-        const small = await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 0,
-          text: "Small",
-        });
-        await setListingQuestions(listing.id, [q.id]);
-        await saveAttendeeAnswers(new Map([[attendee.id, [small.id]]]));
+        await createAttendeeWithSizeAnswer(listing);
 
         // The Overview details table carries the aggregate answer-count row for
         // the whole listing (distinct from the roster's per-attendee answers).

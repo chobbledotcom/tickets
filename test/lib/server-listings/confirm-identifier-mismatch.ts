@@ -35,11 +35,7 @@ export const testConfirmIdentifierMismatch = (
       confirm_identifier: "wrong-identifier",
     });
     expect(response.status).toBe(302);
-    expectFlash(
-      response,
-      expect.stringContaining(expectedFlashMessage),
-      false,
-    );
+    expectFlash(response, expect.stringContaining(expectedFlashMessage), false);
   });
 
   test("displays error on confirmation page after failed attempt", async () => {
