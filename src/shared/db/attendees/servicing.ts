@@ -529,8 +529,12 @@ export const updateServicingEvent = async (
     desiredLines(input, existingBefore),
     input.allowOverbook ?? false,
   );
+  // Every failure shape carries listingIds ([] when no specific listing is to
+  // blame), so one throw covers both: capacity failures name their listings,
+  // anything else falls through to the formatter's generic/fallback message.
+  // (`no_lines` can't actually happen here — the edit input asserter already
+  // rejects empty bookings, and desiredLines maps them one-to-one.)
   if (!editResult.success) {
-    if (editResult.reason === "no_lines") throw new Error(INVALID_BOOKINGS);
     throw new Error(
       formatServicingCapacityError(
         editResult.reason,

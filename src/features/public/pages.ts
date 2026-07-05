@@ -92,6 +92,7 @@ const dailyUnavailableOn = async (
   daily: ListingWithCount[],
   date: string,
 ): Promise<ReadonlySet<number>> => {
+  if (daily.length === 0) return new Set();
   const holidays = await getActiveHolidays();
   const bySpan = Map.groupBy(daily, cardSpanDays);
   const remaining = new Map<number, number>();
@@ -138,8 +139,7 @@ const buildDailyDateFilter = async (
 /** Whether a package member has no live booking path on the searched date:
  * sold out or closed on its own date-less row, or (for a daily member)
  * outside its calendar / full for that date. Mirrors the listing card's own
- * unavailable check so a package reads sold out exactly when every one of its
- * cards would. */
+ * unavailable check. */
 const memberUnavailableOn = (
   info: { isSoldOut: boolean; isClosed: boolean; listing: ListingWithCount },
   dailyUnavailableIds: ReadonlySet<number>,
@@ -149,14 +149,17 @@ const memberUnavailableOn = (
   (info.listing.listing_type === "daily" &&
     dailyUnavailableIds.has(info.listing.id));
 
-/** Package groups where EVERY member is unavailable on the searched date: a
- * package is bought as one whole bundle, so if nothing in it can be booked on
- * the chosen date the bundle itself must read as sold out rather than
- * advertise a Book link that can only fail. Members are loaded fresh (not
- * reused from the page's own listing set) because a hidden package's members
- * never join that set, yet still decide whether their package is sold out. A
- * `null` requested date means no search is in play, so nothing is projected
- * sold out here. */
+/** Package groups where ANY member is unavailable on the searched date: a
+ * package is bought as one whole bundle (every member together — see
+ * {@link packageGroupBookable}, the date-less version of this same rule), so
+ * one member that can't be booked on the chosen date makes the whole bundle
+ * unbookable, and the package must read as sold out rather than advertise a
+ * Book link that can only fail. Members are loaded fresh (not reused from the
+ * page's own listing set) because a hidden package's members never join that
+ * set, yet still decide whether their package is sold out. A `null` requested
+ * date means no search is in play, so nothing is projected sold out here.
+ * (Approximation: a member needing quantity > 1 is judged on having any spot
+ * left, not that many — the booking page still enforces the real limit.) */
 const soldOutPackageIds = async (
   groups: readonly Group[],
   requestedDate: string | null,
@@ -165,19 +168,16 @@ const soldOutPackageIds = async (
   if (requestedDate === null || packages.length === 0) return new Set();
   const membersByGroup = await getVisibleGroupMembersByGroupIds(packages);
   const soldOutIds = await Promise.all(
-    packages.map(async (pkg): Promise<number | null> => {
-      const members = membersByGroup.get(pkg.id) ?? [];
+    [...membersByGroup].map(async ([groupId, members]) => {
       const daily = members.filter((m) => m.listing_type === "daily");
       const [ticketListings, dailyUnavailableIds] = await Promise.all([
         buildTicketListingsWithGroupCapacity(members),
-        daily.length > 0
-          ? dailyUnavailableOn(daily, requestedDate)
-          : Promise.resolve(new Set<number>()),
+        dailyUnavailableOn(daily, requestedDate),
       ]);
-      const allUnavailable = ticketListings.every((info) =>
+      const anyUnavailable = ticketListings.some((info) =>
         memberUnavailableOn(info, dailyUnavailableIds),
       );
-      return allUnavailable ? pkg.id : null;
+      return anyUnavailable ? groupId : null;
     }),
   );
   return new Set(compact(soldOutIds));
@@ -187,7 +187,7 @@ const soldOutPackageIds = async (
  * listing alongside the non-hidden groups. (Type filtering lives on the admin
  * listings dashboard, not the public page.) When daily listings are shown, a
  * `?date=` filter resolves their per-date availability (#51), and any package
- * whose every member is unavailable on that date reads as sold out too. */
+ * with any member unavailable on that date reads as sold out too. */
 export const handlePublicListings = (
   request: Request,
 ): Response | Promise<Response> =>

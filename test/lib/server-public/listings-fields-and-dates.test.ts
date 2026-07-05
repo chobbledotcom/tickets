@@ -150,7 +150,7 @@ describeWithEnv(
         );
       });
 
-      test("shows a package as sold out when every member is unavailable on the searched date", async () => {
+      test("shows a package as sold out when its member is unavailable on the searched date", async () => {
         await settings.update.showPublicSite(true);
         const date = addDays(todayInTz("UTC"), 2);
         const pkg = await createTestGroup({
@@ -192,6 +192,58 @@ describeWithEnv(
           "Weekend Package",
         );
         expect(available).toContain(`href="/ticket/${pkg.slug}"`);
+      });
+
+      test("one full member is enough to mark a multi-member package sold out for the date", async () => {
+        // A package books as one whole bundle — every member together — so a
+        // single member with no room on the searched date makes the whole
+        // package unbookable that day, even while its other members are free.
+        await settings.update.showPublicSite(true);
+        const date = addDays(todayInTz("UTC"), 2);
+        const pkg = await createTestGroup({
+          isPackage: true,
+          name: "Bundle Package",
+          slug: "bundle-package",
+        });
+        await createTestListing({
+          groupId: pkg.id,
+          maxAttendees: 50,
+          name: "Roomy Member",
+        });
+        const fullMember = await createTestListing({
+          groupId: pkg.id,
+          listingType: "daily",
+          maxAttendees: 1,
+          minimumDaysBefore: 0,
+          name: "Tight Member",
+        });
+        await bookAttendee(fullMember, { date, quantity: 1 });
+        // A package of only date-less members answers the same search without
+        // any per-date lookup — and stays bookable.
+        const openPkg = await createTestGroup({
+          isPackage: true,
+          name: "Open Package",
+          slug: "open-package",
+        });
+        await createTestListing({
+          groupId: openPkg.id,
+          maxAttendees: 50,
+          name: "Open Member",
+        });
+
+        const filtered = await assertPublicHtml(
+          `/listings?date=${date}`,
+          "Bundle Package",
+          "Open Package",
+        );
+        expect(filtered).not.toContain(`href="/ticket/${pkg.slug}"`);
+        expect(filtered).toContain(`href="/ticket/${openPkg.slug}"`);
+        expect(filtered.indexOf("Open Package")).toBeLessThan(
+          filtered.indexOf("Unavailable"),
+        );
+        expect(filtered.indexOf("Unavailable")).toBeLessThan(
+          filtered.indexOf("Bundle Package"),
+        );
       });
 
       test("shows no date filter when no daily listings are listed", async () => {

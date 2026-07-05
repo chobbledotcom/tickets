@@ -98,16 +98,19 @@ const lineBooking = (line: AtomicDesiredLine) => ({
   quantity: line.quantity,
 });
 
-/** Result of an atomic attendee update. `listingIds` names the SPECIFIC
- *  listings that failed the capacity preflight, so a caller can tell the
- *  operator what was actually sold out instead of a bare reason string
- *  (empty when the rejection is a duplicate booking slot rather than a
- *  capacity shortfall — see {@link applyAttendeeAtomicEdit}'s duplicate-slot
- *  guard). */
+/** Result of an atomic attendee update. Every failure carries `listingIds` —
+ *  the SPECIFIC listings that failed the capacity preflight — so a caller can
+ *  tell the operator what was actually sold out instead of a bare reason
+ *  string. Empty when no particular listing is to blame: a duplicate booking
+ *  slot (see {@link applyAttendeeAtomicEdit}'s duplicate-slot guard) or a
+ *  `no_lines` rejection. */
 export type UpdateAttendeeAtomicResult =
   | { success: true }
-  | { success: false; reason: "capacity_exceeded"; listingIds: number[] }
-  | { success: false; reason: "no_lines" };
+  | {
+      success: false;
+      reason: "capacity_exceeded" | "no_lines";
+      listingIds: number[];
+    };
 
 /** A pre-fetched existing booking row plus its line key. */
 export type ExistingLine = {
@@ -165,10 +168,11 @@ const preflightCapacityFailure = async (
   desired: AtomicDesiredLine[],
   existingByKey: Map<string, ListingAttendeeRow>,
   allowOverbook: boolean,
-): Promise<Extract<
-  UpdateAttendeeAtomicResult,
-  { reason: "capacity_exceeded" }
-> | null> => {
+): Promise<{
+  success: false;
+  reason: "capacity_exceeded";
+  listingIds: number[];
+} | null> => {
   if (allowOverbook) return null;
   const changed = changedLinesForPreflight(desired, existingByKey);
   if (changed.length === 0) return null;
@@ -255,7 +259,7 @@ export const applyAttendeeAtomicEdit = async (
   allowOverbook = false,
 ): Promise<UpdateAttendeeAtomicResult> => {
   if (desired.length === 0) {
-    return { reason: "no_lines", success: false };
+    return { listingIds: [], reason: "no_lines", success: false };
   }
 
   // Reject duplicate (listingId, date, parentListingId) pairs up front — two
