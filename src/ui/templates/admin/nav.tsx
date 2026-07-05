@@ -36,6 +36,13 @@ interface NavItem {
   label: string;
 }
 
+const navItem = (href: string, label: string): NavItem => ({ href, label });
+const listingsItem = (): NavItem =>
+  navItem("/admin/listings", t("terms.listings"));
+const groupsItem = (): NavItem => navItem("/admin/groups", t("terms.groups"));
+const imagesItem = (): NavItem => navItem("/admin/images", t("terms.images"));
+const siteItem = (): NavItem => navItem("/admin/site", t("nav.site"));
+
 /** The resolved menu for the active section: which top-level link to highlight,
  * an accessible name for its sub-nav, and its items. */
 interface Section {
@@ -59,7 +66,9 @@ const renderReadOnlyBanner = (
       : "";
     return (
       <Raw
-        html={`<div class="read-only-banner">${t("nav.readonly.banner")}${link}</div>`}
+        html={`<div class="read-only-banner">${t(
+          "nav.readonly.banner",
+        )}${link}</div>`}
       />
     );
   }
@@ -81,9 +90,10 @@ const renderReadOnlyBanner = (
  * (no dead/forbidden links). The Site editor is surfaced top-level here because
  * the owner-only Settings parent it normally nests under is hidden from them. */
 const editorTopLevelItems = (): NavItem[] => [
-  { href: "/admin/listings", label: t("terms.listings") },
-  { href: "/admin/groups", label: t("terms.groups") },
-  { href: "/admin/site", label: t("nav.site") },
+  listingsItem(),
+  groupsItem(),
+  imagesItem(),
+  siteItem(),
 ];
 
 /** Top-level admin links, in order. Users and Settings are owner-only. `active`
@@ -96,14 +106,15 @@ const topLevelItems = (session: AdminSession, active: string): NavItem[] =>
     ? editorTopLevelItems()
     : compact([
         { href: "/admin/", label: t("nav.public.home") },
-        { href: "/admin/listings", label: t("terms.listings") },
+        listingsItem(),
         { href: "/admin/calendar", label: t("nav.calendar") },
         { href: "/admin/servicing", label: t("nav.servicing") },
         { href: "/admin/attendees", label: t("terms.attendees") },
         session.adminLevel === "owner"
           ? { href: "/admin/users", label: t("terms.users") }
           : null,
-        { href: "/admin/groups", label: t("terms.groups") },
+        groupsItem(),
+        imagesItem(),
         { href: "/admin/modifiers", label: t("terms.modifiers") },
         session.adminLevel === "owner"
           ? { href: "/admin/ledger", label: t("nav.ledger") }
@@ -114,7 +125,7 @@ const topLevelItems = (session: AdminSession, active: string): NavItem[] =>
         // have it top-level; managers/agents never edit the site.)
         session.adminLevel === "owner" &&
         (settings.showPublicSite || active === "/admin/site")
-          ? { href: "/admin/site", label: t("nav.site") }
+          ? siteItem()
           : null,
         session.adminLevel === "owner"
           ? { href: "/admin/settings", label: t("nav.settings") }

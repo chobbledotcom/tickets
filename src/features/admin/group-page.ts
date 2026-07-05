@@ -30,6 +30,7 @@ import {
   loadGroupAttendeesPanel,
   loadGroupEditPanel,
   loadGroupForPage,
+  loadGroupImagesPanel,
   loadGroupOverviewPanel,
 } from "./group-page-data.ts";
 
@@ -112,6 +113,7 @@ export const groupPage: EntityPage<Group> = defineEntityPage({
       staffOnly,
     ),
     panelTab("edit", "entity.tab.edit", loadGroupEditPanel, editVisible),
+    panelTab("images", "entity.tab.images", loadGroupImagesPanel, editVisible),
     actionsTab(),
   ],
   titleOf: (group) => group.name,

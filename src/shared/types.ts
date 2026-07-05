@@ -361,7 +361,11 @@ export interface Listing {
   fields: ListingFields;
   hidden: boolean;
   id: number;
+  /** Projected from the first `image_uses` row for this listing. Kept on the
+   * listing shape so existing public renderers can read the primary image while
+   * storage ownership lives in the first-class images tables. */
   image_url: string;
+  /** Projected thumbnail filename for {@link image_url}. */
   image_thumb_url: string;
   location: string; // encrypted or empty string
   max_attendees: number;
@@ -394,6 +398,14 @@ export interface Listing {
    * ⇒ being a child strips standalone existence, the historic behaviour. The
    * hidden-package-member arm of the gate still outranks this flag. */
   bookable_alone: boolean;
+}
+
+export interface Image {
+  alt_text: string;
+  filename: string;
+  filename_thumb: string;
+  id: number;
+  name: string;
 }
 
 /** A logistics agent (typically a van) used for drop-off and collection. */
@@ -600,6 +612,21 @@ export interface GroupListing {
   listing_id: number;
   package_price: number | null;
   quantity: number;
+}
+
+/** Schema for the kind of item an image can be attached to. */
+export const ImageUseItemTypeSchema = v.picklist(["listing", "group"]);
+
+export type ImageUseItemType = v.InferOutput<typeof ImageUseItemTypeSchema>;
+
+export const isImageUseItemType = (s: string): s is ImageUseItemType =>
+  v.is(ImageUseItemTypeSchema, s);
+
+export interface ImageUse {
+  image_id: number;
+  item_type: ImageUseItemType;
+  item_id: number;
+  sort_order: number;
 }
 
 /** Schema for the kind of thing a {@link SitePageItem} points at. */

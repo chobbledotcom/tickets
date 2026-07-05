@@ -28,6 +28,7 @@ import {
   setGroupPackageMembers,
   validateGroupListingType,
 } from "#shared/db/groups.ts";
+import { clearImageUsesForItemStatement } from "#shared/db/images.ts";
 import { edgeIdsTouchingMany } from "#shared/db/listing-parents.ts";
 import { getListing } from "#shared/db/listings.ts";
 import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
@@ -56,6 +57,7 @@ import {
 } from "#templates/fields.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
 import { groupPage } from "./group-page.ts";
+import { createItemImageHandlers } from "./item-images.ts";
 
 /** Generate a unique group slug, retrying on collision */
 export const generateUniqueGroupSlug = () =>
@@ -291,6 +293,7 @@ export const deleteGroup = async (
   // edges from a group that survives.
   await executeBatch([
     clearItemEdgesStatement("group", groupId),
+    clearImageUsesForItemStatement("group", groupId),
     { args: [groupId], sql: "DELETE FROM groups WHERE id = ?" },
   ]);
 };
@@ -438,6 +441,13 @@ const handleAddListingsToGroup = groupFormPost(async (group, form) => {
   );
 });
 
+const groupImageHandlers = createItemImageHandlers({
+  itemType: "group",
+  load: groupsTable.findById,
+  nameOf: (group) => group.name,
+  path: (id) => `/admin/groups/${id}/images`,
+});
+
 /** Group routes */
 export const groupsRoutes = {
   // List/new/create/edit are content-gated (editors included)…
@@ -460,5 +470,7 @@ export const groupsRoutes = {
     "GET /admin/groups/:id/:tab": (request, { id, tab }) =>
       groupPage.renderTab(request, id, tab),
     "POST /admin/groups/:id/add-listings": handleAddListingsToGroup,
+    "POST /admin/groups/:id/images": groupImageHandlers.set,
+    "POST /admin/groups/:id/images/upload": groupImageHandlers.upload,
   }),
 };

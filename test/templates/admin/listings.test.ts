@@ -1903,87 +1903,46 @@ describeWithEnv(
       });
     });
 
-    describe("adminListingEditPage image section", () => {
-      test("shows image upload field when storage enabled", () => {
-        const listing = testListingWithCount({ image_url: "" });
-        const html = String(
-          ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
-        );
-        expect(html).toContain('type="file"');
-        expect(html).toContain('name="image"');
-        expect(html).toContain("multipart/form-data");
-      });
-
-      test("shows current image and remove button when image is set", () => {
+    describe("listing form image ownership", () => {
+      test("does not show image controls on the edit form", () => {
         runWithStorageConfig(TEST_STORAGE_ZONE, () => {
           const listing = testListingWithCount({ image_url: "current.jpg" });
           const html = String(
             ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
           );
-          expect(html).toContain("/image/current.jpg");
-          expect(html).toContain("Remove Image");
-          expect(html).toContain("/image/delete");
-        });
-      });
-
-      test("does not show image field when storage is not enabled", () => {
-        withStorageDisabled(() => {
-          const listing = testListingWithCount({ image_url: "" });
-          const html = String(
-            ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
-          );
-          expect(html).not.toContain('type="file"');
           expect(html).not.toContain('name="image"');
+          expect(html).not.toContain("Remove Image");
+          expect(html).not.toContain("/image/delete");
+          expect(html).not.toContain("listing-image-full");
         });
       });
 
-      test("shows full-width image preview when listing has image", () => {
+      test("does not show image controls on duplicate or create forms", () => {
         runWithStorageConfig(TEST_STORAGE_ZONE, () => {
-          const listing = testListingWithCount({ image_url: "preview.jpg" });
-          const html = String(
-            ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+          const listing = testListingWithCount({ image_url: "current.jpg" });
+          expect(
+            adminDuplicateListingPage(listing, [], TEST_SESSION),
+          ).not.toContain('name="image"');
+          expect(adminListingNewPage([], TEST_SESSION)).not.toContain(
+            'name="image"',
           );
-          expect(html).toContain("listing-image-full");
-          expect(html).toContain("/image/preview.jpg");
-        });
-      });
-    });
-
-    describe("adminDuplicateListingPage image section", () => {
-      test("shows image upload field when storage enabled", () => {
-        runWithStorageConfig(TEST_STORAGE_ZONE, () => {
-          const listing = testListingWithCount({ image_url: "" });
-          const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
-          expect(html).toContain('type="file"');
-          expect(html).toContain('name="image"');
-          expect(html).toContain("multipart/form-data");
         });
       });
 
-      test("does not show image field when storage is not enabled", () => {
+      test("keeps image controls absent when storage is disabled", () => {
         withStorageDisabled(() => {
-          const listing = testListingWithCount({ image_url: "" });
-          const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
-          expect(html).not.toContain('type="file"');
-          expect(html).not.toContain('name="image"');
-        });
-      });
-    });
-
-    describe("adminListingNewPage image section", () => {
-      test("shows image upload field on create form when storage enabled", () => {
-        runWithStorageConfig(TEST_STORAGE_ZONE, () => {
-          const html = adminListingNewPage([], TEST_SESSION);
-          expect(html).toContain('type="file"');
-          expect(html).toContain('name="image"');
-          expect(html).toContain("multipart/form-data");
-        });
-      });
-
-      test("does not show image field on create form when storage is not enabled", () => {
-        withStorageDisabled(() => {
-          const html = adminListingNewPage([], TEST_SESSION);
-          expect(html).not.toContain('type="file"');
+          const listing = testListingWithCount({ image_url: "current.jpg" });
+          expect(
+            String(
+              ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+            ),
+          ).not.toContain('name="image"');
+          expect(
+            adminDuplicateListingPage(listing, [], TEST_SESSION),
+          ).not.toContain('name="image"');
+          expect(adminListingNewPage([], TEST_SESSION)).not.toContain(
+            'name="image"',
+          );
         });
       });
     });

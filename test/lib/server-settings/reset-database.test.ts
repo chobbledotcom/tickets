@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { imagesTable } from "#shared/db/images.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
@@ -56,7 +57,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       await listingsTable.update(listing.id, {
         attachmentName: "doc.pdf",
         attachmentUrl: "admin-reset-attachment.pdf",
-        imageUrl: "admin-reset-image.jpg",
+      });
+      await imagesTable.insert({
+        filename: "admin-reset-image.jpg",
+        filenameThumb: "",
+        name: "Admin reset image",
       });
 
       await withBunnyDeleteCapture(async (deletedUrls) => {

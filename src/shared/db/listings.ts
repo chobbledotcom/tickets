@@ -46,6 +46,10 @@ import {
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
 import {
+  clearImageUsesForItemStatement,
+  imageFilenameSubqueries,
+} from "#shared/db/images.ts";
+import {
   dayCountPriceStatements,
   getListingDayPrices,
   syncListingPrices,
@@ -104,8 +108,6 @@ export type ListingInput = {
   bookableDays?: string[] | undefined;
   minimumDaysBefore?: number;
   maximumDaysAfter?: number;
-  imageUrl?: string;
-  imageThumbUrl?: string;
   attachmentUrl?: string;
   attachmentName?: string;
   nonTransferable?: boolean;
@@ -219,8 +221,15 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   duration_days: { default: () => 1, write: normalizeDurationDays },
   fields: col.withDefault<ListingFields>(() => "email"),
   hidden: col.boolean(false),
-  image_thumb_url: col.encryptedText(encrypt, decrypt),
-  image_url: col.encryptedText(encrypt, decrypt),
+  // Projected from the first linked first-class image. Keep the legacy field
+  // names on Listing so public renderers and API clients do not need a parallel
+  // branch while storage moves to images/image_uses.
+  image_thumb_url: col.projected<string>((v) =>
+    typeof v === "string" && v ? decrypt(v) : "",
+  ),
+  image_url: col.projected<string>((v) =>
+    typeof v === "string" && v ? decrypt(v) : "",
+  ),
   initial_site_months: col.withDefault(() => 0),
   listing_type: col.withDefault<ListingType>(() => "standard"),
   location: col.encryptedText(encrypt, decrypt),
@@ -287,6 +296,9 @@ export const listingDayPricesSubquery = (idExpr: string): string =>
   `COALESCE((SELECT json_group_object(price_id, unit_price) FROM listing_prices
       WHERE listing_id = ${idExpr} AND price_type = 'day_count'), '{}') AS day_prices`;
 
+const listingImageSubqueries = (idExpr: string): string =>
+  imageFilenameSubqueries("listing", idExpr);
+
 /**
  * A transparent breakdown of a listing's `revenue:<id>` account, deriving BOTH
  * the reported figure and the live ledger balance from the same running totals so
@@ -345,7 +357,9 @@ export const listingRevenueBreakdown = async (
   const args: InValue[] = [...Array(8).fill(String(listingId)), ...r.args];
   const row = (await queryOne<RevenueBreakdownRow>(
     `SELECT ${revenueBreakdownColumns("?")}
-       FROM transfers WHERE (${revenueBreakdownScope("?")})${andPrefixed(r.clause)}`,
+       FROM transfers WHERE (${revenueBreakdownScope("?")})${andPrefixed(
+         r.clause,
+       )}`,
     args,
   ))!;
   const grossSales = Number(row.gross_sales);
@@ -373,7 +387,8 @@ export const listingRevenueBreakdown = async (
  * this no longer joins or scans the attendee rows. */
 export const LISTING_COUNT_SELECT = `SELECT listing.*, listing.booked_quantity AS attendee_count,
        ${listingMoneySubqueries("listing.id")},
-       ${listingDayPricesSubquery("listing.id")}
+       ${listingDayPricesSubquery("listing.id")},
+       ${listingImageSubqueries("listing.id")}
      FROM listings AS listing`;
 
 /** GROUP BY clause that pairs with {@link LISTING_COUNT_SELECT}. Empty now that
@@ -516,6 +531,9 @@ const listingsEntity = cachedEntityTable<
     // rawTable.update touches nothing and can't invalidate on its own, so the
     // day_count write here is what keeps a warmed getListingWithCount current.
     { table: "listing_prices" },
+    // First-class image filenames are projected through image_uses/images.
+    { table: "image_uses" },
+    { table: "images" },
   ],
 );
 const listingsCache = listingsEntity.cache;
@@ -539,6 +557,8 @@ const withDayPrices = async (
 ): Promise<Listing> => ({
   ...row,
   day_prices: provided ?? (await getListingDayPrices(row.id)),
+  image_thumb_url: row.image_thumb_url ?? "",
+  image_url: row.image_url ?? "",
 });
 export const listingsTable: typeof rawTable = {
   ...rawTable,
@@ -621,6 +641,7 @@ export const deleteListing = async (listingId: number): Promise<void> => {
     // Drop any site-page membership edges so no page is left with a dangling
     // "(missing)" row pointing at this deleted listing.
     clearItemEdgesStatement("listing", listingId),
+    clearImageUsesForItemStatement("listing", listingId),
     { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
     // The generalised price rows have no cascading FK, so drop them with the
     // listing rather than leaving orphaned base/day_count rows behind.
@@ -973,7 +994,9 @@ export const getListingWithAttendeesRaw = async (
   const [listingResult, attendeesResult] = await queryBatch([
     {
       args: [id],
-      sql: `SELECT listings.*, ${listingMoneySubqueries("listings.id")}, ${listingDayPricesSubquery("listings.id")} FROM listings WHERE id = ?`,
+      sql: `SELECT listings.*, ${listingMoneySubqueries("listings.id")}, ${listingDayPricesSubquery(
+        "listings.id",
+      )}, ${listingImageSubqueries("listings.id")} FROM listings WHERE id = ?`,
     },
     {
       args: [id],
@@ -1116,7 +1139,9 @@ export const getListingWithAttendeeRaw = async (
   const [listingResult, attendeeResult] = await queryBatch([
     {
       args: [listingId],
-      sql: `SELECT listings.*, ${listingMoneySubqueries("listings.id")}, ${listingDayPricesSubquery("listings.id")} FROM listings WHERE id = ?`,
+      sql: `SELECT listings.*, ${listingMoneySubqueries("listings.id")}, ${listingDayPricesSubquery(
+        "listings.id",
+      )}, ${listingImageSubqueries("listings.id")} FROM listings WHERE id = ?`,
     },
     {
       args: [attendeeId],

@@ -18,15 +18,8 @@
   --color-text-secondary: #999;
   --color-scrollbar: #cacae8;
   --font-family:
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    Oxygen-Sans,
-    Ubuntu,
-    Cantarell,
-    "Helvetica Neue",
-    sans-serif;
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu,
+    Cantarell, "Helvetica Neue", sans-serif;
   --hover-brightness: 1.2;
   --justify-important: left;
   --justify-normal: left;
@@ -415,7 +408,10 @@ nav ul li {
 
   /* ...with margins re-creating the inter-block gap, since a real row-gap would
      be multiplied across the 9999 spanned (empty) rows. */
-  body:has(.admin-nav-group) main > :not(.admin-nav-group) ~ :not(.admin-nav-group) {
+  body:has(.admin-nav-group)
+    main
+    > :not(.admin-nav-group)
+    ~ :not(.admin-nav-group) {
     margin-top: var(--space-xl);
   }
 
@@ -1212,18 +1208,10 @@ table input {
    below is what actually distinguishes them. Add a kind here (and to the
    matching TS union) rather than hand-setting a width on a one-off column. */
 $column-kinds: (
-  "reorder": (
-    "align": center,
-  ),
-  "amount": (
-    "align": right,
-  ),
-  "quantity": (
-    "align": right,
-  ),
-  "actions": (
-    "align": right,
-  ),
+  "reorder": ("align": center),
+  "amount": ("align": right),
+  "quantity": ("align": right),
+  "actions": ("align": right),
 );
 
 @each $kind, $spec in $column-kinds {
@@ -1742,14 +1730,17 @@ label.terms-agree {
 
 // Reveal $target only while the checkbox named $name is ticked.
 @mixin reveal-when-checked($name, $target) {
-  @include hidden-in-form(':not(:has(input[name="#{$name}"]:checked))', $target);
+  @include hidden-in-form(
+    ':not(:has(input[name="#{$name}"]:checked))',
+    $target,
+  );
 }
 
 // Reveal $target only while the <select> named $name has $value chosen.
 @mixin reveal-when-selected($name, $value, $target) {
   @include hidden-in-form(
     ':not(:has(select[name="#{$name}"] option[value="#{$value}"]:checked))',
-    $target
+    $target,
   );
 }
 
@@ -1757,7 +1748,7 @@ label.terms-agree {
 @mixin hidden-when-selected($name, $value, $target) {
   @include hidden-in-form(
     ':has(select[name="#{$name}"] option[value="#{$value}"]:checked)',
-    $target
+    $target,
   );
 }
 
@@ -1768,8 +1759,8 @@ label.terms-agree {
 // snake-case form field name.
 @mixin hide-when-using-defaults($class, $field) {
   @include hidden-in-form(
-    '.listing-form--default-#{$class}:has(#use-defaults:checked)',
-    'label:has([name="#{$field}"])'
+    ".listing-form--default-#{$class}:has(#use-defaults:checked)",
+    'label:has([name="#{$field}"])',
   );
 }
 
@@ -1778,7 +1769,7 @@ label.terms-agree {
 @include hidden-when-selected(
   "listing_type",
   "standard",
-  ".listing-section--daily"
+  ".listing-section--daily",
 );
 
 // Booking duration applies to daily listings, or any listing using customisable
@@ -1786,14 +1777,14 @@ label.terms-agree {
 // only for a standard listing without customisable days.
 @include hidden-in-form(
   ':has(select[name="listing_type"] option[value="standard"]:checked):not(:has(input[name="customisable_days"]:checked))',
-  'label:has([name="duration_days"])'
+  'label:has([name="duration_days"])',
 );
 
 // Hide the listing date field for daily listings (dates are chosen per booking).
 @include hidden-when-selected(
   "listing_type",
   "daily",
-  'label:has([name="date_date"])'
+  'label:has([name="date_date"])',
 );
 
 // Day prices only apply when "Customisable Days" is enabled; revealed in place
@@ -1813,19 +1804,25 @@ form.listing-form--templated:not(:has(#customise-listing:checked)) {
   }
 }
 
-form.listing-form--templated.listing-form--hide-type:not(:has(#customise-listing:checked)) {
+form.listing-form--templated.listing-form--hide-type:not(
+  :has(#customise-listing:checked)
+) {
   label:has(select[name="listing_type"]) {
     display: none;
   }
 }
 
-form.listing-form--templated.listing-form--hide-date:not(:has(#customise-listing:checked)) {
+form.listing-form--templated.listing-form--hide-date:not(
+  :has(#customise-listing:checked)
+) {
   label:has([name="date_date"]) {
     display: none;
   }
 }
 
-form.listing-form--templated.listing-form--no-daily:not(:has(#customise-listing:checked)) {
+form.listing-form--templated.listing-form--no-daily:not(
+  :has(#customise-listing:checked)
+) {
   label:has([name="customisable_days"]),
   #day-prices {
     display: none;
@@ -1857,13 +1854,13 @@ form.listing-form--templated.listing-form--no-daily:not(:has(#customise-listing:
 @include reveal-when-checked("is_package", ".package-prices");
 @include reveal-when-checked(
   "is_package",
-  'label:has(input[name="hide_package_listings"])'
+  'label:has(input[name="hide_package_listings"])',
 );
 
 // Hide the reservation amount field unless "This is a reservation" is checked.
 @include reveal-when-checked(
   "is_reservation",
-  '> label:has([name="reservation_amount"])'
+  '> label:has([name="reservation_amount"])',
 );
 
 // The promo-code field only applies to a promo-code-triggered modifier, so it is
@@ -1915,6 +1912,35 @@ form.listing-form--templated.listing-form--no-daily:not(:has(#customise-listing:
 .listing-image-preview {
   max-width: 300px;
   border-radius: 4px;
+}
+
+.image-library-thumb {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 4px;
+  object-fit: cover;
+  vertical-align: middle;
+}
+
+.image-library-preview .image-library-thumb {
+  width: min(100%, 18rem);
+  height: auto;
+  aspect-ratio: 4 / 3;
+}
+
+.image-picker-checkboxes label {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--space-xs);
+}
+
+.image-picker-checkboxes label input {
+  margin-right: 0;
+}
+
+.image-picker-checkboxes .image-library-thumb {
+  width: 2.5rem;
+  height: 2.5rem;
 }
 
 /* Listing type picker */

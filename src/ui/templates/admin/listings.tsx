@@ -95,7 +95,6 @@ import {
   getAddAttendeeFields,
   getAssignBuiltSiteField,
   getAttachmentField,
-  getImageField,
   getInitialSiteMonthsField,
   getListingFields,
   getMonthsPerUnitField,
@@ -105,7 +104,6 @@ import {
   VALID_DAY_NAMES,
 } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
-import { renderListingImage } from "#templates/public.tsx";
 
 /** Date option for the date filter dropdown */
 export type DateOption = { value: string; label: string };
@@ -2130,7 +2128,6 @@ const ListingFormSections = ({
   selectedGroupIds,
   dayPricesListing,
   durationWarning,
-  imagePreview,
   advancedOpen,
   childOfNote = "",
   customiseOpen,
@@ -2146,8 +2143,6 @@ const ListingFormSections = ({
   dayPricesListing?: ListingWithCount;
   /** Pre-rendered edit-only duration-change warning ("" on create/duplicate). */
   durationWarning: string;
-  /** Pre-rendered edit-only current-image preview ("" otherwise). */
-  imagePreview: string;
   advancedOpen: boolean;
   /** Inline "inherited from the parent" note shown on the date/duration sections
    * when the listing is itself a child ("" otherwise — e.g. on create). */
@@ -2205,7 +2200,6 @@ const ListingFormSections = ({
         <legend>{t("listings_table.basics")}</legend>
         <div class="stack">
           <Raw html={sec(BASICS_FIELDS)} />
-          {imagePreview && <Raw html={imagePreview} />}
           <ListingGroupSelect
             groups={groups}
             selectedGroupIds={selectedGroupIds}
@@ -2289,7 +2283,7 @@ export const adminListingNewPage = (
           getAssignBuiltSiteField(),
         ]
       : []),
-    ...(storageEnabled ? [getImageField(), getAttachmentField()] : []),
+    ...(storageEnabled ? [getAttachmentField()] : []),
   ];
   const template = LISTING_TEMPLATES.find((t) => t.id === templateId) ?? null;
   const seeds = templateId ? (TEMPLATE_SEEDS[templateId] ?? {}) : {};
@@ -2336,7 +2330,6 @@ export const adminListingNewPage = (
           durationWarning=""
           fields={fields}
           groups={groups}
-          imagePreview=""
           isTemplated={!!template}
           selectedGroupIds={selectedGroupIds}
           showUseDefaults={showUseDefaults}
@@ -2374,7 +2367,7 @@ export const adminDuplicateListingPage = (
           getAssignBuiltSiteField(),
         ]
       : []),
-    ...(storageEnabled ? [getImageField(), getAttachmentField()] : []),
+    ...(storageEnabled ? [getAttachmentField()] : []),
   ];
   const template = inferTemplate(listing);
   const defaults = settings.listingDefaults;
@@ -2412,7 +2405,6 @@ export const adminDuplicateListingPage = (
           durationWarning=""
           fields={dupFields}
           groups={groups}
-          imagePreview=""
           isTemplated={!!template}
           selectedGroupIds={selectedGroupIds}
           showUseDefaults={showUseDefaults}
@@ -2574,13 +2566,9 @@ export const ListingEditPanel = ({
           getAssignBuiltSiteField(),
         ]
       : []),
-    ...(storageEnabled ? [getImageField(), getAttachmentField()] : []),
+    ...(storageEnabled ? [getAttachmentField()] : []),
     getSlugField(),
   ];
-  const imagePreview =
-    storageEnabled && listing.image_url
-      ? renderListingImage(listing, "listing-image-full")
-      : "";
   const durationWarning = String(<DurationWarning listing={listing} />);
   const template = inferTemplate(listing);
   const defaults = settings.listingDefaults;
@@ -2629,7 +2617,6 @@ export const ListingEditPanel = ({
           durationWarning={durationWarning}
           fields={fields}
           groups={groups}
-          imagePreview={imagePreview}
           isTemplated={!!template}
           selectedGroupIds={selectedGroupIds}
           showUseDefaults={showUseDefaults}
@@ -2646,13 +2633,6 @@ export const ListingEditPanel = ({
         </SubmitButton>
       </CsrfForm>
       <ListingIncomeAdjustSection listing={listing} show={showFinancials} />
-      {storageEnabled && listing.image_url && (
-        <CsrfForm action={`/admin/listing/${listing.id}/image/delete`}>
-          <SubmitButton class="secondary" icon="trash-2">
-            {t("listings_table.remove_image")}
-          </SubmitButton>
-        </CsrfForm>
-      )}
       {storageEnabled && listing.attachment_name && (
         <div class="attachment-info">
           <p>

@@ -206,7 +206,7 @@ const memberDayOverrideError = (
 };
 
 /** Project a validated listing blob onto a `ListingInput`, minting a fresh slug
- * and clearing the (non-transferred) image/attachment columns. Optional fields
+ * and clearing the non-transferred attachment columns. Optional fields
  * pass through untouched so the table applies its own column defaults. */
 const listingDataToInput = (
   data: ListingData,
@@ -224,8 +224,6 @@ const listingDataToInput = (
     closesAt: closesAt === null ? undefined : closesAt,
     dayPrices: dayPrices === undefined ? undefined : parseDayPrices(dayPrices),
     groupIds,
-    imageThumbUrl: "",
-    imageUrl: "",
     slug,
     slugIndex,
   } as ListingInput;

@@ -287,8 +287,6 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
       createdRedirect,
       t("success.listing_created"),
       undefined,
-      undefined,
-      undefined,
       childWarning,
     );
   });
@@ -437,8 +435,6 @@ const handleListingEditSuccess = async (
     id,
     listingReturnPath(session.adminLevel, row.id),
     `Listing updated${durationWarning}`,
-    existing.image_url,
-    existing.image_thumb_url,
     existing.attachment_url,
   );
 };

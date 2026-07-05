@@ -1,7 +1,7 @@
 /**
  * Admin listing management routes — assembled from per-feature modules:
  *   - listings-form.ts        form parsing + create/update resources
- *   - listings-uploads.ts     image/attachment upload + delete handlers
+ *   - listings-uploads.ts     attachment upload + delete handlers
  *   - listings-view.ts        detail page (attendee list + filters)
  *   - listings-export.ts      attendee CSV export
  *   - listings-edit.ts        create / duplicate / edit
@@ -10,6 +10,8 @@
  */
 
 import { defineRoutes } from "#routes/router.ts";
+import { getListingWithCount } from "#shared/db/listings.ts";
+import { createItemImageHandlers } from "./item-images.ts";
 import { listingPage } from "./listing-page.ts";
 import {
   handleAdminListingDuplicateGet,
@@ -34,6 +36,13 @@ import {
   handleAttachmentDelete,
   handleImageDelete,
 } from "./listings-uploads.ts";
+
+const listingImageHandlers = createItemImageHandlers({
+  itemType: "listing",
+  load: getListingWithCount,
+  nameOf: (listing) => listing.name,
+  path: (id) => `/admin/listing/${id}/images`,
+});
 
 /** Listing routes.
  *
@@ -64,6 +73,8 @@ export const listingsRoutes = {
     "POST /admin/listing/:id/delete": handleAdminListingDelete,
     "POST /admin/listing/:id/edit": handleAdminListingEditPost,
     "POST /admin/listing/:id/image/delete": handleImageDelete,
+    "POST /admin/listing/:id/images": listingImageHandlers.set,
+    "POST /admin/listing/:id/images/upload": listingImageHandlers.upload,
     "POST /admin/listing/:id/income": handleAdminListingIncomePost,
     "POST /admin/listings/recalculate/:listingId": handleListingRecalculatePost,
   }),

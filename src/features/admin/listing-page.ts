@@ -34,6 +34,7 @@ import {
   loadListingActivityPreview,
   loadListingEditPanel,
   loadListingForPage,
+  loadListingImagesPanel,
   loadListingOverviewPanel,
   loadListingQrPanel,
   loadListingQuestionsPanel,
@@ -161,6 +162,12 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       // global guard redirects the edit route to /read-only. Hide the tab then
       // rather than render a link that immediately bounces (and so an editor's
       // bare-URL default can't resolve onto an un-editable form).
+      visible: () => !isReadOnly(),
+    },
+    {
+      labelKey: "entity.tab.images",
+      sections: [{ kind: "custom", load: loadListingImagesPanel }],
+      slug: "images",
       visible: () => !isReadOnly(),
     },
     {

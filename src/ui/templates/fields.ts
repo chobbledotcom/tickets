@@ -16,7 +16,6 @@ import { type Field, validateForm } from "#shared/forms.tsx";
 import {
   formatBytes,
   MAX_ATTACHMENT_SIZE,
-  MAX_IMAGE_SIZE,
   MAX_TEXTAREA_LENGTH,
 } from "#shared/limits.ts";
 import {
@@ -731,14 +730,6 @@ export const getAssignBuiltSiteField = (): Field => ({
   name: "assign_built_site",
   options: [{ label: t("fields.listing.assign_built_site_label"), value: "1" }],
   type: "checkbox-group",
-});
-
-/** Image upload field for listing forms (appended when storage is enabled) */
-export const getImageField = (): Field => ({
-  accept: "image/jpeg,image/png,image/gif,image/webp",
-  label: t("fields.listing.image", { size: formatBytes(MAX_IMAGE_SIZE) }),
-  name: "image",
-  type: "file",
 });
 
 /** Attachment upload field for listing forms (appended when storage is enabled) */

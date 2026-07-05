@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { imagesTable } from "#shared/db/images.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
@@ -172,7 +173,11 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
       await listingsTable.update(listing.id, {
         attachmentName: "doc.pdf",
         attachmentUrl: "reset-attachment.pdf",
-        imageUrl: "reset-image.jpg",
+      });
+      await imagesTable.insert({
+        filename: "reset-image.jpg",
+        filenameThumb: "",
+        name: "Reset image",
       });
 
       await runWithStorageConfig(TEST_STORAGE_ZONE, () =>
